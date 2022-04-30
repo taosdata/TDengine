@@ -1037,6 +1037,9 @@ static int32_t createFillPhysiNode(SPhysiPlanContext* pCxt, SNodeList* pChildren
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pFill->mode = pFillNode->mode;
+  pFill->timeRange = pFillNode->timeRange;
+
   SDataBlockDescNode* pChildTupe = (((SPhysiNode*)nodesListGetNode(pChildren, 0))->pOutputDataBlockDesc);
   int32_t code = setListSlotId(pCxt, pChildTupe->dataBlockId, -1, pFillNode->node.pTargets, &pFill->pTargets);
   if (TSDB_CODE_SUCCESS == code) {

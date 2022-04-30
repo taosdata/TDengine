@@ -17,6 +17,7 @@
 
 #include "catalog.h"
 #include "cmdnodes.h"
+#include "filter.h"
 #include "functionMgt.h"
 #include "parUtil.h"
 #include "scalar.h"
@@ -468,19 +469,19 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         pVal->datum.b = (0 == strcasecmp(pVal->literal, "true"));
         *(bool*)&pVal->typeData = pVal->datum.b;
         break;
-      case TSDB_DATA_TYPE_TINYINT:{
+      case TSDB_DATA_TYPE_TINYINT: {
         char* endPtr = NULL;
         pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
         *(int8_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
-      case TSDB_DATA_TYPE_SMALLINT:{
+      case TSDB_DATA_TYPE_SMALLINT: {
         char* endPtr = NULL;
         pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
         *(int16_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
-      case TSDB_DATA_TYPE_INT:{
+      case TSDB_DATA_TYPE_INT: {
         char* endPtr = NULL;
         pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
         *(int32_t*)&pVal->typeData = pVal->datum.i;
@@ -489,43 +490,43 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
       case TSDB_DATA_TYPE_BIGINT: {
         char* endPtr = NULL;
         pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
-        *(int64_t*)&pVal->typeData = pVal->datum.i;        
+        *(int64_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
-      case TSDB_DATA_TYPE_UTINYINT:{
+      case TSDB_DATA_TYPE_UTINYINT: {
         char* endPtr = NULL;
         pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
-        *(uint8_t*)&pVal->typeData = pVal->datum.u;        
+        *(uint8_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
-      case TSDB_DATA_TYPE_USMALLINT:{
+      case TSDB_DATA_TYPE_USMALLINT: {
         char* endPtr = NULL;
         pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
-        *(uint16_t*)&pVal->typeData = pVal->datum.u;        
+        *(uint16_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
-      case TSDB_DATA_TYPE_UINT:{
+      case TSDB_DATA_TYPE_UINT: {
         char* endPtr = NULL;
         pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
-        *(uint32_t*)&pVal->typeData = pVal->datum.u;        
+        *(uint32_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_UBIGINT: {
         char* endPtr = NULL;
         pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
-        *(uint64_t*)&pVal->typeData = pVal->datum.u;                
+        *(uint64_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
-      case TSDB_DATA_TYPE_FLOAT:{
+      case TSDB_DATA_TYPE_FLOAT: {
         char* endPtr = NULL;
         pVal->datum.d = strtold(pVal->literal, &endPtr);
-        *(float*)&pVal->typeData = pVal->datum.d;     
+        *(float*)&pVal->typeData = pVal->datum.d;
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
         char* endPtr = NULL;
         pVal->datum.d = strtold(pVal->literal, &endPtr);
-        *(double*)&pVal->typeData = pVal->datum.d;     
+        *(double*)&pVal->typeData = pVal->datum.d;
         break;
       }
       case TSDB_DATA_TYPE_VARCHAR:
@@ -543,7 +544,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
             TSDB_CODE_SUCCESS) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
-        *(int64_t*)&pVal->typeData = pVal->datum.i;        
+        *(int64_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_NCHAR:
@@ -1244,6 +1245,113 @@ static int32_t translateGroupBy(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes isPrimaryKeyCondImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *((bool*)pContext) = ((PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pNode)->colId) ? true : false);
+    return *((bool*)pContext) ? DEAL_RES_CONTINUE : DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool isPrimaryKeyCond(SNode* pNode) {
+  bool isPrimaryKeyCond = false;
+  nodesWalkExpr(pNode, isPrimaryKeyCondImpl, &isPrimaryKeyCond);
+  return isPrimaryKeyCond;
+}
+
+static int32_t getTimeRangeFromLogicCond(STranslateContext* pCxt, SLogicConditionNode* pLogicCond,
+                                         STimeWindow* pTimeRange) {
+  SNodeList* pPrimaryKeyConds = NULL;
+  SNode*     pCond = NULL;
+  FOREACH(pCond, pLogicCond->pParameterList) {
+    if (isPrimaryKeyCond(pCond)) {
+      if (TSDB_CODE_SUCCESS != nodesListMakeAppend(&pPrimaryKeyConds, pCond)) {
+        nodesClearList(pPrimaryKeyConds);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+    }
+  }
+
+  if (NULL == pPrimaryKeyConds) {
+    *pTimeRange = TSWINDOW_INITIALIZER;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SLogicConditionNode* pPrimaryKeyLogicCond = nodesMakeNode(QUERY_NODE_LOGIC_CONDITION);
+  if (NULL == pPrimaryKeyLogicCond) {
+    nodesClearList(pPrimaryKeyConds);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pPrimaryKeyLogicCond->condType = LOGIC_COND_TYPE_AND;
+  pPrimaryKeyLogicCond->pParameterList = pPrimaryKeyConds;
+  bool    isStrict = false;
+  int32_t code = filterGetTimeRange((SNode*)pPrimaryKeyLogicCond, pTimeRange, &isStrict);
+  nodesClearList(pPrimaryKeyConds);
+  pPrimaryKeyLogicCond->pParameterList = NULL;
+  nodesDestroyNode(pPrimaryKeyLogicCond);
+  return code;
+}
+
+static int32_t getTimeRange(STranslateContext* pCxt, SNode* pWhere, STimeWindow* pTimeRange) {
+  if (NULL == pWhere) {
+    *pTimeRange = TSWINDOW_INITIALIZER;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pWhere) &&
+      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pWhere)->condType) {
+    return getTimeRangeFromLogicCond(pCxt, (SLogicConditionNode*)pWhere, pTimeRange);
+  }
+
+  if (isPrimaryKeyCond(pWhere)) {
+    bool isStrict = false;
+    return filterGetTimeRange(pWhere, pTimeRange, &isStrict);
+  } else {
+    *pTimeRange = TSWINDOW_INITIALIZER;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkFill(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
+  SFillNode* pFill = (SFillNode*)pInterval->pFill;
+  if (TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_INITIALIZER) ||
+      TSWINDOW_IS_EQUAL(pFill->timeRange, TSWINDOW_DESC_INITIALIZER)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  }
+
+  int64_t     timeRange = TABS(pFill->timeRange.skey - pFill->timeRange.ekey);
+  int64_t     intervalRange = 0;
+  SValueNode* pInter = (SValueNode*)pInterval->pInterval;
+  if (TIME_IS_VAR_DURATION(pInter->unit)) {
+    int64_t f = 1;
+    if (pInter->unit == 'n') {
+      f = 30L * MILLISECOND_PER_DAY;
+    } else if (pInter->unit == 'y') {
+      f = 365L * MILLISECOND_PER_DAY;
+    }
+    intervalRange = pInter->datum.i * f;
+  } else {
+    intervalRange = pInter->datum.i;
+  }
+  if ((timeRange == 0) || (timeRange / intervalRange) >= MAX_INTERVAL_TIME_WINDOW) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateFill(STranslateContext* pCxt, SNode* pWhere, SIntervalWindowNode* pInterval) {
+  if (NULL == pInterval->pFill) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int32_t code = getTimeRange(pCxt, pWhere, &(((SFillNode*)pInterval->pFill)->timeRange));
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkFill(pCxt, pInterval);
+  }
+  return code;
+}
+
 static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char unit) {
   int64_t days = convertTimeFromPrecisionToUnit(val, fromPrecision, 'd');
   switch (unit) {
@@ -1266,7 +1374,7 @@ static int64_t getMonthsFromTimeVal(int64_t val, int32_t fromPrecision, char uni
   return -1;
 }
 
-static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode* pInterval) {
+static int32_t checkIntervalWindow(STranslateContext* pCxt, SNode* pWhere, SIntervalWindowNode* pInterval) {
   uint8_t precision = ((SColumnNode*)pInterval->pCol)->node.resType.precision;
 
   SValueNode* pInter = (SValueNode*)pInterval->pInterval;
@@ -1308,7 +1416,7 @@ static int32_t checkIntervalWindow(STranslateContext* pCxt, SIntervalWindowNode*
     }
   }
 
-  return TSDB_CODE_SUCCESS;
+  return translateFill(pCxt, pWhere, pInterval);
 }
 
 static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
@@ -1345,28 +1453,28 @@ static int32_t checkSessionWindow(STranslateContext* pCxt, SSessionWindowNode* p
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkWindow(STranslateContext* pCxt, SNode* pWindow) {
-  switch (nodeType(pWindow)) {
+static int32_t checkWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  switch (nodeType(pSelect->pWindow)) {
     case QUERY_NODE_STATE_WINDOW:
-      return checkStateWindow(pCxt, (SStateWindowNode*)pWindow);
+      return checkStateWindow(pCxt, (SStateWindowNode*)pSelect->pWindow);
     case QUERY_NODE_SESSION_WINDOW:
-      return checkSessionWindow(pCxt, (SSessionWindowNode*)pWindow);
+      return checkSessionWindow(pCxt, (SSessionWindowNode*)pSelect->pWindow);
     case QUERY_NODE_INTERVAL_WINDOW:
-      return checkIntervalWindow(pCxt, (SIntervalWindowNode*)pWindow);
+      return checkIntervalWindow(pCxt, pSelect->pWhere, (SIntervalWindowNode*)pSelect->pWindow);
     default:
       break;
   }
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateWindow(STranslateContext* pCxt, SNode* pWindow) {
-  if (NULL == pWindow) {
+static int32_t translateWindow(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  if (NULL == pSelect->pWindow) {
     return TSDB_CODE_SUCCESS;
   }
   pCxt->currClause = SQL_CLAUSE_WINDOW;
-  int32_t code = translateExpr(pCxt, pWindow);
+  int32_t code = translateExpr(pCxt, pSelect->pWindow);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkWindow(pCxt, pWindow);
+    code = checkWindow(pCxt, pSelect);
   }
   return code;
 }
@@ -1485,7 +1593,7 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
     code = translatePartitionBy(pCxt, pSelect->pPartitionByList);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateWindow(pCxt, pSelect->pWindow);
+    code = translateWindow(pCxt, pSelect);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translateGroupBy(pCxt, pSelect);

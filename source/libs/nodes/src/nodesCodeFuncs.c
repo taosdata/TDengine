@@ -571,6 +571,8 @@ static int32_t jsonToLogicProjectNode(const SJson* pJson, void* pObj) {
 static const char* jkFillLogicPlanMode = "Mode";
 static const char* jkFillLogicPlanWStartTs = "WStartTs";
 static const char* jkFillLogicPlanValues = "Values";
+static const char* jkFillLogicPlanStartTime = "StartTime";
+static const char* jkFillLogicPlanEndTime = "EndTime";
 
 static int32_t logicFillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillLogicNode* pNode = (const SFillLogicNode*)pObj;
@@ -584,6 +586,12 @@ static int32_t logicFillNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkFillLogicPlanValues, nodeToJson, pNode->pValues);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFillLogicPlanStartTime, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFillLogicPlanEndTime, pNode->timeRange.ekey);
   }
 
   return code;
@@ -601,6 +609,12 @@ static int32_t jsonToLogicFillNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkFillLogicPlanValues, &pNode->pValues);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkFillLogicPlanStartTime, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkFillLogicPlanEndTime, &pNode->timeRange.ekey);
   }
 
   return code;
@@ -1475,6 +1489,8 @@ static const char* jkFillPhysiPlanMode = "Mode";
 static const char* jkFillPhysiPlanWStartTs = "WStartTs";
 static const char* jkFillPhysiPlanValues = "Values";
 static const char* jkFillPhysiPlanTargets = "Targets";
+static const char* jkFillPhysiPlanStartTime = "StartTime";
+static const char* jkFillPhysiPlanEndTime = "EndTime";
 
 static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillPhysiNode* pNode = (const SFillPhysiNode*)pObj;
@@ -1491,6 +1507,12 @@ static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = nodeListToJson(pJson, jkFillPhysiPlanTargets, pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFillPhysiPlanStartTime, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFillPhysiPlanEndTime, pNode->timeRange.ekey);
   }
 
   return code;
@@ -1511,6 +1533,12 @@ static int32_t jsonToPhysiFillNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeList(pJson, jkFillPhysiPlanTargets, &pNode->pTargets);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkFillPhysiPlanStartTime, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkFillPhysiPlanEndTime, &pNode->timeRange.ekey);
   }
 
   return code;
@@ -2409,6 +2437,8 @@ static int32_t jsonToNodeListNode(const SJson* pJson, void* pObj) {
 static const char* jkFillMode = "Mode";
 static const char* jkFillValues = "Values";
 static const char* jkFillWStartTs = "WStartTs";
+static const char* jkFillStartTime = "StartTime";
+static const char* jkFillEndTime = "EndTime";
 
 static int32_t fillNodeToJson(const void* pObj, SJson* pJson) {
   const SFillNode* pNode = (const SFillNode*)pObj;
@@ -2419,6 +2449,12 @@ static int32_t fillNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkFillWStartTs, nodeToJson, pNode->pWStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFillStartTime, pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkFillEndTime, pNode->timeRange.ekey);
   }
 
   return code;
@@ -2433,6 +2469,12 @@ static int32_t jsonToFillNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkFillWStartTs, &pNode->pWStartTs);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkFillStartTime, &pNode->timeRange.skey);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetBigIntValue(pJson, jkFillEndTime, &pNode->timeRange.ekey);
   }
 
   return code;

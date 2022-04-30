@@ -209,10 +209,11 @@ typedef enum EFillMode {
 } EFillMode;
 
 typedef struct SFillNode {
-  ENodeType type;  // QUERY_NODE_FILL
-  EFillMode mode;
-  SNode*    pValues;    // SNodeListNode
-  SNode*    pWStartTs;  // _wstartts pseudo column
+  ENodeType   type;  // QUERY_NODE_FILL
+  EFillMode   mode;
+  SNode*      pValues;    // SNodeListNode
+  SNode*      pWStartTs;  // _wstartts pseudo column
+  STimeWindow timeRange;
 } SFillNode;
 
 typedef struct SSelectStmt {

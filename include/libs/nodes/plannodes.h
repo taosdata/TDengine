@@ -110,10 +110,11 @@ typedef struct SWindowLogicNode {
 } SWindowLogicNode;
 
 typedef struct SFillLogicNode {
-  SLogicNode node;
-  EFillMode  mode;
-  SNode*     pWStartTs;
-  SNode*     pValues;  // SNodeListNode
+  SLogicNode  node;
+  EFillMode   mode;
+  SNode*      pWStartTs;
+  SNode*      pValues;  // SNodeListNode
+  STimeWindow timeRange;
 } SFillLogicNode;
 
 typedef struct SSortLogicNode {
@@ -274,11 +275,12 @@ typedef struct SIntervalPhysiNode {
 } SIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
-  SPhysiNode node;
-  EFillMode  mode;
-  SNode*     pWStartTs;  // SColumnNode
-  SNode*     pValues;    // SNodeListNode
-  SNodeList* pTargets;
+  SPhysiNode  node;
+  EFillMode   mode;
+  SNode*      pWStartTs;  // SColumnNode
+  SNode*      pValues;    // SNodeListNode
+  SNodeList*  pTargets;
+  STimeWindow timeRange;
 } SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {

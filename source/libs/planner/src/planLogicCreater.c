@@ -597,6 +597,7 @@ static int32_t createFillLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   int32_t code = nodesCollectColumns(pSelect, SQL_CLAUSE_WINDOW, NULL, COLLECT_COL_TYPE_ALL, &pFill->node.pTargets);
 
   pFill->mode = pFillNode->mode;
+  pFill->timeRange = pFillNode->timeRange;
   pFill->pValues = nodesCloneNode(pFillNode->pValues);
   pFill->pWStartTs = nodesCloneNode(pFillNode->pWStartTs);
   if ((NULL != pFillNode->pValues && NULL == pFill->pValues) || NULL == pFill->pWStartTs) {
