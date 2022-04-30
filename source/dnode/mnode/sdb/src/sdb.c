@@ -28,12 +28,12 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     return NULL;
   }
 
-  char path[PATH_MAX + 100];
-  snprintf(path, PATH_MAX + 100, "%s%sdata", pOption->path, TD_DIRSEP);
+  char path[PATH_MAX + 100] = {0};
+  snprintf(path, sizeof(path), "%s%sdata", pOption->path, TD_DIRSEP);
   pSdb->currDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%ssync", pOption->path, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%ssync", pOption->path, TD_DIRSEP);
   pSdb->syncDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%stmp", pOption->path, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = strdup(path);
   if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
     sdbCleanup(pSdb);
@@ -50,7 +50,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
     taosInitRWLatch(&pSdb->locks[i]);
     pSdb->maxId[i] = 0;
-    pSdb->tableVer[i] = -1;
+    pSdb->tableVer[i] = 0;
     pSdb->keyTypes[i] = SDB_KEY_INT32;
   }
 
@@ -99,7 +99,7 @@ void sdbCleanup(SSdb *pSdb) {
     taosHashClear(hash);
     taosHashCleanup(hash);
     pSdb->hashObjs[i] = NULL;
-    mDebug("sdb table:%d is cleaned up", i);
+    mDebug("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
   taosMemoryFree(pSdb);
@@ -141,7 +141,7 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 }
 
 static int32_t sdbCreateDir(SSdb *pSdb) {
-  if (taosMkDir(pSdb->currDir) != 0) {
+  if (taosMulMkDir(pSdb->currDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
     return -1;

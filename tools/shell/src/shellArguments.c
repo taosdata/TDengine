@@ -99,6 +99,7 @@ static int32_t shellParseSingleOpt(int32_t key, char *arg) {
       break;
     case 'P':
       pArgs->port = atoi(arg);
+      if (pArgs->port == 0) pArgs->port = -1;
       break;
     case 'u':
       pArgs->user = arg;
@@ -301,6 +302,11 @@ static int32_t shellCheckArgs() {
 
   if (pArgs->password != NULL && (strlen(pArgs->password) <= 0)) {
     printf("Invalid password\n");
+    return -1;
+  }
+
+  if (pArgs->port < 0 || pArgs->port > 65535) {
+    printf("Invalid port\n");
     return -1;
   }
 

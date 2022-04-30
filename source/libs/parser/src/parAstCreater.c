@@ -21,7 +21,7 @@
 #define CHECK_OUT_OF_MEM(p)                                                      \
   do {                                                                           \
     if (NULL == (p)) {                                                           \
-      pCxt->valid = false;                                                       \
+      pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;                                   \
       snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "Out of memory"); \
       return NULL;                                                               \
     }                                                                            \
@@ -30,7 +30,7 @@
 #define CHECK_RAW_EXPR_NODE(node)                                  \
   do {                                                             \
     if (NULL == (node) || QUERY_NODE_RAW_EXPR != nodeType(node)) { \
-      pCxt->valid = false;                                         \
+      pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;                  \
       return NULL;                                                 \
     }                                                              \
   } while (0)
@@ -42,9 +42,15 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->msgBuf.buf = pParseCxt->pMsg;
   pCxt->msgBuf.len = pParseCxt->msgLen;
   pCxt->notSupport = false;
-  pCxt->valid = true;
   pCxt->pRootNode = NULL;
-  pCxt->placeholderNo = 1;
+  pCxt->placeholderNo = 0;
+  pCxt->errCode = TSDB_CODE_SUCCESS;
+}
+
+static void copyStringFormStringToken(SToken* pToken, char* pBuf, int32_t len) {
+  if (pToken->n > 2) {
+    strncpy(pBuf, pToken->z + 1, TMIN(pToken->n - 2, len - 1));
+  }
 }
 
 static void trimEscape(SToken* pName) {
@@ -57,42 +63,38 @@ static void trimEscape(SToken* pName) {
 
 static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
   if (NULL == pUserName) {
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else {
     if (pUserName->n >= TSDB_USER_LEN) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-      pCxt->valid = false;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     }
   }
-  if (pCxt->valid) {
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     trimEscape(pUserName);
   }
-  return pCxt->valid;
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
 static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
   if (NULL == pPasswordToken) {
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN - 2)) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-    pCxt->valid = false;
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
     strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
-      pCxt->valid = false;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
     }
   }
-  return pCxt->valid;
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
 static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, char* pFqdn, int32_t* pPort) {
   if (NULL == pEp) {
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else if (pEp->n >= TSDB_FQDN_LEN + 2 + 6) {  // format 'fqdn:port'
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-    pCxt->valid = false;
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
     char ep[TSDB_FQDN_LEN + 2 + 6];
     strncpy(ep, pEp->z, pEp->n);
@@ -100,66 +102,59 @@ static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, ch
     strtrim(ep);
     char* pColon = strchr(ep, ':');
     if (NULL == pColon) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
-      pCxt->valid = false;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
     } else {
       strncpy(pFqdn, ep, pColon - ep);
       *pPort = strtol(pColon + 1, NULL, 10);
       if (*pPort >= UINT16_MAX || *pPort <= 0) {
-        generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
-        pCxt->valid = false;
+        pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
       }
     }
   }
-  return pCxt->valid;
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
 static bool checkFqdn(SAstCreateContext* pCxt, const SToken* pFqdn) {
   if (NULL == pFqdn) {
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else {
     if (pFqdn->n >= TSDB_FQDN_LEN) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
-      pCxt->valid = false;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
     }
   }
-  return pCxt->valid;
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
 static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t* pPort) {
   if (NULL == pPortToken) {
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else {
     *pPort = strtol(pPortToken->z, NULL, 10);
     if (*pPort >= UINT16_MAX || *pPort <= 0) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
-      pCxt->valid = false;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
     }
   }
-  return pCxt->valid;
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
 static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
   if (NULL == pDbName) {
     if (query && NULL == pCxt->pQueryCxt->db) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
-      pCxt->valid = false;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
     }
   } else {
     trimEscape(pDbName);
     if (pDbName->n >= TSDB_DB_NAME_LEN) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
-      pCxt->valid = false;
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pDbName->z);
     }
   }
-  return pCxt->valid;
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
 static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
   trimEscape(pTableName);
   if (NULL != pTableName && pTableName->n >= TSDB_TABLE_NAME_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
-    pCxt->valid = false;
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pTableName->z);
     return false;
   }
   return true;
@@ -168,8 +163,7 @@ static bool checkTableName(SAstCreateContext* pCxt, SToken* pTableName) {
 static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
   trimEscape(pColumnName);
   if (NULL != pColumnName && pColumnName->n >= TSDB_COL_NAME_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
-    pCxt->valid = false;
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pColumnName->z);
     return false;
   }
   return true;
@@ -178,8 +172,7 @@ static bool checkColumnName(SAstCreateContext* pCxt, SToken* pColumnName) {
 static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
   trimEscape(pIndexName);
   if (NULL != pIndexName && pIndexName->n >= TSDB_INDEX_NAME_LEN) {
-    generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pIndexName->z);
-    pCxt->valid = false;
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME, pIndexName->z);
     return false;
   }
   return true;
@@ -218,7 +211,7 @@ SNode* releaseRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 
 SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
   if (NULL == pNode || QUERY_NODE_RAW_EXPR != nodeType(pNode)) {
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return nil_token;
   }
   SRawExprNode* target = (SRawExprNode*)pNode;
@@ -229,16 +222,12 @@ SToken getTokenFromRawExprNode(SAstCreateContext* pCxt, SNode* pNode) {
 SNodeList* createNodeList(SAstCreateContext* pCxt, SNode* pNode) {
   SNodeList* list = nodesMakeList();
   CHECK_OUT_OF_MEM(list);
-  if (TSDB_CODE_SUCCESS != nodesListAppend(list, pNode)) {
-    pCxt->valid = false;
-  }
+  pCxt->errCode = nodesListAppend(list, pNode);
   return list;
 }
 
 SNodeList* addNodeToList(SAstCreateContext* pCxt, SNodeList* pList, SNode* pNode) {
-  if (TSDB_CODE_SUCCESS != nodesListAppend(pList, pNode)) {
-    pCxt->valid = false;
-  }
+  pCxt->errCode = nodesListAppend(pList, pNode);
   return pList;
 }
 
@@ -309,7 +298,7 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   CHECK_OUT_OF_MEM(val);
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
-  val->placeholderNo = pCxt->placeholderNo++;
+  val->placeholderNo = ++pCxt->placeholderNo;
   return (SNode*)val;
 }
 
@@ -374,6 +363,11 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_OUT_OF_MEM(func);
   strcpy(func->functionName, "cast");
   func->node.resType = dt;
+  if (TSDB_DATA_TYPE_BINARY == dt.type) {
+    func->node.resType.bytes += 2;
+  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
+    func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + 2;
+  }
   nodesListMakeAppend(&func->pParameterList, pExpr);
   return (SNode*)func;
 }
@@ -520,7 +514,7 @@ SNode* createGroupingSetNode(SAstCreateContext* pCxt, SNode* pNode) {
 }
 
 SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* pAlias) {
-  if (NULL == pNode || !pCxt->valid) {
+  if (NULL == pNode || TSDB_CODE_SUCCESS != pCxt->errCode) {
     return pNode;
   }
   int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
@@ -592,6 +586,7 @@ SNode* createSelectStmt(SAstCreateContext* pCxt, bool isDistinct, SNodeList* pPr
   select->pProjectionList = pProjectionList;
   select->pFromTable = pTable;
   sprintf(select->stmtName, "%p", select);
+  select->isTimeOrderQuery = true;
   return (SNode*)select;
 }
 
@@ -604,69 +599,129 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   return (SNode*)setOp;
 }
 
-SNode* createDatabaseOptions(SAstCreateContext* pCxt) {
+SNode* createDefaultDatabaseOptions(SAstCreateContext* pCxt) {
   SDatabaseOptions* pOptions = nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
+  pOptions->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
+  pOptions->cachelast = TSDB_DEFAULT_CACHE_LAST_ROW;
+  pOptions->compressionLevel = TSDB_DEFAULT_COMP_LEVEL;
+  pOptions->daysPerFile = TSDB_DEFAULT_DAYS_PER_FILE;
+  pOptions->fsyncPeriod = TSDB_DEFAULT_FSYNC_PERIOD;
+  pOptions->maxRowsPerBlock = TSDB_DEFAULT_MAXROWS_FBLOCK;
+  pOptions->minRowsPerBlock = TSDB_DEFAULT_MINROWS_FBLOCK;
+  pOptions->keep[0] = TSDB_DEFAULT_KEEP;
+  pOptions->keep[1] = TSDB_DEFAULT_KEEP;
+  pOptions->keep[2] = TSDB_DEFAULT_KEEP;
+  pOptions->pages = TSDB_DEFAULT_PAGES_PER_VNODE;
+  pOptions->pagesize = TSDB_DEFAULT_PAGESIZE_PER_VNODE;
+  pOptions->precision = TSDB_DEFAULT_PRECISION;
+  pOptions->replica = TSDB_DEFAULT_DB_REPLICA;
+  pOptions->strict = TSDB_DEFAULT_DB_STRICT;
+  pOptions->walLevel = TSDB_DEFAULT_WAL_LEVEL;
+  pOptions->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
+  pOptions->singleStable = TSDB_DEFAULT_DB_SINGLE_STABLE;
   return (SNode*)pOptions;
 }
 
-SNode* setDatabaseAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
-  switch (pAlterOption->type) {
-    case DB_OPTION_BLOCKS:
-      ((SDatabaseOptions*)pOptions)->pNumOfBlocks = pAlterOption->pVal;
-      break;
-    case DB_OPTION_CACHE:
-      ((SDatabaseOptions*)pOptions)->pCacheBlockSize = pAlterOption->pVal;
+SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
+  SDatabaseOptions* pOptions = nodesMakeNode(QUERY_NODE_DATABASE_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->buffer = -1;
+  pOptions->cachelast = -1;
+  pOptions->compressionLevel = -1;
+  pOptions->daysPerFile = -1;
+  pOptions->fsyncPeriod = -1;
+  pOptions->maxRowsPerBlock = -1;
+  pOptions->minRowsPerBlock = -1;
+  pOptions->keep[0] = -1;
+  pOptions->keep[1] = -1;
+  pOptions->keep[2] = -1;
+  pOptions->pages = -1;
+  pOptions->pagesize = -1;
+  pOptions->precision = -1;
+  pOptions->replica = -1;
+  pOptions->strict = -1;
+  pOptions->walLevel = -1;
+  pOptions->numOfVgroups = -1;
+  pOptions->singleStable = -1;
+  return (SNode*)pOptions;
+}
+
+SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
+  switch (type) {
+    case DB_OPTION_BUFFER:
+      ((SDatabaseOptions*)pOptions)->buffer = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_CACHELAST:
-      ((SDatabaseOptions*)pOptions)->pCachelast = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->cachelast = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_COMP:
-      ((SDatabaseOptions*)pOptions)->pCompressionLevel = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->compressionLevel = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_DAYS:
-      ((SDatabaseOptions*)pOptions)->pDaysPerFile = pAlterOption->pVal;
+    case DB_OPTION_DAYS: {
+      SToken* pToken = pVal;
+      if (TK_NK_INTEGER == pToken->type) {
+        ((SDatabaseOptions*)pOptions)->daysPerFile = strtol(pToken->z, NULL, 10);
+      } else {
+        ((SDatabaseOptions*)pOptions)->pDaysPerFile = (SValueNode*)createDurationValueNode(pCxt, pToken);
+      }
       break;
+    }
     case DB_OPTION_FSYNC:
-      ((SDatabaseOptions*)pOptions)->pFsyncPeriod = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->fsyncPeriod = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_MAXROWS:
-      ((SDatabaseOptions*)pOptions)->pMaxRowsPerBlock = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->maxRowsPerBlock = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_MINROWS:
-      ((SDatabaseOptions*)pOptions)->pMinRowsPerBlock = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->minRowsPerBlock = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP:
-      ((SDatabaseOptions*)pOptions)->pKeep = pAlterOption->pList;
+      ((SDatabaseOptions*)pOptions)->pKeep = pVal;
+      break;
+    case DB_OPTION_PAGES:
+      ((SDatabaseOptions*)pOptions)->pages = strtol(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case DB_OPTION_PAGESIZE:
+      ((SDatabaseOptions*)pOptions)->pagesize = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_PRECISION:
-      ((SDatabaseOptions*)pOptions)->pPrecision = pAlterOption->pVal;
+      copyStringFormStringToken((SToken*)pVal, ((SDatabaseOptions*)pOptions)->precisionStr,
+                                sizeof(((SDatabaseOptions*)pOptions)->precisionStr));
       break;
     case DB_OPTION_REPLICA:
-      ((SDatabaseOptions*)pOptions)->pReplica = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->replica = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
-    case DB_OPTION_TTL:
-      ((SDatabaseOptions*)pOptions)->pTtl = pAlterOption->pVal;
+    case DB_OPTION_STRICT:
+      ((SDatabaseOptions*)pOptions)->strict = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_WAL:
-      ((SDatabaseOptions*)pOptions)->pWalLevel = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->walLevel = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_VGROUPS:
-      ((SDatabaseOptions*)pOptions)->pNumOfVgroups = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->numOfVgroups = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_SINGLE_STABLE:
-      ((SDatabaseOptions*)pOptions)->pSingleStable = pAlterOption->pVal;
-      break;
-    case DB_OPTION_STREAM_MODE:
-      ((SDatabaseOptions*)pOptions)->pStreamMode = pAlterOption->pVal;
+      ((SDatabaseOptions*)pOptions)->singleStable = strtol(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_RETENTIONS:
-      ((SDatabaseOptions*)pOptions)->pRetentions = pAlterOption->pList;
+      ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
       break;
     default:
       break;
   }
   return pOptions;
+}
+
+SNode* setAlterDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
+  switch (pAlterOption->type) {
+    case DB_OPTION_KEEP:
+    case DB_OPTION_RETENTIONS:
+      return setDatabaseOption(pCxt, pOptions, pAlterOption->type, pAlterOption->pList);
+    default:
+      break;
+  }
+  return setDatabaseOption(pCxt, pOptions, pAlterOption->type, &pAlterOption->val);
 }
 
 SNode* createCreateDatabaseStmt(SAstCreateContext* pCxt, bool ignoreExists, SToken* pDbName, SNode* pOptions) {
@@ -703,31 +758,44 @@ SNode* createAlterDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName, SNode* 
   return (SNode*)pStmt;
 }
 
-SNode* createTableOptions(SAstCreateContext* pCxt) {
+SNode* createDefaultTableOptions(SAstCreateContext* pCxt) {
   STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
   CHECK_OUT_OF_MEM(pOptions);
+  pOptions->delay = TSDB_DEFAULT_ROLLUP_DELAY;
+  pOptions->filesFactor = TSDB_DEFAULT_ROLLUP_FILE_FACTOR;
+  pOptions->ttl = TSDB_DEFAULT_TABLE_TTL;
   return (SNode*)pOptions;
 }
 
-SNode* setTableAlterOption(SAstCreateContext* pCxt, SNode* pOptions, SAlterOption* pAlterOption) {
-  switch (pAlterOption->type) {
-    case TABLE_OPTION_KEEP:
-      ((STableOptions*)pOptions)->pKeep = pAlterOption->pList;
-      break;
-    case TABLE_OPTION_TTL:
-      ((STableOptions*)pOptions)->pTtl = pAlterOption->pVal;
-      break;
+SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
+  STableOptions* pOptions = nodesMakeNode(QUERY_NODE_TABLE_OPTIONS);
+  CHECK_OUT_OF_MEM(pOptions);
+  pOptions->delay = -1;
+  pOptions->filesFactor = -1;
+  pOptions->ttl = -1;
+  return (SNode*)pOptions;
+}
+
+SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal) {
+  switch (type) {
     case TABLE_OPTION_COMMENT:
-      ((STableOptions*)pOptions)->pComments = pAlterOption->pVal;
-      break;
-    case TABLE_OPTION_SMA:
-      ((STableOptions*)pOptions)->pSma = pAlterOption->pList;
-      break;
-    case TABLE_OPTION_FILE_FACTOR:
-      ((STableOptions*)pOptions)->pFilesFactor = pAlterOption->pVal;
+      copyStringFormStringToken((SToken*)pVal, ((STableOptions*)pOptions)->comment,
+                                sizeof(((STableOptions*)pOptions)->comment));
       break;
     case TABLE_OPTION_DELAY:
-      ((STableOptions*)pOptions)->pDelay = pAlterOption->pVal;
+      ((STableOptions*)pOptions)->delay = strtol(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case TABLE_OPTION_FILE_FACTOR:
+      ((STableOptions*)pOptions)->filesFactor = strtod(((SToken*)pVal)->z, NULL);
+      break;
+    case TABLE_OPTION_ROLLUP:
+      ((STableOptions*)pOptions)->pRollupFuncs = pVal;
+      break;
+    case TABLE_OPTION_TTL:
+      ((STableOptions*)pOptions)->ttl = strtol(((SToken*)pVal)->z, NULL, 10);
+      break;
+    case TABLE_OPTION_SMA:
+      ((STableOptions*)pOptions)->pSma = pVal;
       break;
     default:
       break;
@@ -778,7 +846,7 @@ SNode* createCreateTableStmt(SAstCreateContext* pCxt, bool ignoreExists, SNode* 
 }
 
 SNode* createCreateSubTableClause(SAstCreateContext* pCxt, bool ignoreExists, SNode* pRealTable, SNode* pUseRealTable,
-                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags) {
+                                  SNodeList* pSpecificTags, SNodeList* pValsOfTags, SNode* pOptions) {
   if (NULL == pRealTable) {
     return NULL;
   }
@@ -833,7 +901,7 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, S
   return (SNode*)pStmt;
 }
 
-SNode* createAlterTableOption(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions) {
+SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions) {
   if (NULL == pRealTable) {
     return NULL;
   }
@@ -911,7 +979,7 @@ static bool needDbShowStmt(ENodeType type) {
 SNode* createShowStmt(SAstCreateContext* pCxt, ENodeType type, SNode* pDbName, SNode* pTbNamePattern) {
   if (needDbShowStmt(type) && NULL == pDbName && NULL == pCxt->pQueryCxt->db) {
     snprintf(pCxt->pQueryCxt->pMsg, pCxt->pQueryCxt->msgLen, "db not specified");
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return NULL;
   }
   SShowStmt* pStmt = nodesMakeNode(type);
@@ -1172,7 +1240,7 @@ SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups) {
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
                                 const SToken* pLibPath, SDataType dataType, int32_t bufSize) {
   if (pLibPath->n <= 2) {
-    pCxt->valid = false;
+    pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
     return NULL;
   }
   SCreateFunctionStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_FUNCTION_STMT);

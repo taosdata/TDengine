@@ -268,23 +268,23 @@ static int32_t vmPutNodeMsgToQueue(SVnodesMgmt *pMgmt, SNodeMsg *pMsg, EQueueTyp
   int32_t code = 0;
   switch (qtype) {
     case QUERY_QUEUE:
-      dTrace("msg:%p, will be written into vnode-query queue", pMsg);
+      dTrace("msg:%p, type:%s will be written into vnode-query queue", pMsg, TMSG_INFO(pRpc->msgType));
       taosWriteQitem(pVnode->pQueryQ, pMsg);
       break;
     case FETCH_QUEUE:
-      dTrace("msg:%p, will be written into vnode-fetch queue", pMsg);
+      dTrace("msg:%p, type:%s will be written into vnode-fetch queue", pMsg, TMSG_INFO(pRpc->msgType));
       taosWriteQitem(pVnode->pFetchQ, pMsg);
       break;
     case WRITE_QUEUE:
-      dTrace("msg:%p, will be written into vnode-write queue", pMsg);
+      dTrace("msg:%p, type:%s will be written into vnode-write queue", pMsg, TMSG_INFO(pRpc->msgType));
       taosWriteQitem(pVnode->pWriteQ, pMsg);
       break;
     case SYNC_QUEUE:
-      dTrace("msg:%p, will be written into vnode-sync queue", pMsg);
+      dTrace("msg:%p, type:%s will be written into vnode-sync queue", pMsg, TMSG_INFO(pRpc->msgType));
       taosWriteQitem(pVnode->pSyncQ, pMsg);
       break;
     case MERGE_QUEUE:
-      dTrace("msg:%p, will be written into vnode-merge queue", pMsg);
+      dTrace("msg:%p, type:%s will be written into vnode-merge queue", pMsg, TMSG_INFO(pRpc->msgType));
       taosWriteQitem(pVnode->pMergeQ, pMsg);
       break;
     default:

@@ -36,8 +36,8 @@ typedef struct {
 typedef enum {
   TEST_TRANS_START_FUNC = 1,
   TEST_TRANS_STOP_FUNC = 2,
-  CONSUME_TRANS_START_FUNC = 3,
-  CONSUME_TRANS_STOP_FUNC = 4,
+  MQ_REB_TRANS_START_FUNC = 3,
+  MQ_REB_TRANS_STOP_FUNC = 4,
 } ETrnFuncType;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);

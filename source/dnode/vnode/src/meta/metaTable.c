@@ -61,19 +61,58 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
-  metaDebug("vgId: %d super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
+  metaDebug("vgId:%d super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
 
   return 0;
 
 _err:
-  metaError("vgId: %d failed to create super table: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+  metaError("vgId:%d failed to create super table: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
             pReq->suid, tstrerror(terrno));
   return -1;
 }
 
 int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
-  // TODO
+  SMetaReader mr = {0};
+
+  // validate req
+  metaReaderInit(&mr, pMeta, 0);
+  if (metaGetTableEntryByUid(&mr, pReq->suid) < 0) {
+    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+    goto _err;
+  }
+
+  // do drop
+  // drop from pTbDb
+  // drop from pSkmDb
+  // drop from pUidIdx
+  // drop from pNameIdx
+  // {
+  //   TDBC *pDbc1 = NULL;
+  //   void *pKey = NULL;
+  //   void *pVal = NULL;
+  //   int   kLen = 0;
+  //   int   vLen = 0;
+  //   int   ret = 0;
+
+  //   // drop from pCtbIdx
+  //   ret = tdbDbcOpen(pMeta->pCtbIdx, &pDbc1);
+  //   tdbDbcMoveTo(pDbc1, &pReq->suid, sizeof(pReq->suid), NULL /*cmpr*/, 0 /*TDB_FORWARD_SEARCH*/);
+  //   tdbDbcGet(pDbc1, &pKey, &kLen, &pVal, vLen);
+  //   tdbDbcDrop(pDbc1);
+  //   // drop from pTagIdx
+  //   // drop from pTtlIdx
+  // }
+
+  // clear and return
+  metaReaderClear(&mr);
+  metaError("vgId:%d  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
   return 0;
+
+_err:
+  metaReaderClear(&mr);
+  metaError("vgId:%d failed to drop super table %s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+            pReq->suid, tstrerror(terrno));
+  return -1;
 }
 
 int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
@@ -179,7 +218,7 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   tCoderClear(&coder);
 
   // write to table.db
-  if (tdbDbInsert(pMeta->pTbDb, pKey, kLen, pVal, vLen, &pMeta->txn) < 0) {
+  if (tdbDbPut(pMeta->pTbDb, pKey, kLen, pVal, vLen, &pMeta->txn) < 0) {
     goto _err;
   }
 
@@ -192,11 +231,11 @@ _err:
 }
 
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbDbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
+  return tdbDbPut(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
 }
 
 static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbDbInsert(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), &pMeta->txn);
+  return tdbDbPut(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), &pMeta->txn);
 }
 
 static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
@@ -219,12 +258,12 @@ static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME) {
   ttlKey.dtime = ctime + ttlDays * 24 * 60 * 60;
   ttlKey.uid = pME->uid;
 
-  return tdbDbInsert(pMeta->pTtlIdx, &ttlKey, sizeof(ttlKey), NULL, 0, &pMeta->txn);
+  return tdbDbPut(pMeta->pTtlIdx, &ttlKey, sizeof(ttlKey), NULL, 0, &pMeta->txn);
 }
 
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SCtbIdxKey ctbIdxKey = {.suid = pME->ctbEntry.suid, .uid = pME->uid};
-  return tdbDbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
+  return tdbDbPut(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
 }
 
 static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pME) {
@@ -265,7 +304,7 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_ENCODER);
   tEncodeSSchemaWrapper(&coder, pSW);
 
-  if (tdbDbInsert(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), pVal, vLen, &pMeta->txn) < 0) {
+  if (tdbDbPut(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), pVal, vLen, &pMeta->txn) < 0) {
     rcode = -1;
     goto _exit;
   }

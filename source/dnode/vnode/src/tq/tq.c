@@ -58,6 +58,48 @@ void tqClose(STQ* pTq) {
   // TODO
 }
 
+static void tdSRowDemo() {
+#define DEMO_N_COLS 3
+
+  int16_t     schemaVersion = 0;
+  int32_t     numOfCols = DEMO_N_COLS;  // ts + int
+  SRowBuilder rb = {0};
+
+  SSchema schema[DEMO_N_COLS] = {
+      {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .name = "ts", .bytes = 8, .flags = SCHEMA_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 2, .name = "c1", .bytes = 4, .flags = SCHEMA_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 3, .name = "c2", .bytes = 4, .flags = SCHEMA_SMA_ON}};
+
+  SSchema*  pSchema = schema;
+  STSchema* pTSChema = tdGetSTSChemaFromSSChema(&pSchema, numOfCols);
+
+  tdSRowInit(&rb, schemaVersion);
+  tdSRowSetTpInfo(&rb, numOfCols, pTSChema->flen);
+  int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSChema);
+  void*   row = taosMemoryCalloc(1, maxLen);  // make sure the buffer is enough
+
+  // set row buf
+  tdSRowResetBuf(&rb, row);
+
+  for (int32_t idx = 0; idx < pTSChema->numOfCols; ++idx) {
+    STColumn* pColumn = pTSChema->columns + idx;
+    if (idx == 0) {
+      int64_t tsKey = 1651234567;
+      tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, &tsKey, true, pColumn->offset, idx);
+    } else if (idx == 1) {
+      int32_t val1 = 10;
+      tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, &val1, true, pColumn->offset, idx);
+    } else {
+      tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, true, pColumn->offset, idx);
+    }
+  }
+
+  // print
+  tdSRowPrint(row, pTSChema, __func__);
+
+  taosMemoryFree(pTSChema);
+}
+
 int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
   void*       pIter = NULL;
@@ -864,7 +906,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
 }
 
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
-  SStreamTask* pTask = taosMemoryMalloc(sizeof(SStreamTask));
+  SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return -1;
   }

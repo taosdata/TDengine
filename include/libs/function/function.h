@@ -165,7 +165,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPTS;           // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
-  uint64_t          uid;            // table uid
+  uint64_t          uid;            // table uid, used to set the tag value when building the final query result for selectivity functions.
 } SInputColumnInfoData;
 
 // sql function runtime context
@@ -206,6 +206,8 @@ typedef struct SqlFunctionCtx {
   struct SDiskbasedBuf  *pBuf;
   struct SSDataBlock    *pSrcBlock;
   int32_t                curBufPage;
+
+  char                   udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
 
 enum {
@@ -333,8 +335,6 @@ int32_t udfcOpen();
  * @return error code
  */
 int32_t udfcClose();
-
-typedef void *UdfcFuncHandle;
 
 #ifdef __cplusplus
 }

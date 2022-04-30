@@ -56,10 +56,9 @@ extern "C" {
 #define EXPLAIN_ROWS_FORMAT "rows=%" PRIu64
 #define EXPLAIN_COLUMNS_FORMAT "columns=%d"
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
+#define EXPLAIN_TABLE_SCAN_FORMAT "order=[asc|%d desc|%d]"
 #define EXPLAIN_GROUPS_FORMAT "groups=%d"
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
-#define EXPLAIN_LOOPS_FORMAT "loops=%d"
-#define EXPLAIN_REVERSE_FORMAT "reverse=%d"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
 #define EXPLAIN_EXECINFO_FORMAT "cost=%" PRIu64 "..%" PRIu64 " rows=%" PRIu64
 

@@ -225,12 +225,16 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     // Handle the bitmap
     char* p = taosMemoryRealloc(pColumnInfoData->varmeta.offset, sizeof(int32_t) * (numOfRow1 + numOfRow2));
     if (p == NULL) {
-      // TODO
+      return TSDB_CODE_OUT_OF_MEMORY;
     }
 
     pColumnInfoData->varmeta.offset = (int32_t*)p;
     for (int32_t i = 0; i < numOfRow2; ++i) {
-      pColumnInfoData->varmeta.offset[i + numOfRow1] = pSource->varmeta.offset[i] + pColumnInfoData->varmeta.length;
+      if (pSource->varmeta.offset[i] == -1) {
+        pColumnInfoData->varmeta.offset[i + numOfRow1] = -1;
+      } else {
+        pColumnInfoData->varmeta.offset[i + numOfRow1] = pSource->varmeta.offset[i] + pColumnInfoData->varmeta.length;
+      }
     }
 
     // copy data
@@ -239,7 +243,7 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, co
     if (pColumnInfoData->varmeta.allocLen < len + oldLen) {
       char* tmp = taosMemoryRealloc(pColumnInfoData->pData, len + oldLen);
       if (tmp == NULL) {
-        return TSDB_CODE_VND_OUT_OF_MEMORY;
+        return TSDB_CODE_OUT_OF_MEMORY;
       }
 
       pColumnInfoData->pData = tmp;
@@ -486,7 +490,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
 
     for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
-      bool  isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg);
+      bool  isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
       char* p = colDataGetData(pColData, j);
 
       colDataAppend(pDstCol, j - startIndex, p, isNull);
@@ -698,8 +702,8 @@ int32_t dataBlockCompar(const void* p1, const void* p2, const void* param) {
     SColumnInfoData* pColInfoData = pOrder->pColData;  // TARRAY_GET_ELEM(pDataBlock->pDataBlock, pOrder->colIndex);
 
     if (pColInfoData->hasNull) {
-      bool leftNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, left, pDataBlock->pBlockAgg);
-      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, right, pDataBlock->pBlockAgg);
+      bool leftNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, left, NULL);
+      bool rightNull = colDataIsNull(pColInfoData, pDataBlock->info.rows, right, NULL);
       if (leftNull && rightNull) {
         continue;  // continue to next slot
       }
@@ -738,7 +742,7 @@ static int32_t doAssignOneTuple(SColumnInfoData* pDstCols, int32_t numOfRows, co
     SColumnInfoData* pDst = &pDstCols[i];
     SColumnInfoData* pSrc = taosArrayGet(pSrcBlock->pDataBlock, i);
 
-    if (pSrc->hasNull && colDataIsNull(pSrc, pSrcBlock->info.rows, tupleIndex, pSrcBlock->pBlockAgg)) {
+    if (pSrc->hasNull && colDataIsNull(pSrc, pSrcBlock->info.rows, tupleIndex, pSrcBlock->pBlockAgg[i])) {
       code = colDataAppend(pDst, numOfRows, NULL, true);
       if (code != TSDB_CODE_SUCCESS) {
         return code;

@@ -423,6 +423,9 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
   EDealRes res = DEAL_RES_CONTINUE;
 
   switch (nodeType(pNode)) {
+    case QUERY_NODE_NODE_LIST:
+      res = walkPhysiPlans(((SNodeListNode*)pNode)->pNodeList, order, walker, pContext);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       res = walkScanPhysi((SScanPhysiNode*)pNode, order, walker, pContext);
       break;
@@ -534,10 +537,7 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pSubplan->pChildren, order, walker, pContext);
-      }
+      res = walkPhysiPlans(pSubplan->pChildren, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkPhysiPlan((SNode*)pSubplan->pNode, order, walker, pContext);
       }
