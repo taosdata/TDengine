@@ -85,31 +85,45 @@ TEST_F(ParserSelectTest, timelineFunc) {
 
   run("SELECT last(*), first(*) FROM t1");
 
-  run("SELECT last(*), first(*) FROM t1 group by c1");
+  run("SELECT last(*), first(*) FROM t1 GROUP BY c1");
 
   run("SELECT last(*), first(*) FROM t1 INTERVAL(10s)");
 
   run("SELECT diff(c1) FROM t1");
 }
 
+TEST_F(ParserSelectTest, selectFunc) {
+  useDb("root", "test");
+  // select function
+  run("SELECT MAX(c1), MIN(c1) FROM t1");
+  // select function for GROUP BY clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 GROUP BY c1");
+  // select function for INTERVAL clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
+  // select function along with the columns of select row
+  run("SELECT MAX(c1), c2 FROM t1");
+  run("SELECT MAX(c1), * FROM t1");
+  run("SELECT MAX(c1), t1.* FROM t1");
+}
+
 TEST_F(ParserSelectTest, clause) {
   useDb("root", "test");
 
-  // group by clause
+  // GROUP BY clause
   run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0");
 
-  run("SELECT COUNT(*), c2 cnt FROM t1 WHERE c1 > 0 group by c2");
+  run("SELECT COUNT(*), c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2");
 
-  run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 group by c2 having COUNT(c1) > 10");
+  run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 having COUNT(c1) > 10");
 
-  run("SELECT COUNT(*), c1, c2 + 10, c1 + c2 cnt FROM t1 WHERE c1 > 0 group by c2, c1");
+  run("SELECT COUNT(*), c1, c2 + 10, c1 + c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2, c1");
 
-  run("SELECT COUNT(*), c1 + 10, c2 cnt FROM t1 WHERE c1 > 0 group by c1 + 10, c2");
+  run("SELECT COUNT(*), c1 + 10, c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c1 + 10, c2");
 
   // order by clause
-  run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 group by c2 order by cnt");
+  run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 order by cnt");
 
-  run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 group by c2 order by 1");
+  run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 order by 1");
 
   // distinct clause
   // run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by c1");
@@ -118,7 +132,7 @@ TEST_F(ParserSelectTest, clause) {
 
   // run("SELECT distinct c1 + 10 cc1, c2 cc2 FROM t1 WHERE c1 > 0 order by cc1, c2");
 
-  // run("SELECT distinct COUNT(c2) FROM t1 WHERE c1 > 0 group by c1 order by COUNT(c2)");
+  // run("SELECT distinct COUNT(c2) FROM t1 WHERE c1 > 0 GROUP BY c1 order by COUNT(c2)");
 }
 
 // INTERVAL(interval_val [, interval_offset]) [SLIDING (sliding_val)] [FILL(fill_mod_and_val)]
@@ -135,6 +149,12 @@ TEST_F(ParserSelectTest, interval) {
   // INTERVAL(interval_val) FILL(NONE)
   run("SELECT COUNT(*) FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
       "INTERVAL(10s) FILL(NONE)");
+}
+
+TEST_F(ParserSelectTest, intervalSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT c1 FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(ParserSelectTest, semanticError) {
@@ -164,7 +184,7 @@ TEST_F(ParserSelectTest, semanticError) {
 
   run("SELECT c2 FROM t1 WHERE COUNT(*) > 0", TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, PARSER_STAGE_TRANSLATE);
 
-  run("SELECT c2 FROM t1 group by COUNT(*)", TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, PARSER_STAGE_TRANSLATE);
+  run("SELECT c2 FROM t1 GROUP BY COUNT(*)", TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION, PARSER_STAGE_TRANSLATE);
 
   // TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT
   run("SELECT c2 FROM t1 order by 0", TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT, PARSER_STAGE_TRANSLATE);
@@ -174,13 +194,13 @@ TEST_F(ParserSelectTest, semanticError) {
   // TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION
   run("SELECT COUNT(*) cnt FROM t1 having c1 > 0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION, PARSER_STAGE_TRANSLATE);
 
-  run("SELECT COUNT(*) cnt FROM t1 group by c2 having c1 > 0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
+  run("SELECT COUNT(*) cnt FROM t1 GROUP BY c2 having c1 > 0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
       PARSER_STAGE_TRANSLATE);
 
-  run("SELECT COUNT(*), c1 cnt FROM t1 group by c2 having c2 > 0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
+  run("SELECT COUNT(*), c1 cnt FROM t1 GROUP BY c2 having c2 > 0", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
       PARSER_STAGE_TRANSLATE);
 
-  run("SELECT COUNT(*) cnt FROM t1 group by c2 having c2 > 0 order by c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
+  run("SELECT COUNT(*) cnt FROM t1 GROUP BY c2 having c2 > 0 order by c1", TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION,
       PARSER_STAGE_TRANSLATE);
 
   // TSDB_CODE_PAR_NOT_SINGLE_GROUP
