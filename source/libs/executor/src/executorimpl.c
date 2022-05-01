@@ -1235,9 +1235,6 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       if (fmIsPseudoColumnFunc(pfCtx->functionId)) {
         // do nothing
       } else if (fmIsNonstandardSQLFunc(pfCtx->functionId)) {
-        // todo set the correct timestamp column
-        pfCtx->input.pPTS = taosArrayGet(pSrcBlock->pDataBlock, 1);
-
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[k]);
         pfCtx->fpSet.init(&pCtx[k], pResInfo);
 
@@ -2490,7 +2487,7 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
 //    if (pQueryAttr->pFilters != NULL) {
 //      filterSetColFieldData(pQueryAttr->pFilters, pBlock->info.numOfCols, pBlock->pDataBlock);
 //    }
-    
+
 //    if (pQueryAttr->pFilters != NULL || pRuntimeEnv->pTsBuf != NULL) {
 //      filterColRowsInDataBlock(pRuntimeEnv, pBlock, ascQuery);
 //    }

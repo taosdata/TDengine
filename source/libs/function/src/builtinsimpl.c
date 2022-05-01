@@ -1198,9 +1198,6 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
   bool    isFirstBlock = (pDiffInfo->hasPrev == false);
   int32_t numOfElems = 0;
 
-//  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-//  int32_t start = (pCtx->order == TSDB_ORDER_ASC) ? pInput->startRowIndex : pInput->numOfRows + pInput->startRowIndex - 1;
-
   SColumnInfoData* pTsOutput = pCtx->pTsOutput;
   TSKEY*           tsList = (int64_t*)pInput->pPTS->pData;
 
@@ -1246,8 +1243,9 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
           int32_t v = *(int32_t*)colDataGetData(pInputCol, i);
           int32_t pos = startOffset + numOfElems;
 
+          // there is a row of previous data block to be handled in the first place.
           if (pDiffInfo->hasPrev) {
-            int32_t delta = -(int32_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
+            int32_t delta = (int32_t)(pDiffInfo->prev.i64 - v);  // direct previous may be null
             if (delta < 0 && pDiffInfo->ignoreNegative) {
               colDataSetNull_f(pOutput->nullbitmap, pos);
             } else {
@@ -1255,11 +1253,12 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
             }
 
             if (pTsOutput != NULL) {
-              colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+              colDataAppendInt64(pTsOutput, pos, &pDiffInfo->prevTs);
             }
             pDiffInfo->hasPrev = false;
           }
 
+          // it is not the last row of current block
           if (i < pInput->numOfRows + pInput->startRowIndex - 1) {
             int32_t next = *(int32_t*)colDataGetData(pInputCol, i + 1);
 
@@ -1276,22 +1275,6 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
             }
             pDiffInfo->hasPrev = true;
           }
-//          if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-//            if (pDiffInfo->includeNull) {
-//              colDataSetNull_f(pOutput->nullbitmap, pos);
-//              if (tsList != NULL) {
-//                colDataAppendInt64(pTsOutput, pos, &tsList[i]);
-//              }
-//
-//              numOfElems += 1;
-//            }
-//            continue;
-//          }
-
-//          int32_t v = *(int32_t*)colDataGetData(pInputCol, i);
-
-//          pDiffInfo->prev.i64 = v;
-//          pDiffInfo->hasPrev = true;
           numOfElems++;
         }
 
@@ -1436,7 +1419,7 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
   }
 
   // initial value is not set yet
-  if (!pDiffInfo->hasPrev || numOfElems <= 0) {
+  if (numOfElems <= 0) {
     /*
      * 1. current block and blocks before are full of null
      * 2. current block may be null value
@@ -1444,15 +1427,7 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
     assert(pCtx->hasNull);
     return 0;
   } else {
-    //    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
-    //      SqlFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
-    //      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
-    //        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
-    //      }
-    //    }
-
-    int32_t forwardStep = (isFirstBlock) ? numOfElems - 1 : numOfElems;
-    return forwardStep;
+    return (isFirstBlock) ? numOfElems - 1 : numOfElems;
   }
 }
 
