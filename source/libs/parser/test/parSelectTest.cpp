@@ -94,6 +94,7 @@ TEST_F(ParserSelectTest, timelineFunc) {
 
 TEST_F(ParserSelectTest, selectFunc) {
   useDb("root", "test");
+
   // select function
   run("SELECT MAX(c1), MIN(c1) FROM t1");
   // select function for GROUP BY clause
@@ -102,8 +103,14 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
   // select function along with the columns of select row
   run("SELECT MAX(c1), c2 FROM t1");
-  run("SELECT MAX(c1), * FROM t1");
   run("SELECT MAX(c1), t1.* FROM t1");
+  // select function along with the columns of select row, and with GROUP BY clause
+  run("SELECT MAX(c1), c2 FROM t1 GROUP BY c3");
+  run("SELECT MAX(c1), t1.* FROM t1 GROUP BY c3");
+  // select function along with the columns of select row, and with window clause
+  run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
+  run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }
 
 TEST_F(ParserSelectTest, clause) {
@@ -154,7 +161,7 @@ TEST_F(ParserSelectTest, interval) {
 TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT c1 FROM t1 INTERVAL(10s)");
+  run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_SINGLE_GROUP, PARSER_STAGE_TRANSLATE);
 }
 
 TEST_F(ParserSelectTest, semanticError) {

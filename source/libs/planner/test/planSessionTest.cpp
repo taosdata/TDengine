@@ -25,3 +25,12 @@ TEST_F(PlanSessionTest, basic) {
 
   run("select count(*) from t1 session(ts, 10s)");
 }
+
+TEST_F(PlanSessionTest, selectFunc) {
+  useDb("root", "test");
+
+  // select function for SESSION clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 SESSION(ts, 10s)");
+  // select function along with the columns of select row, and with SESSION clause
+  run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
+}

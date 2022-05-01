@@ -256,6 +256,22 @@ static void destroyTranslateContext(STranslateContext* pCxt) {
   taosHashCleanup(pCxt->pTables);
 }
 
+static bool isAliasColumn(const SNode* pNode) {
+  return (QUERY_NODE_COLUMN == nodeType(pNode) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]));
+}
+
+static bool isAggFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId));
+}
+
+static bool isSelectFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsSelectFunc(((SFunctionNode*)pNode)->funcId));
+}
+
+static bool isDistinctOrderBy(STranslateContext* pCxt) {
+  return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
+}
+
 static bool belongTable(const char* currentDb, const SColumnNode* pCol, const STableNode* pTable) {
   int cmp = 0;
   if ('\0' != pCol->dbName[0]) {
@@ -617,7 +633,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
 }
 
 static EDealRes haveAggFunction(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+  if (isAggFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -758,18 +774,6 @@ static int32_t translateExprList(STranslateContext* pCxt, SNodeList* pList) {
   return pCxt->errCode;
 }
 
-static bool isAliasColumn(const SNode* pNode) {
-  return (QUERY_NODE_COLUMN == nodeType(pNode) && ('\0' == ((SColumnNode*)pNode)->tableAlias[0]));
-}
-
-static bool isAggFunc(const SNode* pNode) {
-  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId));
-}
-
-static bool isDistinctOrderBy(STranslateContext* pCxt) {
-  return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
-}
-
 static SNodeList* getGroupByList(STranslateContext* pCxt) {
   if (isDistinctOrderBy(pCxt)) {
     return pCxt->pCurrStmt->pProjectionList;
@@ -791,28 +795,71 @@ static int32_t getGroupByErrorCode(STranslateContext* pCxt) {
   return TSDB_CODE_PAR_GROUPBY_LACK_EXPRESSION;
 }
 
-static EDealRes doCheckExprForGroupBy(SNode* pNode, void* pContext) {
-  STranslateContext* pCxt = (STranslateContext*)pContext;
-  if (!nodesIsExprNode(pNode) || isAliasColumn(pNode)) {
+typedef struct SCheckExprForGroupByCxt {
+  STranslateContext* pTranslateCxt;
+  int32_t            selectFuncNum;
+  bool               hasSelectValFunc;
+} SCheckExprForGroupByCxt;
+
+static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, bool* pHasSelectValFunc, SNode** pNode) {
+  SFunctionNode* pFunc = nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == pFunc) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
+    return DEAL_RES_ERROR;
+  }
+  strcpy(pFunc->functionName, "_select_value");
+  pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    translateFunction(pCxt, pFunc);
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    *pNode = (SNode*)pFunc;
+    if (NULL != pHasSelectValFunc) {
+      *pHasSelectValFunc = true;
+    }
+  } else {
+    nodesDestroyNode(pFunc);
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
+}
+
+static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
+  SCheckExprForGroupByCxt* pCxt = (SCheckExprForGroupByCxt*)pContext;
+  if (!nodesIsExprNode(*pNode) || isAliasColumn(*pNode)) {
     return DEAL_RES_CONTINUE;
   }
-  if (isAggFunc(pNode) && !isDistinctOrderBy(pCxt)) {
+  pCxt->selectFuncNum += isSelectFunc(*pNode) ? 1 : 0;
+  if (pCxt->selectFuncNum > 1 && pCxt->hasSelectValFunc) {
+    return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
+  }
+  if (isAggFunc(*pNode) && !isDistinctOrderBy(pCxt->pTranslateCxt)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   SNode* pGroupNode;
-  FOREACH(pGroupNode, getGroupByList(pCxt)) {
-    if (nodesEqualNode(getGroupByNode(pGroupNode), pNode)) {
+  FOREACH(pGroupNode, getGroupByList(pCxt->pTranslateCxt)) {
+    if (nodesEqualNode(getGroupByNode(pGroupNode), *pNode)) {
       return DEAL_RES_IGNORE_CHILD;
     }
   }
-  if (QUERY_NODE_COLUMN == nodeType(pNode) || (isAggFunc(pNode) && isDistinctOrderBy(pCxt))) {
-    return generateDealNodeErrMsg(pCxt, getGroupByErrorCode(pCxt));
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    if (pCxt->selectFuncNum > 1) {
+      return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
+    } else {
+      return rewriteColToSelectValFunc(pCxt->pTranslateCxt, &pCxt->hasSelectValFunc, pNode);
+    }
+  }
+  if (isAggFunc(*pNode) && isDistinctOrderBy(pCxt->pTranslateCxt)) {
+    return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
   }
   return DEAL_RES_CONTINUE;
 }
 
-static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode* pNode) {
-  nodesWalkExpr(pNode, doCheckExprForGroupBy, pCxt);
+static int32_t checkExprForGroupBy(STranslateContext* pCxt, SNode** pNode) {
+  SCheckExprForGroupByCxt cxt = {.pTranslateCxt = pCxt, .selectFuncNum = 0, .hasSelectValFunc = false};
+  nodesRewriteExpr(pNode, doCheckExprForGroupBy, &cxt);
+  if (cxt.selectFuncNum != 1 && cxt.hasSelectValFunc) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, getGroupByErrorCode(pCxt));
+  }
   return pCxt->errCode;
 }
 
@@ -820,7 +867,29 @@ static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SNodeList* pList
   if (NULL == getGroupByList(pCxt)) {
     return TSDB_CODE_SUCCESS;
   }
-  nodesWalkExprs(pList, doCheckExprForGroupBy, pCxt);
+  SCheckExprForGroupByCxt cxt = {.pTranslateCxt = pCxt, .selectFuncNum = 0, .hasSelectValFunc = false};
+  nodesRewriteExprs(pList, doCheckExprForGroupBy, &cxt);
+  if (cxt.selectFuncNum != 1 && cxt.hasSelectValFunc) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, getGroupByErrorCode(pCxt));
+  }
+  return pCxt->errCode;
+}
+
+static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
+  if (isAggFunc(*pNode)) {
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+    return rewriteColToSelectValFunc((STranslateContext*)pContext, NULL, pNode);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteColsToSelectValFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  nodesRewriteExprs(pSelect->pProjectionList, rewriteColsToSelectValFuncImpl, pCxt);
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && !pSelect->isDistinct) {
+    nodesRewriteExprs(pSelect->pOrderByList, rewriteColsToSelectValFuncImpl, pCxt);
+  }
   return pCxt->errCode;
 }
 
@@ -828,11 +897,13 @@ typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existAggFunc;
   bool               existCol;
+  int32_t            selectFuncNum;
 } CheckAggColCoexistCxt;
 
 static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
   CheckAggColCoexistCxt* pCxt = (CheckAggColCoexistCxt*)pContext;
-  if (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsAggFunc(((SFunctionNode*)pNode)->funcId)) {
+  pCxt->selectFuncNum += isSelectFunc(pNode) ? 1 : 0;
+  if (isAggFunc(pNode)) {
     pCxt->existAggFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -851,7 +922,9 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (!pSelect->isDistinct) {
     nodesWalkExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
-  if ((cxt.existAggFunc || NULL != pSelect->pWindow) && cxt.existCol) {
+  if (1 == cxt.selectFuncNum) {
+    return rewriteColsToSelectValFunc(pCxt, pSelect);
+  } else if ((cxt.selectFuncNum > 1 || cxt.existAggFunc || NULL != pSelect->pWindow) && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
   }
   return TSDB_CODE_SUCCESS;
@@ -1285,7 +1358,7 @@ static int32_t translateHaving(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->currClause = SQL_CLAUSE_HAVING;
   int32_t code = translateExpr(pCxt, pSelect->pHaving);
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkExprForGroupBy(pCxt, pSelect->pHaving);
+    code = checkExprForGroupBy(pCxt, &pSelect->pHaving);
   }
   return code;
 }
