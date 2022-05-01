@@ -136,18 +136,19 @@ Node.js 连接器通过不同的包提供不同的连接方式。
 
 1. 安装 Node.js 原生连接器
 
-```
-npm i td2.0-connector
-```
+  ```
+  npm i td2.0-connector
+  ```
 
 :::note
 推荐 Node 版本大于等于 `node-v12.8.0` 小于 `node-v13.0.0`
+::: 
+  
+2. 安装 Node.js REST 连接器
 
-::: 2. 安装 Node.js REST 连接器
-
-```
-npm i td2.0-rest-connector
-```
+  ```
+  npm i td2.0-rest-connector
+  ```
 
 </TabItem>
 <TabItem label="C#" value="csharp">
