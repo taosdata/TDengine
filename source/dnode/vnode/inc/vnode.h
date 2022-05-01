@@ -37,7 +37,7 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
-#define TSDB_VNODE_SMA_DEBUG  // TODO: evaluate to remove the macro and the relative codes
+
 // vnode
 typedef struct SVnode    SVnode;
 typedef struct STsdbCfg  STsdbCfg;  // todo: remove
@@ -145,7 +145,7 @@ struct STsdbCfg {
   int32_t keep2;
   // TODO: save to tsdb cfg file
   int8_t     type;  // ETsdbType
-  SRetention retentions[TSDB_RSMA_RETENTION_MAX];
+  SRetention retentions[TSDB_RETENTION_MAX];
 };
 
 typedef enum {

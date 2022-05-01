@@ -79,11 +79,11 @@ typedef enum {
 } ETsdbSmaType;
 
 typedef enum {
-  TSDB_RSMA_RETENTION_0 = 0,
-  TSDB_RSMA_RETENTION_1 = 1,
-  TSDB_RSMA_RETENTION_2 = 2,
-  TSDB_RSMA_RETENTION_MAX = 3
-} ERSmaRetention;
+  TSDB_RETENTION_L0 = 0,
+  TSDB_RETENTION_L1 = 1,
+  TSDB_RETENTION_L2 = 2,
+  TSDB_RETENTION_MAX = 3
+} ERetentionLevel;
 
 extern char *qtypeStr[];
 
