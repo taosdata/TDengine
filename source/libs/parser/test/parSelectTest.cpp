@@ -67,27 +67,29 @@ TEST_F(ParserSelectTest, condition) {
 TEST_F(ParserSelectTest, pseudoColumn) {
   useDb("root", "test");
 
-  run("SELECT _wstartts, _wendts, COUNT(*) FROM t1 INTERVAL(10s)");
+  run("SELECT _WSTARTTS, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(ParserSelectTest, multiResFunc) {
   useDb("root", "test");
 
-  run("SELECT last(*), first(*), last_row(*) FROM t1");
+  run("SELECT LAST(*), FIRST(*), LAST_ROW(*) FROM t1");
 
-  run("SELECT last(c1, c2), first(t1.*), last_row(c3) FROM t1");
+  run("SELECT LAST(c1, c2), FIRST(t1.*), LAST_ROW(c3) FROM t1");
 
-  run("SELECT last(t2.*), first(t1.c1, t2.*), last_row(t1.*, t2.*) FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
+  run("SELECT LAST(t2.*), FIRST(t1.c1, t2.*), LAST_ROW(t1.*, t2.*) FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
 }
 
 TEST_F(ParserSelectTest, timelineFunc) {
   useDb("root", "test");
 
-  run("SELECT last(*), first(*) FROM t1");
+  run("SELECT LAST(*), FIRST(*) FROM t1");
 
-  run("SELECT last(*), first(*) FROM t1 GROUP BY c1");
+  run("SELECT FIRST(ts), FIRST(c1), FIRST(c2), FIRST(c3) FROM t1");
 
-  run("SELECT last(*), first(*) FROM t1 INTERVAL(10s)");
+  run("SELECT LAST(*), FIRST(*) FROM t1 GROUP BY c1");
+
+  run("SELECT LAST(*), FIRST(*) FROM t1 INTERVAL(10s)");
 
   run("SELECT diff(c1) FROM t1");
 }

@@ -268,6 +268,10 @@ static bool isSelectFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsSelectFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isTimelineFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsTimelineFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
   return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
 }
@@ -672,38 +676,6 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   return code;
 }
 
-static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SNode** pPrimaryKey) {
-  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
-  if (NULL == pCol) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-  if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, false, pCol);
-  } else {
-    // todo
-  }
-  *pPrimaryKey = (SNode*)pCol;
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t createPrimaryKeyCol(STranslateContext* pCxt, SNode** pPrimaryKey) {
-  STableNode* pTable = NULL;
-  int32_t     code = findTable(pCxt, NULL, &pTable);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = createPrimaryKeyColByTable(pCxt, pTable, pPrimaryKey);
-  }
-  return code;
-}
-
-static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
-  SNode*  pPrimaryKey = NULL;
-  int32_t code = createPrimaryKeyCol(pCxt, &pPrimaryKey);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
-  }
-  return code;
-}
-
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
                                .pRpc = pCxt->pParseCxt->pTransporter,
@@ -726,9 +698,6 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
     if (isCountStar(pFunc)) {
       pCxt->errCode = rewriteCountStar(pCxt, pFunc);
     }
-  }
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsTimelineFunc(pFunc->funcId)) {
-    pCxt->errCode = rewriteTimelineFunc(pCxt, pFunc);
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -1641,6 +1610,48 @@ static int32_t checkLimit(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* pTable, SNode** pPrimaryKey) {
+  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  if (NULL == pCol) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, false, pCol);
+  } else {
+    // todo
+  }
+  *pPrimaryKey = (SNode*)pCol;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t createPrimaryKeyCol(STranslateContext* pCxt, SNode** pPrimaryKey) {
+  STableNode* pTable = NULL;
+  int32_t     code = findTable(pCxt, NULL, &pTable);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = createPrimaryKeyColByTable(pCxt, pTable, pPrimaryKey);
+  }
+  return code;
+}
+
+static EDealRes rewriteTimelineFuncImpl(SNode* pNode, void* pContext) {
+  STranslateContext* pCxt = pContext;
+  if (isTimelineFunc(pNode)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pNode;
+    SNode*         pPrimaryKey = NULL;
+    pCxt->errCode = createPrimaryKeyCol(pCxt, &pPrimaryKey);
+    if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+      pCxt->errCode = nodesListMakeStrictAppend(&pFunc->pParameterList, pPrimaryKey);
+    }
+    return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static int32_t rewriteTimelineFunc(STranslateContext* pCxt, SSelectStmt* pSelect) {
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_FROM, rewriteTimelineFuncImpl, pCxt);
+  return pCxt->errCode;
+}
+
 static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect);
@@ -1670,6 +1681,9 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = checkLimit(pCxt, pSelect);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = rewriteTimelineFunc(pCxt, pSelect);
   }
   return code;
 }
