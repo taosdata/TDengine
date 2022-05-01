@@ -127,7 +127,7 @@ void scltMakeValueNode(SNode **pNode, int32_t dataType, void *value) {
   *pNode = (SNode *)vnode;
 }
 
-void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t ronwNum, void *value) {
+void scltMakeColumnNode(SNode **pNode, SSDataBlock **block, int32_t dataType, int32_t dataBytes, int32_t rowNum, void *value) {
   SNode *node = (SNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   SColumnNode *rnode = (SColumnNode *)node;
   rnode->node.resType.type = dataType;

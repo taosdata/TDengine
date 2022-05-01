@@ -1,4 +1,3 @@
-#include <clientInt.h>
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -15,6 +14,7 @@
 #include "ttypes.h"
 #include "tcommon.h"
 #include "catalog.h"
+#include "clientInt.h"
 //=================================================================================================
 
 #define SPACE ' '
@@ -971,7 +971,7 @@ static int32_t smlParseString(const char* sql, SSmlLineInfo *elements, SSmlMsgBu
   if(!elements->cols) {
     smlBuildInvalidDataMsg(msg, "invalid columns", elements->cols);
     return TSDB_CODE_SML_INVALID_DATA;
-    }
+  }
 
   bool isInQuote = false;
   while (*sql != '\0') {
@@ -983,12 +983,18 @@ static int32_t smlParseString(const char* sql, SSmlLineInfo *elements, SSmlMsgBu
     }
     sql++;
   }
+  if(isInQuote){
+    smlBuildInvalidDataMsg(msg, "only one quote", elements->cols);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
   elements->colsLen = sql - elements->cols;
 
   // parse ts,ts can be empty
   while (*sql != '\0') {
-    if(*sql != SPACE) {
+    if(*sql != SPACE && elements->timestamp == NULL) {
       elements->timestamp = sql;
+    }
+    if(*sql == SPACE && elements->timestamp != NULL){
       break;
     }
     sql++;
@@ -1321,7 +1327,7 @@ static SSmlTableInfo* smlBuildTableInfo(bool format){
       goto cleanup;
     }
 
-    tag->columnsHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
+    tag->columnsHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
     if (tag->columnsHash == NULL) {
       uError("SML:smlParseLine failed to allocate memory");
       goto cleanup;
@@ -1365,7 +1371,7 @@ static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *col
   if(dataFormat){
     taosArrayPush(oneTable->colsFormat, &cols);
   }else{
-    SHashObj *kvHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
+    SHashObj *kvHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
     if(!kvHash){
       uError("SML:smlDealCols failed to allocate memory");
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -1381,6 +1387,7 @@ static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *col
     }
     taosArrayPush(oneTable->cols, &kvHash);
   }
+  return TSDB_CODE_SUCCESS;
 }
 
 static SSmlSTableMeta* smlBuildSTableMeta(){
@@ -1388,13 +1395,13 @@ static SSmlSTableMeta* smlBuildSTableMeta(){
   if(!meta){
     return NULL;
   }
-  meta->tagHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
+  meta->tagHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (meta->tagHash == NULL) {
     uError("SML:smlBuildSTableMeta failed to allocate memory");
     goto cleanup;
   }
 
-  meta->fieldHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
+  meta->fieldHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   if (meta->fieldHash == NULL) {
     uError("SML:smlBuildSTableMeta failed to allocate memory");
     goto cleanup;
@@ -1528,6 +1535,7 @@ static void smlDestroyInfo(SSmlHandle* info){
 }
 
 static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocolType protocol, int8_t precision, bool dataFormat){
+  int32_t code = TSDB_CODE_SUCCESS;
   SSmlHandle* info = taosMemoryMalloc(sizeof(SSmlHandle));
   if (NULL == info) {
     return NULL;
@@ -1550,7 +1558,7 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
   ((SVnodeModifOpStmt*)(info->pQuery->pRoot))->payloadType = PAYLOAD_TYPE_KV;
 
   info->taos        = taos;
-  int32_t code      = catalogGetHandle(info->taos->pAppInfo->clusterId, &info->pCatalog);
+  code = catalogGetHandle(info->taos->pAppInfo->clusterId, &info->pCatalog);
   if(code != TSDB_CODE_SUCCESS){
     uError("SML:0x%"PRIx64" get catalog error %d", info->id, code);
     goto cleanup;
@@ -1564,9 +1572,9 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
   info->msgBuf.len  = ERROR_MSG_BUF_DEFAULT_SIZE;
 
   info->exec        = smlInitHandle(info->pQuery);
-  info->childTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
-  info->superTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
-  info->pVgHash     = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
+  info->childTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  info->superTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  info->pVgHash     = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
   if(NULL == info->exec || NULL == info->childTables
       || NULL == info->superTables || NULL == info->pVgHash){
@@ -1653,7 +1661,6 @@ static int smlInsertLines(SSmlHandle *info, char* lines[], int numLines) {
   uDebug("SML:0x%"PRIx64" smlInsertLines finish inserting %d lines.", info->id, numLines);
 
 cleanup:
-  smlDestroyInfo(info);
   return code;
 }
 
@@ -1681,12 +1688,12 @@ cleanup:
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision, bool dataFormat) {
   SRequestObj* request = createRequest(taos, NULL, NULL, TSDB_SQL_INSERT);
   if(!request){
-    goto end;
+    return NULL;
   }
 
   SSmlHandle* info = smlBuildSmlInfo(taos, request, protocol, precision, dataFormat);
   if(!info){
-    goto end;
+    return (TAOS_RES*)request;
   }
 
   switch (protocol) {
@@ -1703,7 +1710,9 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     default:
       break;
   }
+  smlDestroyInfo(info);
 
 end:
   return (TAOS_RES*)request;
 }
+
