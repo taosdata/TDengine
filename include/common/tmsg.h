@@ -181,8 +181,8 @@ typedef struct SField {
 } SField;
 
 typedef struct SRetention {
-  int32_t freq;
-  int32_t keep;
+  int64_t freq;
+  int64_t keep;
   int8_t  freqUnit;
   int8_t  keepUnit;
 } SRetention;
@@ -240,13 +240,7 @@ typedef struct {
   // head of SSubmitBlk
   const void* pMsg;
 } SSubmitMsgIter;
-#if 0
-int32_t tInitSubmitMsgIterOrigin(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
-int32_t tGetSubmitMsgNextOrigin(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
-int32_t tInitSubmitBlkIterOrigin(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
-STSRow* tGetSubmitBlkNextOrigin(SSubmitBlkIter* pIter);
-#endif
-// TODO: KEEP one suite of iterator API finally.
+
 int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
 int32_t tInitSubmitBlkIter(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);

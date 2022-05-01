@@ -27,75 +27,7 @@
 #define TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
-#if 0
-int32_t tInitSubmitMsgIterOrigin(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
-  if (pMsg == NULL) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    return -1;
-  }
 
-  pIter->totalLen = pMsg->length;
-  ASSERT(pIter->totalLen > 0);
-  pIter->len = 0;
-  pIter->pMsg = pMsg;
-  if (pMsg->length <= sizeof(SSubmitReq)) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    return -1;
-  }
-
-  return 0;
-}
-
-int32_t tGetSubmitMsgNextOrigin(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
-  ASSERT(pIter->len >= 0);
-
-  if (pIter->len == 0) {
-    pIter->len += sizeof(SSubmitReq);
-  } else {
-    if (pIter->len >= pIter->totalLen) {
-      ASSERT(0);
-    }
-
-    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
-    pIter->len += (sizeof(SSubmitBlk) + pSubmitBlk->dataLen + pSubmitBlk->schemaLen);
-    ASSERT(pIter->len > 0);
-  }
-
-  if (pIter->len > pIter->totalLen) {
-    terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
-    *pPBlock = NULL;
-    return -1;
-  }
-
-  *pPBlock = (pIter->len == pIter->totalLen) ? NULL : (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
-
-  return 0;
-}
-
-int32_t tInitSubmitBlkIterOrigin(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
-  if (pBlock->dataLen <= 0) return -1;
-  pIter->totalLen = pBlock->dataLen;
-  pIter->len = 0;
-  pIter->row = (STSRow *)(pBlock->data + pBlock->schemaLen);
-  return 0;
-}
-
-STSRow *tGetSubmitBlkNextOrigin(SSubmitBlkIter *pIter) {
-  STSRow *row = pIter->row;
-
-  if (pIter->len >= pIter->totalLen) {
-    return NULL;
-  } else {
-    pIter->len += TD_ROW_LEN(row);
-    if (pIter->len < pIter->totalLen) {
-      pIter->row = POINTER_SHIFT(row, TD_ROW_LEN(row));
-    }
-    return row;
-  }
-}
-#endif
-
-// TODO: KEEP one suite of iterator API finally.
 int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL) {
     terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
@@ -1679,8 +1611,8 @@ int32_t tSerializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) {
   if (tEncodeI32(&encoder, pReq->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pReq->pRetensions, i);
-    if (tEncodeI32(&encoder, pRetension->freq) < 0) return -1;
-    if (tEncodeI32(&encoder, pRetension->keep) < 0) return -1;
+    if (tEncodeI64(&encoder, pRetension->freq) < 0) return -1;
+    if (tEncodeI64(&encoder, pRetension->keep) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->freqUnit) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->keepUnit) < 0) return -1;
   }
@@ -1725,8 +1657,8 @@ int32_t tDeserializeSCreateDbReq(void *buf, int32_t bufLen, SCreateDbReq *pReq) 
 
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
     SRetention rentension = {0};
-    if (tDecodeI32(&decoder, &rentension.freq) < 0) return -1;
-    if (tDecodeI32(&decoder, &rentension.keep) < 0) return -1;
+    if (tDecodeI64(&decoder, &rentension.freq) < 0) return -1;
+    if (tDecodeI64(&decoder, &rentension.keep) < 0) return -1;
     if (tDecodeI8(&decoder, &rentension.freqUnit) < 0) return -1;
     if (tDecodeI8(&decoder, &rentension.keepUnit) < 0) return -1;
     if (taosArrayPush(pReq->pRetensions, &rentension) == NULL) {
@@ -2155,8 +2087,8 @@ int32_t tSerializeSDbCfgRsp(void *buf, int32_t bufLen, const SDbCfgRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pRsp->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pRsp->pRetensions, i);
-    if (tEncodeI32(&encoder, pRetension->freq) < 0) return -1;
-    if (tEncodeI32(&encoder, pRetension->keep) < 0) return -1;
+    if (tEncodeI64(&encoder, pRetension->freq) < 0) return -1;
+    if (tEncodeI64(&encoder, pRetension->keep) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->freqUnit) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->keepUnit) < 0) return -1;
   }
@@ -2199,8 +2131,8 @@ int32_t tDeserializeSDbCfgRsp(void *buf, int32_t bufLen, SDbCfgRsp *pRsp) {
 
   for (int32_t i = 0; i < pRsp->numOfRetensions; ++i) {
     SRetention rentension = {0};
-    if (tDecodeI32(&decoder, &rentension.freq) < 0) return -1;
-    if (tDecodeI32(&decoder, &rentension.keep) < 0) return -1;
+    if (tDecodeI64(&decoder, &rentension.freq) < 0) return -1;
+    if (tDecodeI64(&decoder, &rentension.keep) < 0) return -1;
     if (tDecodeI8(&decoder, &rentension.freqUnit) < 0) return -1;
     if (tDecodeI8(&decoder, &rentension.keepUnit) < 0) return -1;
     if (taosArrayPush(pRsp->pRetensions, &rentension) == NULL) {
@@ -2817,8 +2749,8 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
   if (tEncodeI32(&encoder, pReq->numOfRetensions) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
     SRetention *pRetension = taosArrayGet(pReq->pRetensions, i);
-    if (tEncodeI32(&encoder, pRetension->freq) < 0) return -1;
-    if (tEncodeI32(&encoder, pRetension->keep) < 0) return -1;
+    if (tEncodeI64(&encoder, pRetension->freq) < 0) return -1;
+    if (tEncodeI64(&encoder, pRetension->keep) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->freqUnit) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->keepUnit) < 0) return -1;
   }
@@ -2874,8 +2806,8 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
 
   for (int32_t i = 0; i < pReq->numOfRetensions; ++i) {
     SRetention rentension = {0};
-    if (tDecodeI32(&decoder, &rentension.freq) < 0) return -1;
-    if (tDecodeI32(&decoder, &rentension.keep) < 0) return -1;
+    if (tDecodeI64(&decoder, &rentension.freq) < 0) return -1;
+    if (tDecodeI64(&decoder, &rentension.keep) < 0) return -1;
     if (tDecodeI8(&decoder, &rentension.freqUnit) < 0) return -1;
     if (tDecodeI8(&decoder, &rentension.keepUnit) < 0) return -1;
     if (taosArrayPush(pReq->pRetensions, &rentension) == NULL) {

@@ -1947,9 +1947,6 @@ static int32_t checkDbRetentionsOption(STranslateContext* pCxt, SNodeList* pRete
       if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
         return pCxt->errCode;
       }
-      if (!TIME_IS_VAR_DURATION(pVal->unit)) {
-        pVal->datum.i = convertTimeFromPrecisionToUnit(pVal->datum.i, pVal->node.resType.precision, pVal->unit);
-      }
     }
   }
 
