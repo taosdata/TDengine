@@ -42,3 +42,12 @@ TEST_F(PlanIntervalTest, fill) {
       "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
       "INTERVAL(10s) FILL(VALUE, 10, 20)");
 }
+
+TEST_F(PlanIntervalTest, selectFunc) {
+  useDb("root", "test");
+
+  // select function for INTERVAL clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
+  // select function along with the columns of select row, and with INTERVAL clause
+  run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
+}
