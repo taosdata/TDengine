@@ -31,3 +31,12 @@ TEST_F(PlanStateTest, stateExpr) {
 
   run("select count(*) from t1 state_window(c1 + 10)");
 }
+
+TEST_F(PlanStateTest, selectFunc) {
+  useDb("root", "test");
+
+  // select function for STATE_WINDOW clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 STATE_WINDOW(c3)");
+  // select function along with the columns of select row, and with STATE_WINDOW clause
+  run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
+}

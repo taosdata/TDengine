@@ -37,9 +37,9 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
   // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
   // iterate and convert
-  if (tInitSubmitMsgIterEx(pMsg, &pReadHandle->msgIter) < 0) return -1;
+  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   while (true) {
-    if (tGetSubmitMsgNextEx(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
+    if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
     if (pReadHandle->pBlock == NULL) break;
 
     // pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
@@ -50,7 +50,7 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
     // pReadHandle->pBlock->numOfRows = htons(pReadHandle->pBlock->numOfRows);
   }
 
-  if (tInitSubmitMsgIterEx(pMsg, &pReadHandle->msgIter) < 0) return -1;
+  if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   pReadHandle->ver = ver;
   memset(&pReadHandle->blkIter, 0, sizeof(SSubmitBlkIter));
   return 0;
@@ -58,7 +58,7 @@ int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t
 
 bool tqNextDataBlock(STqReadHandle* pHandle) {
   while (1) {
-    if (tGetSubmitMsgNextEx(&pHandle->msgIter, &pHandle->pBlock) < 0) {
+    if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
       return false;
     }
     if (pHandle->pBlock == NULL) return false;
@@ -169,8 +169,8 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   tdSTSRowIterInit(&iter, pTschema);
   STSRow* row;
   int32_t curRow = 0;
-  tInitSubmitBlkIterEx(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
-  while ((row = tGetSubmitBlkNextEx(&pHandle->blkIter)) != NULL) {
+  tInitSubmitBlkIter(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
+  while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
     // get all wanted col of that block
     for (int32_t i = 0; i < colActual; i++) {

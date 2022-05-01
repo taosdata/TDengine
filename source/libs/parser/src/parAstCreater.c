@@ -501,6 +501,12 @@ SNode* createFillNode(SAstCreateContext* pCxt, EFillMode mode, SNode* pValues) {
   CHECK_OUT_OF_MEM(fill);
   fill->mode = mode;
   fill->pValues = pValues;
+  fill->pWStartTs = nodesMakeNode(QUERY_NODE_FUNCTION);
+  if (NULL == fill->pWStartTs) {
+    nodesDestroyNode(fill);
+    CHECK_OUT_OF_MEM(fill->pWStartTs);
+  }
+  strcpy(((SFunctionNode*)fill->pWStartTs)->functionName, "_wstartts");
   return (SNode*)fill;
 }
 

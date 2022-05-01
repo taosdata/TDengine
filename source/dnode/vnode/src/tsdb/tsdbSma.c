@@ -174,6 +174,8 @@ static int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, const char *msg);
 
 static FORCE_INLINE int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid, SArray *tbUids);
+static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, int32_t inputType,
+                                                qTaskInfo_t *taskInfo, tb_uid_t suid, int8_t retention);
 // mgmt interface
 static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid);
 
@@ -702,25 +704,25 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
   SInterval      interval = {0};
   TSKEY          lastWinSKey = INT64_MIN;
 
-  if (tInitSubmitMsgIterEx(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
+  if (tInitSubmitMsgIter(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   }
 
   while (true) {
-    tGetSubmitMsgNextEx(&msgIter, &pBlock);
+    tGetSubmitMsgNext(&msgIter, &pBlock);
     if (!pBlock) break;
 
     STSmaWrapper *pSW = NULL;
     STSma        *pTSma = NULL;
 
     SSubmitBlkIter blkIter = {0};
-    if (tInitSubmitBlkIterEx(&msgIter, pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
+    if (tInitSubmitBlkIter(&msgIter, pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
       pSW = tdFreeTSmaWrapper(pSW);
       break;
     }
 
     while (true) {
-      STSRow *row = tGetSubmitBlkNextEx(&blkIter);
+      STSRow *row = tGetSubmitBlkNext(&blkIter);
       if (!row) {
         tdFreeTSmaWrapper(pSW);
         break;
@@ -1881,8 +1883,10 @@ int32_t tsdbFetchTbUidList(STsdb *pTsdb, STbUidStore **ppStore, tb_uid_t suid, t
     return TSDB_CODE_SUCCESS;
   }
 
+  ASSERT(ppStore != NULL);
+
   if (!(*ppStore)) {
-    if (tsdbUidStoreInit((STbUidStore **)ppStore) != 0) {
+    if (tsdbUidStoreInit(ppStore) != 0) {
       return TSDB_CODE_FAILED;
     }
   }
@@ -1966,9 +1970,9 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
 
   terrno = TSDB_CODE_SUCCESS;
 
-  if (tInitSubmitMsgIterEx(pMsg, &msgIter) < 0) return -1;
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
   while (true) {
-    if (tGetSubmitMsgNextEx(&msgIter, &pBlock) < 0) return -1;
+    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
 
     if (!pBlock) break;
     tsdbUidStorePut(pStore, msgIter.suid, NULL);
@@ -1978,7 +1982,44 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
   return 0;
 }
 
-int32_t tsdbExecuteRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t inputType, tb_uid_t *suid) {
+static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, int32_t inputType,
+                                                qTaskInfo_t *taskInfo, tb_uid_t suid, int8_t retention) {
+  SArray *pResult = NULL;
+  tsdbDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, REPO_ID(pTsdb), retention, taskInfo,
+            suid);
+  qSetStreamInput(taskInfo, pMsg, inputType);
+  while (1) {
+    SSDataBlock *output;
+    uint64_t     ts;
+    if (qExecTask(taskInfo, &output, &ts) < 0) {
+      ASSERT(false);
+    }
+    if (!output) {
+      break;
+    }
+    if (!pResult) {
+      pResult = taosArrayInit(0, sizeof(SSDataBlock));
+      if (!pResult) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return TSDB_CODE_FAILED;
+      }
+    }
+
+    taosArrayPush(pResult, output);
+  }
+
+  if (taosArrayGetSize(pResult) > 0) {
+    blockDebugShowData(pResult);
+  } else {
+    tsdbWarn("vgId:%d no rsma_1 data generated since %s", REPO_ID(pTsdb), tstrerror(terrno));
+  }
+  
+  taosArrayDestroy(pResult);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType, tb_uid_t suid) {
   SSmaEnv *pEnv = REPO_RSMA_ENV(pTsdb);
   if (!pEnv) {
     // only applicable when rsma env exists
@@ -1988,65 +2029,22 @@ int32_t tsdbExecuteRSma(STsdb *pTsdb, SMeta *pMeta, const void *pMsg, int32_t in
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaInfo *pRSmaInfo = NULL;
 
-  pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), suid, sizeof(tb_uid_t));
+  pRSmaInfo = taosHashGet(SMA_STAT_INFO_HASH(pStat), &suid, sizeof(tb_uid_t));
 
   if (!pRSmaInfo || !(pRSmaInfo = *(SRSmaInfo **)pRSmaInfo)) {
-    tsdbDebug("vgId:%d no rsma info for suid:%" PRIu64, REPO_ID(pTsdb), *suid);
+    tsdbDebug("vgId:%d no rsma info for suid:%" PRIu64, REPO_ID(pTsdb), suid);
     return TSDB_CODE_SUCCESS;
   }
 
-  SArray *pResult = NULL;
-
-  pResult = taosArrayInit(0, sizeof(SSDataBlock));
-  if (!pResult) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-    if (pRSmaInfo->taskInfo[0]) {
-      tsdbDebug("vgId:%d execute rsma task for qTaskInfo:%p suid:%" PRIu64, REPO_ID(pTsdb), pRSmaInfo->taskInfo[0],
-                *suid);
-      qSetStreamInput(pRSmaInfo->taskInfo[0], pMsg, inputType);
-      while (1) {
-        SSDataBlock *output;
-        uint64_t     ts;
-        if (qExecTask(pRSmaInfo->taskInfo[0], &output, &ts) < 0) {
-          ASSERT(false);
-        }
-        if (!output) {
-          break;
-        }
-        taosArrayPush(pResult, output);
-      }
-      if (taosArrayGetSize(pResult) > 0) {
-        blockDebugShowData(pResult);
-      } else {
-        tsdbWarn("vgId:%d no sma data generated since %s", REPO_ID(pTsdb), tstrerror(terrno));
-      }
-    }
-
-    // if (pRSmaInfo->taskInfo[1]) {
-    //   qSetStreamInput(pRSmaInfo->taskInfo[1], pMsg, inputType);
-    //   while (1) {
-    //     SSDataBlock *output;
-    //     uint64_t     ts;
-    //     if (qExecTask(pRSmaInfo->taskInfo[1], &output, &ts) < 0) {
-    //       ASSERT(false);
-    //     }
-    //     if (!output) {
-    //       break;
-    //     }
-    //     taosArrayPush(pResult, output);
-    //   }
-    //   blockDebugShowData(pResult);
-    // }
+    tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[0], suid, TSDB_RSMA_RETENTION_1);
+    tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[1], suid, TSDB_RSMA_RETENTION_2);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, void *pMsg, int32_t inputType) {
+int32_t tsdbTriggerRSma(STsdb *pTsdb, void *pMsg, int32_t inputType) {
   SSmaEnv *pEnv = REPO_RSMA_ENV(pTsdb);
   if (!pEnv) {
     // only applicable when rsma env exists
@@ -2058,12 +2056,12 @@ int32_t tsdbTriggerRSma(STsdb *pTsdb, SMeta *pMeta, void *pMsg, int32_t inputTyp
     tsdbFetchSubmitReqSuids(pMsg, &uidStore);
 
     if (uidStore.suid != 0) {
-      tsdbExecuteRSma(pTsdb, pMeta, pMsg, inputType, &uidStore.suid);
+      tsdbExecuteRSma(pTsdb, pMsg, inputType, uidStore.suid);
 
       void *pIter = taosHashIterate(uidStore.uidHash, NULL);
       while (pIter) {
         tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
-        tsdbExecuteRSma(pTsdb, pMeta, pMsg, inputType, pTbSuid);
+        tsdbExecuteRSma(pTsdb, pMsg, inputType, *pTbSuid);
         pIter = taosHashIterate(uidStore.uidHash, pIter);
       }
 

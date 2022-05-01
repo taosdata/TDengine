@@ -123,7 +123,7 @@ int32_t tsdbFetchTbUidList(STsdb* pTsdb, STbUidStore** ppStore, tb_uid_t suid, t
 int32_t tsdbUpdateTbUidList(STsdb* pTsdb, STbUidStore* pUidStore);
 void    tsdbUidStoreDestory(STbUidStore* pStore);
 void*   tsdbUidStoreFree(STbUidStore* pStore);
-int32_t tsdbTriggerRSma(STsdb* pTsdb, SMeta* pMeta, void* pMsg, int32_t inputType);
+int32_t tsdbTriggerRSma(STsdb* pTsdb, void* pMsg, int32_t inputType);
 
 typedef struct {
   int8_t  streamType;  // sma or other
@@ -188,7 +188,7 @@ struct STbUidStore {
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
 
 
-static FORCE_INLINE bool tsdbIsRollup(SVnode* pVnode) {
+static FORCE_INLINE bool vnodeIsRollup(SVnode* pVnode) {
   SRetention* pRetention = &(pVnode->config.tsdbCfg.retentions[0]);
   return (pRetention->freq > 0 && pRetention->keep > 0);
 }
