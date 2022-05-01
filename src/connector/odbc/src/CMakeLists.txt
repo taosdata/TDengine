@@ -40,8 +40,9 @@ IF (TD_DARWIN)
   SET_TARGET_PROPERTIES(todbc PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
   TARGET_LINK_LIBRARIES(todbc todbc_base taos odbcinst)
   target_include_directories(todbc PUBLIC .)
-  target_include_directories(todbc PRIVATE /usr/local/include)
-  target_link_directories(todbc PUBLIC /usr/local/lib)
+  # TODO: later we shall specify directories according to the specific target intel/arm64
+  target_include_directories(todbc PRIVATE /usr/local/include /opt/homebrew/include)
+  target_link_directories(todbc PUBLIC /usr/local/lib /opt/homebrew/lib)
 
   install(CODE "execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install.sh ${CMAKE_BINARY_DIR})")
 ENDIF ()

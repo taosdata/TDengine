@@ -7,8 +7,9 @@ IF (TD_LINUX OR TD_DARWIN)
 ENDIF ()
 
 IF (TD_DARWIN)
-  target_include_directories(tcodbc PRIVATE /usr/local/include)
-  target_link_directories(tcodbc PUBLIC /usr/local/lib)
+  # TODO: later we shall specify directories according to the specific target intel/arm64
+  target_include_directories(tcodbc PRIVATE /usr/local/include /opt/homebrew/include)
+  target_link_directories(tcodbc PUBLIC /usr/local/lib /opt/homebrew/lib)
 ENDIF ()
 
 IF (TD_WINDOWS_64)

@@ -8,10 +8,11 @@ IF (TD_LINUX OR TD_DARWIN)
 ENDIF ()
 
 IF (TD_DARWIN)
-  target_include_directories(todbcinst PRIVATE /usr/local/include)
-  target_link_directories(todbcinst PUBLIC /usr/local/lib)
-  target_include_directories(tconv PRIVATE /usr/local/include)
-  target_link_directories(tconv PUBLIC /usr/local/lib)
+  # TODO: later we shall specify directories according to the specific target intel/arm64
+  target_include_directories(todbcinst PRIVATE /usr/local/include /opt/homebrew/include)
+  target_link_directories(todbcinst PUBLIC /usr/local/lib /opt/homebrew/lib)
+  target_include_directories(tconv PRIVATE /usr/local/include /opt/homebrew/include)
+  target_link_directories(tconv PUBLIC /usr/local/lib /opt/homebrew/lib)
   TARGET_LINK_LIBRARIES(tconv iconv)
 ENDIF ()
 
