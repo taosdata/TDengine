@@ -27,8 +27,8 @@
 #define TD_MSG_DICT_
 #undef TD_MSG_SEG_CODE_
 #include "tmsgdef.h"
-
-int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
+#if 0
+int32_t tInitSubmitMsgIterOrigin(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL) {
     terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
     return -1;
@@ -46,7 +46,7 @@ int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   return 0;
 }
 
-int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
+int32_t tGetSubmitMsgNextOrigin(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   ASSERT(pIter->len >= 0);
 
   if (pIter->len == 0) {
@@ -72,7 +72,7 @@ int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   return 0;
 }
 
-int32_t tInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
+int32_t tInitSubmitBlkIterOrigin(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
   if (pBlock->dataLen <= 0) return -1;
   pIter->totalLen = pBlock->dataLen;
   pIter->len = 0;
@@ -80,7 +80,7 @@ int32_t tInitSubmitBlkIter(SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
   return 0;
 }
 
-STSRow *tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
+STSRow *tGetSubmitBlkNextOrigin(SSubmitBlkIter *pIter) {
   STSRow *row = pIter->row;
 
   if (pIter->len >= pIter->totalLen) {
@@ -93,13 +93,10 @@ STSRow *tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
     return row;
   }
 }
+#endif
 
 // TODO: KEEP one suite of iterator API finally.
-// 1) use tInitSubmitMsgIterEx firstly as not decrease the merge conflicts
-// 2) replace tInitSubmitMsgIterEx with tInitSubmitMsgIter later
-// 3) finally, rename tInitSubmitMsgIterEx to tInitSubmitMsgIter
-
-int32_t tInitSubmitMsgIterEx(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
+int32_t tInitSubmitMsgIter(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   if (pMsg == NULL) {
     terrno = TSDB_CODE_TDB_SUBMIT_MSG_MSSED_UP;
     return -1;
@@ -117,7 +114,7 @@ int32_t tInitSubmitMsgIterEx(const SSubmitReq *pMsg, SSubmitMsgIter *pIter) {
   return 0;
 }
 
-int32_t tGetSubmitMsgNextEx(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
+int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   ASSERT(pIter->len >= 0);
 
   if (pIter->len == 0) {
@@ -152,7 +149,7 @@ int32_t tGetSubmitMsgNextEx(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
   return 0;
 }
 
-int32_t tInitSubmitBlkIterEx(SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
+int32_t tInitSubmitBlkIter(SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkIter *pIter) {
   if (pMsgIter->dataLen <= 0) return -1;
   pIter->totalLen = pMsgIter->dataLen;
   pIter->len = 0;
@@ -160,7 +157,7 @@ int32_t tInitSubmitBlkIterEx(SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubm
   return 0;
 }
 
-STSRow *tGetSubmitBlkNextEx(SSubmitBlkIter *pIter) {
+STSRow *tGetSubmitBlkNext(SSubmitBlkIter *pIter) {
   STSRow *row = pIter->row;
 
   if (pIter->len >= pIter->totalLen) {

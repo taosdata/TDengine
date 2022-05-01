@@ -702,25 +702,25 @@ int32_t tsdbUpdateExpiredWindowImpl(STsdb *pTsdb, SSubmitReq *pMsg, int64_t vers
   SInterval      interval = {0};
   TSKEY          lastWinSKey = INT64_MIN;
 
-  if (tInitSubmitMsgIterEx(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
+  if (tInitSubmitMsgIter(pMsg, &msgIter) != TSDB_CODE_SUCCESS) {
     return TSDB_CODE_FAILED;
   }
 
   while (true) {
-    tGetSubmitMsgNextEx(&msgIter, &pBlock);
+    tGetSubmitMsgNext(&msgIter, &pBlock);
     if (!pBlock) break;
 
     STSmaWrapper *pSW = NULL;
     STSma        *pTSma = NULL;
 
     SSubmitBlkIter blkIter = {0};
-    if (tInitSubmitBlkIterEx(&msgIter, pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
+    if (tInitSubmitBlkIter(&msgIter, pBlock, &blkIter) != TSDB_CODE_SUCCESS) {
       pSW = tdFreeTSmaWrapper(pSW);
       break;
     }
 
     while (true) {
-      STSRow *row = tGetSubmitBlkNextEx(&blkIter);
+      STSRow *row = tGetSubmitBlkNext(&blkIter);
       if (!row) {
         tdFreeTSmaWrapper(pSW);
         break;
@@ -1966,9 +1966,9 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
 
   terrno = TSDB_CODE_SUCCESS;
 
-  if (tInitSubmitMsgIterEx(pMsg, &msgIter) < 0) return -1;
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
   while (true) {
-    if (tGetSubmitMsgNextEx(&msgIter, &pBlock) < 0) return -1;
+    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
 
     if (!pBlock) break;
     tsdbUidStorePut(pStore, msgIter.suid, NULL);

@@ -351,14 +351,25 @@ static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableData
   }
 }
 
+static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions) {
+  if (vnodeIsRollup(pVnode)) {
+    // for(int32_t i=0; i< TSDB_; ) {
+      
+    // }
+  }
+  return pVnode->pTsdb;
+}
+
 static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond* pCond, uint64_t qId, uint64_t taskId) {
   STsdbReadHandle* pReadHandle = taosMemoryCalloc(1, sizeof(STsdbReadHandle));
   if (pReadHandle == NULL) {
     goto _end;
   }
 
+  STsdb* pTsdb = getTsdbByRetentions(pVnode, pCond->twindow.skey, pVnode->config.tsdbCfg.retentions);
+
   pReadHandle->order = pCond->order;
-  pReadHandle->pTsdb = pVnode->pTsdb;
+  pReadHandle->pTsdb = pTsdb;
   pReadHandle->type = TSDB_QUERY_TYPE_ALL;
   pReadHandle->cur.fid = INT32_MIN;
   pReadHandle->cur.win = TSWINDOW_INITIALIZER;
@@ -376,7 +387,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
   snprintf(buf, tListLen(buf), "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, qId);
   pReadHandle->idStr = strdup(buf);
 
-  if (tsdbInitReadH(&pReadHandle->rhelper, (STsdb*)pVnode->pTsdb) != 0) {
+  if (tsdbInitReadH(&pReadHandle->rhelper, pReadHandle->pTsdb) != 0) {
     goto _end;
   }
 
@@ -413,7 +424,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
     pReadHandle->suppInfo.plist = taosMemoryCalloc(taosArrayGetSize(pReadHandle->suppInfo.defaultLoadColumn), POINTER_BYTES);
   }
 
-  pReadHandle->pDataCols = tdNewDataCols(1000, pReadHandle->pTsdb->pVnode->config.tsdbCfg.maxRows);
+  pReadHandle->pDataCols = tdNewDataCols(1000, pVnode->config.tsdbCfg.maxRows);
   if (pReadHandle->pDataCols == NULL) {
     tsdbError("%p failed to malloc buf for pDataCols, %s", pReadHandle, pReadHandle->idStr);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
