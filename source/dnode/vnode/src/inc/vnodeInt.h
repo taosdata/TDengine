@@ -188,7 +188,7 @@ struct STbUidStore {
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
 
 
-static FORCE_INLINE bool tsdbIsRollup(SVnode* pVnode) {
+static FORCE_INLINE bool vnodeIsRollup(SVnode* pVnode) {
   SRetention* pRetention = &(pVnode->config.tsdbCfg.retentions[0]);
   return (pRetention->freq > 0 && pRetention->keep > 0);
 }

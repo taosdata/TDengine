@@ -67,7 +67,7 @@ int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir) {
     goto _err;
   }
 
-  tsdbDebug("vgId: %d tsdb is opened for %s", TD_VID(pVnode), pTsdb->path);
+  tsdbDebug("vgId:%d tsdb is opened for %s", TD_VID(pVnode), pTsdb->path);
 
   *ppTsdb = pTsdb;
   return 0;

@@ -96,24 +96,24 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   }
 
   // open tsdb
-  if (tsdbIsRollup(pVnode)) {
+  if (vnodeIsRollup(pVnode)) {
     if (tsdbOpen(pVnode, TSDB_TYPE_RSMA_L0) < 0) {
-      vError("vgId: %d failed to open vnode rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
+      vError("vgId:%d failed to open vnode rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
     }
 
     if (tsdbOpen(pVnode, TSDB_TYPE_RSMA_L1) < 0) {
-      vError("vgId: %d failed to open vnode rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
+      vError("vgId:%d failed to open vnode rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
     }
 
     if (tsdbOpen(pVnode, TSDB_TYPE_RSMA_L2) < 0) {
-      vError("vgId: %d failed to open vnode rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
+      vError("vgId:%d failed to open vnode rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
     }
   } else {
     if (tsdbOpen(pVnode, TSDB_TYPE_TSDB) < 0) {
-      vError("vgId: %d failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+      vError("vgId:%d failed to open vnode tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
       goto _err;
     }
   }
@@ -160,8 +160,8 @@ _err:
   if (pVnode->pWal) walClose(pVnode->pWal);
   if (pVnode->pTsdb) tsdbClose(pVnode->pTsdb);
   if (pVnode->pMeta) metaClose(pVnode->pMeta);
-    tsdbClose(VND_RSMA1(pVnode));
-    tsdbClose(VND_RSMA2(pVnode));
+  tsdbClose(VND_RSMA1(pVnode));
+  tsdbClose(VND_RSMA2(pVnode));
   tsem_destroy(&(pVnode->canCommit));
   taosMemoryFree(pVnode);
   return NULL;
