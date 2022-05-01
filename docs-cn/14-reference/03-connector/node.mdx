@@ -16,11 +16,11 @@ import NodeOpenTSDBJson from "../../04-develop/03-insert-data/_js_opts_json.mdx"
 import NodeQuery from "../../04-develop/04-query-data/_js.mdx";
 import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx";
 
-`td2.0-connector` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。
+`td2.0-connector` 和 `td2.0-rest-connector` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。
 
-`td2.0-connector` 支持两种形式的连接器。一种是**原生连接器**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接器**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 的运行实例。REST 连接器可以在任何平台运行，但性能略为下降，接口实现的功能特性集合和原生接口有少量不同。
+`td2.0-connector` 是**原生连接器**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。`td2.0-rest-connector` 是 **REST 连接器**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 的运行实例。REST 连接器可以在任何平台运行，但性能略为下降，接口实现的功能特性集合和原生接口有少量不同。
 
-`td2.0-connector` 的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node)。
+Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node)。
 
 ## 支持的平台
 
