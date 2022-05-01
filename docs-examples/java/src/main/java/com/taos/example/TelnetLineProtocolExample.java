@@ -29,7 +29,7 @@ public class TelnetLineProtocolExample {
     private static void createDatabase(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             // the default precision is ms (microsecond), but we use us(microsecond) here.
-            stmt.execute("CREATE DATABASE test precision 'us'");
+            stmt.execute("CREATE DATABASE IF NOT EXISTS test precision 'us'");
             stmt.execute("USE test");
         }
     }

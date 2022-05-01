@@ -1,9 +1,14 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.0...3.20)
 PROJECT(TDengine)
 
-FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include/gtest)
-FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64)
-FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64)
+IF (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
+    SET(HOMEBREW_LIB_PATH "/opt/homebrew/lib")
+    SET(HOMEBREW_INC_PATH "/opt/homebrew/include/gtest")
+ENDIF ()
+
+FIND_PATH(HEADER_GTEST_INCLUDE_DIR gtest.h /usr/include/gtest /usr/local/include/gtest ${HOMEBREW_INC_PATH})
+FIND_LIBRARY(LIB_GTEST_STATIC_DIR libgtest.a /usr/lib/ /usr/local/lib /usr/lib64 ${HOMEBREW_LIB_PATH})
+FIND_LIBRARY(LIB_GTEST_SHARED_DIR libgtest.so /usr/lib/ /usr/local/lib /usr/lib64 ${HOMEBREW_LIB_PATH})
 
 IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
     MESSAGE(STATUS "gTest library found, build unit test")
@@ -11,14 +16,18 @@ IF (HEADER_GTEST_INCLUDE_DIR AND (LIB_GTEST_STATIC_DIR OR LIB_GTEST_SHARED_DIR))
     # GoogleTest requires at least C++11
     SET(CMAKE_CXX_STANDARD 11)
 
-    INCLUDE_DIRECTORIES(/usr/include /usr/local/include)
-    LINK_DIRECTORIES(/usr/lib /usr/local/lib)
+    get_filename_component(HEADER_GTEST_PATH ${HEADER_GTEST_INCLUDE_DIR} PATH)
+    INCLUDE_DIRECTORIES(/usr/include /usr/local/include ${HEADER_GTEST_PATH})
 
-    INCLUDE_DIRECTORIES(${HEADER_GTEST_INCLUDE_DIR})
     AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 
-    ADD_EXECUTABLE(queryTest ${SOURCE_LIST})
-    TARGET_LINK_LIBRARIES(queryTest taos cJson query gtest pthread)
+    IF (LIB_GTEST_STATIC_DIR)
+        get_filename_component(GTEST_LIB_PATH ${LIB_GTEST_STATIC_DIR} PATH)
+        MESSAGE(STATUS "${Green} found libtest.a in ${GTEST_LIB_PATH}, will build queryTest ${ColourReset}")
+        LINK_DIRECTORIES(/usr/lib /usr/local/lib ${GTEST_LIB_PATH})
+        ADD_EXECUTABLE(queryTest ${SOURCE_LIST})
+        TARGET_LINK_LIBRARIES(queryTest taos cJson query gtest pthread)
+    ENDIF()
 ENDIF()
 
 SET_SOURCE_FILES_PROPERTIES(./astTest.cpp PROPERTIES COMPILE_FLAGS -w)

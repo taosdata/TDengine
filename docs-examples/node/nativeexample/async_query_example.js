@@ -1,7 +1,21 @@
 const taos = require("td2.0-connector");
+const conn = taos.connect({ host: "localhost", database: "power" });
+const cursor = conn.cursor();
 
-const conn = taos.connect({
-  host: "localhost",
-});
+function queryExample() {
+  cursor
+    .query("SELECT ts, current FROM meters LIMIT 2")
+    .execute_a()
+    .then((result) => {
+      result.pretty();
+    });
+}
 
-// 未完成, 等待 TD-14448 解决
+try {
+  queryExample();
+} finally {
+  setTimeout(() => {
+    conn.close();
+  }, 2000);
+}
+// bug here: jira 14506

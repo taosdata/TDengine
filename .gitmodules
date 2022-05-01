@@ -20,3 +20,9 @@
 [submodule "examples/rust"]
 	path = examples/rust
 	url = https://github.com/songtianyi/tdengine-rust-bindings.git
+[submodule "src/connector/php-tdengine"]
+	path = src/connector/php-tdengine
+	url = https://github.com/Yurunsoft/php-tdengine.git
+[submodule "src/connector/php-tdengine-restful-connector"]
+	path = src/connector/php-tdengine-restful-connector
+	url = https://github.com/Yurunsoft/tdengine-restful-connector.git

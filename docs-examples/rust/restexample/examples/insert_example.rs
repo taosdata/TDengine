@@ -14,5 +14,5 @@ async fn main() -> Result<(), Error> {
     Ok(())
 }
 
-// stdout:
+// output:
 // TaosQueryData { column_meta: [ColumnMeta { name: "affected_rows", type_: Int, bytes: 4 }], rows: [[Int(8)]] }

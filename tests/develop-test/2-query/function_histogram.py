@@ -2535,21 +2535,21 @@ class TDTestCase:
         tdSql.checkData(4, 0, '{"lower_bin":9, "upper_bin":15, "count":2}');
 
         #select session
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1w);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1w);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1d);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1d);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1h);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1h);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1m);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1m);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
         #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb session (col_timestamp, 1s);')
         #tdSql.checkRows(16)
@@ -2602,100 +2602,100 @@ class TDTestCase:
         tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb state_window(col_nchar);')
 
         #select interval/sliding/fill
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1y);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1y);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1n);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1n);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1w);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1w);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1d);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1d);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1h);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1h);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1s);')
-        tdSql.checkRows(16)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(1, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(2, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(3, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(4, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(5, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(6, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(7, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(8, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(9, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(10, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(11, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(12, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(13, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(14, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(15, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1a);')
-        tdSql.checkRows(16)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(1, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(2, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(3, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(4, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(5, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(6, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(7, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(8, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(9, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(10, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(11, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(12, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(13, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(14, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(15, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1s);')
+        #tdSql.checkRows(16)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(1, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(2, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(3, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(4, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(5, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(6, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(7, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(8, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(9, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(10, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(11, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(12, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(13, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(14, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(15, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1a);')
+        #tdSql.checkRows(16)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(1, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(2, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(3, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(4, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(5, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(6, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(7, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(8, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(9, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(10, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(11, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(12, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(13, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(14, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(15, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1w) sliding(1w);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1w) sliding(1w);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1d) sliding(1d);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1d) sliding(1d);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1h) sliding(1h);')
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1h) sliding(1h);')
+        #tdSql.checkRows(1)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":10}');
 
-        tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1s) sliding(1s);')
-        tdSql.checkRows(16)
-        tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(1, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(2, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(3, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(4, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(5, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(6, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(7, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(8, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(9, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(10, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(11, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
-        tdSql.checkData(12, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(13, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(14, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
-        tdSql.checkData(15, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.query('select histogram(col_int, "user_input", "[0,10]", 0) from tb interval(1s) sliding(1s);')
+        #tdSql.checkRows(16)
+        #tdSql.checkData(0, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(1, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(2, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(3, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(4, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(5, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(6, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(7, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(8, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(9, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(10, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(11, 1, '{"lower_bin":0, "upper_bin":10, "count":1}');
+        #tdSql.checkData(12, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(13, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(14, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
+        #tdSql.checkData(15, 1, '{"lower_bin":0, "upper_bin":10, "count":0}');
 
-        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1w and col_timestamp < now + 1w interval(1w) fill(NULL);')
-        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1d and col_timestamp < now + 1d interval(1d) fill(None);')
-        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1h and col_timestamp < now + 1h interval(1h) fill(Prev);')
-        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1m and col_timestamp < now + 1m interval(1m) fill(Next);')
-        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1s and col_timestamp < now + 1s interval(1s) fill(Linear);')
-        tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1a and col_timestamp < now + 1a interval(1a) fill(Value, 1);')
+        #tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1w and col_timestamp < now + 1w interval(1w) fill(NULL);')
+        #tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1d and col_timestamp < now + 1d interval(1d) fill(None);')
+        #tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1h and col_timestamp < now + 1h interval(1h) fill(Prev);')
+        #tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1m and col_timestamp < now + 1m interval(1m) fill(Next);')
+        #tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1s and col_timestamp < now + 1s interval(1s) fill(Linear);')
+        #tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from tb where col_timestamp > now - 1a and col_timestamp < now + 1a interval(1a) fill(Value, 1);')
 
         #select group by
         tdSql.error('select histogram(col_int, "user_input", "[0,10]", 0) from stb group by col_tinyint;')

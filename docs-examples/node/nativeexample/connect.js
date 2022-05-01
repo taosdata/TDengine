@@ -9,5 +9,5 @@ var conn = taos.connect({
 conn.close();
 
 // run with: node connect.js
-// stdout:
+// output:
 // Successfully connected to TDengine

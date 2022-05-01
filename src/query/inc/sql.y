@@ -801,6 +801,7 @@ expr(A) ::= expr(X) MINUS expr(Y).   {A = tSqlExprCreate(X, Y, TK_MINUS); }
 expr(A) ::= expr(X) STAR  expr(Y).   {A = tSqlExprCreate(X, Y, TK_STAR);  }
 expr(A) ::= expr(X) SLASH expr(Y).   {A = tSqlExprCreate(X, Y, TK_DIVIDE);}
 expr(A) ::= expr(X) REM   expr(Y).   {A = tSqlExprCreate(X, Y, TK_REM);   }
+expr(A) ::= expr(X) BITAND expr(Y).  {A = tSqlExprCreate(X, Y, TK_BITAND);}
 
 // like expression
 expr(A) ::= expr(X) LIKE expr(Y).    {A = tSqlExprCreate(X, Y, TK_LIKE);  }

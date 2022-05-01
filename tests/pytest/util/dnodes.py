@@ -70,7 +70,7 @@ class TDSimClient:
         os_path = path.replace("/", os.sep)
         return os_path
 
-    def deploy(self):
+    def deploy(self, *updatecfgDict):
         self.logDir = self.os_string("%s/sim/psim/log" % (self.path))
         self.cfgDir = self.os_string("%s/sim/psim/cfg" % (self.path))
         self.cfgPath = self.os_string("%s/sim/psim/cfg/taos.cfg" % (self.path))
@@ -113,6 +113,15 @@ class TDSimClient:
 
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
+        
+        try:
+            if updatecfgDict and updatecfgDict[0] and updatecfgDict[0][0]:            
+                clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))           
+                if clientCfg is not None:                    
+                    for key, value in clientCfg.items():
+                        self.cfg(key, value)
+        except Exception as e:
+            pass
 
         tdLog.debug("psim is deployed and configured by %s" % (self.cfgPath))
 
@@ -230,6 +239,8 @@ class TDDnode:
         if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
+                if key == "clientCfg":
+                    continue
                 if value == 'dataDir':
                     if isFirstDir:
                         self.cfgDict.pop('dataDir')
@@ -294,11 +305,12 @@ class TDDnode:
 
             print(cmd)
 
-        taosadapterCmd = "nohup %s --opentsdb_telnet.enable=true > /dev/null 2>&1 & " % (
-            taosadapterBinPath)
-        tdLog.info(taosadapterCmd)
-        if os.system(taosadapterCmd) != 0:
-            tdLog.exit(taosadapterCmd)
+        if (taosadapterBinPath != ""):
+            taosadapterCmd = "nohup %s --opentsdb_telnet.enable=true --monitor.writeToTD=false > /dev/null 2>&1 & " % (
+                taosadapterBinPath)
+            tdLog.info(taosadapterCmd)
+            if os.system(taosadapterCmd) != 0:
+                tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -359,11 +371,12 @@ class TDDnode:
 
         cmd = "mintty -h never -w hide %s -c %s" % (
             binPath, self.cfgDir)
-
-        taosadapterCmd = "mintty -h never -w hide %s " % (
-            taosadapterBinPath)
-        if os.system(taosadapterCmd) != 0:
-            tdLog.exit(taosadapterCmd)
+        
+        if (taosadapterBinPath != ""):
+            taosadapterCmd = "mintty -h never -w hide %s --monitor.writeToTD=false " % (
+                taosadapterBinPath)
+            if os.system(taosadapterCmd) != 0:
+                tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -431,9 +444,10 @@ class TDDnode:
 
             print(cmd)
 
-        taosadapterCmd = "%s > /dev/null 2>&1 & " % (taosadapterBinPath)
-        if os.system(taosadapterCmd) != 0:
-            tdLog.exit(taosadapterCmd)
+        if (taosadapterBinPath != ""):
+            taosadapterCmd = "%s --monitor.writeToTD=false > /dev/null 2>&1 & " % (taosadapterBinPath)
+            if os.system(taosadapterCmd) != 0:
+                tdLog.exit(taosadapterCmd)
 
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
@@ -605,7 +619,7 @@ class TDDnodes:
         self.sim.setTestCluster(self.testCluster)
 
         if (self.simDeployed == False):
-            self.sim.deploy()
+            self.sim.deploy(updatecfgDict)
             self.simDeployed = True
 
         self.check(index)
