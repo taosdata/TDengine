@@ -162,6 +162,8 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
   useDb("root", "test");
 
   run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_SINGLE_GROUP, PARSER_STAGE_TRANSLATE);
+  run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+      PARSER_STAGE_TRANSLATE);
 }
 
 TEST_F(ParserSelectTest, semanticError) {
