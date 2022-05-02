@@ -75,8 +75,15 @@ int tdbDbDrop(TDB *pDb) {
   return 0;
 }
 
-int tdbDbPut(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
+int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
   return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen, pTxn);
+}
+
+int tdbDbDelete(TDB *pDb, const void *pKey, int kLen, TXN *pTxn) { return tdbBtreeDelete(pDb->pBt, pKey, kLen, pTxn); }
+
+int tdbUpsert(TDB *pTDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
+  // TODO
+  return 0;
 }
 
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {

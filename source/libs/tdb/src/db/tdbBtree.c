@@ -202,6 +202,36 @@ int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, in
   return 0;
 }
 
+int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn) {
+  SBTC btc;
+  int  c;
+  int  ret;
+
+  tdbBtcOpen(&btc, pBt, pTxn);
+
+  // move the cursor
+  ret = tdbBtcMoveTo(&btc, pKey, kLen, &c);
+  if (ret < 0) {
+    tdbBtcClose(&btc);
+    ASSERT(0);
+    return -1;
+  }
+
+  if (btc.idx < 0 || c != 0) {
+    tdbBtcClose(&btc);
+    return -1;
+  }
+
+  // delete the key
+  if (tdbBtcDelete(&btc) < 0) {
+    tdbBtcClose(&btc);
+    return -1;
+  }
+
+  tdbBtcClose(&btc);
+  return 0;
+}
+
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen) {
   return tdbBtreePGet(pBt, pKey, kLen, NULL, NULL, ppVal, vLen);
 }
@@ -1359,6 +1389,33 @@ int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int
     *ppVal = (void *)pBtc->coder.pVal;
     *kLen = pBtc->coder.vLen;
   }
+
+  return 0;
+}
+
+int tdbBtcDelete(SBTC *pBtc) {
+#if 0
+  // check transaction
+  if (!TDB_TXN_IS_WRITE(pBtc->pTxn)) {
+    return -1;
+  }
+
+  int idx = pBtc->idx;
+  int nCells = TDB_PAGE_TOTAL_CELLS(pBtc->pPage);
+
+  tdbPagerWrite(pBtc->pBt->pPager, pBtc->pPage);
+
+  tdbPageDropCell(pBtc->pPage, idx);
+
+  if (idx == nCells - 1) {
+    // drop cells above
+    for (;;) {
+      /* code */
+    }
+
+    // do balance
+  }
+#endif
 
   return 0;
 }
