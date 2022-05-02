@@ -229,10 +229,28 @@ int vnodeCommit(SVnode *pVnode) {
     ASSERT(0);
     return -1;
   }
-  if (tsdbCommit(pVnode->pTsdb) < 0) {
-    ASSERT(0);
-    return -1;
+
+  if(vnodeIsRollup(pVnode)) {
+    if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+    if (tsdbCommit(VND_RSMA1(pVnode)) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+    if (tsdbCommit(VND_RSMA2(pVnode)) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  } else {
+    if (tsdbCommit(pVnode->pTsdb) < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
+
+  
   if (tqCommit(pVnode->pTq) < 0) {
     ASSERT(0);
     return -1;
