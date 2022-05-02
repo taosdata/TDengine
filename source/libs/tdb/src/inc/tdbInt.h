@@ -143,7 +143,7 @@ int tdbBtcMoveToPrev(SBTC *pBtc);
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int *vLen);
 int tdbBtcDelete(SBTC *pBtc);
-int tdbBtcUpsert(SBTC *pBtc);
+int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pVal, int vLen);
 
 // tdbPager.c ====================================
 

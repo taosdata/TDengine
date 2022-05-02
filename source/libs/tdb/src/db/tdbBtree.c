@@ -1455,13 +1455,15 @@ int tdbBtcDelete(SBTC *pBtc) {
       }
     } else {
       // delete the leaf page and do balance (TODO)
+      ASSERT(TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0);
+      ASSERT(0);
     }
   }
 
   return 0;
 }
 
-int tdbBtcUpsert(SBTC *pBtc) {
+int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pVal, int vLen) {
   ASSERT(0);
   // TODO
   return 0;
