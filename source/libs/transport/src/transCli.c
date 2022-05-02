@@ -949,9 +949,14 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   if (pCtx->pSem != NULL) {
-    tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    memcpy((char*)pCtx->pRsp, (char*)pResp, sizeof(*pResp));
+    tTrace("%s cli conn %p(sync) handle resp", pTransInst->label, pConn);
+    if (pCtx->pRsp == NULL) {
+      tTrace("%s cli conn %p(sync) failed to resp, ignore", pTransInst->label, pConn);
+    } else {
+      memcpy((char*)pCtx->pRsp, (char*)pResp, sizeof(*pResp));
+    }
     tsem_post(pCtx->pSem);
+    pCtx->pRsp = NULL;
   } else {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
     pTransInst->cfp(pTransInst->parent, pResp, pEpSet);

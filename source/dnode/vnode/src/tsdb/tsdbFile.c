@@ -27,7 +27,7 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "rsma",  // TSDB_FILE_RSMA
 };
 
-static const char *TSDB_LEVEL_DNAME[] = {
+const char *TSDB_LEVEL_DNAME[] = {
     "tsdb",
     "rsma1",
     "rsma2",
