@@ -162,8 +162,6 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, SSDataBlock *pBlock, SSData
         GET_TYPED_DATA(v, int64_t, pVar->nType, &pVar->i);
         colDataAppend(pDst, index, (char*)&v, false);
       }
-
-//      colDataAppend(pDst, index, (char*)&pVar->i, false);
     }
   }
 
