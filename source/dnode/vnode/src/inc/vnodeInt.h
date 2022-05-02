@@ -124,6 +124,7 @@ int32_t tsdbUpdateTbUidList(STsdb* pTsdb, STbUidStore* pUidStore);
 void    tsdbUidStoreDestory(STbUidStore* pStore);
 void*   tsdbUidStoreFree(STbUidStore* pStore);
 int32_t tsdbTriggerRSma(STsdb* pTsdb, void* pMsg, int32_t inputType);
+int32_t tsdbProcessSubmitReq(STsdb* pTsdb, int64_t version, void* pReq);
 
 typedef struct {
   int8_t  streamType;  // sma or other
@@ -181,6 +182,7 @@ struct SVnode {
 
 struct STbUidStore {
   tb_uid_t  suid;
+  tb_uid_t  uid;  // TODO: just for debugging, remove when uid provided in SSDataBlock
   SArray*   tbUids;
   SHashObj* uidHash;
 };
