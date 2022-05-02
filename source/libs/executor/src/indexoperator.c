@@ -55,11 +55,11 @@ typedef struct SIFParam {
   SArray *result;
   char *  condValue;
 
+  uint8_t  colValType;
   col_id_t colId;
-
-  int64_t suid;  // add later
-  char    dbName[TSDB_DB_NAME_LEN];
-  char    colName[TSDB_COL_NAME_LEN];
+  int64_t  suid;  // add later
+  char     dbName[TSDB_DB_NAME_LEN];
+  char     colName[TSDB_COL_NAME_LEN];
 } SIFParam;
 
 typedef int32_t (*sif_func_t)(SIFParam *left, SIFParam *rigth, SIFParam *output);
@@ -145,10 +145,11 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
       SColumnNode *cn = (SColumnNode *)node;
       /*only support tag column*/
       SIF_ERR_RET(sifValidateColumn(cn));
+
       param->colId = cn->colId;
+      param->colValType = cn->node.resType.type;
       memcpy(param->dbName, cn->dbName, sizeof(cn->dbName));
       memcpy(param->colName, cn->colName, sizeof(cn->colName));
-
       break;
     }
     case QUERY_NODE_NODE_LIST: {
@@ -231,61 +232,68 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
   qError("index-filter not support buildin function");
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
-static int32_t sifIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
-  SIndexMultiTermQuery *mq = indexMultiTermQueryCreate(MUST);
-  return TSDB_CODE_SUCCESS;
+static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
+  SIndexTerm *tm = indexTermCreate(left->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
+                                   right->condValue, strlen(right->condValue));
+  if (tm == NULL) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+
+  SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
+  indexMultiTermQueryAdd(mtm, tm, QUERY_TERM);
+  return indexSearch(NULL, mtm, output->result);
 }
 
 static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_LOWER_THAN;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifLessEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_LOWER_EQUAL;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 
 static int32_t sifGreaterThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_GREATER_THAN;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifGreaterEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_GREATER_EQUAL;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 
 static int32_t sifEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_EQUAL;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifNotEqualFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NOT_EQUAL;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifInFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_IN;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifNotInFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NOT_IN;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifLikeFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_LIKE;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifNotLikeFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NOT_LIKE;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 
 static int32_t sifMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_MATCH;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifNotMatchFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   int id = OP_TYPE_NMATCH;
-  return sifIndex(left, right, id, output);
+  return sifDoIndex(left, right, id, output);
 }
 static int32_t sifDefaultFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
   // add more except
@@ -460,6 +468,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
     qError("index-filter failed to taosHashInit");
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
+
   nodesWalkExprPostOrder(pNode, sifCalcWalker, &ctx);
   SIF_ERR_RET(ctx.code);
 
