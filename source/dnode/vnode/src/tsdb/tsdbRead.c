@@ -357,7 +357,7 @@ int           nQUERY = 0;
 #endif
 static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions) {
   if (vnodeIsRollup(pVnode)) {
-    int     level = 0;
+    int level = 0;
 #if 1
     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
     for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
