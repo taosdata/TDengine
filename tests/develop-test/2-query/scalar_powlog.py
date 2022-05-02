@@ -1,22 +1,23 @@
-import sys 
+import sys
 from util.log import *
 from util.cases import *
 from util.sql import *
 from util.dnodes import tdDnodes
 from math import inf
 
+
 class TDTestCase:
     def caseDescription(self):
-        '''
+        """
         case1<shenglian zhou>: [TD-14565]power/log test case. log support default param e
-        ''' 
+        """
         return
-    
+
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
         self._conn = conn
-        
+
     def restartTaosd(self, index=1, dbname="db"):
         tdDnodes.stop(index)
         tdDnodes.startWithoutSleep(index)
@@ -26,75 +27,139 @@ class TDTestCase:
         print("running {}".format(__file__))
         tdSql.execute("drop database if exists db0")
         tdSql.execute("create database if not exists db0")
-        tdSql.execute('use db0')
+        tdSql.execute("use db0")
 
-        tdSql.execute('create table st0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int);')
+        tdSql.execute(
+            "create table st0 (ts timestamp, c1 int, c2 float, c3 bigint, c4 smallint, c5 tinyint, c6 double, c7 bool, c8 nchar(5), c9 binary(10)) TAGS (tgcol int);"
+        )
 
-        tdSql.execute('create table ct0 using st0 tags( 0 );')
+        tdSql.execute("create table ct0 using st0 tags( 0 );")
 
-        tdSql.execute('insert into ct0 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601481660000 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481660000 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601481720000 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481720000 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601481780000 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481780000 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601481840000 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481840000 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601481900000 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481900000 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601481960000 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 );')
+        tdSql.execute(
+            "insert into ct0 values (1601481960000 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601482020000 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 );')
+        tdSql.execute(
+            "insert into ct0 values (1601482020000 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601482080000 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 );')
+        tdSql.execute(
+            "insert into ct0 values (1601482080000 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 );"
+        )
 
-        tdSql.execute('insert into ct0 values (1601482140000 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 );')
+        tdSql.execute(
+            "insert into ct0 values (1601482140000 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 );"
+        )
 
-        tdSql.execute('create table ct1 using st0 tags( 1 );')
+        tdSql.execute("create table ct1 using st0 tags( 1 );")
 
-        tdSql.execute('insert into ct1 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481600000 , 0 , 0.25 , 0 , 0 , 0 , 0.25 , 0 , 0 , 0 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601481660000 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481660000 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 , 1 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601481720000 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481720000 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 , 2 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601481780000 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481780000 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 , 3 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601481840000 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481840000 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 , 4 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601481900000 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481900000 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 , 5 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601481960000 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 );')
+        tdSql.execute(
+            "insert into ct1 values (1601481960000 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 , 6 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482020000 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482020000 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 , 7 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482080000 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482080000 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 , 8 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482140000 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482140000 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 , 9 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482200000 , 10 , 10 , 10 , 10 , 10 , 10 , 10 , 10 , 10 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482200000 , 10 , 10 , 10 , 10 , 10 , 10 , 10 , 10 , 10 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482260000 , 11 , 11 , 11 , 11 , 11 , 11 , 11 , 11 , 11 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482260000 , 11 , 11 , 11 , 11 , 11 , 11 , 11 , 11 , 11 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482320000 , 12 , 12 , 12 , 12 , 12 , 12 , 12 , 12 , 12 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482320000 , 12 , 12 , 12 , 12 , 12 , 12 , 12 , 12 , 12 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482380000 , 13 , 13 , 13 , 13 , 13 , 13 , 13 , 13 , 13 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482380000 , 13 , 13 , 13 , 13 , 13 , 13 , 13 , 13 , 13 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482440000 , 14 , 14 , 14 , 14 , 14 , 14 , 14 , 14 , 14 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482440000 , 14 , 14 , 14 , 14 , 14 , 14 , 14 , 14 , 14 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482500000 , 15 , 15 , 15 , 15 , 15 , 15 , 15 , 15 , 15 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482500000 , 15 , 15 , 15 , 15 , 15 , 15 , 15 , 15 , 15 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482560000 , 16 , 16 , 16 , 16 , 16 , 16 , 16 , 16 , 16 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482560000 , 16 , 16 , 16 , 16 , 16 , 16 , 16 , 16 , 16 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482620000 , 17 , 17 , 17 , 17 , 17 , 17 , 17 , 17 , 17 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482620000 , 17 , 17 , 17 , 17 , 17 , 17 , 17 , 17 , 17 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482680000 , 18 , 18 , 18 , 18 , 18 , 18 , 18 , 18 , 18 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482680000 , 18 , 18 , 18 , 18 , 18 , 18 , 18 , 18 , 18 );"
+        )
 
-        tdSql.execute('insert into ct1 values (1601482740000 , 19 , 19 , 19 , 19 , 19 , 19 , 19 , 19 , 19 );')
+        tdSql.execute(
+            "insert into ct1 values (1601482740000 , 19 , 19 , 19 , 19 , 19 , 19 , 19 , 19 , 19 );"
+        )
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1;"
+        )
         tdSql.checkRows(20)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -237,7 +302,9 @@ class TDTestCase:
         tdSql.checkData(19, 5, 568417.0692211641)
         tdSql.checkData(19, 6, 3814.7338355198453)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 where ts == 1601481600000;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 where ts == 1601481600000;"
+        )
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -247,7 +314,9 @@ class TDTestCase:
         tdSql.checkData(0, 5, 0.0)
         tdSql.checkData(0, 6, -inf)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where ts == 1601481600000;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where ts == 1601481600000;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -264,7 +333,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.0)
         tdSql.checkData(1, 6, -inf)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -281,7 +352,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.0)
         tdSql.checkData(1, 6, -inf)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -298,7 +371,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.0)
         tdSql.checkData(1, 6, -inf)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 order by ts desc;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 order by ts desc;"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 4.247927513443585)
@@ -511,7 +586,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 0.0)
         tdSql.checkData(29, 6, -inf)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 order by ts limit 2;;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 order by ts limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -528,12 +605,16 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select sqrt(abs(log(c1,2)-pow(c1,2)))+2 from ct1 order by ts limit 2;')
+        tdSql.query(
+            "select sqrt(abs(log(c1,2)-pow(c1,2)))+2 from ct1 order by ts limit 2;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, inf)
         tdSql.checkData(1, 0, 3.0)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 order by ts desc);')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 order by ts desc);"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 4.247927513443585)
@@ -746,7 +827,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 0.0)
         tdSql.checkData(29, 6, -inf)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 order by ts limit 2);;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 order by ts limit 2);;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -763,7 +846,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 ) order by ts desc;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 ) order by ts desc;"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 4.247927513443585)
@@ -976,7 +1061,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 0.0)
         tdSql.checkData(29, 6, -inf)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 );')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 );"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -1189,7 +1276,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 568417.0692211641)
         tdSql.checkData(29, 6, 3814.7338355198453)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) order by ts limit 2;;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) order by ts limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -1206,7 +1295,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) limit 2;;')
+        tdSql.query(
+            "select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -1223,7 +1314,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select * from (select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from st0 order by ts desc);')
+        tdSql.query(
+            "select * from (select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from st0 order by ts desc);"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 4.247927513443585)
@@ -1466,7 +1559,9 @@ class TDTestCase:
         tdSql.checkData(29, 6, -inf)
         tdSql.checkData(29, 7, datetime.datetime(2020, 10, 1, 0, 0))
 
-        tdSql.query('select * from (select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from ct1 order by ts limit 2);;')
+        tdSql.query(
+            "select * from (select c1, log(c2, 2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3, 2)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1,2)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from ct1 order by ts limit 2);;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -2.0)
@@ -1485,7 +1580,9 @@ class TDTestCase:
         tdSql.checkData(1, 6, 3.0)
         tdSql.checkData(1, 7, datetime.datetime(2020, 10, 1, 0, 1))
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1;"
+        )
         tdSql.checkRows(20)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -1628,7 +1725,9 @@ class TDTestCase:
         tdSql.checkData(19, 5, 568417.0692211641)
         tdSql.checkData(19, 6, 3813.4303469855686)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 where ts == 1601481600000;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 where ts == 1601481600000;"
+        )
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -1638,7 +1737,9 @@ class TDTestCase:
         tdSql.checkData(0, 5, 0.0)
         tdSql.checkData(0, 6, -inf)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where ts == 1601481600000;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where ts == 1601481600000;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -1655,7 +1756,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.0)
         tdSql.checkData(1, 6, -inf)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -1672,7 +1775,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.0)
         tdSql.checkData(1, 6, -inf)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 where c1 == 0;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -1689,7 +1794,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 0.0)
         tdSql.checkData(1, 6, -inf)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 order by ts desc;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from st0 order by ts desc;"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 2.9444389791664403)
@@ -1902,7 +2009,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 0.0)
         tdSql.checkData(29, 6, -inf)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 order by ts limit 2;;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from ct1 order by ts limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -1919,12 +2028,16 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select sqrt(abs(log(c1)-pow(c1,2)))+2 from ct1 order by ts limit 2;')
+        tdSql.query(
+            "select sqrt(abs(log(c1)-pow(c1,2)))+2 from ct1 order by ts limit 2;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, inf)
         tdSql.checkData(1, 0, 3.0)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 order by ts desc);')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 order by ts desc);"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 2.9444389791664403)
@@ -2137,7 +2250,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 0.0)
         tdSql.checkData(29, 6, -inf)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 order by ts limit 2);;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 order by ts limit 2);;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -2154,7 +2269,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 ) order by ts desc;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 ) order by ts desc;"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 2.9444389791664403)
@@ -2367,7 +2484,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 0.0)
         tdSql.checkData(29, 6, -inf)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 );')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from st0 );"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -2580,7 +2699,9 @@ class TDTestCase:
         tdSql.checkData(29, 5, 568417.0692211641)
         tdSql.checkData(29, 6, 3813.4303469855686)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) order by ts limit 2;;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) order by ts limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -2597,7 +2718,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) limit 2;;')
+        tdSql.query(
+            "select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6 from (select * from ct1 ) limit 2;;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -2614,7 +2737,9 @@ class TDTestCase:
         tdSql.checkData(1, 5, 2.0)
         tdSql.checkData(1, 6, 3.0)
 
-        tdSql.query('select * from (select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from st0 order by ts desc);')
+        tdSql.query(
+            "select * from (select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from st0 order by ts desc);"
+        )
         tdSql.checkRows(30)
         tdSql.checkData(0, 0, 19)
         tdSql.checkData(0, 1, 2.9444389791664403)
@@ -2857,7 +2982,9 @@ class TDTestCase:
         tdSql.checkData(29, 6, -inf)
         tdSql.checkData(29, 7, datetime.datetime(2020, 10, 1, 0, 0))
 
-        tdSql.query('select * from (select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from ct1 order by ts limit 2);;')
+        tdSql.query(
+            "select * from (select c1, log(c2), pow(c1,2), pow(c2,2)+2, pow(c2,3)+log(c3)+pow(c5,2) as v4, pow(c4, 4.5)+pow(c3, 2), log(c1)+log(c3,4)+pow(c6,2.8)+2 as v6, ts from ct1 order by ts limit 2);;"
+        )
         tdSql.checkRows(2)
         tdSql.checkData(0, 0, 0)
         tdSql.checkData(0, 1, -1.3862943611198906)
@@ -2876,13 +3003,12 @@ class TDTestCase:
         tdSql.checkData(1, 6, 3.0)
         tdSql.checkData(1, 7, datetime.datetime(2020, 10, 1, 0, 1))
 
+        tdSql.execute("drop database db0")
 
-
-
-        tdSql.execute('drop database db0')
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
+
 
 tdCases.addWindows(__file__, TDTestCase())
 tdCases.addLinux(__file__, TDTestCase())

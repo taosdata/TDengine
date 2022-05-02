@@ -8,6 +8,7 @@ taosadapter >> /dev/null 2>&1 &
 cd ../../docs-examples/python
 
 # 1
+taos -s "create database if not exists log"
 python3 connect_exmaple.py
 
 # 2
@@ -41,6 +42,6 @@ taos -s "drop database test"
 python3 json_protocol_example.py
 
 # 10
-python3 subscribe_demo.py
+# python3 subscribe_demo.py
 
 
