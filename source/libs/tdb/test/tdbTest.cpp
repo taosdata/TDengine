@@ -317,3 +317,5 @@ TEST(tdb_test, simple_test2) {
   ret = tdbEnvClose(pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 }
+
+TEST(tdb_test, simple_delete1) { taosRemoveDir("tdb"); }
