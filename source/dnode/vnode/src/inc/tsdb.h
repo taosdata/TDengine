@@ -72,6 +72,7 @@ struct STsdb {
   char          *path;
   SVnode        *pVnode;
   bool           repoLocked;
+  int8_t         level;  // retention level
   TdThreadMutex  mutex;
   STsdbMemTable *mem;
   STsdbMemTable *imem;

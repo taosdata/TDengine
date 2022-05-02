@@ -225,6 +225,9 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 
 void blockDebugShowData(const SArray* dataBlocks);
 
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+                                 tb_uid_t uid, tb_uid_t suid);
+
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(pBlock) + blockDataGetSize(pBlock);
 }
