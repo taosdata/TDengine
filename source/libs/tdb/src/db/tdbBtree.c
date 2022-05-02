@@ -1394,29 +1394,76 @@ int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int
 }
 
 int tdbBtcDelete(SBTC *pBtc) {
-#if 0
-  // check transaction
-  if (!TDB_TXN_IS_WRITE(pBtc->pTxn)) {
+  int         idx = pBtc->idx;
+  int         nCells = TDB_PAGE_TOTAL_CELLS(pBtc->pPage);
+  SPager     *pPager = pBtc->pBt->pPager;
+  const void *pKey;
+  i8          iPage;
+  SPage      *pPage;
+  SPgno       pgno;
+  SCell      *pCell;
+  int         szCell;
+  int         nKey;
+  int         ret;
+
+  ASSERT(idx >= 0 && idx < nCells);
+
+  // drop the cell on the leaf
+  ret = tdbPagerWrite(pPager, pBtc->pPage);
+  if (ret < 0) {
+    ASSERT(0);
     return -1;
   }
 
-  int idx = pBtc->idx;
-  int nCells = TDB_PAGE_TOTAL_CELLS(pBtc->pPage);
-
-  tdbPagerWrite(pBtc->pBt->pPager, pBtc->pPage);
-
   tdbPageDropCell(pBtc->pPage, idx);
 
+  // update interior page or do balance
   if (idx == nCells - 1) {
-    // drop cells above
-    for (;;) {
-      /* code */
+    if (idx) {
+      pBtc->idx--;
+      tdbBtcGet(pBtc, &pKey, &nKey, NULL, NULL);
+
+      // loop to update the interial page
+      pgno = TDB_PAGE_PGNO(pBtc->pPage);
+      for (iPage = pBtc->iPage - 1; iPage >= 0; iPage--) {
+        pPage = pBtc->pgStack[iPage];
+        idx = pBtc->idxStack[iPage];
+        nCells = TDB_PAGE_TOTAL_CELLS(pPage);
+
+        if (idx < nCells) {
+          ret = tdbPagerWrite(pPager, pPage);
+          if (ret < 0) {
+            ASSERT(0);
+            return -1;
+          }
+
+          // update the cell with new key
+          pCell = tdbOsMalloc(nKey + 9);
+          tdbBtreeEncodeCell(pPage, pKey, nKey, &pgno, sizeof(pgno), pCell, &szCell);
+
+          ret = tdbPageUpdateCell(pPage, idx, pCell, szCell);
+          if (ret < 0) {
+            tdbOsFree(pCell);
+            ASSERT(0);
+            return -1;
+          }
+          tdbOsFree(pCell);
+          break;
+        } else {
+          pgno = TDB_PAGE_PGNO(pPage);
+        }
+      }
+    } else {
+      // delete the leaf page and do balance (TODO)
     }
-
-    // do balance
   }
-#endif
 
+  return 0;
+}
+
+int tdbBtcUpsert(SBTC *pBtc) {
+  ASSERT(0);
+  // TODO
   return 0;
 }
 

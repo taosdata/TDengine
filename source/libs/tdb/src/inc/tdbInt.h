@@ -143,6 +143,7 @@ int tdbBtcMoveToPrev(SBTC *pBtc);
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int *vLen);
 int tdbBtcDelete(SBTC *pBtc);
+int tdbBtcUpsert(SBTC *pBtc);
 
 // tdbPager.c ====================================
 
@@ -280,6 +281,7 @@ void tdbPageZero(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell
 void tdbPageInit(SPage *pPage, u8 szAmHdr, int (*xCellSize)(const SPage *, SCell *));
 int  tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl);
 int  tdbPageDropCell(SPage *pPage, int idx);
+int  tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell);
 void tdbPageCopy(SPage *pFromPage, SPage *pToPage);
 int  tdbPageCapacity(int pageSize, int amHdrSize);
 
