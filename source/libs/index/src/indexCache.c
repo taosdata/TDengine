@@ -47,7 +47,33 @@ static void doMergeWork(SSchedMsg* msg);
 static bool indexCacheIteratorNext(Iterate* itera);
 
 static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
-  // impl later
+  if (cache == NULL) {
+    return 0;
+  }
+
+  MemTable* mem = cache;
+  char*     key = indexCacheTermGet(ct);
+
+  SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    if (node == NULL) {
+      break;
+    }
+    CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+    if (0 == strcmp(c->colVal, ct->colVal)) {
+      if (c->operaType == ADD_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
+        // taosArrayPush(result, &c->uid);
+        *s = kTypeValue;
+      } else if (c->operaType == DEL_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
+      }
+    } else {
+      break;
+    }
+  }
+  tSkipListDestroyIter(iter);
   return 0;
 }
 static int32_t cacheSearchPrefix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
