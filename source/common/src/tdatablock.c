@@ -1476,7 +1476,7 @@ void blockDebugShowData(const SArray* dataBlocks) {
  * 
  * TODO: colId should be set
  */
-void buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema *pTSchema, int32_t vgId, tb_uid_t uid,
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema *pTSchema, int32_t vgId, tb_uid_t uid,
                                         tb_uid_t suid) {
   int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
@@ -1489,6 +1489,10 @@ void buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, S
   ASSERT(bufSize < 3 * 1024 * 1024);
 
   *pReq = taosMemoryCalloc(1, bufSize);
+  if(!(*pReq)) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return TSDB_CODE_FAILED;
+  }
   void* pDataBuf = *pReq;
 
   int32_t msgLen = sizeof(SSubmitReq);
@@ -1582,4 +1586,6 @@ void buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, S
     blk->numOfRows = htons(blk->numOfRows);
     blk = (SSubmitBlk*)(blk->data + dataLen);
   }
+
+  return TSDB_CODE_SUCCESS;
 }

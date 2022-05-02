@@ -27,7 +27,7 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "rsma",  // TSDB_FILE_RSMA
 };
 
-static const char *TSDB_DIR_NAME[] = {
+static const char *TSDB_LEVEL_DNAME[] = {
     "tsdb",
     "rsma1",
     "rsma2",
@@ -51,7 +51,7 @@ void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t 
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
   pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
-  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, TSDB_DIR_NAME[pRepo->level], fname);
+  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, TSDB_LEVEL_DNAME[pRepo->level], fname);
   tfsInitFile(REPO_TFS(pRepo), &(pDFile->f), did, fname);
 }
 

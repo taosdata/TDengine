@@ -175,7 +175,8 @@ static int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, const char *msg);
 static FORCE_INLINE int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid, SArray *tbUids);
 static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, int32_t inputType,
-                                                qTaskInfo_t *taskInfo, STSchema *pTSchema, tb_uid_t suid, tb_uid_t uid, int8_t level);
+                                                qTaskInfo_t *taskInfo, STSchema *pTSchema, tb_uid_t suid, tb_uid_t uid,
+                                                int8_t level);
 // mgmt interface
 static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid);
 
@@ -1976,7 +1977,7 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
 
     if (!pBlock) break;
     tsdbUidStorePut(pStore, msgIter.suid, NULL);
-    pStore->uid = msgIter.uid; // TODO: remove, just for debugging
+    pStore->uid = msgIter.uid;  // TODO: remove, just for debugging
   }
 
   if (terrno != TSDB_CODE_SUCCESS) return -1;
@@ -1984,8 +1985,8 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
 }
 
 static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, int32_t inputType,
-                                                qTaskInfo_t *taskInfo, STSchema *pTSchema, tb_uid_t suid,
-                                                tb_uid_t uid, int8_t level) {
+                                                qTaskInfo_t *taskInfo, STSchema *pTSchema, tb_uid_t suid, tb_uid_t uid,
+                                                int8_t level) {
   SArray *pResult = NULL;
   tsdbDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, REPO_ID(pTsdb), level, taskInfo,
             suid);
@@ -2013,10 +2014,18 @@ static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, 
 
   if (taosArrayGetSize(pResult) > 0) {
     blockDebugShowData(pResult);
-    STsdb *sinkTsdb = (level == TSDB_RETENTION_L1 ? pTsdb->pVnode->pRSma1 : pTsdb->pVnode->pRSma2);
+    STsdb      *sinkTsdb = (level == TSDB_RETENTION_L1 ? pTsdb->pVnode->pRSma1 : pTsdb->pVnode->pRSma2);
     SSubmitReq *pReq = NULL;
-    buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, TD_VID(pTsdb->pVnode),uid, suid);
-    tsdbProcessSubmitReq(sinkTsdb, INT64_MAX, pReq);
+    if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, TD_VID(pTsdb->pVnode), uid, suid) != 0) {
+      taosArrayDestroy(pResult);
+      return TSDB_CODE_FAILED;
+    }
+    if (tsdbProcessSubmitReq(sinkTsdb, INT64_MAX, pReq) != 0) {
+      taosArrayDestroy(pResult);
+      taosMemoryFreeClear(pReq);
+      return TSDB_CODE_FAILED;
+    }
+    taosMemoryFreeClear(pReq);
   } else {
     tsdbWarn("vgId:%d no rsma % " PRIi8 " data generated since %s", REPO_ID(pTsdb), level, tstrerror(terrno));
   }
@@ -2033,7 +2042,7 @@ static int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType
     return TSDB_CODE_SUCCESS;
   }
 
-  ASSERT(uid != 0); // TODO: remove later
+  ASSERT(uid != 0);  // TODO: remove later
 
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaInfo *pRSmaInfo = NULL;
