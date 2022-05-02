@@ -23,19 +23,31 @@ class PlanIntervalTest : public PlannerTestBase {};
 TEST_F(PlanIntervalTest, basic) {
   useDb("root", "test");
 
-  run("select count(*) from t1 interval(10s)");
+  run("SELECT COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(PlanIntervalTest, pseudoCol) {
   useDb("root", "test");
 
-  run("select _wstartts, _wduration, _wendts, count(*) from t1 interval(10s)");
+  run("SELECT _WSTARTTS, _WDURATION, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
 TEST_F(PlanIntervalTest, fill) {
   useDb("root", "test");
 
-  run("select count(*) from t1 interval(10s) fill(linear)");
+  run("SELECT COUNT(*) FROM t1 WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "INTERVAL(10s) FILL(LINEAR)");
 
-  run("select count(*), sum(c1) from t1 interval(10s) fill(value, 10, 20)");
+  run("SELECT COUNT(*), SUM(c1) FROM t1 "
+      "WHERE ts > TIMESTAMP '2022-04-01 00:00:00' and ts < TIMESTAMP '2022-04-30 23:59:59' "
+      "INTERVAL(10s) FILL(VALUE, 10, 20)");
+}
+
+TEST_F(PlanIntervalTest, selectFunc) {
+  useDb("root", "test");
+
+  // select function for INTERVAL clause
+  run("SELECT MAX(c1), MIN(c1) FROM t1 INTERVAL(10s)");
+  // select function along with the columns of select row, and with INTERVAL clause
+  run("SELECT MAX(c1), c2 FROM t1 INTERVAL(10s)");
 }

@@ -461,7 +461,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   SSubmitRsp  rsp = {0};
 
   pRsp->code = 0;
-  tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+
   // handle the request
   if (tsdbInsertData(pVnode->pTsdb, version, pSubmitReq, &rsp) < 0) {
     pRsp->code = terrno;
@@ -470,12 +470,28 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 
   // pRsp->msgType = TDMT_VND_SUBMIT_RSP;
   // vnodeProcessSubmitReq(pVnode, ptr, pRsp);
-  // tsdbTriggerRSma(pVnode->pTsdb, pVnode->pMeta, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
 
   // encode the response (TODO)
   pRsp->pCont = rpcMallocCont(sizeof(SSubmitRsp));
   memcpy(pRsp->pCont, &rsp, sizeof(rsp));
   pRsp->contLen = sizeof(SSubmitRsp);
 
+  tsdbTriggerRSma(pVnode->pTsdb, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+
   return 0;
+}
+
+int32_t tsdbProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
+  if(!pReq) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return TSDB_CODE_FAILED;
+  }
+
+  SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
+
+  if (tsdbInsertData(pTsdb, version, pSubmitReq, NULL) < 0) {
+    return TSDB_CODE_FAILED;
+  }
+
+  return TSDB_CODE_SUCCESS;
 }

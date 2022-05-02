@@ -554,9 +554,8 @@ int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogO
 void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
 
 typedef struct {
-  const SMqSubscribeObj* pOldSub;
-  const SMqTopicObj*     pTopic;
-  const SMqRebSubscribe* pRebInfo;
+  int32_t           oldConsumerNum;
+  const SMqRebInfo* pRebInfo;
 } SMqRebInputObj;
 
 typedef struct {

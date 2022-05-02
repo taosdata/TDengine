@@ -89,7 +89,7 @@ typedef struct SSyncFSM {
 struct SSyncRaftEntry;
 typedef struct SSyncRaftEntry SSyncRaftEntry;
 
-#define SYNC_INDEX_BEGIN   0
+#define SYNC_INDEX_BEGIN 0
 #define SYNC_INDEX_INVALID -1
 
 // abstract definition of log store in raft
@@ -149,6 +149,8 @@ int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
 SyncTerm    syncGetMyTerm(int64_t rid);
+void        syncGetEpSet(int64_t rid, SEpSet* pEpSet);
+int32_t     syncGetVgId(int64_t rid);
 
 typedef enum {
   TAOS_SYNC_PROPOSE_SUCCESS = 0,

@@ -28,15 +28,16 @@ typedef int64_t tb_uid_t;
 #define TSWINDOW_INITIALIZER       ((STimeWindow){INT64_MIN, INT64_MAX})
 #define TSWINDOW_DESC_INITIALIZER  ((STimeWindow){INT64_MAX, INT64_MIN})
 #define IS_TSWINDOW_SPECIFIED(win) (((win).skey != INT64_MIN) || ((win).ekey != INT64_MAX))
+#define TSWINDOW_IS_EQUAL(t1, t2)  (((t1).skey == (t2).skey) && ((t1).ekey == (t2).ekey))
 
 typedef enum {
-  TSDB_SUPER_TABLE  = 1,    // super table
-  TSDB_CHILD_TABLE  = 2,    // table created from super table
-  TSDB_NORMAL_TABLE = 3,    // ordinary table
-  TSDB_STREAM_TABLE = 4,    // table created from stream computing
-  TSDB_TEMP_TABLE   = 5,    // temp table created by nest query
+  TSDB_SUPER_TABLE = 1,   // super table
+  TSDB_CHILD_TABLE = 2,   // table created from super table
+  TSDB_NORMAL_TABLE = 3,  // ordinary table
+  TSDB_STREAM_TABLE = 4,  // table created from stream computing
+  TSDB_TEMP_TABLE = 5,    // temp table created by nest query
   TSDB_SYSTEM_TABLE = 6,
-  TSDB_TABLE_MAX    = 7
+  TSDB_TABLE_MAX = 7
 } ETableType;
 
 typedef enum {
@@ -78,15 +79,15 @@ typedef enum {
 } ETsdbSmaType;
 
 typedef enum {
-  TSDB_RSMA_RETENTION_0 = 0,
-  TSDB_RSMA_RETENTION_1 = 1,
-  TSDB_RSMA_RETENTION_2 = 2,
-  TSDB_RSMA_RETENTION_MAX = 3
-} ERSmaRetention;
+  TSDB_RETENTION_L0 = 0,
+  TSDB_RETENTION_L1 = 1,
+  TSDB_RETENTION_L2 = 2,
+  TSDB_RETENTION_MAX = 3
+} ERetentionLevel;
 
 extern char *qtypeStr[];
 
-#define TSDB_PORT_HTTP      11
+#define TSDB_PORT_HTTP 11
 
 #undef TD_DEBUG_PRINT_ROW
 

@@ -13,24 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "planTestUtil.h"
-#include "planner.h"
+#include "planInt.h"
 
-using namespace std;
-
-class PlanSessionTest : public PlannerTestBase {};
-
-TEST_F(PlanSessionTest, basic) {
-  useDb("root", "test");
-
-  run("select count(*) from t1 session(ts, 10s)");
+static char* getUsageErrFormat(int32_t errCode) {
+  switch (errCode) {
+    case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
+      return "l.ts = r.ts is expected in join expression";
+    case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
+      return "not support cross join";
+    default:
+      break;
+  }
+  return "Unknown error";
 }
 
-TEST_F(PlanSessionTest, selectFunc) {
-  useDb("root", "test");
-
-  // select function for SESSION clause
-  run("SELECT MAX(c1), MIN(c1) FROM t1 SESSION(ts, 10s)");
-  // select function along with the columns of select row, and with SESSION clause
-  run("SELECT MAX(c1), c2 FROM t1 SESSION(ts, 10s)");
+int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
+  va_list vArgList;
+  va_start(vArgList, errCode);
+  vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
+  va_end(vArgList);
+  return errCode;
 }
