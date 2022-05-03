@@ -40,6 +40,7 @@ extern "C" {
 #include "tpagedbuf.h"
 
 #include "vnode.h"
+#include "executorInt.h"
 
 typedef int32_t (*__block_search_fn_t)(char* data, int32_t num, int64_t key, int32_t order);
 
@@ -478,15 +479,7 @@ typedef struct SFillOperatorInfo {
   void**            p;
   SSDataBlock*      existNewGroupBlock;
   bool              multigroupResult;
-  SInterval         intervalInfo;
 } SFillOperatorInfo;
-
-typedef struct {
-  char*           pData;
-  bool            isNull;
-  int16_t         type;
-  int32_t         bytes;
-} SGroupKeys, SStateKeys;
 
 typedef struct SGroupbyOperatorInfo {
   SOptrBasicInfo  binfo;
@@ -676,7 +669,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
                                             SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pConditions);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
-                                      SInterval* pInterval, SSDataBlock* pResBlock, int32_t fillType, char* fillVal,
+                                      SInterval* pInterval, STimeWindow* pWindow, SSDataBlock* pResBlock, int32_t fillType, SNodeListNode* fillVal,
                                       bool multigroupResult, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                              SSDataBlock* pResBlock, STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
