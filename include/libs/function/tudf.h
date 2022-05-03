@@ -54,7 +54,7 @@ int32_t setupUdf(char udfName[], UdfcFuncHandle *handle);
 
 typedef struct SUdfColumnMeta {
   int16_t type;
-  int32_t bytes; // <0 var length, others fixed length bytes
+  int32_t bytes;
   uint8_t precision;
   uint8_t scale;
 } SUdfColumnMeta;
@@ -133,8 +133,7 @@ typedef int32_t (*TUdfTeardownFunc)();
 //TODO: add API to check function arguments type, number etc.
 //TODO: another way to manage memory is provide api for UDF to add data to SUdfColumnData and UDF framework will allocate memory.
 // then UDF framework will free the memory
-//typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);
-//typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
+// int32_t udfColDataAppend(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull)
 
 typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock* block, SUdfColumn *resultCol);
