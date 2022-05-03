@@ -37,7 +37,7 @@ bool syncEnvIsStart() {
 int32_t syncEnvStart() {
   int32_t ret = 0;
   taosSeedRand(taosGetTimestampSec());
-  //gSyncEnv = doSyncEnvStart(gSyncEnv);
+  // gSyncEnv = doSyncEnvStart(gSyncEnv);
   gSyncEnv = doSyncEnvStart();
   assert(gSyncEnv != NULL);
   sTrace("syncEnvStart ok!");
@@ -97,14 +97,14 @@ static SSyncEnv *doSyncEnvStart() {
   // start tmr thread
   pSyncEnv->pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
 
-  atomic_store_8(&(pSyncEnv->isStart), 1); 
+  atomic_store_8(&(pSyncEnv->isStart), 1);
   return pSyncEnv;
 }
 
 static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
   assert(pSyncEnv == gSyncEnv);
   if (pSyncEnv != NULL) {
-    atomic_store_8(&(pSyncEnv->isStart), 0); 
+    atomic_store_8(&(pSyncEnv->isStart), 0);
     taosTmrCleanUp(pSyncEnv->pTimerManager);
     taosMemoryFree(pSyncEnv);
   }

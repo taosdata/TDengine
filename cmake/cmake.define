@@ -44,7 +44,6 @@ ENDIF ()
 
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
-    SET(CMAKE_GENERATOR "NMake Makefiles" CACHE INTERNAL "" FORCE)
     SET(COMMON_FLAGS "/W3 /D_WIN32")
 
     # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))

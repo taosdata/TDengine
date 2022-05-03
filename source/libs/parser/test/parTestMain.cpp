@@ -30,6 +30,8 @@
 #include "parTestUtil.h"
 #include "parToken.h"
 
+namespace ParserTest {
+
 class ParserEnv : public testing::Environment {
  public:
   virtual void SetUp() {
@@ -62,9 +64,11 @@ static void parseArg(int argc, char* argv[]) {
   }
 }
 
+}  // namespace ParserTest
+
 int main(int argc, char* argv[]) {
-  testing::AddGlobalTestEnvironment(new ParserEnv());
+  testing::AddGlobalTestEnvironment(new ParserTest::ParserEnv());
   testing::InitGoogleTest(&argc, argv);
-  parseArg(argc, argv);
+  ParserTest::parseArg(argc, argv);
   return RUN_ALL_TESTS();
 }

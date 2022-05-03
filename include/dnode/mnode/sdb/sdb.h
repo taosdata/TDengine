@@ -107,10 +107,9 @@ typedef enum {
 typedef enum {
   SDB_STATUS_INIT = 0,
   SDB_STATUS_CREATING = 1,
-  SDB_STATUS_UPDATING = 2,
-  SDB_STATUS_DROPPING = 3,
+  SDB_STATUS_DROPPING = 2,
+  SDB_STATUS_DROPPED = 3,
   SDB_STATUS_READY = 4,
-  SDB_STATUS_DROPPED = 5
 } ESdbStatus;
 
 typedef enum {

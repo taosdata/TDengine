@@ -79,17 +79,6 @@ typedef struct {
 #define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-// #define TCODER_MALLOC(PCODER, SIZE)                                         \
-//   ({                                                                        \
-//     void*      ptr = NULL;                                                  \
-//     SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(*pMem) + (SIZE)); \
-//     if (pMem) {                                                             \
-//       pMem->next = (PCODER)->mList;                                         \
-//       (PCODER)->mList = pMem;                                               \
-//       ptr = (void*)&pMem[1];                                                \
-//     }                                                                       \
-//     ptr;                                                                    \
-//   })
 static FORCE_INLINE void* tCoderMalloc(SCoder* pCoder, int32_t size) {
   void*      ptr = NULL;
   SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(SCoderMem*) + size);
@@ -102,8 +91,9 @@ static FORCE_INLINE void* tCoderMalloc(SCoder* pCoder, int32_t size) {
 }
 
 #define tEncodeSize(E, S, SIZE, RET)                           \
-  do{                                                          \
+  do {                                                         \
     SCoder coder = {0};                                        \
+    RET = 0;                                                   \
     tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER); \
     if ((E)(&coder, S) == 0) {                                 \
       SIZE = coder.pos;                                        \
@@ -111,7 +101,7 @@ static FORCE_INLINE void* tCoderMalloc(SCoder* pCoder, int32_t size) {
       RET = -1;                                                \
     }                                                          \
     tCoderClear(&coder);                                       \
-  }while(0)
+  } while (0)
 // #define tEncodeSize(E, S, SIZE)                                \
 //   ({                                                           \
 //     SCoder coder = {0};                                        \
