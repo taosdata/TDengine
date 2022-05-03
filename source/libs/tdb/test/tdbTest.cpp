@@ -318,4 +318,67 @@ TEST(tdb_test, simple_test2) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-TEST(tdb_test, simple_delete1) { taosRemoveDir("tdb"); }
+TEST(tdb_test, simple_delete1) {
+  int       ret;
+  TDB      *pDb;
+  char      key[128];
+  char      data[128];
+  TXN       txn;
+  TENV     *pEnv;
+  SPoolMem *pPool;
+  void     *pKey = NULL;
+  void     *pData = NULL;
+  int       nKey;
+  int       nData;
+  int       nKV = 254;
+
+  taosRemoveDir("tdb");
+
+  pPool = openPool();
+
+  // open env
+  ret = tdbEnvOpen("tdb", 4096, 256, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open database
+  ret = tdbDbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pEnv, &txn);
+
+  // loop to insert batch data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbDbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(data, pData, nData), 0);
+  }
+
+  // loop to delete some data
+  for (int iData = nKV - 1; iData >= 0; iData--) {
+    sprintf(key, "key%d", iData);
+
+    ret = tdbDbDelete(pDb, key, strlen(key), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+
+  tdbCommit(pEnv, &txn);
+
+  closePool(pPool);
+
+  tdbDbClose(pDb);
+  tdbEnvClose(pEnv);
+}
