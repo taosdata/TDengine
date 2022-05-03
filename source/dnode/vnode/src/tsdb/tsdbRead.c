@@ -155,7 +155,6 @@ static int32_t     checkForCachedLast(STsdbReadHandle* pTsdbReadHandle);
 
 static void    changeQueryHandleForInterpQuery(tsdbReaderT pHandle);
 static void    doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock);
-static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 static int32_t tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win,
                                      STsdbReadHandle* pTsdbReadHandle);
 static int32_t tsdbCheckInfoCompar(const void* key1, const void* key2);
@@ -1307,6 +1306,8 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
 
   return code;
 }
+
+static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 
 static int32_t loadFileDataBlock(STsdbReadHandle* pTsdbReadHandle, SBlock* pBlock, STableCheckInfo* pCheckInfo,
                                  bool* exists) {
