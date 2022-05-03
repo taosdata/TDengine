@@ -766,6 +766,13 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
     }
   }
 
+  if (TDB_BTREE_PAGE_IS_ROOT(pParent) && TDB_PAGE_TOTAL_CELLS(pParent) == 0) {
+    i8 flags = TDB_BTREE_ROOT | TDB_BTREE_PAGE_IS_LEAF(pNews[0]);
+    // copy content to the parent page
+    tdbBtreeInitPage(pParent, &(SBtreeInitPageArg){.flags = flags, .pBt = pBt}, 0);
+    tdbPageCopy(pNews[0], pParent);
+  }
+
   for (int i = 0; i < 3; i++) {
     if (pDivCell[i]) {
       tdbOsFree(pDivCell[i]);
@@ -1454,9 +1461,14 @@ int tdbBtcDelete(SBTC *pBtc) {
         }
       }
     } else {
-      // delete the leaf page and do balance (TODO)
+      // delete the leaf page and do balance
       ASSERT(TDB_PAGE_TOTAL_CELLS(pBtc->pPage) == 0);
-      ASSERT(0);
+
+      ret = tdbBtreeBalance(pBtc);
+      if (ret < 0) {
+        ASSERT(0);
+        return -1;
+      }
     }
   }
 

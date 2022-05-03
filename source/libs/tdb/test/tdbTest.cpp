@@ -120,7 +120,7 @@ TEST(tdb_test, simple_test) {
   TENV         *pEnv;
   TDB          *pDb;
   tdb_cmpr_fn_t compFunc;
-  int           nData = 10000000;
+  int           nData = 1000000;
   TXN           txn;
 
   taosRemoveDir("tdb");
@@ -291,9 +291,9 @@ TEST(tdb_test, simple_test2) {
         ret = tdbDbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
-        std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
-        std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
-        std::cout << std::endl;
+        // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
+        // std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
+        // std::cout << std::endl;
 
         count++;
       }
@@ -333,15 +333,16 @@ TEST(tdb_test, simple_delete1) {
   void     *pKey = NULL;
   void     *pData = NULL;
   int       nKey;
+  TDBC     *pDbc;
   int       nData;
-  int       nKV = 254;
+  int       nKV = 69;
 
   taosRemoveDir("tdb");
 
   pPool = openPool();
 
   // open env
-  ret = tdbEnvOpen("tdb", 4096, 256, &pEnv);
+  ret = tdbEnvOpen("tdb", 1024, 256, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
@@ -370,7 +371,7 @@ TEST(tdb_test, simple_delete1) {
   }
 
   // loop to delete some data
-  for (int iData = nKV - 1; iData >= 0; iData--) {
+  for (int iData = nKV - 1; iData > 30; iData--) {
     sprintf(key, "key%d", iData);
 
     ret = tdbDbDelete(pDb, key, strlen(key), &txn);
@@ -378,6 +379,35 @@ TEST(tdb_test, simple_delete1) {
   }
 
   // query the data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    if (iData <= 30) {
+      GTEST_ASSERT_EQ(ret, 0);
+    } else {
+      GTEST_ASSERT_EQ(ret, -1);
+    }
+  }
+
+  // loop to iterate the data
+  tdbDbcOpen(pDb, &pDbc, NULL);
+
+  ret = tdbDbcMoveToFirst(pDbc);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  pKey = NULL;
+  pData = NULL;
+  for (;;) {
+    ret = tdbDbcNext(pDbc, &pKey, &nKey, &pData, &nData);
+    if (ret < 0) break;
+
+    std::cout.write((char *)pKey, nKey) /* << " " << kLen */ << " ";
+    std::cout.write((char *)pData, nData) /* << " " << vLen */;
+    std::cout << std::endl;
+  }
+
+  tdbDbcClose(pDbc);
 
   tdbCommit(pEnv, &txn);
 
