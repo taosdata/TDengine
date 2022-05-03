@@ -846,7 +846,7 @@ static int32_t addChildTableDataPointsToInsertSql(char* cTableName, char* sTable
   }
 
   for (int i = 0; i < numTags; ++i) {
-    if (capacity - totalLen < 1024 * 16) {
+    if (capacity - totalLen < TSDB_MAX_BYTES_PER_ROW) {
       goto _cleanup;
     }
     if (tagKVs[i] == NULL) {
@@ -887,7 +887,7 @@ static int32_t addChildTableDataPointsToInsertSql(char* cTableName, char* sTable
   }
 
   for (; r < rows; ++r) {
-    if (capacity - totalLen < 1024 * 16) {
+    if (capacity - totalLen < TSDB_MAX_BYTES_PER_ROW) {
       break;
     }
     ret = smlSnprintf(sql, &totalLen, capacity, "(");
