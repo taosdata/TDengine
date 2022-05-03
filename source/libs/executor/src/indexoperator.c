@@ -247,8 +247,11 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
-  SIndexTerm *tm = indexTermCreate(left->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
-                                   right->condValue, strlen(right->condValue));
+  SIndexTerm *tm = indexTermCreate(left->suid, DEFAULT, operType, left->colValType, left->colName,
+                                   strlen(left->colName), right->condValue, strlen(right->condValue));
+  if (operType == OP_TYPE_LOWER_EQUAL || operType == OP_TYPE_GREATER_EQUAL || operType == OP_TYPE_GREATER_THAN ||
+      operType == OP_TYPE_LOWER_THAN) {
+  }
   if (tm == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
