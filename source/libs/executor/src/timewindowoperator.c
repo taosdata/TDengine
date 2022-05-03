@@ -762,7 +762,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
 
   int32_t order = TSDB_ORDER_ASC;
-  //  STimeWindow win = {0};
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -815,10 +814,8 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
 
   bool    masterScan = true;
   int32_t numOfOutput = pOperator->numOfOutput;
-
   int16_t bytes = pStateColInfoData->info.bytes;
 
-  // todo set the correct primary timestamp column
   SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
 

@@ -537,6 +537,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
 
   pInfo->pageIndex += 1;
 
+  blockDataUpdateTsWindow(pInfo->binfo.pRes);
   pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
   return pInfo->binfo.pRes;
 }
