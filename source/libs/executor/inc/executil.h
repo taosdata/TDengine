@@ -73,7 +73,7 @@ typedef struct SResKeyPos {
 } SResKeyPos;
 
 typedef struct SResultRowInfo {
-  SResultRowPosition *pPosition;
+  SResultRowPosition *pPosition;  // todo remove this
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
   SResultRowPosition cur;
