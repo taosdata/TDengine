@@ -582,14 +582,14 @@ static int tdbBtreeBalanceNonRoot(SBTree *pBt, SPage *pParent, int idx, TXN *pTx
       SCell *pCell;
       int    szLCell, szRCell;
 
+      // balance page (iNew) and (iNew-1)
       for (;;) {
         pCell = tdbPageGetCell(pOlds[infoNews[iNew - 1].iPage], infoNews[iNew - 1].oIdx);
 
-        if (childNotLeaf) {
-          szLCell = szRCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell);
+        szLCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell);
+        if (!childNotLeaf) {
+          szRCell = szLCell;
         } else {
-          szLCell = tdbBtreeCellSize(pOlds[infoNews[iNew - 1].iPage], pCell);
-
           int    iPage = infoNews[iNew - 1].iPage;
           int    oIdx = infoNews[iNew - 1].oIdx + 1;
           SPage *pPage;

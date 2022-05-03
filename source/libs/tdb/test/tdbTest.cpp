@@ -202,6 +202,8 @@ TEST(tdb_test, simple_test) {
       ret = tdbDbcOpen(pDb, &pDBC, NULL);
       GTEST_ASSERT_EQ(ret, 0);
 
+      tdbDbcMoveToFirst(pDBC);
+
       for (;;) {
         ret = tdbDbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
@@ -283,6 +285,8 @@ TEST(tdb_test, simple_test2) {
       ret = tdbDbcOpen(pDb, &pDBC, NULL);
       GTEST_ASSERT_EQ(ret, 0);
 
+      tdbDbcMoveToFirst(pDBC);
+
       for (;;) {
         ret = tdbDbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
@@ -341,7 +345,7 @@ TEST(tdb_test, simple_delete1) {
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
-  ret = tdbDbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
+  ret = tdbDbOpen("db.db", -1, -1, tKeyCmpr, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
