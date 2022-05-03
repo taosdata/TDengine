@@ -809,7 +809,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
 static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
-  SOptrBasicInfo* pBInfo = &pInfo->binfo;
 
   SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->colIndex);
   int64_t          gid = pBlock->info.groupId;
@@ -818,9 +817,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   int32_t numOfOutput = pOperator->numOfOutput;
 
   int16_t bytes = pStateColInfoData->info.bytes;
-  int16_t type = pStateColInfoData->info.type;
 
-  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
+  // todo set the correct primary timestamp column
+  SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->tsSlotId);
   TSKEY*           tsList = (TSKEY*)pColInfoData->pData;
 
   SWindowRowsSup* pRowSup = &pInfo->winSup;
@@ -1368,7 +1367,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo*
 }
 
 SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
-                                             SSDataBlock* pResBlock, STimeWindowAggSupp* pTwAggSup,
+                                             SSDataBlock* pResBlock, STimeWindowAggSupp* pTwAggSup, int32_t tsSlotId,
                                              SExecTaskInfo* pTaskInfo) {
   SStateWindowOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SStateWindowOperatorInfo));
   SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -1383,18 +1382,18 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
   initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExpr, numOfCols, pResBlock, keyBufSize, pTaskInfo->id.str);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
-  pInfo->twAggSup = *pTwAggSup;
+  pInfo->twAggSup         = *pTwAggSup;
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
-  pOperator->name = "StateWindowOperator";
+  pInfo->tsSlotId         = tsSlotId;
+  pOperator->name         = "StateWindowOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW;
   pOperator->blockingOptr = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExpr;
-  pOperator->numOfOutput = numOfCols;
-
-  pOperator->pTaskInfo = pTaskInfo;
-  pOperator->info = pInfo;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->pExpr        = pExpr;
+  pOperator->numOfOutput  = numOfCols;
+  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->info         = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStateWindowAgg, NULL, NULL,
                                          destroyStateWindowOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
