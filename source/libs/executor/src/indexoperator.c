@@ -258,7 +258,9 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
 
   indexMultiTermQueryAdd(mtm, tm, qtype);
-  return indexSearch(NULL, mtm, output->result);
+  int ret = indexSearch(NULL, mtm, output->result);
+  indexMultiTermQueryDestroy(mtm);
+  return ret;
 }
 
 static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
@@ -524,6 +526,7 @@ SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {
   if (pFilterNode == NULL) {
     return SFLT_NOT_INDEX;
   }
+
   // impl later
   return SFLT_ACCURATE_INDEX;
 }

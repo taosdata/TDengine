@@ -318,33 +318,7 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SI
   if (mem == NULL) {
     return 0;
   }
-  char* key = indexCacheTermGet(ct);
-
-  SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
-  while (tSkipListIterNext(iter)) {
-    SSkipListNode* node = tSkipListIterGet(iter);
-    if (node != NULL) {
-      CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-      if (qtype == QUERY_TERM) {
-        if (0 == strcmp(c->colVal, ct->colVal)) {
-          if (c->operaType == ADD_VALUE) {
-            INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
-            // taosArrayPush(result, &c->uid);
-            *s = kTypeValue;
-          } else if (c->operaType == DEL_VALUE) {
-            INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
-          }
-        } else {
-          break;
-        }
-      } else if (qtype == QUERY_PREFIX) {
-      } else if (qtype == QUERY_SUFFIX) {
-      } else if (qtype == QUERY_RANGE) {
-      }
-    }
-  }
-  tSkipListDestroyIter(iter);
-  return 0;
+  return cacheSearch[qtype](mem, ct, tr, s);
 }
 int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result, STermValueType* s) {
   int64_t st = taosGetTimestampUs();
