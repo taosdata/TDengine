@@ -1176,7 +1176,7 @@ int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInte
 // input: interBuf
 // output: resultData
 int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData) {
-  int8_t callType = TSDB_UDF_CALL_AGG_PROC;
+  int8_t callType = TSDB_UDF_CALL_AGG_FIN;
   int32_t err = callUdf(handle, callType, NULL, interBuf, NULL, NULL, resultData);
   return err;
 }
@@ -1243,11 +1243,11 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
   }
   SUdfUvSession *session = (SUdfUvSession *)handle;
   SUdfAggRes *udfRes = (SUdfAggRes*)GET_ROWCELL_INTERBUF(pResultCellInfo);
-  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
-  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
-
   int32_t envSize = sizeof(SUdfAggRes) + session->outputLen + session->bufSize;
   memset(udfRes, 0, envSize);
+
+  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
+  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
   udfRes->session = (SUdfUvSession *)handle;
   SUdfInterBuf buf = {0};
@@ -1260,7 +1260,6 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
 }
 
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
-
   SInputColumnInfoData* pInput = &pCtx->input;
   int32_t numOfCols = pInput->numOfInputCols;
 
@@ -1320,13 +1319,15 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
 
-  SUdfInterBuf resultBuf = {.buf = udfRes->finalResBuf,
-                            .bufLen = session->outputLen,
-                            .numOfResult = udfRes->finalResNum};
+  SUdfInterBuf resultBuf = {0};
   SUdfInterBuf state = {.buf = udfRes->interResBuf,
                         .bufLen = session->bufSize,
                         .numOfResult = udfRes->interResNum};
   callUdfAggFinalize(session, &state, &resultBuf);
+
+  udfRes->finalResBuf = resultBuf.buf;
+  udfRes->finalResNum = resultBuf.numOfResult;
+
   teardownUdf(session);
 
   if (resultBuf.numOfResult == 1) {
