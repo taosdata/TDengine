@@ -148,11 +148,7 @@ int main(int argc, char* argv[]) {
   int assembleSTables = 0;
 
   int opt;
-<<<<<<< HEAD
-  while ((opt = getopt(argc, argv, "s:c:r:f:t:b:hv")) != -1) {
-=======
   while ((opt = getopt(argc, argv, "s:c:r:f:t:b:p:w:hv")) != -1) {
->>>>>>> 3dd72e84615f7b25d89da5e70931766bd1cb4d67
     switch (opt) {
       case 's':
         numSuperTables = atoi(optarg);
@@ -175,14 +171,6 @@ int main(int argc, char* argv[]) {
       case 'v':
         verbose = true;
         break;
-<<<<<<< HEAD
-      case 'h':
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
-                argv[0]);
-        exit(0);
-      default: /* '?' */
-        fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -v\n",
-=======
       case 'a':
         assembleSTables = atoi(optarg);
         break;
@@ -201,7 +189,6 @@ int main(int argc, char* argv[]) {
         exit(0);
       default: /* '?' */
         fprintf(stderr, "Usage: %s -s supertable -c childtable -r rows -f fields -t threads -b maxlines_per_batch -p [t|l|j] -a assemble-stables -v\n",
->>>>>>> 3dd72e84615f7b25d89da5e70931766bd1cb4d67
                 argv[0]);
         exit(-1);
     }
@@ -245,33 +232,9 @@ int main(int argc, char* argv[]) {
     getTelenetTemplate(lineTemplate, 65535);
   }
 
-<<<<<<< HEAD
-  printf("setup supertables...");
-  {
-    char** linesStb = calloc(numSuperTables, sizeof(char*));
-    for (int i = 0; i < numSuperTables; i++) {
-      char* lineStb = calloc(strlen(lineTemplate)+128, 1);
-      snprintf(lineStb, strlen(lineTemplate)+128, lineTemplate, i,
-               numSuperTables * numChildTables,
-               ts + numSuperTables * numChildTables * numRowsPerChildTable);
-      linesStb[i] = lineStb;
-    }
-    SThreadInsertArgs args = {0};
-    args.batches = calloc(maxBatchesPerThread, sizeof(maxBatchesPerThread));
-    args.taos = taos;
-    args.batches[0].lines = linesStb;
-    args.batches[0].numLines = numSuperTables;
-    insertLines(&args);
-    free(args.batches);
-    for (int i = 0; i < numSuperTables; ++i) {
-      free(linesStb[i]);
-    }
-    free(linesStb);
-=======
   if (assembleSTables) {
     setupSuperTables(taos, lineTemplate, protocol,
                      numSuperTables, numChildTables, numRowsPerChildTable, maxBatchesPerThread, ts);
->>>>>>> 3dd72e84615f7b25d89da5e70931766bd1cb4d67
   }
 
   printf("generate lines...\n");
