@@ -32,6 +32,7 @@ typedef int32_t (*tslCmprFn)(const void *pKey1, int32_t nKey1, const void *pKey2
 // SSkipList2
 int32_t slOpen(const SSLCfg *pCfg, SSkipList2 **ppSl);
 int32_t slClose(SSkipList2 *pSl);
+int32_t slClear(SSkipList2 *pSl);
 
 // SSLCursor
 int32_t slcOpen(SSkipList2 *pSl, SSLCursor *pSlc);
@@ -54,6 +55,11 @@ struct SSLCfg {
   void     *pPool;
   void *(*xMalloc)(void *, int32_t size);
   void (*xFree)(void *, void *);
+};
+
+struct SSLCursor {
+  SSkipList2 *pSl;
+  SSLNode   **forwards[SL_MAX_LEVEL];
 };
 
 #ifdef __cplusplus

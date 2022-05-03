@@ -27,11 +27,7 @@ struct SSkipList2 {
   uint32_t      seed;
   int32_t       size;
   const SSLCfg *pCfg;
-};
-
-struct SSLCursor {
-  SSkipList2 *pSl;
-  SSLNode    *forwards[SL_MAX_LEVEL];
+  SSLNode      *pHead[];
 };
 
 static void   *slMalloc(void *pPool, int32_t size);
@@ -48,25 +44,66 @@ const SSLCfg slDefaultCfg = {.maxLevel = SL_MAX_LEVEL,
 
 int32_t slOpen(const SSLCfg *pCfg, SSkipList2 **ppSl) {
   SSkipList2 *pSl = NULL;
+  int32_t     size;
 
   *ppSl = NULL;
   if (pCfg == NULL) pCfg = &slDefaultCfg;
 
-  // check cfg (TODO)
+  // check config (TODO)
 
-  // create handle
-  pSl = pCfg->xMalloc(pCfg->pPool, sizeof(*pSl));
-  // (TODO)
+  // malloc handle
+  size = sizeof(*pSl) + sizeof(SSLNode *) * pCfg->maxLevel * 2;
+  pSl = pCfg->xMalloc(pCfg->pPool, size);
+  if (pSl == NULL) {
+    return -1;
+  }
+
+  pSl->level = 0;
+  pSl->seed = taosRand();
+  pSl->size = 0;
+  pSl->pCfg = pCfg;
+
+  // init an empty skiplist
+  for (int32_t i = 0; i < pCfg->maxLevel * 2; i++) {
+    pSl->pHead[i] = NULL;
+  }
+
   *ppSl = pSl;
   return 0;
 }
 
 int32_t slClose(SSkipList2 *pSl) {
-  // TODO
+  if (pSl) {
+    slClear(pSl);
+    if (pSl->pCfg->xFree) {
+      pSl->pCfg->xFree(pSl->pCfg->pPool, pSl);
+    }
+  }
+
+  return 0;
+}
+
+int32_t slClear(SSkipList2 *pSl) {
+  // loop to clear sl
+  for (;;) {
+    // (TODO)
+  }
+
+  // init sl (TODO)
+
   return 0;
 }
 
 int32_t slcOpen(SSkipList2 *pSl, SSLCursor *pSlc) {
+  pSlc->pSl = pSl;
+
+  for (int i = 0; i < SL_MAX_LEVEL; i++) {
+    if (i < pSl->pCfg->maxLevel) {
+    } else {
+      pSlc->forwards[i] = NULL;
+    }
+  }
+
   // TODO
   return 0;
 }
