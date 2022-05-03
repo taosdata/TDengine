@@ -1078,7 +1078,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
   pOperator->name         = "TimeIntervalAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_INTERVAL;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExprInfo;
   pOperator->pTaskInfo    = pTaskInfo;
@@ -1137,7 +1137,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExpr
 
   pOperator->name = "StreamTimeIntervalAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_INTERVAL;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->pExpr = pExprInfo;
   pOperator->pTaskInfo = pTaskInfo;
@@ -1343,7 +1343,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo*
 
   pOperator->name = "TimeSliceOperator";
   //  pOperator->operatorType = OP_AllTimeWindow;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->pExpr = pExprInfo;
   pOperator->numOfOutput = numOfCols;
@@ -1385,7 +1385,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
   pInfo->tsSlotId         = tsSlotId;
   pOperator->name         = "StateWindowOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExpr;
   pOperator->numOfOutput  = numOfCols;
@@ -1437,7 +1437,7 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo
   pInfo->reptScan         = false;
   pOperator->name         = "SessionWindowAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->pExpr        = pExprInfo;
   pOperator->numOfOutput  = numOfCols;

@@ -268,7 +268,7 @@ typedef struct SOperatorFpSet {
 
 typedef struct SOperatorInfo {
   uint8_t                 operatorType;
-  bool                    blockingOptr;  // block operator or not
+  bool                    blocking;      // block operator or not
   uint8_t                 status;        // denote if current operator is completed
   int32_t                 numOfOutput;   // number of columns of the current operator results
   char*                   name;          // name, used to show the query execution plan
@@ -341,9 +341,9 @@ typedef struct STableScanInfo {
   int64_t         elapsedTime;
   int32_t         prevGroupId;  // previous table group id
   SScanInfo       scanInfo;
-  int32_t         current;
-  SNode*          pFilterNode;  // filter operator info
-  SqlFunctionCtx* pCtx;         // next operator query context
+  int32_t         scanTimes;
+  SNode*          pFilterNode;  // filter info, which is push down by optimizer
+  SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context
   SResultRowInfo* pResultRowInfo;
   int32_t*        rowCellInfoOffset;
   SExprInfo*      pExpr;
@@ -397,7 +397,6 @@ typedef struct SSysTableScanInfo {
   SArray*             scanCols;    // SArray<int16_t> scan column id list
   SName               name;
   SSDataBlock*        pRes;
-  int32_t             capacity;
   int64_t             numOfBlocks;  // extract basic running information.
   SLoadRemoteDataInfo loadInfo;
 } SSysTableScanInfo;
