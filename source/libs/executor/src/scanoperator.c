@@ -162,7 +162,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
   STableScanInfo* pInfo = pOperator->info;
 
-  STaskCostInfo* pCost = &pTaskInfo->cost;
+  SFileBlockLoadRecorder* pCost = &pTableScanInfo->readRecorder;
 
   pCost->totalBlocks += 1;
   pCost->totalRows += pBlock->info.rows;
@@ -188,11 +188,11 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
 
-    bool allHave = true;
+    bool allColumnsHaveAgg = true;
     SColumnDataAgg** pColAgg = NULL;
-    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg, &allHave);
+    tsdbRetrieveDataBlockStatisInfo(pTableScanInfo->dataReader, &pColAgg, &allColumnsHaveAgg);
 
-    if (allHave == true) {
+    if (allColumnsHaveAgg == true) {
       int32_t numOfCols = pBlock->info.numOfCols;
 
       // todo create this buffer during creating operator
@@ -266,7 +266,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
     }
 
-    pTableScanInfo->numOfBlocks += 1;
     tsdbRetrieveDataBlockInfo(pTableScanInfo->dataReader, &pBlock->info);
 
     uint32_t status = 0;
@@ -406,7 +405,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* 
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
   pInfo->dataReader        = pReadHandle;
-  pInfo->prevGroupId       = -1;
+//  pInfo->prevGroupId       = -1;
 
   pOperator->name         = "TableSeqScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN;

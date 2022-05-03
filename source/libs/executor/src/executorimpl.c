@@ -1593,8 +1593,8 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
 
   STaskCostInfo* pCost = &pTaskInfo->cost;
 
-  pCost->totalBlocks += 1;
-  pCost->totalRows += pBlock->info.rows;
+//  pCost->totalBlocks += 1;
+//  pCost->totalRows += pBlock->info.rows;
 #if 0
   // Calculate all time windows that are overlapping or contain current data block.
   // If current data block is contained by all possible time window, do not load current data block.
@@ -2415,8 +2415,8 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   qDebug("%s :cost summary: elapsed time:%" PRId64 " us, first merge:%" PRId64
          " us, total blocks:%d, "
          "load block statis:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
-         GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks,
-         pSummary->loadBlockStatis, pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
+         GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->pRecoder->totalBlocks,
+         pSummary->pRecoder->loadBlockStatis, pSummary->pRecoder->loadBlocks, pSummary->pRecoder->totalRows, pSummary->pRecoder->totalCheckedRows);
   //
   // qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb,
   // hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
@@ -4869,9 +4869,12 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SInterval interval = extractIntervalInfo(pTableScanNode);
-      return createTableScanOperatorInfo(pDataReader, &cond, numOfCols, pTableScanNode->dataRequired,
+      SOperatorInfo* pOperator = createTableScanOperatorInfo(pDataReader, &cond, numOfCols, pTableScanNode->dataRequired,
                                          pTableScanNode->scanSeq, pColList, pResBlock, pScanPhyNode->node.pConditions,
                                          &interval, pTableScanNode->ratio, pTaskInfo);
+      STableScanInfo* pScanInfo = pOperator->info;
+      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
       SSDataBlock*        pResBlock = createResDataBlock(pExchange->node.pOutputDataBlockDesc);
