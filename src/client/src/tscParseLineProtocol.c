@@ -789,6 +789,21 @@ static int32_t arrangePointsByChildTableName(TAOS_SML_DATA_POINT* points, int nu
   return 0;
 }
 
+static int smlSnprintf(char* buf, int32_t *total, int32_t cap, char* fmt, ...) {
+  if (*total > cap) {
+    return -1;
+  }
+
+  va_list argp;
+  va_start(argp, fmt);
+  int len = vsnprintf(buf + *total, cap - *total, fmt, argp);
+  if (len < 0 || len >= cap - *total) {
+    return -2;
+  }
+  *total += len;
+  return 0;
+}
+
 static int32_t addChildTableDataPointsToInsertSql(char* cTableName, char* sTableName, SSmlSTableSchema* sTableSchema, SArray* cTablePoints,
                                                   char* sql, int32_t capacity, int32_t* cTableSqlLen, int fromIndex, int* nextIndex, SSmlLinesInfo* info) {
   size_t  numTags = taosArrayGetSize(sTableSchema->tags);
@@ -806,48 +821,79 @@ static int32_t addChildTableDataPointsToInsertSql(char* cTableName, char* sTable
     }
   }
 
-  int32_t freeBytes = capacity;
+  TAOS_SML_KV** colKVs = malloc(numCols * sizeof(TAOS_SML_KV*));
+  int r = fromIndex;
+
   int32_t totalLen = 0;
-  totalLen += sprintf(sql, " %s using %s (", cTableName, sTableName);
+  int ret = 0;
+  ret = smlSnprintf(sql, &totalLen, capacity, " %s using %s (", cTableName, sTableName);
+  if (ret != 0) {
+    goto _cleanup;
+  }
+
   for (int i = 0; i < numTags; ++i) {
     SSchema* tagSchema = taosArrayGet(tagsSchema, i);
-    totalLen += snprintf(sql + totalLen, freeBytes - totalLen, "%s,", tagSchema->name);
+    ret = smlSnprintf(sql, &totalLen, capacity, "%s,", tagSchema->name);
+    if (ret != 0) {
+      goto _cleanup;
+    }
   }
   --totalLen;
-  totalLen += snprintf(sql + totalLen, freeBytes - totalLen, ")");
 
-  totalLen += snprintf(sql + totalLen, freeBytes - totalLen, " tags (");
+  ret = smlSnprintf(sql, &totalLen, capacity, ") tags (");
+  if (ret != 0) {
+    goto _cleanup;
+  }
 
   for (int i = 0; i < numTags; ++i) {
+    if (capacity - totalLen < 1024 * 16) {
+      goto _cleanup;
+    }
     if (tagKVs[i] == NULL) {
-      totalLen += snprintf(sql + totalLen, freeBytes - totalLen, "NULL,");
+      ret = smlSnprintf(sql, &totalLen, capacity, "NULL,");
+      if (ret != 0) {
+        goto _cleanup;
+      }
     } else {
       TAOS_SML_KV* kv = tagKVs[i];
       size_t       beforeLen = totalLen;
       int32_t      len = 0;
       converToStr(sql + beforeLen, kv->type, kv->value, kv->length, &len);
       totalLen += len;
-      totalLen += snprintf(sql + totalLen, freeBytes - totalLen, ",");
+
+      ret = smlSnprintf(sql, &totalLen, capacity, ",");
+      if (ret != 0) {
+        goto _cleanup;
+      }
     }
   }
   --totalLen;
-  totalLen += snprintf(sql + totalLen, freeBytes - totalLen, ") (");
+  ret = smlSnprintf(sql, &totalLen, capacity, ") (");
+  if (ret != 0) {
+    goto _cleanup;
+  }
 
   for (int i = 0; i < numCols; ++i) {
     SSchema* colSchema = taosArrayGet(colsSchema, i);
-    totalLen += snprintf(sql + totalLen, freeBytes - totalLen, "%s,", colSchema->name);
+    ret = smlSnprintf(sql, &totalLen, capacity, "%s,", colSchema->name);
+    if (ret != 0) {
+      goto _cleanup;
+    }
   }
   --totalLen;
-  totalLen += snprintf(sql + totalLen, freeBytes - totalLen, ") values ");
+  ret = smlSnprintf(sql, &totalLen, capacity, ") values ");
+  if (ret != 0) {
+    goto _cleanup;
+  }
 
-  TAOS_SML_KV** colKVs = malloc(numCols * sizeof(TAOS_SML_KV*));
-  int r = fromIndex;
   for (; r < rows; ++r) {
-    if (freeBytes - totalLen < 1024 * 16) {
+    if (capacity - totalLen < 1024 * 16) {
       break;
     }
-    totalLen += snprintf(sql + totalLen, freeBytes - totalLen, "(");
-
+    ret = smlSnprintf(sql, &totalLen, capacity, "(");
+    if (ret != 0) {
+      goto _cleanup;
+    }
     memset(colKVs, 0, numCols * sizeof(TAOS_SML_KV*));
 
     TAOS_SML_DATA_POINT* point = taosArrayGetP(cTablePoints, r);
@@ -858,26 +904,38 @@ static int32_t addChildTableDataPointsToInsertSql(char* cTableName, char* sTable
 
     for (int i = 0; i < numCols; ++i) {
       if (colKVs[i] == NULL) {
-        totalLen += snprintf(sql + totalLen, freeBytes - totalLen, "NULL,");
+        ret = smlSnprintf(sql, &totalLen, capacity, "NULL,");
+        if (ret != 0) {
+          goto _cleanup;
+        }
       } else {
         TAOS_SML_KV* kv = colKVs[i];
         size_t       beforeLen = totalLen;
         int32_t      len = 0;
         converToStr(sql + beforeLen, kv->type, kv->value, kv->length, &len);
         totalLen += len;
-        totalLen += snprintf(sql + totalLen, freeBytes - totalLen, ",");
+        ret = smlSnprintf(sql, &totalLen, capacity, ",");
+        if (ret != 0) {
+          goto _cleanup;
+        }
       }
     }
     --totalLen;
-    totalLen += snprintf(sql + totalLen, freeBytes - totalLen, ")");
+    ret = smlSnprintf(sql, &totalLen, capacity, ")");
+    if (ret != 0) {
+      goto _cleanup;
+    }
   }
+_cleanup:
   free(colKVs);
 
   if (r == fromIndex) {
     tscError("buffer can not fit one line");
+    *cTableSqlLen = 0;
+  } else {
+    *cTableSqlLen = totalLen;
   }
   *nextIndex = r;
-  *cTableSqlLen = totalLen;
 
   return 0;
 }
