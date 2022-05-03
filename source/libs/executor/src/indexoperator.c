@@ -62,6 +62,20 @@ typedef struct SIFParam {
   char     colName[TSDB_COL_NAME_LEN];
 } SIFParam;
 
+static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
+  if (src == OP_TYPE_GREATER_THAN || src == OP_TYPE_GREATER_EQUAL || src == OP_TYPE_LOWER_THAN ||
+      src == OP_TYPE_LOWER_EQUAL) {
+    *dst = QUERY_RANGE;
+  } else if (src == OP_TYPE_EQUAL) {
+    *dst = QUERY_TERM;
+  } else if (src == OP_TYPE_LIKE || src == OP_TYPE_MATCH || src == OP_TYPE_NMATCH) {
+    *dst = QUERY_REGEX;
+  } else {
+    return TSDB_CODE_QRY_INVALID_INPUT;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 typedef int32_t (*sif_func_t)(SIFParam *left, SIFParam *rigth, SIFParam *output);
 // construct tag filter operator later
 static void destroyTagFilterOperatorInfo(void *param) {
@@ -238,9 +252,12 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   if (tm == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
-
   SIndexMultiTermQuery *mtm = indexMultiTermQueryCreate(MUST);
-  indexMultiTermQueryAdd(mtm, tm, QUERY_TERM);
+
+  EIndexQueryType qtype = 0;
+  SIF_ERR_RET(sifGetFuncFromSql(operType, &qtype));
+
+  indexMultiTermQueryAdd(mtm, tm, qtype);
   return indexSearch(NULL, mtm, output->result);
 }
 

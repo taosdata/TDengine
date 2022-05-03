@@ -46,8 +46,8 @@ typedef enum {
   DEFAULT        // query
 } SIndexOperOnColumn;
 
-typedef enum { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
-typedef enum { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2, QUERY_REGEX = 3, QUERY_RANGE = 4 } EIndexQueryType;
+typedef enum { MUST = 1, SHOULD, NOT } EIndexOperatorType;
+typedef enum { QUERY_TERM = 1, QUERY_PREFIX, QUERY_SUFFIX, QUERY_REGEX, QUERY_RANGE } EIndexQueryType;
 
 /*
  * create multi query
