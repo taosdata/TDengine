@@ -942,7 +942,7 @@ int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* 
   assert(pResultRow != NULL);
 
   setResultRowKey(pResultRow, pData, type);
-  setResultRowOutputBufInitCtx_rv(pResultRow, pCtx, numOfCols, binfo->rowCellInfoOffset);
+  setResultRowInitCtx(pResultRow, pCtx, numOfCols, binfo->rowCellInfoOffset);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2032,20 +2032,9 @@ void finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SD
   }
 }
 
-STableQueryInfo* createTableQueryInfo(void* buf, bool groupbyColumn, STimeWindow win) {
+STableQueryInfo* createTableQueryInfo(void* buf, STimeWindow win) {
   STableQueryInfo* pTableQueryInfo = buf;
   pTableQueryInfo->lastKey = win.skey;
-
-  // set more initial size of interval/groupby query
-  //  if (/*QUERY_IS_INTERVAL_QUERY(pQueryAttr) || */groupbyColumn) {
-  int32_t initialSize = 128;
-  //  int32_t code = initResultRowInfo(&pTableQueryInfo->resInfo, initialSize);
-  //  if (code != TSDB_CODE_SUCCESS) {
-  //    return NULL;
-  //  }
-  //  } else { // in other aggregate query, do not initialize the windowResInfo
-  //  }
-
   return pTableQueryInfo;
 }
 
@@ -2058,8 +2047,7 @@ void destroyTableQueryInfoImpl(STableQueryInfo* pTableQueryInfo) {
   //  cleanupResultRowInfo(&pTableQueryInfo->resInfo);
 }
 
-void setResultRowOutputBufInitCtx_rv(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
-                                     int32_t* rowCellInfoOffset) {
+void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     pCtx[i].resultInfo = getResultCell(pResult, i, rowCellInfoOffset);
 
@@ -2160,7 +2148,7 @@ void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, u
     }
   }
 
-  setResultRowOutputBufInitCtx_rv(pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
+  setResultRowInitCtx(pResultRow, pCtx, numOfOutput, rowCellInfoOffset);
 }
 
 void setExecutionContext(int32_t numOfOutput, uint64_t groupId, SExecTaskInfo* pTaskInfo, SAggOperatorInfo* pAggInfo) {
@@ -3202,7 +3190,7 @@ static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
@@ -3220,8 +3208,6 @@ static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator, bool* newgroup) {
            pLoadInfo->totalElapsed / 1000.0);
     return NULL;
   }
-
-  *newgroup = false;
 
   if (pExchangeInfo->seqLoadData) {
     return seqLoadRemoteData(pOperator);
@@ -3397,8 +3383,7 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
 SSDataBlock* loadNextDataBlock(void* param) {
   SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  bool           newgroup = false;
-  return pOperator->fpSet.getNextFn(pOperator, &newgroup);
+  return pOperator->fpSet.getNextFn(pOperator);
 }
 
 static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char** buf, int32_t rowIndex) {
@@ -3569,7 +3554,7 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
   return (pInfo->binfo.pRes->info.rows > 0) ? pInfo->binfo.pRes : NULL;
 }
 
-static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -3716,7 +3701,7 @@ _error:
   return NULL;
 }
 
-static SSDataBlock* doSort(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doSort(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -3819,7 +3804,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   bool newgroup = true;
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream, &newgroup);
+    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
@@ -3869,7 +3854,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   SAggOperatorInfo* pAggInfo = pOperator->info;
   SOptrBasicInfo*   pInfo = &pAggInfo->binfo;
 
@@ -4086,7 +4071,7 @@ static int32_t handleLimitOffset(SOperatorInfo* pOperator, SSDataBlock* pBlock) 
   }
 }
 
-static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SProjectOperatorInfo* pProjectInfo = pOperator->info;
   SOptrBasicInfo*       pInfo = &pProjectInfo->binfo;
 
@@ -4124,21 +4109,18 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator, bool* newgroup)
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    bool prevVal = *newgroup;
-
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (pBlock == NULL) {
-      *newgroup = prevVal;
       setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
       break;
     }
 
     // Return result of the previous group in the firstly.
-    if (*newgroup) {
+    if (false) {
       if (pRes->info.rows > 0) {
         pProjectInfo->existDataBlock = pBlock;
         break;
@@ -4208,7 +4190,7 @@ static void doHandleRemainBlockFromNewGroup(SFillOperatorInfo* pInfo, SResultInf
   }
 }
 
-static SSDataBlock* doFill(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doFill(SOperatorInfo* pOperator) {
   SFillOperatorInfo* pInfo = pOperator->info;
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
 
@@ -4220,6 +4202,9 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator, bool* newgroup) {
     return NULL;
   }
 
+  // todo handle different group data interpolation
+  bool n = false;
+  bool *newgroup = &n;
   doHandleRemainBlockFromNewGroup(pInfo, pResultInfo, newgroup, pTaskInfo);
   if (pResBlock->info.rows > pResultInfo->threshold || (!pInfo->multigroupResult && pResBlock->info.rows > 0)) {
     return pResBlock;
@@ -4228,7 +4213,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator, bool* newgroup) {
   SOperatorInfo* pDownstream = pOperator->pDownstream[0];
   while (1) {
     publishOperatorProfEvent(pDownstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream, newgroup);
+    SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
     publishOperatorProfEvent(pDownstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
     if (*newgroup) {
@@ -4394,7 +4379,7 @@ static STableQueryInfo* initTableQueryInfo(const STableGroupInfo* pTableGroupInf
   }
 
   STimeWindow win = {0, INT64_MAX};
-  createTableQueryInfo(pTableQueryInfo, false, win);
+  createTableQueryInfo(pTableQueryInfo, win);
   return pTableQueryInfo;
 }
 
@@ -5529,7 +5514,7 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   return TSDB_CODE_SUCCESS;
 }
 
-static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
   SJoinOperatorInfo* pJoinInfo = pOperator->info;
 
   SSDataBlock* pRes = pJoinInfo->pRes;
@@ -5539,12 +5524,10 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator, bool* newgroup)
   int32_t nrows = 0;
 
   while (1) {
-    bool prevVal = *newgroup;
-
     if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
       SOperatorInfo* ds1 = pOperator->pDownstream[0];
       publishOperatorProfEvent(ds1, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-      pJoinInfo->pLeft = ds1->fpSet.getNextFn(ds1, newgroup);
+      pJoinInfo->pLeft = ds1->fpSet.getNextFn(ds1);
       publishOperatorProfEvent(ds1, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
       pJoinInfo->leftPos = 0;
@@ -5557,7 +5540,7 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator, bool* newgroup)
     if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
       SOperatorInfo* ds2 = pOperator->pDownstream[1];
       publishOperatorProfEvent(ds2, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-      pJoinInfo->pRight = ds2->fpSet.getNextFn(ds2, newgroup);
+      pJoinInfo->pRight = ds2->fpSet.getNextFn(ds2);
       publishOperatorProfEvent(ds2, QUERY_PROF_AFTER_OPERATOR_EXEC);
 
       pJoinInfo->rightPos = 0;

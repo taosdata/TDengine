@@ -257,11 +257,9 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
 }
 
-static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
-
   SSDataBlock* pBlock = pTableScanInfo->pResBlock;
-  *newgroup = false;
 
   while (tsdbNextDataBlock(pTableScanInfo->dataReader)) {
     if (isTaskKilled(pOperator->pTaskInfo)) {
@@ -289,7 +287,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator, bool* newgroup) {
   return NULL;
 }
 
-static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
 
@@ -298,10 +296,8 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
     return NULL;
   }
 
-  *newgroup = false;
-
   while (pTableScanInfo->current < pTableScanInfo->scanInfo.numOfAsc) {
-    SSDataBlock* p = doTableScanImpl(pOperator, newgroup);
+    SSDataBlock* p = doTableScanImpl(pOperator);
     if (p != NULL) {
       return p;
     }
@@ -334,7 +330,7 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator, bool* newgroup) {
            GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
 
     while (pTableScanInfo->current < total) {
-      SSDataBlock* p = doTableScanImpl(pOperator, newgroup);
+      SSDataBlock* p = doTableScanImpl(pOperator);
       if (p != NULL) {
         return p;
       }
@@ -421,13 +417,12 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle) {
   return pOperator;
 }
 
-static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doBlockInfoScan(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
 
   STableScanInfo* pTableScanInfo = pOperator->info;
-  *newgroup = false;
 
   STableBlockDistInfo tableBlockDist = {0};
   tableBlockDist.numOfTables = 1;  // TODO set the correct number of tables
@@ -514,7 +509,7 @@ static void doClearBufferedBlocks(SStreamBlockScanInfo* pInfo) {
   taosArrayClear(pInfo->pBlockLists);
 }
 
-static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   // NOTE: this operator does never check if current status is done or not
   SExecTaskInfo*        pTaskInfo = pOperator->pTaskInfo;
   SStreamBlockScanInfo* pInfo = pOperator->info;
@@ -859,7 +854,7 @@ static SSDataBlock* buildSysTableMetaBlock() {
   return pBlock;
 }
 
-static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
   // build message and send to mnode to fetch the content of system tables.
   SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
   SSysTableScanInfo* pInfo = pOperator->info;
@@ -1191,7 +1186,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSDataBlock* pRe
   return pOperator;
 }
 
-static SSDataBlock* doTagScan(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 #if 0
   SOperatorInfo* pOperator = (SOperatorInfo*) param;
   if (pOperator->status == OP_EXEC_DONE) {
