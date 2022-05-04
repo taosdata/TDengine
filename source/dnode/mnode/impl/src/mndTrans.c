@@ -126,7 +126,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT32(pRaw, dataPos, pTrans->id, TRANS_ENCODE_OVER)
   SDB_SET_INT16(pRaw, dataPos, pTrans->policy, TRANS_ENCODE_OVER)
   SDB_SET_INT16(pRaw, dataPos, pTrans->stage, TRANS_ENCODE_OVER)
-  SDB_SET_INT16(pRaw, dataPos, pTrans->transType, TRANS_ENCODE_OVER)
+  SDB_SET_INT16(pRaw, dataPos, pTrans->type, TRANS_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, TRANS_ENCODE_OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->dbUid, TRANS_ENCODE_OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, TRANS_ENCODE_OVER)
@@ -237,7 +237,7 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT16(pRaw, dataPos, &type, _OVER)
   pTrans->policy = policy;
   pTrans->stage = stage;
-  pTrans->transType = type;
+  pTrans->type = type;
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pTrans->dbUid, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
@@ -540,7 +540,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->id = sdbGetMaxId(pMnode->pSdb, SDB_TRANS);
   pTrans->stage = TRN_STAGE_PREPARE;
   pTrans->policy = policy;
-  pTrans->transType = type;
+  pTrans->type = type;
   pTrans->createdTime = taosGetTimestampMs();
   pTrans->rpcHandle = pReq->handle;
   pTrans->rpcAHandle = pReq->ahandle;
@@ -592,7 +592,7 @@ void mndTransDrop(STrans *pTrans) {
 
 static int32_t mndTransAppendLog(SArray *pArray, SSdbRaw *pRaw) {
   if (pArray == NULL || pRaw == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
 
@@ -689,12 +689,12 @@ static bool mndIsStbTrans(STrans *pTrans) {
   return pTrans->stage > TRN_TYPE_STB_SCOPE && pTrans->stage < TRN_TYPE_STB_SCOPE_END;
 }
 
-static int32_t mndCheckTransCanBeStartedInParallel(SMnode *pMnode, STrans *pNewTrans) {
-  if (mndIsBasicTrans(pNewTrans)) return 0;
-
+static bool mndCheckTransCanParallel(SMnode *pMnode, STrans *pNewTrans) {
   STrans *pTrans = NULL;
   void   *pIter = NULL;
-  int32_t code = 0;
+  bool    canParallel = true;
+
+  if (mndIsBasicTrans(pNewTrans)) return canParallel;
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
@@ -703,7 +703,7 @@ static int32_t mndCheckTransCanBeStartedInParallel(SMnode *pMnode, STrans *pNewT
     if (mndIsGlobalTrans(pNewTrans)) {
       if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-        code = -1;
+        canParallel = false;
         break;
       }
     }
@@ -712,13 +712,13 @@ static int32_t mndCheckTransCanBeStartedInParallel(SMnode *pMnode, STrans *pNewT
       if (mndIsBasicTrans(pTrans)) continue;
       if (mndIsGlobalTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
-        code = -1;
+        canParallel = false;
         break;
       }
       if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
         if (pNewTrans->dbUid == pTrans->dbUid) {
           mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-          code = -1;
+          canParallel = false;
           break;
         }
       }
@@ -728,13 +728,13 @@ static int32_t mndCheckTransCanBeStartedInParallel(SMnode *pMnode, STrans *pNewT
       if (mndIsBasicTrans(pTrans)) continue;
       if (mndIsGlobalTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
-        code = -1;
+        canParallel = false;
         break;
       }
       if (mndIsDbTrans(pTrans)) {
         if (pNewTrans->dbUid == pTrans->dbUid) {
           mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-          code = -1;
+          canParallel = false;
           break;
         }
       }
@@ -746,12 +746,12 @@ static int32_t mndCheckTransCanBeStartedInParallel(SMnode *pMnode, STrans *pNewT
 
   sdbCancelFetch(pMnode->pSdb, pIter);
   sdbRelease(pMnode->pSdb, pTrans);
-  return code;
+  return canParallel;
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
-  if (mndCheckTransCanBeStartedInParallel(pMnode, pTrans) != 0) {
-    terrno = TSDB_CODE_MND_TRANS_CANT_PARALLEL;
+  if (!mndCheckTransCanParallel(pMnode, pTrans)) {
+    terrno = TSDB_CODE_MND_TRANS_CAN_NOT_PARALLEL;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     return -1;
   }
@@ -1360,10 +1360,10 @@ static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
 
-    char transType[TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndTransType(pTrans->transType), pShow->pMeta->pSchemas[cols].bytes);
+    char type[TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndTransType(pTrans->type), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)transType, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)type, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);

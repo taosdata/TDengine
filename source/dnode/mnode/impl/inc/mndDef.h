@@ -91,10 +91,12 @@ typedef enum {
   TRN_TYPE_CONSUMER_LOST = 1022,
   TRN_TYPE_CONSUMER_RECOVER = 1023,
   TRN_TYPE_BASIC_SCOPE_END,
+
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
   TRN_TYPE_DROP_DNODE = 2002,
   TRN_TYPE_GLOBAL_SCOPE_END,
+
   TRN_TYPE_DB_SCOPE = 3000,
   TRN_TYPE_CREATE_DB = 3001,
   TRN_TYPE_ALTER_DB = 3002,
@@ -102,6 +104,7 @@ typedef enum {
   TRN_TYPE_SPLIT_VGROUP = 3004,
   TRN_TYPE_MERGE_VGROUP = 3015,
   TRN_TYPE_DB_SCOPE_END,
+
   TRN_TYPE_STB_SCOPE = 4000,
   TRN_TYPE_CREATE_STB = 4001,
   TRN_TYPE_ALTER_STB = 4002,
@@ -131,7 +134,7 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  ETrnType   transType;
+  ETrnType   type;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
