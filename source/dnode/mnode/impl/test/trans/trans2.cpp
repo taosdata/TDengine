@@ -22,7 +22,7 @@ class MndTestTrans2 : public ::testing::Test {
   static void SetUpTestSuite() {
     dDebugFlag = 143;
     vDebugFlag = 0;
-    mDebugFlag = 143;
+    mDebugFlag = 207;
     cDebugFlag = 0;
     jniDebugFlag = 0;
     tmrDebugFlag = 135;
