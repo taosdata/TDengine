@@ -98,46 +98,46 @@ typedef struct SIOCostSummary {
 } SIOCostSummary;
 
 typedef struct SBlockLoadSuppInfo {
-  SColumnDataAgg  *pstatis;
-  SColumnDataAgg **plist;
-  SArray          *defaultLoadColumn;  // default load column
-  int32_t         *slotIds;            // colId to slotId
+  SColumnDataAgg*  pstatis;
+  SColumnDataAgg** plist;
+  SArray*          defaultLoadColumn;  // default load column
+  int32_t*         slotIds;            // colId to slotId
 } SBlockLoadSuppInfo;
 
 typedef struct STsdbReadHandle {
-  STsdb*          pTsdb;
-  SQueryFilePos   cur;  // current position
-  int16_t         order;
-  STimeWindow     window;  // the primary query time window that applies to all queries
-//  SColumnDataAgg* statis;  // query level statistics, only one table block statistics info exists at any time
-//  SColumnDataAgg** pstatis;// the ptr array list to return to caller
-  int32_t         numOfBlocks;
-  SArray*         pColumns;  // column list, SColumnInfoData array list
-  bool            locateStart;
-  int32_t         outputCapacity;
-  int32_t         realNumOfRows;
-  SArray*         pTableCheckInfo;  // SArray<STableCheckInfo>
-  int32_t         activeIndex;
-  bool            checkFiles;               // check file stage
-  int8_t          cachelastrow;             // check if last row cached
-  bool            loadExternalRow;          // load time window external data rows
-  bool            currentLoadExternalRows;  // current load external rows
-  int32_t         loadType;                 // block load type
-  char*           idStr;                    // query info handle, for debug purpose
+  STsdb*        pTsdb;
+  SQueryFilePos cur;  // current position
+  int16_t       order;
+  STimeWindow   window;  // the primary query time window that applies to all queries
+  //  SColumnDataAgg* statis;  // query level statistics, only one table block statistics info exists at any time
+  //  SColumnDataAgg** pstatis;// the ptr array list to return to caller
+  int32_t numOfBlocks;
+  SArray* pColumns;  // column list, SColumnInfoData array list
+  bool    locateStart;
+  int32_t outputCapacity;
+  int32_t realNumOfRows;
+  SArray* pTableCheckInfo;  // SArray<STableCheckInfo>
+  int32_t activeIndex;
+  bool    checkFiles;               // check file stage
+  int8_t  cachelastrow;             // check if last row cached
+  bool    loadExternalRow;          // load time window external data rows
+  bool    currentLoadExternalRows;  // current load external rows
+  int32_t loadType;                 // block load type
+  char*   idStr;                    // query info handle, for debug purpose
   int32_t type;  // query type: retrieve all data blocks, 2. retrieve only last row, 3. retrieve direct prev|next rows
   SDFileSet*         pFileGroup;
   SFSIter            fileIter;
   SReadH             rhelper;
   STableBlockInfo*   pDataBlockInfo;
-  SDataCols*         pDataCols;          // in order to hold current file data block
-  int32_t            allocSize;          // allocated data block size
-  SDataBlockLoadInfo dataBlockLoadInfo;  /* record current block load information */
-  SLoadCompBlockInfo compBlockLoadInfo;  /* record current compblock information in SQueryAttr */
+  SDataCols*         pDataCols;         // in order to hold current file data block
+  int32_t            allocSize;         // allocated data block size
+  SDataBlockLoadInfo dataBlockLoadInfo; /* record current block load information */
+  SLoadCompBlockInfo compBlockLoadInfo; /* record current compblock information in SQueryAttr */
   SBlockLoadSuppInfo suppInfo;
-  SArray*        prev;  // previous row which is before than time window
-  SArray*        next;  // next row which is after the query time window
-  SIOCostSummary cost;
-  STSchema*      pSchema;
+  SArray*            prev;  // previous row which is before than time window
+  SArray*            next;  // next row which is after the query time window
+  SIOCostSummary     cost;
+  STSchema*          pSchema;
 } STsdbReadHandle;
 
 typedef struct STableGroupSupporter {
@@ -155,7 +155,6 @@ static int32_t     checkForCachedLast(STsdbReadHandle* pTsdbReadHandle);
 
 static void    changeQueryHandleForInterpQuery(tsdbReaderT pHandle);
 static void    doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInfo* pCheckInfo, SBlock* pBlock);
-static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 static int32_t tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int maxRowsToRead, STimeWindow* win,
                                      STsdbReadHandle* pTsdbReadHandle);
 static int32_t tsdbCheckInfoCompar(const void* key1, const void* key2);
@@ -163,6 +162,8 @@ static int32_t tsdbCheckInfoCompar(const void* key1, const void* key2);
 // static void*   doFreeColumnInfoData(SArray* pColumnInfoData);
 // static void*   destroyTableCheckInfo(SArray* pTableCheckInfo);
 static bool tsdbGetExternalRow(tsdbReaderT pHandle);
+
+static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions);
 
 static void tsdbInitDataBlockLoadInfo(SDataBlockLoadInfo* pBlockLoadInfo) {
   pBlockLoadInfo->slot = -1;
@@ -350,12 +351,38 @@ static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableData
               pTsdbReadHandle->window.ekey, pTsdbReadHandle->idStr);
   }
 }
-
+#if 0
+int           nQUERY = 0;
+#endif
 static STsdb* getTsdbByRetentions(SVnode* pVnode, TSKEY winSKey, SRetention* retentions) {
   if (vnodeIsRollup(pVnode)) {
-    // for(int32_t i=0; i< TSDB_; ) {
-      
-    // }
+    int level = 0;
+#if 1
+    int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+    for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
+      SRetention* pRetention = retentions + i;
+      if (pRetention->keep <= 0 || (now - pRetention->keep) >= winSKey) {
+        break;
+      }
+    }
+#endif
+#if 0
+    ++nQUERY;
+    if(nQUERY%3 == 0) {
+      level = 2;
+    } else if(nQUERY%2 == 0) {
+      level = 1;
+    } else {
+      level = 0;
+    }
+#endif
+    if (level == TSDB_RETENTION_L0) {
+      return VND_RSMA0(pVnode);
+    } else if (level == TSDB_RETENTION_L1) {
+      return VND_RSMA1(pVnode);
+    } else {
+      return VND_RSMA2(pVnode);
+    }
   }
   return pVnode->pTsdb;
 }
@@ -420,8 +447,10 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
     }
 
     pReadHandle->suppInfo.defaultLoadColumn = getDefaultLoadColumns(pReadHandle, true);
-    pReadHandle->suppInfo.slotIds = taosMemoryMalloc(sizeof(int32_t) * taosArrayGetSize(pReadHandle->suppInfo.defaultLoadColumn));
-    pReadHandle->suppInfo.plist = taosMemoryCalloc(taosArrayGetSize(pReadHandle->suppInfo.defaultLoadColumn), POINTER_BYTES);
+    pReadHandle->suppInfo.slotIds =
+        taosMemoryMalloc(sizeof(int32_t) * taosArrayGetSize(pReadHandle->suppInfo.defaultLoadColumn));
+    pReadHandle->suppInfo.plist =
+        taosMemoryCalloc(taosArrayGetSize(pReadHandle->suppInfo.defaultLoadColumn), POINTER_BYTES);
   }
 
   pReadHandle->pDataCols = tdNewDataCols(1000, pVnode->config.tsdbCfg.maxRows);
@@ -444,7 +473,6 @@ _end:
 
 tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                              uint64_t taskId) {
-
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;
@@ -462,16 +490,16 @@ tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableG
     return NULL;
   }
 
-  STableCheckInfo *pCheckInfo = taosArrayGet(pTsdbReadHandle->pTableCheckInfo, 0);
+  STableCheckInfo* pCheckInfo = taosArrayGet(pTsdbReadHandle->pTableCheckInfo, 0);
 
   pTsdbReadHandle->pSchema = metaGetTbTSchema(pVnode->pMeta, pCheckInfo->tableId, 0);
-  int32_t numOfCols = taosArrayGetSize(pTsdbReadHandle->suppInfo.defaultLoadColumn);
+  int32_t  numOfCols = taosArrayGetSize(pTsdbReadHandle->suppInfo.defaultLoadColumn);
   int16_t* ids = pTsdbReadHandle->suppInfo.defaultLoadColumn->pData;
 
   STSchema* pSchema = pTsdbReadHandle->pSchema;
 
   int32_t i = 0, j = 0;
-  while(i < numOfCols && j < pSchema->numOfCols) {
+  while (i < numOfCols && j < pSchema->numOfCols) {
     if (ids[i] == pSchema->columns[j].colId) {
       pTsdbReadHandle->suppInfo.slotIds[i] = j;
       i++;
@@ -1137,7 +1165,7 @@ static int32_t doLoadFileDataBlock(STsdbReadHandle* pTsdbReadHandle, SBlock* pBl
                                    int32_t slotIndex) {
   int64_t st = taosGetTimestampUs();
 
-  int32_t   code = tdInitDataCols(pTsdbReadHandle->pDataCols, pTsdbReadHandle->pSchema);
+  int32_t code = tdInitDataCols(pTsdbReadHandle->pDataCols, pTsdbReadHandle->pSchema);
   if (code != TSDB_CODE_SUCCESS) {
     tsdbError("%p failed to malloc buf for pDataCols, %s", pTsdbReadHandle, pTsdbReadHandle->idStr);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -1307,6 +1335,8 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
 
   return code;
 }
+
+static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 
 static int32_t loadFileDataBlock(STsdbReadHandle* pTsdbReadHandle, SBlock* pBlock, STableCheckInfo* pCheckInfo,
                                  bool* exists) {

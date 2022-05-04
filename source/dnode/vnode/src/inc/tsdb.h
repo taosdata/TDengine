@@ -186,6 +186,7 @@ struct STsdbFS {
 
 #define REPO_ID(r)        TD_VID((r)->pVnode)
 #define REPO_CFG(r)       (&(r)->pVnode->config.tsdbCfg)
+#define REPO_LEVEL(r)     ((r)->level)
 #define REPO_FS(r)        ((r)->fs)
 #define REPO_META(r)      ((r)->pVnode->pMeta)
 #define REPO_TFS(r)       ((r)->pVnode->pTfs)

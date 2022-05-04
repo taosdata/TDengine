@@ -1521,7 +1521,7 @@ static int32_t physiFillNodeToJson(const void* pObj, SJson* pJson) {
 static int32_t jsonToPhysiFillNode(const SJson* pJson, void* pObj) {
   SFillPhysiNode* pNode = (SFillPhysiNode*)pObj;
 
-  int32_t code = jsonToPhysiWindowNode(pJson, pObj);
+  int32_t code = jsonToPhysicPlanNode(pJson, pObj);
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetNumberValue(pJson, jkFillPhysiPlanMode, pNode->mode);
   }
