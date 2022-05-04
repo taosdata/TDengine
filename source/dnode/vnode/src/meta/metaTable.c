@@ -72,44 +72,61 @@ _err:
 }
 
 int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
-  SMetaReader mr = {0};
+  TDBC       *pNameIdxc = NULL;
+  TDBC       *pUidIdxc = NULL;
+  TDBC       *pCtbIdxc = NULL;
+  SCtbIdxKey *pCtbIdxKey;
+  const void *pKey = NULL;
+  int         nKey;
+  const void *pData = NULL;
+  int         nData;
+  int         c, ret;
 
-  // validate req
-  metaReaderInit(&mr, pMeta, 0);
-  if (metaGetTableEntryByUid(&mr, pReq->suid) < 0) {
-    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+  // prepare uid idx cursor
+  tdbDbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
+  if (ret < 0 || c != 0) {
+    terrno = TSDB_CODE_VND_TB_NOT_EXIST;
+    tdbDbcClose(pUidIdxc);
     goto _err;
   }
 
-  // do drop
-  // drop from pTbDb
-  // drop from pSkmDb
-  // drop from pUidIdx
-  // drop from pNameIdx
-  // {
-  //   TDBC *pDbc1 = NULL;
-  //   void *pKey = NULL;
-  //   void *pVal = NULL;
-  //   int   kLen = 0;
-  //   int   vLen = 0;
-  //   int   ret = 0;
+  // prepare name idx cursor
+  tdbDbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pNameIdxc, pReq->name, strlen(pReq->name) + 1, &c);
+  if (ret < 0 || c != 0) {
+    ASSERT(0);
+  }
 
-  //   // drop from pCtbIdx
-  //   ret = tdbDbcOpen(pMeta->pCtbIdx, &pDbc1);
-  //   tdbDbcMoveTo(pDbc1, &pReq->suid, sizeof(pReq->suid), NULL /*cmpr*/, 0 /*TDB_FORWARD_SEARCH*/);
-  //   tdbDbcGet(pDbc1, &pKey, &kLen, &pVal, vLen);
-  //   tdbDbcDelete(pDbc1);
-  //   // drop from pTagIdx
-  //   // drop from pTtlIdx
-  // }
+  tdbDbcDelete(pUidIdxc);
+  tdbDbcDelete(pNameIdxc);
+  tdbDbcClose(pUidIdxc);
+  tdbDbcClose(pNameIdxc);
 
-  // clear and return
-  metaReaderClear(&mr);
-  metaError("vgId:%d  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
+  // loop to drop each child table
+  tdbDbcOpen(pMeta->pCtbIdx, &pCtbIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
+  if (ret < 0 || (c < 0 && tdbDbcMoveToNext(pCtbIdxc) < 0)) {
+    tdbDbcClose(pCtbIdxc);
+    goto _exit;
+  }
+
+  for (;;) {
+    tdbDbcGet(pCtbIdxc, &pKey, &nKey, NULL, NULL);
+    pCtbIdxKey = (SCtbIdxKey *)pKey;
+
+    if (pCtbIdxKey->suid > pReq->suid) break;
+
+    // drop the child table (TODO)
+
+    if (tdbDbcMoveToNext(pCtbIdxc) < 0) break;
+  }
+
+_exit:
+  metaDebug("vgId:%d  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
   return 0;
 
 _err:
-  metaReaderClear(&mr);
   metaError("vgId:%d failed to drop super table %s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
             pReq->suid, tstrerror(terrno));
   return -1;
