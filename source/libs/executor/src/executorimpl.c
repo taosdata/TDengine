@@ -132,6 +132,7 @@ void doSetOperatorCompleted(SOperatorInfo* pOperator) {
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator) {
   OPTR_SET_OPENED(pOperator);
+  pOperator->cost.openCost = 0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1592,8 +1593,8 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
 
   STaskCostInfo* pCost = &pTaskInfo->cost;
 
-  pCost->totalBlocks += 1;
-  pCost->totalRows += pBlock->info.rows;
+//  pCost->totalBlocks += 1;
+//  pCost->totalRows += pBlock->info.rows;
 #if 0
   // Calculate all time windows that are overlapping or contain current data block.
   // If current data block is contained by all possible time window, do not load current data block.
@@ -2411,12 +2412,13 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   //
   //  calculateOperatorProfResults(pQInfo);
 
-  qDebug("%s :cost summary: elapsed time:%" PRId64 " us, first merge:%" PRId64
-         " us, total blocks:%d, "
-         "load block statis:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
-         GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->totalBlocks,
-         pSummary->loadBlockStatis, pSummary->loadBlocks, pSummary->totalRows, pSummary->totalCheckedRows);
-  //
+  SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
+  if (pSummary->pRecoder != NULL) {
+    qDebug("%s :cost summary: elapsed time:%" PRId64 " us, first merge:%" PRId64 " us, total blocks:%d, "
+           "load block statis:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
+           GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pRecorder->totalBlocks,
+           pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows, pRecorder->totalCheckedRows);
+  }
   // qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb,
   // hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
   //      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);
@@ -3282,7 +3284,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock
 
   pOperator->name = "ExchangeOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  pOperator->blockingOptr = false;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->numOfOutput = pBlock->info.numOfCols;
@@ -3673,7 +3675,7 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
 
   pOperator->name = "SortedMerge";
   // pOperator->operatorType = OP_SortedMerge;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->numOfOutput = num;
@@ -3756,7 +3758,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
 
   pOperator->name = "SortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
 
@@ -4419,7 +4421,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
 
   pOperator->name = "TableAggregate";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_AGG;
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->pExpr = pExprInfo;
@@ -4532,7 +4534,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* p
 
   pOperator->name = "ProjectOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PROJECT;
-  pOperator->blockingOptr = false;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->pExpr = pExprInfo;
@@ -4615,7 +4617,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExp
   }
 
   pOperator->name = "FillOperator";
-  pOperator->blockingOptr = false;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_FILL;
   pOperator->pExpr = pExpr;
@@ -4861,15 +4863,19 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
 
       SQueryTableDataCond cond = {0};
-      int32_t             code = initQueryTableDataCond(&cond, pTableScanNode);
+
+      int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
       if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
 
       SInterval interval = extractIntervalInfo(pTableScanNode);
-      return createTableScanOperatorInfo(pDataReader, &cond, numOfCols, pTableScanNode->dataRequired,
+      SOperatorInfo* pOperator = createTableScanOperatorInfo(pDataReader, &cond, numOfCols, pTableScanNode->dataRequired,
                                          pTableScanNode->scanSeq, pColList, pResBlock, pScanPhyNode->node.pConditions,
                                          &interval, pTableScanNode->ratio, pTaskInfo);
+      STableScanInfo* pScanInfo = pOperator->info;
+      pTaskInfo->cost.pRecoder = &pScanInfo->readRecorder;
+      return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
       SSDataBlock*        pResBlock = createResDataBlock(pExchange->node.pOutputDataBlockDesc);
@@ -4877,8 +4883,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
 
-      int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo,
-                                        queryId, taskId);
+      int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
 
       SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
@@ -5628,7 +5633,7 @@ SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOf
 
   pOperator->name = "JoinOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_JOIN;
-  pOperator->blockingOptr = false;
+  pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->pExpr = pExprInfo;
   pOperator->numOfOutput = numOfCols;
