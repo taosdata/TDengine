@@ -1126,7 +1126,7 @@ static bool mndTransPerformCommitLogStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     pTrans->failedTimes++;
-    mError("trans:%d, stage keep on commitLog since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on commitLog since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 
@@ -1162,7 +1162,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
     continueExec = false;
   } else {
     pTrans->failedTimes++;
-    mError("trans:%d, stage keep on undoAction since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on undoAction since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 
@@ -1179,7 +1179,7 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
     continueExec = true;
   } else {
     pTrans->failedTimes++;
-    mError("trans:%d, stage keep on rollback since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on rollback since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 

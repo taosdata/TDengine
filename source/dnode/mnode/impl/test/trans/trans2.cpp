@@ -58,9 +58,12 @@ class MndTestTrans2 : public ::testing::Test {
     strcpy(opt.replicas[0].fqdn, "localhost");
     opt.msgCb = msgCb;
 
+    tsTransPullupMs = 1000;
+
     const char *mnodepath = "/tmp/mnode_test_trans";
     taosRemoveDir(mnodepath);
     pMnode = mndOpen(mnodepath, &opt);
+    mndStart(pMnode);
   }
 
   static void SetUpTestSuite() {
@@ -70,6 +73,7 @@ class MndTestTrans2 : public ::testing::Test {
   }
 
   static void TearDownTestSuite() {
+    mndStop(pMnode);
     mndClose(pMnode);
     walCleanUp();
     taosCloseLog();
@@ -128,4 +132,6 @@ TEST_F(MndTestTrans2, 01_CbFunc) {
   EXPECT_EQ(CreateUser(acct_invalid, user2), 0);
   pUser2 = mndAcquireUser(pMnode, user2);
   ASSERT_EQ(pUser2, nullptr);
+
+  mndTransPullup(pMnode);
 }
