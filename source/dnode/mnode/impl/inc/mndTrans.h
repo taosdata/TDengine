@@ -44,6 +44,8 @@ typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
 
 int32_t mndInitTrans(SMnode *pMnode);
 void    mndCleanupTrans(SMnode *pMnode);
+STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId);
+void    mndReleaseTrans(SMnode *pMnode, STrans *pTrans);
 
 STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const SRpcMsg *pReq);
 void    mndTransDrop(STrans *pTrans);
