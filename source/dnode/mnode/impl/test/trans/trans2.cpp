@@ -114,7 +114,7 @@ class MndTestTrans2 : public ::testing::Test {
     return code;
   }
 
-  int32_t CreateUserAction(const char *acct, const char *user, bool hasUndoAction) {
+  int32_t CreateUserAction(const char *acct, const char *user, bool hasUndoAction, ETrnPolicy policy) {
     SUserObj userObj = {0};
     taosEncryptPass_c((uint8_t *)"taosdata", strlen("taosdata"), userObj.pass);
     tstrncpy(userObj.user, user, TSDB_USER_LEN);
@@ -124,7 +124,7 @@ class MndTestTrans2 : public ::testing::Test {
     userObj.superUser = 1;
 
     SRpcMsg  rpcMsg = {0};
-    STrans  *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_USER, &rpcMsg);
+    STrans  *pTrans = mndTransCreate(pMnode, policy, TRN_TYPE_CREATE_USER, &rpcMsg);
     SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
     mndTransAppendRedolog(pTrans, pRedoRaw);
     sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
@@ -209,41 +209,100 @@ TEST_F(MndTestTrans2, 02_Action) {
   SUserObj   *pUser1 = NULL;
   SUserObj   *pUser2 = NULL;
   STrans     *pTrans = NULL;
-  int32_t     transId = 4;
+  int32_t     transId = 0;
   int32_t     action = 0;
 
   ASSERT_NE(pMnode, nullptr);
 
   // failed to create user and rollback
-  EXPECT_EQ(CreateUserAction(acct, user1, false), 0);
+  EXPECT_EQ(CreateUserAction(acct, user1, false, TRN_POLICY_ROLLBACK), 0);
   pUser1 = mndAcquireUser(pMnode, user1);
   ASSERT_EQ(pUser1, nullptr);
   mndReleaseUser(pMnode, pUser1);
 
   // create user, and fake a response
-  EXPECT_EQ(CreateUserAction(acct, user1, true), 0);
-  pUser1 = mndAcquireUser(pMnode, user1);
-  ASSERT_NE(pUser1, nullptr);
-  mndReleaseUser(pMnode, pUser1);
+  {
+    EXPECT_EQ(CreateUserAction(acct, user1, true, TRN_POLICY_ROLLBACK), 0);
+    pUser1 = mndAcquireUser(pMnode, user1);
+    ASSERT_NE(pUser1, nullptr);
+    mndReleaseUser(pMnode, pUser1);
 
-  pTrans = mndAcquireTrans(pMnode, transId);
-  EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
-  EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
-  EXPECT_EQ(pTrans->failedTimes, 1);
+    transId = 4;
+    pTrans = mndAcquireTrans(pMnode, transId);
+    EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+    EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
+    EXPECT_EQ(pTrans->failedTimes, 1);
 
-  STransAction *pAction = (STransAction *)taosArrayGet(pTrans->undoActions, action);
-  pAction->msgSent = 1;
+    STransAction *pAction = (STransAction *)taosArrayGet(pTrans->undoActions, action);
+    pAction->msgSent = 1;
 
-  SNodeMsg rspMsg = {0};
-  rspMsg.pNode = pMnode;
-  int64_t signature = transId;
-  signature = (signature << 32);
-  signature += action;
-  rspMsg.rpcMsg.ahandle = (void *)signature;
-  mndTransProcessRsp(&rspMsg);
-  mndReleaseTrans(pMnode, pTrans);
+    SNodeMsg rspMsg = {0};
+    rspMsg.pNode = pMnode;
+    int64_t signature = transId;
+    signature = (signature << 32);
+    signature += action;
+    rspMsg.rpcMsg.ahandle = (void *)signature;
+    mndTransProcessRsp(&rspMsg);
+    mndReleaseTrans(pMnode, pTrans);
 
-  pUser1 = mndAcquireUser(pMnode, user1);
-  ASSERT_EQ(pUser1, nullptr);
-  mndReleaseUser(pMnode, pUser1);
+    pUser1 = mndAcquireUser(pMnode, user1);
+    ASSERT_EQ(pUser1, nullptr);
+    mndReleaseUser(pMnode, pUser1);
+  }
+
+  {
+    EXPECT_EQ(CreateUserAction(acct, user1, false, TRN_POLICY_RETRY), 0);
+    pUser1 = mndAcquireUser(pMnode, user1);
+    ASSERT_NE(pUser1, nullptr);
+    mndReleaseUser(pMnode, pUser1);
+
+    {
+      transId = 5;
+      pTrans = mndAcquireTrans(pMnode, transId);
+      EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+      EXPECT_EQ(pTrans->stage, TRN_STAGE_REDO_ACTION);
+      EXPECT_EQ(pTrans->failedTimes, 1);
+
+      STransAction *pAction = (STransAction *)taosArrayGet(pTrans->redoActions, action);
+      pAction->msgSent = 1;
+
+      SNodeMsg rspMsg = {0};
+      rspMsg.pNode = pMnode;
+      int64_t signature = transId;
+      signature = (signature << 32);
+      signature += action;
+      rspMsg.rpcMsg.ahandle = (void *)signature;
+      rspMsg.rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+      mndTransProcessRsp(&rspMsg);
+      mndReleaseTrans(pMnode, pTrans);
+
+      pUser1 = mndAcquireUser(pMnode, user1);
+      ASSERT_NE(pUser1, nullptr);
+      mndReleaseUser(pMnode, pUser1);
+    }
+
+    {
+      transId = 5;
+      pTrans = mndAcquireTrans(pMnode, transId);
+      EXPECT_EQ(pTrans->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+      EXPECT_EQ(pTrans->stage, TRN_STAGE_REDO_ACTION);
+      EXPECT_EQ(pTrans->failedTimes, 2);
+
+      STransAction *pAction = (STransAction *)taosArrayGet(pTrans->redoActions, action);
+      pAction->msgSent = 1;
+
+      SNodeMsg rspMsg = {0};
+      rspMsg.pNode = pMnode;
+      int64_t signature = transId;
+      signature = (signature << 32);
+      signature += action;
+      rspMsg.rpcMsg.ahandle = (void *)signature;
+      mndTransProcessRsp(&rspMsg);
+      mndReleaseTrans(pMnode, pTrans);
+
+      pUser1 = mndAcquireUser(pMnode, user1);
+      ASSERT_NE(pUser1, nullptr);
+      mndReleaseUser(pMnode, pUser1);
+    }
+  }
 }
