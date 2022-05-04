@@ -2,7 +2,7 @@
 title: REST API
 ---
 
-为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。RESTful 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
+为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。REST 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
 注意：与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。从 2.4.0.0 版本开始，RESTful 默认由 taosAdapter 提供，要求必须在 url 中指定 db_name。）
 
@@ -90,15 +90,15 @@ HTTP 请求的 Header 里需带有身份认证信息，TDengine 支持 Basic 认
 
 - 自定义身份认证信息如下所示（token 稍后介绍）
 
-```
-Authorization: Taosd <TOKEN>
-```
+  ```
+  Authorization: Taosd <TOKEN>
+  ```
 
 - Basic 身份认证信息如下所示
 
-```
-Authorization: Basic <TOKEN>
-```
+  ```
+  Authorization: Basic <TOKEN>
+  ```
 
 HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据表应提供数据库前缀，例如 \<db_name>.\<tb_name>。如果表名不带数据库前缀，又没有在 url 中指定数据库名的话，系统会返回错误。因为 HTTP 模块只是一个简单的转发，没有当前 DB 的概念。
 
@@ -190,47 +190,47 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 - 在 demo 库里查询表 d1001 的所有记录：
 
-```bash
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
-```
+  ```bash
+  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sql
+  ```
 
-返回值：
+  返回值：
 
-```json
-{
-  "status": "succ",
-  "head": ["ts", "current", "voltage", "phase"],
-  "column_meta": [
-    ["ts", 9, 8],
-    ["current", 6, 4],
-    ["voltage", 4, 4],
-    ["phase", 6, 4]
-  ],
-  "data": [
-    ["2018-10-03 14:38:05.000", 10.3, 219, 0.31],
-    ["2018-10-03 14:38:15.000", 12.6, 218, 0.33]
-  ],
-  "rows": 2
-}
-```
+  ```json
+  {
+    "status": "succ",
+    "head": ["ts", "current", "voltage", "phase"],
+    "column_meta": [
+      ["ts", 9, 8],
+      ["current", 6, 4],
+      ["voltage", 4, 4],
+      ["phase", 6, 4]
+    ],
+    "data": [
+      ["2018-10-03 14:38:05.000", 10.3, 219, 0.31],
+      ["2018-10-03 14:38:15.000", 12.6, 218, 0.33]
+    ],
+    "rows": 2
+  }
+  ```
 
 - 创建库 demo：
 
-```bash
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
-```
+  ```bash
+  curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'create database demo' 192.168.0.1:6041/rest/sql
+  ```
 
-返回值：
+  返回值：
 
-```json
-{
-  "status": "succ",
-  "head": ["affected_rows"],
-  "column_meta": [["affected_rows", 4, 4]],
-  "data": [[1]],
-  "rows": 1
-}
-```
+  ```json
+  {
+    "status": "succ",
+    "head": ["affected_rows"],
+    "column_meta": [["affected_rows", 4, 4]],
+    "data": [[1]],
+    "rows": 1
+  }
+  ```
 
 ## 其他用法
 

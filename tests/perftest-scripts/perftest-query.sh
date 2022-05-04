@@ -57,35 +57,21 @@ function stopTaosd {
 function buildTDengine {
 	echoInfo "Build TDinternal"
 	cd $WORK_DIR/TDinternal
+	
+	git reset --hard HEAD~3
+	git fetch
+	git checkout $branch
+	git pull
 
-	git remote update > /dev/null
+    cd community	
 	git reset --hard HEAD
 	git fetch
 	git checkout $branch
-	REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
+	git pull > /dev/null
 	LOCAL_COMMIT=`git rev-parse --short @`
-
-	echo " LOCAL: $LOCAL_COMMIT"
-	echo "REMOTE: $REMOTE_COMMIT"
-	if [ "$LOCAL_COMMIT" == "$REMOTE_COMMIT" ]; then
-		echo "repo up-to-date"
-	fi
-
-    cd community
-    git reset --hard HEAD
-    cd ..	
 	echo "git submodule update --init --recursive"
 	git submodule update --init --recursive
 	
-	git pull > /dev/null 2>&1
-	
-	cd community
-	git remote update > /dev/null
-	git reset --hard HEAD
-	git fetch
-	git checkout $branch
-	REMOTE_COMMIT=`git rev-parse --short remotes/origin/$branch`
-	LOCAL_COMMIT=`git rev-parse --short @`
 	cd ../debug
 	rm -rf *
 	if [ $type = "jemalloc" ];then
@@ -94,36 +80,34 @@ function buildTDengine {
 	else
 		cmake .. > /dev/null
 	fi
-	#cp $WORK_DIR/taosdemoPerformance.py $WORK_DIR/TDinternal/community/tests/pytest/tools/
-    #cp $WORK_DIR/insertFromCSVPerformance.py $WORK_DIR/TDinternal/community/tests/pytest/insert/
-	#cp $WORK_DIR/queryPerformance.py $WORK_DIR/TDinternal/community/tests/pytest/query/
-	rm -rf $WORK_DIR/TDinternal/community/tests/pytest/query/operator.py	
+		
 	make > /dev/null 2>&1	
 	make install > /dev/null 2>&1
+	
 	echo "Build TDengine on remote server"	
 	ssh perftest "./buildTDengine.sh $branch > /dev/null"
 }
 
 function runQueryPerfTest {
 	[ -f $PERFORMANCE_TEST_REPORT ] && rm $PERFORMANCE_TEST_REPORT
-	nohup $WORK_DIR/TDinternal/debug/build/bin/taosd -c /etc/perf/ > /dev/null 2>&1 &
+	nohup $WORK_DIR/TDinternal/debug/build/bin/taosd -c /etc/$branch > /dev/null 2>&1 &
 	echoInfo "Wait TDengine to start"
 	sleep 60
 	echoInfo "Run Performance Test"	
-	cd $WORK_DIR/TDinternal/community/tests/pytest	
+	cd $WORK_DIR/TDinternal/community/tests/pytest
 
-	python3 query/queryPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -d perf2 | tee -a $PERFORMANCE_TEST_REPORT
+	python3 perfbenchmark/queryPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 
-	python3 insert/insertFromCSVPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
+	python3 perfbenchmark/insertFromCSVPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 	
 	echo "=========== taosdemo performance: 4 int columns, 10000 tables, 100000 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
-	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
+	python3 perfbenchmark/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type | tee -a $PERFORMANCE_TEST_REPORT
 
 	echo "=========== taosdemo performance: 400 int columns, 400 double columns, 200 binary(128) columns, 10000 tables, 10 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
-	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 400 -D 400 -B 200 -t 10000 -r 10 | tee -a $PERFORMANCE_TEST_REPORT
+	python3 perfbenchmark/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 400 -D 400 -B 200 -t 10000 -r 10 | tee -a $PERFORMANCE_TEST_REPORT
 
 	echo "=========== taosdemo performance: 1900 int columns, 1900 double columns, 200 binary(128) columns, 10000 tables, 10 recoreds per table ===========" | tee -a $PERFORMANCE_TEST_REPORT
-	python3 tools/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 1900 -D 1900 -B 200 -t 10000 -r 10 | tee -a $PERFORMANCE_TEST_REPORT
+	python3 perfbenchmark/taosdemoPerformance.py -c $LOCAL_COMMIT -b $branch -T $type -i 1900 -D 1900 -B 200 -t 10000 -r 10 | tee -a $PERFORMANCE_TEST_REPORT
 }
 
 

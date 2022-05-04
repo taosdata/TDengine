@@ -1,5 +1,6 @@
 ---
 title: 支持平台列表
+description: "TDengine 服务端、客户端和连接器支持的平台列表"
 ---
 
 ## TDengine 服务端支持的平台列表

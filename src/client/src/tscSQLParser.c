@@ -3362,13 +3362,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         if(functionId == TSDB_FUNC_UNIQUE){   // consider of memory size
-          if(pSchema->bytes < 10){
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 100;
-          }else if(pSchema->bytes < 100){
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 10;
-          }else{
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
-          }
+          GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
         }
 
         int64_t numRowsSelected = GET_INT64_VAL(val);
@@ -7095,6 +7089,10 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
+    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      return invalidOperationMsg(pMsgBuf, msg1);
+    }
+
     if (udf) {
       return invalidOperationMsg(pMsgBuf, msg11);
     }
@@ -8534,7 +8532,8 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
   const char* msg6 = "TWA/Diff/Derivative/Irate/CSum/MAvg/Elapsed/stateCount/stateDuration only support group by tbname";
-  const char* msg7 = "unique/state function does not supportted in state window query";
+  const char* msg7 = "unique/state function not supported in state window query";
+  const char* msg8 = "histogram function not supported in time window query";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
@@ -8548,8 +8547,17 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       return TSDB_CODE_SUCCESS;
     }
   }
+
   if (tscIsProjectionQuery(pQueryInfo) && tscIsSessionWindowQuery(pQueryInfo)) {
     return invalidOperationMsg(msg, msg3);
+  }
+
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if ((isTimeWindowQuery(pQueryInfo) || pQueryInfo->stateWindow) && pExpr->base.functionId == TSDB_FUNC_HISTOGRAM) {
+      return invalidOperationMsg(msg, msg8);
+    }
   }
 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
@@ -8595,7 +8603,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         }
       }
 
-      if (pQueryInfo->stateWindow && (f == TSDB_FUNC_UNIQUE || f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)){
+      if (pQueryInfo->stateWindow && (f == TSDB_FUNC_UNIQUE || f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)) {
         return invalidOperationMsg(msg, msg7);
       }
 

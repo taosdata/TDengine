@@ -1,6 +1,6 @@
 ---
 title: 立即开始
-description: "从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序 taos shell 和工具 taosdemo 快速体验 TDengine 功能"
+description: "从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序TAOS CLI和工具 taosdemo 快速体验 TDengine 功能"
 ---
 
 import Tabs from "@theme/Tabs";
@@ -10,7 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## 安装
 
-TDengine 完整的软件包包括服务端(taosd)、用于与第三方系统对接并提供RESTful接口的taosAdapter、应用驱动(taosc)、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端taosd、taosAdapter仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除 RESTful接口外，还提供一些列编程语言的连接器。2.4 之前的版本中，无 taosAdapter，RESTfule 接口均由 taosd 内置的 http 服务提供。
+TDengine 完整的软件包包括服务端(taosd)、用于与第三方系统对接并提供RESTful接口的taosAdapter、应用驱动(taosc)、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端taosd、taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除 RESTful接口外，还提供一些列编程语言的连接器。2.4 之前的版本中，无 taosAdapter，RESTfule 接口均由 taosd 内置的 http 服务提供。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 
@@ -36,17 +36,13 @@ docker exec -it <containrid> bash
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine
 
-详细操作方法请参照 [通过 Docker 快速体验 TDengine](/train-fqa/docker)。
+详细操作方法请参照 [通过 Docker 快速体验 TDengine](/train-faq/docker)。
 
 :::info
 从 2.4.0.10 开始，除 taosd 以外，Docker 镜像还包含：taos、taosAdapter、taosdump、taosBenchmark、TDinsight 安装脚本和示例代码。启动 Docker 容器时，将同时启动 taosAdapter 和 taosd，实现对 RESTful 的支持。
 
 :::
 
-:::note
-暂时不建议生产环境采用 Docker 来部署 TDengine CLI 或服务端，但在开发环境下或初次尝试时，使用 Docker 方式部署是十分方便的。特别是，利用 Docker，可以方便地在 macOS 和 Windows 环境下尝试 TDengine。
-
-:::
 </TabItem>
 <TabItem value="apt-get" label="apt-get">
 <AptGetInstall />
@@ -65,7 +61,7 @@ docker exec -it <containrid> bash
 
 ## 启动
 
-使用 `systemctl` 命令来启动 TDengine 的服务进程。
+安装后，请使用 `systemctl` 命令来启动 TDengine 的服务进程。
 
 ```bash
 systemctl start taosd
@@ -98,13 +94,13 @@ which systemctl
 
 ## TDengine 命令行 (CLI)
 
-为便于检查 TDengine 的状态，执行各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos. 要进入 TDengine 命令行，您只要在 Linux 终端执行 `taos` 即可。
+为便于检查 TDengine 的状态，执行各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可。
 
 ```bash
 taos
 ```
 
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](/train-fqa/faq) 来解决终端连接服务端失败的问题）。 TDengine CLI 的提示符号如下：
+如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](/train-faq/faq) 来解决终端连接服务端失败的问题）。 TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
@@ -126,7 +122,7 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。更多细节请参考 [这里](../reference/taos-shell/)
+除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TAOS CLI 连同应用驱动也可以独立安装在 Linux 或 windows 机器上运行，更多细节请参考 [这里](../reference/taos-shell/)
 
 ## 使用 taosBenchmark 体验写入速度
 
@@ -144,7 +140,7 @@ taosBenchmark 命令本身带有很多选项，配置表的数目、记录条数
 
 ## 使用 TDengine CLI 体验查询速度
 
-在 TDengine CLI 输入查询命令，体验查询速度。
+使用上述 taosBenchmark 插入数据后，可以在 TDengine CLI 输入查询命令，体验查询速度。
 
 查询超级表下记录总条数：
 
