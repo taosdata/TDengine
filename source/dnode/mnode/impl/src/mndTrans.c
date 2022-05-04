@@ -63,13 +63,15 @@ static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextTrans(SMnode *pMnode, void *pIter);
 
 int32_t mndInitTrans(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_TRANS,
-                     .keyType = SDB_KEY_INT32,
-                     .encodeFp = (SdbEncodeFp)mndTransActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndTransActionDecode,
-                     .insertFp = (SdbInsertFp)mndTransActionInsert,
-                     .updateFp = (SdbUpdateFp)mndTransActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndTransActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_TRANS,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndTransActionEncode,
+      .decodeFp = (SdbDecodeFp)mndTransActionDecode,
+      .insertFp = (SdbInsertFp)mndTransActionInsert,
+      .updateFp = (SdbUpdateFp)mndTransActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndTransActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_TRANS_TIMER, mndProcessTransReq);
   mndSetMsgHandle(pMnode, TDMT_MND_KILL_TRANS, mndProcessKillTransReq);
@@ -411,6 +413,16 @@ static const char *mndTransType(ETrnType type) {
       return "subscribe";
     case TRN_TYPE_REBALANCE:
       return "rebalance";
+    case TRN_TYPE_COMMIT_OFFSET:
+      return "commit-offset";
+    case TRN_TYPE_CREATE_STREAM:
+      return "create-stream";
+    case TRN_TYPE_DROP_STREAM:
+      return "drop-stream";
+    case TRN_TYPE_CONSUMER_LOST:
+      return "consumer-lost";
+    case TRN_TYPE_CONSUMER_RECOVER:
+      return "consumer-recover";
     case TRN_TYPE_CREATE_DNODE:
       return "create-qnode";
     case TRN_TYPE_DROP_DNODE:
@@ -713,41 +725,34 @@ static bool mndCheckTransCanParallel(SMnode *pMnode, STrans *pNewTrans) {
       if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
         canParallel = false;
-        break;
+      } else {
       }
     }
 
-    if (mndIsDbTrans(pNewTrans)) {
-      if (mndIsBasicTrans(pTrans)) continue;
+    else if (mndIsDbTrans(pNewTrans)) {
       if (mndIsGlobalTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
         canParallel = false;
-        break;
-      }
-      if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
+      } else if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
         if (pNewTrans->dbUid == pTrans->dbUid) {
           mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
           canParallel = false;
-          break;
         }
+      } else {
       }
     }
 
-    if (mndIsStbTrans(pNewTrans)) {
-      if (mndIsBasicTrans(pTrans)) continue;
+    else if (mndIsStbTrans(pNewTrans)) {
       if (mndIsGlobalTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
         canParallel = false;
-        break;
-      }
-      if (mndIsDbTrans(pTrans)) {
+      } else if (mndIsDbTrans(pTrans)) {
         if (pNewTrans->dbUid == pTrans->dbUid) {
           mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
           canParallel = false;
-          break;
         }
+      } else {
       }
-      if (mndIsStbTrans(pTrans)) continue;
     }
 
     sdbRelease(pMnode->pSdb, pTrans);
@@ -842,12 +847,14 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
 
     mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
            pTrans->rpcAHandle);
-    SRpcMsg rspMsg = {.handle = pTrans->rpcHandle,
-                      .code = pTrans->code,
-                      .ahandle = pTrans->rpcAHandle,
-                      .refId = pTrans->rpcRefId,
-                      .pCont = rpcCont,
-                      .contLen = pTrans->rpcRspLen};
+    SRpcMsg rspMsg = {
+        .handle = pTrans->rpcHandle,
+        .ahandle = pTrans->rpcAHandle,
+        .refId = pTrans->rpcRefId,
+        .code = pTrans->code,
+        .pCont = rpcCont,
+        .contLen = pTrans->rpcRspLen,
+    };
     tmsgSendRsp(&rspMsg);
     pTrans->rpcHandle = NULL;
     pTrans->rpcRsp = NULL;
