@@ -57,7 +57,9 @@ class MndTestTrans2 : public ::testing::Test {
     opt.replicas[0].port = 9040;
     strcpy(opt.replicas[0].fqdn, "localhost");
     opt.msgCb = msgCb;
+
     const char *mnodepath = "/tmp/mnode_test_trans";
+    taosRemoveDir(mnodepath);
     pMnode = mndOpen(mnodepath, &opt);
   }
 
