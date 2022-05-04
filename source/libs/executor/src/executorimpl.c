@@ -2412,12 +2412,13 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   //
   //  calculateOperatorProfResults(pQInfo);
 
-  qDebug("%s :cost summary: elapsed time:%" PRId64 " us, first merge:%" PRId64
-         " us, total blocks:%d, "
-         "load block statis:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
-         GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pSummary->pRecoder->totalBlocks,
-         pSummary->pRecoder->loadBlockStatis, pSummary->pRecoder->loadBlocks, pSummary->pRecoder->totalRows, pSummary->pRecoder->totalCheckedRows);
-  //
+  SFileBlockLoadRecorder* pRecorder = pSummary->pRecoder;
+  if (pSummary->pRecoder != NULL) {
+    qDebug("%s :cost summary: elapsed time:%" PRId64 " us, first merge:%" PRId64 " us, total blocks:%d, "
+           "load block statis:%d, load data block:%d, total rows:%" PRId64 ", check rows:%" PRId64,
+           GET_TASKID(pTaskInfo), pSummary->elapsedTime, pSummary->firstStageMergeTime, pRecorder->totalBlocks,
+           pRecorder->loadBlockStatis, pRecorder->loadBlocks, pRecorder->totalRows, pRecorder->totalCheckedRows);
+  }
   // qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb,
   // hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
   //      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);

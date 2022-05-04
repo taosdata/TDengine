@@ -236,6 +236,7 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   }
 
   relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
+  // todo record the filter time cost
   doFilter(pTableScanInfo->pFilterNode, pBlock);
   if (pBlock->info.rows == 0) {
     pCost->filterOutBlocks += 1;
