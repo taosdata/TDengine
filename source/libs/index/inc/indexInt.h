@@ -34,6 +34,7 @@
 extern "C" {
 #endif
 
+typedef enum { LT, LE, GT, GE } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
 typedef struct SIndexStat {

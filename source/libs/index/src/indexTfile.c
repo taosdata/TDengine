@@ -70,6 +70,8 @@ static int32_t tfSearchGreaterThan(void* reader, SIndexTerm* tem, SIdxTempResult
 static int32_t tfSearchGreaterEqual(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
 static int32_t tfSearchRange(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
 
+static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTempResult* tr, RangeType ctype);
+
 static int32_t (*tfSearch[])(void* reader, SIndexTerm* tem, SIdxTempResult* tr) = {
     tfSearchTerm,      tfSearchPrefix,      tfSearchSuffix,       tfSearchRegex, tfSearchLessThan,
     tfSearchLessEqual, tfSearchGreaterThan, tfSearchGreaterEqual, tfSearchRange};
@@ -304,21 +306,46 @@ static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTempResult* tr) 
   fstSliceDestroy(&key);
   return 0;
 }
+
+static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTempResult* tr, RangeType type) {
+  bool     hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
+  int      ret = 0;
+  char*    p = tem->colVal;
+  uint64_t sz = tem->nColVal;
+  if (hasJson) {
+    p = indexPackJsonData(tem);
+    sz = strlen(p);
+  }
+  SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
+
+  AutomationCtx*    ctx = automCtxCreate((void*)p, AUTOMATION_ALWAYS);
+  FstStreamBuilder* sb = fstSearch(((TFileReader*)reader)->fst, ctx);
+
+  FstSlice h = fstSliceCreate((uint8_t*)p, sz);
+  fstStreamBuilderSetRange(sb, &h, type);
+  fstSliceDestroy(&h);
+
+  StreamWithState*       st = streamBuilderIntoStream(sb);
+  StreamWithStateResult* rt = NULL;
+  while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
+    taosArrayPush(offsets, &(rt->out.out));
+    swsResultDestroy(rt);
+  }
+  streamWithStateDestroy(st);
+  fstStreamBuilderDestroy(sb);
+  return TSDB_CODE_SUCCESS;
+}
 static int32_t tfSearchLessThan(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
-  // impl later
-  return 0;
+  return tfSearchCompareFunc(reader, tem, tr, LT);
 }
 static int32_t tfSearchLessEqual(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
-  // impl later
-  return 0;
+  return tfSearchCompareFunc(reader, tem, tr, LE);
 }
 static int32_t tfSearchGreaterThan(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
-  // impl later
-  return 0;
+  return tfSearchCompareFunc(reader, tem, tr, GT);
 }
 static int32_t tfSearchGreaterEqual(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
-  // impl later
-  return 0;
+  return tfSearchCompareFunc(reader, tem, tr, GE);
 }
 static int32_t tfSearchRange(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
   bool     hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
