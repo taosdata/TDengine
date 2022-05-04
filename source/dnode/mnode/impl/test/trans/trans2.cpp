@@ -19,7 +19,7 @@ void reportStartup(SMgmtWrapper *pWrapper, const char *name, const char *desc) {
 
 class MndTestTrans2 : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() {
+  static void InitLog() {
     dDebugFlag = 143;
     vDebugFlag = 0;
     mDebugFlag = 207;
@@ -42,9 +42,9 @@ class MndTestTrans2 : public ::testing::Test {
     if (taosInitLog("taosdlog", 1) != 0) {
       printf("failed to init log file\n");
     }
+  }
 
-    walInit();
-
+  static void InitMnode() {
     static SMsgCb msgCb = {0};
     msgCb.reportStartupFp = reportStartup;
     msgCb.pWrapper = (SMgmtWrapper *)(&msgCb);  // hack
@@ -63,6 +63,12 @@ class MndTestTrans2 : public ::testing::Test {
     pMnode = mndOpen(mnodepath, &opt);
   }
 
+  static void SetUpTestSuite() {
+    InitLog();
+    walInit();
+    InitMnode();
+  }
+
   static void TearDownTestSuite() {
     mndClose(pMnode);
     walCleanUp();
@@ -76,11 +82,11 @@ class MndTestTrans2 : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 
-  void CreateUser(const char *user) {
+  int32_t CreateUser(const char *acct, const char *user) {
     SUserObj userObj = {0};
     taosEncryptPass_c((uint8_t *)"taosdata", strlen("taosdata"), userObj.pass);
     tstrncpy(userObj.user, user, TSDB_USER_LEN);
-    tstrncpy(userObj.acct, "root", TSDB_USER_LEN);
+    tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
     userObj.createdTime = taosGetTimestampMs();
     userObj.updateTime = userObj.createdTime;
     userObj.superUser = 1;
@@ -94,19 +100,32 @@ class MndTestTrans2 : public ::testing::Test {
     char *param = strdup("====> test param <=====");
     mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
 
-    mndTransPrepare(pMnode, pTrans);
+    int32_t code = mndTransPrepare(pMnode, pTrans);
     mndTransDrop(pTrans);
+
+    return code;
   }
 };
 
 SMnode *MndTestTrans2::pMnode;
 
 TEST_F(MndTestTrans2, 01_CbFunc) {
+  const char *acct = "root";
+  const char *acct_invalid = "root1";
+  const char *user1 = "test1";
+  const char *user2 = "test2";
+  SUserObj   *pUser1 = NULL;
+  SUserObj   *pUser2 = NULL;
+
   ASSERT_NE(pMnode, nullptr);
 
-  const char *user1 = "test1";
-  CreateUser(user1);
-
-  SUserObj *pUser1 = mndAcquireUser(pMnode, user1);
+  // create user success
+  EXPECT_EQ(CreateUser(acct, user1), 0);
+  pUser1 = mndAcquireUser(pMnode, user1);
   ASSERT_NE(pUser1, nullptr);
+
+  // failed to create user and rollback
+  EXPECT_EQ(CreateUser(acct_invalid, user2), 0);
+  pUser2 = mndAcquireUser(pMnode, user2);
+  ASSERT_EQ(pUser2, nullptr);
 }

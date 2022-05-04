@@ -829,15 +829,13 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->policy == TRN_POLICY_ROLLBACK) {
     if (pTrans->stage == TRN_STAGE_UNDO_LOG || pTrans->stage == TRN_STAGE_UNDO_ACTION ||
         pTrans->stage == TRN_STAGE_ROLLBACK) {
-      sendRsp = true;
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
+      sendRsp = true;
     }
-  }
-
-  if (pTrans->policy == TRN_POLICY_RETRY) {
+  } else {
     if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 0) {
-      sendRsp = true;
       if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
+      sendRsp = true;
     }
   }
 
@@ -1102,8 +1100,8 @@ static bool mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     if (pTrans->policy == TRN_POLICY_ROLLBACK) {
-      pTrans->stage = TRN_STAGE_REDO_ACTION;
-      mError("trans:%d, stage from commit to redoAction since %s, failedTimes:%d", pTrans->id, terrstr(),
+      pTrans->stage = TRN_STAGE_UNDO_ACTION;
+      mError("trans:%d, stage from commit to undoAction since %s, failedTimes:%d", pTrans->id, terrstr(),
              pTrans->failedTimes);
       continueExec = true;
     } else {
