@@ -56,6 +56,7 @@ typedef struct CacheTerm {
   int8_t   colType;
 
   SIndexOperOnColumn operaType;
+  int8_t             qType;  // query type
 } CacheTerm;
 //
 

@@ -64,10 +64,15 @@ static int32_t tfSearchTerm(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
 static int32_t tfSearchPrefix(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
 static int32_t tfSearchSuffix(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
 static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
+static int32_t tfSearchLessThan(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
+static int32_t tfSearchLessEqual(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
+static int32_t tfSearchGreaterThan(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
+static int32_t tfSearchGreaterEqual(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
 static int32_t tfSearchRange(void* reader, SIndexTerm* tem, SIdxTempResult* tr);
 
 static int32_t (*tfSearch[])(void* reader, SIndexTerm* tem, SIdxTempResult* tr) = {
-    tfSearchTerm, tfSearchPrefix, tfSearchSuffix, tfSearchRegex, tfSearchRange};
+    tfSearchTerm,      tfSearchPrefix,      tfSearchSuffix,       tfSearchRegex, tfSearchLessThan,
+    tfSearchLessEqual, tfSearchGreaterThan, tfSearchGreaterEqual, tfSearchRange};
 
 TFileCache* tfileCacheCreate(const char* path) {
   TFileCache* tcache = taosMemoryCalloc(1, sizeof(TFileCache));
@@ -297,6 +302,22 @@ static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTempResult* tr) 
     taosMemoryFree(p);
   }
   fstSliceDestroy(&key);
+  return 0;
+}
+static int32_t tfSearchLessThan(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
+  // impl later
+  return 0;
+}
+static int32_t tfSearchLessEqual(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
+  // impl later
+  return 0;
+}
+static int32_t tfSearchGreaterThan(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
+  // impl later
+  return 0;
+}
+static int32_t tfSearchGreaterEqual(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
+  // impl later
   return 0;
 }
 static int32_t tfSearchRange(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {

@@ -86,7 +86,6 @@ typedef struct SIndexTerm {
   int32_t            nColName;
   char*              colVal;
   int32_t            nColVal;
-  int8_t             qType;  // just use for range
 } SIndexTerm;
 
 typedef struct SIndexTermQuery {

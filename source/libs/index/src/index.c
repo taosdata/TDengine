@@ -262,7 +262,6 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, int8_t queryT
   tm->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
   memcpy(tm->colVal, colVal, nColVal);
   tm->nColVal = nColVal;
-  tm->qType = queryType;
 
   return tm;
 }
