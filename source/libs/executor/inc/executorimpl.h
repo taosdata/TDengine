@@ -119,6 +119,17 @@ typedef struct SLimit {
   int64_t offset;
 } SLimit;
 
+typedef struct SFileBlockLoadRecorder {
+  uint64_t totalRows;
+  uint64_t totalCheckedRows;
+  uint32_t totalBlocks;
+  uint32_t loadBlocks;
+  uint32_t loadBlockStatis;
+  uint32_t skipBlocks;
+  uint32_t filterOutBlocks;
+  uint64_t elapsedTime;
+} SFileBlockLoadRecorder;
+
 typedef struct STaskCostInfo {
   int64_t created;
   int64_t start;
@@ -132,14 +143,10 @@ typedef struct STaskCostInfo {
   uint64_t loadDataInCacheSize;
 
   uint64_t loadDataTime;
-  uint64_t totalRows;
-  uint64_t totalCheckedRows;
-  uint32_t totalBlocks;
-  uint32_t loadBlocks;
-  uint32_t loadBlockStatis;
-  uint32_t skipBlocks;
-  uint32_t filterOutBlocks;
+
+  SFileBlockLoadRecorder* pRecoder;
   uint64_t elapsedTime;
+
   uint64_t firstStageMergeTime;
   uint64_t winInfoSize;
   uint64_t tableInfoSize;
@@ -268,7 +275,7 @@ typedef struct SOperatorFpSet {
 
 typedef struct SOperatorInfo {
   uint8_t                 operatorType;
-  bool                    blockingOptr;  // block operator or not
+  bool                    blocking;      // block operator or not
   uint8_t                 status;        // denote if current operator is completed
   int32_t                 numOfOutput;   // number of columns of the current operator results
   char*                   name;          // name, used to show the query execution plan
@@ -333,17 +340,14 @@ typedef struct SScanInfo {
 
 typedef struct STableScanInfo {
   void*           dataReader;
-
-  int32_t         numOfBlocks;  // extract basic running information.
-  int32_t         numOfSkipped;
-  int32_t         numOfBlockStatis;
+  SFileBlockLoadRecorder readRecorder;
   int64_t         numOfRows;
   int64_t         elapsedTime;
-  int32_t         prevGroupId;  // previous table group id
+//  int32_t         prevGroupId;  // previous table group id
   SScanInfo       scanInfo;
-  int32_t         current;
-  SNode*          pFilterNode;  // filter operator info
-  SqlFunctionCtx* pCtx;         // next operator query context
+  int32_t         scanTimes;
+  SNode*          pFilterNode;  // filter info, which is push down by optimizer
+  SqlFunctionCtx* pCtx;         // which belongs to the direct upstream operator operator query context
   SResultRowInfo* pResultRowInfo;
   int32_t*        rowCellInfoOffset;
   SExprInfo*      pExpr;
@@ -397,7 +401,6 @@ typedef struct SSysTableScanInfo {
   SArray*             scanCols;    // SArray<int16_t> scan column id list
   SName               name;
   SSDataBlock*        pRes;
-  int32_t             capacity;
   int64_t             numOfBlocks;  // extract basic running information.
   SLoadRemoteDataInfo loadInfo;
 } SSysTableScanInfo;

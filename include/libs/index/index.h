@@ -17,6 +17,7 @@
 #define _TD_INDEX_H_
 
 #include "os.h"
+#include "taoserror.h"
 #include "tarray.h"
 
 #ifdef __cplusplus
@@ -41,11 +42,12 @@ typedef enum {
   UPDATE_VALUE,  // update index column value
   ADD_INDEX,     // add index on specify column
   DROP_INDEX,    // drop existed index
-  DROP_SATBLE    // drop stable
+  DROP_SATBLE,   // drop stable
+  DEFAULT        // query
 } SIndexOperOnColumn;
 
-typedef enum { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
-typedef enum { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2, QUERY_REGEX = 3, QUERY_RANGE = 4 } EIndexQueryType;
+typedef enum { MUST = 0, SHOULD, NOT } EIndexOperatorType;
+typedef enum { QUERY_TERM = 0, QUERY_PREFIX, QUERY_SUFFIX, QUERY_REGEX, QUERY_RANGE } EIndexQueryType;
 
 /*
  * create multi query
@@ -166,8 +168,8 @@ void        indexOptsDestroy(SIndexOpts* opts);
  * @param:
  */
 
-SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn operType, uint8_t colType, const char* colName,
-                            int32_t nColName, const char* colVal, int32_t nColVal);
+SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn operType, int8_t qType, uint8_t colType,
+                            const char* colName, int32_t nColName, const char* colVal, int32_t nColVal);
 void        indexTermDestroy(SIndexTerm* p);
 
 /*
