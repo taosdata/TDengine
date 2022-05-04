@@ -34,9 +34,64 @@ static char*   indexCacheTermGet(const void* pData);
 
 static MemTable* indexInternalCacheCreate(int8_t type);
 
+static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchPrefix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchSuffix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchRegex(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchRange(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+
+static int32_t (*cacheSearch[])(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) = {
+    cacheSearchTerm, cacheSearchPrefix, cacheSearchSuffix, cacheSearchRegex, cacheSearchRange};
+
 static void doMergeWork(SSchedMsg* msg);
 static bool indexCacheIteratorNext(Iterate* itera);
 
+static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  if (cache == NULL) {
+    return 0;
+  }
+
+  MemTable* mem = cache;
+  char*     key = indexCacheTermGet(ct);
+
+  SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    if (node == NULL) {
+      break;
+    }
+    CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+    if (0 == strcmp(c->colVal, ct->colVal)) {
+      if (c->operaType == ADD_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
+        // taosArrayPush(result, &c->uid);
+        *s = kTypeValue;
+      } else if (c->operaType == DEL_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
+      }
+    } else {
+      break;
+    }
+  }
+  tSkipListDestroyIter(iter);
+  return 0;
+}
+static int32_t cacheSearchPrefix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  // impl later
+  return 0;
+}
+static int32_t cacheSearchSuffix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  // impl later
+  return 0;
+}
+static int32_t cacheSearchRegex(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  // impl later
+  return 0;
+}
+static int32_t cacheSearchRange(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  // impl later
+  return 0;
+}
 static IterateValue* indexCacheIteratorGetValue(Iterate* iter);
 
 IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type) {
@@ -263,33 +318,7 @@ static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SI
   if (mem == NULL) {
     return 0;
   }
-  char* key = indexCacheTermGet(ct);
-
-  SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
-  while (tSkipListIterNext(iter)) {
-    SSkipListNode* node = tSkipListIterGet(iter);
-    if (node != NULL) {
-      CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-      if (qtype == QUERY_TERM) {
-        if (0 == strcmp(c->colVal, ct->colVal)) {
-          if (c->operaType == ADD_VALUE) {
-            INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
-            // taosArrayPush(result, &c->uid);
-            *s = kTypeValue;
-          } else if (c->operaType == DEL_VALUE) {
-            INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
-          }
-        } else {
-          break;
-        }
-      } else if (qtype == QUERY_PREFIX) {
-      } else if (qtype == QUERY_SUFFIX) {
-      } else if (qtype == QUERY_RANGE) {
-      }
-    }
-  }
-  tSkipListDestroyIter(iter);
-  return 0;
+  return cacheSearch[qtype](mem, ct, tr, s);
 }
 int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result, STermValueType* s) {
   int64_t st = taosGetTimestampUs();

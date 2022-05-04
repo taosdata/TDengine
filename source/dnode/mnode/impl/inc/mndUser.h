@@ -24,8 +24,11 @@ extern "C" {
 
 int32_t   mndInitUser(SMnode *pMnode);
 void      mndCleanupUser(SMnode *pMnode);
-SUserObj *mndAcquireUser(SMnode *pMnode, char *userName);
+SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName);
 void      mndReleaseUser(SMnode *pMnode, SUserObj *pUser);
+
+// for trans test
+SSdbRaw *mndUserActionEncode(SUserObj *pUser);
 
 #ifdef __cplusplus
 }

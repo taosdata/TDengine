@@ -11,10 +11,10 @@
 
 #include "sut.h"
 
-class MndTestTrans : public ::testing::Test {
+class MndTestTrans1 : public ::testing::Test {
  protected:
   static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_trans", 9013);
+    test.Init("/tmp/mnode_test_trans1", 9013);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9013";
     server2.Start("/tmp/mnode_test_trans2", fqdn, 9020, firstEp);
@@ -26,7 +26,7 @@ class MndTestTrans : public ::testing::Test {
   }
 
   static void KillThenRestartServer() {
-    char      file[PATH_MAX] = "/tmp/mnode_test_trans/mnode/data/sdb.data";
+    char      file[PATH_MAX] = "/tmp/mnode_test_trans1/mnode/data/sdb.data";
     TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
     int32_t   size = 3 * 1024 * 1024;
     void*     buffer = taosMemoryMalloc(size);
@@ -60,10 +60,10 @@ class MndTestTrans : public ::testing::Test {
   void TearDown() override {}
 };
 
-Testbase   MndTestTrans::test;
-TestServer MndTestTrans::server2;
+Testbase   MndTestTrans1::test;
+TestServer MndTestTrans1::server2;
 
-TEST_F(MndTestTrans, 00_Create_User_Crash) {
+TEST_F(MndTestTrans1, 00_Create_User_Crash) {
   {
     test.SendShowReq(TSDB_MGMT_TABLE_TRANS, "trans", "");
     EXPECT_EQ(test.GetShowRows(), 0);
@@ -83,7 +83,7 @@ TEST_F(MndTestTrans, 00_Create_User_Crash) {
   }
 }
 
-TEST_F(MndTestTrans, 01_Create_User_Crash) {
+TEST_F(MndTestTrans1, 01_Create_User_Crash) {
   {
     SCreateUserReq createReq = {0};
     strcpy(createReq.user, "u1");
@@ -107,7 +107,7 @@ TEST_F(MndTestTrans, 01_Create_User_Crash) {
   EXPECT_EQ(test.GetShowRows(), 2);
 }
 
-TEST_F(MndTestTrans, 02_Create_Qnode1_Crash) {
+TEST_F(MndTestTrans1, 02_Create_Qnode1_Crash) {
   {
     SMCreateQnodeReq createReq = {0};
     createReq.dnodeId = 1;
@@ -142,7 +142,7 @@ TEST_F(MndTestTrans, 02_Create_Qnode1_Crash) {
   }
 }
 
-TEST_F(MndTestTrans, 03_Create_Qnode2_Crash) {
+TEST_F(MndTestTrans1, 03_Create_Qnode2_Crash) {
   {
     SCreateDnodeReq createReq = {0};
     strcpy(createReq.fqdn, "localhost");
