@@ -176,6 +176,9 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   int64_t     tver;
   SMetaEntry  me = {0};
   SCoder      coder = {0};
+  int8_t      type;
+  int64_t     ctime;
+  tb_uid_t    suid;
   int         c, ret;
 
   // search & delete the name idx
@@ -230,15 +233,55 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
     return -1;
   }
 
-  // tCoderInit(&coder, TD_LITTLE_ENDIAN, pData, nData, TD_DECODER);
-  // ret = metaDecodeEntry(&coder, &me);
-  // if (ret < 0) {
-  //   ASSERT(0);
-  //   return -1;
-  // }
+  // decode entry
+  void *pDataCopy = taosMemoryMalloc(nData);  // remove the copy (todo)
+  memcpy(pDataCopy, pData, nData);
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pDataCopy, nData, TD_DECODER);
+  ret = metaDecodeEntry(&coder, &me);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
 
+  type = me.type;
+  if (type == TSDB_CHILD_TABLE) {
+    ctime = me.ctbEntry.ctime;
+    suid = me.ctbEntry.suid;
+  } else if (type == TSDB_NORMAL_TABLE) {
+    ctime = me.ntbEntry.ctime;
+    suid = 0;
+  } else {
+    ASSERT(0);
+  }
+
+  taosMemoryFree(pDataCopy);
   tCoderClear(&coder);
   tdbDbcClose(pTbDbc);
+
+  if (type == TSDB_CHILD_TABLE) {
+    // remove the pCtbIdx
+    TDBC *pCtbIdxc = NULL;
+    tdbDbcOpen(pMeta->pCtbIdx, &pCtbIdxc, &pMeta->txn);
+
+    ret = tdbDbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = suid, .uid = uid}, sizeof(SCtbIdxKey), &c);
+    if (ret < 0 || c != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    tdbDbcDelete(pCtbIdxc);
+    tdbDbcClose(pCtbIdxc);
+
+    // remove tags from pTagIdx (todo)
+  } else if (type == TSDB_NORMAL_TABLE) {
+    // remove from pSkmDb
+  } else {
+    ASSERT(0);
+  }
+
+  // remove from ttl (todo)
+  if (ctime > 0) {
+  }
 
   return 0;
 }
