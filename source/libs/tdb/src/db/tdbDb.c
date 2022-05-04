@@ -136,11 +136,7 @@ int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int v
   return 0;
 }
 
-int tdbDbcDrop(TDBC *pDbc) {
-  // TODO
-  ASSERT(0);
-  return 0;
-}
+int tdbDbcDelete(TDBC *pDbc) { return tdbBtcDelete(&pDbc->btc); }
 
 int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return tdbBtreeNext(&pDbc->btc, ppKey, kLen, ppVal, vLen);

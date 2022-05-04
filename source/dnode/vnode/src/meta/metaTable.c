@@ -98,7 +98,7 @@ int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
   //   ret = tdbDbcOpen(pMeta->pCtbIdx, &pDbc1);
   //   tdbDbcMoveTo(pDbc1, &pReq->suid, sizeof(pReq->suid), NULL /*cmpr*/, 0 /*TDB_FORWARD_SEARCH*/);
   //   tdbDbcGet(pDbc1, &pKey, &kLen, &pVal, vLen);
-  //   tdbDbcDrop(pDbc1);
+  //   tdbDbcDelete(pDbc1);
   //   // drop from pTagIdx
   //   // drop from pTtlIdx
   // }
@@ -166,18 +166,79 @@ _err:
   return -1;
 }
 
-int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
-#if 0
-  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
-    // TODO: handle error
+int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
+  TDBC       *pTbDbc = NULL;
+  TDBC       *pUidIdxc = NULL;
+  TDBC       *pNameIdxc = NULL;
+  const void *pData;
+  int         nData;
+  tb_uid_t    uid;
+  int64_t     tver;
+  SMetaEntry  me = {0};
+  SCoder      coder = {0};
+  int         c, ret;
+
+  // search & delete the name idx
+  tdbDbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pNameIdxc, pReq->name, strlen(pReq->name) + 1, &c);
+  if (ret < 0 || c) {
+    tdbDbcClose(pNameIdxc);
+    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
     return -1;
   }
 
-  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
-    // TODO
+  ret = tdbDbcGet(pNameIdxc, NULL, NULL, &pData, &nData);
+  if (ret < 0) {
+    ASSERT(0);
     return -1;
   }
-#endif
+
+  uid = *(tb_uid_t *)pData;
+
+  tdbDbcDelete(pNameIdxc);
+  tdbDbcClose(pNameIdxc);
+
+  // search & delete uid idx
+  tdbDbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
+  if (ret < 0 || c != 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  tver = *(int64_t *)pData;
+  tdbDbcDelete(pUidIdxc);
+  tdbDbcClose(pUidIdxc);
+
+  // search and get meta entry
+  tdbDbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pTbDbc, &(STbDbKey){.uid = uid, .version = tver}, sizeof(STbDbKey), &c);
+  if (ret < 0 || c != 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbcGet(pTbDbc, NULL, NULL, &pData, &nData);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  // tCoderInit(&coder, TD_LITTLE_ENDIAN, pData, nData, TD_DECODER);
+  // ret = metaDecodeEntry(&coder, &me);
+  // if (ret < 0) {
+  //   ASSERT(0);
+  //   return -1;
+  // }
+
+  tCoderClear(&coder);
+  tdbDbcClose(pTbDbc);
 
   return 0;
 }

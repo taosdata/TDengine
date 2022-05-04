@@ -1394,7 +1394,7 @@ int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int
 
   if (ppVal) {
     *ppVal = (void *)pBtc->coder.pVal;
-    *kLen = pBtc->coder.vLen;
+    *vLen = pBtc->coder.vLen;
   }
 
   return 0;

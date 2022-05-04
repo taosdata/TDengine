@@ -26,6 +26,7 @@ extern "C" {
 typedef struct SSkipList2 SSkipList2;
 typedef struct SSLCursor  SSLCursor;
 typedef struct SSLCfg     SSLCfg;
+typedef struct SSLNode    SSLNode;
 
 typedef int32_t (*tslCmprFn)(const void *pKey1, int32_t nKey1, const void *pKey2, int32_t nKey2);
 

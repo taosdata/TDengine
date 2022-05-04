@@ -16,7 +16,6 @@
 
 #include "tskiplist2.h"
 
-typedef struct SSLNode SSLNode;
 struct SSLNode {
   int8_t   level;
   SSLNode *forwards[];

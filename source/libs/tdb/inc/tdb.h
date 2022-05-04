@@ -58,7 +58,7 @@ int tdbDbcGet(TDBC *pDbc, const void **ppKey, int *pkLen, const void **ppVal, in
 
 int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
 int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int vLen);
-int tdbDbcDrop(TDBC *pDbc);
+int tdbDbcDelete(TDBC *pDbc);
 int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 
 // TXN
