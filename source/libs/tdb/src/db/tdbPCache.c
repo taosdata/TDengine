@@ -135,7 +135,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   // 1. Search the hash table
   pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
   while (pPage) {
-    if (TDB_IS_SAME_PAGE(&(pPage->pgid), pPgid)) break;
+    if (memcmp(pPage->pgid.fileid, pPgid->fileid, TDB_FILE_ID_LEN) == 0 && pPage->pgid.pgno == pPgid->pgno) break;
     pPage = pPage->pHashNext;
   }
 

@@ -31,3 +31,8 @@ if(${BUILD_WINGETOPT})
     )
     target_link_libraries(plannerTest PUBLIC wingetopt)
 endif()
+
+add_test(
+    NAME plannerTest
+    COMMAND plannerTest
+)

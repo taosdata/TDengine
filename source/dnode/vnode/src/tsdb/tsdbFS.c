@@ -15,6 +15,8 @@
 
 #include "tsdb.h"
 
+extern const char *TSDB_LEVEL_DNAME[];
+
 typedef enum { TSDB_TXN_TEMP_FILE = 0, TSDB_TXN_CURR_FILE } TSDB_TXN_FILE_T;
 static const char *tsdbTxnFname[] = {"current.t", "current"};
 #define TSDB_MAX_FSETS(keep, days) ((keep) / (days) + 3)
@@ -35,12 +37,12 @@ static void tsdbScanAndTryFixDFilesHeader(STsdb *pRepo, int32_t *nExpired);
 // static int  tsdbProcessExpiredFS(STsdb *pRepo);
 // static int  tsdbCreateMeta(STsdb *pRepo);
 
-static void tsdbGetRootDir(int repoid, char dirName[]) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb", repoid);
+static void tsdbGetRootDir(int repoid, int8_t level, char dirName[]) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s", repoid, TSDB_LEVEL_DNAME[level]);
 }
 
-static void tsdbGetDataDir(int repoid, char dirName[]) {
-  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data", repoid);
+static void tsdbGetDataDir(int repoid, int8_t level, char dirName[]) {
+  snprintf(dirName, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/data", repoid, TSDB_LEVEL_DNAME[level]);
 }
 
 // For backward compatibility
@@ -588,8 +590,8 @@ static int tsdbComparFidFSet(const void *arg1, const void *arg2) {
 }
 
 static void tsdbGetTxnFname(STsdb *pRepo, TSDB_TXN_FILE_T ftype, char fname[]) {
-  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/tsdb/%s", tfsGetPrimaryPath(REPO_TFS(pRepo)), REPO_ID(pRepo),
-           tsdbTxnFname[ftype]);
+  snprintf(fname, TSDB_FILENAME_LEN, "%s/vnode/vnode%d/%s/%s", tfsGetPrimaryPath(REPO_TFS(pRepo)), REPO_ID(pRepo),
+           TSDB_LEVEL_DNAME[REPO_LEVEL(pRepo)], tsdbTxnFname[ftype]);
 }
 
 static int tsdbOpenFSFromCurrent(STsdb *pRepo) {
@@ -719,7 +721,7 @@ static int tsdbScanRootDir(STsdb *pRepo) {
   STsdbFS        *pfs = REPO_FS(pRepo);
   const STfsFile *pf;
 
-  tsdbGetRootDir(REPO_ID(pRepo), rootDir);
+  tsdbGetRootDir(REPO_ID(pRepo), REPO_LEVEL(pRepo), rootDir);
   STfsDir *tdir = tfsOpendir(REPO_TFS(pRepo), rootDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), rootDir, tstrerror(terrno));
@@ -753,7 +755,7 @@ static int tsdbScanDataDir(STsdb *pRepo) {
   STsdbFS        *pfs = REPO_FS(pRepo);
   const STfsFile *pf;
 
-  tsdbGetDataDir(REPO_ID(pRepo), dataDir);
+  tsdbGetDataDir(REPO_ID(pRepo), REPO_LEVEL(pRepo), dataDir);
   STfsDir *tdir = tfsOpendir(REPO_TFS(pRepo), dataDir);
   if (tdir == NULL) {
     tsdbError("vgId:%d failed to open directory %s since %s", REPO_ID(pRepo), dataDir, tstrerror(terrno));
@@ -801,7 +803,7 @@ static int tsdbRestoreDFileSet(STsdb *pRepo) {
   regex_t         regex;
   STsdbFS        *pfs = REPO_FS(pRepo);
 
-  tsdbGetDataDir(REPO_ID(pRepo), dataDir);
+  tsdbGetDataDir(REPO_ID(pRepo), REPO_LEVEL(pRepo), dataDir);
 
   // Resource allocation and init
   regcomp(&regex, pattern, REG_EXTENDED);

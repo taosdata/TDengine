@@ -121,6 +121,10 @@ extern char     tsCompressor[];
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
 
+// internal 
+extern int32_t tsTransPullupMs;
+extern int32_t tsMaRebalanceMs;
+
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
 int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,

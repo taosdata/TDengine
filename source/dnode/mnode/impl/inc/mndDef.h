@@ -57,11 +57,11 @@ typedef enum {
   TRN_STAGE_PREPARE = 0,
   TRN_STAGE_REDO_LOG = 1,
   TRN_STAGE_REDO_ACTION = 2,
-  TRN_STAGE_COMMIT = 3,
-  TRN_STAGE_COMMIT_LOG = 4,
-  TRN_STAGE_UNDO_ACTION = 5,
-  TRN_STAGE_UNDO_LOG = 6,
-  TRN_STAGE_ROLLBACK = 7,
+  TRN_STAGE_ROLLBACK = 3,
+  TRN_STAGE_UNDO_ACTION = 4,
+  TRN_STAGE_UNDO_LOG = 5,
+  TRN_STAGE_COMMIT = 6,
+  TRN_STAGE_COMMIT_LOG = 7,
   TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
@@ -72,6 +72,7 @@ typedef enum {
   TRN_TYPE_DROP_USER = 1003,
   TRN_TYPE_CREATE_FUNC = 1004,
   TRN_TYPE_DROP_FUNC = 1005,
+  
   TRN_TYPE_CREATE_SNODE = 1006,
   TRN_TYPE_DROP_SNODE = 1007,
   TRN_TYPE_CREATE_QNODE = 1008,
@@ -91,10 +92,12 @@ typedef enum {
   TRN_TYPE_CONSUMER_LOST = 1022,
   TRN_TYPE_CONSUMER_RECOVER = 1023,
   TRN_TYPE_BASIC_SCOPE_END,
+
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
   TRN_TYPE_DROP_DNODE = 2002,
   TRN_TYPE_GLOBAL_SCOPE_END,
+
   TRN_TYPE_DB_SCOPE = 3000,
   TRN_TYPE_CREATE_DB = 3001,
   TRN_TYPE_ALTER_DB = 3002,
@@ -102,6 +105,7 @@ typedef enum {
   TRN_TYPE_SPLIT_VGROUP = 3004,
   TRN_TYPE_MERGE_VGROUP = 3015,
   TRN_TYPE_DB_SCOPE_END,
+
   TRN_TYPE_STB_SCOPE = 4000,
   TRN_TYPE_CREATE_STB = 4001,
   TRN_TYPE_ALTER_STB = 4002,
@@ -131,7 +135,7 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  ETrnType   transType;
+  ETrnType   type;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
@@ -517,6 +521,7 @@ void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
   SRWLatch  lock;
+  int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
   int8_t    withTbName;
@@ -553,9 +558,8 @@ int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogO
 void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
 
 typedef struct {
-  const SMqSubscribeObj* pOldSub;
-  const SMqTopicObj*     pTopic;
-  const SMqRebSubscribe* pRebInfo;
+  int32_t           oldConsumerNum;
+  const SMqRebInfo* pRebInfo;
 } SMqRebInputObj;
 
 typedef struct {

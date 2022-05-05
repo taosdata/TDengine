@@ -23,13 +23,12 @@
 }
 
 %syntax_error {
-  if (pCxt->valid) {
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     if(TOKEN.z) {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, TOKEN.z);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_SYNTAX_ERROR, TOKEN.z);
     } else {
-      generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCOMPLETE_SQL);
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INCOMPLETE_SQL);
     }
-    pCxt->valid = false;
   }
 }
 
@@ -42,8 +41,8 @@
 %left NK_CONCAT.
 
 /************************************************ create/alter account *****************************************/
-cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
-cmd ::= ALTER ACCOUNT NK_ID alter_account_options.                                { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+cmd ::= CREATE ACCOUNT NK_ID PASS NK_STRING account_options.                      { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+cmd ::= ALTER ACCOUNT NK_ID alter_account_options.                                { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 
 %type account_options                                                             { int32_t }
 %destructor account_options                                                       { }
@@ -323,7 +322,7 @@ cmd ::= SHOW QNODES.                                                            
 cmd ::= SHOW FUNCTIONS.                                                           { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_FUNCTIONS_STMT, NULL, NULL); }
 cmd ::= SHOW INDEXES FROM table_name_cond(A) from_db_opt(B).                      { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_INDEXES_STMT, A, B); }
 cmd ::= SHOW STREAMS.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_STREAMS_STMT, NULL, NULL); }
-cmd ::= SHOW ACCOUNTS.                                                            { pCxt->valid = false; generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
+cmd ::= SHOW ACCOUNTS.                                                            { pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_EXPRIE_STATEMENT); }
 cmd ::= SHOW APPS.                                                                { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_APPS_STMT, NULL, NULL); }
 cmd ::= SHOW CONNECTIONS.                                                         { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CONNECTIONS_STMT, NULL, NULL); }
 cmd ::= SHOW LICENCE.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_LICENCE_STMT, NULL, NULL); }
@@ -491,7 +490,7 @@ signed_literal(A) ::= NK_STRING(B).                                             
 signed_literal(A) ::= NK_BOOL(B).                                                 { A = createValueNode(pCxt, TSDB_DATA_TYPE_BOOL, &B); }
 signed_literal(A) ::= TIMESTAMP NK_STRING(B).                                     { A = createValueNode(pCxt, TSDB_DATA_TYPE_TIMESTAMP, &B); }
 signed_literal(A) ::= duration_literal(B).                                        { A = releaseRawExprNode(pCxt, B); }
-signed_literal(A) ::= NULL.                                                       { A = createValueNode(pCxt, TSDB_DATA_TYPE_NULL, NULL); }
+signed_literal(A) ::= NULL(B).                                                    { A = createValueNode(pCxt, TSDB_DATA_TYPE_NULL, &B); }
 signed_literal(A) ::= literal_func(B).                                            { A = releaseRawExprNode(pCxt, B); }
 
 %type literal_list                                                                { SNodeList* }

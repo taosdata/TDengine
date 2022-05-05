@@ -103,7 +103,6 @@ class MockCatalogServiceImpl {
     const char* tname = tNameGetTableName(pTableName);
     int32_t     code = copyTableSchemaMeta(db, tname, &table);
     if (TSDB_CODE_SUCCESS != code) {
-      std::cout << "db : " << db << ", table :" << tname << std::endl;
       return code;
     }
     *pTableMeta = table.release();
@@ -111,9 +110,8 @@ class MockCatalogServiceImpl {
   }
 
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const {
-    char db[TSDB_DB_NAME_LEN] = {0};
-    tNameGetDbName(pTableName, db);
-    return copyTableVgroup(db, tNameGetTableName(pTableName), vgInfo);
+    vgInfo->vgId = 1;
+    return TSDB_CODE_SUCCESS;
   }
 
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** vgList) const {

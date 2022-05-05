@@ -27,13 +27,12 @@ extern "C" {
 struct SSDataBlock;
 
 typedef struct SFillColInfo {
-//  STColumn col;             // column info
-  SResSchema col;
-  int16_t  functionId;      // sql function id
-  int16_t  flag;            // column flag: TAG COLUMN|NORMAL COLUMN
-  int16_t  tagIndex;        // index of current tag in SFillTagColInfo array list
-  int32_t  offset;
-  union {int64_t i; double d;} val;
+  SExprInfo *pExpr;
+//  SResSchema schema;
+//  int16_t    functionId;      // sql function id
+  int16_t    flag;            // column flag: TAG COLUMN|NORMAL COLUMN
+  int16_t    tagIndex;        // index of current tag in SFillTagColInfo array list
+  SVariant   fillVal;
 } SFillColInfo;
 
 typedef struct {
@@ -56,9 +55,10 @@ typedef struct SFillInfo {
   int32_t   numOfCols;            // number of columns, including the tags columns
   int32_t   rowSize;              // size of each row
   SInterval interval;
-  char *    prevValues;           // previous row of data, to generate the interpolation results
-  char *    nextValues;           // next row of data
-  char**    pData;                // original result data block involved in filling data
+
+  SArray   *prev;
+  SArray   *next;
+  SSDataBlock *pSrcBlock;
   int32_t   alloc;                // data buffer size in rows
 
   SFillColInfo* pFillCol;         // column info for fill operations
@@ -72,7 +72,7 @@ int64_t getNumOfResultsAfterFillGap(SFillInfo* pFillInfo, int64_t ekey, int32_t 
 void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
 void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
 void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const struct SValueNode* val);
+struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const struct SNodeListNode* val);
 bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
 
 SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
@@ -80,7 +80,7 @@ SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int3
                                      struct SFillColInfo* pCol, const char* id);
 
 void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
-int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
+int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, SSDataBlock* p, int32_t capacity);
 int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
 

@@ -134,15 +134,15 @@ FAIL:
   return -1;
 }
 
-static SMqRebSubscribe *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
-  SMqRebSubscribe *pRebSub = taosHashGet(pHash, key, strlen(key) + 1);
+static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
+  SMqRebInfo *pRebSub = taosHashGet(pHash, key, strlen(key) + 1);
   if (pRebSub == NULL) {
     pRebSub = tNewSMqRebSubscribe(key);
     if (pRebSub == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    taosHashPut(pHash, key, strlen(key) + 1, pRebSub, sizeof(SMqRebSubscribe));
+    taosHashPut(pHash, key, strlen(key) + 1, pRebSub, sizeof(SMqRebInfo));
   }
   return pRebSub;
 }
@@ -189,7 +189,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
         char  key[TSDB_SUBSCRIBE_KEY_LEN];
         char *removedTopic = taosArrayGetP(pConsumer->currentTopics, i);
         mndMakeSubscribeKey(key, pConsumer->cgroup, removedTopic);
-        SMqRebSubscribe *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
+        SMqRebInfo *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
       taosRUnLockLatch(&pConsumer->lock);
@@ -200,7 +200,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
         char  key[TSDB_SUBSCRIBE_KEY_LEN];
         char *newTopic = taosArrayGetP(pConsumer->rebNewTopics, i);
         mndMakeSubscribeKey(key, pConsumer->cgroup, newTopic);
-        SMqRebSubscribe *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
+        SMqRebInfo *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
         taosArrayPush(pRebSub->newConsumers, &pConsumer->consumerId);
       }
 
@@ -209,7 +209,7 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
         char  key[TSDB_SUBSCRIBE_KEY_LEN];
         char *removedTopic = taosArrayGetP(pConsumer->rebRemovedTopics, i);
         mndMakeSubscribeKey(key, pConsumer->cgroup, removedTopic);
-        SMqRebSubscribe *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
+        SMqRebInfo *pRebSub = mndGetOrCreateRebSub(pRebMsg->rebSubHash, key);
         taosArrayPush(pRebSub->removedConsumers, &pConsumer->consumerId);
       }
       taosRUnLockLatch(&pConsumer->lock);

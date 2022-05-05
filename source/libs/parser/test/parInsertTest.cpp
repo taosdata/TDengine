@@ -111,6 +111,7 @@ class InsertTest : public Test {
     cxt_.pMsg = errMagBuf_;
     cxt_.msgLen = max_err_len;
     code_ = TSDB_CODE_SUCCESS;
+    res_ = nullptr;
   }
 
   SVnodeModifOpStmt* getVnodeModifStmt(SQuery* pQuery) { return (SVnodeModifOpStmt*)pQuery->pRoot; }
