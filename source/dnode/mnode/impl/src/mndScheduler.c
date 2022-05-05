@@ -204,6 +204,8 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
       pTask->smaSink.smaId = pStream->smaId;
     } else {
       pTask->sinkType = TASK_SINK__TABLE;
+      pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
+      ASSERT(pTask->tbSink.pSchemaWrapper);
     }
 
     // dispatch
@@ -242,6 +244,7 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
     pTask->smaSink.smaId = pStream->smaId;
   } else {
     pTask->sinkType = TASK_SINK__TABLE;
+    pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
   }
   //
   // dispatch
@@ -316,6 +319,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
               pTask->smaSink.smaId = pStream->smaId;
             } else {
               pTask->sinkType = TASK_SINK__TABLE;
+              pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
             }
 #endif
           }

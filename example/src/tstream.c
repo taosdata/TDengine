@@ -81,9 +81,10 @@ int32_t create_stream() {
   /*const char* sql = "select min(k), max(k), sum(k) as sum_of_k from st1";*/
   /*const char* sql = "select sum(k) from tu1 interval(10m)";*/
   /*pRes = tmq_create_stream(pConn, "stream1", "out1", sql);*/
-  pRes = taos_query(
-      pConn,
-      "create stream stream1 trigger window_close as select min(k), max(k), sum(k) as sum_of_k from tu1 interval(10m)");
+  pRes =
+      taos_query(pConn,
+                 "create stream stream1 trigger window_close as select _wstartts, min(k), max(k), sum(k) as sum_of_k "
+                 "from tu1 interval(10m)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create stream stream1, reason:%s\n", taos_errstr(pRes));
     return -1;
