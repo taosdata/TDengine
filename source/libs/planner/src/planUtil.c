@@ -13,12 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-#include "vnd.h"
-// #include "vnodeInt.h"
+#include "planInt.h"
 
-int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg) { return 0; }
+static char* getUsageErrFormat(int32_t errCode) {
+  switch (errCode) {
+    case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
+      return "l.ts = r.ts is expected in join expression";
+    case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
+      return "not support cross join";
+    default:
+      break;
+  }
+  return "Unknown error";
+}
 
-int32_t vnodeCompact(SVnode *pVnode) { return 0; }
-
-int32_t vnodeSync(SVnode *pVnode) { return 0; }
+int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...) {
+  va_list vArgList;
+  va_start(vArgList, errCode);
+  vsnprintf(pBuf, len, getUsageErrFormat(errCode), vArgList);
+  va_end(vArgList);
+  return errCode;
+}
