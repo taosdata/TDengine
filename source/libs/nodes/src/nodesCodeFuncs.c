@@ -1699,7 +1699,18 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
     case TSDB_DATA_TYPE_DOUBLE:
       code = tjsonAddDoubleToObject(pJson, jkValueDatum, pNode->datum.d);
       break;
-    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_NCHAR: {
+      //cJSON only support utf-8 encoding. Convert memory content to hex string.
+      char *buf = taosMemoryCalloc(varDataLen(pNode->datum.p) * 2 + 1, sizeof(char));
+      code = taosHexEncode(varDataVal(pNode->datum.p), buf, varDataLen(pNode->datum.p));
+      if(code != TSDB_CODE_SUCCESS) {
+        taosMemoryFree(buf);
+        return TSDB_CODE_TSC_INVALID_VALUE;
+      }
+      code = tjsonAddStringToObject(pJson, jkValueDatum, buf);
+      taosMemoryFree(buf);
+      break;
+    }
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
       code = tjsonAddStringToObject(pJson, jkValueDatum, varDataVal(pNode->datum.p));
@@ -1773,8 +1784,27 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes);
-      code = tjsonGetStringValue(pJson, jkValueDatum, varDataVal(pNode->datum.p));
+      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
+      if (TSDB_DATA_TYPE_NCHAR == pNode->node.resType.type) {
+        char *buf = taosMemoryCalloc(1, pNode->node.resType.bytes * 2 + VARSTR_HEADER_SIZE + 1);
+        if (NULL == buf) {
+          code = TSDB_CODE_OUT_OF_MEMORY;
+          break;
+        }
+        code = tjsonGetStringValue(pJson, jkValueDatum, buf);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFree(buf);
+          break;
+        }
+        code = taosHexDecode(buf, varDataVal(pNode->datum.p), pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
+        if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFree(buf);
+          break;
+        }
+        taosMemoryFree(buf);
+      } else {
+        code = tjsonGetStringValue(pJson, jkValueDatum, varDataVal(pNode->datum.p));
+      }
       break;
     }
     case TSDB_DATA_TYPE_JSON:
