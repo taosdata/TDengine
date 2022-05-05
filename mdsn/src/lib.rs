@@ -17,7 +17,7 @@
 //! // The two styles are equivalent.
 //! let dsn = Dsn::parse("taos://root:taosdata@host1:6030,host2:6030/db")?;
 //! let dsn: Dsn = "taos://root:taosdata@host1:6030,host2:6030/db".parse()?;
-//! 
+//!
 //! assert_eq!(dsn.driver, "taos");
 //! assert_eq!(dsn.username.unwrap(), "root");
 //! assert_eq!(dsn.password.unwrap(), "taosdata");
@@ -98,6 +98,7 @@ pub struct Address {
 
 impl Address {
     /// Construct server address with host and port.
+    #[inline]
     pub fn new(host: impl Into<String>, port: u16) -> Self {
         Self {
             host: Some(host.into()),
@@ -106,6 +107,7 @@ impl Address {
         }
     }
     /// Construct server address with host or ip address only.
+    #[inline]
     pub fn from_host(host: impl Into<String>) -> Self {
         Self {
             host: Some(host.into()),
@@ -114,6 +116,7 @@ impl Address {
     }
 
     /// Construct server address with unix socket path.
+    #[inline]
     pub fn from_path(path: impl Into<String>) -> Self {
         Self {
             path: Some(path.into()),
@@ -136,6 +139,8 @@ pub struct Dsn {
 }
 
 impl Dsn {
+    /// Parse from a DSN string.
+    #[inline]
     pub fn parse(dsn: impl AsRef<str>) -> Result<Self, DsnError> {
         dsn.as_ref().parse()
     }
