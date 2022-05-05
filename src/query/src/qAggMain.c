@@ -5186,14 +5186,17 @@ static bool elapsedSetup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
 }
 
 static int32_t elapsedRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_NO_NEEDED;
+  return BLK_DATA_ALL_NEEDED;
 }
 
 static void elapsedFunction(SQLFunctionCtx *pCtx) {
   SElapsedInfo *pInfo = getOutputInfo(pCtx);
+  qDebug("%s pCtx->preAggVals.isSet = %d", __FUNCTION__, pCtx->preAggVals.isSet);
   if (pCtx->preAggVals.isSet) {
+    qDebug("%s pInfo->min = %ld, statis = [%ld, %ld], win = [%ld, %ld], win2 = [%ld, %ld]", __FUNCTION__, pInfo->min,
+        pCtx->preAggVals.statis.min, pCtx->preAggVals.statis.max, pCtx->startTs, pCtx->endTs, pCtx->start.key, pCtx->end.key);
     if (pInfo->min == MAX_TS_KEY) {
-      pInfo->min = pCtx->preAggVals.statis.min < pCtx->startTs ? pCtx->startTs : pCtx->preAggVals.statis.min;
+      pInfo->min = pCtx->preAggVals.statis.min;
       pInfo->max = pCtx->preAggVals.statis.max;
     } else {
       if (pCtx->order == TSDB_ORDER_ASC) {
