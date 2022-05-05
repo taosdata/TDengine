@@ -1278,7 +1278,7 @@ static int32_t mndProcessTransReq(SNodeMsg *pReq) {
   return 0;
 }
 
-static int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
+int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   SArray *pArray = NULL;
   if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
     pArray = pTrans->redoActions;
@@ -1296,14 +1296,14 @@ static int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     if (pAction == NULL) continue;
 
     if (pAction->msgReceived == 0) {
-      mInfo("trans:%d, action:%d set processed", pTrans->id, i);
+      mInfo("trans:%d, action:%d set processed for kill msg received", pTrans->id, i);
       pAction->msgSent = 1;
       pAction->msgReceived = 1;
       pAction->errCode = 0;
     }
 
     if (pAction->errCode != 0) {
-      mInfo("trans:%d, action:%d set processed, errCode from %s to success", pTrans->id, i,
+      mInfo("trans:%d, action:%d set processed for kill msg received, errCode from %s to success", pTrans->id, i,
             tstrerror(pAction->errCode));
       pAction->msgSent = 1;
       pAction->msgReceived = 1;
