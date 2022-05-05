@@ -224,7 +224,8 @@ struct SConfig *taosGetCfg() {
   return tsCfg;
 }
 
-static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile, char *apolloUrl) {
+static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
+                           char *apolloUrl) {
   char cfgDir[PATH_MAX] = {0};
   char cfgFile[PATH_MAX + 100] = {0};
 
@@ -300,15 +301,10 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
 static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
-  char    defaultFirstEp[TSDB_EP_LEN] = {0};
-  char    defaultSecondEp[TSDB_EP_LEN] = {0};
-
   if (taosGetFqdn(defaultFqdn) != 0) return -1;
-  snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
-  snprintf(defaultSecondEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
 
-  if (cfgAddString(pCfg, "firstEp", defaultFirstEp, 1) != 0) return -1;
-  if (cfgAddString(pCfg, "secondEp", defaultSecondEp, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "firstEp", "", 1) != 0) return -1;
+  if (cfgAddString(pCfg, "secondEp", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "fqdn", defaultFqdn, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "tempDir", tsTempDir, 1) != 0) return -1;
@@ -478,15 +474,18 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
 
+  char defaultFirstEp[TSDB_EP_LEN] = {0};
+  snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+
   SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
   SEp          firstEp = {0};
-  taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
   snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
   cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
 
   SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
   SEp          secondEp = {0};
-  taosGetFqdnPortFromEp(pSecondpItem->str, &secondEp);
+  taosGetFqdnPortFromEp(strlen(pSecondpItem->str) == 0 ? defaultFirstEp : pSecondpItem->str, &secondEp);
   snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
   cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
 
@@ -583,8 +582,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
-int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,
-                      char *apolloUrl, SArray *pArgs, bool tsc) {
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
+                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   osDefaultInit();
 
   SConfig *pCfg = cfgInit();
@@ -636,7 +635,24 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   return 0;
 }
 
-int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
+static int32_t taosCheckGlobalCfg() {
+  uint32_t ipv4 = taosGetIpv4FromFqdn(tsLocalFqdn);
+  if (ipv4 == 0xffffffff) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, terrstr());
+    return -1;
+  }
+
+  if (tsServerPort <= 0) {
+    uError("invalid server port:%u, dnode can not be initialized", tsServerPort);
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                    bool tsc) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
@@ -674,6 +690,11 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   taosSetSystemCfg(tsCfg);
 
   cfgDumpCfg(tsCfg, tsc, false);
+
+  if (taosCheckGlobalCfg() != 0) {
+    return -1;
+  }
+
   return 0;
 }
 

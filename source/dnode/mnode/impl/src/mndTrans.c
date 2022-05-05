@@ -997,7 +997,12 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
-      if (terrno == TSDB_CODE_INVALID_PTR) rpcFreeCont(rpcMsg.pCont);
+      pAction->msgSent = 0;
+      pAction->msgReceived = 0;
+      pAction->errCode = terrno;
+      if (terrno == TSDB_CODE_INVALID_PTR || terrno == TSDB_CODE_NODE_OFFLINE) {
+        rpcFreeCont(rpcMsg.pCont);
+      }
       mError("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
@@ -1275,7 +1280,7 @@ static int32_t mndProcessTransReq(SNodeMsg *pReq) {
   return 0;
 }
 
-static int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
+int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   SArray *pArray = NULL;
   if (pTrans->stage == TRN_STAGE_REDO_ACTION) {
     pArray = pTrans->redoActions;
@@ -1293,14 +1298,14 @@ static int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
     if (pAction == NULL) continue;
 
     if (pAction->msgReceived == 0) {
-      mInfo("trans:%d, action:%d set processed", pTrans->id, i);
+      mInfo("trans:%d, action:%d set processed for kill msg received", pTrans->id, i);
       pAction->msgSent = 1;
       pAction->msgReceived = 1;
       pAction->errCode = 0;
     }
 
     if (pAction->errCode != 0) {
-      mInfo("trans:%d, action:%d set processed, errCode from %s to success", pTrans->id, i,
+      mInfo("trans:%d, action:%d set processed for kill msg received, errCode from %s to success", pTrans->id, i,
             tstrerror(pAction->errCode));
       pAction->msgSent = 1;
       pAction->msgReceived = 1;
