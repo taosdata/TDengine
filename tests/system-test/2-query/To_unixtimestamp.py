@@ -31,18 +31,39 @@ class TDTestCase:
             '''
         )
         tdLog.printNoPrefix("==========step2:insert data into ntb==========")
+
+        # RFC3339:2020-01-01T00:00:00+8:00
+        # ISO8601:2020-01-01T00:00:00.000+0800
+        tdSql.execute(
+            'insert into ntb values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
+        tdSql.execute(
+            'insert into stb_1 values(now,1,1.55,100.555555,today())("2020-1-1 00:00:00",10,11.11,99.999999,now())(today(),3,3.333,333.333333,now())')
+        tdSql.query("select to_unixtimestamp('1970-01-01T08:00:00+0800') from ntb")
+        tdSql.checkData(0,0,0)
+        tdSql.checkData(1,0,0)
+        tdSql.checkData(2,0,0)
+        tdSql.checkRows(3)
+        tdSql.query("select to_unixtimestamp('1970-01-01T08:00:00+08:00') from ntb")
+        tdSql.checkData(0,0,0)
+        tdSql.checkRows(3)
+        tdSql.query("select to_unixtimestamp('1900-01-01T08:00:00+08:00') from ntb")
+        tdSql.checkRows(3)
+        tdSql.query("select to_unixtimestamp('2020-01-32T08:00:00') from ntb")
+        tdSql.checkRows(3)
+        tdSql.checkData(0,0,None)
+        tdSql.query("select to_unixtimestamp('2020-13-32T08:00:00') from ntb")
+        tdSql.checkRows(3)
+        tdSql.checkData(0,0,None)
+        tdSql.query("select to_unixtimestamp('acd') from ntb")
+        tdSql.checkRows(3)
+        tdSql.checkData(0,0,None)
+        tdSql.error("select to_unixtimestamp(1) from ntb")
+        tdSql.error("select to_unixtimestamp(1.5) from ntb")
+        tdSql.error("select to_unixtimestamp(ts) from ntb")
+
+        tdSql.query("select ts from ntb where to_unixtimestamp('1970-01-01T08:00:00+08:00')=0")
+        tdSql.checkRows(3)
         
-
-
-
-
-
-
-
-
-
-        
-
 
     def stop(self):
         tdSql.close()
