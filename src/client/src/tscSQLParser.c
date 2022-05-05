@@ -1286,6 +1286,17 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
+  size_t size = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    assert(pExpr != NULL);
+
+    int32_t functionId = pExpr->base.functionId;
+    if (functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    }
+  }
+  
   tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
   SColIndex colIndex = { .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId };
   taosArrayPush(pGroupExpr->columnInfo, &colIndex);
@@ -7648,8 +7659,8 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     int32_t f = pExpr->base.functionId;
     if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) ||
         f == TSDB_FUNC_DIFF || f == TSDB_FUNC_SCALAR_EXPR || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG || f == TSDB_FUNC_STATE_COUNT ||
-        f == TSDB_FUNC_STATE_DURATION)
+        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
+        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)
     {
       isProjectionFunction = true;
       break;
@@ -8649,8 +8660,13 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
   
     int32_t f = pExpr->base.functionId;
-    if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ELAPSED ||
-        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION) {
+    if (f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_TWA ||
+        f == TSDB_FUNC_IRATE ||
+        f == TSDB_FUNC_DIFF ||
+        f == TSDB_FUNC_ELAPSED ||
+        f == TSDB_FUNC_STATE_COUNT ||
+        f == TSDB_FUNC_STATE_DURATION) {
       for (int32_t j = 0; j < upNum; ++j) {
         SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, j);
         STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pUp, 0);
