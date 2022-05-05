@@ -207,7 +207,7 @@ static bool addHandleToAcceptloop(void* arg);
       SExHandle* exh2 = uvAcquireExHandle(refId);                                                                     \
       if (exh2 == NULL || refId != exh2->refId) {                                                                     \
         tTrace("server handle %p except, may already freed, ignore msg, ref1: %" PRIu64 ", ref2 : %" PRIu64 "", exh1, \
-               exh1->refId, refId);                                                                                   \
+               exh2 ? exh2->refId : 0, refId);                                                                        \
         goto _return1;                                                                                                \
       }                                                                                                               \
     } else if (refId == 0) {                                                                                          \
@@ -765,8 +765,10 @@ static void destroyConn(SSrvConn* conn, bool clear) {
   transDestroyBuffer(&conn->readBuf);
   if (clear) {
     tTrace("server conn %p to be destroyed", conn);
-    uv_shutdown_t* req = taosMemoryMalloc(sizeof(uv_shutdown_t));
-    uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
+    // uv_shutdown_t* req = taosMemoryMalloc(sizeof(uv_shutdown_t));
+    uv_close((uv_handle_t*)conn->pTcp, uvDestroyConn);
+    // uv_close(conn->pTcp)
+    // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
   }
 }
 static void uvDestroyConn(uv_handle_t* handle) {
@@ -808,11 +810,13 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)taosMemoryCalloc(1, sizeof(SWorkThrdObj));
+    thrd->pTransInst = shandle;
     thrd->quit = false;
     srv->pThreadObj[i] = thrd;
     thrd->pTransInst = shandle;
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+
 
     uv_os_sock_t fds[2];
     if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {

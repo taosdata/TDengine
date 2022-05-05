@@ -31,8 +31,6 @@ extern "C" {
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
 
-#define SDB_MAX_SIZE (32 * 1024)
-
 typedef struct SSdbRaw {
   int8_t  type;
   int8_t  status;

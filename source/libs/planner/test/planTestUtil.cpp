@@ -34,7 +34,41 @@ using namespace testing;
     }                                                                                                              \
   } while (0);
 
-bool g_isDump = false;
+enum DumpModule {
+  DUMP_MODULE_NOTHING = 1,
+  DUMP_MODULE_PARSER,
+  DUMP_MODULE_LOGIC,
+  DUMP_MODULE_OPTIMIZED,
+  DUMP_MODULE_SPLIT,
+  DUMP_MODULE_SCALED,
+  DUMP_MODULE_PHYSICAL,
+  DUMP_MODULE_SUBPLAN,
+  DUMP_MODULE_ALL
+};
+
+DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
+
+void setDumpModule(const char* pModule) {
+  if (NULL == pModule) {
+    g_dumpModule = DUMP_MODULE_ALL;
+  } else if (0 == strncasecmp(pModule, "parser", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_PARSER;
+  } else if (0 == strncasecmp(pModule, "logic", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_LOGIC;
+  } else if (0 == strncasecmp(pModule, "optimized", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_OPTIMIZED;
+  } else if (0 == strncasecmp(pModule, "split", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SPLIT;
+  } else if (0 == strncasecmp(pModule, "scaled", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SCALED;
+  } else if (0 == strncasecmp(pModule, "physical", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_PHYSICAL;
+  } else if (0 == strncasecmp(pModule, "subplan", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SUBPLAN;
+  } else if (0 == strncasecmp(pModule, "all", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_PHYSICAL;
+  }
+}
 
 class PlannerTestBaseImpl {
  public:
@@ -66,11 +100,9 @@ class PlannerTestBaseImpl {
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
 
-      if (g_isDump) {
-        dump();
-      }
+      dump(g_dumpModule);
     } catch (...) {
-      dump();
+      dump(DUMP_MODULE_ALL);
       throw;
     }
   }
@@ -106,25 +138,51 @@ class PlannerTestBaseImpl {
     res_.splitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
     res_.physiPlan_.clear();
+    res_.physiSubplans_.clear();
   }
 
-  void dump() {
+  void dump(DumpModule module) {
+    if (DUMP_MODULE_NOTHING == module) {
+      return;
+    }
+
     cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
-    cout << "syntax tree : " << endl;
-    cout << res_.ast_ << endl;
-    cout << "raw logic plan : " << endl;
-    cout << res_.rawLogicPlan_ << endl;
-    cout << "optimized logic plan : " << endl;
-    cout << res_.optimizedLogicPlan_ << endl;
-    cout << "split logic plan : " << endl;
-    cout << res_.splitLogicPlan_ << endl;
-    cout << "scaled logic plan : " << endl;
-    cout << res_.scaledLogicPlan_ << endl;
-    cout << "physical plan : " << endl;
-    cout << res_.physiPlan_ << endl;
-    cout << "physical subplan : " << endl;
-    for (const auto& subplan : res_.physiSubplans_) {
-      cout << subplan << endl;
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
+      cout << "syntax tree : " << endl;
+      cout << res_.ast_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_LOGIC == module) {
+      cout << "raw logic plan : " << endl;
+      cout << res_.rawLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_OPTIMIZED == module) {
+      cout << "optimized logic plan : " << endl;
+      cout << res_.optimizedLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_SPLIT == module) {
+      cout << "split logic plan : " << endl;
+      cout << res_.splitLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_SCALED == module) {
+      cout << "scaled logic plan : " << endl;
+      cout << res_.scaledLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_PHYSICAL == module) {
+      cout << "physical plan : " << endl;
+      cout << res_.physiPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_SUBPLAN == module) {
+      cout << "physical subplan : " << endl;
+      for (const auto& subplan : res_.physiSubplans_) {
+        cout << subplan << endl;
+      }
     }
   }
 

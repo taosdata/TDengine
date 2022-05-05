@@ -32,6 +32,6 @@ class PlannerTestBase : public testing::Test {
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 
-extern bool g_isDump;
+extern void setDumpModule(const char* pModule);
 
 #endif  // PLAN_TEST_UTIL_H

@@ -32,7 +32,7 @@
 #include "tmsg.h"
 #include "trow.h"
 
-#include "tdbInt.h"
+#include "tdb.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -57,9 +57,6 @@ int     vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int     vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int     vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
-int32_t vnodeAlter(SVnode *pVnode, const SVnodeCfg *pCfg);
-int32_t vnodeCompact(SVnode *pVnode);
-int32_t vnodeSync(SVnode *pVnode);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int     vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
@@ -111,7 +108,7 @@ int32_t      tsdbQuerySTableByTagCond(void *pMeta, uint64_t uid, TSKEY skey, con
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg **pBlockStatis);
+int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool* allHave);
 SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
 void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
 void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
@@ -146,8 +143,18 @@ struct STsdbCfg {
   int32_t keep0;
   int32_t keep1;
   int32_t keep2;
-  SArray *retentions;
+  // TODO: save to tsdb cfg file
+  int8_t     type;  // ETsdbType
+  SRetention retentions[TSDB_RETENTION_MAX];
 };
+
+typedef enum {
+  TSDB_TYPE_TSDB = 0,     // TSDB
+  TSDB_TYPE_TSMA = 1,     // TSMA
+  TSDB_TYPE_RSMA_L0 = 2,  // RSMA Level 0
+  TSDB_TYPE_RSMA_L1 = 3,  // RSMA Level 1
+  TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
+} ETsdbType;
 
 struct SVnodeCfg {
   int32_t  vgId;

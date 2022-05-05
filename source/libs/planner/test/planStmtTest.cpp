@@ -42,13 +42,13 @@ class PlanStmtTest : public PlannerTestBase {
     // todo
   }
 
-private:
+ private:
   TAOS_MULTI_BIND* pBindParams_;
-  int32_t paramNo_;
+  int32_t          paramNo_;
 };
 
 TEST_F(PlanStmtTest, stmt) {
   useDb("root", "test");
 
-  run("SELECT * FROM t1 where c1 = ?");
+  run("select * from t1 where c1 = ?");
 }
