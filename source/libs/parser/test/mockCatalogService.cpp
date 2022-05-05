@@ -103,7 +103,6 @@ class MockCatalogServiceImpl {
     const char* tname = tNameGetTableName(pTableName);
     int32_t     code = copyTableSchemaMeta(db, tname, &table);
     if (TSDB_CODE_SUCCESS != code) {
-      std::cout << "db : " << db << ", table :" << tname << std::endl;
       return code;
     }
     *pTableMeta = table.release();

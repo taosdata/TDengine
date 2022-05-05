@@ -891,7 +891,6 @@ static void doDelayTask(void* param) {
 
   SCliMsg*     pMsg = arg->param1;
   SCliThrdObj* pThrd = arg->param2;
-
   cliHandleReq(pMsg, pThrd);
 
   taosMemoryFree(arg);
@@ -937,8 +936,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
         pCtx->epSet = emsg.epSet;
       }
-      addConnToPool(pThrd, pConn);
-      tTrace("use remote epset, current in use: %d, retry count%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
+      addConnToPool(pThrd->pool, pConn);
+      tTrace("use remote epset, current in use: %d, retry count:%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
              TRANS_RETRY_COUNT_LIMIT);
 
       STaskArg* arg = taosMemoryMalloc(sizeof(STaskArg));
@@ -950,9 +949,14 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   }
 
   if (pCtx->pSem != NULL) {
-    tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    memcpy((char*)pCtx->pRsp, (char*)pResp, sizeof(*pResp));
+    tTrace("%s cli conn %p(sync) handle resp", pTransInst->label, pConn);
+    if (pCtx->pRsp == NULL) {
+      tTrace("%s cli conn %p(sync) failed to resp, ignore", pTransInst->label, pConn);
+    } else {
+      memcpy((char*)pCtx->pRsp, (char*)pResp, sizeof(*pResp));
+    }
     tsem_post(pCtx->pSem);
+    pCtx->pRsp = NULL;
   } else {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
     pTransInst->cfp(pTransInst->parent, pResp, pEpSet);

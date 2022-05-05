@@ -63,20 +63,20 @@ extern "C" {
 typedef struct {
   col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
   int8_t   type;    // column type
-  int8_t   sma;     // block SMA: 0, no SMA, 1, sum/min/max, 2, ...
+  int8_t   flags;   // flags: 0 no index, 1 SCHEMA_SMA_ON, 2 SCHEMA_IDX_ON
   int32_t  bytes;   // column bytes (0~16M)
   int32_t  offset;  // point offset in STpRow after the header part.
 } STColumn;
 #pragma pack(pop)
 
 #define colType(col)   ((col)->type)
-#define colSma(col)    ((col)->sma)
+#define colFlags(col)  ((col)->flags)
 #define colColId(col)  ((col)->colId)
 #define colBytes(col)  ((col)->bytes)
 #define colOffset(col) ((col)->offset)
 
 #define colSetType(col, t)   (colType(col) = (t))
-#define colSetSma(col, s)    (colSma(col) = (s))
+#define colSetFlags(col, f)  (colFlags(col) = (f))
 #define colSetColId(col, id) (colColId(col) = (id))
 #define colSetBytes(col, b)  (colBytes(col) = (b))
 #define colSetOffset(col, o) (colOffset(col) = (o))
@@ -146,7 +146,7 @@ typedef struct {
 int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t sma, col_id_t colId, col_bytes_t bytes);
+int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition
@@ -387,6 +387,8 @@ typedef struct SDataCol {
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
+
+
 #define isAllRowsNull(pCol) ((pCol)->len == 0)
 #define isAllRowsNone(pCol) ((pCol)->len == 0)
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
@@ -480,8 +482,7 @@ void       tdResetDataCols(SDataCols *pCols);
 int32_t    tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
-int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool forceSetNull,
-                        TDRowVerT maxVer);
+int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool forceSetNull, TDRowVerT maxVer);
 
 // ----------------- K-V data row structure
 /* |<-------------------------------------- len -------------------------------------------->|

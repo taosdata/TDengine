@@ -115,12 +115,12 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-TEST(tdb_test, simple_test) {
+TEST(tdb_test, simple_insert1) {
   int           ret;
   TENV         *pEnv;
   TDB          *pDb;
   tdb_cmpr_fn_t compFunc;
-  int           nData = 10000000;
+  int           nData = 1000000;
   TXN           txn;
 
   taosRemoveDir("tdb");
@@ -152,7 +152,7 @@ TEST(tdb_test, simple_test) {
     for (int iData = 1; iData <= nData; iData++) {
       sprintf(key, "key%d", iData);
       sprintf(val, "value%d", iData);
-      ret = tdbDbPut(pDb, key, strlen(key), val, strlen(val), &txn);
+      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
       GTEST_ASSERT_EQ(ret, 0);
 
       // if pool is full, commit the transaction and start a new one
@@ -202,6 +202,8 @@ TEST(tdb_test, simple_test) {
       ret = tdbDbcOpen(pDb, &pDBC, NULL);
       GTEST_ASSERT_EQ(ret, 0);
 
+      tdbDbcMoveToFirst(pDBC);
+
       for (;;) {
         ret = tdbDbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
@@ -233,7 +235,7 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-TEST(tdb_test, simple_test2) {
+TEST(tdb_test, simple_insert2) {
   int           ret;
   TENV         *pEnv;
   TDB          *pDb;
@@ -269,7 +271,7 @@ TEST(tdb_test, simple_test2) {
     for (int iData = 1; iData <= nData; iData++) {
       sprintf(key, "key%d", iData);
       sprintf(val, "value%d", iData);
-      ret = tdbDbPut(pDb, key, strlen(key), val, strlen(val), &txn);
+      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
       GTEST_ASSERT_EQ(ret, 0);
     }
 
@@ -283,13 +285,15 @@ TEST(tdb_test, simple_test2) {
       ret = tdbDbcOpen(pDb, &pDBC, NULL);
       GTEST_ASSERT_EQ(ret, 0);
 
+      tdbDbcMoveToFirst(pDBC);
+
       for (;;) {
         ret = tdbDbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
         if (ret < 0) break;
 
-        std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
-        std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
-        std::cout << std::endl;
+        // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
+        // std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
+        // std::cout << std::endl;
 
         count++;
       }
@@ -316,4 +320,164 @@ TEST(tdb_test, simple_test2) {
   // Close Env
   ret = tdbEnvClose(pEnv);
   GTEST_ASSERT_EQ(ret, 0);
+}
+
+TEST(tdb_test, simple_delete1) {
+  int       ret;
+  TDB      *pDb;
+  char      key[128];
+  char      data[128];
+  TXN       txn;
+  TENV     *pEnv;
+  SPoolMem *pPool;
+  void     *pKey = NULL;
+  void     *pData = NULL;
+  int       nKey;
+  TDBC     *pDbc;
+  int       nData;
+  int       nKV = 69;
+
+  taosRemoveDir("tdb");
+
+  pPool = openPool();
+
+  // open env
+  ret = tdbEnvOpen("tdb", 1024, 256, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open database
+  ret = tdbDbOpen("db.db", -1, -1, tKeyCmpr, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pEnv, &txn);
+
+  // loop to insert batch data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbDbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(data, pData, nData), 0);
+  }
+
+  // loop to delete some data
+  for (int iData = nKV - 1; iData > 30; iData--) {
+    sprintf(key, "key%d", iData);
+
+    ret = tdbDbDelete(pDb, key, strlen(key), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nKV; iData++) {
+    sprintf(key, "key%d", iData);
+
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    if (iData <= 30) {
+      GTEST_ASSERT_EQ(ret, 0);
+    } else {
+      GTEST_ASSERT_EQ(ret, -1);
+    }
+  }
+
+  // loop to iterate the data
+  tdbDbcOpen(pDb, &pDbc, NULL);
+
+  ret = tdbDbcMoveToFirst(pDbc);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  pKey = NULL;
+  pData = NULL;
+  for (;;) {
+    ret = tdbDbcNext(pDbc, &pKey, &nKey, &pData, &nData);
+    if (ret < 0) break;
+
+    std::cout.write((char *)pKey, nKey) /* << " " << kLen */ << " ";
+    std::cout.write((char *)pData, nData) /* << " " << vLen */;
+    std::cout << std::endl;
+  }
+
+  tdbDbcClose(pDbc);
+
+  tdbCommit(pEnv, &txn);
+
+  closePool(pPool);
+
+  tdbDbClose(pDb);
+  tdbEnvClose(pEnv);
+}
+
+TEST(tdb_test, simple_upsert1) {
+  int       ret;
+  TENV     *pEnv;
+  TDB      *pDb;
+  int       nData = 100000;
+  char      key[64];
+  char      data[64];
+  void     *pData = NULL;
+  SPoolMem *pPool;
+  TXN       txn;
+
+  taosRemoveDir("tdb");
+
+  // open env
+  ret = tdbEnvOpen("tdb", 4096, 64, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open database
+  ret = tdbDbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  pPool = openPool();
+  // insert some data
+  tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pEnv, &txn);
+
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbDbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
+  }
+
+  // upsert some data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d-u", iData);
+    ret = tdbDbUpsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  tdbCommit(pEnv, &txn);
+
+  // query the data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d-u", iData);
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
+  }
+
+  tdbDbClose(pDb);
+  tdbEnvClose(pEnv);
 }

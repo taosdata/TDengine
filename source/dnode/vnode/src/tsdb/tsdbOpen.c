@@ -15,21 +15,21 @@
 
 #include "tsdb.h"
 
-static int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir);
+static int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir, int8_t level);
 
 int tsdbOpen(SVnode *pVnode, int8_t type) {
   switch (type) {
     case TSDB_TYPE_TSDB:
-      return tsdbOpenImpl(pVnode, type, &VND_TSDB(pVnode), VNODE_TSDB_DIR);
+      return tsdbOpenImpl(pVnode, type, &VND_TSDB(pVnode), VNODE_TSDB_DIR, TSDB_RETENTION_L0);
     case TSDB_TYPE_TSMA:
       ASSERT(0);
       break;
     case TSDB_TYPE_RSMA_L0:
-      return tsdbOpenImpl(pVnode, type, &VND_RSMA0(pVnode), VNODE_TSDB_DIR);
+      return tsdbOpenImpl(pVnode, type, &VND_RSMA0(pVnode), VNODE_TSDB_DIR, TSDB_RETENTION_L0);
     case TSDB_TYPE_RSMA_L1:
-      return tsdbOpenImpl(pVnode, type, &VND_RSMA1(pVnode), VNODE_RSMA1_DIR);
+      return tsdbOpenImpl(pVnode, type, &VND_RSMA1(pVnode), VNODE_RSMA1_DIR, TSDB_RETENTION_L1);
     case TSDB_TYPE_RSMA_L2:
-      return tsdbOpenImpl(pVnode, type, &VND_RSMA2(pVnode), VNODE_RSMA2_DIR);
+      return tsdbOpenImpl(pVnode, type, &VND_RSMA2(pVnode), VNODE_RSMA2_DIR, TSDB_RETENTION_L2);
     default:
       ASSERT(0);
       break;
@@ -37,7 +37,17 @@ int tsdbOpen(SVnode *pVnode, int8_t type) {
   return 0;
 }
 
-int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir) {
+/**
+ * @brief 
+ * 
+ * @param pVnode 
+ * @param type 
+ * @param ppTsdb 
+ * @param dir 
+ * @param level retention level
+ * @return int 
+ */
+int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir, int8_t level) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -55,6 +65,7 @@ int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir) {
   sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
           dir);
   pTsdb->pVnode = pVnode;
+  pTsdb->level = level;
   pTsdb->repoLocked = false;
   taosThreadMutexInit(&pTsdb->mutex, NULL);
   pTsdb->fs = tsdbNewFS(REPO_CFG(pTsdb));
@@ -67,7 +78,7 @@ int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir) {
     goto _err;
   }
 
-  tsdbDebug("vgId: %d tsdb is opened for %s", TD_VID(pVnode), pTsdb->path);
+  tsdbDebug("vgId:%d tsdb is opened for %s", TD_VID(pVnode), pTsdb->path);
 
   *ppTsdb = pTsdb;
   return 0;
@@ -79,6 +90,7 @@ _err:
 
 int tsdbClose(STsdb *pTsdb) {
   if (pTsdb) {
+    // TODO: destroy mem/imem
     tsdbCloseFS(pTsdb);
     tsdbFreeFS(pTsdb->fs);
     taosMemoryFree(pTsdb);

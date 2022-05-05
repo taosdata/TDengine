@@ -70,7 +70,7 @@ typedef struct SDataBlockInfo {
   uint64_t    groupId;  // no need to serialize
   int16_t     numOfCols;
   int16_t     hasVarCol;
-  int16_t     capacity;
+  int32_t     capacity;
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {

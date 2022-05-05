@@ -110,8 +110,8 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
     TASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
-    SDB_SET_INT32(pRaw, dataPos, pRetension->freq, _OVER)
-    SDB_SET_INT32(pRaw, dataPos, pRetension->keep, _OVER)
+    SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _OVER)
+    SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _OVER)
   }
@@ -183,8 +183,8 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     if (pDb->cfg.pRetensions == NULL) goto _OVER;
     for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
       SRetention retension = {0};
-      SDB_GET_INT32(pRaw, dataPos, &retension.freq, _OVER)
-      SDB_GET_INT32(pRaw, dataPos, &retension.keep, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retension.freq, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retension.keep, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, _OVER)
       if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {

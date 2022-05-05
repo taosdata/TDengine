@@ -20,6 +20,7 @@
 extern "C" {
 #endif
 
+#include "osDef.h"
 #include "qworker.h"
 #include "tlockfree.h"
 #include "ttimer.h"
@@ -301,9 +302,9 @@ typedef struct SQWorkerMgmt {
 
 extern SQWorkerMgmt gQwMgmt;
 
-FORCE_INLINE SQWorker *qwAcquire(int64_t refId) { return (SQWorker *)taosAcquireRef(atomic_load_32(&gQwMgmt.qwRef), refId); }
+static FORCE_INLINE SQWorker *qwAcquire(int64_t refId) { return (SQWorker *)taosAcquireRef(atomic_load_32(&gQwMgmt.qwRef), refId); }
 
-FORCE_INLINE int32_t qwRelease(int64_t refId) { return taosReleaseRef(gQwMgmt.qwRef, refId); }
+static FORCE_INLINE int32_t qwRelease(int64_t refId) { return taosReleaseRef(gQwMgmt.qwRef, refId); }
 
 
 #ifdef __cplusplus
