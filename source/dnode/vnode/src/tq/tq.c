@@ -926,6 +926,12 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   pTask->ahandle = pTq->pVnode;
   if (pTask->sinkType == TASK_SINK__SMA) {
     pTask->smaSink.smaHandle = smaHandleRes;
+  } else if (pTask->sinkType == TASK_SINK__TABLE) {
+    ASSERT(pTask->tbSink.pSchemaWrapper);
+    ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
+    pTask->tbSink.pTSchema =
+        tdGetSTSChemaFromSSChema(&pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols);
+    ASSERT(pTask->tbSink.pTSchema);
   }
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));

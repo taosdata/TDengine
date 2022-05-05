@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
 #include "tcoding.h"
+#include "tdatablock.h"
 #include "tlog.h"
 
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
@@ -127,6 +128,50 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   tdDestroyTSchemaBuilder(&schemaBuilder);
   return buf;
 }
+
+#if 0
+int32_t tEncodeSTColumn(SCoder *pEncoder, const STColumn *pCol) {
+  if (tEncodeI16(pEncoder, pCol->colId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pCol->type) < 0) return -1;
+  if (tEncodeI8(pEncoder, pCol->sma) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCol->bytes) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCol->offset) < 0) return -1;
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSTColumn(SCoder *pDecoder, STColumn *pCol) {
+  if (tDecodeI16(pDecoder, &pCol->colId) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pCol->type) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pCol->sma) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCol->bytes) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCol->offset) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeSchema(SCoder *pEncoder, const STSchema *pSchema) {
+  if (tEncodeI32(pEncoder, pSchema->numOfCols) < 0) return -1;
+  if (tEncodeI16(pEncoder, pSchema->version) < 0) return -1;
+  if (tEncodeU16(pEncoder, pSchema->flen) < 0) return -1;
+  if (tEncodeI32(pEncoder, pSchema->vlen) < 0) return -1;
+  if (tEncodeI32(pEncoder, pSchema->tlen) < 0) return -1;
+
+  for (int32_t i = 0; i < schemaNCols(pSchema); i++) {
+    const STColumn *pCol = schemaColAt(pSchema, i);
+    if (tEncodeSTColumn(pEncoder, pCol) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tDecodeSchema(SCoder *pDecoder, STSchema *pSchema) {
+  if (tDecodeI32(pDecoder, &pSchema->numOfCols) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pSchema->version) < 0) return -1;
+  if (tDecodeU16(pDecoder, &pSchema->flen) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pSchema->vlen) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pSchema->tlen) < 0) return -1;
+
+  return 0;
+}
+#endif
 
 int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   if (pBuilder == NULL) return -1;

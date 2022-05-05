@@ -415,6 +415,7 @@ typedef struct {
 
 typedef struct {
   char    key[TSDB_PARTITION_KEY_LEN];
+  int64_t dbUid;
   int64_t offset;
 } SMqOffsetObj;
 

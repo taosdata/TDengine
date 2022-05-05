@@ -17,9 +17,12 @@
 #include "mndDb.h"
 #include "mndAuth.h"
 #include "mndDnode.h"
+#include "mndOffset.h"
 #include "mndShow.h"
 #include "mndSma.h"
 #include "mndStb.h"
+#include "mndSubscribe.h"
+#include "mndTopic.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -1027,6 +1030,9 @@ static int32_t mndDropDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb) {
 
   if (mndSetDropDbRedoLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
   if (mndSetDropDbCommitLogs(pMnode, pTrans, pDb) != 0) goto _OVER;
+  /*if (mndDropOffsetByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
+  /*if (mndDropSubByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
+  /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
 
   int32_t rspLen = 0;
@@ -1387,7 +1393,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
                            bool sysDb) {
   int32_t cols = 0;
 
-  int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
+  int32_t     bytes = pShow->pMeta->pSchemas[cols].bytes;
   char       *buf = taosMemoryMalloc(bytes);
   const char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {

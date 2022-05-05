@@ -54,8 +54,8 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
-#define colDataIsNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] == -1)
-#define colDataSetNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] = -1)
+#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)
+#define colDataSetNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] = -1)
 
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
 
@@ -63,16 +63,15 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
 
 #define colDataGetNumData(p1_, r_) ((p1_)->pData + ((r_) * (p1_)->info.bytes))
 // SColumnInfoData, rowNumber
-#define colDataGetData(p1_, r_)                                        \
-  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ?  colDataGetVarData(p1_, r_)  \
-                                        :  colDataGetNumData(p1_, r_))
+#define colDataGetData(p1_, r_) \
+  ((IS_VAR_DATA_TYPE((p1_)->info.type)) ? colDataGetVarData(p1_, r_) : colDataGetNumData(p1_, r_))
 
 static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData, uint32_t row) {
-  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON){
-    if(colDataIsNull_var(pColumnInfoData, row)){
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_JSON) {
+    if (colDataIsNull_var(pColumnInfoData, row)) {
       return true;
     }
-    char *data = colDataGetVarData(pColumnInfoData, row);
+    char* data = colDataGetVarData(pColumnInfoData, row);
     return (*data == TSDB_DATA_TYPE_NULL);
   }
 
@@ -80,7 +79,7 @@ static FORCE_INLINE bool colDataIsNull_s(const SColumnInfoData* pColumnInfoData,
     return false;
   }
 
-  if (pColumnInfoData->info.type== TSDB_DATA_TYPE_VARCHAR || pColumnInfoData->info.type == TSDB_DATA_TYPE_NCHAR) {
+  if (pColumnInfoData->info.type == TSDB_DATA_TYPE_VARCHAR || pColumnInfoData->info.type == TSDB_DATA_TYPE_NCHAR) {
     return colDataIsNull_var(pColumnInfoData, row);
   } else {
     if (pColumnInfoData->nullbitmap == NULL) {
@@ -132,7 +131,7 @@ static FORCE_INLINE void colDataAppendNULL(SColumnInfoData* pColumnInfoData, uin
 static FORCE_INLINE void colDataAppendNNULL(SColumnInfoData* pColumnInfoData, uint32_t start, size_t nRows) {
   if (IS_VAR_DATA_TYPE(pColumnInfoData->info.type)) {
     for (int32_t i = start; i < start + nRows; ++i) {
-      colDataSetNull_var(pColumnInfoData,i);  // it is a null value of VAR type.
+      colDataSetNull_var(pColumnInfoData, i);  // it is a null value of VAR type.
     }
   } else {
     for (int32_t i = start; i < start + nRows; ++i) {
@@ -225,6 +224,8 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 
 void blockDebugShowData(const SArray* dataBlocks);
 
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema);
+
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(pBlock) + blockDataGetSize(pBlock);
 }
@@ -238,10 +239,10 @@ static FORCE_INLINE int32_t blockCompressColData(SColumnInfoData* pColRes, int32
 
 static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* data, int32_t* dataLen, int32_t numOfCols,
                                              int8_t needCompress) {
-  int32_t* actualLen = (int32_t*) data;
+  int32_t* actualLen = (int32_t*)data;
   data += sizeof(int32_t);
 
-  uint64_t* groupId = (uint64_t*) data;
+  uint64_t* groupId = (uint64_t*)data;
   data += sizeof(uint64_t);
 
   int32_t* colSizes = (int32_t*)data;
