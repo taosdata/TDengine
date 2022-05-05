@@ -24,7 +24,8 @@ const uint8_t tdVTypeByte[2][3] = {{
                                    },
                                    {
                                        // 1 bit
-                                       TD_VTYPE_NORM_BYTE_I, TD_VTYPE_NULL_BYTE_I,
+                                       TD_VTYPE_NORM_BYTE_I,  // normal
+                                       TD_VTYPE_NULL_BYTE_I,
                                        TD_VTYPE_NULL_BYTE_I,  // padding
                                    }
 
@@ -343,7 +344,7 @@ bool tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode
     if (*((uint8_t *)pBitmap) != vTypeByte) {
       return false;
     }
-    pBitmap = POINTER_SHIFT(pBitmap, 1);
+    pBitmap = POINTER_SHIFT(pBitmap, i);
   }
 
   int32_t nLeft = numOfBits - nBytes * (bitmapMode == 0 ? TD_VTYPE_BITS : TD_VTYPE_BITS_I);

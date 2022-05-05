@@ -246,6 +246,12 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
   return 0;
 }
 
+static FORCE_INLINE void tsdbSwapDataCols(SDataCols *pDest, SDataCols *pSrc) {
+  SDataCol *pCols = pDest->cols;
+  memcpy(pDest, pSrc, sizeof(SDataCols));
+  pSrc->cols = pCols;
+}
+
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   ASSERT(pBlock->numOfSubBlocks > 0);
   STsdbCfg *pCfg = REPO_CFG(pReadh->pRepo);
@@ -277,7 +283,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
                         TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
       return -1;
     }
-    memcpy(pReadh->pDCols[0], pReadh->pDCols[1], sizeof(SDataCols));
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
     ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
   }
 
@@ -319,9 +325,10 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
                         TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
       return -1;
     }
-    memcpy(pReadh->pDCols[0], pReadh->pDCols[1], sizeof(SDataCols));
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
     ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
   }
+
 
   if (mergeBitmap && !tdDataColsIsBitmapI(pReadh->pDCols[0])) {
     for (int i = 0; i < numOfColsIds; ++i) {
