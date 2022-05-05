@@ -498,14 +498,9 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
         ASSERT(blkKeyInfo.pKeyTuple != NULL && pBlocks->numOfRows > 0);
       }
 
-      int32_t len = pBlocks->numOfRows *
-                        (isRawPayload ? (pOneTableBlock->rowSize + expandSize) : getExtendedRowSize(pOneTableBlock)) +
-                    sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta);
-
       // erase the empty space reserved for binary data
       int32_t finalLen =
           trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, blkKeyInfo.pKeyTuple, isRawPayload);
-      assert(finalLen <= len);
 
       dataBuf->size += (finalLen + sizeof(SSubmitBlk));
       assert(dataBuf->size <= dataBuf->nAllocSize);
