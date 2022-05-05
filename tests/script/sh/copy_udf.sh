@@ -3,7 +3,7 @@
 set +e
 #set -x
 
-echo "Executing gen_udf.sh"
+echo "Executing copy_udf.sh"
 
 SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../

@@ -21,6 +21,9 @@ sql insert into t values(now, 1)(now+1s, 2);
 sql create function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8;
 sql create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8;
 sql show functions;
+if $rows != 2 then
+  return -1
+endi
 sql select udf1(f) from t;
 if $rows != 2 then
   return -1
