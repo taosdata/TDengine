@@ -446,23 +446,24 @@ int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int
       dataColSetNEleNone(pCol, numOfRows, bitmapMode);
     }
   }
-  if (!tdValTypeIsNorm(valType)) {
+  const void *value = val;
+  if (!tdValTypeIsNorm(valType) || !val) {
     // TODO:
     // 1. back compatibility and easy to debug with codes of 2.0 to save NULL values.
     // 2. later on, considering further optimization, don't save Null/None for VarType.
-    val = getNullValue(pCol->type);
+    value = getNullValue(pCol->type);
   }
   if (!isMerge) {
     if (IS_VAR_DATA_TYPE(pCol->type)) {
       // set offset
       pCol->dataOff[numOfRows] = pCol->len;
       // Copy data
-      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), val, varDataTLen(val));
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
       // Update the length
-      pCol->len += varDataTLen(val);
+      pCol->len += varDataTLen(value);
     } else {
       ASSERT(pCol->len == TYPE_BYTES[pCol->type] * numOfRows);
-      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), val, pCol->bytes);
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
       pCol->len += pCol->bytes;
     }
   } else {
@@ -472,12 +473,12 @@ int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int
       int32_t lastVarLen = varDataTLen(POINTER_SHIFT(pCol->pData, pCol->dataOff[numOfRows]));
       pCol->len -= lastVarLen;
       // Copy data
-      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), val, varDataTLen(val));
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, varDataTLen(value));
       // Update the length
-      pCol->len += varDataTLen(val);
+      pCol->len += varDataTLen(value);
     } else {
       ASSERT(pCol->len - TYPE_BYTES[pCol->type] == TYPE_BYTES[pCol->type] * numOfRows);
-      memcpy(POINTER_SHIFT(pCol->pData, pCol->len - TYPE_BYTES[pCol->type]), val, pCol->bytes);
+      memcpy(POINTER_SHIFT(pCol->pData, pCol->len - TYPE_BYTES[pCol->type]), value, pCol->bytes);
     }
   }
 
@@ -653,6 +654,9 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
             }
 
             lastKey = *(TSKEY *)sVal.val;
+          }
+          if (i == 0) {
+            (target->cols + j)->bitmap = (source->cols + j)->bitmap;
           }
 
           tdAppendValToDataCol(target->cols + j, sVal.valType, sVal.val, target->numOfRows, target->maxPoints,
