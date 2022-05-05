@@ -54,6 +54,11 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
+#define colDataSetNotNull_f(bm_, r_)                  \
+  do {                                                \
+    BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_)));  \
+  } while (0)
+
 #define colDataIsNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] == -1)
 #define colDataSetNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] = -1)
 
