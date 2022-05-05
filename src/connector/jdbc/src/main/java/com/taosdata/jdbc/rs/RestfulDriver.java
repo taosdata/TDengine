@@ -52,6 +52,7 @@ public class RestfulDriver extends AbstractDriver {
 
         String user;
         String password;
+        String cloudToken = null;
         try {
             if (!props.containsKey(TSDBDriver.PROPERTY_KEY_USER))
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED);
@@ -63,6 +64,10 @@ public class RestfulDriver extends AbstractDriver {
         } catch (UnsupportedEncodingException e) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "unsupported UTF-8 concoding, user: " + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + ", password: " + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
         }
+        if (props.containsKey(TSDBDriver.PROPERTY_KEY_TOKEN)) {
+            cloudToken = props.getProperty(TSDBDriver.PROPERTY_KEY_TOKEN);
+        }
+
         String loginUrl;
         String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
         if (Boolean.parseBoolean(batchLoad)) {
@@ -102,6 +107,9 @@ public class RestfulDriver extends AbstractDriver {
             return new WSConnection(url, props, transport, database);
         }
         loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
+        if (null != cloudToken) {
+            loginUrl += "?token=" + cloudToken;
+        }
         int poolSize = Integer.parseInt(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));
         boolean keepAlive = Boolean.parseBoolean(props.getProperty("httpKeepAlive", HttpClientPoolUtil.DEFAULT_HTTP_KEEP_ALIVE));
 
