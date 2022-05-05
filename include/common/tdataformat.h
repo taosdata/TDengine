@@ -61,22 +61,22 @@ extern "C" {
 // ----------------- TSDB COLUMN DEFINITION
 #pragma pack(push, 1)
 typedef struct {
-  col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
-  int32_t  type : 8;     // column type
-  int32_t  bytes : 24;   // column bytes (0~16M)
-  int32_t  sma : 8;      // block SMA: 0, no SMA, 1, sum/min/max, 2, ...
-  int32_t  offset : 24;  // point offset in STpRow after the header part.
+  col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
+  int8_t   type;    // column type
+  int8_t   flags;   // flags: 0 no index, 1 SCHEMA_SMA_ON, 2 SCHEMA_IDX_ON
+  int32_t  bytes;   // column bytes (0~16M)
+  int32_t  offset;  // point offset in STpRow after the header part.
 } STColumn;
 #pragma pack(pop)
 
 #define colType(col)   ((col)->type)
-#define colSma(col)    ((col)->sma)
+#define colFlags(col)  ((col)->flags)
 #define colColId(col)  ((col)->colId)
 #define colBytes(col)  ((col)->bytes)
 #define colOffset(col) ((col)->offset)
 
 #define colSetType(col, t)   (colType(col) = (t))
-#define colSetSma(col, s)    (colSma(col) = (s))
+#define colSetFlags(col, f)  (colFlags(col) = (f))
 #define colSetColId(col, id) (colColId(col) = (id))
 #define colSetBytes(col, b)  (colBytes(col) = (b))
 #define colSetOffset(col, o) (colOffset(col) = (o))
@@ -146,7 +146,7 @@ typedef struct {
 int32_t   tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
 void      tdDestroyTSchemaBuilder(STSchemaBuilder *pBuilder);
 void      tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version);
-int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t sma, col_id_t colId, col_bytes_t bytes);
+int32_t   tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes);
 STSchema *tdGetSchemaFromBuilder(STSchemaBuilder *pBuilder);
 
 // ----------------- Semantic timestamp key definition

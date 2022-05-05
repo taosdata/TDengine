@@ -23,4 +23,6 @@ TEST_F(PlanSuperTableTest, tbname) {
   useDb("root", "test");
 
   run("select tbname from st1");
+
+  run("select tbname, tag1, tag2 from st1");
 }

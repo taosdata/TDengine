@@ -17,6 +17,7 @@
 #include "queryInt.h"
 #include "query.h"
 #include "trpc.h"
+#include "systable.h"
 
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wformat-truncation"

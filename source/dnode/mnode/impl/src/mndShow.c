@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
+#include "systable.h"
 
 #define SHOW_STEP_SIZE 100
 
@@ -82,19 +83,19 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_GRANTS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VGROUPS, len) == 0) {
     type = TSDB_MGMT_TABLE_VGROUP;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_CONSUMERS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_CONSUMERS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONSUMERS;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_SUBSCRIBES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_SUBSCRIBES, len) == 0) {
     type = TSDB_MGMT_TABLE_SUBSCRIBES;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_TRANS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_TRANS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANS;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_SMAS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_SMAS, len) == 0) {
     type = TSDB_MGMT_TABLE_SMAS;
   } else if (strncasecmp(name, TSDB_INS_TABLE_CONFIGS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONFIGS;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_CONNS, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_CONNECTIONS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONNS;
-  } else if (strncasecmp(name, TSDB_INS_TABLE_QUERIES, len) == 0) {
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_QUERIES, len) == 0) {
     type = TSDB_MGMT_TABLE_QUERIES;
   } else if (strncasecmp(name, TSDB_INS_TABLE_VNODES, len) == 0) {
     type = TSDB_MGMT_TABLE_VNODES;
@@ -208,16 +209,6 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
 
     pShow->pMeta = pMeta;
     pShow->numOfColumns = pShow->pMeta->numOfColumns;
-    int32_t offset = 0;
-
-    for (int32_t i = 0; i < pShow->pMeta->numOfColumns; ++i) {
-      pShow->offset[i] = offset;
-
-      int32_t bytes = pShow->pMeta->pSchemas[i].bytes;
-      pShow->rowSize += bytes;
-      pShow->bytes[i] = bytes;
-      offset += bytes;
-    }
   } else {
     pShow = mndAcquireShowObj(pMnode, retrieveReq.showId);
     if (pShow == NULL) {

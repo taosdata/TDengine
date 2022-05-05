@@ -24,7 +24,7 @@ static void msg_process(TAOS_RES* msg) {
   char buf[1024];
   memset(buf, 0, 1024);
   printf("topic: %s\n", tmq_get_topic_name(msg));
-  printf("vg:%d\n", tmq_get_vgroup_id(msg));
+  printf("vg: %d\n", tmq_get_vgroup_id(msg));
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
     if (row == NULL) break;
@@ -140,8 +140,8 @@ int32_t create_topic() {
   return 0;
 }
 
-void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets) {
-  printf("commit %d\n", resp);
+void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
+  printf("commit %d tmq %p offsets %p param %p\n", resp, tmq, offsets, param);
 }
 
 tmq_t* build_consumer() {
@@ -161,7 +161,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.user", "root");
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
-  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
+  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
   return tmq;
@@ -215,12 +215,24 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     return;
   }
 
+  tmq_list_t* subList = NULL;
+  tmq_subscription(tmq, &subList);
+  char**  subTopics = tmq_list_to_c_array(subList);
+  int32_t sz = tmq_list_get_size(subList);
+  printf("subscribed topics: ");
+  for (int32_t i = 0; i < sz; i++) {
+    printf("%s, ", subTopics[i]);
+  }
+  printf("\n");
+  tmq_list_destroy(subList);
+
   while (running) {
     TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
 
+      tmq_commit(tmq, NULL, 1);
       /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }

@@ -55,12 +55,12 @@ static inline int tsdbSmaKeyCmpr(const void *arg1, int len1, const void *arg2, i
 }
 
 static int32_t tsdbOpenDBDb(TDB **ppDB, TENV *pEnv, const char *pFName) {
-  int            ret;
-  FKeyComparator compFunc;
+  int           ret;
+  tdb_cmpr_fn_t compFunc;
 
   // Create a database
   compFunc = tsdbSmaKeyCmpr;
-  ret = tdbDbOpen(pFName, TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, ppDB);
+  ret = tdbDbOpen(pFName, -1, -1, compFunc, pEnv, ppDB);
 
   return 0;
 }

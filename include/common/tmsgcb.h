@@ -42,6 +42,7 @@ typedef int32_t (*GetQueueSizeFp)(SMgmtWrapper* pWrapper, int32_t vgId, EQueueTy
 typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, const SEpSet* epSet, SRpcMsg* pReq);
 typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp);
+typedef void (*SendRedirectRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp, const SEpSet* pNewEpSet);
 typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg* pMsg);
 typedef void (*ReleaseHandleFp)(SMgmtWrapper* pWrapper, void* handle, int8_t type);
 typedef void (*ReportStartup)(SMgmtWrapper* pWrapper, const char* name, const char* desc);
@@ -52,6 +53,7 @@ typedef struct {
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;
   SendRspFp               sendRspFp;
+  SendRedirectRspFp       sendRedirectRspFp;
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;
   ReportStartup           reportStartupFp;
@@ -62,6 +64,7 @@ int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq);
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype);
 int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq);
 void    tmsgSendRsp(const SRpcMsg* pRsp);
+void    tmsgSendRedirectRsp(const SRpcMsg* pRsp, const SEpSet* pNewEpSet);
 void    tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg);
 void    tmsgReleaseHandle(void* handle, int8_t type);
 void    tmsgReportStartup(const char* name, const char* desc);

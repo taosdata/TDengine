@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tdataformat.h"
 #include "tcoding.h"
+#include "tdatablock.h"
 #include "tlog.h"
 
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
@@ -87,7 +88,7 @@ int tdEncodeSchema(void **buf, STSchema *pSchema) {
   for (int i = 0; i < schemaNCols(pSchema); i++) {
     STColumn *pCol = schemaColAt(pSchema, i);
     tlen += taosEncodeFixedI8(buf, colType(pCol));
-    tlen += taosEncodeFixedI8(buf, colSma(pCol));
+    tlen += taosEncodeFixedI8(buf, colFlags(pCol));
     tlen += taosEncodeFixedI16(buf, colColId(pCol));
     tlen += taosEncodeFixedI16(buf, colBytes(pCol));
   }
@@ -110,14 +111,14 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
 
   for (int i = 0; i < numOfCols; i++) {
     col_type_t  type = 0;
-    int8_t      sma = 0;
+    int8_t      flags = 0;
     col_id_t    colId = 0;
     col_bytes_t bytes = 0;
     buf = taosDecodeFixedI8(buf, &type);
-    buf = taosDecodeFixedI8(buf, &sma);
+    buf = taosDecodeFixedI8(buf, &flags);
     buf = taosDecodeFixedI16(buf, &colId);
     buf = taosDecodeFixedI32(buf, &bytes);
-    if (tdAddColToSchema(&schemaBuilder, type, sma, colId, bytes) < 0) {
+    if (tdAddColToSchema(&schemaBuilder, type, flags, colId, bytes) < 0) {
       tdDestroyTSchemaBuilder(&schemaBuilder);
       return NULL;
     }
@@ -127,6 +128,50 @@ void *tdDecodeSchema(void *buf, STSchema **pRSchema) {
   tdDestroyTSchemaBuilder(&schemaBuilder);
   return buf;
 }
+
+#if 0
+int32_t tEncodeSTColumn(SCoder *pEncoder, const STColumn *pCol) {
+  if (tEncodeI16(pEncoder, pCol->colId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pCol->type) < 0) return -1;
+  if (tEncodeI8(pEncoder, pCol->sma) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCol->bytes) < 0) return -1;
+  if (tEncodeI32(pEncoder, pCol->offset) < 0) return -1;
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSTColumn(SCoder *pDecoder, STColumn *pCol) {
+  if (tDecodeI16(pDecoder, &pCol->colId) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pCol->type) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pCol->sma) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCol->bytes) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pCol->offset) < 0) return -1;
+  return 0;
+}
+
+int32_t tEncodeSchema(SCoder *pEncoder, const STSchema *pSchema) {
+  if (tEncodeI32(pEncoder, pSchema->numOfCols) < 0) return -1;
+  if (tEncodeI16(pEncoder, pSchema->version) < 0) return -1;
+  if (tEncodeU16(pEncoder, pSchema->flen) < 0) return -1;
+  if (tEncodeI32(pEncoder, pSchema->vlen) < 0) return -1;
+  if (tEncodeI32(pEncoder, pSchema->tlen) < 0) return -1;
+
+  for (int32_t i = 0; i < schemaNCols(pSchema); i++) {
+    const STColumn *pCol = schemaColAt(pSchema, i);
+    if (tEncodeSTColumn(pEncoder, pCol) < 0) return -1;
+  }
+  return 0;
+}
+
+int32_t tDecodeSchema(SCoder *pDecoder, STSchema *pSchema) {
+  if (tDecodeI32(pDecoder, &pSchema->numOfCols) < 0) return -1;
+  if (tDecodeI16(pDecoder, &pSchema->version) < 0) return -1;
+  if (tDecodeU16(pDecoder, &pSchema->flen) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pSchema->vlen) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pSchema->tlen) < 0) return -1;
+
+  return 0;
+}
+#endif
 
 int tdInitTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   if (pBuilder == NULL) return -1;
@@ -153,7 +198,7 @@ void tdResetTSchemaBuilder(STSchemaBuilder *pBuilder, schema_ver_t version) {
   pBuilder->version = version;
 }
 
-int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t sma, col_id_t colId, col_bytes_t bytes) {
+int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t flags, col_id_t colId, col_bytes_t bytes) {
   if (!isValidDataType(type)) return -1;
 
   if (pBuilder->nCols >= pBuilder->tCols) {
@@ -166,7 +211,7 @@ int32_t tdAddColToSchema(STSchemaBuilder *pBuilder, int8_t type, int8_t sma, col
   STColumn *pCol = &(pBuilder->columns[pBuilder->nCols]);
   colSetType(pCol, type);
   colSetColId(pCol, colId);
-  colSetSma(pCol, sma);
+  colSetFlags(pCol, flags);
   if (pBuilder->nCols == 0) {
     colSetOffset(pCol, 0);
   } else {

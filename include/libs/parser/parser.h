@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "querynodes.h"
 #include "query.h"
+#include "querynodes.h"
 
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
@@ -34,24 +34,26 @@ typedef struct SStmtCallback {
 typedef struct SParseContext {
   uint64_t         requestId;
   int32_t          acctId;
-  const char      *db;
+  const char*      db;
   bool             topicQuery;
-  void            *pTransporter;
+  void*            pTransporter;
   SEpSet           mgmtEpSet;
-  const char      *pSql;           // sql string
-  size_t           sqlLen;         // length of the sql string
-  char            *pMsg;           // extended error message if exists to help identifying the problem in sql statement.
-  int32_t          msgLen;         // max length of the msg
-  struct SCatalog *pCatalog;
-  SStmtCallback   *pStmtCb;
+  const char*      pSql;    // sql string
+  size_t           sqlLen;  // length of the sql string
+  char*            pMsg;    // extended error message if exists to help identifying the problem in sql statement.
+  int32_t          msgLen;  // max length of the msg
+  struct SCatalog* pCatalog;
+  SStmtCallback*   pStmtCb;
+  const char*      pUser;
+  bool             isSuperUser;
 } SParseContext;
 
 typedef struct SCmdMsgInfo {
   int16_t msgType;
-  SEpSet epSet;
-  void* pMsg;
+  SEpSet  epSet;
+  void*   pMsg;
   int32_t msgLen;
-  void* pExtension;  // todo remove it soon
+  void*   pExtension;  // todo remove it soon
 } SCmdMsgInfo;
 
 typedef enum EQueryExecMode {
@@ -63,21 +65,21 @@ typedef enum EQueryExecMode {
 
 typedef struct SQuery {
   EQueryExecMode execMode;
-  bool haveResultSet;
-  SNode* pRoot;
-  int32_t numOfResCols;
-  SSchema* pResSchema;
-  int8_t   precision;
-  SCmdMsgInfo* pCmdMsg;
-  int32_t msgType;
-  SArray* pDbList;
-  SArray* pTableList;
-  bool showRewrite;
-  int32_t placeholderNum;
+  bool           haveResultSet;
+  SNode*         pRoot;
+  int32_t        numOfResCols;
+  SSchema*       pResSchema;
+  int8_t         precision;
+  SCmdMsgInfo*   pCmdMsg;
+  int32_t        msgType;
+  SArray*        pDbList;
+  SArray*        pTableList;
+  bool           showRewrite;
+  int32_t        placeholderNum;
 } SQuery;
 
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);
-bool isInsertSql(const char* pStr, size_t length);
+bool    isInsertSql(const char* pStr, size_t length);
 
 void qDestroyQuery(SQuery* pQueryNode);
 
@@ -89,14 +91,16 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc);
 void    qFreeStmtDataBlock(void* pDataBlock);
 int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc);
 void    qDestroyStmtDataBlock(void* pBlock);
-int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen);
-int32_t qBindStmtSingleColValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen, int32_t colIdx, int32_t rowNum);
-int32_t qBuildStmtColFields(void *pDataBlock, int32_t *fieldNum, TAOS_FIELD** fields);
-int32_t qBuildStmtTagFields(void *pBlock, void *boundTags, int32_t *fieldNum, TAOS_FIELD** fields);
-int32_t qBindStmtTagsValue(void *pBlock, void *boundTags, int64_t suid, SName *pName, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen);
-void destroyBoundColumnInfo(void* pBoundInfo);
-int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char *msgBuf, int32_t msgBufLen);
-
+int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
+int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, int32_t colIdx,
+                                int32_t rowNum);
+int32_t qBuildStmtColFields(void* pDataBlock, int32_t* fieldNum, TAOS_FIELD** fields);
+int32_t qBuildStmtTagFields(void* pBlock, void* boundTags, int32_t* fieldNum, TAOS_FIELD** fields);
+int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, SName* pName, TAOS_MULTI_BIND* bind,
+                           char* msgBuf, int32_t msgBufLen);
+void    destroyBoundColumnInfo(void* pBoundInfo);
+int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
+                     int32_t msgBufLen);
 
 #ifdef __cplusplus
 }

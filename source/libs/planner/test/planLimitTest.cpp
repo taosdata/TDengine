@@ -13,25 +13,29 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#if 0
-#include "tsdb.h"
-#ifndef _TSDB_PLUGINS
+#include "planTestUtil.h"
+#include "planner.h"
 
-int tsdbScanFGroup(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }
+using namespace std;
 
-STsdbScanHandle* tsdbNewScanHandle() { return NULL; }
+class PlanLimitTest : public PlannerTestBase {};
 
-void tsdbSetScanLogStream(STsdbScanHandle* pScanHandle, FILE* fLogStream) {}
+TEST_F(PlanLimitTest, limit) {
+  useDb("root", "test");
 
-int tsdbSetAndOpenScanFile(STsdbScanHandle* pScanHandle, char* rootDir, int fid) { return 0; }
+  run("select * from t1 limit 2");
 
-int tsdbScanSBlockIdx(STsdbScanHandle* pScanHandle) { return 0; }
+  run("select * from t1 limit 5 offset 2");
 
-int tsdbScanSBlock(STsdbScanHandle* pScanHandle, int idx) { return 0; }
+  run("select * from t1 limit 2, 5");
+}
 
-int tsdbCloseScanFile(STsdbScanHandle* pScanHandle) { return 0; }
+TEST_F(PlanLimitTest, slimit) {
+  useDb("root", "test");
 
-void tsdbFreeScanHandle(STsdbScanHandle* pScanHandle) {}
+  run("select * from t1 partition by c1 slimit 2");
 
-#endif
-#endif
+  run("select * from t1 partition by c1 slimit 5 soffset 2");
+
+  run("select * from t1 partition by c1 slimit 2, 5");
+}

@@ -27,7 +27,13 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "rsma",  // TSDB_FILE_RSMA
 };
 
-static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname);
+const char *TSDB_LEVEL_DNAME[] = {
+    "tsdb",
+    "rsma1",
+    "rsma2",
+};
+
+static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* dname, char *fname);
 // static int   tsdbRollBackMFile(SMFile *pMFile);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
@@ -45,7 +51,7 @@ void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t 
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
   pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
-  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, fname);
+  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, TSDB_LEVEL_DNAME[pRepo->level], fname);
   tfsInitFile(REPO_TFS(pRepo), &(pDFile->f), did, fname);
 }
 
@@ -431,14 +437,15 @@ int tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype
   return 0;
 }
 
-static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, char *fname) {
+static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *dname, char *fname) {
   ASSERT(ftype != TSDB_FILE_MAX);
 
   if (ftype < TSDB_FILE_MAX) {
     if (ver == 0) {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s", vid, vid, fid, TSDB_FNAME_SUFFIX[ftype]);
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/data/v%df%d.%s", vid, dname, vid, fid,
+               TSDB_FNAME_SUFFIX[ftype]);
     } else {
-      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/data/v%df%d.%s-ver%" PRIu32, vid, vid, fid,
+      snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/%s/data/v%df%d.%s-ver%" PRIu32, vid, dname, vid, fid,
                TSDB_FNAME_SUFFIX[ftype], ver);
     }
   } else {

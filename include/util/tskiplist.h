@@ -52,72 +52,21 @@ typedef struct SSkipListNode {
 #define SL_NODE_GET_FORWARD_POINTER(n, l)  (n)->forwards[(l)]
 #define SL_NODE_GET_BACKWARD_POINTER(n, l) (n)->forwards[(n)->level + (l)]
 
-/*
- * @version 0.3
- * @date   2017/11/12
- * the simple version of skip list.
- *
- * for multi-thread safe purpose, we employ TdThreadRwlock to guarantee to generate
- * deterministic result. Later, we will remove the lock in SkipList to further enhance the performance.
- * In this case, one should use the concurrent skip list (by using michael-scott algorithm) instead of
- * this simple version in a multi-thread environment, to achieve higher performance of read/write operations.
- *
- * Note: Duplicated primary key situation.
- * In case of duplicated primary key, two ways can be employed to handle this situation:
- * 1. add as normal insertion without special process.
- * 2. add an overflow pointer at each list node, all nodes with the same key will be added in the overflow pointer.
- *    In this case, the total steps of each search will be reduced significantly.
- *    Currently, we implement the skip list in a line with the first means, maybe refactor it soon.
- *
- *    Memory consumption: the memory alignment causes many memory wasted. So, employ a memory
- *    pool will significantly reduce the total memory consumption, as well as the calloc/malloc operation costs.
- *
- */
-
-// state struct, record following information:
-// number of links in each level.
-// avg search steps, for latest 1000 queries
-// avg search rsp time, for latest 1000 queries
-// total memory size
-typedef struct tSkipListState {
-  // in bytes, sizeof(SSkipList)+sizeof(SSkipListNode)*SSkipList->nSize
-  uint64_t nTotalMemSize;
-  uint64_t nLevelNodeCnt[MAX_SKIP_LIST_LEVEL];
-  uint64_t queryCount;  // total query count
-
-  /*
-   * only record latest 1000 queries
-   * when the value==1000, = 0,
-   * nTotalStepsForQueries = 0,
-   * nTotalElapsedTimeForQueries = 0
-   */
-  uint64_t nRecQueries;
-  uint16_t nTotalStepsForQueries;
-  uint64_t nTotalElapsedTimeForQueries;
-
-  uint16_t nInsertObjs;
-  uint16_t nTotalStepsForInsert;
-  uint64_t nTotalElapsedTimeForInsert;
-} tSkipListState;
-
 typedef enum { SSkipListPutSuccess = 0, SSkipListPutEarlyStop = 1, SSkipListPutSkipOne = 2 } SSkipListPutStatus;
 
 typedef struct SSkipList {
-  uint32_t          seed;
-  __compar_fn_t     comparFn;
-  __sl_key_fn_t     keyFn;
-  TdThreadRwlock *lock;
-  uint16_t          len;
-  uint8_t           maxLevel;
-  uint8_t           flags;
-  uint8_t           type;  // static info above
-  uint8_t           level;
-  uint32_t          size;
-  SSkipListNode    *pHead;  // point to the first element
-  SSkipListNode    *pTail;  // point to the last element
-#if SKIP_LIST_RECORD_PERFORMANCE
-  tSkipListState state;  // skiplist state
-#endif
+  uint32_t           seed;
+  __compar_fn_t      comparFn;
+  __sl_key_fn_t      keyFn;
+  TdThreadRwlock    *lock;
+  uint16_t           len;
+  uint8_t            maxLevel;
+  uint8_t            flags;
+  uint8_t            type;  // static info above
+  uint8_t            level;
+  uint32_t           size;
+  SSkipListNode     *pHead;  // point to the first element
+  SSkipListNode     *pTail;  // point to the last element
   tGenericSavedFunc *insertHandleFn;
 } SSkipList;
 
