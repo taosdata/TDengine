@@ -2576,6 +2576,28 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
   taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp);
 }
 
+#define TD_AUTO_CREATE_TABLE 0x1
+typedef struct {
+  int64_t       suid;
+  int64_t       uid;
+  int32_t       sver;
+  uint64_t      nData;
+  const void*   pData;
+  SVCreateTbReq cTbReq;
+} SVSubmitBlk;
+
+typedef struct {
+  int32_t flags;
+  int32_t nBlocks;
+  union {
+    SArray*      pArray;
+    SVSubmitBlk* pBlocks;
+  };
+} SVSubmitReq;
+
+int32_t tEncodeSVSubmitReq(SCoder* pCoder, const SVSubmitReq* pReq);
+int32_t tDecodeSVSubmitReq(SCoder* pCoder, SVSubmitReq* pReq);
+
 #pragma pack(pop)
 
 #ifdef __cplusplus
