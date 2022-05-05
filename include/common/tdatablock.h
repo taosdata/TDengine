@@ -54,7 +54,6 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
     BMCharPos(bm_, r_) |= (1u << (7u - BitPos(r_))); \
   } while (0)
 
-<<<<<<< HEAD
 #define colDataSetNotNull_f(bm_, r_)                  \
   do {                                                \
     BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_)));  \
