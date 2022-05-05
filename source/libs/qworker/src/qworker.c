@@ -945,7 +945,8 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
 
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
-    QW_TASK_ELOG("task string to subplan failed, code:%x - %s", code, tstrerror(code));
+    code = TSDB_CODE_INVALID_MSG;
+    QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
   }
 

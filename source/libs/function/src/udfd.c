@@ -124,7 +124,7 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     char *finishSuffix = "_finish";
     strncpy(finishFuncName, processFuncName, strlen(processFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
-    uv_dlsym(&udf->lib, startFuncName, (void **)(&udf->aggFinishFunc));
+    uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
     //TODO: merge
   }
   return 0;

@@ -213,6 +213,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SExchangeLogicNode));
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return makeNode(type, sizeof(SWindowLogicNode));
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      return makeNode(type, sizeof(SFillLogicNode));
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return makeNode(type, sizeof(SSortLogicNode));
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
@@ -243,6 +245,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_FILL:
+      return makeNode(type, sizeof(SFillPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       return makeNode(type, sizeof(SSessionWinodwPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
@@ -373,9 +377,12 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_NODE_LIST:
       nodesDestroyList(((SNodeListNode*)pNode)->pNodeList);
       break;
-    case QUERY_NODE_FILL:
-      nodesDestroyNode(((SFillNode*)pNode)->pValues);
+    case QUERY_NODE_FILL: {
+      SFillNode* pFill = (SFillNode*)pNode;
+      nodesDestroyNode(pFill->pValues);
+      nodesDestroyNode(pFill->pWStartTs);
       break;
+    }
     case QUERY_NODE_RAW_EXPR:
       nodesDestroyNode(((SRawExprNode*)pNode)->pNode);
       break;
@@ -554,7 +561,6 @@ void nodesDestroyNode(SNodeptr pNode) {
       SWindowLogicNode* pLogicNode = (SWindowLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
-      nodesDestroyNode(pLogicNode->pFill);
       nodesDestroyNode(pLogicNode->pTspk);
       break;
     }
@@ -630,12 +636,9 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyNode(pPhyNode->pSortKeys);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL: {
-      SIntervalPhysiNode* pPhyNode = (SIntervalPhysiNode*)pNode;
-      destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
-      nodesDestroyNode(pPhyNode->pFill);
+    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+      destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
-    }
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
@@ -894,7 +897,7 @@ void* nodesGetValueFromNode(SValueNode* pNode) {
   return NULL;
 }
 
-int32_t nodesSetValueNodeValue(SValueNode* pNode, void *value) {
+int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
       pNode->datum.b = *(bool*)value;
@@ -1149,30 +1152,31 @@ static EDealRes collectColumns(SNode* pNode, void* pContext) {
 int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
                             SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectColumnsCxt cxt = {
       .errCode = TSDB_CODE_SUCCESS,
       .pTableAlias = pTableAlias,
       .collectType = type,
-      .pCols = nodesMakeList(),
+      .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
       .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
+  *pCols = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pCols);
     return cxt.errCode;
   }
-  if (0 == LIST_LENGTH(cxt.pCols)) {
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
     nodesDestroyList(cxt.pCols);
-    cxt.pCols = NULL;
   }
-  *pCols = cxt.pCols;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1191,9 +1195,9 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs) {
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifier classifier, SNodeList** pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectFuncsCxt cxt = {
@@ -1202,7 +1206,7 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   *pFuncs = NULL;
-  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectFuncs, &cxt);
+  nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pFuncs);
     return cxt.errCode;
@@ -1211,6 +1215,46 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
     *pFuncs = cxt.pFuncs;
   } else {
     nodesDestroyList(cxt.pFuncs);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+typedef struct SCollectSpecialNodesCxt {
+  int32_t    errCode;
+  ENodeType  type;
+  SNodeList* pNodes;
+} SCollectSpecialNodesCxt;
+
+static EDealRes collectSpecialNodes(SNode* pNode, void* pContext) {
+  SCollectSpecialNodesCxt* pCxt = (SCollectSpecialNodesCxt*)pContext;
+  if (pCxt->type == nodeType(pNode)) {
+    pCxt->errCode = nodesListStrictAppend(pCxt->pNodes, nodesCloneNode(pNode));
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes) {
+  if (NULL == pSelect || NULL == pNodes) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectSpecialNodesCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS, .type = type, .pNodes = (NULL == *pNodes ? nodesMakeList() : *pNodes)};
+  if (NULL == cxt.pNodes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pNodes = NULL;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectSpecialNodes, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pNodes);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pNodes) > 0) {
+    *pNodes = cxt.pNodes;
+  } else {
+    nodesDestroyList(cxt.pNodes);
   }
 
   return TSDB_CODE_SUCCESS;

@@ -40,6 +40,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV,
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
+  FUNCTION_TYPE_HISTOGRAM,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -112,6 +113,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WENDTS,
   FUNCTION_TYPE_WDURATION,
 
+  // internal function
+  FUNCTION_TYPE_SELECT_VALUE,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -140,6 +144,7 @@ bool fmIsScalarFunc(int32_t funcId);
 bool fmIsNonstandardSQLFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
+bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);

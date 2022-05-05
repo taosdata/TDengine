@@ -522,6 +522,7 @@ static int32_t cpdPushCondToChild(SOptimizeContext* pCxt, SLogicNode* pChild, SN
     default:
       break;
   }
+  planError("cpdPushCondToChild failed, invalid logic plan node %s", nodesNodeName(nodeType(pChild)));
   return TSDB_CODE_PLAN_INTERNAL_ERROR;
 }
 
@@ -553,22 +554,19 @@ static bool cpdIsPrimaryKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
 
 static int32_t cpdCheckOpCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode* pOnCond) {
   if (!cpdIsPrimaryKeyEqualCond(pJoin, pOnCond)) {
-    snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "l.ts = r.ts is expected in join expression");
-    return TSDB_CODE_FAILED;
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t cpdCheckLogicCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SLogicConditionNode* pOnCond) {
   if (LOGIC_COND_TYPE_AND != pOnCond->condType) {
-    snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "l.ts = r.ts is expected in join expression");
-    return TSDB_CODE_FAILED;
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
   SNode* pCond = NULL;
   FOREACH(pCond, pOnCond->pParameterList) {
     if (!cpdIsPrimaryKeyEqualCond(pJoin, pCond)) {
-      snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "l.ts = r.ts is expected in join expression");
-      return TSDB_CODE_FAILED;
+      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
     }
   }
   return TSDB_CODE_SUCCESS;
@@ -576,8 +574,7 @@ static int32_t cpdCheckLogicCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, 
 
 static int32_t cpdCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pOnConditions) {
-    snprintf(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, "not support cross join");
-    return TSDB_CODE_FAILED;
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
   }
   if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions)) {
     return cpdCheckLogicCond(pCxt, pJoin, (SLogicConditionNode*)pJoin->pOnConditions);

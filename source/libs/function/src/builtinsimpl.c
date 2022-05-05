@@ -78,7 +78,16 @@ typedef struct SDiffInfo {
     int64_t i64;
     double  d64;
   } prev;
+
+  int64_t prevTs;
 } SDiffInfo;
+
+typedef struct SSpreadInfo {
+  double result;
+  bool   hasResult;
+  double min;
+  double max;
+} SSpreadInfo;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -1189,9 +1198,6 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
   bool    isFirstBlock = (pDiffInfo->hasPrev == false);
   int32_t numOfElems = 0;
 
-  int32_t step = GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
-  //  int32_t i = (pCtx->order == TSDB_ORDER_ASC) ? 0 : pCtx->size - 1;
-
   SColumnInfoData* pTsOutput = pCtx->pTsOutput;
   TSKEY*           tsList = (int64_t*)pInput->pPTS->pData;
 
@@ -1199,44 +1205,86 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
   switch (pInputCol->info.type) {
     case TSDB_DATA_TYPE_INT: {
       SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-      for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
-        int32_t pos = startOffset + (isFirstBlock ? (numOfElems - 1) : numOfElems);
-        if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
-          if (pDiffInfo->includeNull) {
-            colDataSetNull_f(pOutput->nullbitmap, pos);
-            if (tsList != NULL) {
-              colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+      if (pCtx->order == TSDB_ORDER_ASC) {
+        for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+          int32_t pos = startOffset + (isFirstBlock ? (numOfElems - 1) : numOfElems);
+          if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+            if (pDiffInfo->includeNull) {
+              colDataSetNull_f(pOutput->nullbitmap, pos);
+              if (tsList != NULL) {
+                colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+              }
+
+              numOfElems += 1;
+            }
+            continue;
+          }
+
+          int32_t v = *(int32_t*)colDataGetData(pInputCol, i);
+          if (pDiffInfo->hasPrev) {
+            int32_t delta = (int32_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
+            if (delta < 0 && pDiffInfo->ignoreNegative) {
+              colDataSetNull_f(pOutput->nullbitmap, pos);
+            } else {
+              colDataAppendInt32(pOutput, pos, &delta);
             }
 
-            numOfElems += 1;
+            if (pTsOutput != NULL) {
+              colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+            }
           }
-          continue;
-        }
 
-        int32_t v = *(int32_t*)colDataGetData(pInputCol, i);
-        if (pDiffInfo->hasPrev) {
-          int32_t delta = (int32_t)(v - pDiffInfo->prev.i64);  // direct previous may be null
-          if (delta < 0 && pDiffInfo->ignoreNegative) {
-            colDataSetNull_f(pOutput->nullbitmap, pos);
-          } else {
+          pDiffInfo->prev.i64 = v;
+          pDiffInfo->hasPrev = true;
+          numOfElems++;
+        }
+      } else {
+        for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+          int32_t v = *(int32_t*)colDataGetData(pInputCol, i);
+          int32_t pos = startOffset + numOfElems;
+
+          // there is a row of previous data block to be handled in the first place.
+          if (pDiffInfo->hasPrev) {
+            int32_t delta = (int32_t)(pDiffInfo->prev.i64 - v);  // direct previous may be null
+            if (delta < 0 && pDiffInfo->ignoreNegative) {
+              colDataSetNull_f(pOutput->nullbitmap, pos);
+            } else {
+              colDataAppendInt32(pOutput, pos, &delta);
+            }
+
+            if (pTsOutput != NULL) {
+              colDataAppendInt64(pTsOutput, pos, &pDiffInfo->prevTs);
+            }
+            pDiffInfo->hasPrev = false;
+          }
+
+          // it is not the last row of current block
+          if (i < pInput->numOfRows + pInput->startRowIndex - 1) {
+            int32_t next = *(int32_t*)colDataGetData(pInputCol, i + 1);
+
+            int32_t delta = v - next;  // direct previous may be null
             colDataAppendInt32(pOutput, pos, &delta);
-          }
 
-          if (pTsOutput != NULL) {
-            colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+            if (pTsOutput != NULL) {
+              colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+            }
+          } else {
+            pDiffInfo->prev.i64 = v;
+            if (pTsOutput != NULL) {
+              pDiffInfo->prevTs = tsList[i];
+            }
+            pDiffInfo->hasPrev = true;
           }
+          numOfElems++;
         }
 
-        pDiffInfo->prev.i64 = v;
-        pDiffInfo->hasPrev = true;
-        numOfElems++;
       }
       break;
     }
 
     case TSDB_DATA_TYPE_BIGINT: {
       SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-      for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
@@ -1371,7 +1419,7 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
   }
 
   // initial value is not set yet
-  if (!pDiffInfo->hasPrev || numOfElems <= 0) {
+  if (numOfElems <= 0) {
     /*
      * 1. current block and blocks before are full of null
      * 2. current block may be null value
@@ -1379,15 +1427,7 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
     assert(pCtx->hasNull);
     return 0;
   } else {
-    //    for (int t = 0; t < pCtx->tagInfo.numOfTagCols; ++t) {
-    //      SqlFunctionCtx* tagCtx = pCtx->tagInfo.pTagCtxList[t];
-    //      if (tagCtx->functionId == TSDB_FUNC_TAG_DUMMY) {
-    //        aAggs[TSDB_FUNC_TAGPRJ].xFunction(tagCtx);
-    //      }
-    //    }
-
-    int32_t forwardStep = (isFirstBlock) ? numOfElems - 1 : numOfElems;
-    return forwardStep;
+    return (isFirstBlock) ? numOfElems - 1 : numOfElems;
   }
 }
 
@@ -1638,4 +1678,102 @@ int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pEntryInfo->numOfRes;
+}
+
+bool getSpreadFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SSpreadInfo);
+  return true;
+}
+
+bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  SET_DOUBLE_VAL(&pInfo->min, DBL_MAX);
+  SET_DOUBLE_VAL(&pInfo->max, -DBL_MAX);
+  pInfo->hasResult = false;
+  return true;
+}
+
+int32_t spreadFunction(SqlFunctionCtx *pCtx) {
+  int32_t numOfElems = 0;
+
+  // Only the pre-computing information loaded and actual data does not loaded
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
+  int32_t type = pInput->pData[0]->info.type;
+
+  SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  if (pInput->colDataAggIsSet) {
+    numOfElems = pInput->numOfRows - pAgg->numOfNull;
+    if (numOfElems == 0) {
+      goto _spread_over;
+    }
+    double tmin = 0.0, tmax = 0.0;
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      tmin = (double)GET_INT64_VAL(&pAgg->min);
+      tmax = (double)GET_INT64_VAL(&pAgg->max);
+    } else if (IS_FLOAT_TYPE(type)) {
+      tmin = GET_DOUBLE_VAL(&pAgg->min);
+      tmax = GET_DOUBLE_VAL(&pAgg->max);
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      tmin = (double)GET_UINT64_VAL(&pAgg->min);
+      tmax = (double)GET_UINT64_VAL(&pAgg->max);
+    }
+
+    if (GET_DOUBLE_VAL(&pInfo->min) > tmin) {
+      SET_DOUBLE_VAL(&pInfo->min, tmin);
+    }
+
+    if (GET_DOUBLE_VAL(&pInfo->max) < tmax) {
+      SET_DOUBLE_VAL(&pInfo->max, tmax);
+    }
+
+  } else {  // computing based on the true data block
+    SColumnInfoData* pCol = pInput->pData[0];
+
+    int32_t start     = pInput->startRowIndex;
+    int32_t numOfRows = pInput->numOfRows;
+
+    // check the valid data one by one
+    for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        continue;
+      }
+
+      char *data = colDataGetData(pCol, i);
+
+      double v = 0;
+      GET_TYPED_DATA(v, double, type, data);
+      if (v < GET_DOUBLE_VAL(&pInfo->min)) {
+        SET_DOUBLE_VAL(&pInfo->min, v);
+      }
+
+      if (v > GET_DOUBLE_VAL(&pInfo->max)) {
+        SET_DOUBLE_VAL(&pInfo->max, v);
+      }
+
+      numOfElems += 1;
+    }
+  }
+
+_spread_over:
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  if (numOfElems > 0) {
+    pInfo->hasResult = true;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SSpreadInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  if (pInfo->hasResult == true) {
+    SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
+  }
+  return functionFinalize(pCtx, pBlock);
 }

@@ -42,14 +42,31 @@ int vnodeBegin(SVnode *pVnode) {
 
   // begin meta
   if (metaBegin(pVnode->pMeta) < 0) {
-    vError("vgId: %d failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
+    vError("vgId:%d failed to begin meta since %s", TD_VID(pVnode), tstrerror(terrno));
     return -1;
   }
 
   // begin tsdb
-  if (tsdbBegin(pVnode->pTsdb) < 0) {
-    vError("vgId: %d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
+  if (vnodeIsRollup(pVnode)) {
+    if (tsdbBegin(VND_RSMA0(pVnode)) < 0) {
+      vError("vgId:%d failed to begin rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
+      return -1;
+    }
+
+    if (tsdbBegin(VND_RSMA1(pVnode)) < 0) {
+      vError("vgId:%d failed to begin rsma1 since %s", TD_VID(pVnode), tstrerror(terrno));
+      return -1;
+    }
+
+    if (tsdbBegin(VND_RSMA2(pVnode)) < 0) {
+      vError("vgId:%d failed to begin rsma2 since %s", TD_VID(pVnode), tstrerror(terrno));
+      return -1;
+    }
+  } else {
+    if (tsdbBegin(pVnode->pTsdb) < 0) {
+      vError("vgId:%d failed to begin tsdb since %s", TD_VID(pVnode), tstrerror(terrno));
+      return -1;
+    }
   }
 
   return 0;
@@ -93,7 +110,7 @@ int vnodeSaveInfo(const char *dir, const SVnodeInfo *pInfo) {
   // free info binary
   taosMemoryFree(data);
 
-  vInfo("vgId: %d vnode info is saved, fname: %s", pInfo->config.vgId, fname);
+  vInfo("vgId:%d vnode info is saved, fname: %s", pInfo->config.vgId, fname);
 
   return 0;
 
@@ -115,7 +132,7 @@ int vnodeCommitInfo(const char *dir, const SVnodeInfo *pInfo) {
     return -1;
   }
 
-  vInfo("vgId: %d vnode info is committed", pInfo->config.vgId);
+  vInfo("vgId:%d vnode info is committed", pInfo->config.vgId);
 
   return 0;
 }
@@ -190,7 +207,7 @@ int vnodeSyncCommit(SVnode *pVnode) {
 }
 
 int vnodeCommit(SVnode *pVnode) {
-  SVnodeInfo info;
+  SVnodeInfo info = {0};
   char       dir[TSDB_FILENAME_LEN];
 
   vInfo("vgId:%d start to commit, version: %" PRId64, TD_VID(pVnode), pVnode->state.applied);
@@ -212,10 +229,28 @@ int vnodeCommit(SVnode *pVnode) {
     ASSERT(0);
     return -1;
   }
-  if (tsdbCommit(pVnode->pTsdb) < 0) {
-    ASSERT(0);
-    return -1;
+
+  if(vnodeIsRollup(pVnode)) {
+    if (tsdbCommit(VND_RSMA0(pVnode)) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+    if (tsdbCommit(VND_RSMA1(pVnode)) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+    if (tsdbCommit(VND_RSMA2(pVnode)) < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  } else {
+    if (tsdbCommit(pVnode->pTsdb) < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
+
+  
   if (tqCommit(pVnode->pTq) < 0) {
     ASSERT(0);
     return -1;

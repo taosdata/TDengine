@@ -107,8 +107,8 @@ static SSdbRaw *mndDbActionEncode(SDbObj *pDb) {
   for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
     TASSERT(taosArrayGetSize(pDb->cfg.pRetensions) == pDb->cfg.numOfRetensions);
     SRetention *pRetension = taosArrayGet(pDb->cfg.pRetensions, i);
-    SDB_SET_INT32(pRaw, dataPos, pRetension->freq, _OVER)
-    SDB_SET_INT32(pRaw, dataPos, pRetension->keep, _OVER)
+    SDB_SET_INT64(pRaw, dataPos, pRetension->freq, _OVER)
+    SDB_SET_INT64(pRaw, dataPos, pRetension->keep, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pRetension->freqUnit, _OVER)
     SDB_SET_INT8(pRaw, dataPos, pRetension->keepUnit, _OVER)
   }
@@ -180,8 +180,8 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw) {
     if (pDb->cfg.pRetensions == NULL) goto _OVER;
     for (int32_t i = 0; i < pDb->cfg.numOfRetensions; ++i) {
       SRetention retension = {0};
-      SDB_GET_INT32(pRaw, dataPos, &retension.freq, _OVER)
-      SDB_GET_INT32(pRaw, dataPos, &retension.keep, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retension.freq, _OVER)
+      SDB_GET_INT64(pRaw, dataPos, &retension.keep, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &retension.freqUnit, _OVER)
       SDB_GET_INT8(pRaw, dataPos, &retension.keepUnit, _OVER)
       if (taosArrayPush(pDb->cfg.pRetensions, &retension) == NULL) {
@@ -1387,12 +1387,13 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
                            bool sysDb) {
   int32_t cols = 0;
 
-  char       *buf = taosMemoryMalloc(pShow->bytes[cols]);
+  int32_t bytes = pShow->pMeta->pSchemas[cols].bytes;
+  char       *buf = taosMemoryMalloc(bytes);
   const char *name = mndGetDbStr(pDb->name);
   if (name != NULL) {
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, name, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, name, bytes);
   } else {
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, "NULL", bytes);
   }
 
   char *status = "ready";

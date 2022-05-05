@@ -43,7 +43,6 @@ int metaEncodeEntry(SCoder* pCoder, const SMetaEntry* pME);
 int metaDecodeEntry(SCoder* pCoder, SMetaEntry* pME);
 
 // metaTable ==================
-int metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 
 // metaQuery ==================
 int metaGetTableEntryByVersion(SMetaReader* pReader, int64_t version, tb_uid_t uid);

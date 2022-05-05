@@ -31,6 +31,8 @@ void         mndReleaseTopic(SMnode *pMnode, SMqTopicObj *pTopic);
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic);
 SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw);
 
+int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+
 #ifdef __cplusplus
 }
 #endif

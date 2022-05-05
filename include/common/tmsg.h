@@ -181,8 +181,8 @@ typedef struct SField {
 } SField;
 
 typedef struct SRetention {
-  int32_t freq;
-  int32_t keep;
+  int64_t freq;
+  int64_t keep;
   int8_t  freqUnit;
   int8_t  keepUnit;
 } SRetention;
@@ -243,17 +243,8 @@ typedef struct {
 
 int32_t tInitSubmitMsgIter(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
 int32_t tGetSubmitMsgNext(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
-int32_t tInitSubmitBlkIter(SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
+int32_t tInitSubmitBlkIter(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
 STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
-
-// TODO: KEEP one suite of iterator API finally.
-// 1) use tInitSubmitMsgIterEx firstly as not decrease the merge conflicts
-// 2) replace tInitSubmitMsgIterEx with tInitSubmitMsgIter later
-// 3) finally, rename tInitSubmitMsgIterEx to tInitSubmitMsgIter
-int32_t tInitSubmitMsgIterEx(const SSubmitReq* pMsg, SSubmitMsgIter* pIter);
-int32_t tGetSubmitMsgNextEx(SSubmitMsgIter* pIter, SSubmitBlk** pPBlock);
-int32_t tInitSubmitBlkIterEx(SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkIter* pIter);
-STSRow* tGetSubmitBlkNextEx(SSubmitBlkIter* pIter);
 
 typedef struct {
   int32_t index;  // index of failed block in submit blocks
@@ -281,8 +272,10 @@ typedef struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
+#define IS_BSMA_ON(s) (((s)->flags & 0x01) == SCHEMA_SMA_ON)
+
 #define SSCHMEA_TYPE(s)  ((s)->type)
-#define SSCHMEA_SMA(s)   ((s)->sma)
+#define SSCHMEA_FLAGS(s) ((s)->flags)
 #define SSCHMEA_COLID(s) ((s)->colId)
 #define SSCHMEA_BYTES(s) ((s)->bytes)
 #define SSCHMEA_NAME(s)  ((s)->name)
@@ -842,7 +835,7 @@ typedef struct {
   char     db[TSDB_DB_FNAME_LEN];
   int64_t  dbUid;
   int32_t  vgVersion;
-   int32_t numOfStables;
+  int32_t  numOfStables;
   int32_t  buffer;
   int32_t  pageSize;
   int32_t  pages;
@@ -1442,32 +1435,32 @@ typedef struct {
   SArray* lostConsumers;     // SArray<int64_t>
   SArray* removedConsumers;  // SArray<int64_t>
   SArray* newConsumers;      // SArray<int64_t>
-} SMqRebSubscribe;
+} SMqRebInfo;
 
-static FORCE_INLINE SMqRebSubscribe* tNewSMqRebSubscribe(const char* key) {
-  SMqRebSubscribe* pRebSub = (SMqRebSubscribe*)taosMemoryCalloc(1, sizeof(SMqRebSubscribe));
-  if (pRebSub == NULL) {
+static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
+  SMqRebInfo* pRebInfo = (SMqRebInfo*)taosMemoryCalloc(1, sizeof(SMqRebInfo));
+  if (pRebInfo == NULL) {
     goto _err;
   }
-  strcpy(pRebSub->key, key);
-  pRebSub->lostConsumers = taosArrayInit(0, sizeof(int64_t));
-  if (pRebSub->lostConsumers == NULL) {
+  strcpy(pRebInfo->key, key);
+  pRebInfo->lostConsumers = taosArrayInit(0, sizeof(int64_t));
+  if (pRebInfo->lostConsumers == NULL) {
     goto _err;
   }
-  pRebSub->removedConsumers = taosArrayInit(0, sizeof(int64_t));
-  if (pRebSub->removedConsumers == NULL) {
+  pRebInfo->removedConsumers = taosArrayInit(0, sizeof(int64_t));
+  if (pRebInfo->removedConsumers == NULL) {
     goto _err;
   }
-  pRebSub->newConsumers = taosArrayInit(0, sizeof(int64_t));
-  if (pRebSub->newConsumers == NULL) {
+  pRebInfo->newConsumers = taosArrayInit(0, sizeof(int64_t));
+  if (pRebInfo->newConsumers == NULL) {
     goto _err;
   }
-  return pRebSub;
+  return pRebInfo;
 _err:
-  taosArrayDestroy(pRebSub->lostConsumers);
-  taosArrayDestroy(pRebSub->removedConsumers);
-  taosArrayDestroy(pRebSub->newConsumers);
-  taosMemoryFreeClear(pRebSub);
+  taosArrayDestroy(pRebInfo->lostConsumers);
+  taosArrayDestroy(pRebInfo->removedConsumers);
+  taosArrayDestroy(pRebInfo->newConsumers);
+  taosMemoryFreeClear(pRebInfo);
   return NULL;
 }
 
@@ -1524,6 +1517,7 @@ typedef struct {
 int32_t tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
 int32_t tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
 
+// TDMT_VND_CREATE_STB ==============
 typedef struct SVCreateStbReq {
   const char*    name;
   tb_uid_t       suid;
@@ -1536,17 +1530,14 @@ typedef struct SVCreateStbReq {
 int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);
 int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
 
+// TDMT_VND_DROP_STB ==============
 typedef struct SVDropStbReq {
-  // data
-#ifdef WINDOWS
-  size_t avoidCompilationErrors;
-#endif
-
+  const char* name;
+  tb_uid_t    suid;
 } SVDropStbReq;
 
-typedef struct SVCreateStbRsp {
-  int code;
-} SVCreateStbRsp;
+int32_t tEncodeSVDropStbReq(SCoder* pCoder, const SVDropStbReq* pReq);
+int32_t tDecodeSVDropStbReq(SCoder* pCoder, SVDropStbReq* pReq);
 
 typedef struct SVCreateTbReq {
   tb_uid_t    uid;
@@ -1603,19 +1594,37 @@ int tDecodeSVCreateTbBatchRsp(SCoder* pCoder, SVCreateTbBatchRsp* pRsp);
 int32_t tSerializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 
+// TDMT_VND_DROP_TABLE =================
 typedef struct {
-  int64_t  ver;
-  char*    name;
-  uint8_t  type;
-  tb_uid_t suid;
+  const char* name;
+  int8_t      igNotExists;
 } SVDropTbReq;
 
 typedef struct {
-  int tmp;  // TODO: to avoid compile error
+  int32_t code;
 } SVDropTbRsp;
 
-int32_t tSerializeSVDropTbReq(void** buf, SVDropTbReq* pReq);
-void*   tDeserializeSVDropTbReq(void* buf, SVDropTbReq* pReq);
+typedef struct {
+  int32_t nReqs;
+  union {
+    SVDropTbReq* pReqs;
+    SArray*      pArray;
+  };
+} SVDropTbBatchReq;
+
+int32_t tEncodeSVDropTbBatchReq(SCoder* pCoder, const SVDropTbBatchReq* pReq);
+int32_t tDecodeSVDropTbBatchReq(SCoder* pCoder, SVDropTbBatchReq* pReq);
+
+typedef struct {
+  int32_t nRsps;
+  union {
+    SVDropTbRsp* pRsps;
+    SArray*      pArray;
+  };
+} SVDropTbBatchRsp;
+
+int32_t tEncodeSVDropTbBatchRsp(SCoder* pCoder, const SVDropTbBatchRsp* pRsp);
+int32_t tDecodeSVDropTbBatchRsp(SCoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 typedef struct {
   SMsgHead head;

@@ -165,7 +165,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPTS;           // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
-  uint64_t          uid;            // table uid
+  uint64_t          uid;            // table uid, used to set the tag value when building the final query result for selectivity functions.
 } SInputColumnInfoData;
 
 // sql function runtime context

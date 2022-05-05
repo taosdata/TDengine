@@ -68,7 +68,7 @@ extern "C" {
  */
 void iIntersection(SArray *interResults, SArray *finalResult);
 
-/* multi sorted result intersection
+/* multi sorted result union
  * input: [1, 2, 4, 5]
  *        [2, 3, 4, 5]
  *        [1, 4, 5]
@@ -76,7 +76,7 @@ void iIntersection(SArray *interResults, SArray *finalResult);
  */
 void iUnion(SArray *interResults, SArray *finalResult);
 
-/*  sorted array
+/* see example
  * total:   [1, 2, 4, 5, 7, 8]
  * except:  [4, 5]
  * return:  [1, 2, 7, 8] saved in total
