@@ -1073,7 +1073,7 @@ static bool isTopBottomUniqueQuery(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscExprGet(pQueryInfo, i)->base.functionId;
 
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_SAMPLE
         || functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL) {
       return true;
     }

@@ -2701,8 +2701,11 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr == NULL)
       continue;
-    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
-        || pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_TAIL) {
+    if (pExpr->base.functionId == TSDB_FUNC_TOP 
+      || pExpr->base.functionId == TSDB_FUNC_BOTTOM 
+      || pExpr->base.functionId == TSDB_FUNC_SAMPLE 
+      || pExpr->base.functionId == TSDB_FUNC_UNIQUE 
+      || pExpr->base.functionId == TSDB_FUNC_TAIL) {
       return i;
     }
   }
