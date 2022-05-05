@@ -40,6 +40,9 @@ enum {
   CTG_DBG_STB_RENT_NUM,
 };
 
+#define USER_AUTH_READ  1
+#define USER_AUTH_WRITE 2
+#define USER_AUTH_ALL   4
 
 typedef struct SCatalogReq {
   SArray *pTableName;     // element is SNAME
@@ -57,6 +60,7 @@ typedef struct SMetaData {
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
+  uint32_t maxUserCacheNum;
   uint32_t dbRentSec;
   uint32_t stbRentSec;
 } SCatalogCfg;
@@ -224,6 +228,8 @@ int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
 int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
 
 int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo** pInfo);
+
+int32_t catalogGetUserDbAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, int32_t* auth);
 
 
 /**
