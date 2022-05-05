@@ -709,6 +709,10 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
+  if (IS_VAR_DATA_TYPE(outputType)) {
+    outputLen += VARSTR_HEADER_SIZE;
+  }
+
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
   char *output = outputBuf;
 
@@ -823,7 +827,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         //for constant conversion, need to set proper length of pOutput description
         if (len < outputLen - VARSTR_HEADER_SIZE) {
-          pOutput->columnData->info.bytes = len + VARSTR_HEADER_SIZE;
+          pOutput->columnData->info.bytes = len;
         }
         break;
       }

@@ -2084,7 +2084,7 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
+      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes);
       if (TSDB_DATA_TYPE_NCHAR == pNode->node.resType.type) {
         char *buf = taosMemoryCalloc(1, pNode->node.resType.bytes * 2 + VARSTR_HEADER_SIZE + 1);
         if (NULL == buf) {
