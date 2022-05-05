@@ -141,9 +141,9 @@ static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const 
 static int smlCompareKv(const void* p1, const void* p2) {
   SSmlKv* kv1 = (SSmlKv *)p1;
   SSmlKv* kv2 = (SSmlKv*)p2;
-  int kvLen1 = (int)strlen(kv1->key);
-  int kvLen2 = (int)strlen(kv2->key);
-  int res = strncasecmp(kv1->key, kv2->key, MIN(kvLen1, kvLen2));
+  int32_t kvLen1 = kv1->keyLen;
+  int32_t kvLen2 = kv2->keyLen;
+  int32_t res = strncasecmp(kv1->key, kv2->key, MIN(kvLen1, kvLen2));
   if (res != 0) {
     return res;
   } else {
@@ -154,7 +154,7 @@ static int smlCompareKv(const void* p1, const void* p2) {
 static void smlBuildChildTableName(SSmlTableInfo *tags) {
   int32_t size = taosArrayGetSize(tags->tags);
   ASSERT(size > 0);
-  qsort(tags->tags, size, POINTER_BYTES, smlCompareKv);
+  taosArraySort(tags->tags, smlCompareKv);
 
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, tags->sTableName, tags->sTableNameLen);
@@ -501,7 +501,7 @@ static bool smlParseTinyInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 2;
-  if (!strcasecmp(signalPos, "i8")) {
+  if (!strncasecmp(signalPos, "i8", 2)) {
     char *endptr = NULL;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
@@ -529,7 +529,7 @@ static bool smlParseTinyUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 2;
-  if (!strcasecmp(signalPos, "u8")) {
+  if (!strncasecmp(signalPos, "u8", 2)) {
     char *endptr = NULL;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
@@ -554,7 +554,7 @@ static bool smlParseSmallInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 3;
-  if (!strcasecmp(signalPos, "i16")) {
+  if (!strncasecmp(signalPos, "i16", 3)) {
     char *endptr = NULL;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
@@ -582,7 +582,7 @@ static bool smlParseSmallUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 3;
-  if (strcasecmp(signalPos, "u16") == 0) {
+  if (strncasecmp(signalPos, "u16", 3) == 0) {
     char *endptr = NULL;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
@@ -607,7 +607,7 @@ static bool smlParseInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 3;
-  if (strcasecmp(signalPos, "i32") == 0) {
+  if (strncasecmp(signalPos, "i32", 3) == 0) {
     char *endptr = NULL;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
@@ -635,7 +635,7 @@ static bool smlParseUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 3;
-  if (strcasecmp(signalPos, "u32") == 0) {
+  if (strncasecmp(signalPos, "u32", 3) == 0) {
     char *endptr = NULL;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
@@ -656,13 +656,15 @@ static bool smlParseUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
 static bool smlParseBigInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
   const char *pVal = kvVal->value;
   int32_t len = kvVal->valueLen;
-  if (len > 3 && strcasecmp(pVal + len - 3, "i64") == 0) {
+  if (len > 3 && strncasecmp(pVal + len - 3, "i64", 3) == 0) {
     char *endptr = NULL;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != pVal + len - 3){       // 78ri8
       *isValid = false;
+      smlBuildInvalidDataMsg(msg, "invalid big int", endptr);
     }else if(!IS_VALID_BIGINT(result)){
       *isValid = false;
+      smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", endptr);
     }else{
       kvVal->i = result;
       *isValid = true;
@@ -696,7 +698,7 @@ static bool smlParseBigUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 3;
-  if (strcasecmp(signalPos, "u64") == 0) {
+  if (strncasecmp(signalPos, "u64", 3) == 0) {
     char *endptr = NULL;
     uint64_t result = strtoull(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
@@ -725,7 +727,7 @@ static bool smlParseFloat(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return true;
   }
 
-  if (len > 3 && len <strcasecmp(pVal + len - 3, "f32") == 0) {
+  if (len > 3 && len <strncasecmp(pVal + len - 3, "f32", 3) == 0) {
     if(endptr != pVal + len - 3){       // 78ri8
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "invalid float", endptr);
@@ -748,7 +750,7 @@ static bool smlParseDouble(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 3;
-  if (len <strcasecmp(signalPos, "f64") == 0) {
+  if (len <strncasecmp(signalPos, "f64", 3) == 0) {
     char *endptr = NULL;
     double result = strtod(pVal, &endptr);
     if(endptr != signalPos){       // 78ri8
@@ -779,11 +781,11 @@ static bool smlParseBool(SSmlKv *kvVal) {
     return true;
   }
 
-  if((len == 4) && !strcasecmp(pVal, "true")) {
+  if((len == 4) && !strncasecmp(pVal, "true", len)) {
     kvVal->i = true;
     return true;
   }
-  if((len == 5) && !strcasecmp(pVal, "false")) {
+  if((len == 5) && !strncasecmp(pVal, "false", len)) {
     kvVal->i = false;
     return true;
   }
@@ -1085,11 +1087,13 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
     case TSDB_TIME_PRECISION_SECONDS:
       ts *= (1e9);
       break;
-    case TSDB_TIME_PRECISION_MICRO:
+    case TSDB_TIME_PRECISION_MILLI:
       ts *= (1e6);
       break;
-    case TSDB_TIME_PRECISION_MILLI:
+    case TSDB_TIME_PRECISION_MICRO:
       ts *= (1e3);
+      break;
+    case TSDB_TIME_PRECISION_NANO:
       break;
     default:
       ASSERT(0);
