@@ -4830,6 +4830,7 @@ static SArray* createSortInfo(SNodeList* pNodeList, SNodeList* pNodeListTarget);
 static SArray* createIndexMap(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
 static int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+static void    setJoinColumnInfo(SColumnInfo* pInfo, const SColumnNode* pLeftNode);
 
 static SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
   SInterval interval = {
@@ -5624,25 +5625,29 @@ SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOf
     goto _error;
   }
 
-  pOperator->resultInfo.capacity = 4096;
-  pOperator->resultInfo.threshold = 4096 * 0.75;
+  initResultSizeInfo(pOperator, 4096);
 
-  //  initResultRowInf
-  //  o(&pInfo->binfo.resultRowInfo, 8);
-  pInfo->pRes = pResBlock;
-
-  pOperator->name = "JoinOperator";
+  pInfo->pRes          = pResBlock;
+  pOperator->name      = "MergeJoinOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_JOIN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExprInfo;
+  pOperator->blocking  = false;
+  pOperator->status    = OP_NOT_OPENED;
+  pOperator->pExpr     = pExprInfo;
   pOperator->numOfOutput = numOfCols;
-  pOperator->info = pInfo;
+  pOperator->info      = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
+
+  SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
+  setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
+  setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyBasicOperatorInfo, NULL, NULL, NULL);
   int32_t code = appendDownstream(pOperator, pDownstream, numOfDownstream);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   return pOperator;
 
 _error:
@@ -5650,4 +5655,12 @@ _error:
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
+}
+
+void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
+  pColumn->slotId    = pColumnNode->slotId;
+  pColumn->type      = pColumnNode->node.resType.type;
+  pColumn->bytes     = pColumnNode->node.resType.bytes;
+  pColumn->precision = pColumnNode->node.resType.precision;
+  pColumn->scale     = pColumnNode->node.resType.scale;
 }

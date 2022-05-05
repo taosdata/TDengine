@@ -445,14 +445,45 @@ static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcM
 }
 
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SVDropTbReq req = {0};
-  SVDropTbReq rsp = {0};
+  SVDropTbBatchReq req = {0};
+  SVDropTbBatchRsp rsp = {0};
+  SCoder           coder = {0};
+  int              ret;
+
+  pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+  pRsp->code = TSDB_CODE_SUCCESS;
 
   // decode req
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
+  ret = tDecodeSVDropTbBatchReq(&coder, &req);
+  if (ret < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    pRsp->code = terrno;
+    goto _exit;
+  }
 
   // process req
+  rsp.pArray = taosArrayInit(sizeof(SVDropTbRsp), req.nReqs);
+  for (int iReq = 0; iReq < req.nReqs; iReq++) {
+    SVDropTbReq *pDropTbReq = req.pReqs + iReq;
+    SVDropTbRsp  dropTbRsp = {0};
 
-  // return rsp
+    /* code */
+    ret = metaDropTable(pVnode->pMeta, version, pDropTbReq);
+    if (ret < 0) {
+      dropTbRsp.code = TSDB_CODE_SUCCESS;
+    } else {
+      dropTbRsp.code = terrno;
+    }
+
+    taosArrayPush(rsp.pArray, &dropTbRsp);
+  }
+
+_exit:
+  tCoderClear(&coder);
+  // encode rsp (TODO)
   return 0;
 }
 
@@ -482,7 +513,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 }
 
 int32_t tsdbProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
-  if(!pReq) {
+  if (!pReq) {
     terrno = TSDB_CODE_INVALID_PTR;
     return TSDB_CODE_FAILED;
   }

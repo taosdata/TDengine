@@ -537,7 +537,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   return 0;
 }
 
-static STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
+STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   STrans *pTrans = sdbAcquire(pMnode->pSdb, SDB_TRANS, &transId);
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
@@ -545,7 +545,7 @@ static STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   return pTrans;
 }
 
-static void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
+void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pTrans);
 }
@@ -710,12 +710,12 @@ static bool mndIsStbTrans(STrans *pTrans) {
   return pTrans->type > TRN_TYPE_STB_SCOPE && pTrans->type < TRN_TYPE_STB_SCOPE_END;
 }
 
-static bool mndCheckTransCanParallel(SMnode *pMnode, STrans *pNewTrans) {
+static bool mndCheckTransConflict(SMnode *pMnode, STrans *pNewTrans) {
   STrans *pTrans = NULL;
   void   *pIter = NULL;
-  bool    canParallel = true;
+  bool    conflict = false;
 
-  if (mndIsBasicTrans(pNewTrans)) return canParallel;
+  if (mndIsBasicTrans(pNewTrans)) return conflict;
 
   while (1) {
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
@@ -724,7 +724,7 @@ static bool mndCheckTransCanParallel(SMnode *pMnode, STrans *pNewTrans) {
     if (mndIsGlobalTrans(pNewTrans)) {
       if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-        canParallel = false;
+        conflict = true;
       } else {
       }
     }
@@ -732,11 +732,11 @@ static bool mndCheckTransCanParallel(SMnode *pMnode, STrans *pNewTrans) {
     else if (mndIsDbTrans(pNewTrans)) {
       if (mndIsGlobalTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
-        canParallel = false;
+        conflict = true;
       } else if (mndIsDbTrans(pTrans) || mndIsStbTrans(pTrans)) {
         if (pNewTrans->dbUid == pTrans->dbUid) {
           mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-          canParallel = false;
+          conflict = true;
         }
       } else {
       }
@@ -745,11 +745,11 @@ static bool mndCheckTransCanParallel(SMnode *pMnode, STrans *pNewTrans) {
     else if (mndIsStbTrans(pNewTrans)) {
       if (mndIsGlobalTrans(pTrans)) {
         mError("trans:%d, can't execute since trans:%d in progress", pNewTrans->id, pTrans->id);
-        canParallel = false;
+        conflict = true;
       } else if (mndIsDbTrans(pTrans)) {
         if (pNewTrans->dbUid == pTrans->dbUid) {
           mError("trans:%d, can't execute since trans:%d in progress db:%s", pNewTrans->id, pTrans->id, pTrans->dbname);
-          canParallel = false;
+          conflict = true;
         }
       } else {
       }
@@ -760,12 +760,12 @@ static bool mndCheckTransCanParallel(SMnode *pMnode, STrans *pNewTrans) {
 
   sdbCancelFetch(pMnode->pSdb, pIter);
   sdbRelease(pMnode->pSdb, pTrans);
-  return canParallel;
+  return conflict;
 }
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
-  if (!mndCheckTransCanParallel(pMnode, pTrans)) {
-    terrno = TSDB_CODE_MND_TRANS_CAN_NOT_PARALLEL;
+  if (mndCheckTransConflict(pMnode, pTrans)) {
+    terrno = TSDB_CODE_MND_TRANS_CONFLICT;
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     return -1;
   }
@@ -819,7 +819,8 @@ static int32_t mndTransRollback(SMnode *pMnode, STrans *pTrans) {
 }
 
 static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
-  bool sendRsp = false;
+  bool    sendRsp = false;
+  int32_t code = pTrans->code;
 
   if (pTrans->stage == TRN_STAGE_FINISHED) {
     sendRsp = true;
@@ -828,12 +829,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   if (pTrans->policy == TRN_POLICY_ROLLBACK) {
     if (pTrans->stage == TRN_STAGE_UNDO_LOG || pTrans->stage == TRN_STAGE_UNDO_ACTION ||
         pTrans->stage == TRN_STAGE_ROLLBACK) {
+      if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
-  }
-
-  if (pTrans->policy == TRN_POLICY_RETRY) {
+  } else {
     if (pTrans->stage == TRN_STAGE_REDO_ACTION && pTrans->failedTimes > 0) {
+      if (code == 0) code = TSDB_CODE_MND_TRANS_UNKNOW_ERROR;
       sendRsp = true;
     }
   }
@@ -845,13 +846,13 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     }
     taosMemoryFree(pTrans->rpcRsp);
 
-    mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, pTrans->code & 0xFFFF, pTrans->stage,
+    mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, code & 0xFFFF, pTrans->stage,
            pTrans->rpcAHandle);
     SRpcMsg rspMsg = {
         .handle = pTrans->rpcHandle,
         .ahandle = pTrans->rpcAHandle,
         .refId = pTrans->rpcRefId,
-        .code = pTrans->code,
+        .code = code,
         .pCont = rpcCont,
         .contLen = pTrans->rpcRspLen,
     };
@@ -918,27 +919,41 @@ static int32_t mndTransExecuteLogs(SMnode *pMnode, SArray *pArray) {
 
   if (arraySize == 0) return 0;
 
+  int32_t code = 0;
   for (int32_t i = 0; i < arraySize; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    int32_t  code = sdbWriteWithoutFree(pSdb, pRaw);
-    if (code != 0) {
-      return code;
+    if (sdbWriteWithoutFree(pSdb, pRaw) != 0) {
+      code = ((terrno != 0) ? terrno : -1);
     }
   }
 
-  return 0;
+  terrno = code;
+  return code;
 }
 
 static int32_t mndTransExecuteRedoLogs(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteLogs(pMnode, pTrans->redoLogs);
+  int32_t code = mndTransExecuteLogs(pMnode, pTrans->redoLogs);
+  if (code != 0) {
+    mError("failed to execute redoLogs since %s", terrstr());
+  }
+  return code;
 }
 
 static int32_t mndTransExecuteUndoLogs(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteLogs(pMnode, pTrans->undoLogs);
+  int32_t code = mndTransExecuteLogs(pMnode, pTrans->undoLogs);
+  if (code != 0) {
+    mError("failed to execute undoLogs since %s, return success", terrstr());
+  }
+
+  return 0;  // return success in any case
 }
 
 static int32_t mndTransExecuteCommitLogs(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteLogs(pMnode, pTrans->commitLogs);
+  int32_t code = mndTransExecuteLogs(pMnode, pTrans->commitLogs);
+  if (code != 0) {
+    mError("failed to execute commitLogs since %s", terrstr());
+  }
+  return code;
 }
 
 static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray) {
@@ -982,6 +997,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
+      if (terrno == TSDB_CODE_INVALID_PTR) rpcFreeCont(rpcMsg.pCont);
       mError("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
@@ -1028,11 +1044,19 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
 }
 
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions);
+  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions);
+  if (code != 0) {
+    mError("failed to execute redoActions since %s", terrstr());
+  }
+  return code;
 }
 
 static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions);
+  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions);
+  if (code != 0) {
+    mError("failed to execute undoActions since %s", terrstr());
+  }
+  return code;
 }
 
 static bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
@@ -1099,8 +1123,8 @@ static bool mndTransPerformCommitStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     if (pTrans->policy == TRN_POLICY_ROLLBACK) {
-      pTrans->stage = TRN_STAGE_REDO_ACTION;
-      mError("trans:%d, stage from commit to redoAction since %s, failedTimes:%d", pTrans->id, terrstr(),
+      pTrans->stage = TRN_STAGE_UNDO_ACTION;
+      mError("trans:%d, stage from commit to undoAction since %s, failedTimes:%d", pTrans->id, terrstr(),
              pTrans->failedTimes);
       continueExec = true;
     } else {
@@ -1125,7 +1149,7 @@ static bool mndTransPerformCommitLogStage(SMnode *pMnode, STrans *pTrans) {
   } else {
     pTrans->code = terrno;
     pTrans->failedTimes++;
-    mError("trans:%d, stage keep on commitLog since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on commitLog since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 
@@ -1161,7 +1185,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
     continueExec = false;
   } else {
     pTrans->failedTimes++;
-    mError("trans:%d, stage keep on undoAction since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on undoAction since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 
@@ -1178,7 +1202,7 @@ static bool mndTransPerformRollbackStage(SMnode *pMnode, STrans *pTrans) {
     continueExec = true;
   } else {
     pTrans->failedTimes++;
-    mError("trans:%d, stage keep on rollback since %s", pTrans->id, terrstr());
+    mError("trans:%d, stage keep on rollback since %s, failedTimes:%d", pTrans->id, terrstr(), pTrans->failedTimes);
     continueExec = false;
   }
 
