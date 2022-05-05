@@ -2009,7 +2009,7 @@ static int32_t parseSmlKey(TAOS_SML_KV *pKV, const char **index, SHashObj *pHash
     return TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
   }
 
-  pKV->key = calloc(len + TS_BACKQUOTE_CHAR_SIZE + 1, 1);
+  pKV->key = malloc(len + TS_BACKQUOTE_CHAR_SIZE + 1);
   memcpy(pKV->key, key, len + 1);
   addEscapeCharToString(pKV->key, len);
   tscDebug("SML:0x%"PRIx64" Key:%s|len:%d", info->id, pKV->key, len);
@@ -2452,13 +2452,13 @@ static int32_t parseSmlKvPairs(TAOS_SML_KV **pKVs, int *num_kvs,
   int32_t capacity = 0;
   if (isField) {
     capacity = 64;
-    *pKVs = calloc(capacity, sizeof(TAOS_SML_KV));
+    *pKVs = malloc(capacity * sizeof(TAOS_SML_KV));
     // leave space for timestamp;
     pkv = *pKVs;
     pkv++;
   } else {
     capacity = 8;
-    *pKVs = calloc(capacity, sizeof(TAOS_SML_KV));
+    *pKVs = malloc(capacity * sizeof(TAOS_SML_KV));
     pkv = *pKVs;
   }
 
@@ -2553,7 +2553,7 @@ int32_t tscParseLine(const char* sql, TAOS_SML_DATA_POINT* smlData, SSmlLinesInf
   int32_t ret = TSDB_CODE_SUCCESS;
   uint8_t has_tags = 0;
   TAOS_SML_KV *timestamp = NULL;
-  SHashObj *keyHashTable = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+  SHashObj *keyHashTable = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
 
   ret = parseSmlMeasurement(smlData, &index, &has_tags, info);
   if (ret) {
