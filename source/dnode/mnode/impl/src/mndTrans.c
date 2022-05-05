@@ -997,6 +997,9 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
+      pAction->msgSent = 0;
+      pAction->msgReceived = 0;
+      pAction->errCode = terrno;
       if (terrno == TSDB_CODE_INVALID_PTR) rpcFreeCont(rpcMsg.pCont);
       mError("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
