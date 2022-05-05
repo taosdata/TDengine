@@ -4739,7 +4739,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
 
       SQueryTableDataCond cond = {0};
-
       int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
       if (code != TSDB_CODE_SUCCESS) {
         return NULL;
@@ -4782,6 +4781,25 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SOperatorInfo* pOperator = createSysTableScanOperatorInfo(
           pHandle, pResBlock, &pScanNode->tableName, pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet, colList,
           pTaskInfo, pSysScanPhyNode->showRewrite, pSysScanPhyNode->accountId);
+      return pOperator;
+    } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
+      STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*) pPhyNode;
+      SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
+
+      int32_t  code =
+          doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
+      if (code != TSDB_CODE_SUCCESS) {
+        return NULL;
+      }
+
+      int32_t num = 0;
+      SExprInfo* pExprInfo = createExprInfo(pScanPhyNode->pScanPseudoCols, NULL, &num);
+
+      int32_t numOfOutputCols = 0;
+      SArray* colList =
+          extractColMatchInfo(pScanPhyNode->pScanPseudoCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfOutputCols);
+
+      SOperatorInfo* pOperator = createTagScanOperatorInfo(pHandle, pExprInfo, num, pResBlock, colList, pTableGroupInfo, pTaskInfo);
       return pOperator;
     } else {
       ASSERT(0);
@@ -5088,7 +5106,7 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
     SColMatchInfo c = {0};
     c.output = true;
-    c.colId = pColNode->colId;
+    c.colId  = pColNode->colId;
     c.targetSlotId = pNode->slotId;
     taosArrayPush(pList, &c);
   }
@@ -5166,9 +5184,7 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
-#if 0
-  return tsdbQueryTables(pHandle->reader, &cond, pTableGroupInfo, queryId, taskId);
-#endif
+
   return tsdbQueryTables(pHandle->vnode, &cond, pTableGroupInfo, queryId, taskId);
 
 _error:
