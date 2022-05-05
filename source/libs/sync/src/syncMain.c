@@ -141,6 +141,18 @@ const char* syncGetMyRoleStr(int64_t rid) {
   return s;
 }
 
+int32_t syncGetVgId(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return TAOS_SYNC_STATE_ERROR;
+  }
+  assert(rid == pSyncNode->rid);
+  int32_t vgId = pSyncNode->vgId;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return vgId;
+}
+
 SyncTerm syncGetMyTerm(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -151,6 +163,29 @@ SyncTerm syncGetMyTerm(int64_t rid) {
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
   return term;
+}
+
+void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    memset(pEpSet, 0, sizeof(*pEpSet));
+    return;
+  }
+  assert(rid == pSyncNode->rid);
+  pEpSet->numOfEps = 0;
+  for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
+    snprintf(pEpSet->eps[i].fqdn, sizeof(pEpSet->eps[i].fqdn), "%s", (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodeFqdn);
+    pEpSet->eps[i].port = (pSyncNode->pRaftCfg->cfg.nodeInfo)[i].nodePort;
+    (pEpSet->numOfEps)++;
+
+    sInfo("syncGetEpSet index:%d %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+
+  }
+  pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
+  
+  sInfo("syncGetEpSet pEpSet->inUse:%d ", pEpSet->inUse);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
 
 int32_t syncGetRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
@@ -260,6 +295,8 @@ void setHeartbeatTimerMS(int64_t rid, int32_t hbTimerMS) {
 }
 
 int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
+  sTrace("syncPropose msgType:%d ", pMsg->msgType);
+
   int32_t    ret = TAOS_SYNC_PROPOSE_SUCCESS;
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -459,17 +496,16 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   // start raft
   if (pSyncNode->replicaNum == 1) {
     syncNodeBecomeLeader(pSyncNode);
-    
+
     syncNodeLog2("==state change become leader immediately==", pSyncNode);
-    
+
     // Raft 3.6.2 Committing entries from previous terms
-    
+
     // use this now
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
     return;
   }
-
 
   syncNodeBecomeFollower(pSyncNode);
 

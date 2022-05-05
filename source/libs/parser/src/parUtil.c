@@ -126,6 +126,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "slimit/soffset only available for PARTITION BY query";
     case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
       return "Invalid topic query";
+    case TSDB_CODE_PAR_INVALID_DROP_STABLE:
+      return "Cannot drop super table in batch";
+    case TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE:
+      return "start(end) time of query range required or time range too large";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -138,7 +142,6 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
   va_start(vArgList, errCode);
   vsnprintf(pBuf->buf, pBuf->len, getSyntaxErrFormat(errCode), vArgList);
   va_end(vArgList);
-  terrno = errCode;
   return errCode;
 }
 

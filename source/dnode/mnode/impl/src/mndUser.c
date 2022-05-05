@@ -25,7 +25,6 @@
 #define USER_RESERVE_SIZE 64
 
 static int32_t  mndCreateDefaultUsers(SMnode *pMnode);
-static SSdbRaw *mndUserActionEncode(SUserObj *pUser);
 static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw);
 static int32_t  mndUserActionInsert(SSdb *pSdb, SUserObj *pUser);
 static int32_t  mndUserActionDelete(SSdb *pSdb, SUserObj *pUser);
@@ -90,7 +89,7 @@ static int32_t mndCreateDefaultUsers(SMnode *pMnode) {
   return 0;
 }
 
-static SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
+SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int32_t numOfReadDbs = taosHashGetSize(pUser->readDbs);
@@ -238,7 +237,7 @@ static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   return 0;
 }
 
-SUserObj *mndAcquireUser(SMnode *pMnode, char *userName) {
+SUserObj *mndAcquireUser(SMnode *pMnode, const char *userName) {
   SSdb     *pSdb = pMnode->pSdb;
   SUserObj *pUser = sdbAcquire(pSdb, SDB_USER, userName);
   if (pUser == NULL) {
@@ -275,9 +274,6 @@ static int32_t mndCreateUser(SMnode *pMnode, char *acct, SCreateUserReq *pCreate
     return -1;
   }
   sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
-
-  char *param = strdup("====> test code to be deleted later <=====");
-  mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -657,7 +653,7 @@ static int32_t mndRetrieveUsers(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
 
     char name[TSDB_USER_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(name, pUser->user, pShow->pMeta->pSchemas[cols].bytes);
 
     colDataAppend(pColInfo, numOfRows, (const char *)name, false);
 

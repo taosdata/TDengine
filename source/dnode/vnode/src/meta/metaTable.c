@@ -61,19 +61,75 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
 
-  metaDebug("vgId: %d super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
+  metaDebug("vgId:%d super table is created, name:%s uid: %" PRId64, TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
 
   return 0;
 
 _err:
-  metaError("vgId: %d failed to create super table: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+  metaError("vgId:%d failed to create super table: %s uid: %" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
             pReq->suid, tstrerror(terrno));
   return -1;
 }
 
 int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
-  // TODO
+  TDBC       *pNameIdxc = NULL;
+  TDBC       *pUidIdxc = NULL;
+  TDBC       *pCtbIdxc = NULL;
+  SCtbIdxKey *pCtbIdxKey;
+  const void *pKey = NULL;
+  int         nKey;
+  const void *pData = NULL;
+  int         nData;
+  int         c, ret;
+
+  // prepare uid idx cursor
+  tdbDbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
+  if (ret < 0 || c != 0) {
+    terrno = TSDB_CODE_VND_TB_NOT_EXIST;
+    tdbDbcClose(pUidIdxc);
+    goto _err;
+  }
+
+  // prepare name idx cursor
+  tdbDbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pNameIdxc, pReq->name, strlen(pReq->name) + 1, &c);
+  if (ret < 0 || c != 0) {
+    ASSERT(0);
+  }
+
+  tdbDbcDelete(pUidIdxc);
+  tdbDbcDelete(pNameIdxc);
+  tdbDbcClose(pUidIdxc);
+  tdbDbcClose(pNameIdxc);
+
+  // loop to drop each child table
+  tdbDbcOpen(pMeta->pCtbIdx, &pCtbIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
+  if (ret < 0 || (c < 0 && tdbDbcMoveToNext(pCtbIdxc) < 0)) {
+    tdbDbcClose(pCtbIdxc);
+    goto _exit;
+  }
+
+  for (;;) {
+    tdbDbcGet(pCtbIdxc, &pKey, &nKey, NULL, NULL);
+    pCtbIdxKey = (SCtbIdxKey *)pKey;
+
+    if (pCtbIdxKey->suid > pReq->suid) break;
+
+    // drop the child table (TODO)
+
+    if (tdbDbcMoveToNext(pCtbIdxc) < 0) break;
+  }
+
+_exit:
+  metaDebug("vgId:%d  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
   return 0;
+
+_err:
+  metaError("vgId:%d failed to drop super table %s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
+            pReq->suid, tstrerror(terrno));
+  return -1;
 }
 
 int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
@@ -127,18 +183,122 @@ _err:
   return -1;
 }
 
-int metaDropTable(SMeta *pMeta, tb_uid_t uid) {
-#if 0
-  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
-    // TODO: handle error
+int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
+  TDBC       *pTbDbc = NULL;
+  TDBC       *pUidIdxc = NULL;
+  TDBC       *pNameIdxc = NULL;
+  const void *pData;
+  int         nData;
+  tb_uid_t    uid;
+  int64_t     tver;
+  SMetaEntry  me = {0};
+  SCoder      coder = {0};
+  int8_t      type;
+  int64_t     ctime;
+  tb_uid_t    suid;
+  int         c, ret;
+
+  // search & delete the name idx
+  tdbDbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pNameIdxc, pReq->name, strlen(pReq->name) + 1, &c);
+  if (ret < 0 || c) {
+    tdbDbcClose(pNameIdxc);
+    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
     return -1;
   }
 
-  if (metaRemoveTableFromIdx(pMeta, uid) < 0) {
-    // TODO
+  ret = tdbDbcGet(pNameIdxc, NULL, NULL, &pData, &nData);
+  if (ret < 0) {
+    ASSERT(0);
     return -1;
   }
-#endif
+
+  uid = *(tb_uid_t *)pData;
+
+  tdbDbcDelete(pNameIdxc);
+  tdbDbcClose(pNameIdxc);
+
+  // search & delete uid idx
+  tdbDbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
+  if (ret < 0 || c != 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  tver = *(int64_t *)pData;
+  tdbDbcDelete(pUidIdxc);
+  tdbDbcClose(pUidIdxc);
+
+  // search and get meta entry
+  tdbDbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pTbDbc, &(STbDbKey){.uid = uid, .version = tver}, sizeof(STbDbKey), &c);
+  if (ret < 0 || c != 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbcGet(pTbDbc, NULL, NULL, &pData, &nData);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  // decode entry
+  void *pDataCopy = taosMemoryMalloc(nData);  // remove the copy (todo)
+  memcpy(pDataCopy, pData, nData);
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pDataCopy, nData, TD_DECODER);
+  ret = metaDecodeEntry(&coder, &me);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  type = me.type;
+  if (type == TSDB_CHILD_TABLE) {
+    ctime = me.ctbEntry.ctime;
+    suid = me.ctbEntry.suid;
+  } else if (type == TSDB_NORMAL_TABLE) {
+    ctime = me.ntbEntry.ctime;
+    suid = 0;
+  } else {
+    ASSERT(0);
+  }
+
+  taosMemoryFree(pDataCopy);
+  tCoderClear(&coder);
+  tdbDbcClose(pTbDbc);
+
+  if (type == TSDB_CHILD_TABLE) {
+    // remove the pCtbIdx
+    TDBC *pCtbIdxc = NULL;
+    tdbDbcOpen(pMeta->pCtbIdx, &pCtbIdxc, &pMeta->txn);
+
+    ret = tdbDbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = suid, .uid = uid}, sizeof(SCtbIdxKey), &c);
+    if (ret < 0 || c != 0) {
+      ASSERT(0);
+      return -1;
+    }
+
+    tdbDbcDelete(pCtbIdxc);
+    tdbDbcClose(pCtbIdxc);
+
+    // remove tags from pTagIdx (todo)
+  } else if (type == TSDB_NORMAL_TABLE) {
+    // remove from pSkmDb
+  } else {
+    ASSERT(0);
+  }
+
+  // remove from ttl (todo)
+  if (ctime > 0) {
+  }
 
   return 0;
 }

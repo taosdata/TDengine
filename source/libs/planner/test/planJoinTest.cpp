@@ -13,19 +13,20 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TDB_TXN_H_
-#define _TDB_TXN_H_
+#include "planTestUtil.h"
+#include "planner.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+using namespace std;
 
-int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
-               int flags);
-int tdbTxnClose(TXN *pTxn);
+class PlanJoinTest : public PlannerTestBase {};
 
-#ifdef __cplusplus
+TEST_F(PlanJoinTest, basic) {
+  useDb("root", "test");
+
+  run("select t1.c1, t2.c2 from st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+
+  run("select t1.*, t2.* from st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+
+  // run("select t1.c1, t2.c1 from st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1 and t1.c2 = 'abc' and "
+  //     "t2.c2 = 'qwe'");
 }
-#endif
-
-#endif /*_TDB_TXN_H_*/
