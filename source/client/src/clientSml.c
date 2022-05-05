@@ -133,8 +133,12 @@ static uint64_t smlGenId() {
 }
 
 static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const char *msg2) {
-  if(msg1) snprintf(pBuf->buf, pBuf->len, "%s:", msg1);
-  if(msg2) strncpy(pBuf->buf, msg2, pBuf->len);
+  if(msg1) strncat(pBuf->buf, msg1, pBuf->len);
+  int32_t left = pBuf->len - strlen(pBuf->buf);
+  if(left > 2 && msg2) {
+    strncat(pBuf->buf, ":", left - 1);
+    strncat(pBuf->buf, msg2, left - 2);
+  }
   return TSDB_CODE_SML_INVALID_DATA;
 }
 
@@ -658,11 +662,12 @@ static bool smlParseBigInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
   int32_t len = kvVal->valueLen;
   if (len > 3 && strncasecmp(pVal + len - 3, "i64", 3) == 0) {
     char *endptr = NULL;
+    errno = 0;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != pVal + len - 3){       // 78ri8
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "invalid big int", endptr);
-    }else if(!IS_VALID_BIGINT(result)){
+    }else if(errno == ERANGE || !IS_VALID_BIGINT(result)){
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", endptr);
     }else{
@@ -672,11 +677,12 @@ static bool smlParseBigInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return true;
   }else if (len > 1 && pVal[len - 1] == 'i') {
     char *endptr = NULL;
+    errno = 0;
     int64_t result = strtoll(pVal, &endptr, 10);
     if(endptr != pVal + len - 1){       // 78ri8
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "invalid big int", endptr);
-    }else if(!IS_VALID_BIGINT(result)){
+    }else if(errno == ERANGE || !IS_VALID_BIGINT(result)){
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", endptr);
     }else{
@@ -700,11 +706,12 @@ static bool smlParseBigUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
   const char *signalPos = pVal + len - 3;
   if (strncasecmp(signalPos, "u64", 3) == 0) {
     char *endptr = NULL;
+    errno = 0;
     uint64_t result = strtoull(pVal, &endptr, 10);
     if(endptr != signalPos){       // 78ri8
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "invalid unsigned big int", endptr);
-    }else if(!IS_VALID_UBIGINT(result)){
+    }else if(errno == ERANGE || !IS_VALID_UBIGINT(result)){
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", endptr);
     }else{
@@ -720,18 +727,19 @@ static bool smlParseFloat(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
   const char *pVal = kvVal->value;
   int32_t len = kvVal->valueLen;
   char *endptr = NULL;
+  errno = 0;
   float result = strtof(pVal, &endptr);
-  if(endptr == pVal + len && IS_VALID_FLOAT(result)){       // 78
+  if(endptr == pVal + len && errno != ERANGE && IS_VALID_FLOAT(result)){       // 78
     kvVal->f = result;
     *isValid = true;
     return true;
   }
 
-  if (len > 3 && len <strncasecmp(pVal + len - 3, "f32", 3) == 0) {
+  if (len > 3 && strncasecmp(pVal + len - 3, "f32", 3) == 0) {
     if(endptr != pVal + len - 3){       // 78ri8
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "invalid float", endptr);
-    }else if(!IS_VALID_FLOAT(result)){
+    }else if(errno == ERANGE || !IS_VALID_FLOAT(result)){
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", endptr);
     }else{
@@ -750,13 +758,14 @@ static bool smlParseDouble(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
     return false;
   }
   const char *signalPos = pVal + len - 3;
-  if (len <strncasecmp(signalPos, "f64", 3) == 0) {
+  if (strncasecmp(signalPos, "f64", 3) == 0) {
     char *endptr = NULL;
+    errno = 0;
     double result = strtod(pVal, &endptr);
     if(endptr != signalPos){       // 78ri8
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "invalid double", endptr);
-    }else if(!IS_VALID_DOUBLE(result)){
+    }else if(errno == ERANGE || !IS_VALID_DOUBLE(result)){
       *isValid = false;
       smlBuildInvalidDataMsg(msg, "double out of range[-1.7976931348623158e+308,1.7976931348623158e+308]", endptr);
     }else{
@@ -817,27 +826,31 @@ static bool smlIsNchar(const char *pVal, uint16_t len) {
 static bool smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   // put high probability matching type first
   bool isValid = false;
+
+  //binary
+  if (smlIsBinary(pVal->value, pVal->valueLen)) {
+    pVal->type = TSDB_DATA_TYPE_BINARY;
+    pVal->valueLen -= 2;
+    pVal->length = pVal->valueLen;
+    pVal->value++;
+    return true;
+  }
+  //nchar
+  if (smlIsNchar(pVal->value, pVal->valueLen)) {
+    pVal->type = TSDB_DATA_TYPE_NCHAR;
+    pVal->valueLen -= 3;
+    pVal->length = pVal->valueLen;
+    pVal->value += 2;
+    return true;
+  }
+  //float
   if (smlParseFloat(pVal, &isValid, msg)) {
     if(!isValid) return false;
     pVal->type = TSDB_DATA_TYPE_FLOAT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
     return true;
   }
-  //binary
-  if (smlIsBinary(pVal->value, pVal->valueLen)) {
-    pVal->type = TSDB_DATA_TYPE_BINARY;
-    pVal->length = pVal->valueLen - 2;
-    pVal->valueLen -= 2;
-    pVal->value = pVal->value++;
-    return true;
-  }
-  //nchar
-  if (smlIsNchar(pVal->value, pVal->valueLen)) {
-    pVal->type = TSDB_DATA_TYPE_NCHAR;
-    pVal->length = pVal->valueLen - 3;
-    pVal->value = pVal->value+2;
-    return true;
-  }
+  //double
   if (smlParseDouble(pVal, &isValid, msg)) {
     if(!isValid) return false;
     pVal->type = TSDB_DATA_TYPE_DOUBLE;
@@ -1017,7 +1030,7 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool is
     kv->valueLen = strlen(TAG);
     kv->type = TSDB_DATA_TYPE_NCHAR;
     if(cols) taosArrayPush(cols, &kv);
-    return true;
+    return TSDB_CODE_SUCCESS;
   }
 
   for(int i = 0; i < len; i++){
@@ -1039,11 +1052,19 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool is
     // parse value
     i++;
     const char *value = data + i;
+    bool isInQuote = false;
     while(i < len){
-      if(data[i] == COMMA && i > 0 && data[i-1] != SLASH){
+      if(data[i] == QUOTE && data[i-1] != SLASH){
+        isInQuote = !isInQuote;
+      }
+      if(!isInQuote && data[i] == COMMA && i > 0 && data[i-1] != SLASH){
         break;
       }
       i++;
+    }
+    if(isInQuote){
+      smlBuildInvalidDataMsg(msg, "only one quote", value);
+      return TSDB_CODE_SML_INVALID_DATA;
     }
     int32_t valueLen = data + i - value;
     if(valueLen == 0){
