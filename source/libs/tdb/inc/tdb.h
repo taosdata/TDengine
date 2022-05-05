@@ -55,11 +55,9 @@ int tdbDbcMoveToLast(TDBC *pDbc);
 int tdbDbcMoveToNext(TDBC *pDbc);
 int tdbDbcMoveToPrev(TDBC *pDbc);
 int tdbDbcGet(TDBC *pDbc, const void **ppKey, int *pkLen, const void **ppVal, int *pvLen);
-
-int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen);
-int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int vLen);
 int tdbDbcDelete(TDBC *pDbc);
 int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int tdbDbcUpsert(TDBC *pDbc, const void *pKey, int nKey, const void *pData, int nData, int insert);
 
 // TXN
 #define TDB_TXN_WRITE            0x1
