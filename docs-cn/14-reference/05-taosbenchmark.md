@@ -339,6 +339,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
 
+- **create_table_thread_count** : 建表的线程数量，默认为8.
+
 - **connection_pool_size** : 预先建立的与 TDengine 服务端之间的连接的数量。若不配置，则与所指定的线程数相同。
 
 - **result_file** : 结果输出文件的路径，默认值为 ./output.txt。
