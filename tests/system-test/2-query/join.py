@@ -5,6 +5,7 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 
+PRIMARY_COL = "ts"
 
 INT_COL     = "c1"
 BINT_COL    = "c2"
@@ -18,9 +19,10 @@ BINARY_COL  = "c8"
 NCHAR_COL   = "c9"
 TS_COL      = "c10"
 
-UN_CHAR_COL = [INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL, ]
+NUM_COL     = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, ]
 CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
-TS_TYPE_COL = [TS_COL]
+BOOLEAN_COL = [ BOOL_COL, ]
+TS_TYPE_COL = [ TS_COL, ]
 
 class TDTestCase:
 
@@ -28,50 +30,78 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __length_condition(self):
-        length_condition = []
+    def __query_condition(self,tbname):
+        query_condition = []
         for char_col in CHAR_COL:
-            length_condition.extend(
+            query_condition.extend(
                 (
-                    char_col,
-                    f"upper( {char_col} )",
+                    f"{tbname}.{char_col}",
+                    f"upper( {tbname}.{char_col} )",
                 )
             )
-            length_condition.extend( f"cast( {un_char_col} as binary(16) ) " for un_char_col in UN_CHAR_COL)
-            length_condition.extend( f"cast( {char_col} + {char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            length_condition.extend( f"cast( {char_col} + {un_char_col} as binary(32) ) " for un_char_col in UN_CHAR_COL )
+            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
+            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
+            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
+        for num_col in NUM_COL:
+            query_condition.extend(
+                (
+                    f"{tbname}.{num_col}",
+                    f"sin( {tbname}.{num_col} )"
+                )
+            )
+            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_1} " for num_col_1 in NUM_COL )
 
-        length_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
+        query_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
 
-        return length_condition
+        return query_condition
 
-    def __where_condition(self, col):
-        # return f" where count({col}) > 0 "
-        return ""
+    def __join_condition(self, tb_list, filter=PRIMARY_COL):
+        # sourcery skip: flip-comparison
+        if 1 == len(tb_list):
+            join_filter = f"{tb_list[0]}.{filter} = {tb_list[0]}.{filter} "
+        elif 2 == len(tb_list):
+            join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
+        else:
+            join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
+            for i in range(1, len(tb_list)-1 ):
+                join_filter += f"and {tb_list[i]}.{filter} = {tb_list[i+1]}.{filter}"
 
-    def __group_condition(self, col, having = ""):
-        return f" group by {col} having {having}" if having else f" group by {col} "
+        return join_filter
 
-    def __length_current_check(self, tbname):
-        length_condition = self.__length_condition()
-        for condition in length_condition:
-            where_condition = self.__where_condition(condition)
-            group_having = self.__group_condition(condition, having=f"{condition} is not null " )
-            group_no_having= self.__group_condition(condition )
+    def __where_condition(self, col, tbname):
+        if col in NUM_COL:
+            return f" abs( {tbname}.{col} ) >= 0"
+        elif col in CHAR_COL:
+            return f" lower( {tbname}.{col} ) is not null"
+        elif col in BOOLEAN_COL:
+            return f" {tbname}.{col} in (false, true)  "
+        elif col in TS_TYPE_COL or col in PRIMARY_COL:
+            return f" abs( cast( {tbname}.{col} as bigint ) ) >= 0 "
+        else:
+            return ""
+
+    def __group_condition(self, tbname, col, having = ""):
+        return f" group by {tbname}.{col} having {having}" if having else f" group by {tbname}.{col} "
+
+    def __join_check(self, tblist, checkrows, join_flag=True):
+        query_conditions = self.__query_condition(tblist[0])
+        join_condition = self.__join_condition(tb_list=tblist) if join_flag else " "
+        for condition in query_conditions:
+            where_condition =  self.__where_condition(col=condition, tbname=tblist[0])
+            group_having = self.__group_condition(tbname=tblist[0], col=condition, having=f"{condition} is not null " )
+            group_no_having= self.__group_condition(tbname=tblist[0], col=condition )
             groups = ["", group_having, group_no_having]
-
             for group_condition in groups:
-                tdSql.query(f"select {condition} from {tbname} {where_condition}  {group_condition} ")
-                datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
-                length_data = [ len(str(data))  if data else None for data in datas ]
-                tdSql.query(f"select length( {condition} ) from {tbname} {where_condition}  {group_condition}")
-                for i in range(len(length_data)):
-                    tdSql.checkData(i, 0, length_data[i] ) if length_data[i] else tdSql.checkData(i, 0, None)
+                sql = f"select {condition} from {tblist[0]},{tblist[1]} where {join_condition} and {where_condition} {group_condition}"
+                if len(tblist) == 2:
+                    self.__join_current(sql, checkrows)
+                elif len(tblist) > 2 or len(tblist) < 1:
+                    tdSql.error(sql=sql)
 
-    def __length_err_check(self,tbname):
+    def __join_err_check(self,tbname):
         sqls = []
 
-        for un_char_col in UN_CHAR_COL:
+        for un_char_col in NUM_COL:
             sqls.extend(
                 (
                     f"select length( {un_char_col} ) from {tbname} ",
@@ -80,12 +110,12 @@ class TDTestCase:
                 )
             )
 
-            sqls.extend( f"select length( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in UN_CHAR_COL )
+            sqls.extend( f"select length( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in NUM_COL )
             sqls.extend( f"select length( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
 
         sqls.extend( f"select {char_col} from {tbname} group by length( {char_col} ) " for char_col in CHAR_COL)
         sqls.extend( f"select length( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select length( {char_col} + {ts_col} ) from {tbname} " for char_col in UN_CHAR_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select length( {char_col} + {ts_col} ) from {tbname} " for char_col in NUM_COL for ts_col in TS_TYPE_COL)
         sqls.extend( f"select length( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
         sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
         sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
@@ -101,15 +131,46 @@ class TDTestCase:
 
         return sqls
 
+    def __join_current(self, sql, checkrows):
+        tdSql.query(sql=sql)
+        tdSql.checkRows(checkrows)
+
+
     def __test_current(self):
+        # sourcery skip: extract-duplicate-method, inline-immediately-returned-variable
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tbname = ["ct1", "ct2", "ct4", "t1"]
-        for tb in tbname:
-            self.__length_current_check(tb)
-            tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
+        tblist_1 = ["ct1", "ct2"]
+        self.__join_check(tblist_1, 1)
+        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_1} over==========")
+        tblist_2 = ["ct2", "ct4"]
+        self.__join_check(tblist_2, self.rows - 3)
+        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_2} over==========")
+        tblist_3 = ["t1", "ct4"]
+        self.__join_check(tblist_3, 1)
+        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_3} over==========")
+        tblist_4 = ["t1", "ct1"]
+        self.__join_check(tblist_4, 1)
+        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_4} over==========")
 
     def __test_error(self):
+        # sourcery skip: extract-duplicate-method, move-assign-in-block
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
+        err_list_1 = ["ct1","ct2", "ct4"]
+        err_list_2 = ["ct1","ct2", "t1"]
+        err_list_3 = ["ct1","ct4", "t1"]
+        err_list_4 = ["ct2","ct4", "t1"]
+        err_list_5 = ["ct1", "ct2","ct4", "t1"]
+        self.__join_check(err_list_1, -1)
+        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_1} over==========")
+        self.__join_check(err_list_2, -1)
+        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_2} over==========")
+        self.__join_check(err_list_3, -1)
+        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_3} over==========")
+        self.__join_check(err_list_4, -1)
+        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_4} over==========")
+        self.__join_check(err_list_5, -1)
+        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_5} over==========")
+
         tbname = ["ct1", "ct2", "ct4", "t1"]
 
         for tb in tbname:
@@ -168,7 +229,7 @@ class TDTestCase:
         tdSql.execute(
             f'''insert into ct4 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - rows * 3888000000+ 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             (
                 { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
@@ -184,7 +245,7 @@ class TDTestCase:
         tdSql.execute(
             f'''insert into ct2 values
             ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
-            ( { now_time - rows * 3888000000+ 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
             (
                 { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
@@ -228,7 +289,8 @@ class TDTestCase:
         self.__create_tb()
 
         tdLog.printNoPrefix("==========step2:insert data")
-        self.__insert_data(10)
+        self.rows = 10
+        self.__insert_data(self.rows)
 
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
