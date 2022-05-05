@@ -483,6 +483,7 @@ namespace TDengineDriver
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
             multiBind.num = elementCount;
+            multiBind.is_string = true;
 
             return multiBind;
         }
@@ -538,6 +539,7 @@ namespace TDengineDriver
             multiBind.length = lengthArr;
             multiBind.is_null = nullArr;
             multiBind.num = elementCount;
+            multiBind.is_string = true;
 
             return multiBind;
         }
@@ -581,7 +583,10 @@ namespace TDengineDriver
         {
             foreach (TAOS_MULTI_BIND bind in mBinds)
             {
-                Marshal.FreeHGlobal(bind.buffer);
+                if (bind.is_string)
+                    Marshal.FreeCoTaskMem(bind.buffer);
+                else
+                    Marshal.FreeHGlobal(bind.buffer);
                 Marshal.FreeHGlobal(bind.length);
                 Marshal.FreeHGlobal(bind.is_null);
             }

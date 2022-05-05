@@ -260,6 +260,7 @@ namespace TDengineDriver
             bind.buffer_length = leng;
             bind.length = lenPtr;
             bind.is_null = IntPtr.Zero;
+            bind.is_string = true;
 
             return bind;
         }
@@ -279,6 +280,7 @@ namespace TDengineDriver
             bind.buffer_length = leng;
             bind.length = lenPtr;
             bind.is_null = IntPtr.Zero;
+            bind.is_string = true;
 
             return bind;
         }
@@ -321,7 +323,10 @@ namespace TDengineDriver
         {
             foreach (TAOS_BIND bind in binds)
             {
-                Marshal.FreeHGlobal(bind.buffer);
+                if (bind.is_string)
+                    Marshal.FreeCoTaskMem(bind.buffer);
+                else
+                    Marshal.FreeHGlobal(bind.buffer);
                 Marshal.FreeHGlobal(bind.length);
                 if (bind.is_null != IntPtr.Zero)
                 {
