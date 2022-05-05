@@ -1613,6 +1613,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   SCellVal sVal = {0};
   TSKEY    rowKey = TSKEY_INITIAL_VAL;
   int32_t  nResult = 0;
+  bool     isMerge = true;
 
   // the schema version info is embeded in STSRow
   int32_t numOfColsOfRow1 = 0;
@@ -1708,6 +1709,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
       if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {
         rowKey = *(TSKEY*)sVal.val;
         if (rowKey != *lastRowKey) {
+          isMerge = false;
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
@@ -1722,6 +1724,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
         tdSKvRowGetVal(row, PRIMARYKEY_TIMESTAMP_COL_ID, -1, -1, &sVal);
         rowKey = *(TSKEY*)sVal.val;
         if (rowKey != *lastRowKey) {
+          isMerge = false;
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
@@ -1745,7 +1748,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
         colDataAppend(pColInfo, *curRow, NULL, true);
       } else if (tdValTypeIsNone(sVal.valType)) {
         // TODO: Set null if nothing append for this row
-        if (*lastRowKey != rowKey) {
+        if (!isMerge) {
           colDataAppend(pColInfo, *curRow, NULL, true);
         }
       } else {
@@ -1760,7 +1763,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
         ++k;
       }
     } else {
-      if (*lastRowKey != rowKey) {
+      if (!isMerge) {
         colDataAppend(pColInfo, *curRow, NULL, true);
       }
       ++i;
