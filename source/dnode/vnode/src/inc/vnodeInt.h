@@ -46,13 +46,13 @@
 extern "C" {
 #endif
 
-typedef struct SVnodeInfo   SVnodeInfo;
-typedef struct SMeta        SMeta;
-typedef struct STsdb        STsdb;
-typedef struct STQ          STQ;
-typedef struct SVState      SVState;
-typedef struct SVBufPool    SVBufPool;
-typedef struct SQWorker SQHandle;
+typedef struct SVnodeInfo SVnodeInfo;
+typedef struct SMeta      SMeta;
+typedef struct STsdb      STsdb;
+typedef struct STQ        STQ;
+typedef struct SVState    SVState;
+typedef struct SVBufPool  SVBufPool;
+typedef struct SQWorker   SQHandle;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -77,6 +77,7 @@ int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
+int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
@@ -100,7 +101,7 @@ int32_t      tsdbCreateTSma(STsdb* pTsdb, char* pMsg);
 int32_t      tsdbInsertTSmaData(STsdb* pTsdb, int64_t indexUid, const char* msg);
 int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
 tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
-                              uint64_t taskId);
+                             uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                                  void* pMemRef);
 int32_t      tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo);
@@ -124,6 +125,7 @@ int32_t tsdbUpdateTbUidList(STsdb* pTsdb, STbUidStore* pUidStore);
 void    tsdbUidStoreDestory(STbUidStore* pStore);
 void*   tsdbUidStoreFree(STbUidStore* pStore);
 int32_t tsdbTriggerRSma(STsdb* pTsdb, void* pMsg, int32_t inputType);
+int32_t tsdbProcessSubmitReq(STsdb* pTsdb, int64_t version, void* pReq);
 
 typedef struct {
   int8_t  streamType;  // sma or other
@@ -181,12 +183,12 @@ struct SVnode {
 
 struct STbUidStore {
   tb_uid_t  suid;
+  tb_uid_t  uid;  // TODO: just for debugging, remove when uid provided in SSDataBlock
   SArray*   tbUids;
   SHashObj* uidHash;
 };
 
 #define TD_VID(PVNODE) (PVNODE)->config.vgId
-
 
 static FORCE_INLINE bool vnodeIsRollup(SVnode* pVnode) {
   SRetention* pRetention = &(pVnode->config.tsdbCfg.retentions[0]);

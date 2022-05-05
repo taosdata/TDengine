@@ -105,7 +105,7 @@ typedef struct {
 
 #define RSMA_TASK_INFO_HASH_SLOT 8
 struct SRSmaInfo {
-  void *taskInfo[TSDB_RSMA_RETENTION_2];  // qTaskInfo_t
+  void *taskInfo[TSDB_RETENTION_L2];  // qTaskInfo_t
 };
 
 struct SSmaStat {
@@ -127,7 +127,7 @@ static FORCE_INLINE void tsdbFreeTaskHandle(qTaskInfo_t *taskHandle) {
 }
 
 static FORCE_INLINE void *tsdbFreeRSmaInfo(SRSmaInfo *pInfo) {
-  for (int32_t i = 0; i < TSDB_RSMA_RETENTION_MAX; ++i) {
+  for (int32_t i = 0; i < TSDB_RETENTION_MAX; ++i) {
     if (pInfo->taskInfo[i]) {
       tsdbFreeTaskHandle(pInfo->taskInfo[i]);
     }
@@ -175,7 +175,8 @@ static int32_t tsdbInsertRSmaDataImpl(STsdb *pTsdb, const char *msg);
 static FORCE_INLINE int32_t tsdbUidStorePut(STbUidStore *pStore, tb_uid_t suid, tb_uid_t *uid);
 static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid, SArray *tbUids);
 static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, int32_t inputType,
-                                                qTaskInfo_t *taskInfo, tb_uid_t suid, int8_t retention);
+                                                qTaskInfo_t *taskInfo, STSchema *pTSchema, tb_uid_t suid, tb_uid_t uid,
+                                                int8_t level);
 // mgmt interface
 static int32_t tsdbDropTSmaDataImpl(STsdb *pTsdb, int64_t indexUid);
 
@@ -1976,6 +1977,7 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
 
     if (!pBlock) break;
     tsdbUidStorePut(pStore, msgIter.suid, NULL);
+    pStore->uid = msgIter.uid;  // TODO: remove, just for debugging
   }
 
   if (terrno != TSDB_CODE_SUCCESS) return -1;
@@ -1983,13 +1985,15 @@ static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
 }
 
 static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, int32_t inputType,
-                                                qTaskInfo_t *taskInfo, tb_uid_t suid, int8_t retention) {
+                                                qTaskInfo_t *taskInfo, STSchema *pTSchema, tb_uid_t suid, tb_uid_t uid,
+                                                int8_t level) {
   SArray *pResult = NULL;
-  tsdbDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, REPO_ID(pTsdb), retention, taskInfo,
+  tsdbDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, REPO_ID(pTsdb), level, taskInfo,
             suid);
+
   qSetStreamInput(taskInfo, pMsg, inputType);
   while (1) {
-    SSDataBlock *output;
+    SSDataBlock *output = NULL;
     uint64_t     ts;
     if (qExecTask(taskInfo, &output, &ts) < 0) {
       ASSERT(false);
@@ -2010,21 +2014,35 @@ static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, 
 
   if (taosArrayGetSize(pResult) > 0) {
     blockDebugShowData(pResult);
+    STsdb      *sinkTsdb = (level == TSDB_RETENTION_L1 ? pTsdb->pVnode->pRSma1 : pTsdb->pVnode->pRSma2);
+    SSubmitReq *pReq = NULL;
+    if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, TD_VID(pTsdb->pVnode), uid, suid) != 0) {
+      taosArrayDestroy(pResult);
+      return TSDB_CODE_FAILED;
+    }
+    if (tsdbProcessSubmitReq(sinkTsdb, INT64_MAX, pReq) != 0) {
+      taosArrayDestroy(pResult);
+      taosMemoryFreeClear(pReq);
+      return TSDB_CODE_FAILED;
+    }
+    taosMemoryFreeClear(pReq);
   } else {
-    tsdbWarn("vgId:%d no rsma_1 data generated since %s", REPO_ID(pTsdb), tstrerror(terrno));
+    tsdbWarn("vgId:%d no rsma % " PRIi8 " data generated since %s", REPO_ID(pTsdb), level, tstrerror(terrno));
   }
-  
+
   taosArrayDestroy(pResult);
 
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType, tb_uid_t suid) {
+static int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType, tb_uid_t suid, tb_uid_t uid) {
   SSmaEnv *pEnv = REPO_RSMA_ENV(pTsdb);
   if (!pEnv) {
     // only applicable when rsma env exists
     return TSDB_CODE_SUCCESS;
   }
+
+  ASSERT(uid != 0);  // TODO: remove later
 
   SSmaStat  *pStat = SMA_ENV_STAT(pEnv);
   SRSmaInfo *pRSmaInfo = NULL;
@@ -2037,8 +2055,11 @@ int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType, tb_ui
   }
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-    tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[0], suid, TSDB_RSMA_RETENTION_1);
-    tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[1], suid, TSDB_RSMA_RETENTION_2);
+    // TODO: use the proper schema instead of 0, and cache STSchema in cache
+    STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, suid, 0);
+    tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[0], pTSchema, suid, uid, TSDB_RETENTION_L1);
+    tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[1], pTSchema, suid, uid, TSDB_RETENTION_L2);
+    taosMemoryFree(pTSchema);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2056,12 +2077,12 @@ int32_t tsdbTriggerRSma(STsdb *pTsdb, void *pMsg, int32_t inputType) {
     tsdbFetchSubmitReqSuids(pMsg, &uidStore);
 
     if (uidStore.suid != 0) {
-      tsdbExecuteRSma(pTsdb, pMsg, inputType, uidStore.suid);
+      tsdbExecuteRSma(pTsdb, pMsg, inputType, uidStore.suid, uidStore.uid);
 
       void *pIter = taosHashIterate(uidStore.uidHash, NULL);
       while (pIter) {
         tb_uid_t *pTbSuid = (tb_uid_t *)taosHashGetKey(pIter, NULL);
-        tsdbExecuteRSma(pTsdb, pMsg, inputType, *pTbSuid);
+        tsdbExecuteRSma(pTsdb, pMsg, inputType, *pTbSuid, 0);
         pIter = taosHashIterate(uidStore.uidHash, pIter);
       }
 
