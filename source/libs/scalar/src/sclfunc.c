@@ -789,35 +789,40 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_NCHAR: {
         int32_t outputCharLen = (outputLen - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
+        int32_t len;
         if (inputType == TSDB_DATA_TYPE_BOOL) {
           char tmp[8] = {0};
-          int32_t len = sprintf(tmp, "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false" );
+          len = sprintf(tmp, "%.*s", outputCharLen, *(int8_t *)input ? "true" : "false" );
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
             return TSDB_CODE_FAILED;
           }
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_BINARY) {
-          int32_t len = outputCharLen > varDataLen(input) ? varDataLen(input) : outputCharLen;
+          len = outputCharLen > varDataLen(input) ? varDataLen(input) : outputCharLen;
           bool ret = taosMbsToUcs4(input + VARSTR_HEADER_SIZE, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
             return TSDB_CODE_FAILED;
           }
           varDataSetLen(output, len);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          int32_t len = TMIN(outputLen, varDataLen(input) + VARSTR_HEADER_SIZE);
-          memcpy(output, input, len);
-          varDataSetLen(output, len - VARSTR_HEADER_SIZE);
+          len = TMIN(outputLen - VARSTR_HEADER_SIZE, varDataLen(input));
+          memcpy(output, input, len + VARSTR_HEADER_SIZE);
+          varDataSetLen(output, len);
         } else {
           char tmp[400] = {0};
           NUM_TO_STRING(inputType, input, sizeof(tmp), tmp);
-          int32_t len = (int32_t)strlen(tmp);
+          len = (int32_t)strlen(tmp);
           len = outputCharLen > len ? len : outputCharLen;
           bool ret = taosMbsToUcs4(tmp, len, (TdUcs4 *)varDataVal(output), outputLen - VARSTR_HEADER_SIZE, &len);
           if (!ret) {
             return TSDB_CODE_FAILED;
           }
           varDataSetLen(output, len);
+        }
+        //for constant conversion, need to set proper length of pOutput description
+        if (len < outputLen - VARSTR_HEADER_SIZE) {
+          pOutput->columnData->info.bytes = len + VARSTR_HEADER_SIZE;
         }
         break;
       }
