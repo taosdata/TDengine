@@ -63,9 +63,14 @@ typedef struct SIFParam {
 } SIFParam;
 
 static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
-  if (src == OP_TYPE_GREATER_THAN || src == OP_TYPE_GREATER_EQUAL || src == OP_TYPE_LOWER_THAN ||
-      src == OP_TYPE_LOWER_EQUAL) {
-    *dst = QUERY_RANGE;
+  if (src == OP_TYPE_GREATER_THAN) {
+    *dst = QUERY_GREATER_THAN;
+  } else if (src == OP_TYPE_GREATER_EQUAL) {
+    *dst = QUERY_GREATER_EQUAL;
+  } else if (src == OP_TYPE_LOWER_THAN) {
+    *dst = QUERY_LESS_THAN;
+  } else if (src == OP_TYPE_LOWER_EQUAL) {
+    *dst = QUERY_LESS_EQUAL;
   } else if (src == OP_TYPE_EQUAL) {
     *dst = QUERY_TERM;
   } else if (src == OP_TYPE_LIKE || src == OP_TYPE_MATCH || src == OP_TYPE_NMATCH) {
@@ -249,9 +254,6 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
   SIndexTerm *tm = indexTermCreate(left->suid, DEFAULT, operType, left->colValType, left->colName,
                                    strlen(left->colName), right->condValue, strlen(right->condValue));
-  if (operType == OP_TYPE_LOWER_EQUAL || operType == OP_TYPE_GREATER_EQUAL || operType == OP_TYPE_GREATER_THAN ||
-      operType == OP_TYPE_LOWER_THAN) {
-  }
   if (tm == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
