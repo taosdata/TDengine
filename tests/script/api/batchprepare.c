@@ -462,6 +462,29 @@ void generateQuerySQL(BindData *data, int32_t tblIdx) {
   }  
 }
 
+void generateErrorSQL(BindData *data, int32_t tblIdx) {
+  int32_t len = 0;
+  data->sql = taosMemoryCalloc(1, 1024);
+  
+  switch(tblIdx) {
+    case 0:
+      len = sprintf(data->sql, "insert into %s%d values (?, 1)", bpTbPrefix, tblIdx);
+      break;
+    case 1:
+      len = sprintf(data->sql, "select * from ?");
+      break;
+    case 2:
+      len = sprintf(data->sql, "select * from %s%d where ? = ?", bpTbPrefix, tblIdx);
+      break;
+    default:
+      len = sprintf(data->sql, "select count(*) from %s%d group by ?", bpTbPrefix, tblIdx);
+      break;    
+  }
+
+  if (gCaseCtrl.printStmtSql) {
+    printf("\tSTMT SQL: %s\n", data->sql);
+  }  
+}
 
 void generateDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
   if (bindIdx < gCurCase->bindColNum) {
@@ -710,6 +733,8 @@ int32_t prepareQueryData(BindData *data, int32_t tblIdx) {
   
   return 0;
 }
+
+
 
 
 void destroyData(BindData *data) {
@@ -1354,6 +1379,7 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
   return 0;
 }
 
+/* select * from table */
 int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos) {
   BindData data = {0};
 
@@ -1399,6 +1425,74 @@ int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos) {
   return 0;
 }
 
+/* value in query sql */
+int querySUBTTest2(TAOS_STMT *stmt, TAOS *taos) {
+  BindData data = {0};
+
+  for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+    memset(&data, 0, sizeof(data));
+    prepareQueryData(&data, t);
+
+    int code = taos_stmt_prepare(stmt, data.sql, 0);
+    if (code != 0){
+      printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
+
+    for (int32_t n = 0; n< (gCurCase->rowNum/gCurCase->bindRowNum); ++n) {
+      bpCheckIsInsert(stmt, 0);
+
+      if (gCaseCtrl.checkParamNum) {
+        bpCheckParamNum(stmt);
+      }
+      
+      if (bpBindParam(stmt, data.pBind + n * gCurCase->bindColNum)) {
+        exit(1);
+      }
+      
+      if (taos_stmt_add_batch(stmt)) {
+        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+
+      if (taos_stmt_execute(stmt) != 0) {
+        printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+
+      bpCheckQueryResult(stmt, taos, data.sql, data.pBind + n * gCurCase->bindColNum);    
+    }
+    
+    bpCheckIsInsert(stmt, 0);
+
+    destroyData(&data);
+  }
+
+  return 0;
+}
+
+
+int errorSQLTest1(TAOS_STMT *stmt, TAOS *taos) {
+  BindData data = {0};
+
+  for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+    memset(&data, 0, sizeof(data));
+    generateErrorSQL(&data, t);
+
+    int code = taos_stmt_prepare(stmt, data.sql, 0);
+    if (code != 0){
+      printf("*taos_stmt_prepare error as expected, error:%s\n", taos_stmt_errstr(stmt));
+    } else {
+      printf("!!!taos_stmt_prepare succeed, which should be error\n");
+      exit(1);
+    }
+
+    destroyData(&data);
+  }
+
+  return 0;
+}
+
 
 #if 0
 
@@ -1422,153 +1516,6 @@ int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
   TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_INT;
-    tags[i+0].buffer = v.v4;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+1].buffer = v.b;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    tags[i+2].buffer = v.v1;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+3].buffer = v.v2;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = NULL;
-
-    tags[i+4].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    tags[i+4].buffer = v.v8;
-    tags[i+4].is_null = &one_not_null;
-    tags[i+4].length = NULL;
-
-    tags[i+5].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+5].buffer = v.f4;
-    tags[i+5].is_null = &one_not_null;
-    tags[i+5].length = NULL;
-
-    tags[i+6].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    tags[i+6].buffer = v.f8;
-    tags[i+6].is_null = &one_not_null;
-    tags[i+6].length = NULL;
-
-    tags[i+7].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+7].buffer = v.bin;
-    tags[i+7].is_null = &one_not_null;
-    tags[i+7].length = (uintptr_t *)lb;
-
-    tags[i+8].buffer_type = TSDB_DATA_TYPE_NCHAR;
-    tags[i+8].buffer = v.bin;
-    tags[i+8].is_null = &one_not_null;
-    tags[i+8].length = (uintptr_t *)lb;
-  }
-
 
   unsigned long long starttime = taosGetTimestampUs();
 
@@ -2383,153 +2330,6 @@ int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
   TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_INT;
-    tags[i+0].buffer = v.v4;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+1].buffer = v.b;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    tags[i+2].buffer = v.v1;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+3].buffer = v.v2;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = NULL;
-
-    tags[i+4].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    tags[i+4].buffer = v.v8;
-    tags[i+4].is_null = &one_not_null;
-    tags[i+4].length = NULL;
-
-    tags[i+5].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+5].buffer = v.f4;
-    tags[i+5].is_null = &one_not_null;
-    tags[i+5].length = NULL;
-
-    tags[i+6].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    tags[i+6].buffer = v.f8;
-    tags[i+6].is_null = &one_not_null;
-    tags[i+6].length = NULL;
-
-    tags[i+7].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+7].buffer = v.bin;
-    tags[i+7].is_null = &one_not_null;
-    tags[i+7].length = (uintptr_t *)lb;
-
-    tags[i+8].buffer_type = TSDB_DATA_TYPE_NCHAR;
-    tags[i+8].buffer = v.bin;
-    tags[i+8].is_null = &one_not_null;
-    tags[i+8].length = (uintptr_t *)lb;
-  }
-
-
   unsigned long long starttime = taosGetTimestampUs();
 
   char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
@@ -2600,152 +2400,6 @@ int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
   TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
 
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_INT;
-    tags[i+0].buffer = v.v4;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+1].buffer = v.b;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    tags[i+2].buffer = v.v1;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+3].buffer = v.v2;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = NULL;
-
-    tags[i+4].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    tags[i+4].buffer = v.v8;
-    tags[i+4].is_null = &one_not_null;
-    tags[i+4].length = NULL;
-
-    tags[i+5].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+5].buffer = v.f4;
-    tags[i+5].is_null = &one_not_null;
-    tags[i+5].length = NULL;
-
-    tags[i+6].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    tags[i+6].buffer = v.f8;
-    tags[i+6].is_null = &one_not_null;
-    tags[i+6].length = NULL;
-
-    tags[i+7].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+7].buffer = v.bin;
-    tags[i+7].is_null = &one_not_null;
-    tags[i+7].length = (uintptr_t *)lb;
-
-    tags[i+8].buffer_type = TSDB_DATA_TYPE_NCHAR;
-    tags[i+8].buffer = v.bin;
-    tags[i+8].is_null = &one_not_null;
-    tags[i+8].length = (uintptr_t *)lb;
-  }
-
 
   unsigned long long starttime = taosGetTimestampUs();
 
@@ -2814,153 +2468,6 @@ int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
   TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_INT;
-    tags[i+0].buffer = v.v4;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+1].buffer = v.b;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    tags[i+2].buffer = v.v1;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+3].buffer = v.v2;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = NULL;
-
-    tags[i+4].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    tags[i+4].buffer = v.v8;
-    tags[i+4].is_null = &one_not_null;
-    tags[i+4].length = NULL;
-
-    tags[i+5].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+5].buffer = v.f4;
-    tags[i+5].is_null = &one_not_null;
-    tags[i+5].length = NULL;
-
-    tags[i+6].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    tags[i+6].buffer = v.f8;
-    tags[i+6].is_null = &one_not_null;
-    tags[i+6].length = NULL;
-
-    tags[i+7].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+7].buffer = v.bin;
-    tags[i+7].is_null = &one_not_null;
-    tags[i+7].length = (uintptr_t *)lb;
-
-    tags[i+8].buffer_type = TSDB_DATA_TYPE_NCHAR;
-    tags[i+8].buffer = v.bin;
-    tags[i+8].is_null = &one_not_null;
-    tags[i+8].length = (uintptr_t *)lb;
-  }
-
 
   unsigned long long starttime = taosGetTimestampUs();
 
@@ -3041,153 +2548,6 @@ int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
 
   TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
   TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_INT;
-    tags[i+0].buffer = v.v4;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+1].buffer = v.b;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    tags[i+2].buffer = v.v1;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+3].buffer = v.v2;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = NULL;
-
-    tags[i+4].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    tags[i+4].buffer = v.v8;
-    tags[i+4].is_null = &one_not_null;
-    tags[i+4].length = NULL;
-
-    tags[i+5].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+5].buffer = v.f4;
-    tags[i+5].is_null = &one_not_null;
-    tags[i+5].length = NULL;
-
-    tags[i+6].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    tags[i+6].buffer = v.f8;
-    tags[i+6].is_null = &one_not_null;
-    tags[i+6].length = NULL;
-
-    tags[i+7].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+7].buffer = v.bin;
-    tags[i+7].is_null = &one_not_null;
-    tags[i+7].length = (uintptr_t *)lb;
-
-    tags[i+8].buffer_type = TSDB_DATA_TYPE_NCHAR;
-    tags[i+8].buffer = v.bin;
-    tags[i+8].is_null = &one_not_null;
-    tags[i+8].length = (uintptr_t *)lb;
-  }
-
 
   unsigned long long starttime = taosGetTimestampUs();
 
