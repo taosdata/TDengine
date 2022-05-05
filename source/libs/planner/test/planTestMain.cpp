@@ -36,11 +36,11 @@ class PlannerEnv : public testing::Environment {
 static void parseArg(int argc, char* argv[]) {
   int                  opt = 0;
   const char*          optstring = "";
-  static struct option long_options[] = {{"dump", no_argument, NULL, 'd'}, {0, 0, 0, 0}};
+  static struct option long_options[] = {{"dump", optional_argument, NULL, 'd'}, {0, 0, 0, 0}};
   while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
     switch (opt) {
       case 'd':
-        g_isDump = true;
+        setDumpModule(optarg);
         break;
       default:
         break;
