@@ -27,7 +27,7 @@ extern "C" {
 
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
 #define TD_SUPPORT_BITMAP
-#define TD_SUPPORT_READ2
+#undef TD_SUPPORT_READ2
 #define TD_SUPPORT_BACK2  // suppport back compatibility of 2.0
 
 #define TASSERT(x) ASSERT(x)
@@ -387,8 +387,6 @@ typedef struct SDataCol {
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
 
-
-
 #define isAllRowsNull(pCol) ((pCol)->len == 0)
 #define isAllRowsNone(pCol) ((pCol)->len == 0)
 static FORCE_INLINE void dataColReset(SDataCol *pDataCol) { pDataCol->len = 0; }
@@ -482,7 +480,7 @@ void       tdResetDataCols(SDataCols *pCols);
 int32_t    tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
-int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool forceSetNull, TDRowVerT maxVer);
+int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool update, TDRowVerT maxVer);
 
 // ----------------- K-V data row structure
 /* |<-------------------------------------- len -------------------------------------------->|

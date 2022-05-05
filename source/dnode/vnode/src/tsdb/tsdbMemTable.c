@@ -256,8 +256,11 @@ static STbData *tsdbNewTbData(tb_uid_t uid) {
   pTbData->keyMin = TSKEY_MAX;
   pTbData->keyMax = TSKEY_MIN;
   pTbData->nrows = 0;
-
+#if 0
   pTbData->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_DISCARD_DUP_KEY,
+                                   tsdbGetTsTupleKey);
+#endif
+  pTbData->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_ALLOW_DUP_KEY,
                                    tsdbGetTsTupleKey);
   if (pTbData->pData == NULL) {
     taosMemoryFree(pTbData);
@@ -303,7 +306,7 @@ static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema *
       }
     }
 
-    tdAppendSTSRowToDataCol(row, *ppSchema, pCols);
+    tdAppendSTSRowToDataCol(row, *ppSchema, pCols, false);
   }
 
   return 0;

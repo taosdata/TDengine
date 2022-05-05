@@ -1360,7 +1360,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
           TASSERT(0);
         }
         tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
-                             pTarget->bitmapMode);
+                             pTarget->bitmapMode, false);
       }
 
       ++pTarget->numOfRows;
@@ -1371,7 +1371,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(pSchema != NULL);
       }
 
-      tdAppendSTSRowToDataCol(row, pSchema, pTarget);
+      tdAppendSTSRowToDataCol(row, pSchema, pTarget, false);
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
@@ -1409,7 +1409,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         }
         // TODO: tdAppendValToDataCol may fail
         tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
-                             pTarget->bitmapMode);
+                             pTarget->bitmapMode, false);
       }
 
       if (TD_SUPPORT_UPDATE(update)) {
@@ -1427,9 +1427,9 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         STSRow *nextRow = tsdbNextIterRow(pCommitIter->pIter);
 
         if (key2 < TD_ROW_KEY(nextRow)) {
-          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
+          tdAppendSTSRowToDataCol(row, pSchema, pTarget, false);
         } else {
-          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
+          tdAppendSTSRowToDataCol(row, pSchema, pTarget, false);
         }
         // TODO: merge with Multi-Version
       } else {
