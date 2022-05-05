@@ -21,7 +21,7 @@
 #include "taoserror.h"
 #include "tutil.h"
 
-#ifndef USE_UV
+#ifndef USEf_UV
 typedef struct SFdObj {
   void *             signature;
   TdSocketPtr        pSocket;       // TCP socket FD

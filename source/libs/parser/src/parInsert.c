@@ -1624,10 +1624,6 @@ static int32_t smlParseTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDat
 int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *colsHash, SArray *cols, bool format,
                     STableMeta *pTableMeta, char *msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
-  int32_t rowNum = taosArrayGetSize(cols);
-  if(rowNum <= 0) {
-    return buildInvalidOperationMsg(&pBuf, "cols size <= 0");
-  }
 
   SSmlExecHandle *smlHandle = (SSmlExecHandle *)handle;
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
@@ -1679,6 +1675,10 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
 
   initRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo);
 
+  int32_t rowNum = format ? taosArrayGetSize(colsFormat) : taosArrayGetSize(cols);
+  if(rowNum <= 0) {
+    return buildInvalidOperationMsg(&pBuf, "cols size <= 0");
+  }
   ret = allocateMemForSize(pDataBlock, extendedRowSize * rowNum);
   if(ret != TSDB_CODE_SUCCESS){
     buildInvalidOperationMsg(&pBuf, "allocate memory error");

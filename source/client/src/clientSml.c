@@ -117,8 +117,8 @@ typedef struct {
 //=================================================================================================
 
 static uint64_t linesSmlHandleId = 0;
-static const char* TS = "ts";
-static const char* TAG = "tagNone";
+static const char* TS = "_ts";
+static const char* TAG = "_tagNone";
 
 //=================================================================================================
 
@@ -350,13 +350,26 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       int n = sprintf(result, "create stable %s (", action->createSTable.sTableName);
       char* pos = result + n; int freeBytes = capacity - n;
 
+      size_t size = taosHashGetSize(action->createSTable.fields);
+      SArray *cols = taosArrayInit(size, POINTER_BYTES);
       SSmlKv **kv = taosHashIterate(action->createSTable.fields, NULL);
       while(kv){
-        smlBuildColumnDescription(*kv, pos, freeBytes, &outBytes);
-        pos += outBytes; freeBytes -= outBytes;
-        *pos = ','; ++pos; --freeBytes;
+        if(strncmp((*kv)->key, TS, strlen(TS)) == 0 && (*kv)->type == TSDB_DATA_TYPE_TIMESTAMP){
+          taosArrayInsert(cols, 0, kv);
+        }else{
+          taosArrayPush(cols, kv);
+        }
         kv = taosHashIterate(action->createSTable.fields, kv);
       }
+
+      for(int i = 0; i < taosArrayGetSize(cols); i++){
+        SSmlKv *kvNew = taosArrayGetP(cols, i);
+        smlBuildColumnDescription(kvNew, pos, freeBytes, &outBytes);
+        pos += outBytes; freeBytes -= outBytes;
+        *pos = ','; ++pos; --freeBytes;
+      }
+      taosArrayDestroy(cols);
+
       --pos; ++freeBytes;
 
       outBytes = snprintf(pos, freeBytes, ") tags (");
@@ -419,7 +432,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
 
     code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
 
-    if (code == TSDB_CODE_TDB_INVALID_TABLE_ID) {
+    if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_MND_INVALID_STB) {
       SSchemaAction schemaAction = {0};
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);

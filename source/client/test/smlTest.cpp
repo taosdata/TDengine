@@ -456,6 +456,12 @@ TEST(testCase, smlParseLine_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, NULL);
 
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
   SRequestObj *request = createRequest(taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, NULL);
 
@@ -467,9 +473,10 @@ TEST(testCase, smlParseLine_Test) {
     "readings,name=truck_1,fleet=South,driver=Albert,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=72.45258,longitude=68.83761,elevation=255,velocity=0,heading=181,grade=0,fuel_consumption=25 1451606400000000000",
     "readings,name=truck_2,fleet=North,driver=Derek,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606400000000000"
   };
-  for (int i = 0; i < 3; i++) {
-    smlParseLine(info, sql[i]);
-  }
+  smlInsertLines(info, sql, 3);
+//  for (int i = 0; i < 3; i++) {
+//    smlParseLine(info, sql[i]);
+//  }
 }
 
 // TEST(testCase, smlParseTS_Test) {
