@@ -817,7 +817,6 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
 
-
     uv_os_sock_t fds[2];
     if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
       goto End;
@@ -840,6 +839,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       tError("failed to create worker-thread %d", i);
       goto End;
     }
+  }
+  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
+    tError("failed to bind, reason: %s", strerror(errno));
+    goto End;
   }
   if (false == addHandleToAcceptloop(srv)) {
     goto End;
