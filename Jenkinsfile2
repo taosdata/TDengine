@@ -151,7 +151,7 @@ def pre_test_build_win() {
         call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
         set CL=/MP8
         cmake .. -G "NMake Makefiles JOM"
-        jom -j || exit 8
+        jom -j 4 || exit 8
         time /t
     '''
     return 1
