@@ -257,6 +257,7 @@ typedef struct {
   int32_t   acctId;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SRWLatch  lock;
 } SUserObj;
 
 typedef struct {
