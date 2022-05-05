@@ -537,7 +537,7 @@ static int32_t mndTransActionUpdate(SSdb *pSdb, STrans *pOld, STrans *pNew) {
   return 0;
 }
 
-static STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
+STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   STrans *pTrans = sdbAcquire(pMnode->pSdb, SDB_TRANS, &transId);
   if (pTrans == NULL) {
     terrno = TSDB_CODE_MND_TRANS_NOT_EXIST;
@@ -545,7 +545,7 @@ static STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId) {
   return pTrans;
 }
 
-static void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
+void mndReleaseTrans(SMnode *pMnode, STrans *pTrans) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pSdb, pTrans);
 }
@@ -919,27 +919,41 @@ static int32_t mndTransExecuteLogs(SMnode *pMnode, SArray *pArray) {
 
   if (arraySize == 0) return 0;
 
+  int32_t code = 0;
   for (int32_t i = 0; i < arraySize; ++i) {
     SSdbRaw *pRaw = taosArrayGetP(pArray, i);
-    int32_t  code = sdbWriteWithoutFree(pSdb, pRaw);
-    if (code != 0) {
-      return code;
+    if (sdbWriteWithoutFree(pSdb, pRaw) != 0) {
+      code = ((terrno != 0) ? terrno : -1);
     }
   }
 
-  return 0;
+  terrno = code;
+  return code;
 }
 
 static int32_t mndTransExecuteRedoLogs(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteLogs(pMnode, pTrans->redoLogs);
+  int32_t code = mndTransExecuteLogs(pMnode, pTrans->redoLogs);
+  if (code != 0) {
+    mError("failed to execute redoLogs since %s", terrstr());
+  }
+  return code;
 }
 
 static int32_t mndTransExecuteUndoLogs(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteLogs(pMnode, pTrans->undoLogs);
+  int32_t code = mndTransExecuteLogs(pMnode, pTrans->undoLogs);
+  if (code != 0) {
+    mError("failed to execute undoLogs since %s, return success", terrstr());
+  }
+
+  return 0;  // return success in any case
 }
 
 static int32_t mndTransExecuteCommitLogs(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteLogs(pMnode, pTrans->commitLogs);
+  int32_t code = mndTransExecuteLogs(pMnode, pTrans->commitLogs);
+  if (code != 0) {
+    mError("failed to execute commitLogs since %s", terrstr());
+  }
+  return code;
 }
 
 static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray) {
@@ -983,6 +997,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgReceived = 0;
       pAction->errCode = 0;
     } else {
+      if (terrno == TSDB_CODE_INVALID_PTR) rpcFreeCont(rpcMsg.pCont);
       mError("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
@@ -1029,11 +1044,19 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
 }
 
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions);
+  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions);
+  if (code != 0) {
+    mError("failed to execute redoActions since %s", terrstr());
+  }
+  return code;
 }
 
 static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans) {
-  return mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions);
+  int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions);
+  if (code != 0) {
+    mError("failed to execute undoActions since %s", terrstr());
+  }
+  return code;
 }
 
 static bool mndTransPerformPrepareStage(SMnode *pMnode, STrans *pTrans) {
