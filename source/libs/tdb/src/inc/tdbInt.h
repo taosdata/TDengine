@@ -129,6 +129,7 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pFile, tdb_cmpr_fn_t kcmpr, SBT
 int tdbBtreeClose(SBTree *pBt);
 int tdbBtreeInsert(SBTree *pBt, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
 int tdbBtreeDelete(SBTree *pBt, const void *pKey, int kLen, TXN *pTxn);
+int tdbBtreeUpsert(SBTree *pBt, const void *pKey, int nKey, const void *pData, int nData, TXN *pTxn);
 int tdbBtreeGet(SBTree *pBt, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 
@@ -143,7 +144,7 @@ int tdbBtcMoveToPrev(SBTC *pBtc);
 int tdbBtreeNext(SBTC *pBtc, void **ppKey, int *kLen, void **ppVal, int *vLen);
 int tdbBtcGet(SBTC *pBtc, const void **ppKey, int *kLen, const void **ppVal, int *vLen);
 int tdbBtcDelete(SBTC *pBtc);
-int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pVal, int vLen);
+int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int nData, int insert);
 
 // tdbPager.c ====================================
 

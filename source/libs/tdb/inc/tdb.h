@@ -42,7 +42,7 @@ int tdbDbClose(TDB *pDb);
 int tdbDbDrop(TDB *pDb);
 int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);
 int tdbDbDelete(TDB *pDb, const void *pKey, int kLen, TXN *pTxn);
-int tdbUpsert(TDB *pTDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
+int tdbDbUpsert(TDB *pDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
 int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 

@@ -115,7 +115,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-TEST(tdb_test, simple_test) {
+TEST(tdb_test, simple_insert1) {
   int           ret;
   TENV         *pEnv;
   TDB          *pDb;
@@ -235,7 +235,7 @@ TEST(tdb_test, simple_test) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-TEST(tdb_test, simple_test2) {
+TEST(tdb_test, simple_insert2) {
   int           ret;
   TENV         *pEnv;
   TDB          *pDb;
@@ -412,6 +412,71 @@ TEST(tdb_test, simple_delete1) {
   tdbCommit(pEnv, &txn);
 
   closePool(pPool);
+
+  tdbDbClose(pDb);
+  tdbEnvClose(pEnv);
+}
+
+TEST(tdb_test, simple_upsert1) {
+  int       ret;
+  TENV     *pEnv;
+  TDB      *pDb;
+  int       nData = 100000;
+  char      key[64];
+  char      data[64];
+  void     *pData = NULL;
+  SPoolMem *pPool;
+  TXN       txn;
+
+  taosRemoveDir("tdb");
+
+  // open env
+  ret = tdbEnvOpen("tdb", 4096, 64, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // open database
+  ret = tdbDbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  pPool = openPool();
+  // insert some data
+  tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
+  tdbBegin(pEnv, &txn);
+
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbDbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  // query the data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d", iData);
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
+  }
+
+  // upsert some data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d-u", iData);
+    ret = tdbDbUpsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  tdbCommit(pEnv, &txn);
+
+  // query the data
+  for (int iData = 0; iData < nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(data, "data%d-u", iData);
+    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    GTEST_ASSERT_EQ(ret, 0);
+    GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
+  }
 
   tdbDbClose(pDb);
   tdbEnvClose(pEnv);
