@@ -435,7 +435,7 @@ int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_
   if (minNode) {
     SDelayTask* minTask = container_of(minNode, SDelayTask, node);
     if (minTask->execTime < task->execTime) {
-      timeoutMs = minTask->execTime <= now ? 0 : now - minTask->execTime;
+      timeoutMs = minTask->execTime <= now ? 0 : minTask->execTime - now;
     }
   }
 
