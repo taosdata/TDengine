@@ -204,7 +204,7 @@ class TDTestCase:
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
     
-    def basic_sqrt_function(self):
+    def basic_sin_function(self):
 
         # basic query 
         tdSql.query("select c1 from ct3")
