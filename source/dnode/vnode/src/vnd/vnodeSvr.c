@@ -360,7 +360,11 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
     // do create table
     if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
-      cRsp.code = terrno;
+      if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+        cRsp.code = TSDB_CODE_SUCCESS;
+      } else {
+        cRsp.code = terrno;
+      }
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
       tsdbFetchTbUidList(pVnode->pTsdb, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
