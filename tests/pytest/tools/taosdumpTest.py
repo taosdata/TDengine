@@ -50,6 +50,8 @@ class TDTestCase:
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
+        if (len(paths) == 0):
+            return ""
         return paths[0]
 
     def run(self):
@@ -85,9 +87,9 @@ class TDTestCase:
         else:
             tdLog.info("taosdump found: %s" % binPath)
 
-        os.system("%s --databases db -o ./taosdumptest/tmp1" % binPath)
+        os.system("%s -y --databases db -o ./taosdumptest/tmp1" % binPath)
         os.system(
-            "%s --databases db1 -o ./taosdumptest/tmp2" %
+            "%s -y --databases db1 -o ./taosdumptest/tmp2" %
             binPath)
 
         tdSql.execute("drop database db")
@@ -168,7 +170,7 @@ class TDTestCase:
         tdSql.query("show stables")
         tdSql.checkRows(2)
         os.system(
-            "%s --databases db12312313231231321312312312_323 -o ./taosdumptest/tmp1" %
+            "%s -y --databases db12312313231231321312312312_323 -o ./taosdumptest/tmp1" %
             binPath)
         tdSql.execute("drop database db12312313231231321312312312_323")
         os.system("%s -i ./taosdumptest/tmp1" % binPath)

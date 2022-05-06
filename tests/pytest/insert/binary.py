@@ -14,6 +14,23 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
+    def getPath(self, tool="taos"):
+        selfPath = os.path.dirname(os.path.realpath(__file__))
+
+        if ("community" in selfPath):
+            projPath = selfPath[:selfPath.find("community")]
+        else:
+            projPath = selfPath[:selfPath.find("tests")]
+
+        paths = []
+        for root, dirs, files in os.walk(projPath):
+            if ((tool) in files):
+                rootRealPath = os.path.dirname(os.path.realpath(root))
+                if ("packaging" not in rootRealPath):
+                    paths.append(os.path.join(root, tool))
+                    break
+        return paths[0]
+
     def run(self):
         tdSql.prepare()
 
@@ -54,17 +71,27 @@ class TDTestCase:
         tdLog.info("tdSql.checkData(0, 0, '34567')")
         tdSql.checkData(0, 0, '34567')
         tdLog.info("insert into tb values (now+4a, \"'';\")")
+
         if platform.system() == "Linux":
-            config_dir = subprocess.check_output(str("ps -ef |grep dnode1|grep -v grep |awk '{print $NF}'"), stderr=subprocess.STDOUT, shell=True).decode('utf-8').replace('\n', '')
-            result = ''.join(os.popen(r"""taos  -s "insert into db.tb values (now+4a, \"'';\")" -c %s"""%(config_dir)).readlines())
-            if "Query OK" not in result: tdLog.exit("err:insert '';")            
-        tdLog.info('drop database db')
-        tdSql.execute('drop database db')
-        tdLog.info('show databases')
-        tdSql.query('show databases')
-        tdLog.info('tdSql.checkRow(0)')
-        tdSql.checkRows(0)
-# convert end
+            config_dir = subprocess.check_output(
+                str("ps -ef |grep dnode1|grep -v grep |awk '{print $NF}'"),
+                stderr=subprocess.STDOUT,
+                shell=True).decode('utf-8').replace(
+                '\n',
+                '')
+
+            binPath = self.getPath("taos")
+            if (binPath == ""):
+                tdLog.exit("taos not found!")
+            else:
+                tdLog.info("taos found: %s" % binPath)
+
+            result = ''.join(
+                os.popen(
+                    r"""%s -s "insert into db.tb values (now+4a, \"'';\")" -c %s""" %
+                    (binPath, (config_dir))).readlines())
+            if "Query OK" not in result:
+                tdLog.exit("err:insert '';")
 
     def stop(self):
         tdSql.close()

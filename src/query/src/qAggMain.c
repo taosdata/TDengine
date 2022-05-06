@@ -345,7 +345,7 @@ static uint64_t hllCountCnt(uint8_t *buckets) {
     z *= 0.5;
   }
   z += m * hllSigma(buckethisto[0]/(double)m);
-  double E = llroundl(HLL_ALPHA_INF*m*m/z);
+  double E = (double)llroundl(HLL_ALPHA_INF*m*m/z);
 
   return (uint64_t) E;
 }
@@ -5185,10 +5185,6 @@ static bool elapsedSetup(SQLFunctionCtx *pCtx, SResultRowCellInfo* pResInfo) {
   return true;
 }
 
-static int32_t elapsedRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
-  return BLK_DATA_NO_NEEDED;
-}
-
 static void elapsedFunction(SQLFunctionCtx *pCtx) {
   SElapsedInfo *pInfo = getOutputInfo(pCtx);
   if (pCtx->preAggVals.isSet) {
@@ -6509,7 +6505,7 @@ SAggFunctionInfo aAggs[TSDB_FUNC_MAX_NUM] = {{
                               elapsedFunction,
                               elapsedFinalizer,
                               elapsedMerge,
-                              elapsedRequired,
+                              dataBlockRequired,
                           },
                           {
                               //38

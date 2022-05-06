@@ -183,10 +183,11 @@ do { \
 #define TSDB_BINARY_OP_MULTIPLY   32
 #define TSDB_BINARY_OP_DIVIDE     33
 #define TSDB_BINARY_OP_REMAINDER  34
+#define TSDB_BINARY_OP_BITAND     35
 
 
 #define IS_RELATION_OPTR(op) (((op) >= TSDB_RELATION_LESS) && ((op) < TSDB_RELATION_IN))
-#define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_REMAINDER))
+#define IS_ARITHMETIC_OPTR(op) (((op) >= TSDB_BINARY_OP_ADD) && ((op) <= TSDB_BINARY_OP_BITAND))
 
 #define TS_PATH_DELIMITER_LEN     1
 
@@ -248,13 +249,6 @@ do { \
 
 #define TSDB_STEP_NAME_LEN        32
 #define TSDB_STEP_DESC_LEN        128
-
-#define TSDB_MQTT_HOSTNAME_LEN    64
-#define TSDB_MQTT_PORT_LEN        8
-#define TSDB_MQTT_USER_LEN        24
-#define TSDB_MQTT_PASS_LEN        24
-#define TSDB_MQTT_TOPIC_LEN       64
-#define TSDB_MQTT_CLIENT_ID_LEN   32
 
 #define TSDB_DB_TYPE_DEFAULT      0
 #define TSDB_DB_TYPE_TOPIC        1
@@ -461,8 +455,7 @@ typedef enum {
   TSDB_MOD_MNODE   = 0,
   TSDB_MOD_HTTP    = 1,
   TSDB_MOD_MONITOR = 2,
-  TSDB_MOD_MQTT    = 3,
-  TSDB_MOD_MAX     = 4
+  TSDB_MOD_MAX     = 3
 } EModuleType;
 
 typedef enum {

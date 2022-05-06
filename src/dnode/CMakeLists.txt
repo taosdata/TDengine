@@ -47,10 +47,6 @@ IF (TD_USB_DONGLE)
   TARGET_LINK_LIBRARIES(taosd usb_dongle)
 ENDIF ()
 
-IF (TD_MQTT)
-  TARGET_LINK_LIBRARIES(taosd mqtt)
-ENDIF ()
-
 IF (TD_TOPIC)
   TARGET_LINK_LIBRARIES(taosd topic)
 ENDIF ()

@@ -12,8 +12,9 @@ fn taos_connect() -> Result<Taos, Error> {
         .connect()
 }
 
-fn main() {
+#[tokio::main]
+async fn main() {
     #[allow(unused_variables)]
-    let taos = taos_connect().unwrap();
+    let taos = taos_connect().expect("connect error");
     println!("Connected")
 }

@@ -7,3 +7,7 @@ var conn = taos.connect({
   password: "taosdata",
 });
 conn.close();
+
+// run with: node connect.js
+// output:
+// Successfully connected to TDengine

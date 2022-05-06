@@ -81,38 +81,12 @@ public class TSDBPreparedStatement extends TSDBStatement implements PreparedStat
      */
     private void preprocessSql() {
         /***For processing some of Spark SQLs*/
-        // should replace it first
-        this.rawSql = this.rawSql.replaceAll("or (.*) is null", "");
-        this.rawSql = this.rawSql.replaceAll(" where ", " WHERE ");
-        this.rawSql = this.rawSql.replaceAll(" or ", " OR ");
-        this.rawSql = this.rawSql.replaceAll(" and ", " AND ");
-        this.rawSql = this.rawSql.replaceAll(" is null", " IS NULL");
-        this.rawSql = this.rawSql.replaceAll(" is not null", " IS NOT NULL");
-
         // SELECT * FROM db.tb WHERE 1=0
         this.rawSql = this.rawSql.replaceAll("WHERE 1=0", "WHERE _c0=1");
         this.rawSql = this.rawSql.replaceAll("WHERE 1=2", "WHERE _c0=1");
 
         // SELECT "ts","val" FROM db.tb
         this.rawSql = this.rawSql.replaceAll("\"", "");
-
-        // SELECT 1 FROM db.tb
-        this.rawSql = this.rawSql.replaceAll("SELECT 1 FROM", "SELECT * FROM");
-
-        // SELECT "ts","val" FROM db.tb WHERE ts < 33 or ts is null
-        this.rawSql = this.rawSql.replaceAll("OR (.*) IS NULL", "");
-
-        // SELECT "ts","val" FROM db.tb WHERE ts is null or ts < 33
-        this.rawSql = this.rawSql.replaceAll("(.*) IS NULL OR", "");
-
-        // SELECT 1 FROM db.tb WHERE (("val" IS NOT NULL) AND ("val" > 50)) AND (ts >= 66)
-        this.rawSql = this.rawSql.replaceAll("\\(\\((.*) IS NOT NULL\\) AND", "(");
-
-        // SELECT 1 FROM db.tb WHERE ("val" IS NOT NULL) AND ("val" > 50) AND (ts >= 66)
-        this.rawSql = this.rawSql.replaceAll("\\((.*) IS NOT NULL\\) AND", "");
-
-        // SELECT "ts","val" FROM db.tb WHERE (("val" IS NOT NULL)) AND (ts < 33 or ts is null)
-        this.rawSql = this.rawSql.replaceAll("\\(\\((.*) IS NOT NULL\\)\\) AND", "");
 
         /***** For processing inner subqueries *****/
         Pattern pattern = Pattern.compile("FROM\\s+((\\(.+\\))\\s+SUB_QRY)", Pattern.CASE_INSENSITIVE);

@@ -1304,6 +1304,62 @@ TDengine supports aggregations over data, they are listed below:
     Query OK, 1 row(s) in set (0.000836s)
     ```
 
+-  **CSUM**
+    ```sql
+    SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Cumulative sum computes the running total of one time series. It occurs in select clause of SQL statement.
+
+    Input: Input column data type should be a numeric type.
+
+    Output: If the input data type is unsigned int type, the result data type is uint64_t. If the input data type is signed int type, the result data type is int64_t. If the input data type is float or double, the result data type is double. The function also outputs the timestamp of the current row.
+
+    Table: The csum function only applies to the normal table, child table, and super table with group by tbname.
+
+    Nested Query: The csum function applies to both outer query and nested query.
+
+    Note: Can't be used with +-*/ arithmatic operations，like csum(col1) + csum(col2), can only be used with aggragation functions.
+
+-  **MAVG**
+    ```sql
+    SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Moving Average Function Computes the rolling simple average over k values of one time series. It occurs in select clause of SQL statement. If the input time series has less than k values, no result is calculated.
+
+    Input: Input column data should be a numeric type. 
+
+    Output: The Result data type is double. The function also outputs the timestamp of the current row.
+
+    Parameter: K is an integer between 1 and 1000.
+
+    Table: The mavg function only applies to the normal table, child table, and super table with group by tbname.
+
+    Nested Query: The mavg function applies to both outer query and nested query.
+
+    Note: Can't be used with +-*/ arithmatic operations, like mavg(col1, k1) + mavg(col2, k1); can only be used with normal columns, selection and projection functions，can't be used with aggragation functions.
+
+-  **SAMPLE**
+    ```
+    SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    Function: Sample function samples k values from a specific time series with equal probability. It occurs in select clause of SQL statement
+
+    Input: There are no restrictions on the input data type.
+
+    Output: The output data type is the same as the input data type. The function also outputs the timestamp of the current row.
+
+    Parameter: K is an integer between 1 and 1000.
+
+    Table: he sample function only applies to the normal table, child table, and super table with group by tbname.
+
+    Nested Query: The sample function applies to both outer query and nested query.
+
+    Note: Can't be used as operand in an expression
+
+
 - **ASIN**
     ```mysql
     SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
@@ -1703,7 +1759,7 @@ TDengine supports aggregations over data, they are listed below:
     Notes:
     
       Returns NULL when input is NULL. 
-      Input pos can be negative or positive. If it is a positive number, this function extracts from the beginning of the string. If it is a negative number, this function extracts from the end of the string
+      Input pos can be negative or positive. If it is a positive number, the beginning of the substring is pos characters from the beginning of the string. If it is a negative number, the beginning of the substring is pos characters from the end of the string
       If input len is omitted, the output is whole substring starting from pos.
       This function applies to normal table, child table and super table
       This function applies to bother out query and inner query
