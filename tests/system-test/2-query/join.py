@@ -93,43 +93,48 @@ class TDTestCase:
             groups = ["", group_having, group_no_having]
             for group_condition in groups:
                 sql = f"select {condition} from {tblist[0]},{tblist[1]} where {join_condition} and {where_condition} {group_condition}"
+                if not join_flag :
+                    tdSql.error(sql=sql)
+                    return
                 if len(tblist) == 2:
                     self.__join_current(sql, checkrows)
-                elif len(tblist) > 2 or len(tblist) < 1:
+                    return
+                if len(tblist) > 2 or len(tblist) < 1:
                     tdSql.error(sql=sql)
+                    return
 
-    def __join_err_check(self,tbname):
-        sqls = []
+    # def __join_err_check(self,tbname):
+    #     sqls = []
 
-        for un_char_col in NUM_COL:
-            sqls.extend(
-                (
-                    f"select length( {un_char_col} ) from {tbname} ",
-                    f"select length(ceil( {un_char_col} )) from {tbname} ",
-                    f"select {un_char_col} from {tbname} group by length( {un_char_col} ) ",
-                )
-            )
+    #     for un_char_col in NUM_COL:
+    #         sqls.extend(
+    #             (
+    #                 f"select length( {un_char_col} ) from {tbname} ",
+    #                 f"select length(ceil( {un_char_col} )) from {tbname} ",
+    #                 f"select {un_char_col} from {tbname} group by length( {un_char_col} ) ",
+    #             )
+    #         )
 
-            sqls.extend( f"select length( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in NUM_COL )
-            sqls.extend( f"select length( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+    #         sqls.extend( f"select length( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in NUM_COL )
+    #         sqls.extend( f"select length( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
 
-        sqls.extend( f"select {char_col} from {tbname} group by length( {char_col} ) " for char_col in CHAR_COL)
-        sqls.extend( f"select length( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select length( {char_col} + {ts_col} ) from {tbname} " for char_col in NUM_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select length( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-        sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
-        sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
-        sqls.extend(
-            (
-                f"select length() from {tbname} ",
-                f"select length(*) from {tbname} ",
-                f"select length(ccccccc) from {tbname} ",
-                f"select length(111) from {tbname} ",
-                f"select length(c8, 11) from {tbname} ",
-            )
-        )
+    #     sqls.extend( f"select {char_col} from {tbname} group by length( {char_col} ) " for char_col in CHAR_COL)
+    #     sqls.extend( f"select length( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+    #     sqls.extend( f"select length( {char_col} + {ts_col} ) from {tbname} " for char_col in NUM_COL for ts_col in TS_TYPE_COL)
+    #     sqls.extend( f"select length( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+    #     sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
+    #     sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+    #     sqls.extend(
+    #         (
+    #             f"select length() from {tbname} ",
+    #             f"select length(*) from {tbname} ",
+    #             f"select length(ccccccc) from {tbname} ",
+    #             f"select length(111) from {tbname} ",
+    #             f"select length(c8, 11) from {tbname} ",
+    #         )
+    #     )
 
-        return sqls
+    #     return sqls
 
     def __join_current(self, sql, checkrows):
         tdSql.query(sql=sql)
@@ -170,6 +175,17 @@ class TDTestCase:
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_4} over==========")
         self.__join_check(err_list_5, -1)
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_5} over==========")
+        self.__join_check(["ct2", "ct4"], -1, join_flag=False)
+        tdLog.printNoPrefix("==========err sql condition check in has no join condition over==========")
+
+        tdSql.error( f"select c1, c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
+        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{INT_COL}=ct4.{INT_COL}" )
+        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{TS_COL}=ct4.{TS_COL}" )
+        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{TS_COL}" )
+        tdSql.error( f"select ct2.c1, ct1.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
+        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and c1 is not null " )
+        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct1.c1 is not null " )
+
 
         tbname = ["ct1", "ct2", "ct4", "t1"]
 
