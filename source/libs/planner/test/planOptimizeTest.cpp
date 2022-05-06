@@ -20,11 +20,21 @@ using namespace std;
 
 class PlanOptimizeTest : public PlannerTestBase {};
 
+TEST_F(PlanOptimizeTest, optimizeScanData) {
+  useDb("root", "test");
+
+  run("SELECT COUNT(*) FROM t1");
+
+  run("SELECT COUNT(c1) FROM t1");
+
+  run("SELECT COUNT(CAST(c1 AS BIGINT)) FROM t1");
+}
+
 TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
   useDb("root", "test");
 
-  run("select * from t1 order by ts");
-  run("select * from t1 order by ts desc");
-  run("select c1 from t1 order by ts");
-  run("select c1 from t1 order by ts desc");
+  run("SELECT * FROM t1 ORDER BY ts");
+  run("SELECT * FROM t1 ORDER BY ts DESC");
+  run("SELECT c1 FROM t1 ORDER BY ts");
+  run("SELECT c1 FROM t1 ORDER BY ts DESC");
 }

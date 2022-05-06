@@ -457,13 +457,16 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
+    newUser.authVersion++;
   } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_DB) {
     if (taosHashRemove(newUser.readDbs, alterReq.dbname, len) != 0) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
       goto _OVER;
     }
+    newUser.authVersion++;
   } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_READ_DB) {
     taosHashClear(newUser.readDbs);
+    newUser.authVersion++;
   } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB) {
     if (pDb == NULL) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
@@ -473,13 +476,16 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _OVER;
     }
+    newUser.authVersion++;
   } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB) {
     if (taosHashRemove(newUser.writeDbs, alterReq.dbname, len) != 0) {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
       goto _OVER;
     }
+    newUser.authVersion++;
   } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB) {
     taosHashClear(newUser.writeDbs);
+    newUser.authVersion++;
   } else {
     terrno = TSDB_CODE_MND_INVALID_ALTER_OPER;
     goto _OVER;
@@ -582,6 +588,38 @@ _OVER:
   return code;
 }
 
+static int32_t mndSetUserAuthRsp(SMnode       *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
+  memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
+  pRsp->superAuth = pUser->superUser;
+  pRsp->version = pUser->authVersion;
+  taosRLockLatch(&pUser->lock);
+  pRsp->readDbs = mndDupDbHash(pUser->readDbs);
+  pRsp->writeDbs = mndDupDbHash(pUser->writeDbs);
+  taosRUnLockLatch(&pUser->lock);
+  pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == pRsp->createdDbs) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+  
+  SSdb *pSdb = pMnode->pSdb;
+  void *pIter = NULL;
+  while (1) {
+    SDbObj *pDb = NULL;
+    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
+    if (pIter == NULL) break;
+
+    if (strcmp(pDb->createUser, pUser->user) == 0) {
+      int32_t len = strlen(pDb->name) + 1;
+      taosHashPut(pRsp->createdDbs, pDb->name, len, pDb->name, len);
+    }
+
+    sdbRelease(pSdb, pDb);
+  }
+
+  return 0;
+}
+
 static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
   SMnode         *pMnode = pReq->pNode;
   int32_t         code = -1;
@@ -602,28 +640,9 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  memcpy(authRsp.user, pUser->user, TSDB_USER_LEN);
-  authRsp.superAuth = pUser->superUser;
-
-  taosRLockLatch(&pUser->lock);
-  authRsp.readDbs = mndDupDbHash(pUser->readDbs);
-  authRsp.writeDbs = mndDupDbHash(pUser->writeDbs);
-  taosRUnLockLatch(&pUser->lock);
-
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-  while (1) {
-    SDbObj *pDb = NULL;
-    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
-    if (pIter == NULL) break;
-
-    if (strcmp(pDb->createUser, pUser->user) == 0) {
-      int32_t len = strlen(pDb->name) + 1;
-      taosHashPut(authRsp.readDbs, pDb->name, len, pDb->name, len);
-      taosHashPut(authRsp.writeDbs, pDb->name, len, pDb->name, len);
-    }
-
-    sdbRelease(pSdb, pDb);
+  code = mndSetUserAuthRsp(pMnode, pUser, &authRsp);
+  if (code) {
+    goto _OVER;
   }
 
   int32_t contLen = tSerializeSGetUserAuthRsp(NULL, 0, &authRsp);
@@ -640,6 +659,7 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
   code = 0;
 
 _OVER:
+  
   mndReleaseUser(pMnode, pUser);
   tFreeSGetUserAuthRsp(&authRsp);
 
@@ -690,3 +710,72 @@ static void mndCancelGetNextUser(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
 }
+
+int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp, int32_t *pRspLen) {
+  SUserAuthBatchRsp batchRsp = {0};
+  batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserAuthRsp));
+  if (batchRsp.pArray == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  int32_t code = 0;
+  for (int32_t i = 0; i < numOfUses; ++i) {
+    SUserObj *pUser = mndAcquireUser(pMnode, pUsers[i].user);
+    if (pUser == NULL) {
+      mError("user:%s, failed to auth user since %s", pUsers[i].user, terrstr());
+      continue;
+    }
+
+    if (pUser->authVersion <= pUsers[i].version) {
+      mndReleaseUser(pMnode, pUser);
+      continue;
+    }
+    
+    SGetUserAuthRsp rsp = {0};
+    code = mndSetUserAuthRsp(pMnode, pUser, &rsp);
+    if (code) {
+      mndReleaseUser(pMnode, pUser);
+      tFreeSGetUserAuthRsp(&rsp);
+      goto _OVER;
+    }
+
+
+    taosArrayPush(batchRsp.pArray, &rsp);
+    mndReleaseUser(pMnode, pUser);
+  }
+
+  if (taosArrayGetSize(batchRsp.pArray) <= 0) {
+    *ppRsp = NULL;
+    *pRspLen = 0;
+    
+    tFreeSUserAuthBatchRsp(&batchRsp);
+    return 0;
+  }
+
+  int32_t rspLen = tSerializeSUserAuthBatchRsp(NULL, 0, &batchRsp);
+  void   *pRsp = taosMemoryMalloc(rspLen);
+  if (pRsp == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tFreeSUserAuthBatchRsp(&batchRsp);
+    return -1;
+  }
+  tSerializeSUserAuthBatchRsp(pRsp, rspLen, &batchRsp);
+
+  *ppRsp = pRsp;
+  *pRspLen = rspLen;
+
+  tFreeSUserAuthBatchRsp(&batchRsp);
+  return 0;
+
+_OVER:
+
+  *ppRsp = NULL;
+  *pRspLen = 0;
+  
+  tFreeSUserAuthBatchRsp(&batchRsp);
+  return code;
+}
+
+
+
