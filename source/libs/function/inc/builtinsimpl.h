@@ -73,6 +73,11 @@ bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t spreadFunction(SqlFunctionCtx* pCtx);
 int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t histogramFunction(SqlFunctionCtx* pCtx);
+int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 #ifdef __cplusplus
 }
 #endif
