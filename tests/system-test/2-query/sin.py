@@ -494,7 +494,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step4: sin basic query ============") 
 
-        self.basic_sqrt_function()
+        self.basic_sin_function()
 
         tdLog.printNoPrefix("==========step5: big number sin query ============") 
 
