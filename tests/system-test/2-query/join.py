@@ -81,7 +81,7 @@ class TDTestCase:
             return ""
 
     def __group_condition(self, tbname, col, having = ""):
-        return f" group by {tbname}.{col} having {having}" if having else f" group by {tbname}.{col} "
+        return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __join_check(self, tblist, checkrows, join_flag=True):
         query_conditions = self.__query_condition(tblist[0])
