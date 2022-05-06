@@ -144,7 +144,7 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn* pColumn, int32_t ne
     return TSDB_CODE_SUCCESS;
   }
 
-  int allocCapacity = MAX(data->rowsAlloc, 8);
+  int allocCapacity = TMAX(data->rowsAlloc, 8);
   while (allocCapacity < newCapacity) {
     allocCapacity *= UDF_MEMORY_EXP_GROWTH;
   }
@@ -238,7 +238,7 @@ static FORCE_INLINE int32_t udfColSetRow(SUdfColumn* pColumn, uint32_t currentRo
       data->varLenCol.payloadLen += dataLen;
     }
   }
-  data->numOfRows = MAX(currentRow + 1, data->numOfRows);
+  data->numOfRows = TMAX(currentRow + 1, data->numOfRows);
   return 0;
 }
 
