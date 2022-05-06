@@ -79,6 +79,8 @@ class TDTestCase:
         tdSql.checkRows(0)
         tdSql.query("select last(col9) from db.stb_1")
         tdSql.checkRows(0)
+        tdSql.query("select count(col1) from stb_1 group by col7")
+        tdSql.checkRows(1)
 
         for i in range(self.rowNum):
             tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
@@ -168,7 +170,6 @@ class TDTestCase:
         # tdSql.query("select last(col9) from db.stb_1")
         # tdSql.checkRows(1)
         # tdSql.checkData(0, 0, '涛思数据10')
-
 
 
         tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
