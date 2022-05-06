@@ -66,7 +66,7 @@ class TDTestCase:
             '''
         )
     
-    def check_result_auto_sin(self ,origin_query , pow_query):
+    def check_result_auto_cos(self ,origin_query , pow_query):
 
         pow_result = tdSql.getResult(pow_query)
         origin_result = tdSql.getResult(origin_query)
@@ -79,7 +79,7 @@ class TDTestCase:
                 if elem == None:
                     elem = None
                 else:
-                    elem = math.sin(elem)
+                    elem = math.cos(elem)
                 row_check.append(elem)
             auto_result.append(row_check)
 
@@ -94,73 +94,73 @@ class TDTestCase:
                 else:
                     pass
         if not check_status:
-            tdLog.notice("sin function value has not as expected , sql is \"%s\" "%pow_query )
+            tdLog.notice("cos function value has not as expected , sql is \"%s\" "%pow_query )
             sys.exit(1)
         else:
-            tdLog.info("sin value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
+            tdLog.info("cos value check pass , it work as expected ,sql is \"%s\"   "%pow_query )
         
     def test_errors(self):
         error_sql_lists = [
-            "select sin from t1",
-            # "select sin(-+--+c1 ) from t1",
-            # "select +-sin(c1) from t1",
-            # "select ++-sin(c1) from t1",
-            # "select ++--sin(c1) from t1",
-            # "select - -sin(c1)*0 from t1",
-            # "select sin(tbname+1) from t1 ",
-            "select sin(123--123)==1 from t1",
-            "select sin(c1) as 'd1' from t1",
-            "select sin(c1 ,c2) from t1",
-            "select sin(c1 ,NULL ) from t1",
-            "select sin(,) from t1;",
-            "select sin(sin(c1) ab from t1)",
-            "select sin(c1 ) as int from t1",
-            "select sin from stb1",
-            # "select sin(-+--+c1) from stb1",
-            # "select +-sin(c1) from stb1",
-            # "select ++-sin(c1) from stb1",
-            # "select ++--sin(c1) from stb1",
-            # "select - -sin(c1)*0 from stb1",
-            # "select sin(tbname+1) from stb1 ",
-            "select sin(123--123)==1 from stb1",
-            "select sin(c1) as 'd1' from stb1",
-            "select sin(c1 ,c2 ) from stb1",
-            "select sin(c1 ,NULL) from stb1",
-            "select sin(,) from stb1;",
-            "select sin(sin(c1) ab from stb1)",
-            "select sin(c1) as int from stb1"
+            "select cos from t1",
+            # "select cos(-+--+c1 ) from t1",
+            # "select +-cos(c1) from t1",
+            # "select ++-cos(c1) from t1",
+            # "select ++--cos(c1) from t1",
+            # "select - -cos(c1)*0 from t1",
+            # "select cos(tbname+1) from t1 ",
+            "select cos(123--123)==1 from t1",
+            "select cos(c1) as 'd1' from t1",
+            "select cos(c1 ,c2) from t1",
+            "select cos(c1 ,NULL ) from t1",
+            "select cos(,) from t1;",
+            "select cos(cos(c1) ab from t1)",
+            "select cos(c1 ) as int from t1",
+            "select cos from stb1",
+            # "select cos(-+--+c1) from stb1",
+            # "select +-cos(c1) from stb1",
+            # "select ++-cos(c1) from stb1",
+            # "select ++--cos(c1) from stb1",
+            # "select - -cos(c1)*0 from stb1",
+            # "select cos(tbname+1) from stb1 ",
+            "select cos(123--123)==1 from stb1",
+            "select cos(c1) as 'd1' from stb1",
+            "select cos(c1 ,c2 ) from stb1",
+            "select cos(c1 ,NULL) from stb1",
+            "select cos(,) from stb1;",
+            "select cos(cos(c1) ab from stb1)",
+            "select cos(c1) as int from stb1"
         ]
         for error_sql in error_sql_lists:
             tdSql.error(error_sql)
     
     def support_types(self):
         type_error_sql_lists = [
-            "select sin(ts) from t1" , 
-            "select sin(c7) from t1",
-            "select sin(c8) from t1",
-            "select sin(c9) from t1",
-            "select sin(ts) from ct1" , 
-            "select sin(c7) from ct1",
-            "select sin(c8) from ct1",
-            "select sin(c9) from ct1",
-            "select sin(ts) from ct3" , 
-            "select sin(c7) from ct3",
-            "select sin(c8) from ct3",
-            "select sin(c9) from ct3",
-            "select sin(ts) from ct4" , 
-            "select sin(c7) from ct4",
-            "select sin(c8) from ct4",
-            "select sin(c9) from ct4",
-            "select sin(ts) from stb1" , 
-            "select sin(c7) from stb1",
-            "select sin(c8) from stb1",
-            "select sin(c9) from stb1" ,
+            "select cos(ts) from t1" , 
+            "select cos(c7) from t1",
+            "select cos(c8) from t1",
+            "select cos(c9) from t1",
+            "select cos(ts) from ct1" , 
+            "select cos(c7) from ct1",
+            "select cos(c8) from ct1",
+            "select cos(c9) from ct1",
+            "select cos(ts) from ct3" , 
+            "select cos(c7) from ct3",
+            "select cos(c8) from ct3",
+            "select cos(c9) from ct3",
+            "select cos(ts) from ct4" , 
+            "select cos(c7) from ct4",
+            "select cos(c8) from ct4",
+            "select cos(c9) from ct4",
+            "select cos(ts) from stb1" , 
+            "select cos(c7) from stb1",
+            "select cos(c8) from stb1",
+            "select cos(c9) from stb1" ,
 
-            "select sin(ts) from stbbb1" , 
-            "select sin(c7) from stbbb1",
+            "select cos(ts) from stbbb1" , 
+            "select cos(c7) from stbbb1",
 
-            "select sin(ts) from tbname",
-            "select sin(c9) from tbname"
+            "select cos(ts) from tbname",
+            "select cos(c9) from tbname"
 
         ]
         
@@ -169,42 +169,42 @@ class TDTestCase:
         
         
         type_sql_lists = [
-            "select sin(c1) from t1",
-            "select sin(c2) from t1",
-            "select sin(c3) from t1",
-            "select sin(c4) from t1",
-            "select sin(c5) from t1",
-            "select sin(c6) from t1",
+            "select cos(c1) from t1",
+            "select cos(c2) from t1",
+            "select cos(c3) from t1",
+            "select cos(c4) from t1",
+            "select cos(c5) from t1",
+            "select cos(c6) from t1",
 
-            "select sin(c1) from ct1",
-            "select sin(c2) from ct1",
-            "select sin(c3) from ct1",
-            "select sin(c4) from ct1",
-            "select sin(c5) from ct1",
-            "select sin(c6) from ct1",
+            "select cos(c1) from ct1",
+            "select cos(c2) from ct1",
+            "select cos(c3) from ct1",
+            "select cos(c4) from ct1",
+            "select cos(c5) from ct1",
+            "select cos(c6) from ct1",
 
-            "select sin(c1) from ct3",
-            "select sin(c2) from ct3",
-            "select sin(c3) from ct3",
-            "select sin(c4) from ct3",
-            "select sin(c5) from ct3",
-            "select sin(c6) from ct3",
+            "select cos(c1) from ct3",
+            "select cos(c2) from ct3",
+            "select cos(c3) from ct3",
+            "select cos(c4) from ct3",
+            "select cos(c5) from ct3",
+            "select cos(c6) from ct3",
 
-            "select sin(c1) from stb1",
-            "select sin(c2) from stb1",
-            "select sin(c3) from stb1",
-            "select sin(c4) from stb1",
-            "select sin(c5) from stb1",
-            "select sin(c6) from stb1",
+            "select cos(c1) from stb1",
+            "select cos(c2) from stb1",
+            "select cos(c3) from stb1",
+            "select cos(c4) from stb1",
+            "select cos(c5) from stb1",
+            "select cos(c6) from stb1",
 
-            "select sin(c6) as alisb from stb1", 
-            "select sin(c6) alisb from stb1", 
+            "select cos(c6) as alisb from stb1", 
+            "select cos(c6) alisb from stb1", 
         ]
 
         for type_sql in type_sql_lists:
             tdSql.query(type_sql)
     
-    def basic_sin_function(self):
+    def basic_cosin_function(self):
 
         # basic query 
         tdSql.query("select c1 from ct3")
@@ -215,25 +215,25 @@ class TDTestCase:
         tdSql.checkRows(25)
 
         # used for empty table  , ct3 is empty
-        tdSql.query("select sin(c1) from ct3")
+        tdSql.query("select cos(c1) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select sin(c2) from ct3")
+        tdSql.query("select cos(c2) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select sin(c3) from ct3")
+        tdSql.query("select cos(c3) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select sin(c4) from ct3")
+        tdSql.query("select cos(c4) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select sin(c5) from ct3")
+        tdSql.query("select cos(c5) from ct3")
         tdSql.checkRows(0)
-        tdSql.query("select sin(c6) from ct3")
+        tdSql.query("select cos(c6) from ct3")
         tdSql.checkRows(0)
 
 
         # # used for regular table
-        tdSql.query("select sin(c1) from t1")
+        tdSql.query("select cos(c1) from t1")
         tdSql.checkData(0, 0, None)
-        tdSql.checkData(1 , 0, 0.841470985)
-        tdSql.checkData(3 , 0, 0.141120008)
+        tdSql.checkData(1 , 0, 0.540302306)
+        tdSql.checkData(3 , 0, -0.989992497)
         tdSql.checkData(5 , 0, None)
 
         tdSql.query("select c1, c2, c3 , c4, c5 from t1")
@@ -246,76 +246,76 @@ class TDTestCase:
         tdSql.checkData(3, 4, 33)
         tdSql.checkData(5, 5, None)
 
-        self.check_result_auto_sin( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from t1", "select sin(abs(c1)), sin(abs(c2)) ,sin(abs(c3)), sin(abs(c4)), sin(abs(c5)) from t1")
+        self.check_result_auto_cos( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from t1", "select cos(abs(c1)), cos(abs(c2)) ,cos(abs(c3)), cos(abs(c4)), cos(abs(c5)) from t1")
         
         # used for sub table
-        tdSql.query("select c2 ,sin(c2) from ct1")
-        tdSql.checkData(0, 1, -0.220708349)
-        tdSql.checkData(1 , 1, -0.556921845)
-        tdSql.checkData(3 , 1, -0.798311364)
-        tdSql.checkData(4 , 1, 0.000000000)
+        tdSql.query("select c2 ,cos(c2) from ct1")
+        tdSql.checkData(0, 1, 0.975339851)
+        tdSql.checkData(1 , 1, -0.830564903)
+        tdSql.checkData(3 , 1, 0.602244939)
+        tdSql.checkData(4 , 1, 1.000000000)
 
-        tdSql.query("select c1, c5 ,sin(c5) from ct4")
+        tdSql.query("select c1, c5 ,cos(c5) from ct4")
         tdSql.checkData(0 , 2, None)
-        tdSql.checkData(1 , 2, 0.518228108)
-        tdSql.checkData(2 , 2, 0.996475613)
-        tdSql.checkData(3 , 2, 0.367960369)
+        tdSql.checkData(1 , 2, -0.855242438)
+        tdSql.checkData(2 , 2, 0.083882969)
+        tdSql.checkData(3 , 2, 0.929841474)
         tdSql.checkData(5 , 2, None)
 
-        self.check_result_auto_sin( "select c1, c2, c3 , c4, c5 from ct1", "select sin(c1), sin(c2) ,sin(c3), sin(c4), sin(c5) from ct1")
+        self.check_result_auto_cos( "select c1, c2, c3 , c4, c5 from ct1", "select cos(c1), cos(c2) ,cos(c3), cos(c4), cos(c5) from ct1")
        
-        # nest query for sin functions
-        tdSql.query("select c4  , sin(c4) ,sin(sin(c4)) , sin(sin(sin(c4))) from ct1;")
+        # nest query for cos functions
+        tdSql.query("select c4  , cos(c4) ,cos(cos(c4)) , cos(cos(cos(c4))) from ct1;")
         tdSql.checkData(0 , 0 , 88)
-        tdSql.checkData(0 , 1 , 0.035398303)
-        tdSql.checkData(0 , 2 , 0.035390911)
-        tdSql.checkData(0 , 3 , 0.035383523)
+        tdSql.checkData(0 , 1 , 0.999373284)
+        tdSql.checkData(0 , 2 , 0.540829563)
+        tdSql.checkData(0 , 3 , 0.857281878)
 
         tdSql.checkData(1 , 0 , 77)
-        tdSql.checkData(1 , 1 , 0.999520159)
-        tdSql.checkData(1 , 2 , 0.841211629)
-        tdSql.checkData(1 , 3 , 0.745451290)
+        tdSql.checkData(1 , 1 , -0.030975032)
+        tdSql.checkData(1 , 2 , 0.999520312)
+        tdSql.checkData(1 , 3 , 0.540705887)
 
         tdSql.checkData(11 , 0 , -99)
-        tdSql.checkData(11 , 1 , 0.999206834)
-        tdSql.checkData(11 , 2 , 0.841042171)
-        tdSql.checkData(11 , 3 , 0.745338326)
+        tdSql.checkData(11 , 1 , 0.039820880)
+        tdSql.checkData(11 , 2 , 0.999207254)
+        tdSql.checkData(11 , 3 , 0.540969209)
 
         # used for stable table 
         
-        tdSql.query("select sin(c1) from stb1")
+        tdSql.query("select cos(c1) from stb1")
         tdSql.checkRows(25)
       
 
         # used for not exists table
-        tdSql.error("select sin(c1) from stbbb1")
-        tdSql.error("select sin(c1) from tbname")
-        tdSql.error("select sin(c1) from ct5")
+        tdSql.error("select cos(c1) from stbbb1")
+        tdSql.error("select cos(c1) from tbname")
+        tdSql.error("select cos(c1) from ct5")
 
         # mix with common col 
-        tdSql.query("select c1, sin(c1) from ct1")
-        tdSql.query("select c2, sin(c2) from ct4")
+        tdSql.query("select c1, cos(c1) from ct1")
+        tdSql.query("select c2, cos(c2) from ct4")
         
 
         # mix with common functions
-        tdSql.query("select c1, sin(c1),sin(c1), sin(sin(c1)) from ct4 ")
+        tdSql.query("select c1, cos(c1),cos(c1), cos(cos(c1)) from ct4 ")
         tdSql.checkData(0 , 0 ,None)
         tdSql.checkData(0 , 1 ,None)
         tdSql.checkData(0 , 2 ,None)
         tdSql.checkData(0 , 3 ,None)
         
         tdSql.checkData(3 , 0 , 6)
-        tdSql.checkData(3 , 1 ,-0.279415498)
-        tdSql.checkData(3 , 2 ,-0.279415498)
-        tdSql.checkData(3 , 3 ,-0.275793863)
+        tdSql.checkData(3 , 1 ,0.960170287)
+        tdSql.checkData(3 , 2 ,0.960170287)
+        tdSql.checkData(3 , 3 ,0.573380480)
 
-        tdSql.query("select c1, sin(c1),c5, floor(c5) from stb1 ")
+        tdSql.query("select c1, cos(c1),c5, floor(c5) from stb1 ")
 
         # # mix with agg functions , not support
-        tdSql.error("select c1, sin(c1),c5, count(c5) from stb1 ")
-        tdSql.error("select c1, sin(c1),c5, count(c5) from ct1 ")
-        tdSql.error("select sin(c1), count(c5) from stb1 ")
-        tdSql.error("select sin(c1), count(c5) from ct1 ")
+        tdSql.error("select c1, cos(c1),c5, count(c5) from stb1 ")
+        tdSql.error("select c1, cos(c1),c5, count(c5) from ct1 ")
+        tdSql.error("select cos(c1), count(c5) from stb1 ")
+        tdSql.error("select cos(c1), count(c5) from ct1 ")
         tdSql.error("select c1, count(c5) from ct1 ")
         tdSql.error("select c1, count(c5) from stb1 ")
 
@@ -326,73 +326,73 @@ class TDTestCase:
 
         
         # # bug fix for compute 
-        tdSql.query("select c1, sin(c1) -0 ,sin(c1-4)-0 from ct4 ")
+        tdSql.query("select c1, cos(c1) -0 ,cos(c1-4)-0 from ct4 ")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 0, 8)
-        tdSql.checkData(1, 1, 0.989358247)
-        tdSql.checkData(1, 2, -0.756802495)
+        tdSql.checkData(1, 1, -0.145500034)
+        tdSql.checkData(1, 2, -0.653643621)
 
-        tdSql.query(" select c1, sin(c1) -0 ,sin(c1-0.1)-0.1 from ct4")
+        tdSql.query(" select c1, cos(c1) -0 ,cos(c1-0.1)-0.1 from ct4")
         tdSql.checkData(0, 0, None)
         tdSql.checkData(0, 1, None)
         tdSql.checkData(0, 2, None)
         tdSql.checkData(1, 0, 8)
-        tdSql.checkData(1, 1, 0.989358247)
-        tdSql.checkData(1, 2, 0.898941342)
+        tdSql.checkData(1, 1, -0.145500034)
+        tdSql.checkData(1, 2, -0.146002126)
 
-        tdSql.query("select c1, sin(c1), c2, sin(c2), c3, sin(c3) from ct1")
+        tdSql.query("select c1, cos(c1), c2, cos(c2), c3, cos(c3) from ct1")
 
     def test_big_number(self):
 
-        tdSql.query("select c1, sin(100000000) from ct1")  # bigint to double data overflow
-        tdSql.checkData(4, 1, math.sin(100000000))
+        tdSql.query("select c1, cos(100000000) from ct1")  # bigint to double data overflow
+        tdSql.checkData(4, 1, math.cos(100000000))
 
 
-        tdSql.query("select c1, sin(10000000000000) from ct1")  # bigint to double data overflow
-        tdSql.checkData(4, 1, math.sin(10000000000000))
+        tdSql.query("select c1, cos(10000000000000) from ct1")  # bigint to double data overflow
+        tdSql.checkData(4, 1, math.cos(10000000000000))
 
-        tdSql.query("select c1, sin(10000000000000000000000000) from ct1")  # bigint to double data overflow
-        tdSql.query("select c1, sin(10000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
-        tdSql.checkData(1, 1, math.sin(10000000000000000000000000.0))
+        tdSql.query("select c1, cos(10000000000000000000000000) from ct1")  # bigint to double data overflow
+        tdSql.query("select c1, cos(10000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
+        tdSql.checkData(1, 1, math.cos(10000000000000000000000000.0))
 
-        tdSql.query("select c1, sin(10000000000000000000000000000000000) from ct1")  # bigint to double data overflow
-        tdSql.query("select c1, sin(10000000000000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
-        tdSql.checkData(4, 1, math.sin(10000000000000000000000000000000000.0))
+        tdSql.query("select c1, cos(10000000000000000000000000000000000) from ct1")  # bigint to double data overflow
+        tdSql.query("select c1, cos(10000000000000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
+        tdSql.checkData(4, 1, math.cos(10000000000000000000000000000000000.0))
 
-        tdSql.query("select c1, sin(10000000000000000000000000000000000000000) from ct1")  # bigint to double data overflow
-        tdSql.query("select c1, sin(10000000000000000000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
+        tdSql.query("select c1, cos(10000000000000000000000000000000000000000) from ct1")  # bigint to double data overflow
+        tdSql.query("select c1, cos(10000000000000000000000000000000000000000.0) from ct1") # 10000000000000000000000000.0 is a double value
 
-        tdSql.checkData(4, 1, math.sin(10000000000000000000000000000000000000000.0))
+        tdSql.checkData(4, 1, math.cos(10000000000000000000000000000000000000000.0))
 
-        tdSql.query("select c1, sin(10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000) from ct1")  # bigint to double data overflow
+        tdSql.query("select c1, cos(10000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000) from ct1")  # bigint to double data overflow
 
     def abs_func_filter(self):
         tdSql.execute("use db")
-        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(sin(c1)-0.5) from ct4 where c1>5 ")
+        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(cos(c1)-0.5) from ct4 where c1>5 ")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,8)
         tdSql.checkData(0,1,8.000000000)
         tdSql.checkData(0,2,8.000000000)
         tdSql.checkData(0,3,7.900000000)
-        tdSql.checkData(0,4,1.000000000)
+        tdSql.checkData(0,4,0.000000000)
 
-        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(sin(c1)-0.5) from ct4 where c1=5 ")
+        tdSql.query("select c1, abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(cos(c1)-0.5) from ct4 where c1=5 ")
         tdSql.checkRows(1)
         tdSql.checkData(0,0,5)
         tdSql.checkData(0,1,5.000000000)
         tdSql.checkData(0,2,5.000000000)
         tdSql.checkData(0,3,4.900000000)
-        tdSql.checkData(0,4,-1.000000000)
+        tdSql.checkData(0,4,0.000000000)
 
-        tdSql.query("select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(sin(c1)-0.5) from ct4 where c1=sin(c1) limit 1 ")
+        tdSql.query("select c1,c2 , abs(c1) -0 ,ceil(c1-0.1)-0 ,floor(c1+0.1)-0.1 ,ceil(cos(c1)-0.5) from ct4 where c1>cos(c1) limit 1 ")
         tdSql.checkRows(1)
-        tdSql.checkData(0,0,0)
-        tdSql.checkData(0,1,0)
-        tdSql.checkData(0,2,0.000000000)
-        tdSql.checkData(0,3,0.000000000)
-        tdSql.checkData(0,4,-0.100000000)
+        tdSql.checkData(0,0,8)
+        tdSql.checkData(0,1,88888)
+        tdSql.checkData(0,2,8.000000000)
+        tdSql.checkData(0,3,8.000000000)
+        tdSql.checkData(0,4,7.900000000)
         tdSql.checkData(0,5,0.000000000)
         
     def pow_Arithmetic(self):
@@ -425,36 +425,36 @@ class TDTestCase:
         tdSql.error(
                 f"insert into sub1_bound values ( now()+1s, 2147483648, 9223372036854775808, 32768, 128, 3.40E+38, 1.7e+308, True, 'binary_tb1', 'nchar_tb1', now() )"
             )
-        self.check_result_auto_sin( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from sub1_bound ", "select sin(abs(c1)), sin(abs(c2)) ,sin(abs(c3)), sin(abs(c4)), sin(abs(c5)) from sub1_bound")
+        self.check_result_auto_cos( "select abs(c1), abs(c2), abs(c3) , abs(c4), abs(c5) from sub1_bound ", "select cos(abs(c1)), cos(abs(c2)) ,cos(abs(c3)), cos(abs(c4)), cos(abs(c5)) from sub1_bound")
        
-        self.check_result_auto_sin( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select sin(c1), sin(c2) ,sin(c3), sin(c3), sin(c2) ,sin(c1) from sub1_bound")
+        self.check_result_auto_cos( "select c1, c2, c3 , c3, c2 ,c1 from sub1_bound ", "select cos(c1), cos(c2) ,cos(c3), cos(c3), cos(c2) ,cos(c1) from sub1_bound")
 
-        self.check_result_auto_sin("select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from sub1_bound" , "select sin(abs(c1)) from sub1_bound" )
+        self.check_result_auto_cos("select abs(abs(abs(abs(abs(abs(abs(abs(abs(c1)))))))))  nest_col_func from sub1_bound" , "select cos(abs(c1)) from sub1_bound" )
         
         # check basic elem for table per row
-        tdSql.query("select sin(abs(c1)) ,sin(abs(c2)) , sin(abs(c3)) , sin(abs(c4)), sin(abs(c5)), sin(abs(c6)) from sub1_bound ")
-        tdSql.checkData(0,0,math.sin(2147483647))
-        tdSql.checkData(0,1,math.sin(9223372036854775807))
-        tdSql.checkData(0,2,math.sin(32767))
-        tdSql.checkData(0,3,math.sin(127))
-        tdSql.checkData(0,4,math.sin(339999995214436424907732413799364296704.00000))
-        tdSql.checkData(1,0,math.sin(2147483647))
-        tdSql.checkData(1,1,math.sin(9223372036854775807))
-        tdSql.checkData(1,2,math.sin(32767))
-        tdSql.checkData(1,3,math.sin(127))
-        tdSql.checkData(1,4,math.sin(339999995214436424907732413799364296704.00000))
-        tdSql.checkData(3,0,math.sin(2147483646))
-        tdSql.checkData(3,1,math.sin(9223372036854775806))
-        tdSql.checkData(3,2,math.sin(32766))
-        tdSql.checkData(3,3,math.sin(126))
-        tdSql.checkData(3,4,math.sin(339999995214436424907732413799364296704.00000))
+        tdSql.query("select cos(abs(c1)) ,cos(abs(c2)) , cos(abs(c3)) , cos(abs(c4)), cos(abs(c5)), cos(abs(c6)) from sub1_bound ")
+        tdSql.checkData(0,0,math.cos(2147483647))
+        tdSql.checkData(0,1,math.cos(9223372036854775807))
+        tdSql.checkData(0,2,math.cos(32767))
+        tdSql.checkData(0,3,math.cos(127))
+        tdSql.checkData(0,4,math.cos(339999995214436424907732413799364296704.00000))
+        tdSql.checkData(1,0,math.cos(2147483647))
+        tdSql.checkData(1,1,math.cos(9223372036854775807))
+        tdSql.checkData(1,2,math.cos(32767))
+        tdSql.checkData(1,3,math.cos(127))
+        tdSql.checkData(1,4,math.cos(339999995214436424907732413799364296704.00000))
+        tdSql.checkData(3,0,math.cos(2147483646))
+        tdSql.checkData(3,1,math.cos(9223372036854775806))
+        tdSql.checkData(3,2,math.cos(32766))
+        tdSql.checkData(3,3,math.cos(126))
+        tdSql.checkData(3,4,math.cos(339999995214436424907732413799364296704.00000))
 
         # check  + - * / in functions
-        tdSql.query("select sin(abs(c1+1)) ,sin(abs(c2)) , sin(abs(c3*1)) , sin(abs(c4/2)), sin(abs(c5))/2, sin(abs(c6)) from sub1_bound ")
-        tdSql.checkData(0,0,math.sin(2147483648.000000000))
-        tdSql.checkData(0,1,math.sin(9223372036854775807))
-        tdSql.checkData(0,2,math.sin(32767.000000000))
-        tdSql.checkData(0,3,math.sin(63.500000000))
+        tdSql.query("select cos(abs(c1+1)) ,cos(abs(c2)) , cos(abs(c3*1)) , cos(abs(c4/2)), cos(abs(c5))/2, cos(abs(c6)) from sub1_bound ")
+        tdSql.checkData(0,0,math.cos(2147483648.000000000))
+        tdSql.checkData(0,1,math.cos(9223372036854775807))
+        tdSql.checkData(0,2,math.cos(32767.000000000))
+        tdSql.checkData(0,3,math.cos(63.500000000))
 
         tdSql.execute("create stable st (ts timestamp,  num1 float, num2 double) tags (t1 int);")
         tdSql.execute(f'create table tb1 using st tags (1)')
@@ -475,7 +475,7 @@ class TDTestCase:
         for i in range(100):
             tdSql.execute('insert into tb3 values (now()+{}s, {}, {})'.format(i,PI*(5+i)/2 ,PI*(5+i)/2))
 
-        self.check_result_auto_sin("select num1,num2 from tb3;" , "select sin(num1),sin(num2) from tb3")
+        self.check_result_auto_cos("select num1,num2 from tb3;" , "select cos(num1),cos(num2) from tb3")
     
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         tdSql.prepare()
@@ -492,24 +492,23 @@ class TDTestCase:
 
         self.support_types()
 
-        tdLog.printNoPrefix("==========step4: sin basic query ============") 
+        tdLog.printNoPrefix("==========step4: cos basic query ============") 
 
-        self.basic_sin_function()
+        self.basic_cosin_function()
 
-        tdLog.printNoPrefix("==========step5: big number sin query ============") 
+        tdLog.printNoPrefix("==========step5: big number cos query ============") 
 
         self.test_big_number()
 
 
-        tdLog.printNoPrefix("==========step6: sin boundary query ============") 
+        tdLog.printNoPrefix("==========step6: cos boundary query ============") 
 
         self.check_boundary_values()
 
-        tdLog.printNoPrefix("==========step7: sin filter query ============") 
+        tdLog.printNoPrefix("==========step7: cos filter query ============") 
 
         self.abs_func_filter()
 
-        
 
     def stop(self):
         tdSql.close()
