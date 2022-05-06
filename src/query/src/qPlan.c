@@ -618,6 +618,13 @@ SArray* createExecOperatorPlan(SQueryAttr* pQueryAttr) {
       op = OP_Project;
       taosArrayPush(plan, &op);
     }
+
+    int32_t orderColId = pQueryAttr->order.orderColId;
+
+    if (orderColId != INT32_MIN) {
+      op = OP_Order;
+      taosArrayPush(plan, &op);
+    }
   } else if (pQueryAttr->stateWindow) {
     op =  OP_StateWindow;
     taosArrayPush(plan, &op);
