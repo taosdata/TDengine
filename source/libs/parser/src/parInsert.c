@@ -22,7 +22,6 @@
 #include "ttime.h"
 #include "ttypes.h"
 
-// clang-format off
 #define NEXT_TOKEN(pSql, sToken)                \
   do {                                          \
     int32_t index = 0;                          \
@@ -248,12 +247,11 @@ static int32_t getTableMetaImpl(SInsertParseContext* pCxt, SToken* pTname, bool 
   } else {
     CHECK_CODE(catalogGetTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name,
                                    &pCxt->pTableMeta));
+    SVgroupInfo vg;
+    CHECK_CODE(
+        catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
+    CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
   }
-  SVgroupInfo vg;
-  CHECK_CODE(
-      catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name, &vg));
-  CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -826,12 +824,21 @@ static int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t storeTableMeta(SHashObj* pHash, const char* pName, int32_t len, STableMeta* pMeta) {
+static int32_t storeTableMeta(SInsertParseContext* pCxt, SHashObj* pHash, SName* pTableName, const char* pName,
+                              int32_t len, STableMeta* pMeta) {
+  SVgroupInfo    vg;
+  SParseContext* pBasicCtx = pCxt->pComCxt;
+  CHECK_CODE(
+      catalogGetTableHashVgroup(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pTableName, &vg));
+  CHECK_CODE(taosHashPut(pCxt->pVgroupsHashObj, (const char*)&vg.vgId, sizeof(vg.vgId), (char*)&vg, sizeof(vg)));
+
+  pMeta->uid = tGenIdPI64();
+  pMeta->vgId = vg.vgId;
+
   STableMeta* pBackup = NULL;
   if (TSDB_CODE_SUCCESS != cloneTableMeta(pMeta, &pBackup)) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
-  pBackup->uid = tGenIdPI64();
   return taosHashPut(pHash, pName, len, &pBackup, POINTER_BYTES);
 }
 
@@ -854,7 +861,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SToken* pTbnameToken)
   if (TSDB_SUPER_TABLE != pCxt->pTableMeta->tableType) {
     return buildInvalidOperationMsg(&pCxt->msg, "create table only from super table is allowed");
   }
-  CHECK_CODE(storeTableMeta(pCxt->pSubTableHashObj, tbFName, len, pCxt->pTableMeta));
+  CHECK_CODE(storeTableMeta(pCxt, pCxt->pSubTableHashObj, &name, tbFName, len, pCxt->pTableMeta));
 
   SSchema* pTagsSchema = getTableTagSchema(pCxt->pTableMeta);
   setBoundColumnInfo(&pCxt->tags, pTagsSchema, getNumOfTags(pCxt->pTableMeta));
@@ -1257,7 +1264,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 
 int32_t qBindStmtTagsValue(void *pBlock, void *boundTags, int64_t suid, char *tName, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen){
   STableDataBlocks *pDataBlock = (STableDataBlocks *)pBlock;
-  SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen}; 
+  SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
   SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
   if (NULL == tags) {
     return TSDB_CODE_QRY_APP_ERROR;
@@ -1305,11 +1312,10 @@ int32_t qBindStmtTagsValue(void *pBlock, void *boundTags, int64_t suid, char *tN
   return TSDB_CODE_SUCCESS;
 }
 
-
-int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen) {
-  STableDataBlocks *pDataBlock = (STableDataBlocks *)pBlock;
-  SSchema* pSchema = getTableColumnSchema(pDataBlock->pTableMeta);
-  int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
+int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen) {
+  STableDataBlocks*   pDataBlock = (STableDataBlocks*)pBlock;
+  SSchema*            pSchema = getTableColumnSchema(pDataBlock->pTableMeta);
+  int32_t             extendedRowSize = getExtendedRowSize(pDataBlock);
   SParsedDataColInfo* spd = &pDataBlock->boundColumnInfo;
   SRowBuilder*        pBuilder = &pDataBlock->rowBuilder;
   SMemParam           param = {.rb = pBuilder};
@@ -1384,10 +1390,11 @@ int32_t qBindStmtColsValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, in
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtSingleColValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen, int32_t colIdx, int32_t rowNum) {
-  STableDataBlocks *pDataBlock = (STableDataBlocks *)pBlock;
-  SSchema* pSchema = getTableColumnSchema(pDataBlock->pTableMeta);
-  int32_t extendedRowSize = getExtendedRowSize(pDataBlock);
+int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, int32_t colIdx,
+                                int32_t rowNum) {
+  STableDataBlocks*   pDataBlock = (STableDataBlocks*)pBlock;
+  SSchema*            pSchema = getTableColumnSchema(pDataBlock->pTableMeta);
+  int32_t             extendedRowSize = getExtendedRowSize(pDataBlock);
   SParsedDataColInfo* spd = &pDataBlock->boundColumnInfo;
   SRowBuilder*        pBuilder = &pDataBlock->rowBuilder;
   SMemParam           param = {.rb = pBuilder};
@@ -1452,7 +1459,7 @@ int32_t qBindStmtSingleColValue(void *pBlock, TAOS_MULTI_BIND *bind, char *msgBu
     }
 
 #ifdef TD_DEBUG_PRINT_ROW
-    if(rowEnd) {
+    if (rowEnd) {
       STSchema* pSTSchema = tdGetSTSChemaFromSSChema(&pSchema, spd->numOfCols);
       tdSRowPrint(row, pSTSchema, __func__);
       taosMemoryFree(pSTSchema);
