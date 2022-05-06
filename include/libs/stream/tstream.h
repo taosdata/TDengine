@@ -70,8 +70,10 @@ typedef struct {
 } STaskDispatcherShuffle;
 
 typedef struct {
-  int8_t reserved;
+  int8_t          reserved;
+  SSchemaWrapper* pSchemaWrapper;
   // not applicable to encoder and decoder
+  STSchema* pTSchema;
   SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
