@@ -102,6 +102,7 @@ print ====> $data60 $data61 $data62 $data63 $data64 $data65
 print ====> $data70 $data71 $data72 $data73 $data74 $data75
 print ====> $data80 $data81 $data82 $data83 $data84 $data85
 print ====> $data90 $data91 $data92 $data93 $data94 $data95
+print ====> rows = $rows and rowNum = $rowNum for ct1
 if $rows != $rowNum then
   return -1
 endi

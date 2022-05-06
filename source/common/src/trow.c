@@ -466,7 +466,7 @@ int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int
       memcpy(POINTER_SHIFT(pCol->pData, pCol->len), value, pCol->bytes);
       pCol->len += pCol->bytes;
     }
-  } else {
+  } else if (!tdValTypeIsNone(valType)) {
     if (IS_VAR_DATA_TYPE(pCol->type)) {
       // keep the last offset
       // discard the last var data
@@ -483,7 +483,9 @@ int tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int
   }
 
 #ifdef TD_SUPPORT_BITMAP
-  tdSetBitmapValType(pCol->pBitmap, numOfRows, valType, bitmapMode);
+  if (!isMerge || !tdValTypeIsNone(valType)) {
+    tdSetBitmapValType(pCol->pBitmap, numOfRows, valType, bitmapMode);
+  }
 #endif
   return 0;
 }
@@ -533,7 +535,9 @@ static int32_t tdAppendTpRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
       ++dcol;
     }
   }
+#if 0  
   ++pCols->numOfRows;
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -584,7 +588,9 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
       ++dcol;
     }
   }
+#if 0
   ++pCols->numOfRows;
+#endif
 
   return TSDB_CODE_SUCCESS;
 }
@@ -698,7 +704,7 @@ static void tdAppendValToDataCols(SDataCols *target, SDataCols *src, int iter, b
           tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints,
                                target->bitmapMode, isMerge);
         } else {
-          // Keep the origi value for None
+          // Keep the origin value for None
         }
       } else {
         tdAppendValToDataCol(&(target->cols[i]), sVal.valType, sVal.val, target->numOfRows, target->maxPoints,
