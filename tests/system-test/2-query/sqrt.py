@@ -498,6 +498,7 @@ class TDTestCase:
         tdSql.checkData(3,3,math.sqrt(126))
         tdSql.checkData(3,4,math.sqrt(339999995214436424907732413799364296704.00000))
         
+        
         # check  + - * / in functions
         tdSql.query("select sqrt(abs(c1+1)) ,sqrt(abs(c2)) , sqrt(abs(c3*1)) , sqrt(abs(c4/2)), sqrt(abs(c5))/2, sqrt(abs(c6)) from sub1_bound ")
         tdSql.checkData(0,0,math.sqrt(2147483648.000000000))
