@@ -5,7 +5,7 @@ static SSDataBlock* doSort(SOperatorInfo* pOperator);
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExprInfo* pExprInfo, int32_t numOfCols,
-                                      SArray* pIndexMap, SExecTaskInfo* pTaskInfo) {
+                                      SArray* pColMatchColInfo, SExecTaskInfo* pTaskInfo) {
   SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
   SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   int32_t            rowSize = pResBlock->info.rowSize;
@@ -20,16 +20,18 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
   pInfo->binfo.pRes   = pResBlock;
 
   initResultSizeInfo(pOperator, 1024);
-  pInfo->bufPageSize  = rowSize < 1024 ? 1024 * 2 : rowSize * 2;  // there are headers, so pageSize = rowSize + header
 
-  pInfo->sortBufSize  = pInfo->bufPageSize * 16;  // TODO dynamic set the available sort buffer
   pInfo->pSortInfo    = pSortInfo;
-  pInfo->inputSlotMap = pIndexMap;
+  pInfo->pColMatchInfo= pColMatchColInfo;
   pOperator->name     = "SortOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
   pOperator->blocking = true;
   pOperator->status   = OP_NOT_OPENED;
   pOperator->info     = pInfo;
+
+  // lazy evaluation for the following parameter since the input datablock is not known till now.
+//  pInfo->bufPageSize  = rowSize < 1024 ? 1024 * 2 : rowSize * 2;  // there are headers, so pageSize = rowSize + header
+//  pInfo->sortBufSize  = pInfo->bufPageSize * 16;  // TODO dynamic set the available sort buffer
 
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet =
@@ -45,14 +47,12 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
   return NULL;
 }
 
-// TODO merge aggregate super table
 void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-
     bool isNull = tsortIsNullVal(pTupleHandle, i);
     if (isNull) {
-      colDataAppend(pColInfo, pBlock->info.rows, NULL, true);
+      colDataAppendNULL(pColInfo, pBlock->info.rows);
     } else {
       char* pData = tsortGetValue(pTupleHandle, i);
       colDataAppend(pColInfo, pBlock->info.rows, pData, false);
@@ -62,11 +62,12 @@ void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
   pBlock->info.rows += 1;
 }
 
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity) {
+SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo) {
   blockDataCleanup(pDataBlock);
-  blockDataEnsureCapacity(pDataBlock, capacity);
+  ASSERT(taosArrayGetSize(pColMatchInfo) == pDataBlock->info.numOfCols);
 
-  blockDataEnsureCapacity(pDataBlock, capacity);
+  SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
+  blockDataEnsureCapacity(p, capacity);
 
   while (1) {
     STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
@@ -74,12 +75,32 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
       break;
     }
 
-    appendOneRowToDataBlock(pDataBlock, pTupleHandle);
-    if (pDataBlock->info.rows >= capacity) {
+    appendOneRowToDataBlock(p, pTupleHandle);
+    if (p->info.rows >= capacity) {
       return pDataBlock;
     }
   }
 
+  if (p->info.rows > 0) {
+    int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
+    for(int32_t i = 0; i < numOfCols; ++i) {
+      SColMatchInfo* pmInfo = taosArrayGet(pColMatchInfo, i);
+
+      for(int32_t j = 0; j < p->info.numOfCols; ++j) {
+        SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, j);
+        if (pSrc->info.colId == pmInfo->colId) {
+          SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
+          colDataAssign(pDst, pSrc, p->info.rows);
+          break;
+        }
+      }
+    }
+
+    pDataBlock->info.rows = p->info.rows;
+    pDataBlock->info.capacity = p->info.rows;
+  }
+
+  blockDataDestroy(p);
   return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
 }
 
@@ -106,15 +127,15 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
   SSortOperatorInfo* pInfo = pOperator->info;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+    return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, pInfo->pColMatchInfo);
   }
 
-  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->inputSlotMap, SORT_SINGLESOURCE_SORT,
-                                             pInfo->bufPageSize, numOfBufPage, pInfo->binfo.pRes, pTaskInfo->id.str);
+//  pInfo->binfo.pRes is not equalled to the input datablock.
+//  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
+  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_SINGLESOURCE_SORT,
+                                             -1, -1, NULL, pTaskInfo->id.str);
 
   tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, applyScalarFunction, pOperator);
-
 
   SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
   ps->param = pOperator->pDownstream[0];
@@ -127,7 +148,7 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
   }
 
   pOperator->status = OP_RES_TO_RETURN;
-  return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity);
+  return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, pInfo->pColMatchInfo);
 }
 
 void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
@@ -135,5 +156,5 @@ void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
   pInfo->binfo.pRes = blockDataDestroy(pInfo->binfo.pRes);
 
   taosArrayDestroy(pInfo->pSortInfo);
-  taosArrayDestroy(pInfo->inputSlotMap);
+  taosArrayDestroy(pInfo->pColMatchInfo);
 }

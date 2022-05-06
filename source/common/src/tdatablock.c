@@ -363,9 +363,9 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pInd
 
   for (int32_t i = 0; i < pDest->info.numOfCols; ++i) {
     int32_t mapIndex = i;
-    if (pIndexMap) {
-      mapIndex = *(int32_t*)taosArrayGet(pIndexMap, i);
-    }
+//    if (pIndexMap) {
+//      mapIndex = *(int32_t*)taosArrayGet(pIndexMap, i);
+//    }
 
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, mapIndex);
@@ -493,12 +493,12 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
       bool isNull = false;
       if (pBlock->pBlockAgg == NULL) {
-        isNull = colDataIsNull(pColData, pBlock->info.rows, j, NULL);
+        isNull = colDataIsNull_s(pColData, pBlock->info.rows);
       } else {
         isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
       }
-      char* p = colDataGetData(pColData, j);
 
+      char* p = colDataGetData(pColData, j);
       colDataAppend(pDstCol, j - startIndex, p, isNull);
     }
   }

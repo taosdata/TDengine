@@ -117,18 +117,25 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle);
 /**
  *
  * @param pHandle
- * @param colIndex
+ * @param colId
  * @return
  */
-bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex);
+bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colId);
 
 /**
  *
  * @param pHandle
- * @param colIndex
+ * @param colId
  * @return
  */
-void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex);
+void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
+
+/**
+ *
+ * @param pSortHandle
+ * @return
+ */
+SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
 
 #ifdef __cplusplus
 }

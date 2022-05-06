@@ -242,8 +242,7 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
                            "The parameters of first/last can only be columns");
   }
 
-  uint8_t paraType = ((SExprNode*)pPara)->resType.type;
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[paraType].bytes, .type = paraType};
+  pFunc->node.resType = ((SExprNode*)pPara)->resType;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -917,7 +916,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTbnameColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = qTbnameFunction,
     .finalizeFunc = NULL
   },
   {
