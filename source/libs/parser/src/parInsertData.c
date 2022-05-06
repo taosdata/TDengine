@@ -186,7 +186,7 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
 }
 
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-                             const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
+                             STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
                              SVCreateTbReq* pCreateTbReq) {
   *dataBlocks = NULL;
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));

@@ -1255,7 +1255,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qBindStmtTagsValue(void *pBlock, void *boundTags, int64_t suid, SName *pName, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen){
+int32_t qBindStmtTagsValue(void *pBlock, void *boundTags, int64_t suid, char *tName, TAOS_MULTI_BIND *bind, char *msgBuf, int32_t msgBufLen){
   STableDataBlocks *pDataBlock = (STableDataBlocks *)pBlock;
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen}; 
   SParsedDataColInfo* tags = (SParsedDataColInfo*)boundTags;
