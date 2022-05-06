@@ -51,7 +51,7 @@ class TDTestCase:
             )
             query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_1} " for num_col_1 in NUM_COL )
 
-        query_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
+        query_condition.append(''' "test1234!@#$%^&*():'><?/.,][}{" ''')
 
         return query_condition
 
