@@ -21,8 +21,8 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 
-#define TSDB_VGROUP_VER_NUMBER   1
-#define TSDB_VGROUP_RESERVE_SIZE 64
+#define VGROUP_VER_NUMBER   1
+#define VGROUP_RESERVE_SIZE 64
 
 static SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw);
 static int32_t  mndVgroupActionInsert(SSdb *pSdb, SVgObj *pVgroup);
@@ -40,13 +40,15 @@ static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void    mndCancelGetNextVnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitVgroup(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_VGROUP,
-                     .keyType = SDB_KEY_INT32,
-                     .encodeFp = (SdbEncodeFp)mndVgroupActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndVgroupActionDecode,
-                     .insertFp = (SdbInsertFp)mndVgroupActionInsert,
-                     .updateFp = (SdbUpdateFp)mndVgroupActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndVgroupActionDelete,};
+  SSdbTable table = {
+      .sdbType = SDB_VGROUP,
+      .keyType = SDB_KEY_INT32,
+      .encodeFp = (SdbEncodeFp)mndVgroupActionEncode,
+      .decodeFp = (SdbDecodeFp)mndVgroupActionDecode,
+      .insertFp = (SdbInsertFp)mndVgroupActionInsert,
+      .updateFp = (SdbUpdateFp)mndVgroupActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndVgroupActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_VNODE_RSP, mndProcessCreateVnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_ALTER_VNODE_RSP, mndProcessAlterVnodeRsp);
@@ -66,7 +68,7 @@ void mndCleanupVgroup(SMnode *pMnode) {}
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_VGROUP, TSDB_VGROUP_VER_NUMBER, sizeof(SVgObj) + TSDB_VGROUP_RESERVE_SIZE);
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_VGROUP, VGROUP_VER_NUMBER, sizeof(SVgObj) + VGROUP_RESERVE_SIZE);
   if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
@@ -83,7 +85,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup) {
     SVnodeGid *pVgid = &pVgroup->vnodeGid[i];
     SDB_SET_INT32(pRaw, dataPos, pVgid->dnodeId, _OVER)
   }
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_VGROUP_RESERVE_SIZE, _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
   SDB_SET_DATALEN(pRaw, dataPos, _OVER)
 
   terrno = 0;
@@ -105,7 +107,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
   int8_t sver = 0;
   if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != TSDB_VGROUP_VER_NUMBER) {
+  if (sver != VGROUP_VER_NUMBER) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
     goto _OVER;
   }
@@ -133,7 +135,7 @@ SSdbRow *mndVgroupActionDecode(SSdbRaw *pRaw) {
       pVgid->role = TAOS_SYNC_STATE_LEADER;
     }
   }
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_VGROUP_RESERVE_SIZE, _OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, VGROUP_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
@@ -664,7 +666,6 @@ static int32_t mndRetrieveVnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
   int32_t numOfRows = 0;
   SVgObj *pVgroup = NULL;
   int32_t cols = 0;
-  //  int32_t dnodeId = pShow->replica;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_VGROUP, pShow->pIter, (void **)&pVgroup);

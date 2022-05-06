@@ -44,7 +44,6 @@ static int32_t  mndProcessCompactDbReq(SNodeMsg *pReq);
 static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
 static int32_t  mndProcessGetDbCfgReq(SNodeMsg *pReq);
-static int32_t  mndProcessGetIndexReq(SNodeMsg *pReq);
 
 int32_t mndInitDb(SMnode *pMnode) {
   SSdbTable table = {
@@ -63,7 +62,6 @@ int32_t mndInitDb(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_USE_DB, mndProcessUseDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_COMPACT_DB, mndProcessCompactDbReq);
   mndSetMsgHandle(pMnode, TDMT_MND_GET_DB_CFG, mndProcessGetDbCfgReq);
-  mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetIndexReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_DB, mndRetrieveDbs);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_DB, mndCancelGetNextDb);
@@ -1542,50 +1540,4 @@ static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
 static void mndCancelGetNextDb(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
-}
-
-static int32_t mndProcessGetIndexReq(SNodeMsg *pReq) {
-  SUserIndexReq indexReq = {0};
-  SMnode       *pMnode = pReq->pNode;
-  int32_t       code = -1;
-  SUserIndexRsp rsp = {0};
-  bool          exist = false;
-
-  if (tDeserializeSUserIndexReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &indexReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    goto _OVER;
-  }
-
-  code = mndProcessGetSmaReq(pMnode, &indexReq, &rsp, &exist);
-  if (code) {
-    goto _OVER;
-  }
-
-  if (!exist) {
-    // TODO GET INDEX FROM FULLTEXT
-    code = -1;
-    terrno = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
-  } else {
-    int32_t contLen = tSerializeSUserIndexRsp(NULL, 0, &rsp);
-    void   *pRsp = rpcMallocCont(contLen);
-    if (pRsp == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      code = -1;
-      goto _OVER;
-    }
-
-    tSerializeSUserIndexRsp(pRsp, contLen, &rsp);
-
-    pReq->pRsp = pRsp;
-    pReq->rspLen = contLen;
-
-    code = 0;
-  }
-
-_OVER:
-  if (code != 0) {
-    mError("failed to get index %s since %s", indexReq.indexFName, terrstr());
-  }
-
-  return code;
 }
