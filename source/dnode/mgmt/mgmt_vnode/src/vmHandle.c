@@ -107,14 +107,14 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->vgId = pCreate->vgId;
   strcpy(pCfg->dbname, pCreate->db);
-  // pCfg->szBuf = pCreate->cacheBlockSize * 1024 * 1024;
-  pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.days = 10;
-  pCfg->tsdbCfg.keep2 = 3650;  // pCreate->daysToKeep0;
-  pCfg->tsdbCfg.keep0 = 3650;  // pCreate->daysToKeep2;
-  pCfg->tsdbCfg.keep1 = 3650;  // pCreate->daysToKeep0;
-  pCfg->tsdbCfg.retentions = pCreate->pRetensions;
+  pCfg->tsdbCfg.keep2 = 3650;
+  pCfg->tsdbCfg.keep0 = 3650;
+  pCfg->tsdbCfg.keep1 = 3650;
+  for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
+    memcpy(&pCfg->tsdbCfg.retentions[i], taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+  }
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
@@ -284,6 +284,7 @@ void vmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dmSetMsgHandle(pWrapper, TDMT_VND_CREATE_SMA, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_CANCEL_SMA, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_DROP_SMA, vmProcessWriteMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SUBMIT_RSMA, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_MQ_VG_CHANGE, (NodeMsgFp)vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_CONSUME, vmProcessFetchMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_TASK_DEPLOY, vmProcessWriteMsg, DEFAULT_HANDLE);

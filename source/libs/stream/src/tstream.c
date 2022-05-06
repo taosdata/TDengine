@@ -28,6 +28,7 @@ static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg*
   if (buf == NULL) {
     return -1;
   }
+
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
     ((SMsgHead*)buf)->vgId = 0;
     req.taskId = pTask->inplaceDispatcher.taskId;
@@ -151,15 +152,15 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
 
   // sink
   if (pTask->sinkType == TASK_SINK__TABLE) {
-    //
-    blockDebugShowData(pRes);
+    /*blockDebugShowData(pRes);*/
+    ASSERT(pTask->tbSink.pTSchema);
+    SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema);
+    tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     pTask->smaSink.smaHandle(pTask->ahandle, pTask->smaSink.smaId, pRes);
     //
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     //
-  } else if (pTask->sinkType == TASK_SINK__SHOW) {
-    blockDebugShowData(pRes);
   } else {
     ASSERT(pTask->sinkType == TASK_SINK__NONE);
   }
@@ -275,13 +276,12 @@ int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
   }
 
   if (pTask->sinkType == TASK_SINK__TABLE) {
-    if (tEncodeI8(pEncoder, pTask->tbSink.reserved) < 0) return -1;
+    /*if (tEncodeI8(pEncoder, pTask->tbSink.reserved) < 0) return -1;*/
+    if (tEncodeSSchemaWrapper(pEncoder, pTask->tbSink.pSchemaWrapper) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     if (tEncodeI64(pEncoder, pTask->smaSink.smaId) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     if (tEncodeI8(pEncoder, pTask->fetchSink.reserved) < 0) return -1;
-  } else if (pTask->sinkType == TASK_SINK__SHOW) {
-    if (tEncodeI8(pEncoder, pTask->showSink.reserved) < 0) return -1;
   } else {
     ASSERT(pTask->sinkType == TASK_SINK__NONE);
   }
@@ -321,13 +321,14 @@ int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
   }
 
   if (pTask->sinkType == TASK_SINK__TABLE) {
-    if (tDecodeI8(pDecoder, &pTask->tbSink.reserved) < 0) return -1;
+    /*if (tDecodeI8(pDecoder, &pTask->tbSink.reserved) < 0) return -1;*/
+    pTask->tbSink.pSchemaWrapper = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
+    if (pTask->tbSink.pSchemaWrapper == NULL) return -1;
+    if (tDecodeSSchemaWrapper(pDecoder, pTask->tbSink.pSchemaWrapper) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     if (tDecodeI64(pDecoder, &pTask->smaSink.smaId) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     if (tDecodeI8(pDecoder, &pTask->fetchSink.reserved) < 0) return -1;
-  } else if (pTask->sinkType == TASK_SINK__SHOW) {
-    if (tDecodeI8(pDecoder, &pTask->showSink.reserved) < 0) return -1;
   } else {
     ASSERT(pTask->sinkType == TASK_SINK__NONE);
   }

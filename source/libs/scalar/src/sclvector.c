@@ -297,6 +297,22 @@ static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIn
   taosMemoryFree(t);
 }
 
+static FORCE_INLINE void ncharToVar(char* buf, SScalarParam* pOut, int32_t rowIndex) {
+  int32_t inputLen = varDataLen(buf);
+
+  char* t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
+  int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
+  if (len < 0) {
+    taosMemoryFree(t);
+    return;
+  }
+  varDataSetLen(t, len);
+
+  colDataAppend(pOut->columnData, rowIndex, t, false);
+  taosMemoryFree(t);
+}
+
+
 //TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
   int32_t bufSize = pIn->columnData->info.bytes;
@@ -313,6 +329,10 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
     func = varToUnsigned;
   } else if (IS_FLOAT_TYPE(outType)) {
     func = varToFloat;
+  } else if (outType == TSDB_DATA_TYPE_BINARY) {   // nchar -> binary
+    ASSERT(inType == TSDB_DATA_TYPE_NCHAR);
+    func = ncharToVar;
+    vton = true;
   } else if (outType == TSDB_DATA_TYPE_NCHAR) {   // binary -> nchar
     ASSERT(inType == TSDB_DATA_TYPE_VARCHAR);
     func = varToNchar;
@@ -608,7 +628,7 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   0,   7,   0,   0,
 /*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   0,   7,   0,   0,
 /*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,   7,   0,   0,
-/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   0,   7,   7,   7,   7,   0,   0,   0,   0,
+/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   8,   7,   7,   7,   7,   0,   0,   0,   0,
 /*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   9,   9,   9,   7,   0,   7,   0,   0,
 /*NCHA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   0,   0,   0,   0,
 /*UTIN*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   12,  13,  14,  0,   7,   0,   0,
@@ -1003,8 +1023,7 @@ static void vectorMathMultiplyHelper(SColumnInfoData* pLeftCol, SColumnInfoData*
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
-      *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
-                * getVectorDoubleValueFnRight(RIGHT_COL, 0);
+      *output = getVectorDoubleValueFnLeft(LEFT_COL, i) * getVectorDoubleValueFnRight(RIGHT_COL, 0);
     }
   }
 }
@@ -1030,8 +1049,7 @@ void vectorMathMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam 
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
-      *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
-                * getVectorDoubleValueFnRight(RIGHT_COL, i);
+      *output = getVectorDoubleValueFnLeft(LEFT_COL, i) * getVectorDoubleValueFnRight(RIGHT_COL, i);
     }
   } else if (pLeft->numOfRows == 1) {
     vectorMathMultiplyHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);

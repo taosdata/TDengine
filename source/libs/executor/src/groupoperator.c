@@ -77,7 +77,7 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
     SColumn*         pCol = taosArrayGet(pGroupCols, i);
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
     if (pBlock->pBlockAgg != NULL) {
-      pColAgg = &pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
+      pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
     }
 
     bool isNull = colDataIsNull(pColInfoData, pBlock->info.rows, rowIndex, pColAgg);
@@ -118,7 +118,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, pCol->slotId);
 
     if (pBlock->pBlockAgg != NULL) {
-      pColAgg = &pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
+      pColAgg = pBlock->pBlockAgg[pCol->slotId];  // TODO is agg data matched?
     }
 
     SGroupKeys* pkey = taosArrayGet(pGroupColVals, i);
@@ -227,16 +227,16 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     }
 
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
-    int32_t ret = setGroupResultOutputBuf(&(pInfo->binfo), pOperator->numOfOutput, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len, 0, pInfo->aggSup.pResultBuf, pTaskInfo, &pInfo->aggSup);
+    int32_t ret = setGroupResultOutputBuf(&(pInfo->binfo), pOperator->numOfExprs, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len, 0, pInfo->aggSup.pResultBuf, pTaskInfo, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
     int32_t rowIndex = j - num;
-    doApplyFunctions(pCtx, &w, NULL, rowIndex, num, NULL, pBlock->info.rows, pOperator->numOfOutput, TSDB_ORDER_ASC);
+    doApplyFunctions(pCtx, &w, NULL, rowIndex, num, NULL, pBlock->info.rows, pOperator->numOfExprs, TSDB_ORDER_ASC);
 
     // assign the group keys or user input constant values if required
-    doAssignGroupKeys(pCtx, pOperator->numOfOutput, pBlock->info.rows, rowIndex);
+    doAssignGroupKeys(pCtx, pOperator->numOfExprs, pBlock->info.rows, rowIndex);
     recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
     num = 1;
   }
@@ -244,19 +244,19 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   if (num > 0) {
     len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
     int32_t ret =
-        setGroupResultOutputBuf(&(pInfo->binfo), pOperator->numOfOutput, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len,
+        setGroupResultOutputBuf(&(pInfo->binfo), pOperator->numOfExprs, pInfo->keyBuf, TSDB_DATA_TYPE_VARCHAR, len,
                                    0, pInfo->aggSup.pResultBuf, pTaskInfo, &pInfo->aggSup);
     if (ret != TSDB_CODE_SUCCESS) {
       longjmp(pTaskInfo->env, TSDB_CODE_QRY_APP_ERROR);
     }
 
     int32_t rowIndex = pBlock->info.rows - num;
-    doApplyFunctions(pCtx, &w, NULL, rowIndex, num, NULL, pBlock->info.rows, pOperator->numOfOutput, TSDB_ORDER_ASC);
-    doAssignGroupKeys(pCtx, pOperator->numOfOutput, pBlock->info.rows, rowIndex);
+    doApplyFunctions(pCtx, &w, NULL, rowIndex, num, NULL, pBlock->info.rows, pOperator->numOfExprs, TSDB_ORDER_ASC);
+    doAssignGroupKeys(pCtx, pOperator->numOfExprs, pBlock->info.rows, rowIndex);
   }
 }
 
-static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -265,7 +265,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
+    doBuildResultDatablock(&pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
     if (pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
@@ -277,7 +277,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
 
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
@@ -291,19 +291,19 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
       projectApplyFunctions(pInfo->pScalarExprInfo, pBlock, pBlock, pInfo->pScalarFuncCtx, pInfo->numOfScalarExpr, NULL);
     }
 
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfOutput);
+    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfExprs);
     doHashGroupbyAgg(pOperator, pBlock);
   }
 
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
 
-  finalizeMultiTupleQueryResult(pInfo->binfo.pCtx, pOperator->numOfOutput, pInfo->aggSup.pResultBuf,
+  finalizeMultiTupleQueryResult(pInfo->binfo.pCtx, pOperator->numOfExprs, pInfo->aggSup.pResultBuf,
                                 &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
   //  if (!stableQuery) { // finalize include the update of result rows
-  //    finalizeQueryResult(pInfo->binfo.pCtx, pOperator->numOfOutput);
+  //    finalizeQueryResult(pInfo->binfo.pCtx, pOperator->numOfExprs);
   //  } else {
-  //    updateNumOfRowsInResultRows(pInfo->binfo.pCtx, pOperator->numOfOutput, &pInfo->binfo.resultRowInfo,
+  //    updateNumOfRowsInResultRows(pInfo->binfo.pCtx, pOperator->numOfExprs, &pInfo->binfo.resultRowInfo,
   //    pInfo->binfo.rowCellInfoOffset);
   //  }
 
@@ -311,7 +311,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator, bool* newgrou
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, false);
 
   while(1) {
-    doBuildResultDatablock(pRes, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf, pInfo->binfo.rowCellInfoOffset, pInfo->binfo.pCtx);
+    doBuildResultDatablock(&pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
     doFilter(pInfo->pCondition, pRes);
 
     bool hasRemain = hasRemainDataInCurrentGroup(&pInfo->groupResInfo);
@@ -353,11 +353,11 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
   pOperator->name         = "GroupbyAggOperator";
-  pOperator->blockingOptr = true;
+  pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   // pOperator->operatorType = OP_Groupby;
   pOperator->pExpr        = pExprInfo;
-  pOperator->numOfOutput  = numOfCols;
+  pOperator->numOfExprs  = numOfCols;
   pOperator->info         = pInfo;
   pOperator->pTaskInfo    = pTaskInfo;
 
@@ -392,7 +392,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     int32_t* rows = (int32_t*) pPage;
 
-    size_t numOfCols = pOperator->numOfOutput;
+    size_t numOfCols = pOperator->numOfExprs;
     for(int32_t i = 0; i < numOfCols; ++i) {
       SExprInfo* pExpr = &pOperator->pExpr[i];
       int32_t slotId = pExpr->base.pParam[0].pCol->slotId;
@@ -537,11 +537,12 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
 
   pInfo->pageIndex += 1;
 
+  blockDataUpdateTsWindow(pInfo->binfo.pRes);
   pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
   return pInfo->binfo.pRes;
 }
 
-static SSDataBlock* hashPartition(SOperatorInfo* pOperator, bool* newgroup) {
+static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -558,13 +559,13 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator, bool* newgroup) {
 
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream, newgroup);
+    SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
     publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
 
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfOutput);
+    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfExprs);
     doHashPartition(pOperator, pBlock);
   }
 
@@ -611,11 +612,11 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   }
 
   pOperator->name         = "PartitionOperator";
-  pOperator->blockingOptr = true;
+  pOperator->blocking = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
   pInfo->binfo.pRes       = pResultBlock;
-  pOperator->numOfOutput  = numOfCols;
+  pOperator->numOfExprs  = numOfCols;
   pOperator->pExpr        = pExprInfo;
   pOperator->info         = pInfo;
 

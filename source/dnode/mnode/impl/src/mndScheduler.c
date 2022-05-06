@@ -204,6 +204,8 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
       pTask->smaSink.smaId = pStream->smaId;
     } else {
       pTask->sinkType = TASK_SINK__TABLE;
+      pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
+      ASSERT(pTask->tbSink.pSchemaWrapper);
     }
 
     // dispatch
@@ -242,6 +244,7 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
     pTask->smaSink.smaId = pStream->smaId;
   } else {
     pTask->sinkType = TASK_SINK__TABLE;
+    pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
   }
   //
   // dispatch
@@ -308,8 +311,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         // sink part
         if (level == 0) {
           // only for inplace
-          pTask->sinkType = TASK_SINK__SHOW;
-          pTask->showSink.reserved = 0;
+          pTask->sinkType = TASK_SINK__NONE;
           if (!hasExtraSink) {
 #if 1
             if (pStream->createdBy == STREAM_CREATED_BY__SMA) {
@@ -317,6 +319,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
               pTask->smaSink.smaId = pStream->smaId;
             } else {
               pTask->sinkType = TASK_SINK__TABLE;
+              pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
             }
 #endif
           }
@@ -368,8 +371,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       pTask->sourceType = TASK_SOURCE__PIPE;
 
       // sink part
-      pTask->sinkType = TASK_SINK__SHOW;
-      /*pTask->sinkType = TASK_SINK__NONE;*/
+      pTask->sinkType = TASK_SINK__NONE;
 
       // dispatch part
       ASSERT(hasExtraSink);
@@ -456,7 +458,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       pTask->sourceType = TASK_SOURCE__MERGE;
 
       // sink part
-      pTask->sinkType = TASK_SINK__SHOW;
+      pTask->sinkType = TASK_SINK__NONE;
 
       // dispatch part
       pTask->dispatchType = TASK_DISPATCH__NONE;

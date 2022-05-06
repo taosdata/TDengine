@@ -428,17 +428,23 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
 }
 
 static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
-  SName name = {0};
+  SName        name = {0};
+  SVDropStbReq req = {0};
+  int32_t      contLen = 0;
+  int32_t      ret = 0;
+  SMsgHead    *pHead = NULL;
+  SCoder       coder = {0};
+
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
-  SVDropTbReq req = {0};
-  req.ver = 0;
   req.name = (char *)tNameGetTableName(&name);
-  req.type = TD_SUPER_TABLE;
   req.suid = pStb->uid;
 
-  int32_t   contLen = tSerializeSVDropTbReq(NULL, &req) + sizeof(SMsgHead);
-  SMsgHead *pHead = taosMemoryMalloc(contLen);
+  tEncodeSize(tEncodeSVDropStbReq, &req, contLen, ret);
+  if (ret < 0) return NULL;
+
+  contLen += sizeof(SMsgHead);
+  pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
@@ -448,7 +454,10 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tSerializeSVDropTbReq(&pBuf, &req);
+
+  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, contLen - sizeof(SMsgHead), TD_ENCODER);
+  tEncodeSVDropStbReq(&coder, &req);
+  tCoderClear(&coder);
 
   *pContLen = contLen;
   return pHead;
@@ -670,8 +679,8 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
     memcpy(stbObj.pAst2, pCreate->pAst2, stbObj.ast2Len);
   }
 
-  stbObj.pColumns = taosMemoryMalloc(stbObj.numOfColumns * sizeof(SSchema));
-  stbObj.pTags = taosMemoryMalloc(stbObj.numOfTags * sizeof(SSchema));
+  stbObj.pColumns = taosMemoryCalloc(1, stbObj.numOfColumns * sizeof(SSchema));
+  stbObj.pTags = taosMemoryCalloc(1, stbObj.numOfTags * sizeof(SSchema));
   if (stbObj.pColumns == NULL || stbObj.pTags == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
@@ -722,7 +731,6 @@ _OVER:
 static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
   SMnode        *pMnode = pReq->pNode;
   int32_t        code = -1;
-  SStbObj       *pTopicStb = NULL;
   SStbObj       *pStb = NULL;
   SDbObj        *pDb = NULL;
   SUserObj      *pUser = NULL;
@@ -753,12 +761,6 @@ static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pTopicStb = mndAcquireStb(pMnode, createReq.name);
-  if (pTopicStb != NULL) {
-    terrno = TSDB_CODE_MND_NAME_CONFLICT_WITH_TOPIC;
-    goto _OVER;
-  }
-
   pDb = mndAcquireDbByStb(pMnode, createReq.name);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
@@ -774,6 +776,13 @@ static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
+  int32_t numOfStbs = -1;
+  mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs);
+  if (pDb->cfg.numOfStables == 1 && numOfStbs != 0) {
+    terrno = TSDB_CODE_MND_SINGLE_STB_MODE_DB;
+    goto _OVER;
+  }
+
   code = mndCreateStb(pMnode, pReq, &createReq, pDb);
   if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
@@ -783,7 +792,6 @@ _OVER:
   }
 
   mndReleaseStb(pMnode, pStb);
-  mndReleaseStb(pMnode, pTopicStb);
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
   tFreeSMCreateStbReq(&createReq);
@@ -1095,7 +1103,7 @@ static int32_t mndSetAlterStbRedoLogs(SMnode *pMnode, STrans *pTrans, SDbObj *pD
   SSdbRaw *pRedoRaw = mndStbActionEncode(pStb);
   if (pRedoRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
-  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_UPDATING) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
 
   return 0;
 }
@@ -1427,7 +1435,6 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   pRsp->numOfColumns = pStb->numOfColumns;
   pRsp->precision = pDb->cfg.precision;
   pRsp->tableType = TSDB_SUPER_TABLE;
-  pRsp->update = pDb->cfg.update;
   pRsp->sversion = pStb->version;
   pRsp->suid = pStb->uid;
   pRsp->tuid = pStb->uid;
@@ -1580,7 +1587,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
   return 0;
 }
 
-static int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
+int32_t mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs) {
   SSdb   *pSdb = pMnode->pSdb;
   SDbObj *pDb = mndAcquireDb(pMnode, dbName);
   if (pDb == NULL) {

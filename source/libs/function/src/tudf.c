@@ -481,8 +481,8 @@ void* decodeUdfResponse(const void* buf, SUdfResponse* rsp) {
   return (void*)buf;
 }
 
-void freeUdfColumnData(SUdfColumnData *data) {
-  if (data->varLengthColumn) {
+void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta) {
+  if (IS_VAR_DATA_TYPE(meta->type)) {
     taosMemoryFree(data->varLenCol.varOffsets);
     data->varLenCol.varOffsets = NULL;
     taosMemoryFree(data->varLenCol.payload);
@@ -496,7 +496,7 @@ void freeUdfColumnData(SUdfColumnData *data) {
 }
 
 void freeUdfColumn(SUdfColumn* col) {
-  freeUdfColumnData(&col->colData);
+  freeUdfColumnData(&col->colData, &col->colMeta);
 }
 
 void freeUdfDataDataBlock(SUdfDataBlock *block) {
@@ -528,8 +528,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
     udfCol->colMeta.scale = col->info.scale;
     udfCol->colMeta.precision = col->info.precision;
     udfCol->colData.numOfRows = udfBlock->numOfRows;
-    udfCol->colData.varLengthColumn = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
-    if (udfCol->colData.varLengthColumn) {
+    if (IS_VAR_DATA_TYPE(udfCol->colMeta.type)) {
       udfCol->colData.varLenCol.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
       udfCol->colData.varLenCol.varOffsets = taosMemoryMalloc(udfCol->colData.varLenCol.varOffsetsLen);
       memcpy(udfCol->colData.varLenCol.varOffsets, col->varmeta.offset, udfCol->colData.varLenCol.varOffsetsLen);
@@ -555,7 +554,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   block->info.numOfCols = 1;
   block->info.rows = udfCol->colData.numOfRows;
-  block->info.hasVarCol = udfCol->colData.varLengthColumn;
+  block->info.hasVarCol = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
 
   block->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
   taosArraySetSize(block->pDataBlock, 1);
@@ -595,7 +594,9 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
 
   //TODO: free the array output->pDataBlock
   output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  taosArrayPush(output->pDataBlock, input->columnData);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    taosArrayPush(output->pDataBlock, (input + i)->columnData);
+  }
   return 0;
 }
 
@@ -1176,7 +1177,7 @@ int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInte
 // input: interBuf
 // output: resultData
 int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData) {
-  int8_t callType = TSDB_UDF_CALL_AGG_PROC;
+  int8_t callType = TSDB_UDF_CALL_AGG_FIN;
   int32_t err = callUdf(handle, callType, NULL, interBuf, NULL, NULL, resultData);
   return err;
 }
@@ -1243,11 +1244,11 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
   }
   SUdfUvSession *session = (SUdfUvSession *)handle;
   SUdfAggRes *udfRes = (SUdfAggRes*)GET_ROWCELL_INTERBUF(pResultCellInfo);
-  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
-  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
-
   int32_t envSize = sizeof(SUdfAggRes) + session->outputLen + session->bufSize;
   memset(udfRes, 0, envSize);
+
+  udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
+  udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
   udfRes->session = (SUdfUvSession *)handle;
   SUdfInterBuf buf = {0};
@@ -1260,7 +1261,6 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
 }
 
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
-
   SInputColumnInfoData* pInput = &pCtx->input;
   int32_t numOfCols = pInput->numOfInputCols;
 
@@ -1320,13 +1320,15 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
 
-  SUdfInterBuf resultBuf = {.buf = udfRes->finalResBuf,
-                            .bufLen = session->outputLen,
-                            .numOfResult = udfRes->finalResNum};
+  SUdfInterBuf resultBuf = {0};
   SUdfInterBuf state = {.buf = udfRes->interResBuf,
                         .bufLen = session->bufSize,
                         .numOfResult = udfRes->interResNum};
   callUdfAggFinalize(session, &state, &resultBuf);
+
+  udfRes->finalResBuf = resultBuf.buf;
+  udfRes->finalResNum = resultBuf.numOfResult;
+
   teardownUdf(session);
 
   if (resultBuf.numOfResult == 1) {

@@ -15,6 +15,26 @@
 
 #include "tdbInt.h"
 
+void *tdbRealloc(void *ptr, size_t size) {
+  void *nPtr;
+  if ((ptr) == NULL || ((int *)(ptr))[-1] < (size)) {
+    nPtr = tdbOsRealloc((ptr) ? (char *)(ptr) - sizeof(int) : NULL, (size) + sizeof(int));
+    if (nPtr) {
+      ((int *)nPtr)[0] = (size);
+      nPtr = (char *)nPtr + sizeof(int);
+    }
+  } else {
+    nPtr = (ptr);
+  }
+  return nPtr;
+}
+
+void tdbFree(void *p) {
+  if (p) {
+    tdbOsFree((char *)(p) - sizeof(int));
+  }
+}
+
 int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
   int64_t stDev = 0, stIno = 0;
 

@@ -308,6 +308,8 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.smaId = 0;
   /*streamObj.physicalPlan = "";*/
   streamObj.logicalPlan = "not implemented";
+  streamObj.trigger = pCreate->triggerType;
+  streamObj.waterMark = pCreate->watermark;
 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {
@@ -431,7 +433,7 @@ static int32_t mndRetrieveStream(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
   SStreamObj *pStream = NULL;
 
   while (numOfRows < rows) {
-    pShow->pIter = sdbFetch(pSdb, SDB_TOPIC, pShow->pIter, (void **)&pStream);
+    pShow->pIter = sdbFetch(pSdb, SDB_STREAM, pShow->pIter, (void **)&pStream);
     if (pShow->pIter == NULL) break;
 
     SColumnInfoData *pColInfo;
@@ -471,8 +473,13 @@ static int32_t mndRetrieveStream(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStream->trigger, false);
+
+    numOfRows++;
+    sdbRelease(pSdb, pStream);
   }
-  return 0;
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
 }
 
 static void mndCancelGetNextStream(SMnode *pMnode, void *pIter) {

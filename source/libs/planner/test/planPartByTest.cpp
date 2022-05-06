@@ -18,13 +18,31 @@
 
 using namespace std;
 
-class PlanOptimizeTest : public PlannerTestBase {};
+class PlanPartitionByTest : public PlannerTestBase {};
 
-TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
+TEST_F(PlanPartitionByTest, basic) {
   useDb("root", "test");
 
-  run("select * from t1 order by ts");
-  run("select * from t1 order by ts desc");
-  run("select c1 from t1 order by ts");
-  run("select c1 from t1 order by ts desc");
+  run("select * from t1 partition by c1");
+}
+
+TEST_F(PlanPartitionByTest, withAggFunc) {
+  useDb("root", "test");
+
+  run("select count(*) from t1 partition by c1");
+}
+
+TEST_F(PlanPartitionByTest, withInterval) {
+  useDb("root", "test");
+
+  // normal/child table
+  run("select count(*) from t1 partition by c1 interval(10s)");
+  // super table
+  run("select count(*) from st1 partition by tag1, tag2 interval(10s)");
+}
+
+TEST_F(PlanPartitionByTest, withGroupBy) {
+  useDb("root", "test");
+
+  run("select count(*) from t1 partition by c1 group by c2");
 }

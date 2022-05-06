@@ -425,10 +425,19 @@ void transDQDestroy(SDelayQueue* queue) {
 }
 
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs) {
+  uint64_t    now = taosGetTimestampMs();
   SDelayTask* task = taosMemoryCalloc(1, sizeof(SDelayTask));
   task->func = func;
   task->arg = arg;
-  task->execTime = taosGetTimestampMs() + timeoutMs;
+  task->execTime = now + timeoutMs;
+
+  HeapNode* minNode = heapMin(queue->heap);
+  if (minNode) {
+    SDelayTask* minTask = container_of(minNode, SDelayTask, node);
+    if (minTask->execTime < task->execTime) {
+      timeoutMs = minTask->execTime <= now ? 0 : minTask->execTime - now;
+    }
+  }
 
   tTrace("timer %p put task into queue, timeoutMs: %" PRIu64 "", queue->timer, timeoutMs);
   heapInsert(queue->heap, &task->node);

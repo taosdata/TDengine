@@ -55,7 +55,7 @@ typedef struct {
 #define TSDB_COMMIT_BUF(ch)          TSDB_READ_BUF(&((ch)->readh))
 #define TSDB_COMMIT_COMP_BUF(ch)     TSDB_READ_COMP_BUF(&((ch)->readh))
 #define TSDB_COMMIT_EXBUF(ch)        TSDB_READ_EXBUF(&((ch)->readh))
-#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRows)
+#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->pVnode->config.tsdbCfg.maxRows)
 #define TSDB_COMMIT_TXN_VERSION(ch)  FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
 static void tsdbStartCommit(STsdb *pRepo);
@@ -69,10 +69,6 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith);
 static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static void tsdbResetCommitFile(SCommitH *pCommith);
 static int  tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
-// static int  tsdbCommitMeta(STsdbRepo *pRepo);
-// static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact);
-// static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
-// static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
 static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
 static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
 static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
@@ -922,7 +918,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     STColumn    *pColumn = pSchema->columns + ncol;
     SDataCol    *pDataCol = pDataCols->cols + ncol;
     SBlockCol   *pBlockCol = pBlockData->cols + nColsNotAllNull;
-    SAggrBlkCol *pAggrBlkCol = (SAggrBlkCol *)pAggrBlkData + nColsNotAllNull;
+    SAggrBlkCol *pAggrBlkCol = (SAggrBlkCol *)pAggrBlkData + nColsOfBlockSma;
 
     if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
@@ -935,7 +931,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     pBlockCol->type = pDataCol->type;
     pAggrBlkCol->colId = pDataCol->colId;
 
-    if (isSuper && pColumn->sma && tDataTypes[pDataCol->type].statisFunc) {
+    if (isSuper && IS_BSMA_ON(pColumn) && tDataTypes[pDataCol->type].statisFunc) {
 #if 0
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
                                                &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
@@ -951,6 +947,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
       } else {
         TD_SET_COL_ROWS_MISC(pBlockCol);
       }
+      ++nColsOfBlockSma;
     } else if (tdIsBitmapBlkNorm(pDataCol->pBitmap, rowsToWrite, pDataCols->bitmapMode)) {
       // check if all rows normal
       TD_SET_COL_ROWS_NORM(pBlockCol);
@@ -959,10 +956,6 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     }
 
     ++nColsNotAllNull;
-
-    if (isSuper && pColumn->sma) {
-      ++nColsOfBlockSma;
-    }
   }
 
   ASSERT(nColsNotAllNull >= 0 && nColsNotAllNull <= pDataCols->numOfCols);

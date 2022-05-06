@@ -39,6 +39,7 @@
 ./test.sh -f tsim/query/explain.sim
 ./test.sh -f tsim/query/session.sim
 ./test.sh -f tsim/query/scalarNull.sim
+./test.sh -f tsim/query/udf.sim
 
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim
@@ -69,7 +70,7 @@
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-# ./test.sh -f tsim/stable/show.sim
+#./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
 

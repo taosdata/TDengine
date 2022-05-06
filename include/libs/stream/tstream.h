@@ -35,19 +35,6 @@ enum {
   STREAM_CREATED_BY__SMA,
 };
 
-#if 0
-// pipe  -> fetch/pipe queue
-// merge -> merge      queue
-// write -> write      queue
-enum {
-  TASK_DISPATCH_MSG__SND_PIPE = 1,
-  TASK_DISPATCH_MSG__SND_MERGE,
-  TASK_DISPATCH_MSG__VND_PIPE,
-  TASK_DISPATCH_MSG__VND_MERGE,
-  TASK_DISPATCH_MSG__VND_WRITE,
-};
-#endif
-
 typedef struct {
   int32_t nodeId;  // 0 for snode
   SEpSet  epSet;
@@ -83,8 +70,10 @@ typedef struct {
 } STaskDispatcherShuffle;
 
 typedef struct {
-  int8_t reserved;
+  int8_t          reserved;
+  SSchemaWrapper* pSchemaWrapper;
   // not applicable to encoder and decoder
+  STSchema* pTSchema;
   SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
@@ -99,10 +88,6 @@ typedef struct {
 typedef struct {
   int8_t reserved;
 } STaskSinkFetch;
-
-typedef struct {
-  int8_t reserved;
-} STaskSinkShow;
 
 enum {
   TASK_SOURCE__SCAN = 1,
@@ -128,7 +113,6 @@ enum {
   TASK_SINK__TABLE,
   TASK_SINK__SMA,
   TASK_SINK__FETCH,
-  TASK_SINK__SHOW,
 };
 
 typedef struct {
@@ -155,7 +139,6 @@ typedef struct {
     STaskSinkTb    tbSink;
     STaskSinkSma   smaSink;
     STaskSinkFetch fetchSink;
-    STaskSinkShow  showSink;
   };
 
   // dispatch

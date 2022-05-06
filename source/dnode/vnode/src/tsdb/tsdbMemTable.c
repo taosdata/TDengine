@@ -190,38 +190,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   return 0;
 }
 
-int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg) {
-  ASSERT(pMsg != NULL);
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock = NULL;
-  SSubmitBlkIter blkIter = {0};
-  STSRow        *row = NULL;
-
-  terrno = TSDB_CODE_SUCCESS;
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-
-  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
-  while (true) {
-    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
-    if (pBlock == NULL) break;
-
-    pBlock->uid = htobe64(pBlock->uid);
-    pBlock->suid = htobe64(pBlock->suid);
-    pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->dataLen = htonl(pBlock->dataLen);
-    pBlock->schemaLen = htonl(pBlock->schemaLen);
-    pBlock->numOfRows = htons(pBlock->numOfRows);
-  }
-
-  if (terrno != TSDB_CODE_SUCCESS) return -1;
-  return 0;
-}
-
-int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
-  // STsdbMeta       *pMeta = pRepo->tsdbMeta;
-  // int32_t          points = 0;
-  // STable          *pTable = NULL;
+int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
   SSubmitBlkIter blkIter = {0};
   STsdbMemTable *pMemTable = pTsdb->mem;
   void          *tptr;
@@ -232,15 +201,15 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows
   SSubmitBlk    *pBlkCopy;
 
   // create container is nedd
-  tptr = taosHashGet(pMemTable->pHashIdx, &(pBlock->uid), sizeof(pBlock->uid));
+  tptr = taosHashGet(pMemTable->pHashIdx, &(pMsgIter->uid), sizeof(pMsgIter->uid));
   if (tptr == NULL) {
-    pTbData = tsdbNewTbData(pBlock->uid);
+    pTbData = tsdbNewTbData(pMsgIter->uid);
     if (pTbData == NULL) {
       return -1;
     }
 
     // Put into hash
-    taosHashPut(pMemTable->pHashIdx, &(pBlock->uid), sizeof(pBlock->uid), &(pTbData), sizeof(pTbData));
+    taosHashPut(pMemTable->pHashIdx, &(pMsgIter->uid), sizeof(pMsgIter->uid), &(pTbData), sizeof(pTbData));
 
     // Put into skiplist
     tSkipListPut(pMemTable->pSlIdx, pTbData);
@@ -249,10 +218,11 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows
   }
 
   // copy data to buffer pool
-  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, pBlock->dataLen + sizeof(*pBlock));
-  memcpy(pBlkCopy, pBlock, pBlock->dataLen + sizeof(*pBlock));
+  int32_t tlen = pMsgIter->dataLen + pMsgIter->schemaLen + sizeof(*pBlock);
+  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, tlen);
+  memcpy(pBlkCopy, pBlock, tlen);
 
-  tInitSubmitBlkIter(pBlkCopy, &blkIter);
+  tInitSubmitBlkIter(pMsgIter, pBlkCopy, &blkIter);
   if (blkIter.row == NULL) return 0;
   keyMin = TD_ROW_KEY(blkIter.row);
 
@@ -261,15 +231,15 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows
   // Set statistics
   keyMax = TD_ROW_KEY(blkIter.row);
 
-  pTbData->nrows += pBlock->numOfRows;
+  pTbData->nrows += pMsgIter->numOfRows;
   if (pTbData->keyMin > keyMin) pTbData->keyMin = keyMin;
   if (pTbData->keyMax < keyMax) pTbData->keyMax = keyMax;
 
-  pMemTable->nRow += pBlock->numOfRows;
+  pMemTable->nRow += pMsgIter->numOfRows;
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
-  (*pAffectedRows) += pBlock->numOfRows;
+  (*pAffectedRows) = pMsgIter->numOfRows;
 
   return 0;
 }

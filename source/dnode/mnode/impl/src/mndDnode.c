@@ -705,7 +705,7 @@ static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *p
     colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
     char buf[tListLen(pDnode->ep) + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep,   pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, buf, false);

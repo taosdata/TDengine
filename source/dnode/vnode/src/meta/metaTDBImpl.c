@@ -407,7 +407,7 @@ static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_
   pSchemaWrapper = taosMemoryMalloc(sizeof(*pSchemaWrapper));
   metaDecodeSchemaEx(pBuf, pSchemaWrapper, isGetEx);
 
-  TDB_FREE(pVal);
+  tdbFree(pVal);
 
   return pSchemaWrapper;
 }
@@ -438,7 +438,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
 
   while (true) {
     // TODO: lock during iterate?
-    if (tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
+    if (tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
       pSmaIdxKey = pCur->pKey;
       ASSERT(pSmaIdxKey != NULL);
 
@@ -450,7 +450,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       }
 
       if ((pSW == NULL) && ((pSW = taosMemoryCalloc(1, sizeof(*pSW))) == NULL)) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         return NULL;
       }
@@ -458,7 +458,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       ++pSW->number;
       STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
       if (tptr == NULL) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
@@ -467,13 +467,13 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       pSW->tSma = tptr;
       pBuf = pSmaVal;
       if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
         return NULL;
       }
-      TDB_FREE(pSmaVal);
+      tdbFree(pSmaVal);
       continue;
     }
     break;
@@ -613,7 +613,7 @@ int64_t metaSmaCursorNext(SMSmaCursor *pCur) {
   void       *pBuf;
   SSmaIdxKey *smaIdxKey;
 
-  ret = tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, &pCur->pVal, &pCur->vLen);
+  ret = tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, &pCur->pVal, &pCur->vLen);
   if (ret < 0) {
     return 0;
   }
