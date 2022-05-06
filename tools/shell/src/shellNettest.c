@@ -21,7 +21,7 @@ static void shellWorkAsClient() {
   SRpcInit    rpcInit = {0};
   SEpSet      epSet = {.inUse = 0, .numOfEps = 1};
   SRpcMsg     rpcRsp = {0};
-  void       *clientRpc = NULL;
+  void *      clientRpc = NULL;
   char        pass[TSDB_PASSWORD_LEN + 1] = {0};
 
   taosEncryptPass_c((uint8_t *)("_pwd"), strlen("_pwd"), pass);
@@ -111,11 +111,16 @@ void shellNettestHandler(int32_t signum, void *sigInfo, void *context) { shellEx
 static void shellWorkAsServer() {
   SShellArgs *pArgs = &shell.args;
 
+  // char fqdn[TSDB_FQDN_LEN] = {0};
+  /// tstrncpy(fqdn, pArgs->host, TSDB_FQDN_LEN);
+  // strtok(fqdn, ":");
+
   if (pArgs->port == 0) {
     pArgs->port = tsServerPort;
   }
 
   SRpcInit rpcInit = {0};
+  memcpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
   rpcInit.localPort = pArgs->port;
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
