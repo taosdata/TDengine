@@ -61,10 +61,10 @@ class TDTestCase:
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(
-            f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 int) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 int)")
+            f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 tinyint unsigned, t11 smallint unsigned, t12 int unsigned, t13 bigint unsigned)")
         for i in range(1, 6):    
             tdSql.execute(
-                f'CREATE TABLE {tb_name}_sub_{i} using {tb_name} tags ({i}, {i}, {i}, {i}, {i}.{i}, {i}.{i}, "binary{i}", "nchar{i}", true, {i})')
+                f'CREATE TABLE {tb_name}_sub_{i} using {tb_name} tags ({i}, {i}, {i}, {i}, {i}.{i}, {i}.{i}, "binary{i}", "nchar{i}", true, {i}, {i}, {i}, {i})')
             self.insertData(f'{tb_name}_sub_{i}')
         return tb_name
 
@@ -1999,10 +1999,23 @@ class TDTestCase:
         '''
             Super table full column type and operator
         '''
-        tb_name = self.initStb()
-        self.queryFullColType(f'{tb_name}_sub_1')
-
-    
+        stb_name = self.initStb()
+        tb_name = stb_name + "_sub_1"
+        self.queryTinyintCol(tb_name)
+        self.queryUtinyintCol(tb_name)
+        self.querySmallintCol(tb_name)
+        self.queryUsmallintCol(tb_name)
+        self.queryIntCol(tb_name)
+        self.queryUintCol(tb_name)
+        self.queryBigintCol(tb_name)
+        self.queryUbigintCol(tb_name)
+        self.queryFloatCol(tb_name)
+        self.queryDoubleCol(tb_name)
+        self.queryBinaryCol(tb_name)
+        self.queryNcharCol(tb_name)
+        self.queryBoolCol(tb_name)
+        self.queryFullColType(tb_name)
+        
     def checkStbTagTypeOperator(self):
         '''
             Super table full tag type and operator
@@ -2089,8 +2102,8 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
-        self.checkTbColTypeOperator()
-        # self.checkStbColTypeOperator()
+        # self.checkTbColTypeOperator()
+        self.checkStbColTypeOperator()
         # self.checkStbTagTypeOperator()
         # self.checkTbTsCol()
         # self.checkStbTsTol()
