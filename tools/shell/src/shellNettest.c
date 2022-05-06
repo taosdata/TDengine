@@ -111,10 +111,6 @@ void shellNettestHandler(int32_t signum, void *sigInfo, void *context) { shellEx
 static void shellWorkAsServer() {
   SShellArgs *pArgs = &shell.args;
 
-  // char fqdn[TSDB_FQDN_LEN] = {0};
-  /// tstrncpy(fqdn, pArgs->host, TSDB_FQDN_LEN);
-  // strtok(fqdn, ":");
-
   if (pArgs->port == 0) {
     pArgs->port = tsServerPort;
   }
