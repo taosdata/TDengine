@@ -38,10 +38,29 @@ static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, S
 static int32_t cacheSearchPrefix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
 static int32_t cacheSearchSuffix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
 static int32_t cacheSearchRegex(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchLessThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchLessEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchGreaterThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchGreaterEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
 static int32_t cacheSearchRange(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+/*comm func of compare, used in (LE/LT/GE/GT compare)*/
+static int32_t cacheSearchCompareFunc(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s,
+                                      RangeType type);
+
+typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
+typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
+
+static TExeCond tCompareLessThan(void* a, void* b, int8_t type) { return MATCH; }
+static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) { return MATCH; }
+static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) { return MATCH; }
+static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) { return MATCH; }
+
+static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {tCompareLessThan, tCompareLessEqual,
+                                                                    tCompareGreaterThan, tCompareGreaterEqual};
 
 static int32_t (*cacheSearch[])(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) = {
-    cacheSearchTerm, cacheSearchPrefix, cacheSearchSuffix, cacheSearchRegex, cacheSearchRange};
+    cacheSearchTerm,      cacheSearchPrefix,      cacheSearchSuffix,       cacheSearchRegex, cacheSearchLessThan,
+    cacheSearchLessEqual, cacheSearchGreaterThan, cacheSearchGreaterEqual, cacheSearchRange};
 
 static void doMergeWork(SSchedMsg* msg);
 static bool indexCacheIteratorNext(Iterate* itera);
@@ -87,6 +106,52 @@ static int32_t cacheSearchSuffix(void* cache, CacheTerm* ct, SIdxTempResult* tr,
 static int32_t cacheSearchRegex(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
   // impl later
   return 0;
+}
+static int32_t cacheSearchCompareFunc(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s,
+                                      RangeType type) {
+  if (cache == NULL) {
+    return 0;
+  }
+  _cache_range_compare cmpFn = rangeCompare[type];
+
+  MemTable* mem = cache;
+  char*     key = indexCacheTermGet(ct);
+
+  SSkipListIterator* iter = tSkipListCreateIter(mem->mem);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    if (node == NULL) {
+      break;
+    }
+    CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+    TExeCond   cond = cmpFn(c->colVal, ct->colVal, ct->colType);
+    if (cond == MATCH) {
+      if (c->operaType == ADD_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
+        // taosArrayPush(result, &c->uid);
+        *s = kTypeValue;
+      } else if (c->operaType == DEL_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
+      }
+    } else if (cond == CONTINUE) {
+    } else if (cond == BREAK) {
+      break;
+    }
+  }
+  tSkipListDestroyIter(iter);
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t cacheSearchLessThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, ct, tr, s, LT);
+}
+static int32_t cacheSearchLessEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, ct, tr, s, LE);
+}
+static int32_t cacheSearchGreaterThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, ct, tr, s, GT);
+}
+static int32_t cacheSearchGreaterEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, ct, tr, s, GE);
 }
 static int32_t cacheSearchRange(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
   // impl later

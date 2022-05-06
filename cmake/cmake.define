@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.16)
 
 set(CMAKE_VERBOSE_MAKEFILE OFF)
 
+SET(BUILD_SHARED_LIBS "OFF")
+
 #set output directory
 SET(LIBRARY_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/lib)
 SET(EXECUTABLE_OUTPUT_PATH ${PROJECT_BINARY_DIR}/build/bin)
@@ -67,7 +69,13 @@ ELSE ()
     IF (${CMAKE_SYSTEM_PROCESSOR} MATCHES "arm64" OR ${CMAKE_SYSTEM_PROCESSOR} MATCHES "aarch64")
         ADD_DEFINITIONS("-D_TD_ARM_")
     ELSE ()
-        ADD_DEFINITIONS("-msse4.2 -mfma")
+        ADD_DEFINITIONS("-msse4.2")
+        IF("${FMA_SUPPORT}" MATCHES "true")
+            MESSAGE(STATUS "turn fma function support on")
+            ADD_DEFINITIONS("-mfma")
+        ELSE ()
+            MESSAGE(STATUS "turn fma function support off")
+        ENDIF()
     ENDIF ()
 
 ENDIF ()

@@ -100,6 +100,17 @@ void generateInformationSchema(MockCatalogService* mcs) {
   }
 }
 
+/*
+ * Table:t1
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *          c3         |       column       |       BIGINT       |    8     |
+ *          c4         |       column       |       DOUBLE       |    8     |
+ *          c5         |       column       |       DOUBLE       |    8     |
+ */
 void generateTestT1(MockCatalogService* mcs) {
   ITableBuilder& builder = mcs->createTableBuilder("test", "t1", TSDB_NORMAL_TABLE, 6)
                                .setPrecision(TSDB_TIME_PRECISION_MILLI)
@@ -113,6 +124,17 @@ void generateTestT1(MockCatalogService* mcs) {
   builder.done();
 }
 
+/*
+ * Super Table: st1
+ *        Field        |        Type        |      DataType      |  Bytes   |
+ * ==========================================================================
+ *          ts         |       column       |     TIMESTAMP      |    8     |
+ *          c1         |       column       |        INT         |    4     |
+ *          c2         |       column       |      VARCHAR       |    20    |
+ *         tag1        |        tag         |        INT         |    4     |
+ *         tag2        |        tag         |      VARCHAR       |    20    |
+ * Child Table: st1s1, st1s2
+ */
 void generateTestST1(MockCatalogService* mcs) {
   ITableBuilder& builder = mcs->createTableBuilder("test", "st1", TSDB_SUPER_TABLE, 3, 2)
                                .setPrecision(TSDB_TIME_PRECISION_MILLI)

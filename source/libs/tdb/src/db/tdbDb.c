@@ -75,8 +75,14 @@ int tdbDbDrop(TDB *pDb) {
   return 0;
 }
 
-int tdbDbPut(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
+int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
   return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen, pTxn);
+}
+
+int tdbDbDelete(TDB *pDb, const void *pKey, int kLen, TXN *pTxn) { return tdbBtreeDelete(pDb->pBt, pKey, kLen, pTxn); }
+
+int tdbDbUpsert(TDB *pDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
+  return tdbBtreeUpsert(pDb->pBt, pKey, kLen, pVal, vLen, pTxn);
 }
 
 int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
@@ -117,26 +123,14 @@ int tdbDbcGet(TDBC *pDbc, const void **ppKey, int *pkLen, const void **ppVal, in
   return tdbBtcGet(&pDbc->btc, ppKey, pkLen, ppVal, pvLen);
 }
 
-int tdbDbcPut(TDBC *pDbc, const void *pKey, int keyLen, const void *pVal, int valLen) {
-  // TODO
-  ASSERT(0);
-  return 0;
-}
-
-int tdbDbcUpdate(TDBC *pDbc, const void *pKey, int kLen, const void *pVal, int vLen) {
-  // TODO
-  ASSERT(0);
-  return 0;
-}
-
-int tdbDbcDrop(TDBC *pDbc) {
-  // TODO
-  ASSERT(0);
-  return 0;
-}
+int tdbDbcDelete(TDBC *pDbc) { return tdbBtcDelete(&pDbc->btc); }
 
 int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
   return tdbBtreeNext(&pDbc->btc, ppKey, kLen, ppVal, vLen);
+}
+
+int tdbDbcUpsert(TDBC *pDbc, const void *pKey, int nKey, const void *pData, int nData, int insert) {
+  return tdbBtcUpsert(&pDbc->btc, pKey, nKey, pData, nData, insert);
 }
 
 int tdbDbcClose(TDBC *pDbc) {

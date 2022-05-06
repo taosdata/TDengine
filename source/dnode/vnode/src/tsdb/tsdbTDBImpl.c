@@ -97,7 +97,7 @@ int32_t tsdbCloseDBF(SDBFile *pDBF) {
 int32_t tsdbSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, int32_t valLen, TXN *txn) {
   int32_t ret;
 
-  ret = tdbDbPut(pDBF->pDB, pKey, keyLen, pVal, valLen, txn);
+  ret = tdbDbInsert(pDBF->pDB, pKey, keyLen, pVal, valLen, txn);
   if (ret < 0) {
     tsdbError("Failed to create insert sma data into db, ret = %d", ret);
     return -1;

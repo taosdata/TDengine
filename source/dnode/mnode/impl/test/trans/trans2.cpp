@@ -86,7 +86,112 @@ class MndTestTrans2 : public ::testing::Test {
   void SetUp() override {}
   void TearDown() override {}
 
-  int32_t CreateUser(const char *acct, const char *user) {
+  int32_t CreateUserLog(const char *acct, const char *user, ETrnType type, SDbObj *pDb) {
+    SUserObj userObj = {0};
+    taosEncryptPass_c((uint8_t *)"taosdata", strlen("taosdata"), userObj.pass);
+    tstrncpy(userObj.user, user, TSDB_USER_LEN);
+    tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
+    userObj.createdTime = taosGetTimestampMs();
+    userObj.updateTime = userObj.createdTime;
+    userObj.superUser = 1;
+
+    SRpcMsg  rpcMsg = {0};
+    STrans  *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, type, &rpcMsg);
+    SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
+    mndTransAppendRedolog(pTrans, pRedoRaw);
+    sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+
+    SSdbRaw *pUndoRaw = mndUserActionEncode(&userObj);
+    mndTransAppendUndolog(pTrans, pUndoRaw);
+    sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
+
+    char *param = strdup("====> test log <=====");
+    mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
+
+    if (pDb != NULL) {
+      mndTransSetDbInfo(pTrans, pDb);
+    }
+
+    int32_t code = mndTransPrepare(pMnode, pTrans);
+    mndTransDrop(pTrans);
+
+    return code;
+  }
+
+  int32_t CreateUserAction(const char *acct, const char *user, bool hasUndoAction, ETrnPolicy policy, ETrnType type,
+                           SDbObj *pDb) {
+    SUserObj userObj = {0};
+    taosEncryptPass_c((uint8_t *)"taosdata", strlen("taosdata"), userObj.pass);
+    tstrncpy(userObj.user, user, TSDB_USER_LEN);
+    tstrncpy(userObj.acct, acct, TSDB_USER_LEN);
+    userObj.createdTime = taosGetTimestampMs();
+    userObj.updateTime = userObj.createdTime;
+    userObj.superUser = 1;
+
+    SRpcMsg  rpcMsg = {0};
+    STrans  *pTrans = mndTransCreate(pMnode, policy, type, &rpcMsg);
+    SSdbRaw *pRedoRaw = mndUserActionEncode(&userObj);
+    mndTransAppendRedolog(pTrans, pRedoRaw);
+    sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+
+    SSdbRaw *pUndoRaw = mndUserActionEncode(&userObj);
+    mndTransAppendUndolog(pTrans, pUndoRaw);
+    sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
+
+    char *param = strdup("====> test action <=====");
+    mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
+
+    {
+      STransAction action = {0};
+      action.epSet.inUse = 0;
+      action.epSet.numOfEps = 1;
+      action.epSet.eps[0].port = 9040;
+      strcpy(action.epSet.eps[0].fqdn, "localhost");
+
+      int32_t contLen = 1024;
+      void   *pReq = taosMemoryCalloc(1, contLen);
+      strcpy((char *)pReq, "hello world redo");
+      action.pCont = pReq;
+      action.contLen = contLen;
+      action.msgType = TDMT_DND_CREATE_MNODE;
+      action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+      mndTransAppendRedoAction(pTrans, &action);
+    }
+
+    if (hasUndoAction) {
+      STransAction action = {0};
+      action.epSet.inUse = 0;
+      action.epSet.numOfEps = 1;
+      action.epSet.eps[0].port = 9040;
+      strcpy(action.epSet.eps[0].fqdn, "localhost");
+
+      int32_t contLen = 1024;
+      void   *pReq = taosMemoryCalloc(1, contLen);
+      strcpy((char *)pReq, "hello world undo");
+      action.pCont = pReq;
+      action.contLen = contLen;
+      action.msgType = TDMT_DND_CREATE_MNODE;
+      action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+      mndTransAppendUndoAction(pTrans, &action);
+    }
+
+    {
+      void *pRsp = taosMemoryCalloc(1, 256);
+      strcpy((char *)pRsp, "simple rsponse");
+      mndTransSetRpcRsp(pTrans, pRsp, 256);
+    }
+
+    if (pDb != NULL) {
+      mndTransSetDbInfo(pTrans, pDb);
+    }
+
+    int32_t code = mndTransPrepare(pMnode, pTrans);
+    mndTransDrop(pTrans);
+
+    return code;
+  }
+
+  int32_t CreateUserGlobal(const char *acct, const char *user) {
     SUserObj userObj = {0};
     taosEncryptPass_c((uint8_t *)"taosdata", strlen("taosdata"), userObj.pass);
     tstrncpy(userObj.user, user, TSDB_USER_LEN);
@@ -101,7 +206,11 @@ class MndTestTrans2 : public ::testing::Test {
     mndTransAppendRedolog(pTrans, pRedoRaw);
     sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
 
-    char *param = strdup("====> test param <=====");
+    SSdbRaw *pUndoRaw = mndUserActionEncode(&userObj);
+    mndTransAppendUndolog(pTrans, pUndoRaw);
+    sdbSetRawStatus(pUndoRaw, SDB_STATUS_DROPPED);
+
+    char *param = strdup("====> test log <=====");
     mndTransSetCb(pTrans, TEST_TRANS_START_FUNC, TEST_TRANS_STOP_FUNC, param, strlen(param) + 1);
 
     int32_t code = mndTransPrepare(pMnode, pTrans);
@@ -113,25 +222,292 @@ class MndTestTrans2 : public ::testing::Test {
 
 SMnode *MndTestTrans2::pMnode;
 
-TEST_F(MndTestTrans2, 01_CbFunc) {
+TEST_F(MndTestTrans2, 01_Log) {
   const char *acct = "root";
   const char *acct_invalid = "root1";
-  const char *user1 = "test1";
-  const char *user2 = "test2";
+  const char *user1 = "log1";
+  const char *user2 = "log2";
   SUserObj   *pUser1 = NULL;
   SUserObj   *pUser2 = NULL;
 
   ASSERT_NE(pMnode, nullptr);
 
-  // create user success
-  EXPECT_EQ(CreateUser(acct, user1), 0);
+  EXPECT_EQ(CreateUserLog(acct, user1, TRN_TYPE_CREATE_USER, NULL), 0);
   pUser1 = mndAcquireUser(pMnode, user1);
   ASSERT_NE(pUser1, nullptr);
 
   // failed to create user and rollback
-  EXPECT_EQ(CreateUser(acct_invalid, user2), 0);
+  EXPECT_EQ(CreateUserLog(acct_invalid, user2, TRN_TYPE_CREATE_USER, NULL), 0);
   pUser2 = mndAcquireUser(pMnode, user2);
   ASSERT_EQ(pUser2, nullptr);
 
   mndTransPullup(pMnode);
+}
+
+TEST_F(MndTestTrans2, 02_Action) {
+  const char *acct = "root";
+  const char *acct_invalid = "root1";
+  const char *user1 = "action1";
+  const char *user2 = "action2";
+  SUserObj   *pUser1 = NULL;
+  SUserObj   *pUser2 = NULL;
+  STrans     *pTrans = NULL;
+  int32_t     transId = 0;
+  int32_t     action = 0;
+
+  ASSERT_NE(pMnode, nullptr);
+
+  {
+    // failed to create user and rollback
+    EXPECT_EQ(CreateUserAction(acct, user1, false, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_USER, NULL), 0);
+    pUser1 = mndAcquireUser(pMnode, user1);
+    ASSERT_EQ(pUser1, nullptr);
+    mndReleaseUser(pMnode, pUser1);
+
+    // create user, and fake a response
+    {
+      EXPECT_EQ(CreateUserAction(acct, user1, true, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_USER, NULL), 0);
+      pUser1 = mndAcquireUser(pMnode, user1);
+      ASSERT_NE(pUser1, nullptr);
+      mndReleaseUser(pMnode, pUser1);
+
+      transId = 4;
+      pTrans = mndAcquireTrans(pMnode, transId);
+      EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+      EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
+      EXPECT_EQ(pTrans->failedTimes, 1);
+
+      STransAction *pAction = (STransAction *)taosArrayGet(pTrans->undoActions, action);
+      pAction->msgSent = 1;
+
+      SNodeMsg rspMsg = {0};
+      rspMsg.pNode = pMnode;
+      int64_t signature = transId;
+      signature = (signature << 32);
+      signature += action;
+      rspMsg.rpcMsg.ahandle = (void *)signature;
+      mndTransProcessRsp(&rspMsg);
+      mndReleaseTrans(pMnode, pTrans);
+
+      pUser1 = mndAcquireUser(pMnode, user1);
+      ASSERT_EQ(pUser1, nullptr);
+      mndReleaseUser(pMnode, pUser1);
+    }
+  }
+
+  {
+    EXPECT_EQ(CreateUserAction(acct, user1, false, TRN_POLICY_RETRY, TRN_TYPE_CREATE_USER, NULL), 0);
+    pUser1 = mndAcquireUser(pMnode, user1);
+    ASSERT_NE(pUser1, nullptr);
+    mndReleaseUser(pMnode, pUser1);
+
+    {
+      transId = 5;
+      pTrans = mndAcquireTrans(pMnode, transId);
+      EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+      EXPECT_EQ(pTrans->stage, TRN_STAGE_REDO_ACTION);
+      EXPECT_EQ(pTrans->failedTimes, 1);
+
+      STransAction *pAction = (STransAction *)taosArrayGet(pTrans->redoActions, action);
+      pAction->msgSent = 1;
+
+      SNodeMsg rspMsg = {0};
+      rspMsg.pNode = pMnode;
+      int64_t signature = transId;
+      signature = (signature << 32);
+      signature += action;
+      rspMsg.rpcMsg.ahandle = (void *)signature;
+      rspMsg.rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+      mndTransProcessRsp(&rspMsg);
+      mndReleaseTrans(pMnode, pTrans);
+
+      pUser1 = mndAcquireUser(pMnode, user1);
+      ASSERT_NE(pUser1, nullptr);
+      mndReleaseUser(pMnode, pUser1);
+    }
+
+    {
+      transId = 5;
+      pTrans = mndAcquireTrans(pMnode, transId);
+      EXPECT_EQ(pTrans->code, TSDB_CODE_RPC_NETWORK_UNAVAIL);
+      EXPECT_EQ(pTrans->stage, TRN_STAGE_REDO_ACTION);
+      EXPECT_EQ(pTrans->failedTimes, 2);
+
+      STransAction *pAction = (STransAction *)taosArrayGet(pTrans->redoActions, action);
+      pAction->msgSent = 1;
+
+      SNodeMsg rspMsg = {0};
+      rspMsg.pNode = pMnode;
+      int64_t signature = transId;
+      signature = (signature << 32);
+      signature += action;
+      rspMsg.rpcMsg.ahandle = (void *)signature;
+      mndTransProcessRsp(&rspMsg);
+      mndReleaseTrans(pMnode, pTrans);
+
+      pUser1 = mndAcquireUser(pMnode, user1);
+      ASSERT_NE(pUser1, nullptr);
+      mndReleaseUser(pMnode, pUser1);
+    }
+  }
+
+  {
+    EXPECT_EQ(CreateUserAction(acct, user2, true, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_USER, NULL), 0);
+    SUserObj *pUser2 = (SUserObj *)sdbAcquire(pMnode->pSdb, SDB_USER, user2);
+    ASSERT_NE(pUser2, nullptr);
+    mndReleaseUser(pMnode, pUser2);
+
+    {
+      transId = 6;
+      pTrans = mndAcquireTrans(pMnode, transId);
+      EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+      EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
+      EXPECT_EQ(pTrans->failedTimes, 1);
+
+      SNodeMsg rspMsg = {0};
+      rspMsg.pNode = pMnode;
+      int64_t signature = transId;
+      signature = (signature << 32);
+      signature += action;
+      rspMsg.rpcMsg.ahandle = (void *)signature;
+      rspMsg.rpcMsg.code = 0;
+      mndTransProcessRsp(&rspMsg);
+      mndReleaseTrans(pMnode, pTrans);
+
+      pUser2 = mndAcquireUser(pMnode, user2);
+      ASSERT_NE(pUser2, nullptr);
+      mndReleaseUser(pMnode, pUser2);
+    }
+
+    {
+      transId = 6;
+      pTrans = mndAcquireTrans(pMnode, transId);
+      EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+      EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
+      EXPECT_EQ(pTrans->failedTimes, 2);
+
+      STransAction *pAction = (STransAction *)taosArrayGet(pTrans->undoActions, action);
+      pAction->msgSent = 1;
+
+      SNodeMsg rspMsg = {0};
+      rspMsg.pNode = pMnode;
+      int64_t signature = transId;
+      signature = (signature << 32);
+      signature += action;
+      rspMsg.rpcMsg.ahandle = (void *)signature;
+      mndTransProcessRsp(&rspMsg);
+      mndReleaseTrans(pMnode, pTrans);
+
+      pUser2 = mndAcquireUser(pMnode, user2);
+      ASSERT_EQ(pUser2, nullptr);
+      mndReleaseUser(pMnode, pUser2);
+    }
+  }
+}
+
+TEST_F(MndTestTrans2, 03_Kill) {
+  const char *acct = "root";
+  const char *user1 = "kill1";
+  const char *user2 = "kill2";
+  SUserObj   *pUser1 = NULL;
+  SUserObj   *pUser2 = NULL;
+  STrans     *pTrans = NULL;
+  int32_t     transId = 0;
+  int32_t     action = 0;
+
+  ASSERT_NE(pMnode, nullptr);
+
+  {
+    EXPECT_EQ(CreateUserAction(acct, user1, true, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_USER, NULL), 0);
+    pUser1 = mndAcquireUser(pMnode, user1);
+    ASSERT_NE(pUser1, nullptr);
+    mndReleaseUser(pMnode, pUser1);
+
+    transId = 7;
+    pTrans = mndAcquireTrans(pMnode, transId);
+    EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+    EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
+    EXPECT_EQ(pTrans->failedTimes, 1);
+
+    mndKillTrans(pMnode, pTrans);
+    mndReleaseTrans(pMnode, pTrans);
+
+    pUser1 = mndAcquireUser(pMnode, user1);
+    ASSERT_EQ(pUser1, nullptr);
+    mndReleaseUser(pMnode, pUser1);
+  }
+}
+
+TEST_F(MndTestTrans2, 04_Conflict) {
+  const char *acct = "root";
+  const char *user1 = "conflict1";
+  const char *user2 = "conflict2";
+  const char *user3 = "conflict3";
+  const char *user4 = "conflict4";
+  const char *user5 = "conflict5";
+  const char *user6 = "conflict6";
+  const char *user7 = "conflict7";
+  const char *user8 = "conflict8";
+  SUserObj   *pUser = NULL;
+  STrans     *pTrans = NULL;
+  int32_t     transId = 0;
+  int32_t     code = 0;
+
+  ASSERT_NE(pMnode, nullptr);
+
+  {
+    SDbObj dbObj1 = {0};
+    dbObj1.uid = 9521;
+    strcpy(dbObj1.name, "db");
+    SDbObj dbObj2 = {0};
+    dbObj2.uid = 9522;
+    strcpy(dbObj2.name, "conflict db");
+
+    EXPECT_EQ(CreateUserAction(acct, user1, true, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STB, &dbObj1), 0);
+    pUser = mndAcquireUser(pMnode, user1);
+    ASSERT_NE(pUser, nullptr);
+    mndReleaseUser(pMnode, pUser);
+
+    transId = 8;
+    pTrans = mndAcquireTrans(pMnode, transId);
+    EXPECT_EQ(pTrans->code, TSDB_CODE_INVALID_PTR);
+    EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
+
+    // stb scope
+    EXPECT_EQ(CreateUserLog(acct, user2, TRN_TYPE_CREATE_DNODE, NULL), -1);
+    code = terrno;
+    EXPECT_EQ(code, TSDB_CODE_MND_TRANS_CONFLICT);
+
+    EXPECT_EQ(CreateUserLog(acct, user2, TRN_TYPE_CREATE_DB, &dbObj1), -1);
+    EXPECT_EQ(CreateUserLog(acct, user2, TRN_TYPE_CREATE_DB, &dbObj2), 0);
+    EXPECT_EQ(CreateUserLog(acct, user3, TRN_TYPE_CREATE_STB, &dbObj1), 0);
+
+    // db scope
+    pTrans->type = TRN_TYPE_CREATE_DB;
+    EXPECT_EQ(CreateUserLog(acct, user4, TRN_TYPE_CREATE_DNODE, NULL), -1);
+    EXPECT_EQ(CreateUserLog(acct, user4, TRN_TYPE_CREATE_DB, &dbObj1), -1);
+    EXPECT_EQ(CreateUserLog(acct, user4, TRN_TYPE_CREATE_DB, &dbObj2), 0);
+    EXPECT_EQ(CreateUserLog(acct, user5, TRN_TYPE_CREATE_STB, &dbObj1), -1);
+    EXPECT_EQ(CreateUserLog(acct, user5, TRN_TYPE_CREATE_STB, &dbObj2), 0);
+
+    // global scope
+    pTrans->type = TRN_TYPE_CREATE_DNODE;
+    EXPECT_EQ(CreateUserLog(acct, user6, TRN_TYPE_CREATE_DNODE, NULL), 0);
+    EXPECT_EQ(CreateUserLog(acct, user7, TRN_TYPE_CREATE_DB, &dbObj1), -1);
+    EXPECT_EQ(CreateUserLog(acct, user7, TRN_TYPE_CREATE_DB, &dbObj2), -1);
+    EXPECT_EQ(CreateUserLog(acct, user7, TRN_TYPE_CREATE_STB, &dbObj1), -1);
+    EXPECT_EQ(CreateUserLog(acct, user7, TRN_TYPE_CREATE_STB, &dbObj2), -1);
+
+    // global scope
+    pTrans->type = TRN_TYPE_CREATE_USER;
+    EXPECT_EQ(CreateUserLog(acct, user7, TRN_TYPE_CREATE_DB, &dbObj1), 0);
+    EXPECT_EQ(CreateUserLog(acct, user8, TRN_TYPE_CREATE_DB, &dbObj2), 0);
+
+    mndKillTrans(pMnode, pTrans);
+    mndReleaseTrans(pMnode, pTrans);
+
+    pUser = mndAcquireUser(pMnode, user1);
+    ASSERT_EQ(pUser, nullptr);
+    mndReleaseUser(pMnode, pUser);
+  }
 }

@@ -61,11 +61,11 @@ extern "C" {
 // ----------------- TSDB COLUMN DEFINITION
 #pragma pack(push, 1)
 typedef struct {
-  col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
-  int32_t  type : 8;     // column type
-  int32_t  bytes : 24;   // column bytes (0~16M)
-  int32_t  flags : 8;    // flags: 0 no index, 1 SCHEMA_SMA_ON, 2 SCHEMA_IDX_ON
-  int32_t  offset : 24;  // point offset in STpRow after the header part.
+  col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
+  int8_t   type;    // column type
+  int8_t   flags;   // flags: 0 no index, 1 SCHEMA_SMA_ON, 2 SCHEMA_IDX_ON
+  int32_t  bytes;   // column bytes (0~16M)
+  int32_t  offset;  // point offset in STpRow after the header part.
 } STColumn;
 #pragma pack(pop)
 

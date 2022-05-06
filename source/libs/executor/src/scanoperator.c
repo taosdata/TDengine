@@ -386,7 +386,7 @@ SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, SQueryTableDataCon
   pOperator->blocking      = false;
   pOperator->status        = OP_NOT_OPENED;
   pOperator->info          = pInfo;
-  pOperator->numOfOutput   = numOfOutput;
+  pOperator->numOfExprs    = numOfOutput;
   pOperator->pTaskInfo     = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, NULL, NULL, NULL, NULL);
@@ -646,7 +646,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   pOperator->blocking        = false;
   pOperator->status          = OP_NOT_OPENED;
   pOperator->info            = pInfo;
-  pOperator->numOfOutput     = pResBlock->info.numOfCols;
+  pOperator->numOfExprs     = pResBlock->info.numOfCols;
   pOperator->fpSet._openFn   = operatorDummyOpenFn;
   pOperator->fpSet.getNextFn = doStreamBlockScan;
   pOperator->fpSet.closeFn   = operatorDummyCloseFn;
@@ -1020,7 +1020,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
 
       SRetrieveMetaTableRsp* pTableRsp = pInfo->pRsp;
       setSDataBlockFromFetchRsp(pInfo->pRes, &pInfo->loadInfo, pTableRsp->numOfRows, pTableRsp->data,
-                                pTableRsp->compLen, pOperator->numOfOutput, startTs, NULL, pInfo->scanCols);
+                                pTableRsp->compLen, pOperator->numOfExprs, startTs, NULL, pInfo->scanCols);
 
       // todo log the filter info
       doFilterResult(pInfo);
@@ -1150,7 +1150,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSDataBlock* pRe
   pOperator->blocking     = false;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
-  pOperator->numOfOutput  = pResBlock->info.numOfCols;
+  pOperator->numOfExprs  = pResBlock->info.numOfCols;
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator,
                                          NULL, NULL, NULL);
   pOperator->pTaskInfo = pTaskInfo;
@@ -1247,7 +1247,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 
       char *data = NULL, *dst = NULL;
       int16_t type = 0, bytes = 0;
-      for(int32_t j = 0; j < pOperator->numOfOutput; ++j) {
+      for(int32_t j = 0; j < pOperator->numOfExprs; ++j) {
         // not assign value in case of user defined constant output column
         if (TSDB_COL_IS_UD_COL(pExprInfo[j].base.pColumns->flag)) {
           continue;
@@ -1308,7 +1308,7 @@ SOperatorInfo* createTagScanOperatorInfo(void* readHandle, SExprInfo* pExpr, int
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
   pOperator->pExpr        = pExpr;
-  pOperator->numOfOutput  = numOfOutput;
+  pOperator->numOfExprs  = numOfOutput;
   pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet =

@@ -47,7 +47,17 @@ typedef enum {
 } SIndexOperOnColumn;
 
 typedef enum { MUST = 0, SHOULD, NOT } EIndexOperatorType;
-typedef enum { QUERY_TERM = 0, QUERY_PREFIX, QUERY_SUFFIX, QUERY_REGEX, QUERY_RANGE } EIndexQueryType;
+typedef enum {
+  QUERY_TERM = 0,
+  QUERY_PREFIX,
+  QUERY_SUFFIX,
+  QUERY_REGEX,
+  QUERY_LESS_THAN,
+  QUERY_LESS_EQUAL,
+  QUERY_GREATER_THAN,
+  QUERY_GREATER_EQUAL,
+  QUERY_RANGE
+} EIndexQueryType;
 
 /*
  * create multi query
