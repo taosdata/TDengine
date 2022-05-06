@@ -1973,13 +1973,59 @@ bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultIn
 }
 
 int32_t histogramFunction(SqlFunctionCtx *pCtx) {
+  int32_t numOfElems = 0;
+  SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  int32_t type = pInput->pData[0]->info.type;
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfRows = pInput->numOfRows;
+
+  for (int32_t i = start; i < numOfRows + start; ++i) {
+    if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
+      continue;
+    }
+
+    char* data = colDataGetData(pCol, i);
+    double v;
+    GET_TYPED_DATA(v, double, type, data);
+
+    for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
+      if (v > pInfo->bins[k].lower && v <= pInfo->bins[k].upper) {
+        pInfo->bins[k].count++;
+        numOfElems++;
+        break;
+      }
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  //if (pInfo->hasResult == true) {
-  //  SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
-  //}
+  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  int32_t currentRow = pBlock->info.rows;
+
+  for (int32_t i = 0; i < pInfo->numOfBins; ++i) {
+    int32_t len;
+    char buf[400] = {0};
+    if (!pInfo->normalized) {
+      len = sprintf(buf + VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%"PRId64"}",
+                   pInfo->bins[i].lower, pInfo->bins[i].upper, pInfo->bins[i].count);
+    } else {
+      len = sprintf(buf + VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%lf}",
+                   pInfo->bins[i].lower, pInfo->bins[i].upper, pInfo->bins[i].percentage);
+    }
+    varDataSetLen(buf, len);
+    colDataAppend(pCol, currentRow, buf, false);
+    currentRow++;
+  }
+
   return functionFinalize(pCtx, pBlock);
 }
