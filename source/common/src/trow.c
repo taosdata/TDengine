@@ -670,7 +670,7 @@ int tdMergeDataCols(SDataCols *target, SDataCols *source, int rowsToMerge, int *
         }
       }
     }
-    if (rowsToMerge > 0) {
+    if (lastKey != TSKEY_INITIAL_VAL) {
       ++target->numOfRows;
     }
     (*pOffset) += rowsToMerge;
@@ -778,7 +778,7 @@ static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, i
 
     ASSERT(target->numOfRows <= target->maxPoints - 1);
   }
-  if (nRows > 0) {
+  if (lastKey != TSKEY_INITIAL_VAL) {
     ++target->numOfRows;
   }
 }

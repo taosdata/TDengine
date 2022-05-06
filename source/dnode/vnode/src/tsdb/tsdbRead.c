@@ -816,9 +816,10 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
     SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
     if (node != NULL) {
       rmem = (STSRow*)SL_GET_NODE_DATA(node);
-      if (TD_ROW_KEY(rmem) > maxVer) {
-        rmem = NULL;
-      }
+      // TODO: filter max version
+      // if (TD_ROW_VER(rmem) > maxVer) {
+      //   rmem = NULL;
+      // }
     }
   }
 
@@ -826,9 +827,10 @@ static TSKEY extractFirstTraverseKey(STableCheckInfo* pCheckInfo, int32_t order,
     SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
     if (node != NULL) {
       rimem = (STSRow*)SL_GET_NODE_DATA(node);
-      if (TD_ROW_KEY(rimem) > maxVer) {
-        rimem = NULL;
-      }
+      // TODO: filter max version
+      // if (TD_ROW_VER(rimem) > maxVer) {
+      //   rimem = NULL;
+      // }
     }
   }
 
