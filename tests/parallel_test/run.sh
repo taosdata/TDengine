@@ -276,6 +276,21 @@ function run_thread() {
                     $cmd >/dev/null
                 fi
             fi
+            # get remote sim dir
+            local remote_sim_dir="${workdirs[index]}/tmp/thread_volume/$thread_no"
+            local tarcmd="sshpass -p ${passwords[index]} ssh -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            if [ -z ${passwords[index]} ]; then
+                tarcmd="ssh -o StrictHostKeyChecking=no ${usernames[index]}@${hosts[index]}"
+            fi
+            cmd="$tarcmd sh -c \"cd $remote_sim_dir; tar -czf sim.tar.gz sim\""
+            $cmd
+            local remote_sim_tar="${workdirs[index]}/tmp/thread_volume/$thread_no/sim.tar.gz"
+            scpcmd="sshpass -p ${passwords[index]} scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            if [ -z ${passwords[index]} ]; then
+                scpcmd="scp -o StrictHostKeyChecking=no -r ${usernames[index]}@${hosts[index]}"
+            fi
+            cmd="$scpcmd:${remote_sim_tar} $log_dir/${case_file}.sim.tar.gz"
+            $cmd
         fi
     done
 }

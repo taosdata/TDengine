@@ -79,6 +79,7 @@ ulimit -c unlimited
 TMP_DIR=$WORKDIR/tmp
 
 MOUNT_DIR=""
+rm -rf ${TMP_DIR}/thread_volume/$thread_no/sim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/sim/tsim
 mkdir -p ${TMP_DIR}/thread_volume/$thread_no/coredump
 rm -rf ${TMP_DIR}/thread_volume/$thread_no/coredump/*
