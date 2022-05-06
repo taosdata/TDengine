@@ -450,7 +450,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   SCoder           coder = {0};
   int              ret;
 
-  pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
+  pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -473,9 +473,13 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
     /* code */
     ret = metaDropTable(pVnode->pMeta, version, pDropTbReq);
     if (ret < 0) {
-      dropTbRsp.code = TSDB_CODE_SUCCESS;
+      if (pDropTbReq->igNotExists && terrno == TSDB_CODE_VND_TABLE_NOT_EXIST) {
+        dropTbRsp.code = TSDB_CODE_SUCCESS;
+      } else {
+        dropTbRsp.code = terrno;
+      }
     } else {
-      dropTbRsp.code = terrno;
+      dropTbRsp.code = TSDB_CODE_SUCCESS;
     }
 
     taosArrayPush(rsp.pArray, &dropTbRsp);
