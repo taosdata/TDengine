@@ -202,9 +202,9 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};
     SSlotDescNode*  pDescNode = nodesListGetNode(pNode->pSlots, i);
-    if (!pDescNode->output) {
-      continue;
-    }
+//    if (!pDescNode->output) {  // todo disable it temporarily
+//      continue;
+//    }
 
     idata.info.type = pDescNode->dataType.type;
     idata.info.bytes = pDescNode->dataType.bytes;
@@ -651,7 +651,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 
 static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
                                     int32_t order) {
-  for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
+  for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     setBlockStatisInfo(&pCtx[i], &pOperator->pExpr[i], pBlock);
@@ -713,7 +713,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
                                    bool createDummyCol) {
   int32_t code = TSDB_CODE_SUCCESS;
 
-  for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
+  for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     pCtx[i].pSrcBlock = pBlock;
@@ -798,7 +798,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 }
 
 static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
-  for (int32_t k = 0; k < pOperator->numOfOutput; ++k) {
+  for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       pCtx[k].startTs = startTs;  // this can be set during create the struct
       pCtx[k].fpSet.process(&pCtx[k]);
@@ -2815,7 +2815,6 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
 // NOTE: sources columns are more than the destination SSDatablock columns.
 void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols) {
   size_t numOfSrcCols = taosArrayGetSize(pCols);
-  ASSERT(numOfSrcCols >= pBlock->info.numOfCols);
 
   int32_t i = 0, j = 0;
   while (i < numOfSrcCols && j < taosArrayGetSize(pColMatchInfo)) {
@@ -3287,7 +3286,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock
   pOperator->blocking = false;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->numOfOutput = pBlock->info.numOfCols;
+  pOperator->numOfExprs = pBlock->info.numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, NULL,
@@ -3343,49 +3342,6 @@ static void destroySortedMergeOperatorInfo(void* param, int32_t numOfOutput) {
 
   blockDataDestroy(pInfo->binfo.pRes);
   cleanupAggSup(&pInfo->aggSup);
-}
-
-// TODO merge aggregate super table
-static void appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle) {
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, i);
-
-    bool isNull = tsortIsNullVal(pTupleHandle, i);
-    if (isNull) {
-      colDataAppend(pColInfo, pBlock->info.rows, NULL, true);
-    } else {
-      char* pData = tsortGetValue(pTupleHandle, i);
-      colDataAppend(pColInfo, pBlock->info.rows, pData, false);
-    }
-  }
-
-  pBlock->info.rows += 1;
-}
-
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity) {
-  blockDataCleanup(pDataBlock);
-  blockDataEnsureCapacity(pDataBlock, capacity);
-
-  blockDataEnsureCapacity(pDataBlock, capacity);
-
-  while (1) {
-    STupleHandle* pTupleHandle = tsortNextTuple(pHandle);
-    if (pTupleHandle == NULL) {
-      break;
-    }
-
-    appendOneRowToDataBlock(pDataBlock, pTupleHandle);
-    if (pDataBlock->info.rows >= capacity) {
-      return pDataBlock;
-    }
-  }
-
-  return (pDataBlock->info.rows > 0) ? pDataBlock : NULL;
-}
-
-SSDataBlock* loadNextDataBlock(void* param) {
-  SOperatorInfo* pOperator = (SOperatorInfo*)param;
-  return pOperator->fpSet.getNextFn(pOperator);
 }
 
 static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char** buf, int32_t rowIndex) {
@@ -3490,8 +3446,8 @@ static void doMergeImpl(SOperatorInfo* pOperator, int32_t numOfExpr, SSDataBlock
         doMergeResultImpl(pInfo, pCtx, numOfExpr, i);
       } else {
         doFinalizeResultImpl(pCtx, numOfExpr);
-        int32_t numOfRows = getNumOfResult(pInfo->binfo.pCtx, pOperator->numOfOutput, NULL);
-        //        setTagValueForMultipleRows(pCtx, pOperator->numOfOutput, numOfRows);
+        int32_t numOfRows = getNumOfResult(pInfo->binfo.pCtx, pOperator->numOfExprs, NULL);
+        //        setTagValueForMultipleRows(pCtx, pOperator->numOfExprs, numOfRows);
 
         // TODO check for available buffer;
 
@@ -3541,13 +3497,13 @@ static SSDataBlock* doMerge(SOperatorInfo* pOperator) {
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pDataBlock, TSDB_ORDER_ASC, true);
     //  updateOutputBuf(&pInfo->binfo, &pAggInfo->bufCapacity, pBlock->info.rows * pAggInfo->resultRowFactor,
     //  pOperator->pRuntimeEnv, true);
-    doMergeImpl(pOperator, pOperator->numOfOutput, pDataBlock);
+    doMergeImpl(pOperator, pOperator->numOfExprs, pDataBlock);
     // flush to tuple store, and after all data have been handled, return to upstream node or sink node
   }
 
-  doFinalizeResultImpl(pInfo->binfo.pCtx, pOperator->numOfOutput);
-  int32_t numOfRows = getNumOfResult(pInfo->binfo.pCtx, pOperator->numOfOutput, NULL);
-  //        setTagValueForMultipleRows(pCtx, pOperator->numOfOutput, numOfRows);
+  doFinalizeResultImpl(pInfo->binfo.pCtx, pOperator->numOfExprs);
+  int32_t numOfRows = getNumOfResult(pInfo->binfo.pCtx, pOperator->numOfExprs, NULL);
+  //        setTagValueForMultipleRows(pCtx, pOperator->numOfExprs, numOfRows);
 
   // TODO check for available buffer;
 
@@ -3571,7 +3527,7 @@ static SSDataBlock* doSortedMerge(SOperatorInfo* pOperator) {
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, NULL, SORT_MULTISOURCE_MERGE, pInfo->bufPageSize,
                                              numOfBufPage, pInfo->binfo.pRes, "GET_TASKID(pTaskInfo)");
 
-  tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
+  tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock, NULL, NULL);
 
   for (int32_t i = 0; i < pOperator->numOfDownstream; ++i) {
     SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
@@ -3678,7 +3634,7 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
   pOperator->blocking = true;
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
-  pOperator->numOfOutput = num;
+  pOperator->numOfExprs = num;
   pOperator->pExpr = pExprInfo;
 
   pOperator->pTaskInfo = pTaskInfo;
@@ -3700,79 +3656,6 @@ _error:
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
   terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-  return NULL;
-}
-
-static SSDataBlock* doSort(SOperatorInfo* pOperator) {
-  if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
-  }
-
-  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
-  SSortOperatorInfo* pInfo = pOperator->info;
-
-  if (pOperator->status == OP_RES_TO_RETURN) {
-    return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, pInfo->numOfRowsInRes);
-  }
-
-  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
-  pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->inputSlotMap, SORT_SINGLESOURCE_SORT,
-                                             pInfo->bufPageSize, numOfBufPage, pInfo->pDataBlock, pTaskInfo->id.str);
-
-  tsortSetFetchRawDataFp(pInfo->pSortHandle, loadNextDataBlock);
-
-  SSortSource* ps = taosMemoryCalloc(1, sizeof(SSortSource));
-  ps->param = pOperator->pDownstream[0];
-  tsortAddSource(pInfo->pSortHandle, ps);
-
-  int32_t code = tsortOpen(pInfo->pSortHandle);
-  taosMemoryFreeClear(ps);
-  if (code != TSDB_CODE_SUCCESS) {
-    longjmp(pTaskInfo->env, terrno);
-  }
-
-  pOperator->status = OP_RES_TO_RETURN;
-  return getSortedBlockData(pInfo->pSortHandle, pInfo->pDataBlock, pInfo->numOfRowsInRes);
-}
-
-SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo,
-                                      SArray* pIndexMap, SExecTaskInfo* pTaskInfo) {
-  SSortOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortOperatorInfo));
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  int32_t            rowSize = pResBlock->info.rowSize;
-
-  if (pInfo == NULL || pOperator == NULL || rowSize > 100 * 1024 * 1024) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
-  }
-
-  pInfo->bufPageSize = rowSize < 1024 ? 1024 * 2 : rowSize * 2;  // there are headers, so pageSize = rowSize + header
-
-  pInfo->sortBufSize = pInfo->bufPageSize * 16;  // TODO dynamic set the available sort buffer
-  pInfo->numOfRowsInRes = 1024;
-  pInfo->pDataBlock = pResBlock;
-  pInfo->pSortInfo = pSortInfo;
-  pInfo->inputSlotMap = pIndexMap;
-
-  pOperator->name = "SortOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SORT;
-  pOperator->blocking = true;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-
-  pOperator->pTaskInfo = pTaskInfo;
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doSort, NULL, NULL, destroyOrderOperatorInfo, NULL, NULL, NULL);
-
-  int32_t code = appendDownstream(pOperator, &downstream, 1);
-  return pOperator;
-
-_error:
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  taosMemoryFree(pInfo);
-  taosMemoryFree(pOperator);
   return NULL;
 }
 
@@ -3813,7 +3696,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
       break;
     }
     //    if (pAggInfo->current != NULL) {
-    //      setTagValue(pOperator, pAggInfo->current->pTable, pInfo->pCtx, pOperator->numOfOutput);
+    //      setTagValue(pOperator, pAggInfo->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
     //    }
 
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
@@ -3827,7 +3710,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     }
 
     // the pDataBlock are always the same one, no need to call this again
-    setExecutionContext(pOperator->numOfOutput, pBlock->info.groupId, pTaskInfo, pAggInfo);
+    setExecutionContext(pOperator->numOfExprs, pBlock->info.groupId, pTaskInfo, pAggInfo);
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, true);
     doAggregateImpl(pOperator, 0, pInfo->pCtx);
 
@@ -3848,7 +3731,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   }
 
   closeAllResultRows(&pAggInfo->binfo.resultRowInfo);
-  finalizeMultiTupleQueryResult(pAggInfo->binfo.pCtx, pOperator->numOfOutput, pAggInfo->aggSup.pResultBuf,
+  finalizeMultiTupleQueryResult(pAggInfo->binfo.pCtx, pOperator->numOfExprs, pAggInfo->aggSup.pResultBuf,
                                 &pAggInfo->binfo.resultRowInfo, pAggInfo->binfo.rowCellInfoOffset);
 
   initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, false);
@@ -4092,17 +3975,17 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
     // todo dynamic set tags
     //    if (pTableQueryInfo != NULL) {
-    //      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfOutput);
+    //      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfExprs);
     //    }
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, TSDB_ORDER_ASC);
 
     blockDataEnsureCapacity(pInfo->pRes, pBlock->info.rows);
-    projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfOutput);
+    projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfExprs);
     if (pRes->info.rows >= pProjectInfo->binfo.capacity * 0.8) {
-      copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
-      resetResultRowEntryResult(pInfo->pCtx, pOperator->numOfOutput);
+      copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfExprs);
+      resetResultRowEntryResult(pInfo->pCtx, pOperator->numOfExprs);
       return pRes;
     }
   }
@@ -4127,14 +4010,14 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         pProjectInfo->existDataBlock = pBlock;
         break;
       } else {  // init output buffer for a new group data
-        initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfOutput);
+        initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfExprs);
       }
     }
 
     // todo dynamic set tags
     //    STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
     //    if (pTableQueryInfo != NULL) {
-    //      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfOutput);
+    //      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfExprs);
     //    }
 
     // the pDataBlock are always the same one, no need to call this again
@@ -4143,7 +4026,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
-    projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfOutput,
+    projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfExprs,
                           pProjectInfo->pPseudoColInfo);
 
     int32_t status = handleLimitOffset(pOperator, pBlock);
@@ -4156,7 +4039,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   pProjectInfo->curOutput += pInfo->pRes->info.rows;
 
-  //  copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfOutput);
+  //  copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfExprs);
   return (pInfo->pRes->info.rows > 0) ? pInfo->pRes : NULL;
 }
 
@@ -4289,7 +4172,7 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
   }
 
   if (pOperator->fpSet.closeFn != NULL) {
-    pOperator->fpSet.closeFn(pOperator->info, pOperator->numOfOutput);
+    pOperator->fpSet.closeFn(pOperator->info, pOperator->numOfExprs);
   }
 
   if (pOperator->pDownstream != NULL) {
@@ -4425,7 +4308,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->pExpr = pExprInfo;
-  pOperator->numOfOutput = numOfCols;
+  pOperator->numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(doOpenAggregateOptr, getAggregateResult, NULL, NULL, destroyAggOperatorInfo,
@@ -4475,14 +4358,6 @@ void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
 static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
-}
-
-static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
-  SSortOperatorInfo* pInfo = (SSortOperatorInfo*)param;
-  pInfo->pDataBlock = blockDataDestroy(pInfo->pDataBlock);
-
-  taosArrayDestroy(pInfo->pSortInfo);
-  taosArrayDestroy(pInfo->inputSlotMap);
 }
 
 void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {
@@ -4538,7 +4413,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* p
   pOperator->status = OP_NOT_OPENED;
   pOperator->info = pInfo;
   pOperator->pExpr = pExprInfo;
-  pOperator->numOfOutput = num;
+  pOperator->numOfExprs = num;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doProjectOperation, NULL, NULL,
                                          destroyProjectOperatorInfo, NULL, NULL, NULL);
@@ -4621,7 +4496,7 @@ SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExp
   pOperator->status = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_FILL;
   pOperator->pExpr = pExpr;
-  pOperator->numOfOutput = numOfCols;
+  pOperator->numOfExprs = numOfCols;
   pOperator->info = pInfo;
 
   pOperator->fpSet =
@@ -4830,6 +4705,7 @@ static SArray* createSortInfo(SNodeList* pNodeList, SNodeList* pNodeListTarget);
 static SArray* createIndexMap(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
 static int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+static void    setJoinColumnInfo(SColumnInfo* pInfo, const SColumnNode* pLeftNode);
 
 static SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
   SInterval interval = {
@@ -4978,7 +4854,14 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
     SArray*      info = createSortInfo(pSortPhyNode->pSortKeys, pSortPhyNode->pTargets);
     SArray*      slotMap = createIndexMap(pSortPhyNode->pTargets);
-    pOptr = createSortOperatorInfo(ops[0], pResBlock, info, slotMap, pTaskInfo);
+
+    int32_t    numOfCols = 0;
+    SExprInfo* pExprInfo = NULL;
+    if (pSortPhyNode->pExprs != NULL) {
+      pExprInfo = createExprInfo(pSortPhyNode->pExprs, NULL, &numOfCols);
+    }
+
+    pOptr = createSortOperatorInfo(ops[0], pResBlock, info, pExprInfo, numOfCols, slotMap, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == type) {
     SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
 
@@ -5565,7 +5448,7 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
     // only the timestamp match support for ordinary table
     ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
     if (*(int64_t*)pLeftVal == *(int64_t*)pRightVal) {
-      for (int32_t i = 0; i < pOperator->numOfOutput; ++i) {
+      for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
         SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
 
         SExprInfo* pExprInfo = &pOperator->pExpr[i];
@@ -5624,25 +5507,29 @@ SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOf
     goto _error;
   }
 
-  pOperator->resultInfo.capacity = 4096;
-  pOperator->resultInfo.threshold = 4096 * 0.75;
+  initResultSizeInfo(pOperator, 4096);
 
-  //  initResultRowInf
-  //  o(&pInfo->binfo.resultRowInfo, 8);
-  pInfo->pRes = pResBlock;
-
-  pOperator->name = "JoinOperator";
+  pInfo->pRes          = pResBlock;
+  pOperator->name      = "MergeJoinOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_JOIN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExprInfo;
-  pOperator->numOfOutput = numOfCols;
-  pOperator->info = pInfo;
+  pOperator->blocking  = false;
+  pOperator->status    = OP_NOT_OPENED;
+  pOperator->pExpr     = pExprInfo;
+  pOperator->numOfExprs = numOfCols;
+  pOperator->info      = pInfo;
   pOperator->pTaskInfo = pTaskInfo;
+
+  SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
+  setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
+  setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyBasicOperatorInfo, NULL, NULL, NULL);
   int32_t code = appendDownstream(pOperator, pDownstream, numOfDownstream);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   return pOperator;
 
 _error:
@@ -5650,4 +5537,12 @@ _error:
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
   return NULL;
+}
+
+void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
+  pColumn->slotId    = pColumnNode->slotId;
+  pColumn->type      = pColumnNode->node.resType.type;
+  pColumn->bytes     = pColumnNode->node.resType.bytes;
+  pColumn->precision = pColumnNode->node.resType.precision;
+  pColumn->scale     = pColumnNode->node.resType.scale;
 }

@@ -481,8 +481,8 @@ void* decodeUdfResponse(const void* buf, SUdfResponse* rsp) {
   return (void*)buf;
 }
 
-void freeUdfColumnData(SUdfColumnData *data) {
-  if (data->varLengthColumn) {
+void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta) {
+  if (IS_VAR_DATA_TYPE(meta->type)) {
     taosMemoryFree(data->varLenCol.varOffsets);
     data->varLenCol.varOffsets = NULL;
     taosMemoryFree(data->varLenCol.payload);
@@ -496,7 +496,7 @@ void freeUdfColumnData(SUdfColumnData *data) {
 }
 
 void freeUdfColumn(SUdfColumn* col) {
-  freeUdfColumnData(&col->colData);
+  freeUdfColumnData(&col->colData, &col->colMeta);
 }
 
 void freeUdfDataDataBlock(SUdfDataBlock *block) {
@@ -528,8 +528,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
     udfCol->colMeta.scale = col->info.scale;
     udfCol->colMeta.precision = col->info.precision;
     udfCol->colData.numOfRows = udfBlock->numOfRows;
-    udfCol->colData.varLengthColumn = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
-    if (udfCol->colData.varLengthColumn) {
+    if (IS_VAR_DATA_TYPE(udfCol->colMeta.type)) {
       udfCol->colData.varLenCol.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
       udfCol->colData.varLenCol.varOffsets = taosMemoryMalloc(udfCol->colData.varLenCol.varOffsetsLen);
       memcpy(udfCol->colData.varLenCol.varOffsets, col->varmeta.offset, udfCol->colData.varLenCol.varOffsetsLen);
@@ -555,7 +554,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   block->info.numOfCols = 1;
   block->info.rows = udfCol->colData.numOfRows;
-  block->info.hasVarCol = udfCol->colData.varLengthColumn;
+  block->info.hasVarCol = IS_VAR_DATA_TYPE(udfCol->colMeta.type);
 
   block->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
   taosArraySetSize(block->pDataBlock, 1);

@@ -277,7 +277,7 @@ typedef struct SOperatorInfo {
   uint8_t                 operatorType;
   bool                    blocking;      // block operator or not
   uint8_t                 status;        // denote if current operator is completed
-  int32_t                 numOfOutput;   // number of columns of the current operator results
+  int32_t                 numOfExprs;   // number of columns of the current operator results
   char*                   name;          // name, used to show the query execution plan
   void*                   info;          // extension attribution
   SExprInfo*              pExpr;
@@ -415,8 +415,6 @@ typedef struct SOptrBasicInfo {
 // TODO move the resultrowsiz together with SOptrBasicInfo:rowCellInfoOffset
 typedef struct SAggSupporter {
   SHashObj*      pResultRowHashTable;  // quick locate the window object for each result
-//  SHashObj*      pResultRowListSet;    // used to check if current ResultRowInfo has ResultRow object or not
-//  SArray*        pResultRowArrayList;  // The array list that contains the Result rows
   char*          keyBuf;               // window key buffer
   SDiskbasedBuf* pResultBuf;           // query result buffer based on blocked-wised disk file
   int32_t        resultRowSize;        // the result buffer size for each result row, with the meta data size for each row
@@ -577,13 +575,13 @@ typedef struct SSortedMergeOperatorInfo {
 } SSortedMergeOperatorInfo;
 
 typedef struct SSortOperatorInfo {
+  SOptrBasicInfo binfo;
   uint32_t     sortBufSize;  // max buffer size for in-memory sort
-  SSDataBlock* pDataBlock;
   SArray*      pSortInfo;
   SSortHandle* pSortHandle;
   SArray*      inputSlotMap;  // for index map from table scan output
   int32_t      bufPageSize;
-  int32_t      numOfRowsInRes;
+//  int32_t      numOfRowsInRes;
 
   // TODO extact struct
   int64_t  startTs;       // sort start time
@@ -645,10 +643,13 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
 void    relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols);
 void    initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);
 void    cleanupAggSup(SAggSupporter* pAggSup);
-void destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
+void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
+void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 
-void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput,
-                                     int32_t* rowCellInfoOffset);
+SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity);
+SSDataBlock* loadNextDataBlock(void* param);
+
+void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
 
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo,
                                    char* pData, int16_t bytes, bool masterscan, uint64_t groupId,
@@ -663,7 +664,8 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
 
 SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t num, SSDataBlock* pResBlock, SLimit* pLimit, SLimit* pSlimit, SExecTaskInfo* pTaskInfo);
-SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SArray* pIndexMap, SExecTaskInfo* pTaskInfo);
+SOperatorInfo *createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExprInfo* pExprInfo, int32_t numOfCols,
+                                      SArray* pIndexMap, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t num, SArray* pSortInfo, SArray* pGroupInfo, SExecTaskInfo* pTaskInfo);
 

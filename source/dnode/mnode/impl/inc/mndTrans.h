@@ -61,6 +61,7 @@ void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransProcessRsp(SNodeMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
+int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
 
 #ifdef __cplusplus
 }
