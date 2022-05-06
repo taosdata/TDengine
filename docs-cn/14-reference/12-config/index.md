@@ -681,7 +681,7 @@ taos --dump-config
 | 适用范围 | 服务器端                                                                                                                                                     |
 | 含义     | 配置要进行有损压缩的浮点数据类型                                                                                                                             |
 | 取值范围 | 空字符串：关闭有损压缩 <br/> float：只对 float 类型进行有损压缩 <br/>double：只对 double 类型进行有损压缩 <br/> float \| double：float double 都进行有损压缩 |
-| 缺省值   | 128                                                                                                                                                          |
+| 缺省值   | 空字符串                                                                                                                                                          |
 | 补充说明 | 有损压缩默认为关闭状态，只有配置后才生效                                                                                                                     |
 
 ### fPrecision
