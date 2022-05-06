@@ -64,9 +64,11 @@
 //! ```
 //!
 use std::collections::BTreeMap;
+use std::fmt::Display;
 use std::num::ParseIntError;
 use std::str::FromStr;
 
+use itertools::Itertools;
 use pest;
 use pest::Parser;
 use pest_derive::Parser;
@@ -123,6 +125,24 @@ impl Address {
             ..Default::default()
         }
     }
+
+    #[inline]
+    fn empty(&self) -> bool {
+        self.host.is_none() && self.port.is_none() && self.path.is_none()
+    }
+}
+
+impl Display for Address {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match (&self.host, self.port, &self.path) {
+            (Some(host), None, None) => write!(f, "{host}"),
+            (Some(host), Some(port), None) => write!(f, "{host}:{port}"),
+            (None, Some(port), None) => write!(f, ":{port}"),
+            (None, None, Some(path)) => write!(f, "{}", urlencoding::encode(path)),
+            (None, None, None) => Ok(()),
+            _ => unreachable!("path will be conflict with host/port"),
+        }
+    }
 }
 
 /// A DSN(**Data Source Name**) parser.
@@ -136,6 +156,46 @@ pub struct Dsn {
     pub fragment: Option<String>,
     pub database: Option<String>,
     pub params: BTreeMap<String, String>,
+}
+
+impl Display for Dsn {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.driver)?;
+        if let Some(protocol) = &self.protocol {
+            write!(f, "+{protocol}")?;
+        }
+        write!(f, "://")?;
+        match (&self.username, &self.password) {
+            (Some(username), Some(password)) => write!(f, "{username}:{password}@")?,
+            (Some(username), None) => write!(f, "{username}@")?,
+            (None, Some(password)) => write!(f, ":{password}@")?,
+            (None, None) => {}
+        }
+        if !self.addresses.is_empty() {
+            write!(
+                f,
+                "{}",
+                self.addresses.iter().map(ToString::to_string).join(",")
+            )?;
+        }
+        if let Some(database) = &self.database {
+            write!(f, "/{database}")?;
+        }
+        if let Some(fragment) = &self.fragment {
+            write!(f, "{fragment}")?;
+        }
+        if !self.params.is_empty() {
+            write!(
+                f,
+                "?{}",
+                self.params
+                    .iter()
+                    .map(|(k, v)| format!("{k}={v}"))
+                    .join("&")
+            )?;
+        }
+        Ok(())
+    }
 }
 
 impl Dsn {
@@ -248,6 +308,7 @@ fn username_with_password() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 
     let s = "taos://root@";
 
@@ -260,6 +321,7 @@ fn username_with_password() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
     let s = "taos://root:taosdata@";
 
     let dsn = Dsn::from_str(&s).unwrap();
@@ -272,12 +334,12 @@ fn username_with_password() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
 
 #[test]
 fn host_port_mix() {
-    let s = "taos://@localhost";
-
+    let s = "taos://localhost";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
         dsn,
@@ -290,8 +352,9 @@ fn host_port_mix() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
+
     let s = "taos://root@:6030";
-
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
         dsn,
@@ -305,8 +368,9 @@ fn host_port_mix() {
             ..Default::default()
         }
     );
-    let s = "taos://root@localhost:6030";
+    assert_eq!(dsn.to_string(), s);
 
+    let s = "taos://root@localhost:6030";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
         dsn,
@@ -321,11 +385,11 @@ fn host_port_mix() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
 #[test]
 fn username_with_host() {
     let s = "taos://root@localhost";
-
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
         dsn,
@@ -339,8 +403,9 @@ fn username_with_host() {
             ..Default::default()
         }
     );
-    let s = "taos://root@:6030";
+    assert_eq!(dsn.to_string(), s);
 
+    let s = "taos://root@:6030";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
         dsn,
@@ -354,8 +419,9 @@ fn username_with_host() {
             ..Default::default()
         }
     );
-    let s = "taos://root@localhost:6030";
+    assert_eq!(dsn.to_string(), s);
 
+    let s = "taos://root@localhost:6030";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
         dsn,
@@ -379,6 +445,7 @@ fn username_with_host() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
 
 #[test]
@@ -394,6 +461,8 @@ fn username_with_multi_addresses() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
+
     let s = "taos://root:taosdata@host1:6030,host2:6031";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
@@ -406,6 +475,7 @@ fn username_with_multi_addresses() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
 
 #[test]
@@ -420,6 +490,8 @@ fn db_only() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
+
     let s = "taos:///db1";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
@@ -430,6 +502,7 @@ fn db_only() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
 
 #[test]
@@ -446,6 +519,8 @@ fn username_with_multi_addresses_database() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
+
     let s = "taos://root:taosdata@host1:6030,host2:6031/db1";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
@@ -459,6 +534,7 @@ fn username_with_multi_addresses_database() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
 
 #[test]
@@ -476,6 +552,8 @@ fn protocol() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), "taos+tcp://root@host1:6030,host2:6031/db1");
+
     let s = "taos+tcp://root@host1:6030,host2:6031/db1";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
@@ -489,6 +567,7 @@ fn protocol() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), "taos+tcp://root@host1:6030,host2:6031/db1");
 }
 
 #[test]
@@ -507,6 +586,8 @@ fn fragment() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
+
     let s = "unix:///path/to/unix.sock";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
@@ -517,6 +598,7 @@ fn fragment() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 
     let s = "sqlite:///c:/full/windows/path/to/file.db";
     let dsn = Dsn::from_str(&s).unwrap();
@@ -528,6 +610,7 @@ fn fragment() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 
     let s = "sqlite://./file.db";
     let dsn = Dsn::from_str(&s).unwrap();
@@ -539,6 +622,7 @@ fn fragment() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 
     let s = "sqlite://root:pass@/full/unix/path/to/file.db?mode=0666&readonly=true";
     let dsn = Dsn::from_str(&s).unwrap();
@@ -556,6 +640,7 @@ fn fragment() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
 
 #[test]
@@ -570,6 +655,7 @@ fn params() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 
     let s = r#"taos://root@localhost?abc=abc"#;
     let dsn = Dsn::from_str(&s).unwrap();
@@ -583,4 +669,5 @@ fn params() {
             ..Default::default()
         }
     );
+    assert_eq!(dsn.to_string(), s);
 }
