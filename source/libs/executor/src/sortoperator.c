@@ -67,6 +67,10 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
   ASSERT(taosArrayGetSize(pColMatchInfo) == pDataBlock->info.numOfCols);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
+  if (p == NULL) {
+    return NULL;
+  }
+
   blockDataEnsureCapacity(p, capacity);
 
   while (1) {
