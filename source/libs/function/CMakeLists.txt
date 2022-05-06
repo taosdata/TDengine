@@ -48,8 +48,7 @@ target_include_directories(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    udf1 PUBLIC os
-)
+    udf1 PUBLIC os)
 
 add_library(udf2 MODULE test/udf2.c)
 target_include_directories(

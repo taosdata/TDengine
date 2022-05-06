@@ -42,11 +42,7 @@ struct SSortHandle {
 
   _sort_fetch_block_fn_t  fetchfp;
   _sort_merge_compar_fn_t comparFn;
-
-  void             *pParam;
   SMultiwayMergeTreeInfo *pMergeTree;
-  int32_t           numOfCols;
-
   int64_t           startTs;
   uint64_t          sortElapsed;
   uint64_t          totalElapsed;
@@ -61,6 +57,9 @@ struct SSortHandle {
   bool              inMemSort;
   bool              needAdjust;
   STupleHandle      tupleHandle;
+
+  void             *param;
+  void (*beforeFp)(SSDataBlock* pBlock, void* param);
 };
 
 static int32_t msortComparFn(const void *pLeft, const void *pRight, void *param);
@@ -533,6 +532,13 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
         pHandle->pDataBlock = createOneDataBlock(pBlock, false);
       }
 
+      // perform the scalar function calculation before apply the sort
+      if (pHandle->beforeFp != NULL) {
+        pHandle->beforeFp(pBlock, pHandle->param);
+      }
+
+      // todo relocate the columns
+
       int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock, pHandle->pIndexMap);
       if (code != 0) {
         return code;
@@ -623,8 +629,10 @@ int32_t tsortClose(SSortHandle* pHandle) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp) {
-  pHandle->fetchfp = fp;
+int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*), void* param) {
+  pHandle->fetchfp = fetchFp;
+  pHandle->beforeFp = fp;
+  pHandle->param = param;
   return TSDB_CODE_SUCCESS;
 }
 

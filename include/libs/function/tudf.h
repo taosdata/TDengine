@@ -22,6 +22,7 @@
 #include "tmsg.h"
 #include "tcommon.h"
 #include "function.h"
+#include "tdatablock.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -54,14 +55,14 @@ int32_t setupUdf(char udfName[], UdfcFuncHandle *handle);
 
 typedef struct SUdfColumnMeta {
   int16_t type;
-  int32_t bytes; // <0 var length, others fixed length bytes
+  int32_t bytes;
   uint8_t precision;
   uint8_t scale;
 } SUdfColumnMeta;
 
 typedef struct SUdfColumnData {
   int32_t numOfRows;
-  bool varLengthColumn;
+  int32_t rowsAlloc;
   union {
     struct {
       int32_t nullBitmapLen;
@@ -72,9 +73,10 @@ typedef struct SUdfColumnData {
 
     struct {
       int32_t varOffsetsLen;
-      char   *varOffsets;
+      int32_t   *varOffsets;
       int32_t payloadLen;
       char   *payload;
+      int32_t payloadAllocLen;
     } varLenCol;
   };
 } SUdfColumnData;
@@ -131,10 +133,114 @@ typedef int32_t (*TUdfSetupFunc)();
 typedef int32_t (*TUdfTeardownFunc)();
 
 //TODO: add API to check function arguments type, number etc.
-//TODO: another way to manage memory is provide api for UDF to add data to SUdfColumnData and UDF framework will allocate memory.
-// then UDF framework will free the memory
-//typedef int32_t addFixedLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t colBytes, char* data);
-//typedef int32_t addVariableLengthColumnData(SColumnData *columnData, int rowIndex, bool isNull, int32_t dataLen, char * data);
+
+#define UDF_MEMORY_EXP_GROWTH 1.5
+
+static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn* pColumn, int32_t newCapacity) {
+  SUdfColumnMeta *meta = &pColumn->colMeta;
+  SUdfColumnData *data = &pColumn->colData;
+
+  if (newCapacity== 0 || newCapacity <= data->rowsAlloc) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  int allocCapacity = MAX(data->rowsAlloc, 8);
+  while (allocCapacity < newCapacity) {
+    allocCapacity *= UDF_MEMORY_EXP_GROWTH;
+  }
+
+  if (IS_VAR_DATA_TYPE(meta->type)) {
+    char* tmp = taosMemoryRealloc(data->varLenCol.varOffsets, sizeof(int32_t) * allocCapacity);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    data->varLenCol.varOffsets = (int32_t*)tmp;
+    data->varLenCol.varOffsetsLen = sizeof(int32_t) * allocCapacity;
+    // for payload, add data in udfColDataAppend
+  } else {
+    char* tmp = taosMemoryRealloc(data->fixLenCol.nullBitmap, BitmapLen(allocCapacity));
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    data->fixLenCol.nullBitmap = tmp;
+    data->fixLenCol.nullBitmapLen = BitmapLen(allocCapacity);
+    if (meta->type == TSDB_DATA_TYPE_NULL) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    tmp = taosMemoryRealloc(data->fixLenCol.data, allocCapacity* meta->bytes);
+    if (tmp == NULL) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    data->fixLenCol.data = tmp;
+    data->fixLenCol.dataLen = allocCapacity* meta->bytes;
+  }
+
+  data->rowsAlloc = allocCapacity;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static FORCE_INLINE int32_t udfColSetRow(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull) {
+  SUdfColumnMeta *meta = &pColumn->colMeta;
+  SUdfColumnData *data = &pColumn->colData;
+  udfColEnsureCapacity(pColumn, currentRow+1);
+  bool isVarCol = IS_VAR_DATA_TYPE(meta->type);
+  if (isNull) {
+    if (isVarCol) {
+      data->varLenCol.varOffsets[currentRow] = -1;
+    } else {
+      colDataSetNull_f(data->fixLenCol.nullBitmap, currentRow);
+    }
+  } else {
+    if (!isVarCol) {
+      colDataSetNotNull_f(data->fixLenCol.nullBitmap, currentRow);
+      memcpy(data->fixLenCol.data + meta->bytes * currentRow, pData, meta->bytes);
+    } else {
+      int32_t dataLen = varDataTLen(pData);
+      if (meta->type == TSDB_DATA_TYPE_JSON) {
+        if (*pData == TSDB_DATA_TYPE_NULL) {
+          dataLen = 0;
+        } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
+          dataLen = varDataTLen(pData + CHAR_BYTES);
+        } else if (*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
+          dataLen = LONG_BYTES;
+        } else if (*pData == TSDB_DATA_TYPE_BOOL) {
+          dataLen = CHAR_BYTES;
+        }
+        dataLen += CHAR_BYTES;
+      }
+
+      if (data->varLenCol.payloadAllocLen < data->varLenCol.payloadLen + dataLen) {
+        uint32_t newSize = data->varLenCol.payloadAllocLen;
+        if (newSize <= 1) {
+          newSize = 8;
+        }
+
+        while (newSize < data->varLenCol.payloadLen + dataLen) {
+          newSize = newSize * UDF_MEMORY_EXP_GROWTH;
+        }
+
+        char *buf = taosMemoryRealloc(data->varLenCol.payload, newSize);
+        if (buf == NULL) {
+          return TSDB_CODE_OUT_OF_MEMORY;
+        }
+
+        data->varLenCol.payload = buf;
+        data->varLenCol.payloadAllocLen = newSize;
+      }
+
+      uint32_t len = data->varLenCol.payloadLen;
+      data->varLenCol.varOffsets[currentRow] = len;
+
+      memcpy(data->varLenCol.payload + len, pData, dataLen);
+      data->varLenCol.payloadLen += dataLen;
+    }
+  }
+  data->numOfRows = MAX(currentRow + 1, data->numOfRows);
+  return 0;
+}
 
 typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock* block, SUdfColumn *resultCol);
