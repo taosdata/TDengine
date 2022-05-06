@@ -1,6 +1,6 @@
 ---
-sidebar_label: OpentsDB 行协议
-title: OpentsDB 行协议
+sidebar_label: OpenTSDB 行协议
+title: OpenTSDB 行协议
 ---
 
 import Tabs from "@theme/Tabs";
@@ -15,7 +15,7 @@ import CTelnet from "./_c_opts_telnet.mdx";
 
 ## 协议介绍
 
-OpentsDB 行协议同样采用一行字符串来表示一行数据。OpentsDB 采用的是单列模型，因此一行只能包含一个普通数据列。标签列依然可以有多个。分为四部分，具体格式约定如下：
+OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB 采用的是单列模型，因此一行只能包含一个普通数据列。标签列依然可以有多个。分为四部分，具体格式约定如下：
 
 ```txt
 <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]

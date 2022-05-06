@@ -1,6 +1,6 @@
 ---
-sidebar_label: OpentsDB JSON 格式协议
-title: OpentsDB JSON 格式协议
+sidebar_label: OpenTSDB JSON 格式协议
+title: OpenTSDB JSON 格式协议
 ---
 
 import Tabs from "@theme/Tabs";
@@ -15,7 +15,7 @@ import CJson from "./_c_opts_json.mdx";
 
 ## 协议介绍
 
-OpentsDB JSON 格式协议采用一个 JSON 字符串表示一行或多行数据。例如：
+OpenTSDB JSON 格式协议采用一个 JSON 字符串表示一行或多行数据。例如：
 
 ```json
 [
@@ -40,7 +40,7 @@ OpentsDB JSON 格式协议采用一个 JSON 字符串表示一行或多行数据
 ]
 ```
 
-与 OpentsDB 行协议类似， metric 将作为超级表名， timestamp 表示时间戳，value 表示度量值， tags 表示标签集。
+与 OpenTSDB 行协议类似， metric 将作为超级表名， timestamp 表示时间戳，value 表示度量值， tags 表示标签集。
 
 
 参考[OpenTSDB HTTP API文档](http://opentsdb.net/docs/build/html/api_http/put.html)。
