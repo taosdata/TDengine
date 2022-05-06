@@ -4274,7 +4274,9 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       return true;
     }
-  } else if (tscIsSessionWindowQuery(pQueryInfo)) {
+  }
+  
+  if (tscIsSessionWindowQuery(pQueryInfo)) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     return true;
   }
