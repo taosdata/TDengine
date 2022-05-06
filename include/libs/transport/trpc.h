@@ -68,6 +68,7 @@ typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, cha
 typedef bool (*RpcRfp)(int32_t code);
 
 typedef struct SRpcInit {
+  char     localFqdn[TSDB_FQDN_LEN];
   uint16_t localPort;     // local port
   char *   label;         // for debug purpose
   int      numOfThreads;  // number of threads to handle connections
