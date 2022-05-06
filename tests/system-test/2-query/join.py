@@ -102,7 +102,7 @@ class TDTestCase:
                 if len(tblist) == 2:
                     if "ct1" in tblist or "t1" in tblist:
                         self.__join_current(sql, checkrows)
-                    elif where_condition or "not null" in groups:
+                    elif where_condition or "not null" in group_condition:
                         self.__join_current(sql, checkrows + 2 )
                     else:
                         self.__join_current(sql, checkrows + 5 )
