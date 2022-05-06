@@ -73,14 +73,19 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   {
     SAlterDbReq alterdbReq = {0};
     strcpy(alterdbReq.db, "1.d1");
+
     alterdbReq.buffer = 12;
-    alterdbReq.daysToKeep0 = 300;
-    alterdbReq.daysToKeep1 = 400;
-    alterdbReq.daysToKeep2 = 500;
+    alterdbReq.pageSize = -1;
+    alterdbReq.pages = -1;
+    alterdbReq.daysPerFile = -1;
+    alterdbReq.daysToKeep0 = -1;
+    alterdbReq.daysToKeep1 = -1;
+    alterdbReq.daysToKeep2 = -1;
     alterdbReq.fsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
-    alterdbReq.strict = 2;
+    alterdbReq.strict = 1;
     alterdbReq.cacheLastRow = 1;
+    alterdbReq.replications = 1;
 
     int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
     void*   pReq = rpcMallocCont(contLen);

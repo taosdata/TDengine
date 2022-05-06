@@ -491,6 +491,14 @@ _OVER:
   return code;
 }
 
+int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SVnodeGid *new1, SVnodeGid *new2, SVnodeGid *exist) {
+  return 0;
+}
+
+int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SVnodeGid *del1, SVnodeGid *del2, SVnodeGid *exist) {
+  return 0;
+}
+
 SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
   SEpSet epset = {0};
 

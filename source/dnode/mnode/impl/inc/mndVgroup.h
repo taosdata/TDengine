@@ -27,9 +27,12 @@ void     mndCleanupVgroup(SMnode *pMnode);
 SVgObj  *mndAcquireVgroup(SMnode *pMnode, int32_t vgId);
 void     mndReleaseVgroup(SMnode *pMnode, SVgObj *pVgroup);
 SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
-int32_t  mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups);
 SEpSet   mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup);
 int32_t  mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
+
+int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups);
+int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SVnodeGid *new1, SVnodeGid *new2, SVnodeGid *exist);
+int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SVnodeGid *del1, SVnodeGid *del2, SVnodeGid *exist);
 
 void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);
 void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);
