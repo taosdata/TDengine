@@ -5191,10 +5191,7 @@ static int32_t elapsedRequired(SQLFunctionCtx *pCtx, STimeWindow* w, int32_t col
 
 static void elapsedFunction(SQLFunctionCtx *pCtx) {
   SElapsedInfo *pInfo = getOutputInfo(pCtx);
-  qDebug("%s pCtx->preAggVals.isSet = %d", __FUNCTION__, pCtx->preAggVals.isSet);
   if (pCtx->preAggVals.isSet) {
-    qDebug("%s pInfo->min = %ld, statis = [%ld, %ld], win = [%ld, %ld], win2 = [%ld, %ld]", __FUNCTION__, pInfo->min,
-        pCtx->preAggVals.statis.min, pCtx->preAggVals.statis.max, pCtx->startTs, pCtx->endTs, pCtx->start.key, pCtx->end.key);
     if (pInfo->min == MAX_TS_KEY) {
       pInfo->min = pCtx->preAggVals.statis.min;
       pInfo->max = pCtx->preAggVals.statis.max;
