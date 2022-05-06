@@ -123,14 +123,40 @@ static SNodeList* osdGetAllFuncs(SLogicNode* pNode) {
   return NULL;
 }
 
+static bool needOptimizeDataRequire(const SFunctionNode* pFunc) {
+  if (!fmIsSpecialDataRequiredFunc(pFunc->funcId)) {
+    return false;
+  }
+  SNode* pPara = NULL;
+  FOREACH(pPara, pFunc->pParameterList) {
+    if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+static bool needOptimizeDynamicScan(const SFunctionNode* pFunc) {
+  if (!fmIsDynamicScanOptimizedFunc(pFunc->funcId)) {
+    return false;
+  }
+  SNode* pPara = NULL;
+  FOREACH(pPara, pFunc->pParameterList) {
+    if (QUERY_NODE_COLUMN != nodeType(pPara) && QUERY_NODE_VALUE != nodeType(pPara)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 static int32_t osdGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSdrFuncs, SNodeList** pDsoFuncs) {
   SNodeList* pAllFuncs = osdGetAllFuncs(pScan->node.pParent);
   SNode*     pFunc = NULL;
   FOREACH(pFunc, pAllFuncs) {
     int32_t code = TSDB_CODE_SUCCESS;
-    if (fmIsSpecialDataRequiredFunc(((SFunctionNode*)pFunc)->funcId)) {
+    if (needOptimizeDataRequire((SFunctionNode*)pFunc)) {
       code = nodesListMakeStrictAppend(pSdrFuncs, nodesCloneNode(pFunc));
-    } else if (fmIsDynamicScanOptimizedFunc(((SFunctionNode*)pFunc)->funcId)) {
+    } else if (needOptimizeDynamicScan((SFunctionNode*)pFunc)) {
       code = nodesListMakeStrictAppend(pDsoFuncs, nodesCloneNode(pFunc));
     }
     if (TSDB_CODE_SUCCESS != code) {
@@ -541,9 +567,14 @@ static bool cpdIsPrimaryKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
   if (QUERY_NODE_OPERATOR != nodeType(pCond)) {
     return false;
   }
-  SNodeList*     pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
-  SNodeList*     pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
+
   SOperatorNode* pOper = (SOperatorNode*)pJoin->pOnConditions;
+  if (OP_TYPE_EQUAL != pOper->opType) {
+    return false;
+  }
+
+  SNodeList* pLeftCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 0))->pTargets;
+  SNodeList* pRightCols = ((SLogicNode*)nodesListGetNode(pJoin->node.pChildren, 1))->pTargets;
   if (cpdIsPrimaryKey(pOper->pLeft, pLeftCols)) {
     return cpdIsPrimaryKey(pOper->pRight, pRightCols);
   } else if (cpdIsPrimaryKey(pOper->pLeft, pRightCols)) {
