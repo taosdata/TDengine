@@ -91,9 +91,9 @@ print =============== create normal table
 sql create database ndb
 sql use ndb
 sql create table nt0 (ts timestamp, i int)
-sql create table if not exists nt0 (ts timestamp, i int)
+# sql create table if not exists nt0 (ts timestamp, i int)
 sql create table nt1 (ts timestamp, i int)
-sql create table if not exists nt1 (ts timestamp, i int)
+# sql create table if not exists nt1 (ts timestamp, i int)
 sql create table if not exists nt3 (ts timestamp, i int)
 
 sql show tables
