@@ -1070,6 +1070,17 @@ static int32_t mndDropDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb) {
   /*if (mndDropTopicByDB(pMnode, pTrans, pDb) != 0) goto _OVER;*/
   if (mndSetDropDbRedoActions(pMnode, pTrans, pDb) != 0) goto _OVER;
 
+  SUserObj *pUser = mndAcquireUser(pMnode, pDb->createUser);
+  if (pUser != NULL) {
+    pUser->authVersion++;
+    SSdbRaw *pCommitRaw = mndUserActionEncode(pUser);
+    if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+      mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+      goto _OVER;
+    }
+    sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
+  }
+
   int32_t rspLen = 0;
   void   *pRsp = NULL;
   if (mndBuildDropDbRsp(pDb, &rspLen, &pRsp, false) < 0) goto _OVER;
