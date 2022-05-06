@@ -4062,7 +4062,8 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery) {
   STranslateContext cxt = {0};
-  int32_t           code = initTranslateContext(pParseCxt, &cxt);
+
+  int32_t code = initTranslateContext(pParseCxt, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = fmFuncMgtInit();
   }
