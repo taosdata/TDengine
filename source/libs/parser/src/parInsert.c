@@ -1050,6 +1050,7 @@ static void destroyDataBlock(STableDataBlocks* pDataBlock) {
 static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyInsertParseContextForTable(pCxt);
   taosHashCleanup(pCxt->pVgroupsHashObj);
+  taosHashCleanup(pCxt->pSubTableHashObj);
 
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pVgDataBlocks);

@@ -75,8 +75,8 @@ typedef struct SUdf {
   char   path[PATH_MAX];
 
   uv_lib_t              lib;
+
   TUdfScalarProcFunc    scalarProcFunc;
-  TUdfFreeUdfColumnFunc freeUdfColumn;
 
   TUdfAggStartFunc      aggStartFunc;
   TUdfAggProcessFunc    aggProcFunc;
@@ -106,11 +106,6 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
     uv_dlsym(&udf->lib, processFuncName, (void **)(&udf->scalarProcFunc));
-    char  freeFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
-    char *freeSuffix = "_free";
-    strncpy(freeFuncName, processFuncName, strlen(processFuncName));
-    strncat(freeFuncName, freeSuffix, strlen(freeSuffix));
-    uv_dlsym(&udf->lib, freeFuncName, (void **)(&udf->freeUdfColumn));
   } else if (udf->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
@@ -215,7 +210,7 @@ void udfdProcessRequest(uv_work_t *req) {
           udf->scalarProcFunc(&input, &output);
 
           convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
-          udf->freeUdfColumn(&output);
+          freeUdfColumn(&output);
           break;
         }
         case TSDB_UDF_CALL_AGG_INIT: {
