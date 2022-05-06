@@ -684,6 +684,7 @@ _err:
   tdFreeDataCols(pTarget);
   return -1;
 }
+
 static void tdAppendValToDataCols(SDataCols *target, SDataCols *src, int iter, bool isMerge) {
   for (int i = 0; i < src->numOfCols; ++i) {
     ASSERT(target->cols[i].type == src->cols[i].type);

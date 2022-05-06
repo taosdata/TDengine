@@ -917,7 +917,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTbnameColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = qTbnameFunction,
     .finalizeFunc = NULL
   },
   {

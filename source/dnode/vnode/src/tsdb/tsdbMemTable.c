@@ -85,6 +85,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   STSchema  *pSchema = NULL;
   TSKEY      rowKey = 0;
   TSKEY      fKey = 0;
+  TSKEY      lastKey = TSKEY_INITIAL_VAL;
   bool       isRowDel = false;
   int        filterIter = 0;
   STSRow    *row = NULL;
@@ -111,7 +112,8 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   } else {
     fKey = tdGetKey(filterKeys[filterIter]);
   }
-
+  // 1. fkey - no dup since merged up to maxVersion of each query handle by tsdbLoadBlockDataCols
+  // 2. rowKey - would dup since Multi-Version supported
   while (true) {
     if (fKey == INT64_MAX && rowKey == INT64_MAX) break;
 
@@ -125,12 +127,14 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
       } else {
         fKey = tdGetKey(filterKeys[filterIter]);
       }
+#if 0
     } else if (fKey > rowKey) {
       if (isRowDel) {
         pMergeInfo->rowsDeleteFailed++;
       } else {
         if (pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed >= maxRowsToRead) break;
         if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+
         pMergeInfo->rowsInserted++;
         pMergeInfo->nOperations++;
         pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
@@ -185,15 +189,51 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
         fKey = tdGetKey(filterKeys[filterIter]);
       }
     }
+#endif
+    } else { // fkey >= rowKey
+      if (isRowDel) {
+        ASSERT(!keepDup);
+        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+        pMergeInfo->rowsDeleteSucceed++;
+        pMergeInfo->nOperations++;
+        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
+      } else {
+        if (keepDup) {
+          if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+          pMergeInfo->rowsUpdated++;
+          pMergeInfo->nOperations++;
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
+          tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row);
+        } else {
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
+        }
+      }
+
+      tSkipListIterNext(pIter);
+      row = tsdbNextIterRow(pIter);
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
+        rowKey = INT64_MAX;
+        isRowDel = false;
+      } else {
+        rowKey = TD_ROW_KEY(row);
+        isRowDel = TD_ROW_IS_DELETED(row);
+      }
+
+      filterIter++;
+      if (filterIter >= nFilterKeys) {
+        fKey = INT64_MAX;
+      } else {
+        fKey = tdGetKey(filterKeys[filterIter]);
+      }
+    }
   }
 
   return 0;
 }
 
 int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
-  // STsdbMeta       *pMeta = pRepo->tsdbMeta;
-  // int32_t          points = 0;
-  // STable          *pTable = NULL;
   SSubmitBlkIter blkIter = {0};
   STsdbMemTable *pMemTable = pTsdb->mem;
   void          *tptr;
@@ -221,8 +261,9 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   }
 
   // copy data to buffer pool
-  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, pMsgIter->dataLen + sizeof(*pBlock));
-  memcpy(pBlkCopy, pBlock, pMsgIter->dataLen + sizeof(*pBlock));
+  int32_t tlen = pMsgIter->dataLen + pMsgIter->schemaLen + sizeof(*pBlock);
+  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, tlen);
+  memcpy(pBlkCopy, pBlock, tlen);
 
   tInitSubmitBlkIter(pMsgIter, pBlkCopy, &blkIter);
   if (blkIter.row == NULL) return 0;
@@ -241,7 +282,7 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
-  (*pAffectedRows) += pMsgIter->numOfRows;
+  (*pAffectedRows) = pMsgIter->numOfRows;
 
   return 0;
 }

@@ -122,8 +122,6 @@ typedef struct {
 typedef struct {
   /// timestamp
   TSKEY ts;
-  /// row version
-  uint64_t ver;
   union {
     /// union field for encode and decode
     uint32_t info;
@@ -176,7 +174,7 @@ typedef struct {
 #define TD_ROW_DATA(r)     ((r)->data)
 #define TD_ROW_LEN(r)      ((r)->len)
 #define TD_ROW_KEY(r)      ((r)->ts)
-#define TD_ROW_VER(r)      ((r)->ver)
+// #define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and

@@ -1965,6 +1965,21 @@ int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t tsdbProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
+  if (!pReq) {
+    terrno = TSDB_CODE_INVALID_PTR;
+    return TSDB_CODE_FAILED;
+  }
+
+  SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
+
+  if (tsdbInsertData(pTsdb, version, pSubmitReq, NULL) < 0) {
+    return TSDB_CODE_FAILED;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t tsdbFetchSubmitReqSuids(SSubmitReq *pMsg, STbUidStore *pStore) {
   ASSERT(pMsg != NULL);
   SSubmitMsgIter msgIter = {0};

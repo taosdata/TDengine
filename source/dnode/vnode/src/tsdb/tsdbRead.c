@@ -884,9 +884,11 @@ static STSRow* getSRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, int
     SSkipListNode* node = tSkipListIterGet(pCheckInfo->iter);
     if (node != NULL) {
       rmem = (STSRow*)SL_GET_NODE_DATA(node);
+#if 0 // TODO: skiplist refactor
       if (TD_ROW_VER(rmem) > maxVer) {
         rmem = NULL;
       }
+#endif
     }
   }
 
@@ -894,9 +896,11 @@ static STSRow* getSRowInTableMem(STableCheckInfo* pCheckInfo, int32_t order, int
     SSkipListNode* node = tSkipListIterGet(pCheckInfo->iiter);
     if (node != NULL) {
       rimem = (STSRow*)SL_GET_NODE_DATA(node);
+#if 0 // TODO: skiplist refactor
       if (TD_ROW_VER(rimem) > maxVer) {
         rimem = NULL;
       }
+#endif
     }
   }
 

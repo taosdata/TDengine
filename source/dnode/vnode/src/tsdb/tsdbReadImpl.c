@@ -294,6 +294,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   return 0;
 }
 
+// TODO: filter by Multi-Version
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
                           bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
