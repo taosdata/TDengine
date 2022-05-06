@@ -31,8 +31,9 @@ SEpSet   mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup);
 int32_t  mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
 
 int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups);
-int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SVnodeGid *new1, SVnodeGid *new2, SVnodeGid *exist);
-int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SVnodeGid *del1, SVnodeGid *del2, SVnodeGid *exist);
+SArray *mndBuildDnodesArray(SMnode *pMnode);
+int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray);
+int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray, SVnodeGid *del1, SVnodeGid *del2);
 
 void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);
 void *mndBuildDropVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen);

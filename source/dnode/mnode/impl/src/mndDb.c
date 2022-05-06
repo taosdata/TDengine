@@ -399,6 +399,7 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
   if (pCfg->replications > mndGetDnodeSize(pMnode)) return -1;
+  if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
   if (pCfg->hashMethod != 1) return -1;
@@ -720,7 +721,7 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
   return 0;
 }
 
-static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
+static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SArray *pArray) {
   if (pVgroup->replica <= 0 || pVgroup->replica == pDb->cfg.replications) {
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
@@ -732,27 +733,30 @@ static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
     SVgObj newVgroup = {0};
     memcpy(&newVgroup, pVgroup, sizeof(SVgObj));
     if (newVgroup.replica < pDb->cfg.replications) {
-      SVnodeGid new1 = {0};
-      SVnodeGid new2 = {0};
-      SVnodeGid exist = {0};
-      if (mndAddVnodeToVgroup(pMnode, &newVgroup, &new1, &new2, &exist) != 0) {
+      mInfo("db:%s, vgId:%d, will add 2 vnodes, vn:0 dnode:%d", pVgroup->dbName, pVgroup->vgId,
+            pVgroup->vnodeGid[0].dnodeId);
+
+      if (mndAddVnodeToVgroup(pMnode, &newVgroup, pArray) != 0) {
         mError("db:%s, failed to add vnode to vgId:%d since %s", pDb->name, newVgroup.vgId, terrstr());
         return -1;
       }
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &new1, true) != 0) return -1;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &new2, true) != 0) return -1;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, &exist, true) != 0) return -1;
+      newVgroup.replica = pDb->cfg.replications;
+      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[0], true) != 0) return -1;
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[1], true) != 0) return -1;
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[2], true) != 0) return -1;
     } else {
+      mInfo("db:%s, vgId:%d, will remove 2 vnodes", pVgroup->dbName, pVgroup->vgId);
+
       SVnodeGid del1 = {0};
       SVnodeGid del2 = {0};
-      SVnodeGid exist = {0};
-      if (mndRemoveVnodeFromVgroup(pMnode, &newVgroup, &del1, &del2, &exist) != 0) {
+      if (mndRemoveVnodeFromVgroup(pMnode, &newVgroup, pArray, &del1, &del2) != 0) {
         mError("db:%s, failed to remove vnode from vgId:%d since %s", pDb->name, newVgroup.vgId, terrstr());
         return -1;
       }
+      newVgroup.replica = pDb->cfg.replications;
+      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[0], true) != 0) return -1;
       if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVgroup, &del1, true) != 0) return -1;
       if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVgroup, &del2, true) != 0) return -1;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, &exist, true) != 0) return -1;
     }
 
     SSdbRaw *pVgRaw = mndVgroupActionEncode(&newVgroup);
@@ -765,8 +769,9 @@ static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
 }
 
 static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pOld, SDbObj *pNew) {
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
+  SSdb   *pSdb = pMnode->pSdb;
+  void   *pIter = NULL;
+  SArray *pArray = mndBuildDnodesArray(pMnode);
 
   while (1) {
     SVgObj *pVgroup = NULL;
@@ -774,9 +779,10 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     if (pIter == NULL) break;
 
     if (pVgroup->dbUid == pNew->uid) {
-      if (mndBuildAlterVgroupAction(pMnode, pTrans, pNew, pVgroup) != 0) {
+      if (mndBuildAlterVgroupAction(pMnode, pTrans, pNew, pVgroup, pArray) != 0) {
         sdbCancelFetch(pSdb, pIter);
         sdbRelease(pSdb, pVgroup);
+        taosArrayDestroy(pArray);
         return -1;
       }
     }
@@ -784,6 +790,7 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
     sdbRelease(pSdb, pVgroup);
   }
 
+  taosArrayDestroy(pArray);
   return 0;
 }
 
