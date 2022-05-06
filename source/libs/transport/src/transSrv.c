@@ -67,7 +67,7 @@ typedef struct SSrvMsg {
 
 typedef struct SWorkThrdObj {
   TdThread      thread;
-  uv_pipe_t*    pipe;
+  uv_tcp_t*    pipe;
   uv_os_fd_t    fd;
   uv_loop_t*    loop;
   SAsyncPool*   asyncPool;
@@ -89,7 +89,7 @@ typedef struct SServerObj {
   int            numOfThreads;
   SWorkThrdObj** pThreadObj;
 
-  uv_pipe_t** pipe;
+  uv_tcp_t** pipe;
   uint32_t    ip;
   uint32_t    port;
   uv_async_t* pAcceptAsync;  // just to quit from from accept thread
@@ -679,8 +679,8 @@ static bool addHandleToWorkloop(void* arg) {
     return false;
   }
 
-  uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
-  uv_pipe_open(pThrd->pipe, pThrd->fd);
+  uv_tcp_init(pThrd->loop, pThrd->pipe);
+  uv_tcp_open(pThrd->pipe, pThrd->fd);
 
   pThrd->pipe->data = pThrd;
 
@@ -800,7 +800,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   srv->numOfThreads = numOfThreads;
   srv->workerIdx = 0;
   srv->pThreadObj = (SWorkThrdObj**)taosMemoryCalloc(srv->numOfThreads, sizeof(SWorkThrdObj*));
-  srv->pipe = (uv_pipe_t**)taosMemoryCalloc(srv->numOfThreads, sizeof(uv_pipe_t*));
+  srv->pipe = (uv_tcp_t**)taosMemoryCalloc(srv->numOfThreads, sizeof(uv_tcp_t*));
   srv->ip = ip;
   srv->port = port;
   uv_loop_init(srv->loop);
@@ -815,14 +815,14 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     srv->pThreadObj[i] = thrd;
     thrd->pTransInst = shandle;
 
-    srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
+    srv->pipe[i] = (uv_tcp_t*)taosMemoryCalloc(2, sizeof(uv_tcp_t));
 
     uv_os_sock_t fds[2];
     if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
       goto End;
     }
-    uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
-    uv_pipe_open(&(srv->pipe[i][0]), fds[1]);  // init write
+    uv_tcp_init(srv->loop, &(srv->pipe[i][0]));
+    uv_tcp_open(&(srv->pipe[i][0]), fds[1]);  // init write
 
     thrd->fd = fds[0];
     thrd->pipe = &(srv->pipe[i][1]);  // init read

@@ -241,7 +241,11 @@ static int32_t dmSpawnUdfd(SDnode *pDnode) {
     strncpy(path, tsProcPath, strlen(tsProcPath));
     taosDirName(path);
   }
+#ifdef WINDOWS
+  strcat(path, "udfd.exe");
+#else
   strcat(path, "/udfd");
+#endif
   char* argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
   options.file = path;
@@ -255,6 +259,8 @@ static int32_t dmSpawnUdfd(SDnode *pDnode) {
   child_stdio[0].flags = UV_CREATE_PIPE | UV_READABLE_PIPE;
   child_stdio[0].data.stream = (uv_stream_t*) &pData->ctrlPipe;
   child_stdio[1].flags = UV_IGNORE;
+  // child_stdio[1].flags = UV_INHERIT_FD;
+  // child_stdio[1].data.fd = 2;
   child_stdio[2].flags = UV_INHERIT_FD;
   child_stdio[2].data.fd = 2;
   options.stdio_count = 3;
