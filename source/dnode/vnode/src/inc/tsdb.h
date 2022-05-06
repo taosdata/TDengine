@@ -273,7 +273,8 @@ typedef enum {
 
 typedef struct {
   uint8_t  last : 1;
-  uint8_t  blkVer : 7;
+  uint8_t  hasDupKey : 1;  // 0: no dup TS key, 1: has dup TS key(since supporting Multi-Version)
+  uint8_t  blkVer : 6;
   uint8_t  numOfSubBlocks;
   col_id_t numOfCols;    // not including timestamp column
   uint32_t len;          // data block length
