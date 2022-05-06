@@ -102,8 +102,10 @@ class TDTestCase:
                 if len(tblist) == 2:
                     if "ct1" in tblist or "t1" in tblist:
                         self.__join_current(sql, checkrows)
+                    elif where_condition:
+                        self.__join_current(sql, checkrows + 5 )
                     else:
-                        self.__join_current(sql, checkrows + 2 ) if where_condition else self.__join_current(sql, checkrows + 5 )
+                        self.__join_current(sql, checkrows + 2 )
                 if len(tblist) > 2 or len(tblist) < 1:
                     tdSql.error(sql=sql)
 
