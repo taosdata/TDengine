@@ -40,6 +40,7 @@ static int32_t  mndProcessMCreateSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessMDropSmaReq(SNodeMsg *pReq);
 static int32_t  mndProcessVCreateSmaRsp(SNodeMsg *pRsp);
 static int32_t  mndProcessVDropSmaRsp(SNodeMsg *pRsp);
+static int32_t  mndProcessGetSmaReq(SNodeMsg *pReq);
 static int32_t  mndRetrieveSma(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSma(SMnode *pMnode, void *pIter);
 
@@ -56,6 +57,7 @@ int32_t mndInitSma(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_SMA, mndProcessMDropSmaReq);
   mndSetMsgHandle(pMnode, TDMT_VND_CREATE_SMA_RSP, mndProcessVCreateSmaRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_DROP_SMA_RSP, mndProcessVDropSmaRsp);
+  mndSetMsgHandle(pMnode, TDMT_MND_GET_INDEX, mndProcessGetSmaReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndRetrieveSma);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_INDEX, mndCancelGetNextSma);
@@ -686,7 +688,7 @@ _OVER:
   return code;
 }
 
-int32_t mndProcessGetSmaReq(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
+static int32_t mndGetSma(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexRsp *rsp, bool *exist) {
   int32_t  code = -1;
   SSmaObj *pSma = NULL;
 
@@ -715,6 +717,51 @@ int32_t mndProcessGetSmaReq(SMnode *pMnode, SUserIndexReq *indexReq, SUserIndexR
   }
 
   mndReleaseSma(pMnode, pSma);
+  return code;
+}
+
+static int32_t mndProcessGetSmaReq(SNodeMsg *pReq) {
+  SUserIndexReq indexReq = {0};
+  SMnode       *pMnode = pReq->pNode;
+  int32_t       code = -1;
+  SUserIndexRsp rsp = {0};
+  bool          exist = false;
+
+  if (tDeserializeSUserIndexReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &indexReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  code = mndGetSma(pMnode, &indexReq, &rsp, &exist);
+  if (code) {
+    goto _OVER;
+  }
+
+  if (!exist) {
+    // TODO GET INDEX FROM FULLTEXT
+    code = -1;
+    terrno = TSDB_CODE_MND_DB_INDEX_NOT_EXIST;
+  } else {
+    int32_t contLen = tSerializeSUserIndexRsp(NULL, 0, &rsp);
+    void   *pRsp = rpcMallocCont(contLen);
+    if (pRsp == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      code = -1;
+      goto _OVER;
+    }
+
+    tSerializeSUserIndexRsp(pRsp, contLen, &rsp);
+
+    pReq->pRsp = pRsp;
+    pReq->rspLen = contLen;
+
+    code = 0;
+  }
+
+_OVER:
+  if (code != 0) {
+    mError("failed to get index %s since %s", indexReq.indexFName, terrstr());
+  }
 
   return code;
 }

@@ -403,6 +403,16 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     SKv *kv = pIter;
 
     switch (kv->key) {
+      case HEARTBEAT_KEY_USER_AUTHINFO: {
+        void *  rspMsg = NULL;
+        int32_t rspLen = 0;
+        mndValidateUserAuthInfo(pMnode, kv->value, kv->valueLen / sizeof(SUserAuthVersion), &rspMsg, &rspLen);
+        if (rspMsg && rspLen > 0) {
+          SKv kv1 = {.key = HEARTBEAT_KEY_USER_AUTHINFO, .valueLen = rspLen, .value = rspMsg};
+          taosArrayPush(hbRsp.info, &kv1);
+        }
+        break;
+      }
       case HEARTBEAT_KEY_DBINFO: {
         void *  rspMsg = NULL;
         int32_t rspLen = 0;

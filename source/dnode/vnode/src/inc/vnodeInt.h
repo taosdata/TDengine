@@ -100,6 +100,7 @@ int32_t      tsdbUpdateSmaWindow(STsdb* pTsdb, SSubmitReq* pMsg, int64_t version
 int32_t      tsdbCreateTSma(STsdb* pTsdb, char* pMsg);
 int32_t      tsdbInsertTSmaData(STsdb* pTsdb, int64_t indexUid, const char* msg);
 int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
+int          tsdbInsertTableData(STsdb* pTsdb, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, int32_t* pAffectedRows);
 tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                              uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
@@ -125,7 +126,6 @@ int32_t tsdbUpdateTbUidList(STsdb* pTsdb, STbUidStore* pUidStore);
 void    tsdbUidStoreDestory(STbUidStore* pStore);
 void*   tsdbUidStoreFree(STbUidStore* pStore);
 int32_t tsdbTriggerRSma(STsdb* pTsdb, void* pMsg, int32_t inputType);
-int32_t tsdbProcessSubmitReq(STsdb* pTsdb, int64_t version, void* pReq);
 
 typedef struct {
   int8_t  streamType;  // sma or other

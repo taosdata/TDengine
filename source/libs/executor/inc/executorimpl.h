@@ -87,9 +87,7 @@ typedef struct SResultInfo {  // TODO refactor
 typedef struct STableQueryInfo {
   TSKEY              lastKey;     // last check ts, todo remove it later
   SResultRowPosition pos;       // current active time window
-//  int32_t        groupIndex;  // group id in table list
 //  SVariant       tag;
-//  SResultRowInfo resInfo;     // result info
 } STableQueryInfo;
 
 typedef enum {
@@ -363,11 +361,12 @@ typedef struct STableScanInfo {
 } STableScanInfo;
 
 typedef struct STagScanInfo {
-  SColumnInfo *pCols;
-  SSDataBlock *pRes;
-  int32_t      totalTables;
-  int32_t      curPos;
-  void        *pReader;
+  SColumnInfo     *pCols;
+  SSDataBlock     *pRes;
+  SArray          *pColMatchInfo;
+  int32_t          curPos;
+  SReadHandle      readHandle;
+  STableGroupInfo *pTableGroups;
 } STagScanInfo;
 
 typedef struct SStreamBlockScanInfo {
@@ -579,9 +578,8 @@ typedef struct SSortOperatorInfo {
   uint32_t     sortBufSize;  // max buffer size for in-memory sort
   SArray*      pSortInfo;
   SSortHandle* pSortHandle;
-  SArray*      inputSlotMap;  // for index map from table scan output
+  SArray*      pColMatchInfo;  // for index map from table scan output
   int32_t      bufPageSize;
-//  int32_t      numOfRowsInRes;
 
   // TODO extact struct
   int64_t  startTs;       // sort start time
@@ -646,7 +644,7 @@ void    cleanupAggSup(SAggSupporter* pAggSup);
 void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity);
+SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo);
 SSDataBlock* loadNextDataBlock(void* param);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
@@ -704,7 +702,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo*
                                            SSDataBlock* pResultBlock, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createTagScanOperatorInfo(void* pReaderHandle, SExprInfo* pExpr, int32_t numOfOutput, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, SExprInfo* pExpr, int32_t numOfOutput, SSDataBlock* pResBlock, SArray* pColMatchInfo, STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
@@ -717,7 +715,6 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
 
 void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order, bool createDummyCol);
 
-void finalizeQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput);
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
 STableQueryInfo* createTableQueryInfo(void* buf, STimeWindow win);
