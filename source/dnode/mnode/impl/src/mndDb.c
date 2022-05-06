@@ -627,6 +627,7 @@ static int32_t mndSetDbCfgFromAlterDbReq(SDbObj *pDb, SAlterDbReq *pAlter) {
 
   if (pAlter->replications >= 0 && pAlter->replications != pDb->cfg.replications) {
     pDb->cfg.replications = pAlter->replications;
+    pDb->vgVersion++;
     terrno = 0;
   }
 
@@ -652,26 +653,30 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
 }
 
 static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
-  for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-    STransAction action = {0};
-    SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
+  if (pVgroup->replica == pDb->cfg.replications) {
+    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
+      STransAction action = {0};
+      SVnodeGid   *pVgid = pVgroup->vnodeGid + vn;
 
-    SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-    if (pDnode == NULL) return -1;
-    action.epSet = mndGetDnodeEpset(pDnode);
-    mndReleaseDnode(pMnode, pDnode);
+      SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+      if (pDnode == NULL) return -1;
+      action.epSet = mndGetDnodeEpset(pDnode);
+      mndReleaseDnode(pMnode, pDnode);
 
-    int32_t contLen = 0;
-    void   *pReq = mndBuildAlterVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
-    if (pReq == NULL) return -1;
+      int32_t contLen = 0;
+      void   *pReq = mndBuildAlterVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+      if (pReq == NULL) return -1;
 
-    action.pCont = pReq;
-    action.contLen = contLen;
-    action.msgType = TDMT_VND_ALTER_VNODE;
-    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
+      action.pCont = pReq;
+      action.contLen = contLen;
+      action.msgType = TDMT_VND_ALTER_VNODE;
+      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+        taosMemoryFree(pReq);
+        return -1;
+      }
     }
+  } else if (pVgroup->replica < pDb->cfg.replications) {
+  } else {
   }
 
   return 0;
@@ -726,6 +731,7 @@ static int32_t mndProcessAlterDbReq(SNodeMsg *pReq) {
   SDbObj     *pDb = NULL;
   SUserObj   *pUser = NULL;
   SAlterDbReq alterReq = {0};
+  SDbObj      dbObj = {0};
 
   if (tDeserializeSAlterDbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -749,15 +755,14 @@ static int32_t mndProcessAlterDbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  SDbObj dbObj = {0};
   memcpy(&dbObj, pDb, sizeof(SDbObj));
-  dbObj.cfg.numOfRetensions = 0;
-  dbObj.cfg.pRetensions = NULL;
+  if (dbObj.cfg.pRetensions != NULL) {
+    dbObj.cfg.pRetensions = taosArrayDup(pDb->cfg.pRetensions);
+    if (dbObj.cfg.pRetensions == NULL) goto _OVER;
+  }
 
   code = mndSetDbCfgFromAlterDbReq(&dbObj, &alterReq);
-  if (code != 0) {
-    goto _OVER;
-  }
+  if (code != 0) goto _OVER;
 
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
@@ -771,6 +776,7 @@ _OVER:
 
   mndReleaseDb(pMnode, pDb);
   mndReleaseUser(pMnode, pUser);
+  taosArrayDestroy(dbObj.cfg.pRetensions);
 
   return code;
 }
