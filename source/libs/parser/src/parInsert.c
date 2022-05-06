@@ -1597,7 +1597,7 @@ static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSche
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlParseTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SVCreateTbReq *createTblReq, SMsgBuf *msg) {
+static int32_t smlBoundTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SKVRow *row, SMsgBuf *msg) {
   if (tdInitKVRowBuilder(tagsBuilder) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1611,13 +1611,11 @@ static int32_t smlParseTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDat
   }
 
 
-  SKVRow row = tdGetKVRowFromBuilder(tagsBuilder);
-  if(row == NULL){
+  *row = tdGetKVRowFromBuilder(tagsBuilder);
+  if(*row == NULL){
     return TSDB_CODE_SML_INVALID_DATA;
   }
-  tdSortKVRowByColIdx(row);
-  createTblReq->type = TD_CHILD_TABLE;
-  createTblReq->ctbCfg.pTag = row;
+  tdSortKVRowByColIdx(*row);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1633,10 +1631,13 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
     buildInvalidOperationMsg(&pBuf, "bound tags error");
     return ret;
   }
-  ret = smlParseTags(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &smlHandle->createTblReq, &pBuf);
+  SKVRow row = NULL;
+  ret = smlBoundTags(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &row, &pBuf);
   if(ret != TSDB_CODE_SUCCESS){
     return ret;
   }
+
+  buildCreateTbReq(&smlHandle->createTblReq, pTableMeta->schema->name, row, pTableMeta->suid);
 
   STableDataBlocks* pDataBlock = NULL;
   ret = getDataBlockFromList(smlHandle->pBlockHash, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
@@ -1714,15 +1715,15 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
         kv = *p;
       }
 
-      if (kv->valueLen == 0) {
+      if (kv->length == 0) {
         MemRowAppend(&pBuf, NULL, 0, &param);
       } else {
         int32_t colLen = pColSchema->bytes;
         if (IS_VAR_DATA_TYPE(pColSchema->type)) {
-          colLen = kv->valueLen;
+          colLen = kv->length;
         }
 
-        MemRowAppend(&pBuf, kv->value, colLen, &param);
+        MemRowAppend(&pBuf, &(kv->value), colLen, &param);
       }
 
       if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {
