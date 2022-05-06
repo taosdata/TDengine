@@ -734,6 +734,5 @@ TEST(testCase, agg_query_tables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 #pragma GCC diagnostic pop
