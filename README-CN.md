@@ -121,7 +121,7 @@ sudo dnf install -y maven
 为了在 CentOS 上构建 [taosTools](https://github.com/taosdata/taos-tools) 需要安装如下依赖软件
 
 ```bash
-sudo yum install zlib-devel xz-devel snappy-devel jansson-devel pkgconfig libatomic libstdc++-static
+sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfig libatomic libstdc++-static
 ```
 
 注意：由于 snappy 缺乏 pkg-config 支持

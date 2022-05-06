@@ -44,11 +44,11 @@ Query OK, 2 row(s) in set (0.001100s)
 
 具体的查询语法请看 [TAOS SQL 的数据查询](/taos-sql/select) 章节。
 
-### 多表聚合查询
+## 多表聚合查询
 
 物联网场景中，往往同一个类型的数据采集点有多个。TDengine 采用超级表(STable)的概念来描述某一个类型的数据采集点，一张普通的表来描述一个具体的数据采集点。同时 TDengine 使用标签来描述数据采集点的静态属性，一个具体的数据采集点有具体的标签值。通过指定标签的过滤条件，TDengine 提供了一高效的方法将超级表(某一类型的数据采集点)所属的子表进行聚合查询。对普通表的聚合函数以及绝大部分操作都适用于超级表，语法完全一样。
 
-#### 示例一
+### 示例一
 
 在 TAOS Shell，查找北京所有智能电表采集的电压平均值，并按照 location 分组。
 
@@ -61,7 +61,7 @@ taos> SELECT AVG(voltage) FROM meters GROUP BY location;
 Query OK, 2 row(s) in set (0.002136s)
 ```
 
-#### 示例二
+### 示例二
 
 在 TAOS shell, 查找 groupId 为 2 的所有智能电表过去 24 小时的记录条数，电流的最大值。
 
@@ -75,7 +75,7 @@ Query OK, 1 row(s) in set (0.002136s)
 
 TDengine 仅容许对属于同一个超级表的表之间进行聚合查询，不同超级表之间的聚合查询不支持。在 [TAOS SQL 的数据查询](/taos-sql/select) 一章，查询类操作都会注明是否支持超级表。
 
-### 降采样查询、插值
+## 降采样查询、插值
 
 物联网场景里，经常需要通过降采样（down sampling）将采集的数据按时间段进行聚合。TDengine 提供了一个简便的关键词 interval 让按照时间窗口的查询操作变得极为简单。比如，将智能电表 d1001 采集的电流值每 10 秒钟求和
 
@@ -169,13 +169,10 @@ Query OK, 5 row(s) in set (0.001521s)
   <TabItem label="Python" value="python">
     <PyAsync />
   </TabItem>
-  <TabItem label="Node.js" value="nodejs">
-    <NodeAsync />
-  </TabItem>
   <TabItem label="C#" value="csharp">
     <CsAsync />
   </TabItem>
-  {/* <TabItem label="C" value="c">
+  <TabItem label="C" value="c">
     <CAsync />
-  </TabItem> */}
+  </TabItem>
 </Tabs>

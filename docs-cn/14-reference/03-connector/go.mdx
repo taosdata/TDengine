@@ -2,7 +2,7 @@
 toc_max_heading_level: 4
 sidebar_position: 4
 sidebar_label: Go
-title: Go Connector
+title: TDengine Go Connector
 ---
 
 import Tabs from '@theme/Tabs';
@@ -15,9 +15,9 @@ import GoOpenTSDBTelnet from "../../04-develop/03-insert-data/_go_opts_telnet.md
 import GoOpenTSDBJson from "../../04-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
 
-`driver-go` 实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。`driver-go` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
+`driver-go` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 运行实例。REST 连接实现的功能特性集合和原生连接有少量不同。
 
 本文介绍如何安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
 
@@ -25,7 +25,8 @@ import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
 ## 支持的平台
 
-请参考[支持的平台列表](/reference/connector#支持的平台)
+原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+REST 连接支持所有能运行 Go 的平台。
 
 ## 版本支持
 
@@ -35,7 +36,7 @@ import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
 ### 原生连接
 
-“原生连接”指连接器通过客户端驱动（taosc）直接与 TDengine 集群建立连接。支持的功能特性有：
+“原生连接”指连接器通过 TDengine 客户端驱动（taosc）直接与 TDengine 运行实例建立的连接。支持的功能特性有：
 
 * 普通查询
 * 连续查询
@@ -45,7 +46,7 @@ import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
 ### REST 连接
 
-REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接。支持的功能特性有：
+"REST 连接"指连接器通过 taosAdapter 组件提供的 REST API 与 TDengine 运行实例建立的连接。支持的功能特性有：
 
 * 普通查询
 * 连续查询
@@ -55,7 +56,7 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 ### 安装前准备
 
 * 安装 Go 开发环境（Go 1.14 及以上，GCC 4.8.5 及以上）
-<Preparition />
+* 如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
 
 配置好环境变量，检查命令：
 
@@ -65,6 +66,36 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 ### 使用 go get 安装
 
 `go get -u github.com/taosdata/driver-go/v2@develop`
+
+### 使用 go mod 管理
+
+1. 使用 `go mod` 命令初始化项目：
+
+  ```text
+  go mod init taos-demo
+  ```
+
+2. 引入 taosSql ：
+
+  ```go
+  import (
+    "database/sql"
+    _ "github.com/taosdata/driver-go/v2/taosSql"
+  )
+  ```
+
+3. 使用 `go mod tidy` 更新依赖包：
+
+  ```text
+  go mod tidy
+  ```
+
+4. 使用 `go run taos-demo` 运行程序或使用 `go build` 命令编译出二进制文件。
+
+  ```text
+  go run taos-demo
+  go build
+  ```
 
 ## 建立连接
 
@@ -81,9 +112,10 @@ REST 连接指连接器通过 taosAdapter 组件提供的 REST API 建立与 tao
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
+### 使用连接器进行连接
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="建立原生连接">
+<TabItem value="native" label="原生连接">
 
 _taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用 [`database/sql`](https://golang.org/pkg/database/sql/) 的接口。
 
@@ -114,7 +146,7 @@ func main() {
 ```
 
 </TabItem>
-<TabItem value="rest" label="建立 REST 连接">
+<TabItem value="rest" label="REST 连接">
 
 _taosRestful_ 通过 `http client` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
 
@@ -234,37 +266,37 @@ func main() {
 
 ## 常见问题
 
-* 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
+1. 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
 
-将 `go.mod` 中 require 块对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
+  将 `go.mod` 中 require 块对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
 
-* database/sql 中 stmt 相关接口崩溃
+2. database/sql 中 stmt（参数绑定）相关接口崩溃
 
-REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
+  REST 不支持参数绑定相关接口，建议使用`db.Exec`和`db.Query`。
 
-* 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
+3. 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
 
-在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+  在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
-* 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
+4. 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
 
-因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+  因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
 
-* 升级 `github.com/taosdata/driver-go/v2/taosRestful`
+5. 升级 `github.com/taosdata/driver-go/v2/taosRestful`
 
-将 `go.mod` 文件中对 `github.com/taosdata/driver-go/v2` 的引用改为 `github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
+  将 `go.mod` 文件中对 `github.com/taosdata/driver-go/v2` 的引用改为 `github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
 
-* `readBufferSize` 参数调大后无明显效果
+6. `readBufferSize` 参数调大后无明显效果
 
-`readBufferSize` 调大后会减少获取结果时 `syscall` 的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析 JSON 数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
+  `readBufferSize` 调大后会减少获取结果时 `syscall` 的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析 JSON 数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
 
-* `disableCompression` 参数设置为 `false` 时查询效率降低
+7. `disableCompression` 参数设置为 `false` 时查询效率降低
 
-当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
+  当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
 
-* `go get` 命令无法获取包，或者获取包超时
+8. `go get` 命令无法获取包，或者获取包超时
 
-设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
+  设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
 
 ## 常用 API
 
@@ -272,103 +304,107 @@ REST 不支持 stmt 相关接口，建议使用`db.Exec`和`db.Query`。
 
 * `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
 
-该 API 用来打开 DB，返回一个类型为 \*DB 的对象。
+  该 API 用来打开 DB，返回一个类型为 \*DB 的对象。
 
-**注意**： 该 API 成功创建的时候，并没有做权限等检查，只有在真正执行 Query 或者 Exec 的时候才能真正的去创建连接，并同时检查 user/password/host/port 是不是合法。
+:::info
+该 API 成功创建的时候，并没有做权限等检查，只有在真正执行 Query 或者 Exec 的时候才能真正的去创建连接，并同时检查 user/password/host/port 是不是合法。
+:::
 
 * `func (db *DB) Exec(query string, args ...interface{}) (Result, error)`
 
-`sql.Open` 内置的方法，用来执行非查询相关 SQL。
+  `sql.Open` 内置的方法，用来执行非查询相关 SQL。
 
 * `func (db *DB) Query(query string, args ...interface{}) (*Rows, error)`
 
-`sql.Open` 内置的方法，用来执行查询语句。
+  `sql.Open` 内置的方法，用来执行查询语句。
 
-### 高级功能 API
+### 高级功能（af）API
 
-af 包封装了订阅、stmt 等 TDengine 高级功能。
+`af` 包封装了连接管理、订阅、schemaless、参数绑定等 TDengine 高级功能。
+
+#### 连接管理
 
 * `af.Open(host, user, pass, db string, port int) (*Connector, error)`
 
-该 API 通过 cgo 创建与 taosd 的连接。
+  该 API 通过 cgo 创建与 taosd 的连接。
 
 * `func (conn *Connector) Close() error`
 
-关闭与 taosd 的连接。
+  关闭与 taosd 的连接。
 
-* `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
-
-stmt 单行插入。
-
-* `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
-
-stmt 查询，返回 `database/sql/driver` 包的 `Rows` 结构。
-
-订阅
+#### 订阅
 
 * `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
 
-订阅数据。
+  订阅数据。
 
 * `func (s *taosSubscriber) Consume() (driver.Rows, error)`
 
-消费订阅数据，返回 `database/sql/driver` 包的 `Rows` 结构。
+  消费订阅数据，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 * `func (s *taosSubscriber) Unsubscribe(keepProgress bool)`
 
-取消订阅数据。
+  取消订阅数据。
 
-schemaless 写入
+#### schemaless
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
-写入 influxDB 行协议。
+  写入 influxDB 行协议。
 
 * `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
 
-写入 OpenTDSB telnet 协议。
+  写入 OpenTDSB telnet 协议数据。
 
 * `func (conn *Connector) OpenTSDBInsertJsonPayload(payload string) error`
 
-写入 OpenTSDB json 协议。
+  写入 OpenTSDB JSON 协议数据。
 
-批量 stmt 插入
+#### 参数绑定
+
+* `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
+
+  参数绑定单行插入。
+
+* `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
+
+  参数绑定查询，返回 `database/sql/driver` 包的 `Rows` 结构。
 
 * `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
 
-初始化 stmt。
+  初始化参数。
 
 * `func (stmt *InsertStmt) Prepare(sql string) error`
 
-预处理 SQL 语句。
+  参数绑定预处理 SQL 语句。
 
 * `func (stmt *InsertStmt) SetTableName(name string) error`
 
-设置表名。
+  参数绑定设置表名。
 
 * `func (stmt *InsertStmt) SetSubTableName(name string) error`
 
-设置子表名。
+  参数绑定设置子表名。
 
 * `func (stmt *InsertStmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
 
-绑定多行数据。
+  参数绑定多行数据。
 
 * `func (stmt *InsertStmt) AddBatch() error`
 
-添加到批处理。
+  添加到参数绑定批处理。
 
 * `func (stmt *InsertStmt) Execute() error`
 
-执行 stmt。
+  执行参数绑定。
 
 * `func (stmt *InsertStmt) GetAffectedRows() int`
 
-获取受影响行数。
+  获取参数绑定插入受影响行数。
 
 * `func (stmt *InsertStmt) Close() error`
 
-结束 stmt。
+  结束参数绑定。
 
 ## API 参考
 

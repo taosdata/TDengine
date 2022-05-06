@@ -18,7 +18,7 @@ import CSAsyncQuery from "../../04-develop/04-query-data/_cs_async.mdx"
 
 `TDengine.Connector` 是 TDengine 提供的 C# 语言连接器。C# 开发人员可以通过它开发存取 TDengine 集群数据的 C# 应用软件。
 
-`TDengine.Connector` 连接器支持通过客户端驱动（taosc）建立本地连接 TDengine 集群，进行数据写入、查询、订阅、schemaless 数据写入、参数绑定接口数据写入等功能。`TDengine.Connector` 目前暂未提供 REST 连接方式，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
+`TDengine.Connector` 连接器支持通过 TDengine 客户端驱动（taosc）建立与 TDengine 运行实例的连接，提供数据写入、查询、订阅、schemaless 数据写入、参数绑定接口数据写入等功能 `TDengine.Connector` 目前暂未提供 REST 连接方式，用户可以参考 [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) 文档自行编写。
 
 本文介绍如何在 Linux 或 Windows 环境中安装 `TDengine.Connector`，并通过 `TDengine.Connector` 连接 TDengine 集群，进行数据写入、查询等基本操作。
 
@@ -26,7 +26,7 @@ import CSAsyncQuery from "../../04-develop/04-query-data/_cs_async.mdx"
 
 ## 支持的平台
 
-请参考[支持的平台列表](/reference/connector#支持的平台)
+支持的平台和 TDengine 客户端驱动支持的平台一致。
 
 ## 版本支持
 
@@ -46,9 +46,8 @@ import CSAsyncQuery from "../../04-develop/04-query-data/_cs_async.mdx"
 ### 安装前准备
 
 * 安装 [.NET SDK](https://dotnet.microsoft.com/download)
- - （可选安装）[Nuget 客户端](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools)
-
-<Preparition />
+* [Nuget 客户端](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) （可选安装）
+* 安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
 
 ### 使用 dotnet CLI 安装
 
@@ -160,11 +159,11 @@ namespace TDengineExample
 
 | TDengine.Connector | 说明                           |
 |--------------------|--------------------------------|
-|        1.0.2       | 新增连接管理、同步查询、错误信息等功能。   |
-|        1.0.3       | 新增参数绑定、schemaless、 json tag等功能。 |
-|        1.0.4       | 新增异步查询，订阅等功能。修复绑定参数 bug。    |
-|        1.0.5       | 修复 Windows 同步查询中文报错 bug。   |
 |        1.0.6       | 修复 schemaless 在 1.0.4 和 1.0.5 中失效 bug。 |
+|        1.0.5       | 修复 Windows 同步查询中文报错 bug。   |
+|        1.0.4       | 新增异步查询，订阅等功能。修复绑定参数 bug。    |
+|        1.0.3       | 新增参数绑定、schemaless、 json tag等功能。 |
+|        1.0.2       | 新增连接管理、同步查询、错误信息等功能。   |
 
 ## 其他说明
 
@@ -177,13 +176,13 @@ namespace TDengineExample
 
 ## 常见问题
 
-* "Unable to establish connection"，"Unable to resolve FQDN"
+1. "Unable to establish connection"，"Unable to resolve FQDN"
 
-一般是因为 FQDN 配置不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html)解决。
+  一般是因为 FQDN 配置不正确。可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html)解决。
 
-* Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: 找不到指定的模块。
+2. Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: 找不到指定的模块。
 
-一般是因为程序没有找到依赖的客户端驱动。解决方法为：Windows 下可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\Windows\System32\ ` 目录下，Linux 下建立如下软链接 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
+  一般是因为程序没有找到依赖的客户端驱动。解决方法为：Windows 下可以将 `C:\TDengine\driver\taos.dll` 拷贝到 `C:\Windows\System32\ ` 目录下，Linux 下建立如下软链接 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
 
 ## API 参考
 

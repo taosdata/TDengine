@@ -1073,7 +1073,7 @@ static bool isTopBottomUniqueQuery(SQueryInfo* pQueryInfo) {
   for (int32_t i = 0; i < size; ++i) {
     int32_t functionId = tscExprGet(pQueryInfo, i)->base.functionId;
 
-    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM
+    if (functionId == TSDB_FUNC_TOP || functionId == TSDB_FUNC_BOTTOM || functionId == TSDB_FUNC_SAMPLE
         || functionId == TSDB_FUNC_UNIQUE || functionId == TSDB_FUNC_TAIL) {
       return true;
     }
@@ -1286,6 +1286,17 @@ static int32_t validateStateWindowNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SS
     return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
   }
 
+  size_t size = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < size; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    assert(pExpr != NULL);
+
+    int32_t functionId = pExpr->base.functionId;
+    if (functionId == TSDB_FUNC_CSUM || functionId == TSDB_FUNC_MAVG) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg6);
+    }
+  }
+  
   tscColumnListInsert(pQueryInfo->colList, index.columnIndex, pTableMeta->id.uid, pSchema);
   SColIndex colIndex = { .colIndex = index.columnIndex, .flag = TSDB_COL_NORMAL, .colId = pSchema->colId };
   taosArrayPush(pGroupExpr->columnInfo, &colIndex);
@@ -3362,13 +3373,7 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         tVariantDump(pVariant, val, TSDB_DATA_TYPE_BIGINT, true);
 
         if(functionId == TSDB_FUNC_UNIQUE){   // consider of memory size
-          if(pSchema->bytes < 10){
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 100;
-          }else if(pSchema->bytes < 100){
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS * 10;
-          }else{
-            GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
-          }
+          GET_INT64_VAL(val) = MAX_UNIQUE_RESULT_ROWS;
         }
 
         int64_t numRowsSelected = GET_INT64_VAL(val);
@@ -4269,7 +4274,9 @@ bool hasUnsupportFunctionsForSTableQuery(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) 
       invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       return true;
     }
-  } else if (tscIsSessionWindowQuery(pQueryInfo)) {
+  }
+  
+  if (tscIsSessionWindowQuery(pQueryInfo)) {
     invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg3);
     return true;
   }
@@ -7095,6 +7102,10 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
       return invalidOperationMsg(pMsgBuf, msg1);
     }
 
+    if (index.columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
+      return invalidOperationMsg(pMsgBuf, msg1);
+    }
+
     if (udf) {
       return invalidOperationMsg(pMsgBuf, msg11);
     }
@@ -7650,8 +7661,8 @@ int32_t validateFunctionsInIntervalOrGroupbyQuery(SSqlCmd* pCmd, SQueryInfo* pQu
     int32_t f = pExpr->base.functionId;
     if ((f == TSDB_FUNC_PRJ && pExpr->base.numOfParams == 0) ||
         f == TSDB_FUNC_DIFF || f == TSDB_FUNC_SCALAR_EXPR || f == TSDB_FUNC_DERIVATIVE ||
-        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG || f == TSDB_FUNC_STATE_COUNT ||
-        f == TSDB_FUNC_STATE_DURATION)
+        f == TSDB_FUNC_CSUM || f == TSDB_FUNC_MAVG ||
+        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)
     {
       isProjectionFunction = true;
       break;
@@ -8534,7 +8545,8 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
   const char* msg4 = "retrieve tags not compatible with group by or interval query";
   const char* msg5 = "functions can not be mixed up";
   const char* msg6 = "TWA/Diff/Derivative/Irate/CSum/MAvg/Elapsed/stateCount/stateDuration only support group by tbname";
-  const char* msg7 = "unique/state function does not supportted in state window query";
+  const char* msg7 = "unique/state function not supported in state window query";
+  const char* msg8 = "histogram function not supported in time window query";
 
   // only retrieve tags, group by is not supportted
   if (tscQueryTags(pQueryInfo)) {
@@ -8548,8 +8560,17 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
       return TSDB_CODE_SUCCESS;
     }
   }
+
   if (tscIsProjectionQuery(pQueryInfo) && tscIsSessionWindowQuery(pQueryInfo)) {
     return invalidOperationMsg(msg, msg3);
+  }
+
+  size_t numOfExprs = tscNumOfExprs(pQueryInfo);
+  for (int32_t i = 0; i < numOfExprs; ++i) {
+    SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
+    if ((isTimeWindowQuery(pQueryInfo) || pQueryInfo->stateWindow) && pExpr->base.functionId == TSDB_FUNC_HISTOGRAM) {
+      return invalidOperationMsg(msg, msg8);
+    }
   }
 
   if (pQueryInfo->groupbyExpr.numOfGroupCols > 0) {
@@ -8595,7 +8616,7 @@ int32_t doFunctionsCompatibleCheck(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, char* 
         }
       }
 
-      if (pQueryInfo->stateWindow && (f == TSDB_FUNC_UNIQUE || f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)){
+      if (pQueryInfo->stateWindow && (f == TSDB_FUNC_UNIQUE || f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION)) {
         return invalidOperationMsg(msg, msg7);
       }
 
@@ -8641,8 +8662,13 @@ int32_t validateFunctionFromUpstream(SQueryInfo* pQueryInfo, char* msg) {
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
   
     int32_t f = pExpr->base.functionId;
-    if (f == TSDB_FUNC_DERIVATIVE || f == TSDB_FUNC_TWA || f == TSDB_FUNC_IRATE || f == TSDB_FUNC_DIFF || f == TSDB_FUNC_ELAPSED ||
-        f == TSDB_FUNC_STATE_COUNT || f == TSDB_FUNC_STATE_DURATION) {
+    if (f == TSDB_FUNC_DERIVATIVE ||
+        f == TSDB_FUNC_TWA ||
+        f == TSDB_FUNC_IRATE ||
+        f == TSDB_FUNC_DIFF ||
+        f == TSDB_FUNC_ELAPSED ||
+        f == TSDB_FUNC_STATE_COUNT ||
+        f == TSDB_FUNC_STATE_DURATION) {
       for (int32_t j = 0; j < upNum; ++j) {
         SQueryInfo* pUp = taosArrayGetP(pQueryInfo->pUpstream, j);
         STableMetaInfo  *pTableMetaInfo = tscGetMetaInfo(pUp, 0);

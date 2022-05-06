@@ -2,29 +2,30 @@
 toc_max_heading_level: 4
 sidebar_position: 6
 sidebar_label: Node.js
-title: Node.js Connector
+title: TDengine Node.js Connector
 ---
 
-import Tabs from '@theme/Tabs';
-import TabItem from '@theme/TabItem';
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
 
-import Preparition from "./_preparition.mdx"
-import NodeInsert from "../../04-develop/03-insert-data/_js_sql.mdx"
-import NodeInfluxLine from "../../04-develop/03-insert-data/_js_line.mdx"
-import NodeOpenTSDBTelnet from "../../04-develop/03-insert-data/_js_opts_telnet.mdx"
-import NodeOpenTSDBJson from "../../04-develop/03-insert-data/_js_opts_json.mdx"
-import NodeQuery from "../../04-develop/04-query-data/_js.mdx"
-import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
+import Preparition from "./_preparition.mdx";
+import NodeInsert from "../../04-develop/03-insert-data/_js_sql.mdx";
+import NodeInfluxLine from "../../04-develop/03-insert-data/_js_line.mdx";
+import NodeOpenTSDBTelnet from "../../04-develop/03-insert-data/_js_opts_telnet.mdx";
+import NodeOpenTSDBJson from "../../04-develop/03-insert-data/_js_opts_json.mdx";
+import NodeQuery from "../../04-develop/04-query-data/_js.mdx";
+import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx";
 
-`td2.0-connector` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。
+`td2.0-connector` 和 `td2.0-rest-connector` 是 TDengine 的官方 Node.js 语言连接器。Node.js 开发人员可以通过它开发可以存取 TDengine 集群数据的应用软件。
 
-`td2.0-connector` 支持通过客户端驱动程序（taosc）原生连接 TDengine 集群，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。也支持使用 REST 接口连接 TDengine 集群。REST 接口实现的功能特性集合和原生接口有少量不同。
+`td2.0-connector` 是**原生连接器**，它通过 TDengine 客户端驱动程序（taosc）连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。`td2.0-rest-connector` 是 **REST 连接器**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 的运行实例。REST 连接器可以在任何平台运行，但性能略为下降，接口实现的功能特性集合和原生接口有少量不同。
 
-`td2.0-connector` 的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node)。
+Node.js 连接器源码托管在 [GitHub](https://github.com/taosdata/taos-connector-node)。
 
 ## 支持的平台
 
-请参考[支持的平台列表](/reference/connector#支持的平台)
+原生连接器支持的平台和 TDengine 客户端驱动支持的平台一致。
+REST 连接器支持所有能运行 Node.js 的平台。
 
 ## 版本支持
 
@@ -32,11 +33,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 
 ## 支持的功能特性
 
-### 原生连接
-
-“原生连接”指连接器通过客户端驱动程序 taosc 直接与 TDengine 集群建立连接
-
-原生连接支持的功能特性如下：
+### 原生连接器
 
 1. 连接管理
 2. 普通查询
@@ -45,7 +42,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 5. 订阅功能
 6. Schemaless
 
-### REST 连接
+### REST 连接器
 
 1. 连接管理
 2. 普通查询
@@ -55,11 +52,8 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 
 ### 安装前准备
 
-* 安装 Node.js 开发环境
-<Preparition />
-
-- 应用驱动安装请参考[安装连接器驱动步骤](/reference/connector/#安装客户端驱动)。
-我们使用 [node-gyp](https://github.com/nodejs/node-gyp) 和 TDengine 集群进行交互。安装 Node.js 连接器之前，还需要根据具体操作系统来安装下文提到的一些依赖工具。如果要安装的是 REST 连接器则可以跳过以下步骤，直接只用 npm 安装。
+- 安装 Node.js 开发环境
+- 如果使用 REST 连接器，跳过此步。但如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)。我们使用 [node-gyp](https://github.com/nodejs/node-gyp) 和 TDengine 实例进行交互，还需要根据具体操作系统来安装下文提到的一些依赖工具。
 
 <Tabs defaultValue="Linux">
 <TabItem value="Linux" label="Linux 系统安装依赖工具">
@@ -87,6 +81,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 参考微软的 Node.js 用户手册[ Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules)。
 
 如果在 Windows 10 ARM 上使用 ARM64 Node.js，还需添加 "Visual C++ compilers and libraries for ARM64" 和 "Visual C++ ATL for ARM64"。
+
 </TabItem>
 </Tabs>
 
@@ -95,7 +90,7 @@ import NodeAsyncQuery from "../../04-develop/04-query-data/_js_async.mdx"
 <Tabs defaultValue="install_native">
 <TabItem value="install_native" label="安装原生连接器">
 
-``` bash
+```bash
 npm install td2.0-connector
 ```
 
@@ -105,6 +100,7 @@ npm install td2.0-connector
 ```bash
 npm i td2.0-rest-connector
 ```
+
 </TabItem>
 </Tabs>
 
@@ -128,6 +124,8 @@ node nodejsChecker.js host=localhost
 
 ## 建立连接
 
+请选择使用一种连接器。
+
 <Tabs defaultValue="native">
 <TabItem value="native" label="原生连接">
 
@@ -135,8 +133,14 @@ node nodejsChecker.js host=localhost
 
 ```javascript
 //A cursor also needs to be initialized in order to interact with TDengine from Node.js.
-const taos = require('td2.0-connector');
-var conn = taos.connect({host:"127.0.0.1", user:"root", password:"taosdata", config:"/etc/taos",port:0})
+const taos = require("td2.0-connector");
+var conn = taos.connect({
+  host: "127.0.0.1",
+  user: "root",
+  password: "taosdata",
+  config: "/etc/taos",
+  port: 0,
+});
 var cursor = conn.cursor(); // Initializing a new cursor
 
 //Close a connection
@@ -148,18 +152,18 @@ conn.close();
 
 安装并引用 `td2.0-rest-connector` 包。
 
-``` javascript
+```javascript
 //A cursor also needs to be initialized in order to interact with TDengine from Node.js.
-import { options, connect } from 'td2.0-rest-connector'
-options.path='/rest/sqlt';
+import { options, connect } from "td2.0-rest-connector";
+options.path = "/rest/sqlt";
 // set host
-options.host='localhost';
+options.host = "localhost";
 // set other options like user/passwd
 
 let conn = connect(options);
 let cursor = conn.cursor();
-
 ```
+
 </TabItem>
 </Tabs>
 
@@ -193,24 +197,26 @@ let cursor = conn.cursor();
 
 <NodeAsyncQuery />
 
-### 更多示例程序                                                                                                                                      | 示例程序描述                         |
-|-----------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------|
-| [connection](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/cursorClose.js)                                  | 建立连接的示例。                     |
-| [stmtBindBatch](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindParamBatchSample.js)                  | 绑定多行参数插入的示例。             |
-| [stmtBind](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindParamSample.js)                            | 一行一行绑定参数插入的示例。         |
-| [stmtBindSingleParamBatch](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtBindSingleParamBatchSample.js) | 按列绑定参数插入的示例。             |
-| [stmtUseResult](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/stmtUseResultSample.js)                       | 绑定参数查询的示例。                 |
-| [json   tag](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/testJsonTag.js)                                  | Json tag 的使用示例。                |
-| [Nanosecond](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/testNanoseconds.js)                              | 时间戳为纳秒精度的使用的示例。       |
-| [Microsecond](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/testMicroseconds.js)                            | 时间戳为微秒精度的使用的示例。       |
-| [schemless   insert](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/testSchemalessInsert.js)                 | schemless 插入的示例。               |
-| [subscribe](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/testSubscribe.js)                                 | 订阅的使用示例。                     |
-| [asyncQuery](https://github.com/taosdata/TDengine/blob/develop/src/connector/nodejs/examples/tset.js)                                         | 异步查询的使用示例。                 |
-| [REST](https://github.com/taosdata/TDengine/tree/develop/src/connector/TypeScript-REST/example)                                               | 使用 REST 连接的 TypeScript 使用示例。|
+## 更多示例程序
+
+| 示例程序                                                                                                                                   | 示例程序描述                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------ | -------------------------------------- |
+| [connection](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/cursorClose.js)                                  | 建立连接的示例。                       |
+| [stmtBindBatch](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtBindParamBatchSample.js)                  | 绑定多行参数插入的示例。               |
+| [stmtBind](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtBindParamSample.js)                            | 一行一行绑定参数插入的示例。           |
+| [stmtBindSingleParamBatch](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtBindSingleParamBatchSample.js) | 按列绑定参数插入的示例。               |
+| [stmtUseResult](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/stmtUseResultSample.js)                       | 绑定参数查询的示例。                   |
+| [json tag](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testJsonTag.js)                                    | Json tag 的使用示例。                  |
+| [Nanosecond](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testNanoseconds.js)                              | 时间戳为纳秒精度的使用的示例。         |
+| [Microsecond](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testMicroseconds.js)                            | 时间戳为微秒精度的使用的示例。         |
+| [schemless insert](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testSchemalessInsert.js)                   | schemless 插入的示例。                 |
+| [subscribe](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/testSubscribe.js)                                 | 订阅的使用示例。                       |
+| [asyncQuery](https://github.com/taosdata/taos-connector-node/tree/develop/nodejs/examples/tset.js)                                         | 异步查询的使用示例。                   |
+| [REST](https://github.com/taosdata/taos-connector-node/blob/develop/typescript-rest/example/example.ts)                                    | 使用 REST 连接的 TypeScript 使用示例。 |
 
 ## 使用限制
 
-Node.js 连接器 >= v2.0.6 目前支持 node 的版本为： 支持 >=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0 ；2.0.5 及更早版本支持 v10.x 版本，其他版本可能存在包兼容性的问题。
+Node.js 连接器 >= v2.0.6 目前支持 node 的版本为：支持 >=v12.8.0 <= v12.9.1 || >=v10.20.0 <= v10.9.0 ；2.0.5 及更早版本支持 v10.x 版本，其他版本可能存在包兼容性的问题。
 
 ## 其他说明
 
@@ -220,29 +226,33 @@ Node.js 连接器的使用参见[视频教程](https://www.taosdata.com/blog/202
 
 1. 使用 REST 连接需要启动 taosadapter。
 
-   ``` bash
+   ```bash
    sudo systemctl start taosadapter
    ```
 
-2. 连接器 >v2.0.6 目前兼容的 Node.js 为：>=v10.20.0 <= v10.9.0 || >=v12.8.0 <= v12.9.1
+2. Node.js 版本
 
-3. "Unable to establish connection"，"Unable to resolve FQDN"， 一般都是应为为配置 FQDN 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
+  连接器 >v2.0.6 目前兼容的 Node.js 版本为：>=v10.20.0 <= v10.9.0 || >=v12.8.0 <= v12.9.1
+
+3. "Unable to establish connection"，"Unable to resolve FQDN"
+
+  一般都是因为配置 FQDN 不正确。 可以参考[如何彻底搞懂 TDengine 的 FQDN](https://www.taosdata.com/blog/2021/07/29/2741.html) 。
 
 ## 重要更新记录
 
-### 原生接口连接器
+### 原生连接器
 
-| td2.0-connector    版本 | 说明                                                           |
-|--------------------|---------------------------------------------------------------------|
-| 2.0.10             | 支持连接管理，同步查询、异步查询、获取系统信息、错误信息、订阅功能。|
-| 2.0.11             | 支持绑定参数、json tag、schemaless insert。                         |
-| 2.0.12             | 修复 cursor.close() 报错的问题。                                    |
+| td2.0-connector 版本 | 说明                                                             |
+| -------------------- | ---------------------------------------------------------------- |
+| 2.0.12               | 修复 cursor.close() 报错的 bug。                                 |
+| 2.0.11               | 支持绑定参数、json tag、schemaless 接口等功能。                  |
+| 2.0.10               | 支持连接管理，普通查询、连续查询、获取系统信息、订阅功能等功能。 |
 
-### REST 接口连接器
+### REST 连接器
 
-| td2.0-rest-connector 版本 | 说明                                                         |
-|--------------------|---------------------------------------------------------------------|
-| 1.0.3              | 支持连接管理、同步查询、获取系统信息、错误信息、schemeless。        |
+| td2.0-rest-connector 版本 | 说明                                                             |
+| ------------------------- | ---------------------------------------------------------------- |
+| 1.0.3                     | 支持连接管理、普通查询、获取系统信息、错误信息、连续查询等功能。 |
 
 ## API 参考
 

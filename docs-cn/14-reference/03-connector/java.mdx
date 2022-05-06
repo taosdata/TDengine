@@ -18,7 +18,7 @@ import TabItem from '@theme/TabItem';
 - JDBC 原生连接：Java 应用在物理节点 1（pnode1）上使用 TSDBDriver 直接调用客户端驱动（libtaos.so 或 taos.dll）的 API 将写入和查询请求发送到位于物理节点 2（pnode2）上的 taosd 实例。
 - JDBC REST 连接：Java 应用通过 RestfulDriver 将 SQL 封装成一个 REST 请求，发送给物理节点 2 的 REST 服务器（taosAdapter），通过 REST 服务器请求 taosd 并返回结果。
 
-使用 REST 连接器，不依赖 TDengine 客户端驱动，可以跨平台，更加方便灵活，但性能比原生连接器低约 30%。
+使用 REST 连接，不依赖 TDengine 客户端驱动，可以跨平台，更加方便灵活，但性能比原生连接器低约 30%。
 
 :::info
 TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致，但 TDengine 与关系对象型数据库的使用场景和技术特征存在差异，所以`taos-jdbcdriver` 与传统的 JDBC driver 也存在一定差异。在使用时需要注意以下几点：
@@ -30,7 +30,8 @@ TDengine 的 JDBC 驱动实现尽可能与关系型数据库驱动保持一致�
 
 ## 支持的平台
 
-请参考[支持的平台列表](/reference/connector#支持的平台)
+原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
+REST 连接支持所有能运行 Java 的平台。
 
 ## 版本支持
 
@@ -107,10 +108,10 @@ mvn clean install -Dmaven.test.skip=true
 TDengine 的 JDBC URL 规范格式为：
 `jdbc:[TAOS|TAOS-RS]://[host_name]:[port]/[database_name]?[user={user}|&password={password}|&charset={charset}|&cfgdir={config_dir}|&locale={locale}|&timezone={timezone}]`
 
-对于建立连接，原生连接器与 REST 连接器有细微不同。
+对于建立连接，原生连接与 REST 连接有细微不同。
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="原生连接器">
+<TabItem value="native" label="原生连接">
 
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -177,7 +178,7 @@ TDengine 中，只要保证 firstEp 和 secondEp 中一个节点有效，就可�
 > **注意**：这里的配置文件指的是调用 JDBC Connector 的应用程序所在机器上的配置文件，Linux OS 上默认值 /etc/taos/taos.cfg ，Windows OS 上默认值 C://TDengine/cfg/taos.cfg。
 
 </TabItem>
-<TabItem value="rest" label="REST 连接器">
+<TabItem value="rest" label="REST 连接">
 
 ```java
 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
@@ -807,24 +808,31 @@ Query OK, 1 row(s) in set (0.000141s)
 
 | taos-jdbcdriver 版本 |            主要变化            |
 | :------------------: | :----------------------------: |
-|        2.0.36        |   增加对 schemaless 写入支持   |
-|        2.0.37        |      增加对 json tag 支持      |
 |        2.0.38        | JDBC REST 连接增加批量拉取功能 |
+|        2.0.37        |      增加对 json tag 支持      |
+|        2.0.36        |   增加对 schemaless 写入支持   |
 
 ## 常见问题
 
-- 使用 Statement 的 `addBatch` 和 `executeBatch` 来执行“批量写入/更行”，为什么没有带来性能上的提升？
+1. 使用 Statement 的 `addBatch` 和 `executeBatch` 来执行“批量写入/更行”，为什么没有带来性能上的提升？
+
   **原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
+
   **解决方法**：1. 在一条 insert 语句中拼接多个 values 值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
-- java.lang.UnsatisfiedLinkError: no taos in java.library.path
+
+2. java.lang.UnsatisfiedLinkError: no taos in java.library.path
+
   **原因**：程序没有找到依赖的本地函数库 taos。
+
   **解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
 
-- java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
+3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
+
   **原因**：目前 TDengine 只支持 64 位 JDK。
+
   **解决方法**：重新安装 64 位 JDK。
 
-- 其它问题请参考 [FAQ](/train-faq/faq)
+4. 其它问题请参考 [FAQ](/train-faq/faq)
 
 ## API 参考
 

@@ -1528,6 +1528,11 @@ void handleDownstreamOperator(SSqlObj** pSqlObjList, int32_t numOfUpstream, SQue
 
     tscDebug("0x%"PRIx64" create QInfo 0x%"PRIx64" to execute the main query while all nest queries are ready", pSql->self, pSql->self);
     px->pQInfo = createQInfoFromQueryNode(px, &tableGroupInfo, pSourceOperator, NULL, NULL, MASTER_SCAN, pSql->self);
+    if (px->pQInfo == NULL) {
+      tscAsyncResultOnError(pSql);
+      pOutput->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      return;
+    }
 
     px->pQInfo->runtimeEnv.udfIsCopy = true;
     px->pQInfo->runtimeEnv.pUdfInfo = pUdfInfo;
@@ -2696,8 +2701,11 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr == NULL)
       continue;
-    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
-        || pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_TAIL) {
+    if (pExpr->base.functionId == TSDB_FUNC_TOP 
+      || pExpr->base.functionId == TSDB_FUNC_BOTTOM 
+      || pExpr->base.functionId == TSDB_FUNC_SAMPLE 
+      || pExpr->base.functionId == TSDB_FUNC_UNIQUE 
+      || pExpr->base.functionId == TSDB_FUNC_TAIL) {
       return i;
     }
   }

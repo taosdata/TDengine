@@ -2,6 +2,7 @@
 title: taosBenchmark
 sidebar_label: taosBenchmark
 toc_max_heading_level: 4
+description: "taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具"
 ---
 
 ## 简介
@@ -337,6 +338,8 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 #### 插入行为配置参数
 
 - **thread_count** : 插入数据的线程数量，默认为 8。
+
+- **create_table_thread_count** : 建表的线程数量，默认为 8。
 
 - **connection_pool_size** : 预先建立的与 TDengine 服务端之间的连接的数量。若不配置，则与所指定的线程数相同。
 
