@@ -606,16 +606,16 @@ static bool tfileIteratorNext(Iterate* iiter) {
 static IterateValue* tifileIterateGetValue(Iterate* iter) { return &iter->val; }
 
 static TFileFstIter* tfileFstIteratorCreate(TFileReader* reader) {
-  TFileFstIter* tIter = taosMemoryCalloc(1, sizeof(TFileFstIter));
-  if (tIter == NULL) {
+  TFileFstIter* iter = taosMemoryCalloc(1, sizeof(TFileFstIter));
+  if (iter == NULL) {
     return NULL;
   }
 
-  tIter->ctx = automCtxCreate(NULL, AUTOMATION_ALWAYS);
-  tIter->fb = fstSearch(reader->fst, tIter->ctx);
-  tIter->st = streamBuilderIntoStream(tIter->fb);
-  tIter->rdr = reader;
-  return tIter;
+  iter->ctx = automCtxCreate(NULL, AUTOMATION_ALWAYS);
+  iter->fb = fstSearch(reader->fst, iter->ctx);
+  iter->st = streamBuilderIntoStream(iter->fb);
+  iter->rdr = reader;
+  return iter;
 }
 
 Iterate* tfileIteratorCreate(TFileReader* reader) {

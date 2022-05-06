@@ -31,6 +31,7 @@ extern "C" {
 typedef struct MemTable {
   T_REF_DECLARE()
   SSkipList* mem;
+  void*      pCache;
 } MemTable;
 typedef struct IndexCache {
   T_REF_DECLARE()
