@@ -185,7 +185,7 @@ typedef struct SCtgRemoveTblMsg {
 typedef struct SCtgUpdateUserMsg {
   SCatalog* pCtg;
   SGetUserAuthRsp userAuth;
-} SCtgUpdateTblMsg;
+} SCtgUpdateUserMsg;
 
 
 typedef struct SCtgMetaAction {
