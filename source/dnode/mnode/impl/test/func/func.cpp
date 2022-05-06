@@ -24,6 +24,7 @@ class MndTestFunc : public ::testing::Test {
 
   void SetCode(SCreateFuncReq* pReq, const char* pCode, int32_t size);
   void SetComment(SCreateFuncReq* pReq, const char* pComment);
+  void SetBufSize(SCreateFuncReq* pReq, int32_t size);
 };
 
 Testbase MndTestFunc::test;
@@ -38,6 +39,10 @@ void MndTestFunc::SetComment(SCreateFuncReq* pReq, const char* pComment) {
   int32_t len = strlen(pComment);
   pReq->pComment = (char*)taosMemoryCalloc(1, len + 1);
   strcpy(pReq->pComment, pComment);
+}
+
+void MndTestFunc::SetBufSize(SCreateFuncReq* pReq, int32_t size) {
+  pReq->bufSize = size;
 }
 
 TEST_F(MndTestFunc, 01_Show_Func) {
@@ -96,6 +101,7 @@ TEST_F(MndTestFunc, 02_Create_Func) {
     strcpy(createReq.name, "f1");
     SetCode(&createReq, "code1", 6);
     SetComment(&createReq, "comment1");
+    SetBufSize(&createReq, -1);
 
     int32_t contLen = tSerializeSCreateFuncReq(NULL, 0, &createReq);
     void*   pReq = rpcMallocCont(contLen);

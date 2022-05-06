@@ -44,7 +44,7 @@ int wordexp(char *words, wordexp_t *pwordexp, int flags) {
     return -1;
   }
 
-  printf("parse relative path:%s to abs path:%s\n", words, pwordexp->wordPos);
+  // printf("parse relative path:%s to abs path:%s\n", words, pwordexp->wordPos);
   return 0;
 }
 
