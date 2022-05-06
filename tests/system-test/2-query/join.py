@@ -72,11 +72,11 @@ class TDTestCase:
         if col in NUM_COL:
             return f" abs( {tbname}.{col} ) >= 0"
         elif col in CHAR_COL:
-            return f" lower( {tbname}.{col} ) is not null"
+            return f" lower( {tbname}.{col} ) like 'bina%' or lower( {tbname}.{col} ) like '_cha%' "
         elif col in BOOLEAN_COL:
             return f" {tbname}.{col} in (false, true)  "
         elif col in TS_TYPE_COL or col in PRIMARY_COL:
-            return f" abs( cast( {tbname}.{col} as bigint ) ) >= 0 "
+            return f" cast( {tbname}.{col} as binary(16) ) is not null "
         else:
             return ""
 
@@ -92,7 +92,11 @@ class TDTestCase:
             group_no_having= self.__group_condition(tbname=tblist[0], col=condition )
             groups = ["", group_having, group_no_having]
             for group_condition in groups:
-                sql = f"select {condition} from {tblist[0]},{tblist[1]} where {join_condition} and {where_condition} {group_condition}"
+                if where_condition:
+                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition} and {where_condition} {group_condition} "
+                else:
+                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition}  {group_condition} "
+
                 if not join_flag :
                     tdSql.error(sql=sql)
                     return
