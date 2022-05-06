@@ -27,7 +27,7 @@ extern "C" {
 
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
 #define TD_SUPPORT_BITMAP
-#undef TD_SUPPORT_READ2
+#define TD_SUPPORT_READ2
 #define TD_SUPPORT_BACK2  // suppport back compatibility of 2.0
 
 #define TASSERT(x) ASSERT(x)
