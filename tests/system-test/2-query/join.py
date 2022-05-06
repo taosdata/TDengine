@@ -104,6 +104,8 @@ class TDTestCase:
                         self.__join_current(sql, checkrows)
                     elif where_condition or "not null" in group_condition:
                         self.__join_current(sql, checkrows + 2 )
+                    elif group_condition:
+                        self.__join_current(sql, checkrows + 3 )
                     else:
                         self.__join_current(sql, checkrows + 5 )
                 if len(tblist) > 2 or len(tblist) < 1:
