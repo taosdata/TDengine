@@ -104,6 +104,10 @@ typedef struct SCatalog {
 
 typedef struct SCtgApiStat {
 
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SCtgApiStat;
 
 typedef struct SCtgRuntimeStat {

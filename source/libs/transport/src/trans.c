@@ -38,7 +38,6 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   // register callback handle
   pRpc->cfp = pInit->cfp;
-  pRpc->afp = pInit->afp;
   pRpc->retry = pInit->rfp;
 
   if (pInit->connType == TAOS_CONN_SERVER) {
@@ -50,6 +49,10 @@ void* rpcOpen(const SRpcInit* pInit) {
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
   pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
+  if (pRpc->tcphandle == NULL) {
+    taosMemoryFree(pRpc);
+    return NULL;
+  }
   pRpc->parent = pInit->parent;
   if (pInit->user) {
     memcpy(pRpc->user, pInit->user, strlen(pInit->user));
@@ -98,37 +101,21 @@ void* rpcReallocCont(void* ptr, int contLen) {
 }
 
 void rpcSendRedirectRsp(void* thandle, const SEpSet* pEpSet) {
-  SRpcMsg rpcMsg;
-  memset(&rpcMsg, 0, sizeof(rpcMsg));
-
-  SMEpSet msg = {.epSet = *pEpSet};
-  int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
-  rpcMsg.pCont = rpcMallocCont(len);
-  tSerializeSMEpSet(rpcMsg.pCont, len, &msg);
-
-  rpcMsg.code = TSDB_CODE_RPC_REDIRECT;
-  rpcMsg.handle = thandle;
-
-  rpcSendResponse(&rpcMsg);
+  // deprecated api
+  assert(0);
 }
 
 int  rpcReportProgress(void* pConn, char* pCont, int contLen) { return -1; }
 void rpcCancelRequest(int64_t rid) { return; }
 
 void rpcSendRequest(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid) {
-  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
-  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
-  transSendRequest(shandle, ip, port, pMsg, NULL);
+  transSendRequest(shandle, pEpSet, pMsg, NULL);
 }
 void rpcSendRequestWithCtx(void* shandle, const SEpSet* pEpSet, SRpcMsg* pMsg, int64_t* pRid, SRpcCtx* pCtx) {
-  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
-  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
-  transSendRequest(shandle, ip, port, pMsg, pCtx);
+  transSendRequest(shandle, pEpSet, pMsg, pCtx);
 }
 void rpcSendRecv(void* shandle, SEpSet* pEpSet, SRpcMsg* pMsg, SRpcMsg* pRsp) {
-  char*    ip = (char*)(pEpSet->eps[pEpSet->inUse].fqdn);
-  uint32_t port = pEpSet->eps[pEpSet->inUse].port;
-  transSendRecv(shandle, ip, port, pMsg, pRsp);
+  transSendRecv(shandle, pEpSet, pMsg, pRsp);
 }
 
 void rpcSendResponse(const SRpcMsg* pMsg) { transSendResponse(pMsg); }

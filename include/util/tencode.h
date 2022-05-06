@@ -17,7 +17,8 @@
 #define _TD_UTIL_ENCODE_H_
 
 #include "tcoding.h"
-#include "tfreelist.h"
+#include "tlist.h"
+// #include "tfreelist.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -62,10 +63,14 @@ struct SCoderNode {
   CODER_NODE_FIELDS
 };
 
+typedef struct SCoderMem {
+  struct SCoderMem* next;
+} SCoderMem;
+
 typedef struct {
   td_coder_t  type;
   td_endian_t endian;
-  SFreeList   fl;
+  SCoderMem*  mList;
   CODER_NODE_FIELDS
   TD_SLIST(SCoderNode) stack;
 } SCoder;
@@ -74,7 +79,42 @@ typedef struct {
 #define TD_CODER_CURRENT(CODER)                        ((CODER)->data + (CODER)->pos)
 #define TD_CODER_MOVE_POS(CODER, MOVE)                 ((CODER)->pos += (MOVE))
 #define TD_CODER_CHECK_CAPACITY_FAILED(CODER, EXPSIZE) (((CODER)->size - (CODER)->pos) < (EXPSIZE))
-#define TCODER_MALLOC(PTR, TYPE, SIZE, CODER)          TFL_MALLOC(PTR, TYPE, SIZE, &((CODER)->fl))
+static FORCE_INLINE void* tCoderMalloc(SCoder* pCoder, int32_t size) {
+  void*      ptr = NULL;
+  SCoderMem* pMem = (SCoderMem*)taosMemoryMalloc(sizeof(SCoderMem*) + size);
+  if (pMem) {
+    pMem->next = pCoder->mList;
+    pCoder->mList = pMem;
+    ptr = (void*)&pMem[1];
+  }
+  return ptr;
+}
+
+#define tEncodeSize(E, S, SIZE, RET)                           \
+  do {                                                         \
+    SCoder coder = {0};                                        \
+    RET = 0;                                                   \
+    tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER); \
+    if ((E)(&coder, S) == 0) {                                 \
+      SIZE = coder.pos;                                        \
+    } else {                                                   \
+      RET = -1;                                                \
+    }                                                          \
+    tCoderClear(&coder);                                       \
+  } while (0)
+// #define tEncodeSize(E, S, SIZE)                                \
+//   ({                                                           \
+//     SCoder coder = {0};                                        \
+//     int    ret = 0;                                            \
+//     tCoderInit(&coder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER); \
+//     if ((E)(&coder, S) == 0) {                                 \
+//       SIZE = coder.pos;                                        \
+//     } else {                                                   \
+//       ret = -1;                                                \
+//     }                                                          \
+//     tCoderClear(&coder);                                       \
+//     ret;                                                       \
+//   })
 
 void tCoderInit(SCoder* pCoder, td_endian_t endian, uint8_t* data, int32_t size, td_coder_t type);
 void tCoderClear(SCoder* pCoder);
@@ -236,7 +276,8 @@ static FORCE_INLINE int32_t tEncodeFloat(SCoder* pEncoder, float val) {
   union {
     uint32_t ui;
     float    f;
-  } v = {.f = val};
+  } v;
+  v.f = val;
 
   return tEncodeU32(pEncoder, v.ui);
 }
@@ -245,7 +286,8 @@ static FORCE_INLINE int32_t tEncodeDouble(SCoder* pEncoder, double val) {
   union {
     uint64_t ui;
     double   d;
-  } v = {.d = val};
+  } v;
+  v.d = val;
 
   return tEncodeU64(pEncoder, v.ui);
 }
@@ -375,7 +417,9 @@ static FORCE_INLINE int32_t tDecodeBinary(SCoder* pDecoder, const void** val, ui
   if (tDecodeU64v(pDecoder, len) < 0) return -1;
 
   if (TD_CODER_CHECK_CAPACITY_FAILED(pDecoder, *len)) return -1;
-  *val = (void*)TD_CODER_CURRENT(pDecoder);
+  if (val) {
+    *val = (void*)TD_CODER_CURRENT(pDecoder);
+  }
 
   TD_CODER_MOVE_POS(pDecoder, *len);
   return 0;

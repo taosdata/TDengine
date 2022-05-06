@@ -16,10 +16,14 @@
 #ifndef _TD_VNODE_TQ_H_
 #define _TD_VNODE_TQ_H_
 
+#include "vnodeInt.h"
+
 #include "executor.h"
 #include "os.h"
+#include "tcache.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "trpc.h"
 #include "ttimer.h"
 #include "wal.h"
 
@@ -29,12 +33,12 @@ extern "C" {
 
 // tqDebug ===================
 // clang-format off
-#define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
-#define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
-#define tqWarn(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
-#define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
-#define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
-#define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqFatal(...) do { if (tqDebugFlag & DEBUG_FATAL) { taosPrintLog("TQ  FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define tqError(...) do { if (tqDebugFlag & DEBUG_ERROR) { taosPrintLog("TQ  ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define tqWarn(...)  do { if (tqDebugFlag & DEBUG_WARN)  { taosPrintLog("TQ  WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define tqInfo(...)  do { if (tqDebugFlag & DEBUG_INFO)  { taosPrintLog("TQ  ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define tqDebug(...) do { if (tqDebugFlag & DEBUG_DEBUG) { taosPrintLog("TQ  ", DEBUG_DEBUG, tqDebugFlag, __VA_ARGS__); }} while(0)
+#define tqTrace(...) do { if (tqDebugFlag & DEBUG_TRACE) { taosPrintLog("TQ  ", DEBUG_TRACE, tqDebugFlag, __VA_ARGS__); }} while(0)
 // clang-format on
 
 #define TQ_BUFFER_SIZE 4
@@ -81,28 +85,17 @@ typedef struct STqOffsetStore STqOffsetStore;
 
 struct STqReadHandle {
   int64_t           ver;
-  int64_t           tbUid;
   SHashObj*         tbIdHash;
   const SSubmitReq* pMsg;
   SSubmitBlk*       pBlock;
   SSubmitMsgIter    msgIter;
   SSubmitBlkIter    blkIter;
   SMeta*            pVnodeMeta;
-  SArray*           pColIdList;  // SArray<int32_t>
+  SArray*           pColIdList;  // SArray<int16_t>
   int32_t           sver;
   SSchemaWrapper*   pSchemaWrapper;
   STSchema*         pSchema;
 };
-
-typedef struct {
-  int8_t type;
-  int8_t reserved[7];
-  union {
-    void*   data;
-    int64_t wmTs;
-    int64_t checkpointId;
-  };
-} STqStreamToken;
 
 typedef struct {
   int16_t ver;
@@ -152,27 +145,39 @@ typedef struct {
 } STqMetaStore;
 
 typedef struct {
-  char    subKey[TSDB_SUBSCRIBE_KEY_LEN];
-  int64_t consumerId;
-  int32_t epoch;
-  char*   qmsg;
+  int64_t  consumerId;
+  int32_t  epoch;
+  int32_t  skipLogNum;
+  int64_t  reqOffset;
+  SRWLatch lock;
+  SRpcMsg* handle;
+} STqPushHandle;
+
+typedef struct {
+  char          subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int64_t       consumerId;
+  int32_t       epoch;
+  int8_t        subType;
+  int8_t        withTbName;
+  int8_t        withSchema;
+  int8_t        withTag;
+  char*         qmsg;
+  STqPushHandle pushHandle;
   // SRWLatch        lock;
-  SWalReadHandle* pReadHandle;
-  // number should be identical to fetch thread num
-  qTaskInfo_t task[4];
+  SWalReadHandle* pWalReader;
+  // task number should be the same with fetch thread
+  STqReadHandle* pExecReader[5];
+  qTaskInfo_t    task[5];
 } STqExec;
 
 struct STQ {
-  // the collection of groups
-  // the handle of meta kvstore
-  bool          writeTrigger;
-  char*         path;
-  STqMetaStore* tqMeta;
-  SHashObj*     tqMetaNew;  // subKey -> tqExec
-  SHashObj*     pStreamTasks;
-  SVnode*       pVnode;
-  SWal*         pWal;
-  SMeta*        pVnodeMeta;
+  char* path;
+  // STqMetaStore* tqMeta;
+  SHashObj* pushMgr;  // consumerId -> STqExec*
+  SHashObj* execs;    // subKey -> STqExec
+  SHashObj* pStreamTasks;
+  SVnode*   pVnode;
+  SWal*     pWal;
 };
 
 typedef struct {
@@ -213,20 +218,6 @@ typedef struct {
   SArray* topics;  // SArray<STqTopic>
 } STqConsumer;
 
-enum {
-  TQ_PUSHER_TYPE__CLIENT = 1,
-  TQ_PUSHER_TYPE__STREAM,
-};
-
-typedef struct {
-  int8_t   type;
-  int8_t   reserved[3];
-  int32_t  ttl;
-  int64_t  consumerId;
-  SRpcMsg* pMsg;
-  // SMqPollRsp* rsp;
-} STqClientPusher;
-
 typedef struct {
   int8_t      type;
   int8_t      nodeType;
@@ -235,10 +226,6 @@ typedef struct {
   qTaskInfo_t task;
   // TODO sync function
 } STqStreamPusher;
-
-typedef struct {
-  SHashObj* pHash;  // <id, STqPush*>
-} STqPushMgr;
 
 typedef struct {
   int8_t inited;
@@ -252,20 +239,7 @@ int  tqInit();
 void tqCleanUp();
 
 // open in each vnode
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pMeta, SMemAllocatorFactory* allocFac);
-void tqClose(STQ*);
 // required by vnode
-int tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version);
-int tqCommit(STQ*);
-
-int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
-int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
-// int32_t tqProcessSetConnReq(STQ* pTq, char* msg);
-// int32_t tqProcessRebReq(STQ* pTq, char* msg);
-// int32_t tqProcessCancelConnReq(STQ* pTq, char* msg);
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
 
 int32_t tqSerializeConsumer(const STqConsumer*, STqSerializedHead**);
 int32_t tqDeserializeConsumer(STQ*, const STqSerializedHead*, STqConsumer**);
@@ -302,16 +276,6 @@ int64_t tqOffsetFetch(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t tqOffsetCommit(STqOffsetStore* pStore, const char* subscribeKey, int64_t offset);
 int32_t tqOffsetPersist(STqOffsetStore* pStore, const char* subscribeKey);
 int32_t tqOffsetPersistAll(STqOffsetStore* pStore);
-
-// tqPush
-int32_t tqPushMgrInit();
-void    tqPushMgrCleanUp();
-
-STqPushMgr* tqPushMgrOpen();
-void        tqPushMgrClose(STqPushMgr* pushMgr);
-
-STqClientPusher* tqAddClientPusher(STqPushMgr* pushMgr, SRpcMsg* pMsg, int64_t consumerId, int64_t ttl);
-STqStreamPusher* tqAddStreamPusher(STqPushMgr* pushMgr, int64_t streamId, SEpSet* pEpSet);
 
 #ifdef __cplusplus
 }

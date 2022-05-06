@@ -75,46 +75,46 @@ if $data02 != LEADER then
   return -1
 endi
 
-print =============== create drop qnode 1
-sql create qnode on dnode 1
-sql show qnodes
+print =============== create drop snode 1
+sql create snode on dnode 1
+sql show snodes
 if $rows != 1 then 
   return -1
 endi
 if $data00 != 1 then 
   return -1
 endi
-sql_error create qnode on dnode 1
+sql_error create snode on dnode 1
 
-sql drop qnode on dnode 1
-sql show qnodes
+sql drop snode on dnode 1
+sql show snodes
 if $rows != 0 then 
   return -1
 endi
-sql_error drop qnode on dnode 1
+sql_error drop snode on dnode 1
 
-print =============== create drop qnode 2
-sql create qnode on dnode 2
-sql show qnodes
+print =============== create drop snode 2
+sql create snode on dnode 2
+sql show snodes
 if $rows != 1 then 
   return -1
 endi
 if $data00 != 2 then 
   return -1
 endi
-sql_error create qnode on dnode 2
+sql_error create snode on dnode 2
 
-sql drop qnode on dnode 2
-sql show qnodes
+sql drop snode on dnode 2
+sql show snodes
 if $rows != 0 then 
   return -1
 endi
-sql_error drop qnode on dnode 2
+sql_error drop snode on dnode 2
 
-print =============== create drop qnodes
-sql create qnode on dnode 1
-sql create qnode on dnode 2
-sql show qnodes
+print =============== create drop snodes
+sql create snode on dnode 1
+sql create snode on dnode 2
+sql show snodes
 if $rows != 2 then 
   return -1
 endi
@@ -126,7 +126,7 @@ system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 
 sleep 2000
-sql show qnodes
+sql show snodes
 if $rows != 2 then 
   return -1
 endi

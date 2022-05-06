@@ -105,7 +105,7 @@ void dmStopMonitorThread(SDnode *pDnode) {
 }
 
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pInfo->ahandle;
+  SDnode * pDnode = pInfo->ahandle;
   SRpcMsg *pRpc = &pMsg->rpcMsg;
   int32_t  code = -1;
   dTrace("msg:%p, will be processed in dnode-mgmt queue", pMsg);
@@ -150,7 +150,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 
   if (pRpc->msgType & 1u) {
     if (code != 0) code = terrno;
-    SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code};
+    SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code, .refId = pRpc->refId};
     rpcSendResponse(&rsp);
   }
 

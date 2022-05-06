@@ -56,6 +56,15 @@ int32_t syncNodeOnAppendEntriesReplyCb(SSyncNode* ths, SyncAppendEntriesReply* p
   //    syncNodeUpdateTerm(ths, pMsg->term);
   //  }
 
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "syncNodeOnAppendEntriesReplyCb error term, receive:%lu current:%lu", pMsg->term,
+             ths->pRaftStore->currentTerm);
+    syncNodeLog2(logBuf, ths);
+    sError("%s", logBuf);
+    return ret;
+  }
+
   assert(pMsg->term == ths->pRaftStore->currentTerm);
 
   if (pMsg->success) {

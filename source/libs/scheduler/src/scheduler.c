@@ -21,7 +21,9 @@
 #include "tref.h"
 #include "trpc.h"
 
-SSchedulerMgmt schMgmt = {0};
+SSchedulerMgmt schMgmt = {
+  .jobRef = -1,
+};
 
 FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
 
@@ -70,6 +72,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
 int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray *pNodeList, const char *sql,
                    int64_t startTs, bool syncSchedule) {
   int32_t  code = 0;
+  int64_t refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
@@ -114,15 +117,17 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray 
 
   tsem_init(&pJob->rspSem, 0, 0);
 
-  int64_t refId = taosAddRef(schMgmt.jobRef, pJob);
+  refId = taosAddRef(schMgmt.jobRef, pJob);
   if (refId < 0) {
     SCH_JOB_ELOG("taosAddRef job failed, error:%s", tstrerror(terrno));
     SCH_ERR_JRET(terrno);
   }
 
+  atomic_add_fetch_32(&schMgmt.jobNum, 1);
+  
   if (NULL == schAcquireJob(refId)) {
     SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
-    SCH_RET(TSDB_CODE_SCH_STATUS_ERROR);
+    SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
   }
 
   pJob->refId = refId;
@@ -137,7 +142,11 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray 
 
 _return:
 
-  schFreeJobImpl(pJob);
+  if (refId < 0) {
+    schFreeJobImpl(pJob);
+  } else {
+    taosRemoveRef(schMgmt.jobRef, refId);
+  }
   SCH_RET(code);
 }
 
@@ -245,6 +254,7 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
       SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
       return TSDB_CODE_SUCCESS;
     case TDMT_VND_CREATE_TABLE_RSP:
+    case TDMT_VND_DROP_TABLE_RSP:
     case TDMT_VND_SUBMIT_RSP:
       break;
     default:
@@ -1076,18 +1086,42 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       SVCreateTbBatchRsp batchRsp = {0};
       if (msg) {
         SCH_ERR_JRET(tDeserializeSVCreateTbBatchRsp(msg, msgSize, &batchRsp));
-        if (batchRsp.rspList) {
-          int32_t num = taosArrayGetSize(batchRsp.rspList);
+        if (batchRsp.pArray) {
+          int32_t num = taosArrayGetSize(batchRsp.pArray);
           for (int32_t i = 0; i < num; ++i) {
-            SVCreateTbRsp *rsp = taosArrayGet(batchRsp.rspList, i);
+            SVCreateTbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
             if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              taosArrayDestroy(batchRsp.rspList);
+              taosArrayDestroy(batchRsp.pArray);
               SCH_ERR_JRET(rsp->code);
             }
           }
 
-          taosArrayDestroy(batchRsp.rspList);
+          taosArrayDestroy(batchRsp.pArray);
         }
+      }
+
+      SCH_ERR_JRET(rspCode);
+      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      break;
+    }
+    case TDMT_VND_DROP_TABLE_RSP: {
+      SVDropTbBatchRsp batchRsp = {0};
+      if (msg) {
+        SCoder coder = {0};
+        tCoderInit(&coder, TD_LITTLE_ENDIAN, msg, msgSize, TD_DECODER);
+        code = tDecodeSVDropTbBatchRsp(&coder, &batchRsp);
+        if (TSDB_CODE_SUCCESS == code && batchRsp.pArray) {
+          int32_t num = taosArrayGetSize(batchRsp.pArray);
+          for (int32_t i = 0; i < num; ++i) {
+            SVDropTbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+            if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
+              tCoderClear(&coder);
+              SCH_ERR_JRET(rsp->code);
+            }
+          }
+        }
+        tCoderClear(&coder);
+        SCH_ERR_JRET(code);
       }
 
       SCH_ERR_JRET(rspCode);
@@ -1316,6 +1350,10 @@ int32_t schHandleCreateTableCallback(void *param, const SDataBuf *pMsg, int32_t 
   return schHandleCallback(param, pMsg, TDMT_VND_CREATE_TABLE_RSP, code);
 }
 
+int32_t schHandleDropTableCallback(void *param, const SDataBuf *pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_DROP_TABLE_RSP, code);
+}
+
 int32_t schHandleQueryCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   return schHandleCallback(param, pMsg, TDMT_VND_QUERY_RSP, code);
 }
@@ -1411,6 +1449,9 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE:
       *fp = schHandleCreateTableCallback;
+      break;
+    case TDMT_VND_DROP_TABLE:
+      *fp = schHandleDropTableCallback;
       break;
     case TDMT_VND_SUBMIT:
       *fp = schHandleSubmitCallback;
@@ -1931,6 +1972,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE:
+    case TDMT_VND_DROP_TABLE:
     case TDMT_VND_SUBMIT: {
       msgSize = pTask->msgLen;
       msg = taosMemoryCalloc(1, msgSize);
@@ -2239,6 +2281,19 @@ int32_t schCancelJob(SSchJob *pJob) {
   // TODO MOVE ALL TASKS FROM EXEC LIST TO FAIL LIST
 }
 
+void schCloseJobRef(void) {
+  if (!atomic_load_8((int8_t*)&schMgmt.exit)) {
+    return;
+  }
+  
+  SCH_LOCK(SCH_WRITE, &schMgmt.lock);
+  if (atomic_load_32(&schMgmt.jobNum) <= 0 && schMgmt.jobRef >= 0) {
+    taosCloseRef(schMgmt.jobRef);
+    schMgmt.jobRef = -1;
+  }
+  SCH_UNLOCK(SCH_WRITE, &schMgmt.lock);
+}
+
 void schFreeJobImpl(void *job) {
   if (NULL == job) {
     return;
@@ -2284,6 +2339,10 @@ void schFreeJobImpl(void *job) {
   taosMemoryFreeClear(pJob);
 
   qDebug("QID:0x%" PRIx64 " job freed, refId:%" PRIx64 ", pointer:%p", queryId, refId, pJob);
+
+  atomic_sub_fetch_32(&schMgmt.jobNum, 1);
+
+  schCloseJobRef();
 }
 
 static int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
@@ -2368,7 +2427,7 @@ _return:
 }
 
 int32_t schedulerInit(SSchedulerCfg *cfg) {
-  if (schMgmt.jobRef) {
+  if (schMgmt.jobRef >= 0) {
     qError("scheduler already initialized");
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
@@ -2732,9 +2791,11 @@ void schedulerFreeTaskList(SArray *taskList) {
 }
 
 void schedulerDestroy(void) {
-  if (schMgmt.jobRef) {
+  atomic_store_8((int8_t*)&schMgmt.exit, 1);
+  
+  if (schMgmt.jobRef >= 0) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
-    int64_t refId = 0;
+    int64_t  refId = 0;
 
     while (pJob) {
       refId = pJob->refId;
@@ -2745,18 +2806,15 @@ void schedulerDestroy(void) {
 
       pJob = taosIterateRef(schMgmt.jobRef, refId);
     }
-
-    taosCloseRef(schMgmt.jobRef);
-    schMgmt.jobRef = 0;
   }
 
   if (schMgmt.hbConnections) {
-    void   *pIter = taosHashIterate(schMgmt.hbConnections, NULL);
+    void *pIter = taosHashIterate(schMgmt.hbConnections, NULL);
     while (pIter != NULL) {
       SSchHbTrans *hb = pIter;
       schFreeRpcCtx(&hb->rpcCtx);
       pIter = taosHashIterate(schMgmt.hbConnections, pIter);
-    }    
+    }
     taosHashCleanup(schMgmt.hbConnections);
     schMgmt.hbConnections = NULL;
   }

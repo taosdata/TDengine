@@ -27,7 +27,6 @@ extern "C" {
 #include "taosdef.h"
 
 int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
-
 int32_t restoreSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
 
 #ifdef __cplusplus

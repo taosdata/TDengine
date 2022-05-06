@@ -93,7 +93,6 @@ void    taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, 
 
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
 
-void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length);
 bool taosValidFile(TdFilePtr pFile);
 
 int32_t taosGetErrorFile(TdFilePtr pFile);

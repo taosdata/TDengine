@@ -145,7 +145,7 @@ int walCheckAndRepairMeta(SWal* pWal) {
     }
   }
 
-  taosCloseDir(pDir);
+  taosCloseDir(&pDir);
   regfree(&logRegPattern);
   regfree(&idxRegPattern);
 
@@ -351,7 +351,7 @@ static int walFindCurMetaVer(SWal* pWal) {
       break;
     }
   }
-  taosCloseDir(pDir);
+  taosCloseDir(&pDir);
   regfree(&walMetaRegexPattern);
   return metaVer;
 }

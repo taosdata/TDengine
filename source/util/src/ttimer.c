@@ -110,7 +110,7 @@ typedef struct time_wheel_t {
   tmr_obj_t**     slots;
 } time_wheel_t;
 
-int32_t tsMaxTmrCtrl = 512;
+static int32_t tsMaxTmrCtrl = 512;
 
 static TdThreadOnce  tmrModuleInit = PTHREAD_ONCE_INIT;
 static TdThreadMutex tmrCtrlMutex;
@@ -132,7 +132,7 @@ static timer_map_t timerMap;
 static uintptr_t getNextTimerId() {
   uintptr_t id;
   do {
-    id = (uintptr_t)atomic_add_fetch_ptr((void **)&nextTimerId, 1);
+    id = (uintptr_t)atomic_add_fetch_ptr((void **)&nextTimerId, (void*)1);
   } while (id == 0);
   return id;
 }

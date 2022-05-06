@@ -309,10 +309,10 @@ static int32_t mndProcessCreateFuncReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  if (createReq.pCode[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
-    goto _OVER;
-  }
+ if (createReq.codeLen <= 1) {
+   terrno = TSDB_CODE_MND_INVALID_FUNC_CODE;
+   goto _OVER;
+ }
 
   if (createReq.bufSize <= 0 || createReq.bufSize > TSDB_FUNC_BUF_SIZE) {
     terrno = TSDB_CODE_MND_INVALID_FUNC_BUFSIZE;
@@ -517,14 +517,14 @@ static int32_t mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     cols = 0;
 
     char b1[tListLen(pFunc->name) + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(b1, pFunc->name, pShow->pMeta->pSchemas[cols].bytes);
 
     SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b1, false);
 
     if (pFunc->pComment) {
-      char *b2 = taosMemoryCalloc(1, pShow->bytes[cols]);
-      STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->bytes[cols]);
+      char *b2 = taosMemoryCalloc(1, pShow->pMeta->pSchemas[cols].bytes);
+      STR_WITH_MAXSIZE_TO_VARSTR(b2, pFunc->pComment, pShow->pMeta->pSchemas[cols].bytes);
 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
@@ -540,7 +540,7 @@ static int32_t mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 
     char b3[TSDB_TYPE_STR_MAX_LEN] = {0};
     STR_WITH_MAXSIZE_TO_VARSTR(b3, mnodeGenTypeStr(buf, TSDB_TYPE_STR_MAX_LEN, pFunc->outputType, pFunc->outputLen),
-                               pShow->bytes[cols]);
+                               pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b3, false);

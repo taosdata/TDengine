@@ -231,6 +231,10 @@ static FORCE_INLINE SReqResultInfo* tmqGetNextResInfo(TAOS_RES* res, bool conver
   msg->resIter++;
   if (msg->resIter < msg->rsp.blockNum) {
     SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)taosArrayGetP(msg->rsp.blockData, msg->resIter);
+    if (msg->rsp.withSchema) {
+      SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(msg->rsp.blockSchema, msg->resIter);
+      setResSchemaInfo(&msg->resInfo, pSW->pSchema, pSW->nCols);
+    }
     setQueryResultFromRsp(&msg->resInfo, pRetrieve, convertUcs4);
     return &msg->resInfo;
   }
@@ -249,8 +253,6 @@ extern int32_t  clientConnRefPool;
 extern int (*handleRequestRspFp[TDMT_MAX])(void*, const SDataBuf* pMsg, int32_t code);
 int           genericRspCallback(void* param, const SDataBuf* pMsg, int32_t code);
 SMsgSendInfo* buildMsgInfoImpl(SRequestObj* pReqObj);
-
-int taos_init();
 
 void*    createTscObj(const char* user, const char* auth, const char* db, SAppInstInfo* pAppInfo);
 void     destroyTscObj(void* pObj);
@@ -306,6 +308,8 @@ int hbAddConnInfo(SAppHbMgr* pAppHbMgr, SClientHbKey connKey, void* key, void* v
 void hbMgrInitMqHbRspHandle();
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery);
+int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
+int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
 
 #ifdef __cplusplus
 }

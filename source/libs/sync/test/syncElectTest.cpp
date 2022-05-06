@@ -3,9 +3,8 @@
 #include "syncEnv.h"
 #include "syncIO.h"
 #include "syncInt.h"
-#include "syncRaftLog.h"
-#include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "wal.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -16,42 +15,41 @@ void logTest() {
   sFatal("--- sync log test: fatal");
 }
 
-uint16_t ports[] = {7010, 7110, 7210, 7310, 7410};
-int32_t  replicaNum = 3;
-int32_t  myIndex = 0;
+uint16_t    gPorts[] = {7010, 7110, 7210, 7310, 7410};
+const char* gDir = "./syncElectTest";
+int32_t     gVgId = 1234;
 
-SRaftId    ids[TSDB_MAX_REPLICA];
-SSyncInfo  syncInfo;
-SSyncFSM*  pFsm;
-SWal*      pWal;
-SSyncNode* gSyncNode;
-
-SSyncNode* syncNodeInit() {
-  syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
-  syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
-  syncInfo.FpEqMsg = syncIOEqMsg;
-  syncInfo.pFsm = pFsm;
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "./elect_test_%d", myIndex);
-
+void init() {
   int code = walInit();
   assert(code == 0);
+}
+
+void cleanup() { walCleanUp(); }
+
+SWal* createWal(char* path, int32_t vgId) {
   SWalCfg walCfg;
   memset(&walCfg, 0, sizeof(SWalCfg));
-  walCfg.vgId = syncInfo.vgId;
+  walCfg.vgId = vgId;
   walCfg.fsyncPeriod = 1000;
   walCfg.retentionPeriod = 1000;
   walCfg.rollPeriod = 1000;
   walCfg.retentionSize = 1000;
   walCfg.segSize = 1000;
   walCfg.level = TAOS_WAL_FSYNC;
-
-  char tmpdir[128];
-  snprintf(tmpdir, sizeof(tmpdir), "./elect_test_wal_%d", myIndex);
-  pWal = walOpen(tmpdir, &walCfg);
+  SWal* pWal = walOpen(path, &walCfg);
   assert(pWal != NULL);
+  return pWal;
+}
 
+SSyncNode* createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path) {
+  SSyncInfo syncInfo;
+  syncInfo.vgId = vgId;
+  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.FpSendMsg = syncIOSendMsg;
+  syncInfo.queue = gSyncIO->pMsgQ;
+  syncInfo.FpEqMsg = syncIOEqMsg;
+  syncInfo.pFsm = NULL;
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
@@ -59,9 +57,9 @@ SSyncNode* syncNodeInit() {
   pCfg->replicaNum = replicaNum;
 
   for (int i = 0; i < replicaNum; ++i) {
-    pCfg->nodeInfo[i].nodePort = ports[i];
-    snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
-    // taosGetFqdn(pCfg->nodeInfo[0].nodeFqdn);
+    pCfg->nodeInfo[i].nodePort = gPorts[i];
+    taosGetFqdn(pCfg->nodeInfo[i].nodeFqdn);
+    // snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
   }
 
   SSyncNode* pSyncNode = syncNodeOpen(&syncInfo);
@@ -78,50 +76,51 @@ SSyncNode* syncNodeInit() {
   gSyncIO->FpOnSyncTimeout = pSyncNode->FpOnTimeout;
   gSyncIO->pSyncNode = pSyncNode;
 
+  syncNodeStart(pSyncNode);
+
   return pSyncNode;
 }
 
-SSyncNode* syncInitTest() { return syncNodeInit(); }
-
-void initRaftId(SSyncNode* pSyncNode) {
-  for (int i = 0; i < replicaNum; ++i) {
-    ids[i] = pSyncNode->replicasId[i];
-    char* s = syncUtilRaftId2Str(&ids[i]);
-    printf("raftId[%d] : %s\n", i, s);
-    taosMemoryFree(s);
-  }
-}
+void usage(char* exe) { printf("usage: %s replicaNum myIndex \n", exe); }
 
 int main(int argc, char** argv) {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
-
-  myIndex = 0;
-  if (argc >= 2) {
-    myIndex = atoi(argv[1]);
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
+  if (argc != 3) {
+    usage(argv[0]);
+    exit(-1);
   }
+  int32_t replicaNum = atoi(argv[1]);
+  int32_t myIndex = atoi(argv[2]);
 
-  int32_t ret = syncIOStart((char*)"127.0.0.1", ports[myIndex]);
+  assert(replicaNum >= 1 && replicaNum <= 5);
+  assert(myIndex >= 0 && myIndex < replicaNum);
+
+  init();
+  int32_t ret = syncIOStart((char*)"127.0.0.1", gPorts[myIndex]);
   assert(ret == 0);
-
   ret = syncEnvStart();
   assert(ret == 0);
 
-  gSyncNode = syncInitTest();
-  assert(gSyncNode != NULL);
-  syncNodePrint2((char*)"", gSyncNode);
+  char walPath[128];
+  snprintf(walPath, sizeof(walPath), "%s_wal_replica%d_index%d", gDir, replicaNum, myIndex);
+  SWal* pWal = createWal(walPath, gVgId);
 
-  initRaftId(gSyncNode);
+  SSyncNode* pSyncNode = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
+  assert(pSyncNode != NULL);
+  syncNodeLog2((char*)"==syncElectTest==", pSyncNode);
 
   //---------------------------
   while (1) {
-    sTrace(
-        "elect sleep, state: %d, %s, term:%lu electTimerLogicClock:%lu, electTimerLogicClockUser:%lu, electTimerMS:%d",
-        gSyncNode->state, syncUtilState2String(gSyncNode->state), gSyncNode->pRaftStore->currentTerm,
-        gSyncNode->electTimerLogicClock, gSyncNode->electTimerLogicClockUser, gSyncNode->electTimerMS);
+    char* s = syncNode2SimpleStr(pSyncNode);
+    sTrace("%s", s);
+    taosMemoryFree(s);
     taosMsleep(1000);
   }
 
+  syncNodeClose(pSyncNode);
+  walClose(pWal);
+  syncIOStop();
+  cleanup();
   return 0;
 }

@@ -172,7 +172,7 @@ static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
     bool          create = false;
     SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, key);
     if (pOffsetObj == NULL) {
-      pOffsetObj = taosMemoryMalloc(sizeof(SMqOffset));
+      pOffsetObj = taosMemoryMalloc(sizeof(SMqOffsetObj));
       memcpy(pOffsetObj->key, key, TSDB_PARTITION_KEY_LEN);
       create = true;
     }
@@ -230,4 +230,37 @@ void mndReleaseOffset(SMnode *pMnode, SMqOffsetObj *pOffset) {
 static void mndCancelGetNextOffset(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndSetDropOffsetCommitLogs(SMnode *pMnode, STrans *pTrans, SMqOffsetObj *pOffset) {
+  SSdbRaw *pCommitRaw = mndOffsetActionEncode(pOffset);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  return 0;
+}
+
+int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  void         *pIter = NULL;
+  SMqOffsetObj *pOffset = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pOffset);
+    if (pIter == NULL) break;
+
+    if (pOffset->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pOffset);
+      continue;
+    }
+
+    if (mndSetDropOffsetCommitLogs(pMnode, pTrans, pOffset) < 0) {
+      goto END;
+    }
+  }
+
+  code = 0;
+END:
+  return code;
 }

@@ -52,7 +52,6 @@ typedef struct FstRange {
   uint64_t end;
 } FstRange;
 
-typedef enum { GE, GT, LE, LT } RangeType;
 typedef enum { OneTransNext, OneTrans, AnyTrans, EmptyFinal } State;
 typedef enum { Ordered, OutOfOrdered, DuplicateKey } OrderType;
 
@@ -174,9 +173,9 @@ Output   fstStateFinalOutput(FstState* state, uint64_t version, FstSlice* date, 
 uint64_t fstStateFindInput(FstState* state, FstNode* node, uint8_t b, bool* null);
 
 #define FST_STATE_ONE_TRNAS_NEXT(node) (node->state.state == OneTransNext)
-#define FST_STATE_ONE_TRNAS(node) (node->state.state == OneTrans)
-#define FST_STATE_ANY_TRANS(node) (node->state.state == AnyTrans)
-#define FST_STATE_EMPTY_FINAL(node) (node->state.state == EmptyFinal)
+#define FST_STATE_ONE_TRNAS(node)      (node->state.state == OneTrans)
+#define FST_STATE_ANY_TRANS(node)      (node->state.state == AnyTrans)
+#define FST_STATE_EMPTY_FINAL(node)    (node->state.state == EmptyFinal)
 
 typedef struct FstLastTransition {
   uint8_t inp;

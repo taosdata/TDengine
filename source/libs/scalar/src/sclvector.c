@@ -24,6 +24,7 @@
 #include "tcompare.h"
 #include "tdatablock.h"
 #include "ttypes.h"
+#include "ttime.h"
 
 #define LEFT_COL ((pLeftCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pLeftCol : pLeftCol->pData))
 #define RIGHT_COL ((pRightCol->info.type == TSDB_DATA_TYPE_JSON ? (void*)pRightCol : pRightCol->pData))
@@ -149,34 +150,36 @@ int64_t getVectorBigintValue_JSON(void *src, int32_t index){
 
 _getBigintValue_fn_t getVectorBigintValueFn(int32_t srcType) {
     _getBigintValue_fn_t p = NULL;
-    if(srcType==TSDB_DATA_TYPE_TINYINT) {
-        p = getVectorBigintValue_TINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_UTINYINT) {
-        p = getVectorBigintValue_UTINYINT;
-    }else if(srcType==TSDB_DATA_TYPE_SMALLINT) {
-        p = getVectorBigintValue_SMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_USMALLINT) {
-        p = getVectorBigintValue_USMALLINT;
-    }else if(srcType==TSDB_DATA_TYPE_INT) {
-        p = getVectorBigintValue_INT;
-    }else if(srcType==TSDB_DATA_TYPE_UINT) {
-        p = getVectorBigintValue_UINT;
-    }else if(srcType==TSDB_DATA_TYPE_BIGINT) {
-        p = getVectorBigintValue_BIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_UBIGINT) {
-        p = getVectorBigintValue_UBIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_FLOAT) {
-        p = getVectorBigintValue_FLOAT;
-    }else if(srcType==TSDB_DATA_TYPE_DOUBLE) {
-        p = getVectorBigintValue_DOUBLE;
-    }else if(srcType==TSDB_DATA_TYPE_TIMESTAMP) {
-        p = getVectorBigintValue_BIGINT;
-    }else if(srcType==TSDB_DATA_TYPE_BOOL) {
-        p = getVectorBigintValue_BOOL;
-    }else if(srcType==TSDB_DATA_TYPE_JSON) {
-        p = getVectorBigintValue_JSON;
-    }else {
-        assert(0);
+    if (srcType==TSDB_DATA_TYPE_TINYINT) {
+      p = getVectorBigintValue_TINYINT;
+    } else if (srcType==TSDB_DATA_TYPE_UTINYINT) {
+      p = getVectorBigintValue_UTINYINT;
+    } else if (srcType==TSDB_DATA_TYPE_SMALLINT) {
+      p = getVectorBigintValue_SMALLINT;
+    } else if (srcType==TSDB_DATA_TYPE_USMALLINT) {
+      p = getVectorBigintValue_USMALLINT;
+    } else if (srcType==TSDB_DATA_TYPE_INT) {
+      p = getVectorBigintValue_INT;
+    } else if (srcType==TSDB_DATA_TYPE_UINT) {
+      p = getVectorBigintValue_UINT;
+    } else if (srcType==TSDB_DATA_TYPE_BIGINT) {
+      p = getVectorBigintValue_BIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_UBIGINT) {
+      p = getVectorBigintValue_UBIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_FLOAT) {
+      p = getVectorBigintValue_FLOAT;
+    } else if (srcType==TSDB_DATA_TYPE_DOUBLE) {
+      p = getVectorBigintValue_DOUBLE;
+    } else if (srcType==TSDB_DATA_TYPE_TIMESTAMP) {
+      p = getVectorBigintValue_BIGINT;
+    } else if (srcType==TSDB_DATA_TYPE_BOOL) {
+      p = getVectorBigintValue_BOOL;
+    } else if (srcType==TSDB_DATA_TYPE_JSON) {
+      p = getVectorBigintValue_JSON;
+    } else if (srcType==TSDB_DATA_TYPE_NULL){
+      p = NULL;
+    } else {
+      ASSERT(0);
     }
     return p;
 }
@@ -252,6 +255,15 @@ _getValueAddr_fn_t getVectorValueAddrFn(int32_t srcType) {
     return p;
 }
 
+static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam* pOut, int32_t rowIndex) {
+  int64_t value = 0;
+  if (taosParseTime(buf, &value, strlen(buf), pOut->columnData->info.precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+    value = 0;
+  }
+  
+  colDataAppendInt64(pOut->columnData, rowIndex, &value);
+}
+
 static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   int64_t value = strtoll(buf, NULL, 10);
   colDataAppendInt64(pOut->columnData, rowIndex, &value);
@@ -285,6 +297,22 @@ static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIn
   taosMemoryFree(t);
 }
 
+static FORCE_INLINE void ncharToVar(char* buf, SScalarParam* pOut, int32_t rowIndex) {
+  int32_t inputLen = varDataLen(buf);
+
+  char* t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
+  int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
+  if (len < 0) {
+    taosMemoryFree(t);
+    return;
+  }
+  varDataSetLen(t, len);
+
+  colDataAppend(pOut->columnData, rowIndex, t, false);
+  taosMemoryFree(t);
+}
+
+
 //TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
   int32_t bufSize = pIn->columnData->info.bytes;
@@ -295,16 +323,22 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
   _bufConverteFunc func = NULL;
   if (TSDB_DATA_TYPE_BOOL == outType) {
     func = varToBool;
-  } else if (IS_SIGNED_NUMERIC_TYPE(outType) || TSDB_DATA_TYPE_TIMESTAMP == outType) {
+  } else if (IS_SIGNED_NUMERIC_TYPE(outType)) {
     func = varToSigned;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(outType)) {
     func = varToUnsigned;
   } else if (IS_FLOAT_TYPE(outType)) {
     func = varToFloat;
+  } else if (outType == TSDB_DATA_TYPE_BINARY) {   // nchar -> binary
+    ASSERT(inType == TSDB_DATA_TYPE_NCHAR);
+    func = ncharToVar;
+    vton = true;
   } else if (outType == TSDB_DATA_TYPE_NCHAR) {   // binary -> nchar
     ASSERT(inType == TSDB_DATA_TYPE_VARCHAR);
     func = varToNchar;
     vton = true;
+  } else if (TSDB_DATA_TYPE_TIMESTAMP == outType) {
+    func = varToTimestamp;
   } else {
     sclError("invalid convert outType:%d", outType);
     return TSDB_CODE_QRY_APP_ERROR;
@@ -594,8 +628,8 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   0,   7,   0,   0,
 /*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   0,   7,   0,   0,
 /*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,   7,   0,   0,
-/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   0,   7,   7,   7,   7,   0,   0,   0,   0,
-/*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   9,   9,   9,   7,   0,   7,   0,   0,
+/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   8,   7,   7,   7,   7,   0,   0,   0,   0,
+/*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   9,   9,   9,   7,   0,   7,   0,   0,
 /*NCHA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   0,   0,   0,   0,
 /*UTIN*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   12,  13,  14,  0,   7,   0,   0,
 /*USMA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   13,  14,  0,   7,   0,   0,
@@ -1044,36 +1078,36 @@ void vectorMathDivide(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *p
   _getDoubleValue_fn_t getVectorDoubleValueFnRight = getVectorDoubleValueFn(pRightCol->info.type);
 
   double *output = (double *)pOutputCol->pData;
-  if (pLeft->numOfRows == pRight->numOfRows) {  // check for the 0 value
+  if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step, output += 1) {
-      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
+      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { //divide by 0 check
         colDataAppendNULL(pOutputCol, i);
-        continue;  // TODO set null or ignore
+        continue;
       }
       *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
-                 /getVectorDoubleValueFnRight(RIGHT_COL, i);
+                / getVectorDoubleValueFnRight(RIGHT_COL, i);
     }
   } else if (pLeft->numOfRows == 1) {
     if (colDataIsNull_s(pLeftCol, 0)) {  // Set pLeft->numOfRows NULL value
       colDataAppendNNULL(pOutputCol, 0, pRight->numOfRows);
     } else {
       for (; i >= 0 && i < pRight->numOfRows; i += step, output += 1) {
-        if (colDataIsNull_s(pRightCol, i)) {
+        if (colDataIsNull_s(pRightCol, i) || (getVectorDoubleValueFnRight(RIGHT_COL, i) == 0)) { // divide by 0 check
           colDataAppendNULL(pOutputCol, i);
-          continue;  // TODO set null or ignore
+          continue;
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, 0)
                   / getVectorDoubleValueFnRight(RIGHT_COL, i);
       }
     }
   } else if (pRight->numOfRows == 1) {
-    if (colDataIsNull_s(pRightCol, 0)) {  // Set pLeft->numOfRows NULL value
+    if (colDataIsNull_s(pRightCol, 0) || (getVectorDoubleValueFnRight(RIGHT_COL, 0) == 0)) {  // Set pLeft->numOfRows NULL value (divde by 0 check)
       colDataAppendNNULL(pOutputCol, 0, pLeft->numOfRows);
     } else {
       for (; i >= 0 && i < pLeft->numOfRows; i += step, output += 1) {
         if (colDataIsNull_s(pLeftCol, i)) {
           colDataAppendNULL(pOutputCol, i);
-          continue;  // TODO set null or ignore
+          continue;
         }
         *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
                   / getVectorDoubleValueFnRight(RIGHT_COL, 0);
@@ -1181,9 +1215,10 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
   for (; i < pLeft->numOfRows && i >= 0; i += step, output += 1) {
     if (colDataIsNull_s(pLeft->columnData, i)) {
       colDataAppendNULL(pOutputCol, i);
-      continue;  // TODO set null or ignore
+      continue;
     }
-    *output = - getVectorDoubleValueFnLeft(LEFT_COL, i);
+    double result = getVectorDoubleValueFnLeft(LEFT_COL, i);
+    *output = (result == 0) ? 0 : -result;
   }
 
   doReleaseVec(pLeftCol,  leftConvert);
@@ -1355,7 +1390,8 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pRight->pHashFilter != NULL) {
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1369,7 +1405,8 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   if (pLeft->numOfRows == pRight->numOfRows) {
     for (; i < pRight->numOfRows && i >= 0; i += step) {
       if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;  // TODO set null or ignore
       }
 
@@ -1390,8 +1427,9 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
   } else if (pRight->numOfRows == 1) {
     ASSERT(pLeft->pHashFilter == NULL);
     for (; i >= 0 && i < pLeft->numOfRows; i += step) {
-      if (colDataIsNull_s(pLeft->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+      if (colDataIsNull_s(pLeft->columnData, i) || colDataIsNull_s(pRight->columnData, 0)) {
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1410,8 +1448,9 @@ void vectorCompareImpl(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *
     }
   } else if (pLeft->numOfRows == 1) {
     for (; i >= 0 && i < pRight->numOfRows; i += step) {
-      if (colDataIsNull_s(pRight->columnData, i)) {
-        colDataAppendNULL(pOut->columnData, i);
+      if (colDataIsNull_s(pRight->columnData, i) || colDataIsNull_s(pLeft->columnData, 0)) {
+        bool  res = false;
+        colDataAppendInt8(pOut->columnData, i, (int8_t*)&res);
         continue;
       }
 
@@ -1582,7 +1621,7 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
     case OP_TYPE_JSON_CONTAINS:
       return vectorJsonContains;
     default:
-      assert(0);
+      ASSERT(0);
       return NULL;
   }
 }

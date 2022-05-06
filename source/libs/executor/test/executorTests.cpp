@@ -55,7 +55,7 @@ typedef struct SDummyInputInfo {
   SSDataBlock* pBlock;
 } SDummyInputInfo;
 
-SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
+SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
     return NULL;
@@ -102,7 +102,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
     } else if (pInfo->type == data_asc) {
       v = ++pInfo->startVal;
     } else if (pInfo->type == data_rand) {
-      v = random();
+      v = taosRand();
     }
 
     colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
@@ -121,7 +121,7 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
   return pBlock;
 }
 
-SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
+SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
   SDummyInputInfo* pInfo = static_cast<SDummyInputInfo*>(pOperator->info);
   if (pInfo->current >= pInfo->totalPages) {
     return NULL;
@@ -172,7 +172,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator, bool* newgroup) {
     } else if (pInfo->type == data_asc) {
       v = ++pInfo->startVal;
     } else if (pInfo->type == data_rand) {
-      v = random();
+      v = taosRand();
     }
 
     colDataAppend(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
@@ -199,9 +199,9 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
   pOperator->name = "dummyInputOpertor4Test";
 
   if (numOfCols == 1) {
-    pOperator->getNextFn = getDummyBlock;
+    pOperator->fpSet.getNextFn = getDummyBlock;
   } else {
-    pOperator->getNextFn = get2ColsDummyBlock;
+    pOperator->fpSet.getNextFn = get2ColsDummyBlock;
   }
 
   SDummyInputInfo *pInfo = (SDummyInputInfo*) taosMemoryCalloc(1, sizeof(SDummyInputInfo));
@@ -938,7 +938,7 @@ TEST(testCase, build_executor_tree_Test) {
 
   SExecTaskInfo* pTaskInfo = nullptr;
   DataSinkHandle sinkHandle = nullptr;
-  SReadHandle handle = {.reader = reinterpret_cast<void*>(0x1), .meta = reinterpret_cast<void*>(0x1)};
+  SReadHandle handle = { reinterpret_cast<void*>(0x1), reinterpret_cast<void*>(0x1), NULL };
 
   struct SSubplan *plan = NULL;
   int32_t code = qStringToSubplan(msg, &plan);

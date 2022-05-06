@@ -433,7 +433,8 @@ int32_t compareWStrPatternMatch(const void *pLeft, const void *pRight) {
   char *pattern = taosMemoryCalloc(varDataLen(pRight) + TSDB_NCHAR_SIZE, 1);
   memcpy(pattern, varDataVal(pRight), varDataLen(pRight));
 
-  int32_t ret = WCSPatternMatch((TdUcs4*)pattern, (TdUcs4*)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
+  int32_t ret =
+      WCSPatternMatch((TdUcs4 *)pattern, (TdUcs4 *)varDataVal(pLeft), varDataLen(pLeft) / TSDB_NCHAR_SIZE, &pInfo);
   taosMemoryFree(pattern);
 
   return (ret == TSDB_PATTERN_MATCH) ? 0 : 1;

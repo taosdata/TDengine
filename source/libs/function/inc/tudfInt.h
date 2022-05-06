@@ -19,9 +19,6 @@
 extern "C" {
 #endif
 
-//TODO replaces them with fnDebug
-//#define debugPrint(...) taosPrintLog("Function", DEBUG_INFO,  135, __VA_ARGS__)
-#define debugPrint(...) {fprintf(stderr, __VA_ARGS__);fprintf(stderr, "\n");}
 enum {
   UDF_TASK_SETUP = 0,
   UDF_TASK_CALL = 1,
@@ -39,11 +36,13 @@ enum {
 
 typedef struct SUdfSetupRequest {
   char udfName[TSDB_FUNC_NAME_LEN];
-  SEpSet epSet;
 } SUdfSetupRequest;
 
 typedef struct SUdfSetupResponse {
   int64_t udfHandle;
+  int8_t outputType;
+  int32_t outputLen;
+  int32_t bufSize;
 } SUdfSetupResponse;
 
 typedef struct SUdfCallRequest {
@@ -69,6 +68,9 @@ typedef struct SUdfTeardownRequest {
 
 
 typedef struct SUdfTeardownResponse {
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 } SUdfTeardownResponse;
 
 typedef struct SUdfRequest {
@@ -102,13 +104,14 @@ void* decodeUdfRequest(const void *buf, SUdfRequest* request);
 int32_t encodeUdfResponse(void **buf, const SUdfResponse *response);
 void* decodeUdfResponse(const void* buf, SUdfResponse *response);
 
-void freeUdfColumnData(SUdfColumnData *data);
+void freeUdfColumnData(SUdfColumnData *data, SUdfColumnMeta *meta);
 void freeUdfColumn(SUdfColumn* col);
 void freeUdfDataDataBlock(SUdfDataBlock *block);
 
 int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlock);
 int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block);
 
+int32_t getUdfdPipeName(char* pipeName, int32_t size);
 #ifdef __cplusplus
 }
 #endif

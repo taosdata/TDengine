@@ -37,7 +37,7 @@ typedef struct SFuncExecEnv {
 typedef bool (*FExecGetEnv)(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
-typedef void (*FExecFinalize)(struct SqlFunctionCtx *pCtx);
+typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
 
 typedef struct SScalarFuncExecFuncs {
@@ -113,7 +113,7 @@ typedef struct SResultRowEntryInfo {
   bool     initialized:1;     // output buffer has been initialized
   bool     complete:1;        // query has completed
   uint8_t  isNullRes:6;       // the result is null
-  uint8_t  numOfRes;        // num of output result in current buffer
+  uint8_t  numOfRes;          // num of output result in current buffer
 } SResultRowEntryInfo;
 
 // determine the real data need to calculated the result
@@ -141,8 +141,7 @@ struct SResultRowEntryInfo;
 
 //for selectivity query, the corresponding tag value is assigned if the data is qualified
 typedef struct SSubsidiaryResInfo {
-  int16_t                 bufLen;      // keep the tags data for top/bottom query result
-  int16_t                 numOfCols;
+  int16_t num;
   struct SqlFunctionCtx **pCtx;
 } SSubsidiaryResInfo;
 
@@ -166,7 +165,7 @@ typedef struct SInputColumnInfoData {
   SColumnInfoData  *pPTS;           // primary timestamp column
   SColumnInfoData **pData;
   SColumnDataAgg  **pColumnDataAgg;
-  uint64_t          uid;            // table uid
+  uint64_t          uid;            // table uid, used to set the tag value when building the final query result for selectivity functions.
 } SInputColumnInfoData;
 
 // sql function runtime context
@@ -187,8 +186,8 @@ typedef struct SqlFunctionCtx {
   uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
   int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
-  /////////////////////////////////////////////////////////////////
   bool             stableQuery;
+  /////////////////////////////////////////////////////////////////
   int16_t          functionId;    // function id
   char *           pOutput;       // final result output buffer, point to sdata->data
   int32_t          numOfParams;
@@ -198,11 +197,17 @@ typedef struct SqlFunctionCtx {
   int32_t          offset;
   SVariant         tag;
   struct  SResultRowEntryInfo *resultInfo;
-  SSubsidiaryResInfo     subsidiaryRes;
-  SPoint1          start;
-  SPoint1          end;
-  SFuncExecFuncs   fpSet;
-  SScalarFuncExecFuncs sfp;
+  SSubsidiaryResInfo     subsidiaries;
+  SPoint1                start;
+  SPoint1                end;
+  SFuncExecFuncs         fpSet;
+  SScalarFuncExecFuncs   sfp;
+  struct SExprInfo      *pExpr;
+  struct SDiskbasedBuf  *pBuf;
+  struct SSDataBlock    *pSrcBlock;
+  int32_t                curBufPage;
+
+  char                   udfName[TSDB_FUNC_NAME_LEN];
 } SqlFunctionCtx;
 
 enum {
@@ -318,6 +323,18 @@ struct SUdfInfo;
 
 void qAddUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 void qRemoveUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
+
+/**
+ * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
+ * @return error code
+ */
+int32_t udfcOpen();
+
+/**
+ * destroy udfd proxy
+ * @return error code
+ */
+int32_t udfcClose();
 
 #ifdef __cplusplus
 }

@@ -23,7 +23,6 @@
 #include "tbuffer.h"
 #include "tdataformat.h"
 #include "tdef.h"
-#include "tschema.h"
 #include "ttypes.h"
 #include "tutil.h"
 
@@ -58,12 +57,12 @@ extern "C" {
 #define TD_ROWS_ALL_NORM  0x00U
 #define TD_ROWS_NULL_NORM 0x01U
 
-#define TD_COL_ROWS_NORM(c) ((c)->bitmap == TD_ROWS_ALL_NORM)  // all rows of SDataCol/SBlockCol is NORM
+#define TD_COL_ROWS_NORM(c)          ((c)->bitmap == TD_ROWS_ALL_NORM)  // all rows of SDataCol/SBlockCol is NORM
 #define TD_SET_COL_ROWS_BTIMAP(c, v) ((c)->bitmap = (v))
-#define TD_SET_COL_ROWS_NORM(c) TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_ALL_NORM)
-#define TD_SET_COL_ROWS_MISC(c) TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_NULL_NORM)
+#define TD_SET_COL_ROWS_NORM(c)      TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_ALL_NORM)
+#define TD_SET_COL_ROWS_MISC(c)      TD_SET_COL_ROWS_BTIMAP((c), TD_ROWS_NULL_NORM)
 
-#define KvConvertRatio (0.9f)
+#define KvConvertRatio            (0.9f)
 #define isSelectKVRow(klen, tlen) ((klen) < ((tlen)*KvConvertRatio))
 
 #ifdef TD_SUPPORT_BITMAP
@@ -215,6 +214,16 @@ STSRow *tdRowDup(STSRow *row);
 static FORCE_INLINE SKvRowIdx *tdKvRowColIdxAt(STSRow *pRow, col_id_t idx) {
   return (SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx;
 }
+
+static FORCE_INLINE int16_t tdKvRowColIdAt(STSRow *pRow, col_id_t idx) {
+  ASSERT(idx >= 0);
+  if (idx == 0) {
+    return PRIMARYKEY_TIMESTAMP_COL_ID;
+  }
+
+  return ((SKvRowIdx *)TD_ROW_COL_IDX(pRow) + idx - 1)->colId;
+}
+
 static FORCE_INLINE void *tdKVRowColVal(STSRow *pRow, SKvRowIdx *pIdx) { return POINTER_SHIFT(pRow, pIdx->offset); }
 
 #define TD_ROW_OFFSET(p) ((p)->toffset);  // During ParseInsert when without STSchema, how to get the offset for STpRow?
@@ -341,7 +350,8 @@ static FORCE_INLINE bool tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx,
   return false;
 }
 
-static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType, int8_t bitmapMode) {
+static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colIdx, TDRowValT *pValType,
+                                               int8_t bitmapMode) {
   switch (bitmapMode) {
     case 0:
       tdGetBitmapValTypeII(pBitmap, colIdx, pValType);
@@ -586,6 +596,33 @@ static FORCE_INLINE int32_t tdSRowSetInfo(SRowBuilder *pBuilder, int32_t nCols, 
 }
 
 /**
+ * @brief
+ *
+ * @param pBuilder
+ * @param nCols
+ * @param nBoundCols use -1 if not available
+ * @param flen
+ * @return FORCE_INLINE
+ */
+static FORCE_INLINE int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols, int32_t flen) {
+  pBuilder->flen = flen;
+  pBuilder->nCols = nCols;
+  if (pBuilder->flen <= 0 || pBuilder->nCols <= 0) {
+    TASSERT(0);
+    terrno = TSDB_CODE_INVALID_PARA;
+    return terrno;
+  }
+#ifdef TD_SUPPORT_BITMAP
+  // the primary TS key is stored separatedly
+  pBuilder->nBitmaps = (int16_t)TD_BITMAP_BYTES(pBuilder->nCols - 1);
+#else
+  pBuilder->nBitmaps = 0;
+  pBuilder->nBoundBitmaps = 0;
+#endif
+  return TSDB_CODE_SUCCESS;
+}
+
+/**
  * @brief To judge row type: STpRow/SKvRow
  *
  * @param pBuilder
@@ -668,7 +705,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
     case TD_ROW_KV:
 #ifdef TD_SUPPORT_BITMAP
       pBuilder->pBitmap = tdGetBitmapAddrKv(pBuilder->pBuf, pBuilder->nBoundCols);
-      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBitmaps);
+      memset(pBuilder->pBitmap, TD_VTYPE_NONE_BYTE_II, pBuilder->nBoundBitmaps);
 #endif
       len = TD_ROW_HEAD_LEN + TD_ROW_NCOLS_LEN + (pBuilder->nBoundCols - 1) * sizeof(SKvRowIdx) +
             pBuilder->nBoundBitmaps;  // add
@@ -719,7 +756,6 @@ static int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf) {
   }
   return TSDB_CODE_SUCCESS;
 }
-
 
 /**
  * @brief 由调用方管理存储空间的分配及释放，一次输入多个参数
@@ -1092,7 +1128,7 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
   STSRow    *pRow = pIter->pRow;
   SKvRowIdx *pKvIdx = NULL;
   bool       colFound = false;
-  col_id_t   kvNCols = tdRowGetNCols(pRow);
+  col_id_t   kvNCols = tdRowGetNCols(pRow) - 1;
   while (*nIdx < kvNCols) {
     pKvIdx = (SKvRowIdx *)POINTER_SHIFT(TD_ROW_COL_IDX(pRow), *nIdx * sizeof(SKvRowIdx));
     if (pKvIdx->colId == colId) {
@@ -1108,7 +1144,14 @@ static FORCE_INLINE bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId,
     }
   }
 
-  if (!colFound) return false;
+  if (!colFound) {
+    if (colId <= pIter->maxColId) {
+      pVal->valType = TD_VTYPE_NONE;
+      return true;
+    } else {
+      return false;
+    }
+  }
 
 #ifdef TD_SUPPORT_BITMAP
   int16_t colIdx = -1;
@@ -1205,16 +1248,16 @@ static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, in
 }
 
 /**
- * @brief 
- * 
- * @param pRow 
- * @param colId 
- * @param colType 
- * @param flen 
- * @param offset 
+ * @brief
+ *
+ * @param pRow
+ * @param colId
+ * @param colType
+ * @param flen
+ * @param offset
  * @param colIdx start from 0
- * @param pVal 
- * @return FORCE_INLINE 
+ * @param pVal
+ * @return FORCE_INLINE
  */
 static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset,
                                         col_id_t colIdx, SCellVal *pVal) {
@@ -1228,14 +1271,14 @@ static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t
 }
 
 /**
- * @brief 
- * 
- * @param pRow 
- * @param colId 
- * @param offset 
+ * @brief
+ *
+ * @param pRow
+ * @param colId
+ * @param offset
  * @param colIdx start from 0
- * @param pVal 
- * @return FORCE_INLINE 
+ * @param pVal
+ * @return FORCE_INLINE
  */
 static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx,
                                         SCellVal *pVal) {
@@ -1352,14 +1395,14 @@ static void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
   }
 }
 
-static void tdSRowPrint(STSRow *row, STSchema *pSchema) {
+static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag) {
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pSchema);
   tdSTSRowIterReset(&iter, row);
-  printf(">>>");
+  printf("%s >>>", tag);
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
-    SCellVal  sVal = {.valType = 255, .val = NULL};
+    SCellVal  sVal = {255, NULL};
     if (!tdSTSRowIterNext(&iter, stCol->colId, stCol->type, &sVal)) {
       break;
     }
@@ -1368,7 +1411,6 @@ static void tdSRowPrint(STSRow *row, STSchema *pSchema) {
   }
   printf("\n");
 }
-
 #ifdef TROW_ORIGIN_HZ
 typedef struct {
   uint32_t nRows;

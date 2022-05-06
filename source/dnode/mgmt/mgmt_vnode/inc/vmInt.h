@@ -105,6 +105,7 @@ void    vmStopWorker(SVnodesMgmt *pMgmt);
 int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 void    vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
+int32_t vmPutMsgToSyncQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);  // sync integration
 int32_t vmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);

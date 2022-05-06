@@ -171,13 +171,25 @@ static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   }
 }
 
+void dmProcessNettestReq(SDnode *pDnode, SRpcMsg *pRpc) {
+  dDebug("net test req is received");
+  SRpcMsg rsp = {.handle = pRpc->handle, .refId = pRpc->refId, .ahandle = pRpc->ahandle, .code = 0};
+  rsp.pCont = rpcMallocCont(pRpc->contLen);
+  if (rsp.pCont == NULL) {
+    rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    rsp.contLen = pRpc->contLen;
+  }
+  rpcSendResponse(&rsp);
+}
+
 void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("server status req is received");
 
   SServerStatusRsp statusRsp = {0};
   dmGetServerStatus(pDnode, &statusRsp);
 
-  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle};
+  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle, .refId = pReq->refId};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
     rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;

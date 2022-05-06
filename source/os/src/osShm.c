@@ -22,15 +22,20 @@
 static int32_t shmids[MAX_SHMIDS] = {0};
 
 static void taosDeleteCreatedShms() {
+#if defined(WINDOWS)
+#else
   for (int32_t i = 0; i < MAX_SHMIDS; ++i) {
     int32_t shmid = shmids[i] - 1;
     if (shmid >= 0) {
       shmctl(shmid, IPC_RMID, NULL);
     }
   }
+#endif
 }
 
 int32_t taosCreateShm(SShm* pShm, int32_t key, int32_t shmsize) {
+#if defined(WINDOWS)
+#else
   pShm->id = -1;
 
 #if 1
@@ -64,10 +69,13 @@ int32_t taosCreateShm(SShm* pShm, int32_t key, int32_t shmsize) {
   shmctl(pShm->id, IPC_RMID, NULL);
 #endif
 
+#endif
   return 0;
 }
 
 void taosDropShm(SShm* pShm) {
+#if defined(WINDOWS)
+#else
   if (pShm->id >= 0) {
     if (pShm->ptr != NULL) {
       shmdt(pShm->ptr);
@@ -77,14 +85,18 @@ void taosDropShm(SShm* pShm) {
   pShm->id = -1;
   pShm->size = 0;
   pShm->ptr = NULL;
+#endif
 }
 
 int32_t taosAttachShm(SShm* pShm) {
+#if defined(WINDOWS)
+#else
   errno = 0;
 
   void* ptr = shmat(pShm->id, NULL, 0);
   if (errno == 0) {
     pShm->ptr = ptr;
   }
+#endif
   return errno;
 }

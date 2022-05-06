@@ -107,20 +107,28 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
 
   pCfg->vgId = pCreate->vgId;
   strcpy(pCfg->dbname, pCreate->db);
-  pCfg->wsize = pCreate->cacheBlockSize * 1024 * 1024;
-  pCfg->ssize = 1024;
-  pCfg->lsize = 1024 * 1024;
-  pCfg->streamMode = pCreate->streamMode;
   pCfg->isWeak = true;
-  pCfg->tsdbCfg.keep2 = pCreate->daysToKeep0;
-  pCfg->tsdbCfg.keep0 = pCreate->daysToKeep2;
-  pCfg->tsdbCfg.keep1 = pCreate->daysToKeep0;
-  pCfg->tsdbCfg.lruCacheSize = pCreate->cacheBlockSize;
-  pCfg->tsdbCfg.retentions = pCreate->pRetensions;
+  pCfg->tsdbCfg.days = 10;
+  pCfg->tsdbCfg.keep2 = 3650;
+  pCfg->tsdbCfg.keep0 = 3650;
+  pCfg->tsdbCfg.keep1 = 3650;
+  for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {
+    memcpy(&pCfg->tsdbCfg.retentions[i], taosArrayGet(pCreate->pRetensions, i), sizeof(SRetention));
+  }
   pCfg->walCfg.vgId = pCreate->vgId;
   pCfg->hashBegin = pCreate->hashBegin;
   pCfg->hashEnd = pCreate->hashEnd;
   pCfg->hashMethod = pCreate->hashMethod;
+
+  // sync integration
+  pCfg->syncCfg.myIndex = pCreate->selfIndex;
+  pCfg->syncCfg.replicaNum = pCreate->replica;
+  memset(&(pCfg->syncCfg.nodeInfo), 0, sizeof(pCfg->syncCfg.nodeInfo));
+  for (int i = 0; i < pCreate->replica; ++i) {
+    (pCfg->syncCfg.nodeInfo)[i].nodePort = (pCreate->replicas)[i].port;
+    snprintf((pCfg->syncCfg.nodeInfo)[i].nodeFqdn, sizeof((pCfg->syncCfg.nodeInfo)[i].nodeFqdn), "%s",
+             (pCreate->replicas)[i].fqdn);
+  }
 }
 
 static void vmGenerateWrapperCfg(SVnodesMgmt *pMgmt, SCreateVnodeReq *pCreate, SWrapperCfg *pCfg) {
@@ -172,6 +180,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
   msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
+  msgCb.queueFps[SYNC_QUEUE] = vmPutMsgToSyncQueue;  // sync integration
   msgCb.qsizeFp = vmGetQueueSize;
 
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
@@ -185,6 +194,16 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   if (code != 0) {
     tFreeSCreateVnodeReq(&createReq);
     dError("vgId:%d, failed to open vnode since %s", createReq.vgId, terrstr());
+    vnodeClose(pImpl);
+    vnodeDestroy(path, pMgmt->pTfs);
+    terrno = code;
+    return code;
+  }
+
+  code = vnodeStart(pImpl);
+  if (code != 0) {
+    tFreeSCreateVnodeReq(&createReq);
+    dError("vgId:%d, failed to start sync since %s", createReq.vgId, terrstr());
     vnodeClose(pImpl);
     vnodeDestroy(path, pMgmt->pTfs);
     terrno = code;
@@ -252,7 +271,7 @@ void vmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dmSetMsgHandle(pWrapper, TDMT_VND_MQ_QUERY, vmProcessQueryMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_MQ_CONNECT, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_MQ_DISCONNECT, vmProcessWriteMsg, DEFAULT_HANDLE);
-  //dmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessWriteMsg, DEFAULT_HANDLE);
+  // dmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_RES_READY, vmProcessFetchMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_TASKS_STATUS, vmProcessFetchMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_CANCEL_TASK, vmProcessFetchMsg, DEFAULT_HANDLE);
@@ -265,11 +284,8 @@ void vmInitMsgHandle(SMgmtWrapper *pWrapper) {
   dmSetMsgHandle(pWrapper, TDMT_VND_CREATE_SMA, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_CANCEL_SMA, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_DROP_SMA, vmProcessWriteMsg, DEFAULT_HANDLE);
-  //dmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CONN, vmProcessWriteMsg, DEFAULT_HANDLE);
-  //dmSetMsgHandle(pWrapper, TDMT_VND_MQ_REB, vmProcessWriteMsg, DEFAULT_HANDLE);
-  //dmSetMsgHandle(pWrapper, TDMT_VND_MQ_CANCEL_CONN, vmProcessWriteMsg, DEFAULT_HANDLE);
-  //dmSetMsgHandle(pWrapper, TDMT_VND_MQ_SET_CUR, vmProcessFetchMsg, DEFAULT_HANDLE);
-  dmSetMsgHandle(pWrapper, TDMT_VND_MQ_VG_CHANGE, (NodeMsgFp)vmProcessWriteMsg, DEFAULT_HANDLE);  
+  dmSetMsgHandle(pWrapper, TDMT_VND_SUBMIT_RSMA, vmProcessWriteMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_MQ_VG_CHANGE, (NodeMsgFp)vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_CONSUME, vmProcessFetchMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_TASK_DEPLOY, vmProcessWriteMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_VND_QUERY_HEARTBEAT, vmProcessFetchMsg, DEFAULT_HANDLE);
@@ -283,4 +299,17 @@ void vmInitMsgHandle(SMgmtWrapper *pWrapper) {
 
   dmSetMsgHandle(pWrapper, TDMT_DND_CREATE_VNODE, vmProcessMgmtMsg, DEFAULT_HANDLE);
   dmSetMsgHandle(pWrapper, TDMT_DND_DROP_VNODE, vmProcessMgmtMsg, DEFAULT_HANDLE);
+  // dmSetMsgHandle(pWrapper, TDMT_DND_SYNC_VNODE, vmProcessMgmtMsg, DEFAULT_HANDLE);
+  // dmSetMsgHandle(pWrapper, TDMT_DND_COMPACT_VNODE, vmProcessMgmtMsg, DEFAULT_HANDLE);
+
+  // sync integration
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_TIMEOUT, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_PING, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_PING_REPLY, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_CLIENT_REQUEST, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_CLIENT_REQUEST_REPLY, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_REQUEST_VOTE, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_REQUEST_VOTE_REPLY, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_APPEND_ENTRIES, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
+  dmSetMsgHandle(pWrapper, TDMT_VND_SYNC_APPEND_ENTRIES_REPLY, (NodeMsgFp)vmProcessSyncMsg, DEFAULT_HANDLE);
 }

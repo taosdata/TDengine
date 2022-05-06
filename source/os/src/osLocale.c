@@ -17,7 +17,7 @@
 #define _DEFAULT_SOURCE
 #include "osLocale.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
 #if (_WIN64)
 #include <iphlpapi.h>
 #include <mswsock.h>
@@ -87,7 +87,7 @@ void taosSetSystemLocale(const char *inLocale, const char *inCharSet) {
 }
 
 void taosGetSystemLocale(char *outLocale, char *outCharset) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   char *locale = setlocale(LC_CTYPE, "chs");
   if (locale != NULL) {
     tstrncpy(outLocale, locale, TD_LOCALE_LEN);

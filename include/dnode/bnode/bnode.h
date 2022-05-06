@@ -26,6 +26,9 @@ extern "C" {
 typedef struct SBnode SBnode;
 
 typedef struct {
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 } SBnodeLoad;
 
 typedef struct {

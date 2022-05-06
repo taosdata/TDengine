@@ -144,6 +144,22 @@ char* tjsonToUnformattedString(const SJson* pJson) { return cJSON_PrintUnformatt
 
 SJson* tjsonGetObjectItem(const SJson* pJson, const char* pName) { return cJSON_GetObjectItem(pJson, pName); }
 
+int32_t tjsonGetObjectName(const SJson* pJson, char** pName) {
+  *pName = ((cJSON*)pJson)->string;
+  if (NULL == *pName) {
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tjsonGetObjectValueString(const SJson* pJson, char** pValueString) {
+  *pValueString = ((cJSON*)pJson)->valuestring;
+  if (NULL == *pValueString) {
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
@@ -300,8 +316,8 @@ bool tjsonValidateJson(const char *jIn) {
 
     char* jsonKey = item->string;
     if (!jsonKey) return false;
-    for (size_t j = 0; j < strlen(jsonKey); ++i) {
-      if (isprint(jsonKey[i]) == 0) return false;
+    for (size_t j = 0; j < strlen(jsonKey); ++j) {
+      if (isprint(jsonKey[j]) == 0) return false;
     }
 
     if (item->type == cJSON_Object || item->type == cJSON_Array) {
@@ -310,3 +326,5 @@ bool tjsonValidateJson(const char *jIn) {
   }
   return true;
 }
+
+const char* tjsonGetError() { return cJSON_GetErrorPtr(); }

@@ -21,17 +21,17 @@
 class PlannerTestBaseImpl;
 
 class PlannerTestBase : public testing::Test {
-public:
+ public:
   PlannerTestBase();
   virtual ~PlannerTestBase();
 
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql);
 
-private:
+ private:
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 
-extern bool g_isDump;
+extern void setDumpModule(const char* pModule);
 
 #endif  // PLAN_TEST_UTIL_H

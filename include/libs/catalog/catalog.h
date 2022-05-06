@@ -51,7 +51,7 @@ typedef struct SMetaData {
   SArray    *pTableMeta;  // STableMeta array
   SArray    *pVgroupInfo; // SVgroupInfo list
   SArray    *pUdfList;    // udf info list
-  SArray    *pEpSetList;  // qnode epset list, SArray<SEpSet>
+  SArray    *pQnodeList;  // qnode list, SArray<SQueryNodeAddr>
 } SMetaData;
 
 typedef struct SCatalogCfg {
@@ -212,7 +212,6 @@ int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, void * pTransporter, const
  * @return error code 
  */
 int32_t catalogGetAllMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
-
 
 int32_t catalogGetQnodeList(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
 

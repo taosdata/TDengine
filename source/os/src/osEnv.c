@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "osEnv.h"
 
-extern void taosWinSocketInit();
-
 char            configDir[PATH_MAX] = {0};
 char            tsDataDir[PATH_MAX] = {0};
 char            tsLogDir[PATH_MAX] = {0};
@@ -51,7 +49,7 @@ void osDefaultInit() {
     tsNumOfCores = 2;
   }
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   taosWinSocketInit();
 
   const char *tmpDir = getenv("tmp");

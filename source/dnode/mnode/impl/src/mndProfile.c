@@ -58,7 +58,8 @@ static void      mndCancelGetNextQuery(SMnode *pMnode, void *pIter);
 int32_t mndInitProfile(SMnode *pMnode) {
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
-  int32_t connCheckTime = tsShellActivityTimer * 2;
+  // in ms
+  int32_t connCheckTime = tsShellActivityTimer * 2 * 1000;
   pMgmt->cache = taosCacheInit(TSDB_DATA_TYPE_INT, connCheckTime, true, (__cache_free_fn_t)mndFreeConn, "conn");
   if (pMgmt->cache == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -174,10 +175,10 @@ static void mndCancelGetNextConn(SMnode *pMnode, void *pIter) {
 }
 
 static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
-  SMnode *    pMnode = pReq->pNode;
-  SUserObj *  pUser = NULL;
-  SDbObj *    pDb = NULL;
-  SConnObj *  pConn = NULL;
+  SMnode     *pMnode = pReq->pNode;
+  SUserObj   *pUser = NULL;
+  SDbObj     *pDb = NULL;
+  SConnObj   *pConn = NULL;
   int32_t     code = -1;
   SConnectReq connReq = {0};
   char        ip[30] = {0};
@@ -195,7 +196,7 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
     goto CONN_OVER;
   }
   if (0 != strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1)) {
-    mError("user:%s, failed to auth while acquire user\n %s \r\n %s", pReq->user, connReq.passwd, pUser->pass);
+    mError("user:%s, failed to auth while acquire user, input:%s saved:%s", pReq->user, connReq.passwd, pUser->pass);
     code = TSDB_CODE_RPC_AUTH_FAILURE;
     goto CONN_OVER;
   }
@@ -464,7 +465,7 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
   taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
 
   int32_t tlen = tSerializeSClientHbBatchRsp(NULL, 0, &batchRsp);
-  void *  buf = rpcMallocCont(tlen);
+  void   *buf = rpcMallocCont(tlen);
   tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
 
   int32_t rspNum = (int32_t)taosArrayGetSize(batchRsp.rsps);
@@ -486,7 +487,7 @@ static int32_t mndProcessHeartBeatReq(SNodeMsg *pReq) {
 }
 
 static int32_t mndProcessKillQueryReq(SNodeMsg *pReq) {
-  SMnode *      pMnode = pReq->pNode;
+  SMnode       *pMnode = pReq->pNode;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pReq->user);
@@ -520,7 +521,7 @@ static int32_t mndProcessKillQueryReq(SNodeMsg *pReq) {
 }
 
 static int32_t mndProcessKillConnReq(SNodeMsg *pReq) {
-  SMnode *      pMnode = pReq->pNode;
+  SMnode       *pMnode = pReq->pNode;
   SProfileMgmt *pMgmt = &pMnode->profileMgmt;
 
   SUserObj *pUser = mndAcquireUser(pMnode, pReq->user);
@@ -552,11 +553,11 @@ static int32_t mndProcessKillConnReq(SNodeMsg *pReq) {
 }
 
 static int32_t mndRetrieveConns(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *  pMnode = pReq->pNode;
+  SMnode   *pMnode = pReq->pNode;
   int32_t   numOfRows = 0;
   SConnObj *pConn = NULL;
   int32_t   cols = 0;
-  char *    pWrite;
+  char     *pWrite;
   char      ipStr[TSDB_IPv4ADDR_LEN + 6];
 
   if (pShow->pIter == NULL) {
@@ -569,38 +570,39 @@ static int32_t mndRetrieveConns(SNodeMsg *pReq, SShowObj *pShow, char *data, int
     if (pConn == NULL) break;
 
     cols = 0;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+#if 0
+    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
     *(uint32_t *)pWrite = pConn->id;
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->user, pShow->bytes[cols]);
+    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->user, pShow->pMeta->pSchemas[cols].bytes);
     cols++;
 
     // app name
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->app, pShow->bytes[cols]);
+    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->app, pShow->pMeta->pSchemas[cols].bytes);
     cols++;
 
     // app pid
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
     *(int32_t *)pWrite = pConn->pid;
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
     taosIpPort2String(pConn->ip, pConn->port, ipStr);
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, ipStr, pShow->pMeta->pSchemas[cols].bytes);
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
     *(int64_t *)pWrite = pConn->loginTimeMs;
     cols++;
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+    pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
     if (pConn->lastAccessTimeMs < pConn->loginTimeMs) pConn->lastAccessTimeMs = pConn->loginTimeMs;
     *(int64_t *)pWrite = pConn->lastAccessTimeMs;
     cols++;
+#endif
 
     numOfRows++;
   }
@@ -611,8 +613,8 @@ static int32_t mndRetrieveConns(SNodeMsg *pReq, SShowObj *pShow, char *data, int
 }
 
 static int32_t mndRetrieveQueries(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode *pMnode = pReq->pNode;
-  int32_t numOfRows = 0;
+  SMnode   *pMnode = pReq->pNode;
+  int32_t   numOfRows = 0;
 #if 0
   SConnObj *pConn = NULL;
   int32_t   cols = 0;
@@ -642,67 +644,67 @@ static int32_t mndRetrieveQueries(SNodeMsg *pReq, SShowObj *pShow, char *data, i
       SQueryDesc *pDesc = pConn->pQueries + i;
       cols = 0;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       *(int64_t *)pWrite = htobe64(pDesc->queryId);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       *(int64_t *)pWrite = htobe64(pConn->id);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->user, pShow->bytes[cols]);
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pConn->user, pShow->pMeta->pSchemas[cols].bytes);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       snprintf(str, tListLen(str), "%s:%u", taosIpStr(pConn->ip), pConn->port);
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->bytes[cols]);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->pMeta->pSchemas[cols].bytes);
       cols++;
 
       char handleBuf[24] = {0};
       snprintf(handleBuf, tListLen(handleBuf), "%" PRIu64, htobe64(pDesc->qId));
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
 
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, handleBuf, pShow->bytes[cols]);
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, handleBuf, pShow->pMeta->pSchemas[cols].bytes);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       *(int64_t *)pWrite = htobe64(pDesc->stime);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       *(int64_t *)pWrite = htobe64(pDesc->useconds);
       cols++;
 
       snprintf(str, tListLen(str), "0x%" PRIx64, htobe64(pDesc->sqlObjId));
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->bytes[cols]);
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, str, pShow->pMeta->pSchemas[cols].bytes);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       *(int32_t *)pWrite = htonl(pDesc->pid);
       cols++;
 
       char epBuf[TSDB_EP_LEN + 1] = {0};
       snprintf(epBuf, tListLen(epBuf), "%s:%u", pDesc->fqdn, pConn->port);
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, epBuf, pShow->bytes[cols]);
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, epBuf, pShow->pMeta->pSchemas[cols].bytes);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       *(bool *)pWrite = pDesc->stableQuery;
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
       *(int32_t *)pWrite = htonl(pDesc->numOfSub);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->subSqlInfo, pShow->bytes[cols]);
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->subSqlInfo, pShow->pMeta->pSchemas[cols].bytes);
       cols++;
 
-      pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->sql, pShow->bytes[cols]);
+      pWrite = data + pShow->offset[cols] * rows + pShow->pMeta->pSchemas[cols].bytes * numOfRows;
+      STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pDesc->sql, pShow->pMeta->pSchemas[cols].bytes);
       cols++;
 
       numOfRows++;

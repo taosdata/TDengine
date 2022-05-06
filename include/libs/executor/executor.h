@@ -32,6 +32,8 @@ typedef struct SReadHandle {
   void* reader;
   void* meta;
   void* config;
+  void* vnode;
+  void* mnd;
 } SReadHandle;
 
 #define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1

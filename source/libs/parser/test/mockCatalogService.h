@@ -20,17 +20,15 @@
 #include <string>
 #include <vector>
 
+#define ALLOW_FORBID_FUNC
+
 #include "catalog.h"
 
 class ITableBuilder {
-public:
-  ITableBuilder& addTag(const std::string& name, int8_t type) {
-    return addColumn(name, type, tDataTypes[type].bytes);
-  }
+ public:
+  ITableBuilder& addTag(const std::string& name, int8_t type) { return addColumn(name, type, tDataTypes[type].bytes); }
 
-  ITableBuilder& addTag(const std::string& name, int8_t type, int32_t bytes) {
-    return addColumn(name, type, bytes);
-  }
+  ITableBuilder& addTag(const std::string& name, int8_t type, int32_t bytes) { return addColumn(name, type, bytes); }
 
   ITableBuilder& addColumn(const std::string& name, int8_t type) {
     return addColumn(name, type, tDataTypes[type].bytes);
@@ -39,24 +37,23 @@ public:
   virtual ITableBuilder& addColumn(const std::string& name, int8_t type, int32_t bytes) = 0;
   virtual ITableBuilder& setVgid(int16_t vgid) = 0;
   virtual ITableBuilder& setPrecision(uint8_t precision) = 0;
-  virtual void done() = 0;
+  virtual void           done() = 0;
 };
 
 struct MockTableMeta {
-  ~MockTableMeta() {
-    taosMemoryFree(schema);
-  }
+  ~MockTableMeta() { taosMemoryFree(schema); }
 
-  STableMeta* schema;
+  STableMeta*              schema;
   std::vector<SVgroupInfo> vgs;
 };
 
 class MockCatalogServiceImpl;
 class MockCatalogService {
-public:
+ public:
   MockCatalogService();
   ~MockCatalogService();
-  ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType, int32_t numOfColumns, int32_t numOfTags = 0);
+  ITableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType,
+                                    int32_t numOfColumns, int32_t numOfTags = 0);
   void createSubTable(const std::string& db, const std::string& stbname, const std::string& tbname, int16_t vgid);
   void showTables() const;
   std::shared_ptr<MockTableMeta> getTableMeta(const std::string& db, const std::string& tbname) const;
@@ -65,7 +62,7 @@ public:
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const;
 
-private:
+ private:
   std::unique_ptr<MockCatalogServiceImpl> impl_;
 };
 

@@ -17,7 +17,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
 #if (_WIN64)
 #include <iphlpapi.h>
 #include <mswsock.h>
@@ -59,11 +59,12 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
       buf[i] = inTimezoneStr[i];
   }
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   char winStr[TD_LOCALE_LEN * 2];
   sprintf(winStr, "TZ=%s", buf);
   putenv(winStr);
   tzset();
+  /*
    * get CURRENT time zone.
    * system current time zone is affected by daylight saving time(DST)
    *
@@ -116,7 +117,7 @@ void taosSetSystemTimezone(const char *inTimezoneStr, char *outTimezoneStr, int8
 }
 
 void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   char *tz = getenv("TZ");
   if (tz == NULL || strlen(tz) == 0) {
     strcpy(outTimezoneStr, "not configured");

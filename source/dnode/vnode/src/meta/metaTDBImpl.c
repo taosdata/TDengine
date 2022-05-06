@@ -15,6 +15,8 @@
 
 #include "vnodeInt.h"
 
+#ifndef META_REFACT
+
 typedef struct SPoolMem {
   int64_t          size;
   struct SPoolMem *prev;
@@ -45,10 +47,12 @@ struct SMetaDB {
 #endif
 };
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push, 1)
+typedef struct {
   tb_uid_t uid;
   int32_t  sver;
 } SSchemaDbKey;
+#pragma pack(pop)
 
 typedef struct {
   char    *name;
@@ -248,7 +252,7 @@ void metaCloseDB(SMeta *pMeta) {
   }
 }
 
-int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
+int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg, STbDdlH *pHandle) {
   tb_uid_t       uid;
   SMetaDB       *pMetaDb;
   void          *pKey;
@@ -347,6 +351,12 @@ int metaSaveTableToDB(SMeta *pMeta, STbCfg *pTbCfg) {
     if (ret < 0) {
       return -1;
     }
+    // child table handle for rsma
+    if (pHandle && pHandle->fp) {
+      if (((*pHandle->fp)(pHandle->ahandle, &pHandle->result, &ctbIdxKey.suid, &uid)) < 0) {
+        return -1;
+      };
+    }
   } else if (pTbCfg->type == META_NORMAL_TABLE) {
     pKey = &uid;
     kLen = sizeof(uid);
@@ -369,64 +379,6 @@ int metaRemoveTableFromDb(SMeta *pMeta, tb_uid_t uid) {
   // TODO
   ASSERT(0);
   return 0;
-}
-
-STbCfg *metaGetTbInfoByUid(SMeta *pMeta, tb_uid_t uid) {
-  int      ret;
-  SMetaDB *pMetaDb = pMeta->pDB;
-  void    *pKey;
-  void    *pVal;
-  int      kLen;
-  int      vLen;
-  STbCfg  *pTbCfg;
-
-  // Fetch
-  pKey = &uid;
-  kLen = sizeof(uid);
-  pVal = NULL;
-  ret = tdbDbGet(pMetaDb->pTbDB, pKey, kLen, &pVal, &vLen);
-  if (ret < 0) {
-    return NULL;
-  }
-
-  // Decode
-  pTbCfg = taosMemoryMalloc(sizeof(*pTbCfg));
-  metaDecodeTbInfo(pVal, pTbCfg);
-
-  TDB_FREE(pVal);
-
-  return pTbCfg;
-}
-
-STbCfg *metaGetTbInfoByName(SMeta *pMeta, char *tbname, tb_uid_t *uid) {
-  void *pKey;
-  void *pVal;
-  void *ppKey;
-  int   pkLen;
-  int   kLen;
-  int   vLen;
-  int   ret;
-
-  pKey = tbname;
-  kLen = strlen(tbname) + 1;
-  pVal = NULL;
-  ppKey = NULL;
-  ret = tdbDbPGet(pMeta->pDB->pNameIdx, pKey, kLen, &ppKey, &pkLen, &pVal, &vLen);
-  if (ret < 0) {
-    return NULL;
-  }
-
-  ASSERT(pkLen == kLen + sizeof(uid));
-
-  *uid = *(tb_uid_t *)POINTER_SHIFT(ppKey, kLen);
-  TDB_FREE(ppKey);
-  TDB_FREE(pVal);
-
-  return metaGetTbInfoByUid(pMeta, *uid);
-}
-
-SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
-  return metaGetTableSchemaImpl(pMeta, uid, sver, isinline, false);
 }
 
 static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline, bool isGetEx) {
@@ -455,159 +407,9 @@ static SSchemaWrapper *metaGetTableSchemaImpl(SMeta *pMeta, tb_uid_t uid, int32_
   pSchemaWrapper = taosMemoryMalloc(sizeof(*pSchemaWrapper));
   metaDecodeSchemaEx(pBuf, pSchemaWrapper, isGetEx);
 
-  TDB_FREE(pVal);
+  tdbFree(pVal);
 
   return pSchemaWrapper;
-}
-
-STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
-  tb_uid_t        quid;
-  SSchemaWrapper *pSW;
-  STSchemaBuilder sb;
-  SSchema        *pSchema;
-  STSchema       *pTSchema;
-  STbCfg         *pTbCfg;
-
-  pTbCfg = metaGetTbInfoByUid(pMeta, uid);
-  if (pTbCfg->type == META_CHILD_TABLE) {
-    quid = pTbCfg->ctbCfg.suid;
-  } else {
-    quid = uid;
-  }
-
-  pSW = metaGetTableSchemaImpl(pMeta, quid, sver, true, true);
-  if (pSW == NULL) {
-    return NULL;
-  }
-
-  tdInitTSchemaBuilder(&sb, 0);
-  for (int i = 0; i < pSW->nCols; i++) {
-    pSchema = pSW->pSchema + i;
-    tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
-  }
-  pTSchema = tdGetSchemaFromBuilder(&sb);
-  tdDestroyTSchemaBuilder(&sb);
-
-  return pTSchema;
-}
-
-struct SMTbCursor {
-  TDBC *pDbc;
-};
-
-SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
-  SMTbCursor *pTbCur = NULL;
-  SMetaDB    *pDB = pMeta->pDB;
-
-  pTbCur = (SMTbCursor *)taosMemoryCalloc(1, sizeof(*pTbCur));
-  if (pTbCur == NULL) {
-    return NULL;
-  }
-
-  tdbDbcOpen(pDB->pTbDB, &pTbCur->pDbc);
-
-  return pTbCur;
-}
-
-void metaCloseTbCursor(SMTbCursor *pTbCur) {
-  if (pTbCur) {
-    if (pTbCur->pDbc) {
-      tdbDbcClose(pTbCur->pDbc);
-    }
-    taosMemoryFree(pTbCur);
-  }
-}
-
-char *metaTbCursorNext(SMTbCursor *pTbCur) {
-  void  *pKey = NULL;
-  void  *pVal = NULL;
-  int    kLen;
-  int    vLen;
-  int    ret;
-  void  *pBuf;
-  STbCfg tbCfg;
-
-  for (;;) {
-    ret = tdbDbNext(pTbCur->pDbc, &pKey, &kLen, &pVal, &vLen);
-    if (ret < 0) break;
-    pBuf = pVal;
-    metaDecodeTbInfo(pBuf, &tbCfg);
-    if (tbCfg.type == META_SUPER_TABLE) {
-      taosMemoryFree(tbCfg.name);
-      taosMemoryFree(tbCfg.stbCfg.pTagSchema);
-      continue;
-    } else if (tbCfg.type == META_CHILD_TABLE) {
-      kvRowFree(tbCfg.ctbCfg.pTag);
-    }
-
-    return tbCfg.name;
-  }
-
-  return NULL;
-}
-
-struct SMCtbCursor {
-  TDBC    *pCur;
-  tb_uid_t suid;
-  void    *pKey;
-  void    *pVal;
-  int      kLen;
-  int      vLen;
-};
-
-SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
-  SMCtbCursor *pCtbCur = NULL;
-  SMetaDB     *pDB = pMeta->pDB;
-  int          ret;
-
-  pCtbCur = (SMCtbCursor *)taosMemoryCalloc(1, sizeof(*pCtbCur));
-  if (pCtbCur == NULL) {
-    return NULL;
-  }
-
-  pCtbCur->suid = uid;
-  ret = tdbDbcOpen(pDB->pCtbIdx, &pCtbCur->pCur);
-  if (ret < 0) {
-    taosMemoryFree(pCtbCur);
-    return NULL;
-  }
-
-  // TODO: move the cursor to the suid there
-
-  return pCtbCur;
-}
-
-void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
-  if (pCtbCur) {
-    if (pCtbCur->pCur) {
-      tdbDbcClose(pCtbCur->pCur);
-
-      TDB_FREE(pCtbCur->pKey);
-      TDB_FREE(pCtbCur->pVal);
-    }
-
-    taosMemoryFree(pCtbCur);
-  }
-}
-
-tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
-  int         ret;
-  SCtbIdxKey *pCtbIdxKey;
-
-  ret = tdbDbNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
-  if (ret < 0) {
-    return 0;
-  }
-
-  pCtbIdxKey = pCtbCur->pKey;
-
-  return pCtbIdxKey->uid;
-}
-
-int metaGetTbNum(SMeta *pMeta) {
-  // TODO
-  // ASSERT(0);
-  return 0;
 }
 
 struct SMSmaCursor {
@@ -636,7 +438,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
 
   while (true) {
     // TODO: lock during iterate?
-    if (tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
+    if (tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
       pSmaIdxKey = pCur->pKey;
       ASSERT(pSmaIdxKey != NULL);
 
@@ -648,7 +450,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       }
 
       if ((pSW == NULL) && ((pSW = taosMemoryCalloc(1, sizeof(*pSW))) == NULL)) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         return NULL;
       }
@@ -656,7 +458,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       ++pSW->number;
       STSma *tptr = (STSma *)taosMemoryRealloc(pSW->tSma, pSW->number * sizeof(STSma));
       if (tptr == NULL) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
@@ -665,13 +467,13 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid) {
       pSW->tSma = tptr;
       pBuf = pSmaVal;
       if (tDecodeTSma(pBuf, pSW->tSma + pSW->number - 1) == NULL) {
-        TDB_FREE(pSmaVal);
+        tdbFree(pSmaVal);
         metaCloseSmaCursor(pCur);
         tdDestroyTSmaWrapper(pSW);
         taosMemoryFreeClear(pSW);
         return NULL;
       }
-      TDB_FREE(pSmaVal);
+      tdbFree(pSmaVal);
       continue;
     }
     break;
@@ -760,53 +562,6 @@ int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
   return 0;
 }
 
-void *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode) {
-  // TODO
-  // ASSERT(0);
-  // return NULL;
-#ifdef META_TDB_SMA_TEST
-  SMetaDB *pDB = pMeta->pDB;
-  void    *pKey = NULL;
-  void    *pVal = NULL;
-  int      kLen = 0;
-  int      vLen = 0;
-  int      ret = -1;
-
-  // Set key
-  pKey = (void *)&indexUid;
-  kLen = sizeof(indexUid);
-
-  // Query
-  ret = tdbDbGet(pDB->pSmaDB, pKey, kLen, &pVal, &vLen);
-  if (ret != 0 || !pVal) {
-    return NULL;
-  }
-
-  if (!isDecode) {
-    // return raw value
-    return pVal;
-  }
-
-  // Decode
-  STSma *pCfg = (STSma *)taosMemoryCalloc(1, sizeof(STSma));
-  if (pCfg == NULL) {
-    taosMemoryFree(pVal);
-    return NULL;
-  }
-
-  void *pBuf = pVal;
-  if (tDecodeTSma(pBuf, pCfg) == NULL) {
-    tdDestroyTSma(pCfg);
-    taosMemoryFree(pCfg);
-    TDB_FREE(pVal);
-    return NULL;
-  }
-
-  TDB_FREE(pVal);
-  return pCfg;
-#endif
-}
-
 /**
  * @brief
  *
@@ -858,7 +613,7 @@ int64_t metaSmaCursorNext(SMSmaCursor *pCur) {
   void       *pBuf;
   SSmaIdxKey *smaIdxKey;
 
-  ret = tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, &pCur->pVal, &pCur->vLen);
+  ret = tdbDbcNext(pCur->pCur, &pCur->pKey, &pCur->kLen, &pCur->pVal, &pCur->vLen);
   if (ret < 0) {
     return 0;
   }
@@ -878,56 +633,6 @@ void metaCloseSmaCursor(SMSmaCursor *pCur) {
 
     taosMemoryFree(pCur);
   }
-#endif
-}
-
-SArray *metaGetSmaTbUids(SMeta *pMeta, bool isDup) {
-  // TODO
-  // ASSERT(0); // comment this line to pass CI
-  // return NULL:
-#ifdef META_TDB_SMA_TEST
-  SArray  *pUids = NULL;
-  SMetaDB *pDB = pMeta->pDB;
-  void    *pKey;
-
-  // TODO: lock?
-  SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, 0);
-  if (pCur == NULL) {
-    return NULL;
-  }
-  // TODO: lock?
-
-  SSmaIdxKey *pSmaIdxKey = NULL;
-  tb_uid_t    uid = 0;
-  while (true) {
-    // TODO: lock during iterate?
-    if (tdbDbNext(pCur->pCur, &pCur->pKey, &pCur->kLen, NULL, &pCur->vLen) == 0) {
-      ASSERT(pSmaIdxKey != NULL);
-      pSmaIdxKey = pCur->pKey;
-
-      if (pSmaIdxKey->uid == 0 || pSmaIdxKey->uid == uid) {
-        continue;
-      }
-      uid = pSmaIdxKey->uid;
-
-      if (!pUids) {
-        pUids = taosArrayInit(16, sizeof(tb_uid_t));
-        if (!pUids) {
-          metaCloseSmaCursor(pCur);
-          return NULL;
-        }
-      }
-
-      taosArrayPush(pUids, &uid);
-
-      continue;
-    }
-    break;
-  }
-
-  metaCloseSmaCursor(pCur);
-
-  return pUids;
 #endif
 }
 
@@ -1134,3 +839,5 @@ static void poolFree(void *arg, void *ptr) {
 
   tdbOsFree(pMem);
 }
+
+#endif

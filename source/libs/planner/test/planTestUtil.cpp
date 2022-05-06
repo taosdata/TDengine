@@ -16,6 +16,7 @@
 #include "planTestUtil.h"
 
 #include <algorithm>
+#include <array>
 
 #include "cmdnodes.h"
 #include "parser.h"
@@ -24,18 +25,53 @@
 using namespace std;
 using namespace testing;
 
-#define DO_WITH_THROW(func, ...) \
-  do { \
-    int32_t code__ = func(__VA_ARGS__); \
-    if (TSDB_CODE_SUCCESS != code__) { \
-      throw runtime_error("sql:[" + stmtEnv_.sql_ + "] " #func " code:" + to_string(code__) + ", strerror:" + string(tstrerror(code__)) + ", msg:" + string(stmtEnv_.msgBuf_.data())); \
-    } \
-  } while(0);
+#define DO_WITH_THROW(func, ...)                                                                                   \
+  do {                                                                                                             \
+    int32_t code__ = func(__VA_ARGS__);                                                                            \
+    if (TSDB_CODE_SUCCESS != code__) {                                                                             \
+      throw runtime_error("sql:[" + stmtEnv_.sql_ + "] " #func " code:" + to_string(code__) +                      \
+                          ", strerror:" + string(tstrerror(code__)) + ", msg:" + string(stmtEnv_.msgBuf_.data())); \
+    }                                                                                                              \
+  } while (0);
 
-bool g_isDump = false;
+enum DumpModule {
+  DUMP_MODULE_NOTHING = 1,
+  DUMP_MODULE_PARSER,
+  DUMP_MODULE_LOGIC,
+  DUMP_MODULE_OPTIMIZED,
+  DUMP_MODULE_SPLIT,
+  DUMP_MODULE_SCALED,
+  DUMP_MODULE_PHYSICAL,
+  DUMP_MODULE_SUBPLAN,
+  DUMP_MODULE_ALL
+};
+
+DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
+
+void setDumpModule(const char* pModule) {
+  if (NULL == pModule) {
+    g_dumpModule = DUMP_MODULE_ALL;
+  } else if (0 == strncasecmp(pModule, "parser", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_PARSER;
+  } else if (0 == strncasecmp(pModule, "logic", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_LOGIC;
+  } else if (0 == strncasecmp(pModule, "optimized", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_OPTIMIZED;
+  } else if (0 == strncasecmp(pModule, "split", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SPLIT;
+  } else if (0 == strncasecmp(pModule, "scaled", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SCALED;
+  } else if (0 == strncasecmp(pModule, "physical", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_PHYSICAL;
+  } else if (0 == strncasecmp(pModule, "subplan", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_SUBPLAN;
+  } else if (0 == strncasecmp(pModule, "all", strlen(pModule))) {
+    g_dumpModule = DUMP_MODULE_PHYSICAL;
+  }
+}
 
 class PlannerTestBaseImpl {
-public:
+ public:
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
@@ -64,33 +100,31 @@ public:
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
 
-      if (g_isDump) {
-        dump();
-      }
+      dump(g_dumpModule);
     } catch (...) {
-      dump();
+      dump(DUMP_MODULE_ALL);
       throw;
     }
   }
 
-private:
+ private:
   struct caseEnv {
     string acctId_;
     string db_;
   };
 
   struct stmtEnv {
-    string sql_;
+    string            sql_;
     array<char, 1024> msgBuf_;
   };
 
   struct stmtRes {
-    string ast_;
-    string rawLogicPlan_;
-    string optimizedLogicPlan_;
-    string splitLogicPlan_;
-    string scaledLogicPlan_;
-    string physiPlan_;
+    string         ast_;
+    string         rawLogicPlan_;
+    string         optimizedLogicPlan_;
+    string         splitLogicPlan_;
+    string         scaledLogicPlan_;
+    string         physiPlan_;
     vector<string> physiSubplans_;
   };
 
@@ -104,32 +138,58 @@ private:
     res_.splitLogicPlan_.clear();
     res_.scaledLogicPlan_.clear();
     res_.physiPlan_.clear();
+    res_.physiSubplans_.clear();
   }
 
-  void dump() {
+  void dump(DumpModule module) {
+    if (DUMP_MODULE_NOTHING == module) {
+      return;
+    }
+
     cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
-    cout << "syntax tree : " << endl;
-    cout << res_.ast_ << endl;
-    cout << "raw logic plan : " << endl;
-    cout << res_.rawLogicPlan_ << endl;
-    cout << "optimized logic plan : " << endl;
-    cout << res_.optimizedLogicPlan_ << endl;
-    cout << "split logic plan : " << endl;
-    cout << res_.splitLogicPlan_ << endl;
-    cout << "scaled logic plan : " << endl;
-    cout << res_.scaledLogicPlan_ << endl;
-    cout << "physical plan : " << endl;
-    cout << res_.physiPlan_ << endl;
-    cout << "physical subplan : " << endl;
-    for (const auto& subplan : res_.physiSubplans_) {
-      cout << subplan << endl;
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
+      cout << "syntax tree : " << endl;
+      cout << res_.ast_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_LOGIC == module) {
+      cout << "raw logic plan : " << endl;
+      cout << res_.rawLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_OPTIMIZED == module) {
+      cout << "optimized logic plan : " << endl;
+      cout << res_.optimizedLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_SPLIT == module) {
+      cout << "split logic plan : " << endl;
+      cout << res_.splitLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_SCALED == module) {
+      cout << "scaled logic plan : " << endl;
+      cout << res_.scaledLogicPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_PHYSICAL == module) {
+      cout << "physical plan : " << endl;
+      cout << res_.physiPlan_ << endl;
+    }
+
+    if (DUMP_MODULE_ALL == module || DUMP_MODULE_SUBPLAN == module) {
+      cout << "physical subplan : " << endl;
+      for (const auto& subplan : res_.physiSubplans_) {
+        cout << subplan << endl;
+      }
     }
   }
-  
+
   void doParseSql(const string& sql, SQuery** pQuery) {
     stmtEnv_.sql_ = sql;
     transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
-  
+
     SParseContext cxt = {0};
     cxt.acctId = atoi(caseEnv_.acctId_.c_str());
     cxt.db = caseEnv_.db_.c_str();
@@ -137,7 +197,7 @@ private:
     cxt.sqlLen = stmtEnv_.sql_.length();
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
-  
+
     DO_WITH_THROW(qParseQuerySql, &cxt, pQuery);
     res_.ast_ = toString((*pQuery)->pRoot);
   }
@@ -169,9 +229,7 @@ private:
     SNode* pNode;
     FOREACH(pNode, (*pPlan)->pSubplans) {
       SNode* pSubplan;
-      FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) {
-        res_.physiSubplans_.push_back(toString(pSubplan));
-      }
+      FOREACH(pSubplan, ((SNodeListNode*)pNode)->pNodeList) { res_.physiSubplans_.push_back(toString(pSubplan)); }
     }
   }
 
@@ -196,7 +254,7 @@ private:
   }
 
   string toString(const SNode* pRoot) {
-    char* pStr = NULL;
+    char*   pStr = NULL;
     int32_t len = 0;
     DO_WITH_THROW(nodesNodeToString, pRoot, false, &pStr, &len)
     string str(pStr);
@@ -209,16 +267,10 @@ private:
   stmtRes res_;
 };
 
-PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {
-}
+PlannerTestBase::PlannerTestBase() : impl_(new PlannerTestBaseImpl()) {}
 
-PlannerTestBase::~PlannerTestBase() {
-}
+PlannerTestBase::~PlannerTestBase() {}
 
-void PlannerTestBase::useDb(const std::string& acctId, const std::string& db) {
-  impl_->useDb(acctId, db);
-}
+void PlannerTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
 
-void PlannerTestBase::run(const std::string& sql) {
-  return impl_->run(sql);
-}
+void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }

@@ -52,9 +52,9 @@ static int32_t mndProcessConfigDnodeReq(SNodeMsg *pReq);
 static int32_t mndProcessConfigDnodeRsp(SNodeMsg *pRsp);
 static int32_t mndProcessStatusReq(SNodeMsg *pReq);
 
-static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConfig(SMnode *pMnode, void *pIter);
-static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDnode(SMnode *pMnode) {
@@ -335,10 +335,13 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
       }
       bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
-        if (pVgroup->vnodeGid[vg].role != pVload->syncState) {
-          roleChanged = true;
+        // sync integration
+        if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
+          if (pVgroup->vnodeGid[vg].role != pVload->syncState) {
+            roleChanged = true;
+          }
+          pVgroup->vnodeGid[vg].role = pVload->syncState;
         }
-        pVgroup->vnodeGid[vg].role = pVload->syncState;
       }
       if (roleChanged) {
         // notify scheduler role has changed
@@ -360,7 +363,7 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
         pDnode->offlineReason = DND_REASON_VERSION_NOT_MATCH;
       }
       mError("dnode:%d, status msg version:%d not match cluster:%d", statusReq.dnodeId, statusReq.sver, tsVersion);
-      terrno = TSDB_CODE_MND_INVALID_MSG_VERSION;
+      terrno = TSDB_CODE_VERSION_NOT_COMPATIBLE;
       goto PROCESS_STATUS_MSG_OVER;
     }
 
@@ -634,7 +637,7 @@ static int32_t mndProcessConfigDnodeRsp(SNodeMsg *pRsp) {
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode *pMnode = pReq->pNode;
   int32_t totalRows = 0;
   int32_t numOfRows = 0;
@@ -667,12 +670,12 @@ static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
 
     STR_WITH_MAXSIZE_TO_VARSTR(buf, cfgOpts[i], TSDB_CONFIG_OPTION_LEN);
 
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) buf, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)buf, false);
 
     STR_WITH_MAXSIZE_TO_VARSTR(bufVal, cfgVals[i], TSDB_CONIIG_VALUE_LEN);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) bufVal, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)bufVal, false);
 
     numOfRows++;
   }
@@ -683,7 +686,7 @@ static int32_t mndRetrieveConfigs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* 
 
 static void mndCancelGetNextConfig(SMnode *pMnode, void *pIter) {}
 
-static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
   SMnode    *pMnode = pReq->pNode;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
@@ -698,30 +701,30 @@ static int32_t mndRetrieveDnodes(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* p
 
     cols = 0;
 
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pDnode->id, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
     char buf[tListLen(pDnode->ep) + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep,   pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     int16_t id = mndGetVnodesNum(pMnode, pDnode->id);
-    colDataAppend(pColInfo, numOfRows, (const char*) &id, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&id, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->numOfSupportVnodes, false);
 
     char b1[9] = {0};
-    STR_TO_VARSTR(b1, online? "ready":"offline");
+    STR_TO_VARSTR(b1, online ? "ready" : "offline");
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pDnode->createdTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->createdTime, false);
 
     char b[tListLen(offlineReason) + VARSTR_HEADER_SIZE] = {0};
     STR_TO_VARSTR(b, online ? "" : offlineReason[pDnode->offlineReason]);

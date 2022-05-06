@@ -19,6 +19,7 @@
 static inline void smSendRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
                  .ahandle = pMsg->rpcMsg.ahandle,
+                 .refId = pMsg->rpcMsg.refId,
                  .code = code,
                  .pCont = pMsg->pRsp,
                  .contLen = pMsg->rspLen};
@@ -149,7 +150,7 @@ static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
 }
 
 int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt *  pMgmt = pWrapper->pMgmt;
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -162,7 +163,7 @@ int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt *   pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -171,7 +172,7 @@ int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt *  pMgmt = pWrapper->pMgmt;
   int32_t       index = smGetSWIdFromMsg(&pMsg->rpcMsg);
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
   if (pWorker == NULL) {
@@ -185,7 +186,7 @@ int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt *   pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->sharedWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);

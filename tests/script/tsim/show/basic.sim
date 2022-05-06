@@ -3,9 +3,6 @@ system sh/deploy.sh -n dnode1 -i 1
 system sh/deploy.sh -n dnode2 -i 2
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
-
-# after mnode support, del sleep 2000, and check dnode status
-sleep 2000
 sql connect
 
 #$loop_cnt = 0
@@ -101,7 +98,7 @@ if $rows != 1 then
 endi
 #sql select * from information_schema.user_streams 
 sql select * from information_schema.user_tables
-if $rows != 1 then 
+if $rows != 28 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed
@@ -199,7 +196,7 @@ if $rows != 1 then
 endi
 #sql select * from information_schema.user_streams 
 sql select * from information_schema.user_tables
-if $rows != 1 then 
+if $rows != 28 then
   return -1
 endi
 #sql select * from information_schema.user_table_distributed

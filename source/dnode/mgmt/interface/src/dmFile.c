@@ -124,7 +124,7 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
   TdFilePtr pFile = taosOpenFile(filepath, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to lock file:%s since %s", filepath, terrstr());
+    dError("failed to open file:%s since %s", filepath, terrstr());
     return NULL;
   }
 

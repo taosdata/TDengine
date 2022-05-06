@@ -6,43 +6,39 @@
 #define POINTER_SHIFT(ptr, s) ((void *)(((char *)ptr) + (s)))
 #define POINTER_DISTANCE(pa, pb) ((char *)(pb) - (char *)(pa))
 
-#define tPutA(buf, val)              \
-  ({                                 \
-    memcpy(buf, &val, sizeof(val));  \
-    POINTER_SHIFT(buf, sizeof(val)); \
-  })
+static inline void tPutA(void **buf, uint64_t val) {
+  memcpy(buf, &val, sizeof(val));
+  *buf = POINTER_SHIFT(buf, sizeof(val));
+}
 
-#define tPutB(buf, val)                         \
-  ({                                            \
-    ((uint8_t *)buf)[7] = ((val) >> 56) & 0xff; \
-    ((uint8_t *)buf)[6] = ((val) >> 48) & 0xff; \
-    ((uint8_t *)buf)[5] = ((val) >> 40) & 0xff; \
-    ((uint8_t *)buf)[4] = ((val) >> 32) & 0xff; \
-    ((uint8_t *)buf)[3] = ((val) >> 24) & 0xff; \
-    ((uint8_t *)buf)[2] = ((val) >> 16) & 0xff; \
-    ((uint8_t *)buf)[1] = ((val) >> 8) & 0xff;  \
-    ((uint8_t *)buf)[0] = (val)&0xff;           \
-    POINTER_SHIFT(buf, sizeof(val));            \
-  })
+static inline void tPutB(void **buf, uint64_t val) {
+  ((uint8_t *)buf)[7] = ((val) >> 56) & 0xff;
+  ((uint8_t *)buf)[6] = ((val) >> 48) & 0xff;
+  ((uint8_t *)buf)[5] = ((val) >> 40) & 0xff;
+  ((uint8_t *)buf)[4] = ((val) >> 32) & 0xff;
+  ((uint8_t *)buf)[3] = ((val) >> 24) & 0xff;
+  ((uint8_t *)buf)[2] = ((val) >> 16) & 0xff;
+  ((uint8_t *)buf)[1] = ((val) >> 8) & 0xff;
+  ((uint8_t *)buf)[0] = (val)&0xff;
+  *buf = POINTER_SHIFT(buf, sizeof(val));
+}
 
-#define tPutC(buf, val)                \
-  ({                                   \
-    if (buf) {                         \
-      ((uint64_t *)buf)[0] = (val);    \
-      POINTER_SHIFT(buf, sizeof(val)); \
-    }                                  \
-    NULL;                                 \
-  })
+static inline void tPutC(void **buf, uint64_t val) {
+  if (buf) {
+    ((uint64_t *)buf)[0] = (val);
+    POINTER_SHIFT(buf, sizeof(val));
+  }
+  *buf = NULL;
+}
 
-#define tPutD(buf, val)                        \
-  ({                                           \
-    uint64_t tmp = val;                        \
-    for (size_t i = 0; i < sizeof(val); i++) { \
-      ((uint8_t *)buf)[i] = tmp & 0xff;        \
-      tmp >>= 8;                               \
-    }                                          \
-    POINTER_SHIFT(buf, sizeof(val));           \
-  })
+static inline void tPutD(void **buf, uint64_t val) {
+  uint64_t tmp = val;
+  for (size_t i = 0; i < sizeof(val); i++) {
+    ((uint8_t *)buf)[i] = tmp & 0xff;
+    tmp >>= 8;
+  }
+  *buf = POINTER_SHIFT(buf, sizeof(val));
+}
 
 static inline void tPutE(void **buf, uint64_t val) {
   if (buf) {
@@ -61,7 +57,7 @@ static void func(T t) {
   switch (t) {
     case A:
       for (size_t i = 0; i < 10 * 1024l * 1024l * 1024l; i++) {
-        pBuf = tPutA(pBuf, val);
+        tPutA(pBuf, val);
         if (POINTER_DISTANCE(buf, pBuf) == 1024) {
           pBuf = buf;
         }
@@ -69,7 +65,7 @@ static void func(T t) {
       break;
     case B:
       for (size_t i = 0; i < 10 * 1024l * 1024l * 1024l; i++) {
-        pBuf = tPutB(pBuf, val);
+        tPutB(pBuf, val);
         if (POINTER_DISTANCE(buf, pBuf) == 1024) {
           pBuf = buf;
         }
@@ -77,7 +73,7 @@ static void func(T t) {
       break;
     case C:
       for (size_t i = 0; i < 10 * 1024l * 1024l * 1024l; i++) {
-        pBuf = tPutC(pBuf, val);
+        tPutC(pBuf, val);
         if (POINTER_DISTANCE(buf, pBuf) == 1024) {
           pBuf = buf;
         }
@@ -85,7 +81,7 @@ static void func(T t) {
       break;
     case D:
       for (size_t i = 0; i < 10 * 1024l * 1024l * 1024l; i++) {
-        pBuf = tPutD(pBuf, val);
+        tPutD(pBuf, val);
         if (POINTER_DISTANCE(buf, pBuf) == 1024) {
           pBuf = buf;
         }

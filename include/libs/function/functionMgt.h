@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "querynodes.h"
 #include "function.h"
+#include "querynodes.h"
 
 typedef enum EFunctionType {
   // aggregate function
@@ -40,6 +40,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_STDDEV,
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
+  FUNCTION_TYPE_HISTOGRAM,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -112,6 +113,9 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_WENDTS,
   FUNCTION_TYPE_WDURATION,
 
+  // internal function
+  FUNCTION_TYPE_SELECT_VALUE,
+
   // user defined funcion
   FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
@@ -123,26 +127,28 @@ struct SCatalog;
 
 typedef struct SFmGetFuncInfoParam {
   struct SCatalog* pCtg;
-  void *pRpc;
-  const SEpSet* pMgmtEps;
+  void*            pRpc;
+  const SEpSet*    pMgmtEps;
+  char*            pErrBuf;
+  int32_t          errBufLen;
 } SFmGetFuncInfoParam;
 
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
-
-int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len);
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
 bool fmIsNonstandardSQLFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
+bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
+bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
@@ -161,6 +167,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 
 #ifdef __cplusplus
 }

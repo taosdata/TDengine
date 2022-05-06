@@ -20,8 +20,6 @@
 extern "C" {
 #endif
 
-#include <time.h>
-
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
 #ifndef ALLOW_FORBID_FUNC
@@ -34,7 +32,7 @@ extern "C" {
     #define mktime MKTIME_FUNC_TAOS_FORBID
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
 
   #define CLOCK_REALTIME 	0
 
@@ -58,6 +56,8 @@ extern "C" {
 
 int32_t taosGetTimeOfDay(struct timeval *tv);
 
+int32_t taosClockGetTime(int clock_id, struct timespec *pTS);
+
 //@return timestamp in second
 int32_t taosGetTimestampSec();
 
@@ -78,7 +78,7 @@ static FORCE_INLINE int64_t taosGetTimestampUs() {
 //@return timestamp in nanosecond
 static FORCE_INLINE int64_t taosGetTimestampNs() {
   struct timespec systemTime = {0};
-  clock_gettime(CLOCK_REALTIME, &systemTime);
+  taosClockGetTime(CLOCK_REALTIME, &systemTime);
   return (int64_t)systemTime.tv_sec * 1000000000L + (int64_t)systemTime.tv_nsec;
 }
 

@@ -26,12 +26,11 @@
 
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
 
 #include <time.h>  
 #include <stdlib.h>  
 #include <string.h>
-#include <winsock2.h>
 //#define TM_YEAR_BASE 1970 //origin
 #define TM_YEAR_BASE 1900 //slguan
 /*
@@ -85,13 +84,43 @@ static const char *am_pm[2] = {
     "AM", "PM"
 };
 
+#define BILLION                             (1E9)
+
+static BOOL g_first_time = 1;
+static LARGE_INTEGER g_counts_per_sec;
+
+int clock_gettime(int dummy, struct timespec *ct)
+{
+    LARGE_INTEGER count;
+
+    if (g_first_time)
+    {
+        g_first_time = 0;
+
+        if (0 == QueryPerformanceFrequency(&g_counts_per_sec))
+        {
+            g_counts_per_sec.QuadPart = 0;
+        }
+    }
+
+    if ((NULL == ct) || (g_counts_per_sec.QuadPart <= 0) ||
+            (0 == QueryPerformanceCounter(&count)))
+    {
+        return -1;
+    }
+
+    ct->tv_sec = count.QuadPart / g_counts_per_sec.QuadPart;
+    ct->tv_nsec = ((count.QuadPart % g_counts_per_sec.QuadPart) * BILLION) / g_counts_per_sec.QuadPart;
+
+    return 0;
+}
 
 #else
 #include <sys/time.h>
 #endif
 
 char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
     char c;
     const char *bp;
     size_t len = 0;
@@ -391,7 +420,7 @@ char *taosStrpTime(const char *buf, const char *fmt, struct tm *tm) {
 }
 
 FORCE_INLINE int32_t taosGetTimeOfDay(struct timeval *tv) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   time_t t;
   t = taosGetTimestampSec();
   SYSTEMTIME st;
@@ -418,7 +447,7 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
   if (result == NULL) {
     return localtime(timep);
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   localtime_s(result, timep);
 #else
   localtime_r(timep, result);
@@ -427,3 +456,5 @@ struct tm *taosLocalTime(const time_t *timep, struct tm *result) {
 }
 
 int32_t taosGetTimestampSec() { return (int32_t)time(NULL); }
+
+int32_t taosClockGetTime(int clock_id, struct timespec *pTS) { return clock_gettime(clock_id, pTS); }

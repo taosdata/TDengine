@@ -16,8 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "sdbInt.h"
 #include "tchecksum.h"
+#include "wal.h"
 
-#define SDB_TABLE_SIZE 24
+#define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
 
 static int32_t sdbRunDeployFp(SSdb *pSdb) {
@@ -28,7 +29,7 @@ static int32_t sdbRunDeployFp(SSdb *pSdb) {
     if (fp == NULL) continue;
 
     if ((*fp)(pSdb->pMnode) != 0) {
-      mError("failed to deploy sdb:%d since %s", i, terrstr());
+      mError("failed to deploy sdb:%s since %s", sdbTableName(i), terrstr());
       return -1;
     }
   }
@@ -49,7 +50,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t maxId = -1;
+    int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -65,7 +66,7 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t ver = -1;
+    int64_t ver = 0;
     ret = taosReadFile(pFile, &ver, sizeof(int64_t));
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
@@ -101,7 +102,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t maxId = -1;
+    int64_t maxId = 0;
     if (i < SDB_MAX) {
       maxId = pSdb->maxId[i];
     }
@@ -112,7 +113,7 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
-    int64_t ver = -1;
+    int64_t ver = 0;
     if (i < SDB_MAX) {
       ver = pSdb->tableVer[i];
     }
@@ -137,7 +138,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   int32_t readLen = 0;
   int64_t ret = 0;
 
-  SSdbRaw *pRaw = taosMemoryMalloc(SDB_MAX_SIZE);
+  SSdbRaw *pRaw = taosMemoryMalloc(WAL_MAX_SIZE + 100);
   if (pRaw == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed read file since %s", terrstr());
@@ -163,6 +164,9 @@ int32_t sdbReadFile(SSdb *pSdb) {
     taosCloseFile(&pFile);
     return -1;
   }
+
+  int64_t tableVer[SDB_MAX] = {0};
+  memcpy(tableVer, pSdb->tableVer, sizeof(tableVer));
 
   while (1) {
     readLen = sizeof(SSdbRaw);
@@ -202,18 +206,19 @@ int32_t sdbReadFile(SSdb *pSdb) {
       break;
     }
 
-    code = sdbWriteNotFree(pSdb, pRaw);
+    code = sdbWriteWithoutFree(pSdb, pRaw);
     if (code != 0) {
       mError("failed to read file:%s since %s", file, terrstr());
-      goto PARSE_SDB_DATA_ERROR;
+      goto _OVER;
     }
   }
 
   code = 0;
   pSdb->lastCommitVer = pSdb->curVer;
+  memcpy(pSdb->tableVer, tableVer, sizeof(tableVer));
   mDebug("read file:%s successfully, ver:%" PRId64, file, pSdb->lastCommitVer);
 
-PARSE_SDB_DATA_ERROR:
+_OVER:
   taosCloseFile(&pFile);
   sdbFreeRaw(pRaw);
 
@@ -258,12 +263,18 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
       SSdbRow *pRow = *ppRow;
-      if (pRow == NULL || pRow->status != SDB_STATUS_READY) {
+      if (pRow == NULL) {
         ppRow = taosHashIterate(hash, ppRow);
         continue;
       }
 
-      sdbPrintOper(pSdb, pRow, "writeFile");
+      if (pRow->status != SDB_STATUS_READY && pRow->status != SDB_STATUS_DROPPING) {
+        sdbPrintOper(pSdb, pRow, "not-write");
+        ppRow = taosHashIterate(hash, ppRow);
+        continue;
+      }
+
+      sdbPrintOper(pSdb, pRow, "write");
 
       SSdbRaw *pRaw = (*encodeFp)(pRow->pObj);
       if (pRaw != NULL) {

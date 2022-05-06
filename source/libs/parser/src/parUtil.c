@@ -23,15 +23,13 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INCOMPLETE_SQL:
       return "Incomplete SQL statement";
     case TSDB_CODE_PAR_INVALID_COLUMN:
-      return "Invalid column name : %s";
+      return "Invalid column name: %s";
     case TSDB_CODE_PAR_TABLE_NOT_EXIST:
-      return "Table does not exist : %s";
+      return "Table does not exist: %s";
     case TSDB_CODE_PAR_AMBIGUOUS_COLUMN:
-      return "Column ambiguously defined : %s";
+      return "Column ambiguously defined: %s";
     case TSDB_CODE_PAR_WRONG_VALUE_TYPE:
-      return "Invalid value type : %s";
-    case TSDB_CODE_PAR_INVALID_FUNTION:
-      return "Invalid function name : %s";
+      return "Invalid value type: %s";
     case TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION:
       return "There mustn't be aggregation";
     case TSDB_CODE_PAR_WRONG_NUMBER_OF_SELECT:
@@ -45,7 +43,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_TAGS_NOT_MATCHED:
       return "Tags number not matched";
     case TSDB_CODE_PAR_INVALID_TAG_NAME:
-      return "Invalid tag name : %s";
+      return "Invalid tag name: %s";
     case TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG:
       return "Name or password too long";
     case TSDB_CODE_PAR_PASSWD_EMPTY:
@@ -61,17 +59,15 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_DB_NOT_SPECIFIED:
       return "Database not specified";
     case TSDB_CODE_PAR_INVALID_IDENTIFIER_NAME:
-      return "Invalid identifier name : %s";
+      return "Invalid identifier name: %s";
     case TSDB_CODE_PAR_CORRESPONDING_STABLE_ERR:
       return "Corresponding super table not in this db";
     case TSDB_CODE_PAR_INVALID_RANGE_OPTION:
-      return "Invalid option %s: %"PRId64" valid range: [%d, %d]";
+      return "Invalid option %s: %" PRId64 " valid range: [%d, %d]";
     case TSDB_CODE_PAR_INVALID_STR_OPTION:
       return "Invalid option %s: %s";
     case TSDB_CODE_PAR_INVALID_ENUM_OPTION:
-      return "Invalid option %s: %"PRId64", only %d, %d allowed";
-    case TSDB_CODE_PAR_INVALID_TTL_OPTION:
-      return "Invalid option ttl: %"PRId64", should be greater than or equal to %d";
+      return "Invalid option %s: %" PRId64 ", only %d, %d allowed";
     case TSDB_CODE_PAR_INVALID_KEEP_NUM:
       return "Invalid number of keep options";
     case TSDB_CODE_PAR_INVALID_KEEP_ORDER:
@@ -91,7 +87,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_INVALID_OPTION_UNIT:
       return "Invalid option %s unit: %c, only m, h, d allowed";
     case TSDB_CODE_PAR_INVALID_KEEP_UNIT:
-      return "Invalid option keep unit: %c, %c, %c, only m, h, d allowed";
+      return "Invalid option keep unit: %c, only m, h, d allowed";
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
       return "Aggregate functions do not support nesting";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
@@ -120,6 +116,20 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Only one tag if there is a json tag";
     case TSDB_CODE_PAR_INCORRECT_NUM_OF_COL:
       return "Query block has incorrect number of result columns";
+    case TSDB_CODE_PAR_INCORRECT_TIMESTAMP_VAL:
+      return "Incorrect TIMESTAMP value: %s";
+    case TSDB_CODE_PAR_INVALID_DAYS_VALUE:
+      return "Invalid days value, should be keep2 >= keep1 >= keep0 >= days";
+    case TSDB_CODE_PAR_OFFSET_LESS_ZERO:
+      return "soffset/offset can not be less than 0";
+    case TSDB_CODE_PAR_SLIMIT_LEAK_PARTITION_BY:
+      return "slimit/soffset only available for PARTITION BY query";
+    case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
+      return "Invalid topic query";
+    case TSDB_CODE_PAR_INVALID_DROP_STABLE:
+      return "Cannot drop super table in batch";
+    case TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE:
+      return "start(end) time of query range required or time range too large";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -132,7 +142,6 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
   va_start(vArgList, errCode);
   vsnprintf(pBuf->buf, pBuf->len, getSyntaxErrFormat(errCode), vArgList);
   va_end(vArgList);
-  terrno = errCode;
   return errCode;
 }
 
@@ -168,18 +177,20 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
 
 SSchema *getTableColumnSchema(const STableMeta *pTableMeta) {
   assert(pTableMeta != NULL);
-  return (SSchema*) pTableMeta->schema;
+  return (SSchema*)pTableMeta->schema;
 }
 
 static SSchema* getOneColumnSchema(const STableMeta* pTableMeta, int32_t colIndex) {
-  assert(pTableMeta != NULL && pTableMeta->schema != NULL && colIndex >= 0 && colIndex < (getNumOfColumns(pTableMeta) + getNumOfTags(pTableMeta)));
+  assert(pTableMeta != NULL && pTableMeta->schema != NULL && colIndex >= 0 &&
+         colIndex < (getNumOfColumns(pTableMeta) + getNumOfTags(pTableMeta)));
 
-  SSchema* pSchema = (SSchema*) pTableMeta->schema;
+  SSchema* pSchema = (SSchema*)pTableMeta->schema;
   return &pSchema[colIndex];
 }
 
 SSchema* getTableTagSchema(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL && (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE));
+  assert(pTableMeta != NULL &&
+         (pTableMeta->tableType == TSDB_SUPER_TABLE || pTableMeta->tableType == TSDB_CHILD_TABLE));
   return getOneColumnSchema(pTableMeta, getTableInfo(pTableMeta).numOfColumns);
 }
 
@@ -200,40 +211,40 @@ STableComInfo getTableInfo(const STableMeta* pTableMeta) {
 }
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
-  if (len <=0 || dlen <= 0) return 0;
+  if (len <= 0 || dlen <= 0) return 0;
 
-  char delim = src[0];
+  char    delim = src[0];
   int32_t j = 0;
   for (uint32_t k = 1; k < len - 1; ++k) {
     if (j >= dlen) {
       dst[j - 1] = '\0';
       return j;
     }
-    if (src[k] == delim && src[k + 1] == delim) {   // deal with "", ''
+    if (src[k] == delim && src[k + 1] == delim) {  // deal with "", ''
       dst[j] = src[k + 1];
       j++;
       k++;
       continue;
     }
 
-    if (src[k] == '\\') {   // deal with escape character
-      if(src[k+1] == 'n'){
+    if (src[k] == '\\') {  // deal with escape character
+      if (src[k + 1] == 'n') {
         dst[j] = '\n';
-      }else if(src[k+1] == 'r'){
+      } else if (src[k + 1] == 'r') {
         dst[j] = '\r';
-      }else if(src[k+1] == 't'){
+      } else if (src[k + 1] == 't') {
         dst[j] = '\t';
-      }else if(src[k+1] == '\\'){
+      } else if (src[k + 1] == '\\') {
         dst[j] = '\\';
-      }else if(src[k+1] == '\''){
+      } else if (src[k + 1] == '\'') {
         dst[j] = '\'';
-      }else if(src[k+1] == '"'){
+      } else if (src[k + 1] == '"') {
         dst[j] = '"';
-      }else if(src[k+1] == '%' || src[k+1] == '_'){
+      } else if (src[k + 1] == '%' || src[k + 1] == '_') {
         dst[j++] = src[k];
-        dst[j] = src[k+1];
-      }else{
-        dst[j] = src[k+1];
+        dst[j] = src[k + 1];
+      } else {
+        dst[j] = src[k + 1];
       }
       j++;
       k++;
@@ -247,7 +258,7 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {
   return j;
 }
 
-static bool isValidateTag(char *input) {
+static bool isValidateTag(char* input) {
   if (!input) return false;
   for (size_t i = 0; i < strlen(input); ++i) {
     if (isprint(input[i]) == 0) return false;
@@ -255,30 +266,30 @@ static bool isValidateTag(char *input) {
   return true;
 }
 
-int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* pMsgBuf, int16_t startColId){
+int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* pMsgBuf, int16_t startColId) {
   // set json NULL data
   uint8_t jsonNULL = TSDB_DATA_TYPE_NULL;
-  int jsonIndex = startColId + 1;
-  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0){
+  int     jsonIndex = startColId + 1;
+  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
     tdAddColToKVRow(kvRowBuilder, jsonIndex, &jsonNULL, CHAR_BYTES);
     return TSDB_CODE_SUCCESS;
   }
 
   // set json real data
-  cJSON *root = cJSON_Parse(json);
-  if (root == NULL){
+  cJSON* root = cJSON_Parse(json);
+  if (root == NULL) {
     return buildSyntaxErrMsg(pMsgBuf, "json parse error", json);
   }
 
   int size = cJSON_GetArraySize(root);
-  if(!cJSON_IsObject(root)){
+  if (!cJSON_IsObject(root)) {
     return buildSyntaxErrMsg(pMsgBuf, "json error invalide value", json);
   }
 
-  int retCode = 0;
-  char *tagKV = NULL;
+  int       retCode = 0;
+  char*     tagKV = NULL;
   SHashObj* keyHash = taosHashInit(8, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, false);
-  for(int i = 0; i < size; i++) {
+  for (int i = 0; i < size; i++) {
     cJSON* item = cJSON_GetArrayItem(root, i);
     if (!item) {
       qError("json inner error:%d", i);
@@ -286,40 +297,41 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
       goto end;
     }
 
-    char *jsonKey = item->string;
-    if(!isValidateTag(jsonKey)){
+    char* jsonKey = item->string;
+    if (!isValidateTag(jsonKey)) {
       retCode = buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
       goto end;
     }
-//    if(strlen(jsonKey) > TSDB_MAX_JSON_KEY_LEN){
-//      tscError("json key too long error");
-//      retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, more than 256", NULL);
-//      goto end;
-//    }
+    //    if(strlen(jsonKey) > TSDB_MAX_JSON_KEY_LEN){
+    //      tscError("json key too long error");
+    //      retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, more than 256", NULL);
+    //      goto end;
+    //    }
     size_t keyLen = strlen(jsonKey);
-    if(keyLen == 0 || taosHashGet(keyHash, jsonKey, keyLen) != NULL){
+    if (keyLen == 0 || taosHashGet(keyHash, jsonKey, keyLen) != NULL) {
       continue;
     }
     // key: keyLen + VARSTR_HEADER_SIZE, value type: CHAR_BYTES, value reserved: LONG_BYTES
     tagKV = taosMemoryCalloc(keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + LONG_BYTES, 1);
-    if(!tagKV) {
+    if (!tagKV) {
       retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto end;
     }
     strncpy(varDataVal(tagKV), jsonKey, keyLen);
     varDataSetLen(tagKV, keyLen);
-    if(taosHashGetSize(keyHash) == 0){
+    if (taosHashGetSize(keyHash) == 0) {
       uint8_t jsonNotNULL = TSDB_DATA_TYPE_JSON;
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNotNULL, CHAR_BYTES);   // add json type
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, &jsonNotNULL, CHAR_BYTES);  // add json type
     }
-    taosHashPut(keyHash, jsonKey, keyLen, &keyLen, CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
+    taosHashPut(keyHash, jsonKey, keyLen, &keyLen,
+                CHAR_BYTES);  // add key to hash to remove dumplicate, value is useless
 
-    if(item->type == cJSON_String){     // add json value  format: type|data
-      char *jsonValue = item->valuestring;
+    if (item->type == cJSON_String) {  // add json value  format: type|data
+      char*   jsonValue = item->valuestring;
       int32_t valLen = (int32_t)strlen(jsonValue);
       int32_t totalLen = keyLen + VARSTR_HEADER_SIZE + valLen * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE + CHAR_BYTES;
-      char *tmp = taosMemoryRealloc(tagKV, totalLen);
-      if(!tmp) {
+      char*   tmp = taosMemoryRealloc(tagKV, totalLen);
+      if (!tmp) {
         retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
         goto end;
       }
@@ -328,44 +340,47 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
       char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
       *valueType = TSDB_DATA_TYPE_NCHAR;
       if (valLen > 0 && !taosMbsToUcs4(jsonValue, valLen, (TdUcs4*)varDataVal(valueData),
-                                                  (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
-        qError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue, strerror(errno));
+                                       (int32_t)(valLen * TSDB_NCHAR_SIZE), &valLen)) {
+        qError("charset:%s to %s. val:%s, errno:%s, convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, jsonValue,
+               strerror(errno));
         retCode = buildSyntaxErrMsg(pMsgBuf, "charset convert json error", jsonValue);
         goto end;
       }
 
       varDataSetLen(valueData, valLen);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, totalLen);
-    }else if(item->type == cJSON_Number){
-      if(!isfinite(item->valuedouble)){
+    } else if (item->type == cJSON_Number) {
+      if (!isfinite(item->valuedouble)) {
         qError("json value is invalidate");
-        retCode =  buildSyntaxErrMsg(pMsgBuf, "json value number is illegal", json);
+        retCode = buildSyntaxErrMsg(pMsgBuf, "json value number is illegal", json);
         goto end;
       }
       char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
       char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
-      *valueType = (item->valuedouble - (int64_t)(item->valuedouble) == 0) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_DOUBLE;
-      if(*valueType== TSDB_DATA_TYPE_DOUBLE) *((double *)valueData) = item->valuedouble;
-      else if(*valueType == TSDB_DATA_TYPE_BIGINT) *((int64_t *)valueData) = item->valueint;
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES +LONG_BYTES);
-    }else if(item->type == cJSON_True || item->type == cJSON_False){
+      *valueType =
+          (item->valuedouble - (int64_t)(item->valuedouble) == 0) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_DOUBLE;
+      if (*valueType == TSDB_DATA_TYPE_DOUBLE)
+        *((double*)valueData) = item->valuedouble;
+      else if (*valueType == TSDB_DATA_TYPE_BIGINT)
+        *((int64_t*)valueData) = item->valueint;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + LONG_BYTES);
+    } else if (item->type == cJSON_True || item->type == cJSON_False) {
       char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
       char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
       *valueType = TSDB_DATA_TYPE_BOOL;
       *valueData = (char)(item->valueint);
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + CHAR_BYTES);
-    }else if(item->type == cJSON_NULL){
+    } else if (item->type == cJSON_NULL) {
       char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
       *valueType = TSDB_DATA_TYPE_NULL;
       tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
-    }
-    else{
+    } else {
       retCode = buildSyntaxErrMsg(pMsgBuf, "invalidate json value", json);
       goto end;
     }
   }
 
-  if(taosHashGetSize(keyHash) == 0){  // set json NULL true
+  if (taosHashGetSize(keyHash) == 0) {  // set json NULL true
     tdAddColToKVRow(kvRowBuilder, jsonIndex, &jsonNULL, CHAR_BYTES);
   }
 

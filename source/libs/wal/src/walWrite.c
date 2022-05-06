@@ -13,8 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#define _DEFAULT_SOURCE
-
 #include "os.h"
 #include "taoserror.h"
 #include "tchecksum.h"
@@ -63,7 +61,6 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   walBuildIdxName(pWal, walGetCurFileFirstVer(pWal), fnameStr);
   TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_WRITE | TD_FILE_READ);
 
-  // TODO:change to deserialize function
   if (pIdxTFile == NULL) {
     taosThreadMutexUnlock(&pWal->mutex);
     return -1;
@@ -75,7 +72,6 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
     return -1;
   }
   // read idx file and get log file pos
-  // TODO:change to deserialize function
   SWalIdxEntry entry;
   if (taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
     taosThreadMutexUnlock(&pWal->mutex);
@@ -169,7 +165,7 @@ int32_t walEndSnapshot(SWal *pWal) {
   char fnameStr[WAL_FILE_LEN];
   // remove file
   for (int i = 0; i < deleteCnt; i++) {
-    SWalFileInfo *pInfo = taosArrayGet(pWal->fileInfoSet, i);
+    pInfo = taosArrayGet(pWal->fileInfoSet, i);
     walBuildLogName(pWal, pInfo->firstVer, fnameStr);
     taosRemoveFile(fnameStr);
     walBuildIdxName(pWal, pInfo->firstVer, fnameStr);
@@ -255,11 +251,14 @@ static int walWriteIndex(SWal *pWal, int64_t ver, int64_t offset) {
 
 int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLogMeta syncMeta, const void *body,
                              int32_t bodyLen) {
-  if (pWal == NULL) return -1;
   int code = 0;
 
   // no wal
   if (pWal->cfg.level == TAOS_WAL_NOLOG) return 0;
+  if (bodyLen > TSDB_MAX_WAL_SIZE) {
+    terrno = TSDB_CODE_WAL_SIZE_LIMIT;
+    return -1;
+  }
 
   if (index == pWal->vers.lastVer + 1) {
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
@@ -295,17 +294,17 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   pWal->writeHead.head.version = index;
 
   int64_t offset = walGetCurFileOffset(pWal);
-  pWal->writeHead.head.len = bodyLen;
+  pWal->writeHead.head.bodyLen = bodyLen;
   pWal->writeHead.head.msgType = msgType;
 
-  // sync info
+  // sync info for sync module
   pWal->writeHead.head.syncMeta = syncMeta;
 
   pWal->writeHead.cksumHead = walCalcHeadCksum(&pWal->writeHead);
   pWal->writeHead.cksumBody = walCalcBodyCksum(body, bodyLen);
 
   if (taosWriteFile(pWal->pWriteLogTFile, &pWal->writeHead, sizeof(SWalHead)) != sizeof(SWalHead)) {
-    // ftruncate
+    // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));
@@ -313,7 +312,7 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   }
 
   if (taosWriteFile(pWal->pWriteLogTFile, (char *)body, bodyLen) != bodyLen) {
-    // ftruncate
+    // TODO ftruncate
     terrno = TAOS_SYSTEM_ERROR(errno);
     wError("vgId:%d, file:%" PRId64 ".log, failed to write since %s", pWal->cfg.vgId, walGetLastFileFirstVer(pWal),
            strerror(errno));

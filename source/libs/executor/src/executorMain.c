@@ -154,14 +154,12 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
 
   qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
 
-  bool newgroup = false;
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-  int64_t st = 0;
 
-  st = taosGetTimestampUs();
-  *pRes = pTaskInfo->pRoot->getNextFn(pTaskInfo->pRoot, &newgroup);
-
+  int64_t st = taosGetTimestampUs();
+  *pRes = pTaskInfo->pRoot->fpSet.getNextFn(pTaskInfo->pRoot);
   uint64_t el = (taosGetTimestampUs() - st);
+
   pTaskInfo->cost.elapsedTime += el;
 
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_AFTER_OPERATOR_EXEC);

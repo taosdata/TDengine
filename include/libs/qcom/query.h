@@ -51,6 +51,10 @@ typedef struct STableComInfo {
 
 typedef struct SIndexMeta {
 
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SIndexMeta;
 
 
@@ -128,12 +132,6 @@ typedef struct SMsgSendInfo {
   int32_t              msgType;
   SDataBuf             msgInfo;
 } SMsgSendInfo;
-
-typedef struct SQueryNodeAddr {
-  int32_t nodeId;  // vgId or qnodeId
-  SEpSet  epSet;
-} SQueryNodeAddr;
-
 
 typedef struct SQueryNodeStat {
   int32_t tableNum; // vg table number, unit is TSDB_TABLE_NUM_UNIT

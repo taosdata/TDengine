@@ -97,8 +97,14 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           SRpcMsg rpcMsg;
           syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-          if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
-            pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, pSyncNode->state);
+          if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+            SFsmCbMeta cbMeta;
+            cbMeta.index = pEntry->index;
+            cbMeta.isWeak = pEntry->isWeak;
+            cbMeta.code = 0;
+            cbMeta.state = pSyncNode->state;
+            cbMeta.seqNum = pEntry->seqNum;
+            pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
           }
 
           rpcFreeCont(rpcMsg.pCont);

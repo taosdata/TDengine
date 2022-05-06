@@ -48,7 +48,7 @@ struct SSHashObj {
 };
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
-  int32_t len = MIN(length, HASH_MAX_CAPACITY);
+  int32_t len = (length < HASH_MAX_CAPACITY ? length : HASH_MAX_CAPACITY);
 
   int32_t i = 4;
   while (i < len) i = (i << 1u);
@@ -127,7 +127,7 @@ static void taosHashTableResize(SSHashObj *pHashObj) {
   }
 
   size_t inc = newCapacity - pHashObj->capacity;
-  memset(pNewEntryList + pHashObj->capacity * sizeof(void*), 0, inc);
+  memset((char*)pNewEntryList + pHashObj->capacity * sizeof(void*), 0, inc);
 
   pHashObj->hashList = pNewEntryList;
   pHashObj->capacity = newCapacity;
@@ -301,7 +301,7 @@ size_t tSimpleHashGetMemSize(const SSHashObj *pHashObj) {
 
 void *tSimpleHashGetKey(const SSHashObj* pHashObj, void *data, size_t* keyLen) {
   int32_t offset = offsetof(SHNode, data);
-  SHNode *node = data - offset;
+  SHNode *node = ((SHNode*)(char*)data - offset);
   if (keyLen != NULL) {
     *keyLen = pHashObj->keyLen;
   }

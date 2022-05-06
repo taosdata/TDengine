@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tsdb.h"
 
 #define TSDB_KEY_COL_OFFSET 0
 
@@ -248,7 +248,8 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
 
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   ASSERT(pBlock->numOfSubBlocks > 0);
-  int8_t update = pReadh->pRepo->config.update;
+  STsdbCfg *pCfg = REPO_CFG(pReadh->pRepo);
+  int8_t    update = pCfg->update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {
@@ -279,7 +280,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
                           bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
-  int8_t update = pReadh->pRepo->config.update;
+  int8_t update = pReadh->pRepo->pVnode->config.tsdbCfg.update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {
@@ -471,7 +472,7 @@ void tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, 
     SAggrBlkData *pAggrBlkData = pReadh->pAggrBlkData;
 
     for (int i = 0, j = 0; i < numOfCols;) {
-      if (j >= pBlock->numOfCols) {
+      if (j >= pBlock->numOfBSma) {
         pStatis[i].numOfNull = -1;
         ++i;
         continue;

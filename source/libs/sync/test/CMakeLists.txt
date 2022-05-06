@@ -28,16 +28,15 @@ add_executable(syncRpcMsgTest "")
 add_executable(syncPingTimerTest2 "")
 add_executable(syncPingSelfTest "")
 add_executable(syncElectTest "")
-add_executable(syncElectTest2 "")
-add_executable(syncElectTest3 "")
 add_executable(syncEncodeTest "")
 add_executable(syncWriteTest "")
 add_executable(syncReplicateTest "")
-add_executable(syncReplicateTest2 "")
-add_executable(syncReplicateTest3 "")
-add_executable(syncReplicateLoadTest "")
 add_executable(syncRefTest "")
 add_executable(syncLogStoreCheck "")
+add_executable(syncRaftCfgTest "")
+add_executable(syncRespMgrTest "")
+add_executable(syncSnapshotTest "")
+add_executable(syncApplyMsgTest "")
 
 
 target_sources(syncTest
@@ -160,14 +159,6 @@ target_sources(syncElectTest
     PRIVATE
     "syncElectTest.cpp"
 )
-target_sources(syncElectTest2
-    PRIVATE
-    "syncElectTest2.cpp"
-)
-target_sources(syncElectTest3
-    PRIVATE
-    "syncElectTest3.cpp"
-)
 target_sources(syncEncodeTest
     PRIVATE
     "syncEncodeTest.cpp"
@@ -180,18 +171,6 @@ target_sources(syncReplicateTest
     PRIVATE
     "syncReplicateTest.cpp"
 )
-target_sources(syncReplicateTest2
-    PRIVATE
-    "syncReplicateTest2.cpp"
-)
-target_sources(syncReplicateTest3
-    PRIVATE
-    "syncReplicateTest3.cpp"
-)
-target_sources(syncReplicateLoadTest
-    PRIVATE
-    "syncReplicateLoadTest.cpp"
-)
 target_sources(syncRefTest
     PRIVATE
     "syncRefTest.cpp"
@@ -199,6 +178,22 @@ target_sources(syncRefTest
 target_sources(syncLogStoreCheck
     PRIVATE
     "syncLogStoreCheck.cpp"
+)
+target_sources(syncRaftCfgTest
+    PRIVATE
+    "syncRaftCfgTest.cpp"
+)
+target_sources(syncRespMgrTest
+    PRIVATE
+    "syncRespMgrTest.cpp"
+)
+target_sources(syncSnapshotTest
+    PRIVATE
+    "syncSnapshotTest.cpp"
+)
+target_sources(syncApplyMsgTest
+    PRIVATE
+    "syncApplyMsgTest.cpp"
 )
 
 
@@ -352,16 +347,6 @@ target_include_directories(syncElectTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncElectTest2
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncElectTest3
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
 target_include_directories(syncEncodeTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
@@ -377,27 +362,32 @@ target_include_directories(syncReplicateTest
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
-target_include_directories(syncReplicateTest2
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncReplicateTest3
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
-target_include_directories(syncReplicateLoadTest
-    PUBLIC
-    "${TD_SOURCE_DIR}/include/libs/sync"
-    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-)
 target_include_directories(syncRefTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 )
 target_include_directories(syncLogStoreCheck
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRaftCfgTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncRespMgrTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncSnapshotTest
+    PUBLIC
+    "${TD_SOURCE_DIR}/include/libs/sync"
+    "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+)
+target_include_directories(syncApplyMsgTest
     PUBLIC
     "${TD_SOURCE_DIR}/include/libs/sync"
     "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
@@ -524,14 +514,6 @@ target_link_libraries(syncElectTest
     sync
     gtest_main
 )
-target_link_libraries(syncElectTest2
-    sync
-    gtest_main
-)
-target_link_libraries(syncElectTest3
-    sync
-    gtest_main
-)
 target_link_libraries(syncEncodeTest
     sync
     gtest_main
@@ -544,23 +526,27 @@ target_link_libraries(syncReplicateTest
     sync
     gtest_main
 )
-target_link_libraries(syncReplicateTest2
-    sync
-    gtest_main
-)
-target_link_libraries(syncReplicateTest3
-    sync
-    gtest_main
-)
-target_link_libraries(syncReplicateLoadTest
-    sync
-    gtest_main
-)
 target_link_libraries(syncRefTest
     sync
     gtest_main
 )
 target_link_libraries(syncLogStoreCheck
+    sync
+    gtest_main
+)
+target_link_libraries(syncRaftCfgTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncRespMgrTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncSnapshotTest
+    sync
+    gtest_main
+)
+target_link_libraries(syncApplyMsgTest
     sync
     gtest_main
 )

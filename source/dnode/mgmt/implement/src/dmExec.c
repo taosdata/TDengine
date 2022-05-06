@@ -174,6 +174,7 @@ void dmStopNode(SMgmtWrapper *pWrapper) {
 
 void dmCloseNode(SMgmtWrapper *pWrapper) {
   dInfo("node:%s, start to close", pWrapper->name);
+  pWrapper->deployed = false;
 
   while (pWrapper->refCount > 0) {
     taosMsleep(10);

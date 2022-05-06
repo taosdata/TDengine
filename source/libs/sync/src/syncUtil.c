@@ -16,6 +16,8 @@
 #include "syncUtil.h"
 #include "syncEnv.h"
 
+void addEpIntoEpSet(SEpSet* pEpSet, const char* fqdn, uint16_t port);
+
 // ---- encode / decode
 uint64_t syncUtilAddr2U64(const char* host, uint16_t port) {
   uint64_t u64;
@@ -196,4 +198,18 @@ SyncIndex syncUtilMinIndex(SyncIndex a, SyncIndex b) {
 SyncIndex syncUtilMaxIndex(SyncIndex a, SyncIndex b) {
   SyncIndex r = a > b ? a : b;
   return r;
+}
+
+void syncUtilMsgHtoN(void* msg) {
+  // htonl
+  SMsgHead* pHead = msg;
+  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId = htonl(pHead->vgId);
+}
+
+void syncUtilMsgNtoH(void* msg) {
+  // ntohl
+  SMsgHead* pHead = msg;
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
 }

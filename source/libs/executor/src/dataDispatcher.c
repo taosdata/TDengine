@@ -31,6 +31,7 @@ typedef struct SDataDispatchBuf {
 typedef struct SDataCacheEntry {
   int32_t dataLen;
   int32_t numOfRows;
+  int32_t numOfCols;
   int8_t  compressed;
   char    data[];
 } SDataCacheEntry;
@@ -64,10 +65,10 @@ static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
 }
 
 // data format:
-// +----------------+--------------------------------------+-------------+-----------+-------------+-----------+
-// |SDataCacheEntry | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
-// |                |    sizeof(int32_t) * numOfCols       | actual size |           | actual size |           |
-// +----------------+--------------------------------------+-------------+-----------+-------------+-----------+
+// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
+// |SDataCacheEntry | total length | group id | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
+// |                |  (4 bytes)   |(8 bytes) | sizeof(int32_t) * numOfCols          | actual size |           | actual size |           |
+// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
 static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
@@ -76,6 +77,7 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, numOfCols);
   pEntry->numOfRows = pInput->pData->info.rows;
+  pEntry->numOfCols = pInput->pData->info.numOfCols;
   pEntry->dataLen = 0;
 
   pBuf->useSize = sizeof(SRetrieveTableRsp);
@@ -169,6 +171,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
+  pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);  // todo persistent
   pOutput->bufStatus = updateStatus(pDispatcher);

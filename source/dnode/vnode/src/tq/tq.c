@@ -13,13 +13,16 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tq.h"
 
-int32_t tqInit() { return tqPushMgrInit(); }
+int32_t tqInit() {
+  //
+  return 0;
+}
 
-void tqCleanUp() { tqPushMgrCleanUp(); }
+void tqCleanUp() {}
 
-STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, SMemAllocatorFactory* allocFac) {
+STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
   if (pTq == NULL) {
     terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
@@ -28,17 +31,21 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal, SMeta* pVnodeMeta, SMe
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
-  pTq->pVnodeMeta = pVnodeMeta;
+
+#if 0
   pTq->tqMeta = tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer,
                             (FTqDelete)taosMemoryFree, 0);
   if (pTq->tqMeta == NULL) {
     taosMemoryFree(pTq);
     return NULL;
   }
+#endif
 
-  pTq->tqMetaNew = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
+  pTq->execs = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
 
   pTq->pStreamTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+
+  pTq->pushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
 
   return pTq;
 }
@@ -51,18 +58,190 @@ void tqClose(STQ* pTq) {
   // TODO
 }
 
-int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t version) {
+static void tdSRowDemo() {
+#define DEMO_N_COLS 3
+
+  int16_t     schemaVersion = 0;
+  int32_t     numOfCols = DEMO_N_COLS;  // ts + int
+  SRowBuilder rb = {0};
+
+  SSchema schema[DEMO_N_COLS] = {
+      {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .name = "ts", .bytes = 8, .flags = SCHEMA_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 2, .name = "c1", .bytes = 4, .flags = SCHEMA_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 3, .name = "c2", .bytes = 4, .flags = SCHEMA_SMA_ON}};
+
+  SSchema*  pSchema = schema;
+  STSchema* pTSChema = tdGetSTSChemaFromSSChema(&pSchema, numOfCols);
+
+  tdSRowInit(&rb, schemaVersion);
+  tdSRowSetTpInfo(&rb, numOfCols, pTSChema->flen);
+  int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSChema);
+  void*   row = taosMemoryCalloc(1, maxLen);  // make sure the buffer is enough
+
+  // set row buf
+  tdSRowResetBuf(&rb, row);
+
+  for (int32_t idx = 0; idx < pTSChema->numOfCols; ++idx) {
+    STColumn* pColumn = pTSChema->columns + idx;
+    if (idx == 0) {
+      int64_t tsKey = 1651234567;
+      tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, &tsKey, true, pColumn->offset, idx);
+    } else if (idx == 1) {
+      int32_t val1 = 10;
+      tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, &val1, true, pColumn->offset, idx);
+    } else {
+      tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, true, pColumn->offset, idx);
+    }
+  }
+
+  // print
+  tdSRowPrint(row, pTSChema, __func__);
+
+  taosMemoryFree(pTSChema);
+}
+
+int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
+  void*       pIter = NULL;
+  STqExec*    pExec = NULL;
+  SSubmitReq* pReq = (SSubmitReq*)msg;
+  int32_t     workerId = 4;
+  int64_t     fetchOffset = ver;
+
+  while (1) {
+    pIter = taosHashIterate(pTq->pushMgr, pIter);
+    if (pIter == NULL) break;
+    pExec = *(STqExec**)pIter;
+
+    taosWLockLatch(&pExec->pushHandle.lock);
+
+    SRpcMsg* pMsg = atomic_load_ptr(&pExec->pushHandle.handle);
+    ASSERT(pMsg);
+
+    SMqDataBlkRsp rsp = {0};
+    rsp.reqOffset = pExec->pushHandle.reqOffset;
+    rsp.blockData = taosArrayInit(0, sizeof(void*));
+    rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
+
+    if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+      qTaskInfo_t task = pExec->task[workerId];
+      ASSERT(task);
+      qSetStreamInput(task, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+      while (1) {
+        SSDataBlock* pDataBlock = NULL;
+        uint64_t     ts = 0;
+        if (qExecTask(task, &pDataBlock, &ts) < 0) {
+          ASSERT(0);
+        }
+        if (pDataBlock == NULL) break;
+
+        ASSERT(pDataBlock->info.rows != 0);
+        ASSERT(pDataBlock->info.numOfCols != 0);
+
+        int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pDataBlock);
+        void*              buf = taosMemoryCalloc(1, dataStrLen);
+        SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+        pRetrieve->useconds = ts;
+        pRetrieve->precision = TSDB_DEFAULT_PRECISION;
+        pRetrieve->compressed = 0;
+        pRetrieve->completed = 1;
+        pRetrieve->numOfRows = htonl(pDataBlock->info.rows);
+
+        // TODO enable compress
+        int32_t actualLen = 0;
+        blockCompressEncode(pDataBlock, pRetrieve->data, &actualLen, pDataBlock->info.numOfCols, false);
+        actualLen += sizeof(SRetrieveTableRsp);
+        ASSERT(actualLen <= dataStrLen);
+        taosArrayPush(rsp.blockDataLen, &actualLen);
+        taosArrayPush(rsp.blockData, &buf);
+        rsp.blockNum++;
+      }
+    } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
+      STqReadHandle* pReader = pExec->pExecReader[workerId];
+      tqReadHandleSetMsg(pReader, pReq, 0);
+      while (tqNextDataBlock(pReader)) {
+        SSDataBlock block = {0};
+        if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.rows,
+                                &block.info.numOfCols) < 0) {
+          ASSERT(0);
+        }
+        int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(&block);
+        void*              buf = taosMemoryCalloc(1, dataStrLen);
+        SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+        /*pRetrieve->useconds = 0;*/
+        pRetrieve->precision = TSDB_DEFAULT_PRECISION;
+        pRetrieve->compressed = 0;
+        pRetrieve->completed = 1;
+        pRetrieve->numOfRows = htonl(block.info.rows);
+
+        // TODO enable compress
+        int32_t actualLen = 0;
+        blockCompressEncode(&block, pRetrieve->data, &actualLen, block.info.numOfCols, false);
+        actualLen += sizeof(SRetrieveTableRsp);
+        ASSERT(actualLen <= dataStrLen);
+        taosArrayPush(rsp.blockDataLen, &actualLen);
+        taosArrayPush(rsp.blockData, &buf);
+        rsp.blockNum++;
+      }
+    } else {
+      ASSERT(0);
+    }
+
+    if (rsp.blockNum == 0) {
+      taosWUnLockLatch(&pExec->pushHandle.lock);
+      continue;
+    }
+
+    ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
+    ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
+
+    rsp.rspOffset = fetchOffset;
+
+    int32_t tlen = sizeof(SMqRspHead) + tEncodeSMqDataBlkRsp(NULL, &rsp);
+    void*   buf = rpcMallocCont(tlen);
+    if (buf == NULL) {
+      pMsg->code = -1;
+      return -1;
+    }
+
+    ((SMqRspHead*)buf)->mqMsgType = TMQ_MSG_TYPE__POLL_RSP;
+    ((SMqRspHead*)buf)->epoch = pExec->pushHandle.epoch;
+    ((SMqRspHead*)buf)->consumerId = pExec->pushHandle.consumerId;
+
+    void* abuf = POINTER_SHIFT(buf, sizeof(SMqRspHead));
+    tEncodeSMqDataBlkRsp(&abuf, &rsp);
+    pMsg->pCont = buf;
+    pMsg->contLen = tlen;
+    pMsg->code = 0;
+    tmsgSendRsp(pMsg);
+
+    atomic_store_ptr(&pExec->pushHandle.handle, NULL);
+    taosWUnLockLatch(&pExec->pushHandle.lock);
+
+    tqDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
+            TD_VID(pTq->pVnode), fetchOffset, pExec->pushHandle.consumerId, pExec->pushHandle.epoch, rsp.blockNum,
+            rsp.reqOffset, rsp.rspOffset);
+
+    // TODO destroy
+    taosArrayDestroy(rsp.blockData);
+    taosArrayDestroy(rsp.blockDataLen);
+  }
+
+  return 0;
+}
+
+int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
+  if (msgType != TDMT_VND_SUBMIT) return 0;
+
   void* data = taosMemoryMalloc(msgLen);
   if (data == NULL) {
     return -1;
   }
   memcpy(data, msg, msgLen);
 
-  if (msgType == TDMT_VND_SUBMIT) {
-    if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, version) != 0) {
-      return -1;
-    }
+  // make sure msgType == TDMT_VND_SUBMIT
+  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+    return -1;
   }
 
   SRpcMsg req = {
@@ -70,41 +249,17 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t versi
       .pCont = data,
       .contLen = msgLen,
   };
+
   tmsgPutToQueue(&pTq->pVnode->msgCb, FETCH_QUEUE, &req);
 
-#if 0
-  void* pIter = taosHashIterate(pTq->tqPushMgr->pHash, NULL);
-  while (pIter != NULL) {
-    STqPusher* pusher = *(STqPusher**)pIter;
-    if (pusher->type == TQ_PUSHER_TYPE__STREAM) {
-      STqStreamPusher* streamPusher = (STqStreamPusher*)pusher;
-      // repack
-      STqStreamToken* token = taosMemoryMalloc(sizeof(STqStreamToken));
-      if (token == NULL) {
-        taosHashCancelIterate(pTq->tqPushMgr->pHash, pIter);
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
-        return -1;
-      }
-      token->type = TQ_STREAM_TOKEN__DATA;
-      token->data = msg;
-      // set input
-      // exec
-    }
-    // send msg to ep
-  }
-  // iterate hash
-  // process all msg
-  // if waiting
-  // memcpy and send msg to fetch thread
-  // TODO: add reference
-  // if handle waiting, launch query and response to consumer
-  //
-  // if no waiting handle, return
-#endif
   return 0;
 }
 
-int tqCommit(STQ* pTq) { return tqStorePersist(pTq->tqMeta); }
+int tqCommit(STQ* pTq) {
+  // do nothing
+  /*return tqStorePersist(pTq->tqMeta);*/
+  return 0;
+}
 
 int32_t tqGetTopicHandleSize(const STqTopic* pTopic) {
   return strlen(pTopic->topicName) + strlen(pTopic->sql) + strlen(pTopic->physicalPlan) + strlen(pTopic->qmsg) +
@@ -219,10 +374,10 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
     }
     for (int j = 0; j < TQ_BUFFER_SIZE; j++) {
       pTopic->buffer.output[j].status = 0;
-      STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnodeMeta);
+      STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
       SReadHandle    handle = {
              .reader = pReadHandle,
-             .meta = pTq->pVnodeMeta,
+             .meta = pTq->pVnode->pMeta,
       };
       pTopic->buffer.output[j].pReadHandle = pReadHandle;
       pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
@@ -233,11 +388,13 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
 }
 
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
-  SMqPollReqV2* pReq = pMsg->pCont;
-  int64_t       consumerId = pReq->consumerId;
-  int32_t       reqEpoch = pReq->epoch;
-  int64_t       fetchOffset;
+  SMqPollReq* pReq = pMsg->pCont;
+  int64_t     consumerId = pReq->consumerId;
+  int64_t     waitTime = pReq->waitTime;
+  int32_t     reqEpoch = pReq->epoch;
+  int64_t     fetchOffset;
 
+  // get offset to fetch message
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
     fetchOffset = walGetFirstVer(pTq->pWal);
   } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
@@ -246,10 +403,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
-         TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
+  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
+          TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
-  STqExec* pExec = taosHashGet(pTq->tqMetaNew, pReq->subKey, strlen(pReq->subKey));
+  STqExec* pExec = taosHashGet(pTq->execs, pReq->subKey, strlen(pReq->subKey));
   ASSERT(pExec);
 
   int32_t consumerEpoch = atomic_load_32(&pExec->epoch);
@@ -257,69 +414,165 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     consumerEpoch = atomic_val_compare_exchange_32(&pExec->epoch, consumerEpoch, reqEpoch);
   }
 
+  SWalHead* pHeadWithCkSum = taosMemoryMalloc(sizeof(SWalHead) + 2048);
+  if (pHeadWithCkSum == NULL) {
+    return -1;
+  }
+
+  walSetReaderCapacity(pExec->pWalReader, 2048);
+
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
-  rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
+  rsp.withSchema = pExec->withSchema;
   rsp.blockData = taosArrayInit(0, sizeof(void*));
+  rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
+  rsp.blockSchema = taosArrayInit(0, sizeof(void*));
 
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
     if (consumerEpoch > reqEpoch) {
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
-             consumerId, pReq->epoch, TD_VID(pTq->pVnode), fetchOffset, consumerEpoch, reqEpoch);
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
+              consumerId, pReq->epoch, TD_VID(pTq->pVnode), fetchOffset, consumerEpoch, reqEpoch);
       break;
     }
 
+    taosThreadMutexLock(&pExec->pWalReader->mutex);
+
+    if (walFetchHead(pExec->pWalReader, fetchOffset, pHeadWithCkSum) < 0) {
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+              TD_VID(pTq->pVnode), fetchOffset);
+      taosThreadMutexUnlock(&pExec->pWalReader->mutex);
+      break;
+    }
+
+    if (pHeadWithCkSum->head.msgType != TDMT_VND_SUBMIT) {
+      walSkipFetchBody(pExec->pWalReader, pHeadWithCkSum);
+    } else {
+      walFetchBody(pExec->pWalReader, &pHeadWithCkSum);
+    }
+
+    SWalReadHead* pHead = &pHeadWithCkSum->head;
+
+    taosThreadMutexUnlock(&pExec->pWalReader->mutex);
+
+#if 0
     SWalReadHead* pHead;
-    if (walReadWithHandle_s(pExec->pReadHandle, fetchOffset, &pHead) < 0) {
+    if (walReadWithHandle_s(pExec->pWalReader, fetchOffset, &pHead) < 0) {
       // TODO: no more log, set timer to wait blocking time
       // if data inserted during waiting, launch query and
       // response to user
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
              TD_VID(pTq->pVnode), fetchOffset);
-      break;
-    }
 
-    vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
-           TD_VID(pTq->pVnode), fetchOffset, pHead->msgType);
+#if 0
+      // add to pushMgr
+      taosWLockLatch(&pExec->pushHandle.lock);
+
+      pExec->pushHandle.consumerId = consumerId;
+      pExec->pushHandle.epoch = reqEpoch;
+      pExec->pushHandle.reqOffset = rsp.reqOffset;
+      pExec->pushHandle.skipLogNum = rsp.skipLogNum;
+      pExec->pushHandle.handle = pMsg;
+
+      taosWUnLockLatch(&pExec->pushHandle.lock);
+
+      // TODO add timer
+
+      // TODO: the pointer will always be valid?
+      taosHashPut(pTq->pushMgr, &consumerId, sizeof(int64_t), &pExec, sizeof(void*));
+      taosArrayDestroy(rsp.blockData);
+      taosArrayDestroy(rsp.blockDataLen);
+      return 0;
+#endif
+
+    break;
+  }
+#endif
+
+    tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
+            TD_VID(pTq->pVnode), fetchOffset, pHead->msgType);
 
     if (pHead->msgType == TDMT_VND_SUBMIT) {
       SSubmitReq* pCont = (SSubmitReq*)&pHead->body;
-      qTaskInfo_t task = pExec->task[workerId];
-      ASSERT(task);
-      qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
-      while (1) {
-        SSDataBlock* pDataBlock = NULL;
-        uint64_t     ts = 0;
-        if (qExecTask(task, &pDataBlock, &ts) < 0) {
-          ASSERT(0);
+      // table subscribe
+      if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+        qTaskInfo_t task = pExec->task[workerId];
+        ASSERT(task);
+        qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+        while (1) {
+          SSDataBlock* pDataBlock = NULL;
+          uint64_t     ts = 0;
+          if (qExecTask(task, &pDataBlock, &ts) < 0) {
+            ASSERT(0);
+          }
+          if (pDataBlock == NULL) break;
+
+          ASSERT(pDataBlock->info.rows != 0);
+          ASSERT(pDataBlock->info.numOfCols != 0);
+
+          int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pDataBlock);
+          void*              buf = taosMemoryCalloc(1, dataStrLen);
+          SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+          pRetrieve->useconds = ts;
+          pRetrieve->precision = TSDB_DEFAULT_PRECISION;
+          pRetrieve->compressed = 0;
+          pRetrieve->completed = 1;
+          pRetrieve->numOfRows = htonl(pDataBlock->info.rows);
+
+          // TODO enable compress
+          int32_t actualLen = 0;
+          blockCompressEncode(pDataBlock, pRetrieve->data, &actualLen, pDataBlock->info.numOfCols, false);
+          actualLen += sizeof(SRetrieveTableRsp);
+          ASSERT(actualLen <= dataStrLen);
+          taosArrayPush(rsp.blockDataLen, &actualLen);
+          taosArrayPush(rsp.blockData, &buf);
+
+          if (pExec->withSchema) {
+            SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
+            taosArrayPush(rsp.blockSchema, &pSW);
+          }
+
+          rsp.blockNum++;
         }
-        if (pDataBlock == NULL) break;
+        // db subscribe
+      } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
+        STqReadHandle* pReader = pExec->pExecReader[workerId];
+        tqReadHandleSetMsg(pReader, pCont, 0);
+        while (tqNextDataBlock(pReader)) {
+          SSDataBlock block = {0};
+          if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.rows,
+                                  &block.info.numOfCols) < 0) {
+            ASSERT(0);
+          }
+          int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(&block);
+          void*              buf = taosMemoryCalloc(1, dataStrLen);
+          SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
+          /*pRetrieve->useconds = 0;*/
+          pRetrieve->precision = TSDB_DEFAULT_PRECISION;
+          pRetrieve->compressed = 0;
+          pRetrieve->completed = 1;
+          pRetrieve->numOfRows = htonl(block.info.rows);
 
-        ASSERT(pDataBlock->info.rows != 0);
-        ASSERT(pDataBlock->info.numOfCols != 0);
+          // TODO enable compress
+          int32_t actualLen = 0;
+          blockCompressEncode(&block, pRetrieve->data, &actualLen, block.info.numOfCols, false);
+          actualLen += sizeof(SRetrieveTableRsp);
+          ASSERT(actualLen <= dataStrLen);
+          taosArrayPush(rsp.blockDataLen, &actualLen);
+          taosArrayPush(rsp.blockData, &buf);
 
-        int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pDataBlock);
-        void*              buf = taosMemoryCalloc(1, dataStrLen);
-        SRetrieveTableRsp* pRetrieve = (SRetrieveTableRsp*)buf;
-        pRetrieve->useconds = ts;
-        pRetrieve->precision = TSDB_DEFAULT_PRECISION;
-        pRetrieve->compressed = 0;
-        pRetrieve->completed = 1;
-        pRetrieve->numOfRows = htonl(pDataBlock->info.rows);
+          SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
+          taosArrayPush(rsp.blockSchema, &pSW);
 
-        // TODO enable compress
-        int32_t actualLen = 0;
-        blockCompressEncode(pDataBlock, pRetrieve->data, &actualLen, pDataBlock->info.numOfCols, false);
-        actualLen += sizeof(SRetrieveTableRsp);
-        ASSERT(actualLen <= dataStrLen);
-        taosArrayPush(rsp.blockDataLen, &actualLen);
-        taosArrayPush(rsp.blockData, &buf);
-        rsp.blockNum++;
+          rsp.blockNum++;
+        }
+      } else {
+        ASSERT(0);
       }
     }
 
-    // TODO batch optimization
+    // TODO batch optimization:
+    // TODO continue scan until meeting batch requirement
     if (rsp.blockNum != 0) break;
     rsp.skipLogNum++;
     fetchOffset++;
@@ -351,12 +604,14 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   pMsg->code = 0;
   tmsgSendRsp(pMsg);
 
-  vDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
-         TD_VID(pTq->pVnode), fetchOffset, consumerId, pReq->epoch, rsp.blockNum, rsp.reqOffset, rsp.rspOffset);
+  tqDebug("vg %d offset %ld from consumer %ld (epoch %d) send rsp, block num: %d, reqOffset: %ld, rspOffset: %ld",
+          TD_VID(pTq->pVnode), fetchOffset, consumerId, pReq->epoch, rsp.blockNum, rsp.reqOffset, rsp.rspOffset);
 
   // TODO destroy
   taosArrayDestroy(rsp.blockData);
   taosArrayDestroy(rsp.blockDataLen);
+  taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+
   return 0;
 }
 
@@ -376,7 +631,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset = pReq->currentOffset + 1;
   }
 
-  vDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
+  tqDebug("tmq poll: consumer %ld (epoch %d) recv poll req in vg %d, req %ld %ld", consumerId, pReq->epoch,
          TD_VID(pTq->pVnode), pReq->currentOffset, fetchOffset);
 
   SMqPollRspV2 rspV2 = {0};
@@ -418,7 +673,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     return 0;
   }
 
-  vDebug("poll topic %s from consumer %ld (epoch %d) vg %d", pTopic->topicName, consumerId, pReq->epoch,
+  tqDebug("poll topic %s from consumer %ld (epoch %d) vg %d", pTopic->topicName, consumerId, pReq->epoch,
          TD_VID(pTq->pVnode));
 
   rspV2.reqOffset = pReq->currentOffset;
@@ -429,7 +684,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     // TODO
     consumerEpoch = atomic_load_32(&pConsumer->epoch);
     if (consumerEpoch > reqEpoch) {
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, found new consumer epoch %d discard req epoch %d",
              consumerId, pReq->epoch, TD_VID(pTq->pVnode), fetchOffset, consumerEpoch, reqEpoch);
       break;
     }
@@ -438,11 +693,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       // TODO: no more log, set timer to wait blocking time
       // if data inserted during waiting, launch query and
       // response to user
-      vDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
+      tqDebug("tmq poll: consumer %ld (epoch %d) vg %d offset %ld, no more log to return", consumerId, pReq->epoch,
              TD_VID(pTq->pVnode), fetchOffset);
       break;
     }
-    vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
+    tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d offset %ld msgType %d", consumerId, pReq->epoch,
            TD_VID(pTq->pVnode), fetchOffset, pHead->msgType);
     /*int8_t pos = fetchOffset % TQ_BUFFER_SIZE;*/
     /*pHead = pTopic->pReadhandle->pHead;*/
@@ -467,7 +722,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       }
 
       if (taosArrayGetSize(pRes) == 0) {
-        vDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d skip log %ld since not wanted", consumerId,
+        tqDebug("tmq poll: consumer %ld (epoch %d) iter log, vg %d skip log %ld since not wanted", consumerId,
                pReq->epoch, TD_VID(pTq->pVnode), fetchOffset);
         fetchOffset++;
         rspV2.skipLogNum++;
@@ -528,7 +783,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       pMsg->pCont = buf;
       pMsg->contLen = msgLen;
       pMsg->code = 0;
-      vDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", TD_VID(pTq->pVnode), fetchOffset,
+      tqDebug("vg %d offset %ld msgType %d from consumer %ld (epoch %d) actual rsp", TD_VID(pTq->pVnode), fetchOffset,
              pHead->msgType, consumerId, pReq->epoch);
       tmsgSendRsp(pMsg);
       taosMemoryFree(pHead);
@@ -562,7 +817,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   pMsg->contLen = tlen;
   pMsg->code = 0;
   tmsgSendRsp(pMsg);
-  vDebug("vg %d offset %ld from consumer %ld (epoch %d) not rsp", TD_VID(pTq->pVnode), fetchOffset, consumerId,
+  tqDebug("vg %d offset %ld from consumer %ld (epoch %d) not rsp", TD_VID(pTq->pVnode), fetchOffset, consumerId,
          pReq->epoch);
   /*}*/
 
@@ -572,10 +827,10 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 
 // TODO: persist meta into tdb
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
-  SMqRebVgReq req;
+  SMqRebVgReq req = {0};
   tDecodeSMqRebVgReq(msg, &req);
   // todo lock
-  STqExec* pExec = taosHashGet(pTq->tqMetaNew, req.subKey, strlen(req.subKey));
+  STqExec* pExec = taosHashGet(pTq->execs, req.subKey, strlen(req.subKey));
   if (pExec == NULL) {
     ASSERT(req.oldConsumerId == -1);
     ASSERT(req.newConsumerId != -1);
@@ -586,19 +841,30 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     memcpy(pExec->subKey, req.subKey, TSDB_SUBSCRIBE_KEY_LEN);
     pExec->consumerId = req.newConsumerId;
     pExec->epoch = -1;
+
+    pExec->subType = req.subType;
+    pExec->withTbName = req.withTbName;
+    pExec->withSchema = req.withSchema;
+    pExec->withTag = req.withTag;
+
     pExec->qmsg = req.qmsg;
     req.qmsg = NULL;
-    pExec->pReadHandle = walOpenReadHandle(pTq->pVnode->pWal);
-    for (int32_t i = 0; i < 4; i++) {
-      STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnodeMeta);
-      SReadHandle    handle = {
-             .reader = pReadHandle,
-             .meta = pTq->pVnodeMeta,
-      };
-      pExec->task[i] = qCreateStreamExecTaskInfo(pExec->qmsg, &handle);
-      ASSERT(pExec->task[i]);
+
+    pExec->pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
+    for (int32_t i = 0; i < 5; i++) {
+      pExec->pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
+      if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+        SReadHandle handle = {
+            .reader = pExec->pExecReader[i],
+            .meta = pTq->pVnode->pMeta,
+        };
+        pExec->task[i] = qCreateStreamExecTaskInfo(pExec->qmsg, &handle);
+        ASSERT(pExec->task[i]);
+      } else {
+        pExec->task[i] = NULL;
+      }
     }
-    taosHashPut(pTq->tqMetaNew, req.subKey, strlen(req.subKey), pExec, sizeof(STqExec));
+    taosHashPut(pTq->execs, req.subKey, strlen(req.subKey), pExec, sizeof(STqExec));
     return 0;
   } else {
     /*if (req.newConsumerId != -1) {*/
@@ -627,12 +893,12 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
     return -1;
   }
   for (int32_t i = 0; i < parallel; i++) {
-    STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnodeMeta);
+    STqReadHandle* pStreamReader = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
     SReadHandle    handle = {
-           .reader = pReadHandle,
-           .meta = pTq->pVnodeMeta,
+           .reader = pStreamReader,
+           .meta = pTq->pVnode->pMeta,
     };
-    pTask->exec.runners[i].inputHandle = pReadHandle;
+    pTask->exec.runners[i].inputHandle = pStreamReader;
     pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
     ASSERT(pTask->exec.runners[i].executor);
   }
@@ -640,7 +906,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
 }
 
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
-  SStreamTask* pTask = taosMemoryMalloc(sizeof(SStreamTask));
+  SStreamTask* pTask = taosMemoryCalloc(1, sizeof(SStreamTask));
   if (pTask == NULL) {
     return -1;
   }
@@ -660,6 +926,12 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   pTask->ahandle = pTq->pVnode;
   if (pTask->sinkType == TASK_SINK__SMA) {
     pTask->smaSink.smaHandle = smaHandleRes;
+  } else if (pTask->sinkType == TASK_SINK__TABLE) {
+    ASSERT(pTask->tbSink.pSchemaWrapper);
+    ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
+    pTask->tbSink.pTSchema =
+        tdGetSTSChemaFromSSChema(&pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols);
+    ASSERT(pTask->tbSink.pTSchema);
   }
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));

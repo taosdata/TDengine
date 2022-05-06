@@ -34,13 +34,9 @@ extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
 
 // common
-extern int32_t tsRpcTimer;
-extern int32_t tsRpcMaxTime;
-extern bool    tsRpcForceTcp;  // all commands go to tcp protocol if this is enabled
 extern int32_t tsMaxConnections;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
-extern int32_t tsMaxTmrCtrl;
 extern int32_t tsCompressMsgSize;
 extern int32_t tsCompressColData;
 extern int32_t tsMaxNumOfDistinctResults;
@@ -94,10 +90,10 @@ extern bool    tsRetrieveBlockingModel;  // retrieve threads will be blocked
 extern bool    tsKeepOriginalColumnName;
 extern bool    tsDeadLockKillQuery;
 
+// query client
+extern int32_t tsQueryPolicy;
+
 // client
-extern int32_t tsMaxWildCardsLen;
-extern int32_t tsMaxRegexStringLen;
-extern int32_t tsMaxNumOfOrderedResults;
 extern int32_t tsMinSlidingTime;
 extern int32_t tsMinIntervalTime;
 extern int32_t tsMaxStreamComputDelay;
@@ -125,11 +121,15 @@ extern char     tsCompressor[];
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
 
+// internal 
+extern int32_t tsTransPullupMs;
+extern int32_t tsMaRebalanceMs;
+
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
-int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char *envFile,
-                      const char *apolloUrl, SArray *pArgs, bool tsc);
-int32_t taosInitCfg(const char *cfgDir, const char *envFile, const char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,
+                      char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
 void    taosCleanupCfg();
 void    taosCfgDynamicOptions(const char *option, const char *value);
 void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);

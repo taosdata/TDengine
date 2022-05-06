@@ -43,6 +43,7 @@ typedef struct SRpcMsg {
   int32_t code;
   void *  handle;         // rpc handle returned to app
   void *  ahandle;        // app handle set by client
+  int64_t refId;          // refid, used by server
   int     noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int     persistHandle;  // persist handle or not
 
@@ -58,9 +59,13 @@ typedef struct {
   void *   pNode;
 } SNodeMsg;
 
-typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *);
+typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
 typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
-typedef int (*RpcRfp)(void *parent, SRpcMsg *, SEpSet *);
+///
+// // SRpcMsg code
+// REDIERE,
+// NOT READY, EpSet
+typedef bool (*RpcRfp)(int32_t code);
 
 typedef struct SRpcInit {
   uint16_t localPort;     // local port

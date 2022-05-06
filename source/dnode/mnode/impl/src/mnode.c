@@ -43,9 +43,6 @@
 #include "mndUser.h"
 #include "mndVgroup.h"
 
-#define MQ_TIMER_MS    3000
-#define TRNAS_TIMER_MS 6000
-
 static void *mndBuildTimerMsg(int32_t *pContLen) {
   SMTimerReq timerReq = {0};
 
@@ -68,7 +65,7 @@ static void mndPullupTrans(void *param, void *tmrId) {
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 
-  taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer);
+  taosTmrReset(mndPullupTrans, tsTransPullupMs, pMnode, pMnode->timer, &pMnode->transTimer);
 }
 
 static void mndCalMqRebalance(void *param, void *tmrId) {
@@ -84,7 +81,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
-  taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer);
+  taosTmrReset(mndCalMqRebalance, tsMaRebalanceMs, pMnode, pMnode->timer, &pMnode->mqTimer);
 }
 
 static void mndPullupTelem(void *param, void *tmrId) {
@@ -106,12 +103,12 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  if (taosTmrReset(mndPullupTrans, TRNAS_TIMER_MS, pMnode, pMnode->timer, &pMnode->transTimer)) {
+  if (taosTmrReset(mndPullupTrans, tsTransPullupMs, pMnode, pMnode->timer, &pMnode->transTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (taosTmrReset(mndCalMqRebalance, MQ_TIMER_MS, pMnode, pMnode->timer, &pMnode->mqTimer)) {
+  if (taosTmrReset(mndCalMqRebalance, tsMaRebalanceMs, pMnode, pMnode->timer, &pMnode->mqTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -368,7 +365,7 @@ int32_t mndProcessMsg(SNodeMsg *pMsg) {
   }
 
   if (isReq && (pRpc->contLen == 0 || pRpc->pCont == NULL)) {
-    terrno = TSDB_CODE_MND_INVALID_MSG_LEN;
+    terrno = TSDB_CODE_INVALID_MSG_LEN;
     mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     return -1;
   }
@@ -385,7 +382,11 @@ int32_t mndProcessMsg(SNodeMsg *pMsg) {
     terrno = code;
     mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
   } else if (code != 0) {
-    mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+    if (terrno != TSDB_CODE_OPS_NOT_SUPPORT) {
+      mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+    } else {
+      mTrace("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+    }
   } else {
     mTrace("msg:%p, is processed, app:%p", pMsg, ahandle);
   }
@@ -413,7 +414,6 @@ int64_t mndGenerateUid(char *name, int32_t len) {
     }
   } while (true);
 }
-
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {

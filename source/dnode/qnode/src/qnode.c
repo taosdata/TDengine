@@ -17,12 +17,17 @@
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
+#include "libs/function/function.h"
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
   if (NULL == pQnode) {
     qError("calloc SQnode failed");
     return NULL;
+  }
+
+  if (udfcOpen() != 0) {
+    qError("qnode can not open udfc");
   }
 
   if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
@@ -37,13 +42,15 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
 void qndClose(SQnode *pQnode) {
   qWorkerDestroy((void **)&pQnode->pQuery);
 
+  udfcClose();
+
   taosMemoryFree(pQnode);
 }
 
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
-  qTrace("message in query queue is processing");
+  qTrace("message in qnode query queue is processing");
   SReadHandle handle = {0};
 
   switch (pMsg->msgType) {

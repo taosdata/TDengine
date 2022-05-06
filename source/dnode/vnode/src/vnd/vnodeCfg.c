@@ -13,23 +13,21 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "vnd.h"
 
 const SVnodeCfg vnodeCfgDefault = {
     .vgId = -1,
     .dbname = "",
     .dbId = 0,
-    .wsize = 96 * 1024 * 1024,
-    .ssize = 1 * 1024 * 1024,
-    .lsize = 1024,
-    .isHeapAllocator = false,
-    .ttl = 0,
-    .keep = 0,
-    .streamMode = 0,
+    .szPage = 4096,
+    .szCache = 256,
+    .szBuf = 96 * 1024 * 1024,
+    .isHeap = false,
     .isWeak = 0,
-    .tsdbCfg = {.precision = TWO_STAGE_COMP,
+    .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
                 .update = 0,
                 .compression = 2,
+                .slLevel = 5,
                 .days = 10,
                 .minRows = 100,
                 .maxRows = 4096,
@@ -53,24 +51,41 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "vgId", pCfg->vgId) < 0) return -1;
   if (tjsonAddStringToObject(pJson, "dbname", pCfg->dbname) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "dbId", pCfg->dbId) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "wsize", pCfg->wsize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "ssize", pCfg->ssize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "lsize", pCfg->lsize) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "ttl", pCfg->ttl) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "keep", pCfg->keep) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szPage", pCfg->szPage) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szCache", pCfg->szCache) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "slLevel", pCfg->tsdbCfg.slLevel) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonAddIntegerToObject(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
+  if (pCfg->tsdbCfg.retentions[0].freq > 0) {
+    int32_t nRetention = 1;
+    if (pCfg->tsdbCfg.retentions[1].freq > 0) {
+      ++nRetention;
+      if (pCfg->tsdbCfg.retentions[2].freq > 0) {
+        ++nRetention;
+      }
+    }
+    SJson *pNodeRetentions = tjsonCreateArray();
+    tjsonAddItemToObject(pJson, "retentions", pNodeRetentions);
+    for (int32_t i = 0; i < nRetention; ++i) {
+      SJson      *pNodeRetention = tjsonCreateObject();
+      const SRetention *pRetention = pCfg->tsdbCfg.retentions + i;
+      tjsonAddIntegerToObject(pNodeRetention, "freq", pRetention->freq);
+      tjsonAddIntegerToObject(pNodeRetention, "freqUnit", pRetention->freqUnit);
+      tjsonAddIntegerToObject(pNodeRetention, "keep", pRetention->keep);
+      tjsonAddIntegerToObject(pNodeRetention, "keepUnit", pRetention->keepUnit);
+      tjsonAddItemToArray(pNodeRetentions, pNodeRetention);
+    }
+  }
   if (tjsonAddIntegerToObject(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;
@@ -82,6 +97,18 @@ int vnodeEncodeConfig(const void *pObj, SJson *pJson) {
   if (tjsonAddIntegerToObject(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonAddIntegerToObject(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
 
+  // sync integration
+  if (tjsonAddIntegerToObject(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
+  if (tjsonAddIntegerToObject(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
+  SJson *pNodeInfoArr = tjsonCreateArray();
+  tjsonAddItemToObject(pJson, "syncCfg.nodeInfo", pNodeInfoArr);
+  for (int i = 0; i < pCfg->syncCfg.replicaNum; ++i) {
+    SJson *pNodeInfo = tjsonCreateObject();
+    tjsonAddIntegerToObject(pNodeInfo, "nodePort", (pCfg->syncCfg.nodeInfo)[i].nodePort);
+    tjsonAddStringToObject(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
+    tjsonAddItemToArray(pNodeInfoArr, pNodeInfo);
+  }
+
   return 0;
 }
 
@@ -91,24 +118,34 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "vgId", pCfg->vgId) < 0) return -1;
   if (tjsonGetStringValue(pJson, "dbname", pCfg->dbname) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "dbId", pCfg->dbId) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "wsize", pCfg->wsize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "ssize", pCfg->ssize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "lsize", pCfg->lsize) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeapAllocator) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "ttl", pCfg->ttl) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "keep", pCfg->keep) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "streamMode", pCfg->streamMode) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szPage", pCfg->szPage) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szCache", pCfg->szCache) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "szBuf", pCfg->szBuf) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "isHeap", pCfg->isHeap) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "isWeak", pCfg->isWeak) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "precision", pCfg->tsdbCfg.precision) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "update", pCfg->tsdbCfg.update) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "compression", pCfg->tsdbCfg.compression) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "slLevel", pCfg->tsdbCfg.slLevel) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "daysPerFile", pCfg->tsdbCfg.days) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "minRows", pCfg->tsdbCfg.minRows) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "maxRows", pCfg->tsdbCfg.maxRows) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep0", pCfg->tsdbCfg.keep0) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep1", pCfg->tsdbCfg.keep1) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "keep2", pCfg->tsdbCfg.keep2) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "lruCacheSize", pCfg->tsdbCfg.lruCacheSize) < 0) return -1;
+  SJson *pNodeRetentions = tjsonGetObjectItem(pJson, "retentions");
+  int32_t nRetention = tjsonGetArraySize(pNodeRetentions);
+  if (nRetention > TSDB_RETENTION_MAX) {
+    nRetention = TSDB_RETENTION_MAX;
+  }
+  for (int32_t i = 0; i < nRetention; ++i) {
+    SJson *pNodeRetention = tjsonGetArrayItem(pNodeRetentions, i);
+    ASSERT(pNodeRetention != NULL);
+    tjsonGetNumberValue(pNodeRetention, "freq", (pCfg->tsdbCfg.retentions)[i].freq);
+    tjsonGetNumberValue(pNodeRetention, "freqUnit", (pCfg->tsdbCfg.retentions)[i].freqUnit);
+    tjsonGetNumberValue(pNodeRetention, "keep", (pCfg->tsdbCfg.retentions)[i].keep);
+    tjsonGetNumberValue(pNodeRetention, "keepUnit", (pCfg->tsdbCfg.retentions)[i].keepUnit);
+  }
   if (tjsonGetNumberValue(pJson, "wal.vgId", pCfg->walCfg.vgId) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wal.fsyncPeriod", pCfg->walCfg.fsyncPeriod) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "wal.retentionPeriod", pCfg->walCfg.retentionPeriod) < 0) return -1;
@@ -120,13 +157,28 @@ int vnodeDecodeConfig(const SJson *pJson, void *pObj) {
   if (tjsonGetNumberValue(pJson, "hashEnd", pCfg->hashEnd) < 0) return -1;
   if (tjsonGetNumberValue(pJson, "hashMethod", pCfg->hashMethod) < 0) return -1;
 
+  // sync integration
+  if (tjsonGetNumberValue(pJson, "syncCfg.replicaNum", pCfg->syncCfg.replicaNum) < 0) return -1;
+  if (tjsonGetNumberValue(pJson, "syncCfg.myIndex", pCfg->syncCfg.myIndex) < 0) return -1;
+
+  SJson *pNodeInfoArr = tjsonGetObjectItem(pJson, "syncCfg.nodeInfo");
+  int    arraySize = tjsonGetArraySize(pNodeInfoArr);
+  assert(arraySize == pCfg->syncCfg.replicaNum);
+
+  for (int i = 0; i < arraySize; ++i) {
+    SJson *pNodeInfo = tjsonGetArrayItem(pNodeInfoArr, i);
+    assert(pNodeInfo != NULL);
+    tjsonGetNumberValue(pNodeInfo, "nodePort", (pCfg->syncCfg.nodeInfo)[i].nodePort);
+    tjsonGetStringValue(pNodeInfo, "nodeFqdn", (pCfg->syncCfg.nodeInfo)[i].nodeFqdn);
+  }
+
   return 0;
 }
 
-int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
+int vnodeValidateTableHash(SVnode *pVnode, char *tableFName) {
   uint32_t hashValue = 0;
 
-  switch (pVnodeOptions->hashMethod) {
+  switch (pVnode->config.hashMethod) {
     default:
       hashValue = MurmurHash3_32(tableFName, strlen(tableFName));
       break;
@@ -140,5 +192,5 @@ int vnodeValidateTableHash(SVnodeCfg *pVnodeOptions, char *tableFName) {
   }
 #endif
 
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }

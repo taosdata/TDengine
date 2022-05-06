@@ -15,14 +15,14 @@
 
 #define ALLOW_FORBID_FUNC
 
-#include "vnodeInt.h"
+#include "tsdb.h"
 
 int32_t tsdbOpenDBEnv(TENV **ppEnv, const char *path) {
-  int   ret = 0;
+  int ret = 0;
 
   if (path == NULL) return -1;
 
-  ret = tdbEnvOpen(path, 4096, 256, ppEnv); // use as param
+  ret = tdbEnvOpen(path, 4096, 256, ppEnv);  // use as param
 
   if (ret != 0) {
     tsdbError("Failed to create tsdb db env, ret = %d", ret);
@@ -55,12 +55,12 @@ static inline int tsdbSmaKeyCmpr(const void *arg1, int len1, const void *arg2, i
 }
 
 static int32_t tsdbOpenDBDb(TDB **ppDB, TENV *pEnv, const char *pFName) {
-  int            ret;
-  FKeyComparator compFunc;
+  int           ret;
+  tdb_cmpr_fn_t compFunc;
 
   // Create a database
   compFunc = tsdbSmaKeyCmpr;
-  ret = tdbDbOpen(pFName, TDB_VARIANT_LEN, TDB_VARIANT_LEN, compFunc, pEnv, ppDB);
+  ret = tdbDbOpen(pFName, -1, -1, compFunc, pEnv, ppDB);
 
   return 0;
 }

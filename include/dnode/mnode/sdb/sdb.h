@@ -18,6 +18,11 @@
 
 #include "os.h"
 
+#include "thash.h"
+#include "tlockfree.h"
+#include "tlog.h"
+#include "tmsg.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -102,10 +107,9 @@ typedef enum {
 typedef enum {
   SDB_STATUS_INIT = 0,
   SDB_STATUS_CREATING = 1,
-  SDB_STATUS_UPDATING = 2,
-  SDB_STATUS_DROPPING = 3,
+  SDB_STATUS_DROPPING = 2,
+  SDB_STATUS_DROPPED = 3,
   SDB_STATUS_READY = 4,
-  SDB_STATUS_DROPPED = 5
 } ESdbStatus;
 
 typedef enum {
@@ -135,7 +139,7 @@ typedef enum {
 typedef struct SSdb SSdb;
 typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
 typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
-typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj);
+typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
 typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
 typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
 typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
@@ -221,7 +225,7 @@ int32_t sdbWrite(SSdb *pSdb, SSdbRaw *pRaw);
  * @param pRaw The raw data.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t sdbWriteNotFree(SSdb *pSdb, SSdbRaw *pRaw);
+int32_t sdbWriteWithoutFree(SSdb *pSdb, SSdbRaw *pRaw);
 
 /**
  * @brief Acquire a row from sdb
@@ -326,8 +330,27 @@ int32_t  sdbGetRawSoftVer(SSdbRaw *pRaw, int8_t *sver);
 int32_t  sdbGetRawTotalSize(SSdbRaw *pRaw);
 
 SSdbRow *sdbAllocRow(int32_t objSize);
-void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow);
 void    *sdbGetRowObj(SSdbRow *pRow);
+
+typedef struct SSdb {
+  SMnode     *pMnode;
+  char       *currDir;
+  char       *syncDir;
+  char       *tmpDir;
+  int64_t     lastCommitVer;
+  int64_t     curVer;
+  int64_t     tableVer[SDB_MAX];
+  int64_t     maxId[SDB_MAX];
+  EKeyType    keyTypes[SDB_MAX];
+  SHashObj   *hashObjs[SDB_MAX];
+  SRWLatch    locks[SDB_MAX];
+  SdbInsertFp insertFps[SDB_MAX];
+  SdbUpdateFp updateFps[SDB_MAX];
+  SdbDeleteFp deleteFps[SDB_MAX];
+  SdbDeployFp deployFps[SDB_MAX];
+  SdbEncodeFp encodeFps[SDB_MAX];
+  SdbDecodeFp decodeFps[SDB_MAX];
+} SSdb;
 
 #ifdef __cplusplus
 }

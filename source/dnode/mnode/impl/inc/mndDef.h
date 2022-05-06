@@ -57,11 +57,11 @@ typedef enum {
   TRN_STAGE_PREPARE = 0,
   TRN_STAGE_REDO_LOG = 1,
   TRN_STAGE_REDO_ACTION = 2,
-  TRN_STAGE_COMMIT = 3,
-  TRN_STAGE_COMMIT_LOG = 4,
-  TRN_STAGE_UNDO_ACTION = 5,
-  TRN_STAGE_UNDO_LOG = 6,
-  TRN_STAGE_ROLLBACK = 7,
+  TRN_STAGE_ROLLBACK = 3,
+  TRN_STAGE_UNDO_ACTION = 4,
+  TRN_STAGE_UNDO_LOG = 5,
+  TRN_STAGE_COMMIT = 6,
+  TRN_STAGE_COMMIT_LOG = 7,
   TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
@@ -72,6 +72,7 @@ typedef enum {
   TRN_TYPE_DROP_USER = 1003,
   TRN_TYPE_CREATE_FUNC = 1004,
   TRN_TYPE_DROP_FUNC = 1005,
+  
   TRN_TYPE_CREATE_SNODE = 1006,
   TRN_TYPE_DROP_SNODE = 1007,
   TRN_TYPE_CREATE_QNODE = 1008,
@@ -89,11 +90,14 @@ typedef enum {
   TRN_TYPE_DROP_STREAM = 1020,
   TRN_TYPE_ALTER_STREAM = 1021,
   TRN_TYPE_CONSUMER_LOST = 1022,
+  TRN_TYPE_CONSUMER_RECOVER = 1023,
   TRN_TYPE_BASIC_SCOPE_END,
+
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
   TRN_TYPE_DROP_DNODE = 2002,
   TRN_TYPE_GLOBAL_SCOPE_END,
+
   TRN_TYPE_DB_SCOPE = 3000,
   TRN_TYPE_CREATE_DB = 3001,
   TRN_TYPE_ALTER_DB = 3002,
@@ -101,6 +105,7 @@ typedef enum {
   TRN_TYPE_SPLIT_VGROUP = 3004,
   TRN_TYPE_MERGE_VGROUP = 3015,
   TRN_TYPE_DB_SCOPE_END,
+
   TRN_TYPE_STB_SCOPE = 4000,
   TRN_TYPE_CREATE_STB = 4001,
   TRN_TYPE_ALTER_STB = 4002,
@@ -130,11 +135,12 @@ typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  ETrnType   transType;
+  ETrnType   type;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
   void*      rpcAHandle;
+  int64_t    rpcRefId;
   void*      rpcRsp;
   int32_t    rpcRspLen;
   SArray*    redoLogs;
@@ -147,6 +153,10 @@ typedef struct {
   int64_t    dbUid;
   char       dbname[TSDB_DB_FNAME_LEN];
   char       lastError[TSDB_TRANS_ERROR_LEN];
+  int32_t    startFunc;
+  int32_t    stopFunc;
+  int32_t    paramLen;
+  void*      param;
 } STrans;
 
 typedef struct {
@@ -251,26 +261,23 @@ typedef struct {
 
 typedef struct {
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;
-  int32_t totalBlocks;
+  int32_t numOfStables;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  streamMode;
-  int8_t  singleSTable;
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
@@ -310,7 +317,6 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
-  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
@@ -349,18 +355,15 @@ typedef struct {
   int32_t  version;
   int32_t  nextColId;
   float    xFilesFactor;
-  int32_t  aggregationMethod;
   int32_t  delay;
   int32_t  ttl;
   int32_t  numOfColumns;
   int32_t  numOfTags;
-  int32_t  numOfSmas;
   int32_t  commentLen;
   int32_t  ast1Len;
   int32_t  ast2Len;
   SSchema* pColumns;
   SSchema* pTags;
-  SSchema* pSmas;
   char*    comment;
   char*    pAst1;
   char*    pAst2;
@@ -389,15 +392,12 @@ typedef struct {
   int8_t         type;
   int8_t         replica;
   int16_t        numOfColumns;
-  int32_t        rowSize;
   int32_t        numOfRows;
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
-  int16_t        offset[TSDB_MAX_COLUMNS];
-  int32_t        bytes[TSDB_MAX_COLUMNS];
 } SShowObj;
 
 typedef struct {
@@ -419,6 +419,7 @@ typedef struct {
 
 typedef struct {
   char    key[TSDB_PARTITION_KEY_LEN];
+  int64_t dbUid;
   int64_t offset;
 } SMqOffsetObj;
 
@@ -436,20 +437,17 @@ static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) 
 }
 
 typedef struct {
-  char    name[TSDB_TOPIC_FNAME_LEN];
-  char    db[TSDB_DB_FNAME_LEN];
-  int64_t createTime;
-  int64_t updateTime;
-  int64_t uid;
-  // TODO: use subDbUid
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           db[TSDB_DB_FNAME_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
   int64_t        dbUid;
-  int64_t        subDbUid;
   int32_t        version;
   int8_t         subType;  // db or table
   int8_t         withTbName;
   int8_t         withSchema;
   int8_t         withTag;
-  int8_t         withTagSchema;
   SRWLatch       lock;
   int32_t        sqlLen;
   int32_t        astLen;
@@ -464,12 +462,14 @@ enum {
   CONSUMER_UPDATE__ADD,
   CONSUMER_UPDATE__REMOVE,
   CONSUMER_UPDATE__LOST,
+  CONSUMER_UPDATE__RECOVER,
   CONSUMER_UPDATE__MODIFY,
 };
 
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
+  char    appId[TSDB_CGROUP_LEN];
   int8_t  updateType;  // used only for update
   int32_t epoch;
   int32_t status;
@@ -480,6 +480,17 @@ typedef struct {
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
+
+  // subscribed by user
+  SArray* assignedTopics;  // SArray<char*>
+
+  // data for display
+  int32_t pid;
+  SEpSet  ep;
+  int64_t upTime;
+  int64_t subscribeTime;
+  int64_t rebalanceTime;
+
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
@@ -501,25 +512,24 @@ void*    tDecodeSMqVgEp(const void* buf, SMqVgEp* pVgEp);
 typedef struct {
   int64_t consumerId;  // -1 for unassigned
   SArray* vgs;         // SArray<SMqVgEp*>
-} SMqConsumerEpInSub;
+} SMqConsumerEp;
 
-SMqConsumerEpInSub* tCloneSMqConsumerEpInSub(const SMqConsumerEpInSub* pEpInSub);
-void                tDeleteSMqConsumerEpInSub(SMqConsumerEpInSub* pEpInSub);
-int32_t             tEncodeSMqConsumerEpInSub(void** buf, const SMqConsumerEpInSub* pEpInSub);
-void*               tDecodeSMqConsumerEpInSub(const void* buf, SMqConsumerEpInSub* pEpInSub);
+SMqConsumerEp* tCloneSMqConsumerEp(const SMqConsumerEp* pEp);
+void           tDeleteSMqConsumerEp(SMqConsumerEp* pEp);
+int32_t        tEncodeSMqConsumerEp(void** buf, const SMqConsumerEp* pEp);
+void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
   SRWLatch  lock;
+  int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
   int8_t    withTbName;
   int8_t    withSchema;
   int8_t    withTag;
-  int8_t    withTagSchema;
-  SHashObj* consumerHash;  // consumerId -> SMqConsumerEpInSub
-  // TODO put -1 into unassignVgs
-  // SArray*   unassignedVgs;
+  SHashObj* consumerHash;   // consumerId -> SMqConsumerEp
+  SArray*   unassignedVgs;  // SArray<SMqVgEp*>
 } SMqSubscribeObj;
 
 SMqSubscribeObj* tNewSubscribeObj(const char key[TSDB_SUBSCRIBE_KEY_LEN]);
@@ -530,7 +540,7 @@ void*            tDecodeSubscribeObj(const void* buf, SMqSubscribeObj* pSub);
 
 typedef struct {
   int32_t epoch;
-  SArray* consumers;  // SArray<SMqConsumerEpInSub*>
+  SArray* consumers;  // SArray<SMqConsumerEp*>
 } SMqSubActionLogEntry;
 
 SMqSubActionLogEntry* tCloneSMqSubActionLogEntry(SMqSubActionLogEntry* pEntry);
@@ -549,9 +559,8 @@ int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogO
 void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
 
 typedef struct {
-  const SMqSubscribeObj* pOldSub;
-  const SMqTopicObj*     pTopic;
-  const SMqRebSubscribe* pRebInfo;
+  int32_t           oldConsumerNum;
+  const SMqRebInfo* pRebInfo;
 } SMqRebInputObj;
 
 typedef struct {
@@ -571,8 +580,9 @@ typedef struct {
 
 typedef struct {
   char     name[TSDB_TOPIC_FNAME_LEN];
-  char     db[TSDB_DB_FNAME_LEN];
-  char     outputSTbName[TSDB_TABLE_FNAME_LEN];
+  char     sourceDb[TSDB_DB_FNAME_LEN];
+  char     targetDb[TSDB_DB_FNAME_LEN];
+  char     targetSTbName[TSDB_TABLE_FNAME_LEN];
   int64_t  createTime;
   int64_t  updateTime;
   int64_t  uid;

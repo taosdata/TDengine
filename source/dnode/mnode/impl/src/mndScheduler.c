@@ -204,6 +204,8 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
       pTask->smaSink.smaId = pStream->smaId;
     } else {
       pTask->sinkType = TASK_SINK__TABLE;
+      pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
+      ASSERT(pTask->tbSink.pSchemaWrapper);
     }
 
     // dispatch
@@ -242,6 +244,7 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
     pTask->smaSink.smaId = pStream->smaId;
   } else {
     pTask->sinkType = TASK_SINK__TABLE;
+    pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
   }
   //
   // dispatch
@@ -308,8 +311,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         // sink part
         if (level == 0) {
           // only for inplace
-          pTask->sinkType = TASK_SINK__SHOW;
-          pTask->showSink.reserved = 0;
+          pTask->sinkType = TASK_SINK__NONE;
           if (!hasExtraSink) {
 #if 1
             if (pStream->createdBy == STREAM_CREATED_BY__SMA) {
@@ -317,6 +319,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
               pTask->smaSink.smaId = pStream->smaId;
             } else {
               pTask->sinkType = TASK_SINK__TABLE;
+              pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
             }
 #endif
           }
@@ -368,8 +371,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       pTask->sourceType = TASK_SOURCE__PIPE;
 
       // sink part
-      pTask->sinkType = TASK_SINK__SHOW;
-      /*pTask->sinkType = TASK_SINK__NONE;*/
+      pTask->sinkType = TASK_SINK__NONE;
 
       // dispatch part
       ASSERT(hasExtraSink);
@@ -382,7 +384,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
 
           pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;
-          SDbObj* pDb = mndAcquireDb(pMnode, pStream->db);
+          SDbObj* pDb = mndAcquireDb(pMnode, pStream->sourceDb);
           ASSERT(pDb);
           if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
             sdbRelease(pSdb, pDb);
@@ -456,7 +458,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
       pTask->sourceType = TASK_SOURCE__MERGE;
 
       // sink part
-      pTask->sinkType = TASK_SINK__SHOW;
+      pTask->sinkType = TASK_SINK__NONE;
 
       // dispatch part
       pTask->dispatchType = TASK_DISPATCH__NONE;
@@ -476,38 +478,36 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub) {
   SSdb*       pSdb = pMnode->pSdb;
   SVgObj*     pVgroup = NULL;
-  SQueryPlan* pPlan = qStringToQueryPlan(pTopic->physicalPlan);
-  if (pPlan == NULL) {
-    terrno = TSDB_CODE_QRY_INVALID_INPUT;
-    return -1;
+  SQueryPlan* pPlan = NULL;
+  SSubplan*   plan = NULL;
+
+  if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+    pPlan = qStringToQueryPlan(pTopic->physicalPlan);
+    if (pPlan == NULL) {
+      terrno = TSDB_CODE_QRY_INVALID_INPUT;
+      return -1;
+    }
+
+    int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
+    if (levelNum != 1) {
+      qDestroyQueryPlan(pPlan);
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
+      return -1;
+    }
+
+    SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 0);
+
+    int32_t opNum = LIST_LENGTH(inner->pNodeList);
+    if (opNum != 1) {
+      qDestroyQueryPlan(pPlan);
+      terrno = TSDB_CODE_MND_INVALID_TOPIC_QUERY;
+      return -1;
+    }
+    plan = nodesListGetNode(inner->pNodeList, 0);
   }
 
-  ASSERT(pSub->vgNum == -1);
-
-  pSub->vgNum = 0;
-
-  int32_t levelNum = LIST_LENGTH(pPlan->pSubplans);
-  if (levelNum != 1) {
-    qDestroyQueryPlan(pPlan);
-    terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
-    return -1;
-  }
-
-  SNodeListNode* inner = nodesListGetNode(pPlan->pSubplans, 0);
-
-  int32_t opNum = LIST_LENGTH(inner->pNodeList);
-  if (opNum != 1) {
-    qDestroyQueryPlan(pPlan);
-    terrno = TSDB_CODE_MND_UNSUPPORTED_TOPIC;
-    return -1;
-  }
-  SSubplan* plan = nodesListGetNode(inner->pNodeList, 0);
-
-  int64_t             unexistKey = -1;
-  SMqConsumerEpInSub* pEpInSub = taosHashGet(pSub->consumerHash, &unexistKey, sizeof(int64_t));
-  ASSERT(pEpInSub);
-
-  ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
+  ASSERT(pSub->unassignedVgs);
+  ASSERT(taosHashGetSize(pSub->consumerHash) == 0);
 
   void* pIter = NULL;
   while (1) {
@@ -519,43 +519,34 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
     }
 
     pSub->vgNum++;
-    plan->execNode.nodeId = pVgroup->vgId;
-    plan->execNode.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
     SMqVgEp* pVgEp = taosMemoryMalloc(sizeof(SMqVgEp));
-    pVgEp->epSet = plan->execNode.epSet;
-    pVgEp->vgId = plan->execNode.nodeId;
+    pVgEp->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+    pVgEp->vgId = pVgroup->vgId;
+    taosArrayPush(pSub->unassignedVgs, &pVgEp);
 
-#if 0
-    SMqConsumerEp consumerEp = {0};
-    consumerEp.status = 0;
-    consumerEp.consumerId = -1;
-    consumerEp.epSet = plan->execNode.epSet;
-    consumerEp.vgId = plan->execNode.nodeId;
-#endif
+    mDebug("init subscription %s, assign vg: %d", pSub->key, pVgEp->vgId);
 
-    mDebug("init subscribption %s, assign vg: %d", pSub->key, pVgEp->vgId);
+    if (pTopic->subType == TOPIC_SUB_TYPE__TABLE) {
+      int32_t msgLen;
 
-    int32_t msgLen;
-    if (qSubPlanToString(plan, &pVgEp->qmsg, &msgLen) < 0) {
-      sdbRelease(pSdb, pVgroup);
-      qDestroyQueryPlan(pPlan);
-      terrno = TSDB_CODE_QRY_INVALID_INPUT;
-      return -1;
+      plan->execNode.epSet = pVgEp->epSet;
+      plan->execNode.nodeId = pVgEp->vgId;
+
+      if (qSubPlanToString(plan, &pVgEp->qmsg, &msgLen) < 0) {
+        sdbRelease(pSdb, pVgroup);
+        qDestroyQueryPlan(pPlan);
+        terrno = TSDB_CODE_QRY_INVALID_INPUT;
+        return -1;
+      }
+    } else {
+      pVgEp->qmsg = strdup("");
     }
-    taosArrayPush(pEpInSub->vgs, &pVgEp);
-
-    ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
-
-    /*taosArrayPush(pSub->unassignedVg, &consumerEp);*/
   }
 
-  ASSERT(pEpInSub->vgs->size > 0);
-  pEpInSub = taosHashGet(pSub->consumerHash, &unexistKey, sizeof(int64_t));
+  ASSERT(pSub->unassignedVgs->size > 0);
 
-  ASSERT(pEpInSub->vgs->size > 0);
-
-  ASSERT(taosHashGetSize(pSub->consumerHash) == 1);
+  ASSERT(taosHashGetSize(pSub->consumerHash) == 0);
 
   qDestroyQueryPlan(pPlan);
 

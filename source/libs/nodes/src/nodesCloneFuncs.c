@@ -19,71 +19,71 @@
 #include "taos.h"
 #include "taoserror.h"
 
-#define COPY_ALL_SCALAR_FIELDS \
-	do { \
+#define COPY_ALL_SCALAR_FIELDS             \
+  do {                                     \
     memcpy((pDst), (pSrc), sizeof(*pSrc)); \
-	} while (0)
+  } while (0)
 
-#define COPY_SCALAR_FIELD(fldname) \
-	do { \
+#define COPY_SCALAR_FIELD(fldname)     \
+  do {                                 \
     (pDst)->fldname = (pSrc)->fldname; \
-	} while (0)
+  } while (0)
 
-#define COPY_CHAR_ARRAY_FIELD(fldname) \
-	do { \
+#define COPY_CHAR_ARRAY_FIELD(fldname)        \
+  do {                                        \
     strcpy((pDst)->fldname, (pSrc)->fldname); \
-	} while (0)
+  } while (0)
 
-#define COPY_CHAR_POINT_FIELD(fldname) \
-	do { \
-    if (NULL == (pSrc)->fldname) { \
-      break; \
-    } \
+#define COPY_CHAR_POINT_FIELD(fldname)         \
+  do {                                         \
+    if (NULL == (pSrc)->fldname) {             \
+      break;                                   \
+    }                                          \
     (pDst)->fldname = strdup((pSrc)->fldname); \
-	} while (0)
+  } while (0)
 
-#define CLONE_NODE_FIELD(fldname) \
-	do { \
-    if (NULL == (pSrc)->fldname) { \
-      break; \
-    } \
+#define CLONE_NODE_FIELD(fldname)                      \
+  do {                                                 \
+    if (NULL == (pSrc)->fldname) {                     \
+      break;                                           \
+    }                                                  \
     (pDst)->fldname = nodesCloneNode((pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) { \
-      nodesDestroyNode((SNode*)(pDst)); \
-      return NULL; \
-    } \
-	} while (0)
+    if (NULL == (pDst)->fldname) {                     \
+      nodesDestroyNode((SNode*)(pDst));                \
+      return NULL;                                     \
+    }                                                  \
+  } while (0)
 
-#define CLONE_NODE_LIST_FIELD(fldname) \
-	do { \
-    if (NULL == (pSrc)->fldname) { \
-      break; \
-    } \
+#define CLONE_NODE_LIST_FIELD(fldname)                 \
+  do {                                                 \
+    if (NULL == (pSrc)->fldname) {                     \
+      break;                                           \
+    }                                                  \
     (pDst)->fldname = nodesCloneList((pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) { \
-      nodesDestroyNode((SNode*)(pDst)); \
-      return NULL; \
-    } \
-	} while (0)
+    if (NULL == (pDst)->fldname) {                     \
+      nodesDestroyNode((SNode*)(pDst));                \
+      return NULL;                                     \
+    }                                                  \
+  } while (0)
 
-#define CLONE_OBJECT_FIELD(fldname, cloneFunc) \
-	do { \
-    if (NULL == (pSrc)->fldname) { \
-      break; \
-    } \
+#define CLONE_OBJECT_FIELD(fldname, cloneFunc)    \
+  do {                                            \
+    if (NULL == (pSrc)->fldname) {                \
+      break;                                      \
+    }                                             \
     (pDst)->fldname = cloneFunc((pSrc)->fldname); \
-    if (NULL == (pDst)->fldname) { \
-      nodesDestroyNode((SNode*)(pDst)); \
-      return NULL; \
-    } \
-	} while (0)
+    if (NULL == (pDst)->fldname) {                \
+      nodesDestroyNode((SNode*)(pDst));           \
+      return NULL;                                \
+    }                                             \
+  } while (0)
 
-#define COPY_BASE_OBJECT_FIELD(fldname, copyFunc) \
-	do { \
+#define COPY_BASE_OBJECT_FIELD(fldname, copyFunc)                   \
+  do {                                                              \
     if (NULL == copyFunc(&((pSrc)->fldname), &((pDst)->fldname))) { \
-      return NULL; \
-    } \
-	} while (0)
+      return NULL;                                                  \
+    }                                                               \
+  } while (0)
 
 static void dataTypeCopy(const SDataType* pSrc, SDataType* pDst) {
   COPY_SCALAR_FIELD(type);
@@ -154,6 +154,7 @@ static SNode* logicConditionNodeCopy(const SLogicConditionNode* pSrc, SLogicCond
 }
 
 static SNode* functionNodeCopy(const SFunctionNode* pSrc, SFunctionNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
   exprNodeCopy((const SExprNode*)pSrc, (SExprNode*)pDst);
   COPY_CHAR_ARRAY_FIELD(functionName);
   COPY_SCALAR_FIELD(funcId);
@@ -190,6 +191,7 @@ static SNode* nodeListNodeCopy(const SNodeListNode* pSrc, SNodeListNode* pDst) {
 static SNode* fillNodeCopy(const SFillNode* pSrc, SFillNode* pDst) {
   COPY_SCALAR_FIELD(mode);
   CLONE_NODE_FIELD(pValues);
+  CLONE_NODE_FIELD(pWStartTs);
   return (SNode*)pDst;
 }
 
@@ -201,7 +203,7 @@ static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
 }
 
 static STableMeta* tableMetaClone(const STableMeta* pSrc) {
-  int32_t len = TABLE_META_SIZE(pSrc);
+  int32_t     len = TABLE_META_SIZE(pSrc);
   STableMeta* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
@@ -211,7 +213,7 @@ static STableMeta* tableMetaClone(const STableMeta* pSrc) {
 }
 
 static SVgroupsInfo* vgroupsInfoClone(const SVgroupsInfo* pSrc) {
-  int32_t len = VGROUPS_INFO_SIZE(pSrc);
+  int32_t       len = VGROUPS_INFO_SIZE(pSrc);
   SVgroupsInfo* pDst = taosMemoryMalloc(len);
   if (NULL == pDst) {
     return NULL;
@@ -224,6 +226,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pScanCols);
+  CLONE_NODE_LIST_FIELD(pScanPseudoCols);
   CLONE_OBJECT_FIELD(pMeta, tableMetaClone);
   CLONE_OBJECT_FIELD(pVgroupList, vgroupsInfoClone);
   CLONE_NODE_LIST_FIELD(pDynamicScanFuncs);
@@ -267,8 +270,15 @@ static SNode* logicWindowCopy(const SWindowLogicNode* pSrc, SWindowLogicNode* pD
   COPY_ALL_SCALAR_FIELDS;
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   CLONE_NODE_LIST_FIELD(pFuncs);
-  CLONE_NODE_FIELD(pFill);
   CLONE_NODE_FIELD(pTspk);
+  return (SNode*)pDst;
+}
+
+static SNode* logicFillCopy(const SFillLogicNode* pSrc, SFillLogicNode* pDst) {
+  COPY_ALL_SCALAR_FIELDS;
+  COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  CLONE_NODE_FIELD(pWStartTs);
+  CLONE_NODE_FIELD(pValues);
   return (SNode*)pDst;
 }
 
@@ -368,6 +378,8 @@ SNodeptr nodesCloneNode(const SNodeptr pNode) {
       return logicExchangeCopy((const SExchangeLogicNode*)pNode, (SExchangeLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
       return logicWindowCopy((const SWindowLogicNode*)pNode, (SWindowLogicNode*)pDst);
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      return logicFillCopy((const SFillLogicNode*)pNode, (SFillLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_SORT:
       return logicSortCopy((const SSortLogicNode*)pNode, (SSortLogicNode*)pDst);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:

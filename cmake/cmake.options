@@ -25,17 +25,34 @@ IF(${TD_WINDOWS})
             ON
           )
 
-ENDIF ()
+    MESSAGE("build msvcregex Win32")
+    option(
+            BUILD_MSVCREGEX
+            "If build msvcregex on Windows"
+            ON
+          )
 
-IF(${TD_LINUX} MATCHES TRUE)
+    MESSAGE("build wcwidth Win32")
+    option(
+            BUILD_WCWIDTH
+            "If build wcwidth on Windows"
+            ON
+          )
+
+    MESSAGE("build wingetopt Win32")
+    option(
+            BUILD_WINGETOPT 
+                "If build wingetopt on Windows"
+            ON
+        )
+
+ENDIF ()
 
 option(
     BUILD_TEST 
     "If build unit tests using googletest" 
     ON
 )
-
-ENDIF ()
 
 option(
     BUILD_WITH_LEVELDB 
