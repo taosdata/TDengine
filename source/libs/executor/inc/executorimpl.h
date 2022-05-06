@@ -578,9 +578,8 @@ typedef struct SSortOperatorInfo {
   uint32_t     sortBufSize;  // max buffer size for in-memory sort
   SArray*      pSortInfo;
   SSortHandle* pSortHandle;
-  SArray*      inputSlotMap;  // for index map from table scan output
+  SArray*      pColMatchInfo;  // for index map from table scan output
   int32_t      bufPageSize;
-//  int32_t      numOfRowsInRes;
 
   // TODO extact struct
   int64_t  startTs;       // sort start time
@@ -645,7 +644,7 @@ void    cleanupAggSup(SAggSupporter* pAggSup);
 void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
 
-SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity);
+SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo);
 SSDataBlock* loadNextDataBlock(void* param);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
