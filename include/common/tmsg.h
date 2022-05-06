@@ -73,7 +73,8 @@ typedef uint16_t tmsg_t;
 enum { CONN_TYPE__QUERY = 1, CONN_TYPE__TMQ, CONN_TYPE__MAX };
 
 enum {
-  HEARTBEAT_KEY_DBINFO = 1,
+  HEARTBEAT_KEY_USER_AUTHINFO = 1,
+  HEARTBEAT_KEY_DBINFO,
   HEARTBEAT_KEY_STBINFO,
   HEARTBEAT_KEY_MQ_TMP,
 };
@@ -426,7 +427,9 @@ int32_t tDeserializeSGetUserAuthReq(void* buf, int32_t bufLen, SGetUserAuthReq* 
 
 typedef struct {
   char      user[TSDB_USER_LEN];
+  int32_t   version;
   int8_t    superAuth;
+  SHashObj* createdDbs;
   SHashObj* readDbs;
   SHashObj* writeDbs;
 } SGetUserAuthRsp;
@@ -669,9 +672,19 @@ typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
 } SUseDbBatchRsp;
 
+
 int32_t tSerializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 int32_t tDeserializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 void    tFreeSUseDbBatchRsp(SUseDbBatchRsp* pRsp);
+
+typedef struct {
+  SArray* pArray;  // Array of SGetUserAuthRsp
+} SUserAuthBatchRsp;
+
+int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
+int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
+void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
+
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
