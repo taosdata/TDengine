@@ -255,8 +255,10 @@ typedef struct {
   int64_t   updateTime;
   int8_t    superUser;
   int32_t   acctId;
+  int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SRWLatch  lock;
 } SUserObj;
 
 typedef struct {

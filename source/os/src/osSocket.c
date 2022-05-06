@@ -638,6 +638,48 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
   return 0;
 }
 
+bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
+  struct sockaddr_in serverAdd;
+  SocketFd           fd;
+  int32_t            reuse;
+
+  // printf("open tcp server socket:0x%x:%hu", ip, port);
+
+  bzero((char *)&serverAdd, sizeof(serverAdd));
+  serverAdd.sin_family = AF_INET;
+  serverAdd.sin_addr.s_addr = ip;
+  serverAdd.sin_port = (uint16_t)htons(port);
+
+  if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
+    // printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+    taosCloseSocketNoCheck1(fd);
+    return false;
+  }
+
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
+  if (pSocket == NULL) {
+    taosCloseSocketNoCheck1(fd);
+    return false;
+  }
+  pSocket->refId = 0;
+  pSocket->fd = fd;
+
+  /* set REUSEADDR option, so the portnumber can be re-used */
+  reuse = 1;
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
+    // printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
+    taosCloseSocket(&pSocket);
+    return NULL;
+  }
+  /* bind socket to server address */
+  if (bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
+    // printf("bind tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    taosCloseSocket(&pSocket);
+    return false;
+  }
+  taosCloseSocket(&pSocket);
+  return true;
+}
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   SocketFd           fd;

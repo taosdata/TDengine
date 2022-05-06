@@ -181,6 +181,25 @@ int32_t queryBuildRetrieveFuncMsg(void *input, char **msg, int32_t msgSize, int3
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryBuildGetUserAuthMsg(void *input, char **msg, int32_t msgSize, int32_t *msgLen) {
+  if (NULL == msg || NULL == msgLen) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  SGetUserAuthReq req = {0};
+  strncpy(req.user, input, sizeof(req.user));
+
+  int32_t bufLen = tSerializeSGetUserAuthReq(NULL, 0, &req);
+  void   *pBuf = rpcMallocCont(bufLen);
+  tSerializeSGetUserAuthReq(pBuf, bufLen, &req);
+
+  *msg = pBuf;
+  *msgLen = bufLen;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t queryProcessUseDBRsp(void *output, char *msg, int32_t msgSize) {
   SUseDbOutput *pOut = output;
   SUseDbRsp     usedbRsp = {0};
@@ -419,6 +438,20 @@ int32_t queryProcessRetrieveFuncRsp(void *output, char *msg, int32_t msgSize) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t queryProcessGetUserAuthRsp(void *output, char *msg, int32_t msgSize) {
+  if (NULL == output || NULL == msg || msgSize <= 0) {
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+
+  if (tDeserializeSGetUserAuthRsp(msg, msgSize, (SGetUserAuthRsp *)output) != 0) {
+    qError("tDeserializeSGetUserAuthRsp failed, msgSize:%d", msgSize);
+    return TSDB_CODE_INVALID_MSG;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryBuildTableMetaReqMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryBuildTableMetaReqMsg;
@@ -427,6 +460,8 @@ void initQueryModuleMsgHandle() {
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryBuildGetDBCfgMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryBuildGetIndexMsg;
   queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryBuildRetrieveFuncMsg;
+  queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]  = queryBuildGetUserAuthMsg;
+  
 
   queryProcessMsgRsp[TMSG_INDEX(TDMT_VND_TABLE_META)] = queryProcessTableMetaRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_TABLE_META)] = queryProcessTableMetaRsp;
@@ -435,6 +470,7 @@ void initQueryModuleMsgHandle() {
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_DB_CFG)] = queryProcessGetDbCfgRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_INDEX)]  = queryProcessGetIndexRsp;
   queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]  = queryProcessRetrieveFuncRsp;
+  queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]  = queryProcessGetUserAuthRsp;
 }
 
 #pragma GCC diagnostic pop
