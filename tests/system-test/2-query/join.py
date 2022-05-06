@@ -100,7 +100,10 @@ class TDTestCase:
                 if not join_flag :
                     tdSql.error(sql=sql)
                 if len(tblist) == 2:
-                    self.__join_current(sql, checkrows + 2 ) if where_condition else self.__join_current(sql, checkrows + 5 )
+                    if "ct1" in tblist or "t1" in tblist:
+                        self.__join_current(sql, checkrows)
+                    else:
+                        self.__join_current(sql, checkrows + 2 ) if where_condition else self.__join_current(sql, checkrows + 5 )
                 if len(tblist) > 2 or len(tblist) < 1:
                     tdSql.error(sql=sql)
 
