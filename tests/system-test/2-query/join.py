@@ -103,9 +103,9 @@ class TDTestCase:
                     if "ct1" in tblist or "t1" in tblist:
                         self.__join_current(sql, checkrows)
                     elif where_condition:
-                        self.__join_current(sql, checkrows + 5 )
-                    else:
                         self.__join_current(sql, checkrows + 2 )
+                    else:
+                        self.__join_current(sql, checkrows + 5 )
                 if len(tblist) > 2 or len(tblist) < 1:
                     tdSql.error(sql=sql)
 
@@ -154,7 +154,7 @@ class TDTestCase:
         self.__join_check(tblist_1, 1)
         tdLog.printNoPrefix(f"==========current sql condition check in {tblist_1} over==========")
         tblist_2 = ["ct2", "ct4"]
-        self.__join_check(tblist_2, self.rows - 3)
+        self.__join_check(tblist_2, self.rows)
         tdLog.printNoPrefix(f"==========current sql condition check in {tblist_2} over==========")
         tblist_3 = ["t1", "ct4"]
         self.__join_check(tblist_3, 1)
