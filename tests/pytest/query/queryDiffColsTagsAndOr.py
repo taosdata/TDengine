@@ -375,6 +375,93 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(1)
         tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c1 > 2 and c1 >= 3 or c1 < 1 or c1 <= 0 or c1 =2 or c1 != 1 or c1 <> 1 and c1 is null or c1 between 2 and 3 and c1 not between 1 and 1 and c1 in (2, 3) and c1 not in (1, 2)'
+        res = tdSql.query(query_sql)
+        tdSql.checkRows(1)
+    
+    def queryUtinyintCol(self, tb_name):
+        # >
+        query_sql = f'select * from {tb_name} where c10 > 10'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # >=
+        query_sql = f'select * from {tb_name} where c10 >= 10'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # <
+        query_sql = f'select * from {tb_name} where c10 < 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # <=
+        query_sql = f'select * from {tb_name} where c10 <= 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # =
+        query_sql = f'select * from {tb_name} where c10 = 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # !=
+        query_sql = f'select * from {tb_name} where c10 != 11'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 10)
+        # <>
+        query_sql = f'select * from {tb_name} where c10 <> 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # is null
+        query_sql = f'select * from {tb_name} where c10 is null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(0)
+        # is not null
+        query_sql = f'select * from {tb_name} where c10 is not null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # between and
+        query_sql = f'select * from {tb_name} where c10 between 2 and 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(3)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 4)
+        # not between and
+        query_sql = f'select * from {tb_name} where c10 not between 2 and 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(8)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # in
+        query_sql = f'select * from {tb_name} where c10 in (2, 3)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 3)
+        # not in
+        query_sql = f'select * from {tb_name} where c10 not in (2, 3)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and
+        query_sql = f'select * from {tb_name} where c10 > 0 and c10 >= 1 and c10 < 2 and c10 <= 3 and c10 =1 and c10 != 5 and c10 <> 4 and c10 is not null and c10 between 1 and 2 and c10 not between 2 and 3 and c10 in (1,2) and c10 not in (2, 3)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # or
+        query_sql = f'select * from {tb_name} where c10 > 2 or c10 >= 3 or c10 < 1 or c10 <= 0 or c10 =2 or c10 != 1 or c10 <> 1 or c10 is null or c10 between 2 and 3 or c10 not between 1 and 1 or c10 in (2, 3) or c10 not in (1, 2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and or
+        query_sql = f'select * from {tb_name} where c10 > 2 and c10 >= 3 or c10 < 1 or c10 <= 0 or c10 =2 or c10 != 1 or c10 <> 1 and c10 is null or c10 between 2 and 3 and c10 not between 1 and 1 and c10 in (2, 3) and c10 not in (1, 2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c10 > 2 and c10 >= 3 or c10 < 1 or c10 <= 0 or c10 =2 or c10 != 1 or c10 <> 1 and c10 is null or c10 between 2 and 3 and c10 not between 1 and 1 and c10 in (2, 3) and c10 not in (1, 2)'
+        res = tdSql.query(query_sql)
+        tdSql.checkRows(10)
     
     def querySmallintCol(self, tb_name):
         # >
@@ -456,6 +543,93 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c2 > 0 and c2 >= 1 or c2 < 4 and c2 <= 3 and c2 != 1 and c2 <> 2 and c2 = 3 or c2 is not null and c2 between 2 and 3 and c2 not between 1 and 2 and c2 in (2,3) and c2 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+    
+    def queryUsmallintCol(self, tb_name):
+        # >
+        query_sql = f'select * from {tb_name} where c11 > 11'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # >=
+        query_sql = f'select * from {tb_name} where c11 >= 11'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # <
+        query_sql = f'select * from {tb_name} where c11 < 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # <=
+        query_sql = f'select * from {tb_name} where c11 <= 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # =
+        query_sql = f'select * from {tb_name} where c11 = 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # !=
+        query_sql = f'select * from {tb_name} where c11 != 1'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # <>
+        query_sql = f'select * from {tb_name} where c11 <> 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # is null
+        query_sql = f'select * from {tb_name} where c11 is null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(0)
+        # is not null
+        query_sql = f'select * from {tb_name} where c11 is not null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # between and
+        query_sql = f'select * from {tb_name} where c11 between 2 and 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # not between and
+        query_sql = f'select * from {tb_name} where c11 not between 2 and 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # in
+        query_sql = f'select * from {tb_name} where c11 in (2, 3)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # not in
+        query_sql = f'select * from {tb_name} where c11 not in (2, 3)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and
+        query_sql = f'select * from {tb_name} where c11 > 0 and c11 >= 1 and c11 < 4 and c11 <= 3 and c11 != 2 and c11 <> 2 and c11 = 3 and c11 is not null and c11 between 2 and 3 and c11 not between 1 and 2 and c11 in (2,3) and c11 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # or
+        query_sql = f'select * from {tb_name} where c11 > 4 or c11 >= 3 or c11 < 1 or c11 <= 0 or c11 != 2 or c11 <> 2 or c11 = 3 or c11 is null or c11 between 3 and 4 or c11 not between 1 and 3 or c11 in (3,4) or c11 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and or
+        query_sql = f'select * from {tb_name} where c11 > 0 and c11 >= 1 or c11 < 4 and c11 <= 3 and c11 != 1 and c11 <> 2 and c11 = 3 or c11 is not null and c11 between 2 and 3 and c11 not between 1 and 2 and c11 in (2,3) and c11 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c2 > 0 and c2 >= 1 or c2 < 4 and c2 <= 3 and c2 != 1 and c2 <> 2 and c2 = 3 or c2 is not null and c2 between 2 and 3 and c2 not between 1 and 2 and c2 in (2,3) and c2 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
 
     def queryIntCol(self, tb_name):
         # >
@@ -537,6 +711,93 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c3 > 0 and c3 >= 1 or c3 < 5 and c3 <= 4 and c3 != 2 and c3 <> 2 and c3 = 4 or c3 is not null and c3 between 2 and 4 and c3 not between 1 and 2 and c3 in (2,4) and c3 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+    
+    def queryUintCol(self, tb_name):
+        # >
+        query_sql = f'select * from {tb_name} where c12 > 12'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # >=
+        query_sql = f'select * from {tb_name} where c12 >= 12'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # <
+        query_sql = f'select * from {tb_name} where c12 < 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # <=
+        query_sql = f'select * from {tb_name} where c12 <= 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # =
+        query_sql = f'select * from {tb_name} where c12 = 5'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 3)
+        # !=
+        query_sql = f'select * from {tb_name} where c12 != 5'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # <>
+        query_sql = f'select * from {tb_name} where c12 <> 1'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # is null
+        query_sql = f'select * from {tb_name} where c12 is null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(0)
+        # is not null
+        query_sql = f'select * from {tb_name} where c12 is not null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # between and
+        query_sql = f'select * from {tb_name} where c12 between 2 and 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # not between and
+        query_sql = f'select * from {tb_name} where c12 not between 1 and 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # in
+        query_sql = f'select * from {tb_name} where c12 in (3, 2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # not in
+        query_sql = f'select * from {tb_name} where c12 not in (2, 3)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and
+        query_sql = f'select * from {tb_name} where c12 > 0 and c12 >= 1 and c12 < 5 and c12 <= 4 and c12 != 2 and c12 <> 2 and c12 = 4 and c12 is not null and c12 between 2 and 4 and c12 not between 1 and 2 and c12 in (2,4) and c12 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # or
+        query_sql = f'select * from {tb_name} where c12 > 4 or c12 >= 3 or c12 < 1 or c12 <= 0 or c12 != 1 or c12 <> 1 or c12 = 4 or c12 is null or c12 between 3 and 4 or c12 not between 1 and 3 or c12 in (3,4) or c12 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and or
+        query_sql = f'select * from {tb_name} where c12 > 0 and c12 >= 1 or c12 < 5 and c12 <= 4 and c12 != 2 and c12 <> 2 and c12 = 4 or c12 is not null and c12 between 2 and 4 and c12 not between 1 and 2 and c12 in (2,4) and c12 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c3 > 0 and c3 >= 1 or c3 < 5 and c3 <= 4 and c3 != 2 and c3 <> 2 and c3 = 4 or c3 is not null and c3 between 2 and 4 and c3 not between 1 and 2 and c3 in (2,4) and c3 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
 
     def queryBigintCol(self, tb_name):
         # >
@@ -618,6 +879,93 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c4 > 0 and c4 >= 1 or c4 < 5 and c4 <= 4 and c4 != 2 and c4 <> 2 and c4 = 4 or c4 is not null and c4 between 2 and 4 and c4 not between 1 and 2 and c4 in (2,4) and c4 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+
+    def queryUbigintCol(self, tb_name):
+        # >
+        query_sql = f'select * from {tb_name} where c13 > 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # >=
+        query_sql = f'select * from {tb_name} where c13 >= 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # <
+        query_sql = f'select * from {tb_name} where c13 < 5'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # <=
+        query_sql = f'select * from {tb_name} where c13 <= 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        # =
+        query_sql = f'select * from {tb_name} where c13 = 5'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # !=
+        query_sql = f'select * from {tb_name} where c13 != 5'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # <>
+        query_sql = f'select * from {tb_name} where c13 <> 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # is null
+        query_sql = f'select * from {tb_name} where c13 is null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(0)
+        # is not null
+        query_sql = f'select * from {tb_name} where c13 is not null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # between and
+        query_sql = f'select * from {tb_name} where c13 between 4 and 5'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # not between and
+        query_sql = f'select * from {tb_name} where c13 not between 1 and 3'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # in
+        query_sql = f'select * from {tb_name} where c13 in (1, 5)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # not in
+        query_sql = f'select * from {tb_name} where c13 not in (2, 6)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and
+        query_sql = f'select * from {tb_name} where c13 > 0 and c13 >= 1 and c13 < 6 and c13 <= 5 and c13 != 2 and c13 <> 2 and c13 = 5 and c13 is not null and c13 between 2 and 5 and c13 not between 1 and 2 and c13 in (2,5) and c13 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+        # or
+        query_sql = f'select * from {tb_name} where c13 > 5 or c13 >= 4 or c13 < 1 or c13 <= 0 or c13 != 3 or c13 <> 3 or c13 = 5 or c13 is null or c13 between 4 and 5 or c13 not between 1 and 3 or c13 in (4,5) or c13 not in (1,3)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # and or
+        query_sql = f'select * from {tb_name} where c13 > 0 and c13 >= 1 or c13 < 5 and c13 <= 4 and c13 != 2 and c13 <> 2 and c13 = 4 or c13 is not null and c13 between 2 and 4 and c13 not between 1 and 2 and c13 in (2,4) and c13 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c4 > 0 and c4 >= 1 or c4 < 5 and c4 <= 4 and c4 != 2 and c4 <> 2 and c4 = 4 or c4 is not null and c4 between 2 and 4 and c4 not between 1 and 2 and c4 in (2,4) and c4 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
 
     def queryFloatCol(self, tb_name):
         # >
@@ -699,6 +1047,9 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c5 > 0 and c5 >= 1 or c5 < 5 and c5 <= 6.6 and c5 != 2 and c5 <> 2 and c5 = 4 or c5 is not null and c5 between 2 and 4 and c5 not between 1 and 2 and c5 in (2,4) and c5 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
     
     def queryDoubleCol(self, tb_name):
         # >
@@ -780,6 +1131,9 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c6 > 0 and c6 >= 1 or c6 < 5 and c6 <= 7.7 and c6 != 2 and c6 <> 2 and c6 = 4 or c6 is not null and c6 between 2 and 4 and c6 not between 1 and 2 and c6 in (2,4) and c6 not in (1,2)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
 
     def queryBinaryCol(self, tb_name):
         # >
@@ -847,26 +1201,40 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(9)
         tdSql.checkEqual(self.queryLastC10(query_sql), 10)
+        # match
+        query_sql = f'select * from {tb_name} where c7 match "binary[28]"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 8)
+        # nmatch
+        query_sql = f'select * from {tb_name} where c7 nmatch "binary[28]"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 10)
+
         # ! bug TD-15324 not in
         # query_sql = f'select * from {tb_name} where c7 not in (1, "binary8")'
         # tdSql.query(query_sql)
         # tdSql.checkRows(9)
         # tdSql.checkEqual(self.queryLastC10(query_sql), 11)
         # and
-        query_sql = f'select * from {tb_name} where c7 > "binary" and c7 >= "binary8" and c7 < "binary9" and c7 <= "binary8" and c7 != "binary" and c7 <> "333" and c7 = "binary8" and c7 is not null and c7 between "binary" and "binary8" and c7 not between 1 and 2 and c7 in ("binary","binary8") and c7 not in ("binary")'
+        query_sql = f'select * from {tb_name} where c7 > "binary" and c7 >= "binary8" and c7 < "binary9" and c7 <= "binary8" and c7 != "binary" and c7 <> "333" and c7 = "binary8" and c7 is not null and c7 between "binary" and "binary8" and c7 not between 1 and 2 and c7 in ("binary","binary8") and c7 not in ("binary") and c7 match "binary[28]" and c7 nmatch "binary[2]"'
         tdSql.query(query_sql)
         tdSql.checkRows(1)
         tdSql.checkEqual(self.queryLastC10(query_sql), 8)
         # or
-        query_sql = f'select * from {tb_name} where c7 > "binary" or c7 >= "binary8" or c7 < "binary" or c7 <= "binar" or c7 != "binary" or c7 <> "binary" or c7 = 5 or c7 is null or c7 between 4 and 5 or c7 not between "binary" and "binary7" or c7 in ("binary2222") or c7 not in ("binary")'
+        query_sql = f'select * from {tb_name} where c7 > "binary" or c7 >= "binary8" or c7 < "binary" or c7 <= "binar" or c7 != "binary" or c7 <> "binary" or c7 = 5 or c7 is null or c7 between 4 and 5 or c7 not between "binary" and "binary7" or c7 in ("binary2222") or c7 not in ("binary") or c7 match "binary[28]" or c7 nmatch "binary"'
         tdSql.query(query_sql)
         tdSql.checkRows(2)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
         # and or
-        query_sql = f'select * from {tb_name} where c7 > "binary" and c7 >= "binary8" or c7 < "binary9" and c7 <= "binary" and c7 != 2 and c7 <> 2 and c7 = 4 or c7 is not null and c7 between 2 and 4 and c7 not between 1 and 2 and c7 in (2,4) and c7 not in (1,2)'
+        query_sql = f'select * from {tb_name} where c7 > "binary" and c7 >= "binary8" or c7 < "binary9" and c7 <= "binary" and c7 != 2 and c7 <> 2 and c7 = 4 or c7 is not null and c7 between 2 and 4 and c7 not between 1 and 2 and c7 in (2,4) and c7 not in (1,2) or c7 match "binary[28]" or c7 nmatch "binary"'
         tdSql.query(query_sql)
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c7 > "binary" and c7 >= "binary8" or c7 < "binary9" and c7 <= "binary" and c7 != 2 and c7 <> 2 and c7 = 4 or c7 is not null and c7 between 2 and 4 and c7 not between 1 and 2 and c7 in (2,4) and c7 not in (1,2) or c7 match "binary[28]" or c7 nmatch "binary"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
 
     def queryNcharCol(self, tb_name):
         # >
@@ -939,6 +1307,17 @@ class TDTestCase:
         # tdSql.query(query_sql)
         # tdSql.checkRows(9)
         # tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # match
+        query_sql = f'select * from {tb_name} where c8 match "nchar[19]"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 9)
+        # nmatch
+        query_sql = f'select * from {tb_name} where c8 nmatch "nchar[19]"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 10)
+
         # and
         # query_sql = f'select * from {tb_name} where c8 > "nchar" and c8 >= "nchar8" and c8 < "nchar9" and c8 <= "nchar8" and c8 != "nchar" and c8 <> "333" and c8 = "nchar8" and c8 is not null and c8 between "nchar" and "nchar8" and c8 not between 1 and 2 and c8 in ("nchar","nchar8") and c8 not in ("nchar")'
         # tdSql.query(query_sql)
@@ -954,6 +1333,66 @@ class TDTestCase:
         # tdSql.query(query_sql)
         # tdSql.checkRows(11)
         # tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c8 > "nchar" and c8 >= "nchar8" or c8 < "nchar9" and c8 <= "nchar" and c8 != 2 and c8 <> 2 and c8 = 4 or c8 is not null and c8 between 2 and 4 and c8 not between 1 and 2 and c8 in (2,4) and c8 not in (1,2)'
+        # tdSql.query(query_sql)
+        # tdSql.checkRows(11)
+
+    def queryBoolCol(self, tb_name):
+        # =
+        query_sql = f'select * from {tb_name} where c9 = false'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # !=
+        query_sql = f'select * from {tb_name} where c9 != false'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 9)
+        # <>
+        query_sql = f'select * from {tb_name} where c9 <> true'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # is null
+        query_sql = f'select * from {tb_name} where c9 is null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(0)
+        # is not null
+        query_sql = f'select * from {tb_name} where c9 is not null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # in
+        query_sql = f'select * from {tb_name} where c9 in ("binar", false)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # # not in
+        # # ! bug TD-15327
+        # query_sql = f'select * from {tb_name} where c9 not in ("true")'
+        # tdSql.query(query_sql)
+        # tdSql.checkRows(2)
+        # tdSql.checkEqual(self.queryLastC10(query_sql), 2)
+
+        # # ! bug TD-15327
+        # # and
+        # query_sql = f'select * from {tb_name} where c9 = true and c9 != "false" and c9 <> "binary" and c9 = "true" and c9 is not null and c9 in ("binary", true) and c9 not in ("binary")'
+        # tdSql.query(query_sql)
+        # tdSql.checkRows(1)
+        # tdSql.checkEqual(self.queryLastC10(query_sql), 8)
+        # # or
+        # query_sql = f'select * from {tb_name} where c9 = true or c9 != "false" or c9 <> "binary" or c9 = "true" or c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
+        # tdSql.query(query_sql)
+        # tdSql.checkRows(2)
+        # tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # # and or
+        # query_sql = f'select * from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2) or c9 match "binary[28]" or c9 nmatch "binary"'
+        # tdSql.query(query_sql)
+        # tdSql.checkRows(11)
+        # tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        # query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2) or c9 match "binary[28]" or c9 nmatch "binary"'
+        # tdSql.query(query_sql)
+        # tdSql.checkRows(11)
 
     def queryFullColType(self, tb_name):
         ## != or and
@@ -1542,13 +1981,18 @@ class TDTestCase:
         '''
         tb_name = self.initTb()
         self.queryTinyintCol(tb_name)
+        self.queryUtinyintCol(tb_name)
         self.querySmallintCol(tb_name)
+        self.queryUsmallintCol(tb_name)
         self.queryIntCol(tb_name)
+        self.queryUintCol(tb_name)
         self.queryBigintCol(tb_name)
+        self.queryUbigintCol(tb_name)
         self.queryFloatCol(tb_name)
         self.queryDoubleCol(tb_name)
         self.queryBinaryCol(tb_name)
         self.queryNcharCol(tb_name)
+        self.queryBoolCol(tb_name)
         self.queryFullColType(tb_name)
 
     def checkStbColTypeOperator(self):
