@@ -308,20 +308,20 @@ static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTempResult* tr) 
 }
 
 static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTempResult* tr, RangeType type) {
-  bool     hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
-  int      ret = 0;
-  char*    p = tem->colVal;
-  uint64_t sz = tem->nColVal;
+  bool  hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
+  int   ret = 0;
+  char* p = tem->colVal;
+  int   skip = 0;
+
   if (hasJson) {
-    p = indexPackJsonData(tem);
-    sz = strlen(p);
+    p = indexPackJsonDataPrefix(tem, &skip);
   }
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
 
   AutomationCtx*    ctx = automCtxCreate((void*)p, AUTOMATION_ALWAYS);
   FstStreamBuilder* sb = fstSearch(((TFileReader*)reader)->fst, ctx);
 
-  FstSlice h = fstSliceCreate((uint8_t*)p, sz);
+  FstSlice h = fstSliceCreate((uint8_t*)p, skip);
   fstStreamBuilderSetRange(sb, &h, type);
   fstSliceDestroy(&h);
 
