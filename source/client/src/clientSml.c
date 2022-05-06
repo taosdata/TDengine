@@ -147,7 +147,7 @@ static int smlCompareKv(const void* p1, const void* p2) {
   SSmlKv* kv2 = (SSmlKv*)p2;
   int32_t kvLen1 = kv1->keyLen;
   int32_t kvLen2 = kv2->keyLen;
-  int32_t res = strncasecmp(kv1->key, kv2->key, MIN(kvLen1, kvLen2));
+  int32_t res = strncasecmp(kv1->key, kv2->key, TMIN(kvLen1, kvLen2));
   if (res != 0) {
     return res;
   } else {
