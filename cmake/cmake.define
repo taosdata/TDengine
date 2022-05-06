@@ -46,7 +46,7 @@ ENDIF ()
 
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
-    SET(COMMON_FLAGS "/W3 /D_WIN32")
+    SET(COMMON_FLAGS "/W3 /D_WIN32 /vmg")
 
     # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
     #  SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
