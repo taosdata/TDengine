@@ -127,7 +127,7 @@ static void shellWorkAsServer() {
 
   void *serverRpc = rpcOpen(&rpcInit);
   if (serverRpc == NULL) {
-    printf("failed to init net test server since %s", terrstr());
+    printf("failed to init net test server since %s\n", terrstr());
   } else {
     printf("network test server is initialized, port:%u\n", pArgs->port);
     taosSetSignal(SIGTERM, shellNettestHandler);

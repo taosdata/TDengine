@@ -51,6 +51,7 @@ void* rpcOpen(const SRpcInit* pInit) {
     ip = taosGetIpv4FromFqdn(pInit->localFqdn);
     if (ip == 0xFFFFFFFF) {
       tError("invalid fqdn: %s", pInit->localFqdn);
+      terrno = TSDB_CODE_RPC_FQDN_ERROR;
       taosMemoryFree(pRpc);
       return NULL;
     }
