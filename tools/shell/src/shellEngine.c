@@ -141,6 +141,9 @@ int32_t shellRunCommand(char *command) {
             *p++ = '\\';
           }
           break;
+        default:
+          *p++ = '\\';
+          break;
       }
       *p++ = c;
       esc = false;

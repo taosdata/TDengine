@@ -491,7 +491,12 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     SColumnInfoData* pDstCol = taosArrayGet(pDst->pDataBlock, i);
 
     for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
-      bool  isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
+      bool isNull = false;
+      if (pBlock->pBlockAgg == NULL) {
+        isNull = colDataIsNull(pColData, pBlock->info.rows, j, NULL);
+      } else {
+        isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
+      }
       char* p = colDataGetData(pColData, j);
 
       colDataAppend(pDstCol, j - startIndex, p, isNull);
@@ -1588,4 +1593,69 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema) {
+  SSubmitReq* ret = NULL;
+
+  // cal size
+  int32_t cap = sizeof(SSubmitReq);
+  int32_t sz = taosArrayGetSize(pBlocks);
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
+    int32_t      rows = pDataBlock->info.rows;
+    // TODO min
+    int32_t rowSize = pDataBlock->info.rowSize;
+    int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);
+    cap += sizeof(SSubmitBlk) + rows * maxLen;
+  }
+
+  // assign data
+  ret = taosMemoryCalloc(1, cap);
+  ret->version = htonl(1);
+  ret->length = htonl(cap - sizeof(SSubmitReq));
+  ret->numOfBlocks = htonl(sz);
+
+  void* submitBlk = POINTER_SHIFT(ret, sizeof(SSubmitReq));
+  for (int32_t i = 0; i < sz; i++) {
+    SSDataBlock* pDataBlock = taosArrayGet(pBlocks, i);
+
+    SSubmitBlk* blkHead = submitBlk;
+    blkHead->numOfRows = htons(pDataBlock->info.rows);
+    blkHead->schemaLen = 0;
+    blkHead->sversion = htonl(pTSchema->version);
+    // TODO
+    blkHead->suid = 0;
+    blkHead->uid = htobe64(pDataBlock->info.uid);
+
+    int32_t rows = pDataBlock->info.rows;
+    int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);
+    /*blkHead->dataLen = htonl(rows * maxLen);*/
+    blkHead->dataLen = 0;
+
+    void*   blockData = POINTER_SHIFT(submitBlk, sizeof(SSubmitBlk));
+    STSRow* rowData = blockData;
+
+    for (int32_t j = 0; j < pDataBlock->info.rows; j++) {
+      SRowBuilder rb = {0};
+      tdSRowInit(&rb, pTSchema->version);
+      tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen);
+      tdSRowResetBuf(&rb, rowData);
+
+      for (int32_t k = 0; k < pTSchema->numOfCols; k++) {
+        const STColumn*  pColumn = &pTSchema->columns[k];
+        SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, k);
+        void*            data = colDataGetData(pColData, j);
+        tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);
+      }
+      int32_t rowLen = TD_ROW_LEN(rowData);
+      rowData = POINTER_SHIFT(rowData, rowLen);
+      blkHead->dataLen += rowLen;
+    }
+    int32_t len = blkHead->dataLen;
+    blkHead->dataLen = htonl(len);
+    blkHead = POINTER_SHIFT(blkHead, len);
+  }
+
+  return ret;
 }

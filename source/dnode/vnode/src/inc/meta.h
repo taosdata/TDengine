@@ -103,8 +103,6 @@ typedef struct {
 
 #if 1
 
-// int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
-int          metaDropTable(SMeta* pMeta, tb_uid_t uid);
 SMSmaCursor* metaOpenSmaCursor(SMeta* pMeta, tb_uid_t uid);
 void         metaCloseSmaCursor(SMSmaCursor* pSmaCur);
 int64_t      metaSmaCursorNext(SMSmaCursor* pSmaCur);

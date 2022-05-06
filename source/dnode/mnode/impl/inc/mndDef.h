@@ -255,8 +255,10 @@ typedef struct {
   int64_t   updateTime;
   int8_t    superUser;
   int32_t   acctId;
+  int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SRWLatch  lock;
 } SUserObj;
 
 typedef struct {
@@ -419,6 +421,7 @@ typedef struct {
 
 typedef struct {
   char    key[TSDB_PARTITION_KEY_LEN];
+  int64_t dbUid;
   int64_t offset;
 } SMqOffsetObj;
 
