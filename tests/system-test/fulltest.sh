@@ -14,7 +14,10 @@ python3 ./test.py -f 2-query/varchar.py
 #python3 ./test.py -f 2-query/timezone.py
 python3 ./test.py -f 2-query/Now.py
 python3 ./test.py -f 2-query/Today.py
-
+python3 ./test.py -f 2-query/max.py
+python3 ./test.py -f 2-query/min.py
+python3 ./test.py -f 2-query/count.py
+# python3 ./test.py -f 2-query/Timediff.py
 #python3 ./test.py -f 2-query/cast.py
 
 
