@@ -143,7 +143,7 @@ static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const 
 }
 
 static int smlCompareKv(const void* p1, const void* p2) {
-  SSmlKv* kv1 = (SSmlKv *)p1;
+  SSmlKv* kv1 = (SSmlKv*)p1;
   SSmlKv* kv2 = (SSmlKv*)p2;
   int32_t kvLen1 = kv1->keyLen;
   int32_t kvLen2 = kv2->keyLen;
@@ -1647,11 +1647,12 @@ static int32_t smlInsertData(SSmlHandle* info) {
     SSmlSTableMeta** pMeta = taosHashGet(info->superTables, tableData->sTableName, tableData->sTableNameLen);
     ASSERT (NULL != pMeta && NULL != *pMeta);
 
+    // use tablemeta of stable to save vgid and uid of child table
     (*pMeta)->tableMeta->vgId = vg.vgId;
     (*pMeta)->tableMeta->uid = tableData->uid; // one table merge data block together according uid
 
     code = smlBindData(info->exec, tableData->tags, tableData->colsFormat, tableData->columnsHash,
-                       tableData->cols, info->dataFormat, (*pMeta)->tableMeta, info->msgBuf.buf, info->msgBuf.len);
+                       tableData->cols, info->dataFormat, (*pMeta)->tableMeta, tableData->childTableName, info->msgBuf.buf, info->msgBuf.len);
     if(code != TSDB_CODE_SUCCESS){
       return code;
     }

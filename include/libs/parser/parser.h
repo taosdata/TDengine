@@ -105,7 +105,7 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 
 void*   smlInitHandle(SQuery *pQuery);
 void    smlDestroyHandle(void *pHandle);
-int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *colsHash, SArray *cols, bool format, STableMeta *pTableMeta, char *msgBuf, int16_t msgBufLen);
+int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *colsHash, SArray *cols, bool format, STableMeta *pTableMeta, char *tableName, char *msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
 #ifdef __cplusplus

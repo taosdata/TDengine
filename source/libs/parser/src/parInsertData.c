@@ -455,6 +455,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
     SSubmitBlk* pBlocks = (SSubmitBlk*)pOneTableBlock->pData;
     if (pBlocks->numOfRows > 0) {
       STableDataBlocks* dataBuf = NULL;
+      pOneTableBlock->pTableMeta->vgId = pOneTableBlock->vgId;    // for schemaless, restore origin vgId
       int32_t           ret =
           getDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE, INSERT_HEAD_SIZE, 0,
                                pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList, NULL);

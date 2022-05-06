@@ -279,6 +279,7 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
   int32_t     numOfBlocks = blocks->numOfTables;
   while (numOfBlocks--) {
     int32_t dataLen = blk->dataLen;
+    int32_t schemaLen = blk->schemaLen;
     blk->uid = htobe64(blk->uid);
     blk->suid = htobe64(blk->suid);
     blk->padding = htonl(blk->padding);
@@ -286,7 +287,7 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
     blk->dataLen = htonl(blk->dataLen);
     blk->schemaLen = htonl(blk->schemaLen);
     blk->numOfRows = htons(blk->numOfRows);
-    blk = (SSubmitBlk*)(blk->data + dataLen);
+    blk = (SSubmitBlk*)(blk->data + schemaLen + dataLen);
   }
 }
 
@@ -1642,7 +1643,7 @@ static int32_t smlBoundTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDat
 }
 
 int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *colsHash, SArray *cols, bool format,
-                    STableMeta *pTableMeta, char *msgBuf, int16_t msgBufLen) {
+                    STableMeta *pTableMeta, char *tableName, char *msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle *smlHandle = (SSmlExecHandle *)handle;
@@ -1659,7 +1660,7 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
     return ret;
   }
 
-  buildCreateTbReq(&smlHandle->createTblReq, pTableMeta->schema->name, row, pTableMeta->suid);
+  buildCreateTbReq(&smlHandle->createTblReq, tableName, row, pTableMeta->suid);
 
   STableDataBlocks* pDataBlock = NULL;
   ret = getDataBlockFromList(smlHandle->pBlockHash, pTableMeta->uid, TSDB_DEFAULT_PAYLOAD_SIZE,
