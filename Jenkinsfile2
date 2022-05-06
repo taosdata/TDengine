@@ -95,7 +95,7 @@ def sync_source() {
                 else
                     cd src/connector/python || echo "src/connector/python not exist"
                     git pull || :
-                    cd ${WK}
+                    cd ${WKC}
                 fi
             '''
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
@@ -216,48 +216,6 @@ pipeline {
                             script {
                                 sh '''
                                     echo "worker02 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-                stage ('build worker03') {
-                    agent {label " worker03 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker03 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-                stage ('build worker04') {
-                    agent {label " worker04 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker04 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-                stage ('build worker05') {
-                    agent {label " worker05 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker05 build done"
                                     date
                                 '''
                             }
