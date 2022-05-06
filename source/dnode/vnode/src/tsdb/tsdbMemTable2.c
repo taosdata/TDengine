@@ -15,10 +15,10 @@
 
 #include "tsdb.h"
 
-typedef struct SMemTable       SMemTable;
-typedef struct SMemData        SMemData;
-typedef struct SMemSkipList    SMemSkipList;
-typedef struct SMemSkipListCfg SMemSkipListCfg;
+typedef struct SMemTable        SMemTable;
+typedef struct SMemData         SMemData;
+typedef struct SMemSkipList     SMemSkipList;
+typedef struct SMemSkipListNode SMemSkipListNode;
 
 struct SMemTable {
   STsdb     *pTsdb;
@@ -32,15 +32,16 @@ struct SMemTable {
   SMemData **pBuckets;
 };
 
-struct SMemSkipListCfg {
-  int8_t  maxLevel;
-  int32_t nKey;
-  int32_t nData;
+struct SMemSkipListNode {
+  int8_t            level;
+  SMemSkipListNode *forwards[];
 };
 
 struct SMemSkipList {
-  int8_t   level;
-  uint32_t seed;
+  uint32_t         seed;
+  int8_t           level;
+  int32_t          size;
+  SMemSkipListNode pHead[];
 };
 
 struct SMemData {
@@ -76,6 +77,7 @@ int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTb) {
   pMemTb->pBuckets = taosMemoryCalloc(pMemTb->nBucket, sizeof(*pMemTb->pBuckets));
   if (pMemTb->pBuckets == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    taosMemoryFree(pMemTb);
     return -1;
   }
 
@@ -83,10 +85,82 @@ int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTb) {
   return 0;
 }
 
-int32_t tsdbMemTableDestroy2(STsdb *pTsdb, SMemTable *pMT) {
-  // TODO
+int32_t tsdbMemTableDestroy2(STsdb *pTsdb, SMemTable *pMemTb) {
+  if (pMemTb) {
+    // loop to destroy the contents (todo)
+    taosMemoryFree(pMemTb->pBuckets);
+    taosMemoryFree(pMemTb);
+  }
   return 0;
 }
+
+int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *pSubmitBlk) {
+  SMemData         *pMemData;
+  SVBufPool        *pPool = pMemTb->pTsdb->pVnode->inUse;
+  int32_t           hash;
+  int32_t           tlen;
+  uint8_t           buf[16];
+  int32_t           rSize;
+  SMemSkipListNode *pSlNode;
+  const STSRow     *pTSRow;
+
+  // search hash
+  hash = (pSubmitBlk->suid + pSubmitBlk->uid) % pMemTb->nBucket;
+  for (pMemData = pMemTb->pBuckets[hash]; pMemData; pMemData = pMemData->pHashNext) {
+    if (pMemData->suid == pSubmitBlk->suid && pMemData->uid == pSubmitBlk->uid) break;
+  }
+
+  // create pMemData if need
+  if (pMemData == NULL) {
+    pMemData = vnodeBufPoolMalloc(pPool, sizeof(*pMemData));
+    if (pMemData == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    pMemData->pHashNext = NULL;
+    pMemData->suid = pSubmitBlk->suid;
+    pMemData->uid = pSubmitBlk->uid;
+    pMemData->minKey = TSKEY_MAX;
+    pMemData->maxKey = TSKEY_MIN;
+    pMemData->minVer = -1;
+    pMemData->maxVer = -1;
+    pMemData->nRows = 0;
+    pMemData->sl.level = 0;
+    pMemData->sl.seed = taosRand();
+    pMemData->sl.size = 0;
+
+    // add to MemTable
+    hash = (pMemData->suid + pMemData->uid) % pMemTb->nBucket;
+    pMemData->pHashNext = pMemTb->pBuckets[hash];
+    pMemTb->pBuckets[hash] = pMemData;
+  }
+
+  // loop to insert data to skiplist
+  for (;;) {
+    rSize = 0;
+    pTSRow = NULL;
+    if (pTSRow == NULL) break;
+
+    // check the row (todo)
+
+    // move the cursor to position to write (todo)
+
+    // insert the row
+    int8_t level = 1;
+    tlen = 0;  // sizeof(int64_t) + tsdbPutLen(rSize) + rSize;
+    pSlNode = vnodeBufPoolMalloc(pPool, tlen);
+    if (pSlNode == NULL) {
+      ASSERT(0);
+    }
+  }
+
+  return 0;
+}
+
+static void tsdbEncodeRow(int64_t version, int32_t rSize, const STSRow *pRow) {}
+
+static void tsdbDecodeRow(int64_t *version, int32_t *rSize, const STSRow **ppRow) {}
 
 // SMemData
 
