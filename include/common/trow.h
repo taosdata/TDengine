@@ -141,7 +141,7 @@ typedef struct {
   /// row total length
   uint32_t len;
   /// row version
-  uint64_t ver;
+  // uint64_t ver;
   /// the inline data, maybe a tuple or a k-v tuple
   char data[];
 } STSRow;
@@ -176,7 +176,7 @@ typedef struct {
 #define TD_ROW_DATA(r)     ((r)->data)
 #define TD_ROW_LEN(r)      ((r)->len)
 #define TD_ROW_KEY(r)      ((r)->ts)
-#define TD_ROW_VER(r)      ((r)->ver)
+// #define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and

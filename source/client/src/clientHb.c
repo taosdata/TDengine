@@ -28,6 +28,27 @@ static int32_t hbMqHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq 
 
 static int32_t hbMqHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) { return 0; }
 
+static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
+  int32_t code = 0;
+
+  SUserAuthBatchRsp batchRsp = {0};
+  if (tDeserializeSUserAuthBatchRsp(value, valueLen, &batchRsp) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  int32_t numOfBatchs = taosArrayGetSize(batchRsp.pArray);
+  for (int32_t i = 0; i < numOfBatchs; ++i) {
+    SGetUserAuthRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+    tscDebug("hb user auth rsp, user:%s, version:%d", rsp->user, rsp->version);
+
+    catalogUpdateUserAuthInfo(pCatalog, rsp);
+  }
+
+  tFreeSUserAuthBatchRsp(&batchRsp);
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t hbProcessDBInfoRsp(void *value, int32_t valueLen, struct SCatalog *pCatalog) {
   int32_t code = 0;
 
@@ -148,6 +169,24 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
   for (int32_t i = 0; i < kvNum; ++i) {
     SKv *kv = taosArrayGet(pRsp->info, i);
     switch (kv->key) {
+      case HEARTBEAT_KEY_USER_AUTHINFO: {
+        if (kv->valueLen <= 0 || NULL == kv->value) {
+          tscError("invalid hb user auth info, len:%d, value:%p", kv->valueLen, kv->value);
+          break;
+        }
+
+        int64_t         *clusterId = (int64_t *)info->param;
+        struct SCatalog *pCatalog = NULL;
+
+        int32_t code = catalogGetHandle(*clusterId, &pCatalog);
+        if (code != TSDB_CODE_SUCCESS) {
+          tscWarn("catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", *clusterId, tstrerror(code));
+          break;
+        }
+
+        hbProcessUserAuthInfoRsp(kv->value, kv->valueLen, pCatalog);
+        break;
+      }
       case HEARTBEAT_KEY_DBINFO: {
         if (kv->valueLen <= 0 || NULL == kv->value) {
           tscError("invalid hb db info, len:%d, value:%p", kv->valueLen, kv->value);
@@ -327,6 +366,39 @@ int32_t hbGetQueryBasicInfo(SClientHbKey *connKey, SClientHbReq *req) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
+  SUserAuthVersion *users = NULL;
+  uint32_t          userNum = 0;
+  int32_t           code = 0;
+
+  code = catalogGetExpiredUsers(pCatalog, &users, &userNum);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (userNum <= 0) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for (int32_t i = 0; i < userNum; ++i) {
+    SUserAuthVersion *user = &users[i];
+    user->version = htonl(user->version);
+  }
+
+  SKv kv = {
+      .key = HEARTBEAT_KEY_USER_AUTHINFO,
+      .valueLen = sizeof(SUserAuthVersion) * userNum,
+      .value = users,
+  };
+
+  tscDebug("hb got %d expired users, valueLen:%d", userNum, kv.valueLen);
+
+  taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SClientHbReq *req) {
   SDbVgVersion *dbs = NULL;
   uint32_t      dbNum = 0;
@@ -406,6 +478,11 @@ int32_t hbQueryHbReqHandle(SClientHbKey *connKey, void *param, SClientHbReq *req
   }
 
   hbGetQueryBasicInfo(connKey, req);
+
+  code = hbGetExpiredUserInfo(connKey, pCatalog, req);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
 
   code = hbGetExpiredDBInfo(connKey, pCatalog, req);
   if (TSDB_CODE_SUCCESS != code) {
