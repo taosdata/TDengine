@@ -92,13 +92,6 @@ class TDTestCase:
 
         tdSql.query('select elapsed(ts,10s) from sub_1  where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" session(ts,1d) ;')
 
-        cfg_path = self.getcfgPath()
-        print(cfg_path)
-        tdSql.query('select elapsed(ts,10s) from st   where ts>="2015-01-01 00:00:00.000"  and ts < "2015-01-01 00:10:00.000" session(ts,1d) group by tbname;')  # session not support super table
-        tdSql.checkRows(10)
-
-
-
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
