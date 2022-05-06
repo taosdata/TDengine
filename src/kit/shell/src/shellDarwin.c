@@ -25,12 +25,11 @@
 
 #define OPT_ABORT 1 /* �Cabort */
 
-int indicator = 1;
+int            indicator = 1;
 struct termios oldtio;
 
 extern int wcwidth(wchar_t c);
-void insertChar(Command *cmd, char *c, int size);
-
+void       insertChar(Command *cmd, char *c, int size);
 
 void printHelp() {
   char indent[10] = "        ";
@@ -64,8 +63,9 @@ void printHelp() {
   exit(EXIT_SUCCESS);
 }
 
-char      DARWINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+char DARWINCLIENT_VERSION[] =
+    "Welcome to the TDengine shell from %s, Client Version:%s\n"
+    "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
@@ -80,27 +80,25 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-      // for password
-    else if ((strncmp(argv[i], "-p", 2) == 0)
-            || (strncmp(argv[i], "--password", 10) == 0)) {
-        strcpy(tsOsName, "Darwin");
-        printf(DARWINCLIENT_VERSION, tsOsName, taos_get_client_info());
-        if ((strlen(argv[i]) == 2)
-                  || (strncmp(argv[i], "--password", 10) == 0)) {
-            printf("Enter password: ");
-            taosSetConsoleEcho(false);
-            if (scanf("%128s", g_password) > 1) {
-                fprintf(stderr, "password read error\n");
-            }
-            taosSetConsoleEcho(true);
-            getchar();
-        } else {
-            tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
+    // for password
+    else if ((strncmp(argv[i], "-p", 2) == 0) || (strncmp(argv[i], "--password", 10) == 0)) {
+      strcpy(tsOsName, "Darwin");
+      printf(DARWINCLIENT_VERSION, tsOsName, taos_get_client_info());
+      if ((strlen(argv[i]) == 2) || (strncmp(argv[i], "--password", 10) == 0)) {
+        printf("Enter password: ");
+        taosSetConsoleEcho(false);
+        if (scanf("%128s", g_password) > 1) {
+          fprintf(stderr, "password read error\n");
         }
-        arguments->password = g_password;
-        arguments->is_use_passwd = true;
-        strcpy(argv[i], "");
-        argc -= 1;
+        taosSetConsoleEcho(true);
+        getchar();
+      } else {
+        tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
+      }
+      arguments->password = g_password;
+      arguments->is_use_passwd = true;
+      strcpy(argv[i], "");
+      argc -= 1;
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
@@ -111,7 +109,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-      // for user
+    // for user
     else if (strcmp(argv[i], "-u") == 0) {
       if (i < argc - 1) {
         arguments->user = argv[++i];
@@ -140,7 +138,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
     } else if (strcmp(argv[i], "-r") == 0) {
       arguments->is_raw_time = true;
     }
-      // For temperory batch commands to run TODO
+    // For temperory batch commands to run TODO
     else if (strcmp(argv[i], "-f") == 0) {
       if (i < argc - 1) {
         strcpy(arguments->file, argv[++i]);
@@ -149,7 +147,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-      // for default database
+    // for default database
     else if (strcmp(argv[i], "-d") == 0) {
       if (i < argc - 1) {
         arguments->database = argv[++i];
@@ -158,7 +156,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-      // For time zone
+    // For time zone
     else if (strcmp(argv[i], "-t") == 0) {
       if (i < argc - 1) {
         arguments->timezone = argv[++i];
@@ -167,7 +165,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-      // For import directory
+    // For import directory
     else if (strcmp(argv[i], "-D") == 0) {
       if (i < argc - 1) {
         if (wordexp(argv[++i], &full_path, 0) != 0) {
@@ -181,7 +179,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-      // For time zone
+    // For time zone
     else if (strcmp(argv[i], "-T") == 0) {
       if (i < argc - 1) {
         arguments->threadNum = atoi(argv[++i]);
@@ -190,7 +188,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         exit(EXIT_FAILURE);
       }
     }
-      // For temperory command TODO
+    // For temperory command TODO
     else if (strcmp(argv[i], "--help") == 0) {
       printHelp();
       exit(EXIT_FAILURE);
@@ -204,8 +202,8 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
 int32_t shellReadCommand(TAOS *con, char *command) {
   unsigned hist_counter = history.hend;
-  char utf8_array[10] = "\0";
-  Command cmd;
+  char     utf8_array[10] = "\0";
+  Command  cmd;
   memset(&cmd, 0, sizeof(cmd));
   cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
   cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
@@ -368,24 +366,24 @@ void *shellLoopQuery(void *arg) {
 
   pthread_cleanup_push(cleanup_handler, NULL);
 
-    char *command = malloc(MAX_COMMAND_SIZE);
-    if (command == NULL){
-      tscError("failed to malloc command");
-      return NULL;
+  char *command = malloc(MAX_COMMAND_SIZE);
+  if (command == NULL) {
+    tscError("failed to malloc command");
+    return NULL;
+  }
+
+  int32_t err = 0;
+
+  do {
+    // Read command from shell.
+    memset(command, 0, MAX_COMMAND_SIZE);
+    set_terminal_mode();
+    err = shellReadCommand(con, command);
+    if (err) {
+      break;
     }
-
-    int32_t err = 0;
-
-    do {
-      // Read command from shell.
-      memset(command, 0, MAX_COMMAND_SIZE);
-      set_terminal_mode();
-      err = shellReadCommand(con, command);
-      if (err) {
-        break;
-      }
-      reset_terminal_mode();
-    } while (shellRunCommand(con, command) == 0);
+    reset_terminal_mode();
+  } while (shellRunCommand(con, command) == 0);
 
   tfree(command);
   exitShell();
@@ -450,7 +448,7 @@ void get_history_path(char *history) { sprintf(history, "%s/%s", getpwuid(getuid
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    //fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
+    // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }
@@ -471,13 +469,13 @@ void clearScreen(int ecmd_pos, int cursor_pos) {
 void showOnScreen(Command *cmd) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    //fprintf(stderr, "No stream device\n");
+    // fprintf(stderr, "No stream device\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }
 
   wchar_t wc;
-  int size = 0;
+  int     size = 0;
 
   // Print out the command.
   char *total_string = malloc(MAX_COMMAND_SIZE);

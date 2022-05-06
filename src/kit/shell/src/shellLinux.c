@@ -15,52 +15,59 @@
 
 #define __USE_XOPEN
 #include "os.h"
-#include "tglobal.h"
 #include "shell.h"
 #include "shellCommand.h"
+#include "tglobal.h"
 #include "tkey.h"
 #include "tulog.h"
 
 #define OPT_ABORT 1 /* �Cabort */
 
-int indicator = 1;
+int            indicator = 1;
 struct termios oldtio;
 
-extern int wcwidth(wchar_t c);
-void insertChar(Command *cmd, char *c, int size);
-const char *argp_program_version = version;
-const char *argp_program_bug_address = "<support@taosdata.com>";
-static char doc[] = "";
-static char args_doc[] = "";
+extern int                wcwidth(wchar_t c);
+void                      insertChar(Command *cmd, char *c, int size);
+const char *              argp_program_version = version;
+const char *              argp_program_bug_address = "<support@taosdata.com>";
+static char               doc[] = "";
+static char               args_doc[] = "";
 static struct argp_option options[] = {
-  {"host",       'h', "HOST",       0,                   "TDengine server FQDN to connect. The default host is localhost."},
-  {"password",   'p', 0,   0,                   "The password to use when connecting to the server."},
-  {"port",       'P', "PORT",       0,                   "The TCP/IP port number to use for the connection."},
-  {"user",       'u', "USER",       0,                   "The user name to use when connecting to the server."},
-  {"auth",       'A', "Auth",       0,                   "The auth string to use when connecting to the server."},
-  {"config-dir", 'c', "CONFIG_DIR", 0,                   "Configuration directory."},
-  {"dump-config", 'C', 0,           0,                   "Dump configuration."},
-  {"commands",   's', "COMMANDS",   0,                   "Commands to run without enter the shell."},
-  {"raw-time",   'r', 0,            0,                   "Output time as uint64_t."},
-  {"file",       'f', "FILE",       0,                   "Script to run without enter the shell."},
-  {"directory",  'D', "DIRECTORY",  0,                   "Use multi-thread to import all SQL files in the directory separately."},
-  {"thread",     'T', "THREADNUM",  0,                   "Number of threads when using multi-thread to import data."},
-  {"check",      'k', "CHECK",      0,                   "Check tables."},
-  {"database",   'd', "DATABASE",   0,                   "Database to use when connecting to the server."},
-  {"timezone",   'z', "TIMEZONE",   0,                   "Time zone of the shell, default is local."},
-  {"netrole",    'n', "NETROLE",    0,                   "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn."},
-  {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
-  {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
-  {"pkttype",    'S', "PKTTYPE",    0,                   "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
-  {0}};
+    {"host", 'h', "HOST", 0, "TDengine server FQDN to connect. The default host is localhost."},
+    {"password", 'p', 0, 0, "The password to use when connecting to the server."},
+    {"port", 'P', "PORT", 0, "The TCP/IP port number to use for the connection."},
+    {"user", 'u', "USER", 0, "The user name to use when connecting to the server."},
+    {"auth", 'A', "Auth", 0, "The auth string to use when connecting to the server."},
+    {"config-dir", 'c', "CONFIG_DIR", 0, "Configuration directory."},
+    {"dump-config", 'C', 0, 0, "Dump configuration."},
+    {"commands", 's', "COMMANDS", 0, "Commands to run without enter the shell."},
+    {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful"},
+    {"raw-time", 'r', 0, 0, "Output time as uint64_t."},
+    {"file", 'f', "FILE", 0, "Script to run without enter the shell."},
+    {"directory", 'D', "DIRECTORY", 0, "Use multi-thread to import all SQL files in the directory separately."},
+    {"thread", 'T', "THREADNUM", 0, "Number of threads when using multi-thread to import data."},
+    {"check", 'k', "CHECK", 0, "Check tables."},
+    {"database", 'd', "DATABASE", 0, "Database to use when connecting to the server."},
+    {"timezone", 'z', "TIMEZONE", 0, "Time zone of the shell, default is local."},
+    {"netrole", 'n', "NETROLE", 0,
+     "Net role when network connectivity test, default is startup, options: "
+     "client|server|rpc|startup|sync|speed|fqdn."},
+    {"pktlen", 'l', "PKTLEN", 0, "Packet length used for net test, default is 1000 bytes."},
+    {"pktnum", 'N', "PKTNUM", 0, "Packet numbers used for net test, default is 100."},
+    {"pkttype", 'S', "PKTTYPE", 0,
+     "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
+    {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   /* Get the input argument from argp_parse, which we
   know is a pointer to our arguments structure. */
   SShellArguments *arguments = state->input;
-  wordexp_t full_path;
+  wordexp_t        full_path;
 
   switch (key) {
+    case 'R':
+      arguments->restful = true;
+      break;
     case 'h':
       arguments->host = arg;
       break;
@@ -69,7 +76,7 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case 'P':
       if (arg) {
         tsDnodeShellPort = atoi(arg);
-        arguments->port  = atoi(arg);
+        arguments->port = atoi(arg);
       } else {
         fprintf(stderr, "Invalid port\n");
         return -1;
@@ -171,36 +178,34 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 /* Our argp parser. */
 static struct argp argp = {options, parse_opt, args_doc, doc};
 
-char      LINUXCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+char LINUXCLIENT_VERSION[] =
+    "Welcome to the TDengine shell from %s, Client Version:%s\n"
+    "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char g_password[SHELL_MAX_PASSWORD_LEN];
 
-static void parse_args(
-        int argc, char *argv[], SShellArguments *arguments) {
-    for (int i = 1; i < argc; i++) {
-        if ((strncmp(argv[i], "-p", 2) == 0)
-              || (strncmp(argv[i], "--password", 10) == 0)) {
-            strcpy(tsOsName, "Linux");
-            printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
-            if ((strlen(argv[i]) == 2)
-                  || (strncmp(argv[i], "--password", 10) == 0)) {
-                printf("Enter password: ");
-                taosSetConsoleEcho(false);
-                if (scanf("%128s", g_password) > 1) {
-                    fprintf(stderr, "password reading error\n");
-                }
-                taosSetConsoleEcho(true);
-                if (EOF == getchar()) {
-                    fprintf(stderr, "getchar() return EOF\n");
-                }
-            } else {
-                tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
-                strcpy(argv[i], "-p");
-            }
-            arguments->password = g_password;
-            arguments->is_use_passwd = true;
+static void parse_args(int argc, char *argv[], SShellArguments *arguments) {
+  for (int i = 1; i < argc; i++) {
+    if ((strncmp(argv[i], "-p", 2) == 0) || (strncmp(argv[i], "--password", 10) == 0)) {
+      strcpy(tsOsName, "Linux");
+      printf(LINUXCLIENT_VERSION, tsOsName, taos_get_client_info());
+      if ((strlen(argv[i]) == 2) || (strncmp(argv[i], "--password", 10) == 0)) {
+        printf("Enter password: ");
+        taosSetConsoleEcho(false);
+        if (scanf("%128s", g_password) > 1) {
+          fprintf(stderr, "password reading error\n");
         }
+        taosSetConsoleEcho(true);
+        if (EOF == getchar()) {
+          fprintf(stderr, "getchar() return EOF\n");
+        }
+      } else {
+        tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
+        strcpy(argv[i], "-p");
+      }
+      arguments->password = g_password;
+      arguments->is_use_passwd = true;
     }
+  }
 }
 
 void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
@@ -215,18 +220,18 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
 
   argp_parse(&argp, argc, argv, 0, 0, arguments);
   if (arguments->abort) {
-    #ifndef _ALPINE
-      error(10, 0, "ABORTED");
-    #else
-      abort();
-    #endif
+#ifndef _ALPINE
+    error(10, 0, "ABORTED");
+#else
+    abort();
+#endif
   }
 }
 
 int32_t shellReadCommand(TAOS *con, char *command) {
   unsigned hist_counter = history.hend;
-  char utf8_array[10] = "\0";
-  Command cmd;
+  char     utf8_array[10] = "\0";
+  Command  cmd;
   memset(&cmd, 0, sizeof(cmd));
   cmd.buffer = (char *)calloc(1, MAX_COMMAND_SIZE);
   cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
@@ -235,7 +240,7 @@ int32_t shellReadCommand(TAOS *con, char *command) {
   // Read input.
   char c;
   while (1) {
-    c = (char)getchar(); // getchar() return an 'int' value
+    c = (char)getchar();  // getchar() return an 'int' value
 
     if (c == EOF) {
       return c;
@@ -394,13 +399,13 @@ void *shellLoopQuery(void *arg) {
   pthread_cleanup_push(cleanup_handler, NULL);
 
   char *command = malloc(MAX_COMMAND_SIZE);
-  if (command == NULL){
+  if (command == NULL) {
     uError("failed to malloc command");
     return NULL;
   }
 
   int32_t err = 0;
-  
+
   do {
     // Read command from shell.
     memset(command, 0, MAX_COMMAND_SIZE);
@@ -411,12 +416,12 @@ void *shellLoopQuery(void *arg) {
     }
     reset_terminal_mode();
   } while (shellRunCommand(con, command) == 0);
-  
+
   tfree(command);
   exitShell();
 
   pthread_cleanup_pop(1);
-  
+
   return NULL;
 }
 
@@ -475,7 +480,7 @@ void get_history_path(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    //fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
+    // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }
@@ -493,16 +498,63 @@ void clearScreen(int ecmd_pos, int cursor_pos) {
   fflush(stdout);
 }
 
+void encode_base_64(char *base64_buf, char *user, char *password) {
+  char        userpass_buf[1024];
+  static char base64[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+                          'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+                          'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                          'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+  snprintf(userpass_buf, 1024, "%s:%s", user, password);
+
+  int mod_table[] = {0, 2, 1};
+
+  size_t userpass_buf_len = strlen(userpass_buf);
+  size_t encoded_len = 4 * ((userpass_buf_len + 2) / 3);
+
+  for (int n = 0, m = 0; n < userpass_buf_len;) {
+    uint32_t oct_a = n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+    uint32_t oct_b = n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+    uint32_t oct_c = n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+    uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
+
+    base64_buf[m++] = base64[(triple >> 3 * 6) & 0x3f];
+    base64_buf[m++] = base64[(triple >> 2 * 6) & 0x3f];
+    base64_buf[m++] = base64[(triple >> 1 * 6) & 0x3f];
+    base64_buf[m++] = base64[(triple >> 0 * 6) & 0x3f];
+  }
+
+  for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++) base64_buf[encoded_len - 1 - l] = '=';
+}
+
+int convertHostToServAddr() {
+  if (args.port == 0) {
+    args.port = 6041;
+  }
+  if (NULL == args.host) {
+    args.host = "127.0.0.1";
+  }
+  struct hostent *server = gethostbyname(args.host);
+  if ((server == NULL) || (server->h_addr == NULL)) {
+    fprintf(stderr, "no such host: %s", args.host);
+    return -1;
+  }
+  memset(&(args.serv_addr), 0, sizeof(struct sockaddr_in));
+  args.serv_addr.sin_family = AF_INET;
+  args.serv_addr.sin_port = htons(args.port);
+  memcpy(&(args.serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
+  return 0;
+}
+
 void showOnScreen(Command *cmd) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    //fprintf(stderr, "No stream device\n");
+    // fprintf(stderr, "No stream device\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }
 
   wchar_t wc;
-  int size = 0;
+  int     size = 0;
 
   // Print out the command.
   char *total_string = malloc(MAX_COMMAND_SIZE);
@@ -569,7 +621,7 @@ void showOnScreen(Command *cmd) {
 void cleanup_handler(void *arg) { tcsetattr(0, TCSANOW, &oldtio); }
 
 void exitShell() {
-  /*int32_t ret =*/ tcsetattr(STDIN_FILENO, TCSANOW, &oldtio);
+  /*int32_t ret =*/tcsetattr(STDIN_FILENO, TCSANOW, &oldtio);
   taos_cleanup();
   exit(EXIT_SUCCESS);
 }

@@ -73,7 +73,7 @@ static int32_t shellShowTables(TAOS *con, char *db) {
       int32_t tbIndex = tbNum++;
       if (tbMallocNum < tbNum) {
         tbMallocNum = (tbMallocNum * 2 + 1);
-        char** tbNames1 = realloc(tbNames, tbMallocNum * sizeof(char *));
+        char **tbNames1 = realloc(tbNames, tbMallocNum * sizeof(char *));
         if (tbNames1 == NULL) {
           fprintf(stdout, "failed to malloc tablenames, num:%d\n", tbMallocNum);
           code = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -203,7 +203,7 @@ void shellCheck(TAOS *con, SShellArguments *_args) {
     fprintf(stdout, "total %d tables will be checked by %d threads\n", tbNum, _args->threadNum);
     shellRunCheckThreads(con, _args);
   }
-  
+
   int64_t end = taosGetTimestampMs();
   fprintf(stdout, "total %d tables checked, failed:%d, time spent %.2f seconds\n", checkedNum, errorNum,
           (end - start) / 1000.0);

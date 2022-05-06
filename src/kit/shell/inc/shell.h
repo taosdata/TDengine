@@ -16,19 +16,19 @@
 #ifndef __SHELL__
 #define __SHELL__
 
+#include <sys/socket.h>
 #include "stdbool.h"
 #include "taos.h"
 #include "taosdef.h"
-#include "stdbool.h"
 #include "tsclient.h"
 
-#define MAX_USERNAME_SIZE      64
-#define MAX_DBNAME_SIZE        64
-#define MAX_IP_SIZE            20
-#define MAX_HISTORY_SIZE       1000
-#define MAX_COMMAND_SIZE       1048586
-#define HISTORY_FILE           ".taos_history"
-#define DEFAULT_RES_SHOW_NUM   100
+#define MAX_USERNAME_SIZE 64
+#define MAX_DBNAME_SIZE 64
+#define MAX_IP_SIZE 20
+#define MAX_HISTORY_SIZE 1000
+#define MAX_COMMAND_SIZE 1048586
+#define HISTORY_FILE ".taos_history"
+#define DEFAULT_RES_SHOW_NUM 100
 
 typedef struct SShellHistory {
   char* hist[MAX_HISTORY_SIZE];
@@ -37,58 +37,65 @@ typedef struct SShellHistory {
 } SShellHistory;
 
 typedef struct SShellArguments {
-  char* host;
-  char* password;
-  char* user;
-  char* auth;
-  char* database;
-  char* timezone;
-  bool  is_raw_time;
-  bool  is_use_passwd;
-  bool  dump_config;
-  char  file[TSDB_FILENAME_LEN];
-  char  dir[TSDB_FILENAME_LEN];
-  int   threadNum;
-  int   check;
-  char* commands;
-  int   abort;
-  int   port;
-  int   pktLen;
-  int   pktNum;
-  char* pktType;
-  char* netTestRole;
+  char*              host;
+  char*              password;
+  char*              user;
+  char*              auth;
+  char*              database;
+  char*              timezone;
+  bool               restful;
+  int                socket;
+  struct sockaddr_in serv_addr;
+  char*              base64_buf;
+  TAOS*              con;
+  bool               is_raw_time;
+  bool               is_use_passwd;
+  bool               dump_config;
+  char               file[TSDB_FILENAME_LEN];
+  char               dir[TSDB_FILENAME_LEN];
+  int                threadNum;
+  int                check;
+  char*              commands;
+  int                abort;
+  int                port;
+  int                pktLen;
+  int                pktNum;
+  char*              pktType;
+  char*              netTestRole;
 } SShellArguments;
 
 /**************** Function declarations ****************/
-extern void shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
-extern TAOS* shellInit(SShellArguments* args);
+extern void  shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
+extern void  shellInit(SShellArguments* args);
 extern void* shellLoopQuery(void* arg);
-extern void taos_error(TAOS_RES* tres, int64_t st);
-extern int regex_match(const char* s, const char* reg, int cflags);
-int32_t shellReadCommand(TAOS* con, char command[]);
-int32_t shellRunCommand(TAOS* con, char* command);
-void shellRunCommandOnServer(TAOS* con, char command[]);
-void read_history();
-void write_history();
-void source_file(TAOS* con, char* fptr);
-void source_dir(TAOS* con, SShellArguments* args);
-void shellCheck(TAOS* con, SShellArguments* args);
-void get_history_path(char* history);
-void shellCheck(TAOS* con, SShellArguments* args);
-void cleanup_handler(void* arg);
-void exitShell();
-int shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
-void shellGetGrantInfo(void *con);
-int isCommentLine(char *line);
+extern void  taos_error(TAOS_RES* tres, int64_t st);
+extern int   regex_match(const char* s, const char* reg, int cflags);
+int32_t      shellReadCommand(TAOS* con, char command[]);
+int32_t      shellRunCommand(TAOS* con, char* command);
+void         shellRunCommandOnServer(TAOS* con, char command[]);
+void         read_history();
+void         write_history();
+void         source_file(TAOS* con, char* fptr);
+void         source_dir(TAOS* con, SShellArguments* args);
+void         shellCheck(TAOS* con, SShellArguments* args);
+void         get_history_path(char* history);
+void         shellCheck(TAOS* con, SShellArguments* args);
+void         cleanup_handler(void* arg);
+int          convertHostToServAddr();
+void         encode_base_64(char* base64_buf, char* user, char* password);
+void         exitShell();
+int          shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
+void         shellGetGrantInfo(void* con);
+int          isCommentLine(char* line);
 
 /**************** Global variable declarations ****************/
-extern char           PROMPT_HEADER[];
-extern char           CONTINUE_PROMPT[];
-extern int            prompt_size;
-extern SShellHistory  history;
-extern struct termios oldtio;
-extern void           set_terminal_mode();
-extern int get_old_terminal_mode(struct termios* tio);
+extern char            PROMPT_HEADER[];
+extern char            CONTINUE_PROMPT[];
+extern int             prompt_size;
+extern SShellHistory   history;
+extern struct termios  oldtio;
+extern void            set_terminal_mode();
+extern int             get_old_terminal_mode(struct termios* tio);
 extern void            reset_terminal_mode();
 extern SShellArguments args;
 extern int64_t         result;
