@@ -39,6 +39,7 @@ struct SMemSkipListNode {
 
 struct SMemSkipList {
   uint32_t         seed;
+  int8_t           maxLevel;
   int8_t           level;
   int32_t          size;
   SMemSkipListNode pHead[];
@@ -96,11 +97,14 @@ int32_t tsdbMemTableDestroy2(STsdb *pTsdb, SMemTable *pMemTb) {
 
 int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *pSubmitBlk) {
   SMemData         *pMemData;
-  SVBufPool        *pPool = pMemTb->pTsdb->pVnode->inUse;
+  STsdb            *pTsdb = pMemTb->pTsdb;
+  SVnode           *pVnode = pTsdb->pVnode;
+  SVBufPool        *pPool = pVnode->inUse;
   int32_t           hash;
   int32_t           tlen;
   uint8_t           buf[16];
-  int32_t           rSize;
+  int32_t           rlen;
+  const uint8_t    *p;
   SMemSkipListNode *pSlNode;
   const STSRow     *pTSRow;
 
@@ -126,8 +130,9 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     pMemData->minVer = -1;
     pMemData->maxVer = -1;
     pMemData->nRows = 0;
-    pMemData->sl.level = 0;
     pMemData->sl.seed = taosRand();
+    pMemData->sl.maxLevel = pVnode->config.tsdbCfg.slLevel;
+    pMemData->sl.level = 0;
     pMemData->sl.size = 0;
 
     // add to MemTable
@@ -137,9 +142,13 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
   }
 
   // loop to insert data to skiplist
+  p = pSubmitBlk->pData;
   for (;;) {
-    rSize = 0;
-    pTSRow = NULL;
+    if (p - (uint8_t *)pSubmitBlk->pData >= pSubmitBlk->nData) break;
+
+    // p = tGetLen(p, &rlen);
+    pTSRow = (STSRow *)p;
+    p += rlen;
     if (pTSRow == NULL) break;
 
     // check the row (todo)
@@ -148,7 +157,7 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
 
     // insert the row
     int8_t level = 1;
-    tlen = 0;  // sizeof(int64_t) + tsdbPutLen(rSize) + rSize;
+    tlen = 0;  // sizeof(int64_t) + tsdbPutLen(rlen) + rlen;
     pSlNode = vnodeBufPoolMalloc(pPool, tlen);
     if (pSlNode == NULL) {
       ASSERT(0);
@@ -158,9 +167,9 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
   return 0;
 }
 
-static void tsdbEncodeRow(int64_t version, int32_t rSize, const STSRow *pRow) {}
+static void tsdbEncodeRow(int64_t version, int32_t rlen, const STSRow *pRow) {}
 
-static void tsdbDecodeRow(int64_t *version, int32_t *rSize, const STSRow **ppRow) {}
+static void tsdbDecodeRow(int64_t *version, int32_t *rlen, const STSRow **ppRow) {}
 
 // SMemData
 
