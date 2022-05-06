@@ -339,7 +339,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
-  rsp.pArray = taosArrayInit(sizeof(cRsp), req.nReqs);
+  rsp.pArray = taosArrayInit(req.nReqs, sizeof(cRsp));
   if (rsp.pArray == NULL) {
     rcode = -1;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
