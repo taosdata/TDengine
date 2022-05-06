@@ -101,7 +101,7 @@ class TDTestCase:
                     tdSql.error(sql=sql)
                     return
                 if len(tblist) == 2:
-                    self.__join_current(sql, checkrows)
+                    self.__join_current(sql, checkrows + 2 ) if where_condition else self.__join_current(sql, checkrows + 5 )
                     return
                 if len(tblist) > 2 or len(tblist) < 1:
                     tdSql.error(sql=sql)
