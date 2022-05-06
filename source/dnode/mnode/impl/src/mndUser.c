@@ -186,6 +186,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   }
 
   SDB_GET_RESERVE(pRaw, dataPos, USER_RESERVE_SIZE, _OVER)
+  taosInitRWLatch(&pUser->lock);
 
   terrno = 0;
 
@@ -228,11 +229,12 @@ static int32_t mndUserActionDelete(SSdb *pSdb, SUserObj *pUser) {
 
 static int32_t mndUserActionUpdate(SSdb *pSdb, SUserObj *pOld, SUserObj *pNew) {
   mTrace("user:%s, perform update action, old row:%p new row:%p", pOld->user, pOld, pNew);
-  memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
+  taosWLockLatch(&pOld->lock);
   pOld->updateTime = pNew->updateTime;
-
+  memcpy(pOld->pass, pNew->pass, TSDB_PASSWORD_LEN);
   TSWAP(pOld->readDbs, pNew->readDbs);
   TSWAP(pOld->writeDbs, pNew->writeDbs);
+  taosWUnLockLatch(&pOld->lock);
 
   return 0;
 }
@@ -426,8 +428,12 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
   }
 
   memcpy(&newUser, pUser, sizeof(SUserObj));
+
+  taosRLockLatch(&pUser->lock);
   newUser.readDbs = mndDupDbHash(pUser->readDbs);
   newUser.writeDbs = mndDupDbHash(pUser->writeDbs);
+  taosRUnLockLatch(&pUser->lock);
+
   if (newUser.readDbs == NULL || newUser.writeDbs == NULL) {
     goto _OVER;
   }
@@ -586,8 +592,10 @@ static int32_t mndSetUserAuthRsp(SMnode       *pMnode, SUserObj *pUser, SGetUser
   memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
+  taosRLockLatch(&pUser->lock);
   pRsp->readDbs = mndDupDbHash(pUser->readDbs);
   pRsp->writeDbs = mndDupDbHash(pUser->writeDbs);
+  taosRUnLockLatch(&pUser->lock);
   pRsp->createdDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pRsp->createdDbs) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;

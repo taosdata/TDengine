@@ -258,6 +258,7 @@ typedef struct {
   int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SRWLatch  lock;
 } SUserObj;
 
 typedef struct {
