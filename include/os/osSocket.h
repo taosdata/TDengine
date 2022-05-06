@@ -161,6 +161,7 @@ int taosCreateSocketWithTimeOutOpt(uint32_t conn_timeout_sec);
 
 TdSocketPtr       taosOpenUdpSocket(uint32_t localIp, uint16_t localPort);
 TdSocketPtr       taosOpenTcpClientSocket(uint32_t ip, uint16_t port, uint32_t localIp);
+bool              taosValidIpAndPort(uint32_t ip, uint16_t port);
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port);
 int32_t           taosKeepTcpAlive(TdSocketPtr pSocket);
 TdSocketPtr       taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct sockaddr *destAddr, int *addrLen);
