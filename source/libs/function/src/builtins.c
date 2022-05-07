@@ -266,6 +266,20 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraLen = LIST_LENGTH(pFunc->pParameterList);
+  if (paraLen == 0 || paraLen > 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  if (!IS_NUMERIC_TYPE(p1->resType.type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = p1->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateLength(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -613,7 +627,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
     .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
-    .translateFunc = translateInOutNum,
+    .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
     .processFunc  = diffFunction,
