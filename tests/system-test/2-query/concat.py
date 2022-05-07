@@ -44,7 +44,7 @@ class TDTestCase:
             concat_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             concat_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             concat_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            concat_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            # concat_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
             concat_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
 
         for num_col in NUM_COL:
