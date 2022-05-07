@@ -20,6 +20,11 @@ typedef struct {
   bool    enclose;
 } OperInfo;
 
+typedef enum {
+  BP_BIND_TAG = 1,
+  BP_BIND_COL,
+} BP_BIND_TYPE;
+
 OperInfo operInfo[] = {
   {">",        2, false},
   {">=",       2, false},  
@@ -41,6 +46,8 @@ int32_t varoperatorList[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
 
 char *bpStbPrefix = "st";
 char *bpTbPrefix = "t";
+int32_t bpDefaultStbId = 1;
+
 
 
 //char *operatorList[] = {">", ">=", "<", "<=", "=", "<>", "in", "not in"};
@@ -65,6 +72,7 @@ typedef struct {
   char*      isNull;
   int32_t*   binaryLen;
   TAOS_MULTI_BIND* pBind;
+  TAOS_MULTI_BIND* pTags;
   char*         sql;
   int32_t*      colTypes;
   int32_t       colNum;
@@ -83,6 +91,7 @@ int insertMBMETest2(TAOS_STMT *stmt, TAOS *taos);
 int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos);
 int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos);
 int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos);
+int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos);
 int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos);
 
 enum {
@@ -102,45 +111,48 @@ typedef struct {
   int32_t  rowNum;
   int32_t  bindRowNum;
   int32_t  bindColNum;      // equal colNum in full column case
+  int32_t  bindTagNum;      // equal colNum in full column case
   int32_t  bindNullNum;
   int32_t  runTimes;
   int32_t  preCaseIdx;
 } CaseCfg;
 
 CaseCfg gCase[] = {
-  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 1, -1},
-  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 1, -1},
+  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
 
-  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 1, -1},
-  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 1, -1},
-  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 1, -1},
+  {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBSE1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest1, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 1, -1},
-  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 1, -1},
-  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 1, -1},
+  {"insert:MBSE2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBSETest2, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBSE2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest2, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBSE2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest2, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 1, -1},
-  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 1, -1},
-  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 1, -1},
+  {"insert:MBME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME1-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest1, 10, 10, 2, 2, 0, 0, 1, -1},
 
   // 11
-  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 1, -1},
-  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 1, -1},
-  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 1, -1},
+  {"insert:MBME2-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest2, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME2-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest2, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME2-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest2, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 1, -1},
-  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 1, -1},
-  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 1, -1},
+  {"insert:MBME3-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest3, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME3-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest3, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME3-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest3, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 1, -1},
-  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 1, -1},
-  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 1, -1},
+  {"insert:MBME4-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBMETest4, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MBME4-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest4, 10, 10, 2, 12, 0, 0, 1, -1},
+  {"insert:MBME4-C002", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBMETest4, 10, 10, 2, 2, 0, 0, 1, -1},
 
-  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 1, -1},
-  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 1, -1},
+  {"insert:MPME1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMPMETest1, 10, 10, 2, 0, 0, 0, 1, -1},
+  {"insert:MPME1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMPMETest1, 10, 10, 2, 12, 0, 0, 1, -1},
 
   // 22
-  {"query:SUBT-FULL", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, querySUBTTest1, 10, 10, 1, 3, 0, 1, 2},
+  {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, true, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
+
+  {"query:SUBT-FULL", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, querySUBTTest1, 10, 10, 1, 3, 0, 0, 1, 2},
 
 };
 
@@ -149,7 +161,6 @@ CaseCfg *gCurCase = NULL;
 typedef struct {
   char     caseCatalog[255];
   int32_t  bindNullNum;
-  bool     prepareStb;
   bool     checkParamNum;
   bool     printRes;
   bool     printCreateTblSql;
@@ -157,9 +168,12 @@ typedef struct {
   bool     printStmtSql;
   int32_t  rowNum;               //row num for one table
   int32_t  bindColNum;
+  int32_t  bindTagNum;
   int32_t  bindRowNum;           //row num for once bind
   int32_t  bindColTypeNum;
   int32_t* bindColTypeList;
+  int32_t  bindTagTypeNum;
+  int32_t* bindTagTypeList;
   int32_t  optrIdxListNum;
   int32_t* optrIdxList;
   int32_t  runTimes;
@@ -172,15 +186,17 @@ typedef struct {
 #if 0
 CaseCtrl gCaseCtrl = { // default
   .bindNullNum = 0,
-  .prepareStb = false,
   .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
   .rowNum = 0,
   .bindColNum = 0,
+  .bindTagNum = 0,
   .bindRowNum = 0,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
+  .bindTagTypeNum = 0,
+  .bindTagTypeList = NULL,
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
   .checkParamNum = false,
@@ -196,7 +212,6 @@ CaseCtrl gCaseCtrl = { // default
 #if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindNullNum = 0,
-  .prepareStb = false,
   .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
@@ -224,8 +239,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
 #if 1
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindNullNum = 0,
-  .prepareStb = false,
-  .printCreateTblSql = false,
+  .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
   .rowNum = 0,
@@ -239,10 +253,10 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
-  .optrIdxListNum = tListLen(optrIdxList),
-  .optrIdxList = optrIdxList,
-  .bindColTypeNum = tListLen(bindColTypeList),
-  .bindColTypeList = bindColTypeList,
+  //.optrIdxListNum = tListLen(optrIdxList),
+  //.optrIdxList = optrIdxList,
+  //.bindColTypeNum = tListLen(bindColTypeList),
+  //.bindColTypeList = bindColTypeList,
   .caseIdx = 22,
   .caseNum = 1,
   .caseRunNum = 1,
@@ -299,6 +313,78 @@ void generateInsertSQL(BindData *data) {
   } else {
     len = sprintf(data->sql, "insert into %s0 ", bpTbPrefix);
   }
+
+  if (gCurCase->bindTagNum > 0) {
+    len += sprintf(data->sql + len, "using %s%d ", bpStbPrefix, bpDefaultStbId);
+
+    if (!gCurCase->fullCol) {
+      len += sprintf(data->sql + len, "(");
+      for (int c = 0; c < gCurCase->bindTagNum; ++c) {
+        if (c) {
+          len += sprintf(data->sql + len, ",");
+        }
+        switch (data->pTags[c].buffer_type) {  
+          case TSDB_DATA_TYPE_BOOL:
+            len += sprintf(data->sql + len, "tbooldata");
+            break;
+          case TSDB_DATA_TYPE_TINYINT:
+            len += sprintf(data->sql + len, "ttinydata");
+            break;
+          case TSDB_DATA_TYPE_SMALLINT:
+            len += sprintf(data->sql + len, "tsmalldata");
+            break;
+          case TSDB_DATA_TYPE_INT:
+            len += sprintf(data->sql + len, "tintdata");
+            break;
+          case TSDB_DATA_TYPE_BIGINT:
+            len += sprintf(data->sql + len, "tbigdata");
+            break;
+          case TSDB_DATA_TYPE_FLOAT:
+            len += sprintf(data->sql + len, "tfloatdata");
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            len += sprintf(data->sql + len, "tdoubledata");
+            break;
+          case TSDB_DATA_TYPE_VARCHAR:
+            len += sprintf(data->sql + len, "tbinarydata");
+            break;
+          case TSDB_DATA_TYPE_TIMESTAMP:
+            len += sprintf(data->sql + len, "tts");
+            break;
+          case TSDB_DATA_TYPE_NCHAR:
+            len += sprintf(data->sql + len, "tnchardata");
+            break;
+          case TSDB_DATA_TYPE_UTINYINT:
+            len += sprintf(data->sql + len, "tutinydata");
+            break;
+          case TSDB_DATA_TYPE_USMALLINT:
+            len += sprintf(data->sql + len, "tusmalldata");
+            break;
+          case TSDB_DATA_TYPE_UINT:
+            len += sprintf(data->sql + len, "tuintdata");
+            break;
+          case TSDB_DATA_TYPE_UBIGINT:
+            len += sprintf(data->sql + len, "tubigdata");
+            break;
+          default:
+            printf("!!!invalid tag type:%d", data->pTags[c].buffer_type);
+            exit(1);
+        }
+      }
+      
+      len += sprintf(data->sql + len, ") ");
+    }
+
+    len += sprintf(data->sql + len, "tags (");
+    for (int c = 0; c < gCurCase->bindTagNum; ++c) {
+      if (c) {
+        len += sprintf(data->sql + len, ",");
+      }
+      len += sprintf(data->sql + len, "?");
+    }
+    len += sprintf(data->sql + len, ") ");    
+  }
+  
   if (!gCurCase->fullCol) {
     len += sprintf(data->sql + len, "(");
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
@@ -552,7 +638,7 @@ void generateErrorSQL(BindData *data, int32_t tblIdx) {
   }  
 }
 
-void generateDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
+void generateColDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
   if (bindIdx < gCurCase->bindColNum) {
     if (gCaseCtrl.bindColTypeNum) {
       *dataType = gCaseCtrl.bindColTypeList[colIdx];
@@ -584,104 +670,146 @@ void generateDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *
   }
 }
 
-int32_t prepareColData(BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t colIdx) {
-  int32_t dataType = TSDB_DATA_TYPE_TIMESTAMP;
+void generateTagDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_t *dataType) {
+  if (bindIdx < gCurCase->bindTagNum) {
+    if (gCaseCtrl.bindTagTypeNum) {
+      *dataType = gCaseCtrl.bindTagTypeList[colIdx];
+      return;
+    } else if (gCurCase->fullCol) {
+      *dataType = gCurCase->colList[bindIdx];
+      return;
+    } else {
+      while (true) {
+        *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
+        if (*dataType == TSDB_DATA_TYPE_JSON || *dataType == TSDB_DATA_TYPE_DECIMAL 
+         || *dataType == TSDB_DATA_TYPE_BLOB || *dataType == TSDB_DATA_TYPE_MEDIUMBLOB
+         || *dataType == TSDB_DATA_TYPE_VARBINARY) {
+          continue;
+        }
 
-  generateDataType(data, bindIdx, colIdx, &dataType);
+        if (colExists(data->pTags, *dataType)) {
+          continue;
+        }
+        
+        break;
+      }
+    }
+  } else {
+    *dataType = data->pTags[bindIdx%gCurCase->bindTagNum].buffer_type;
+  }
+}
+
+
+int32_t prepareColData(BP_BIND_TYPE bType, BindData *data, int32_t bindIdx, int32_t rowIdx, int32_t colIdx) {
+  int32_t dataType = TSDB_DATA_TYPE_TIMESTAMP;
+  TAOS_MULTI_BIND *pBase = NULL;
+  
+  if (bType == BP_BIND_TAG) {
+    pBase = data->pTags;
+    generateTagDataType(data, bindIdx, colIdx, &dataType);
+  } else {
+    pBase = data->pBind;
+    generateColDataType(data, bindIdx, colIdx, &dataType);
+  }
+
 
   switch (dataType) {  
     case TSDB_DATA_TYPE_BOOL:
-      data->pBind[bindIdx].buffer_length = sizeof(bool);
-      data->pBind[bindIdx].buffer = data->boolData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(bool);
+      pBase[bindIdx].buffer = data->boolData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_TINYINT:
-      data->pBind[bindIdx].buffer_length = sizeof(int8_t);
-      data->pBind[bindIdx].buffer = data->tinyData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(int8_t);
+      pBase[bindIdx].buffer = data->tinyData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_SMALLINT:
-      data->pBind[bindIdx].buffer_length = sizeof(int16_t);
-      data->pBind[bindIdx].buffer = data->smallData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(int16_t);
+      pBase[bindIdx].buffer = data->smallData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_INT:
-      data->pBind[bindIdx].buffer_length = sizeof(int32_t);
-      data->pBind[bindIdx].buffer = data->intData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(int32_t);
+      pBase[bindIdx].buffer = data->intData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      data->pBind[bindIdx].buffer_length = sizeof(int64_t);
-      data->pBind[bindIdx].buffer = data->bigData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(int64_t);
+      pBase[bindIdx].buffer = data->bigData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_FLOAT:
-      data->pBind[bindIdx].buffer_length = sizeof(float);
-      data->pBind[bindIdx].buffer = data->floatData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(float);
+      pBase[bindIdx].buffer = data->floatData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_DOUBLE:
-      data->pBind[bindIdx].buffer_length = sizeof(double);
-      data->pBind[bindIdx].buffer = data->doubleData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(double);
+      pBase[bindIdx].buffer = data->doubleData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_VARCHAR:
-      data->pBind[bindIdx].buffer_length = gVarCharSize;
-      data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
-      data->pBind[bindIdx].length = data->binaryLen;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = gVarCharSize;
+      pBase[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
+      pBase[bindIdx].length = data->binaryLen;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
-      data->pBind[bindIdx].buffer_length = sizeof(int64_t);
-      data->pBind[bindIdx].buffer = data->tsData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = NULL;
+      pBase[bindIdx].buffer_length = sizeof(int64_t);
+      pBase[bindIdx].buffer = data->tsData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = NULL;
       break;
     case TSDB_DATA_TYPE_NCHAR:
-      data->pBind[bindIdx].buffer_length = gVarCharSize;
-      data->pBind[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
-      data->pBind[bindIdx].length = data->binaryLen;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = gVarCharSize;
+      pBase[bindIdx].buffer = data->binaryData + rowIdx * gVarCharSize;
+      pBase[bindIdx].length = data->binaryLen;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_UTINYINT:
-      data->pBind[bindIdx].buffer_length = sizeof(uint8_t);
-      data->pBind[bindIdx].buffer = data->utinyData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(uint8_t);
+      pBase[bindIdx].buffer = data->utinyData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_USMALLINT:
-      data->pBind[bindIdx].buffer_length = sizeof(uint16_t);
-      data->pBind[bindIdx].buffer = data->usmallData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(uint16_t);
+      pBase[bindIdx].buffer = data->usmallData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_UINT:
-      data->pBind[bindIdx].buffer_length = sizeof(uint32_t);
-      data->pBind[bindIdx].buffer = data->uintData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(uint32_t);
+      pBase[bindIdx].buffer = data->uintData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      data->pBind[bindIdx].buffer_length = sizeof(uint64_t);
-      data->pBind[bindIdx].buffer = data->ubigData + rowIdx;
-      data->pBind[bindIdx].length = NULL;
-      data->pBind[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
+      pBase[bindIdx].buffer_length = sizeof(uint64_t);
+      pBase[bindIdx].buffer = data->ubigData + rowIdx;
+      pBase[bindIdx].length = NULL;
+      pBase[bindIdx].is_null = data->isNull ? (data->isNull + rowIdx) : NULL;
       break;
     default:
       printf("!!!invalid col type:%d", dataType);
       exit(1);
   }
 
-  data->pBind[bindIdx].buffer_type = dataType;
-  data->pBind[bindIdx].num = gCurCase->bindRowNum;
+  pBase[bindIdx].buffer_type = dataType;
+  pBase[bindIdx].num = gCurCase->bindRowNum;
 
+  if (bType == BP_BIND_TAG) {
+    pBase[bindIdx].num = 1;
+  }
+  
   return 0;
 }
 
@@ -694,6 +822,7 @@ int32_t prepareInsertData(BindData *data) {
   data->colTypes = taosMemoryCalloc(30, sizeof(int32_t));
   data->sql = taosMemoryCalloc(1, 1024);
   data->pBind = taosMemoryCalloc((allRowNum/gCurCase->bindRowNum)*gCurCase->bindColNum, sizeof(TAOS_MULTI_BIND));
+  data->pTags = taosMemoryCalloc(gCurCase->tblNum*gCurCase->bindTagNum, sizeof(TAOS_MULTI_BIND));
   data->tsData = taosMemoryMalloc(allRowNum * sizeof(int64_t));
   data->boolData = taosMemoryMalloc(allRowNum * sizeof(bool));
   data->tinyData = taosMemoryMalloc(allRowNum * sizeof(int8_t));
@@ -734,9 +863,16 @@ int32_t prepareInsertData(BindData *data) {
 
   for (int b = 0; b < (allRowNum/gCurCase->bindRowNum); b++) {
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      prepareColData(data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
+      prepareColData(BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
     }
   }
+
+  for (int b = 0; b < gCurCase->tblNum; b++) {
+    for (int c = 0; c < gCurCase->bindTagNum; ++c) {
+      prepareColData(BP_BIND_TAG, data, b*gCurCase->bindTagNum+c, b, c);
+    }
+  }
+
 
   generateInsertSQL(data);
   
@@ -791,7 +927,7 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
 
   for (int b = 0; b < bindNum; b++) {
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      prepareColData(data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
+      prepareColData(BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
     }
   }
 
@@ -849,7 +985,7 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
 
   for (int b = 0; b < bindNum; b++) {
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      prepareColData(data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
+      prepareColData(BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
     }
   }
 
@@ -1501,6 +1637,73 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
   
   return 0;
 }
+
+/* [prepare [settbnametag [bind add] exec]]   */
+int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos) {
+  int32_t loop = 0;
+  
+  while (gCurCase->bindColNum >= 2) {
+    BindData data = {0};
+    prepareInsertData(&data);
+
+    int code = taos_stmt_prepare(stmt, data.sql, 0);
+    if (code != 0){
+      printf("!!!failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
+      exit(1);
+    }
+
+    bpCheckIsInsert(stmt, 1);
+
+    int32_t bindTimes = gCurCase->rowNum/gCurCase->bindRowNum;
+    for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
+      if (gCurCase->tblNum > 1) {
+        char buf[32];
+        sprintf(buf, "t%d", t);
+        code = taos_stmt_set_tbname_tags(stmt, buf, data.pTags + t * gCurCase->bindTagNum);
+        if (code != 0){
+          printf("!!!taos_stmt_set_tbname_tags error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }  
+      }
+
+      if (gCaseCtrl.checkParamNum) {
+        bpCheckParamNum(stmt);
+      }
+      
+      for (int32_t b = 0; b <bindTimes; ++b) {
+        if (bpBindParam(stmt, data.pBind + t*bindTimes*gCurCase->bindColNum + b*gCurCase->bindColNum)) {
+          exit(1);
+        }
+        
+        if (taos_stmt_add_batch(stmt)) {
+          printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
+      }
+
+      if (taos_stmt_execute(stmt) != 0) {
+        printf("!!!taos_stmt_execute error:%s\n", taos_stmt_errstr(stmt));
+        exit(1);
+      }
+    }
+
+    bpCheckIsInsert(stmt, 1);
+
+    destroyData(&data);
+
+    gCurCase->bindColNum -= 2;
+    gCurCase->bindTagNum -= 2;
+    gCurCase->fullCol = false;
+    loop++;
+  }
+
+  bpCheckAffectedRows(stmt, loop);
+
+  gExecLoopTimes = loop;
+  
+  return 0;
+}
+
 
 /* select * from table */
 int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos) {
@@ -2911,63 +3114,6 @@ int sql_s_perf1(TAOS     *taos) {
 void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *colList, bool stable) {
   int32_t blen = 0;
   blen = sprintf(buf, "create table %s%d ", (stable ? bpStbPrefix : bpTbPrefix), tblIdx);
-  if (stable) {
-    blen += sprintf(buf + blen, "tags (");
-    for (int c = 0; c < colNum; ++c) {
-      if (c > 0) {
-        blen += sprintf(buf + blen, ",");
-      }
-      switch (colList[c]) {  
-        case TSDB_DATA_TYPE_BOOL:
-          blen += sprintf(buf + blen, "tbooldata bool");
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          blen += sprintf(buf + blen, "ttinydata tinyint");
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          blen += sprintf(buf + blen, "tsmalldata smallint");
-          break;
-        case TSDB_DATA_TYPE_INT:
-          blen += sprintf(buf + blen, "tintdata int");
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          blen += sprintf(buf + blen, "tbigdata bigint");
-          break;
-        case TSDB_DATA_TYPE_FLOAT:
-          blen += sprintf(buf + blen, "tfloatdata float");
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
-          blen += sprintf(buf + blen, "tdoubledata double");
-          break;
-        case TSDB_DATA_TYPE_VARCHAR:
-          blen += sprintf(buf + blen, "tbinarydata binary(%d)", gVarCharSize);
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          blen += sprintf(buf + blen, "tts ts");
-          break;
-        case TSDB_DATA_TYPE_NCHAR:
-          blen += sprintf(buf + blen, "tnchardata nchar(%d)", gVarCharSize);
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          blen += sprintf(buf + blen, "tutinydata tinyint unsigned");
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          blen += sprintf(buf + blen, "tusmalldata smallint unsigned");
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          blen += sprintf(buf + blen, "tuintdata int unsigned");
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          blen += sprintf(buf + blen, "tubigdata bigint unsigned");
-          break;
-        default:
-          printf("invalid col type:%d", colList[c]);
-          exit(1);
-      }      
-    }
-
-    blen += sprintf(buf + blen, ")");    
-  }
 
   blen += sprintf(buf + blen, " (");
   
@@ -3027,6 +3173,64 @@ void generateCreateTableSQL(char *buf, int32_t tblIdx, int32_t colNum, int32_t *
 
   blen += sprintf(buf + blen, ")");
 
+  if (stable) {
+    blen += sprintf(buf + blen, "tags (");
+    for (int c = 0; c < colNum; ++c) {
+      if (c > 0) {
+        blen += sprintf(buf + blen, ",");
+      }
+      switch (colList[c]) {  
+        case TSDB_DATA_TYPE_BOOL:
+          blen += sprintf(buf + blen, "tbooldata bool");
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          blen += sprintf(buf + blen, "ttinydata tinyint");
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          blen += sprintf(buf + blen, "tsmalldata smallint");
+          break;
+        case TSDB_DATA_TYPE_INT:
+          blen += sprintf(buf + blen, "tintdata int");
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          blen += sprintf(buf + blen, "tbigdata bigint");
+          break;
+        case TSDB_DATA_TYPE_FLOAT:
+          blen += sprintf(buf + blen, "tfloatdata float");
+          break;
+        case TSDB_DATA_TYPE_DOUBLE:
+          blen += sprintf(buf + blen, "tdoubledata double");
+          break;
+        case TSDB_DATA_TYPE_VARCHAR:
+          blen += sprintf(buf + blen, "tbinarydata binary(%d)", gVarCharSize);
+          break;
+        case TSDB_DATA_TYPE_TIMESTAMP:
+          blen += sprintf(buf + blen, "tts timestamp");
+          break;
+        case TSDB_DATA_TYPE_NCHAR:
+          blen += sprintf(buf + blen, "tnchardata nchar(%d)", gVarCharSize);
+          break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          blen += sprintf(buf + blen, "tutinydata tinyint unsigned");
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          blen += sprintf(buf + blen, "tusmalldata smallint unsigned");
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          blen += sprintf(buf + blen, "tuintdata int unsigned");
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          blen += sprintf(buf + blen, "tubigdata bigint unsigned");
+          break;
+        default:
+          printf("invalid col type:%d", colList[c]);
+          exit(1);
+      }      
+    }
+
+    blen += sprintf(buf + blen, ")");    
+  }
+
   if (gCaseCtrl.printCreateTblSql) {
     printf("\tCreate Table SQL:%s\n", buf);
   }
@@ -3067,7 +3271,7 @@ void prepare(TAOS     *taos, int32_t colNum, int32_t *colList, int prepareStb) {
     }
   } else {
     char buf[1024];
-    generateCreateTableSQL(buf, 1, colNum, colList, true);
+    generateCreateTableSQL(buf, bpDefaultStbId, colNum, colList, true);
     
     result = taos_query(taos, buf);
     code = taos_errno(result);
@@ -3113,12 +3317,16 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   
   if (gCurCase->fullCol) {
     gCurCase->bindColNum = gCurCase->colNum;
+    gCurCase->bindTagNum = gCurCase->colNum;
   }
   
   gCurCase->bindNullNum = gCaseCtrl.bindNullNum;
-  gCurCase->prepareStb = gCaseCtrl.prepareStb;
   if (gCaseCtrl.bindColNum) {
     gCurCase->bindColNum = gCaseCtrl.bindColNum;
+    gCurCase->fullCol = false;
+  }
+  if (gCaseCtrl.bindTagNum) {
+    gCurCase->bindTagNum = gCaseCtrl.bindTagNum;
     gCurCase->fullCol = false;
   }
   if (gCaseCtrl.bindRowNum) {
@@ -3126,6 +3334,10 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   }
   if (gCaseCtrl.bindColTypeNum) {
     gCurCase->bindColNum = gCaseCtrl.bindColTypeNum;
+    gCurCase->fullCol = false;
+  }
+  if (gCaseCtrl.bindTagTypeNum) {
+    gCurCase->bindTagNum = gCaseCtrl.bindTagTypeNum;
     gCurCase->fullCol = false;
   }
 

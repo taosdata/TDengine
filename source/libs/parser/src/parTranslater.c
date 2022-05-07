@@ -2574,7 +2574,7 @@ static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt
   SName       tableName;
   int32_t     code = getTableMetaImpl(
           pCxt, toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &tableName), &pTableMeta);
-  if ((TSDB_CODE_TDB_INVALID_TABLE_ID == code || TSDB_CODE_VND_TB_NOT_EXIST == code) && pClause->ignoreNotExists) {
+  if ((TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_VND_TB_NOT_EXIST == code) && pClause->ignoreNotExists) {
     return TSDB_CODE_SUCCESS;
   }
   if (TSDB_CODE_SUCCESS == code) {

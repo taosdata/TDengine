@@ -123,6 +123,7 @@ int32_t stmtSetBindInfo(TAOS_STMT* stmt, STableMeta* pTableMeta, void* tags) {
   pStmt->bInfo.tbSuid = pTableMeta->suid;
   pStmt->bInfo.tbType = pTableMeta->tableType;
   pStmt->bInfo.boundTags = tags;
+  pStmt->bInfo.tagsCached = false;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -207,8 +208,6 @@ int32_t stmtParseSql(STscStmt* pStmt) {
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_CLAUSE_ERROR);
   }
 
-  STMT_ERR_RET(stmtCacheBlock(pStmt));
-
   return TSDB_CODE_SUCCESS;
 }
 
@@ -219,8 +218,10 @@ int32_t stmtCleanBindInfo(STscStmt* pStmt) {
   pStmt->bInfo.needParse = true;
 
   taosMemoryFreeClear(pStmt->bInfo.tbName);
-  destroyBoundColumnInfo(pStmt->bInfo.boundTags);
-  taosMemoryFreeClear(pStmt->bInfo.boundTags);
+  if (!pStmt->bInfo.tagsCached) {
+    destroyBoundColumnInfo(pStmt->bInfo.boundTags);
+    taosMemoryFreeClear(pStmt->bInfo.boundTags);
+  }
 
   return TSDB_CODE_SUCCESS;
 }
@@ -275,6 +276,7 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
 
     qDestroyStmtDataBlock(pCache->pDataBlock);
     destroyBoundColumnInfo(pCache->boundTags);
+    taosMemoryFreeClear(pCache->boundTags);
     
     pIter = taosHashIterate(pStmt->sql.pTableCache, pIter);
   }
@@ -302,7 +304,15 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
 
   STableMeta *pTableMeta = NULL;
   SEpSet ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
-  STMT_ERR_RET(catalogGetTableMeta(pStmt->pCatalog, pStmt->taos->pAppInfo->pTransporter, &ep, &pStmt->bInfo.sname, &pTableMeta));
+  int32_t code = catalogGetTableMeta(pStmt->pCatalog, pStmt->taos->pAppInfo->pTransporter, &ep, &pStmt->bInfo.sname, &pTableMeta);
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code) {
+    STMT_ERR_RET(stmtCleanBindInfo(pStmt));
+    
+    return TSDB_CODE_SUCCESS;
+  }
+
+  STMT_ERR_RET(code);
+  
   uint64_t uid = pTableMeta->uid;
   uint64_t suid = pTableMeta->suid;
   int8_t tableType = pTableMeta->tableType;
@@ -328,6 +338,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     pStmt->bInfo.tbSuid = suid;
     pStmt->bInfo.tbType = tableType;
     pStmt->bInfo.boundTags = pCache->boundTags;
+    pStmt->bInfo.tagsCached = true;
 
     return TSDB_CODE_SUCCESS;
   }
@@ -340,6 +351,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     pStmt->bInfo.tbSuid = suid;
     pStmt->bInfo.tbType = tableType;
     pStmt->bInfo.boundTags = pCache->boundTags;
+    pStmt->bInfo.tagsCached = true;
 
     STableDataBlocks* pNewBlock = NULL;
     STMT_ERR_RET(qRebuildStmtDataBlock(&pNewBlock, pCache->pDataBlock));

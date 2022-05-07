@@ -1151,6 +1151,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     (*pCxt->pStmtCb->setExecInfoFn)(pCxt->pStmtCb->pStmt, pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
     pCxt->pVgroupsHashObj = NULL;
     pCxt->pTableBlockHashObj = NULL;
+    pCxt->pTableMeta = NULL;
 
     return TSDB_CODE_SUCCESS;
   }
@@ -1276,7 +1277,7 @@ int32_t qBindStmtTagsValue(void *pBlock, void *boundTags, int64_t suid, char *tN
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);
+  SSchema* pSchema = pDataBlock->pTableMeta->schema;
   SKvParam param = {.builder = &tagBuilder};
 
   for (int c = 0; c < tags->numOfBound; ++c) {

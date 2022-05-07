@@ -60,6 +60,7 @@ typedef struct SStmtBindInfo {
   int32_t      sBindRowNum;
   int32_t      sBindLastIdx;
   int8_t       tbType;
+  bool         tagsCached;
   void*        boundTags;  
   char*        tbName;
   SName        sname;

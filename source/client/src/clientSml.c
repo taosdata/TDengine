@@ -432,7 +432,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
 
     code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
 
-    if (code == TSDB_CODE_TDB_INVALID_TABLE_ID || code == TSDB_CODE_MND_INVALID_STB) {
+    if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
       SSchemaAction schemaAction = {0};
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
