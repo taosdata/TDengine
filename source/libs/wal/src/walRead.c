@@ -49,7 +49,10 @@ void walCloseReadHandle(SWalReadHandle *pRead) {
   taosMemoryFree(pRead);
 }
 
-int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) { return 0; }
+int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) {
+  // TODO
+  return 0;
+}
 
 static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
   int code = 0;

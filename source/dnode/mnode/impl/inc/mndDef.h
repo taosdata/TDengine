@@ -72,7 +72,7 @@ typedef enum {
   TRN_TYPE_DROP_USER = 1003,
   TRN_TYPE_CREATE_FUNC = 1004,
   TRN_TYPE_DROP_FUNC = 1005,
-  
+
   TRN_TYPE_CREATE_SNODE = 1006,
   TRN_TYPE_DROP_SNODE = 1007,
   TRN_TYPE_CREATE_QNODE = 1008,
@@ -115,7 +115,10 @@ typedef enum {
   TRN_TYPE_STB_SCOPE_END,
 } ETrnType;
 
-typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
+typedef enum {
+  TRN_POLICY_ROLLBACK = 0,
+  TRN_POLICY_RETRY = 1,
+} ETrnPolicy;
 
 typedef enum {
   DND_REASON_ONLINE = 0,
@@ -130,6 +133,15 @@ typedef enum {
   DND_REASON_CHARSET_NOT_MATCH,
   DND_REASON_OTHERS
 } EDndReason;
+
+typedef enum {
+  CONSUMER_UPDATE__TOUCH = 1,
+  CONSUMER_UPDATE__ADD,
+  CONSUMER_UPDATE__REMOVE,
+  CONSUMER_UPDATE__LOST,
+  CONSUMER_UPDATE__RECOVER,
+  CONSUMER_UPDATE__MODIFY,
+} ECsmUpdateType;
 
 typedef struct {
   int32_t    id;
@@ -386,7 +398,6 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
-  char    pData[];
 } SFuncObj;
 
 typedef struct {
@@ -425,18 +436,8 @@ typedef struct {
   int64_t offset;
 } SMqOffsetObj;
 
-static FORCE_INLINE int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset) {
-  int32_t tlen = 0;
-  tlen += taosEncodeString(buf, pOffset->key);
-  tlen += taosEncodeFixedI64(buf, pOffset->offset);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) {
-  buf = taosDecodeStringTo(buf, pOffset->key);
-  buf = taosDecodeFixedI64(buf, &pOffset->offset);
-  return buf;
-}
+int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset);
+void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 
 typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
@@ -459,26 +460,15 @@ typedef struct {
   SSchemaWrapper schema;
 } SMqTopicObj;
 
-enum {
-  CONSUMER_UPDATE__TOUCH = 1,
-  CONSUMER_UPDATE__ADD,
-  CONSUMER_UPDATE__REMOVE,
-  CONSUMER_UPDATE__LOST,
-  CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__MODIFY,
-};
-
 typedef struct {
-  int64_t consumerId;
-  char    cgroup[TSDB_CGROUP_LEN];
-  char    appId[TSDB_CGROUP_LEN];
-  int8_t  updateType;  // used only for update
-  int32_t epoch;
-  int32_t status;
-  // hbStatus is not applicable to serialization
-  int32_t hbStatus;
-  // lock is used for topics update
-  SRWLatch lock;
+  int64_t  consumerId;
+  char     cgroup[TSDB_CGROUP_LEN];
+  char     appId[TSDB_CGROUP_LEN];
+  int8_t   updateType;  // used only for update
+  int32_t  epoch;
+  int32_t  status;
+  int32_t  hbStatus;          // hbStatus is not applicable to serialization
+  SRWLatch lock;              // lock is used for topics update
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
@@ -492,7 +482,6 @@ typedef struct {
   int64_t upTime;
   int64_t subscribeTime;
   int64_t rebalanceTime;
-
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
@@ -581,19 +570,18 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char     name[TSDB_TOPIC_FNAME_LEN];
-  char     sourceDb[TSDB_DB_FNAME_LEN];
-  char     targetDb[TSDB_DB_FNAME_LEN];
-  char     targetSTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t  createTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int64_t  dbUid;
-  int32_t  version;
-  int32_t  vgNum;
-  SRWLatch lock;
-  int8_t   status;
-  // int32_t  sqlLen;
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           sourceDb[TSDB_DB_FNAME_LEN];
+  char           targetDb[TSDB_DB_FNAME_LEN];
+  char           targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
+  int64_t        dbUid;
+  int32_t        version;
+  int32_t        vgNum;
+  SRWLatch       lock;
+  int8_t         status;
   int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
   int32_t        fixedSinkVgId;  // 0 for shuffle
   int64_t        smaId;          // 0 for unused
@@ -601,7 +589,6 @@ typedef struct {
   int32_t        triggerParam;
   int64_t        waterMark;
   char*          sql;
-  char*          logicalPlan;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;

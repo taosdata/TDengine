@@ -49,6 +49,7 @@ int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, vo
 // TDBC
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn);
 int tdbDbcClose(TDBC *pDbc);
+int tdbDbcIsValid(TDBC *pDbc);
 int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, int *c);
 int tdbDbcMoveToFirst(TDBC *pDbc);
 int tdbDbcMoveToLast(TDBC *pDbc);

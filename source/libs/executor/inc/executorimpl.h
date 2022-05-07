@@ -325,10 +325,15 @@ typedef struct SExchangeInfo {
   SLoadRemoteDataInfo loadInfo;
 } SExchangeInfo;
 
+#define COL_MATCH_FROM_COL_ID  0x1
+#define COL_MATCH_FROM_SLOT_ID 0x2
+
 typedef struct SColMatchInfo {
+  int32_t srcSlotId;     // source slot id
   int32_t colId;
   int32_t targetSlotId;
   bool    output;
+  int32_t matchType;     // determinate the source according to col id or slot id
 } SColMatchInfo;
 
 typedef struct SScanInfo {

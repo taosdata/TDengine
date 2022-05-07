@@ -241,7 +241,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  pFunc->node.resType = (SDataType) { .bytes = 512, .type = TSDB_DATA_TYPE_BINARY };
   return TSDB_CODE_SUCCESS;
 }
 

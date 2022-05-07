@@ -141,3 +141,5 @@ int tdbDbcClose(TDBC *pDbc) {
 
   return 0;
 }
+
+int tdbDbcIsValid(TDBC *pDbc) { return tdbBtcIsValid(&pDbc->btc); }
