@@ -275,7 +275,7 @@ static FORCE_INLINE int32_t tEncodeBinary(SEncoder* pCoder, const uint8_t* val, 
 }
 
 static FORCE_INLINE int32_t tEncodeCStrWithLen(SEncoder* pCoder, const char* val, uint32_t len) {
-  return tEncodeBinary(pCoder, (void*)val, len + 1);
+  return tEncodeBinary(pCoder, (uint8_t*)val, len + 1);
 }
 
 static FORCE_INLINE int32_t tEncodeCStr(SEncoder* pCoder, const char* val) {
@@ -383,7 +383,7 @@ static FORCE_INLINE int32_t tDecodeBinary(SDecoder* pCoder, const uint8_t** val,
 
   if (TD_CODER_CHECK_CAPACITY_FAILED(pCoder, *len)) return -1;
   if (val) {
-    *val = (void*)TD_CODER_CURRENT(pCoder);
+    *val = (uint8_t*)TD_CODER_CURRENT(pCoder);
   }
 
   TD_CODER_MOVE_POS(pCoder, *len);

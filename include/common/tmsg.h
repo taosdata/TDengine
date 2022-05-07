@@ -1824,7 +1824,7 @@ int32_t tDeserializeSClientHbBatchRsp(void* buf, int32_t bufLen, SClientHbBatchR
 static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
   if (tEncodeI32(pEncoder, pKv->key) < 0) return -1;
   if (tEncodeI32(pEncoder, pKv->valueLen) < 0) return -1;
-  if (tEncodeBinary(pEncoder, (const char*)pKv->value, pKv->valueLen) < 0) return -1;
+  if (tEncodeBinary(pEncoder, (uint8_t*)pKv->value, pKv->valueLen) < 0) return -1;
   return 0;
 }
 
