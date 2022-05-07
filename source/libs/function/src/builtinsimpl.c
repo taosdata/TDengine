@@ -20,6 +20,8 @@
 #include "tdatablock.h"
 #include "tpercentile.h"
 
+#define HISTOGRAM_MAX_BINS_NUM 100
+
 typedef struct SSumRes {
   union {
     int64_t  isum;
@@ -88,6 +90,22 @@ typedef struct SSpreadInfo {
   double min;
   double max;
 } SSpreadInfo;
+
+typedef struct SHistoFuncBin {
+  double lower;
+  double upper;
+  union {
+    int64_t count;
+    double  percentage;
+  };
+} SHistoFuncBin;
+
+typedef struct SHistoFuncInfo {
+  int32_t numOfBins;
+  bool    normalized;
+  SHistoFuncBin bins[];
+} SHistoFuncInfo;
+
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -1775,5 +1793,36 @@ int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (pInfo->hasResult == true) {
     SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
   }
+  return functionFinalize(pCtx, pBlock);
+}
+
+bool getHistogramFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SHistoFuncInfo) + HISTOGRAM_MAX_BINS_NUM * sizeof(SHistoFuncBin);
+  return true;
+}
+
+bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  char* binType = pCtx->param[1].param.pz;
+  char* binDesc = pCtx->param[2].param.pz;
+  int64_t nornalized = pCtx->param[3].param.i;
+
+
+  return true;
+}
+
+int32_t histogramFunction(SqlFunctionCtx *pCtx) {
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  //if (pInfo->hasResult == true) {
+  //  SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
+  //}
   return functionFinalize(pCtx, pBlock);
 }

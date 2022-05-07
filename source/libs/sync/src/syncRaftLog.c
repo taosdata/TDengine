@@ -57,6 +57,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
   code = walWriteWithSyncInfo(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  if (code < 0) perror("wal write error: ");
   assert(code == 0);
 
   walFsync(pWal, true);

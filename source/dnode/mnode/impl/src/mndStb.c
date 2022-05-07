@@ -342,7 +342,7 @@ void mndReleaseStb(SMnode *pMnode, SStbObj *pStb) {
   sdbRelease(pSdb, pStb);
 }
 
-static SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
+SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName) {
   SName name = {0};
   tNameFromString(&name, stbName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
@@ -463,7 +463,7 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
   return pHead;
 }
 
-static int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
+int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate) {
   if (pCreate->igExists < 0 || pCreate->igExists > 1) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
@@ -634,91 +634,96 @@ static SSchema *mndFindStbColumns(const SStbObj *pStb, const char *colName) {
   return NULL;
 }
 
-static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
-  SStbObj stbObj = {0};
-  memcpy(stbObj.name, pCreate->name, TSDB_TABLE_FNAME_LEN);
-  memcpy(stbObj.db, pDb->name, TSDB_DB_FNAME_LEN);
-  stbObj.createdTime = taosGetTimestampMs();
-  stbObj.updateTime = stbObj.createdTime;
-  stbObj.uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
-  stbObj.dbUid = pDb->uid;
-  stbObj.version = 1;
-  stbObj.nextColId = 1;
-  stbObj.xFilesFactor = pCreate->xFilesFactor;
-  stbObj.delay = pCreate->delay;
-  stbObj.ttl = pCreate->ttl;
-  stbObj.numOfColumns = pCreate->numOfColumns;
-  stbObj.numOfTags = pCreate->numOfTags;
-  stbObj.commentLen = pCreate->commentLen;
-  if (stbObj.commentLen > 0) {
-    stbObj.comment = taosMemoryCalloc(stbObj.commentLen, 1);
-    if (stbObj.comment == NULL) {
+int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreate, SDbObj *pDb) {
+  memcpy(pDst->name, pCreate->name, TSDB_TABLE_FNAME_LEN);
+  memcpy(pDst->db, pDb->name, TSDB_DB_FNAME_LEN);
+  pDst->createdTime = taosGetTimestampMs();
+  pDst->updateTime = pDst->createdTime;
+  pDst->uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
+  pDst->dbUid = pDb->uid;
+  pDst->version = 1;
+  pDst->nextColId = 1;
+  pDst->xFilesFactor = pCreate->xFilesFactor;
+  pDst->delay = pCreate->delay;
+  pDst->ttl = pCreate->ttl;
+  pDst->numOfColumns = pCreate->numOfColumns;
+  pDst->numOfTags = pCreate->numOfTags;
+  pDst->commentLen = pCreate->commentLen;
+  if (pDst->commentLen > 0) {
+    pDst->comment = taosMemoryCalloc(pDst->commentLen, 1);
+    if (pDst->comment == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(stbObj.comment, pCreate->comment, stbObj.commentLen);
+    memcpy(pDst->comment, pCreate->comment, pDst->commentLen);
   }
 
-  stbObj.ast1Len = pCreate->ast1Len;
-  if (stbObj.ast1Len > 0) {
-    stbObj.pAst1 = taosMemoryCalloc(stbObj.ast1Len, 1);
-    if (stbObj.pAst1 == NULL) {
+  pDst->ast1Len = pCreate->ast1Len;
+  if (pDst->ast1Len > 0) {
+    pDst->pAst1 = taosMemoryCalloc(pDst->ast1Len, 1);
+    if (pDst->pAst1 == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(stbObj.pAst1, pCreate->pAst1, stbObj.ast1Len);
+    memcpy(pDst->pAst1, pCreate->pAst1, pDst->ast1Len);
   }
 
-  stbObj.ast2Len = pCreate->ast2Len;
-  if (stbObj.ast2Len > 0) {
-    stbObj.pAst2 = taosMemoryCalloc(stbObj.ast2Len, 1);
-    if (stbObj.pAst2 == NULL) {
+  pDst->ast2Len = pCreate->ast2Len;
+  if (pDst->ast2Len > 0) {
+    pDst->pAst2 = taosMemoryCalloc(pDst->ast2Len, 1);
+    if (pDst->pAst2 == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
-    memcpy(stbObj.pAst2, pCreate->pAst2, stbObj.ast2Len);
+    memcpy(pDst->pAst2, pCreate->pAst2, pDst->ast2Len);
   }
 
-  stbObj.pColumns = taosMemoryCalloc(1, stbObj.numOfColumns * sizeof(SSchema));
-  stbObj.pTags = taosMemoryCalloc(1, stbObj.numOfTags * sizeof(SSchema));
-  if (stbObj.pColumns == NULL || stbObj.pTags == NULL) {
+  pDst->pColumns = taosMemoryCalloc(1, pDst->numOfColumns * sizeof(SSchema));
+  pDst->pTags = taosMemoryCalloc(1, pDst->numOfTags * sizeof(SSchema));
+  if (pDst->pColumns == NULL || pDst->pTags == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  for (int32_t i = 0; i < stbObj.numOfColumns; ++i) {
+  for (int32_t i = 0; i < pDst->numOfColumns; ++i) {
     SField  *pField = taosArrayGet(pCreate->pColumns, i);
-    SSchema *pSchema = &stbObj.pColumns[i];
+    SSchema *pSchema = &pDst->pColumns[i];
     pSchema->type = pField->type;
     pSchema->bytes = pField->bytes;
     pSchema->flags = pField->flags;
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-    pSchema->colId = stbObj.nextColId;
-    stbObj.nextColId++;
+    pSchema->colId = pDst->nextColId;
+    pDst->nextColId++;
   }
 
-  for (int32_t i = 0; i < stbObj.numOfTags; ++i) {
+  for (int32_t i = 0; i < pDst->numOfTags; ++i) {
     SField  *pField = taosArrayGet(pCreate->pTags, i);
-    SSchema *pSchema = &stbObj.pTags[i];
+    SSchema *pSchema = &pDst->pTags[i];
     pSchema->type = pField->type;
     pSchema->bytes = pField->bytes;
     memcpy(pSchema->name, pField->name, TSDB_COL_NAME_LEN);
-    pSchema->colId = stbObj.nextColId;
-    stbObj.nextColId++;
+    pSchema->colId = pDst->nextColId;
+    pDst->nextColId++;
   }
+  return 0;
+}
+
+static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCreate, SDbObj *pDb) {
+  SStbObj stbObj = {0};
 
   int32_t code = -1;
+
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STB, &pReq->rpcMsg);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
-  mndTransSetDbInfo(pTrans, pDb);
 
-  if (mndSetCreateStbRedoLogs(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
-  if (mndSetCreateStbUndoLogs(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
-  if (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
-  if (mndSetCreateStbRedoActions(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
-  if (mndSetCreateStbUndoActions(pMnode, pTrans, pDb, &stbObj) != 0) goto _OVER;
+  if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) {
+    goto _OVER;
+  }
+
+  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
+
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
@@ -726,6 +731,15 @@ static int32_t mndCreateStb(SMnode *pMnode, SNodeMsg *pReq, SMCreateStbReq *pCre
 _OVER:
   mndTransDrop(pTrans);
   return code;
+}
+int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb) {
+  mndTransSetDbInfo(pTrans, pDb);
+  if (mndSetCreateStbRedoLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
+  if (mndSetCreateStbUndoLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
+  if (mndSetCreateStbCommitLogs(pMnode, pTrans, pDb, pStb) != 0) return -1;
+  if (mndSetCreateStbRedoActions(pMnode, pTrans, pDb, pStb) != 0) return -1;
+  if (mndSetCreateStbUndoActions(pMnode, pTrans, pDb, pStb) != 0) return -1;
+  return 0;
 }
 
 static int32_t mndProcessMCreateStbReq(SNodeMsg *pReq) {
