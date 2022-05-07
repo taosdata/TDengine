@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndShow.h"
 #include "systable.h"
+#include "qworker.h"
 
 #define SHOW_STEP_SIZE 100
 
@@ -25,6 +26,7 @@ static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
 static int32_t   mndProcessRetrieveSysTableReq(SNodeMsg *pReq);
+static int32_t   mndProcessRetrieveSysTableRsp(SNodeMsg *pRsp);
 
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
@@ -37,6 +39,7 @@ int32_t mndInitShow(SMnode *pMnode) {
   }
 
   mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE, mndProcessRetrieveSysTableReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_SYSTABLE_RETRIEVE_RSP, mndProcessRetrieveSysTableRsp);
   return 0;
 }
 
@@ -173,6 +176,13 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   SMnode    *pMnode = pShow->pMnode;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   taosCacheRelease(pMgmt->cache, (void **)(&pShow), forceRemove);
+}
+
+static int32_t mndProcessRetrieveSysTableRsp(SNodeMsg *pRsp) {
+  mTrace("mnode-systable-retrieve-rsp is received");
+  qWorkerProcessFetchRsp(NULL, NULL, &pRsp->rpcMsg);
+  pRsp->rpcMsg.pCont = NULL;  // already freed in qworker
+  return 0;
 }
 
 static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {

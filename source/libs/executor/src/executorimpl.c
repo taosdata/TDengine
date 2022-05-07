@@ -2810,7 +2810,8 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
   pMsgSendInfo->fp = loadRemoteDataCallback;
 
   int64_t transporterId = 0;
-  int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
+  int32_t code = asyncSendMsgToServer(pExchangeInfo->pMsgCb, pExchangeInfo->pTransporter, &pSource->addr.epSet,
+                                      &transporterId, pMsgSendInfo);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3256,7 +3257,8 @@ static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo) {
+SOperatorInfo* createExchangeOperatorInfo(SMsgCb* pMsgCb, const SNodeList* pSources, SSDataBlock* pBlock,
+                                          SExecTaskInfo* pTaskInfo) {
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
 
@@ -3299,29 +3301,7 @@ SOperatorInfo* createExchangeOperatorInfo(const SNodeList* pSources, SSDataBlock
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, NULL,
                                          destroyExchangeOperatorInfo, NULL, NULL, NULL);
-
-#if 1
-  {  // todo refactor
-    SRpcInit rpcInit;
-    memset(&rpcInit, 0, sizeof(rpcInit));
-    rpcInit.localPort = 0;
-    rpcInit.label = "EX";
-    rpcInit.numOfThreads = 1;
-    rpcInit.cfp = qProcessFetchRsp;
-    rpcInit.sessions = tsMaxConnections;
-    rpcInit.connType = TAOS_CONN_CLIENT;
-    rpcInit.user = (char*)"root";
-    rpcInit.idleTime = tsShellActivityTimer * 1000;
-    rpcInit.ckey = "key";
-    rpcInit.spi = 1;
-    rpcInit.secret = (char*)"dcc5bed04851fec854c035b2e40263b6";
-
-    pInfo->pTransporter = rpcOpen(&rpcInit);
-    if (pInfo->pTransporter == NULL) {
-      return NULL;  // todo
-    }
-  }
-#endif
+  pInfo->pMsgCb = pMsgCb;
 
   return pOperator;
 
@@ -4774,7 +4754,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_EXCHANGE == type) {
       SExchangePhysiNode* pExchange = (SExchangePhysiNode*)pPhyNode;
       SSDataBlock*        pResBlock = createResDataBlock(pExchange->node.pOutputDataBlockDesc);
-      return createExchangeOperatorInfo(pExchange->pSrcEndPoints, pResBlock, pTaskInfo);
+      return createExchangeOperatorInfo(pHandle->pMsgCb, pExchange->pSrcEndPoints, pResBlock, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
 

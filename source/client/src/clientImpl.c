@@ -219,7 +219,7 @@ int32_t execDdlQuery(SRequestObj* pRequest, SQuery* pQuery) {
   SMsgSendInfo* pSendMsg = buildMsgInfoImpl(pRequest);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
+  asyncSendMsgToServer(NULL, pTscObj->pAppInfo->pTransporter, &pMsgInfo->epSet, &transporterId, pSendMsg);
 
   tsem_wait(&pRequest->body.rspSem);
   return TSDB_CODE_SUCCESS;
@@ -504,7 +504,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   SMsgSendInfo* body = buildConnectMsg(pRequest, connType);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
+  asyncSendMsgToServer(NULL, pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
 
   tsem_wait(&pRequest->body.rspSem);
   if (pRequest->code != TSDB_CODE_SUCCESS) {

@@ -40,8 +40,9 @@ enum {
 };
 
 typedef struct SSchTrans {
-  void *transInst;
-  void *transHandle;
+  void   *transInst;
+  void   *transHandle;
+  SMsgCb *pMsgCb;
 } SSchTrans;
 
 typedef struct SSchHbTrans {
