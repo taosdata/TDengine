@@ -1635,17 +1635,20 @@ int32_t tsdbCreateTSma(STsdb *pTsdb, char *pMsg) {
   SSmaCfg vCreateSmaReq = {0};
   if (!tDeserializeSVCreateTSmaReq(pMsg, &vCreateSmaReq)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
-    tsdbWarn("vgId:%d TDMT_VND_CREATE_SMA received but deserialize failed since %s", REPO_ID(pTsdb), terrstr(terrno));
+    tsdbWarn("vgId:%d tsma create msg received but deserialize failed since %s", REPO_ID(pTsdb), terrstr(terrno));
     return -1;
   }
-  tsdbDebug("vgId:%d TDMT_VND_CREATE_SMA msg received for %s:%" PRIi64, REPO_ID(pTsdb), vCreateSmaReq.tSma.indexName,
-            vCreateSmaReq.tSma.indexUid);
+
+  tsdbDebug("vgId:%d tsma create msg %s:%" PRIi64 " for table %" PRIi64 " received", REPO_ID(pTsdb),
+            vCreateSmaReq.tSma.indexName, vCreateSmaReq.tSma.indexUid, vCreateSmaReq.tSma.tableUid);
 
   // record current timezone of server side
   vCreateSmaReq.tSma.timezoneInt = tsTimezone;
 
   if (metaCreateTSma(REPO_META(pTsdb), &vCreateSmaReq) < 0) {
     // TODO: handle error
+    tsdbWarn("vgId:%d tsma %s:%" PRIi64 " create failed for table %" PRIi64 " since %s", REPO_ID(pTsdb),
+             vCreateSmaReq.tSma.indexName, vCreateSmaReq.tSma.indexUid, vCreateSmaReq.tSma.tableUid, terrstr(terrno));
     tdDestroyTSma(&vCreateSmaReq.tSma);
     return -1;
   }
@@ -2003,6 +2006,12 @@ static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, 
                                                 qTaskInfo_t *taskInfo, STSchema *pTSchema, tb_uid_t suid, tb_uid_t uid,
                                                 int8_t level) {
   SArray *pResult = NULL;
+
+  if (!taskInfo) {
+    tsdbDebug("vgId:%d no qTaskInfo to execute rsma %" PRIi8 " task for suid:%" PRIu64, REPO_ID(pTsdb), level, suid);
+    return TSDB_CODE_SUCCESS;
+  }
+
   tsdbDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, REPO_ID(pTsdb), level, taskInfo,
             suid);
 
@@ -2068,10 +2077,18 @@ static int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType
     tsdbDebug("vgId:%d no rsma info for suid:%" PRIu64, REPO_ID(pTsdb), suid);
     return TSDB_CODE_SUCCESS;
   }
+  if (!pRSmaInfo->taskInfo[0]) {
+    tsdbDebug("vgId:%d no rsma qTaskInfo for suid:%" PRIu64, REPO_ID(pTsdb), suid);
+    return TSDB_CODE_SUCCESS;
+  }
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     // TODO: use the proper schema instead of 0, and cache STSchema in cache
     STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, suid, 0);
+    if (!pTSchema) {
+      terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
+      return TSDB_CODE_FAILED;
+    }
     tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[0], pTSchema, suid, uid, TSDB_RETENTION_L1);
     tsdbExecuteRSmaImpl(pTsdb, pMsg, inputType, pRSmaInfo->taskInfo[1], pTSchema, suid, uid, TSDB_RETENTION_L2);
     taosMemoryFree(pTSchema);

@@ -45,6 +45,12 @@ enum {
   STREAM_TRIGGER__BY_EVENT_TIME,
 };
 
+typedef enum EStreamType {
+  STREAM_NORMAL = 1,
+  STREAM_INVERT,
+  STREAM_INVALID,
+} EStreamType;
+
 typedef struct {
   uint32_t  numOfTables;
   SArray*   pGroupList;
@@ -71,6 +77,7 @@ typedef struct SDataBlockInfo {
   int16_t     numOfCols;
   int16_t     hasVarCol;
   int32_t     capacity;
+  EStreamType type;
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
@@ -115,8 +122,6 @@ void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
 
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
-  // WARNING: do not use info.numOfCols,
-  // sometimes info.numOfCols != array size
   int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
@@ -193,6 +198,21 @@ typedef struct SExprInfo {
   struct SExprBasicInfo base;
   struct tExprNode*     pExpr;
 } SExprInfo;
+
+typedef struct {
+  const char* key;
+  int32_t keyLen;
+  uint8_t type;
+  int16_t length;
+  union{
+    const char* value;
+    int64_t  i;
+    uint64_t u;
+    double   d;
+    float    f;
+  };
+  int32_t valueLen;
+} SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
 #define QUERY_DESC_FORWARD_STEP -1

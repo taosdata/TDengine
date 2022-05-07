@@ -135,6 +135,8 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_ADD_WRITE_DB    0x6
 #define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x7
 #define TSDB_ALTER_USER_CLEAR_WRITE_DB  0x8
+#define TSDB_ALTER_USER_ADD_ALL_DB      0x9
+#define TSDB_ALTER_USER_REMOVE_ALL_DB   0xA
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -326,11 +328,11 @@ typedef struct {
   int8_t  alterType;
   int32_t numOfFields;
   SArray* pFields;
-} SMAltertbReq;
+} SMAlterStbReq;
 
-int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAltertbReq* pReq);
-int32_t tDeserializeSMAlterStbReq(void* buf, int32_t bufLen, SMAltertbReq* pReq);
-void    tFreeSMAltertbReq(SMAltertbReq* pReq);
+int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
+int32_t tDeserializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
+void    tFreeSMAltertbReq(SMAlterStbReq* pReq);
 
 typedef struct SEpSet {
   int8_t inUse;
@@ -338,8 +340,8 @@ typedef struct SEpSet {
   SEp    eps[TSDB_MAX_REPLICA];
 } SEpSet;
 
-int32_t tEncodeSEpSet(SCoder* pEncoder, const SEpSet* pEp);
-int32_t tDecodeSEpSet(SCoder* pDecoder, SEpSet* pEp);
+int32_t tEncodeSEpSet(SEncoder* pEncoder, const SEpSet* pEp);
+int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
 int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(const void* buf, SEpSet* pEp);
 
@@ -611,8 +613,8 @@ typedef struct {
 
 int32_t tSerializeSUseDbRsp(void* buf, int32_t bufLen, const SUseDbRsp* pRsp);
 int32_t tDeserializeSUseDbRsp(void* buf, int32_t bufLen, SUseDbRsp* pRsp);
-int32_t tSerializeSUseDbRspImp(SCoder* pEncoder, const SUseDbRsp* pRsp);
-int32_t tDeserializeSUseDbRspImp(SCoder* pDecoder, SUseDbRsp* pRsp);
+int32_t tSerializeSUseDbRspImp(SEncoder* pEncoder, const SUseDbRsp* pRsp);
+int32_t tDeserializeSUseDbRspImp(SDecoder* pDecoder, SUseDbRsp* pRsp);
 void    tFreeSUsedbRsp(SUseDbRsp* pRsp);
 
 typedef struct {
@@ -672,7 +674,6 @@ typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
 } SUseDbBatchRsp;
 
-
 int32_t tSerializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 int32_t tDeserializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 void    tFreeSUseDbBatchRsp(SUseDbBatchRsp* pRsp);
@@ -684,7 +685,6 @@ typedef struct {
 int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
-
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
@@ -1529,8 +1529,8 @@ typedef struct {
   char*   qmsg2;  // pAst2:qmsg2:SRetention2 => trigger aggr task2
 } SRSmaParam;
 
-int32_t tEncodeSRSmaParam(SCoder* pCoder, const SRSmaParam* pRSmaParam);
-int32_t tDecodeSRSmaParam(SCoder* pCoder, SRSmaParam* pRSmaParam);
+int32_t tEncodeSRSmaParam(SEncoder* pCoder, const SRSmaParam* pRSmaParam);
+int32_t tDecodeSRSmaParam(SDecoder* pCoder, SRSmaParam* pRSmaParam);
 
 // TDMT_VND_CREATE_STB ==============
 typedef struct SVCreateStbReq {
@@ -1542,8 +1542,8 @@ typedef struct SVCreateStbReq {
   SRSmaParam     pRSmaParam;
 } SVCreateStbReq;
 
-int tEncodeSVCreateStbReq(SCoder* pCoder, const SVCreateStbReq* pReq);
-int tDecodeSVCreateStbReq(SCoder* pCoder, SVCreateStbReq* pReq);
+int tEncodeSVCreateStbReq(SEncoder* pCoder, const SVCreateStbReq* pReq);
+int tDecodeSVCreateStbReq(SDecoder* pCoder, SVCreateStbReq* pReq);
 
 // TDMT_VND_DROP_STB ==============
 typedef struct SVDropStbReq {
@@ -1551,10 +1551,12 @@ typedef struct SVDropStbReq {
   tb_uid_t    suid;
 } SVDropStbReq;
 
-int32_t tEncodeSVDropStbReq(SCoder* pCoder, const SVDropStbReq* pReq);
-int32_t tDecodeSVDropStbReq(SCoder* pCoder, SVDropStbReq* pReq);
+int32_t tEncodeSVDropStbReq(SEncoder* pCoder, const SVDropStbReq* pReq);
+int32_t tDecodeSVDropStbReq(SDecoder* pCoder, SVDropStbReq* pReq);
 
+#define TD_CREATE_IF_NOT_EXISTS 0x1
 typedef struct SVCreateTbReq {
+  int32_t     flags;
   tb_uid_t    uid;
   int64_t     ctime;
   const char* name;
@@ -1562,8 +1564,8 @@ typedef struct SVCreateTbReq {
   int8_t      type;
   union {
     struct {
-      tb_uid_t    suid;
-      const void* pTag;
+      tb_uid_t       suid;
+      const uint8_t* pTag;
     } ctb;
     struct {
       SSchemaWrapper schema;
@@ -1571,8 +1573,8 @@ typedef struct SVCreateTbReq {
   };
 } SVCreateTbReq;
 
-int tEncodeSVCreateTbReq(SCoder* pCoder, const SVCreateTbReq* pReq);
-int tDecodeSVCreateTbReq(SCoder* pCoder, SVCreateTbReq* pReq);
+int tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
+int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 
 typedef struct {
   int32_t nReqs;
@@ -1582,15 +1584,15 @@ typedef struct {
   };
 } SVCreateTbBatchReq;
 
-int tEncodeSVCreateTbBatchReq(SCoder* pCoder, const SVCreateTbBatchReq* pReq);
-int tDecodeSVCreateTbBatchReq(SCoder* pCoder, SVCreateTbBatchReq* pReq);
+int tEncodeSVCreateTbBatchReq(SEncoder* pCoder, const SVCreateTbBatchReq* pReq);
+int tDecodeSVCreateTbBatchReq(SDecoder* pCoder, SVCreateTbBatchReq* pReq);
 
 typedef struct {
   int32_t code;
 } SVCreateTbRsp, SVUpdateTbRsp;
 
-int tEncodeSVCreateTbRsp(SCoder* pCoder, const SVCreateTbRsp* pRsp);
-int tDecodeSVCreateTbRsp(SCoder* pCoder, SVCreateTbRsp* pRsp);
+int tEncodeSVCreateTbRsp(SEncoder* pCoder, const SVCreateTbRsp* pRsp);
+int tDecodeSVCreateTbRsp(SDecoder* pCoder, SVCreateTbRsp* pRsp);
 
 int32_t tSerializeSVCreateTbReq(void** buf, SVCreateTbReq* pReq);
 void*   tDeserializeSVCreateTbReq(void* buf, SVCreateTbReq* pReq);
@@ -1603,8 +1605,8 @@ typedef struct {
   };
 } SVCreateTbBatchRsp;
 
-int tEncodeSVCreateTbBatchRsp(SCoder* pCoder, const SVCreateTbBatchRsp* pRsp);
-int tDecodeSVCreateTbBatchRsp(SCoder* pCoder, SVCreateTbBatchRsp* pRsp);
+int tEncodeSVCreateTbBatchRsp(SEncoder* pCoder, const SVCreateTbBatchRsp* pRsp);
+int tDecodeSVCreateTbBatchRsp(SDecoder* pCoder, SVCreateTbBatchRsp* pRsp);
 
 int32_t tSerializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
 int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatchRsp* pRsp);
@@ -1627,8 +1629,8 @@ typedef struct {
   };
 } SVDropTbBatchReq;
 
-int32_t tEncodeSVDropTbBatchReq(SCoder* pCoder, const SVDropTbBatchReq* pReq);
-int32_t tDecodeSVDropTbBatchReq(SCoder* pCoder, SVDropTbBatchReq* pReq);
+int32_t tEncodeSVDropTbBatchReq(SEncoder* pCoder, const SVDropTbBatchReq* pReq);
+int32_t tDecodeSVDropTbBatchReq(SDecoder* pCoder, SVDropTbBatchReq* pReq);
 
 typedef struct {
   int32_t nRsps;
@@ -1638,8 +1640,8 @@ typedef struct {
   };
 } SVDropTbBatchRsp;
 
-int32_t tEncodeSVDropTbBatchRsp(SCoder* pCoder, const SVDropTbBatchRsp* pRsp);
-int32_t tDecodeSVDropTbBatchRsp(SCoder* pCoder, SVDropTbBatchRsp* pRsp);
+int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
+int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 typedef struct {
   SMsgHead head;
@@ -1821,14 +1823,14 @@ static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
 int32_t tSerializeSClientHbBatchRsp(void* buf, int32_t bufLen, const SClientHbBatchRsp* pBatchRsp);
 int32_t tDeserializeSClientHbBatchRsp(void* buf, int32_t bufLen, SClientHbBatchRsp* pBatchRsp);
 
-static FORCE_INLINE int32_t tEncodeSKv(SCoder* pEncoder, const SKv* pKv) {
+static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
   if (tEncodeI32(pEncoder, pKv->key) < 0) return -1;
   if (tEncodeI32(pEncoder, pKv->valueLen) < 0) return -1;
-  if (tEncodeBinary(pEncoder, (const char*)pKv->value, pKv->valueLen) < 0) return -1;
+  if (tEncodeBinary(pEncoder, (uint8_t*)pKv->value, pKv->valueLen) < 0) return -1;
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeSKv(SCoder* pDecoder, SKv* pKv) {
+static FORCE_INLINE int32_t tDecodeSKv(SDecoder* pDecoder, SKv* pKv) {
   if (tDecodeI32(pDecoder, &pKv->key) < 0) return -1;
   if (tDecodeI32(pDecoder, &pKv->valueLen) < 0) return -1;
   pKv->value = taosMemoryMalloc(pKv->valueLen + 1);
@@ -1837,13 +1839,13 @@ static FORCE_INLINE int32_t tDecodeSKv(SCoder* pDecoder, SKv* pKv) {
   return 0;
 }
 
-static FORCE_INLINE int32_t tEncodeSClientHbKey(SCoder* pEncoder, const SClientHbKey* pKey) {
+static FORCE_INLINE int32_t tEncodeSClientHbKey(SEncoder* pEncoder, const SClientHbKey* pKey) {
   if (tEncodeI64(pEncoder, pKey->tscRid) < 0) return -1;
   if (tEncodeI8(pEncoder, pKey->connType) < 0) return -1;
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeSClientHbKey(SCoder* pDecoder, SClientHbKey* pKey) {
+static FORCE_INLINE int32_t tDecodeSClientHbKey(SDecoder* pDecoder, SClientHbKey* pKey) {
   if (tDecodeI64(pDecoder, &pKey->tscRid) < 0) return -1;
   if (tDecodeI8(pDecoder, &pKey->connType) < 0) return -1;
   return 0;
@@ -2046,10 +2048,10 @@ typedef struct {
   int32_t reserved;
 } SMqCMCommitOffsetRsp;
 
-int32_t tEncodeSMqOffset(SCoder* encoder, const SMqOffset* pOffset);
-int32_t tDecodeSMqOffset(SCoder* decoder, SMqOffset* pOffset);
-int32_t tEncodeSMqCMCommitOffsetReq(SCoder* encoder, const SMqCMCommitOffsetReq* pReq);
-int32_t tDecodeSMqCMCommitOffsetReq(SCoder* decoder, SMqCMCommitOffsetReq* pReq);
+int32_t tEncodeSMqOffset(SEncoder* encoder, const SMqOffset* pOffset);
+int32_t tDecodeSMqOffset(SDecoder* decoder, SMqOffset* pOffset);
+int32_t tEncodeSMqCMCommitOffsetReq(SEncoder* encoder, const SMqCMCommitOffsetReq* pReq);
+int32_t tDecodeSMqCMCommitOffsetReq(SDecoder* decoder, SMqCMCommitOffsetReq* pReq);
 
 static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* pSchemaWrapper) {
   SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
@@ -2089,7 +2091,7 @@ static FORCE_INLINE void* taosDecodeSSchema(const void* buf, SSchema* pSchema) {
   return (void*)buf;
 }
 
-static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSchema) {
+static FORCE_INLINE int32_t tEncodeSSchema(SEncoder* pEncoder, const SSchema* pSchema) {
   if (tEncodeI8(pEncoder, pSchema->type) < 0) return -1;
   if (tEncodeI8(pEncoder, pSchema->flags) < 0) return -1;
   if (tEncodeI32v(pEncoder, pSchema->bytes) < 0) return -1;
@@ -2098,7 +2100,7 @@ static FORCE_INLINE int32_t tEncodeSSchema(SCoder* pEncoder, const SSchema* pSch
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeSSchema(SCoder* pDecoder, SSchema* pSchema) {
+static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema) {
   if (tDecodeI8(pDecoder, &pSchema->type) < 0) return -1;
   if (tDecodeI8(pDecoder, &pSchema->flags) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pSchema->bytes) < 0) return -1;
@@ -2131,7 +2133,7 @@ static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapp
   return (void*)buf;
 }
 
-static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SCoder* pEncoder, const SSchemaWrapper* pSW) {
+static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSchemaWrapper* pSW) {
   if (tEncodeI32v(pEncoder, pSW->nCols) < 0) return -1;
   if (tEncodeI32v(pEncoder, pSW->sver) < 0) return -1;
   for (int32_t i = 0; i < pSW->nCols; i++) {
@@ -2141,7 +2143,7 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SCoder* pEncoder, const SSchem
   return 0;
 }
 
-static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SCoder* pDecoder, SSchemaWrapper* pSW) {
+static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWrapper* pSW) {
   if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
 
@@ -2593,12 +2595,12 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
 
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
-  int64_t       suid;
-  int64_t       uid;
-  int32_t       sver;
-  uint64_t      nData;
-  const void*   pData;
-  SVCreateTbReq cTbReq;
+  int64_t        suid;
+  int64_t        uid;
+  int32_t        sver;
+  uint32_t       nData;
+  const uint8_t* pData;
+  SVCreateTbReq  cTbReq;
 } SVSubmitBlk;
 
 typedef struct {
@@ -2610,8 +2612,8 @@ typedef struct {
   };
 } SVSubmitReq;
 
-int32_t tEncodeSVSubmitReq(SCoder* pCoder, const SVSubmitReq* pReq);
-int32_t tDecodeSVSubmitReq(SCoder* pCoder, SVSubmitReq* pReq);
+int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);
+int32_t tDecodeSVSubmitReq(SDecoder* pCoder, SVSubmitReq* pReq);
 
 #pragma pack(pop)
 

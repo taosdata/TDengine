@@ -481,6 +481,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         TSDB_CODE_SUCCESS) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
     }
+    *(int64_t*)&pVal->typeData = pVal->datum.i;
   } else {
     switch (pVal->node.resType.type) {
       case TSDB_DATA_TYPE_NULL:
@@ -2174,17 +2175,6 @@ static int32_t checkTableSmaOption(STranslateContext* pCxt, SCreateTableStmt* pS
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t checkTableTags(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
-  SNode* pNode;
-  FOREACH(pNode, pStmt->pTags) {
-    SColumnDefNode* pCol = (SColumnDefNode*)pNode;
-    if (pCol->dataType.type == TSDB_DATA_TYPE_JSON && LIST_LENGTH(pStmt->pTags) > 1) {
-      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
-    }
-  }
-  return TSDB_CODE_SUCCESS;
-}
-
 static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs) {
   if (NULL == pFuncs) {
     return TSDB_CODE_SUCCESS;
@@ -2194,6 +2184,113 @@ static int32_t checkTableRollupOption(STranslateContext* pCxt, SNodeList* pFuncs
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROLLUP_OPTION);
   }
   return TSDB_CODE_SUCCESS;
+}
+
+static int32_t checkTableTagsSchema(STranslateContext* pCxt, SHashObj* pHash, SNodeList* pTags) {
+  int32_t ntags = LIST_LENGTH(pTags);
+  if (0 == ntags) {
+    return TSDB_CODE_SUCCESS;
+  } else if (ntags > TSDB_MAX_TAGS) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_NUM);
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+  int32_t tagsSize = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pTags) {
+    SColumnDefNode* pTag = (SColumnDefNode*)pNode;
+    int32_t         len = strlen(pTag->colName);
+    if (NULL != taosHashGet(pHash, pTag->colName, len)) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+    }
+    if (TSDB_CODE_SUCCESS == code && pTag->dataType.type == TSDB_DATA_TYPE_JSON && ntags > 1) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if ((TSDB_DATA_TYPE_VARCHAR == pTag->dataType.type && pTag->dataType.bytes > TSDB_MAX_BINARY_LEN) ||
+          (TSDB_DATA_TYPE_NCHAR == pTag->dataType.type && pTag->dataType.bytes > TSDB_MAX_NCHAR_LEN)) {
+        code = code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = taosHashPut(pHash, pTag->colName, len, &pTag, POINTER_BYTES);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      tagsSize += pTag->dataType.bytes;
+    } else {
+      break;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && tagsSize > TSDB_MAX_TAGS_LEN) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TAGS_LENGTH, TSDB_MAX_TAGS_LEN);
+  }
+
+  return code;
+}
+
+static int32_t checkTableColsSchema(STranslateContext* pCxt, SHashObj* pHash, SNodeList* pCols) {
+  int32_t ncols = LIST_LENGTH(pCols);
+  if (ncols < TSDB_MIN_COLUMNS) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMNS_NUM);
+  } else if (ncols > TSDB_MAX_COLUMNS) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_TOO_MANY_COLUMNS);
+  }
+
+  int32_t code = TSDB_CODE_SUCCESS;
+
+  bool    first = true;
+  int32_t rowSize = 0;
+  SNode*  pNode = NULL;
+  FOREACH(pNode, pCols) {
+    SColumnDefNode* pCol = (SColumnDefNode*)pNode;
+    if (first) {
+      first = false;
+      if (TSDB_DATA_TYPE_TIMESTAMP != pCol->dataType.type) {
+        code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FIRST_COLUMN);
+      }
+    }
+    int32_t len = strlen(pCol->colName);
+    if (TSDB_CODE_SUCCESS == code && NULL != taosHashGet(pHash, pCol->colName, len)) {
+      code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DUPLICATED_COLUMN);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      if ((TSDB_DATA_TYPE_VARCHAR == pCol->dataType.type && pCol->dataType.bytes > TSDB_MAX_BINARY_LEN) ||
+          (TSDB_DATA_TYPE_NCHAR == pCol->dataType.type && pCol->dataType.bytes > TSDB_MAX_NCHAR_LEN)) {
+        code = code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN);
+      }
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = taosHashPut(pHash, pCol->colName, len, &pCol, POINTER_BYTES);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      rowSize += pCol->dataType.bytes;
+    } else {
+      break;
+    }
+  }
+
+  if (TSDB_CODE_SUCCESS == code && rowSize > TSDB_MAX_BYTES_PER_ROW) {
+    code = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ROW_LENGTH, TSDB_MAX_BYTES_PER_ROW);
+  }
+
+  return code;
+}
+
+static int32_t checkTableSchema(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
+  SHashObj* pHash = taosHashInit(LIST_LENGTH(pStmt->pTags) + LIST_LENGTH(pStmt->pCols),
+                                 taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if (NULL == pHash) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t code = checkTableTagsSchema(pCxt, pHash, pStmt->pTags);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = checkTableColsSchema(pCxt, pHash, pStmt->pCols);
+  }
+
+  taosHashCleanup(pHash);
+  return code;
 }
 
 static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt) {
@@ -2211,7 +2308,7 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
     code = checkTableSmaOption(pCxt, pStmt);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = checkTableTags(pCxt, pStmt);
+    code = checkTableSchema(pCxt, pStmt);
   }
   return code;
 }
@@ -2500,7 +2597,7 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
                                    pStmt->ignoreNotExists);
 }
 
-static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterReq) {
+static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterReq) {
   pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
   if (NULL == pAlterReq->pFields) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2532,17 +2629,17 @@ static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterRe
       break;
   }
 
+  pAlterReq->numOfFields = taosArrayGetSize(pAlterReq->pFields);
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
-  SMAltertbReq alterReq = {0};
-  SName        tableName;
+  SMAlterStbReq alterReq = {0};
+  SName         tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), alterReq.name);
   alterReq.alterType = pStmt->alterType;
-  alterReq.numOfFields = 1;
-  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
-    // todo
+  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType) {
+    return TSDB_CODE_FAILED;
   } else {
     if (TSDB_CODE_SUCCESS != setAlterTableField(pStmt, &alterReq)) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -2926,6 +3023,12 @@ static int32_t translateKillQuery(STranslateContext* pCxt, SKillStmt* pStmt) {
   return buildCmdMsg(pCxt, TDMT_MND_KILL_QUERY, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
+static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStmt) {
+  SKillTransReq killReq = {0};
+  killReq.transId = pStmt->targetId;
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_TRANS, (FSerializeFunc)tSerializeSKillTransReq, &killReq);
+}
+
 static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SCMCreateStreamReq createReq = {0};
 
@@ -3024,6 +3127,38 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   return code;
 }
 
+static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
+  SAlterUserReq req = {0};
+  if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
+      (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
+       PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
+    req.alterType = TSDB_ALTER_USER_ADD_ALL_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
+    req.alterType = TSDB_ALTER_USER_ADD_READ_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
+    req.alterType = TSDB_ALTER_USER_ADD_WRITE_DB;
+  }
+  strcpy(req.user, pStmt->userName);
+  strcpy(req.dbname, pStmt->dbName);
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+}
+
+static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
+  SAlterUserReq req = {0};
+  if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
+      (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
+       PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
+    req.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
+    req.alterType = TSDB_ALTER_USER_REMOVE_READ_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
+    req.alterType = TSDB_ALTER_USER_REMOVE_WRITE_DB;
+  }
+  strcpy(req.user, pStmt->userName);
+  strcpy(req.dbname, pStmt->dbName);
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -3119,6 +3254,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_KILL_QUERY_STMT:
       code = translateKillQuery(pCxt, (SKillStmt*)pNode);
       break;
+    case QUERY_NODE_KILL_TRANSACTION_STMT:
+      code = translateKillTransaction(pCxt, (SKillStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_STREAM_STMT:
       code = translateCreateStream(pCxt, (SCreateStreamStmt*)pNode);
       break;
@@ -3127,6 +3265,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
+      break;
+    case QUERY_NODE_GRANT_STMT:
+      code = translateGrant(pCxt, (SGrantStmt*)pNode);
+      break;
+    case QUERY_NODE_REVOKE_STMT:
+      code = translateRevoke(pCxt, (SRevokeStmt*)pNode);
       break;
     default:
       break;
@@ -3248,6 +3392,7 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return TSDB_PERFORMANCE_SCHEMA_DB;
     default:
       break;
@@ -3295,6 +3440,8 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_PERFS_TABLE_QUERIES;
     case QUERY_NODE_SHOW_TOPICS_STMT:
       return TSDB_PERFS_TABLE_TOPICS;
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+      return TSDB_PERFS_TABLE_TRANS;
     default:
       break;
   }
@@ -3460,8 +3607,8 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 }
 
 static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -3474,9 +3621,9 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVCreateTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {
@@ -3838,6 +3985,10 @@ static int32_t buildDropTableVgroupHashmap(STranslateContext* pCxt, SDropTableCl
     goto over;
   }
 
+  if (TSDB_CODE_PAR_TABLE_NOT_EXIST == code && pClause->ignoreNotExists) {
+    code = TSDB_CODE_SUCCESS;
+  }
+
   *pIsSuperTable = false;
 
   SVgroupInfo info = {0};
@@ -3856,8 +4007,8 @@ over:
 static void destroyDropTbReqBatch(SVgroupDropTableBatch* pTbBatch) { taosArrayDestroy(pTbBatch->req.pArray); }
 
 static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVDropTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -3870,9 +4021,9 @@ static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SA
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVDropTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {

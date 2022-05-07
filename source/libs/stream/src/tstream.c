@@ -256,7 +256,7 @@ SStreamTask* tNewSStreamTask(int64_t streamId) {
   return pTask;
 }
 
-int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
+int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   /*if (tStartEncode(pEncoder) < 0) return -1;*/
   if (tEncodeI64(pEncoder, pTask->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
@@ -301,7 +301,7 @@ int32_t tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask) {
   return pEncoder->pos;
 }
 
-int32_t tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask) {
+int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   /*if (tStartDecode(pDecoder) < 0) return -1;*/
   if (tDecodeI64(pDecoder, &pTask->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;

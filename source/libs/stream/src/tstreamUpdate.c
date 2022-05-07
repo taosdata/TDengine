@@ -138,7 +138,7 @@ static SScalableBf* getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   return res;
 }
 
-bool isUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts) {
+bool updateInfoIsUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts) {
   int32_t res = TSDB_CODE_FAILED;
   uint64_t index = ((uint64_t)tableId) % pInfo->numBuckets;
   SScalableBf* pSBf = getSBf(pInfo, ts);

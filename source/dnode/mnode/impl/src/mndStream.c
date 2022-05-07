@@ -70,14 +70,14 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   void *buf = NULL;
 
-  SCoder encoder;
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+  SEncoder encoder;
+  tEncoderInit(&encoder, NULL, 0);
   if (tEncodeSStreamObj(&encoder, pStream) < 0) {
-    tCoderClear(&encoder);
+    tEncoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
   int32_t tlen = encoder.pos;
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
   int32_t  size = sizeof(int32_t) + tlen + MND_STREAM_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STREAM, MND_STREAM_VER_NUMBER, size);
@@ -86,12 +86,12 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto STREAM_ENCODE_OVER;
 
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, tlen, TD_ENCODER);
+  tEncoderInit(&encoder, buf, tlen);
   if (tEncodeSStreamObj(&encoder, pStream) < 0) {
-    tCoderClear(&encoder);
+    tEncoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, tlen, STREAM_ENCODE_OVER);
@@ -138,8 +138,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   if (buf == NULL) goto STREAM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, STREAM_DECODE_OVER);
 
-  SCoder decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, tlen + 1, TD_DECODER);
+  SDecoder decoder;
+  tDecoderInit(&decoder, buf, tlen + 1);
   if (tDecodeSStreamObj(&decoder, pStream) < 0) {
     goto STREAM_DECODE_OVER;
   }
@@ -290,6 +290,86 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
   return 0;
 }
 
+static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStreamObj *pStream, const char *user) {
+  SStbObj  *pStb = NULL;
+  SDbObj   *pDb = NULL;
+  SUserObj *pUser = NULL;
+
+  SMCreateStbReq createReq = {0};
+  tstrncpy(createReq.name, pStream->targetSTbName, TSDB_TABLE_FNAME_LEN);
+  createReq.numOfColumns = pStream->outputSchema.nCols;
+  createReq.numOfTags = 1;  // group id
+  createReq.pColumns = taosArrayInit(createReq.numOfColumns, sizeof(SField));
+  // build fields
+  taosArraySetSize(createReq.pColumns, createReq.numOfColumns);
+  for (int32_t i = 0; i < createReq.numOfColumns; i++) {
+    SField *pField = taosArrayGet(createReq.pColumns, i);
+    tstrncpy(pField->name, pStream->outputSchema.pSchema[i].name, TSDB_COL_NAME_LEN);
+    pField->flags = pStream->outputSchema.pSchema[i].flags;
+    pField->type = pStream->outputSchema.pSchema[i].type;
+    pField->bytes = pStream->outputSchema.pSchema[i].bytes;
+  }
+  createReq.pTags = taosArrayInit(createReq.numOfTags, sizeof(SField));
+  taosArraySetSize(createReq.pTags, 1);
+  // build tags
+  SField *pField = taosArrayGet(createReq.pTags, 0);
+  strcpy(pField->name, "group_id");
+  pField->type = TSDB_DATA_TYPE_UBIGINT;
+  pField->flags = 0;
+  pField->bytes = 8;
+
+  if (mndCheckCreateStbReq(&createReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    goto _OVER;
+  }
+
+  pStb = mndAcquireStb(pMnode, createReq.name);
+  if (pStb != NULL) {
+    terrno = TSDB_CODE_MND_STB_ALREADY_EXIST;
+    goto _OVER;
+  }
+
+  pDb = mndAcquireDbByStb(pMnode, createReq.name);
+  if (pDb == NULL) {
+    terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
+    goto _OVER;
+  }
+
+  pUser = mndAcquireUser(pMnode, user);
+  if (pUser == NULL) {
+    goto _OVER;
+  }
+
+  if (mndCheckWriteAuth(pUser, pDb) != 0) {
+    goto _OVER;
+  }
+
+  int32_t numOfStbs = -1;
+  if (mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs) != 0) {
+    goto _OVER;
+  }
+
+  if (pDb->cfg.numOfStables == 1 && numOfStbs != 0) {
+    terrno = TSDB_CODE_MND_SINGLE_STB_MODE_DB;
+    goto _OVER;
+  }
+
+  SStbObj stbObj = {0};
+
+  if (mndBuildStbFromReq(pMnode, &stbObj, &createReq, pDb) != 0) {
+    goto _OVER;
+  }
+
+  if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
+
+  return 0;
+_OVER:
+  mndReleaseStb(pMnode, pStb);
+  mndReleaseDb(pMnode, pDb);
+  mndReleaseUser(pMnode, pUser);
+  return -1;
+}
+
 static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamReq *pCreate, SDbObj *pDb) {
   mDebug("stream:%s to create", pCreate->name);
   SStreamObj streamObj = {0};
@@ -307,11 +387,10 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.fixedSinkVgId = 0;
   streamObj.smaId = 0;
   /*streamObj.physicalPlan = "";*/
-  streamObj.logicalPlan = "not implemented";
   streamObj.trigger = pCreate->triggerType;
   streamObj.waterMark = pCreate->watermark;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_STREAM, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("stream:%s, failed to create since %s", pCreate->name, terrstr());
     return -1;
@@ -320,6 +399,12 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
 
   if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, pCreate->triggerType, pCreate->watermark, pTrans) != 0) {
     mError("trans:%d, failed to add stream since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  if (streamObj.targetSTbName[0] && mndCreateStbForStream(pMnode, pTrans, &streamObj, pReq->user) < 0) {
+    mError("trans:%d, failed to create stb for stream since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }

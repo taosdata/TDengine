@@ -29,6 +29,8 @@ extern "C" {
 #define TSKEY_MAX         (INT64_MAX - 1)
 #define TSKEY_INITIAL_VAL TSKEY_MIN
 
+#define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
+
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
 
@@ -84,9 +86,13 @@ extern const int32_t TYPE_BYTES[15];
 #define TS_PATH_DELIMITER "."
 #define TS_ESCAPE_CHAR    '`'
 
+
 #define TSDB_TIME_PRECISION_MILLI 0
 #define TSDB_TIME_PRECISION_MICRO 1
 #define TSDB_TIME_PRECISION_NANO  2
+#define TSDB_TIME_PRECISION_HOURS   3
+#define TSDB_TIME_PRECISION_MINUTES 4
+#define TSDB_TIME_PRECISION_SECONDS 5
 
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"

@@ -161,7 +161,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
       tqReadHandleSetMsg(pReader, pReq, 0);
       while (tqNextDataBlock(pReader)) {
         SSDataBlock block = {0};
-        if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.rows,
+        if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                                 &block.info.numOfCols) < 0) {
           ASSERT(0);
         }
@@ -540,7 +540,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         tqReadHandleSetMsg(pReader, pCont, 0);
         while (tqNextDataBlock(pReader)) {
           SSDataBlock block = {0};
-          if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.rows,
+          if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                                   &block.info.numOfCols) < 0) {
             ASSERT(0);
           }
@@ -910,12 +910,12 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   if (pTask == NULL) {
     return -1;
   }
-  SCoder decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, (uint8_t*)msg, msgLen, TD_DECODER);
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   if (tDecodeSStreamTask(&decoder, pTask) < 0) {
     ASSERT(0);
   }
-  tCoderClear(&decoder);
+  tDecoderClear(&decoder);
 
   // exec
   if (tqExpandTask(pTq, pTask, 4) < 0) {

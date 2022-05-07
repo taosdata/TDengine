@@ -331,8 +331,8 @@ SyncPing* syncPingDeserialize2(const char* buf, uint32_t len) {
 }
 
 int32_t syncPingSerialize3(const SyncPing* pMsg, char* buf, int32_t bufLen) {
-  SCoder encoder = {0};
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
   if (tStartEncode(&encoder) < 0) {
     return -1;
   }
@@ -367,13 +367,13 @@ int32_t syncPingSerialize3(const SyncPing* pMsg, char* buf, int32_t bufLen) {
 
   tEndEncode(&encoder);
   int32_t tlen = encoder.pos;
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
   return tlen;
 }
 
 SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen) {
-  SCoder decoder = {0};
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
   if (tStartDecode(&decoder) < 0) {
     return NULL;
   }
@@ -409,16 +409,16 @@ SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen) {
   if (tDecodeU32(&decoder, &pMsg->dataLen) < 0) {
     return NULL;
   }
-  uint64_t len;
+  uint32_t len;
   char*    data = NULL;
-  if (tDecodeBinary(&decoder, (const void**)(&data), &len) < 0) {
+  if (tDecodeBinary(&decoder, (const uint8_t**)(&data), &len) < 0) {
     return NULL;
   }
   assert(len = pMsg->dataLen);
   memcpy(pMsg->data, data, len);
 
   tEndDecode(&decoder);
-  tCoderClear(&decoder);
+  tDecoderClear(&decoder);
   return pMsg;
 }
 
@@ -590,8 +590,8 @@ SyncPingReply* syncPingReplyDeserialize2(const char* buf, uint32_t len) {
 }
 
 int32_t syncPingReplySerialize3(const SyncPingReply* pMsg, char* buf, int32_t bufLen) {
-  SCoder encoder = {0};
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
   if (tStartEncode(&encoder) < 0) {
     return -1;
   }
@@ -626,13 +626,13 @@ int32_t syncPingReplySerialize3(const SyncPingReply* pMsg, char* buf, int32_t bu
 
   tEndEncode(&encoder);
   int32_t tlen = encoder.pos;
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
   return tlen;
 }
 
 SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen) {
-  SCoder decoder = {0};
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
   if (tStartDecode(&decoder) < 0) {
     return NULL;
   }
@@ -668,16 +668,16 @@ SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen) {
   if (tDecodeU32(&decoder, &pMsg->dataLen) < 0) {
     return NULL;
   }
-  uint64_t len;
+  uint32_t len;
   char*    data = NULL;
-  if (tDecodeBinary(&decoder, (const void**)(&data), &len) < 0) {
+  if (tDecodeBinary(&decoder, (const uint8_t**)(&data), &len) < 0) {
     return NULL;
   }
   assert(len = pMsg->dataLen);
   memcpy(pMsg->data, data, len);
 
   tEndDecode(&decoder);
-  tCoderClear(&decoder);
+  tDecoderClear(&decoder);
   return pMsg;
 }
 

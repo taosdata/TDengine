@@ -22,7 +22,7 @@
 #include "trpc.h"
 
 SSchedulerMgmt schMgmt = {
-  .jobRef = -1,
+    .jobRef = -1,
 };
 
 FORCE_INLINE SSchJob *schAcquireJob(int64_t refId) { return (SSchJob *)taosAcquireRef(schMgmt.jobRef, refId); }
@@ -72,7 +72,7 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
 int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray *pNodeList, const char *sql,
                    int64_t startTs, bool syncSchedule) {
   int32_t  code = 0;
-  int64_t refId = -1;
+  int64_t  refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
   if (NULL == pJob) {
     qError("QID:%" PRIx64 " calloc %d failed", pDag->queryId, (int32_t)sizeof(SSchJob));
@@ -124,7 +124,7 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray 
   }
 
   atomic_add_fetch_32(&schMgmt.jobNum, 1);
-  
+
   if (NULL == schAcquireJob(refId)) {
     SCH_JOB_ELOG("schAcquireJob job failed, refId:%" PRIx64, refId);
     SCH_ERR_JRET(TSDB_CODE_SCH_STATUS_ERROR);
@@ -1085,19 +1085,22 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_CREATE_TABLE_RSP: {
       SVCreateTbBatchRsp batchRsp = {0};
       if (msg) {
-        SCH_ERR_JRET(tDeserializeSVCreateTbBatchRsp(msg, msgSize, &batchRsp));
-        if (batchRsp.pArray) {
-          int32_t num = taosArrayGetSize(batchRsp.pArray);
-          for (int32_t i = 0; i < num; ++i) {
-            SVCreateTbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+        SDecoder coder = {0};
+        tDecoderInit(&coder, msg, msgSize);
+        code = tDecodeSVCreateTbBatchRsp(&coder, &batchRsp);
+        if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
+          for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
+            SVCreateTbRsp *rsp = batchRsp.pRsps + i;
             if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              taosArrayDestroy(batchRsp.pArray);
+              tDecoderClear(&coder);
               SCH_ERR_JRET(rsp->code);
+            } else if (TSDB_CODE_SUCCESS != rsp->code) {
+              code = rsp->code;
             }
           }
-
-          taosArrayDestroy(batchRsp.pArray);
         }
+        tDecoderClear(&coder);
+        SCH_ERR_JRET(code);
       }
 
       SCH_ERR_JRET(rspCode);
@@ -1107,20 +1110,21 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_DROP_TABLE_RSP: {
       SVDropTbBatchRsp batchRsp = {0};
       if (msg) {
-        SCoder coder = {0};
-        tCoderInit(&coder, TD_LITTLE_ENDIAN, msg, msgSize, TD_DECODER);
+        SDecoder coder = {0};
+        tDecoderInit(&coder, msg, msgSize);
         code = tDecodeSVDropTbBatchRsp(&coder, &batchRsp);
-        if (TSDB_CODE_SUCCESS == code && batchRsp.pArray) {
-          int32_t num = taosArrayGetSize(batchRsp.pArray);
-          for (int32_t i = 0; i < num; ++i) {
-            SVDropTbRsp *rsp = taosArrayGet(batchRsp.pArray, i);
+        if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
+          for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
+            SVDropTbRsp *rsp = batchRsp.pRsps + i;
             if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              tCoderClear(&coder);
+              tDecoderClear(&coder);
               SCH_ERR_JRET(rsp->code);
+            } else if (TSDB_CODE_SUCCESS != rsp->code) {
+              code = rsp->code;
             }
           }
         }
-        tCoderClear(&coder);
+        tDecoderClear(&coder);
         SCH_ERR_JRET(code);
       }
 
@@ -2282,10 +2286,10 @@ int32_t schCancelJob(SSchJob *pJob) {
 }
 
 void schCloseJobRef(void) {
-  if (!atomic_load_8((int8_t*)&schMgmt.exit)) {
+  if (!atomic_load_8((int8_t *)&schMgmt.exit)) {
     return;
   }
-  
+
   SCH_LOCK(SCH_WRITE, &schMgmt.lock);
   if (atomic_load_32(&schMgmt.jobNum) <= 0 && schMgmt.jobRef >= 0) {
     taosCloseRef(schMgmt.jobRef);
@@ -2791,8 +2795,8 @@ void schedulerFreeTaskList(SArray *taskList) {
 }
 
 void schedulerDestroy(void) {
-  atomic_store_8((int8_t*)&schMgmt.exit, 1);
-  
+  atomic_store_8((int8_t *)&schMgmt.exit, 1);
+
   if (schMgmt.jobRef >= 0) {
     SSchJob *pJob = taosIterateRef(schMgmt.jobRef, 0);
     int64_t  refId = 0;

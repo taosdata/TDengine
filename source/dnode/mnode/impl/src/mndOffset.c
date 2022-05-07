@@ -157,8 +157,8 @@ static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
   SMnode              *pMnode = pMsg->pNode;
   char                *msgStr = pMsg->rpcMsg.pCont;
   SMqCMCommitOffsetReq commitOffsetReq;
-  SCoder               decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, msgStr, pMsg->rpcMsg.contLen, TD_DECODER);
+  SDecoder             decoder;
+  tDecoderInit(&decoder, msgStr, pMsg->rpcMsg.contLen);
 
   tDecodeSMqCMCommitOffsetReq(&decoder, &commitOffsetReq);
 

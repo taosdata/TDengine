@@ -136,6 +136,7 @@ int tdbBtreePGet(SBTree *pBt, const void *pKey, int kLen, void **ppKey, int *pkL
 // SBTC
 int tdbBtcOpen(SBTC *pBtc, SBTree *pBt, TXN *pTxn);
 int tdbBtcClose(SBTC *pBtc);
+int tdbBtcIsValid(SBTC *pBtc);
 int tdbBtcMoveTo(SBTC *pBtc, const void *pKey, int kLen, int *pCRst);
 int tdbBtcMoveToFirst(SBTC *pBtc);
 int tdbBtcMoveToLast(SBTC *pBtc);
