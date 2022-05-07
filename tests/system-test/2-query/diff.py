@@ -31,26 +31,26 @@ class TDTestCase:
         tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
         tdSql.execute("create table stb_1 using stb tags('beijing')")
-        # tdSql.execute("insert into stb_1 values(%d, 0, 0, 0, 0, 0.0, 0.0, False, ' ', ' ', 0, 0, 0, 0)" % (self.ts - 1))
+        tdSql.execute("insert into stb_1 values(%d, 0, 0, 0, 0, 0.0, 0.0, False, ' ', ' ', 0, 0, 0, 0)" % (self.ts - 1))
         
-        # # diff verifacation 
-        # tdSql.query("select diff(col1) from stb_1")
-        # tdSql.checkRows(0)
+        # diff verifacation 
+        tdSql.query("select diff(col1) from stb_1")
+        tdSql.checkRows(0)
         
-        # tdSql.query("select diff(col2) from stb_1")
-        # tdSql.checkRows(0)
+        tdSql.query("select diff(col2) from stb_1")
+        tdSql.checkRows(0)
 
-        # tdSql.query("select diff(col3) from stb_1")
-        # tdSql.checkRows(0)
+        tdSql.query("select diff(col3) from stb_1")
+        tdSql.checkRows(0)
 
-        # tdSql.query("select diff(col4) from stb_1")
-        # tdSql.checkRows(0)
+        tdSql.query("select diff(col4) from stb_1")
+        tdSql.checkRows(0)
 
-        # tdSql.query("select diff(col5) from stb_1")
-        # tdSql.checkRows(0)
+        tdSql.query("select diff(col5) from stb_1")
+        tdSql.checkRows(0)
 
-        # tdSql.query("select diff(col6) from stb_1")
-        # tdSql.checkRows(0)
+        tdSql.query("select diff(col6) from stb_1")
+        tdSql.checkRows(0)
 
         for i in range(self.rowNum):
             tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
