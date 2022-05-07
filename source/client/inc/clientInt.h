@@ -310,6 +310,7 @@ void hbMgrInitMqHbRspHandle();
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery);
 int32_t      getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList);
 int32_t      scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList);
+int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest);
 
 #ifdef __cplusplus
 }

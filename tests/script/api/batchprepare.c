@@ -11,7 +11,7 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_DOUBLE};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_NCHAR};
 int32_t optrIdxList[] = {0, 1, 2};
 
 typedef struct {
@@ -235,7 +235,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindColTypeList = NULL,
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
-  .checkParamNum = true,
+  .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
@@ -795,7 +795,7 @@ int32_t prepareQueryCondData(BindData *data, int32_t tblIdx) {
     }
   }
 
-  generateQuerySQL(data, tblIdx);
+  generateQueryCondSQL(data, tblIdx);
   
   return 0;
 }

@@ -586,6 +586,16 @@ int stmtExec(TAOS_STMT *stmt) {
     STMT_ERR_RET(qBuildStmtOutput(pStmt->sql.pQuery, pStmt->exec.pVgHash, pStmt->exec.pBlockHash));
     launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, TSDB_CODE_SUCCESS, true);
   }
+
+  if (pStmt->exec.pRequest->code && NEED_CLIENT_HANDLE_ERROR(pStmt->exec.pRequest->code)) {
+    code = refreshMeta(pStmt->exec.pRequest->pTscObj, pStmt->exec.pRequest);
+    if (code) {
+      pStmt->exec.pRequest->code = code;
+    } else {
+      STMT_ERR_RET(stmtResetStmt(pStmt));
+      STMT_ERR_RET(TSDB_CODE_NEED_RETRY);
+    }
+  }
   
   STMT_ERR_JRET(pStmt->exec.pRequest->code);
 
@@ -613,13 +623,11 @@ int stmtClose(TAOS_STMT *stmt) {
 const char *stmtErrstr(TAOS_STMT *stmt) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  if (stmt == NULL) {
+  if (stmt == NULL || NULL == pStmt->exec.pRequest) {
     return (char*) tstrerror(terrno);
   }
 
-  if (pStmt->exec.pRequest) {
-    pStmt->exec.pRequest->code = terrno;
-  }
+  pStmt->exec.pRequest->code = terrno;
 
   return taos_errstr(pStmt->exec.pRequest);
 }

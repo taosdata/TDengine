@@ -537,7 +537,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
       goto _exit;
     }
 
-    rsp.numOfRows += nRows;
+    rsp.affectedRows += nRows;
   }
 
 _exit:
