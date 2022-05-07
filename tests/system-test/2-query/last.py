@@ -316,12 +316,12 @@ class TDTestCase:
         tdSql.query("select last(col8) from db.ntb")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'taosdata10')
-        # tdSql.query("select last(col9) from ntb")
-        # tdSql.checkRows(1)
-        # tdSql.checkData(0, 0, '涛思数据10')
-        # tdSql.query("select last(col9) from db.ntb")
-        # tdSql.checkRows(1)
-        # tdSql.checkData(0, 0, '涛思数据10')
+        tdSql.query("select last(col9) from ntb")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '涛思数据10')
+        tdSql.query("select last(col9) from db.ntb")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '涛思数据10')
  
     def stop(self):
         tdSql.close()
