@@ -83,14 +83,14 @@ class TDTestCase:
 
             for n in range(len(groups)):
                 tdSql.query(f"select  {','.join(condition)}  from {tbname} {where_condition}  {groups[n]} ")
+                rows = tdSql.queryRows
                 concat_data = []
-                for m in range(tdSql.queryRows):
+                for m in range(rows):
                     concat_data.append("".join(tdSql.queryResult[m])) if tdSql.getData(m, 0) else concat_data.append(None)
                 tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {concat_groups[n]} ")
+                tdSql.checkRows(rows)
                 for j in range(tdSql.queryRows):
-                    tdSql.checkData(j, 0, concat_data[j]) if concat_data[j] else tdSql.checkData(j, 0, None)
-
-
+                    assert tdSql.getData(j, 0) in concat_data
 
 
     def __concat_err_check(self,tbname):
