@@ -66,4 +66,4 @@ endi
 
 #sql drop function udf1;
 #sql drop function udf2;
-system sh/exec.sh -n dnode1 -s stop -x SIGKILL
+system sh/exec.sh -n dnode1 -s stop -x SIGTERM
