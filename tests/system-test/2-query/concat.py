@@ -125,7 +125,7 @@ class TDTestCase:
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
-            self.__concat_current_check(tb)
+            self.__concat_current_check(tb,2)
             tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
