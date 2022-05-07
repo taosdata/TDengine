@@ -1446,11 +1446,6 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
   // initial value is not set yet
   if (numOfElems <= 0) {
-    /*
-     * 1. current block and blocks before are full of null
-     * 2. current block may be null value
-     */
-    assert(pCtx->hasNull);
     return 0;
   } else {
     return (isFirstBlock) ? numOfElems - 1 : numOfElems;
