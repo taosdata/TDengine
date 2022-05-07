@@ -71,7 +71,6 @@ class TDTestCase:
     def __concat_current_check(self, tbname, num):
         concat_condition = self.__concat_condition()
         for i in range(len(concat_condition) - num + 1 ):
-            print(len(concat_condition))
             condition = self.__concat_num(concat_condition[i:], num)
             where_condition = self.__where_condition(condition[0])
             group_having = self.__group_condition(condition[0], having=f"{condition} is not null " )
