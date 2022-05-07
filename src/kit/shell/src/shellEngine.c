@@ -45,6 +45,9 @@ SShellHistory history;
 extern int32_t tsMaxBinaryDisplayWidth;
 extern TAOS *  taos_connect_auth(const char *ip, const char *user, const char *auth, const char *db, uint16_t port);
 
+static int  calcColWidth(TAOS_FIELD *field, int precision);
+static void printHeader(TAOS_FIELD *fields, int *width, int num_fields);
+static void printJsonField(cJSON *json, TAOS_FIELD *field, int width, int32_t length, int precision);
 /*
  * FUNCTION: Initialize the shell.
  */
@@ -256,6 +259,106 @@ void freeResultWithRid(int64_t rid) {
   }
 }
 
+int parseHttpResponse(char *response_buffer, int64_t st, int64_t et) {
+  cJSON *root = cJSON_Parse(response_buffer);
+  if (root == NULL) {
+    fprintf(stderr, "fail to parse response into json: %s\n", response_buffer);
+    return -1;
+  }
+  cJSON *status = cJSON_GetObjectItem(root, "status");
+  if (cJSON_IsString(status)) {
+    if (0 == strcasecmp(status->valuestring, "error")) {
+      cJSON *desc = cJSON_GetObjectItem(root, "desc");
+      if (cJSON_IsString(desc)) {
+        fprintf(stdout, "error: %s(%.6fs)\n", desc->valuestring, (et - st) / 1E6);
+        return -1;
+      } else {
+        fprintf(stderr, "fail to get desc from error response: %s\n", response_buffer);
+        return -1;
+      }
+    } else if (0 == strcasecmp(status->valuestring, "succ")) {
+      int    count;
+      cJSON *head = cJSON_GetObjectItem(root, "head");
+      if (cJSON_IsArray(head)) {
+        count = cJSON_GetArraySize(head);
+      } else {
+        fprintf(stderr, "fail to get head from response: %s", response_buffer);
+        return -1;
+      }
+      TAOS_FIELD *fields = calloc(count, sizeof(TAOS_FIELD));
+      cJSON *     column_meta = cJSON_GetObjectItem(root, "column_meta");
+      if (cJSON_IsArray(column_meta)) {
+        cJSON *iter = column_meta->child;
+        int    index = 0;
+        while (iter) {
+          strcpy(fields[index].name, iter->child->valuestring);
+          fields[index].type = (uint8_t)iter->child->next->valueint;
+          fields[index].bytes = (int16_t)iter->child->next->next->valueint;
+          iter = iter->next;
+          index += 1;
+        }
+      } else {
+        fprintf(stderr, "fail to get column_meta from response: %s", response_buffer);
+        return -1;
+      }
+      int width[TSDB_MAX_COLUMNS];
+      for (int col = 0; col < count; ++col) {
+        width[col] = calcColWidth(fields + col, TSDB_TIME_PRECISION_NANO);
+      }
+      printHeader(fields, width, count);
+      cJSON *data = cJSON_GetObjectItem(root, "data");
+      if (cJSON_IsArray(data)) {
+        int    showed = 0;
+        cJSON *iter = data->child;
+        while (iter) {
+          int    index = 0;
+          cJSON *child_iter = iter->child;
+          while (child_iter) {
+            putchar(' ');
+            printJsonField(child_iter, fields + index, width[index], fields[index].bytes, TSDB_TIME_PRECISION_NANO);
+            putchar(' ');
+            putchar('|');
+            child_iter = child_iter->next;
+            index += 1;
+          }
+          fprintf(stdout, "\n");
+          iter = iter->next;
+          showed += 1;
+          if (showed >= DEFAULT_RES_SHOW_NUM) {
+            printf("\n");
+            printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+            printf("         You can use the `LIMIT` clause to get fewer result to show.\n");
+            printf("           Or use '>>' to redirect the whole set of the result to a specified file.\n");
+            printf("\n");
+            printf("         You can use Ctrl+C to stop the underway fetching.\n");
+            printf("\n");
+            break;
+          }
+        }
+      } else {
+        fprintf(stderr, "fail to get data from response: %s", response_buffer);
+        return -1;
+      }
+      free(fields);
+      cJSON *rows = cJSON_GetObjectItem(root, "rows");
+      if (cJSON_IsNumber(rows)) {
+        printf("Query OK, %d row(s) in set (%.6fs)\n\n", (int)rows->valueint, (et - st) / 1E6);
+      } else {
+        fprintf(stderr, "fail to get rows from response:\n %s", response_buffer);
+        return -1;
+      }
+    } else {
+      fprintf(stderr, "cannot recognize status: %s\n", status->valuestring);
+      return -1;
+    }
+  } else {
+    fprintf(stderr, "fail to get status from response: %s\n", response_buffer);
+    return -1;
+  }
+  cJSON_Delete(root);
+  return 0;
+}
+
 void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
@@ -329,132 +432,54 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
       sent += bytes;
     } while (sent < req_str_len);
     free(request_buffer);
-    int rep_str_len = 4096;
     received = 0;
     bool  chunked = false;
-    char *response_buffer = calloc(1, 4096);
+    char *receive_buffer = calloc(1, 4096);
+    int   receive_size = 4096;
     do {
-      bytes = read(args.socket, response_buffer + received, rep_str_len - received);
-      if (strstr(response_buffer, "Encoding: chunked") != NULL) {
+      bytes = read(args.socket, receive_buffer + received, receive_size - received);
+      received += bytes;
+      if (NULL != strstr(receive_buffer, "Transfer-Encoding: chunked")) {
         chunked = true;
       }
-      int index = strlen(response_buffer) - 1;
-      while (response_buffer[index] == '\n' || response_buffer[index] == '\r') {
-        index--;
-      }
-      if (chunked && response_buffer[index] == '0') {
-        response_buffer[index] = '\0';
+      if (chunked && (NULL != strstr(receive_buffer, "\r\n0\r\n"))) {
         break;
       }
-      if (!chunked && response_buffer[index] == '}') {
+      if (!chunked && (NULL != strstr(receive_buffer, "}"))) {
         break;
       }
-      if (bytes < 0) {
-        fprintf(stderr, "read no message from socket");
-        exit(EXIT_FAILURE);
+      if (received >= receive_size) {
+        receive_size += 4096;
+        receive_buffer = realloc(receive_buffer, receive_size);
       }
-      if (bytes == 0) {
-        break;
-      }
-      received += bytes;
-    } while (received < rep_str_len);
+    } while (1);
     et = taosGetTimestampUs();
-    char *tmp;
-    if (chunked) {
-      tmp = strstr(response_buffer, "chunked\r\n\r\n");
-      if (NULL == tmp) {
-        fprintf(stderr, "fail to parse response: %s", response_buffer);
-        return;
-      }
-      tmp = strstr(tmp + 11, "\r\n");
-      if (NULL == tmp) {
-        fprintf(stderr, "fail to parse response: %s", response_buffer);
-        return;
-      }
-      cJSON *root = cJSON_Parse(tmp + 2);
-      if (root == NULL) {
-        fprintf(stderr, "fail to parse response into json: %s", tmp + 2);
-        return;
-      }
-      int    count = 0;
-      cJSON *head = cJSON_GetObjectItem(root, "head");
-      if (cJSON_IsArray(head)) {
-        count = cJSON_GetArraySize(head);
-      } else {
-        fprintf(stderr, "faild to get head from response: %s", tmp + 2);
-        return;
-      }
-      int *  column_types = calloc(count, sizeof(int));
-      cJSON *column_meta = cJSON_GetObjectItem(root, "column_meta");
-      if (cJSON_IsArray(column_meta)) {
-        cJSON *iter = column_meta->child;
-        int    index = 0;
-        while (iter) {
-          column_types[index] = iter->child->next->valueint;
-          fprintf(stdout, "%s\t", iter->child->valuestring);
-          iter = iter->next;
-          index += 1;
-        }
-      } else {
-        fprintf(stderr, "fail to get column_meta from response: %s", tmp + 2);
-        return;
-      }
-      fprintf(stdout, "\n");
-      cJSON *data = cJSON_GetObjectItem(root, "data");
-      if (cJSON_IsArray(data)) {
-        cJSON *iter = data->child;
-        while (iter) {
-          int    index = 0;
-          cJSON *child_iter = iter->child;
-          while (child_iter) {
-            if (column_types[index] == 9 || column_types[index] == 8 || column_types[index] == 10) {
-              fprintf(stdout, "%s\t", child_iter->valuestring);
-            } else if (column_types[index] == 6 || column_types[index] == 7) {
-              fprintf(stdout, "%f\t", child_iter->valuedouble);
-            } else {
-              fprintf(stdout, " % " PRId64 "\t", child_iter->valueint);
-            }
-            child_iter = child_iter->next;
-            index += 1;
-          }
-          fprintf(stdout, "\n");
-          iter = iter->next;
-        }
-      } else {
-        fprintf(stderr, "fail to get data from response: %s", tmp + 2);
-        return;
-      }
-      free(column_types);
-      fflush(stdout);
-      cJSON *rows = cJSON_GetObjectItem(root, "rows");
-      if (cJSON_IsNumber(rows)) {
-        printf("Query OK, %d row(s) in set (%.6fs)\n", (int)rows->valueint, (et - st) / 1E6);
-      } else {
-        fprintf(stderr, "fail to get rows from response: %s", tmp + 2);
-        return;
-      }
-      cJSON_Delete(root);
-    } else {
-      tmp = strstr(response_buffer, "{");
-      if (tmp != NULL) {
-        cJSON *root = cJSON_Parse(tmp);
-        if (root == NULL) {
-          fprintf(stderr, "fail to parse response: %s", tmp);
-        } else {
-          cJSON *desc = cJSON_GetObjectItem(root, "desc");
-          if (cJSON_IsString(desc)) {
-            fprintf(stdout, "%s\n", desc->valuestring);
-          } else {
-            fprintf(stderr, "fail to find desc in response: %s", tmp);
-          }
-        }
-        cJSON_Delete(root);
-      } else {
-        fprintf(stderr, "error in response format: %s", response_buffer);
-        return;
-      }
+    char *start = strstr(receive_buffer, "\r\n{");
+    if (start == NULL) {
+      fprintf(stderr, "failed to parse: \n %s", receive_buffer);
+      free(receive_buffer);
+      return;
     }
-    printf("\n");
+    int   pos = 0;
+    char *response_buffer = calloc(1, strlen(start) + 1);
+    do {
+      char *end = strstr(start + 2, "\r\n");
+      if (end == NULL) {
+        strcpy(response_buffer, start);
+        break;
+      }
+      strncpy(response_buffer + pos, start + 2, end - start - 2);
+      pos += end - start - 2;
+      start = strstr(end + 2, "\r\n");
+      if ((start - end) == 3 && end[2] == '0') {
+        break;
+      }
+    } while (1);
+    free(receive_buffer);
+    if (parseHttpResponse(response_buffer, st, et)) {
+      free(response_buffer);
+      return;
+    }
     free(response_buffer);
   } else {
     st = taosGetTimestampUs();
@@ -865,6 +890,61 @@ static void printField(const char *val, TAOS_FIELD *field, int width, int32_t le
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
       formatTimestamp(buf, *(int64_t *)val, precision);
+      printf("%s", buf);
+      break;
+    default:
+      break;
+  }
+}
+
+static void printJsonField(cJSON *json, TAOS_FIELD *field, int width, int32_t length, int precision) {
+  if (json == NULL) {
+    int w = width;
+    if (field->type == TSDB_DATA_TYPE_BINARY || field->type == TSDB_DATA_TYPE_NCHAR ||
+        field->type == TSDB_DATA_TYPE_TIMESTAMP) {
+      w = 0;
+    }
+    w = printf("%*s", w, TSDB_DATA_NULL_STR);
+    for (; w < width; w++) {
+      putchar(' ');
+    }
+    return;
+  }
+
+  int  n;
+  char buf[TSDB_MAX_BYTES_PER_ROW];
+  switch (field->type) {
+    case TSDB_DATA_TYPE_BOOL:
+      printf("%*s", width, ((json->valueint == 1) ? "true" : "false"));
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+    case TSDB_DATA_TYPE_UTINYINT:
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+    case TSDB_DATA_TYPE_INT:
+    case TSDB_DATA_TYPE_UINT:
+    case TSDB_DATA_TYPE_BIGINT:
+    case TSDB_DATA_TYPE_UBIGINT:
+      printf("%*" PRId64, width, json->valueint);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      printf("%*.5f", width, json->valuedouble);
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, json->valuedouble);
+      if (n > MAX(25, width)) {
+        printf("%*.15e", width, json->valuedouble);
+      } else {
+        printf("%s", buf);
+      }
+      break;
+    case TSDB_DATA_TYPE_BINARY:
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
+      shellPrintNChar(json->valuestring, length, width);
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      formatTimestamp(buf, *(int64_t *)json->valuestring, precision);
       printf("%s", buf);
       break;
     default:
