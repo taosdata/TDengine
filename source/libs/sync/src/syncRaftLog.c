@@ -57,8 +57,13 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   syncMeta.seqNum = pEntry->seqNum;
   syncMeta.term = pEntry->term;
   code = walWriteWithSyncInfo(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
-  if (code < 0) perror("wal write error: ");
-  assert(code == 0);
+  if (code != 0) {
+    int32_t err = terrno;
+    const char *errStr = tstrerror(err);
+    sError("walWriteWithSyncInfo error, err:%d, msg:%s", err, errStr);
+    ASSERT(0);
+  }    
+  //assert(code == 0);
 
   walFsync(pWal, true);
   return code;
@@ -70,7 +75,14 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
     SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    assert(walReadWithHandle(pWalHandle, index) == 0);
+    int32_t code = walReadWithHandle(pWalHandle, index);
+    if (code != 0) {
+      int32_t err = terrno;
+      const char *errStr = tstrerror(err);
+      sError("walReadWithHandle error, err:%d, msg:%s", err, errStr);
+      ASSERT(0);
+    }    
+    //assert(walReadWithHandle(pWalHandle, index) == 0);
 
     SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
     assert(pEntry != NULL);
