@@ -1,4 +1,3 @@
-from pyparsing import nums
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -73,10 +72,13 @@ class TDTestCase:
         concat_condition = self.__concat_condition()
         for i in range(len(concat_condition) - num + 1 ):
             condition = self.__concat_num(concat_condition[i:], num)
+            concat_filter = f"concat( {','.join( condition ) }) "
             where_condition = self.__where_condition(condition[0])
-            group_having = self.__group_condition(condition[0], having=f"{condition[0]} is not null " )
-            group_no_having= self.__group_condition(condition[0] )
-            groups = ["", group_having, group_no_having]
+            # group_having = self.__group_condition(condition[0], having=f"{condition[0]} is not null " )
+            concat_group_having = self.__group_condition(concat_filter, having=f"{concat_filter} is not null " )
+            # group_no_having= self.__group_condition(condition[0] )
+            concat_group_no_having= self.__group_condition(concat_filter)
+            groups = ["", concat_group_having, concat_group_no_having]
 
             if num > 8 or num < 2 :
                 [tdSql.error(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
