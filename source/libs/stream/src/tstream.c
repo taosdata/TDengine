@@ -154,10 +154,10 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   if (pTask->sinkType == TASK_SINK__TABLE) {
     /*blockDebugShowData(pRes);*/
     ASSERT(pTask->tbSink.pTSchema);
-    SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema);
+    SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, false, pTask->tbSink.stbUid);
     tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
-    pTask->smaSink.smaHandle(pTask->ahandle, pTask->smaSink.smaId, pRes);
+    pTask->smaSink.smaSink(pTask->ahandle, pTask->smaSink.smaId, pRes);
     //
   } else if (pTask->sinkType == TASK_SINK__FETCH) {
     //
@@ -276,7 +276,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   }
 
   if (pTask->sinkType == TASK_SINK__TABLE) {
-    /*if (tEncodeI8(pEncoder, pTask->tbSink.reserved) < 0) return -1;*/
+    if (tEncodeI64(pEncoder, pTask->tbSink.stbUid) < 0) return -1;
     if (tEncodeSSchemaWrapper(pEncoder, pTask->tbSink.pSchemaWrapper) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     if (tEncodeI64(pEncoder, pTask->smaSink.smaId) < 0) return -1;
@@ -321,7 +321,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   }
 
   if (pTask->sinkType == TASK_SINK__TABLE) {
-    /*if (tDecodeI8(pDecoder, &pTask->tbSink.reserved) < 0) return -1;*/
+    if (tDecodeI64(pDecoder, &pTask->tbSink.stbUid) < 0) return -1;
     pTask->tbSink.pSchemaWrapper = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
     if (pTask->tbSink.pSchemaWrapper == NULL) return -1;
     if (tDecodeSSchemaWrapper(pDecoder, pTask->tbSink.pSchemaWrapper) < 0) return -1;
