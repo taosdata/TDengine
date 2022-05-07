@@ -73,7 +73,7 @@ class TDTestCase:
         for i in range(len(concat_condition) - num + 1 ):
             condition = self.__concat_num(concat_condition[i:], num)
             where_condition = self.__where_condition(condition[0])
-            group_having = self.__group_condition(condition[0], having=f"{condition} is not null " )
+            group_having = self.__group_condition(condition[0], having=f"{condition[0]} is not null " )
             group_no_having= self.__group_condition(condition[0] )
             groups = ["", group_having, group_no_having]
 
