@@ -5209,6 +5209,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
+  (*pTaskInfo)->plan = pPlan;
   return code;
 
 _complete:
@@ -5311,7 +5312,6 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
   //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
 
-  destroyOperatorInfo(pTaskInfo->pRoot);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);
