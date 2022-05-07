@@ -1964,6 +1964,9 @@ bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultIn
   }
   char* binDesc = varDataVal(pCtx->param[2].param.pz);
   int64_t normalized = pCtx->param[3].param.i;
+  if (normalized != 0 && normalized != 1) {
+    return false;
+  }
   if (!getHistogramBinDesc(pInfo, binDesc, binType, (bool)normalized)) {
     return false;
   }
