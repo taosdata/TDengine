@@ -21,7 +21,7 @@
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndShow.h"
-#include "mndStb.c"
+#include "mndStb.h"
 #include "mndStream.h"
 #include "mndTrans.h"
 #include "mndUser.h"
