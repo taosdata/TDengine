@@ -533,6 +533,13 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
         }
       }
 
+      msgIter.uid = createTbReq.uid;
+      if (createTbReq.type == TSDB_CHILD_TABLE) {
+        msgIter.suid = createTbReq.ctb.suid;
+      } else {
+        msgIter.suid = 0;
+      }
+
       tCoderClear(&coder);
     }
 
