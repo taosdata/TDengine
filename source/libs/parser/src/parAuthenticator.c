@@ -52,9 +52,18 @@ static int32_t authSelect(SAuthCxt* pCxt, SSelectStmt* pSelect) {
   return pCxt->errCode;
 }
 
+static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
+  int32_t code = authQuery(pCxt, pSetOper->pLeft);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = authQuery(pCxt, pSetOper->pRight);
+  }
+  return code;
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
+      return authSetOperator(pCxt, (SSetOperator*)pStmt);
     case QUERY_NODE_SELECT_STMT:
       return authSelect(pCxt, (SSelectStmt*)pStmt);
     case QUERY_NODE_VNODE_MODIF_STMT:
