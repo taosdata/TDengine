@@ -1707,7 +1707,7 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
     }
 
     // 1. set the parsed value from sql string
-    for (int c = 0; c < spd->numOfBound; ++c) {
+    for (int c = 0, j = 0; c < spd->numOfBound; ++c) {
       SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
 
       param.schema = pColSchema;
@@ -1715,20 +1715,14 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
 
       SSmlKv *kv = NULL;
       if(format){
-        do{
-          if(rowDataSize >= c){
-            break;
+        if(j < rowDataSize){
+          kv = taosArrayGetP(rowData, j);
+          if (rowDataSize != spd->numOfBound && (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)){
+            kv = NULL;
+          }else{
+            j++;
           }
-          kv = taosArrayGetP(rowData, c);
-          if (rowDataSize != spd->numOfBound && kv && (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)){
-            MemRowAppend(&pBuf, NULL, 0, &param);
-            c++;
-            if(c >= spd->numOfBound) break;
-            pColSchema = &pSchema[spd->boundColumns[c] - 1];
-            continue;
-          }
-          break;
-        }while(1);
+        }
       }else{
         void **p =taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));
         if(p) kv = *p;
