@@ -412,11 +412,6 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  if (alterReq.pass[0] == 0) {
-    terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
-    goto _OVER;
-  }
-
   pUser = mndAcquireUser(pMnode, alterReq.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_USER_NOT_EXIST;

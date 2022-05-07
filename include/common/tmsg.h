@@ -135,6 +135,8 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_ADD_WRITE_DB    0x6
 #define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x7
 #define TSDB_ALTER_USER_CLEAR_WRITE_DB  0x8
+#define TSDB_ALTER_USER_ADD_ALL_DB      0x9
+#define TSDB_ALTER_USER_REMOVE_ALL_DB   0xA
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -672,7 +674,6 @@ typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
 } SUseDbBatchRsp;
 
-
 int32_t tSerializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 int32_t tDeserializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 void    tFreeSUseDbBatchRsp(SUseDbBatchRsp* pRsp);
@@ -684,7 +685,6 @@ typedef struct {
 int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
-
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
