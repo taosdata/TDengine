@@ -241,7 +241,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  pFunc->node.resType = (SDataType) { .bytes = 512, .type = TSDB_DATA_TYPE_BINARY };
   return TSDB_CODE_SUCCESS;
 }
 
@@ -473,7 +473,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .invertFunc   = countInvertFunction
   },
   {
     .name = "sum",
@@ -484,7 +485,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .invertFunc   = sumInvertFunction
   },
   {
     .name = "min",
@@ -516,7 +518,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
-    .finalizeFunc = stddevFinalize
+    .finalizeFunc = stddevFinalize,
+    .invertFunc   = stddevInvertFunction
   },
   {
     .name = "avg",
@@ -526,7 +529,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
-    .finalizeFunc = avgFinalize
+    .finalizeFunc = avgFinalize,
+    .invertFunc   = avgInvertFunction
   },
   {
     .name = "percentile",

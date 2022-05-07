@@ -22,7 +22,7 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
 }
 
 void metaReaderClear(SMetaReader *pReader) {
-  tCoderClear(&pReader->coder);
+  tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
 }
 
@@ -37,7 +37,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   }
 
   // decode the entry
-  tCoderInit(&pReader->coder, TD_LITTLE_ENDIAN, pReader->pBuf, pReader->szBuf, TD_DECODER);
+  tDecoderInit(&pReader->coder, pReader->pBuf, pReader->szBuf);
 
   if (metaDecodeEntry(&pReader->coder, &pReader->me) < 0) {
     goto _err;
@@ -147,7 +147,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   SSchemaWrapper *pSW = NULL;
   SSchema        *pSchema = NULL;
   void           *pBuf;
-  SCoder          coder = {0};
+  SDecoder        coder = {0};
 
   // fetch
   skmDbKey.uid = uid;
@@ -163,11 +163,11 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   pBuf = pVal;
   pSW = taosMemoryMalloc(sizeof(SSchemaWrapper));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_DECODER);
+  tDecoderInit(&coder, pVal, vLen);
   tDecodeSSchemaWrapper(&coder, pSW);
   pSchema = taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
   memcpy(pSchema, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
-  tCoderClear(&coder);
+  tDecoderClear(&coder);
 
   pSW->pSchema = pSchema;
 

@@ -412,7 +412,7 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  if (alterReq.pass[0] == 0) {
+  if (TSDB_ALTER_USER_PASSWD == alterReq.alterType && alterReq.pass[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_PASS_FORMAT;
     goto _OVER;
   }

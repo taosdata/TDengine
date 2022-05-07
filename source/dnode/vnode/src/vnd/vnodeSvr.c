@@ -286,7 +286,7 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
   SVCreateStbReq req = {0};
-  SCoder         coder;
+  SDecoder       coder;
 
   pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -294,7 +294,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
   pRsp->contLen = 0;
 
   // decode and process req
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
+  tDecoderInit(&coder, pReq, len);
 
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
     pRsp->code = terrno;
@@ -308,16 +308,16 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
 
   tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &req);
 
-  tCoderClear(&coder);
+  tDecoderClear(&coder);
   return 0;
 
 _err:
-  tCoderClear(&coder);
+  tDecoderClear(&coder);
   return -1;
 }
 
 static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
-  SCoder             coder = {0};
+  SDecoder           decoder = {0};
   int                rcode = 0;
   SVCreateTbBatchReq req = {0};
   SVCreateTbReq     *pCreateReq;
@@ -332,8 +332,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   pRsp->contLen = 0;
 
   // decode
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
-  if (tDecodeSVCreateTbBatchReq(&coder, &req) < 0) {
+  tDecoderInit(&decoder, pReq, len);
+  if (tDecodeSVCreateTbBatchReq(&decoder, &req) < 0) {
     rcode = -1;
     terrno = TSDB_CODE_INVALID_MSG;
     goto _exit;
@@ -360,7 +360,11 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
     // do create table
     if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
-      cRsp.code = terrno;
+      if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+        cRsp.code = TSDB_CODE_SUCCESS;
+      } else {
+        cRsp.code = terrno;
+      }
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
       tsdbFetchTbUidList(pVnode->pTsdb, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
@@ -369,13 +373,14 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     taosArrayPush(rsp.pArray, &cRsp);
   }
 
-  tCoderClear(&coder);
+  tDecoderClear(&decoder);
 
   tsdbUpdateTbUidList(pVnode->pTsdb, pStore);
   tsdbUidStoreFree(pStore);
 
   // prepare rsp
-  int32_t ret = 0;
+  SEncoder encoder = {0};
+  int32_t  ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   if (pRsp->pCont == NULL) {
@@ -383,12 +388,14 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     rcode = -1;
     goto _exit;
   }
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pRsp->pCont, pRsp->contLen, TD_ENCODER);
-  tEncodeSVCreateTbBatchRsp(&coder, &rsp);
+  tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
+  tEncodeSVCreateTbBatchRsp(&encoder, &rsp);
+  tEncoderClear(&encoder);
 
 _exit:
   taosArrayClear(rsp.pArray);
-  tCoderClear(&coder);
+  tDecoderClear(&decoder);
+  tEncoderClear(&encoder);
   return rcode;
 }
 
@@ -412,15 +419,15 @@ static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpc
 static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVDropStbReq req = {0};
   int          rcode = TSDB_CODE_SUCCESS;
-  SCoder       coder = {0};
+  SDecoder     decoder = {0};
 
   pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
   // decode request
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
-  if (tDecodeSVDropStbReq(&coder, &req) < 0) {
+  tDecoderInit(&decoder, pReq, len);
+  if (tDecodeSVDropStbReq(&decoder, &req) < 0) {
     rcode = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -434,7 +441,7 @@ static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, i
   // return rsp
 _exit:
   pRsp->code = rcode;
-  tCoderClear(&coder);
+  tDecoderClear(&decoder);
   return 0;
 }
 
@@ -447,7 +454,7 @@ static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcM
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVDropTbBatchReq req = {0};
   SVDropTbBatchRsp rsp = {0};
-  SCoder           coder = {0};
+  SDecoder         decoder = {0};
   int              ret;
 
   pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
@@ -456,8 +463,8 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   pRsp->code = TSDB_CODE_SUCCESS;
 
   // decode req
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
-  ret = tDecodeSVDropTbBatchReq(&coder, &req);
+  tDecoderInit(&decoder, pReq, len);
+  ret = tDecodeSVDropTbBatchReq(&decoder, &req);
   if (ret < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     pRsp->code = terrno;
@@ -486,7 +493,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   }
 
 _exit:
-  tCoderClear(&coder);
+  tDecoderClear(&decoder);
   // encode rsp (TODO)
   return 0;
 }
@@ -497,7 +504,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   SSubmitBlk    *pBlock;
   SSubmitRsp     rsp = {0};
   SVCreateTbReq  createTbReq = {0};
-  SCoder         coder = {0};
+  SDecoder       decoder = {0};
   int32_t        nRows;
 
   pRsp->code = 0;
@@ -514,22 +521,29 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 
     // create table for auto create table mode
     if (msgIter.schemaLen > 0) {
-      tCoderInit(&coder, TD_LITTLE_ENDIAN, pBlock->data, msgIter.schemaLen, TD_DECODER);
-      if (tDecodeSVCreateTbReq(&coder, &createTbReq) < 0) {
+      tDecoderInit(&decoder, pBlock->data, msgIter.schemaLen);
+      if (tDecodeSVCreateTbReq(&decoder, &createTbReq) < 0) {
         pRsp->code = TSDB_CODE_INVALID_MSG;
-        tCoderClear(&coder);
+        tDecoderClear(&decoder);
         goto _exit;
       }
 
       if (metaCreateTable(pVnode->pMeta, version, &createTbReq) < 0) {
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
           pRsp->code = terrno;
-          tCoderClear(&coder);
+          tDecoderClear(&decoder);
           goto _exit;
         }
       }
 
-      tCoderClear(&coder);
+      msgIter.uid = createTbReq.uid;
+      if (createTbReq.type == TSDB_CHILD_TABLE) {
+        msgIter.suid = createTbReq.ctb.suid;
+      } else {
+        msgIter.suid = 0;
+      }
+
+      tDecoderClear(&decoder);
     }
 
     if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &nRows) < 0) {
