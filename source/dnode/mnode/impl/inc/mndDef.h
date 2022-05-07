@@ -72,7 +72,7 @@ typedef enum {
   TRN_TYPE_DROP_USER = 1003,
   TRN_TYPE_CREATE_FUNC = 1004,
   TRN_TYPE_DROP_FUNC = 1005,
-  
+
   TRN_TYPE_CREATE_SNODE = 1006,
   TRN_TYPE_DROP_SNODE = 1007,
   TRN_TYPE_CREATE_QNODE = 1008,
@@ -601,7 +601,6 @@ typedef struct {
   int32_t        triggerParam;
   int64_t        waterMark;
   char*          sql;
-  char*          logicalPlan;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;
