@@ -308,20 +308,20 @@ static int32_t tfSearchRegex(void* reader, SIndexTerm* tem, SIdxTempResult* tr) 
 }
 
 static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTempResult* tr, RangeType type) {
-  bool     hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
-  int      ret = 0;
-  char*    p = tem->colVal;
-  uint64_t sz = tem->nColVal;
+  bool  hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(tem->colType, TSDB_DATA_TYPE_JSON);
+  int   ret = 0;
+  char* p = tem->colVal;
+  int   skip = 0;
+
   if (hasJson) {
-    p = indexPackJsonData(tem);
-    sz = strlen(p);
+    p = indexPackJsonDataPrefix(tem, &skip);
   }
   SArray* offsets = taosArrayInit(16, sizeof(uint64_t));
 
   AutomationCtx*    ctx = automCtxCreate((void*)p, AUTOMATION_ALWAYS);
   FstStreamBuilder* sb = fstSearch(((TFileReader*)reader)->fst, ctx);
 
-  FstSlice h = fstSliceCreate((uint8_t*)p, sz);
+  FstSlice h = fstSliceCreate((uint8_t*)p, skip);
   fstStreamBuilderSetRange(sb, &h, type);
   fstSliceDestroy(&h);
 
@@ -606,16 +606,16 @@ static bool tfileIteratorNext(Iterate* iiter) {
 static IterateValue* tifileIterateGetValue(Iterate* iter) { return &iter->val; }
 
 static TFileFstIter* tfileFstIteratorCreate(TFileReader* reader) {
-  TFileFstIter* tIter = taosMemoryCalloc(1, sizeof(TFileFstIter));
-  if (tIter == NULL) {
+  TFileFstIter* iter = taosMemoryCalloc(1, sizeof(TFileFstIter));
+  if (iter == NULL) {
     return NULL;
   }
 
-  tIter->ctx = automCtxCreate(NULL, AUTOMATION_ALWAYS);
-  tIter->fb = fstSearch(reader->fst, tIter->ctx);
-  tIter->st = streamBuilderIntoStream(tIter->fb);
-  tIter->rdr = reader;
-  return tIter;
+  iter->ctx = automCtxCreate(NULL, AUTOMATION_ALWAYS);
+  iter->fb = fstSearch(reader->fst, iter->ctx);
+  iter->st = streamBuilderIntoStream(iter->fb);
+  iter->rdr = reader;
+  return iter;
 }
 
 Iterate* tfileIteratorCreate(TFileReader* reader) {

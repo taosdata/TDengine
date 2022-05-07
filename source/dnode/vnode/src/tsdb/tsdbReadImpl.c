@@ -246,6 +246,12 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
   return 0;
 }
 
+static FORCE_INLINE void tsdbSwapDataCols(SDataCols *pDest, SDataCols *pSrc) {
+  SDataCol *pCols = pDest->cols;
+  memcpy(pDest, pSrc, sizeof(SDataCols));
+  pSrc->cols = pCols;
+}
+
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   ASSERT(pBlock->numOfSubBlocks > 0);
   STsdbCfg *pCfg = REPO_CFG(pReadh->pRepo);
@@ -266,17 +272,29 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
   }
+  // if ((pBlock->numOfSubBlocks == 1) && (iBlock->hasDupKey)) { // TODO: use this line
+  if (pBlock->numOfSubBlocks == 1) {
+    tdResetDataCols(pReadh->pDCols[1]);
+    pReadh->pDCols[1]->bitmapMode = pReadh->pDCols[0]->bitmapMode;
+    if (tdMergeDataCols(pReadh->pDCols[1], pReadh->pDCols[0], pReadh->pDCols[0]->numOfRows, NULL,
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
+      return -1;
+    }
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
+    ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
+  }
 
-  ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
+  ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
 
   return 0;
 }
 
+// TODO: filter by Multi-Version
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
                           bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
@@ -297,9 +315,21 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
   }
+  // if ((pBlock->numOfSubBlocks == 1) && (iBlock->hasDupKey)) { // TODO: use this line
+  if (pBlock->numOfSubBlocks == 1) {
+    tdResetDataCols(pReadh->pDCols[1]);
+    pReadh->pDCols[1]->bitmapMode = pReadh->pDCols[0]->bitmapMode;
+    if (tdMergeDataCols(pReadh->pDCols[1], pReadh->pDCols[0], pReadh->pDCols[0]->numOfRows, NULL,
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
+      return -1;
+    }
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
+    ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
+  }
+
 
   if (mergeBitmap && !tdDataColsIsBitmapI(pReadh->pDCols[0])) {
     for (int i = 0; i < numOfColsIds; ++i) {
@@ -312,7 +342,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     }
   }
 
-  ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
+  ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
 
@@ -623,15 +653,15 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       }
 
       if (dcol != 0) {
-        ccol++;
+        ++ccol;
       }
-      dcol++;
+      ++dcol;
     } else if (tcolId < pDataCol->colId) {
-      ccol++;
+      ++ccol;
     } else {
       // Set current column as NULL and forward
       dataColReset(pDataCol);
-      dcol++;
+      ++dcol;
     }
   }
 

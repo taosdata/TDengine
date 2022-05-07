@@ -1478,11 +1478,11 @@ void blockDebugShowData(const SArray* dataBlocks) {
  * @param uid set as parameter temporarily // TODO: remove this parameter, and the executor should set uid in
  * SDataBlock->info.uid
  * @param suid  // TODO: check with Liao whether suid response is reasonable
- * 
+ *
  * TODO: colId should be set
  */
-int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema *pTSchema, int32_t vgId, tb_uid_t uid,
-                                        tb_uid_t suid) {
+int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
+                                    tb_uid_t uid, tb_uid_t suid) {
   int32_t sz = taosArrayGetSize(pDataBlocks);
   int32_t bufSize = sizeof(SSubmitReq);
   for (int32_t i = 0; i < sz; ++i) {
@@ -1494,16 +1494,16 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   ASSERT(bufSize < 3 * 1024 * 1024);
 
   *pReq = taosMemoryCalloc(1, bufSize);
-  if(!(*pReq)) {
+  if (!(*pReq)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return TSDB_CODE_FAILED;
   }
   void* pDataBuf = *pReq;
 
-  int32_t msgLen = sizeof(SSubmitReq);
+  int32_t     msgLen = sizeof(SSubmitReq);
   int32_t     numOfBlks = 0;
   SRowBuilder rb = {0};
-  tdSRowInit(&rb, 0); // TODO: use the latest version
+  tdSRowInit(&rb, 0);  // TODO: use the latest version
 
   for (int32_t i = 0; i < sz; ++i) {
     SSDataBlock* pDataBlock = taosArrayGet(pDataBlocks, i);
@@ -1511,8 +1511,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
     int32_t      rows = pDataBlock->info.rows;
     int32_t      rowSize = pDataBlock->info.rowSize;
     int64_t      groupId = pDataBlock->info.groupId;
-    
-    if(rb.nCols != colNum) {
+
+    if (rb.nCols != colNum) {
       tdSRowSetTpInfo(&rb, colNum, pTSchema->flen);
     }
 
@@ -1525,10 +1525,10 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
 
     msgLen += sizeof(SSubmitBlk);
     int32_t dataLen = 0;
-    for (int32_t j = 0; j < rows; ++j) {     // iterate by row
-      tdSRowResetBuf(&rb, POINTER_SHIFT(pDataBuf, msgLen)); // set row buf
+    for (int32_t j = 0; j < rows; ++j) {                     // iterate by row
+      tdSRowResetBuf(&rb, POINTER_SHIFT(pDataBuf, msgLen));  // set row buf
       printf("|");
-      bool  isStartKey = false;
+      bool isStartKey = false;
       for (int32_t k = 0; k < colNum; ++k) {  // iterate by column
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
@@ -1536,7 +1536,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
           case TSDB_DATA_TYPE_TIMESTAMP:
             if (!isStartKey) {
               isStartKey = true;
-              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true, 0, 0);
+              tdAppendColValToRow(&rb, PRIMARYKEY_TIMESTAMP_COL_ID, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true,
+                                  0, 0);
             } else {
               tdAppendColValToRow(&rb, 2, TSDB_DATA_TYPE_TIMESTAMP, TD_VTYPE_NORM, var, true, 8, k);
               break;
@@ -1629,14 +1630,14 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema) {
     blkHead->uid = htobe64(pDataBlock->info.uid);
 
     int32_t rows = pDataBlock->info.rows;
-    int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);
+    /*int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);*/
     /*blkHead->dataLen = htonl(rows * maxLen);*/
     blkHead->dataLen = 0;
 
     void*   blockData = POINTER_SHIFT(submitBlk, sizeof(SSubmitBlk));
     STSRow* rowData = blockData;
 
-    for (int32_t j = 0; j < pDataBlock->info.rows; j++) {
+    for (int32_t j = 0; j < rows; j++) {
       SRowBuilder rb = {0};
       tdSRowInit(&rb, pTSchema->version);
       tdSRowSetTpInfo(&rb, pTSchema->numOfCols, pTSchema->flen);
