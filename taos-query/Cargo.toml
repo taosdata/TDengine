@@ -10,6 +10,7 @@ anyhow = "1"
 chrono = { version = "0.4", features = ["serde"] }
 itertools = "0.10.3"
 log = "0.4"
+mdsn = { path = "../mdsn" }
 num_enum = "0.5.7"
 thiserror = "1.0"
 url = "2.2.2"
@@ -27,6 +28,8 @@ futures = "0.3.21"
 # column
 bitvec_simd = { version = "0.20.5", features = ["use_serde"] }
 
+r2d2 = { version = "0.8.9", optional = true }
+
 [dev-dependencies]
 pretty_env_logger = "*"
 rand = "*"
@@ -35,4 +38,5 @@ taos-macros = { path = "../taos-macros" }
 tokio = "1"
 
 [features]
+default = ["r2d2"]
 nightly = []

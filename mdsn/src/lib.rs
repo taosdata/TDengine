@@ -66,6 +66,7 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::num::ParseIntError;
+use std::ops::Deref;
 use std::str::FromStr;
 
 use itertools::Itertools;
@@ -85,6 +86,12 @@ pub enum DsnError {
     ParseErr(#[from] pest::error::Error<Rule>),
     #[error("unable to parse port from {0}")]
     PortErr(#[from] ParseIntError),
+    #[error("invalid driver {0}")]
+    InvalidDriver(String),
+    #[error("invalid connection {0}")]
+    InvalidConnection(String),
+    #[error("invalid addresses {0:?}")]
+    InvalidAddresses(Vec<Address>),
 }
 
 /// A simple struct to represent a server address, with host:port or socket path.
@@ -132,6 +139,31 @@ impl Address {
     }
 }
 
+impl FromStr for Address {
+    type Err = DsnError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let mut addr = Self::default();
+        if let Some(dsn) = DsnParser::parse(Rule::address, &s)?.next() {
+            for inner in dsn.into_inner() {
+                match inner.as_rule() {
+                    Rule::host => addr.host = Some(inner.as_str().to_string()),
+                    Rule::port => addr.port = Some(inner.as_str().parse()?),
+                    Rule::path => {
+                        addr.path = Some(
+                            urlencoding::decode(inner.as_str())
+                                .expect("UTF-8")
+                                .to_string(),
+                        )
+                    }
+                    _ => unreachable!(),
+                }
+            }
+        }
+        Ok(addr)
+    }
+}
+
 impl Display for Address {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match (&self.host, self.port, &self.path) {
@@ -143,6 +175,18 @@ impl Display for Address {
             _ => unreachable!("path will be conflict with host/port"),
         }
     }
+}
+
+#[test]
+fn addr_parse() {
+    let s = "taosdata:6030";
+    let addr = Address::from_str(s).unwrap();
+    assert_eq!(addr.to_string(), s);
+
+    let s = "/var/lib/taos";
+    let addr = Address::from_str(&urlencoding::encode(s)).unwrap();
+    assert_eq!(addr.path.as_ref().unwrap(), s);
+    assert_eq!(addr.to_string(), urlencoding::encode(s).deref());
 }
 
 /// A DSN(**Data Source Name**) parser.

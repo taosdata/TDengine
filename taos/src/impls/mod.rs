@@ -10,7 +10,7 @@ use itertools::Itertools;
 use taos_error::Code;
 use thiserror::Error;
 
-use taos_query::{common::*, BlockExt, Fetchable, Queryable};
+use taos_query::{common::*, Address, BlockExt, Dsn, DsnError, Fetchable, FromDsn, Queryable};
 use taos_sys::{DroppableRawRes, RawRes};
 
 use crate::{util::IntoCStr, Taos};
@@ -330,6 +330,42 @@ impl<'q> Queryable<'q> for Taos {
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<ResultSet<'q>, Self::Error> {
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
         Ok(ResultSet::new(raw))
+    }
+}
+
+impl FromDsn for Taos {
+    type Err = Error;
+
+    fn hygienize(dsn: Dsn) -> Result<(Dsn, Vec<Address>), DsnError> {
+        if dsn.driver != "taos" {
+            return Err(DsnError::InvalidDriver(dsn.driver));
+        }
+        Ok((dsn, vec![]))
+    }
+
+    fn from_dsn(dsn: &Dsn) -> Result<Self, Self::Err> {
+        if dsn.addresses.len() == 0 {
+            Ok(Taos::new(
+                (),
+                &dsn.username,
+                &dsn.password,
+                &dsn.database,
+                0,
+            )?)
+        } else {
+            let Address { host, port, .. } = &dsn.addresses[0];
+            Ok(Taos::new(
+                host,
+                &dsn.username,
+                &dsn.password,
+                &dsn.database,
+                port.unwrap_or_default(),
+            )?)
+        }
+    }
+
+    fn ping(_dsn: &Dsn) -> Result<(), Self::Err> {
+        Ok(())
     }
 }
 
