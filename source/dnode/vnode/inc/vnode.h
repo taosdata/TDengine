@@ -39,9 +39,10 @@ extern "C" {
 #endif
 
 // vnode
-typedef struct SVnode    SVnode;
-typedef struct STsdbCfg  STsdbCfg;  // todo: remove
-typedef struct SVnodeCfg SVnodeCfg;
+typedef struct SVnode       SVnode;
+typedef struct STsdbCfg     STsdbCfg;  // todo: remove
+typedef struct STsdbKeepCfg STsdbKeepCfg;
+typedef struct SVnodeCfg    SVnodeCfg;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -133,19 +134,25 @@ int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *p
 
 // structs
 struct STsdbCfg {
-  int8_t  precision;
-  int8_t  update;
-  int8_t  compression;
-  int8_t  slLevel;
+  int8_t     precision;
+  int8_t     update;
+  int8_t     compression;
+  int8_t     slLevel;
+  int32_t    minRows;
+  int32_t    maxRows;
+  int32_t    days;   // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
+  int32_t    keep0;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
+  int32_t    keep1;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
+  int32_t    keep2;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
+  SRetention retentions[TSDB_RETENTION_MAX];
+};
+
+struct STsdbKeepCfg {
+  int8_t  precision;  // precision always use with below cfg
   int32_t days;
-  int32_t minRows;
-  int32_t maxRows;
   int32_t keep0;
   int32_t keep1;
   int32_t keep2;
-  // TODO: save to tsdb cfg file
-  int8_t     type;  // ETsdbType
-  SRetention retentions[TSDB_RETENTION_MAX];
 };
 
 typedef enum {

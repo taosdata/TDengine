@@ -1013,8 +1013,8 @@ static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, int64_t indexUid, int32_t
  * @return int32_t
  */
 static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLevel) {
-  STsdbCfg *pCfg = REPO_CFG(pTsdb);
-  int32_t   daysPerFile = pCfg->days;
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pTsdb);
+  int32_t       daysPerFile = pCfg->days;
 
   if (storageLevel == SMA_STORAGE_LEVEL_TSDB) {
     int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerDay[pCfg->precision]);
