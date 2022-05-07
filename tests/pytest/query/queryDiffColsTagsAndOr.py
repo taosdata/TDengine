@@ -58,12 +58,12 @@ class TDTestCase:
         self.insertData(tb_name)
         return tb_name
 
-    def initStb(self):
+    def initStb(self, count=5):
         tdCom.cleanTb()
         tb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(
             f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned) tags (t1 tinyint, t2 smallint, t3 int, t4 bigint, t5 float, t6 double, t7 binary(100), t8 nchar(200), t9 bool, t10 tinyint unsigned, t11 smallint unsigned, t12 int unsigned, t13 bigint unsigned)")
-        for i in range(1, 6):    
+        for i in range(1, count+1):    
             tdSql.execute(
                 f'CREATE TABLE {tb_name}_sub_{i} using {tb_name} tags ({i}, {i}, {i}, {i}, {i}.{i}, {i}.{i}, "binary{i}", "nchar{i}", true, {i}, {i}, {i}, {i})')
             self.insertData(f'{tb_name}_sub_{i}')
@@ -1382,31 +1382,29 @@ class TDTestCase:
         tdSql.checkRows(2)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # # not in
-        # # ! bug TD-15327
-        # query_sql = f'select {select_elm} from {tb_name} where c9 not in ("true")'
-        # tdSql.query(query_sql)
-        # tdSql.checkRows(2)
-        # tdSql.checkEqual(self.queryLastC10(query_sql), 2) if select_elm == "*" else False
+        query_sql = f'select {select_elm} from {tb_name} where c9 not in (true)'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        # # ! bug TD-15327
         # # and
-        # query_sql = f'select {select_elm} from {tb_name} where c9 = true and c9 != "false" and c9 <> "binary" and c9 = "true" and c9 is not null and c9 in ("binary", true) and c9 not in ("binary")'
-        # tdSql.query(query_sql)
-        # tdSql.checkRows(1)
-        # tdSql.checkEqual(self.queryLastC10(query_sql), 8) if select_elm == "*" else False
+        query_sql = f'select {select_elm} from {tb_name} where c9 = true and c9 != "false" and c9 <> "binary" and c9 is not null and c9 in ("binary", true) and c9 not in ("binary")'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 9) if select_elm == "*" else False
         # # or
-        # query_sql = f'select {select_elm} from {tb_name} where c9 = true or c9 != "false" or c9 <> "binary" or c9 = "true" or c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
-        # tdSql.query(query_sql)
-        # tdSql.checkRows(2)
-        # tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        query_sql = f'select {select_elm} from {tb_name} where c9 = true or c9 != "false" or c9 <> "binary" or c9 = "true" or c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
         # # and or
-        # query_sql = f'select {select_elm} from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2) or c9 match "binary[28]" or c9 nmatch "binary"'
-        # tdSql.query(query_sql)
-        # tdSql.checkRows(11)
-        # tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
-        # query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2) or c9 match "binary[28]" or c9 nmatch "binary"'
-        # tdSql.query(query_sql)
-        # tdSql.checkRows(11)
+        query_sql = f'select {select_elm} from {tb_name} where c9 = true and c9 != "false" or c9 <> "binary" or c9 = "true" and c9 is not null or c9 in ("binary", true) or c9 not in ("binary")'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2) or c9 match "binary[28]" or c9 nmatch "binary"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
 
     def queryFullColType(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm
@@ -2017,7 +2015,7 @@ class TDTestCase:
         '''
             Super table full column type and operator
         '''
-        stb_name = self.initStb()
+        stb_name = self.initStb(count=1)
         tb_name = stb_name + "_sub_1"
         if check_elm is None:
             self.checkColType(tb_name, check_elm)
@@ -2112,14 +2110,14 @@ class TDTestCase:
         tdSql.prepare()
         column_name = random.choice(["c1", "c2", "c3", "c4", "c5", "c6", "c7", "c8", "c9", "c10", "c11", "c12", "c13"])
         for check_elm in [None, column_name]:
-            # self.checkTbColTypeOperator(check_elm)
+            self.checkTbColTypeOperator(check_elm)
             self.checkStbColTypeOperator(check_elm)
         # self.checkStbTagTypeOperator()
         # self.checkTbTsCol()
         # self.checkStbTsTol()
         # self.checkStbTsTag()
         # self.checkStbTsColTag()
-        # self.checkTbMultiExpression()
+        self.checkTbMultiExpression()
         # self.checkStbMultiExpression()
         # self.checkTbPreCal()
         # self.checkStbPreCal()
