@@ -279,6 +279,7 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
   int32_t     numOfBlocks = blocks->numOfTables;
   while (numOfBlocks--) {
     int32_t dataLen = blk->dataLen;
+    int32_t schemaLen = blk->schemaLen;
     blk->uid = htobe64(blk->uid);
     blk->suid = htobe64(blk->suid);
     blk->padding = htonl(blk->padding);
@@ -286,7 +287,7 @@ static void buildMsgHeader(STableDataBlocks* src, SVgDataBlocks* blocks) {
     blk->dataLen = htonl(blk->dataLen);
     blk->schemaLen = htonl(blk->schemaLen);
     blk->numOfRows = htons(blk->numOfRows);
-    blk = (SSubmitBlk*)(blk->data + dataLen);
+    blk = (SSubmitBlk*)(blk->data + schemaLen + dataLen);
   }
 }
 
