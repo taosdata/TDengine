@@ -1826,7 +1826,6 @@ static int8_t getHistogramBinType(char *binTypeStr) {
 
 static bool getHistogramBinDesc(SHistoFuncInfo *pInfo, char *binDescStr, int8_t binType, bool normalized) {
   cJSON*  binDesc = cJSON_Parse(binDescStr);
-  int32_t counter;
   int32_t numOfBins;
   double* intervals;
   if (cJSON_IsObject(binDesc)) { /* linaer/log bins */
@@ -1855,7 +1854,7 @@ static bool getHistogramBinDesc(SHistoFuncInfo *pInfo, char *binDescStr, int8_t 
       return false;
     }
 
-    counter = (int32_t)count->valueint;
+    int32_t counter = (int32_t)count->valueint;
     if (infinity->valueint == false) {
       startIndex = 0;
       numOfBins = counter + 1;
@@ -1915,7 +1914,7 @@ static bool getHistogramBinDesc(SHistoFuncInfo *pInfo, char *binDescStr, int8_t 
     if (binType != USER_INPUT_BIN) {
       return false;
     }
-    counter = numOfBins = cJSON_GetArraySize(binDesc);
+    numOfBins = cJSON_GetArraySize(binDesc);
     intervals = taosMemoryCalloc(numOfBins, sizeof(double));
     cJSON* bin = binDesc->child;
     if (bin == NULL) {
@@ -1940,9 +1939,9 @@ static bool getHistogramBinDesc(SHistoFuncInfo *pInfo, char *binDescStr, int8_t 
     return false;
   }
 
-  pInfo->numOfBins  = numOfBins;
+  pInfo->numOfBins  = numOfBins - 1;
   pInfo->normalized = normalized;
-  for (int32_t i = 0; i < numOfBins; ++i) {
+  for (int32_t i = 0; i < pInfo->numOfBins; ++i) {
     pInfo->bins[i].lower = intervals[i] < intervals[i + 1] ? intervals[i] : intervals[i + 1];
     pInfo->bins[i].upper = intervals[i + 1] > intervals[i] ? intervals[i + 1] : intervals[i];
     pInfo->bins[i].count = 0;
@@ -1989,6 +1988,8 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
       continue;
     }
 
+    numOfElems++;
+
     char* data = colDataGetData(pCol, i);
     double v;
     GET_TYPED_DATA(v, double, type, data);
@@ -1996,25 +1997,26 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
     for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
       if (v > pInfo->bins[k].lower && v <= pInfo->bins[k].upper) {
         pInfo->bins[k].count++;
-        numOfElems++;
         break;
       }
     }
   }
 
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, pInfo->numOfBins);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   int32_t currentRow = pBlock->info.rows;
 
-  for (int32_t i = 0; i < pInfo->numOfBins; ++i) {
+  for (int32_t i = 0; i < pResInfo->numOfRes; ++i) {
     int32_t len;
-    char buf[400] = {0};
+    char buf[512] = {0};
     if (!pInfo->normalized) {
       len = sprintf(buf + VARSTR_HEADER_SIZE, "{\"lower_bin\":%g, \"upper_bin\":%g, \"count\":%"PRId64"}",
                    pInfo->bins[i].lower, pInfo->bins[i].upper, pInfo->bins[i].count);
@@ -2027,5 +2029,5 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
     currentRow++;
   }
 
-  return functionFinalize(pCtx, pBlock);
+  return pResInfo->numOfRes;
 }
