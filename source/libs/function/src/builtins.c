@@ -487,7 +487,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .invertFunc   = countInvertFunction
   },
   {
     .name = "sum",
@@ -498,7 +499,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .invertFunc   = sumInvertFunction
   },
   {
     .name = "min",
@@ -530,7 +532,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
-    .finalizeFunc = stddevFinalize
+    .finalizeFunc = stddevFinalize,
+    .invertFunc   = stddevInvertFunction
   },
   {
     .name = "avg",
@@ -540,7 +543,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
-    .finalizeFunc = avgFinalize
+    .finalizeFunc = avgFinalize,
+    .invertFunc   = avgInvertFunction
   },
   {
     .name = "percentile",

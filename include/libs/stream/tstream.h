@@ -69,20 +69,24 @@ typedef struct {
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
+typedef void FTbSink(void* vnode, int64_t ver, const SArray* data);
+
 typedef struct {
-  int8_t          reserved;
+  int64_t         stbUid;
   SSchemaWrapper* pSchemaWrapper;
   // not applicable to encoder and decoder
+  void*     vnode;
+  FTbSink*  tbSinkFunc;
   STSchema* pTSchema;
   SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
-typedef void FSmaHandle(void* vnode, int64_t smaId, const SArray* data);
+typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
 
 typedef struct {
   int64_t smaId;
   // following are not applicable to encoder and decoder
-  FSmaHandle* smaHandle;
+  FSmaSink* smaSink;
 } STaskSinkSma;
 
 typedef struct {
@@ -154,8 +158,8 @@ typedef struct {
 } SStreamTask;
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
-int32_t      tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask);
-int32_t      tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask);
+int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
+int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 typedef struct {

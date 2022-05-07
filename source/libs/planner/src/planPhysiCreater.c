@@ -1333,13 +1333,11 @@ int32_t createPhysiPlan(SPlanContext* pCxt, SQueryLogicPlan* pLogicPlan, SQueryP
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = TSDB_CODE_SUCCESS;
-  if (tsQueryPolicy > QUERY_POLICY_VNODE) {
-    code = catalogGetQnodeList(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pExecNodeList);
+  if (QUERY_POLICY_VNODE == tsQueryPolicy) {
+    taosArrayClear(pExecNodeList);
   }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
-  }
+
+  int32_t code = doCreatePhysiPlan(&cxt, pLogicPlan, pPlan);
   if (TSDB_CODE_SUCCESS == code) {
     setExplainInfo(pCxt, *pPlan);
   }

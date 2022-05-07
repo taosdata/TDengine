@@ -9,40 +9,40 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   int64_t interval = 20 * 1000;
   int64_t watermark = 10 * 60 * 1000;
   SUpdateInfo *pSU = updateInfoInit(interval, TSDB_TIME_PRECISION_MILLI, watermark);
-  GTEST_ASSERT_EQ(isUpdated(pSU,1, 0), true);
-  GTEST_ASSERT_EQ(isUpdated(pSU,1, -1), true);
+  GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,1, 0), true);
+  GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,1, -1), true);
 
   for(int i=0; i < 1024; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU,i, 1), false);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,i, 1), false);
   }
   for(int i=0; i < 1024; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU,i, 1), true);
-  }
-
-  for(int i=0; i < 1024; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU,i, 2), false);
-  }
-  for(int i=0; i < 1024; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU,i, 2), true);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,i, 1), true);
   }
 
   for(int i=0; i < 1024; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU,i, 1), true);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,i, 2), false);
+  }
+  for(int i=0; i < 1024; i++) {
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,i, 2), true);
+  }
+
+  for(int i=0; i < 1024; i++) {
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,i, 1), true);
   }
 
   for(int i=3; i < 1024; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU,0, i), false);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,0, i), false);
   }
   GTEST_ASSERT_EQ(*(int64_t*)taosArrayGet(pSU->pTsBuckets,0), 1023);
 
   for(int i=3; i < 1024; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU,0, i), true);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU,0, i), true);
   }
   GTEST_ASSERT_EQ(*(int64_t*)taosArrayGet(pSU->pTsBuckets,0), 1023);
 
   SUpdateInfo *pSU1 = updateInfoInit(interval, TSDB_TIME_PRECISION_MILLI, watermark);
   for(int i=1; i <= watermark / interval; i++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU1, 1, i * interval + 5), false);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU1, 1, i * interval + 5), false);
     GTEST_ASSERT_EQ(pSU1->minTS, interval);
     GTEST_ASSERT_EQ(pSU1->numSBFs, watermark / interval);
   }
@@ -53,7 +53,7 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   }
 
   for(int i= watermark / interval + 1, j = 2 ; i <= watermark / interval + 10; i++,j++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU1, 1, i * interval + 5), false);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU1, 1, i * interval + 5), false);
     GTEST_ASSERT_EQ(pSU1->minTS, interval*j);
     GTEST_ASSERT_EQ(pSU1->numSBFs, watermark / interval);
     SScalableBf *pSBF = (SScalableBf *)taosArrayGetP(pSU1->pTsSBFs, pSU1->numSBFs - 1);
@@ -62,16 +62,16 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   }
   
   for(int i= watermark / interval * 100, j = 0; j < 10; i+= (watermark / interval * 2), j++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU1, 1, i * interval + 5), false);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU1, 1, i * interval + 5), false);
     GTEST_ASSERT_EQ(pSU1->minTS, (i-(pSU1->numSBFs-1))*interval);
     GTEST_ASSERT_EQ(pSU1->numSBFs, watermark / interval);
   }
 
   SUpdateInfo *pSU2 = updateInfoInit(interval, TSDB_TIME_PRECISION_MILLI, watermark);
-  GTEST_ASSERT_EQ(isUpdated(pSU2, 1, 1 * interval + 5), false);
+  GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU2, 1, 1 * interval + 5), false);
   GTEST_ASSERT_EQ(pSU2->minTS, interval);
   for(int i= watermark / interval * 100, j = 0; j < 10; i+= (watermark / interval * 10), j++) {
-    GTEST_ASSERT_EQ(isUpdated(pSU2, 1, i * interval + 5), false);
+    GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU2, 1, i * interval + 5), false);
     GTEST_ASSERT_EQ(pSU2->minTS, (i-(pSU2->numSBFs-1))*interval);
     GTEST_ASSERT_EQ(pSU2->numSBFs, watermark / interval);
     GTEST_ASSERT_EQ(*(int64_t*)taosArrayGet(pSU2->pTsBuckets,1), i * interval + 5);
@@ -80,7 +80,7 @@ TEST(TD_STREAM_UPDATE_TEST, update) {
   SUpdateInfo *pSU3 = updateInfoInit(interval, TSDB_TIME_PRECISION_MILLI, watermark);
   for(int j = 1; j < 100; j++) {
     for(int i = 0; i < pSU3->numSBFs; i++) {
-      GTEST_ASSERT_EQ(isUpdated(pSU3, i, i * interval + 5 * j), false);
+      GTEST_ASSERT_EQ(updateInfoIsUpdated(pSU3, i, i * interval + 5 * j), false);
       GTEST_ASSERT_EQ(pSU3->minTS, 0);
       GTEST_ASSERT_EQ(pSU3->numSBFs, watermark / interval);
       GTEST_ASSERT_EQ(*(int64_t*)taosArrayGet(pSU3->pTsBuckets, i), i * interval + 5 * j);

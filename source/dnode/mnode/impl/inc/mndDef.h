@@ -574,6 +574,7 @@ typedef struct {
   char           sourceDb[TSDB_DB_FNAME_LEN];
   char           targetDb[TSDB_DB_FNAME_LEN];
   char           targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t        targetStbUid;
   int64_t        createTime;
   int64_t        updateTime;
   int64_t        uid;
@@ -594,8 +595,8 @@ typedef struct {
   SSchemaWrapper outputSchema;
 } SStreamObj;
 
-int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
-int32_t tDecodeSStreamObj(SCoder* pDecoder, SStreamObj* pObj);
+int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
 
 #ifdef __cplusplus
 }

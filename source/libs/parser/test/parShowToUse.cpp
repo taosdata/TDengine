@@ -21,111 +21,117 @@ namespace ParserTest {
 
 class ParserShowToUseTest : public ParserTestBase {};
 
-// todo show accounts
-// todo show apps
-// todo show connections
-// todo show create database
-// todo show create stable
-// todo show create table
+// todo SHOW accounts
+// todo SHOW apps
+// todo SHOW connections
+// todo SHOW create database
+// todo SHOW create stable
+// todo SHOW create table
 
 TEST_F(ParserShowToUseTest, showDatabases) {
   useDb("root", "test");
 
-  run("show databases");
+  run("SHOW databases");
 }
 
 TEST_F(ParserShowToUseTest, showDnodes) {
   useDb("root", "test");
 
-  run("show dnodes");
+  run("SHOW dnodes");
 }
 
 TEST_F(ParserShowToUseTest, showFunctions) {
   useDb("root", "test");
 
-  run("show functions");
+  run("SHOW functions");
 }
 
-// todo show licence
+// todo SHOW licence
 
 TEST_F(ParserShowToUseTest, showIndexes) {
   useDb("root", "test");
 
-  run("show indexes from t1");
+  run("SHOW indexes from t1");
 
-  run("show indexes from t1 from test");
+  run("SHOW indexes from t1 from test");
 }
 
 TEST_F(ParserShowToUseTest, showMnodes) {
   useDb("root", "test");
 
-  run("show mnodes");
+  run("SHOW mnodes");
 }
 
 TEST_F(ParserShowToUseTest, showModules) {
   useDb("root", "test");
 
-  run("show modules");
+  run("SHOW modules");
 }
 
 TEST_F(ParserShowToUseTest, showQnodes) {
   useDb("root", "test");
 
-  run("show qnodes");
+  run("SHOW qnodes");
 }
 
-// todo show queries
-// todo show scores
+// todo SHOW queries
+// todo SHOW scores
 
 TEST_F(ParserShowToUseTest, showStables) {
   useDb("root", "test");
 
-  run("show stables");
+  run("SHOW stables");
 
-  run("show test.stables");
+  run("SHOW test.stables");
 
-  run("show stables like 'c%'");
+  run("SHOW stables like 'c%'");
 
-  run("show test.stables like 'c%'");
+  run("SHOW test.stables like 'c%'");
 }
 
 TEST_F(ParserShowToUseTest, showStreams) {
   useDb("root", "test");
 
-  run("show streams");
+  run("SHOW streams");
+}
+
+TEST_F(ParserShowToUseTest, showTransactions) {
+  useDb("root", "test");
+
+  run("SHOW TRANSACTIONS");
 }
 
 TEST_F(ParserShowToUseTest, showTables) {
   useDb("root", "test");
 
-  run("show tables");
+  run("SHOW tables");
 
-  run("show test.tables");
+  run("SHOW test.tables");
 
-  run("show tables like 'c%'");
+  run("SHOW tables like 'c%'");
 
-  run("show test.tables like 'c%'");
+  run("SHOW test.tables like 'c%'");
 }
 
-// todo show topics
+// todo SHOW topics
 
 TEST_F(ParserShowToUseTest, showUsers) {
   useDb("root", "test");
 
-  run("show users");
+  run("SHOW users");
 }
 
-// todo show variables
+// todo SHOW variables
 
 TEST_F(ParserShowToUseTest, showVgroups) {
   useDb("root", "test");
 
-  run("show vgroups");
+  run("SHOW vgroups");
 
-  run("show test.vgroups");
+  run("SHOW test.vgroups");
 }
 
-// todo show vnodes
+// todo SHOW vnodes
 
 // todo split vgroup
 

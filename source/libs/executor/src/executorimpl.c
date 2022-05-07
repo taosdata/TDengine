@@ -198,6 +198,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   pBlock->info.blockId = pNode->dataBlockId;
   pBlock->info.rowSize = pNode->totalRowSize;  // todo ??
+  pBlock->info.type = STREAM_INVALID;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};

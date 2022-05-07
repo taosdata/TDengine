@@ -56,11 +56,11 @@ SEpSet getEpSet_s(SCorEpSet* pEpSet);
 
 #define colDataSetNotNull_f(bm_, r_)                  \
   do {                                                \
-    BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_)));  \
+    BMCharPos(bm_, r_) &= ~(1u << (7u - BitPos(r_))); \
   } while (0)
 
-#define colDataIsNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] == -1)
-#define colDataSetNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] = -1)
+#define colDataIsNull_var(pColumnInfoData, row)  (pColumnInfoData->varmeta.offset[row] == -1)
+#define colDataSetNull_var(pColumnInfoData, row) (pColumnInfoData->varmeta.offset[row] = -1)
 
 #define BitmapLen(_n) (((_n) + ((1 << NBIT) - 1)) >> NBIT)
 
@@ -187,8 +187,8 @@ static FORCE_INLINE void colDataAppendDouble(SColumnInfoData* pColumnInfoData, u
 }
 
 int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, const char* pData, bool isNull);
-int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, int32_t* capacity, const SColumnInfoData* pSource,
-                        uint32_t numOfRow2);
+int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, int32_t* capacity,
+                        const SColumnInfoData* pSource, uint32_t numOfRow2);
 int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* pSource, int32_t numOfRows);
 int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock);
 
@@ -230,9 +230,9 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 void blockDebugShowData(const SArray* dataBlocks);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
-                                 tb_uid_t uid, tb_uid_t suid);
+                                    tb_uid_t uid, tb_uid_t suid);
 
-SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema);
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid);
 
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(pBlock) + blockDataGetSize(pBlock);
