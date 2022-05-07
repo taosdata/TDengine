@@ -42,11 +42,7 @@ struct SSortHandle {
 
   _sort_fetch_block_fn_t  fetchfp;
   _sort_merge_compar_fn_t comparFn;
-
-  void             *pParam;
   SMultiwayMergeTreeInfo *pMergeTree;
-  int32_t           numOfCols;
-
   int64_t           startTs;
   uint64_t          sortElapsed;
   uint64_t          totalElapsed;
@@ -61,29 +57,15 @@ struct SSortHandle {
   bool              inMemSort;
   bool              needAdjust;
   STupleHandle      tupleHandle;
+
+  void             *param;
+  void (*beforeFp)(SSDataBlock* pBlock, void* param);
 };
 
 static int32_t msortComparFn(const void *pLeft, const void *pRight, void *param);
 
-static SSDataBlock* createDataBlock_rv(SSchema* pSchema, int32_t numOfCols) {
-  SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
-  pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  pBlock->info.numOfCols = numOfCols;
-
-  for(int32_t i = 0; i < numOfCols; ++i) {
-    SColumnInfoData  colInfo = {0};
-
-    colInfo.info.type  = pSchema[i].type;
-    colInfo.info.bytes = pSchema[i].bytes;
-    colInfo.info.colId = pSchema[i].colId;
-    taosArrayPush(pBlock->pDataBlock, &colInfo);
-
-    if (IS_VAR_DATA_TYPE(colInfo.info.type)) {
-      pBlock->info.hasVarCol = true;
-    }
-  }
-
-  return pBlock;
+SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle) {
+  return createOneDataBlock(pSortHandle->pDataBlock, false);
 }
 
 /**
@@ -99,7 +81,10 @@ SSortHandle* tsortCreateSortHandle(SArray* pSortInfo, SArray* pIndexMap, int32_t
   pSortHandle->numOfPages = numOfPages;
   pSortHandle->pSortInfo  = pSortInfo;
   pSortHandle->pIndexMap  = pIndexMap;
-  pSortHandle->pDataBlock = createOneDataBlock(pBlock, false);
+
+  if (pBlock != NULL) {
+    pSortHandle->pDataBlock = createOneDataBlock(pBlock, false);
+  }
 
   pSortHandle->pOrderedSource     = taosArrayInit(4, POINTER_BYTES);
   pSortHandle->cmpParam.orderInfo = pSortInfo;
@@ -531,8 +516,25 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
 
       if (pHandle->pDataBlock == NULL) {
         pHandle->pDataBlock = createOneDataBlock(pBlock, false);
+
+        // calculate the buffer pages according to the total available buffers.
+        int32_t rowSize = blockDataGetRowSize(pBlock);
+        if (rowSize * 4 > 4096) {
+          pHandle->pageSize = rowSize * 4;
+        } else {
+          pHandle->pageSize = 4096;
+        }
+        // todo!!
+        pHandle->numOfPages = 1024;
+        sortBufSize = pHandle->numOfPages * pHandle->pageSize;
       }
 
+      // perform the scalar function calculation before apply the sort
+      if (pHandle->beforeFp != NULL) {
+        pHandle->beforeFp(pBlock, pHandle->param);
+      }
+
+      // todo relocate the columns
       int32_t code = blockDataMerge(pHandle->pDataBlock, pBlock, pHandle->pIndexMap);
       if (code != 0) {
         return code;
@@ -551,7 +553,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       }
     }
 
-    if (pHandle->pDataBlock->info.rows > 0) {
+    if (pHandle->pDataBlock != NULL && pHandle->pDataBlock->info.rows > 0) {
       size_t size = blockDataGetSize(pHandle->pDataBlock);
 
       // Perform the in-memory sort and then flush data in the buffer into disk.
@@ -623,8 +625,10 @@ int32_t tsortClose(SSortHandle* pHandle) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp) {
-  pHandle->fetchfp = fp;
+int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*), void* param) {
+  pHandle->fetchfp = fetchFp;
+  pHandle->beforeFp = fp;
+  pHandle->param = param;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -681,7 +685,7 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle) {
 
 bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex) {
   SColumnInfoData* pColInfoSrc = taosArrayGet(pVHandle->pBlock->pDataBlock, colIndex);
-  return colDataIsNull(pColInfoSrc, 0, pVHandle->rowIndex, NULL);
+  return colDataIsNull_s(pColInfoSrc, pVHandle->rowIndex);
 }
 
 void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex) {

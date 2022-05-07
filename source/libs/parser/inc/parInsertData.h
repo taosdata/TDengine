@@ -133,15 +133,15 @@ static FORCE_INLINE int32_t setBlockInfo(SSubmitBlk *pBlocks, STableDataBlocks *
 int32_t schemaIdxCompar(const void *lhs, const void *rhs);
 int32_t boundIdxCompar(const void *lhs, const void *rhs);
 void    setBoundColumnInfo(SParsedDataColInfo *pColList, SSchema *pSchema, col_id_t numOfCols);
-void    destroyBlockArrayList(SArray *pDataBlockList);
-void    destroyBlockHashmap(SHashObj *pDataBlockHash);
-int     initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
-int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t *numOfRows);
-int32_t getDataBlockFromList(SHashObj *pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-                             const STableMeta *pTableMeta, STableDataBlocks **dataBlocks, SArray *pBlockList,
-                             SVCreateTbReq *pCreateTbReq);
-int32_t mergeTableDataBlocks(SHashObj *pHashObj, uint8_t payloadType, SArray **pVgDataBlocks);
-int32_t buildCreateTbMsg(STableDataBlocks *pBlocks, SVCreateTbReq *pCreateTbReq);
+void destroyBlockArrayList(SArray* pDataBlockList);
+void destroyBlockHashmap(SHashObj* pDataBlockHash);
+int  initRowBuilder(SRowBuilder *pBuilder, int16_t schemaVer, SParsedDataColInfo *pColInfo);
+int32_t allocateMemIfNeed(STableDataBlocks *pDataBlock, int32_t rowSize, int32_t * numOfRows);
+int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
+     STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList, SVCreateTbReq* pCreateTbReq);
+int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** pVgDataBlocks);
+int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq);
+
 int32_t allocateMemForSize(STableDataBlocks *pDataBlock, int32_t allSize);
 
 #endif  // TDENGINE_DATABLOCKMGT_H

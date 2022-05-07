@@ -42,7 +42,7 @@ extern "C" {
  * @brief value type
  *  - for data from client input and STSRow in memory, 3 types of value none/null/norm available
  */
-#define TD_VTYPE_NORM 0x00U  // normal val: not none, not null(no need assign value)
+#define TD_VTYPE_NORM 0x00U  // normal val: not none, not null
 #define TD_VTYPE_NULL 0x01U  // null val
 #define TD_VTYPE_NONE 0x02U  // none or unknown/undefined
 #define TD_VTYPE_MAX  0x03U  //
@@ -140,8 +140,6 @@ typedef struct {
   };
   /// row total length
   uint32_t len;
-  /// row version
-  uint64_t ver;
   /// the inline data, maybe a tuple or a k-v tuple
   char data[];
 } STSRow;
@@ -176,7 +174,7 @@ typedef struct {
 #define TD_ROW_DATA(r)     ((r)->data)
 #define TD_ROW_LEN(r)      ((r)->len)
 #define TD_ROW_KEY(r)      ((r)->ts)
-#define TD_ROW_VER(r)      ((r)->ver)
+// #define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
 // N.B. If without STSchema, getExtendedRowSize() is used to get the rowMaxBytes and
@@ -241,13 +239,13 @@ static FORCE_INLINE int32_t tdGetBitmapValType(const void *pBitmap, int16_t colI
 static FORCE_INLINE bool    tdIsBitmapValTypeNorm(const void *pBitmap, int16_t idx, int8_t bitmapMode);
 bool                        tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode);
 int32_t tdAppendValToDataCol(SDataCol *pCol, TDRowValT valType, const void *val, int32_t numOfRows, int32_t maxPoints,
-                             int8_t bitmapMode);
+                             int8_t bitmapMode, bool isMerge);
 static FORCE_INLINE int32_t tdAppendColValToTpRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
                                                   bool isCopyVarData, int8_t colType, int16_t colIdx, int32_t offset);
 static FORCE_INLINE int32_t tdAppendColValToKvRow(SRowBuilder *pBuilder, TDRowValT valType, const void *val,
                                                   bool isCopyVarData, int8_t colType, int16_t colIdx, int32_t offset,
                                                   col_id_t colId);
-int32_t                     tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols);
+int32_t                     tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge);
 
 /**
  * @brief
@@ -622,7 +620,6 @@ static FORCE_INLINE int32_t tdSRowSetTpInfo(SRowBuilder *pBuilder, int32_t nCols
   return TSDB_CODE_SUCCESS;
 }
 
-
 /**
  * @brief To judge row type: STpRow/SKvRow
  *
@@ -719,6 +716,7 @@ static int32_t tdSRowResetBuf(SRowBuilder *pBuilder, void *pBuf) {
       terrno = TSDB_CODE_INVALID_PARA;
       return terrno;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -757,7 +755,6 @@ static int32_t tdSRowGetBuf(SRowBuilder *pBuilder, void *pBuf) {
   }
   return TSDB_CODE_SUCCESS;
 }
-
 
 /**
  * @brief 由调用方管理存储空间的分配及释放，一次输入多个参数
@@ -1250,16 +1247,16 @@ static FORCE_INLINE int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, in
 }
 
 /**
- * @brief 
- * 
- * @param pRow 
- * @param colId 
- * @param colType 
- * @param flen 
- * @param offset 
+ * @brief
+ *
+ * @param pRow
+ * @param colId
+ * @param colType
+ * @param flen
+ * @param offset
  * @param colIdx start from 0
- * @param pVal 
- * @return FORCE_INLINE 
+ * @param pVal
+ * @return FORCE_INLINE
  */
 static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t flen, uint32_t offset,
                                         col_id_t colIdx, SCellVal *pVal) {
@@ -1273,14 +1270,14 @@ static FORCE_INLINE bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t
 }
 
 /**
- * @brief 
- * 
- * @param pRow 
- * @param colId 
- * @param offset 
+ * @brief
+ *
+ * @param pRow
+ * @param colId
+ * @param offset
  * @param colIdx start from 0
- * @param pVal 
- * @return FORCE_INLINE 
+ * @param pVal
+ * @return FORCE_INLINE
  */
 static FORCE_INLINE bool tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t colIdx,
                                         SCellVal *pVal) {
@@ -1397,14 +1394,14 @@ static void tdSCellValPrint(SCellVal *pVal, int8_t colType) {
   }
 }
 
-static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char* tag) {
+static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag) {
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pSchema);
   tdSTSRowIterReset(&iter, row);
   printf("%s >>>", tag);
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
-    SCellVal  sVal = { 255, NULL};
+    SCellVal  sVal = {255, NULL};
     if (!tdSTSRowIterNext(&iter, stCol->colId, stCol->type, &sVal)) {
       break;
     }

@@ -339,7 +339,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
-  rsp.pArray = taosArrayInit(sizeof(cRsp), req.nReqs);
+  rsp.pArray = taosArrayInit(req.nReqs, sizeof(cRsp));
   if (rsp.pArray == NULL) {
     rcode = -1;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -360,7 +360,11 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
     // do create table
     if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
-      cRsp.code = terrno;
+      if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+        cRsp.code = TSDB_CODE_SUCCESS;
+      } else {
+        cRsp.code = terrno;
+      }
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
       tsdbFetchTbUidList(pVnode->pTsdb, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
@@ -450,7 +454,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   SCoder           coder = {0};
   int              ret;
 
-  pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
+  pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -473,9 +477,13 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
     /* code */
     ret = metaDropTable(pVnode->pMeta, version, pDropTbReq);
     if (ret < 0) {
-      dropTbRsp.code = TSDB_CODE_SUCCESS;
+      if (pDropTbReq->igNotExists && terrno == TSDB_CODE_VND_TABLE_NOT_EXIST) {
+        dropTbRsp.code = TSDB_CODE_SUCCESS;
+      } else {
+        dropTbRsp.code = terrno;
+      }
     } else {
-      dropTbRsp.code = terrno;
+      dropTbRsp.code = TSDB_CODE_SUCCESS;
     }
 
     taosArrayPush(rsp.pArray, &dropTbRsp);
@@ -488,20 +496,62 @@ _exit:
 }
 
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-  SSubmitRsp  rsp = {0};
+  SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
+  SSubmitMsgIter msgIter = {0};
+  SSubmitBlk    *pBlock;
+  SSubmitRsp     rsp = {0};
+  SVCreateTbReq  createTbReq = {0};
+  SCoder         coder = {0};
+  int32_t        nRows;
 
   pRsp->code = 0;
 
   // handle the request
-  if (tsdbInsertData(pVnode->pTsdb, version, pSubmitReq, &rsp) < 0) {
-    pRsp->code = terrno;
-    return -1;
+  if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
+    pRsp->code = TSDB_CODE_INVALID_MSG;
+    goto _exit;
   }
 
-  // pRsp->msgType = TDMT_VND_SUBMIT_RSP;
-  // vnodeProcessSubmitReq(pVnode, ptr, pRsp);
+  for (;;) {
+    tGetSubmitMsgNext(&msgIter, &pBlock);
+    if (pBlock == NULL) break;
 
+    // create table for auto create table mode
+    if (msgIter.schemaLen > 0) {
+      tCoderInit(&coder, TD_LITTLE_ENDIAN, pBlock->data, msgIter.schemaLen, TD_DECODER);
+      if (tDecodeSVCreateTbReq(&coder, &createTbReq) < 0) {
+        pRsp->code = TSDB_CODE_INVALID_MSG;
+        tCoderClear(&coder);
+        goto _exit;
+      }
+
+      if (metaCreateTable(pVnode->pMeta, version, &createTbReq) < 0) {
+        if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+          pRsp->code = terrno;
+          tCoderClear(&coder);
+          goto _exit;
+        }
+      }
+
+      msgIter.uid = createTbReq.uid;
+      if (createTbReq.type == TSDB_CHILD_TABLE) {
+        msgIter.suid = createTbReq.ctb.suid;
+      } else {
+        msgIter.suid = 0;
+      }
+
+      tCoderClear(&coder);
+    }
+
+    if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &nRows) < 0) {
+      pRsp->code = terrno;
+      goto _exit;
+    }
+
+    rsp.numOfRows += nRows;
+  }
+
+_exit:
   // encode the response (TODO)
   pRsp->pCont = rpcMallocCont(sizeof(SSubmitRsp));
   memcpy(pRsp->pCont, &rsp, sizeof(rsp));
@@ -510,19 +560,4 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   tsdbTriggerRSma(pVnode->pTsdb, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
 
   return 0;
-}
-
-int32_t tsdbProcessSubmitReq(STsdb *pTsdb, int64_t version, void *pReq) {
-  if (!pReq) {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return TSDB_CODE_FAILED;
-  }
-
-  SSubmitReq *pSubmitReq = (SSubmitReq *)pReq;
-
-  if (tsdbInsertData(pTsdb, version, pSubmitReq, NULL) < 0) {
-    return TSDB_CODE_FAILED;
-  }
-
-  return TSDB_CODE_SUCCESS;
 }

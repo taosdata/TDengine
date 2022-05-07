@@ -210,7 +210,7 @@ TEST(testCase, inMem_sort_Test) {
   taosArrayPush(orderInfo, &oi);
 
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_SINGLESOURCE_SORT, 1024, 5, NULL, "test_abc");
-  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
 
   _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
   pInfo->startVal = 0;
@@ -299,7 +299,7 @@ TEST(testCase, external_mem_sort_Test) {
     taosArrayPush(orderInfo, &oi);
 
     SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_SINGLESOURCE_SORT, 128, 3, NULL, "test_abc");
-    tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+    tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
 
     SSortSource* ps = static_cast<SSortSource*>(taosMemoryCalloc(1, sizeof(SSortSource)));
     ps->param = &pInfo[i];
@@ -366,7 +366,7 @@ TEST(testCase, ordered_merge_sort_Test) {
   }
 
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_MULTISOURCE_MERGE, 1024, 5, pBlock,"test_abc");
-  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
   tsortSetComparFp(phandle, docomp);
 
   SSortSource* p[10] = {0};

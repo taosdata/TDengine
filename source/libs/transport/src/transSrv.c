@@ -784,8 +784,17 @@ static void uvDestroyConn(uv_handle_t* handle) {
   tDebug("server conn %p destroy", conn);
   // uv_timer_stop(&conn->pTimer);
   transQueueDestroy(&conn->srvMsgs);
+
+  if (conn->regArg.init == 1) {
+    transFreeMsg(conn->regArg.msg.pCont);
+    conn->regArg.init = 0;
+  }
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
+  if (conn->regArg.init == 1) {
+    transFreeMsg(conn->regArg.msg.pCont);
+    conn->regArg.init = 0;
+  }
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
@@ -817,7 +826,6 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
 
-
     uv_os_sock_t fds[2];
     if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
       goto End;
@@ -840,6 +848,10 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
       tError("failed to create worker-thread %d", i);
       goto End;
     }
+  }
+  if (false == taosValidIpAndPort(srv->ip, srv->port)) {
+    tError("failed to bind, reason: %s", terrstr());
+    goto End;
   }
   if (false == addHandleToAcceptloop(srv)) {
     goto End;

@@ -61,11 +61,11 @@ extern "C" {
 // ----------------- TSDB COLUMN DEFINITION
 #pragma pack(push, 1)
 typedef struct {
-  col_id_t colId;        // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
-  int32_t  type : 8;     // column type
-  int32_t  bytes : 24;   // column bytes (0~16M)
-  int32_t  flags : 8;    // flags: 0 no index, 1 SCHEMA_SMA_ON, 2 SCHEMA_IDX_ON
-  int32_t  offset : 24;  // point offset in STpRow after the header part.
+  col_id_t colId;   // column ID(start from PRIMARYKEY_TIMESTAMP_COL_ID(1))
+  int8_t   type;    // column type
+  int8_t   flags;   // flags: 0 no index, 1 SCHEMA_SMA_ON, 2 SCHEMA_IDX_ON
+  int32_t  bytes;   // column bytes (0~16M)
+  int32_t  offset;  // point offset in STpRow after the header part.
 } STColumn;
 #pragma pack(pop)
 
@@ -372,10 +372,9 @@ static FORCE_INLINE void tdCopyColOfRowBySchema(SDataRow dst, STSchema *pDstSche
 // ----------------- Data column structure
 // SDataCol arrangement: data => bitmap => dataOffset
 typedef struct SDataCol {
-  int8_t          type;            // column type
-  uint8_t         bitmap : 1;      // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
-  uint8_t         bitmapMode : 1;  // default is 0(2 bits), otherwise 1(1 bit)
-  uint8_t         reserve : 6;
+  int8_t          type;        // column type
+  uint8_t         bitmap : 1;  // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
+  uint8_t         reserve : 7;
   int16_t         colId;      // column ID
   int32_t         bytes;      // column data bytes defined
   int32_t         offset;     // data offset in a SDataRow (including the header size)
@@ -386,8 +385,6 @@ typedef struct SDataCol {
   void           *pBitmap;    // Bitmap pointer
   TSKEY           ts;         // only used in last NULL column
 } SDataCol;
-
-
 
 #define isAllRowsNull(pCol) ((pCol)->len == 0)
 #define isAllRowsNone(pCol) ((pCol)->len == 0)
@@ -482,7 +479,7 @@ void       tdResetDataCols(SDataCols *pCols);
 int32_t    tdInitDataCols(SDataCols *pCols, STSchema *pSchema);
 SDataCols *tdDupDataCols(SDataCols *pCols, bool keepData);
 SDataCols *tdFreeDataCols(SDataCols *pCols);
-int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool forceSetNull, TDRowVerT maxVer);
+int32_t tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool update, TDRowVerT maxVer);
 
 // ----------------- K-V data row structure
 /* |<-------------------------------------- len -------------------------------------------->|

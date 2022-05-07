@@ -161,7 +161,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
       tqReadHandleSetMsg(pReader, pReq, 0);
       while (tqNextDataBlock(pReader)) {
         SSDataBlock block = {0};
-        if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.rows,
+        if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                                 &block.info.numOfCols) < 0) {
           ASSERT(0);
         }
@@ -540,7 +540,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         tqReadHandleSetMsg(pReader, pCont, 0);
         while (tqNextDataBlock(pReader)) {
           SSDataBlock block = {0};
-          if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.rows,
+          if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                                   &block.info.numOfCols) < 0) {
             ASSERT(0);
           }
@@ -926,6 +926,12 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   pTask->ahandle = pTq->pVnode;
   if (pTask->sinkType == TASK_SINK__SMA) {
     pTask->smaSink.smaHandle = smaHandleRes;
+  } else if (pTask->sinkType == TASK_SINK__TABLE) {
+    ASSERT(pTask->tbSink.pSchemaWrapper);
+    ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);
+    pTask->tbSink.pTSchema =
+        tdGetSTSChemaFromSSChema(&pTask->tbSink.pSchemaWrapper->pSchema, pTask->tbSink.pSchemaWrapper->nCols);
+    ASSERT(pTask->tbSink.pTSchema);
   }
 
   taosHashPut(pTq->pStreamTasks, &pTask->taskId, sizeof(int32_t), pTask, sizeof(SStreamTask));

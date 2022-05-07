@@ -75,12 +75,15 @@ typedef struct SUdf {
   char   path[PATH_MAX];
 
   uv_lib_t              lib;
+
   TUdfScalarProcFunc    scalarProcFunc;
-  TUdfFreeUdfColumnFunc freeUdfColumn;
 
   TUdfAggStartFunc      aggStartFunc;
   TUdfAggProcessFunc    aggProcFunc;
   TUdfAggFinishFunc     aggFinishFunc;
+
+  TUdfInitFunc          initFunc;
+  TUdfDestroyFunc       destroyFunc;
 } SUdf;
 
 // TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
@@ -101,16 +104,23 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
     return UDFC_CODE_LOAD_UDF_FAILURE;
   }
-  //TODO: init and destroy function
+
+  char initFuncName[TSDB_FUNC_NAME_LEN+5] = {0};
+  char *initSuffix = "_init";
+  strcpy(initFuncName, udfName);
+  strncat(initFuncName, initSuffix, strlen(initSuffix));
+  uv_dlsym(&udf->lib, initFuncName, (void**)(&udf->initFunc));
+
+  char destroyFuncName[TSDB_FUNC_NAME_LEN+5] = {0};
+  char *destroySuffix = "_destroy";
+  strcpy(destroyFuncName, udfName);
+  strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
+  uv_dlsym(&udf->lib, destroyFuncName, (void**)(&udf->destroyFunc));
+
   if (udf->funcType == TSDB_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
     uv_dlsym(&udf->lib, processFuncName, (void **)(&udf->scalarProcFunc));
-    char  freeFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
-    char *freeSuffix = "_free";
-    strncpy(freeFuncName, processFuncName, strlen(processFuncName));
-    strncat(freeFuncName, freeSuffix, strlen(freeSuffix));
-    uv_dlsym(&udf->lib, freeFuncName, (void **)(&udf->freeUdfColumn));
   } else if (udf->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
@@ -164,6 +174,9 @@ void udfdProcessRequest(uv_work_t *req) {
       if (udf->state == UDF_STATE_INIT) {
         udf->state = UDF_STATE_LOADING;
         udfdLoadUdf(setup->udfName, udf);
+        if (udf->initFunc) {
+          udf->initFunc();
+        }
         udf->state = UDF_STATE_READY;
         uv_cond_broadcast(&udf->condReady);
         uv_mutex_unlock(&udf->lock);
@@ -175,7 +188,6 @@ void udfdProcessRequest(uv_work_t *req) {
       }
       SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
       handle->udf = udf;
-      // TODO: allocate private structure and call init function and set it to handle
       SUdfResponse rsp;
       rsp.seqNum = request.seqNum;
       rsp.type = request.type;
@@ -215,7 +227,7 @@ void udfdProcessRequest(uv_work_t *req) {
           udf->scalarProcFunc(&input, &output);
 
           convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
-          udf->freeUdfColumn(&output);
+          freeUdfColumn(&output);
           break;
         }
         case TSDB_UDF_CALL_AGG_INIT: {
@@ -280,10 +292,12 @@ void udfdProcessRequest(uv_work_t *req) {
       if (unloadUdf) {
         uv_cond_destroy(&udf->condReady);
         uv_mutex_destroy(&udf->lock);
+        if (udf->destroyFunc) {
+          (udf->destroyFunc)();
+        }
         uv_dlclose(&udf->lib);
         taosMemoryFree(udf);
       }
-      // TODO: call destroy and free udf private
       taosMemoryFree(handle);
 
       SUdfResponse  response;
