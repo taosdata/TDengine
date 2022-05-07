@@ -1225,6 +1225,8 @@ static void* destroySqlFunctionCtx(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
 
     taosVariantDestroy(&pCtx[i].tag);
     taosMemoryFreeClear(pCtx[i].subsidiaries.pCtx);
+    taosMemoryFree(pCtx[i].input.pData);
+    taosMemoryFree(pCtx[i].input.pColumnDataAgg);
   }
 
   taosMemoryFreeClear(pCtx);
@@ -2840,9 +2842,9 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
 int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadInfo, int32_t numOfRows, char* pData,
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList) {
-  blockDataEnsureCapacity(pRes, numOfRows);
-
   if (pColList == NULL) {  // data from other sources
+    blockDataEnsureCapacity(pRes, numOfRows);
+
     int32_t dataLen = *(int32_t*)pData;
     pData += sizeof(int32_t);
 
@@ -2898,20 +2900,23 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
       pStart += sizeof(SSysTableSchema);
     }
 
-    SSDataBlock block = {.pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData)), .info.numOfCols = numOfCols};
+    SSDataBlock* pBlock = taosMemoryCalloc(1, sizeof(SSDataBlock));
+    pBlock->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
+    pBlock->info.numOfCols = numOfCols;
+
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData idata = {0};
       idata.info.type = pSchema[i].type;
       idata.info.bytes = pSchema[i].bytes;
       idata.info.colId = pSchema[i].colId;
 
-      taosArrayPush(block.pDataBlock, &idata);
+      taosArrayPush(pBlock->pDataBlock, &idata);
       if (IS_VAR_DATA_TYPE(idata.info.type)) {
-        block.info.hasVarCol = true;
+        pBlock->info.hasVarCol = true;
       }
     }
 
-    blockDataEnsureCapacity(&block, numOfRows);
+    blockDataEnsureCapacity(pBlock, numOfRows);
 
     int32_t  dataLen = *(int32_t*)pStart;
     uint64_t groupId = *(uint64_t*)(pStart + sizeof(int32_t));
@@ -2924,7 +2929,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
       colLen[i] = htonl(colLen[i]);
       ASSERT(colLen[i] >= 0);
 
-      SColumnInfoData* pColInfoData = taosArrayGet(block.pDataBlock, i);
+      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
         pColInfoData->varmeta.length = colLen[i];
         pColInfoData->varmeta.allocLen = colLen[i];
@@ -2943,7 +2948,10 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
     }
 
     // data from mnode
-    relocateColumnData(pRes, pColList, block.pDataBlock);
+    relocateColumnData(pRes, pColList, pBlock->pDataBlock);
+    taosArrayDestroy(pBlock->pDataBlock);
+    taosMemoryFree(pBlock);
+//    blockDataDestroy(pBlock);
   }
 
   pRes->info.rows = numOfRows;
@@ -4184,6 +4192,17 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
     pOperator->numOfDownstream = 0;
   }
 
+  if (pOperator->pExpr != NULL) {
+    for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
+      SExprInfo* pExprInfo = &pOperator->pExpr[i];
+      if (pExprInfo->pExpr->nodeType == QUERY_NODE_COLUMN) {
+        taosMemoryFree(pExprInfo->base.pParam[0].pCol);
+      }
+      taosMemoryFree(pExprInfo->base.pParam);
+      taosMemoryFree(pExprInfo->pExpr);
+    }
+  }
+
   taosMemoryFree(pOperator->pExpr);
   taosMemoryFreeClear(pOperator->info);
   taosMemoryFreeClear(pOperator);
@@ -4358,6 +4377,7 @@ static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
   SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
   cleanupAggSup(&pInfo->aggSup);
+  taosArrayDestroy(pInfo->pPseudoColInfo);
 }
 
 void destroyExchangeOperatorInfo(void* param, int32_t numOfOutput) {

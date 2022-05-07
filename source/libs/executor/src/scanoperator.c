@@ -1156,7 +1156,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSDataBlock* pRe
   pOperator->blocking     = false;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->info         = pInfo;
-  pOperator->numOfExprs  = pResBlock->info.numOfCols;
+  pOperator->numOfExprs   = pResBlock->info.numOfCols;
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSysTableScan, NULL, NULL, destroySysScanOperator,
                                          NULL, NULL, NULL);
   pOperator->pTaskInfo = pTaskInfo;
