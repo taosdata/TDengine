@@ -581,12 +581,20 @@ class TDCreateData():
             # 解决不同子表排列结果乱序
             # print(("=====list_issubset==matrix2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("===matrix_issubset===sql1:'%s' matrix_set_result = sql2:'%s' matrix_set_result") %(sql1,sql2))
-        elif abs(float(str(list1).replace("]","").replace("[","")) - float(str(list2).replace("]","").replace("[",""))) <= 0.5:
-            #print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
-            self.logger.info(("===matrix_abs======sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
-        elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
-            #print(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+        #elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
+        elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-",""))) <= 0.0001:
+            print(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            print(("=====matrix_abs+e+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-",""))))
             self.logger.info(("===matrix_abs+e+===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))) <= 0.1:
+            #{datetime.datetime(2021, 8, 27, 1, 46, 40), -441.46841430664057}replace
+            print(("=====matrix_abs+replace===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            print(("=====matrix_abs+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")),float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))))
+            self.logger.info(("===matrix_abs+replace===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))) <= 0.5:
+            print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))))
+            self.logger.info(("===matrix_abs======sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
         else:
             print(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
             self.logger.info(("sql1:'%s' matrix_result != sql2:'%s' matrix_result") %(sql1,sql2))
@@ -623,8 +631,11 @@ class TDCreateData():
             self.logger.info(("===data2in1-true===sql1:'%s' result include sql2:'%s' result") %(sql1,sql2))
         else:
             print(("=====data2in1-false===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            print(("\n\n\n=====data2in1-list1-list2===sql1.list2 in list1:'%s'") %(set(list1)-set(list2)))
+            print(("\n\n\n=====data2in1-list2-list1===sql2.list2 not in list1:'%s'") %(set(list2)-set(list1)))
             self.logger.info(("sql1:'%s' result not include sql2:'%s' row:'%s' col'%s' result '%s'") %(sql1,sql2,i2,j2,self.tdSql.getData(i2,j2)))
-            return self.tdSql.checkEqual(list1,self.tdSql.getData(i2,j2))
+            #return self.tdSql.checkEqual(list1,self.tdSql.getData(i2,j2))
+            return self.tdSql.checkEqual(list1,list2)
 
 
 
