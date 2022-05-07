@@ -244,13 +244,22 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
   char *    sptr = NULL;
+  char *    tmp = NULL;
   char *    cptr = NULL;
   char *    fname = NULL;
   bool      printMode = false;
 
   sptr = command;
   while ((sptr = tstrstr(sptr, ">>", true)) != NULL) {
-    if (regex_match(sptr + 2, "^\\s*+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+    // find the last ">>" if any
+    tmp = sptr;
+    sptr += 2;
+  }
+
+  sptr = tmp;
+
+  if (sptr != NULL) {
+    if (regex_match(sptr + 2, "^\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*;\\s*$", REG_EXTENDED | REG_ICASE) == 0) {
       cptr = tstrstr(command, ";", true);
       if (cptr != NULL) {
         *cptr = '\0';
@@ -262,10 +271,6 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
       }
       *sptr = '\0';
       fname = full_path.we_wordv[0];
-
-      break;
-    } else {
-      sptr += 2;
     }
   }
 
