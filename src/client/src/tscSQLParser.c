@@ -1114,7 +1114,7 @@ static int32_t addPrimaryTsColumnForTimeWindowQuery(SQueryInfo* pQueryInfo, SSql
 
 static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryInfo) {
   const char* msg1 = "invalid query expression";
-  const char* msg2 = "top/bottom query does not support order by value in time window query";
+  const char* msg2 = "top/bottom/sample query does not support order by value in time window query";
   const char* msg3 = "unique/state function does not supportted in time window query";
 
   /*
@@ -1148,7 +1148,7 @@ static int32_t checkInvalidExprForTimeWindow(SSqlCmd* pCmd, SQueryInfo* pQueryIn
     // top(col, k) from table_name [interval(1d)|session(ts, 1d)] order by k asc
     // order by normal column is not supported
     int32_t colId = pQueryInfo->order.orderColId;
-    if (isTimeWindowQuery(pQueryInfo) && colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
+    if (colId != INT32_MIN && isTimeWindowQuery(pQueryInfo) && colId != PRIMARYKEY_TIMESTAMP_COL_INDEX) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
     }
 
