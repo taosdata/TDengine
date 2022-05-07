@@ -72,15 +72,23 @@ class TDTestCase:
         concat_condition = self.__concat_condition()
         for i in range(len(concat_condition) - num + 1 ):
             condition = self.__concat_num(concat_condition[i:], num)
+            concat_filter = f"concat({','.join( condition ) })"
             where_condition = self.__where_condition(condition[0])
             group_having = self.__group_condition(condition[0], having=f"{condition[0]} is not null " )
+            concat_group_having = self.__group_condition(concat_filter, having=f"{concat_filter} is not null " )
             group_no_having= self.__group_condition(condition[0] )
+            concat_group_no_having= self.__group_condition(concat_filter)
             groups = ["", group_having, group_no_having]
+            concat_groups = ["", concat_group_having, concat_group_no_having]
 
-            for group_condition in groups:
-                tdSql.query(f"select concat( {','.join( condition ) } ), {','.join(condition)}  from {tbname} {where_condition}  {group_condition} ")
+            for n in range(len(groups)):
+                tdSql.query(f"select  {','.join(condition)}  from {tbname} {where_condition}  {groups[n]} ")
+                concat_data = []
+                for m in range(tdSql.queryRows):
+                    concat_data.append("".join(tdSql.queryResult[m])) if tdSql.getData(m, 0) else concat_data.append(None)
+                tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {concat_groups[n]} ")
                 for j in range(tdSql.queryRows):
-                    tdSql.checkData(j, 0, "".join(tdSql.queryResult[j][1:])) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
+                    tdSql.checkData(j, 0, concat_data[j]) if concat_data[j] else tdSql.checkData(j, 0, None)
 
 
 
