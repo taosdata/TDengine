@@ -196,7 +196,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   int8_t      type;
   int64_t     ctime;
   tb_uid_t    suid;
-  int         c, ret;
+  int         c = 0, ret;
 
   // search & delete the name idx
   tdbDbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);

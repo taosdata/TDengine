@@ -56,7 +56,8 @@ typedef enum {
   QUERY_LESS_EQUAL,
   QUERY_GREATER_THAN,
   QUERY_GREATER_EQUAL,
-  QUERY_RANGE
+  QUERY_RANGE,
+  QUERY_MAX
 } EIndexQueryType;
 
 /*
@@ -178,8 +179,8 @@ void        indexOptsDestroy(SIndexOpts* opts);
  * @param:
  */
 
-SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn operType, int8_t qType, uint8_t colType,
-                            const char* colName, int32_t nColName, const char* colVal, int32_t nColVal);
+SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn operType, uint8_t colType, const char* colName,
+                            int32_t nColName, const char* colVal, int32_t nColVal);
 void        indexTermDestroy(SIndexTerm* p);
 
 /*
