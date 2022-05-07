@@ -1964,6 +1964,9 @@ bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultIn
   }
   char* binDesc = varDataVal(pCtx->param[2].param.pz);
   int64_t normalized = pCtx->param[3].param.i;
+  if (normalized != 0 && normalized != 1) {
+    return false;
+  }
   if (!getHistogramBinDesc(pInfo, binDesc, binType, (bool)normalized)) {
     return false;
   }
@@ -1972,7 +1975,6 @@ bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultIn
 }
 
 int32_t histogramFunction(SqlFunctionCtx *pCtx) {
-  int32_t numOfElems = 0;
   SHistoFuncInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
 
   SInputColumnInfoData* pInput = &pCtx->input;
@@ -1983,6 +1985,8 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
+  int32_t numOfElems = 0;
+  int32_t totalElems = 0;
   for (int32_t i = start; i < numOfRows + start; ++i) {
     if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
       continue;
@@ -1997,7 +2001,19 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
     for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
       if (v > pInfo->bins[k].lower && v <= pInfo->bins[k].upper) {
         pInfo->bins[k].count++;
+        totalElems++;
         break;
+      }
+    }
+
+  }
+
+  if (pInfo->normalized) {
+    for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
+      if(totalElems != 0) {
+        pInfo->bins[k].percentage = pInfo->bins[k].count / (double)totalElems;
+      } else {
+        pInfo->bins[k].percentage = 0;
       }
     }
   }
