@@ -56,7 +56,6 @@ int32_t tGetSubmitMsgNext(SSubmitMsgIter *pIter, SSubmitBlk **pPBlock) {
       ASSERT(0);
     }
 
-    SSubmitBlk *pSubmitBlk = (SSubmitBlk *)POINTER_SHIFT(pIter->pMsg, pIter->len);
     pIter->len += (sizeof(SSubmitBlk) + pIter->dataLen + pIter->schemaLen);
     ASSERT(pIter->len > 0);
   }
