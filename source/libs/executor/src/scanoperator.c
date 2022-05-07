@@ -617,8 +617,9 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
 
   SArray* pColIds = taosArrayInit(4, sizeof(int16_t));
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    int16_t* id = taosArrayGet(pColList, i);
-    taosArrayPush(pColIds, id);
+    SColMatchInfo* id = taosArrayGet(pColList, i);
+    int16_t colId = id->colId;
+    taosArrayPush(pColIds, &colId);
   }
 
   pInfo->pColMatchInfo = pColList;
