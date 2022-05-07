@@ -1642,7 +1642,7 @@ static int32_t smlBoundTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDat
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *colsHash, SArray *cols, bool format,
+int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *colsSchema, SArray *cols, bool format,
                     STableMeta *pTableMeta, char *tableName, char *msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
@@ -1673,21 +1673,7 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
 
-
-  if(format){
-    ret = smlBoundColumns(taosArrayGetP(colsFormat, 0), &pDataBlock->boundColumnInfo, pSchema);
-  }else{
-    SArray *columns = taosArrayInit(16, POINTER_BYTES);
-    void **p1 = taosHashIterate(colsHash, NULL);
-    while (p1) {
-      SSmlKv* kv = *p1;
-      taosArrayPush(columns, &kv);
-      p1 = taosHashIterate(colsHash, p1);
-    }
-    ret = smlBoundColumns(columns, &pDataBlock->boundColumnInfo, pSchema);
-    taosArrayDestroy(columns);
-  }
-
+  ret = smlBoundColumns(colsSchema, &pDataBlock->boundColumnInfo, pSchema);
   if(ret != TSDB_CODE_SUCCESS){
     buildInvalidOperationMsg(&pBuf, "bound cols error");
     return ret;
@@ -1712,8 +1698,10 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
     void *rowData = NULL;
+    bool eleEqual = false;
     if(format){
       rowData = taosArrayGetP(colsFormat, r);
+      eleEqual = (taosArrayGetSize(rowData) == spd->numOfBound);
     }else{
       rowData = taosArrayGetP(cols, r);
     }
@@ -1728,17 +1716,22 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
       SSmlKv *kv = NULL;
       if(format){
         kv = taosArrayGetP(rowData, c);
-        if (!kv){
-          char msg[64] = {0};
-          sprintf(msg, "cols num not the same like before:%d", r);
-          return buildInvalidOperationMsg(&pBuf, msg);
-        }
+        do{
+          if (!eleEqual && kv && (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)){
+            MemRowAppend(&pBuf, NULL, 0, &param);
+            c++;
+            if(c >= spd->numOfBound) break;
+            pColSchema = &pSchema[spd->boundColumns[c] - 1];
+            continue;
+          }
+          break;
+        }while(1);
       }else{
         void **p =taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));
-        kv = *p;
+        if(p) kv = *p;
       }
 
-      if (kv->length == 0) {
+      if (!kv || kv->length == 0) {
         MemRowAppend(&pBuf, NULL, 0, &param);
       } else {
         int32_t colLen = pColSchema->bytes;
