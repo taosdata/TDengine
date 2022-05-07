@@ -481,6 +481,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         TSDB_CODE_SUCCESS) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
     }
+    *(int64_t*)&pVal->typeData = pVal->datum.i;
   } else {
     switch (pVal->node.resType.type) {
       case TSDB_DATA_TYPE_NULL:
