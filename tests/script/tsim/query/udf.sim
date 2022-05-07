@@ -93,6 +93,18 @@ endi
 if $data00 != 2.645751311 then
   return -1
 endi
-#sql drop function udf1;
-#sql drop function udf2;
+sql drop function udf1;
+sql show functions;
+if $rows != 1 then
+  return -1
+endi
+if $data00 != @udf2@ then
+  return -1
+  endi
+sql drop function udf2;
+sql show functions;
+if $rows != 0 then
+  return -1
+endi
+
 system sh/exec.sh -n dnode1 -s stop -x SIGTERM
