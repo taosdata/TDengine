@@ -677,6 +677,11 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
     taosCloseSocket(&pSocket);
     return false;
   }
+  if (listen(pSocket->fd, 1024) < 0) {
+    // printf("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    taosCloseSocket(&pSocket);
+    return NULL;
+  }
   taosCloseSocket(&pSocket);
   return true;
 }
