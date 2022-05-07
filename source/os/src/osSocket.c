@@ -669,7 +669,7 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
     // printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
     taosCloseSocket(&pSocket);
-    return NULL;
+    return false;
   }
   /* bind socket to server address */
   if (bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
@@ -680,7 +680,7 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
   if (listen(pSocket->fd, 1024) < 0) {
     // printf("listen tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
     taosCloseSocket(&pSocket);
-    return NULL;
+    return false;
   }
   taosCloseSocket(&pSocket);
   return true;
