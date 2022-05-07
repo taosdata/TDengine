@@ -1,3 +1,4 @@
+from pyparsing import nums
 from util.log import *
 from util.sql import *
 from util.cases import *
@@ -68,70 +69,79 @@ class TDTestCase:
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __concat_current_check(self, tbname, num):
+    def __concat_check(self, tbname, num):
         concat_condition = self.__concat_condition()
         for i in range(len(concat_condition) - num + 1 ):
             condition = self.__concat_num(concat_condition[i:], num)
-            concat_filter = f"concat({','.join( condition ) })"
             where_condition = self.__where_condition(condition[0])
             group_having = self.__group_condition(condition[0], having=f"{condition[0]} is not null " )
-            concat_group_having = self.__group_condition(concat_filter, having=f"{concat_filter} is not null " )
             group_no_having= self.__group_condition(condition[0] )
-            concat_group_no_having= self.__group_condition(concat_filter)
             groups = ["", group_having, group_no_having]
-            concat_groups = ["", concat_group_having, concat_group_no_having]
 
-            for n in range(len(groups)):
-                tdSql.query(f"select  {','.join(condition)}  from {tbname} {where_condition}  {groups[n]} ")
-                rows = tdSql.queryRows
-                concat_data = []
-                for m in range(rows):
-                    concat_data.append("".join(tdSql.queryResult[m])) if tdSql.getData(m, 0) else concat_data.append(None)
-                tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {concat_groups[n]} ")
-                tdSql.checkRows(rows)
-                for j in range(tdSql.queryRows):
-                    assert tdSql.getData(j, 0) in concat_data
+            if num > 8 or num < 2 :
+                [tdSql.error(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
+
+
+            tdSql.query(f"select  {','.join(condition)}  from {tbname}  ")
+            rows = tdSql.queryRows
+            concat_data = []
+            for m in range(rows):
+                concat_data.append("".join(tdSql.queryResult[m])) if tdSql.getData(m, 0) else concat_data.append(None)
+            tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} ")
+            tdSql.checkRows(rows)
+            for j in range(tdSql.queryRows):
+                assert tdSql.getData(j, 0) in concat_data
+
+            [ tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
 
 
     def __concat_err_check(self,tbname):
         sqls = []
 
-        for un_char_col in NUM_COL:
+        for char_col in CHAR_COL:
             sqls.extend(
                 (
-                    f"select concat( {un_char_col} ) from {tbname} ",
-                    f"select concat(ceil( {un_char_col} )) from {tbname} ",
-                    f"select {un_char_col} from {tbname} group by concat( {un_char_col} ) ",
+                    f"select concat( {char_col} ) from {tbname} ",
+                    f"select concat(ceil( {char_col} )) from {tbname} ",
+                    f"select {char_col} from {tbname} group by concat( {char_col} ) ",
                 )
             )
 
-            sqls.extend( f"select concat( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in NUM_COL )
-            sqls.extend( f"select concat( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select concat( {char_col} , {num_col} ) from {tbname} " for num_col in NUM_COL )
+            sqls.extend( f"select concat( {char_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select concat( {char_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select {char_col} from {tbname} group by concat( {char_col} ) " for char_col in CHAR_COL)
-        sqls.extend( f"select concat( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select concat( {char_col} + {ts_col} ) from {tbname} " for char_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select concat( {ts_col}, {bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat( {num_col} , {ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select concat( {num_col} , {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
+        sqls.extend( f"select concat( {num_col} , {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
+        sqls.extend( f"select concat( {ts_col}, {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select concat( {bool_col}, {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
+
         sqls.extend( f"select concat( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-        sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
-        sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+        sqls.extend( f"select concat({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
+        sqls.extend( f"select concat({num_col}, '1') from {tbname} " for num_col in NUM_COL )
+        sqls.extend( f"select concat({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select concat({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
                 f"select concat() from {tbname} ",
                 f"select concat(*) from {tbname} ",
                 f"select concat(ccccccc) from {tbname} ",
                 f"select concat(111) from {tbname} ",
-                f"select concat(c8, 11) from {tbname} ",
             )
         )
 
         return sqls
 
-    def __test_current(self):
+    def __test_current(self):  # sourcery skip: use-itertools-product
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
-            self.__concat_current_check(tb,2)
-            tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
+            for i in range(2,8):
+                self.__concat_check(tb,i)
+                tdLog.printNoPrefix(f"==========current sql condition check in {tb}, col num: {i} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
@@ -140,6 +150,8 @@ class TDTestCase:
         for tb in tbname:
             for errsql in self.__concat_err_check(tb):
                 tdSql.error(sql=errsql)
+            self.__concat_check(tb,1)
+            self.__concat_check(tb,9)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
