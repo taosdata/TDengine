@@ -2629,6 +2629,7 @@ static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterR
       break;
   }
 
+  pAlterReq->numOfFields = taosArrayGetSize(pAlterReq->pFields);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2637,9 +2638,8 @@ static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pSt
   SName         tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), alterReq.name);
   alterReq.alterType = pStmt->alterType;
-  alterReq.numOfFields = 1;
-  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
-    // todo
+  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType) {
+    return TSDB_CODE_FAILED;
   } else {
     if (TSDB_CODE_SUCCESS != setAlterTableField(pStmt, &alterReq)) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -3023,6 +3023,12 @@ static int32_t translateKillQuery(STranslateContext* pCxt, SKillStmt* pStmt) {
   return buildCmdMsg(pCxt, TDMT_MND_KILL_QUERY, (FSerializeFunc)tSerializeSKillQueryReq, &killReq);
 }
 
+static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStmt) {
+  SKillTransReq killReq = {0};
+  killReq.transId = pStmt->targetId;
+  return buildCmdMsg(pCxt, TDMT_MND_KILL_TRANS, (FSerializeFunc)tSerializeSKillTransReq, &killReq);
+}
+
 static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
   SCMCreateStreamReq createReq = {0};
 
@@ -3121,6 +3127,38 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   return code;
 }
 
+static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
+  SAlterUserReq req = {0};
+  if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
+      (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
+       PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
+    req.alterType = TSDB_ALTER_USER_ADD_ALL_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
+    req.alterType = TSDB_ALTER_USER_ADD_READ_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
+    req.alterType = TSDB_ALTER_USER_ADD_WRITE_DB;
+  }
+  strcpy(req.user, pStmt->userName);
+  strcpy(req.dbname, pStmt->dbName);
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+}
+
+static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
+  SAlterUserReq req = {0};
+  if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
+      (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ) &&
+       PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE))) {
+    req.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_READ)) {
+    req.alterType = TSDB_ALTER_USER_REMOVE_READ_DB;
+  } else if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_WRITE)) {
+    req.alterType = TSDB_ALTER_USER_REMOVE_WRITE_DB;
+  }
+  strcpy(req.user, pStmt->userName);
+  strcpy(req.dbname, pStmt->dbName);
+  return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
+}
+
 static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
   int32_t code = TSDB_CODE_SUCCESS;
   switch (nodeType(pNode)) {
@@ -3216,6 +3254,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
     case QUERY_NODE_KILL_QUERY_STMT:
       code = translateKillQuery(pCxt, (SKillStmt*)pNode);
       break;
+    case QUERY_NODE_KILL_TRANSACTION_STMT:
+      code = translateKillTransaction(pCxt, (SKillStmt*)pNode);
+      break;
     case QUERY_NODE_CREATE_STREAM_STMT:
       code = translateCreateStream(pCxt, (SCreateStreamStmt*)pNode);
       break;
@@ -3224,6 +3265,12 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
+      break;
+    case QUERY_NODE_GRANT_STMT:
+      code = translateGrant(pCxt, (SGrantStmt*)pNode);
+      break;
+    case QUERY_NODE_REVOKE_STMT:
+      code = translateRevoke(pCxt, (SRevokeStmt*)pNode);
       break;
     default:
       break;
@@ -3345,6 +3392,7 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return TSDB_PERFORMANCE_SCHEMA_DB;
     default:
       break;
@@ -3392,6 +3440,8 @@ static const char* getSysTableName(ENodeType type) {
       return TSDB_PERFS_TABLE_QUERIES;
     case QUERY_NODE_SHOW_TOPICS_STMT:
       return TSDB_PERFS_TABLE_TOPICS;
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+      return TSDB_PERFS_TABLE_TRANS;
     default:
       break;
   }
@@ -3557,8 +3607,8 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 }
 
 static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -3571,9 +3621,9 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVCreateTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {
@@ -3957,8 +4007,8 @@ over:
 static void destroyDropTbReqBatch(SVgroupDropTableBatch* pTbBatch) { taosArrayDestroy(pTbBatch->req.pArray); }
 
 static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVDropTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -3971,9 +4021,9 @@ static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SA
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVDropTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {

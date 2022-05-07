@@ -913,12 +913,12 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   if (pTask == NULL) {
     return -1;
   }
-  SCoder decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, (uint8_t*)msg, msgLen, TD_DECODER);
+  SDecoder decoder;
+  tDecoderInit(&decoder, (uint8_t*)msg, msgLen);
   if (tDecodeSStreamTask(&decoder, pTask) < 0) {
     ASSERT(0);
   }
-  tCoderClear(&decoder);
+  tDecoderClear(&decoder);
 
   // exec
   if (tqExpandTask(pTq, pTask, 4) < 0) {

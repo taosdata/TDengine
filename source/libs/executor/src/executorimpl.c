@@ -198,6 +198,7 @@ SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode) {
 
   pBlock->info.blockId = pNode->dataBlockId;
   pBlock->info.rowSize = pNode->totalRowSize;  // todo ??
+  pBlock->info.type = STREAM_INVALID;
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData idata = {{0}};
@@ -5189,7 +5190,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
-  (*pTaskInfo)->plan = pPlan;
   return code;
 
 _complete:

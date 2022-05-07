@@ -547,21 +547,21 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
     req.offsets = (SMqOffset*)offsets->container.pData;
   }
 
-  SCoder encoder;
+  SEncoder encoder;
 
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+  tEncoderInit(&encoder, NULL, 0);
   tEncodeSMqCMCommitOffsetReq(&encoder, &req);
   int32_t tlen = encoder.pos;
   void*   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
-    tCoderClear(&encoder);
+    tEncoderClear(&encoder);
     return -1;
   }
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, tlen, TD_ENCODER);
+  tEncoderInit(&encoder, buf, tlen);
   tEncodeSMqCMCommitOffsetReq(&encoder, &req);
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
   pRequest = createRequest(tmq->pTscObj, NULL, NULL, TDMT_MND_MQ_COMMIT_OFFSET);
   if (pRequest == NULL) {

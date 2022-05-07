@@ -209,11 +209,7 @@ bool getCountFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-/*
- * count function does need the finalize, if data is missing, the default value, which is 0, is used
- * count function does not use the pCtx->interResBuf to keep the intermediate buffer
- */
-int32_t countFunction(SqlFunctionCtx* pCtx) {
+static FORCE_INLINE int32_t getNumofElem(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = 0;
 
   /*
@@ -240,12 +236,30 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
       numOfElem = pInput->numOfRows;
     }
   }
-
+  return numOfElem;
+}
+/*
+ * count function does need the finalize, if data is missing, the default value, which is 0, is used
+ * count function does not use the pCtx->interResBuf to keep the intermediate buffer
+ */
+int32_t countFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElem = getNumofElem(pCtx);
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   char*                buf = GET_ROWCELL_INTERBUF(pResInfo);
   *((int64_t*)buf) += numOfElem;
 
   SET_VAL(pResInfo, numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t countInvertFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElem = getNumofElem(pCtx);
+
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  char*                buf = GET_ROWCELL_INTERBUF(pResInfo);
+  *((int64_t*)buf) -= numOfElem;
+
+  SET_VAL(pResInfo, *((int64_t*)buf), 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -257,6 +271,18 @@ int32_t countFunction(SqlFunctionCtx* pCtx) {
         continue;                                                        \
       };                                                                 \
       (_res) += (d)[i];                                                  \
+      (numOfElem)++;                                                     \
+    }                                                                    \
+  } while (0)
+
+#define LIST_SUB_N(_res, _col, _start, _rows, _t, numOfElem)             \
+  do {                                                                   \
+    _t* d = (_t*)(_col->pData);                                          \
+    for (int32_t i = (_start); i < (_rows) + (_start); ++i) {            \
+      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
+        continue;                                                        \
+      };                                                                 \
+      (_res) -= (d)[i];                                                  \
       (numOfElem)++;                                                     \
     }                                                                    \
   } while (0)
@@ -312,6 +338,65 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
       LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, double, numOfElem);
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
       LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, float, numOfElem);
+    }
+  }
+
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElem = 0;
+
+  // Only the pre-computing information loaded and actual data does not loaded
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg*       pAgg = pInput->pColumnDataAgg[0];
+  int32_t               type = pInput->pData[0]->info.type;
+
+  SSumRes* pSumRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  if (pInput->colDataAggIsSet) {
+    numOfElem = pInput->numOfRows - pAgg->numOfNull;
+    ASSERT(numOfElem >= 0);
+
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      pSumRes->isum -= pAgg->sum;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      pSumRes->usum -= pAgg->sum;
+    } else if (IS_FLOAT_TYPE(type)) {
+      pSumRes->dsum -= GET_DOUBLE_VAL((const char*)&(pAgg->sum));
+    }
+  } else {  // computing based on the true data block
+    SColumnInfoData* pCol = pInput->pData[0];
+
+    int32_t start = pInput->startRowIndex;
+    int32_t numOfRows = pInput->numOfRows;
+
+    if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+      if (type == TSDB_DATA_TYPE_TINYINT || type == TSDB_DATA_TYPE_BOOL) {
+        LIST_SUB_N(pSumRes->isum, pCol, start, numOfRows, int8_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_SMALLINT) {
+        LIST_SUB_N(pSumRes->isum, pCol, start, numOfRows, int16_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_INT) {
+        LIST_SUB_N(pSumRes->isum, pCol, start, numOfRows, int32_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_BIGINT) {
+        LIST_SUB_N(pSumRes->isum, pCol, start, numOfRows, int64_t, numOfElem);
+      }
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      if (type == TSDB_DATA_TYPE_UTINYINT) {
+        LIST_SUB_N(pSumRes->usum, pCol, start, numOfRows, uint8_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_USMALLINT) {
+        LIST_SUB_N(pSumRes->usum, pCol, start, numOfRows, uint16_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_UINT) {
+        LIST_SUB_N(pSumRes->usum, pCol, start, numOfRows, uint32_t, numOfElem);
+      } else if (type == TSDB_DATA_TYPE_UBIGINT) {
+        LIST_SUB_N(pSumRes->usum, pCol, start, numOfRows, uint64_t, numOfElem);
+      }
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      LIST_SUB_N(pSumRes->dsum, pCol, start, numOfRows, double, numOfElem);
+    } else if (type == TSDB_DATA_TYPE_FLOAT) {
+      LIST_SUB_N(pSumRes->dsum, pCol, start, numOfRows, float, numOfElem);
     }
   }
 
@@ -442,6 +527,69 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
       break;
     }
 
+    default:
+      break;
+  }
+
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+#define LIST_AVG_N(sumT, T)                                                   \
+  do {                                                                        \
+      T* plist = (T*)pCol->pData;                                             \
+      for (int32_t i = start; i < numOfRows + pInput->startRowIndex; ++i) {   \
+        if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {          \
+          continue;                                                           \
+        }                                                                     \
+                                                                              \
+        numOfElem += 1;                                                       \
+        pAvgRes->count -= 1;                                                  \
+        sumT -= plist[i];                                                     \
+      }                                                                       \
+  } while (0)
+
+int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElem = 0;
+
+  // Only the pre-computing information loaded and actual data does not loaded
+  SInputColumnInfoData* pInput = &pCtx->input;
+  int32_t               type = pInput->pData[0]->info.type;
+
+  SAvgRes* pAvgRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  // computing based on the true data block
+  SColumnInfoData* pCol = pInput->pData[0];
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfRows = pInput->numOfRows;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      LIST_AVG_N(pAvgRes->sum.isum, int8_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      LIST_AVG_N(pAvgRes->sum.isum, int16_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      LIST_AVG_N(pAvgRes->sum.isum, int32_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      LIST_AVG_N(pAvgRes->sum.isum, int64_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      LIST_AVG_N(pAvgRes->sum.dsum, float);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      LIST_AVG_N(pAvgRes->sum.dsum, double);
+      break;
+    }
     default:
       break;
   }
@@ -876,6 +1024,69 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
       break;
     }
 
+    default:
+      break;
+  }
+
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+#define LIST_STDDEV_SUB_N(sumT, T)                                 \
+  do {                                                             \
+    T* plist = (T*)pCol->pData;                                    \
+    for (int32_t i = start; i < numOfRows + start; ++i) {          \
+      if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) { \
+        continue;                                                  \
+      }                                                            \
+      numOfElem += 1;                                              \
+      pStddevRes->count -= 1;                                      \
+      sumT -= plist[i];                                            \
+      pStddevRes->quadraticISum -= plist[i] * plist[i];            \
+    }                                                              \
+  } while (0)
+  
+int32_t stddevInvertFunction(SqlFunctionCtx* pCtx) {
+  int32_t numOfElem = 0;
+
+  // Only the pre-computing information loaded and actual data does not loaded
+  SInputColumnInfoData* pInput = &pCtx->input;
+  int32_t               type = pInput->pData[0]->info.type;
+
+  SStddevRes* pStddevRes = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  // computing based on the true data block
+  SColumnInfoData* pCol = pInput->pData[0];
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfRows = pInput->numOfRows;
+
+  switch (type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, int8_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, int16_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, int32_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      LIST_STDDEV_SUB_N(pStddevRes->isum, int64_t);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      LIST_STDDEV_SUB_N(pStddevRes->dsum, float);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      LIST_STDDEV_SUB_N(pStddevRes->dsum, double);
+      break;
+    }
     default:
       break;
   }
@@ -1446,11 +1657,6 @@ int32_t diffFunction(SqlFunctionCtx* pCtx) {
 
   // initial value is not set yet
   if (numOfElems <= 0) {
-    /*
-     * 1. current block and blocks before are full of null
-     * 2. current block may be null value
-     */
-    assert(pCtx->hasNull);
     return 0;
   } else {
     return (isFirstBlock) ? numOfElems - 1 : numOfElems;

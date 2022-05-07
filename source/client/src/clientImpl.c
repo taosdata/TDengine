@@ -162,18 +162,17 @@ int32_t buildRequest(STscObj* pTscObj, const char* sql, int sqlLen, SRequestObj*
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb) {
   STscObj* pTscObj = pRequest->pTscObj;
 
-  SParseContext cxt = {
-      .requestId = pRequest->requestId,
-      .acctId = pTscObj->acctId,
-      .db = pRequest->pDb,
-      .topicQuery = topicQuery,
-      .pSql = pRequest->sqlstr,
-      .sqlLen = pRequest->sqlLen,
-      .pMsg = pRequest->msgBuf,
-      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-      .pTransporter = pTscObj->pAppInfo->pTransporter,
-      .pStmtCb = pStmtCb,
-  };
+  SParseContext cxt = {.requestId = pRequest->requestId,
+                       .acctId = pTscObj->acctId,
+                       .db = pRequest->pDb,
+                       .topicQuery = topicQuery,
+                       .pSql = pRequest->sqlstr,
+                       .sqlLen = pRequest->sqlLen,
+                       .pMsg = pRequest->msgBuf,
+                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
+                       .pTransporter = pTscObj->pAppInfo->pTransporter,
+                       .pStmtCb = pStmtCb,
+                       .pUser = pTscObj->user};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -232,11 +231,15 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp),
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
-                      .pTransporter = pRequest->pTscObj->pAppInfo->pTransporter,
                       .pMsg = pRequest->msgBuf,
                       .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                       .placeholderNum = pQuery->placeholderNum};
-  int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
+  SEpSet       mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+  SCatalog*    pCatalog = NULL;
+  int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = catalogGetQnodeList(pCatalog, pRequest->pTscObj->pAppInfo->pTransporter, &mgmtEpSet, pNodeList);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
   }

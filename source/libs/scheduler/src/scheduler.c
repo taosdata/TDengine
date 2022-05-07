@@ -1085,21 +1085,21 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_CREATE_TABLE_RSP: {
       SVCreateTbBatchRsp batchRsp = {0};
       if (msg) {
-        SCoder coder = {0};
-        tCoderInit(&coder, TD_LITTLE_ENDIAN, msg, msgSize, TD_DECODER);
+        SDecoder coder = {0};
+        tDecoderInit(&coder, msg, msgSize);
         code = tDecodeSVCreateTbBatchRsp(&coder, &batchRsp);
         if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
           for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
             SVCreateTbRsp *rsp = batchRsp.pRsps + i;
             if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              tCoderClear(&coder);
+              tDecoderClear(&coder);
               SCH_ERR_JRET(rsp->code);
             } else if (TSDB_CODE_SUCCESS != rsp->code) {
               code = rsp->code;
             }
           }
         }
-        tCoderClear(&coder);
+        tDecoderClear(&coder);
         SCH_ERR_JRET(code);
       }
 
@@ -1110,21 +1110,21 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_DROP_TABLE_RSP: {
       SVDropTbBatchRsp batchRsp = {0};
       if (msg) {
-        SCoder coder = {0};
-        tCoderInit(&coder, TD_LITTLE_ENDIAN, msg, msgSize, TD_DECODER);
+        SDecoder coder = {0};
+        tDecoderInit(&coder, msg, msgSize);
         code = tDecodeSVDropTbBatchRsp(&coder, &batchRsp);
         if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
           for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
             SVDropTbRsp *rsp = batchRsp.pRsps + i;
             if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              tCoderClear(&coder);
+              tDecoderClear(&coder);
               SCH_ERR_JRET(rsp->code);
             } else if (TSDB_CODE_SUCCESS != rsp->code) {
               code = rsp->code;
             }
           }
         }
-        tCoderClear(&coder);
+        tDecoderClear(&coder);
         SCH_ERR_JRET(code);
       }
 

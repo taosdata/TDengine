@@ -411,7 +411,7 @@ void *tDecodeSMqSubActionLogObj(const void *buf, SMqSubActionLogObj *pLog) {
   return (void *)buf;
 }
 
-int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
+int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   int32_t sz = 0;
   /*int32_t outputNameSz = 0;*/
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
@@ -462,7 +462,7 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   return pEncoder->pos;
 }
 
-int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
+int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeCStrTo(pDecoder, pObj->name) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->sourceDb) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
