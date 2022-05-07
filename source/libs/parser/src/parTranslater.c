@@ -3557,8 +3557,8 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 }
 
 static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -3571,9 +3571,9 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVCreateTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {
@@ -3957,8 +3957,8 @@ over:
 static void destroyDropTbReqBatch(SVgroupDropTableBatch* pTbBatch) { taosArrayDestroy(pTbBatch->req.pArray); }
 
 static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVDropTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -3971,9 +3971,9 @@ static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SA
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVDropTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {

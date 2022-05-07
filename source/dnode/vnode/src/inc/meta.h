@@ -39,8 +39,8 @@ typedef struct SMSmaCursor SMSmaCursor;
 // metaOpen ==================
 
 // metaEntry ==================
-int metaEncodeEntry(SCoder* pCoder, const SMetaEntry* pME);
-int metaDecodeEntry(SCoder* pCoder, SMetaEntry* pME);
+int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
+int metaDecodeEntry(SDecoder* pCoder, SMetaEntry* pME);
 
 // metaTable ==================
 
