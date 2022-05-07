@@ -943,16 +943,16 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
                                                &(pAggrBlkCol->numOfNull));
 
       if (pAggrBlkCol->numOfNull == 0) {
-        TD_SET_COL_ROWS_NORM(pBlockCol);
+        pBlockCol->blen = 0;
       } else {
-        TD_SET_COL_ROWS_MISC(pBlockCol);
+        pBlockCol->blen = 1;
       }
       ++nColsOfBlockSma;
     } else if (tdIsBitmapBlkNorm(pDataCol->pBitmap, rowsToWrite, pDataCols->bitmapMode)) {
       // check if all rows normal
-      TD_SET_COL_ROWS_NORM(pBlockCol);
+      pBlockCol->blen = 0;
     } else {
-      TD_SET_COL_ROWS_MISC(pBlockCol);
+      pBlockCol->blen = 1;
     }
 
     ++nColsNotAllNull;
@@ -985,7 +985,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 #ifdef TD_SUPPORT_BITMAP
     int32_t tBitmaps = 0;
     int32_t tBitmapsLen = 0;
-    if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+    if ((ncol != 0) && (pBlockCol->blen > 0)) {
       tBitmaps = isSuper ? sBitmaps : nBitmaps;
     }
 #endif
