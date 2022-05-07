@@ -199,12 +199,15 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     //   ASSERT(c);
 
     // encode row
-    int8_t level = tsdbMemSkipListRandLevel(&pMemData->sl);
+    int8_t            level = tsdbMemSkipListRandLevel(&pMemData->sl);
+    int32_t           tsize = SL_NODE_SIZE(level) + sizeof(version) + (0 /*todo*/);
+    SMemSkipListNode *pNode = vnodeBufPoolMalloc(pPool, tsize);
+    if (pNode == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
 
-    //   int8_t  level = tsdbMemSkipListRandLevel(&pMemData->sl);
-    //   int32_t tsize = SL_NODE_SIZE(level) + sizeof(version) + (p - pt);
-    //   pSlNode = vnodeBufPoolMalloc(pPool, tsize);
-    //   pSlNode->level = level;
+    pNode->level = level;
 
     //   uint8_t *pData = SL_NODE_DATA(pSlNode);
     //   *(int64_t *)pData = version;
@@ -235,19 +238,13 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
 
 static int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
   int8_t         level = 1;
+  int8_t         tlevel;
   const uint32_t factor = 4;
 
   if (pSl->size) {
-    while ((taosRandR(&pSl->seed) % factor) == 0 && level < pSl->maxLevel) {
+    tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
+    while ((taosRandR(&pSl->seed) % factor) == 0 && level < tlevel) {
       level++;
-    }
-
-    if (level > pSl->level) {
-      if (pSl->level < pSl->maxLevel) {
-        level = pSl->level + 1;
-      } else {
-        level = pSl->level;
-      }
     }
   }
 
