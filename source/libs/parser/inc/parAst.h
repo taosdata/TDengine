@@ -178,7 +178,7 @@ SNode* createResetQueryCacheStmt(SAstCreateContext* pCxt);
 SNode* createCompactStmt(SAstCreateContext* pCxt, SNodeList* pVgroups);
 SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool aggFunc, const SToken* pFuncName,
                                 const SToken* pLibPath, SDataType dataType, int32_t bufSize);
-SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName);
+SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pFuncName);
 SNode* createStreamOptions(SAstCreateContext* pCxt);
 SNode* createCreateStreamStmt(SAstCreateContext* pCxt, bool ignoreExists, const SToken* pStreamName, SNode* pRealTable,
                               SNode* pOptions, SNode* pQuery);
@@ -188,6 +188,8 @@ SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, cons
 SNode* createRedistributeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId, SNodeList* pDnodes);
 SNode* createSplitVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId);
 SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName);
+SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbName, SToken* pUserName);
+SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbName, SToken* pUserName);
 
 #ifdef __cplusplus
 }

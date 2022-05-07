@@ -195,7 +195,7 @@ DLL_EXPORT void      taos_unsubscribe(TAOS_SUB *tsub, int keepProgress);
 #endif
 
 DLL_EXPORT int       taos_load_table_info(TAOS *taos, const char *tableNameList);
-DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision, bool dataFormat);
+DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision);
 
 /* --------------------------TMQ INTERFACE------------------------------- */
 

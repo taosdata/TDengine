@@ -38,6 +38,7 @@ extern "C" {
 #include "tlockfree.h"
 #include "tmsg.h"
 #include "tpagedbuf.h"
+#include "tstreamUpdate.h"
 
 #include "vnode.h"
 #include "executorInt.h"
@@ -325,10 +326,15 @@ typedef struct SExchangeInfo {
   SLoadRemoteDataInfo loadInfo;
 } SExchangeInfo;
 
+#define COL_MATCH_FROM_COL_ID  0x1
+#define COL_MATCH_FROM_SLOT_ID 0x2
+
 typedef struct SColMatchInfo {
+  int32_t srcSlotId;     // source slot id
   int32_t colId;
   int32_t targetSlotId;
   bool    output;
+  int32_t matchType;     // determinate the source according to col id or slot id
 } SColMatchInfo;
 
 typedef struct SScanInfo {
@@ -380,6 +386,9 @@ typedef struct SStreamBlockScanInfo {
   void*        readerHandle;     // stream block reader handle
   SArray*      pColMatchInfo;    //
   SNode*       pCondition;
+  SArray*      tsArray;
+  SUpdateInfo*  pUpdateInfo;
+  int32_t      primaryTsIndex;    // primary time stamp slot id
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -440,6 +449,7 @@ typedef struct SIntervalAggOperatorInfo {
   SArray*            pUpdatedWindow;     // updated time window due to the input data block from the downstream operator.
   STimeWindowAggSupp twAggSup;
   struct SFillInfo*  pFillInfo;          // fill info
+  bool               invertible;
 } SIntervalAggOperatorInfo;
 
 typedef struct SAggOperatorInfo {

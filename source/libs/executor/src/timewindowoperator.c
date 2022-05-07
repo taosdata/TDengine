@@ -1,6 +1,7 @@
 #include "ttime.h"
 #include "tdatablock.h"
 #include "executorimpl.h"
+#include "functionMgt.h"
 
 typedef enum SResultTsInterpType {
   RESULT_ROW_START_INTERP = 1,
@@ -979,6 +980,15 @@ static void finalizeUpdatedResult(int32_t numOfOutput, SDiskbasedBuf* pBuf, SArr
     releaseBufPage(pBuf, bufPage);
   }
 }
+static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {
+  for ( int i = 0; i < num; i++) {
+    if (type == STREAM_INVERT) {
+      fmSetInvertFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
+    } else if (type == STREAM_NORMAL){
+      fmSetNormalFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
+    }
+  }
+}
 
 static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
@@ -1016,6 +1026,9 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, true);
+    if (pInfo->invertible) {
+      setInverFunction(pInfo->binfo.pCtx, pOperator->numOfExprs, pBlock->info.type);
+    }
     pUpdated = hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
   }
 
@@ -1043,6 +1056,15 @@ void destroyIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   cleanupAggSup(&pInfo->aggSup);
 }
 
+bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
+  for (int32_t i = 0; i < numOfCols; i++) {
+    if (!fmIsInvertible(pFCtx[i].functionId)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                           STimeWindowAggSupp* pTwAggSupp, const STableGroupInfo* pTableGroupInfo,
@@ -1068,6 +1090,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
       initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, pResBlock, keyBufSize, pTaskInfo->id.str);
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
+  pInfo->invertible = allInvertible(pInfo->binfo.pCtx, numOfCols);
 
   //  pInfo->pTableQueryInfo = initTableQueryInfo(pTableGroupInfo);
   if (code != TSDB_CODE_SUCCESS /* || pInfo->pTableQueryInfo == NULL*/) {

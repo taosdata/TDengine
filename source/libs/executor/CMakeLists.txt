@@ -17,6 +17,6 @@ target_include_directories(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-#if(${BUILD_TEST})
+if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
-#endif(${BUILD_TEST})
+endif(${BUILD_TEST})

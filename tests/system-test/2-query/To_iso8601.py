@@ -92,6 +92,21 @@ class TDTestCase:
         tdSql.query("select to_iso8601(today()) /null from db.ntb")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,None)
+        # tdSql.query("select to_iso8601(-1) from ntb")
+        tdSql.query("select to_iso8601(9223372036854775807) from ntb")
+        tdSql.checkRows(3)
+
+        # tdSql.query("select to_iso8601(10000000000) from ntb")
+        # tdSql.checkData(0,0,None)
+        # tdSql.query("select to_iso8601(-1) from ntb")
+        # tdSql.checkRows(3)
+        # tdSql.query("select to_iso8601(-10000000000) from ntb")
+        # tdSql.checkData(0,0,None)
+        tdSql.error("select to_iso8601(1.5) from ntb")
+        tdSql.error("select to_iso8601(1.5) from db.ntb")
+        tdSql.error("select to_iso8601('a') from ntb")
+        tdSql.error("select to_iso8601(c2) from ntb")
+        
 
 
 
@@ -136,6 +151,8 @@ class TDTestCase:
         tdSql.query("select to_iso8601(today()) /null from db.stb")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,None)
+
+        # tdSql.query("select to_iso8601(-1) from ntb")
 
 
 

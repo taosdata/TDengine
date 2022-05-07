@@ -37,6 +37,9 @@ bool isInsertSql(const char* pStr, size_t length) {
 static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = parse(pCxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
+    code = authenticate(pCxt, *pQuery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
     code = translate(pCxt, *pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {

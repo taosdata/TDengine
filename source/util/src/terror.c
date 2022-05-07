@@ -326,6 +326,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_TYPE,       "Invalid table type")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION,    "Invalid table schema version")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_ALREADY_EXIST,      "Table already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_NOT_EXIST,      "Table not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_STB_ALREADY_EXIST,      "Stable already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_STB_NOT_EXIST,      "Stable not exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_CONFIG,           "Invalid configuration")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INIT_FAILED,              "Tsdb init failed")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_DISKSPACE,             "No diskspace for tsdb")
@@ -445,6 +448,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QW_MSG_ERROR,                 "Invalid msg order")
 
 // parser
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TABLE_NOT_EXIST,          "Table does not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PERMISSION_DENIED,        "Permission denied")
 
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,          "planner internal error")

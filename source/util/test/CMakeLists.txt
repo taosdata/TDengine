@@ -41,9 +41,9 @@ target_sources(freelistTest
 )
 target_link_libraries(freelistTest os util gtest gtest_main)
 
-# encodeTest
-add_executable(encodeTest "encodeTest.cpp")
-target_link_libraries(encodeTest os util gtest gtest_main)
+# # encodeTest
+# add_executable(encodeTest "encodeTest.cpp")
+# target_link_libraries(encodeTest os util gtest gtest_main)
 
 # queueTest
 add_executable(procTest "procTest.cpp")

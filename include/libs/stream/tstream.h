@@ -154,8 +154,8 @@ typedef struct {
 } SStreamTask;
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
-int32_t      tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask);
-int32_t      tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask);
+int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
+int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 typedef struct {
