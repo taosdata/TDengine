@@ -5209,7 +5209,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
     goto _complete;
   }
 
-  (*pTaskInfo)->plan = pPlan;
   return code;
 
 _complete:

@@ -225,7 +225,6 @@ typedef struct SExecTaskInfo {
   char*            sql;                  // query sql string
   jmp_buf          env;                  // jump to this position when error happens.
   EOPTR_EXEC_MODEL execModel;            // operator execution model [batch model|stream model]
-  struct SSubplan  *plan;
   struct SOperatorInfo* pRoot;
 } SExecTaskInfo;
 
