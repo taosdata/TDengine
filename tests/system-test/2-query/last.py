@@ -164,12 +164,12 @@ class TDTestCase:
         tdSql.query("select last(col8) from db.stb_1")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, 'taosdata10')
-        # tdSql.query("select last(col9) from stb_1")
-        # tdSql.checkRows(1)
-        # tdSql.checkData(0, 0, '涛思数据10')
-        # tdSql.query("select last(col9) from db.stb_1")
-        # tdSql.checkRows(1)
-        # tdSql.checkData(0, 0, '涛思数据10')
+        tdSql.query("select last(col9) from stb_1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '涛思数据10')
+        tdSql.query("select last(col9) from db.stb_1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, '涛思数据10')
 
 
         tdSql.execute('''create table ntb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
