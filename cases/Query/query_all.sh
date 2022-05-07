@@ -15,6 +15,11 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_func_right.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_func_right_tbname.py --keep
 
+#table_fun_query
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_func_error.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_func_right.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_func_right_tbname.py --keep
+
 #stable_fun_time_query
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_now.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/time/stable_time_today.py --keep
@@ -113,3 +118,10 @@ taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_sample.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_mode.py --keep
 taostest --use=test_217env.yaml --case=Query/queryscript/stable_function/alltype/stable_alltype_hyperloglog.py --keep
+
+#table_fun_alltype_query
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_alltype_unique.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_alltype_tail.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_alltype_sample.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_alltype_mode.py --keep
+taostest --use=test_217env.yaml --case=Query/queryscript/table_function/alltype/table_alltype_hyperloglog.py --keep
