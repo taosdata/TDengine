@@ -106,6 +106,7 @@ SSdbRaw *mndUserActionEncode(SUserObj *pUser) {
   SDB_SET_INT64(pRaw, dataPos, pUser->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pUser->updateTime, _OVER)
   SDB_SET_INT8(pRaw, dataPos, pUser->superUser, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pUser->authVersion, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfReadDbs, _OVER)
   SDB_SET_INT32(pRaw, dataPos, numOfWriteDbs, _OVER)
 
@@ -161,6 +162,7 @@ static SSdbRow *mndUserActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pUser->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pUser->updateTime, _OVER)
   SDB_GET_INT8(pRaw, dataPos, &pUser->superUser, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pUser->authVersion, _OVER)
 
   int32_t numOfReadDbs = 0;
   int32_t numOfWriteDbs = 0;
@@ -588,7 +590,7 @@ _OVER:
   return code;
 }
 
-static int32_t mndSetUserAuthRsp(SMnode       *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
+static int32_t mndSetUserAuthRsp(SMnode *pMnode, SUserObj *pUser, SGetUserAuthRsp *pRsp) {
   memcpy(pRsp->user, pUser->user, TSDB_USER_LEN);
   pRsp->superAuth = pUser->superUser;
   pRsp->version = pUser->authVersion;
@@ -601,7 +603,7 @@ static int32_t mndSetUserAuthRsp(SMnode       *pMnode, SUserObj *pUser, SGetUser
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
-  
+
   SSdb *pSdb = pMnode->pSdb;
   void *pIter = NULL;
   while (1) {
@@ -659,7 +661,7 @@ static int32_t mndProcessGetUserAuthReq(SNodeMsg *pReq) {
   code = 0;
 
 _OVER:
-  
+
   mndReleaseUser(pMnode, pUser);
   tFreeSGetUserAuthRsp(&authRsp);
 
@@ -711,7 +713,8 @@ static void mndCancelGetNextUser(SMnode *pMnode, void *pIter) {
   sdbCancelFetch(pSdb, pIter);
 }
 
-int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp, int32_t *pRspLen) {
+int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_t numOfUses, void **ppRsp,
+                                int32_t *pRspLen) {
   SUserAuthBatchRsp batchRsp = {0};
   batchRsp.pArray = taosArrayInit(numOfUses, sizeof(SGetUserAuthRsp));
   if (batchRsp.pArray == NULL) {
@@ -731,7 +734,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
       mndReleaseUser(pMnode, pUser);
       continue;
     }
-    
+
     SGetUserAuthRsp rsp = {0};
     code = mndSetUserAuthRsp(pMnode, pUser, &rsp);
     if (code) {
@@ -740,7 +743,6 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
       goto _OVER;
     }
 
-
     taosArrayPush(batchRsp.pArray, &rsp);
     mndReleaseUser(pMnode, pUser);
   }
@@ -748,7 +750,7 @@ int32_t mndValidateUserAuthInfo(SMnode *pMnode, SUserAuthVersion *pUsers, int32_
   if (taosArrayGetSize(batchRsp.pArray) <= 0) {
     *ppRsp = NULL;
     *pRspLen = 0;
-    
+
     tFreeSUserAuthBatchRsp(&batchRsp);
     return 0;
   }
@@ -772,10 +774,7 @@ _OVER:
 
   *ppRsp = NULL;
   *pRspLen = 0;
-  
+
   tFreeSUserAuthBatchRsp(&batchRsp);
   return code;
 }
-
-
-

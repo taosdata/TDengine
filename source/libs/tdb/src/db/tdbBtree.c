@@ -1678,6 +1678,14 @@ int tdbBtcClose(SBTC *pBtc) {
 
   return 0;
 }
+
+int tdbBtcIsValid(SBTC *pBtc) {
+  if (pBtc->idx < 0) {
+    return 0;
+  } else {
+    return 1;
+  }
+}
 // TDB_BTREE_CURSOR
 
 // TDB_BTREE_DEBUG =====================

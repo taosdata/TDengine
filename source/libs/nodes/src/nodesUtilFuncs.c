@@ -1337,7 +1337,9 @@ void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = pNode->datum.p;
+      pVal->pz = taosMemoryMalloc(pVal->nLen + VARSTR_HEADER_SIZE + 1);
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen + VARSTR_HEADER_SIZE);
+      pVal->pz[pVal->nLen + VARSTR_HEADER_SIZE] = 0;
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:

@@ -46,3 +46,30 @@ char* indexPackJsonData(SIndexTerm* itm) {
 
   return buf;
 }
+char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
+  /*
+   * |<-----colname---->|<-----dataType---->|<--------colVal---------->|
+   * |<-----string----->|<-----uint8_t----->|<----depend on dataType-->|
+   */
+  uint8_t ty = INDEX_TYPE_GET_TYPE(itm->colType);
+
+  int32_t sz = itm->nColName + itm->nColVal + sizeof(uint8_t) + sizeof(JSON_VALUE_DELIM) * 2 + 1;
+  char*   buf = (char*)taosMemoryCalloc(1, sz);
+  char*   p = buf;
+
+  memcpy(p, itm->colName, itm->nColName);
+  p += itm->nColName;
+
+  memcpy(p, &JSON_VALUE_DELIM, sizeof(JSON_VALUE_DELIM));
+  p += sizeof(JSON_VALUE_DELIM);
+
+  memcpy(p, &ty, sizeof(ty));
+  p += sizeof(ty);
+
+  memcpy(p, &JSON_VALUE_DELIM, sizeof(JSON_VALUE_DELIM));
+  p += sizeof(JSON_VALUE_DELIM);
+
+  *skip = p - buf;
+
+  return buf;
+}

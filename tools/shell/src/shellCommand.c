@@ -151,8 +151,8 @@ void shellGetPrevCharSize(const char *str, int32_t pos, int32_t *size, int32_t *
     if (str[pos] > 0 || shellCountPrefixOnes((uint8_t)str[pos]) > 1) break;
   }
 
-  int32_t rc = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
-  assert(rc == *size);
+  taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
+  // assert(rc == *size); // it will be core, if str is encode by utf8 and taos charset is gbk
 
   *width = taosWcharWidth(wc);
 }

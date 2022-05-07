@@ -246,6 +246,12 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
   return 0;
 }
 
+static FORCE_INLINE void tsdbSwapDataCols(SDataCols *pDest, SDataCols *pSrc) {
+  SDataCol *pCols = pDest->cols;
+  memcpy(pDest, pSrc, sizeof(SDataCols));
+  pSrc->cols = pCols;
+}
+
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   ASSERT(pBlock->numOfSubBlocks > 0);
   STsdbCfg *pCfg = REPO_CFG(pReadh->pRepo);
@@ -266,17 +272,29 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
   }
+  // if ((pBlock->numOfSubBlocks == 1) && (iBlock->hasDupKey)) { // TODO: use this line
+  if (pBlock->numOfSubBlocks == 1) {
+    tdResetDataCols(pReadh->pDCols[1]);
+    pReadh->pDCols[1]->bitmapMode = pReadh->pDCols[0]->bitmapMode;
+    if (tdMergeDataCols(pReadh->pDCols[1], pReadh->pDCols[0], pReadh->pDCols[0]->numOfRows, NULL,
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
+      return -1;
+    }
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
+    ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
+  }
 
-  ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
+  ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
 
   return 0;
 }
 
+// TODO: filter by Multi-Version
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
                           bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
@@ -297,9 +315,21 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
   }
+  // if ((pBlock->numOfSubBlocks == 1) && (iBlock->hasDupKey)) { // TODO: use this line
+  if (pBlock->numOfSubBlocks == 1) {
+    tdResetDataCols(pReadh->pDCols[1]);
+    pReadh->pDCols[1]->bitmapMode = pReadh->pDCols[0]->bitmapMode;
+    if (tdMergeDataCols(pReadh->pDCols[1], pReadh->pDCols[0], pReadh->pDCols[0]->numOfRows, NULL,
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
+      return -1;
+    }
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
+    ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
+  }
+
 
   if (mergeBitmap && !tdDataColsIsBitmapI(pReadh->pDCols[0])) {
     for (int i = 0; i < numOfColsIds; ++i) {
@@ -312,7 +342,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     }
   }
 
-  ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
+  ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
 
@@ -586,7 +616,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       tcolId = pBlockCol->colId;
       toffset = tsdbGetBlockColOffset(pBlockCol);
       tlen = pBlockCol->len;
-      pDataCol->bitmap = pBlockCol->bitmap;
+      pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
     } else {
       ASSERT(pDataCol->colId == tcolId);
       TD_SET_COL_ROWS_NORM(pDataCol);
@@ -594,17 +624,8 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
 
     // int32_t tBitmaps = 0;
     int32_t tLenBitmap = 0;
-    if ((dcol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+    if ((dcol != 0) && (pBlockCol->blen > 0)) {
       tLenBitmap = nBitmaps;
-#if 0
-      if (IS_VAR_DATA_TYPE(pDataCol->type)) {
-        tBitmaps = nBitmaps;
-        tLenBitmap = tBitmaps;
-      } else {
-        tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
-        tLenBitmap = tBitmaps * TYPE_BYTES[pDataCol->type];
-      }
-#endif
     }
 
     if (tcolId == pDataCol->colId) {
@@ -623,15 +644,15 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       }
 
       if (dcol != 0) {
-        ccol++;
+        ++ccol;
       }
-      dcol++;
+      ++dcol;
     } else if (tcolId < pDataCol->colId) {
-      ccol++;
+      ++ccol;
     } else {
       // Set current column as NULL and forward
       dataColReset(pDataCol);
-      dcol++;
+      ++dcol;
     }
   }
 
@@ -754,8 +775,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 
     if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {  // load the key row
       blockCol.colId = colId;
-      TD_SET_COL_ROWS_NORM(&blockCol);  // default is NORM for the primary key column
-      blockCol.blen = 0;
+      blockCol.blen = 0;  // default is NORM for the primary key column
       blockCol.len = pBlock->keyLen;
       blockCol.type = pDataCol->type;
       blockCol.offset = TSDB_KEY_COL_OFFSET;
@@ -785,7 +805,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       ASSERT(pBlockCol->colId == pDataCol->colId);
     }
     // set the bitmap
-    pDataCol->bitmap = pBlockCol->bitmap;
+    pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
 
     if (tsdbLoadColData(pReadh, pDFile, pBlock, pBlockCol, pDataCol) < 0) return -1;
   }
@@ -803,17 +823,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   // int32_t tBitmaps = 0;
   int32_t tLenBitmap = 0;
 
-  if (!TD_COL_ROWS_NORM(pBlockCol)) {
+  if (pBlockCol->blen) {
     tLenBitmap = nBitmaps;
-#if 0
-    if (IS_VAR_DATA_TYPE(pDataCol->type)) {
-      tBitmaps = nBitmaps;
-      tLenBitmap = tBitmaps;
-    } else {
-      tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
-      tLenBitmap = tBitmaps * TYPE_BYTES[pDataCol->type];
-    }
-#endif
   }
 
   int tsize = pDataCol->bytes * pBlock->numOfRows + tLenBitmap + 2 * COMP_OVERFLOW_BYTES;

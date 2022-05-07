@@ -424,6 +424,11 @@ void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
     dsDestroyDataSinker(ctx->sinkHandle);
     ctx->sinkHandle = NULL;
   }
+
+  if (ctx->plan) {
+    nodesDestroyNode(ctx->plan);
+    ctx->plan = NULL;
+  }
 }
 
 int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
@@ -440,6 +445,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 
   atomic_store_ptr(&ctx->taskHandle, NULL);
   atomic_store_ptr(&ctx->sinkHandle, NULL);
+  atomic_store_ptr(&ctx->plan, NULL);
 
   QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_DROP);
 
@@ -922,7 +928,7 @@ _return:
 int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
   int32_t          code = 0;
   bool             queryRsped = false;
-  struct SSubplan *plan = NULL;
+  SSubplan*        plan = NULL;
   SQWPhaseInput    input = {0};
   qTaskInfo_t      pTaskInfo = NULL;
   DataSinkHandle   sinkHandle = NULL;
@@ -949,6 +955,8 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
     QW_TASK_ELOG("task physical plan to subplan failed, code:%x - %s", code, tstrerror(code));
     QW_ERR_JRET(code);
   }
+
+  ctx->plan = plan;
 
   code = qCreateExecTask(qwMsg->node, mgmt->nodeId, tId, plan, &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
   if (code) {
@@ -1428,6 +1436,10 @@ void qwCloseRef(void) {
   taosWUnLockLatch(&gQwMgmt.lock);
 }
 
+void qwDestroySchStatus(SQWSchStatus *pStatus) {
+  taosHashCleanup(pStatus->tasksHash);
+}
+
 void qwDestroyImpl(void *pMgmt) {
   SQWorker *mgmt = (SQWorker *)pMgmt;
 
@@ -1439,6 +1451,13 @@ void qwDestroyImpl(void *pMgmt) {
   // TODO FREE ALL
 
   taosHashCleanup(mgmt->ctxHash);
+
+  void *pIter = taosHashIterate(mgmt->schHash, NULL);
+  while (pIter) {
+    SQWSchStatus *sch = (SQWSchStatus *)pIter;
+    qwDestroySchStatus(sch);
+    pIter = taosHashIterate(mgmt->schHash, pIter);
+  }  
   taosHashCleanup(mgmt->schHash);
 
   taosMemoryFree(mgmt);

@@ -594,7 +594,7 @@ int32_t tDeserializeSMDropStbReq(void *buf, int32_t bufLen, SMDropStbReq *pReq) 
   return 0;
 }
 
-int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAltertbReq *pReq) {
+int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
@@ -615,7 +615,7 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAltertbReq *pReq) {
   return tlen;
 }
 
-int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAltertbReq *pReq) {
+int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) {
   SCoder decoder = {0};
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
@@ -645,7 +645,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAltertbReq *pReq)
   return 0;
 }
 
-void tFreeSMAltertbReq(SMAltertbReq *pReq) {
+void tFreeSMAltertbReq(SMAlterStbReq *pReq) {
   taosArrayDestroy(pReq->pFields);
   pReq->pFields = NULL;
 }
@@ -1254,7 +1254,6 @@ int32_t tDeserializeSGetUserAuthRspImpl(SCoder *pDecoder, SGetUserAuthRsp *pRsp)
 
   return 0;
 }
-
 
 int32_t tDeserializeSGetUserAuthRsp(void *buf, int32_t bufLen, SGetUserAuthRsp *pRsp) {
   SCoder decoder = {0};
@@ -2091,7 +2090,7 @@ void tFreeSUseDbBatchRsp(SUseDbBatchRsp *pRsp) {
   taosArrayDestroy(pRsp->pArray);
 }
 
-int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp){
+int32_t tSerializeSUserAuthBatchRsp(void *buf, int32_t bufLen, SUserAuthBatchRsp *pRsp) {
   SCoder encoder = {0};
   tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_ENCODER);
 
@@ -2110,7 +2109,7 @@ int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp
   return tlen;
 }
 
-int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp){
+int32_t tDeserializeSUserAuthBatchRsp(void *buf, int32_t bufLen, SUserAuthBatchRsp *pRsp) {
   SCoder decoder = {0};
   tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, bufLen, TD_DECODER);
 
@@ -2136,7 +2135,7 @@ int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchR
   return 0;
 }
 
-void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp){
+void tFreeSUserAuthBatchRsp(SUserAuthBatchRsp *pRsp) {
   int32_t numOfBatch = taosArrayGetSize(pRsp->pArray);
   for (int32_t i = 0; i < numOfBatch; ++i) {
     SGetUserAuthRsp *pUserAuthRsp = taosArrayGet(pRsp->pArray, i);
@@ -2145,7 +2144,6 @@ void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp){
 
   taosArrayDestroy(pRsp->pArray);
 }
-
 
 int32_t tSerializeSDbCfgReq(void *buf, int32_t bufLen, SDbCfgReq *pReq) {
   SCoder encoder = {0};
@@ -3746,6 +3744,7 @@ STSchema *tdGetSTSChemaFromSSChema(SSchema **pSchema, int32_t nCols) {
 int tEncodeSVCreateTbReq(SCoder *pCoder, const SVCreateTbReq *pReq) {
   if (tStartEncode(pCoder) < 0) return -1;
 
+  if (tEncodeI32v(pCoder, pReq->flags) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->uid) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->ctime) < 0) return -1;
 
@@ -3771,6 +3770,7 @@ int tDecodeSVCreateTbReq(SCoder *pCoder, SVCreateTbReq *pReq) {
 
   if (tStartDecode(pCoder) < 0) return -1;
 
+  if (tDecodeI32v(pCoder, &pReq->flags) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->uid) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->ctime) < 0) return -1;
 

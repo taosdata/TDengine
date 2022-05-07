@@ -5311,6 +5311,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
   //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
 
+  destroyOperatorInfo(pTaskInfo->pRoot);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

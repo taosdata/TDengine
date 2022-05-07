@@ -25,6 +25,7 @@ extern "C" {
 #include "tlockfree.h"
 #include "ttimer.h"
 #include "tref.h"
+#include "plannodes.h"
 
 #define QW_DEFAULT_SCHEDULER_NUMBER 10000
 #define QW_DEFAULT_TASK_NUMBER      10000
@@ -131,8 +132,9 @@ typedef struct SQWTaskCtx {
 
   int8_t events[QW_EVENT_MAX];
 
-  void *taskHandle;
-  void *sinkHandle;
+  void     *taskHandle;
+  void     *sinkHandle;
+  SSubplan *plan;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {

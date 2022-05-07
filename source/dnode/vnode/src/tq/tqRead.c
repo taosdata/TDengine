@@ -173,7 +173,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   int32_t curRow = 0;
 
   tInitSubmitBlkIter(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
-  *pUid = pHandle->pBlock->uid;  // set the uid of table for submit block
+  *pUid = pHandle->msgIter.uid;  // set the uid of table for submit block
 
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
