@@ -240,7 +240,6 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
   if (TSDB_CODE_SUCCESS == code) {
     code = catalogGetQnodeList(pCatalog, pRequest->pTscObj->pAppInfo->pTransporter, &mgmtEpSet, pNodeList);
   }
-  catalogFreeHandle(pCatalog);
   if (TSDB_CODE_SUCCESS == code) {
     code = qCreateQueryPlan(&cxt, pPlan, pNodeList);
   }
