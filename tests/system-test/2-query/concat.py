@@ -80,7 +80,7 @@ class TDTestCase:
             for group_condition in groups:
                 tdSql.query(f"select concat( {','.join( condition ) } ), {','.join(condition)}  from {tbname} {where_condition}  {group_condition} ")
                 for j in range(tdSql.queryRows):
-                    tdSql.checkData(j, 0, "".join(tdSql.queryResult[i][1:])) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
+                    tdSql.checkData(j, 0, "".join(tdSql.queryResult[j][1:])) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
 
 
