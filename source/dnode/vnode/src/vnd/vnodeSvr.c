@@ -339,7 +339,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     goto _exit;
   }
 
-  rsp.pArray = taosArrayInit(sizeof(cRsp), req.nReqs);
+  rsp.pArray = taosArrayInit(req.nReqs, sizeof(cRsp));
   if (rsp.pArray == NULL) {
     rcode = -1;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -360,7 +360,11 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
     // do create table
     if (metaCreateTable(pVnode->pMeta, version, pCreateReq) < 0) {
-      cRsp.code = terrno;
+      if (pCreateReq->flags & TD_CREATE_IF_NOT_EXISTS && terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
+        cRsp.code = TSDB_CODE_SUCCESS;
+      } else {
+        cRsp.code = terrno;
+      }
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
       tsdbFetchTbUidList(pVnode->pTsdb, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
@@ -527,6 +531,13 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
           tCoderClear(&coder);
           goto _exit;
         }
+      }
+
+      msgIter.uid = createTbReq.uid;
+      if (createTbReq.type == TSDB_CHILD_TABLE) {
+        msgIter.suid = createTbReq.ctb.suid;
+      } else {
+        msgIter.suid = 0;
       }
 
       tCoderClear(&coder);

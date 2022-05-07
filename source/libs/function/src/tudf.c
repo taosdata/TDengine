@@ -594,7 +594,9 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
 
   //TODO: free the array output->pDataBlock
   output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
-  taosArrayPush(output->pDataBlock, input->columnData);
+  for (int32_t i = 0; i < numOfCols; ++i) {
+    taosArrayPush(output->pDataBlock, (input + i)->columnData);
+  }
   return 0;
 }
 

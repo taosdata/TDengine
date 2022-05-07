@@ -74,10 +74,7 @@ static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
 }
 
 int32_t mndCheckCreateUserAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
-
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
@@ -118,28 +115,25 @@ int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb,
 }
 
 int32_t mndCheckDropUserAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
-
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
 
 int32_t mndCheckNodeAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
-
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
 
 int32_t mndCheckFuncAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
+  if (pOperUser->superUser) return 0;
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
 
+int32_t mndCheckTransAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }

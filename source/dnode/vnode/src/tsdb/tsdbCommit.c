@@ -943,16 +943,16 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
                                                &(pAggrBlkCol->numOfNull));
 
       if (pAggrBlkCol->numOfNull == 0) {
-        TD_SET_COL_ROWS_NORM(pBlockCol);
+        pBlockCol->blen = 0;
       } else {
-        TD_SET_COL_ROWS_MISC(pBlockCol);
+        pBlockCol->blen = 1;
       }
       ++nColsOfBlockSma;
     } else if (tdIsBitmapBlkNorm(pDataCol->pBitmap, rowsToWrite, pDataCols->bitmapMode)) {
       // check if all rows normal
-      TD_SET_COL_ROWS_NORM(pBlockCol);
+      pBlockCol->blen = 0;
     } else {
-      TD_SET_COL_ROWS_MISC(pBlockCol);
+      pBlockCol->blen = 1;
     }
 
     ++nColsNotAllNull;
@@ -985,7 +985,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 #ifdef TD_SUPPORT_BITMAP
     int32_t tBitmaps = 0;
     int32_t tBitmapsLen = 0;
-    if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+    if ((ncol != 0) && (pBlockCol->blen > 0)) {
       tBitmaps = isSuper ? sBitmaps : nBitmaps;
     }
 #endif
@@ -1330,13 +1330,15 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
                                       TSKEY maxKey, int maxRows, int8_t update) {
   TSKEY     key1 = INT64_MAX;
   TSKEY     key2 = INT64_MAX;
+  TSKEY     lastKey = TSKEY_INITIAL_VAL;
   STSchema *pSchema = NULL;
 
   ASSERT(maxRows > 0 && dataColsKeyLast(pDataCols) <= maxKey);
   tdResetDataCols(pTarget);
 
   pTarget->bitmapMode = pDataCols->bitmapMode;
-
+  // TODO: filter Multi-Version
+  // TODO: support delete function
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
     STSRow *row = tsdbNextIterRow(pCommitIter->pIter);
@@ -1349,6 +1351,9 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
 
     if (key1 < key2) {
+      if (lastKey != TSKEY_INITIAL_VAL) {
+        ++pTarget->numOfRows;
+      }
       for (int i = 0; i < pDataCols->numOfCols; ++i) {
         // TODO: dataColAppendVal may fail
         SCellVal sVal = {0};
@@ -1356,10 +1361,10 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
           TASSERT(0);
         }
         tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
-                             pTarget->bitmapMode);
+                             pTarget->bitmapMode, false);
       }
 
-      ++pTarget->numOfRows;
+      lastKey = key1;
       ++(*iter);
     } else if (key1 > key2) {
       if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
@@ -1367,7 +1372,17 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(pSchema != NULL);
       }
 
-      tdAppendSTSRowToDataCol(row, pSchema, pTarget);
+      if (key2 == lastKey) {
+        if (TD_SUPPORT_UPDATE(update)) {
+          tdAppendSTSRowToDataCol(row, pSchema, pTarget, true);
+        }
+      } else {
+        if (lastKey != TSKEY_INITIAL_VAL) {
+          ++pTarget->numOfRows;
+        }
+        tdAppendSTSRowToDataCol(row, pSchema, pTarget, false);
+        lastKey = key2;
+      }
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
@@ -1397,6 +1412,12 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       ++(*iter);
       tSkipListIterNext(pCommitIter->pIter);
 #endif
+
+      if(lastKey != key1) {
+        lastKey = key1;
+        ++pTarget->numOfRows;
+      }
+
       // copy disk data
       for (int i = 0; i < pDataCols->numOfCols; ++i) {
         SCellVal sVal = {0};
@@ -1405,7 +1426,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         }
         // TODO: tdAppendValToDataCol may fail
         tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
-                             pTarget->bitmapMode);
+                             pTarget->bitmapMode, false);
       }
 
       if (TD_SUPPORT_UPDATE(update)) {
@@ -1416,26 +1437,17 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         }
 
         // TODO: merge with Multi-Version
-        STSRow *curRow = row;
-
-        ++(*iter);
-        tSkipListIterNext(pCommitIter->pIter);
-        STSRow *nextRow = tsdbNextIterRow(pCommitIter->pIter);
-
-        if (key2 < TD_ROW_KEY(nextRow)) {
-          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
-        } else {
-          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
-        }
-        // TODO: merge with Multi-Version
-      } else {
-        ++pTarget->numOfRows;
-        ++(*iter);
-        tSkipListIterNext(pCommitIter->pIter);
+        tdAppendSTSRowToDataCol(row, pSchema, pTarget, true);
       }
+      ++(*iter);
+      tSkipListIterNext(pCommitIter->pIter);
     }
 
-    if (pTarget->numOfRows >= maxRows) break;
+    if (pTarget->numOfRows >= (maxRows - 1)) break;
+  }
+
+  if (lastKey != TSKEY_INITIAL_VAL) {
+    ++pTarget->numOfRows;
   }
 }
 

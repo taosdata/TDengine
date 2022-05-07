@@ -24,3 +24,4 @@ python3 ./test.py -f 2-query/floor.py
 python3 ./test.py -f 2-query/round.py
 python3 ./test.py -f 2-query/log.py
 python3 ./test.py -f 2-query/pow.py
+python3 ./test.py -f 2-query/sqrt.py

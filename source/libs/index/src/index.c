@@ -244,8 +244,8 @@ int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EInde
   return 0;
 }
 
-SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, int8_t queryType, uint8_t colType,
-                            const char* colName, int32_t nColName, const char* colVal, int32_t nColVal) {
+SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
+                            int32_t nColName, const char* colVal, int32_t nColVal) {
   SIndexTerm* tm = (SIndexTerm*)taosMemoryCalloc(1, (sizeof(SIndexTerm)));
   if (tm == NULL) {
     return NULL;

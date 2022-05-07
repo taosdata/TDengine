@@ -24,7 +24,7 @@ extern char JSON_COLUMN[];
 extern char JSON_VALUE_DELIM;
 
 char* indexPackJsonData(SIndexTerm* itm);
-
+char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
 #ifdef __cplusplus
 }
 #endif

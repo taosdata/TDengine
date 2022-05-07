@@ -21,7 +21,7 @@
 #include "mndInfoSchema.h"
 #include "mndMnode.h"
 #include "mndShow.h"
-#include "mndStb.c"
+#include "mndStb.h"
 #include "mndStream.h"
 #include "mndTrans.h"
 #include "mndUser.h"
@@ -419,7 +419,6 @@ static int32_t mndCreateSma(SMnode *pMnode, SNodeMsg *pReq, SMCreateSmaReq *pCre
   streamObj.fixedSinkVgId = smaObj.dstVgId;
   streamObj.smaId = smaObj.uid;
   /*streamObj.physicalPlan = "";*/
-  streamObj.logicalPlan = "not implemented";
 
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_SMA, &pReq->rpcMsg);
