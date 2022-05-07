@@ -784,6 +784,11 @@ static void uvDestroyConn(uv_handle_t* handle) {
   tDebug("server conn %p destroy", conn);
   // uv_timer_stop(&conn->pTimer);
   transQueueDestroy(&conn->srvMsgs);
+
+  if (conn->regArg.init == 1) {
+    transFreeMsg(conn->regArg.msg.pCont);
+    conn->regArg.init = 0;
+  }
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
   if (conn->regArg.init == 1) {

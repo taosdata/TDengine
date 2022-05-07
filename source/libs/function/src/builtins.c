@@ -225,6 +225,26 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (4 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // todo
   return TSDB_CODE_SUCCESS;
@@ -242,8 +262,7 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
                            "The parameters of first/last can only be columns");
   }
 
-  uint8_t paraType = ((SExprNode*)pPara)->resType.type;
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[paraType].bytes, .type = paraType};
+  pFunc->node.resType = ((SExprNode*)pPara)->resType;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -601,6 +620,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = functionFinalize
   },
   {
+    .name = "histogram",
+    .type = FUNCTION_TYPE_HISTOGRAM,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHistogram,
+    .getEnvFunc   = getHistogramFuncEnv,
+    .initFunc     = histogramFunctionSetup,
+    .processFunc  = histogramFunction,
+    .finalizeFunc = histogramFinalize
+  },
+  {
     .name = "abs",
     .type = FUNCTION_TYPE_ABS,
     .classification = FUNC_MGT_SCALAR_FUNC,
@@ -917,7 +946,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateTbnameColumn,
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .sprocessFunc = qTbnameFunction,
     .finalizeFunc = NULL
   },
   {

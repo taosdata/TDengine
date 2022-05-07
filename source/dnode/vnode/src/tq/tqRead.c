@@ -84,10 +84,12 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
   return false;
 }
 
-int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, int32_t* pNumOfRows,
+int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid, int32_t* pNumOfRows,
                             int16_t* pNumOfCols) {
   /*int32_t         sversion = pHandle->pBlock->sversion;*/
   // TODO set to real sversion
+  *pUid = 0;
+
   int32_t sversion = 0;
   if (pHandle->sver != sversion) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
@@ -169,7 +171,10 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   tdSTSRowIterInit(&iter, pTschema);
   STSRow* row;
   int32_t curRow = 0;
+
   tInitSubmitBlkIter(&pHandle->msgIter, pHandle->pBlock, &pHandle->blkIter);
+  *pUid = pHandle->pBlock->uid;  // set the uid of table for submit block
+
   while ((row = tGetSubmitBlkNext(&pHandle->blkIter)) != NULL) {
     tdSTSRowIterReset(&iter, row);
     // get all wanted col of that block

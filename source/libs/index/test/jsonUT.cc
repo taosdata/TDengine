@@ -40,7 +40,7 @@ TEST_F(JsonEnv, testWrite) {
   {
     std::string colName("test");
     std::string colVal("ab");
-    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
 
     SIndexMultiTerm* terms = indexMultiTermCreate();
@@ -53,7 +53,7 @@ TEST_F(JsonEnv, testWrite) {
   {
     std::string colName("voltage");
     std::string colVal("ab1");
-    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
 
     SIndexMultiTerm* terms = indexMultiTermCreate();
@@ -66,7 +66,7 @@ TEST_F(JsonEnv, testWrite) {
   {
     std::string colName("voltage");
     std::string colVal("123");
-    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
 
     SIndexMultiTerm* terms = indexMultiTermCreate();
@@ -81,7 +81,7 @@ TEST_F(JsonEnv, testWrite) {
     std::string colVal("ab");
 
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
-    SIndexTerm*           q = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+    SIndexTerm*           q = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                     colVal.c_str(), colVal.size());
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
@@ -95,7 +95,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
   {
     std::string colName("test");
     std::string colVal("ab");
-    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
 
     SIndexMultiTerm* terms = indexMultiTermCreate();
@@ -110,7 +110,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
     std::string colVal("abxxxxxxxxxxxx");
     for (int i = 0; i < 1000; i++) {
       colVal[i % colVal.size()] = '0' + i % 128;
-      SIndexTerm* term = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+      SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                          colVal.c_str(), colVal.size());
 
       SIndexMultiTerm* terms = indexMultiTermCreate();
@@ -124,7 +124,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
   {
     std::string colName("voltagefdadfa");
     std::string colVal("abxxxxxxxxxxxx");
-    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                        colVal.c_str(), colVal.size());
 
     SIndexMultiTerm* terms = indexMultiTermCreate();
@@ -139,7 +139,7 @@ TEST_F(JsonEnv, testWriteMillonData) {
     std::string colVal("ab");
 
     SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
-    SIndexTerm*           q = indexTermCreate(1, ADD_VALUE, 0, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+    SIndexTerm*           q = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
                                     colVal.c_str(), colVal.size());
 
     SArray* result = taosArrayInit(1, sizeof(uint64_t));
