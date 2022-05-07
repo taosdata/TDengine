@@ -46,7 +46,7 @@ ENDIF ()
 
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
-    SET(COMMON_FLAGS "/W3 /D_WIN32")
+    SET(COMMON_FLAGS "/W3 /D_WIN32 /vmg")
 
     # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
     #  SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
@@ -62,7 +62,7 @@ ELSE ()
 	MESSAGE(STATUS "Will compile with Address Sanitizer!")
     ELSE ()
         SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Werror -Werror=return-type -fPIC -gdwarf-2 -g3")
-        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Werror -Werror=return-type -fPIC -gdwarf-2 -g3")
+        SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wno-literal-suffix -Werror=return-type -fpermissive -fPIC -gdwarf-2 -g3")
     ENDIF ()
 
     MESSAGE("System processor ID: ${CMAKE_SYSTEM_PROCESSOR}")
