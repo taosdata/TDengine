@@ -3766,7 +3766,7 @@ int tEncodeSVCreateTbReq(SCoder *pCoder, const SVCreateTbReq *pReq) {
 }
 
 int tDecodeSVCreateTbReq(SCoder *pCoder, SVCreateTbReq *pReq) {
-  uint64_t len;
+  uint32_t len;
 
   if (tStartDecode(pCoder) < 0) return -1;
 

@@ -44,7 +44,7 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
 }
 
 int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
-  uint64_t len;
+  uint32_t len;
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pME->version) < 0) return -1;

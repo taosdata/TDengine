@@ -177,15 +177,20 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
   // do insert data to SMemData
   SMemSkipListCurosr slc = {0};
   const uint8_t     *p = pSubmitBlk->pData;
+  const uint8_t     *pt;
+  const STSRow      *pRow;
+  uint64_t           szRow;
+  SCoder             coder = {0};
 
-  // tsdbMemSkipListCursorOpen(&slc, &pMemData->sl);
-  for (; p - pSubmitBlk->pData < pSubmitBlk->nData;) {
-    //   if (p - (uint8_t *)pSubmitBlk->pData >= pSubmitBlk->nData) break;
+  // tCoderInit(&coder, TD_LITTLE_ENDIAN, pSubmitBlk->pData, pSubmitBlk->nData, TD_DECODER);
+  for (;;) {
+    // if (tDecodeIsEnd(&coder)) break;
 
-    //   const uint8_t *pt = p;
-    //   p = tGetBinary(p, &pTSRow, &rlen);
-
-    //   // check the row (todo)
+    // if (tDecodeBinary(&coder, (const uint8_t **)&pRow, &szRow) < 0) {
+    //   terrno = TSDB_CODE_INVALID_MSG;
+    //   return -1;
+    // }
+    // check the row (todo)
 
     //   // move the cursor to position to write (todo)
     //   int32_t c;
@@ -206,10 +211,11 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     //   // insert row
     //   tsdbMemSkipListCursorPut(&slc, pSlNode);
 
-    //   // update status
-    //   if (pTSRow->ts < pMemData->minKey) pMemData->minKey = pTSRow->ts;
-    //   if (pTSRow->ts > pMemData->maxKey) pMemData->maxKey = pTSRow->ts;
+    // update status
+    if (pRow->ts < pMemData->minKey) pMemData->minKey = pRow->ts;
+    if (pRow->ts > pMemData->maxKey) pMemData->maxKey = pRow->ts;
   }
+  // tCoderClear(&coder);
   // tsdbMemSkipListCursorClose(&slc);
 
   // update status

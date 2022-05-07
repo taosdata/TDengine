@@ -2596,7 +2596,7 @@ typedef struct {
   int64_t        suid;
   int64_t        uid;
   int32_t        sver;
-  uint64_t       nData;
+  uint32_t       nData;
   const uint8_t* pData;
   SVCreateTbReq  cTbReq;
 } SVSubmitBlk;
