@@ -29,3 +29,4 @@ python3 ./test.py -f 2-query/cos.py
 python3 ./test.py -f 2-query/tan.py
 python3 ./test.py -f 2-query/arcsin.py
 python3 ./test.py -f 2-query/arccos.py
+python3 ./test.py -f 2-query/arctan.py
