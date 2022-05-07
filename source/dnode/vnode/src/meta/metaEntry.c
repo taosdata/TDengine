@@ -15,7 +15,7 @@
 
 #include "meta.h"
 
-int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
+int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI64(pCoder, pME->version) < 0) return -1;
@@ -43,7 +43,7 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
   return 0;
 }
 
-int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
+int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   uint32_t len;
   if (tStartDecode(pCoder) < 0) return -1;
 

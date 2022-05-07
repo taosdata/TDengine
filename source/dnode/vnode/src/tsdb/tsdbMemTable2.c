@@ -180,7 +180,7 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
   const uint8_t     *pt;
   const STSRow      *pRow;
   uint64_t           szRow;
-  SCoder             coder = {0};
+  SDecoder           decoder = {0};
 
   // tCoderInit(&coder, TD_LITTLE_ENDIAN, pSubmitBlk->pData, pSubmitBlk->nData, TD_DECODER);
   for (;;) {

@@ -594,8 +594,8 @@ typedef struct {
   SSchemaWrapper outputSchema;
 } SStreamObj;
 
-int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
-int32_t tDecodeSStreamObj(SCoder* pDecoder, SStreamObj* pObj);
+int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
 
 #ifdef __cplusplus
 }

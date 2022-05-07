@@ -205,7 +205,7 @@ struct SMetaEntry {
 struct SMetaReader {
   int32_t    flags;
   SMeta     *pMeta;
-  SCoder     coder;
+  SDecoder   coder;
   SMetaEntry me;
   void      *pBuf;
   int        szBuf;
