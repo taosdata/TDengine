@@ -1737,6 +1737,8 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
         int32_t colLen = pColSchema->bytes;
         if (IS_VAR_DATA_TYPE(pColSchema->type)) {
           colLen = kv->length;
+        } else if(pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP){
+          kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
         }
 
         MemRowAppend(&pBuf, &(kv->value), colLen, &param);

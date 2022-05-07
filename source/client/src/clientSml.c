@@ -116,6 +116,8 @@ typedef struct {
 
   int32_t           affectedRows;
   SSmlMsgBuf        msgBuf;
+  SHashObj          *dumplicateKey;  // for dumplicate key
+  SArray            *colsContainer;  // for cols parse, if is dataFormat == false
 } SSmlHandle;
 //=================================================================================================
 
@@ -177,8 +179,9 @@ static void smlBuildChildTableName(SSmlTableInfo *tags) {
   tMD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
   tMD5Final(&context);
   uint64_t digest1 = *(uint64_t*)(context.digest);
-  uint64_t digest2 = *(uint64_t*)(context.digest + 8);
-  snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64"%016"PRIx64, digest1, digest2);
+  //uint64_t digest2 = *(uint64_t*)(context.digest + 8);
+  //snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64"%016"PRIx64, digest1, digest2);
+  snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64, digest1);
   taosStringBuilderDestroy(&sb);
   tags->uid = digest1;
 }
@@ -353,7 +356,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       int n = sprintf(result, "create stable %s (", action->createSTable.sTableName);
       char* pos = result + n; int freeBytes = capacity - n;
 
-      SArray *cols = action->createSTable.tags;
+      SArray *cols = action->createSTable.fields;
 
       for(int i = 0; i < taosArrayGetSize(cols); i++){
         SSmlKv *kv = taosArrayGetP(cols, i);
@@ -1026,7 +1029,7 @@ static int32_t smlParseString(const char* sql, SSmlLineInfo *elements, SSmlMsgBu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool isTag, SSmlMsgBuf *msg){
+static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
   if(isTag && len == 0){
     SSmlKv *kv = taosMemoryCalloc(sizeof(SSmlKv), 1);
     kv->key = TAG;
@@ -1052,6 +1055,13 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool is
     if(keyLen == 0 || keyLen >= TSDB_COL_NAME_LEN){
       smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
       return TSDB_CODE_SML_INVALID_DATA;
+    }
+
+    if(taosHashGet(dumplicateKey, key, keyLen)){
+      smlBuildInvalidDataMsg(msg, "dumplicate key", key);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }else{
+      taosHashPut(dumplicateKey, key, keyLen, key, CHAR_BYTES);
     }
 
     // parse value
@@ -1474,10 +1484,15 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
     return ret;
   }
 
-  SArray *cols = taosArrayInit(16, POINTER_BYTES);
-  if (cols == NULL) {
-    uError("SML:0x%"PRIx64" smlParseLine failed to allocate memory", info->id);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  SArray *cols = NULL;
+  if(info->dataFormat){   // if dataFormat, cols need new memory to save data
+    cols = taosArrayInit(16, POINTER_BYTES);
+    if (cols == NULL) {
+      uError("SML:0x%"PRIx64" smlParseLine failed to allocate memory", info->id);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }else{      // if dataFormat is false, cols do not need to save data, there is another new memory to save data
+    cols = info->colsContainer;
   }
 
   ret = smlParseTS(info, elements.timestamp, elements.timestampLen, cols);
@@ -1485,7 +1500,7 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
     uError("SML:0x%"PRIx64" smlParseTS failed", info->id);
     return ret;
   }
-  ret = smlParseCols(elements.cols, elements.colsLen, cols, false, &info->msgBuf);
+  ret = smlParseCols(elements.cols, elements.colsLen, cols, false, info->dumplicateKey, &info->msgBuf);
   if(ret != TSDB_CODE_SUCCESS){
     uError("SML:0x%"PRIx64" smlParseCols parse cloums fields failed", info->id);
     return ret;
@@ -1518,7 +1533,7 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
       return ret;
     }
 
-    ret = smlParseCols(elements.tags, elements.tagsLen, tinfo->tags, true, &info->msgBuf);
+    ret = smlParseCols(elements.tags, elements.tagsLen, tinfo->tags, true, info->dumplicateKey, &info->msgBuf);
     if(ret != TSDB_CODE_SUCCESS){
       uError("SML:0x%"PRIx64" smlParseCols parse tag fields failed", info->id);
       return ret;
@@ -1549,6 +1564,11 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
 
     taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tinfo, POINTER_BYTES);
   }
+
+  if(!info->dataFormat){
+    taosArrayClear(info->colsContainer);
+  }
+  taosHashClear(info->dumplicateKey);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1577,6 +1597,7 @@ static void smlDestroyInfo(SSmlHandle* info){
 
   // destroy info->pVgHash
   taosHashCleanup(info->pVgHash);
+  taosHashCleanup(info->dumplicateKey);
 
   taosMemoryFreeClear(info);
 }
@@ -1623,8 +1644,17 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
   info->superTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   info->pVgHash     = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
+  info->dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if(!dataFormat){
+    info->colsContainer = taosArrayInit(32, POINTER_BYTES);
+    if(NULL == info->colsContainer){
+      uError("SML:0x%"PRIx64" create info failed", info->id);
+      goto cleanup;
+    }
+  }
   if(NULL == info->exec || NULL == info->childTables
-      || NULL == info->superTables || NULL == info->pVgHash){
+      || NULL == info->superTables || NULL == info->pVgHash
+      || NULL == info->dumplicateKey){
     uError("SML:0x%"PRIx64" create info failed", info->id);
     goto cleanup;
   }
