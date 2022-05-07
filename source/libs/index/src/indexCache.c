@@ -34,44 +34,96 @@ static char*   indexCacheTermGet(const void* pData);
 
 static MemTable* indexInternalCacheCreate(int8_t type);
 
-static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchPrefix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchSuffix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchRegex(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchLessThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchLessEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchGreaterThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchGreaterEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
-static int32_t cacheSearchRange(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchTerm(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchPrefix(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchSuffix(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchRegex(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchLessThan(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchLessEqual(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchGreaterThan(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchGreaterEqual(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchRange(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
 /*comm func of compare, used in (LE/LT/GE/GT compare)*/
-static int32_t cacheSearchCompareFunc(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s,
+static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s,
                                       RangeType type);
+static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchPrefix_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchSuffix_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchRegex_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchLessThan_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchLessEqual_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchGreaterThan_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchGreaterEqual_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+static int32_t cacheSearchRange_JSON(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s);
+
+static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s,
+                                           RangeType type);
 
 typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
 typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
 
-static TExeCond tCompareLessThan(void* a, void* b, int8_t type) { return MATCH; }
-static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) { return MATCH; }
-static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) { return MATCH; }
-static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) { return MATCH; }
+static TExeCond tDoCommpare(__compar_fn_t func, int8_t comType, void* a, void* b) {
+  int32_t ret = func(a, b);
+  switch (comType) {
+    case QUERY_LESS_THAN: {
+      if (ret < 0) return MATCH;
+    } break;
+    case QUERY_LESS_EQUAL: {
+      if (ret <= 0) return MATCH;
+      break;
+    }
+    case QUERY_GREATER_THAN: {
+      if (ret > 0) return MATCH;
+      break;
+    }
+    case QUERY_GREATER_EQUAL: {
+      if (ret >= 0) return MATCH;
+    }
+  }
+  return CONTINUE;
+}
+static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_LESS_THAN, a, b);
+}
+static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_LESS_EQUAL, a, b);
+}
+static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_GREATER_THAN, a, b);
+}
+static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_GREATER_EQUAL, a, b);
+}
 
 static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {tCompareLessThan, tCompareLessEqual,
                                                                     tCompareGreaterThan, tCompareGreaterEqual};
 
-static int32_t (*cacheSearch[])(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) = {
-    cacheSearchTerm,      cacheSearchPrefix,      cacheSearchSuffix,       cacheSearchRegex, cacheSearchLessThan,
-    cacheSearchLessEqual, cacheSearchGreaterThan, cacheSearchGreaterEqual, cacheSearchRange};
+static int32_t (*cacheSearch[][QUERY_MAX])(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s) = {
+    {cacheSearchTerm, cacheSearchPrefix, cacheSearchSuffix, cacheSearchRegex, cacheSearchLessThan, cacheSearchLessEqual,
+     cacheSearchGreaterThan, cacheSearchGreaterEqual, cacheSearchRange},
+    {cacheSearchTerm_JSON, cacheSearchPrefix_JSON, cacheSearchSuffix_JSON, cacheSearchRegex_JSON,
+     cacheSearchLessThan_JSON, cacheSearchLessEqual_JSON, cacheSearchGreaterThan_JSON, cacheSearchGreaterEqual_JSON,
+     cacheSearchRange_JSON}};
 
 static void doMergeWork(SSchedMsg* msg);
 static bool indexCacheIteratorNext(Iterate* itera);
 
-static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
   if (cache == NULL) {
     return 0;
   }
+  MemTable*   mem = cache;
+  IndexCache* pCache = mem->pCache;
 
-  MemTable* mem = cache;
-  char*     key = indexCacheTermGet(ct);
+  CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  pCt->colVal = term->colVal;
+  pCt->version = atomic_load_32(&pCache->version);
+
+  char* key = indexCacheTermGet(pCt);
 
   SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
   while (tSkipListIterNext(iter)) {
@@ -80,7 +132,7 @@ static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, S
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    if (0 == strcmp(c->colVal, ct->colVal)) {
+    if (0 == strcmp(c->colVal, pCt->colVal)) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
         // taosArrayPush(result, &c->uid);
@@ -92,30 +144,39 @@ static int32_t cacheSearchTerm(void* cache, CacheTerm* ct, SIdxTempResult* tr, S
       break;
     }
   }
+
+  taosMemoryFree(pCt);
   tSkipListDestroyIter(iter);
   return 0;
 }
-static int32_t cacheSearchPrefix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+static int32_t cacheSearchPrefix(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
   // impl later
   return 0;
 }
-static int32_t cacheSearchSuffix(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+static int32_t cacheSearchSuffix(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
   // impl later
   return 0;
 }
-static int32_t cacheSearchRegex(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+static int32_t cacheSearchRegex(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
   // impl later
   return 0;
 }
-static int32_t cacheSearchCompareFunc(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s,
+static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s,
                                       RangeType type) {
   if (cache == NULL) {
     return 0;
   }
+
   _cache_range_compare cmpFn = rangeCompare[type];
 
-  MemTable* mem = cache;
-  char*     key = indexCacheTermGet(ct);
+  MemTable*   mem = cache;
+  IndexCache* pCache = mem->pCache;
+
+  CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  pCt->colVal = term->colVal;
+  pCt->version = atomic_load_32(&pCache->version);
+
+  char* key = indexCacheTermGet(pCt);
 
   SSkipListIterator* iter = tSkipListCreateIter(mem->mem);
   while (tSkipListIterNext(iter)) {
@@ -124,7 +185,7 @@ static int32_t cacheSearchCompareFunc(void* cache, CacheTerm* ct, SIdxTempResult
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    TExeCond   cond = cmpFn(c->colVal, ct->colVal, ct->colType);
+    TExeCond   cond = cmpFn(c->colVal, pCt->colVal, pCt->colType);
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
@@ -134,26 +195,153 @@ static int32_t cacheSearchCompareFunc(void* cache, CacheTerm* ct, SIdxTempResult
         INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
       }
     } else if (cond == CONTINUE) {
+      continue;
     } else if (cond == BREAK) {
       break;
     }
   }
+  taosMemoryFree(pCt);
   tSkipListDestroyIter(iter);
   return TSDB_CODE_SUCCESS;
 }
-static int32_t cacheSearchLessThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
-  return cacheSearchCompareFunc(cache, ct, tr, s, LT);
+static int32_t cacheSearchLessThan(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, term, tr, s, LT);
 }
-static int32_t cacheSearchLessEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
-  return cacheSearchCompareFunc(cache, ct, tr, s, LE);
+static int32_t cacheSearchLessEqual(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, term, tr, s, LE);
 }
-static int32_t cacheSearchGreaterThan(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
-  return cacheSearchCompareFunc(cache, ct, tr, s, GT);
+static int32_t cacheSearchGreaterThan(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, term, tr, s, GT);
 }
-static int32_t cacheSearchGreaterEqual(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
-  return cacheSearchCompareFunc(cache, ct, tr, s, GE);
+static int32_t cacheSearchGreaterEqual(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc(cache, term, tr, s, GE);
 }
-static int32_t cacheSearchRange(void* cache, CacheTerm* ct, SIdxTempResult* tr, STermValueType* s) {
+
+static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  if (cache == NULL) {
+    return 0;
+  }
+  MemTable*   mem = cache;
+  IndexCache* pCache = mem->pCache;
+
+  CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  pCt->colVal = term->colVal;
+  pCt->version = atomic_load_32(&pCache->version);
+
+  char* exBuf = NULL;
+  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+    exBuf = indexPackJsonData(term);
+    pCt->colVal = exBuf;
+  }
+  char* key = indexCacheTermGet(pCt);
+
+  SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    if (node == NULL) {
+      break;
+    }
+    CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+    if (0 == strcmp(c->colVal, pCt->colVal)) {
+      if (c->operaType == ADD_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
+        // taosArrayPush(result, &c->uid);
+        *s = kTypeValue;
+      } else if (c->operaType == DEL_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
+      }
+    } else {
+      break;
+    }
+  }
+
+  taosMemoryFree(pCt);
+  taosMemoryFree(exBuf);
+  tSkipListDestroyIter(iter);
+  return 0;
+
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t cacheSearchPrefix_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t cacheSearchSuffix_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t cacheSearchRegex_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t cacheSearchLessThan_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, LT);
+}
+static int32_t cacheSearchLessEqual_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, LE);
+}
+static int32_t cacheSearchGreaterThan_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, GT);
+}
+static int32_t cacheSearchGreaterEqual_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return cacheSearchCompareFunc_JSON(cache, term, tr, s, GE);
+}
+static int32_t cacheSearchRange_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s,
+                                           RangeType type) {
+  if (cache == NULL) {
+    return 0;
+  }
+  _cache_range_compare cmpFn = rangeCompare[type];
+
+  MemTable*   mem = cache;
+  IndexCache* pCache = mem->pCache;
+
+  CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
+  pCt->colVal = term->colVal;
+  pCt->version = atomic_load_32(&pCache->version);
+
+  int8_t dType = INDEX_TYPE_GET_TYPE(term->colType);
+  int    skip = 0;
+  char*  exBuf = NULL;
+
+  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+    exBuf = indexPackJsonDataPrefix(term, &skip);
+    pCt->colVal = exBuf;
+  }
+  char* key = indexCacheTermGet(pCt);
+
+  SSkipListIterator* iter = tSkipListCreateIterFromVal(mem->mem, key, TSDB_DATA_TYPE_BINARY, TSDB_ORDER_ASC);
+  while (tSkipListIterNext(iter)) {
+    SSkipListNode* node = tSkipListIterGet(iter);
+    if (node == NULL) {
+      break;
+    }
+    CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
+
+    TExeCond cond = cmpFn(c->colVal + skip, term->colVal, dType);
+    if (cond == MATCH) {
+      if (c->operaType == ADD_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
+        // taosArrayPush(result, &c->uid);
+        *s = kTypeValue;
+      } else if (c->operaType == DEL_VALUE) {
+        INDEX_MERGE_ADD_DEL(tr->added, tr->deled, c->uid)
+      }
+    } else if (cond == CONTINUE) {
+      continue;
+    } else if (cond == BREAK) {
+      break;
+    }
+  }
+
+  taosMemoryFree(pCt);
+  taosMemoryFree(exBuf);
+  tSkipListDestroyIter(iter);
+
+  return TSDB_CODE_SUCCESS;
+}
+static int32_t cacheSearchRange(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s) {
   // impl later
   return 0;
 }
@@ -167,6 +355,7 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
   };
 
   cache->mem = indexInternalCacheCreate(type);
+  cache->mem->pCache = cache;
   cache->colName = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? tstrdup(JSON_COLUMN) : tstrdup(colName);
   cache->type = type;
   cache->index = idx;
@@ -325,6 +514,7 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       indexCacheRef(cache);
       cache->imm = cache->mem;
       cache->mem = indexInternalCacheCreate(cache->type);
+      cache->mem->pCache = cache;
       cache->occupiedMem = 0;
       // sched to merge
       // unref cache in bgwork
@@ -379,11 +569,19 @@ int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t u
   return 0;
 }
 
-static int indexQueryMem(MemTable* mem, CacheTerm* ct, EIndexQueryType qtype, SIdxTempResult* tr, STermValueType* s) {
+static int32_t indexQueryMem(MemTable* mem, SIndexTermQuery* query, SIdxTempResult* tr, STermValueType* s) {
   if (mem == NULL) {
     return 0;
   }
-  return cacheSearch[qtype](mem, ct, tr, s);
+
+  SIndexTerm*     term = query->term;
+  EIndexQueryType qtype = query->qType;
+
+  if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
+    return cacheSearch[1][qtype](mem, term, tr, s);
+  } else {
+    return cacheSearch[0][qtype](mem, term, tr, s);
+  }
 }
 int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result, STermValueType* s) {
   int64_t st = taosGetTimestampUs();
@@ -400,25 +598,24 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result
   indexMemRef(imm);
   taosThreadMutexUnlock(&pCache->mtx);
 
-  SIndexTerm*     term = query->term;
-  EIndexQueryType qtype = query->qType;
+  // SIndexTerm*     term = query->term;
+  // EIndexQueryType qtype = query->qType;
 
-  bool  hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
-  char* p = term->colVal;
-  if (hasJson) {
-    p = indexPackJsonData(term);
-  }
-  CacheTerm ct = {.colVal = p, .version = atomic_load_32(&pCache->version)};
+  // bool  isJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON);
+  // char* p = term->colVal;
+  // if (isJson) {
+  //  p = indexPackJsonData(term);
+  //}
+  // CacheTerm ct = {.colVal = p, .version = atomic_load_32(&pCache->version)};
 
-  int ret = indexQueryMem(mem, &ct, qtype, result, s);
+  int ret = indexQueryMem(mem, query, result, s);
   if (ret == 0 && *s != kTypeDeletion) {
     // continue search in imm
-    ret = indexQueryMem(imm, &ct, qtype, result, s);
+    ret = indexQueryMem(imm, query, result, s);
   }
-
-  if (hasJson) {
-    taosMemoryFreeClear(p);
-  }
+  // if (isJson) {
+  //  taosMemoryFreeClear(p);
+  //}
 
   indexMemUnRef(mem);
   indexMemUnRef(imm);
