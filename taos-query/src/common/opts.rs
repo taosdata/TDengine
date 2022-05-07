@@ -1,6 +1,8 @@
-use std::{collections::BTreeMap, path::PathBuf};
+use std::collections::BTreeMap;
 
-use url::ParseError;
+use mdsn::Dsn;
+// use url::ParseError;
+use mdsn::DsnError as Error;
 
 #[derive(Debug, Default, PartialEq, Eq)]
 pub struct TaosOpts {
@@ -58,13 +60,12 @@ impl TaosOpts {
     ///     database name in sql like `select * from database.tb1`.
     /// - **params**: in-query parameters are key-value pairs, drivers should be aware of the params list
     ///     to support specific configuration for each driver or protocol.
-    /// 
-    pub fn parse(dsn: &str) -> Result<TaosOpts, ParseError> {
+    ///
+    pub fn parse(dsn: &str) -> Result<TaosOpts, Error> {
         if dsn.is_empty() {
             return Ok(Self::new());
         }
-        let dsn = url::Url::parse(dsn).unwrap();
-        dbg!(dsn);
+        let dsn = Dsn::parse(dsn)?;
         Ok(Self::default())
     }
 

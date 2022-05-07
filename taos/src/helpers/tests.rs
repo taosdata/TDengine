@@ -51,12 +51,13 @@ impl NamingStrategy {
                     .duration_since(std::time::SystemTime::UNIX_EPOCH)
                     .expect("");
                 let ts = Timestamp::from_unix(&context, dur.as_secs(), dur.subsec_nanos());
-                let node: Vec<u8> = (0..6)
-                    .map(|_| unsafe { RNG.as_mut().unwrap() }.gen())
-                    .collect();
+
+                let mut node = [0u8; 6];
+                for i in 0..6 {
+                    node[i] = unsafe { RNG.as_mut().unwrap() }.gen();
+                }
                 let mut uuid: Vec<_> = Uuid::new_v1(ts, &node)
-                    .expect("failed to generate UUID")
-                    .to_hyphenated()
+                    .as_hyphenated()
                     .to_string()
                     .replace("-", "")
                     .chars()

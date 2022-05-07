@@ -1,13 +1,18 @@
 //! This is the common query traits/types for TDengine connectors.
 //!
 
+pub use mdsn::{Address, Dsn, DsnError};
 use serde::de::{value::Error as DeError, DeserializeOwned};
-use std::{fmt::Debug, rc::Rc};
+use std::{fmt::Debug, marker::PhantomData, rc::Rc};
 
 pub mod common;
 mod de;
 pub mod helpers;
 mod insert;
+
+mod iter;
+
+pub use iter::*;
 
 use async_trait::async_trait;
 use common::*;
@@ -21,157 +26,6 @@ pub enum CodecOpts {
 pub trait BlockCodec {
     fn encode(&self, _codec: CodecOpts) -> Vec<u8>;
     fn decode(from: &[u8], _codec: CodecOpts) -> Self;
-}
-
-pub struct CellIter<'b, T: BlockExt> {
-    block: &'b T,
-    row: usize,
-    col: usize,
-}
-
-impl<'b, T: BlockExt> Iterator for CellIter<'b, T> {
-    type Item = (&'b Field, BorrowedValue<'b>);
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let col = self.col;
-        if col < self.block.field_count() {
-            self.col += 1;
-            Some(unsafe { self.block.cell_unchecked(self.row, col) })
-        } else {
-            None
-        }
-    }
-}
-
-#[derive(Debug)]
-pub struct RowInBlock<'b, T: BlockExt> {
-    block: &'b T,
-    row: usize,
-}
-
-impl<'b, T> IntoIterator for RowInBlock<'b, T>
-where
-    T: BlockExt,
-{
-    type Item = (&'b Field, BorrowedValue<'b>);
-
-    type IntoIter = CellIter<'b, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        CellIter {
-            block: self.block,
-            row: self.row,
-            col: 0,
-        }
-    }
-}
-
-pub struct RowsIter<'b, T: BlockExt> {
-    block: &'b T,
-    row: usize,
-}
-
-impl<'b, T> Iterator for RowsIter<'b, T>
-where
-    T: BlockExt,
-{
-    type Item = RowInBlock<'b, T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let row = self.row;
-
-        if row < self.block.num_of_rows() {
-            self.row += 1;
-            Some(RowInBlock {
-                block: self.block,
-                row,
-            })
-        } else {
-            None
-        }
-    }
-}
-
-pub struct IntoRowsIter<T: BlockExt> {
-    block: Rc<T>,
-    row: usize,
-}
-
-impl<T> IntoRowsIter<T>
-where
-    T: BlockExt,
-{
-    fn new(block: T) -> Self {
-        Self {
-            block: Rc::new(block),
-            row: 0,
-        }
-    }
-}
-
-pub struct QueryRowIter<T: BlockExt> {
-    block: Rc<T>,
-    row: usize,
-}
-
-impl<'b, T> IntoIterator for &'b QueryRowIter<T>
-where
-    T: BlockExt,
-{
-    type Item = (&'b Field, BorrowedValue<'b>);
-
-    type IntoIter = CellIter<'b, T>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        CellIter {
-            block: &self.block,
-            row: self.row,
-            col: 0,
-        }
-    }
-}
-
-impl<T> Iterator for IntoRowsIter<T>
-where
-    T: BlockExt,
-{
-    type Item = QueryRowIter<T>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        let row = self.row;
-
-        if row < self.block.num_of_rows() {
-            self.row += 1;
-            Some(QueryRowIter {
-                block: self.block.clone(),
-                row,
-            })
-        } else {
-            None
-        }
-    }
-}
-
-pub struct ColsIter<'b, T: BlockExt> {
-    block: &'b T,
-    col: usize,
-}
-
-impl<'b, T> Iterator for ColsIter<'b, T>
-where
-    T: BlockExt,
-{
-    type Item = BorrowedColumn<'b>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.col >= self.block.field_count() {
-            return None;
-        }
-
-        let v = unsafe { self.block.get_col_unchecked(self.col) };
-        self.col += 1;
-        Some(v)
-    }
 }
 
 type DeserializeIter<'b, B, T> =
@@ -219,10 +73,7 @@ pub trait BlockExt: Debug + Sized {
 
     /// Query by rows.
     fn iter_rows(&self) -> RowsIter<'_, Self> {
-        RowsIter {
-            block: self,
-            row: 0,
-        }
+        RowsIter::new(self)
     }
 
     /// Consume self into rows.
@@ -232,10 +83,7 @@ pub trait BlockExt: Debug + Sized {
 
     /// Columns iterator with borrowed data from block.
     fn columns_iter(&self) -> ColsIter<'_, Self> {
-        ColsIter {
-            block: self,
-            col: 0,
-        }
+        ColsIter::new(self)
     }
 
     /// Deserialize a row to a record type(primitive type or a struct).
@@ -504,6 +352,108 @@ where
         sql: T,
     ) -> Result<Self::AsyncResultSet, Self::Error> {
         futures::executor::block_on(self.query(sql))
+    }
+}
+
+pub trait FromDsn: Sized + Send + Sync + 'static {
+    type Err: std::error::Error;
+
+    /// Validate or hygienize the DSN.
+    ///
+    /// ## Error
+    ///
+    /// When there're multi addresses, validate all addresses for connection,
+    /// and filter success addresses. When all addresses of DSN are invalid,
+    /// return last error. When success, it will return a pair of DSN and
+    /// filtered addresses.
+    fn hygienize(dsn: Dsn) -> Result<(Dsn, Vec<Address>), DsnError>;
+
+    /// Generate a connection object from DSN.
+    fn from_dsn(dsn: &Dsn) -> Result<Self, Self::Err>;
+
+    /// Is the connection available?
+    fn ping(dsn: &Dsn) -> Result<(), Self::Err>;
+}
+
+/// This is how we manage connections.
+pub struct Manager<T: FromDsn> {
+    dsn: Dsn,
+    marker: PhantomData<T>,
+}
+
+impl<T: FromDsn> Default for Manager<T> {
+    fn default() -> Self {
+        let mut dsn: Dsn = Default::default();
+        dsn.driver = "taos".to_string();
+        Self {
+            dsn,
+            marker: Default::default(),
+        }
+    }
+}
+
+unsafe impl<T: FromDsn> Send for Manager<T> {}
+unsafe impl<T: FromDsn> Sync for Manager<T> {}
+
+impl<T: FromDsn> Manager<T> {
+    /// Build a connection manager from a DSN.
+    #[inline]
+    pub fn new(dsn: Dsn) -> Result<Self, DsnError> {
+        let (dsn, _) = T::hygienize(dsn)?;
+
+        Ok(Self {
+            dsn,
+            marker: PhantomData,
+        })
+    }
+
+    /// Parse a DSN format from str.
+    #[inline]
+    pub fn parse(dsn: impl AsRef<str>) -> Result<Self, DsnError> {
+        let dsn = Dsn::parse(dsn)?;
+        Self::new(dsn)
+    }
+
+    /// Open a connection to TDengine.
+    #[inline]
+    pub fn connect(&self) -> Result<T, <T as FromDsn>::Err> {
+        T::from_dsn(&self.dsn)
+    }
+
+    #[cfg(feature = "r2d2")]
+    #[inline]
+    pub fn into_pool(self) -> Result<Pool<T>, r2d2::Error> {
+        r2d2::Pool::new(self)
+    }
+    
+    #[cfg(feature = "r2d2")]
+    #[inline]
+    pub fn into_pool_with_builder(self, builder: r2d2::Builder<Self>) -> Result<Pool<T>, r2d2::Error> {
+        builder.build(self)
+    }
+}
+
+#[cfg(feature = "r2d2")]
+pub type Pool<T> = r2d2::Pool<Manager<T>>;
+
+#[cfg(feature = "r2d2")]
+impl<T: FromDsn + Send + Sync + 'static> r2d2::ManageConnection for Manager<T> {
+    type Connection = T;
+    type Error = <T as FromDsn>::Err;
+
+    #[inline]
+    fn connect(&self) -> Result<Self::Connection, Self::Error> {
+        self.connect()
+    }
+
+    #[inline]
+    fn is_valid(&self, _: &mut Self::Connection) -> Result<(), Self::Error> {
+        <T as FromDsn>::ping(&self.dsn)
+    }
+
+    #[inline]
+    fn has_broken(&self, _: &mut Self::Connection) -> bool {
+        false
     }
 }
 

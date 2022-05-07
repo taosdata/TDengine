@@ -243,6 +243,11 @@ pub mod prelude {
     #[cfg(feature = "r2d2")]
     pub use crate::r2d2::TaosPool;
 
+    pub type Manager = taos_query::Manager<Taos>;
+
+    #[cfg(feature = "r2d2")]
+    pub type Pool = taos_query::Pool<Taos>;
+
     pub mod sync {
 
         pub use crate::impls::ResultSet;
@@ -253,6 +258,11 @@ pub mod prelude {
 
         #[cfg(feature = "r2d2")]
         pub use crate::r2d2::TaosPool;
+
+        pub type Manager = taos_query::Manager<Taos>;
+
+        #[cfg(feature = "r2d2")]
+        pub type Pool = taos_query::Pool<Taos>;
     }
 }
 #[cfg(feature = "test")]
