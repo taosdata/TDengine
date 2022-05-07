@@ -74,12 +74,12 @@ static int insertData(SInsertInfo *pInfo) {
     pBlock->tid = htonl(pBlock->tid);
 
     pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->padding = htonl(pBlock->padding);
+    pBlock->flag = htonl(pBlock->flag);
 
     pMsg->length = htonl(pMsg->length);
     pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
-    if (tsdbInsertData(pInfo->pRepo, pMsg, NULL) < 0) {
+    if (tsdbInsertData(pInfo->pRepo, pMsg, NULL, NULL) < 0) {
       tfree(pMsg);
       return -1;
     }
