@@ -310,6 +310,29 @@ typedef struct SCreateFunctionStmt {
   int32_t   bufSize;
 } SCreateFunctionStmt;
 
+typedef struct SDropFunctionStmt {
+  ENodeType type;
+  char      funcName[TSDB_FUNC_NAME_LEN];
+  bool      ignoreNotExists;
+} SDropFunctionStmt;
+
+#define PRIVILEGE_TYPE_MASK(n) (1 << n)
+
+#define PRIVILEGE_TYPE_ALL   PRIVILEGE_TYPE_MASK(0)
+#define PRIVILEGE_TYPE_READ  PRIVILEGE_TYPE_MASK(1)
+#define PRIVILEGE_TYPE_WRITE PRIVILEGE_TYPE_MASK(2)
+
+#define PRIVILEGE_TYPE_TEST_MASK(val, mask) (((val) & (mask)) != 0)
+
+typedef struct SGrantStmt {
+  ENodeType type;
+  char      userName[TSDB_USER_LEN];
+  char      dbName[TSDB_DB_NAME_LEN];
+  int64_t   privileges;
+} SGrantStmt;
+
+typedef SGrantStmt SRevokeStmt;
+
 #ifdef __cplusplus
 }
 #endif

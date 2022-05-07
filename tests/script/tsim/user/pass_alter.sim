@@ -4,11 +4,11 @@ system sh/exec.sh -n dnode1 -s start
 sql connect
 
 print ============= step1
-sql create user read pass 'taosdata1'
-sql create user write pass 'taosdata1'
+sql create user u_read pass 'taosdata1'
+sql create user u_write pass 'taosdata1'
 
-sql alter user read pass 'taosdata'
-sql alter user write pass 'taosdata'
+sql alter user u_read pass 'taosdata'
+sql alter user u_write pass 'taosdata'
 
 sql show users
 if $rows != 3 then 
@@ -18,10 +18,10 @@ endi
 print ============= step2
 sql close
 sleep 2500
-print user read login
-sql connect read
-sql alter user read pass 'taosdata'
-sql alter user write pass 'taosdata1' -x step2
+print user u_read login
+sql connect u_read
+sql alter user u_read pass 'taosdata'
+sql alter user u_write pass 'taosdata1' -x step2
   return -1
 step2:
 
@@ -36,13 +36,13 @@ endi
 print ============= step3
 sql close
 sleep 2500
-print user write login
-sql connect write
+print user u_write login
+sql connect u_write
 
 sql_error create user read2 pass 'taosdata1'
 sql_error create user write2 pass 'taosdata1'
-sql alter user write pass 'taosdata'
-sql alter user read pass 'taosdata' -x step3
+sql alter user u_write pass 'taosdata'
+sql alter user u_read pass 'taosdata' -x step3
   return -1
 step3:
 
