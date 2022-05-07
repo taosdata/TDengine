@@ -1724,13 +1724,13 @@ cleanup:
  *
  */
 
-TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision, bool dataFormat) {
+TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
   SRequestObj* request = createRequest(taos, NULL, NULL, TSDB_SQL_INSERT);
   if(!request){
     return NULL;
   }
 
-  SSmlHandle* info = smlBuildSmlInfo(taos, request, protocol, precision, dataFormat);
+  SSmlHandle* info = smlBuildSmlInfo(taos, request, protocol, precision, false);
   if(!info){
     return (TAOS_RES*)request;
   }
