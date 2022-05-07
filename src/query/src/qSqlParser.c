@@ -321,7 +321,9 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
   if ((pLeft != NULL && pRight != NULL) &&
       (optrType == TK_PLUS || optrType == TK_MINUS || optrType == TK_STAR || optrType == TK_DIVIDE || optrType == TK_REM ||
        optrType == TK_EQ || optrType == TK_NE || optrType == TK_LT || optrType == TK_GT || optrType == TK_LE || optrType == TK_GE ||
-       optrType == TK_AND || optrType == TK_OR)) {
+       optrType == TK_AND || optrType == TK_OR || optrType == TK_BITAND || optrType == TK_BITOR || optrType == TK_BITXOR ||
+       optrType == TK_LSHIFT || optrType == TK_RSHIFT))
+  {
     /*
      * if a exprToken is noted as the TK_TIMESTAMP, the time precision is microsecond
      * Otherwise, the time precision is adaptive, determined by the time precision from databases.
@@ -396,6 +398,61 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
         }
         case TK_OR: {
           pExpr->value.i64 = (pLeft->value.i64 || pRight->value.i64) ? 1 : 0;
+          break;
+        }
+        case TK_BITAND: {
+          if (pLeft->tokenId == TK_BOOL || pRight->tokenId == TK_BOOL ||
+              pLeft->tokenId == TK_FLOAT || pRight->tokenId == TK_FLOAT ||
+              pLeft->tokenId == TK_TIMESTAMP || pRight->tokenId == TK_TIMESTAMP)
+          {
+            pExpr->value.i64 = TSDB_DATA_BIGINT_NULL;
+          } else {
+            pExpr->value.i64 = pLeft->value.i64 & pRight->value.i64;
+          }
+          break;
+        }
+        case TK_BITOR: {
+          if (pLeft->tokenId == TK_BOOL || pRight->tokenId == TK_BOOL ||
+              pLeft->tokenId == TK_FLOAT || pRight->tokenId == TK_FLOAT ||
+              pLeft->tokenId == TK_TIMESTAMP || pRight->tokenId == TK_TIMESTAMP)
+          {
+            pExpr->value.i64 = TSDB_DATA_BIGINT_NULL;
+          } else {
+            pExpr->value.i64 = pLeft->value.i64 | pRight->value.i64;
+          }
+          break;
+        }
+        case TK_BITXOR: {
+          if (pLeft->tokenId == TK_BOOL || pRight->tokenId == TK_BOOL ||
+              pLeft->tokenId == TK_FLOAT || pRight->tokenId == TK_FLOAT ||
+              pLeft->tokenId == TK_TIMESTAMP || pRight->tokenId == TK_TIMESTAMP)
+          {
+            pExpr->value.i64 = TSDB_DATA_BIGINT_NULL;
+          } else {
+            pExpr->value.i64 = pLeft->value.i64 ^ pRight->value.i64;
+          }
+          break;
+        }
+        case TK_LSHIFT: {
+          if (pLeft->tokenId == TK_BOOL || pRight->tokenId == TK_BOOL ||
+              pLeft->tokenId == TK_FLOAT || pRight->tokenId == TK_FLOAT ||
+              pLeft->tokenId == TK_TIMESTAMP || pRight->tokenId == TK_TIMESTAMP)
+          {
+            pExpr->value.i64 = TSDB_DATA_BIGINT_NULL;
+          } else {
+            pExpr->value.i64 = pLeft->value.i64 << pRight->value.i64;
+          }
+          break;
+        }
+        case TK_RSHIFT: {
+          if (pLeft->tokenId == TK_BOOL || pRight->tokenId == TK_BOOL ||
+              pLeft->tokenId == TK_FLOAT || pRight->tokenId == TK_FLOAT ||
+              pLeft->tokenId == TK_TIMESTAMP || pRight->tokenId == TK_TIMESTAMP)
+          {
+            pExpr->value.i64 = TSDB_DATA_BIGINT_NULL;
+          } else {
+            pExpr->value.i64 = pLeft->value.i64 >> pRight->value.i64;
+          }
           break;
         }
       }
@@ -509,6 +566,13 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
           pExpr->value.i64 = (left || right) ? 1 : 0;
           break;
         }
+        case TK_BITAND:
+        case TK_BITOR:
+        case TK_BITXOR:
+        case TK_LSHIFT:
+        case TK_RSHIFT:
+          pExpr->value.i64 = TSDB_DATA_DOUBLE_NULL;
+          break;
       }
 
       tSqlExprDestroy(pLeft);
@@ -542,6 +606,12 @@ tSqlExpr *tSqlExprCreate(tSqlExpr *pLeft, tSqlExpr *pRight, int32_t optrType) {
     }
 
     pExpr->pRight = pRight;
+
+    if (optrType == TK_BITNOT) {
+      pExpr->exprToken.z = pLeft->exprToken.z - 1;
+      pExpr->exprToken.n = pLeft->exprToken.n + 1;
+      pExpr->exprToken.type = pLeft->exprToken.type;
+    }
   }
 
   return pExpr;

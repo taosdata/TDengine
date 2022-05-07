@@ -98,16 +98,30 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
     pExpr->resultType = TSDB_DATA_TYPE_DOUBLE;
     pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
     return TSDB_CODE_SUCCESS;
-  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
-    if (! (IS_NUMERIC_TYPE(leftType)|| leftType == TSDB_DATA_TYPE_BOOL)
-        || ! (IS_NUMERIC_TYPE(rightType) || rightType == TSDB_DATA_TYPE_BOOL)) {
+  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+             pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT ||
+             pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+  {
+    if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
     if (IS_FLOAT_TYPE(leftType) || IS_FLOAT_TYPE(rightType)) {
       return TSDB_CODE_TSC_INVALID_OPERATION;
     }
-    pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
-    pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    if (pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT) {
+      pExpr->resultType = leftType;
+      pExpr->resultBytes = tDataTypes[leftType].bytes;
+    } else {
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+      pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    }
+    return TSDB_CODE_SUCCESS;
+  } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITNOT) {
+    if (!IS_NUMERIC_TYPE(leftType) || IS_FLOAT_TYPE(leftType)) {
+      return TSDB_CODE_TSC_INVALID_OPERATION;
+    }
+    pExpr->resultType = leftType;
+    pExpr->resultBytes = tDataTypes[leftType].bytes;
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -492,6 +506,9 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
     rightType = pRight->pSchema->type;
     rightNum = numOfRows;    
+  } else if (pRight->nodeType == TSQL_NODE_DUMMY) {
+    /* BITNOT */
+    rightNum = 0;
   } else {
     assert(pRight->nodeType == TSQL_NODE_VALUE);
     rightIn = (char *)&pRight->pVal->i64;
@@ -506,7 +523,10 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
   if(leftType == TSDB_DATA_TYPE_TIMESTAMP || rightType == TSDB_DATA_TYPE_TIMESTAMP) {
     output->type = TSDB_DATA_TYPE_BIGINT;
   } else {
-    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND) {
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+        pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
+        pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+    {
       output->type = leftType; // rightType must be the same as leftType
     } else {
       output->type = TSDB_DATA_TYPE_DOUBLE;

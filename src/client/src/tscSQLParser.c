@@ -286,6 +286,16 @@ static uint8_t convertRelationalOperator(SStrToken *pToken) {
       return TSDB_BINARY_OP_REMAINDER;
     case TK_BITAND:
       return TSDB_BINARY_OP_BITAND;
+    case TK_BITOR:
+      return TSDB_BINARY_OP_BITOR;
+    case TK_BITXOR:
+      return TSDB_BINARY_OP_BITXOR;
+    case TK_BITNOT:
+      return TSDB_BINARY_OP_BITNOT;
+    case TK_LSHIFT:
+      return TSDB_BINARY_OP_LSHIFT;
+    case TK_RSHIFT:
+      return TSDB_BINARY_OP_RSHIFT;
     case TK_LIKE:
       return TSDB_RELATION_LIKE;
     case TK_MATCH:
@@ -4707,19 +4717,23 @@ static int32_t validateSQLExprItemOperatorExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, S
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
+
   int32_t rightHeight = 0;
-  ret = validateSQLExprItem(pCmd, pExpr->pRight, pQueryInfo, pList, &rightType, &uidRight, &rightHeight);
-  if (ret != TSDB_CODE_SUCCESS) {
-    return ret;
+  if (pExpr->tokenId != TK_BITNOT) {
+    ret = validateSQLExprItem(pCmd, pExpr->pRight, pQueryInfo, pList, &rightType, &uidRight, &rightHeight);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
+
+    if (uidLeft != uidRight && uidLeft != 0 && uidRight != 0) {
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
+    }
   }
 
-  if (uidLeft != uidRight && uidLeft != 0 && uidRight != 0) {
-    return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg1);
-  }
   *uid = uidLeft;
 
-  *height = (leftHeight > rightHeight) ? leftHeight + 1 : rightHeight+1;
-  {
+  *height = (leftHeight > rightHeight) ? leftHeight + 1 : rightHeight + 1;
+  if (pExpr->tokenId != TK_BITNOT) {
     if (leftType == SQLEXPR_TYPE_UNASSIGNED || rightType == SQLEXPR_TYPE_UNASSIGNED) {
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "invalid operand expression");
     }
@@ -4755,8 +4769,15 @@ static int32_t validateSQLExprItemOperatorExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, S
                pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH ||
                pExpr->tokenId == TK_CONTAINS || pExpr->tokenId == TK_IN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "unsupported filtering operations");
+    } else if (pExpr->tokenId == TK_LSHIFT || pExpr->tokenId == TK_RSHIFT) {
+      if (rightType != SQLEXPR_TYPE_VALUE) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "non numeric right operand");
+      }
     }
+  } else {
+    *type = SQLEXPR_TYPE_SCALAR;
   }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -10376,8 +10397,11 @@ int32_t exprTreeFromSqlExpr(SSqlCmd* pCmd, tExprNode **pExpr, const tSqlExpr* pS
           pLeft = pLeft->_node.pLeft;
         }
         if (pRight->pVal->nType == TSDB_DATA_TYPE_BOOL && pLeft->nodeType == TSQL_NODE_COL) {
-          if (((*pExpr)->_node.optr != TSDB_BINARY_OP_BITAND && pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL) ||
-              pLeft->pSchema->type == TSDB_DATA_TYPE_JSON) {
+          if ((((*pExpr)->_node.optr != TSDB_BINARY_OP_BITAND || (*pExpr)->_node.optr != TSDB_BINARY_OP_BITOR ||
+                (*pExpr)->_node.optr != TSDB_BINARY_OP_BITXOR || (*pExpr)->_node.optr != TSDB_BINARY_OP_BITNOT ||
+                (*pExpr)->_node.optr != TSDB_BINARY_OP_LSHIFT || (*pExpr)->_node.optr != TSDB_BINARY_OP_RSHIFT) &&
+              pLeft->pSchema->type == TSDB_DATA_TYPE_BOOL) || pLeft->pSchema->type == TSDB_DATA_TYPE_JSON)
+          {
             return TSDB_CODE_TSC_INVALID_OPERATION;
           }
         }

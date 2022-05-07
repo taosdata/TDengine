@@ -248,18 +248,25 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   char *    fname = NULL;
   bool      printMode = false;
 
-  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
-    cptr = tstrstr(command, ";", true);
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
+  sptr = command;
+  while ((sptr = tstrstr(sptr, ">>", true)) != NULL) {
+    if (regex_match(sptr + 2, "^\\s*+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+      cptr = tstrstr(command, ";", true);
+      if (cptr != NULL) {
+        *cptr = '\0';
+      }
 
-    if (wordexp(sptr + 2, &full_path, 0) != 0) {
-      fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
-      return;
+      if (wordexp(sptr + 2, &full_path, 0) != 0) {
+        fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
+        return;
+      }
+      *sptr = '\0';
+      fname = full_path.we_wordv[0];
+
+      break;
+    } else {
+      sptr += 2;
     }
-    *sptr = '\0';
-    fname = full_path.we_wordv[0];
   }
 
   if ((sptr = tstrstr(command, "\\G", true)) != NULL) {
