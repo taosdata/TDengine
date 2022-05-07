@@ -181,6 +181,12 @@ int32_t __catalogGetDBCfg(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, co
   return 0;
 }
 
+int32_t __catalogChkAuth(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName,
+                         AUTH_TYPE type, bool* pass) {
+  *pass = true;
+  return 0;
+}
+
 void initMetaDataEnv() {
   mockCatalogService.reset(new MockCatalogService());
 
@@ -193,6 +199,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetDBVgVersion, __catalogGetDBVgVersion);
   stub.set(catalogGetDBVgInfo, __catalogGetDBVgInfo);
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
+  stub.set(catalogChkAuth, __catalogChkAuth);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;

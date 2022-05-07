@@ -70,14 +70,14 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
   void *buf = NULL;
 
-  SCoder encoder;
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+  SEncoder encoder;
+  tEncoderInit(&encoder, NULL, 0);
   if (tEncodeSStreamObj(&encoder, pStream) < 0) {
-    tCoderClear(&encoder);
+    tEncoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
   int32_t tlen = encoder.pos;
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
   int32_t  size = sizeof(int32_t) + tlen + MND_STREAM_RESERVE_SIZE;
   SSdbRaw *pRaw = sdbAllocRaw(SDB_STREAM, MND_STREAM_VER_NUMBER, size);
@@ -86,12 +86,12 @@ SSdbRaw *mndStreamActionEncode(SStreamObj *pStream) {
   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) goto STREAM_ENCODE_OVER;
 
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, buf, tlen, TD_ENCODER);
+  tEncoderInit(&encoder, buf, tlen);
   if (tEncodeSStreamObj(&encoder, pStream) < 0) {
-    tCoderClear(&encoder);
+    tEncoderClear(&encoder);
     goto STREAM_ENCODE_OVER;
   }
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
   int32_t dataPos = 0;
   SDB_SET_INT32(pRaw, dataPos, tlen, STREAM_ENCODE_OVER);
@@ -138,8 +138,8 @@ SSdbRow *mndStreamActionDecode(SSdbRaw *pRaw) {
   if (buf == NULL) goto STREAM_DECODE_OVER;
   SDB_GET_BINARY(pRaw, dataPos, buf, tlen, STREAM_DECODE_OVER);
 
-  SCoder decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, buf, tlen + 1, TD_DECODER);
+  SDecoder decoder;
+  tDecoderInit(&decoder, buf, tlen + 1);
   if (tDecodeSStreamObj(&decoder, pStream) < 0) {
     goto STREAM_DECODE_OVER;
   }

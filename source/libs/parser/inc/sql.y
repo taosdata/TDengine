@@ -81,6 +81,30 @@ cmd ::= ALTER USER user_name(A) PASS NK_STRING(B).                              
 cmd ::= ALTER USER user_name(A) PRIVILEGE NK_STRING(B).                           { pCxt->pRootNode = createAlterUserStmt(pCxt, &A, TSDB_ALTER_USER_PRIVILEGES, &B); }
 cmd ::= DROP USER user_name(A).                                                   { pCxt->pRootNode = createDropUserStmt(pCxt, &A); }
 
+/************************************************ grant/revoke ********************************************************/
+cmd ::= GRANT privileges(A) ON priv_level(B) TO user_name(C).                     { pCxt->pRootNode = createGrantStmt(pCxt, A, &B, &C); }
+cmd ::= REVOKE privileges(A) ON priv_level(B) FROM user_name(C).                  { pCxt->pRootNode = createRevokeStmt(pCxt, A, &B, &C); }
+
+%type privileges                                                                  { int64_t }
+%destructor privileges                                                            { }
+privileges(A) ::= ALL.                                                            { A = PRIVILEGE_TYPE_ALL; }
+privileges(A) ::= priv_type_list(B).                                              { A = B; }
+
+%type priv_type_list                                                              { int64_t }
+%destructor priv_type_list                                                        { }
+priv_type_list(A) ::= priv_type(B).                                               { A = B; }
+priv_type_list(A) ::= priv_type_list(B) NK_COMMA priv_type(C).                    { A = B | C; }
+
+%type priv_type                                                                   { int64_t }
+%destructor priv_type                                                             { }
+priv_type(A) ::= READ.                                                            { A = PRIVILEGE_TYPE_READ; }
+priv_type(A) ::= WRITE.                                                           { A = PRIVILEGE_TYPE_WRITE; }
+
+%type priv_level                                                                  { SToken }
+%destructor priv_level                                                            { }
+priv_level(A) ::= NK_STAR(B) NK_DOT NK_STAR.                                      { A = B; }
+priv_level(A) ::= db_name(B) NK_DOT NK_STAR.                                      { A = B; }
+
 /************************************************ create/drop/alter dnode *********************************************/
 cmd ::= CREATE DNODE dnode_endpoint(A).                                           { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, NULL); }
 cmd ::= CREATE DNODE dnode_host_name(A) PORT NK_INTEGER(B).                       { pCxt->pRootNode = createCreateDnodeStmt(pCxt, &A, &B); }
@@ -337,6 +361,7 @@ cmd ::= SHOW VARIABLES.                                                         
 cmd ::= SHOW BNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_BNODES_STMT, NULL, NULL); }
 cmd ::= SHOW SNODES.                                                              { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_SNODES_STMT, NULL, NULL); }
 cmd ::= SHOW CLUSTER.                                                             { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_CLUSTER_STMT, NULL, NULL); }
+cmd ::= SHOW TRANSACTIONS.                                                        { pCxt->pRootNode = createShowStmt(pCxt, QUERY_NODE_SHOW_TRANSACTIONS_STMT, NULL, NULL); }
 
 db_name_cond_opt(A) ::= .                                                         { A = createDefaultDatabaseCondValue(pCxt); }
 db_name_cond_opt(A) ::= db_name(B) NK_DOT.                                        { A = createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B); }
@@ -413,7 +438,7 @@ cmd ::= COMPACT VNODES IN NK_LP integer_list(A) NK_RP.                          
 /************************************************ create/drop function ************************************************/
 cmd ::= CREATE agg_func_opt(A) FUNCTION not_exists_opt(F) function_name(B) 
   AS NK_STRING(C) OUTPUTTYPE type_name(D) bufsize_opt(E).                         { pCxt->pRootNode = createCreateFunctionStmt(pCxt, F, A, &B, &C, D, E); }
-cmd ::= DROP FUNCTION function_name(A).                                           { pCxt->pRootNode = createDropFunctionStmt(pCxt, &A); }
+cmd ::= DROP FUNCTION exists_opt(B) function_name(A).                             { pCxt->pRootNode = createDropFunctionStmt(pCxt, B, &A); }
 
 %type agg_func_opt                                                                { bool }
 %destructor agg_func_opt                                                          { }
@@ -441,6 +466,7 @@ stream_options(A) ::= stream_options(B) WATERMARK duration_literal(C).          
 /************************************************ kill connection/query ***********************************************/
 cmd ::= KILL CONNECTION NK_INTEGER(A).                                            { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_CONNECTION_STMT, &A); }
 cmd ::= KILL QUERY NK_INTEGER(A).                                                 { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_QUERY_STMT, &A); }
+cmd ::= KILL TRANSACTION NK_INTEGER(A).                                           { pCxt->pRootNode = createKillStmt(pCxt, QUERY_NODE_KILL_TRANSACTION_STMT, &A); }
 
 /************************************************ merge/redistribute/ vgroup ******************************************/
 cmd ::= MERGE VGROUP NK_INTEGER(A) NK_INTEGER(B).                                 { pCxt->pRootNode = createMergeVgroupStmt(pCxt, &A, &B); }

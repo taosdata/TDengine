@@ -369,7 +369,7 @@ static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSch
 }
 
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
-  SCoder         coder = {0};
+  SEncoder       encoder = {0};
   int32_t        contLen;
   SName          name = {0};
   SVCreateStbReq req = {0};
@@ -422,11 +422,11 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, contLen - sizeof(SMsgHead), TD_ENCODER);
-  if (tEncodeSVCreateStbReq(&coder, &req) < 0) {
+  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
+  if (tEncodeSVCreateStbReq(&encoder, &req) < 0) {
     return NULL;
   }
-  tCoderClear(&coder);
+  tEncoderClear(&encoder);
 
   *pContLen = contLen;
   taosMemoryFreeClear(req.pRSmaParam.qmsg1);
@@ -440,7 +440,7 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
   int32_t      contLen = 0;
   int32_t      ret = 0;
   SMsgHead    *pHead = NULL;
-  SCoder       coder = {0};
+  SEncoder     encoder = {0};
 
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
@@ -462,9 +462,9 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, contLen - sizeof(SMsgHead), TD_ENCODER);
-  tEncodeSVDropStbReq(&coder, &req);
-  tCoderClear(&coder);
+  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
+  tEncodeSVDropStbReq(&encoder, &req);
+  tEncoderClear(&encoder);
 
   *pContLen = contLen;
   return pHead;

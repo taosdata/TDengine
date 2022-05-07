@@ -26,11 +26,18 @@ int32_t udf1(SUdfDataBlock* block, SUdfColumn *resultCol) {
 
   SUdfColumnData *resultData = &resultCol->colData;
   resultData->numOfRows = block->numOfRows;
-  SUdfColumnData *srcData = &block->udfCols[0]->colData;
-
   for (int32_t i = 0; i < resultData->numOfRows; ++i) {
-    int32_t luckyNum = 88;
-    udfColSetRow(resultCol, i, (char*)&luckyNum, false);
+    int j = 0;
+    for (; j < block->numOfCols; ++j) {
+      if (udfColDataIsNull(block->udfCols[j], i)) {
+        udfColDataSetNull(resultCol, i);
+        break;
+      }
+    }
+    if ( j == block->numOfCols) {
+      int32_t luckyNum = 88;
+      udfColDataSet(resultCol, i, (char *)&luckyNum, false);
+    }
   }
 
   return 0;

@@ -83,12 +83,12 @@ END:
 }
 
 int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet* pEpSet, tmsg_t type, int32_t nodeId) {
-  SCoder encoder;
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+  SEncoder encoder;
+  tEncoderInit(&encoder, NULL, 0);
   tEncodeSStreamTask(&encoder, pTask);
   int32_t size = encoder.pos;
   int32_t tlen = sizeof(SMsgHead) + size;
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
   void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -96,9 +96,9 @@ int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet
   }
   ((SMsgHead*)buf)->vgId = htonl(nodeId);
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, size, TD_ENCODER);
+  tEncoderInit(&encoder, abuf, size);
   tEncodeSStreamTask(&encoder, pTask);
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
   STransAction action = {0};
   memcpy(&action.epSet, pEpSet, sizeof(SEpSet));
