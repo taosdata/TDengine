@@ -1596,7 +1596,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   return TSDB_CODE_SUCCESS;
 }
 
-SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid) {
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
+                            int32_t vgId) {
   SSubmitReq* ret = NULL;
 
   // cal size
@@ -1634,9 +1635,11 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   }
 
   // assign data
-  ret = taosMemoryCalloc(1, cap);
+  ret = taosMemoryCalloc(1, cap + 46);
+  ret = POINTER_SHIFT(ret, 46);
+  ret->header.vgId = vgId;
   ret->version = htonl(1);
-  ret->length = htonl(cap - sizeof(SSubmitReq));
+  ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
   void* submitBlk = POINTER_SHIFT(ret, sizeof(SSubmitReq));
@@ -1703,11 +1706,14 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       rowData = POINTER_SHIFT(rowData, rowLen);
       blkHead->dataLen += rowLen;
     }
-    int32_t len = blkHead->dataLen;
-    blkHead->dataLen = htonl(len);
-    blkHead = POINTER_SHIFT(blkHead, len);
+    int32_t dataLen = blkHead->dataLen;
+    blkHead->dataLen = htonl(dataLen);
+
+    ret->length += sizeof(SSubmitBlk) + schemaLen + dataLen;
+    blkHead = POINTER_SHIFT(blkHead, schemaLen + dataLen);
     /*submitBlk = blkHead;*/
   }
 
+  ret->length = htonl(ret->length);
   return ret;
 }

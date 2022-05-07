@@ -135,6 +135,7 @@ static void *vmOpenVnodeFunc(void *param) {
 
     SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
     msgCb.pWrapper = pMgmt->pWrapper;
+    msgCb.queueFps[WRITE_QUEUE] = vmPutMsgToWriteQueue;
     msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
     msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;
@@ -147,7 +148,7 @@ static void *vmOpenVnodeFunc(void *param) {
       pThread->failed++;
     } else {
       vmOpenVnode(pMgmt, pCfg, pImpl);
-      //vnodeStart(pImpl);
+      // vnodeStart(pImpl);
       dDebug("vgId:%d, is opened by thread:%d", pCfg->vgId, pThread->threadIndex);
       pThread->opened++;
     }

@@ -25,6 +25,8 @@ extern "C" {
 #ifndef _TSTREAM_H_
 #define _TSTREAM_H_
 
+typedef struct SStreamTask SStreamTask;
+
 enum {
   STREAM_TASK_STATUS__RUNNING = 1,
   STREAM_TASK_STATUS__STOP,
@@ -69,7 +71,7 @@ typedef struct {
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
-typedef void FTbSink(void* vnode, int64_t ver, const SArray* data);
+typedef void FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 typedef struct {
   int64_t         stbUid;
@@ -119,7 +121,7 @@ enum {
   TASK_SINK__FETCH,
 };
 
-typedef struct {
+struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int8_t  status;
@@ -154,8 +156,7 @@ typedef struct {
 
   // application storage
   void* ahandle;
-
-} SStreamTask;
+};
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
 int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
