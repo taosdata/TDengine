@@ -150,12 +150,12 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
     pRes = (SArray*)input;
   }
 
+  if (pRes == NULL || taosArrayGetSize(pRes) == 0) return 0;
+
   // sink
   if (pTask->sinkType == TASK_SINK__TABLE) {
     /*blockDebugShowData(pRes);*/
-    ASSERT(pTask->tbSink.pTSchema);
-    SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, false, pTask->tbSink.stbUid);
-    tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);
+    pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pRes);
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     pTask->smaSink.smaSink(pTask->ahandle, pTask->smaSink.smaId, pRes);
     //

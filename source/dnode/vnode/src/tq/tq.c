@@ -884,11 +884,21 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
   }
 }
 
-void tqTableSink(void* vnode, int64_t ver, const SArray* data) {
-  //
-  SVnode* pVnode = (SVnode*)vnode;
+void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+  const SArray* pRes = (const SArray*)data;
+  SVnode*       pVnode = (SVnode*)vnode;
+
+  ASSERT(pTask->tbSink.pTSchema);
+  SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid, pVnode->config.vgId);
+  tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);
   // build write msg
-  //
+  SRpcMsg msg = {
+      .msgType = TDMT_VND_SUBMIT,
+      .pCont = pReq,
+      .contLen = ntohl(pReq->length),
+  };
+
+  ASSERT(tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) == 0);
 }
 
 int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
