@@ -152,7 +152,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
 
   // sink
   if (pTask->sinkType == TASK_SINK__TABLE) {
-    blockDebugShowData(pRes);
+    /*blockDebugShowData(pRes);*/
     ASSERT(pTask->tbSink.pTSchema);
     SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, false, pTask->tbSink.stbUid);
     tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);
