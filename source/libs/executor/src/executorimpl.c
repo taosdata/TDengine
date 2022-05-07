@@ -4687,7 +4687,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 
   char* p = taosMemoryCalloc(1, 128);
   snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
-  pTaskInfo->id.str = strdup(p);
+  pTaskInfo->id.str = p;
 
   return pTaskInfo;
 }
@@ -5301,6 +5301,7 @@ void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
   //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);
 
+  destroyOperatorInfo(pTaskInfo->pRoot);
   taosMemoryFreeClear(pTaskInfo->sql);
   taosMemoryFreeClear(pTaskInfo->id.str);
   taosMemoryFreeClear(pTaskInfo);

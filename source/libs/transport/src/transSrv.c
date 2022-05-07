@@ -791,6 +791,10 @@ static void uvDestroyConn(uv_handle_t* handle) {
   }
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
+  if (conn->regArg.init == 1) {
+    transFreeMsg(conn->regArg.msg.pCont);
+    conn->regArg.init = 0;
+  }
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
