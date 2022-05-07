@@ -201,7 +201,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   // search & delete the name idx
   tdbDbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);
   ret = tdbDbcMoveTo(pNameIdxc, pReq->name, strlen(pReq->name) + 1, &c);
-  if (ret < 0 || c) {
+  if (ret < 0 || !tdbDbcIsValid(pNameIdxc) || c) {
     tdbDbcClose(pNameIdxc);
     terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
     return -1;
