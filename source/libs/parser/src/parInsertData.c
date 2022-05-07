@@ -156,7 +156,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
 }
 
 int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq) {
-  SCoder coder = {0};
+  SEncoder coder = {0};
   char* pBuf;
   int32_t len;
 
@@ -176,9 +176,9 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
 
   pBuf= pBlocks->pData + pBlocks->size;
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, len, TD_ENCODER);
+  tEncoderInit(&coder, pBuf, len);
   tEncodeSVCreateTbReq(&coder, pCreateTbReq);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   pBlocks->size += len;
   pBlocks->createTbReqLen = len;

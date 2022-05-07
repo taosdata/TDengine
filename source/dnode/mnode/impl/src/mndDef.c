@@ -13,12 +13,14 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "mndDef.h"
 #include "mndConsumer.h"
 
 SMqConsumerObj *tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]) {
   SMqConsumerObj *pConsumer = taosMemoryCalloc(1, sizeof(SMqConsumerObj));
   if (pConsumer == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
@@ -409,7 +411,7 @@ void *tDecodeSMqSubActionLogObj(const void *buf, SMqSubActionLogObj *pLog) {
   return (void *)buf;
 }
 
-int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
+int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   int32_t sz = 0;
   /*int32_t outputNameSz = 0;*/
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
@@ -460,7 +462,7 @@ int32_t tEncodeSStreamObj(SCoder *pEncoder, const SStreamObj *pObj) {
   return pEncoder->pos;
 }
 
-int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
+int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeCStrTo(pDecoder, pObj->name) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->sourceDb) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
@@ -514,4 +516,17 @@ int32_t tDecodeSStreamObj(SCoder *pDecoder, SStreamObj *pObj) {
   }
 #endif
   return 0;
+}
+
+int32_t tEncodeSMqOffsetObj(void **buf, const SMqOffsetObj *pOffset) {
+  int32_t tlen = 0;
+  tlen += taosEncodeString(buf, pOffset->key);
+  tlen += taosEncodeFixedI64(buf, pOffset->offset);
+  return tlen;
+}
+
+void *tDecodeSMqOffsetObj(void *buf, SMqOffsetObj *pOffset) {
+  buf = taosDecodeStringTo(buf, pOffset->key);
+  buf = taosDecodeFixedI64(buf, &pOffset->offset);
+  return buf;
 }
