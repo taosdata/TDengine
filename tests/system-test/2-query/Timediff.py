@@ -181,7 +181,16 @@ class TDTestCase:
         tdSql.error("select timediff(10,1,1.5) from stb")
         # tdSql.error("select timediff(10,1,2s) from stb")
         # tdSql.error("select timedifff(10,1,c1) from stb")
-
+        tdSql.error("select timediff(1.5,1.5) from stb_1")
+        tdSql.error("select timediff(1) from stb_1")
+        tdSql.error("select timediff(10,1,1.5) from stb_1")
+        # tdSql.error("select timediff(10,1,2s) from stb_1")
+        # tdSql.error("select timedifff(10,1,c1) from stb_1")
+        tdSql.error("select timediff(1.5,1.5) from ntb")
+        tdSql.error("select timediff(1) from ntb")
+        tdSql.error("select timediff(10,1,1.5) from ntb")
+        # tdSql.error("select timediff(10,1,2s) from ntb")
+        # tdSql.error("select timedifff(10,1,c1) from ntb")
 
 
 
