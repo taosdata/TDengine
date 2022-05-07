@@ -1,3 +1,5 @@
+#if 0
+
 #include <iostream>
 
 #include <gtest/gtest.h>
@@ -439,3 +441,5 @@ TEST(td_encode_test, compound_struct_encode_test) {
 }
 #endif
 #pragma GCC diagnostic pop
+
+#endif
