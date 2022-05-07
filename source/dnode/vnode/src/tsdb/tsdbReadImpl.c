@@ -616,7 +616,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       tcolId = pBlockCol->colId;
       toffset = tsdbGetBlockColOffset(pBlockCol);
       tlen = pBlockCol->len;
-      pDataCol->bitmap = pBlockCol->bitmap;
+      pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
     } else {
       ASSERT(pDataCol->colId == tcolId);
       TD_SET_COL_ROWS_NORM(pDataCol);
@@ -624,17 +624,8 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
 
     // int32_t tBitmaps = 0;
     int32_t tLenBitmap = 0;
-    if ((dcol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+    if ((dcol != 0) && (pBlockCol->blen > 0)) {
       tLenBitmap = nBitmaps;
-#if 0
-      if (IS_VAR_DATA_TYPE(pDataCol->type)) {
-        tBitmaps = nBitmaps;
-        tLenBitmap = tBitmaps;
-      } else {
-        tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
-        tLenBitmap = tBitmaps * TYPE_BYTES[pDataCol->type];
-      }
-#endif
     }
 
     if (tcolId == pDataCol->colId) {
@@ -784,8 +775,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 
     if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {  // load the key row
       blockCol.colId = colId;
-      TD_SET_COL_ROWS_NORM(&blockCol);  // default is NORM for the primary key column
-      blockCol.blen = 0;
+      blockCol.blen = 0;  // default is NORM for the primary key column
       blockCol.len = pBlock->keyLen;
       blockCol.type = pDataCol->type;
       blockCol.offset = TSDB_KEY_COL_OFFSET;
@@ -815,7 +805,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       ASSERT(pBlockCol->colId == pDataCol->colId);
     }
     // set the bitmap
-    pDataCol->bitmap = pBlockCol->bitmap;
+    pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
 
     if (tsdbLoadColData(pReadh, pDFile, pBlock, pBlockCol, pDataCol) < 0) return -1;
   }
@@ -833,17 +823,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   // int32_t tBitmaps = 0;
   int32_t tLenBitmap = 0;
 
-  if (!TD_COL_ROWS_NORM(pBlockCol)) {
+  if (pBlockCol->blen) {
     tLenBitmap = nBitmaps;
-#if 0
-    if (IS_VAR_DATA_TYPE(pDataCol->type)) {
-      tBitmaps = nBitmaps;
-      tLenBitmap = tBitmaps;
-    } else {
-      tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
-      tLenBitmap = tBitmaps * TYPE_BYTES[pDataCol->type];
-    }
-#endif
   }
 
   int tsize = pDataCol->bytes * pBlock->numOfRows + tLenBitmap + 2 * COMP_OVERFLOW_BYTES;
