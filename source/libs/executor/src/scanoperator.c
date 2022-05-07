@@ -670,6 +670,8 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
   if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
     metaCloseTbCursor(pInfo->pCur);
   }
+
+  taosArrayDestroy(pInfo->scanCols);
 }
 
 EDealRes getDBNameFromConditionWalker(SNode* pNode, void* pContext) {
@@ -1247,6 +1249,11 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   STagScanInfo* pInfo = pOperator->info;
   SExprInfo*    pExprInfo = &pOperator->pExpr[0];
   SSDataBlock*  pRes = pInfo->pRes;
+
+  if (taosArrayGetSize(pInfo->pTableGroups->pGroupList) == 0) {
+    setTaskStatus(pTaskInfo, TASK_COMPLETED);
+    return NULL;
+  }
 
   SArray* pa = taosArrayGetP(pInfo->pTableGroups->pGroupList, 0);
 
