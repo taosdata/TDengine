@@ -168,13 +168,6 @@ pipeline {
     stages {
         stage('run test') {
             parallel {
-                stage('windows test') {
-                    agent {label " windows11 "}
-                    steps {
-                        pre_test_win()
-                        pre_test_build_win()
-                    }
-                }
                 stage('linux test') {
                     agent{label " slave3_0 || slave15 || slave16 || slave17 "}
                     options { skipDefaultCheckout() } 

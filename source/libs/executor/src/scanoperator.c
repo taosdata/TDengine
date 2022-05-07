@@ -539,10 +539,12 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
     while (tqNextDataBlock(pInfo->readerHandle)) {
       SArray*  pCols = NULL;
-      uint64_t groupId;
-      int32_t  numOfRows;
-      int16_t  outputCol;
-      int32_t  code = tqRetrieveDataBlock(&pCols, pInfo->readerHandle, &groupId, &numOfRows, &outputCol);
+      uint64_t groupId = 0;
+      uint64_t uid = 0;
+      int32_t  numOfRows = 0;
+      int16_t  outputCol = 0;
+
+      int32_t  code = tqRetrieveDataBlock(&pCols, pInfo->readerHandle, &groupId, &uid, &numOfRows, &outputCol);
 
       if (code != TSDB_CODE_SUCCESS || numOfRows == 0) {
         pTaskInfo->code = code;
@@ -551,6 +553,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
       pInfo->pRes->info.groupId = groupId;
       pInfo->pRes->info.rows = numOfRows;
+      pInfo->pRes->info.uid = uid;
 
       int32_t numOfCols = pInfo->pRes->info.numOfCols;
       for (int32_t i = 0; i < numOfCols; ++i) {
@@ -606,10 +609,8 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    goto _error;
   }
 
   int32_t numOfOutput = taosArrayGetSize(pColList);
@@ -626,16 +627,13 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   tqReadHandleSetColIdList((STqReadHandle*)streamReadHandle, pColIds);
   int32_t code = tqReadHandleSetTbUidList(streamReadHandle, pTableIdList);
   if (code != 0) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    goto _error;
   }
 
   pInfo->pBlockLists = taosArrayInit(4, POINTER_BYTES);
   if (pInfo->pBlockLists == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _error;
   }
 
   pInfo->readerHandle = streamReadHandle;
@@ -647,7 +645,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   pOperator->blocking        = false;
   pOperator->status          = OP_NOT_OPENED;
   pOperator->info            = pInfo;
-  pOperator->numOfExprs     = pResBlock->info.numOfCols;
+  pOperator->numOfExprs      = pResBlock->info.numOfCols;
   pOperator->fpSet._openFn   = operatorDummyOpenFn;
   pOperator->fpSet.getNextFn = doStreamBlockScan;
   pOperator->fpSet.closeFn   = operatorDummyCloseFn;
@@ -656,6 +654,11 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStreamBlockScan, NULL, NULL, operatorDummyCloseFn, NULL, NULL, NULL);
 
   return pOperator;
+
+  _error:
+  taosMemoryFreeClear(pInfo);
+  taosMemoryFreeClear(pOperator);
+  return NULL;
 }
 
 static void destroySysScanOperator(void* param, int32_t numOfOutput) {

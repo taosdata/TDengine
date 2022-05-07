@@ -370,7 +370,7 @@ static bool mndBuildDnodesArrayFp(SMnode *pMnode, void *pObj, void *p1, void *p2
   return true;
 }
 
-static SArray *mndBuildDnodesArray(SMnode *pMnode) {
+SArray *mndBuildDnodesArray(SMnode *pMnode) {
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfDnodes = mndGetDnodeSize(pMnode);
 
@@ -421,7 +421,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pAr
       pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
     }
 
-    mDebug("db:%s, vgId:%d, vn:%d dnode:%d is alloced", pVgroup->dbName, pVgroup->vgId, v, pVgid->dnodeId);
+    mInfo("db:%s, vgId:%d, vn:%d dnode:%d is alloced", pVgroup->dbName, pVgroup->vgId, v, pVgid->dnodeId);
     pDnode->numOfVnodes++;
   }
 
@@ -440,12 +440,10 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   }
 
   pArray = mndBuildDnodesArray(pMnode);
-  if (pArray == NULL) {
-    goto _OVER;
-  }
+  if (pArray == NULL) goto _OVER;
 
-  mDebug("db:%s, total %d dnodes used to create %d vgroups (%d vnodes)", pDb->name, (int32_t)taosArrayGetSize(pArray),
-         pDb->cfg.numOfVgroups, pDb->cfg.numOfVgroups * pDb->cfg.replications);
+  mInfo("db:%s, total %d dnodes used to create %d vgroups (%d vnodes)", pDb->name, (int32_t)taosArrayGetSize(pArray),
+        pDb->cfg.numOfVgroups, pDb->cfg.numOfVgroups * pDb->cfg.replications);
 
   int32_t  allocedVgroups = 0;
   int32_t  maxVgId = sdbGetMaxId(pMnode->pSdb, SDB_VGROUP);
@@ -483,12 +481,94 @@ int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups) {
   *ppVgroups = pVgroups;
   code = 0;
 
-  mDebug("db:%s, %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
+  mInfo("db:%s, %d vgroups is alloced, replica:%d", pDb->name, pDb->cfg.numOfVgroups, pDb->cfg.replications);
 
 _OVER:
   if (code != 0) taosMemoryFree(pVgroups);
   taosArrayDestroy(pArray);
   return code;
+}
+
+int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
+  taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+    SDnodeObj *pDnode = taosArrayGet(pArray, i);
+    mDebug("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
+  }
+
+  int32_t maxPos = 1;
+  for (int32_t d = 0; d < taosArrayGetSize(pArray); ++d) {
+    SDnodeObj *pDnode = taosArrayGet(pArray, d);
+
+    bool used = false;
+    for (int32_t vn = 0; vn < maxPos; ++vn) {
+      if (pDnode->id == pVgroup->vnodeGid[vn].dnodeId) {
+        used = true;
+        break;
+      }
+    }
+    if (used) continue;
+
+    if (pDnode == NULL || pDnode->numOfVnodes > pDnode->numOfSupportVnodes) {
+      terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+      return -1;
+    }
+
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[maxPos];
+    pVgid->dnodeId = pDnode->id;
+    pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
+    pDnode->numOfVnodes++;
+
+    mInfo("db:%s, vgId:%d, vn:%d dnode:%d is added", pVgroup->dbName, pVgroup->vgId, maxPos, pVgid->dnodeId);
+    maxPos++;
+    if (maxPos == 3) return 0;
+  }
+
+  terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+  return -1;
+}
+
+int32_t mndRemoveVnodeFromVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray, SVnodeGid *del1, SVnodeGid *del2) {
+  int32_t removedNum = 0;
+
+  taosArraySort(pArray, (__compar_fn_t)mndCompareDnodeVnodes);
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+    SDnodeObj *pDnode = taosArrayGet(pArray, i);
+    mDebug("dnode:%d, equivalent vnodes:%d", pDnode->id, pDnode->numOfVnodes);
+  }
+
+  for (int32_t d = taosArrayGetSize(pArray) - 1; d >= 0; --d) {
+    SDnodeObj *pDnode = taosArrayGet(pArray, d);
+
+    for (int32_t vn = 0; vn < TSDB_MAX_REPLICA; ++vn) {
+      SVnodeGid *pVgid = &pVgroup->vnodeGid[vn];
+      if (pVgid->dnodeId == pDnode->id) {
+        if (removedNum == 0) *del1 = *pVgid;
+        if (removedNum == 1) *del2 = *pVgid;
+
+        mInfo("db:%s, vgId:%d, vn:%d dnode:%d is removed", pVgroup->dbName, pVgroup->vgId, vn, pVgid->dnodeId);
+        memset(pVgid, 0, sizeof(SVnodeGid));
+        removedNum++;
+        pDnode->numOfVnodes--;
+
+        if (removedNum == 2) goto _OVER;
+      }
+    }
+  }
+
+_OVER:
+  if (removedNum != 2) return -1;
+
+  for (int32_t vn = 1; vn < TSDB_MAX_REPLICA; ++vn) {
+    SVnodeGid *pVgid = &pVgroup->vnodeGid[vn];
+    if (pVgid->dnodeId != 0) {
+      memcpy(&pVgroup->vnodeGid[0], pVgid, sizeof(SVnodeGid));
+      memset(pVgid, 0, sizeof(SVnodeGid));
+    }
+  }
+
+  mInfo("db:%s, vgId:%d, dnode:%d is keeped", pVgroup->dbName, pVgroup->vgId, pVgroup->vnodeGid[0].dnodeId);
+  return 0;
 }
 
 SEpSet mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup) {
