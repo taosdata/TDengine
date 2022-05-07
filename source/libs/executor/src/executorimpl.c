@@ -2826,7 +2826,6 @@ void relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray
     }
 
     if (p->info.colId == pmInfo->colId) {
-      colDataDestroy(taosArrayGet(pBlock->pDataBlock, pmInfo->targetSlotId));
       taosArraySet(pBlock->pDataBlock, pmInfo->targetSlotId, p);
       i++;
       j++;
