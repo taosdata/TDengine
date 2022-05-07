@@ -1562,8 +1562,8 @@ typedef struct SVCreateTbReq {
   int8_t      type;
   union {
     struct {
-      tb_uid_t    suid;
-      const void* pTag;
+      tb_uid_t       suid;
+      const uint8_t* pTag;
     } ctb;
     struct {
       SSchemaWrapper schema;
@@ -2593,12 +2593,12 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
 
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
-  int64_t       suid;
-  int64_t       uid;
-  int32_t       sver;
-  uint64_t      nData;
-  const void*   pData;
-  SVCreateTbReq cTbReq;
+  int64_t        suid;
+  int64_t        uid;
+  int32_t        sver;
+  uint64_t       nData;
+  const uint8_t* pData;
+  SVCreateTbReq  cTbReq;
 } SVSubmitBlk;
 
 typedef struct {

@@ -411,7 +411,7 @@ SyncPing* syncPingDeserialize3(void* buf, int32_t bufLen) {
   }
   uint64_t len;
   char*    data = NULL;
-  if (tDecodeBinary(&decoder, (const void**)(&data), &len) < 0) {
+  if (tDecodeBinary(&decoder, (const uint8_t**)(&data), &len) < 0) {
     return NULL;
   }
   assert(len = pMsg->dataLen);
@@ -670,7 +670,7 @@ SyncPingReply* syncPingReplyDeserialize3(void* buf, int32_t bufLen) {
   }
   uint64_t len;
   char*    data = NULL;
-  if (tDecodeBinary(&decoder, (const void**)(&data), &len) < 0) {
+  if (tDecodeBinary(&decoder, (const uint8_t**)(&data), &len) < 0) {
     return NULL;
   }
   assert(len = pMsg->dataLen);
