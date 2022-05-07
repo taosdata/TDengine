@@ -831,7 +831,7 @@ static int32_t mndProcessVCreateStbRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
-static int32_t mndCheckAlterStbReq(SMAltertbReq *pAlter) {
+static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
@@ -1182,7 +1182,7 @@ static int32_t mndSetAlterStbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndAlterStb(SMnode *pMnode, SNodeMsg *pReq, const SMAltertbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
+static int32_t mndAlterStb(SMnode *pMnode, SNodeMsg *pReq, const SMAlterStbReq *pAlter, SDbObj *pDb, SStbObj *pOld) {
   SStbObj stbObj = {0};
   taosRLockLatch(&pOld->lock);
   memcpy(&stbObj, pOld, sizeof(SStbObj));
@@ -1246,12 +1246,12 @@ _OVER:
 }
 
 static int32_t mndProcessMAlterStbReq(SNodeMsg *pReq) {
-  SMnode      *pMnode = pReq->pNode;
-  int32_t      code = -1;
-  SDbObj      *pDb = NULL;
-  SStbObj     *pStb = NULL;
-  SUserObj    *pUser = NULL;
-  SMAltertbReq alterReq = {0};
+  SMnode       *pMnode = pReq->pNode;
+  int32_t       code = -1;
+  SDbObj       *pDb = NULL;
+  SStbObj      *pStb = NULL;
+  SUserObj     *pUser = NULL;
+  SMAlterStbReq alterReq = {0};
 
   if (tDeserializeSMAlterStbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;

@@ -137,7 +137,7 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
 }
 
 void* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -158,7 +158,7 @@ void* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagnam
 }
 
 void* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -180,7 +180,7 @@ void* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagna
 
 void* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname, const char* newtagname,
                                                 int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 2;
   req.pFields = taosArrayInit(2, sizeof(SField));
@@ -208,7 +208,7 @@ void* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char*
 
 void* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes,
                                                  int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -229,7 +229,7 @@ void* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char
 }
 
 void* MndTestStb::BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -250,7 +250,7 @@ void* MndTestStb::BuildAlterStbAddColumnReq(const char* stbname, const char* col
 }
 
 void* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -272,7 +272,7 @@ void* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* co
 
 void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes,
                                                     int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
