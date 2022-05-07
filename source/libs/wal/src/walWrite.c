@@ -198,12 +198,14 @@ int walRoll(SWal *pWal) {
   if (pWal->pWriteIdxTFile != NULL) {
     code = taosCloseFile(&pWal->pWriteIdxTFile);
     if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
     }
   }
   if (pWal->pWriteLogTFile != NULL) {
     code = taosCloseFile(&pWal->pWriteLogTFile);
     if (code != 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
       return -1;
     }
   }
@@ -263,14 +265,19 @@ int64_t walWriteWithSyncInfo(SWal *pWal, int64_t index, tmsg_t msgType, SSyncLog
   if (index == pWal->vers.lastVer + 1) {
     if (taosArrayGetSize(pWal->fileInfoSet) == 0) {
       pWal->vers.firstVer = index;
-      code = walRoll(pWal);
-      ASSERT(code == 0);
+      if (walRoll(pWal) < 0) {
+        return -1;
+      }
     } else {
       int64_t passed = walGetSeq() - pWal->lastRollSeq;
       if (pWal->cfg.rollPeriod != -1 && pWal->cfg.rollPeriod != 0 && passed > pWal->cfg.rollPeriod) {
-        walRoll(pWal);
+        if (walRoll(pWal) < 0) {
+          return -1;
+        }
       } else if (pWal->cfg.segSize != -1 && pWal->cfg.segSize != 0 && walGetLastFileSize(pWal) > pWal->cfg.segSize) {
-        walRoll(pWal);
+        if (walRoll(pWal) < 0) {
+          return -1;
+        }
       }
     }
   } else {

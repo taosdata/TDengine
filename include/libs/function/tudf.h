@@ -29,7 +29,11 @@ extern "C" {
 #endif
 
 #define UDF_LISTEN_PIPE_NAME_LEN 32
-#define UDF_LISTEN_PIPE_NAME_PREFIX "udfd.sock."
+#ifdef _WIN32
+#define UDF_LISTEN_PIPE_NAME_PREFIX "\\\\?\\pipe\\udfd.sock"
+#else
+#define UDF_LISTEN_PIPE_NAME_PREFIX ".udfd.sock."
+#endif
 #define UDF_DNODE_ID_ENV_NAME "DNODE_ID"
 
 //======================================================================================
@@ -129,8 +133,8 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 // begin API to UDF writer.
 
 // dynamic lib init and destroy
-typedef int32_t (*TUdfSetupFunc)();
-typedef int32_t (*TUdfTeardownFunc)();
+typedef int32_t (*TUdfInitFunc)();
+typedef int32_t (*TUdfDestroyFunc)();
 
 //TODO: add API to check function arguments type, number etc.
 
@@ -242,7 +246,6 @@ static FORCE_INLINE int32_t udfColSetRow(SUdfColumn* pColumn, uint32_t currentRo
   return 0;
 }
 
-typedef int32_t (*TUdfFreeUdfColumnFunc)(SUdfColumn* column);
 typedef int32_t (*TUdfScalarProcFunc)(SUdfDataBlock* block, SUdfColumn *resultCol);
 
 typedef int32_t (*TUdfAggStartFunc)(SUdfInterBuf *buf);
