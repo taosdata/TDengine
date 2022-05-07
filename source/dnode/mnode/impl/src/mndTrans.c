@@ -1336,8 +1336,7 @@ static int32_t mndProcessKillTransReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  if (!pUser->superUser) {
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
+  if (mndCheckTransAuth(pUser) != 0) {
     goto _OVER;
   }
 

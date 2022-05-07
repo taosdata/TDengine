@@ -672,7 +672,6 @@ typedef struct {
   SArray* pArray;  // Array of SUseDbRsp
 } SUseDbBatchRsp;
 
-
 int32_t tSerializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 int32_t tDeserializeSUseDbBatchRsp(void* buf, int32_t bufLen, SUseDbBatchRsp* pRsp);
 void    tFreeSUseDbBatchRsp(SUseDbBatchRsp* pRsp);
@@ -684,7 +683,6 @@ typedef struct {
 int32_t tSerializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 int32_t tDeserializeSUserAuthBatchRsp(void* buf, int32_t bufLen, SUserAuthBatchRsp* pRsp);
 void    tFreeSUserAuthBatchRsp(SUserAuthBatchRsp* pRsp);
-
 
 typedef struct {
   char db[TSDB_DB_FNAME_LEN];
@@ -1554,7 +1552,9 @@ typedef struct SVDropStbReq {
 int32_t tEncodeSVDropStbReq(SCoder* pCoder, const SVDropStbReq* pReq);
 int32_t tDecodeSVDropStbReq(SCoder* pCoder, SVDropStbReq* pReq);
 
+#define TD_CREATE_IF_NOT_EXISTS 0x1
 typedef struct SVCreateTbReq {
+  int32_t     flags;
   tb_uid_t    uid;
   int64_t     ctime;
   const char* name;

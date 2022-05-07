@@ -31,6 +31,7 @@ int32_t mndCheckDropUserAuth(SUserObj *pOperUser);
 
 int32_t mndCheckNodeAuth(SUserObj *pOperUser);
 int32_t mndCheckFuncAuth(SUserObj *pOperUser);
+int32_t mndCheckTransAuth(SUserObj *pOperUser);
 
 int32_t mndCheckCreateDbAuth(SUserObj *pOperUser);
 int32_t mndCheckAlterDropCompactDbAuth(SUserObj *pOperUser, SDbObj *pDb);
