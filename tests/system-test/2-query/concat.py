@@ -62,10 +62,7 @@ class TDTestCase:
         return ""
 
     def __concat_num(self, concat_lists, num):
-        concat_list = []
-        for i in range(num):
-            concat_list[i] = concat_lists[i]
-        return concat_list
+        return [ concat_lists[i] for i in range(num) ]
 
 
     def __group_condition(self, col, having = ""):
@@ -74,9 +71,8 @@ class TDTestCase:
     def __concat_current_check(self, tbname, num):
         concat_condition = self.__concat_condition()
         for i in range(len(concat_condition) - num + 1 ):
-            print(1111111111,i)
+            print(len(concat_condition))
             condition = self.__concat_num(concat_condition[i:], num)
-            print(222222222222)
             where_condition = self.__where_condition(condition[0])
             group_having = self.__group_condition(condition[0], having=f"{condition} is not null " )
             group_no_having= self.__group_condition(condition[0] )
@@ -85,8 +81,7 @@ class TDTestCase:
             for group_condition in groups:
                 tdSql.query(f"select concat( {','.join( condition ) } ), {','.join(condition)}  from {tbname} {where_condition}  {group_condition} ")
                 for j in range(tdSql.queryRows):
-                    print(333333333)
-                    tdSql.checkData(j, 0, "".join(tdSql.queryResult[i][1:]))
+                    tdSql.checkData(j, 0, "".join(tdSql.queryResult[i][1:])) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
 
 
