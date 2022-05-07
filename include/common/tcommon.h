@@ -115,8 +115,6 @@ void*   tDecodeDataBlocks(const void* buf, SArray** blocks);
 void    colDataDestroy(SColumnInfoData* pColData);
 
 static FORCE_INLINE void blockDestroyInner(SSDataBlock* pBlock) {
-  // WARNING: do not use info.numOfCols,
-  // sometimes info.numOfCols != array size
   int32_t numOfOutput = taosArrayGetSize(pBlock->pDataBlock);
   for (int32_t i = 0; i < numOfOutput; ++i) {
     SColumnInfoData* pColInfoData = (SColumnInfoData*)taosArrayGet(pBlock->pDataBlock, i);
