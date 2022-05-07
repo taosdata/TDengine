@@ -45,6 +45,12 @@ enum {
   STREAM_TRIGGER__BY_EVENT_TIME,
 };
 
+typedef enum EStreamType {
+  STREAM_NORMAL = 1,
+  STREAM_INVERT,
+  STREAM_INVALID,
+} EStreamType;
+
 typedef struct {
   uint32_t  numOfTables;
   SArray*   pGroupList;
@@ -71,6 +77,7 @@ typedef struct SDataBlockInfo {
   int16_t     numOfCols;
   int16_t     hasVarCol;
   int32_t     capacity;
+  EStreamType type;
 } SDataBlockInfo;
 
 typedef struct SSDataBlock {
