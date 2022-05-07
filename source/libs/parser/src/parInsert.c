@@ -1549,7 +1549,7 @@ typedef struct SmlExecHandle {
   SQuery* pQuery;
 } SSmlExecHandle;
 
-static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
+static int32_t smlBoundColumnData(SArray *cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
   col_id_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0;
@@ -1620,7 +1620,7 @@ static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSche
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlBoundTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SKVRow *row, SMsgBuf *msg) {
+static int32_t smlBuildTagRow(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SKVRow *row, SMsgBuf *msg) {
   if (tdInitKVRowBuilder(tagsBuilder) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1649,13 +1649,13 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
   SSmlExecHandle *smlHandle = (SSmlExecHandle *)handle;
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
   setBoundColumnInfo(&smlHandle->tags, pTagsSchema, getNumOfTags(pTableMeta));
-  int ret = smlBoundColumns(tags, &smlHandle->tags, pTagsSchema);
+  int ret = smlBoundColumnData(tags, &smlHandle->tags, pTagsSchema);
   if(ret != TSDB_CODE_SUCCESS){
     buildInvalidOperationMsg(&pBuf, "bound tags error");
     return ret;
   }
   SKVRow row = NULL;
-  ret = smlBoundTags(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &row, &pBuf);
+  ret = smlBuildTagRow(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &row, &pBuf);
   if(ret != TSDB_CODE_SUCCESS){
     return ret;
   }
@@ -1673,7 +1673,7 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
 
-  ret = smlBoundColumns(colsSchema, &pDataBlock->boundColumnInfo, pSchema);
+  ret = smlBoundColumnData(colsSchema, &pDataBlock->boundColumnInfo, pSchema);
   if(ret != TSDB_CODE_SUCCESS){
     buildInvalidOperationMsg(&pBuf, "bound cols error");
     return ret;
@@ -1698,10 +1698,10 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
     void *rowData = NULL;
-    bool eleEqual = false;
+    size_t rowDataSize = 0;
     if(format){
       rowData = taosArrayGetP(colsFormat, r);
-      eleEqual = (taosArrayGetSize(rowData) == spd->numOfBound);
+      rowDataSize = taosArrayGetSize(rowData);
     }else{
       rowData = taosArrayGetP(cols, r);
     }
@@ -1715,9 +1715,12 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
 
       SSmlKv *kv = NULL;
       if(format){
-        kv = taosArrayGetP(rowData, c);
         do{
-          if (!eleEqual && kv && (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)){
+          if(rowDataSize >= c){
+            break;
+          }
+          kv = taosArrayGetP(rowData, c);
+          if (rowDataSize != spd->numOfBound && kv && (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)){
             MemRowAppend(&pBuf, NULL, 0, &param);
             c++;
             if(c >= spd->numOfBound) break;
