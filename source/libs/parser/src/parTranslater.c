@@ -2596,7 +2596,7 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
                                    pStmt->ignoreNotExists);
 }
 
-static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterReq) {
+static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterReq) {
   pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
   if (NULL == pAlterReq->pFields) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2632,8 +2632,8 @@ static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterRe
 }
 
 static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
-  SMAltertbReq alterReq = {0};
-  SName        tableName;
+  SMAlterStbReq alterReq = {0};
+  SName         tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), alterReq.name);
   alterReq.alterType = pStmt->alterType;
   alterReq.numOfFields = 1;

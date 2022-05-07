@@ -4699,10 +4699,9 @@ static int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t 
                                   uint64_t queryId, uint64_t taskId);
 static SArray* extractTableIdList(const STableGroupInfo* pTableGroupInfo);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
-static SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols);
+static SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols, int32_t type);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
-static SArray* createIndexMap(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
 static int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
 static void    setJoinColumnInfo(SColumnInfo* pInfo, const SColumnNode* pLeftNode);
@@ -4734,9 +4733,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
-      SArray* pColList =
-          extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
-      SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
+      SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+
+      SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
+      SSDataBlock* pResBlock = createResDataBlock(pDescNode);
 
       SQueryTableDataCond cond = {0};
       int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
@@ -4761,10 +4761,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
 
-      SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
+      SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+      SSDataBlock* pResBlock = createResDataBlock(pDescNode);
 
       int32_t numOfCols = 0;
-      SArray* pCols = extractColMatchInfo(pScanPhyNode->pScanCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfCols);
+      SArray* pCols = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pResBlock, pCols, tableIdList, pTaskInfo,
                                                               pScanPhyNode->node.pConditions);
       taosArrayDestroy(tableIdList);
@@ -4773,18 +4774,22 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SSystemTableScanPhysiNode* pSysScanPhyNode = (SSystemTableScanPhysiNode*)pPhyNode;
       SScanPhysiNode*            pScanNode = &pSysScanPhyNode->scan;
 
-      SSDataBlock* pResBlock = createResDataBlock(pScanNode->node.pOutputDataBlockDesc);
+      SDataBlockDescNode* pDescNode = pScanNode->node.pOutputDataBlockDesc;
+
+      SSDataBlock* pResBlock = createResDataBlock(pDescNode);
 
       int32_t numOfOutputCols = 0;
-      SArray* colList =
-          extractColMatchInfo(pScanNode->pScanCols, pScanNode->node.pOutputDataBlockDesc, &numOfOutputCols);
+      SArray* colList = extractColMatchInfo(pScanNode->pScanCols, pDescNode, &numOfOutputCols, COL_MATCH_FROM_COL_ID);
       SOperatorInfo* pOperator = createSysTableScanOperatorInfo(
           pHandle, pResBlock, &pScanNode->tableName, pScanNode->node.pConditions, pSysScanPhyNode->mgmtEpSet, colList,
           pTaskInfo, pSysScanPhyNode->showRewrite, pSysScanPhyNode->accountId);
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*) pPhyNode;
-      SSDataBlock* pResBlock = createResDataBlock(pScanPhyNode->node.pOutputDataBlockDesc);
+
+      SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+
+      SSDataBlock* pResBlock = createResDataBlock(pDescNode);
 
       int32_t  code =
           doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
@@ -4796,8 +4801,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SExprInfo* pExprInfo = createExprInfo(pScanPhyNode->pScanPseudoCols, NULL, &num);
 
       int32_t numOfOutputCols = 0;
-      SArray* colList =
-          extractColMatchInfo(pScanPhyNode->pScanPseudoCols, pScanPhyNode->node.pOutputDataBlockDesc, &numOfOutputCols);
+      SArray* colList = extractColMatchInfo(pScanPhyNode->pScanPseudoCols, pDescNode, &numOfOutputCols, COL_MATCH_FROM_COL_ID);
 
       SOperatorInfo* pOperator = createTagScanOperatorInfo(pHandle, pExprInfo, num, pResBlock, colList, pTableGroupInfo, pTaskInfo);
       return pOperator;
@@ -4869,15 +4873,16 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     SSortPhysiNode* pSortPhyNode = (SSortPhysiNode*)pPhyNode;
 
-    SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
+    SDataBlockDescNode* pDescNode = pPhyNode->pOutputDataBlockDesc;
+
+    SSDataBlock* pResBlock = createResDataBlock(pDescNode);
     SArray*      info = createSortInfo(pSortPhyNode->pSortKeys);
 
     int32_t    numOfCols = 0;
     SExprInfo* pExprInfo = createExprInfo(pSortPhyNode->pExprs, NULL, &numOfCols);
 
     int32_t numOfOutputCols = 0;
-    SArray* pColList =
-        extractColMatchInfo(pSortPhyNode->pTargets, pSortPhyNode->node.pOutputDataBlockDesc, &numOfOutputCols);
+    SArray* pColList = extractColMatchInfo(pSortPhyNode->pTargets, pDescNode, &numOfOutputCols, COL_MATCH_FROM_SLOT_ID);
 
     pOptr = createSortOperatorInfo(ops[0], pResBlock, info, pExprInfo, numOfCols, pColList, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == type) {
@@ -5059,25 +5064,7 @@ SArray* createSortInfo(SNodeList* pNodeList) {
   return pList;
 }
 
-SArray* createIndexMap(SNodeList* pNodeList) {
-  size_t  numOfCols = LIST_LENGTH(pNodeList);
-  SArray* pList = taosArrayInit(numOfCols, sizeof(int32_t));
-  if (pList == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return pList;
-  }
-
-  for (int32_t i = 0; i < numOfCols; ++i) {
-    STargetNode* pTarget = (STargetNode*)nodesListGetNode(pNodeList, i);
-
-    SColumnNode* pColNode = (SColumnNode*)pTarget->pExpr;
-    taosArrayPush(pList, &pColNode->slotId);
-  }
-
-  return pList;
-}
-
-SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols) {
+SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols, int32_t type) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColMatchInfo));
   if (pList == NULL) {
@@ -5090,8 +5077,10 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
     SColMatchInfo c = {0};
-    c.output = true;
-    c.colId  = pColNode->colId;
+    c.output       = true;
+    c.colId        = pColNode->colId;
+    c.srcSlotId    = pColNode->slotId;
+    c.matchType    = type;
     c.targetSlotId = pNode->slotId;
     taosArrayPush(pList, &c);
   }
