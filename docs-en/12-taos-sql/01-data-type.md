@@ -18,7 +18,7 @@ Time precision in TDengine can be set by the `PRECISION` parameter when executin
 CREATE DATABASE db_name PRECISION 'ns';
 ```
 
-在 TDengine 中，普通表的数据模型中可使用以下 10 种数据类型。
+In TDengine, below data types can be used when specifying a column or tag.
 
 | #   | **类型**  | **Bytes** | **说明** |
 | --- | :-------: | --------- | ------------------------- |
