@@ -326,11 +326,11 @@ typedef struct {
   int8_t  alterType;
   int32_t numOfFields;
   SArray* pFields;
-} SMAltertbReq;
+} SMAlterStbReq;
 
-int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAltertbReq* pReq);
-int32_t tDeserializeSMAlterStbReq(void* buf, int32_t bufLen, SMAltertbReq* pReq);
-void    tFreeSMAltertbReq(SMAltertbReq* pReq);
+int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
+int32_t tDeserializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
+void    tFreeSMAltertbReq(SMAlterStbReq* pReq);
 
 typedef struct SEpSet {
   int8_t inUse;

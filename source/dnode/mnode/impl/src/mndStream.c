@@ -345,7 +345,10 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
   }
 
   int32_t numOfStbs = -1;
-  mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs);
+  if (mndGetNumOfStbs(pMnode, pDb->name, &numOfStbs) != 0) {
+    goto _OVER;
+  }
+
   if (pDb->cfg.numOfStables == 1 && numOfStbs != 0) {
     terrno = TSDB_CODE_MND_SINGLE_STB_MODE_DB;
     goto _OVER;
