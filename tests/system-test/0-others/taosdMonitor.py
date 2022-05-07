@@ -54,13 +54,13 @@ def telemetryInfoCheck(infoDict=''):
     if "master_uptime" not in infoDict["cluster_info"] or infoDict["cluster_info"]["master_uptime"] == None:
         tdLog.exit("master_uptime is null!")
 
-    if "monitor_interval" not in infoDict["cluster_info"] or infoDict["cluster_info"]["monitor_interval"] != 5:
+    if "monitor_interval" not in infoDict["cluster_info"] or infoDict["cluster_info"]["monitor_interval"] !=5:
         tdLog.exit("monitor_interval is null!")
 
-    if "vgroups_total" not in infoDict["cluster_info"] or infoDict["cluster_info"]["vgroups_total"] != 2:
+    if "vgroups_total" not in infoDict["cluster_info"] or infoDict["cluster_info"]["vgroups_total"] < 0:
         tdLog.exit("vgroups_total is null!")
 
-    if "vgroups_alive" not in infoDict["cluster_info"] or infoDict["cluster_info"]["vgroups_alive"] != 2:
+    if "vgroups_alive" not in infoDict["cluster_info"] or infoDict["cluster_info"]["vgroups_alive"] < 0:
         tdLog.exit("vgroups_alive is null!")
 
     if "connections_total" not in infoDict["cluster_info"] or infoDict["cluster_info"]["connections_total"] != 1:
@@ -86,11 +86,9 @@ def telemetryInfoCheck(infoDict=''):
     if "vgroup_infos" not in infoDict or infoDict["vgroup_infos"]== None:
         tdLog.exit("vgroup_infos is null!")
     
-    vgroup_infos_lists = [{ "vgroup_id":2, "database_name":"db", "tables_num":0,"status": "ready", "vnodes": [{"dnode_id":1,"vnode_role":   "LEADER" }]},
-                          { "vgroup_id":3, "database_name":"db", "tables_num": 0,"status":"ready", "vnodes": [{"dnode_id":1,"vnode_role": "LEADER" }]}
-     ]
+    vgroup_infos_nums = len(infoDict["vgroup_infos"])
 
-    for  index , vgroup_infos in enumerate(vgroup_infos_lists):
+    for  index in range(vgroup_infos_nums):
         if "vgroup_id" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["vgroup_id"]<0:
             tdLog.exit("vgroup_id is null!")
         if "database_name" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["database_name"]!="db":
