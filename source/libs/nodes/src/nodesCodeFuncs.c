@@ -168,8 +168,6 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowConsumersStmt";
     case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
       return "ShowSubscribesStmt";
-    case QUERY_NODE_SHOW_TRANS_STMT:
-      return "ShowTransStmt";
     case QUERY_NODE_SHOW_SMAS_STMT:
       return "ShowSmasStmt";
     case QUERY_NODE_SHOW_CONFIGS_STMT:
@@ -1972,10 +1970,10 @@ static int32_t datumToJson(const void* pObj, SJson* pJson) {
       code = tjsonAddDoubleToObject(pJson, jkValueDatum, pNode->datum.d);
       break;
     case TSDB_DATA_TYPE_NCHAR: {
-      //cJSON only support utf-8 encoding. Convert memory content to hex string.
-      char *buf = taosMemoryCalloc(varDataLen(pNode->datum.p) * 2 + 1, sizeof(char));
+      // cJSON only support utf-8 encoding. Convert memory content to hex string.
+      char* buf = taosMemoryCalloc(varDataLen(pNode->datum.p) * 2 + 1, sizeof(char));
       code = taosHexEncode(varDataVal(pNode->datum.p), buf, varDataLen(pNode->datum.p));
-      if(code != TSDB_CODE_SUCCESS) {
+      if (code != TSDB_CODE_SUCCESS) {
         taosMemoryFree(buf);
         return TSDB_CODE_TSC_INVALID_VALUE;
       }
@@ -2086,7 +2084,7 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
       }
       varDataSetLen(pNode->datum.p, pNode->node.resType.bytes);
       if (TSDB_DATA_TYPE_NCHAR == pNode->node.resType.type) {
-        char *buf = taosMemoryCalloc(1, pNode->node.resType.bytes * 2 + VARSTR_HEADER_SIZE + 1);
+        char* buf = taosMemoryCalloc(1, pNode->node.resType.bytes * 2 + VARSTR_HEADER_SIZE + 1);
         if (NULL == buf) {
           code = TSDB_CODE_OUT_OF_MEMORY;
           break;
