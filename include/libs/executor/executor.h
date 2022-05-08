@@ -165,15 +165,6 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
  */
 int32_t qUpdateQueriedTableIdList(qTaskInfo_t tinfo, int64_t uid, int32_t type);
 
-/**
- * release the query handle and decrease the reference count in cache
- * @param pMgmt
- * @param pQInfo
- * @param freeHandle
- * @return
- */
-void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
-
 void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t *resNum, SExplainExecInfo **pRes);

@@ -481,6 +481,7 @@ static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
         TSDB_CODE_SUCCESS) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
     }
+    *(int64_t*)&pVal->typeData = pVal->datum.i;
   } else {
     switch (pVal->node.resType.type) {
       case TSDB_DATA_TYPE_NULL:
@@ -2596,7 +2597,7 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
                                    pStmt->ignoreNotExists);
 }
 
-static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterReq) {
+static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterReq) {
   pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
   if (NULL == pAlterReq->pFields) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2633,8 +2634,8 @@ static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAltertbReq* pAlterRe
 }
 
 static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pStmt) {
-  SMAltertbReq alterReq = {0};
-  SName        tableName;
+  SMAlterStbReq alterReq = {0};
+  SName         tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), alterReq.name);
   alterReq.alterType = pStmt->alterType;
   if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType) {
@@ -3606,8 +3607,8 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
 }
 
 static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -3620,9 +3621,9 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVCreateTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {
@@ -4006,8 +4007,8 @@ over:
 static void destroyDropTbReqBatch(SVgroupDropTableBatch* pTbBatch) { taosArrayDestroy(pTbBatch->req.pArray); }
 
 static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SArray* pBufArray) {
-  int    tlen;
-  SCoder coder = {0};
+  int      tlen;
+  SEncoder coder = {0};
 
   int32_t ret = 0;
   tEncodeSize(tEncodeSVDropTbBatchReq, &pTbBatch->req, tlen, ret);
@@ -4020,9 +4021,9 @@ static int32_t serializeVgroupDropTableBatch(SVgroupDropTableBatch* pTbBatch, SA
   ((SMsgHead*)buf)->contLen = htonl(tlen);
   void* pBuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, tlen - sizeof(SMsgHead), TD_ENCODER);
+  tEncoderInit(&coder, pBuf, tlen - sizeof(SMsgHead));
   tEncodeSVDropTbBatchReq(&coder, &pTbBatch->req);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   SVgDataBlocks* pVgData = taosMemoryCalloc(1, sizeof(SVgDataBlocks));
   if (NULL == pVgData) {

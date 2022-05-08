@@ -25,7 +25,7 @@ const SVnodeCfg vnodeCfgDefault = {
     .isHeap = false,
     .isWeak = 0,
     .tsdbCfg = {.precision = TSDB_TIME_PRECISION_MILLI,
-                .update = 0,
+                .update = 1,
                 .compression = 2,
                 .slLevel = 5,
                 .days = 10,

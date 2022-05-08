@@ -615,6 +615,7 @@ void generateQueryMiscSQL(BindData *data, int32_t tblIdx) {
 }
 
 
+
 void generateErrorSQL(BindData *data, int32_t tblIdx) {
   int32_t len = 0;
   data->sql = taosMemoryCalloc(1, 1024);
