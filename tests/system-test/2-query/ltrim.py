@@ -45,7 +45,7 @@ class TDTestCase:
             ltrim_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             ltrim_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             ltrim_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            ltrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            # ltrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
             ltrim_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
             ltrim_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
 
@@ -76,7 +76,7 @@ class TDTestCase:
 
             tdSql.query(f"select ltrim( {condition}) , {condition} from {tbname} ")
             for j in range(tdSql.queryRows):
-                tdSql.checkData(j,0, tdSql.getData(j,1).lstrip())
+                tdSql.checkData(j,0, tdSql.getData(j,1).lstrip()) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
             [ tdSql.query(f"select ltrim({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
 
@@ -125,7 +125,7 @@ class TDTestCase:
         tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
             self.__ltrim_check(tb)
-            tdLog.printNoPrefix(f"==========current sql condition check in {tb}, col num: {i} over==========")
+            tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
