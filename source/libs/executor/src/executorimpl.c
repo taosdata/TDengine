@@ -1148,14 +1148,9 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
         if (pCtx->sfp.getEnv != NULL) {
           pCtx->sfp.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
-        } else {  // to work around the interbuffer size requirement.
-          ASSERT(fmIsUserDefinedFunc(pCtx->functionId));
-//          env.calcMemSize = pFunct->resSchema.bytes;
         }
       }
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
-      // todo remove it later.
-//      ASSERT(pCtx->resDataInfo.interBufSize > 0);
     } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR ||
                pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
       // for simple column, the result buffer needs to hold at least one element.
@@ -4379,6 +4374,10 @@ void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
   doDestroyBasicInfo(pInfo, numOfOutput);
 }
 
+void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
+  SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*) param;
+}
+
 void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
@@ -4955,7 +4954,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSDataBlock*    pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
 
     SExprInfo* pExprInfo = createExprInfo(pJoinNode->pTargets, NULL, &num);
-    pOptr = createJoinOperatorInfo(ops, size, pExprInfo, num, pResBlock, pJoinNode->pOnConditions, pTaskInfo);
+    pOptr = createMergeJoinOperatorInfo(ops, size, pExprInfo, num, pResBlock, pJoinNode->pOnConditions, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_FILL == type) {
     SFillPhysiNode* pFillNode = (SFillPhysiNode*)pPhyNode;
     SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
@@ -5527,7 +5526,7 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
   return (pRes->info.rows > 0) ? pRes : NULL;
 }
 
-SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo,
+SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo,
                                       int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition,
                                       SExecTaskInfo* pTaskInfo) {
   SJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SJoinOperatorInfo));
@@ -5553,7 +5552,7 @@ SOperatorInfo* createJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOf
   setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
 
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyBasicOperatorInfo, NULL, NULL, NULL);
+      createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL, NULL, NULL);
   int32_t code = appendDownstream(pOperator, pDownstream, numOfDownstream);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
