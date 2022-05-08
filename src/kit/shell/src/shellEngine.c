@@ -259,7 +259,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   sptr = tmp;
 
   if (sptr != NULL) {
-    if (regex_match(sptr + 2, "^\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*;\\s*$", REG_EXTENDED | REG_ICASE) == 0) {
+    if (regex_match(sptr + 2, "^\\s*[0-9]+\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.*;\\s*$", REG_EXTENDED | REG_ICASE) == 0) {
       cptr = tstrstr(command, ";", true);
       if (cptr != NULL) {
         *cptr = '\0';
