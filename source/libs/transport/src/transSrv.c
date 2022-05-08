@@ -858,7 +858,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
 #ifdef WINDOWS
   snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc\\%p-%lu", taosSafeRand(), GetCurrentProcessId());
 #else
-  snprintf(pipeName, sizeof(pipeName), ".trans.rpc\\%p-%lu", taosSafeRand(), GetCurrentProcessId());
+  snprintf(pipeName, sizeof(pipeName), ".trans.rpc\\%08X-%lu", taosSafeRand(), taosGetSelfPthreadId());
 #endif
   assert(0 == uv_pipe_bind(&srv->pipeListen, pipeName));
   assert(0 == uv_listen((uv_stream_t*)&srv->pipeListen, SOMAXCONN, uvPipeListenCb));
