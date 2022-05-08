@@ -89,9 +89,9 @@ def telemetryInfoCheck(infoDict=''):
     vgroup_infos_nums = len(infoDict["vgroup_infos"])
 
     for  index in range(vgroup_infos_nums):
-        if "vgroup_id" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["vgroup_id"]<0:
+        if "vgroup_id" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["vgroup_id"]< 0:
             tdLog.exit("vgroup_id is null!")
-        if "database_name" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["database_name"])>0:
+        if "database_name" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["database_name"]) < 0:
             tdLog.exit("database_name is null!")
         if "tables_num" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["tables_num"]!= 0:
             tdLog.exit("tables_num is null!")
