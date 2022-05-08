@@ -81,7 +81,7 @@ class TDTestCase:
             for j in range(tdSql.queryRows):
                 tdSql.checkData(j,0, tdSql.getData(j,1)[pos-1:lens]) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
-            [ tdSql.query(f"select substr({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
+            [ tdSql.query(f"select substr({condition}, {pos}, {lens})  from {tbname} {where_condition}  {group} ") for group in groups ]
 
 
     def __substr_err_check(self,tbname):
