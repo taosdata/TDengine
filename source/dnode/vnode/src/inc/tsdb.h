@@ -184,18 +184,18 @@ struct STsdbFS {
   SFSStatus *nstatus;  // new status
 };
 
-#define REPO_ID(r)         TD_VID((r)->pVnode)
-#define REPO_CFG(r)        (&(r)->pVnode->config.tsdbCfg)
-#define REPO_KEEP_CFG(r)   (&(r)->keepCfg)
-#define REPO_LEVEL(r)      ((r)->level)
-#define REPO_FS(r)         ((r)->fs)
-#define REPO_META(r)       ((r)->pVnode->pMeta)
-#define REPO_TFS(r)        ((r)->pVnode->pTfs)
-#define IS_REPO_LOCKED(r)  ((r)->repoLocked)
-#define REPO_TSMA_NUM(r)   ((r)->smaEnvs.nTSma)
-#define REPO_RSMA_NUM(r)   ((r)->smaEnvs.nRSma)
-#define REPO_TSMA_ENV(r)   ((r)->smaEnvs.pTSmaEnv)
-#define REPO_RSMA_ENV(r)   ((r)->smaEnvs.pRSmaEnv)
+#define REPO_ID(r)        TD_VID((r)->pVnode)
+#define REPO_CFG(r)       (&(r)->pVnode->config.tsdbCfg)
+#define REPO_KEEP_CFG(r)  (&(r)->keepCfg)
+#define REPO_LEVEL(r)     ((r)->level)
+#define REPO_FS(r)        ((r)->fs)
+#define REPO_META(r)      ((r)->pVnode->pMeta)
+#define REPO_TFS(r)       ((r)->pVnode->pTfs)
+#define IS_REPO_LOCKED(r) ((r)->repoLocked)
+#define REPO_TSMA_NUM(r)  ((r)->smaEnvs.nTSma)
+#define REPO_RSMA_NUM(r)  ((r)->smaEnvs.nRSma)
+#define REPO_TSMA_ENV(r)  ((r)->smaEnvs.pTSmaEnv)
+#define REPO_RSMA_ENV(r)  ((r)->smaEnvs.pRSmaEnv)
 
 int tsdbLockRepo(STsdb *pTsdb);
 int tsdbUnlockRepo(STsdb *pTsdb);
