@@ -27,7 +27,7 @@ class TestDisorderInsert(TDCase):
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
         self.tdSql.execute(f'create table {dbname}.stb (ts timestamp, c11 int, c12 float ) TAGS(t11 int, t12 int )')
         self.tdSql.execute(f'create table {dbname}.tb using {dbname}.stb TAGS(1, 1)')
-        timestamp = self.tdCom.genTs("ms", protype="restful")[0]
+        timestamp = self.tdCom.genTs("ms")[0]
         ts_list = list()
         for i in range(1, 101):
             ts = timestamp - 1000 + i
