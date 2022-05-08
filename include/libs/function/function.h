@@ -110,9 +110,9 @@ typedef struct SFileBlockInfo {
 #define FUNCTION_COV          38
 
 typedef struct SResultRowEntryInfo {
-  bool     initialized/*:1*/;     // output buffer has been initialized
-  bool     complete/*:1*/;        // query has completed
-  uint8_t  isNullRes/*:6*/;       // the result is null
+  bool     initialized:1;     // output buffer has been initialized
+  bool     complete:1;        // query has completed
+  uint8_t  isNullRes:6;       // the result is null
   uint8_t  numOfRes;          // num of output result in current buffer
 } SResultRowEntryInfo;
 
