@@ -60,7 +60,7 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   SSubmitBlk    *pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
   STSRow        *row = NULL;
-  STsdbCfg      *pCfg = REPO_CFG(pTsdb);
+  STsdbKeepCfg  *pCfg = REPO_KEEP_CFG(pTsdb);
   TSKEY          now = taosGetTimestamp(pCfg->precision);
   TSKEY          minKey = now - tsTickPerDay[pCfg->precision] * pCfg->keep2;
   TSKEY          maxKey = now + tsTickPerDay[pCfg->precision] * pCfg->days;

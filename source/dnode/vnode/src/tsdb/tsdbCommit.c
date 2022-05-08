@@ -210,7 +210,7 @@ int tsdbCommit(STsdb *pRepo) {
 }
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
   TSKEY     minKey, midKey, maxKey, now;
 
   now = taosGetTimestamp(pCfg->precision);
@@ -304,9 +304,9 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key) {
 }
 
 static int tsdbNextCommitFid(SCommitH *pCommith) {
-  STsdb    *pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
-  int       fid = TSDB_IVLD_FID;
+  STsdb        *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
+  int           fid = TSDB_IVLD_FID;
 
   for (int i = 0; i < pCommith->niters; i++) {
     SCommitIter *pIter = pCommith->iters + i;
@@ -337,8 +337,8 @@ static void tsdbDestroyCommitH(SCommitH *pCommith) {
 }
 
 static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
-  STsdb    *pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
+  STsdb        *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
 
   ASSERT(pSet == NULL || pSet->fid == fid);
 
