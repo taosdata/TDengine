@@ -30,34 +30,34 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __rtrim_condition(self):  # sourcery skip: extract-method
-        rtrim_condition = []
+    def __substr_condition(self):  # sourcery skip: extract-method
+        substr_condition = []
         for char_col in CHAR_COL:
-            rtrim_condition.extend(
+            substr_condition.extend(
                 (
                     char_col,
                     f"upper( {char_col} )",
                 )
             )
-            rtrim_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
-            rtrim_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
-            rtrim_condition.extend( f"concat( cast( {char_col} + {num_col} as binary(16) ), {char_col}) " for num_col in NUM_COL )
-            rtrim_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            rtrim_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            rtrim_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            # rtrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            rtrim_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
-            rtrim_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
+            substr_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
+            substr_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
+            substr_condition.extend( f"concat( cast( {char_col} + {num_col} as binary(16) ), {char_col}) " for num_col in NUM_COL )
+            substr_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            substr_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            substr_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            # substr_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            substr_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
+            substr_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
 
         for num_col in NUM_COL:
-            rtrim_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            rtrim_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            substr_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            substr_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
 
-        rtrim_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
+        substr_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
 
-        rtrim_condition.append(''' "   test1234!@#$%^&*()  :'><?/.,][}{   " ''')
+        substr_condition.append(''' "   test1234!@#$%^&*()  :'><?/.,][}{   " ''')
 
-        return rtrim_condition
+        return substr_condition
 
     def __where_condition(self, col):
         # return f" where count({col}) > 0 "
@@ -66,55 +66,55 @@ class TDTestCase:
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __rtrim_check(self, tbname):
-        rtrim_condition = self.__rtrim_condition()
-        for condition in rtrim_condition:
+    def __substr_check(self, tbname,pos, lens=2):
+        substr_condition = self.__substr_condition()
+        for condition in substr_condition:
             where_condition = self.__where_condition(condition)
-            rtrim_group_having = self.__group_condition(condition, having=f"{condition} is not null " )
-            rtrim_group_no_having= self.__group_condition(condition)
-            groups = ["", rtrim_group_having, rtrim_group_no_having]
+            substr_group_having = self.__group_condition(condition, having=f"{condition} is not null " )
+            substr_group_no_having= self.__group_condition(condition)
+            groups = ["", substr_group_having, substr_group_no_having]
 
-            tdSql.query(f"select rtrim( {condition}) , {condition} from {tbname} ")
+            tdSql.query(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
             for j in range(tdSql.queryRows):
-                tdSql.checkData(j,0, tdSql.getData(j,1).rstrip())
+                tdSql.checkData(j,0, tdSql.getData(j,1)[pos:lens])
 
-            [ tdSql.query(f"select rtrim({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
+            [ tdSql.query(f"select substr({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
 
 
-    def __rtrim_err_check(self,tbname):
+    def __substr_err_check(self,tbname):
         sqls = []
 
         for num_col in NUM_COL:
             sqls.extend(
                 (
-                    f"select rtrim( {num_col} ) from {tbname} ",
-                    f"select rtrim(ceil( {num_col} )) from {tbname} ",
-                    f"select {num_col} from {tbname} group by rtrim( {num_col} ) ",
+                    f"select substr( {num_col} ) from {tbname} ",
+                    f"select substr(ceil( {num_col} )) from {tbname} ",
+                    f"select {num_col} from {tbname} group by substr( {num_col} ) ",
                 )
             )
 
-            sqls.extend( f"select rtrim( {char_col} , {num_col} ) from {tbname} " for char_col in CHAR_COL )
-            sqls.extend( f"select rtrim( {num_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-            sqls.extend( f"select rtrim( {num_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
+            sqls.extend( f"select substr( {char_col} , {num_col} ) from {tbname} " for char_col in CHAR_COL )
+            sqls.extend( f"select substr( {num_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select substr( {num_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select rtrim( {ts_col}+{bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select rtrim( {num_col}+{ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select rtrim( {num_col}+ {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
-        sqls.extend( f"select rtrim( {num_col}+ {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
-        sqls.extend( f"select rtrim( {ts_col}+{ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select rtrim( {bool_col}+ {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select substr( {ts_col}+{bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select substr( {num_col}+{ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select substr( {num_col}+ {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
+        sqls.extend( f"select substr( {num_col}+ {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
+        sqls.extend( f"select substr( {ts_col}+{ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select substr( {bool_col}+ {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select rtrim( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-        sqls.extend( f"select rtrim({num_col}, '1') from {tbname} " for num_col in NUM_COL )
-        sqls.extend( f"select rtrim({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select rtrim({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select rtrim({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+        sqls.extend( f"select substr( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+        sqls.extend( f"select substr({num_col}, '1') from {tbname} " for num_col in NUM_COL )
+        sqls.extend( f"select substr({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select substr({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select substr({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
-                f"select rtrim() from {tbname} ",
-                f"select rtrim(*) from {tbname} ",
-                f"select rtrim(ccccccc) from {tbname} ",
-                f"select rtrim(111) from {tbname} ",
+                f"select substr() from {tbname} ",
+                f"select substr(*) from {tbname} ",
+                f"select substr(ccccccc) from {tbname} ",
+                f"select substr(111) from {tbname} ",
             )
         )
 
@@ -124,15 +124,15 @@ class TDTestCase:
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
-            self.__rtrim_check(tb)
-            tdLog.printNoPrefix(f"==========current sql condition check in {tb}, col num: {i} over==========")
+            self.__substr_check(tb, 1, 6)
+            tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
         tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
 
         for tb in tbname:
-            for errsql in self.__rtrim_err_check(tb):
+            for errsql in self.__substr_err_check(tb):
                 tdSql.error(sql=errsql)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 

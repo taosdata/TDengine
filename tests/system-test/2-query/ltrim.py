@@ -66,7 +66,7 @@ class TDTestCase:
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __ltrim_check(self, tbname, num):
+    def __ltrim_check(self, tbname):
         ltrim_condition = self.__ltrim_condition()
         for condition in ltrim_condition:
             where_condition = self.__where_condition(condition)
@@ -74,10 +74,9 @@ class TDTestCase:
             ltrim_group_no_having= self.__group_condition(condition)
             groups = ["", ltrim_group_having, ltrim_group_no_having]
 
-            for group in groups:
-                tdSql.query(f"select ltrim( {condition}) , {condition} from {tbname} ")
-                for j in range(tdSql.queryRows):
-                    tdSql.checkData(j,0, tdSql.getData(j,1).lstrip())
+            tdSql.query(f"select ltrim( {condition}) , {condition} from {tbname} ")
+            for j in range(tdSql.queryRows):
+                tdSql.checkData(j,0, tdSql.getData(j,1).lstrip())
 
             [ tdSql.query(f"select ltrim({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
 
@@ -125,9 +124,8 @@ class TDTestCase:
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
         for tb in tbname:
-            for i in range(2,8):
-                self.__ltrim_check(tb,i)
-                tdLog.printNoPrefix(f"==========current sql condition check in {tb}, col num: {i} over==========")
+            self.__ltrim_check(tb)
+            tdLog.printNoPrefix(f"==========current sql condition check in {tb}, col num: {i} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
@@ -136,8 +134,6 @@ class TDTestCase:
         for tb in tbname:
             for errsql in self.__ltrim_err_check(tb):
                 tdSql.error(sql=errsql)
-            self.__ltrim_check(tb,1)
-            self.__ltrim_check(tb,9)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
