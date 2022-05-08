@@ -59,6 +59,7 @@ typedef struct SQWorker   SQHandle;
 #define VNODE_TQ_DIR    "tq"
 #define VNODE_WAL_DIR   "wal"
 #define VNODE_TSMA_DIR  "tsma"
+#define VNODE_RSMA0_DIR "tsdb"
 #define VNODE_RSMA1_DIR "rsma1"
 #define VNODE_RSMA2_DIR "rsma2"
 
@@ -154,6 +155,22 @@ struct SVnodeInfo {
   SVState   state;
 };
 
+typedef enum {
+  TSDB_TYPE_TSDB = 0,     // TSDB
+  TSDB_TYPE_TSMA = 1,     // TSMA
+  TSDB_TYPE_RSMA_L0 = 2,  // RSMA Level 0
+  TSDB_TYPE_RSMA_L1 = 3,  // RSMA Level 1
+  TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
+} ETsdbType;
+
+typedef struct {
+  int8_t  precision;  // precision always be used with below keep cfgs
+  int32_t days;
+  int32_t keep0;
+  int32_t keep1;
+  int32_t keep2;
+} STsdbKeepCfg;
+
 struct SVnode {
   char*      path;
   SVnodeCfg  config;
@@ -176,10 +193,11 @@ struct SVnode {
   SQHandle*  pQuery;
 };
 
-#define VND_TSDB(vnd)  ((vnd)->pTsdb)
-#define VND_RSMA0(vnd) ((vnd)->pTsdb)
-#define VND_RSMA1(vnd) ((vnd)->pRSma1)
-#define VND_RSMA2(vnd) ((vnd)->pRSma2)
+#define VND_TSDB(vnd)       ((vnd)->pTsdb)
+#define VND_RSMA0(vnd)      ((vnd)->pTsdb)
+#define VND_RSMA1(vnd)      ((vnd)->pRSma1)
+#define VND_RSMA2(vnd)      ((vnd)->pRSma2)
+#define VND_RETENTIONS(vnd) (&(vnd)->config.tsdbCfg.retentions)
 
 struct STbUidStore {
   tb_uid_t  suid;

@@ -363,8 +363,10 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_OUT_OF_MEM(func);
   strcpy(func->functionName, "cast");
   func->node.resType = dt;
-  if (TSDB_DATA_TYPE_NCHAR == dt.type) {
-    func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE;
+  if (TSDB_DATA_TYPE_VARCHAR == dt.type) {
+    func->node.resType.bytes = func->node.resType.bytes + VARSTR_HEADER_SIZE;
+  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
+    func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
   }
   nodesListMakeAppend(&func->pParameterList, pExpr);
   return (SNode*)func;
@@ -1258,10 +1260,12 @@ SNode* createCreateFunctionStmt(SAstCreateContext* pCxt, bool ignoreExists, bool
   return (SNode*)pStmt;
 }
 
-SNode* createDropFunctionStmt(SAstCreateContext* pCxt, const SToken* pFuncName) {
-  SNode* pStmt = nodesMakeNode(QUERY_NODE_DROP_FUNCTION_STMT);
+SNode* createDropFunctionStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const SToken* pFuncName) {
+  SDropFunctionStmt* pStmt = nodesMakeNode(QUERY_NODE_DROP_FUNCTION_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->ignoreNotExists = ignoreNotExists;
+  strncpy(pStmt->funcName, pFuncName->z, pFuncName->n);
+  return (SNode*)pStmt;
 }
 
 SNode* createStreamOptions(SAstCreateContext* pCxt) {
@@ -1323,4 +1327,28 @@ SNode* createSyncdbStmt(SAstCreateContext* pCxt, const SToken* pDbName) {
   SNode* pStmt = nodesMakeNode(QUERY_NODE_SYNCDB_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   return pStmt;
+}
+
+SNode* createGrantStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbName, SToken* pUserName) {
+  if (!checkDbName(pCxt, pDbName, false) || !checkUserName(pCxt, pUserName)) {
+    return NULL;
+  }
+  SGrantStmt* pStmt = nodesMakeNode(QUERY_NODE_GRANT_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->privileges = privileges;
+  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  strncpy(pStmt->userName, pUserName->z, pUserName->n);
+  return (SNode*)pStmt;
+}
+
+SNode* createRevokeStmt(SAstCreateContext* pCxt, int64_t privileges, SToken* pDbName, SToken* pUserName) {
+  if (!checkDbName(pCxt, pDbName, false) || !checkUserName(pCxt, pUserName)) {
+    return NULL;
+  }
+  SRevokeStmt* pStmt = nodesMakeNode(QUERY_NODE_REVOKE_STMT);
+  CHECK_OUT_OF_MEM(pStmt);
+  pStmt->privileges = privileges;
+  strncpy(pStmt->dbName, pDbName->z, pDbName->n);
+  strncpy(pStmt->userName, pUserName->z, pUserName->n);
+  return (SNode*)pStmt;
 }

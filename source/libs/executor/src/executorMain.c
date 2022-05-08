@@ -36,21 +36,6 @@ typedef struct STaskMgmt {
   bool            closed;
 } STaskMgmt;
 
-static void taskMgmtKillTaskFn(void* handle, void* param1) {
-  void** fp = (void**)handle;
-  qKillTask(*fp);
-}
-
-static void freeqinfoFn(void *qhandle) {
-  void** handle = qhandle;
-  if (handle == NULL || *handle == NULL) {
-    return;
-  }
-
-  qKillTask(*handle);
-  qDestroyTask(*handle);
-}
-
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
     qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model) {
   assert(readHandle != NULL && pSubplan != NULL);
