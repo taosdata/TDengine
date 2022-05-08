@@ -70,9 +70,10 @@ struct SSmaEnvs {
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
+  TdThreadMutex  mutex;
   bool           repoLocked;
   int8_t         level;  // retention level
-  TdThreadMutex  mutex;
+  STsdbKeepCfg   keepCfg;
   STsdbMemTable *mem;
   STsdbMemTable *imem;
   SRtn           rtn;
@@ -185,6 +186,7 @@ struct STsdbFS {
 
 #define REPO_ID(r)        TD_VID((r)->pVnode)
 #define REPO_CFG(r)       (&(r)->pVnode->config.tsdbCfg)
+#define REPO_KEEP_CFG(r)  (&(r)->keepCfg)
 #define REPO_LEVEL(r)     ((r)->level)
 #define REPO_FS(r)        ((r)->fs)
 #define REPO_META(r)      ((r)->pVnode->pMeta)
@@ -830,7 +832,7 @@ typedef struct {
 #define TSDB_FS_ITER_FORWARD  TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFS *tsdbNewFS(const STsdbCfg *pCfg);
+STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg);
 void    *tsdbFreeFS(STsdbFS *pfs);
 int      tsdbOpenFS(STsdb *pRepo);
 void     tsdbCloseFS(STsdb *pRepo);
