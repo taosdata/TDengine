@@ -63,14 +63,20 @@ struct SMemSkipListCurosr {
   SMemSkipListNode *pNodeC;
 };
 
+#define HASH_BUCKET(SUID, UID, NBUCKET) (TABS((SUID) + (UID)) % (NBUCKET))
+
 #define SL_NODE_SIZE(l)        (sizeof(SMemSkipListNode) + sizeof(SMemSkipListNode *) * (l)*2)
 #define SL_NODE_HALF_SIZE(l)   (sizeof(SMemSkipListNode) + sizeof(SMemSkipListNode *) * (l))
 #define SL_NODE_FORWARD(n, l)  ((n)->forwards[l])
 #define SL_NODE_BACKWARD(n, l) ((n)->forwards[(n)->level + (l)])
 #define SL_NODE_DATA(n)        (&SL_NODE_BACKWARD(n, (n)->level))
 
-#define SL_HEAD_NODE(sl) ((sl)->pHead)
-#define SL_TAIL_NODE(sl) ((SMemSkipListNode *)&SL_NODE_FORWARD(SL_HEAD_NODE(sl), (sl)->maxLevel))
+#define SL_HEAD_NODE(sl)            ((sl)->pHead)
+#define SL_TAIL_NODE(sl)            ((SMemSkipListNode *)&SL_NODE_FORWARD(SL_HEAD_NODE(sl), (sl)->maxLevel))
+#define SL_HEAD_NODE_FORWARD(n, l)  SL_NODE_FORWARD(n, l)
+#define SL_TAIL_NODE_BACKWARD(n, l) SL_NODE_FORWARD(n, l)
+
+static int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl);
 
 // SMemTable
 int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTb) {
@@ -111,23 +117,18 @@ int32_t tsdbMemTableDestroy2(STsdb *pTsdb, SMemTable *pMemTb) {
 }
 
 int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *pSubmitBlk) {
-  SMemData          *pMemData;
-  STsdb             *pTsdb = pMemTb->pTsdb;
-  SVnode            *pVnode = pTsdb->pVnode;
-  SVBufPool         *pPool = pVnode->inUse;
-  int32_t            hash;
-  int32_t            tlen;
-  uint8_t            buf[16];
-  int32_t            rlen;
-  const uint8_t     *p;
-  SMemSkipListNode  *pSlNode;
-  const STSRow      *pTSRow;
-  SMemSkipListCurosr slc = {0};
+  SMemData  *pMemData;
+  STsdb     *pTsdb = pMemTb->pTsdb;
+  SVnode    *pVnode = pTsdb->pVnode;
+  SVBufPool *pPool = pVnode->inUse;
+  tb_uid_t   suid = pSubmitBlk->suid;
+  tb_uid_t   uid = pSubmitBlk->uid;
+  int32_t    iBucket;
 
-  // search hash
-  hash = (pSubmitBlk->suid + pSubmitBlk->uid) % pMemTb->nBucket;
-  for (pMemData = pMemTb->pBuckets[hash]; pMemData; pMemData = pMemData->pHashNext) {
-    if (pMemData->suid == pSubmitBlk->suid && pMemData->uid == pSubmitBlk->uid) break;
+  // search SMemData by hash
+  iBucket = HASH_BUCKET(suid, uid, pMemTb->nBucket);
+  for (pMemData = pMemTb->pBuckets[iBucket]; pMemData; pMemData = pMemData->pHashNext) {
+    if (pMemData->suid == suid && pMemData->uid == uid) break;
   }
 
   // create pMemData if need
@@ -143,8 +144,8 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     }
 
     pMemData->pHashNext = NULL;
-    pMemData->suid = pSubmitBlk->suid;
-    pMemData->uid = pSubmitBlk->uid;
+    pMemData->suid = suid;
+    pMemData->uid = uid;
     pMemData->minKey = TSKEY_MAX;
     pMemData->maxKey = TSKEY_MIN;
     pMemData->minVer = -1;
@@ -159,55 +160,71 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     pHead->level = maxLevel;
     pTail->level = maxLevel;
     for (int iLevel = 0; iLevel < maxLevel; iLevel++) {
-      SL_NODE_FORWARD(pHead, iLevel) = pTail;
-      SL_NODE_FORWARD(pTail, iLevel) = pHead;
+      SL_HEAD_NODE_FORWARD(pHead, iLevel) = pTail;
+      SL_TAIL_NODE_BACKWARD(pTail, iLevel) = pHead;
     }
 
-    // add to MemTable
-    hash = (pMemData->suid + pMemData->uid) % pMemTb->nBucket;
-    pMemData->pHashNext = pMemTb->pBuckets[hash];
-    pMemTb->pBuckets[hash] = pMemData;
+    // add to hash
+    if (pMemTb->nHash >= pMemTb->nBucket) {
+      // rehash (todo)
+    }
+    iBucket = HASH_BUCKET(suid, uid, pMemTb->nBucket);
+    pMemData->pHashNext = pMemTb->pBuckets[iBucket];
+    pMemTb->pBuckets[iBucket] = pMemData;
     pMemTb->nHash++;
+
+    // sort organize (todo)
   }
 
-// loop to insert data to skiplist
-#if 0
-  tsdbMemSkipListCursorOpen(&slc, &pMemData->sl);
-  p = pSubmitBlk->pData;
-  for (;;) {
-    if (p - (uint8_t *)pSubmitBlk->pData >= pSubmitBlk->nData) break;
+  // do insert data to SMemData
+  SMemSkipListCurosr slc = {0};
+  const STSRow      *pRow;
+  uint32_t           szRow;
+  SDecoder           decoder = {0};
 
-    const uint8_t *pt = p;
-    p = tGetBinary(p, &pTSRow, &rlen);
+  tDecoderInit(&decoder, pSubmitBlk->pData, pSubmitBlk->nData);
+  for (;;) {
+    if (tDecodeIsEnd(&decoder)) break;
+
+    if (tDecodeBinary(&decoder, (const uint8_t **)&pRow, &szRow) < 0) {
+      terrno = TSDB_CODE_INVALID_MSG;
+      return -1;
+    }
 
     // check the row (todo)
 
-    // move the cursor to position to write (todo)
-    int32_t c;
-    tsdbMemSkipListCursorMoveTo(&slc, pTSRow, version, &c);
-    ASSERT(c);
+    //   // move the cursor to position to write (todo)
+    //   int32_t c;
+    //   tsdbMemSkipListCursorMoveTo(&slc, pTSRow, version, &c);
+    //   ASSERT(c);
 
     // encode row
-    int8_t  level = tsdbMemSkipListRandLevel(&pMemData->sl);
-    int32_t tsize = SL_NODE_SIZE(level) + sizeof(version) + (p - pt);
-    pSlNode = vnodeBufPoolMalloc(pPool, tsize);
-    pSlNode->level = level;
+    int8_t            level = tsdbMemSkipListRandLevel(&pMemData->sl);
+    int32_t           tsize = SL_NODE_SIZE(level) + sizeof(version) + (0 /*todo*/);
+    SMemSkipListNode *pNode = vnodeBufPoolMalloc(pPool, tsize);
+    if (pNode == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
 
-    uint8_t *pData = SL_NODE_DATA(pSlNode);
-    *(int64_t *)pData = version;
-    pData += sizeof(version);
-    memcpy(pData, pt, p - pt);
+    pNode->level = level;
 
-    // insert row
-    tsdbMemSkipListCursorPut(&slc, pSlNode);
+    //   uint8_t *pData = SL_NODE_DATA(pSlNode);
+    //   *(int64_t *)pData = version;
+    //   pData += sizeof(version);
+    //   memcpy(pData, pt, p - pt);
+
+    //   // insert row
+    //   tsdbMemSkipListCursorPut(&slc, pSlNode);
 
     // update status
-    if (pTSRow->ts < pMemData->minKey) pMemData->minKey = pTSRow->ts;
-    if (pTSRow->ts > pMemData->maxKey) pMemData->maxKey = pTSRow->ts;
+    if (pRow->ts < pMemData->minKey) pMemData->minKey = pRow->ts;
+    if (pRow->ts > pMemData->maxKey) pMemData->maxKey = pRow->ts;
   }
-  tsdbMemSkipListCursorClose(&slc);
-#endif
+  tDecoderClear(&decoder);
+  // tsdbMemSkipListCursorClose(&slc);
 
+  // update status
   if (pMemData->minVer == -1) pMemData->minVer = version;
   if (pMemData->maxVer == -1 || pMemData->maxVer < version) pMemData->maxVer = version;
 
@@ -219,6 +236,17 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
   return 0;
 }
 
-// SMemData
+static int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
+  int8_t         level = 1;
+  int8_t         tlevel;
+  const uint32_t factor = 4;
 
-// SMemSkipList
+  if (pSl->size) {
+    tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
+    while ((taosRandR(&pSl->seed) % factor) == 0 && level < tlevel) {
+      level++;
+    }
+  }
+
+  return level;
+}

@@ -30,10 +30,12 @@ int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock,
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool getCountFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t countFunction(SqlFunctionCtx *pCtx);
+int32_t countInvertFunction(SqlFunctionCtx *pCtx);
 
 EFuncDataRequired statisDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 bool getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t sumFunction(SqlFunctionCtx *pCtx);
+int32_t sumInvertFunction(SqlFunctionCtx *pCtx);
 
 bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -45,11 +47,13 @@ bool getAvgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool avgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t avgFunction(SqlFunctionCtx* pCtx);
 int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t avgInvertFunction(SqlFunctionCtx* pCtx);
 
 bool getStddevFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stddevFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t stddevFunction(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t stddevInvertFunction(SqlFunctionCtx* pCtx);
 
 bool getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);

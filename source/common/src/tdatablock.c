@@ -363,9 +363,9 @@ int32_t blockDataMerge(SSDataBlock* pDest, const SSDataBlock* pSrc, SArray* pInd
 
   for (int32_t i = 0; i < pDest->info.numOfCols; ++i) {
     int32_t mapIndex = i;
-//    if (pIndexMap) {
-//      mapIndex = *(int32_t*)taosArrayGet(pIndexMap, i);
-//    }
+    //    if (pIndexMap) {
+    //      mapIndex = *(int32_t*)taosArrayGet(pIndexMap, i);
+    //    }
 
     SColumnInfoData* pCol2 = taosArrayGet(pDest->pDataBlock, i);
     SColumnInfoData* pCol1 = taosArrayGet(pSrc->pDataBlock, mapIndex);
@@ -1596,7 +1596,8 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   return TSDB_CODE_SUCCESS;
 }
 
-SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema) {
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
+                            int32_t vgId) {
   SSubmitReq* ret = NULL;
 
   // cal size
@@ -1608,13 +1609,37 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema) {
     // TODO min
     int32_t rowSize = pDataBlock->info.rowSize;
     int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);
-    cap += sizeof(SSubmitBlk) + rows * maxLen;
+    int32_t schemaLen = 0;
+
+    if (createTb) {
+      SVCreateTbReq createTbReq = {0};
+      createTbReq.name = "a";
+      createTbReq.flags = 0;
+      createTbReq.type = TSDB_CHILD_TABLE;
+      createTbReq.ctb.suid = htobe64(suid);
+
+      SKVRowBuilder kvRowBuilder = {0};
+      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+        ASSERT(0);
+      }
+      tdAddColToKVRow(&kvRowBuilder, 1, &pDataBlock->info.groupId, sizeof(uint64_t));
+      createTbReq.ctb.pTag = tdGetKVRowFromBuilder(&kvRowBuilder);
+      tdDestroyKVRowBuilder(&kvRowBuilder);
+
+      int32_t code;
+      tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
+      if (code < 0) return NULL;
+    }
+
+    cap += sizeof(SSubmitBlk) + schemaLen + rows * maxLen;
   }
 
   // assign data
-  ret = taosMemoryCalloc(1, cap);
+  ret = taosMemoryCalloc(1, cap + 46);
+  ret = POINTER_SHIFT(ret, 46);
+  ret->header.vgId = vgId;
   ret->version = htonl(1);
-  ret->length = htonl(cap - sizeof(SSubmitReq));
+  ret->length = sizeof(SSubmitReq);
   ret->numOfBlocks = htonl(sz);
 
   void* submitBlk = POINTER_SHIFT(ret, sizeof(SSubmitReq));
@@ -1623,19 +1648,47 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema) {
 
     SSubmitBlk* blkHead = submitBlk;
     blkHead->numOfRows = htons(pDataBlock->info.rows);
-    blkHead->schemaLen = 0;
     blkHead->sversion = htonl(pTSchema->version);
     // TODO
-    blkHead->suid = 0;
-    blkHead->uid = htobe64(pDataBlock->info.uid);
+    blkHead->suid = htobe64(suid);
+    // uid is assigned by vnode
+    blkHead->uid = 0;
 
     int32_t rows = pDataBlock->info.rows;
     /*int32_t maxLen = TD_ROW_MAX_BYTES_FROM_SCHEMA(pTSchema);*/
     /*blkHead->dataLen = htonl(rows * maxLen);*/
     blkHead->dataLen = 0;
 
-    void*   blockData = POINTER_SHIFT(submitBlk, sizeof(SSubmitBlk));
-    STSRow* rowData = blockData;
+    void* blockData = POINTER_SHIFT(submitBlk, sizeof(SSubmitBlk));
+
+    int32_t schemaLen = 0;
+    if (createTb) {
+      SVCreateTbReq createTbReq = {0};
+      createTbReq.name = "a";
+      createTbReq.flags = 0;
+      createTbReq.type = TSDB_CHILD_TABLE;
+      createTbReq.ctb.suid = suid;
+
+      SKVRowBuilder kvRowBuilder = {0};
+      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+        ASSERT(0);
+      }
+      tdAddColToKVRow(&kvRowBuilder, 1, &pDataBlock->info.groupId, sizeof(uint64_t));
+      createTbReq.ctb.pTag = tdGetKVRowFromBuilder(&kvRowBuilder);
+      tdDestroyKVRowBuilder(&kvRowBuilder);
+
+      int32_t code;
+      tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
+      if (code < 0) return NULL;
+
+      SEncoder encoder = {0};
+      tEncoderInit(&encoder, blockData, schemaLen);
+      if (tEncodeSVCreateTbReq(&encoder, &createTbReq) < 0) return NULL;
+      tEncoderClear(&encoder);
+    }
+    blkHead->schemaLen = htonl(schemaLen);
+
+    STSRow* rowData = POINTER_SHIFT(blockData, schemaLen);
 
     for (int32_t j = 0; j < rows; j++) {
       SRowBuilder rb = {0};
@@ -1653,10 +1706,14 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema) {
       rowData = POINTER_SHIFT(rowData, rowLen);
       blkHead->dataLen += rowLen;
     }
-    int32_t len = blkHead->dataLen;
-    blkHead->dataLen = htonl(len);
-    blkHead = POINTER_SHIFT(blkHead, len);
+    int32_t dataLen = blkHead->dataLen;
+    blkHead->dataLen = htonl(dataLen);
+
+    ret->length += sizeof(SSubmitBlk) + schemaLen + dataLen;
+    blkHead = POINTER_SHIFT(blkHead, schemaLen + dataLen);
+    /*submitBlk = blkHead;*/
   }
 
+  ret->length = htonl(ret->length);
   return ret;
 }

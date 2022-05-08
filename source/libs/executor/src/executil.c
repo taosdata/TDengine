@@ -157,8 +157,6 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
   pResultRow->pageId = -1;
   pResultRow->offset = -1;
   pResultRow->closed = false;
-
-  taosMemoryFreeClear(pResultRow->key);
   pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
