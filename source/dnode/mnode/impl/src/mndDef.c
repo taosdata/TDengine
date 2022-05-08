@@ -416,6 +416,9 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
   /*int32_t outputNameSz = 0;*/
   if (tEncodeCStr(pEncoder, pObj->name) < 0) return -1;
   if (tEncodeCStr(pEncoder, pObj->sourceDb) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pObj->targetDb) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pObj->targetSTbName) < 0) return -1;
+  if (tEncodeI64(pEncoder, pObj->targetStbUid) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->createTime) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->updateTime) < 0) return -1;
   if (tEncodeI64(pEncoder, pObj->uid) < 0) return -1;
@@ -465,6 +468,9 @@ int32_t tEncodeSStreamObj(SEncoder *pEncoder, const SStreamObj *pObj) {
 int32_t tDecodeSStreamObj(SDecoder *pDecoder, SStreamObj *pObj) {
   if (tDecodeCStrTo(pDecoder, pObj->name) < 0) return -1;
   if (tDecodeCStrTo(pDecoder, pObj->sourceDb) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pObj->targetDb) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pObj->targetSTbName) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pObj->targetStbUid) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->createTime) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->updateTime) < 0) return -1;
   if (tDecodeI64(pDecoder, &pObj->uid) < 0) return -1;

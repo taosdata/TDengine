@@ -357,6 +357,10 @@ static int32_t vmPutRpcMsgToQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, EQueueT
     pMsg->rpcMsg = *pRpc;
     // if (pMsg->rpcMsg.handle != NULL) assert(pMsg->rpcMsg.refId != 0);
     switch (qtype) {
+      case WRITE_QUEUE:
+        dTrace("msg:%p, will be put into vnode-write queue", pMsg);
+        taosWriteQitem(pVnode->pWriteQ, pMsg);
+        break;
       case QUERY_QUEUE:
         dTrace("msg:%p, will be put into vnode-query queue", pMsg);
         taosWriteQitem(pVnode->pQueryQ, pMsg);
@@ -385,6 +389,10 @@ static int32_t vmPutRpcMsgToQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, EQueueT
   }
   vmReleaseVnode(pMgmt, pVnode);
   return code;
+}
+
+int32_t vmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
+  return vmPutRpcMsgToQueue(pWrapper, pRpc, WRITE_QUEUE);
 }
 
 int32_t vmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {

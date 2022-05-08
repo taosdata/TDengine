@@ -850,7 +850,8 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
   }
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    tError("failed to bind, reason: %s", terrstr());
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tError("invalid ip/port, reason: %s", terrstr());
     goto End;
   }
   if (false == addHandleToAcceptloop(srv)) {
