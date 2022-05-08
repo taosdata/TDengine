@@ -63,7 +63,7 @@ def telemetryInfoCheck(infoDict=''):
     if "vgroups_alive" not in infoDict["cluster_info"] or infoDict["cluster_info"]["vgroups_alive"] < 0:
         tdLog.exit("vgroups_alive is null!")
 
-    if "connections_total" not in infoDict["cluster_info"] or infoDict["cluster_info"]["connections_total"] != 1:
+    if "connections_total" not in infoDict["cluster_info"] or infoDict["cluster_info"]["connections_total"] < 0 :
         tdLog.exit("connections_total is null!")
 
     if "dnodes" not in infoDict["cluster_info"] or infoDict["cluster_info"]["dnodes"] == None :
@@ -91,15 +91,15 @@ def telemetryInfoCheck(infoDict=''):
     for  index in range(vgroup_infos_nums):
         if "vgroup_id" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["vgroup_id"]<0:
             tdLog.exit("vgroup_id is null!")
-        if "database_name" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["database_name"]!="db":
+        if "database_name" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["database_name"])>0:
             tdLog.exit("database_name is null!")
         if "tables_num" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["tables_num"]!= 0:
             tdLog.exit("tables_num is null!")
-        if "status" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["status"]!= "ready":
+        if "status" not in infoDict["vgroup_infos"][index] or len(infoDict["vgroup_infos"][index]["status"]) > 0 :
             tdLog.exit("status is null!")
         if "vnodes" not in infoDict["vgroup_infos"][index] or infoDict["vgroup_infos"][index]["vnodes"] ==None :
             tdLog.exit("vnodes is null!")
-        if "dnode_id" not in infoDict["vgroup_infos"][index]["vnodes"][0] or infoDict["vgroup_infos"][index]["vnodes"][0]["dnode_id"] !=1 :
+        if "dnode_id" not in infoDict["vgroup_infos"][index]["vnodes"][0] or infoDict["vgroup_infos"][index]["vnodes"][0]["dnode_id"] < 0 :
             tdLog.exit("vnodes is null!")
 
     # grant_info  ====================================
@@ -134,24 +134,24 @@ def telemetryInfoCheck(infoDict=''):
     if "disk_infos" not in infoDict or infoDict["disk_infos"]== None:
         tdLog.exit("disk_infos is null!")
     
-    # # bug for data_dir
-    # if "datadir" not in infoDict["disk_infos"] or len(infoDict["disk_infos"]["datadir"]) <=0 :
-    #     tdLog.exit("datadir is null!")
+    # bug for data_dir
+    if "datadir" not in infoDict["disk_infos"] or len(infoDict["disk_infos"]["datadir"]) <=0 :
+        tdLog.exit("datadir is null!")
 
-    # if "name" not in infoDict["disk_infos"]["datadir"][0] or len(infoDict["disk_infos"]["datadir"][0]["name"]) <= 0:
-    #     tdLog.exit("name is null!")
+    if "name" not in infoDict["disk_infos"]["datadir"][0] or len(infoDict["disk_infos"]["datadir"][0]["name"]) <= 0:
+        tdLog.exit("name is null!")
 
-    # if "level" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["level"] <= 0:
-    #     tdLog.exit("level is null!")
+    if "level" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["level"] <= 0:
+        tdLog.exit("level is null!")
 
-    # if "avail" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["avail"] <= 0:
-    #     tdLog.exit("avail is null!")
+    if "avail" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["avail"] <= 0:
+        tdLog.exit("avail is null!")
 
-    # if "used" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["used"] <= 0:
-    #     tdLog.exit("used is null!")
+    if "used" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["used"] <= 0:
+        tdLog.exit("used is null!")
 
-    # if "total" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["total"] <= 0:
-    #     tdLog.exit("total is null!")
+    if "total" not in infoDict["disk_infos"]["datadir"][0] or infoDict["disk_infos"]["datadir"][0]["total"] <= 0:
+        tdLog.exit("total is null!")
 
 
     if "logdir" not in infoDict["disk_infos"] or infoDict["disk_infos"]["logdir"]== None:
