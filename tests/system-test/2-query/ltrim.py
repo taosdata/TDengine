@@ -45,7 +45,7 @@ class TDTestCase:
             ltrim_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             ltrim_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
             ltrim_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            # ltrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            ltrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
             ltrim_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
             ltrim_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
 
