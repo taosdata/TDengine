@@ -890,7 +890,7 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
 
   ASSERT(pTask->tbSink.pTSchema);
   SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid, pVnode->config.vgId);
-  tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);
+  /*tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);*/
   // build write msg
   SRpcMsg msg = {
       .msgType = TDMT_VND_SUBMIT,
