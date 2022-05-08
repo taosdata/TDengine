@@ -122,8 +122,8 @@ extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
 
 // internal 
-extern int32_t tsTransPullupMs;
-extern int32_t tsMaRebalanceMs;
+extern int32_t tsTransPullupInterval;
+extern int32_t tsMqRebalanceInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 

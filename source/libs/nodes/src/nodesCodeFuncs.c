@@ -176,6 +176,8 @@ const char* nodesNodeName(ENodeType type) {
       return "ShowConfigsStmt";
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return "ShowQueriesStmt";
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+      return "ShowTransactionsStmt";
     case QUERY_NODE_SHOW_VNODES_STMT:
       return "ShowVnodeStmt";
     case QUERY_NODE_LOGIC_PLAN_SCAN:

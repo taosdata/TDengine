@@ -2725,6 +2725,8 @@ static int32_t nodeTypeToShowType(ENodeType nt) {
       return TSDB_MGMT_TABLE_GRANTS;
     case QUERY_NODE_SHOW_QUERIES_STMT:
       return TSDB_MGMT_TABLE_QUERIES;
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+      return TSDB_MGMT_TABLE_TRANS;
     case QUERY_NODE_SHOW_VARIABLE_STMT:
       return 0;  // todo
     default:
@@ -3219,6 +3221,7 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
       code = translateShow(pCxt, (SShowStmt*)pNode);
       break;
@@ -4131,6 +4134,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:
