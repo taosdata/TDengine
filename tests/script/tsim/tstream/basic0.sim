@@ -33,7 +33,7 @@ if $rows != 3 then
   return -1
 endi
 
-sql create stream s1 into outstb as select _wstartts, min(k), max(k), sum(k) from ct1 interval(10m)
+sql create stream s1 into outstb as select _wstartts, min(k), max(k), sum(k) as sum_alias from ct1 interval(10m)
 
 sql show stables
 if $rows != 2 then 
@@ -42,14 +42,13 @@ endi
 
 print =============== insert data
 
-sql insert into ct1 values(now+0s, 234)
-
+sql insert into ct1 values('2022-05-08 03:42:00.000', 234)
 sleep 100
 
 #===================================================================
-#===================================================================
 print =============== query data from child table
-sql select `_wstartts`,`min(k)`,`max(k)`,`sum(k)` from outstb
+
+sql select `_wstartts`,`min(k)`,`max(k)`,sum_alias from outstb
 print rows: $rows 
 print $data00  $data01 $data02 $data03
 if $rows != 1 then
@@ -65,6 +64,75 @@ if $data02 != 234 then
 endi
 
 if $data03 != 234 then 
+  return -1
+endi
+
+#===================================================================
+print =============== insert data
+
+sql insert into ct1 values('2022-05-08 03:43:00.000', -111)
+sleep 100
+
+#===================================================================
+print =============== query data from child table
+
+sql select `_wstartts`,`min(k)`,`max(k)`,sum_alias from outstb
+print rows: $rows 
+print $data00  $data01 $data02 $data03
+if $rows != 1 then
+  return -1
+endi
+
+if $data01 != -111 then 
+  return -1
+endi
+
+if $data02 != 234 then 
+  return -1
+endi
+
+if $data03 != 123 then 
+  return -1
+endi
+
+#===================================================================
+print =============== insert data
+
+sql insert into ct1 values('2022-05-08 03:53:00.000', 789)
+sleep 100
+
+#===================================================================
+print =============== query data from child table
+
+sql select `_wstartts`,`min(k)`,`max(k)`,sum_alias from outstb
+print rows: $rows 
+print $data00  $data01 $data02 $data03
+print $data10  $data11 $data12 $data13
+if $rows != 2 then
+  return -1
+endi
+
+if $data01 != -111 then 
+  return -1
+endi
+
+if $data02 != 234 then 
+  return -1
+endi
+
+if $data03 != 123 then 
+  return -1
+endi
+
+if $data11 != 789 then 
+  return -1
+endi
+
+if $data12 != 789 then 
+  return -1
+endi
+
+if $data13 != 789 then 
   return -1
 endi
 
