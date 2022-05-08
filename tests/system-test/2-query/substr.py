@@ -66,7 +66,7 @@ class TDTestCase:
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __substr_check(self, tbname,pos, lens=2):
+    def __substr_check(self, tbname,pos, lens=None):
         substr_condition = self.__substr_condition()
         for condition in substr_condition:
             where_condition = self.__where_condition(condition)
@@ -96,7 +96,7 @@ class TDTestCase:
                 )
             )
 
-            sqls.extend( f"select substr( {char_col} , {num_col} ) from {tbname} " for char_col in CHAR_COL )
+            sqls.extend( f"select substr( {char_col} + {num_col} ) from {tbname} " for char_col in CHAR_COL )
             sqls.extend( f"select substr( {num_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
             sqls.extend( f"select substr( {num_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
 
@@ -255,13 +255,13 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
-        # tdSql.execute("use db")
+        tdSql.execute("use db")
 
-        # tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        # self.all_test()
+        tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        self.all_test()
 
     def stop(self):
         tdSql.close()
