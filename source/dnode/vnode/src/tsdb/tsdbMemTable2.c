@@ -76,6 +76,8 @@ struct SMemSkipListCurosr {
 #define SL_HEAD_NODE_FORWARD(n, l)  SL_NODE_FORWARD(n, l)
 #define SL_TAIL_NODE_BACKWARD(n, l) SL_NODE_FORWARD(n, l)
 
+static int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl);
+
 // SMemTable
 int32_t tsdbMemTableCreate2(STsdb *pTsdb, SMemTable **ppMemTb) {
   SMemTable *pMemTb = NULL;
@@ -176,20 +178,19 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
 
   // do insert data to SMemData
   SMemSkipListCurosr slc = {0};
-  const uint8_t     *p = pSubmitBlk->pData;
-  const uint8_t     *pt;
   const STSRow      *pRow;
-  uint64_t           szRow;
+  uint32_t           szRow;
   SDecoder           decoder = {0};
 
-  // tCoderInit(&coder, TD_LITTLE_ENDIAN, pSubmitBlk->pData, pSubmitBlk->nData, TD_DECODER);
+  tDecoderInit(&decoder, pSubmitBlk->pData, pSubmitBlk->nData);
   for (;;) {
-    // if (tDecodeIsEnd(&coder)) break;
+    if (tDecodeIsEnd(&decoder)) break;
 
-    // if (tDecodeBinary(&coder, (const uint8_t **)&pRow, &szRow) < 0) {
-    //   terrno = TSDB_CODE_INVALID_MSG;
-    //   return -1;
-    // }
+    if (tDecodeBinary(&decoder, (const uint8_t **)&pRow, &szRow) < 0) {
+      terrno = TSDB_CODE_INVALID_MSG;
+      return -1;
+    }
+
     // check the row (todo)
 
     //   // move the cursor to position to write (todo)
@@ -197,11 +198,16 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     //   tsdbMemSkipListCursorMoveTo(&slc, pTSRow, version, &c);
     //   ASSERT(c);
 
-    //   // encode row
-    //   int8_t  level = tsdbMemSkipListRandLevel(&pMemData->sl);
-    //   int32_t tsize = SL_NODE_SIZE(level) + sizeof(version) + (p - pt);
-    //   pSlNode = vnodeBufPoolMalloc(pPool, tsize);
-    //   pSlNode->level = level;
+    // encode row
+    int8_t            level = tsdbMemSkipListRandLevel(&pMemData->sl);
+    int32_t           tsize = SL_NODE_SIZE(level) + sizeof(version) + (0 /*todo*/);
+    SMemSkipListNode *pNode = vnodeBufPoolMalloc(pPool, tsize);
+    if (pNode == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+
+    pNode->level = level;
 
     //   uint8_t *pData = SL_NODE_DATA(pSlNode);
     //   *(int64_t *)pData = version;
@@ -215,7 +221,7 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     if (pRow->ts < pMemData->minKey) pMemData->minKey = pRow->ts;
     if (pRow->ts > pMemData->maxKey) pMemData->maxKey = pRow->ts;
   }
-  // tCoderClear(&coder);
+  tDecoderClear(&decoder);
   // tsdbMemSkipListCursorClose(&slc);
 
   // update status
@@ -228,4 +234,19 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
   if (pMemTb->maxVer == -1 || pMemTb->maxVer < version) pMemTb->maxVer = version;
 
   return 0;
+}
+
+static int8_t tsdbMemSkipListRandLevel(SMemSkipList *pSl) {
+  int8_t         level = 1;
+  int8_t         tlevel;
+  const uint32_t factor = 4;
+
+  if (pSl->size) {
+    tlevel = TMIN(pSl->maxLevel, pSl->level + 1);
+    while ((taosRandR(&pSl->seed) % factor) == 0 && level < tlevel) {
+      level++;
+    }
+  }
+
+  return level;
 }
