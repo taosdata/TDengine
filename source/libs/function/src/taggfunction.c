@@ -19,7 +19,6 @@
 #include "thash.h"
 #include "ttypes.h"
 
-//#include "tfill.h"
 #include "function.h"
 #include "taggfunction.h"
 #include "tbuffer.h"
@@ -27,7 +26,6 @@
 #include "thistogram.h"
 #include "tpercentile.h"
 #include "ttszip.h"
-//#include "queryLog.h"
 #include "tdatablock.h"
 #include "tudf.h"
 

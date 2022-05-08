@@ -388,6 +388,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   // allocate a new buffer page
   prepareResultListBuffer(pResultRowInfo, pTaskInfo->env);
   if (pResult == NULL) {
+    ASSERT(pSup->resultRowSize > 0);
     pResult = getNewResultRow_rv(pResultBuf, groupId, pSup->resultRowSize);
     initResultRow(pResult);
 
@@ -1147,12 +1148,17 @@ SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, 
         fmGetScalarFuncExecFuncs(pCtx->functionId, &pCtx->sfp);
         if (pCtx->sfp.getEnv != NULL) {
           pCtx->sfp.getEnv(pExpr->pExpr->_function.pFunctNode, &env);
+        } else {  // to work around the interbuffer size requirement.
+          ASSERT(fmIsUserDefinedFunc(pCtx->functionId));
+//          env.calcMemSize = pFunct->resSchema.bytes;
         }
       }
       pCtx->resDataInfo.interBufSize = env.calcMemSize;
+      // todo remove it later.
+//      ASSERT(pCtx->resDataInfo.interBufSize > 0);
     } else if (pExpr->pExpr->nodeType == QUERY_NODE_COLUMN || pExpr->pExpr->nodeType == QUERY_NODE_OPERATOR ||
                pExpr->pExpr->nodeType == QUERY_NODE_VALUE) {
-      // for simple column, the intermediate buffer needs to hold one element.
+      // for simple column, the result buffer needs to hold at least one element.
       pCtx->resDataInfo.interBufSize = pFunct->resSchema.bytes;
     }
 
@@ -1872,7 +1878,7 @@ static void updateTableQueryInfoForReverseScan(STableQueryInfo* pTableQueryInfo)
 }
 
 void initResultRow(SResultRow* pResultRow) {
-  pResultRow->pEntryInfo = (struct SResultRowEntryInfo*)((char*)pResultRow + sizeof(SResultRow));
+//  pResultRow->pEntryInfo = (struct SResultRowEntryInfo*)((char*)pResultRow + sizeof(SResultRow));
 }
 
 /*
@@ -1884,7 +1890,7 @@ void initResultRow(SResultRow* pResultRow) {
  *           offset[0]                                  offset[1]                                   offset[2]
  */
 // TODO refactor: some function move away
-void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage, SExecTaskInfo* pTaskInfo) {
+void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t stage, int32_t numOfExprs, SExecTaskInfo* pTaskInfo) {
   SqlFunctionCtx* pCtx = pInfo->pCtx;
   SSDataBlock*    pDataBlock = pInfo->pRes;
   int32_t*        rowCellInfoOffset = pInfo->rowCellInfoOffset;
@@ -1897,6 +1903,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
   SResultRow* pRow = doSetResultOutBufByKey(pSup->pResultBuf, pResultRowInfo, (char*)&tid, sizeof(tid), true, groupId,
                                             pTaskInfo, false, pSup);
 
+  ASSERT(pDataBlock->info.numOfCols == numOfExprs);
   for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
     struct SResultRowEntryInfo* pEntry = getResultCell(pRow, i, rowCellInfoOffset);
     cleanupResultRowEntry(pEntry);
@@ -3624,7 +3631,7 @@ SOperatorInfo* createSortedMergeOperatorInfo(SOperatorInfo** downstream, int32_t
     goto _error;
   }
 
-  setFunctionResultOutput(&pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, pTaskInfo);
+  setFunctionResultOutput(&pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, num, pTaskInfo);
   code = initGroupCol(pExprInfo, num, pGroupInfo, pInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
@@ -4217,12 +4224,22 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
   pAggSup->keyBuf = taosMemoryCalloc(1, keyBufSize + POINTER_BYTES + sizeof(int64_t));
   pAggSup->pResultRowHashTable = taosHashInit(10, hashFn, true, HASH_NO_LOCK);
 
-  if (pAggSup->keyBuf == NULL /*|| pAggSup->pResultRowArrayList == NULL || pAggSup->pResultRowListSet == NULL*/ ||
-      pAggSup->pResultRowHashTable == NULL) {
+  if (pAggSup->keyBuf == NULL || pAggSup->pResultRowHashTable == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  int32_t code = createDiskbasedBuf(&pAggSup->pResultBuf, 4096, 4096 * 256, pKey, "/tmp/");
+  uint32_t defaultPgsz = 4096;
+  while(defaultPgsz < pAggSup->resultRowSize*4) {
+    defaultPgsz <<= 1u;
+  }
+
+  // at least four pages need to be in buffer
+  int32_t defaultBufsz = 4096 * 256;
+  if (defaultBufsz <= defaultPgsz) {
+    defaultBufsz = defaultPgsz * 4;
+  }
+
+  int32_t code = createDiskbasedBuf(&pAggSup->pResultBuf, defaultPgsz, defaultBufsz, pKey, "/tmp/");
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
@@ -4425,7 +4442,7 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* p
 
   initResultSizeInfo(pOperator, numOfRows);
   initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, pResBlock, keyBufSize, pTaskInfo->id.str);
-  setFunctionResultOutput(&pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, pTaskInfo);
+  setFunctionResultOutput(&pInfo->binfo, &pInfo->aggSup, MAIN_SCAN, numOfCols, pTaskInfo);
   pInfo->pPseudoColInfo = setRowTsColumnOutputInfo(pInfo->binfo.pCtx, numOfCols);
 
   pOperator->name = "ProjectOperator";
