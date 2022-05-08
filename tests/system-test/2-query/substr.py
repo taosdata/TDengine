@@ -74,9 +74,12 @@ class TDTestCase:
             substr_group_no_having= self.__group_condition(condition)
             groups = ["", substr_group_having, substr_group_no_having]
 
+            if  pos == 0:
+                tdSql.error(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
+
             tdSql.query(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
             for j in range(tdSql.queryRows):
-                tdSql.checkData(j,0, tdSql.getData(j,1)[pos:lens])
+                tdSql.checkData(j,0, tdSql.getData(j,1)[pos-1:lens]) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
             [ tdSql.query(f"select substr({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
 
@@ -134,6 +137,7 @@ class TDTestCase:
         for tb in tbname:
             for errsql in self.__substr_err_check(tb):
                 tdSql.error(sql=errsql)
+            self.__substr_check(tb, 0, 6)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
