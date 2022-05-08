@@ -41,7 +41,6 @@ extern "C" {
 // vnode
 typedef struct SVnode       SVnode;
 typedef struct STsdbCfg     STsdbCfg;  // todo: remove
-typedef struct STsdbKeepCfg STsdbKeepCfg;
 typedef struct SVnodeCfg    SVnodeCfg;
 
 extern const SVnodeCfg vnodeCfgDefault;
@@ -147,21 +146,7 @@ struct STsdbCfg {
   SRetention retentions[TSDB_RETENTION_MAX];
 };
 
-struct STsdbKeepCfg {
-  int8_t  precision;  // precision always use with below cfg
-  int32_t days;
-  int32_t keep0;
-  int32_t keep1;
-  int32_t keep2;
-};
 
-typedef enum {
-  TSDB_TYPE_TSDB = 0,     // TSDB
-  TSDB_TYPE_TSMA = 1,     // TSMA
-  TSDB_TYPE_RSMA_L0 = 2,  // RSMA Level 0
-  TSDB_TYPE_RSMA_L1 = 3,  // RSMA Level 1
-  TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
-} ETsdbType;
 
 struct SVnodeCfg {
   int32_t  vgId;
