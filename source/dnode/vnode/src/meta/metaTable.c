@@ -141,16 +141,19 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     goto _err;
   }
 
-  // preprocess req
-  pReq->uid = tGenIdPI64();
-  pReq->ctime = taosGetTimestampMs();
-
   // validate req
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
+    pReq->uid = mr.me.uid;
+    if (pReq->type == TSDB_CHILD_TABLE) {
+      pReq->ctb.suid = mr.me.ctbEntry.suid;
+    }
     terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
     metaReaderClear(&mr);
     return -1;
+  } else {
+    pReq->uid = tGenIdPI64();
+    pReq->ctime = taosGetTimestampMs();
   }
   metaReaderClear(&mr);
 
