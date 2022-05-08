@@ -967,7 +967,7 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
     pAction->errCode = 0;
-    mDebug("trans:%d, action:%d is reset and will be re-executed", pTrans->id, action);
+    mDebug("trans:%d, action:%d execute status is reset", pTrans->id, action);
   }
 }
 
@@ -1043,7 +1043,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
       return errCode;
     }
   } else {
-    mDebug("trans:%d, %d of %d actions executing", pTrans->id, numOfReceived, numOfActions);
+    mDebug("trans:%d, %d of %d actions executed", pTrans->id, numOfReceived, numOfActions);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }
@@ -1336,8 +1336,7 @@ static int32_t mndProcessKillTransReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  if (!pUser->superUser) {
-    terrno = TSDB_CODE_MND_NO_RIGHTS;
+  if (mndCheckTransAuth(pUser) != 0) {
     goto _OVER;
   }
 

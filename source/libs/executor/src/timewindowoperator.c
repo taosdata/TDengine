@@ -1,6 +1,7 @@
-#include "ttime.h"
-#include "tdatablock.h"
 #include "executorimpl.h"
+#include "functionMgt.h"
+#include "tdatablock.h"
+#include "ttime.h"
 
 typedef enum SResultTsInterpType {
   RESULT_ROW_START_INTERP = 1,
@@ -544,7 +545,6 @@ static void setResultRowInterpo(SResultRow* pResult, SResultTsInterpType type) {
   }
 }
 
-
 static void doWindowBorderInterpolation(SOperatorInfo* pOperatorInfo, SSDataBlock* pBlock, SqlFunctionCtx* pCtx,
                                         SResultRow* pResult, STimeWindow* win, int32_t startPos, int32_t forwardStep,
                                         int32_t order, bool timeWindowInterpo) {
@@ -758,10 +758,10 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     return TSDB_CODE_SUCCESS;
   }
 
-  SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
 
-  int32_t order = TSDB_ORDER_ASC;
+  int32_t        order = TSDB_ORDER_ASC;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -807,7 +807,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 }
 
 static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorInfo* pInfo, SSDataBlock* pBlock) {
-  SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   SColumnInfoData* pStateColInfoData = taosArrayGet(pBlock->pDataBlock, pInfo->colIndex);
   int64_t          gid = pBlock->info.groupId;
@@ -931,7 +931,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
 
 static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
-  SExecTaskInfo*              pTaskInfo = pOperator->pTaskInfo;
+  SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
 
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -979,10 +979,19 @@ static void finalizeUpdatedResult(int32_t numOfOutput, SDiskbasedBuf* pBuf, SArr
     releaseBufPage(pBuf, bufPage);
   }
 }
+static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type) {
+  for (int i = 0; i < num; i++) {
+    if (type == STREAM_INVERT) {
+      fmSetInvertFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
+    } else if (type == STREAM_NORMAL) {
+      fmSetNormalFunc(pCtx[i].functionId, &(pCtx[i].fpSet));
+    }
+  }
+}
 
 static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                     order = TSDB_ORDER_ASC;
+  int32_t                   order = TSDB_ORDER_ASC;
 
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -1016,6 +1025,9 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, true);
+    if (pInfo->invertible) {
+      setInverFunction(pInfo->binfo.pCtx, pOperator->numOfExprs, pBlock->info.type);
+    }
     pUpdated = hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
   }
 
@@ -1025,7 +1037,8 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
   doBuildResultDatablock(&pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
 
-  ASSERT(pInfo->binfo.pRes->info.rows > 0);
+  // TODO: remove for stream
+  /*ASSERT(pInfo->binfo.pRes->info.rows > 0);*/
   pOperator->status = OP_RES_TO_RETURN;
 
   return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
@@ -1043,22 +1056,31 @@ void destroyIntervalOperatorInfo(void* param, int32_t numOfOutput) {
   cleanupAggSup(&pInfo->aggSup);
 }
 
+bool allInvertible(SqlFunctionCtx* pFCtx, int32_t numOfCols) {
+  for (int32_t i = 0; i < numOfCols; i++) {
+    if (!fmIsInvertible(pFCtx[i].functionId)) {
+      return false;
+    }
+  }
+  return true;
+}
+
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                           STimeWindowAggSupp* pTwAggSupp, const STableGroupInfo* pTableGroupInfo,
                                           SExecTaskInfo* pTaskInfo) {
   SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
-  SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
-  pInfo->order          = TSDB_ORDER_ASC;
-  pInfo->interval       = *pInterval;
+  pInfo->order = TSDB_ORDER_ASC;
+  pInfo->interval = *pInterval;
   //  pInfo->execModel      = OPTR_EXEC_MODEL_STREAM;
-  pInfo->execModel      = pTaskInfo->execModel;
-  pInfo->win            = pTaskInfo->window;
-  pInfo->twAggSup       = *pTwAggSupp;
+  pInfo->execModel = pTaskInfo->execModel;
+  pInfo->win = pTaskInfo->window;
+  pInfo->twAggSup = *pTwAggSupp;
   pInfo->primaryTsIndex = primaryTsSlotId;
 
   size_t keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
@@ -1068,6 +1090,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
       initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, pResBlock, keyBufSize, pTaskInfo->id.str);
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
+  pInfo->invertible = allInvertible(pInfo->binfo.pCtx, numOfCols);
 
   //  pInfo->pTableQueryInfo = initTableQueryInfo(pTableGroupInfo);
   if (code != TSDB_CODE_SUCCESS /* || pInfo->pTableQueryInfo == NULL*/) {
@@ -1076,14 +1099,14 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
   initResultRowInfo(&pInfo->binfo.resultRowInfo, (int32_t)1);
 
-  pOperator->name         = "TimeIntervalAggOperator";
+  pOperator->name = "TimeIntervalAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_INTERVAL;
-  pOperator->blocking     = true;
-  pOperator->status       = OP_NOT_OPENED;
-  pOperator->pExpr        = pExprInfo;
-  pOperator->pTaskInfo    = pTaskInfo;
-  pOperator->numOfExprs  = numOfCols;
-  pOperator->info         = pInfo;
+  pOperator->blocking = true;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->pExpr = pExprInfo;
+  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->numOfExprs = numOfCols;
+  pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(doOpenIntervalAgg, doBuildIntervalResult, doStreamIntervalAgg, NULL,
                                          destroyIntervalOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
@@ -1095,7 +1118,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
   return pOperator;
 
-  _error:
+_error:
   destroyIntervalOperatorInfo(pInfo, numOfCols);
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
@@ -1108,7 +1131,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExpr
                                                 STimeWindowAggSupp* pTwAggSupp, const STableGroupInfo* pTableGroupInfo,
                                                 SExecTaskInfo* pTaskInfo) {
   SIntervalAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SIntervalAggOperatorInfo));
-  SOperatorInfo*              pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
+  SOperatorInfo*            pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
@@ -1154,7 +1177,7 @@ SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExpr
 
   return pOperator;
 
-  _error:
+_error:
   destroyIntervalOperatorInfo(pInfo, numOfCols);
   taosMemoryFreeClear(pInfo);
   taosMemoryFreeClear(pOperator);
@@ -1298,7 +1321,7 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
     return pSliceInfo->binfo.pRes;
   }
 
-  int32_t order = TSDB_ORDER_ASC;
+  int32_t        order = TSDB_ORDER_ASC;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -1356,7 +1379,7 @@ SOperatorInfo* createTimeSliceOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   int32_t code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   taosMemoryFree(pInfo);
   taosMemoryFree(pOperator);
   pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
@@ -1379,18 +1402,18 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
   initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExpr, numOfCols, pResBlock, keyBufSize, pTaskInfo->id.str);
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
 
-  pInfo->twAggSup         = *pTwAggSup;
+  pInfo->twAggSup = *pTwAggSup;
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
-  pInfo->tsSlotId         = tsSlotId;
-  pOperator->name         = "StateWindowOperator";
+  pInfo->tsSlotId = tsSlotId;
+  pOperator->name = "StateWindowOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW;
   pOperator->blocking = true;
-  pOperator->status       = OP_NOT_OPENED;
-  pOperator->pExpr        = pExpr;
-  pOperator->numOfExprs  = numOfCols;
-  pOperator->pTaskInfo    = pTaskInfo;
-  pOperator->info         = pInfo;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->pExpr = pExpr;
+  pOperator->numOfExprs = numOfCols;
+  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doStateWindowAgg, NULL, NULL,
                                          destroyStateWindowOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
@@ -1398,7 +1421,7 @@ SOperatorInfo* createStatewindowOperatorInfo(SOperatorInfo* downstream, SExprInf
   int32_t code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   pTaskInfo->code = TSDB_CODE_SUCCESS;
   return NULL;
 }
@@ -1409,8 +1432,8 @@ void destroySWindowOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
-                                            SSDataBlock* pResBlock, int64_t gap, int32_t tsSlotId, STimeWindowAggSupp* pTwAggSupp,
-                                            SExecTaskInfo* pTaskInfo) {
+                                            SSDataBlock* pResBlock, int64_t gap, int32_t tsSlotId,
+                                            STimeWindowAggSupp* pTwAggSupp, SExecTaskInfo* pTaskInfo) {
   SSessionAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SSessionAggOperatorInfo));
   SOperatorInfo*           pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -1430,18 +1453,18 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo
   initResultRowInfo(&pInfo->binfo.resultRowInfo, 8);
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pTaskInfo->window);
 
-  pInfo->tsSlotId         = tsSlotId;
-  pInfo->gap              = gap;
-  pInfo->binfo.pRes       = pResBlock;
-  pInfo->winSup.prevTs    = INT64_MIN;
-  pInfo->reptScan         = false;
-  pOperator->name         = "SessionWindowAggOperator";
+  pInfo->tsSlotId = tsSlotId;
+  pInfo->gap = gap;
+  pInfo->binfo.pRes = pResBlock;
+  pInfo->winSup.prevTs = INT64_MIN;
+  pInfo->reptScan = false;
+  pOperator->name = "SessionWindowAggOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW;
   pOperator->blocking = true;
-  pOperator->status       = OP_NOT_OPENED;
-  pOperator->pExpr        = pExprInfo;
-  pOperator->numOfExprs  = numOfCols;
-  pOperator->info         = pInfo;
+  pOperator->status = OP_NOT_OPENED;
+  pOperator->pExpr = pExprInfo;
+  pOperator->numOfExprs = numOfCols;
+  pOperator->info = pInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doSessionWindowAgg, NULL, NULL,
                                          destroySWindowOperatorInfo, aggEncodeResultRow, aggDecodeResultRow, NULL);
@@ -1450,7 +1473,7 @@ SOperatorInfo* createSessionAggOperatorInfo(SOperatorInfo* downstream, SExprInfo
   code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
 
-  _error:
+_error:
   if (pInfo != NULL) {
     destroySWindowOperatorInfo(pInfo, numOfCols);
   }

@@ -112,6 +112,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SDropTableStmt));
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
       return makeNode(type, sizeof(SDropSuperTableStmt));
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      return makeNode(type, sizeof(SAlterTableStmt));
     case QUERY_NODE_CREATE_USER_STMT:
       return makeNode(type, sizeof(SCreateUserStmt));
     case QUERY_NODE_ALTER_USER_STMT:
@@ -155,7 +157,7 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       return makeNode(type, sizeof(SCreateFunctionStmt));
     case QUERY_NODE_DROP_FUNCTION_STMT:
-      break;
+      return makeNode(type, sizeof(SDropFunctionStmt));
     case QUERY_NODE_CREATE_STREAM_STMT:
       return makeNode(type, sizeof(SCreateStreamStmt));
     case QUERY_NODE_DROP_STREAM_STMT:
@@ -165,6 +167,10 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SPLIT_VGROUP_STMT:
     case QUERY_NODE_SYNCDB_STMT:
       break;
+    case QUERY_NODE_GRANT_STMT:
+      return makeNode(type, sizeof(SGrantStmt));
+    case QUERY_NODE_REVOKE_STMT:
+      return makeNode(type, sizeof(SRevokeStmt));
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
@@ -195,9 +201,11 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return makeNode(type, sizeof(SShowStmt));
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_QUERY_STMT:
+    case QUERY_NODE_KILL_TRANSACTION_STMT:
       return makeNode(type, sizeof(SKillStmt));
     case QUERY_NODE_LOGIC_PLAN_SCAN:
       return makeNode(type, sizeof(SScanLogicNode));
@@ -1337,7 +1345,9 @@ void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = pNode->datum.p;
+      pVal->pz = taosMemoryMalloc(pVal->nLen + VARSTR_HEADER_SIZE + 1);
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen + VARSTR_HEADER_SIZE);
+      pVal->pz[pVal->nLen + VARSTR_HEADER_SIZE] = 0;
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:

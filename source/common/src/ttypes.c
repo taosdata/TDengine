@@ -557,7 +557,7 @@ static const void *nullValues[] = {
 };
 
 const void *getNullValue(int32_t type) {
-  assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);
+  assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);  // TODO: extend the types
   return nullValues[type - 1];
 }
 

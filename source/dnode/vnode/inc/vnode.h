@@ -90,7 +90,7 @@ int         metaTbCursorNext(SMTbCursor *pTbCur);
 
 // tsdb
 // typedef struct STsdb STsdb;
-typedef void        *tsdbReaderT;
+typedef void *tsdbReaderT;
 
 #define BLOCK_LOAD_OFFSET_SEQ_ORDER 1
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
@@ -108,12 +108,12 @@ int32_t      tsdbQuerySTableByTagCond(void *pMeta, uint64_t uid, TSKEY skey, con
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
-int32_t      tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool* allHave);
-SArray      *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
-void         tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
-void         tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
-int32_t      tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
-int32_t      tsdbGetTableGroupFromIdList(SVnode *pVnode, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
+int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool *allHave);
+SArray *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
+void    tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
+void    tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
+int32_t tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
+int32_t tsdbGetTableGroupFromIdList(SVnode *pVnode, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
 
 // tq
 
@@ -126,8 +126,8 @@ int     tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList
 int     tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
-int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, int32_t *pNumOfRows,
-                            int16_t *pNumOfCols);
+int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
+                            int32_t *pNumOfRows, int16_t *pNumOfCols);
 
 // need to reposition
 
@@ -189,10 +189,10 @@ struct SMetaEntry {
       SSchemaWrapper schemaTag;
     } stbEntry;
     struct {
-      int64_t     ctime;
-      int32_t     ttlDays;
-      tb_uid_t    suid;
-      const void *pTags;
+      int64_t        ctime;
+      int32_t        ttlDays;
+      tb_uid_t       suid;
+      const uint8_t *pTags;
     } ctbEntry;
     struct {
       int64_t        ctime;
@@ -205,7 +205,7 @@ struct SMetaEntry {
 struct SMetaReader {
   int32_t    flags;
   SMeta     *pMeta;
-  SCoder     coder;
+  SDecoder   coder;
   SMetaEntry me;
   void      *pBuf;
   int        szBuf;

@@ -553,7 +553,7 @@ static int32_t createInitialSortedMultiSources(SSortHandle* pHandle) {
       }
     }
 
-    if (pHandle->pDataBlock->info.rows > 0) {
+    if (pHandle->pDataBlock != NULL && pHandle->pDataBlock->info.rows > 0) {
       size_t size = blockDataGetSize(pHandle->pDataBlock);
 
       // Perform the in-memory sort and then flush data in the buffer into disk.

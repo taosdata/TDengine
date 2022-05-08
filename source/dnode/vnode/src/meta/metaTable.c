@@ -33,7 +33,6 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   void       *pBuf = NULL;
   int32_t     szBuf = 0;
   void       *p = NULL;
-  SCoder      coder = {0};
   SMetaReader mr = {0};
 
   // validate req
@@ -142,16 +141,19 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     goto _err;
   }
 
-  // preprocess req
-  pReq->uid = tGenIdPI64();
-  pReq->ctime = taosGetTimestampMs();
-
   // validate req
   metaReaderInit(&mr, pMeta, 0);
   if (metaGetTableEntryByName(&mr, pReq->name) == 0) {
+    pReq->uid = mr.me.uid;
+    if (pReq->type == TSDB_CHILD_TABLE) {
+      pReq->ctb.suid = mr.me.ctbEntry.suid;
+    }
     terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
     metaReaderClear(&mr);
     return -1;
+  } else {
+    pReq->uid = tGenIdPI64();
+    pReq->ctime = taosGetTimestampMs();
   }
   metaReaderClear(&mr);
 
@@ -192,16 +194,16 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   tb_uid_t    uid;
   int64_t     tver;
   SMetaEntry  me = {0};
-  SCoder      coder = {0};
+  SDecoder    coder = {0};
   int8_t      type;
   int64_t     ctime;
   tb_uid_t    suid;
-  int         c, ret;
+  int         c = 0, ret;
 
   // search & delete the name idx
   tdbDbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);
   ret = tdbDbcMoveTo(pNameIdxc, pReq->name, strlen(pReq->name) + 1, &c);
-  if (ret < 0 || c) {
+  if (ret < 0 || !tdbDbcIsValid(pNameIdxc) || c) {
     tdbDbcClose(pNameIdxc);
     terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
     return -1;
@@ -253,7 +255,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   // decode entry
   void *pDataCopy = taosMemoryMalloc(nData);  // remove the copy (todo)
   memcpy(pDataCopy, pData, nData);
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pDataCopy, nData, TD_DECODER);
+  tDecoderInit(&coder, pDataCopy, nData);
   ret = metaDecodeEntry(&coder, &me);
   if (ret < 0) {
     ASSERT(0);
@@ -272,7 +274,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   }
 
   taosMemoryFree(pDataCopy);
-  tCoderClear(&coder);
+  tDecoderClear(&coder);
   tdbDbcClose(pTbDbc);
 
   if (type == TSDB_CHILD_TABLE) {
@@ -309,7 +311,7 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
   void    *pVal = NULL;
   int      kLen = 0;
   int      vLen = 0;
-  SCoder   coder = {0};
+  SEncoder coder = {0};
 
   // set key and value
   tbDbKey.version = pME->version;
@@ -330,13 +332,13 @@ static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
     goto _err;
   }
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_ENCODER);
+  tEncoderInit(&coder, pVal, vLen);
 
   if (metaEncodeEntry(&coder, pME) < 0) {
     goto _err;
   }
 
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   // write to table.db
   if (tdbDbInsert(pMeta->pTbDb, pKey, kLen, pVal, vLen, &pMeta->txn) < 0) {
@@ -393,7 +395,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pME) {
 }
 
 static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
-  SCoder                coder = {0};
+  SEncoder              coder = {0};
   void                 *pVal = NULL;
   int                   vLen = 0;
   int                   rcode = 0;
@@ -422,7 +424,7 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
     goto _exit;
   }
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pVal, vLen, TD_ENCODER);
+  tEncoderInit(&coder, pVal, vLen);
   tEncodeSSchemaWrapper(&coder, pSW);
 
   if (tdbDbInsert(pMeta->pSkmDb, &skmDbKey, sizeof(skmDbKey), pVal, vLen, &pMeta->txn) < 0) {
@@ -432,7 +434,7 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
 
 _exit:
   taosMemoryFree(pVal);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
   return rcode;
 }
 

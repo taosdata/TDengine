@@ -67,6 +67,10 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
   ASSERT(taosArrayGetSize(pColMatchInfo) == pDataBlock->info.numOfCols);
 
   SSDataBlock* p = tsortGetSortedDataBlock(pHandle);
+  if (p == NULL) {
+    return NULL;
+  }
+
   blockDataEnsureCapacity(p, capacity);
 
   while (1) {
@@ -83,17 +87,13 @@ SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, i
 
   if (p->info.rows > 0) {
     int32_t numOfCols = taosArrayGetSize(pColMatchInfo);
-    for(int32_t i = 0; i < numOfCols; ++i) {
+    for (int32_t i = 0; i < numOfCols; ++i) {
       SColMatchInfo* pmInfo = taosArrayGet(pColMatchInfo, i);
+      ASSERT(pmInfo->matchType == COL_MATCH_FROM_SLOT_ID);
 
-      for(int32_t j = 0; j < p->info.numOfCols; ++j) {
-        SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, j);
-        if (pSrc->info.colId == pmInfo->colId) {
-          SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
-          colDataAssign(pDst, pSrc, p->info.rows);
-          break;
-        }
-      }
+      SColumnInfoData* pSrc = taosArrayGet(p->pDataBlock, pmInfo->srcSlotId);
+      SColumnInfoData* pDst = taosArrayGet(pDataBlock->pDataBlock, pmInfo->targetSlotId);
+      colDataAssign(pDst, pSrc, p->info.rows);
     }
 
     pDataBlock->info.rows = p->info.rows;

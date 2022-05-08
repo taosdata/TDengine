@@ -241,7 +241,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE };
+  pFunc->node.resType = (SDataType) { .bytes = 512, .type = TSDB_DATA_TYPE_BINARY };
   return TSDB_CODE_SUCCESS;
 }
 
@@ -263,6 +263,20 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   }
 
   pFunc->node.resType = ((SExprNode*)pPara)->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraLen = LIST_LENGTH(pFunc->pParameterList);
+  if (paraLen == 0 || paraLen > 2) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  if (!IS_NUMERIC_TYPE(p1->resType.type)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  pFunc->node.resType = p1->resType;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -473,7 +487,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCountFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .invertFunc   = countInvertFunction
   },
   {
     .name = "sum",
@@ -484,7 +499,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .invertFunc   = sumInvertFunction
   },
   {
     .name = "min",
@@ -516,7 +532,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStddevFuncEnv,
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
-    .finalizeFunc = stddevFinalize
+    .finalizeFunc = stddevFinalize,
+    .invertFunc   = stddevInvertFunction
   },
   {
     .name = "avg",
@@ -526,7 +543,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getAvgFuncEnv,
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
-    .finalizeFunc = avgFinalize
+    .finalizeFunc = avgFinalize,
+    .invertFunc   = avgInvertFunction
   },
   {
     .name = "percentile",
@@ -613,7 +631,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "diff",
     .type = FUNCTION_TYPE_DIFF,
     .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
-    .translateFunc = translateInOutNum,
+    .translateFunc = translateDiff,
     .getEnvFunc   = getDiffFuncEnv,
     .initFunc     = diffFunctionSetup,
     .processFunc  = diffFunction,

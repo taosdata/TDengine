@@ -24,11 +24,20 @@ class ParserExplainToSyncdbTest : public ParserTestBase {};
 TEST_F(ParserExplainToSyncdbTest, explain) {
   useDb("root", "test");
 
-  run("explain SELECT * FROM t1");
+  run("EXPLAIN SELECT * FROM t1");
 
-  run("explain analyze SELECT * FROM t1");
+  run("EXPLAIN ANALYZE SELECT * FROM t1");
 
-  run("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
+  run("EXPLAIN ANALYZE VERBOSE true RATIO 0.01 SELECT * FROM t1");
+}
+
+TEST_F(ParserExplainToSyncdbTest, grant) {
+  useDb("root", "test");
+
+  run("GRANT ALL ON test.* TO wxy");
+  run("GRANT READ ON test.* TO wxy");
+  run("GRANT WRITE ON test.* TO wxy");
+  run("GRANT READ, WRITE ON test.* TO wxy");
 }
 
 // todo kill connection
@@ -37,6 +46,16 @@ TEST_F(ParserExplainToSyncdbTest, explain) {
 // todo merge vgroup
 // todo redistribute vgroup
 // todo reset query cache
+
+TEST_F(ParserExplainToSyncdbTest, revoke) {
+  useDb("root", "test");
+
+  run("REVOKE ALL ON test.* FROM wxy");
+  run("REVOKE READ ON test.* FROM wxy");
+  run("REVOKE WRITE ON test.* FROM wxy");
+  run("REVOKE READ, WRITE ON test.* FROM wxy");
+}
+
 // todo syncdb
 
 }  // namespace ParserTest
