@@ -74,7 +74,7 @@ class TDTestCase:
             substr_group_no_having= self.__group_condition(condition)
             groups = ["", substr_group_having, substr_group_no_having]
 
-            if  pos == 0:
+            if  pos < 1:
                 tdSql.error(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
 
             tdSql.query(f"select substr( {condition}, {pos}, {lens}) , {condition} from {tbname} ")
