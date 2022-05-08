@@ -244,6 +244,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .printStmtSql = true,
   .rowNum = 0,
   .bindColNum = 0,
+  .bindTagNum = 0,
   .bindRowNum = 0,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
