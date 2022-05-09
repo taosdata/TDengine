@@ -11,12 +11,16 @@
 
 # -*- coding: utf-8 -*-
 
+
 import sys
 import os
+selfPath = os.path.dirname(os.path.realpath(__file__))
+utilPath="%s/../../pytest/"%selfPath
 import threading
 import multiprocessing as mp
 from numpy.lib.function_base import insert
 import taos
+sys.path.append(utilPath)
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -58,7 +62,7 @@ class TDTestCase:
     # init
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
-        tdSql.init(conn.cursor())
+        # tdSql.init(conn.cursor())
         # tdSql.prepare()
         # self.create_tables();
         self.ts = 1500000000000
@@ -67,18 +71,13 @@ class TDTestCase:
     # run case   
     def run(self):
 
-        # #  test base case
-        # self.test_case1()
-        # tdLog.debug(" LIMIT test_case1 ............ [OK]")
+        #  test base case
+        self.test_case1()
+        tdLog.debug(" LIMIT test_case1 ............ [OK]")
 
-        # test case
+        # test advance case
         # self.test_case2()
         # tdLog.debug(" LIMIT test_case2 ............ [OK]")
-
-        # test case
-        self.test_case3()
-        tdLog.debug(" LIMIT test_case3 ............ [OK]")
-
 
     # stop 
     def stop(self):
@@ -121,15 +120,15 @@ class TDTestCase:
         return cur
 
     def new_create_tables(self,dbname,vgroups,stbname,tcountStart,tcountStop):
-        host = "localhost"
+        host = "127.0.0.1"
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         
         tsql=self.newcur(host,config)
-        tsql.execute("drop database if exists %s"%dbname)
-        tsql.execute("create database %s vgroups %d"%(dbname,vgroups))
+        tsql.execute("drop database  if exists %s" %(dbname))
+        tsql.execute("create database if not exists  %s vgroups %d"%(dbname,vgroups))
         tsql.execute("use %s" %dbname)
-        tsql.execute("create stable %s(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%stbname)
+        tsql.execute("create stable  %s(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%stbname)
 
         pre_create = "create table"
         sql = pre_create
@@ -189,61 +188,16 @@ class TDTestCase:
         tdLog.debug("INSERT TABLE DATA ............ [OK]")
         return
 
-    def taosBench(self,jsonFile):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
-        os.system("%s -f %s -y " %(taosBenchbin,jsonFile))
-       
-        return
-    def taosBenchCreate(self,dbname,stbname,vgroups,threadNumbers,count):
-        # count=50000
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
 
-        # insert: create one  or mutiple tables per sql and insert multiple rows per sql
-        tdSql.execute("drop database if exists %s"%dbname)
-
-        tdSql.execute("create database %s vgroups %d"%(dbname,vgroups))
-        tdSql.execute("use %s" %dbname)
-    
-        threads = []
-        # threadNumbers=2
-        for i in range(threadNumbers):
-            jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
-            os.system("cp -f 1-insert/manyVgroups.json   %s"%(jsonfile))
-            os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s%d\",/g' %s"%(dbname,i,jsonfile))
-            os.system("sed -i 's/\"childtable_count\": 300000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
-            os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
-            os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
-            threads.append(mp.Process(target=self.taosBench, args=("%s"%jsonfile,))) 
-        start_time = time.time()
-        for tr in threads:
-            tr.start()
-        for tr in threads:
-            tr.join()
-        end_time = time.time()
-
-        spendTime=end_time-start_time
-        speedCreate=count/spendTime
-        tdLog.debug("spent %.2fs to create 1 stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,count,speedCreate))
-        return
     # test case1 base 
     def test_case1(self):
         tdLog.debug("-----create database and tables test------- ")
-        tdSql.execute("drop database if exists db1")
-        tdSql.execute("drop database if exists db4")
-        tdSql.execute("drop database if exists db6")
-        tdSql.execute("drop database if exists db8")
-        tdSql.execute("drop database if exists db12")
-        tdSql.execute("drop database if exists db16")
+        # tdSql.execute("drop database if exists db1")
+        # tdSql.execute("drop database if exists db4")
+        # tdSql.execute("drop database if exists db6")
+        # tdSql.execute("drop database if exists db8")
+        # tdSql.execute("drop database if exists db12")
+        # tdSql.execute("drop database if exists db16")
 
         #create database and tables;
 
@@ -261,7 +215,7 @@ class TDTestCase:
         # t1 = mp.Process(target=self.new_create_tables, args=("db1", "stb1", 0,count/2,))
         # t2 = mp.Process(target=self.new_create_tables, args=("db1", "stb1", count/2,count,))
 
-        count=50000
+        count=500000
         vgroups=1
         threads = []
         threadNumbers=2
@@ -336,14 +290,10 @@ class TDTestCase:
                 
         return
 
-    def test_case3(self):
-
-        self.taosBenchCreate("db1", "stb1", 1, 2, 1*50000)
-
-        return 
-
 #
 # add case with filename
 #
-tdCases.addWindows(__file__, TDTestCase())
-tdCases.addLinux(__file__, TDTestCase())
+# tdCases.addWindows(__file__, TDTestCase())
+# tdCases.addLinux(__file__, TDTestCase())
+case=TDTestCase()
+case.test_case1()

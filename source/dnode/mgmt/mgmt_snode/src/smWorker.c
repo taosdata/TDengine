@@ -17,12 +17,14 @@
 #include "smInt.h"
 
 static inline void smSendRsp(SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
-                 .ahandle = pMsg->rpcMsg.ahandle,
-                 .refId = pMsg->rpcMsg.refId,
-                 .code = code,
-                 .pCont = pMsg->pRsp,
-                 .contLen = pMsg->rspLen};
+  SRpcMsg rsp = {
+      .handle = pMsg->rpcMsg.handle,
+      .ahandle = pMsg->rpcMsg.ahandle,
+      .refId = pMsg->rpcMsg.refId,
+      .code = code,
+      .pCont = pMsg->pRsp,
+      .contLen = pMsg->rspLen,
+  };
   tmsgSendRsp(&rsp);
 }
 
@@ -90,7 +92,12 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
       return -1;
     }
 
-    SMultiWorkerCfg cfg = {.max = 1, .name = "snode-unique", .fp = smProcessUniqueQueue, .param = pMgmt};
+    SMultiWorkerCfg cfg = {
+        .max = 1,
+        .name = "snode-unique",
+        .fp = smProcessUniqueQueue,
+        .param = pMgmt,
+    };
     if (tMultiWorkerInit(pUniqueWorker, &cfg) != 0) {
       dError("failed to start snode-unique worker since %s", terrstr());
       return -1;
@@ -101,11 +108,13 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     }
   }
 
-  SSingleWorkerCfg cfg = {.min = tsNumOfSnodeSharedThreads,
-                          .max = tsNumOfSnodeSharedThreads,
-                          .name = "snode-shared",
-                          .fp = (FItem)smProcessSharedQueue,
-                          .param = pMgmt};
+  SSingleWorkerCfg cfg = {
+      .min = tsNumOfSnodeSharedThreads,
+      .max = tsNumOfSnodeSharedThreads,
+      .name = "snode-shared",
+      .fp = (FItem)smProcessSharedQueue,
+      .param = pMgmt,
+  };
 
   if (tSingleWorkerInit(&pMgmt->sharedWorker, &cfg)) {
     dError("failed to start snode shared-worker since %s", terrstr());
@@ -114,7 +123,12 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
 
   if (tsMultiProcess) {
     SSingleWorkerCfg mCfg = {
-        .min = 1, .max = 1, .name = "snode-monitor", .fp = (FItem)smProcessMonitorQueue, .param = pMgmt};
+        .min = 1,
+        .max = 1,
+        .name = "snode-monitor",
+        .fp = (FItem)smProcessMonitorQueue,
+        .param = pMgmt,
+    };
     if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start snode-monitor worker since %s", terrstr());
       return -1;
@@ -150,7 +164,7 @@ static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
 }
 
 int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt *  pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -163,7 +177,7 @@ int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt *   pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -172,7 +186,7 @@ int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt *  pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
   int32_t       index = smGetSWIdFromMsg(&pMsg->rpcMsg);
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
   if (pWorker == NULL) {
@@ -186,7 +200,7 @@ int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt *   pMgmt = pWrapper->pMgmt;
+  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->sharedWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
