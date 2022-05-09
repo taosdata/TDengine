@@ -233,9 +233,9 @@ CaseCtrl gCaseCtrl = { // default
   .printRes = true,
   .runTimes = 0,
   .caseIdx = -1,
-  .caseNum = -1,
-  .caseRunIdx = -1,
-  .caseRunNum = -1,
+  .caseNum = 1,
+  .caseRunIdx = 11,
+  .caseRunNum = 1,
 };
 #endif
 
