@@ -165,10 +165,10 @@ class TDTestCase:
 
         tbname = ["ct1", "ct2", "ct4", "t1"]
 
-        for tb in tbname:
-            for errsql in self.__length_err_check(tb):
-                tdSql.error(sql=errsql)
-            tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
+        # for tb in tbname:
+        #     for errsql in self.__join_err_check(tb):
+        #         tdSql.error(sql=errsql)
+        #     tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
     def all_test(self):
