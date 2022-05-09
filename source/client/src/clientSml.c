@@ -37,8 +37,8 @@ typedef enum {
 
 typedef struct {
   char sTableName[TSDB_TABLE_NAME_LEN];
-  SHashObj *tags;
-  SHashObj *fields;
+  SArray *tags;
+  SArray *fields;
 } SCreateSTableActionInfo;
 
 typedef struct {
@@ -78,14 +78,17 @@ typedef struct {
   // colsFormat store cols formated, for quick parse, if info->formatData is true
   SArray         *colsFormat;  // elements are SArray<SSmlKv*>
 
-  // cols & colsColumn store cols un formated
+  // cols store cols un formated
   SArray         *cols;        // elements are SHashObj<cols key string, SSmlKv*> for find by key quickly
-  SHashObj       *columnsHash;     // elements are <cols key string, 1>, just for judge if key exists quickly.
 } SSmlTableInfo;
 
 typedef struct {
-  SHashObj   *tagHash;
+  SArray     *tags;       // save the origin order to create table
+  SHashObj   *tagHash;    // elements are <key, index in tags>
+
+  SArray     *cols;
   SHashObj   *fieldHash;
+
   STableMeta *tableMeta;
 } SSmlSTableMeta;
 
@@ -113,6 +116,8 @@ typedef struct {
 
   int32_t           affectedRows;
   SSmlMsgBuf        msgBuf;
+  SHashObj          *dumplicateKey;  // for dumplicate key
+  SArray            *colsContainer;  // for cols parse, if is dataFormat == false
 } SSmlHandle;
 //=================================================================================================
 
@@ -143,8 +148,8 @@ static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const 
 }
 
 static int smlCompareKv(const void* p1, const void* p2) {
-  SSmlKv* kv1 = (SSmlKv*)p1;
-  SSmlKv* kv2 = (SSmlKv*)p2;
+  SSmlKv* kv1 = *(SSmlKv**)p1;
+  SSmlKv* kv2 = *(SSmlKv**)p2;
   int32_t kvLen1 = kv1->keyLen;
   int32_t kvLen2 = kv2->keyLen;
   int32_t res = strncasecmp(kv1->key, kv2->key, TMIN(kvLen1, kvLen2));
@@ -174,8 +179,9 @@ static void smlBuildChildTableName(SSmlTableInfo *tags) {
   tMD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
   tMD5Final(&context);
   uint64_t digest1 = *(uint64_t*)(context.digest);
-  uint64_t digest2 = *(uint64_t*)(context.digest + 8);
-  snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64"%016"PRIx64, digest1, digest2);
+  //uint64_t digest2 = *(uint64_t*)(context.digest + 8);
+  //snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64"%016"PRIx64, digest1, digest2);
+  snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64, digest1);
   taosStringBuilderDestroy(&sb);
   tags->uid = digest1;
 }
@@ -350,37 +356,26 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       int n = sprintf(result, "create stable %s (", action->createSTable.sTableName);
       char* pos = result + n; int freeBytes = capacity - n;
 
-      size_t size = taosHashGetSize(action->createSTable.fields);
-      SArray *cols = taosArrayInit(size, POINTER_BYTES);
-      SSmlKv **kv = taosHashIterate(action->createSTable.fields, NULL);
-      while(kv){
-        if(strncmp((*kv)->key, TS, strlen(TS)) == 0 && (*kv)->type == TSDB_DATA_TYPE_TIMESTAMP){
-          taosArrayInsert(cols, 0, kv);
-        }else{
-          taosArrayPush(cols, kv);
-        }
-        kv = taosHashIterate(action->createSTable.fields, kv);
-      }
+      SArray *cols = action->createSTable.fields;
 
       for(int i = 0; i < taosArrayGetSize(cols); i++){
-        SSmlKv *kvNew = taosArrayGetP(cols, i);
-        smlBuildColumnDescription(kvNew, pos, freeBytes, &outBytes);
+        SSmlKv *kv = taosArrayGetP(cols, i);
+        smlBuildColumnDescription(kv, pos, freeBytes, &outBytes);
         pos += outBytes; freeBytes -= outBytes;
         *pos = ','; ++pos; --freeBytes;
       }
-      taosArrayDestroy(cols);
 
       --pos; ++freeBytes;
 
       outBytes = snprintf(pos, freeBytes, ") tags (");
       pos += outBytes; freeBytes -= outBytes;
 
-      kv = taosHashIterate(action->createSTable.tags, NULL);
-      while(kv){
-        smlBuildColumnDescription(*kv, pos, freeBytes, &outBytes);
+      cols = action->createSTable.tags;
+      for(int i = 0; i < taosArrayGetSize(cols); i++){
+        SSmlKv *kv = taosArrayGetP(cols, i);
+        smlBuildColumnDescription(kv, pos, freeBytes, &outBytes);
         pos += outBytes; freeBytes -= outBytes;
         *pos = ','; ++pos; --freeBytes;
-        kv = taosHashIterate(action->createSTable.tags, kv);
       }
       pos--; ++freeBytes;
       outBytes = snprintf(pos, freeBytes, ")");
@@ -419,7 +414,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
 
   SSmlSTableMeta** tableMetaSml = taosHashIterate(info->superTables, NULL);
   while (tableMetaSml) {
-    SSmlSTableMeta* cTablePoints = *tableMetaSml;
+    SSmlSTableMeta* sTableData = *tableMetaSml;
 
     STableMeta *pTableMeta = NULL;
     SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
@@ -436,8 +431,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
       SSchemaAction schemaAction = {0};
       schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
-      schemaAction.createSTable.tags = cTablePoints->tagHash;
-      schemaAction.createSTable.fields = cTablePoints->fieldHash;
+      schemaAction.createSTable.tags = sTableData->tags;
+      schemaAction.createSTable.fields = sTableData->cols;
       code = smlApplySchemaAction(info, &schemaAction);
       if (code != 0) {
         uError("SML:0x%"PRIx64" smlApplySchemaAction failed. can not create %s", info->id, schemaAction.createSTable.sTableName);
@@ -454,7 +449,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
       uError("SML:0x%"PRIx64" load table meta error: %s", info->id, tstrerror(code));
       return code;
     }
-    cTablePoints->tableMeta = pTableMeta;
+    sTableData->tableMeta = pTableMeta;
 
     tableMetaSml = taosHashIterate(info->superTables, tableMetaSml);
   }
@@ -1034,7 +1029,7 @@ static int32_t smlParseString(const char* sql, SSmlLineInfo *elements, SSmlMsgBu
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool isTag, SSmlMsgBuf *msg){
+static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
   if(isTag && len == 0){
     SSmlKv *kv = taosMemoryCalloc(sizeof(SSmlKv), 1);
     kv->key = TAG;
@@ -1060,6 +1055,13 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool is
     if(keyLen == 0 || keyLen >= TSDB_COL_NAME_LEN){
       smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
       return TSDB_CODE_SML_INVALID_DATA;
+    }
+
+    if(taosHashGet(dumplicateKey, key, keyLen)){
+      smlBuildInvalidDataMsg(msg, "dumplicate key", key);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }else{
+      taosHashPut(dumplicateKey, key, keyLen, key, CHAR_BYTES);
     }
 
     // parse value
@@ -1295,14 +1297,19 @@ static bool smlUpdateMeta(SSmlSTableMeta* tableMeta, SArray *tags, SArray *cols,
       SSmlKv *kv = taosArrayGetP(tags, i);
       ASSERT(kv->type == TSDB_DATA_TYPE_NCHAR);
 
-      SSmlKv **value = taosHashGet(tableMeta->tagHash, kv->key, kv->keyLen);
-      if(value){
+      uint8_t *index = taosHashGet(tableMeta->tagHash, kv->key, kv->keyLen);
+      if(index){
+        SSmlKv **value = taosArrayGet(tableMeta->tags, *index);
         ASSERT((*value)->type == TSDB_DATA_TYPE_NCHAR);
         if(kv->valueLen > (*value)->valueLen){    // tags type is nchar
           *value = kv;
         }
       }else{
-        taosHashPut(tableMeta->tagHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
+        size_t tmp = taosArrayGetSize(tableMeta->tags);
+        ASSERT(tmp <= UINT8_MAX);
+        uint8_t size = tmp;
+        taosArrayPush(tableMeta->tags, &kv);
+        taosHashPut(tableMeta->tagHash, kv->key, kv->keyLen, &size, CHAR_BYTES);
       }
     }
   }
@@ -1310,8 +1317,10 @@ static bool smlUpdateMeta(SSmlSTableMeta* tableMeta, SArray *tags, SArray *cols,
   if(cols){
     for (int i = 1; i < taosArrayGetSize(cols); ++i) {  //jump timestamp
       SSmlKv *kv = taosArrayGetP(cols, i);
-      SSmlKv **value = taosHashGet(tableMeta->fieldHash, kv->key, kv->keyLen);
-      if(value){
+
+      int16_t *index = taosHashGet(tableMeta->fieldHash, kv->key, kv->keyLen);
+      if(index){
+        SSmlKv **value = taosArrayGet(tableMeta->cols, *index);
         if(kv->type != (*value)->type){
           smlBuildInvalidDataMsg(msg, "the type is not the same like before", kv->key);
           return false;
@@ -1323,7 +1332,11 @@ static bool smlUpdateMeta(SSmlSTableMeta* tableMeta, SArray *tags, SArray *cols,
           }
         }
       }else{
-        taosHashPut(tableMeta->fieldHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
+        size_t tmp = taosArrayGetSize(tableMeta->cols);
+        ASSERT(tmp <= INT16_MAX);
+        int16_t size = tmp;
+        taosArrayPush(tableMeta->cols, &kv);
+        taosHashPut(tableMeta->fieldHash, kv->key, kv->keyLen, &size, SHORT_BYTES);
       }
     }
   }
@@ -1332,16 +1345,18 @@ static bool smlUpdateMeta(SSmlSTableMeta* tableMeta, SArray *tags, SArray *cols,
 
 static void smlInsertMeta(SSmlSTableMeta* tableMeta, SArray *tags, SArray *cols){
   if(tags){
-    for (int i = 0; i < taosArrayGetSize(tags); ++i) {
+    for (uint8_t i = 0; i < taosArrayGetSize(tags); ++i) {
       SSmlKv *kv = taosArrayGetP(tags, i);
-      taosHashPut(tableMeta->tagHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
+      taosArrayPush(tableMeta->tags, &kv);
+      taosHashPut(tableMeta->tagHash, kv->key, kv->keyLen, &i, CHAR_BYTES);
     }
   }
 
   if(cols){
-    for (int i = 0; i < taosArrayGetSize(cols); ++i) {
+    for (int16_t i = 0; i < taosArrayGetSize(cols); ++i) {
       SSmlKv *kv = taosArrayGetP(cols, i);
-      taosHashPut(tableMeta->fieldHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
+      taosArrayPush(tableMeta->cols, &kv);
+      taosHashPut(tableMeta->fieldHash, kv->key, kv->keyLen, &i, SHORT_BYTES);
     }
   }
 }
@@ -1361,12 +1376,6 @@ static SSmlTableInfo* smlBuildTableInfo(bool format){
   }else{
     tag->cols = taosArrayInit(16, POINTER_BYTES);
     if (tag->cols == NULL) {
-      uError("SML:smlParseLine failed to allocate memory");
-      goto cleanup;
-    }
-
-    tag->columnsHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    if (tag->columnsHash == NULL) {
       uError("SML:smlParseLine failed to allocate memory");
       goto cleanup;
     }
@@ -1399,7 +1408,6 @@ static void smlDestroyBuildTableInfo(SSmlTableInfo *tag, bool format){
       }
       taosHashCleanup(kvHash);
     }
-    taosHashCleanup(tag->columnsHash);
   }
   taosArrayDestroy(tag->tags);
   taosMemoryFreeClear(tag);
@@ -1408,23 +1416,20 @@ static void smlDestroyBuildTableInfo(SSmlTableInfo *tag, bool format){
 static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *cols){
   if(dataFormat){
     taosArrayPush(oneTable->colsFormat, &cols);
-  }else{
-    SHashObj *kvHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-    if(!kvHash){
-      uError("SML:smlDealCols failed to allocate memory");
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-    for(size_t i = 0; i < taosArrayGetSize(cols); i++){
-      SSmlKv *kv = taosArrayGetP(cols, i);
-      taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);   // todo key need escape, like \=, because find by schema name later
-
-      if(taosHashGet(oneTable->columnsHash, kv->key, kv->keyLen) != NULL){
-        continue;
-      }
-      taosHashPut(oneTable->columnsHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
-    }
-    taosArrayPush(oneTable->cols, &kvHash);
+    return TSDB_CODE_SUCCESS;
   }
+
+  SHashObj *kvHash = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if(!kvHash){
+    uError("SML:smlDealCols failed to allocate memory");
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  for(size_t i = 0; i < taosArrayGetSize(cols); i++){
+    SSmlKv *kv = taosArrayGetP(cols, i);
+    taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);   // todo key need escape, like \=, because find by schema name later
+  }
+  taosArrayPush(oneTable->cols, &kvHash);
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1444,6 +1449,18 @@ static SSmlSTableMeta* smlBuildSTableMeta(){
     uError("SML:smlBuildSTableMeta failed to allocate memory");
     goto cleanup;
   }
+
+  meta->tags = taosArrayInit(32, POINTER_BYTES);
+  if (meta->tags == NULL) {
+    uError("SML:smlBuildSTableMeta failed to allocate memory");
+    goto cleanup;
+  }
+
+  meta->cols = taosArrayInit(32, POINTER_BYTES);
+  if (meta->cols == NULL) {
+    uError("SML:smlBuildSTableMeta failed to allocate memory");
+    goto cleanup;
+  }
   return meta;
 
 cleanup:
@@ -1454,6 +1471,8 @@ cleanup:
 static void smlDestroySTableMeta(SSmlSTableMeta *meta){
   taosHashCleanup(meta->tagHash);
   taosHashCleanup(meta->fieldHash);
+  taosArrayDestroy(meta->tags);
+  taosArrayDestroy(meta->cols);
   taosMemoryFree(meta->tableMeta);
 }
 
@@ -1465,10 +1484,15 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
     return ret;
   }
 
-  SArray *cols = taosArrayInit(16, POINTER_BYTES);
-  if (cols == NULL) {
-    uError("SML:0x%"PRIx64" smlParseLine failed to allocate memory", info->id);
-    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  SArray *cols = NULL;
+  if(info->dataFormat){   // if dataFormat, cols need new memory to save data
+    cols = taosArrayInit(16, POINTER_BYTES);
+    if (cols == NULL) {
+      uError("SML:0x%"PRIx64" smlParseLine failed to allocate memory", info->id);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }else{      // if dataFormat is false, cols do not need to save data, there is another new memory to save data
+    cols = info->colsContainer;
   }
 
   ret = smlParseTS(info, elements.timestamp, elements.timestampLen, cols);
@@ -1476,7 +1500,7 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
     uError("SML:0x%"PRIx64" smlParseTS failed", info->id);
     return ret;
   }
-  ret = smlParseCols(elements.cols, elements.colsLen, cols, false, &info->msgBuf);
+  ret = smlParseCols(elements.cols, elements.colsLen, cols, false, info->dumplicateKey, &info->msgBuf);
   if(ret != TSDB_CODE_SUCCESS){
     uError("SML:0x%"PRIx64" smlParseCols parse cloums fields failed", info->id);
     return ret;
@@ -1500,46 +1524,51 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
       return ret;
     }
   }else{
-    SSmlTableInfo *tag = smlBuildTableInfo(info->dataFormat);
-    if(!tag){
+    SSmlTableInfo *tinfo = smlBuildTableInfo(info->dataFormat);
+    if(!tinfo){
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
-    ret = smlDealCols(tag, info->dataFormat, cols);
+    ret = smlDealCols(tinfo, info->dataFormat, cols);
     if(ret != TSDB_CODE_SUCCESS){
       return ret;
     }
 
-    ret = smlParseCols(elements.tags, elements.tagsLen, tag->tags, true, &info->msgBuf);
+    ret = smlParseCols(elements.tags, elements.tagsLen, tinfo->tags, true, info->dumplicateKey, &info->msgBuf);
     if(ret != TSDB_CODE_SUCCESS){
       uError("SML:0x%"PRIx64" smlParseCols parse tag fields failed", info->id);
       return ret;
     }
 
-    if(taosArrayGetSize(tag->tags) > TSDB_MAX_TAGS){
+    if(taosArrayGetSize(tinfo->tags) > TSDB_MAX_TAGS){
       smlBuildInvalidDataMsg(&info->msgBuf, "too many tags than 128", NULL);
       return TSDB_CODE_SML_INVALID_DATA;
     }
 
-    tag->sTableName = elements.measure;
-    tag->sTableNameLen = elements.measureLen;
-    smlBuildChildTableName(tag);
-    uDebug("SML:0x%"PRIx64" child table name: %s", info->id, tag->childTableName);
+    tinfo->sTableName = elements.measure;
+    tinfo->sTableNameLen = elements.measureLen;
+    smlBuildChildTableName(tinfo);
+    uDebug("SML:0x%"PRIx64" child table name: %s", info->id, tinfo->childTableName);
 
     SSmlSTableMeta** tableMeta = taosHashGet(info->superTables, elements.measure, elements.measureLen);
     if(tableMeta){  // update meta
-      ret = smlUpdateMeta(*tableMeta, tag->tags, cols, &info->msgBuf);
+      ret = smlUpdateMeta(*tableMeta, tinfo->tags, cols, &info->msgBuf);
       if(!ret){
         uError("SML:0x%"PRIx64" smlUpdateMeta failed", info->id);
         return TSDB_CODE_SML_INVALID_DATA;
       }
     }else{
       SSmlSTableMeta *meta = smlBuildSTableMeta();
-      smlInsertMeta(meta, tag->tags, cols);
+      smlInsertMeta(meta, tinfo->tags, cols);
       taosHashPut(info->superTables, elements.measure, elements.measureLen, &meta, POINTER_BYTES);
     }
 
-    taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tag, POINTER_BYTES);
+    taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tinfo, POINTER_BYTES);
   }
+
+  if(!info->dataFormat){
+    taosArrayClear(info->colsContainer);
+  }
+  taosHashClear(info->dumplicateKey);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1568,6 +1597,7 @@ static void smlDestroyInfo(SSmlHandle* info){
 
   // destroy info->pVgHash
   taosHashCleanup(info->pVgHash);
+  taosHashCleanup(info->dumplicateKey);
 
   taosMemoryFreeClear(info);
 }
@@ -1614,8 +1644,17 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
   info->superTables = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   info->pVgHash     = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
+  info->dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+  if(!dataFormat){
+    info->colsContainer = taosArrayInit(32, POINTER_BYTES);
+    if(NULL == info->colsContainer){
+      uError("SML:0x%"PRIx64" create info failed", info->id);
+      goto cleanup;
+    }
+  }
   if(NULL == info->exec || NULL == info->childTables
-      || NULL == info->superTables || NULL == info->pVgHash){
+      || NULL == info->superTables || NULL == info->pVgHash
+      || NULL == info->dumplicateKey){
     uError("SML:0x%"PRIx64" create info failed", info->id);
     goto cleanup;
   }
@@ -1651,7 +1690,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
     (*pMeta)->tableMeta->vgId = vg.vgId;
     (*pMeta)->tableMeta->uid = tableData->uid; // one table merge data block together according uid
 
-    code = smlBindData(info->exec, tableData->tags, tableData->colsFormat, tableData->columnsHash,
+    code = smlBindData(info->exec, tableData->tags, tableData->colsFormat, (*pMeta)->cols,
                        tableData->cols, info->dataFormat, (*pMeta)->tableMeta, tableData->childTableName, info->msgBuf.buf, info->msgBuf.len);
     if(code != TSDB_CODE_SUCCESS){
       return code;
@@ -1730,7 +1769,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     return NULL;
   }
 
-  SSmlHandle* info = smlBuildSmlInfo(taos, request, protocol, precision, false);
+  SSmlHandle* info = smlBuildSmlInfo(taos, request, protocol, precision, true);
   if(!info){
     return (TAOS_RES*)request;
   }
