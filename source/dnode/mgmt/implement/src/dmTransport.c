@@ -87,17 +87,14 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
-  if (pWrapper->procType == DND_PROC_SINGLE) {
+  if (pWrapper->procType != DND_PROC_PARENT) {
     dTrace("msg:%p, created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType), pRpc->handle, pMsg->user);
     code = (*msgFp)(pWrapper, pMsg);
-  } else if (pWrapper->procType == DND_PROC_PARENT) {
+  } else {
     dTrace("msg:%p, created and put into child queue, type:%s handle:%p code:0x%04x user:%s contLen:%d", pMsg,
            TMSG_INFO(msgType), pRpc->handle, pMsg->rpcMsg.code & 0XFFFF, pMsg->user, pRpc->contLen);
     code = taosProcPutToChildQ(pWrapper->procObj, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
                                (isReq && (pMsg->rpcMsg.code == 0)) ? pRpc->handle : NULL, pRpc->refId, PROC_FUNC_REQ);
-  } else {
-    dTrace("msg:%p, should not processed in child process, handle:%p user:%s", pMsg, pRpc->handle, pMsg->user);
-    ASSERT(1);
   }
 
 _OVER:
@@ -110,7 +107,7 @@ _OVER:
   } else {
     dError("msg:%p, type:%s handle:%p failed to process since 0x%04x:%s", pMsg, TMSG_INFO(msgType), pRpc->handle,
            code & 0XFFFF, terrstr());
-    if (msgType & 1U) {
+    if (isReq) {
       if (terrno != 0) code = terrno;
       if (code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_NODE_OFFLINE) {
         if (msgType > TDMT_MND_MSG && msgType < TDMT_VND_MSG) {
