@@ -204,13 +204,14 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
   // do insert data to SMemData
   SMemSkipListNode *forwards[SL_MAX_LEVEL];
   SMemSkipListNode *pNode;
+  int32_t           iRow;
   STsdbRow          tRow = {.version = version};
   SEncoder          ec = {0};
   SDecoder          dc = {0};
 
   tDecoderInit(&dc, pSubmitBlk->pData, pSubmitBlk->nData);
   tsdbMemSkipListCursorInit(pMemTb->pSlc, &pMemData->sl);
-  for (;;) {
+  for (iRow = 0;; iRow++) {
     if (tDecodeIsEnd(&dc)) break;
 
     // decode row
