@@ -1233,21 +1233,21 @@ int32_t tDeserializeSGetUserAuthRspImpl(SDecoder *pDecoder, SGetUserAuthRsp *pRs
   for (int32_t i = 0; i < numOfCreatedDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) return -1;
-    int32_t len = strlen(db) + 1;
+    int32_t len = strlen(db);
     taosHashPut(pRsp->createdDbs, db, len, db, len);
   }
 
   for (int32_t i = 0; i < numOfReadDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) return -1;
-    int32_t len = strlen(db) + 1;
+    int32_t len = strlen(db);
     taosHashPut(pRsp->readDbs, db, len, db, len);
   }
 
   for (int32_t i = 0; i < numOfWriteDbs; ++i) {
     char db[TSDB_DB_FNAME_LEN] = {0};
     if (tDecodeCStrTo(pDecoder, db) < 0) return -1;
-    int32_t len = strlen(db) + 1;
+    int32_t len = strlen(db);
     taosHashPut(pRsp->writeDbs, db, len, db, len);
   }
 
