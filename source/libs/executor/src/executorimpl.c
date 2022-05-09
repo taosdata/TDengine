@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <libs/function/function.h>
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -803,7 +804,8 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunction
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       pCtx[k].startTs = startTs;  // this can be set during create the struct
-      pCtx[k].fpSet.process(&pCtx[k]);
+      if (pCtx[k].fpSet.process != NULL)
+        pCtx[k].fpSet.process(&pCtx[k]);
     }
   }
 }
@@ -1074,35 +1076,36 @@ void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExprInfo, SSDataBlock*
 // set the output buffer for the selectivity + tag query
 static int32_t setCtxTagColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   int32_t num = 0;
-  int16_t tagLen = 0;
 
   SqlFunctionCtx*  p = NULL;
-  SqlFunctionCtx** pTagCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
-  if (pTagCtx == NULL) {
+  SqlFunctionCtx** pValCtx = taosMemoryCalloc(numOfOutput, POINTER_BYTES);
+  if (pValCtx == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
   for (int32_t i = 0; i < numOfOutput; ++i) {
-    int32_t functionId = pCtx[i].functionId;
-
-    if (functionId == FUNCTION_TAG_DUMMY || functionId == FUNCTION_TS_DUMMY) {
-      tagLen += pCtx[i].resDataInfo.bytes;
-      pTagCtx[num++] = &pCtx[i];
-    } else if (1 /*(aAggs[functionId].status & FUNCSTATE_SELECTIVITY) != 0*/) {
-      p = &pCtx[i];
-    } else if (functionId == FUNCTION_TS || functionId == FUNCTION_TAG) {
-      // tag function may be the group by tag column
-      // ts may be the required primary timestamp column
-      continue;
+    if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+      pValCtx[num++] = &pCtx[i];
     } else {
-      // the column may be the normal column, group by normal_column, the functionId is FUNCTION_PRJ
+      p = &pCtx[i];
     }
+//    if (functionId == FUNCTION_TAG_DUMMY || functionId == FUNCTION_TS_DUMMY) {
+//      tagLen += pCtx[i].resDataInfo.bytes;
+//      pTagCtx[num++] = &pCtx[i];
+//    } else if (functionId == FUNCTION_TS || functionId == FUNCTION_TAG) {
+//      // tag function may be the group by tag column
+//      // ts may be the required primary timestamp column
+//      continue;
+//    } else {
+//      // the column may be the normal column, group by normal_column, the functionId is FUNCTION_PRJ
+//    }
   }
+
   if (p != NULL) {
-    p->subsidiaries.pCtx = pTagCtx;
+    p->subsidiaries.pCtx = pValCtx;
     p->subsidiaries.num = num;
   } else {
-    taosMemoryFreeClear(pTagCtx);
+    taosMemoryFreeClear(pValCtx);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -2219,6 +2222,8 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbased
       pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
       if (pCtx[j].fpSet.process) {
         pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
+        // do nothing, todo refactor
       } else {
         SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
 
@@ -3974,6 +3979,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
 
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -4037,8 +4043,12 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
-    projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfExprs,
+    pTaskInfo->code = projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfExprs,
                           pProjectInfo->pPseudoColInfo);
+
+    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, pTaskInfo->code);
+    }
 
     int32_t status = handleLimitOffset(pOperator, pBlock);
     if (status == PROJECT_RETRIEVE_CONTINUE) {
