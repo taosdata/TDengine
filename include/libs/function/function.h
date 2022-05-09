@@ -336,6 +336,17 @@ int32_t udfcOpen();
  */
 int32_t udfcClose();
 
+/**
+ * start udfd that serves udf function invocation under dnode startDnodeId
+ * @param startDnodeId
+ * @return
+ */
+int32_t udfStartUdfd(int32_t startDnodeId);
+/**
+ * stop udfd
+ * @return
+ */
+int32_t udfStopUdfd();
 #ifdef __cplusplus
 }
 #endif
