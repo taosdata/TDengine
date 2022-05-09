@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "smInt.h"
+#include "libs/function/function.h"
 
 static int32_t smRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
 
@@ -29,6 +30,9 @@ static void smClose(SMgmtWrapper *pWrapper) {
   if (pMgmt == NULL) return;
 
   dInfo("snode-mgmt start to cleanup");
+
+  udfcClose();
+
   if (pMgmt->pSnode != NULL) {
     smStopWorker(pMgmt);
     sndClose(pMgmt->pSnode);
@@ -67,6 +71,10 @@ int32_t smOpen(SMgmtWrapper *pWrapper) {
     return -1;
   }
   dmReportStartup(pWrapper->pDnode, "snode-worker", "initialized");
+
+  if (udfcOpen() != 0) {
+    dError("failed to open udfc in snode");
+  }
 
   return 0;
 }
