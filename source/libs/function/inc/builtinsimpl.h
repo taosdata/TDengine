@@ -55,6 +55,12 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx);
 int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 int32_t stddevInvertFunction(SqlFunctionCtx* pCtx);
 
+bool getLeastSQRFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool leastSQRFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t leastSQRFunction(SqlFunctionCtx* pCtx);
+int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t leastSQRInvertFunction(SqlFunctionCtx* pCtx);
+
 bool getPercentileFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool percentileFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t percentileFunction(SqlFunctionCtx *pCtx);

@@ -225,6 +225,23 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (3 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+    if (!IS_NUMERIC_TYPE(colType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY };
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (4 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -534,6 +551,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stddevFunction,
     .finalizeFunc = stddevFinalize,
     .invertFunc   = stddevInvertFunction
+  },
+  {
+    .name = "leastsquares",
+    .type = FUNCTION_TYPE_LEASTSQUARES,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateLeastSQR,
+    .getEnvFunc   = getLeastSQRFuncEnv,
+    .initFunc     = leastSQRFunctionSetup,
+    .processFunc  = leastSQRFunction,
+    .finalizeFunc = leastSQRFinalize,
+    .invertFunc   = leastSQRInvertFunction
   },
   {
     .name = "avg",
