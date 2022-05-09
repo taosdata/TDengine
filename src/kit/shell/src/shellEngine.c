@@ -244,22 +244,34 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   int64_t   st, et;
   wordexp_t full_path;
   char *    sptr = NULL;
+  char *    tmp = NULL;
   char *    cptr = NULL;
   char *    fname = NULL;
   bool      printMode = false;
 
-  if ((sptr = tstrstr(command, ">>", true)) != NULL) {
-    cptr = tstrstr(command, ";", true);
-    if (cptr != NULL) {
-      *cptr = '\0';
-    }
+  sptr = command;
+  while ((sptr = tstrstr(sptr, ">>", true)) != NULL) {
+    // find the last ">>" if any
+    tmp = sptr;
+    sptr += 2;
+  }
 
-    if (wordexp(sptr + 2, &full_path, 0) != 0) {
-      fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
-      return;
+  sptr = tmp;
+
+  if (sptr != NULL) {
+    if (regex_match(sptr + 2, "^\\s*[0-9]+\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.*;\\s*$", REG_EXTENDED | REG_ICASE) == 0) {
+      cptr = tstrstr(command, ";", true);
+      if (cptr != NULL) {
+        *cptr = '\0';
+      }
+
+      if (wordexp(sptr + 2, &full_path, 0) != 0) {
+        fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
+        return;
+      }
+      *sptr = '\0';
+      fname = full_path.we_wordv[0];
     }
-    *sptr = '\0';
-    fname = full_path.we_wordv[0];
   }
 
   if ((sptr = tstrstr(command, "\\G", true)) != NULL) {

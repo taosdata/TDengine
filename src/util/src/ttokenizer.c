@@ -58,6 +58,7 @@ static SKeyword keywordTable[] = {
     {"IN",           TK_IN},
     {"BITAND",       TK_BITAND},
     {"BITOR",        TK_BITOR},
+    {"BITXOR",       TK_BITXOR},
     {"LSHIFT",       TK_LSHIFT},
     {"RSHIFT",       TK_RSHIFT},
     {"PLUS",         TK_PLUS},
@@ -409,6 +410,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
     }
     case '~': {
       *tokenId = TK_BITNOT;
+      return 1;
+    }
+    case '^': {
+      *tokenId = TK_BITXOR;
       return 1;
     }
     case '?': {
