@@ -1057,7 +1057,7 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       pMsgSendInfo->fp = loadSysTableCallback;
 
       int64_t transporterId = 0;
-      int32_t code = asyncSendMsgToServer(pInfo->pTransporter, &pInfo->epSet, &transporterId, pMsgSendInfo);
+      int32_t code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb, NULL, &pInfo->epSet, &transporterId, pMsgSendInfo);
       tsem_wait(&pInfo->ready);
 
       if (pTaskInfo->code) {
@@ -1182,29 +1182,7 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* readHandle, SSDataBlock* pRe
   } else {
     tsem_init(&pInfo->ready, 0, 0);
     pInfo->epSet = epset;
-
-#if 1
-    {  // todo refactor
-      SRpcInit rpcInit;
-      memset(&rpcInit, 0, sizeof(rpcInit));
-      rpcInit.localPort = 0;
-      rpcInit.label = "DB-META";
-      rpcInit.numOfThreads = 1;
-      rpcInit.cfp = qProcessFetchRsp;
-      rpcInit.sessions = tsMaxConnections;
-      rpcInit.connType = TAOS_CONN_CLIENT;
-      rpcInit.user = (char*)"root";
-      rpcInit.idleTime = tsShellActivityTimer * 1000;
-      rpcInit.ckey = "key";
-      rpcInit.spi = 1;
-      rpcInit.secret = (char*)"dcc5bed04851fec854c035b2e40263b6";
-
-      pInfo->pTransporter = rpcOpen(&rpcInit);
-      if (pInfo->pTransporter == NULL) {
-        return NULL;  // todo
-      }
-    }
-#endif
+    pInfo->readHandle = *(SReadHandle*)readHandle;
   }
 
   pOperator->name = "SysTableScanOperator";

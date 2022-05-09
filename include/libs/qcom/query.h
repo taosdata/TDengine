@@ -24,6 +24,7 @@ extern "C" {
 #include "thash.h"
 #include "tlog.h"
 #include "tmsg.h"
+#include "tmsgcb.h"
 
 typedef enum {
   JOB_TASK_STATUS_NULL = 0,
@@ -149,7 +150,7 @@ int32_t cleanupTaskQueue();
  */
 int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code);
 
-int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo, bool persistHandle, void *ctx);
+int32_t asyncSendMsgToServerExt(SMsgCb *pMsgCb, void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo, bool persistHandle, void *ctx);
 
 /**
  * Asynchronously send message to server, after the response received, the callback will be incured.
@@ -160,7 +161,7 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
  * @param pInfo
  * @return
  */
-int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
+int32_t asyncSendMsgToServer(SMsgCb *pMsgCb, void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo);
 
 int32_t queryBuildUseDbOutput(SUseDbOutput* pOut, SUseDbRsp* usedbRsp);
 

@@ -51,7 +51,7 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   qTrace("message in qnode query queue is processing");
-  SReadHandle handle = {0};
+  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY: {
