@@ -207,7 +207,8 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 }
 
 static int32_t translateBottom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // todo
+  SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -569,7 +570,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateTop,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
@@ -579,12 +580,12 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateBottom,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
-    .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .processFunc  = bottomFunction,
+    .finalizeFunc = topBotFinalize
   },
   {
     .name = "spread",
