@@ -395,7 +395,7 @@ tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
   }
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* topic = taosArrayGet(tmq->clientTopics, i);
-    tmq_list_append(*topics, topic->topicName);
+    tmq_list_append(*topics, strchr(topic->topicName, '.') + 1);
   }
   return TMQ_RESP_ERR__SUCCESS;
 }
