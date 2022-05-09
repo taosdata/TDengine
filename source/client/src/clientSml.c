@@ -15,6 +15,7 @@
 #include "tcommon.h"
 #include "catalog.h"
 #include "clientInt.h"
+#include "tname.h"
 //=================================================================================================
 
 #define SPACE ' '
@@ -161,19 +162,6 @@ static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const 
     strncat(pBuf->buf, msg2, left - 2);
   }
   return TSDB_CODE_SML_INVALID_DATA;
-}
-
-static int smlCompareKv(const void* p1, const void* p2) {
-  SSmlKv* kv1 = *(SSmlKv**)p1;
-  SSmlKv* kv2 = *(SSmlKv**)p2;
-  int32_t kvLen1 = kv1->keyLen;
-  int32_t kvLen2 = kv2->keyLen;
-  int32_t res = strncasecmp(kv1->key, kv2->key, TMIN(kvLen1, kvLen2));
-  if (res != 0) {
-    return res;
-  } else {
-    return kvLen1-kvLen2;
-  }
 }
 
 static void smlBuildChildTableName(SSmlTableInfo *tags) {
@@ -943,20 +931,6 @@ static bool smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
   return false;
 }
 
-static bool checkDuplicateKey(char *key, SHashObj *pHash, SSmlHandle* info) {
-  char *val = NULL;
-  val = taosHashGet(pHash, key, strlen(key));
-  if (val) {
-    uError("SML:0x%"PRIx64" Duplicate key detected:%s", info->id, key);
-    return true;
-  }
-
-  uint8_t dummy_val = 0;
-  taosHashPut(pHash, key, strlen(key), &dummy_val, sizeof(uint8_t));
-
-  return false;
-}
-
 static int32_t smlParseString(const char* sql, SSmlLineInfo *elements, SSmlMsgBuf *msg){
   if(!sql) return TSDB_CODE_SML_INVALID_DATA;
   while (*sql != '\0') {           // jump the space at the begining
@@ -1563,8 +1537,10 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
 
     tinfo->sTableName = elements.measure;
     tinfo->sTableNameLen = elements.measureLen;
-    smlBuildChildTableName(tinfo);
-    //uDebug("SML:0x%"PRIx64" child table name: %s", info->id, tinfo->childTableName);
+    RandTableName rName = {.tags=tinfo->tags, .sTableName=tinfo->sTableName, .sTableNameLen=tinfo->sTableNameLen,
+                            .childTableName=tinfo->childTableName};
+    buildChildTableName(&rName);
+    tinfo->uid = rName.uid;
 
     SSmlSTableMeta** tableMeta = taosHashGet(info->superTables, elements.measure, elements.measureLen);
     if(tableMeta){  // update meta
@@ -1724,17 +1700,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
   return info->pRequest->code;
 }
 
-int32_t numOfSTables;
-int32_t numOfCTables;
-int32_t numOfCreateSTables;
-
-int64_t parseTime;
-int64_t schemaTime;
-int64_t insertBindTime;
-int64_t insertRpcTime;
-int64_t endTime;
-
-static void printStatisticInfo(SSmlHandle *info){
+static void smlPrintStatisticInfo(SSmlHandle *info){
   uError("SML:0x%"PRIx64" smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d \
         parse cost:%lld,schema cost:%lld,bind cost:%lld,rpc cost:%lld,total cost:%lld", info->id, info->cost.code,
          info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables, info->cost.numOfCreateSTables,
@@ -1782,7 +1748,7 @@ static int smlInsertLines(SSmlHandle *info, char* lines[], int numLines) {
 
 cleanup:
   info->cost.code = code;
-  printStatisticInfo(info);
+  smlPrintStatisticInfo(info);
   return code;
 }
 
