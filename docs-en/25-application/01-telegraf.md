@@ -5,7 +5,7 @@ title: Quickly Build IT Operations Presentation System with TDengine + Telegraf 
 
 ## Background
 
-TDengine is a big data platform designed and optimized for IoT, Telematics, Industrial Internet, IT operation and maintenance by TAOS Data. Since its open source in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, fast installation, easy-to-use programming interface and powerful data writing and query performance.
+TDengine is a big data platform designed and optimized for IoT, Telematics, Industrial Internet, IT operation and maintenance by TAOSData. Since its open source in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, fast installation, easy-to-use programming interface and powerful data writing and query performance.
 
 IT operations and maintenance monitoring data are usually data that are sensitive to temporal characteristics, such as
 

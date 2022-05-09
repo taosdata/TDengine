@@ -5,7 +5,7 @@ title: Quickly build an IT operations monitoring system using TDengine + collect
 
 ## Background
 
-TDengine is a big data platform designed and optimized for IoT, Telematics, Industrial Internet, IT operation and maintenance by TAOS Data. Since its open source in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, fast installation, easy-to-use programming interface and powerful data writing and query performance.
+TDengine is a big data platform designed and optimized for IoT, Telematics, Industrial Internet, IT operation and maintenance by TAOSData. Since its open source in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, fast installation, easy-to-use programming interface and powerful data writing and query performance.
 
 IT operations and maintenance monitoring data are usually data that are sensitive to temporal characteristics, such as
 
@@ -37,7 +37,7 @@ Please refer to the [official documentation](https://grafana.com/grafana/downloa
 
 ### Install TDengine
 
-Download the latest TDengine-server 2.3.0.0 or above from the [Downloads](http://taosdata.com/cn/all-downloads/) page on the TAOS Data website and install it.
+Download the latest TDengine-server 2.3.0.0 or above from the [Downloads](http://taosdata.com/cn/all-downloads/) page on the TAOSData website and install it.
 
 ## Data Link Setup
 
