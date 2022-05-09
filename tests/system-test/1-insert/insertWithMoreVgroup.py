@@ -219,7 +219,7 @@ class TDTestCase:
         for i in range(threadNumbers):
             jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
             os.system("cp -f 1-insert/manyVgroups.json   %s"%(jsonfile))
-            os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s%d\",/g' %s"%(dbname,i,jsonfile))
+            os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
             os.system("sed -i 's/\"childtable_count\": 300000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
             os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
             os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
@@ -337,8 +337,10 @@ class TDTestCase:
         return
 
     def test_case3(self):
-
         self.taosBenchCreate("db1", "stb1", 1, 2, 1*50000)
+
+        # self.taosBenchCreate("db1", "stb1", 4, 5, 100*10000)
+        # self.taosBenchCreate("db1", "stb1", 1, 5, 100*10000)
 
         return 
 

@@ -16,7 +16,7 @@
         {
             "dbinfo": {
                 "name": "db",
-                "drop": "yes",
+                "drop": "no",
                 "vgroups": 1
             },
             "super_tables": [
