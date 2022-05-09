@@ -111,42 +111,9 @@ class TDTestCase:
                 if len(tblist) > 2 or len(tblist) < 1:
                     tdSql.error(sql=sql)
 
-    # def __join_err_check(self,tbname):
-    #     sqls = []
-
-    #     for un_char_col in NUM_COL:
-    #         sqls.extend(
-    #             (
-    #                 f"select length( {un_char_col} ) from {tbname} ",
-    #                 f"select length(ceil( {un_char_col} )) from {tbname} ",
-    #                 f"select {un_char_col} from {tbname} group by length( {un_char_col} ) ",
-    #             )
-    #         )
-
-    #         sqls.extend( f"select length( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in NUM_COL )
-    #         sqls.extend( f"select length( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-
-    #     sqls.extend( f"select {char_col} from {tbname} group by length( {char_col} ) " for char_col in CHAR_COL)
-    #     sqls.extend( f"select length( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-    #     sqls.extend( f"select length( {char_col} + {ts_col} ) from {tbname} " for char_col in NUM_COL for ts_col in TS_TYPE_COL)
-    #     sqls.extend( f"select length( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-    #     sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
-    #     sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
-    #     sqls.extend(
-    #         (
-    #             f"select length() from {tbname} ",
-    #             f"select length(*) from {tbname} ",
-    #             f"select length(ccccccc) from {tbname} ",
-    #             f"select length(111) from {tbname} ",
-    #             f"select length(c8, 11) from {tbname} ",
-    #         )
-    #     )
-
-    #     return sqls
-
     def __join_current(self, sql, checkrows):
         tdSql.query(sql=sql)
-        tdSql.checkRows(checkrows)
+        # tdSql.checkRows(checkrows)
 
 
     def __test_current(self):
