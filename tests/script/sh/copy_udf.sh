@@ -5,7 +5,7 @@ set +e
 
 echo "Executing copy_udf.sh"
 
-SCRIPT_DIR=`dirname $0`
+SCRIPT_DIR=`pwd`
 cd $SCRIPT_DIR/../
 
 IN_TDINTERNAL="community"

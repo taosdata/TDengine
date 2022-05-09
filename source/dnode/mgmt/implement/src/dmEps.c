@@ -51,7 +51,7 @@ int32_t dmReadEps(SDnode *pDnode) {
   pDnode->data.dnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
   if (pDnode->data.dnodeEps == NULL) {
     dError("failed to calloc dnodeEp array since %s", strerror(errno));
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
 
   snprintf(file, sizeof(file), "%s%sdnode.json", pDnode->wrappers[DNODE].path, TD_DIRSEP);
@@ -59,53 +59,53 @@ int32_t dmReadEps(SDnode *pDnode) {
   if (pFile == NULL) {
     // dDebug("file %s not exist", file);
     code = 0;
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
 
   len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
 
   content[len] = 0;
   root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read %s since invalid json format", file);
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
 
   cJSON *dnodeId = cJSON_GetObjectItem(root, "dnodeId");
   if (!dnodeId || dnodeId->type != cJSON_Number) {
     dError("failed to read %s since dnodeId not found", file);
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
   pDnode->data.dnodeId = dnodeId->valueint;
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
     dError("failed to read %s since clusterId not found", file);
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
   pDnode->data.clusterId = atoll(clusterId->valuestring);
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
   if (!dropped || dropped->type != cJSON_Number) {
     dError("failed to read %s since dropped not found", file);
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
   pDnode->data.dropped = dropped->valueint;
 
   cJSON *dnodes = cJSON_GetObjectItem(root, "dnodes");
   if (!dnodes || dnodes->type != cJSON_Array) {
     dError("failed to read %s since dnodes not found", file);
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
 
   int32_t numOfDnodes = cJSON_GetArraySize(dnodes);
   if (numOfDnodes <= 0) {
     dError("failed to read %s since numOfDnodes:%d invalid", file, numOfDnodes);
-    goto PRASE_DNODE_OVER;
+    goto _OVER;
   }
 
   for (int32_t i = 0; i < numOfDnodes; ++i) {
@@ -117,7 +117,7 @@ int32_t dmReadEps(SDnode *pDnode) {
     cJSON *did = cJSON_GetObjectItem(node, "id");
     if (!did || did->type != cJSON_Number) {
       dError("failed to read %s since dnodeId not found", file);
-      goto PRASE_DNODE_OVER;
+      goto _OVER;
     }
 
     dnodeEp.id = did->valueint;
@@ -125,14 +125,14 @@ int32_t dmReadEps(SDnode *pDnode) {
     cJSON *dnodeFqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!dnodeFqdn || dnodeFqdn->type != cJSON_String || dnodeFqdn->valuestring == NULL) {
       dError("failed to read %s since dnodeFqdn not found", file);
-      goto PRASE_DNODE_OVER;
+      goto _OVER;
     }
     tstrncpy(dnodeEp.ep.fqdn, dnodeFqdn->valuestring, TSDB_FQDN_LEN);
 
     cJSON *dnodePort = cJSON_GetObjectItem(node, "port");
     if (!dnodePort || dnodePort->type != cJSON_Number) {
       dError("failed to read %s since dnodePort not found", file);
-      goto PRASE_DNODE_OVER;
+      goto _OVER;
     }
 
     dnodeEp.ep.port = dnodePort->valueint;
@@ -140,7 +140,7 @@ int32_t dmReadEps(SDnode *pDnode) {
     cJSON *isMnode = cJSON_GetObjectItem(node, "isMnode");
     if (!isMnode || isMnode->type != cJSON_Number) {
       dError("failed to read %s since isMnode not found", file);
-      goto PRASE_DNODE_OVER;
+      goto _OVER;
     }
     dnodeEp.isMnode = isMnode->valueint;
 
@@ -151,7 +151,7 @@ int32_t dmReadEps(SDnode *pDnode) {
   dDebug("succcessed to read file %s", file);
   dmPrintEps(pDnode);
 
-PRASE_DNODE_OVER:
+_OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
@@ -176,7 +176,7 @@ PRASE_DNODE_OVER:
 
 int32_t dmWriteEps(SDnode *pDnode) {
   char file[PATH_MAX] = {0};
-  char realfile[PATH_MAX];
+  char realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%sdnode.json.bak", pDnode->wrappers[DNODE].path, TD_DIRSEP);
   snprintf(realfile, sizeof(realfile), "%s%sdnode.json", pDnode->wrappers[DNODE].path, TD_DIRSEP);
 

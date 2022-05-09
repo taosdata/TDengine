@@ -80,6 +80,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
 void    taosFprintfFile(TdFilePtr pFile, const char *format, ...);
 
 int64_t taosGetLineFile(TdFilePtr pFile, char ** __restrict ptrBuf);
+int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf);
 
 int32_t taosEOFFile(TdFilePtr pFile);
  

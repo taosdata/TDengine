@@ -23,7 +23,6 @@ extern "C" {
 #define TDENGINE_SYSTABLE_H
 
 #define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
-#define TSDB_PERFORMANCE_SCHEMA_DB            "performance_schema"
 #define TSDB_INS_TABLE_DNODES                 "dnodes"
 #define TSDB_INS_TABLE_MNODES                 "mnodes"
 #define TSDB_INS_TABLE_MODULES                "modules"
