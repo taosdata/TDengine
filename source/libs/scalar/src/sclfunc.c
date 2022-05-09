@@ -432,7 +432,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     if (pInput[i].numOfRows == 1) {
       inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * factor * (numOfRows - numOfNulls);
     } else {
-      inputLen += pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE;
+      inputLen += (pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE) * factor;
     }
   }
 
@@ -510,7 +510,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     } else if (pInput[i].numOfRows == 1) {
       inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * (numOfRows - numOfNulls) * factor;
     } else {
-      inputLen += pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE;
+      inputLen += (pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE) * factor;
     }
   }
 
@@ -709,10 +709,6 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
-  if (IS_VAR_DATA_TYPE(outputType)) {
-    outputLen += VARSTR_HEADER_SIZE;
-  }
-
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
   char *output = outputBuf;
 
@@ -826,7 +822,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           varDataSetLen(output, len);
         }
         //for constant conversion, need to set proper length of pOutput description
-        if (len < outputLen - VARSTR_HEADER_SIZE) {
+        if (len < outputLen) {
           pOutput->columnData->info.bytes = len;
         }
         break;

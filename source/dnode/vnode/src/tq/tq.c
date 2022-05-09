@@ -886,25 +886,48 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
   }
 }
 
-int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
-  if (pTask->execType == TASK_EXEC__NONE) return 0;
+void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
+  const SArray* pRes = (const SArray*)data;
+  SVnode*       pVnode = (SVnode*)vnode;
 
-  pTask->exec.numOfRunners = parallel;
-  pTask->exec.runners = taosMemoryCalloc(parallel, sizeof(SStreamRunner));
-  if (pTask->exec.runners == NULL) {
-    return -1;
+  ASSERT(pTask->tbSink.pTSchema);
+  SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid, pVnode->config.vgId);
+  /*tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);*/
+  // build write msg
+  SRpcMsg msg = {
+      .msgType = TDMT_VND_SUBMIT,
+      .pCont = pReq,
+      .contLen = ntohl(pReq->length),
+  };
+
+  ASSERT(tmsgPutToQueue(&pVnode->msgCb, WRITE_QUEUE, &msg) == 0);
+}
+
+int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
+  if (pTask->execType != TASK_EXEC__NONE) {
+    // expand runners
+    pTask->exec.numOfRunners = parallel;
+    pTask->exec.runners = taosMemoryCalloc(parallel, sizeof(SStreamRunner));
+    if (pTask->exec.runners == NULL) {
+      return -1;
+    }
+    for (int32_t i = 0; i < parallel; i++) {
+      STqReadHandle* pStreamReader = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
+      SReadHandle    handle = {
+             .reader = pStreamReader,
+             .meta = pTq->pVnode->pMeta,
+      };
+      pTask->exec.runners[i].inputHandle = pStreamReader;
+      pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
+      ASSERT(pTask->exec.runners[i].executor);
+    }
   }
-  for (int32_t i = 0; i < parallel; i++) {
-    STqReadHandle* pStreamReader = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-    SReadHandle    handle = {
-           .reader = pStreamReader,
-           .meta = pTq->pVnode->pMeta,
-           .pMsgCb = &pTq->pVnode->msgCb,
-    };
-    pTask->exec.runners[i].inputHandle = pStreamReader;
-    pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
-    ASSERT(pTask->exec.runners[i].executor);
+
+  if (pTask->sinkType == TASK_SINK__TABLE) {
+    pTask->tbSink.vnode = pTq->pVnode;
+    pTask->tbSink.tbSinkFunc = tqTableSink;
   }
+
   return 0;
 }
 
@@ -928,7 +951,7 @@ int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen) {
   // sink
   pTask->ahandle = pTq->pVnode;
   if (pTask->sinkType == TASK_SINK__SMA) {
-    pTask->smaSink.smaHandle = smaHandleRes;
+    pTask->smaSink.smaSink = smaHandleRes;
   } else if (pTask->sinkType == TASK_SINK__TABLE) {
     ASSERT(pTask->tbSink.pSchemaWrapper);
     ASSERT(pTask->tbSink.pSchemaWrapper->pSchema);

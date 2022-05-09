@@ -967,7 +967,7 @@ static void mndTransResetActions(SMnode *pMnode, STrans *pTrans, SArray *pArray)
     pAction->msgSent = 0;
     pAction->msgReceived = 0;
     pAction->errCode = 0;
-    mDebug("trans:%d, action:%d is reset and will be re-executed", pTrans->id, action);
+    mDebug("trans:%d, action:%d execute status is reset", pTrans->id, action);
   }
 }
 
@@ -1043,7 +1043,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
       return errCode;
     }
   } else {
-    mDebug("trans:%d, %d of %d actions executing", pTrans->id, numOfReceived, numOfActions);
+    mDebug("trans:%d, %d of %d actions executed", pTrans->id, numOfReceived, numOfActions);
     return TSDB_CODE_MND_ACTION_IN_PROGRESS;
   }
 }
@@ -1405,15 +1405,18 @@ static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataAppend(pColInfo, numOfRows, (const char *)dbname, false);
 
     char type[TSDB_TRANS_TYPE_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(dbname, mndTransType(pTrans->type), pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(type, mndTransType(pTrans->type), pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)type, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->failedTimes, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pTrans->lastExecTime, false);
 
     char lastError[TSDB_TRANS_ERROR_LEN + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(dbname, pTrans->lastError, pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(lastError, pTrans->lastError, pShow->pMeta->pSchemas[cols].bytes);
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)lastError, false);
 

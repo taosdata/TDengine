@@ -190,17 +190,21 @@ TEST(testCase, smlParseCols_Error_Test) {
     "c=-3.402823466e+39u64",
     "c=-339u64",
     "c=18446744073709551616u64",
+    "c=1,c=2"
   };
 
+  SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
   for(int i = 0; i < sizeof(data)/sizeof(data[0]); i++){
     char       msg[256] = {0};
     SSmlMsgBuf msgBuf;
     msgBuf.buf = msg;
     msgBuf.len = 256;
     int32_t len = strlen(data[i]);
-    int32_t ret = smlParseCols(data[i], len, NULL, false, &msgBuf);
+    int32_t ret = smlParseCols(data[i], len, NULL, false, dumplicateKey, &msgBuf);
     ASSERT_NE(ret, TSDB_CODE_SUCCESS);
+    taosHashClear(dumplicateKey);
   }
+  taosHashCleanup(dumplicateKey);
 }
 
 TEST(testCase, smlParseCols_tag_Test) {
@@ -211,11 +215,12 @@ TEST(testCase, smlParseCols_tag_Test) {
 
   SArray *cols = taosArrayInit(16, POINTER_BYTES);
   ASSERT_NE(cols, NULL);
+  SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   const char *data =
       "cbin=\"passit hello,c=2\",cnch=L\"iisdfsf\",cbool=false,cf64=4.31f64,cf32_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
   int32_t len = strlen(data);
-  int32_t ret = smlParseCols(data, len, cols, true, &msgBuf);
+  int32_t ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
@@ -239,10 +244,14 @@ TEST(testCase, smlParseCols_tag_Test) {
   taosMemoryFree(kv);
 
   taosArrayClear(cols);
+
+
+  // test tag is null
   data = "t=3e";
   len = 0;
   memset(msgBuf.buf, 0, msgBuf.len);
-  ret = smlParseCols(data, len, cols, true, &msgBuf);
+  taosHashClear(dumplicateKey);
+  ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 1);
@@ -255,6 +264,9 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(kv->valueLen, strlen(TAG));
   ASSERT_EQ(strncasecmp(kv->value, TAG, strlen(TAG)), 0);
   taosMemoryFree(kv);
+
+  taosArrayDestroy(cols);
+  taosHashCleanup(dumplicateKey);
 }
 
 TEST(testCase, smlParseCols_Test) {
@@ -266,9 +278,11 @@ TEST(testCase, smlParseCols_Test) {
   SArray *cols = taosArrayInit(16, POINTER_BYTES);
   ASSERT_NE(cols, NULL);
 
+  SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
+
   const char *data = "cbin=\"passit hello,c=2\",cnch=L\"iisdfsf\",cbool=false,cf64=4.31f64,cf32_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
   int32_t len = strlen(data);
-  int32_t ret = smlParseCols(data, len, cols, false, &msgBuf);
+  int32_t ret = smlParseCols(data, len, cols, false, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
@@ -450,6 +464,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   taosArrayDestroy(cols);
+  taosHashCleanup(dumplicateKey);
 }
 
 TEST(testCase, smlParseLine_Test) {
@@ -468,15 +483,45 @@ TEST(testCase, smlParseLine_Test) {
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
   ASSERT_NE(info, NULL);
 
-  const char *sql[3] = {
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451606400000000000",
+  const char *sql[9] = {
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0 1451606400000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451607400000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,heading=221,grade=0,fuel_consumption=25 1451608400000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451609400000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451619400000000000",
     "readings,name=truck_1,fleet=South,driver=Albert,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=72.45258,longitude=68.83761,elevation=255,velocity=0,heading=181,grade=0,fuel_consumption=25 1451606400000000000",
-    "readings,name=truck_2,fleet=North,driver=Derek,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606400000000000"
+    "readings,name=truck_2,driver=Derek,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606400000000000",
+    "readings,name=truck_2,fleet=North,driver=Derek,model=F-150 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451609400000000000",
+    "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451629400000000000"
   };
-  smlInsertLines(info, sql, 3);
+  smlInsertLines(info, sql, 9);
 //  for (int i = 0; i < 3; i++) {
 //    smlParseLine(info, sql[i]);
 //  }
+}
+
+TEST(testCase, smlParseLine_error_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, NULL);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = createRequest(taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, NULL);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  ASSERT_NE(info, NULL);
+
+  const char *sql[2] = {
+      "measure,t1=3 c1=8",
+      "measure,t2=3 c1=8u8"
+  };
+  int ret = smlInsertLines(info, sql, 2);
+  ASSERT_NE(ret, 0);
 }
 
 // TEST(testCase, smlParseTS_Test) {

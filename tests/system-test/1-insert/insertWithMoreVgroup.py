@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import sys
+import os
 import threading
 import multiprocessing as mp
 from numpy.lib.function_base import insert
@@ -66,13 +67,18 @@ class TDTestCase:
     # run case   
     def run(self):
 
-        #  test base case
-        self.test_case1()
-        tdLog.debug(" LIMIT test_case1 ............ [OK]")
+        # #  test base case
+        # self.test_case1()
+        # tdLog.debug(" LIMIT test_case1 ............ [OK]")
 
-        # test advance case
+        # test case
         # self.test_case2()
         # tdLog.debug(" LIMIT test_case2 ............ [OK]")
+
+        # test case
+        self.test_case3()
+        tdLog.debug(" LIMIT test_case3 ............ [OK]")
+
 
     # stop 
     def stop(self):
@@ -115,11 +121,12 @@ class TDTestCase:
         return cur
 
     def new_create_tables(self,dbname,vgroups,stbname,tcountStart,tcountStop):
-        host = "chenhaoran02"
+        host = "localhost"
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         
         tsql=self.newcur(host,config)
+        tsql.execute("drop database if exists %s"%dbname)
         tsql.execute("create database %s vgroups %d"%(dbname,vgroups))
         tsql.execute("use %s" %dbname)
         tsql.execute("create stable %s(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%stbname)
@@ -182,7 +189,52 @@ class TDTestCase:
         tdLog.debug("INSERT TABLE DATA ............ [OK]")
         return
 
+    def taosBench(self,jsonFile):
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
+        os.system("%s -f %s -y " %(taosBenchbin,jsonFile))
+       
+        return
+    def taosBenchCreate(self,dbname,stbname,vgroups,threadNumbers,count):
+        # count=50000
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
 
+        # insert: create one  or mutiple tables per sql and insert multiple rows per sql
+        tdSql.execute("drop database if exists %s"%dbname)
+
+        tdSql.execute("create database %s vgroups %d"%(dbname,vgroups))
+        tdSql.execute("use %s" %dbname)
+    
+        threads = []
+        # threadNumbers=2
+        for i in range(threadNumbers):
+            jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
+            os.system("cp -f 1-insert/manyVgroups.json   %s"%(jsonfile))
+            os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s%d\",/g' %s"%(dbname,i,jsonfile))
+            os.system("sed -i 's/\"childtable_count\": 300000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
+            os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
+            os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
+            threads.append(mp.Process(target=self.taosBench, args=("%s"%jsonfile,))) 
+        start_time = time.time()
+        for tr in threads:
+            tr.start()
+        for tr in threads:
+            tr.join()
+        end_time = time.time()
+
+        spendTime=end_time-start_time
+        speedCreate=count/spendTime
+        tdLog.debug("spent %.2fs to create 1 stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,count,speedCreate))
+        return
     # test case1 base 
     def test_case1(self):
         tdLog.debug("-----create database and tables test------- ")
@@ -283,6 +335,12 @@ class TDTestCase:
         self.insert_data("db16", "stb16", self.ts, 1*100,1*10000)
                 
         return
+
+    def test_case3(self):
+
+        self.taosBenchCreate("db1", "stb1", 1, 2, 1*50000)
+
+        return 
 
 #
 # add case with filename

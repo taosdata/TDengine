@@ -55,6 +55,7 @@ void dmCleanup() {
   monCleanup();
   syncCleanUp();
   walCleanUp();
+  udfcClose();
   taosStopCacheRefreshWorker();
   dInfo("dnode env is cleaned up");
 }

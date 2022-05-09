@@ -14,6 +14,25 @@ MESSAGE(STATUS "Project binary files output path: " ${PROJECT_BINARY_DIR})
 MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH})
 MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
 
+find_package(Git QUIET)
+if(GIT_FOUND AND EXISTS "${TD_SOURCE_DIR}/.git")
+# Update submodules as needed
+    option(GIT_SUBMODULE "Check submodules during build" ON)
+    if(GIT_SUBMODULE)
+        message(STATUS "Submodule update")
+        execute_process(COMMAND cd ${TD_SOURCE_DIR} && ${GIT_EXECUTABLE} submodule update --init --recursive
+                        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
+                        RESULT_VARIABLE GIT_SUBMOD_RESULT)
+        if(NOT GIT_SUBMOD_RESULT EQUAL "0")
+            message(WARNING "git submodule update --init --recursive failed with ${GIT_SUBMOD_RESULT}, please checkout submodules")
+        endif()
+    endif()
+endif()
+
+if(NOT EXISTS "${TD_SOURCE_DIR}/tools/taos-tools/CMakeLists.txt")
+    message(WARNING "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules manually if you need build them.")
+endif()
+
 if (NOT DEFINED TD_GRANT)
   SET(TD_GRANT FALSE)
 endif()
@@ -47,7 +66,7 @@ ENDIF ()
 IF (TD_WINDOWS)
     MESSAGE("${Yellow} set compiler flag for Windows! ${ColourReset}")
     SET(COMMON_FLAGS "/W3 /D_WIN32")
-
+    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /MANIFEST:NO")
     # IF (MSVC AND (MSVC_VERSION GREATER_EQUAL 1900))
     #  SET(COMMON_FLAGS "${COMMON_FLAGS} /Wv:18")
     # ENDIF ()

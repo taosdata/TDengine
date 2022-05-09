@@ -190,6 +190,8 @@ typedef struct SRetention {
   int8_t  keepUnit;
 } SRetention;
 
+#define RETENTION_VALID(r) (((r)->freq > 0) && ((r)->keep > 0))
+
 #pragma pack(push, 1)
 
 // null-terminated string instead of char array to avoid too many memory consumption in case of more than 1M tableMeta

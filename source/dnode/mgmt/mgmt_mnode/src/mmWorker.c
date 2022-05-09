@@ -17,42 +17,48 @@
 #include "mmInt.h"
 
 static inline void mmSendRsp(SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
-                 .ahandle = pMsg->rpcMsg.ahandle,
-                 .refId = pMsg->rpcMsg.refId,
-                 .code = code,
-                 .pCont = pMsg->pRsp,
-                 .contLen = pMsg->rspLen};
+  SRpcMsg rsp = {
+      .handle = pMsg->rpcMsg.handle,
+      .ahandle = pMsg->rpcMsg.ahandle,
+      .refId = pMsg->rpcMsg.refId,
+      .code = code,
+      .pCont = pMsg->pRsp,
+      .contLen = pMsg->rspLen,
+  };
   tmsgSendRsp(&rsp);
 }
 
 static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
 
+  int32_t code = -1;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
   dTrace("msg:%p, get from mnode queue", pMsg);
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
-  int32_t  code = -1;
 
-  if (pMsg->rpcMsg.msgType == TDMT_DND_ALTER_MNODE) {
-    code = mmProcessAlterReq(pMgmt, pMsg);
-  } else if (pMsg->rpcMsg.msgType == TDMT_MON_MM_INFO) {
-    code = mmProcessGetMonMmInfoReq(pMgmt->pWrapper, pMsg);
-  } else if (pMsg->rpcMsg.msgType == TDMT_MON_MM_LOAD) {
-    code = mmProcessGetMnodeLoadsReq(pMgmt->pWrapper, pMsg);
-  } else {
-    pMsg->pNode = pMgmt->pMnode;
-    code = mndProcessMsg(pMsg);
+  switch (msgType) {
+    case TDMT_DND_ALTER_MNODE:
+      code = mmProcessAlterReq(pMgmt, pMsg);
+      break;
+    case TDMT_MON_MM_INFO:
+      code = mmProcessGetMonMmInfoReq(pMgmt->pWrapper, pMsg);
+      break;
+    case TDMT_MON_MM_LOAD:
+      code = mmProcessGetMnodeLoadsReq(pMgmt->pWrapper, pMsg);
+      break;
+    default:
+      pMsg->pNode = pMgmt->pMnode;
+      code = mndProcessMsg(pMsg);
   }
 
-  if (pRpc->msgType & 1U) {
-    if (pRpc->handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (msgType & 1U) {
+    if (pMsg->rpcMsg.handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
       if (code != 0 && terrno != 0) code = terrno;
       mmSendRsp(pMsg, code);
     }
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-  rpcFreeCont(pRpc->pCont);
+  rpcFreeCont(pMsg->rpcMsg.pCont);
   taosFreeQitem(pMsg);
 }
 
@@ -78,38 +84,38 @@ static void mmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void mmPutMsgToWorker(SSingleWorker *pWorker, SNodeMsg *pMsg) {
+static void mmPutNodeMsgToWorker(SSingleWorker *pWorker, SNodeMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
 }
 
 int32_t mmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  mmPutMsgToWorker(&pMgmt->writeWorker, pMsg);
+  mmPutNodeMsgToWorker(&pMgmt->writeWorker, pMsg);
   return 0;
 }
 
 int32_t mmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  mmPutMsgToWorker(&pMgmt->syncWorker, pMsg);
+  mmPutNodeMsgToWorker(&pMgmt->syncWorker, pMsg);
   return 0;
 }
 
 int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  mmPutMsgToWorker(&pMgmt->readWorker, pMsg);
+  mmPutNodeMsgToWorker(&pMgmt->readWorker, pMsg);
   return 0;
 }
 
 int32_t mmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  mmPutMsgToWorker(&pMgmt->queryWorker, pMsg);
+  mmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
   return 0;
 }
 
 int32_t mmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  mmPutMsgToWorker(&pMgmt->monitorWorker, pMsg);
+  mmPutNodeMsgToWorker(&pMgmt->monitorWorker, pMsg);
   return 0;
 }
 
@@ -144,40 +150,62 @@ int32_t mmPutMsgToSyncQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
-  SSingleWorkerCfg qCfg = {.min = tsNumOfMnodeQueryThreads,
-                           .max = tsNumOfMnodeQueryThreads,
-                           .name = "mnode-query",
-                           .fp = (FItem)mmProcessQueryQueue,
-                           .param = pMgmt};
+  SSingleWorkerCfg qCfg = {
+      .min = tsNumOfMnodeQueryThreads,
+      .max = tsNumOfMnodeQueryThreads,
+      .name = "mnode-query",
+      .fp = (FItem)mmProcessQueryQueue,
+      .param = pMgmt,
+  };
   if (tSingleWorkerInit(&pMgmt->queryWorker, &qCfg) != 0) {
     dError("failed to start mnode-query worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg rCfg = {.min = tsNumOfMnodeReadThreads,
-                           .max = tsNumOfMnodeReadThreads,
-                           .name = "mnode-read",
-                           .fp = (FItem)mmProcessQueue,
-                           .param = pMgmt};
+  SSingleWorkerCfg rCfg = {
+      .min = tsNumOfMnodeReadThreads,
+      .max = tsNumOfMnodeReadThreads,
+      .name = "mnode-read",
+      .fp = (FItem)mmProcessQueue,
+      .param = pMgmt,
+  };
   if (tSingleWorkerInit(&pMgmt->readWorker, &rCfg) != 0) {
     dError("failed to start mnode-read worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg wCfg = {.min = 1, .max = 1, .name = "mnode-write", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg wCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-write",
+      .fp = (FItem)mmProcessQueue,
+      .param = pMgmt,
+  };
   if (tSingleWorkerInit(&pMgmt->writeWorker, &wCfg) != 0) {
     dError("failed to start mnode-write worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg sCfg = {.min = 1, .max = 1, .name = "mnode-sync", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+  SSingleWorkerCfg sCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-sync",
+      .fp = (FItem)mmProcessQueue,
+      .param = pMgmt,
+  };
   if (tSingleWorkerInit(&pMgmt->syncWorker, &sCfg) != 0) {
     dError("failed to start mnode mnode-sync worker since %s", terrstr());
     return -1;
   }
 
   if (tsMultiProcess) {
-    SSingleWorkerCfg mCfg = {.min = 1, .max = 1, .name = "mnode-monitor", .fp = (FItem)mmProcessQueue, .param = pMgmt};
+    SSingleWorkerCfg mCfg = {
+        .min = 1,
+        .max = 1,
+        .name = "mnode-monitor",
+        .fp = (FItem)mmProcessQueue,
+        .param = pMgmt,
+    };
     if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start mnode mnode-monitor worker since %s", terrstr());
       return -1;

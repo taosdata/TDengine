@@ -100,6 +100,14 @@ void generateInformationSchema(MockCatalogService* mcs) {
   }
 }
 
+void generatePerformanceSchema(MockCatalogService* mcs) {
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "trans", TSDB_SYSTEM_TABLE, 1)
+                                 .addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+}
+
 /*
  * Table:t1
  *        Field        |        Type        |      DataType      |  Bytes   |
@@ -244,6 +252,7 @@ void initMetaDataEnv() {
 
 void generateMetaData() {
   generateInformationSchema(mockCatalogService.get());
+  generatePerformanceSchema(mockCatalogService.get());
   generateTestT1(mockCatalogService.get());
   generateTestST1(mockCatalogService.get());
   mockCatalogService->showTables();
