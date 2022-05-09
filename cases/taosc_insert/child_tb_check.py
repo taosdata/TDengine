@@ -28,7 +28,7 @@ class TestStb(TDCase):
         tbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"], mode="letters")
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127)')
-        self.tdSql.execute(f'create table {tbname} using {stbname} tags (127)')
+        self.tdSql.error(f'create table {tbname} using {stbname} tags (127)')
         self.tdSql.query(f'show tables')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
         tbname_exceed = self.tdCom.get_long_name(length=self.tdCom.boundary_config["CHILD_TBNAME_MAX_LENGTH"]+1, mode="letters")
@@ -183,7 +183,7 @@ class TestStb(TDCase):
                 sql_new = ''.join(d_list_new)
                 self.tdSql.error(sql_new)
         self.tdSql.execute(f'drop table if exists {dbname}.`{dbname}`')
-        self.tdSql.execute(f'drop database if exists {self.dbname}')
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def ttl_check(self):
         """
@@ -199,16 +199,16 @@ class TestStb(TDCase):
         self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
 
     def run(self):
-        # self.child_tbname_length_check()
-        # self.child_tbname_with_backquote()
-        # self.child_tbname_without_backquote()
-        # self.upper_lower_child_tbname_check()
+        self.child_tbname_length_check()
+        self.child_tbname_with_backquote()
+        self.child_tbname_without_backquote()
+        self.upper_lower_child_tbname_check()
         #! bug
         # self.ttl_check()
         self.desc_check()
         # self.alter_child_tb()
         # self.add_drop_column()
-        # self.illegal_child_tbsql_check()
+        self.illegal_child_tbsql_check()
 
     def desc(self) -> str:
         case_description = """
@@ -216,6 +216,7 @@ class TestStb(TDCase):
             child_tbname_with_backquote <jayden>: [TD-12748] : backquote supported;\n
             child_tbname_without_backquote <jayden>: [TD-12748] : error occured when illegal child tbname without backquote;\n
             upper_lower_child_tbname_check <jayden>: [TD-12748] : upper lower child tbname check;\n
+            ttl_check <jayden>: [TD-14993] : ttl check;\n
             desc_check <jayden>: [TD-12748] : describe child table;\n
             alter_child_tb <jayden>: [TD-12748] : alter child table modify (binary/nchar) length;\n
             add_drop_column <jayden>: [TD-12748] : add/drop column/tag;\n
