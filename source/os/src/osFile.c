@@ -543,7 +543,7 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
 
   HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
 
-  return FlushFileBuffers(h);
+  return !FlushFileBuffers(h);
 #else
   if (pFile == NULL) {
     return 0;

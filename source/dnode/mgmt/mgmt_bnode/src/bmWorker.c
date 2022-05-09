@@ -18,7 +18,11 @@
 
 static void bmSendErrorRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rpcRsp = {
-      .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code, .refId = pMsg->rpcMsg.refId};
+      .handle = pMsg->rpcMsg.handle,
+      .ahandle = pMsg->rpcMsg.ahandle,
+      .code = code,
+      .refId = pMsg->rpcMsg.refId,
+  };
   tmsgSendRsp(&rpcRsp);
 
   dTrace("msg:%p, is freed", pMsg);
@@ -103,7 +107,7 @@ static void bmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 }
 
 int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SBnodeMgmt *  pMgmt = pWrapper->pMgmt;
+  SBnodeMgmt   *pMgmt = pWrapper->pMgmt;
   SMultiWorker *pWorker = &pMgmt->writeWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -112,7 +116,7 @@ int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t bmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SBnodeMgmt *   pMgmt = pWrapper->pMgmt;
+  SBnodeMgmt    *pMgmt = pWrapper->pMgmt;
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -121,7 +125,12 @@ int32_t bmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
-  SMultiWorkerCfg cfg = {.max = 1, .name = "bnode-write", .fp = (FItems)bmProcessWriteQueue, .param = pMgmt};
+  SMultiWorkerCfg cfg = {
+      .max = 1,
+      .name = "bnode-write",
+      .fp = (FItems)bmProcessWriteQueue,
+      .param = pMgmt,
+  };
   if (tMultiWorkerInit(&pMgmt->writeWorker, &cfg) != 0) {
     dError("failed to start bnode-write worker since %s", terrstr());
     return -1;
@@ -129,7 +138,12 @@ int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
 
   if (tsMultiProcess) {
     SSingleWorkerCfg mCfg = {
-        .min = 1, .max = 1, .name = "bnode-monitor", .fp = (FItem)bmProcessMonitorQueue, .param = pMgmt};
+        .min = 1,
+        .max = 1,
+        .name = "bnode-monitor",
+        .fp = (FItem)bmProcessMonitorQueue,
+        .param = pMgmt,
+    };
     if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start bnode-monitor worker since %s", terrstr());
       return -1;
