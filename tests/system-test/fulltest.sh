@@ -13,6 +13,7 @@ python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
 python3 ./test.py -f 2-query/ltrim.py
 python3 ./test.py -f 2-query/rtrim.py
+python3 ./test.py -f 2-query/length.py
 
 python3 ./test.py -f 2-query/timezone.py
 python3 ./test.py -f 2-query/Now.py

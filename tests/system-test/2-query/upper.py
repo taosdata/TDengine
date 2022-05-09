@@ -59,12 +59,9 @@ class TDTestCase:
             groups = ["", group_having, group_no_having]
 
             for group_condition in groups:
-                tdSql.query(f"select {condition} from {tbname} {where_condition}  {group_condition} ")
-                datas = [tdSql.getData(i,0) for i in range(tdSql.queryRows)]
-                upper_data = [ str(data).upper()  if data else None for data in datas ]
-                tdSql.query(f"select upper( {condition} ) from {tbname} {where_condition}  {group_condition}")
-                for i in range(len(upper_data)):
-                    tdSql.checkData(i, 0, upper_data[i] ) if upper_data[i] else tdSql.checkData(i, 0, None)
+                tdSql.query(f"select upper( {condition} ), {condition} from {tbname} {where_condition}  {group_condition}")
+                for i in range(len(tdSql.queryRows)):
+                    tdSql.checkData(i, 0, str(tdSql.getData(i, 1)).upper() ) if tdSql.getData(i, 1) else tdSql.checkData(i, 0, None)
 
     def __upper_err_check(self,tbname):
         sqls = []
@@ -229,13 +226,13 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
-        # tdSql.execute("use db")
+        tdSql.execute("use db")
 
-        # tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        # self.all_test()
+        tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        self.all_test()
 
     def stop(self):
         tdSql.close()
