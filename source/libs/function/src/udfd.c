@@ -30,7 +30,7 @@ typedef struct SUdfdContext {
   uv_loop_t  *loop;
   uv_pipe_t   ctrlPipe;
   uv_signal_t intrSignal;
-  char        listenPipeName[UDF_LISTEN_PIPE_NAME_LEN];
+  char        listenPipeName[PATH_MAX + UDF_LISTEN_PIPE_NAME_LEN + 2];
   uv_pipe_t   listeningPipe;
 
   void       *clientRpc;
@@ -652,7 +652,7 @@ static int32_t udfdUvInit() {
   uv_pipe_open(&global.ctrlPipe, 0);
   uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
 
-  getUdfdPipeName(global.listenPipeName, UDF_LISTEN_PIPE_NAME_LEN);
+  getUdfdPipeName(global.listenPipeName, sizeof(global.listenPipeName));
 
   removeListeningPipe();
 
@@ -696,6 +696,7 @@ static int32_t udfdRun() {
   fnInfo("udfd stopped. result: %s, code: %d", uv_err_name(code), code);
   int codeClose = uv_loop_close(global.loop);
   fnDebug("uv loop close. result: %s", uv_err_name(codeClose));
+  removeListeningPipe();
   udfdCloseClientRpc();
   uv_mutex_destroy(&global.udfsMutex);
   taosHashCleanup(global.udfsHash);

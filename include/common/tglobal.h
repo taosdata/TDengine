@@ -17,8 +17,8 @@
 #define _TD_COMMON_GLOBAL_H_
 
 #include "tarray.h"
-#include "tdef.h"
 #include "tconfig.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -121,15 +121,16 @@ extern char     tsCompressor[];
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
 
-// internal 
-extern int32_t tsTransPullupMs;
-extern int32_t tsMaRebalanceMs;
+// internal
+extern int32_t tsTransPullupInterval;
+extern int32_t tsMqRebalanceInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
-int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,
-                      char *apolloUrl, SArray *pArgs, bool tsc);
-int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
+                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                    bool tsc);
 void    taosCleanupCfg();
 void    taosCfgDynamicOptions(const char *option, const char *value);
 void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);

@@ -198,7 +198,6 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
 }
 
-// sync integration
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
