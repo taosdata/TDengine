@@ -369,6 +369,7 @@ typedef struct {
   int32_t  acctId;
   int64_t  clusterId;
   uint32_t connId;
+  int32_t  dnodeNum;
   int8_t   superUser;
   int8_t   connType;
   SEpSet   epSet;
