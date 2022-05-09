@@ -15,7 +15,7 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 import copy
 
-class TesChildTb(TDCase):
+class TestChildTb(TDCase):
     def init(self):
         super().init()
         self.tdCom = TDCom(self.tdSql)
