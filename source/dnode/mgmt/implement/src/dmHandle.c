@@ -311,11 +311,11 @@ static void dmWatchUdfd(void *args) {
   return;
 }
 
-static int32_t dmStartUdfd(SDnode *pDnode, int32_t startDnodeId) {
+static int32_t dmStartUdfd(SUdfdData *pUdfdData, int32_t startDnodeId) {
   char dnodeId[8] = {0};
-  snprintf(dnodeId, sizeof(dnodeId), "%d", pDnode->data.dnodeId);
+  snprintf(dnodeId, sizeof(dnodeId), "%d", startDnodeId);
   uv_os_setenv("DNODE_ID", dnodeId);
-  SUdfdData *pData = &pDnode->udfdData;
+  SUdfdData *pData = pUdfdData;
   pData->dnodeId = startDnodeId;
   if (pData->startCalled) {
     dInfo("dnode-mgmt start udfd already called");
@@ -385,7 +385,7 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   }
   dmReportStartup(pDnode, "dnode-transport", "initialized");
 
-  if (dmStartUdfd(pDnode, pDnode->data.dnodeId) != 0) {
+  if (dmStartUdfd(&pDnode->udfdData, pDnode->data.dnodeId) != 0) {
     dError("failed to start udfd");
   }
 
