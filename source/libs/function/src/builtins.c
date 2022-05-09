@@ -509,9 +509,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = minFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = minFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = minmaxFunctionFinalize
   },
   {
     .name = "max",
@@ -520,9 +520,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = minmaxFunctionFinalize
   },
   {
     .name = "stddev",
@@ -562,7 +562,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentile,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = functionFinalize
   },
@@ -581,8 +581,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_BOTTOM,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateBottom,
-    .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
+    .getEnvFunc   = getTopBotFuncEnv,
+    .initFunc     = functionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = functionFinalize
   },
@@ -603,7 +603,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
     .translateFunc = translateLastRow,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = functionFinalize
   },
@@ -1032,8 +1032,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_SELECT_VALUE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateSelectValue,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
+    .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
+    .initFunc     = functionSetup,
     .sprocessFunc = NULL,
     .finalizeFunc = NULL
   }

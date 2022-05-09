@@ -37,11 +37,11 @@ bool getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t sumFunction(SqlFunctionCtx *pCtx);
 int32_t sumInvertFunction(SqlFunctionCtx *pCtx);
 
-bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
-bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+bool minmaxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 bool getMinmaxFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t minFunction(SqlFunctionCtx* pCtx);
 int32_t maxFunction(SqlFunctionCtx *pCtx);
+int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getAvgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool avgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -81,6 +81,8 @@ bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t histogramFunction(SqlFunctionCtx* pCtx);
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 #ifdef __cplusplus
 }
