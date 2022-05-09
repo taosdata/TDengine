@@ -21,6 +21,8 @@ typedef struct SMemSkipList       SMemSkipList;
 typedef struct SMemSkipListNode   SMemSkipListNode;
 typedef struct SMemSkipListCurosr SMemSkipListCurosr;
 
+#define SL_MAX_LEVEL 5
+
 struct SMemTable {
   STsdb              *pTsdb;
   TSKEY               minKey;
@@ -61,7 +63,7 @@ struct SMemData {
 
 struct SMemSkipListCurosr {
   SMemSkipList     *pSl;
-  SMemSkipListNode *pNodeC;
+  SMemSkipListNode *pNodes[SL_MAX_LEVEL];
 };
 
 typedef struct {
@@ -69,8 +71,6 @@ typedef struct {
   uint32_t      szRow;
   const STSRow *pRow;
 } STsdbRow;
-
-#define SL_MAX_LEVEL 15
 
 #define HASH_BUCKET(SUID, UID, NBUCKET) (TABS((SUID) + (UID)) % (NBUCKET))
 
@@ -93,6 +93,8 @@ static void    tsdbMemSkipListCursorDestroy(SMemSkipListCurosr *pSlc);
 static void    tsdbMemSkipListCursorInit(SMemSkipListCurosr *pSlc, SMemSkipList *pSl);
 static void    tsdbMemSkipListCursorPut(SMemSkipListCurosr *pSlc, SMemSkipListNode *pNode);
 static int32_t tsdbMemSkipListCursorMoveTo(SMemSkipListCurosr *pSlc, int64_t version, TSKEY ts, int32_t flags);
+static void    tsdbMemSkipListCursorMoveToFirst(SMemSkipListCurosr *pSlc);
+static void    tsdbMemSkipListCursorMoveToLast(SMemSkipListCurosr *pSlc);
 static int32_t tsdbMemSkipListCursorMoveToNext(SMemSkipListCurosr *pSlc);
 static int32_t tsdbMemSkipListCursorMoveToPrev(SMemSkipListCurosr *pSlc);
 static SMemSkipListNode *tsdbMemSkipListNodeCreate(SVBufPool *pPool, SMemSkipList *pSl, const STsdbRow *pTRow);
@@ -326,14 +328,26 @@ static int32_t tsdbMemSkipListCursorMoveTo(SMemSkipListCurosr *pSlc, int64_t ver
   return 0;
 }
 
-static int32_t tsdbMemSkipListCursorMoveToFirst(SMemSkipListCurosr *pSlc) {
-  // TODO
-  return 0;
+static void tsdbMemSkipListCursorMoveToFirst(SMemSkipListCurosr *pSlc) {
+  SMemSkipList     *pSl = pSlc->pSl;
+  SMemSkipListNode *pHead = SL_HEAD_NODE(pSl);
+
+  for (int8_t iLevel = 0; iLevel < pSl->maxLevel; iLevel++) {
+    pSlc->pNodes[iLevel] = pHead;
+  }
+
+  tsdbMemSkipListCursorMoveToNext(pSlc);
 }
 
-static int32_t tsdbMemSkipListCursorMoveToLast(SMemSkipListCurosr *pSlc) {
-  // TODO
-  return 0;
+static void tsdbMemSkipListCursorMoveToLast(SMemSkipListCurosr *pSlc) {
+  SMemSkipList     *pSl = pSlc->pSl;
+  SMemSkipListNode *pTail = SL_TAIL_NODE(pSl);
+
+  for (int8_t iLevel = 0; iLevel < pSl->maxLevel; iLevel++) {
+    pSlc->pNodes[iLevel] = pTail;
+  }
+
+  tsdbMemSkipListCursorMoveToPrev(pSlc);
 }
 
 static int32_t tsdbMemSkipListCursorMoveToNext(SMemSkipListCurosr *pSlc) {

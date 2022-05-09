@@ -165,15 +165,15 @@ typedef struct {
 #define TD_ROW_HEAD_LEN  (sizeof(STSRow))
 #define TD_ROW_NCOLS_LEN (sizeof(col_id_t))
 
-#define TD_ROW_INFO(r)     ((r)->info)
-#define TD_ROW_TYPE(r)     ((r)->type)
-#define TD_ROW_DELETE(r)   ((r)->del)
-#define TD_ROW_ENDIAN(r)   ((r)->endian)
-#define TD_ROW_SVER(r)     ((r)->sver)
-#define TD_ROW_NCOLS(r)    ((r)->data)  // only valid for SKvRow
-#define TD_ROW_DATA(r)     ((r)->data)
-#define TD_ROW_LEN(r)      ((r)->len)
-#define TD_ROW_KEY(r)      ((r)->ts)
+#define TD_ROW_INFO(r)   ((r)->info)
+#define TD_ROW_TYPE(r)   ((r)->type)
+#define TD_ROW_DELETE(r) ((r)->del)
+#define TD_ROW_ENDIAN(r) ((r)->endian)
+#define TD_ROW_SVER(r)   ((r)->sver)
+#define TD_ROW_NCOLS(r)  ((r)->data)  // only valid for SKvRow
+#define TD_ROW_DATA(r)   ((r)->data)
+#define TD_ROW_LEN(r)    ((r)->len)
+#define TD_ROW_KEY(r)    ((r)->ts)
 // #define TD_ROW_VER(r)      ((r)->ver)
 #define TD_ROW_KEY_ADDR(r) (r)
 
@@ -1410,64 +1410,6 @@ static void tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag) {
   }
   printf("\n");
 }
-#ifdef TROW_ORIGIN_HZ
-typedef struct {
-  uint32_t nRows;
-  char     rows[];
-} STSRowBatch;
-
-static void tdSRowPrint(STSRow *row) {
-  printf("type:%d, del:%d, sver:%d\n", row->type, row->del, row->sver);
-  printf("isDeleted:%s, isTpRow:%s, isKvRow:%s\n", TD_BOOL_STR(TD_ROW_IS_DELETED(row)), TD_BOOL_STR(TD_IS_TP_ROW(row)),
-         TD_BOOL_STR(TD_IS_KV_ROW(row)));
-}
-
-typedef enum {
-  /// tuple row builder
-  TD_TP_ROW_BUILDER = 0,
-  /// kv row builder
-  TD_KV_ROW_BUILDER,
-  /// self-determined row builder
-  TD_SD_ROW_BUILDER
-} ERowBbuilderT;
-
-typedef struct {
-  /// row builder type
-  ERowBbuilderT type;
-  /// buffer writer
-  SBufferWriter bw;
-  /// target row
-  STSRow *pRow;
-} STSRowBuilder;
-
-typedef struct {
-  STSchema *pSchema;
-  STSRow   *pRow;
-} STSRowReader;
-
-typedef struct {
-  uint32_t     it;
-  STSRowBatch *pRowBatch;
-} STSRowBatchIter;
-
-// STSRowBuilder
-#define trbInit(rt, allocator, endian, target, size) \
-  { .type = (rt), .bw = tbufInitWriter(allocator, endian), .pRow = (target) }
-void    trbSetRowInfo(STSRowBuilder *pRB, bool del, uint16_t sver);
-void    trbSetRowVersion(STSRowBuilder *pRB, uint64_t ver);
-void    trbSetRowTS(STSRowBuilder *pRB, TSKEY ts);
-int32_t trbWriteCol(STSRowBuilder *pRB, void *pData, col_id_t cid);
-
-// STSRowReader
-#define tRowReaderInit(schema, row) \
-  { .schema = (schema), .row = (row) }
-int32_t tRowReaderRead(STSRowReader *pRowReader, col_id_t cid, void *target, uint64_t size);
-
-// STSRowBatchIter
-#define tRowBatchIterInit(pRB) \
-  { .it = 0, .pRowBatch = (pRB) }
-const STSRow *tRowBatchIterNext(STSRowBatchIter *pRowBatchIter);
-#endif
 
 #ifdef __cplusplus
 }
