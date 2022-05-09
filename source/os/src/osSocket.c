@@ -746,7 +746,8 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
     return false;
   }
   taosCloseSocket(&pSocket);
-  return 0 == taosValidIp(ip) ? true : false;
+  return true;
+  // return 0 == taosValidIp(ip) ? true : false;
 }
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
