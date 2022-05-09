@@ -413,6 +413,10 @@ uint32_t tGetToken(char* z, uint32_t* tokenId) {
       *tokenId = TK_BITNOT;
       return 1;
     }
+    case '^': {
+      *tokenId = TK_BITXOR;
+      return 1;
+    }
     case '?': {
       *tokenId = TK_QUESTION;
       return 1;
