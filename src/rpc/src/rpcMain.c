@@ -142,6 +142,7 @@ static int32_t tsRpcNum = 0;
 #define RPC_CONN_UDPC   1
 #define RPC_CONN_TCPS   2
 #define RPC_CONN_TCPC   3
+#define RPC_CONN_AUTO   4 // need tcp use tcp
 
 void *(*taosInitConn[])(uint32_t ip, uint16_t port, char *label, int threads, void *fp, void *shandle) = {
     taosInitUdpConnection,
@@ -405,7 +406,7 @@ void rpcSendRequest(void *shandle, const SRpcEpSet *pEpSet, SRpcMsg *pMsg, int64
   // connection type is application specific. 
   // for TDengine, all the query, show commands shall have TCP connection
   char type = pMsg->msgType;
-  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_CM_RETRIEVE
+  if (type == TSDB_MSG_TYPE_QUERY || type == TSDB_MSG_TYPE_CM_RETRIEVE || type == TSDB_MSG_TYPE_SUBMIT
     || type == TSDB_MSG_TYPE_FETCH || type == TSDB_MSG_TYPE_CM_STABLE_VGROUP
     || type == TSDB_MSG_TYPE_CM_TABLES_META || type == TSDB_MSG_TYPE_CM_TABLE_META
     || type == TSDB_MSG_TYPE_CM_SHOW || type == TSDB_MSG_TYPE_DM_STATUS || type == TSDB_MSG_TYPE_CM_ALTER_TABLE)

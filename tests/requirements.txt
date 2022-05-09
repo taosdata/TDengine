@@ -1,4 +1,4 @@
-../src/connector/python
+taospy
 numpy
 fabric2
 psutil
