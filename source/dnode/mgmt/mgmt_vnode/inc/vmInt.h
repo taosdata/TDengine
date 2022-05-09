@@ -40,6 +40,7 @@ typedef struct SVnodesMgmt {
   SWWorkerPool  mergePool;
   SSingleWorker mgmtWorker;
   SSingleWorker monitorWorker;
+  void         *clientRpc;
 } SVnodesMgmt;
 
 typedef struct {

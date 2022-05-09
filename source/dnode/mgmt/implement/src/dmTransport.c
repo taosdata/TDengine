@@ -16,10 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
-#define INTERNAL_USER   "_dnd"
-#define INTERNAL_CKEY   "_key"
-#define INTERNAL_SECRET "_pwd"
-
 static void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   taosRLockLatch(&pDnode->data.latch);
   *pEpSet = pDnode->data.mnodeEps;
@@ -144,7 +140,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (msgType == TDMT_DND_NET_TEST) {
     dTrace("net test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
-    dmProcessServerStatusReq(pDnode, pMsg);
+    dmProcessNetTestReq(pDnode, pMsg);
     return;
   }
 
@@ -437,42 +433,12 @@ SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper) {
   return cfg;
 }
 
-bool rpcRfp(int32_t code) {
-  if (code == TSDB_CODE_RPC_REDIRECT) {
-    return true;
-  } else {
-    return false;
-  }
-}
-
 static int32_t dmInitClient(SDnode *pDnode) {
-  SDnodeTrans *pTrans = &pDnode->trans;
-
-  SRpcInit rpcInit = {0};
-  rpcInit.label = "DND";
-  rpcInit.numOfThreads = 1;
-  rpcInit.cfp = (RpcCfp)dmProcessMsg;
-  rpcInit.sessions = 1024;
-  rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.user = INTERNAL_USER;
-  rpcInit.ckey = INTERNAL_CKEY;
-  rpcInit.spi = 1;
-  rpcInit.parent = pDnode;
-  rpcInit.rfp = rpcRfp;
-
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
-  rpcInit.secret = pass;
 
-  pTrans->clientRpc = rpcOpen(&rpcInit);
-  if (pTrans->clientRpc == NULL) {
-    dError("failed to init dnode rpc client");
-    return -1;
-  }
-
-  dDebug("dnode rpc client is initialized");
-  return 0;
+  pDnode->trans.clientRpc = dmCreateClientRpc("DM", pDnode, (RpcCfp)dmProcessMsg, pass);
+  return pDnode->trans.clientRpc == NULL ? -1 : 0;
 }
 
 static void dmCleanupClient(SDnode *pDnode) {

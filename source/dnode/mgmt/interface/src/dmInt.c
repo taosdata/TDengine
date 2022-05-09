@@ -171,7 +171,7 @@ static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   }
 }
 
-void dmProcessNettestReq(SDnode *pDnode, SRpcMsg *pRpc) {
+void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pRpc) {
   dDebug("net test req is received");
   SRpcMsg rsp = {.handle = pRpc->handle, .refId = pRpc->refId, .ahandle = pRpc->ahandle, .code = 0};
   rsp.pCont = rpcMallocCont(pRpc->contLen);
@@ -221,4 +221,37 @@ void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {
   pInfo->disk_total = tsDataSpace.size.total;
   taosGetCardInfoDelta(&pInfo->net_in, &pInfo->net_out);
   taosGetProcIODelta(&pInfo->io_read, &pInfo->io_write, &pInfo->io_read_disk, &pInfo->io_write_disk);
+}
+
+static bool rpcRfp(int32_t code) {
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+void *dmCreateClientRpc(const char *label, void *parent, RpcCfp cfp, char *pass) {
+  SRpcInit rpcInit = {0};
+  rpcInit.label = label;
+  rpcInit.numOfThreads = 1;
+  rpcInit.cfp = cfp;
+  rpcInit.sessions = 1024;
+  rpcInit.connType = TAOS_CONN_CLIENT;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.user = INTERNAL_USER;
+  rpcInit.ckey = INTERNAL_CKEY;
+  rpcInit.spi = 1;
+  rpcInit.parent = parent;
+  rpcInit.rfp = rpcRfp;
+  rpcInit.secret = pass;
+
+  void *clientRpc = rpcOpen(&rpcInit);
+  if (clientRpc == NULL) {
+    dError("failed to init %s rpc client", label);
+    return NULL;
+  }
+
+  dDebug("%s rpc client is initialized", label);
+  return clientRpc;
 }

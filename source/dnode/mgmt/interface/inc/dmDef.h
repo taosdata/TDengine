@@ -47,6 +47,10 @@
 extern "C" {
 #endif
 
+#define INTERNAL_USER   "_dnd"
+#define INTERNAL_CKEY   "_key"
+#define INTERNAL_SECRET "_pwd"
+
 typedef enum { DNODE, VNODE, QNODE, SNODE, MNODE, BNODE, NODE_END } EDndNodeType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndRunStatus;
 typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EDndEnvStatus;
