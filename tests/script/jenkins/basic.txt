@@ -62,6 +62,8 @@
 # ---- tstream
 ./test.sh -f tsim/tstream/basic0.sim
 
+# ---- transaction
+ ./test.sh -f tsim/trans/create_db.sim
 
 # ---- tmq
 ./test.sh -f tsim/tmq/basic1.sim

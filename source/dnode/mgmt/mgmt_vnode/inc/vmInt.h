@@ -29,15 +29,15 @@ typedef struct SVnodesMgmt {
   SHashObj     *hash;
   SRWLatch      latch;
   SVnodesStat   state;
+  const char   *path;
+  SDnode       *pDnode;
+  SMgmtWrapper *pWrapper;
   STfs         *pTfs;
   SQWorkerPool  queryPool;
   SQWorkerPool  fetchPool;
   SWWorkerPool  syncPool;
   SWWorkerPool  writePool;
   SWWorkerPool  mergePool;
-  const char   *path;
-  SDnode       *pDnode;
-  SMgmtWrapper *pWrapper;
   SSingleWorker mgmtWorker;
   SSingleWorker monitorWorker;
 } SVnodesMgmt;
@@ -95,9 +95,9 @@ int32_t vmProcessGetVnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
 void    vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 
 // vmFile.c
-int32_t     vmGetVnodesFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
-int32_t     vmWriteVnodesToFile(SVnodesMgmt *pMgmt);
-SVnodeObj **vmGetVnodesFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes);
+int32_t     vmGetVnodeListFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);
+int32_t     vmWriteVnodeListToFile(SVnodesMgmt *pMgmt);
+SVnodeObj **vmGetVnodeListFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes);
 
 // vmWorker.c
 int32_t vmStartWorker(SVnodesMgmt *pMgmt);
@@ -105,11 +105,12 @@ void    vmStopWorker(SVnodesMgmt *pMgmt);
 int32_t vmAllocQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 void    vmFreeQueue(SVnodesMgmt *pMgmt, SVnodeObj *pVnode);
 
-int32_t vmPutMsgToSyncQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);  // sync integration
-int32_t vmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);
+int32_t vmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+int32_t vmPutMsgToSyncQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t vmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t vmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-int32_t vmPutMsgToApplyQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
+int32_t vmPutMsgToMergeQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 int32_t vmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype);
 
 int32_t vmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);

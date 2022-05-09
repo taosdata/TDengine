@@ -148,7 +148,7 @@ struct STsdbCfg {
 
 struct SVnodeCfg {
   int32_t  vgId;
-  char     dbname[TSDB_DB_NAME_LEN];
+  char     dbname[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
   int32_t  szPage;
   int32_t  szCache;
@@ -157,7 +157,7 @@ struct SVnodeCfg {
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
-  SSyncCfg syncCfg;  // sync integration
+  SSyncCfg syncCfg;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;

@@ -127,7 +127,7 @@ enum {
 
 int64_t gUdfTaskSeqNum = 0;
 typedef struct SUdfdProxy {
-  char udfdPipeName[UDF_LISTEN_PIPE_NAME_LEN];
+  char udfdPipeName[PATH_MAX + UDF_LISTEN_PIPE_NAME_LEN + 2];
   uv_barrier_t gUdfInitBarrier;
 
   uv_loop_t gUdfdLoop;
@@ -224,9 +224,15 @@ int32_t getUdfdPipeName(char* pipeName, int32_t size) {
   size_t  dnodeIdSize = sizeof(dnodeId);
   int32_t err = uv_os_getenv(UDF_DNODE_ID_ENV_NAME, dnodeId, &dnodeIdSize);
   if (err != 0) {
+    fnError("get dnode id from env. error: %s.", uv_err_name(err));
     dnodeId[0] = '1';
   }
+#ifdef _WIN32
   snprintf(pipeName, size, "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+#else
+  snprintf(pipeName, size, "%s/%s%s", tsDataDir, UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+#endif
+  fnInfo("get dnode id from env. dnode id: %s. pipe path: %s", dnodeId, pipeName);
   return 0;
 }
 
@@ -998,7 +1004,7 @@ int32_t udfcOpen() {
     return 0;
   }
   SUdfdProxy *proxy = &gUdfdProxy;
-  getUdfdPipeName(proxy->udfdPipeName, UDF_LISTEN_PIPE_NAME_LEN);
+  getUdfdPipeName(proxy->udfdPipeName, sizeof(proxy->udfdPipeName));
   proxy->gUdfcState = UDFC_STATE_STARTNG;
   uv_barrier_init(&proxy->gUdfInitBarrier, 2);
   uv_thread_create(&proxy->gUdfLoopThread, constructUdfService, proxy);

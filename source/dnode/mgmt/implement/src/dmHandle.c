@@ -241,7 +241,11 @@ static int32_t dmSpawnUdfd(SDnode *pDnode) {
     strncpy(path, tsProcPath, strlen(tsProcPath));
     taosDirName(path);
   }
+#ifdef WINDOWS
+  strcat(path, "udfd.exe");
+#else
   strcat(path, "/udfd");
+#endif
   char* argsUdfd[] = {path, "-c", configDir, NULL};
   options.args = argsUdfd;
   options.file = path;

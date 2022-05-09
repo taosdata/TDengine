@@ -23,12 +23,17 @@ typedef struct SAuthCxt {
 
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt);
 
-static int32_t checkAuth(SParseContext* pCxt, const char* dbName, AUTH_TYPE type) {
+static int32_t checkAuth(SParseContext* pCxt, const char* pDbName, AUTH_TYPE type) {
   if (pCxt->isSuperUser) {
     return TSDB_CODE_SUCCESS;
   }
+  SName name;
+  tNameSetDbName(&name, pCxt->acctId, pDbName, strlen(pDbName));
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
   bool    pass = false;
-  int32_t code = catalogChkAuth(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pCxt->pUser, dbName, type, &pass);
+  int32_t code =
+      catalogChkAuth(pCxt->pCatalog, pCxt->pTransporter, &pCxt->mgmtEpSet, pCxt->pUser, dbFname, type, &pass);
   return TSDB_CODE_SUCCESS == code ? (pass ? TSDB_CODE_SUCCESS : TSDB_CODE_PAR_PERMISSION_DENIED) : code;
 }
 
@@ -130,7 +135,6 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
-    case QUERY_NODE_SHOW_TRANS_STMT:
     case QUERY_NODE_SHOW_SMAS_STMT:
     case QUERY_NODE_SHOW_CONFIGS_STMT:
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:

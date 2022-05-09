@@ -14,12 +14,6 @@
  */
 
 #include "vnd.h"
-// #include "sync.h"
-// #include "syncTools.h"
-// #include "tmsgcb.h"
-// #include "vnodeInt.h"
-
-// sync integration
 
 int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo;
