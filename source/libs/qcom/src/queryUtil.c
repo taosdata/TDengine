@@ -136,7 +136,8 @@ int32_t taosAsyncExec(__async_exec_fn_t execFn, void* execParam, int32_t* code) 
   return 0;
 }
 
-int32_t asyncSendMsgToServerExt(SMsgCb *pMsgCb, void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo, bool persistHandle, void *rpcCtx) {
+int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo,
+                                bool persistHandle, void* rpcCtx) {
   char* pMsg = rpcMallocCont(pInfo->msgInfo.len);
   if (NULL == pMsg) {
     qError("0x%" PRIx64 " msg:%s malloc failed", pInfo->requestId, TMSG_INFO(pInfo->msgType));
@@ -159,20 +160,12 @@ int32_t asyncSendMsgToServerExt(SMsgCb *pMsgCb, void* pTransporter, SEpSet* epSe
 
   assert(pInfo->fp != NULL);
 
-  if (pMsgCb != NULL) {
-    // todo in multi-process mode
-    ASSERT(pTransporterId == NULL || *pTransporterId == 0);
-    ASSERT(rpcCtx == NULL);
-    tmsgSendReq(pMsgCb, epSet, &rpcMsg);
-  } else {
-    ASSERT(pTransporter != NULL);
-    rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
-  }
+  rpcSendRequestWithCtx(pTransporter, epSet, &rpcMsg, pTransporterId, rpcCtx);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t asyncSendMsgToServer(SMsgCb *pMsgCb, void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
-  return asyncSendMsgToServerExt(pMsgCb, pTransporter, epSet, pTransporterId, pInfo, false, NULL);
+int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransporterId, const SMsgSendInfo* pInfo) {
+  return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
 
 char *jobTaskStatusStr(int32_t status) {

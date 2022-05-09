@@ -589,7 +589,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(NULL, tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   if (!async) {
     tsem_wait(&pParam->rspSem);
@@ -666,7 +666,7 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   SEpSet epSet = getEpSet_s(&tmq->pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(NULL, tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   // avoid double free if msg is sent
   buf = NULL;
@@ -773,7 +773,7 @@ TAOS_RES* tmq_create_stream(TAOS* taos, const char* streamName, const char* tbNa
   SEpSet        epSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(NULL, pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   tsem_wait(&pRequest->body.rspSem);
 
@@ -1046,7 +1046,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   tscDebug("consumer %ld ask ep", tmq->consumerId);
 
   int64_t transporterId = 0;
-  asyncSendMsgToServer(NULL, tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
+  asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &epSet, &transporterId, sendInfo);
 
   if (!async) {
     tsem_wait(&pParam->rspSem);
@@ -1198,7 +1198,7 @@ int32_t tmqPollImpl(tmq_t* tmq, int64_t waitTime) {
       tscDebug("consumer %ld send poll to %s : vg %d, epoch %d, req offset %ld, reqId %lu", tmq->consumerId,
                pTopic->topicName, pVg->vgId, tmq->epoch, pVg->currentOffset, pReq->reqId);
       /*printf("send vg %d %ld\n", pVg->vgId, pVg->currentOffset);*/
-      asyncSendMsgToServer(NULL, tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
+      asyncSendMsgToServer(tmq->pTscObj->pAppInfo->pTransporter, &pVg->epSet, &transporterId, sendInfo);
       pVg->pollCnt++;
       tmq->pollCnt++;
     }

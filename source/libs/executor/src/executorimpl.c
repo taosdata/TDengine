@@ -2813,8 +2813,7 @@ static int32_t doSendFetchDataRequest(SExchangeInfo* pExchangeInfo, SExecTaskInf
   pMsgSendInfo->fp = loadRemoteDataCallback;
 
   int64_t transporterId = 0;
-  int32_t code = asyncSendMsgToServer(pExchangeInfo->pMsgCb, pExchangeInfo->pTransporter, &pSource->addr.epSet,
-                                      &transporterId, pMsgSendInfo);
+  int32_t code = asyncSendMsgToServer(pExchangeInfo->pTransporter, &pSource->addr.epSet, &transporterId, pMsgSendInfo);
   return TSDB_CODE_SUCCESS;
 }
 

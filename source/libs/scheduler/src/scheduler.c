@@ -1850,7 +1850,7 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, void *transport, SEpSet 
          trans->transInst, trans->transHandle);
 
   int64_t transporterId = 0;
-  code = asyncSendMsgToServerExt(trans->pMsgCb, trans->transInst, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
+  code = asyncSendMsgToServerExt(trans->transInst, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
   if (code) {
     SCH_ERR_JRET(code);
   }
@@ -1940,7 +1940,7 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId) {
   qDebug("start to send hb msg, instance:%p, handle:%p, fqdn:%s, port:%d", trans.transInst, trans.transHandle,
          nodeEpId->ep.fqdn, nodeEpId->ep.port);
 
-  code = asyncSendMsgToServerExt(trans.pMsgCb, trans.transInst, &epSet, &transporterId, pMsgSendInfo, true, &rpcCtx);
+  code = asyncSendMsgToServerExt(trans.transInst, &epSet, &transporterId, pMsgSendInfo, true, &rpcCtx);
   if (code) {
     qError("fail to send hb msg, instance:%p, handle:%p, fqdn:%s, port:%d, error:%x - %s", trans.transInst,
            trans.transHandle, nodeEpId->ep.fqdn, nodeEpId->ep.port, code, tstrerror(code));

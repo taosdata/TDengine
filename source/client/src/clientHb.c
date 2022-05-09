@@ -621,7 +621,7 @@ static void *hbThreadFunc(void *param) {
       SAppInstInfo *pAppInstInfo = pAppHbMgr->pAppInstInfo;
       int64_t       transporterId = 0;
       SEpSet        epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
-      asyncSendMsgToServer(NULL, pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
+      asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
       tFreeClientHbBatchReq(pReq, false);
       hbClearReqInfo(pAppHbMgr);
 
