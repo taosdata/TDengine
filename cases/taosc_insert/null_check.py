@@ -39,7 +39,7 @@ class TestNull(TDCase):
         self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, c1 int) tags (tag_ts timestamp, t1 null)')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
-    def tb_null_check(self):
+    def child_tb_null_check(self):
         """
         tbname/tag/col = "null"
         """
@@ -55,6 +55,19 @@ class TestNull(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], None)
         self.tdSql.checkEqual(self.tdSql.query_data[0][1], None)
         self.tdSql.checkEqual(self.tdSql.query_data[0][2], None)
+        self.tdSql.execute(f'drop database if exists {dbname}')
+
+    def tb_null_check(self):
+        """
+        tbname/tag/col = "null"
+        """
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 int)')
+        self.tdSql.execute(f'insert into {dbname}.tb values (now, null)')
+        self.tdSql.error(f'insert into {dbname}.tb values (null, 1)')
+        self.tdSql.query(f'select c1 from {dbname}.tb')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], None)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def polling_insert_check(self):
@@ -82,6 +95,7 @@ class TestNull(TDCase):
     def run(self):
         self.null_dbname_check()
         self.stb_null_check()
+        # self.child_tb_null_check()
         self.tb_null_check()
         self.polling_insert_check()
 
@@ -92,6 +106,7 @@ class TestNull(TDCase):
         case_description = """
             null_dbname_check <jayden>: [TD-13419] : null dbname check;\n
             stb_null_check <jayden>: [TD-13419] : stb null check;\n
+            child_tb_null_check <jayden>: [TD-13419] : child_tb null check;\n
             tb_null_check <jayden>: [TD-13419] : tb null check;\n
             polling_insert_check <jayden>: [TD-13419] : polling insert check;
         """
