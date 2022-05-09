@@ -1985,7 +1985,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
     return;
   } else if (pCheckInfo->iter != NULL || pCheckInfo->iiter != NULL) {
     SSkipListNode* node = NULL;
-    TSKEY          lastRowKey = TSKEY_INITIAL_VAL;
+    TSKEY          lastKeyAppend = TSKEY_INITIAL_VAL;
 
     do {
       STSRow* row2 = NULL;
@@ -2019,7 +2019,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
         }
 
         numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
-                           pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastRowKey);
+                           pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastKeyAppend);
         // numOfRows += 1;
         if (cur->win.skey == TSKEY_INITIAL_VAL) {
           cur->win.skey = key;
@@ -2076,7 +2076,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           }
 
           numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
-                             pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastRowKey);
+                             pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastKeyAppend);
           // ++numOfRows;
           if (cur->win.skey == TSKEY_INITIAL_VAL) {
             cur->win.skey = key;
@@ -2117,10 +2117,13 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
 
         int32_t qstart = 0, qend = 0;
         getQualifiedRowsPos(pTsdbReadHandle, pos, end, numOfRows, &qstart, &qend);
+        lastKeyAppend = tsArray[qend];
 
         numOfRows = doCopyRowsFromFileBlock(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, numOfRows, qstart, qend);
         pos += (qend - qstart + 1) * step;
-
+        if(numOfRows > 0) {
+          curRow = numOfRows - 1;
+        }
         cur->win.ekey = ASCENDING_TRAVERSE(pTsdbReadHandle->order) ? tsArray[qend] : tsArray[qstart];
         cur->lastKey = cur->win.ekey + step;
       }

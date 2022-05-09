@@ -204,7 +204,7 @@ int32_t taosExpandDir(const char *dirname, char *outname, int32_t maxlen) {
 int32_t taosRealPath(char *dirname, char *realPath, int32_t maxlen) {
   char tmp[PATH_MAX] = {0};
 #ifdef WINDOWS
-  if (_fullpath(dirname, tmp, maxlen) != NULL) {
+  if (_fullpath(tmp, dirname, maxlen) != NULL) {
 #else
   if (realpath(dirname, tmp) != NULL) {
 #endif
