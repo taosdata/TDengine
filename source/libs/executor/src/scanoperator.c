@@ -1057,7 +1057,8 @@ static SSDataBlock* doSysTableScan(SOperatorInfo* pOperator) {
       pMsgSendInfo->fp = loadSysTableCallback;
 
       int64_t transporterId = 0;
-      int32_t code = asyncSendMsgToServer(pInfo->readHandle.pMsgCb, NULL, &pInfo->epSet, &transporterId, pMsgSendInfo);
+      int32_t code =
+          asyncSendMsgToServer(pInfo->readHandle.pMsgCb->clientRpc, &pInfo->epSet, &transporterId, pMsgSendInfo);
       tsem_wait(&pInfo->ready);
 
       if (pTaskInfo->code) {

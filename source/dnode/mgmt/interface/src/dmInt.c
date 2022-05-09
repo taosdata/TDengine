@@ -171,16 +171,17 @@ static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   }
 }
 
-void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pRpc) {
+void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("net test req is received");
-  SRpcMsg rsp = {.handle = pRpc->handle, .refId = pRpc->refId, .ahandle = pRpc->ahandle, .code = 0};
-  rsp.pCont = rpcMallocCont(pRpc->contLen);
+  SRpcMsg rsp = {.handle = pReq->handle, .refId = pReq->refId, .ahandle = pReq->ahandle, .code = 0};
+  rsp.pCont = rpcMallocCont(pReq->contLen);
   if (rsp.pCont == NULL) {
     rsp.code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    rsp.contLen = pRpc->contLen;
+    rsp.contLen = pReq->contLen;
   }
   rpcSendResponse(&rsp);
+  rpcFreeCont(pReq->pCont);
 }
 
 void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
@@ -208,6 +209,7 @@ void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
 
 _OVER:
   rpcSendResponse(&rspMsg);
+  rpcFreeCont(pReq->pCont);
 }
 
 void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {

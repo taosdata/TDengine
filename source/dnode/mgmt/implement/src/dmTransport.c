@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
+#include "qworker.h"
+
 #define INTERNAL_USER   "_dnd"
 #define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"
@@ -130,22 +132,27 @@ _OVER:
 }
 
 static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SDnodeTrans * pTrans = &pDnode->trans;
+  SDnodeTrans  *pTrans = &pDnode->trans;
   tmsg_t        msgType = pMsg->msgType;
   bool          isReq = msgType & 1u;
-  SMsgHandle *  pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
+  SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
   SMgmtWrapper *pWrapper = pHandle->pNdWrapper;
 
-  if (msgType == TDMT_DND_SERVER_STATUS) {
-    dTrace("server status req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
-    dmProcessServerStatusReq(pDnode, pMsg);
-    return;
-  }
-
-  if (msgType == TDMT_DND_NET_TEST) {
-    dTrace("net test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
-    dmProcessNetTestReq(pDnode, pMsg);
-    return;
+  switch (msgType) {
+    case TDMT_DND_SERVER_STATUS:
+      dTrace("server status req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
+      dmProcessServerStatusReq(pDnode, pMsg);
+      return;
+    case TDMT_DND_NET_TEST:
+      dTrace("net test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
+      dmProcessNetTestReq(pDnode, pMsg);
+      return;
+    case TDMT_MND_SYSTABLE_RETRIEVE_RSP:
+    case TDMT_VND_FETCH_RSP:
+      dTrace("retrieve rsp is received");
+      qWorkerProcessFetchRsp(NULL, NULL, pMsg);
+      pMsg->pCont = NULL;  // already freed in qworker
+      return;
   }
 
   if (pDnode->status != DND_STAT_RUNNING) {
@@ -233,16 +240,6 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
   return 0;
 }
 
-static inline int32_t dmSendRpcReq(SDnode *pDnode, const SEpSet *pEpSet, SRpcMsg *pReq) {
-  if (pDnode->trans.clientRpc == NULL) {
-    terrno = TSDB_CODE_NODE_OFFLINE;
-    return -1;
-  }
-
-  rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pReq, NULL);
-  return 0;
-}
-
 static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pDnode, &epSet);
@@ -288,28 +285,20 @@ void dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
 }
 
 static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
-  if (pWrapper->pDnode->status != DND_STAT_RUNNING) {
+  SDnode *pDnode = pWrapper->pDnode;
+  if (pDnode->status != DND_STAT_RUNNING) {
     terrno = TSDB_CODE_NODE_OFFLINE;
     dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
     return -1;
   }
 
-  if (pWrapper->procType != DND_PROC_CHILD) {
-    return dmSendRpcReq(pWrapper->pDnode, pEpSet, pReq);
-  } else {
-    char *pHead = taosMemoryMalloc(sizeof(SRpcMsg) + sizeof(SEpSet));
-    if (pHead == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
-
-    memcpy(pHead, pReq, sizeof(SRpcMsg));
-    memcpy(pHead + sizeof(SRpcMsg), pEpSet, sizeof(SEpSet));
-    taosProcPutToParentQ(pWrapper->procObj, pHead, sizeof(SRpcMsg) + sizeof(SEpSet), pReq->pCont, pReq->contLen,
-                         PROC_FUNC_REQ);
-    taosMemoryFree(pHead);
-    return 0;
+  if (pDnode->trans.clientRpc == NULL) {
+    terrno = TSDB_CODE_NODE_OFFLINE;
+    return -1;
   }
+
+  rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pReq, NULL);
+  return 0;
 }
 
 static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
@@ -396,9 +385,10 @@ static void dmConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t 
   pMsg->pCont = pCont;
 
   if (ftype == PROC_FUNC_REQ) {
+    ASSERT(1);
     dTrace("msg:%p, get from parent queue, send req:%s handle:%p code:0x%04x, app:%p", pMsg, TMSG_INFO(pMsg->msgType),
            pMsg->handle, code, pMsg->ahandle);
-    dmSendRpcReq(pWrapper->pDnode, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
+    dmSendReq(pWrapper, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
   } else if (ftype == PROC_FUNC_RSP) {
     dTrace("msg:%p, get from parent queue, rsp handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code, pMsg->ahandle);
     pMsg->refId = taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
@@ -421,23 +411,25 @@ static void dmConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t 
 }
 
 SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper) {
-  SProcCfg cfg = {.childConsumeFp = (ProcConsumeFp)dmConsumeChildQueue,
-                  .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
-                  .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
-                  .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                  .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-                  .parentConsumeFp = (ProcConsumeFp)dmConsumeParentQueue,
-                  .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
-                  .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
-                  .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-                  .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-                  .shm = pWrapper->procShm,
-                  .parent = pWrapper,
-                  .name = pWrapper->name};
+  SProcCfg cfg = {
+      .childConsumeFp = (ProcConsumeFp)dmConsumeChildQueue,
+      .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
+      .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
+      .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
+      .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+      .parentConsumeFp = (ProcConsumeFp)dmConsumeParentQueue,
+      .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
+      .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
+      .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
+      .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
+      .shm = pWrapper->procShm,
+      .parent = pWrapper,
+      .name = pWrapper->name,
+  };
   return cfg;
 }
 
-bool rpcRfp(int32_t code) {
+static bool rpcRfp(int32_t code) {
   if (code == TSDB_CODE_RPC_REDIRECT) {
     return true;
   } else {
@@ -445,7 +437,7 @@ bool rpcRfp(int32_t code) {
   }
 }
 
-static int32_t dmInitClient(SDnode *pDnode) {
+int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
@@ -471,11 +463,15 @@ static int32_t dmInitClient(SDnode *pDnode) {
     return -1;
   }
 
+  pDnode->data.msgCb = dmGetMsgcb(&pDnode->wrappers[DNODE]);
+  tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
+
   dDebug("dnode rpc client is initialized");
+
   return 0;
 }
 
-static void dmCleanupClient(SDnode *pDnode) {
+void dmCleanupClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
   if (pTrans->clientRpc) {
     rpcClose(pTrans->clientRpc);
@@ -517,7 +513,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   SAuthReq authReq = {0};
   tstrncpy(authReq.user, user, TSDB_USER_LEN);
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
-  void *  pReq = rpcMallocCont(contLen);
+  void   *pReq = rpcMallocCont(contLen);
   tSerializeSAuthReq(pReq, contLen, &authReq);
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
@@ -543,7 +539,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   return rpcRsp.code;
 }
 
-static int32_t dmInitServer(SDnode *pDnode) {
+int32_t dmInitServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
@@ -569,24 +565,13 @@ static int32_t dmInitServer(SDnode *pDnode) {
   return 0;
 }
 
-static void dmCleanupServer(SDnode *pDnode) {
+void dmCleanupServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
   if (pTrans->serverRpc) {
     rpcClose(pTrans->serverRpc);
     pTrans->serverRpc = NULL;
     dDebug("dnode rpc server is closed");
   }
-}
-
-int32_t dmInitTrans(SDnode *pDnode) {
-  if (dmInitServer(pDnode) != 0) return -1;
-  if (dmInitClient(pDnode) != 0) return -1;
-  return 0;
-}
-
-void dmCleanupTrans(SDnode *pDnode) {
-  dmCleanupServer(pDnode);
-  dmCleanupClient(pDnode);
 }
 
 SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
@@ -598,6 +583,7 @@ SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartupByWrapper,
       .pWrapper = pWrapper,
+      .clientRpc = pWrapper->pDnode->trans.clientRpc,
   };
   return msgCb;
 }

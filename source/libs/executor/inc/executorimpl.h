@@ -320,7 +320,6 @@ typedef struct SExchangeInfo {
   SArray*             pSourceDataInfo;
   tsem_t              ready;
   void*               pTransporter;
-  SMsgCb*             pMsgCb;
   SSDataBlock*        pResult;
   bool                seqLoadData;  // sequential load data or not, false by default
   int32_t             current;
@@ -660,8 +659,6 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo,
                                    char* pData, int16_t bytes, bool masterscan, uint64_t groupId,
                                    SExecTaskInfo* pTaskInfo, bool isIntervalQuery, SAggSupporter* pSup);
-
-SOperatorInfo* createExchangeOperatorInfo(SMsgCb *pMsgCb, const SNodeList* pSources, SSDataBlock* pBlock, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, SQueryTableDataCond* pCond, int32_t numOfOutput, int32_t dataLoadFlag, const uint8_t* scanInfo,
                                            SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo);
