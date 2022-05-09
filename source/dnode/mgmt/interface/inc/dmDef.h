@@ -41,6 +41,8 @@
 #include "monitor.h"
 #include "sync.h"
 
+#include "libs/function/function.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif

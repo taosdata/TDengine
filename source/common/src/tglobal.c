@@ -170,8 +170,8 @@ uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // internal
-int32_t tsTransPullupMs = 6000;
-int32_t tsMaRebalanceMs = 2000;
+int32_t tsTransPullupInterval = 6;
+int32_t tsMqRebalanceInterval = 2;
 
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
@@ -438,6 +438,9 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "telemetryServer", tsTelemServer, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryPort", tsTelemPort, 1, 65056, 0) != 0) return -1;
 
+  if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
+
   return 0;
 }
 
@@ -574,6 +577,9 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTelemInterval = cfgGetItem(pCfg, "telemetryInterval")->i32;
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
+
+  tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
+  tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
 
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;

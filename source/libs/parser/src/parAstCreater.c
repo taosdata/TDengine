@@ -1300,9 +1300,10 @@ SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const
 }
 
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
-  SNode* pStmt = nodesMakeNode(type);
+  SKillStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
-  return pStmt;
+  pStmt->targetId = strtol(pId->z, NULL, 10);
+  return (SNode*)pStmt;
 }
 
 SNode* createMergeVgroupStmt(SAstCreateContext* pCxt, const SToken* pVgId1, const SToken* pVgId2) {

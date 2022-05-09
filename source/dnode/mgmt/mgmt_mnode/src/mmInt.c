@@ -161,9 +161,7 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
   SMnodeOpt option = {0};
   if (!deployed) {
     dInfo("mnode start to deploy");
-    // if (pWrapper->procType == DND_PROC_CHILD) {
-      pWrapper->pDnode->data.dnodeId = 1;
-    // }
+    pWrapper->pDnode->data.dnodeId = 1;
     mmBuildOptionForDeploy(pMgmt, &option);
   } else {
     dInfo("mnode start to open");
