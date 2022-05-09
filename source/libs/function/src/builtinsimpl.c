@@ -110,6 +110,7 @@ typedef struct SHistoFuncBin {
 
 typedef struct SHistoFuncInfo {
   int32_t numOfBins;
+  int32_t totalCount;
   bool    normalized;
   SHistoFuncBin bins[];
 } SHistoFuncInfo;
@@ -2289,6 +2290,9 @@ bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultIn
   }
 
   SHistoFuncInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->numOfBins = 0;
+  pInfo->totalCount = 0;
+  pInfo->normalized = 0;
 
   int8_t binType = getHistogramBinType(varDataVal(pCtx->param[1].param.pz));
   if (binType == UNKNOWN_BIN) {
@@ -2318,7 +2322,6 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
   int32_t numOfRows = pInput->numOfRows;
 
   int32_t numOfElems = 0;
-  int32_t totalElems = 0;
   for (int32_t i = start; i < numOfRows + start; ++i) {
     if (pCol->hasNull && colDataIsNull_f(pCol->nullbitmap, i)) {
       continue;
@@ -2333,21 +2336,11 @@ int32_t histogramFunction(SqlFunctionCtx *pCtx) {
     for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
       if (v > pInfo->bins[k].lower && v <= pInfo->bins[k].upper) {
         pInfo->bins[k].count++;
-        totalElems++;
+        pInfo->totalCount++;
         break;
       }
     }
 
-  }
-
-  if (pInfo->normalized) {
-    for (int32_t k = 0; k < pInfo->numOfBins; ++k) {
-      if(totalElems != 0) {
-        pInfo->bins[k].percentage = pInfo->bins[k].count / (double)totalElems;
-      } else {
-        pInfo->bins[k].percentage = 0;
-      }
-    }
   }
 
   SET_VAL(GET_RES_INFO(pCtx), numOfElems, pInfo->numOfBins);
@@ -2361,6 +2354,16 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
   int32_t currentRow = pBlock->info.rows;
+
+  if (pInfo->normalized) {
+    for (int32_t k = 0; k < pResInfo->numOfRes; ++k) {
+      if(pInfo->totalCount != 0) {
+        pInfo->bins[k].percentage = pInfo->bins[k].count / (double)pInfo->totalCount;
+      } else {
+        pInfo->bins[k].percentage = 0;
+      }
+    }
+  }
 
   for (int32_t i = 0; i < pResInfo->numOfRes; ++i) {
     int32_t len;
