@@ -1131,8 +1131,10 @@ bool leastSQRFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResultInf
 
   SLeastSQRInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
 
-  pInfo->startVal = pCtx->param[1].param.d;
-  pInfo->stepVal = pCtx->param[2].param.d;
+  pInfo->startVal = IS_FLOAT_TYPE(pCtx->param[1].param.nType) ? pCtx->param[1].param.d :
+                                                                (double)pCtx->param[1].param.i;
+  pInfo->stepVal = IS_FLOAT_TYPE(pCtx->param[1].param.nType) ? pCtx->param[2].param.d :
+                                                                (double)pCtx->param[1].param.i;
   return true;
 }
 
@@ -1260,7 +1262,7 @@ int32_t leastSQRFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   int32_t currentRow = pBlock->info.rows;
 
-  if (pInfo->num = 0) {
+  if (0 == pInfo->num) {
     return 0;
   }
 
