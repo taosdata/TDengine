@@ -23,11 +23,12 @@ echo $UDF1_DIR
 echo $UDF2_DIR
 
 UDF_TMP=/tmp/udf
+rm -rf $UDF_TMP
 mkdir $UDF_TMP
-rm $UDF_TMP/libudf1.so
-rm $UDF_TMP/libudf2.so
 
 echo "Copy udf shared library files to $UDF_TMP"
 
-cp $UDF1_DIR $UDF_TMP 
+cp $UDF1_DIR $UDF_TMP
+echo "copy udf1 result: $?" 
 cp $UDF2_DIR $UDF_TMP
+echo "copy udf2 result: $?"
