@@ -13,12 +13,10 @@
 
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-from taostest.util.rest import TDRest
 
 class TestUnsignedBigintBoundary(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        self.tdRest = TDRest(env_setting=self.env_setting)
 
     def ubigint_boundary_check(self):
         """
