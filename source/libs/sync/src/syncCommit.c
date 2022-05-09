@@ -72,6 +72,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             "pSyncNode->pRaftStore->currentTerm:%lu",
             pEntry->term, pSyncNode->pRaftStore->currentTerm);
       }
+
+      syncEntryDestory(pEntry);
     }
   }
 

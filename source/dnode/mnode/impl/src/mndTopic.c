@@ -61,6 +61,11 @@ int32_t mndInitTopic(SMnode *pMnode) {
 
 void mndCleanupTopic(SMnode *pMnode) {}
 
+const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
+  //
+  return strchr(topic, '.') + 1;
+}
+
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
