@@ -363,10 +363,8 @@ SNode* createCastFunctionNode(SAstCreateContext* pCxt, SNode* pExpr, SDataType d
   CHECK_OUT_OF_MEM(func);
   strcpy(func->functionName, "cast");
   func->node.resType = dt;
-  if (TSDB_DATA_TYPE_VARCHAR == dt.type) {
-    func->node.resType.bytes = func->node.resType.bytes + VARSTR_HEADER_SIZE;
-  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
-    func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  if (TSDB_DATA_TYPE_NCHAR == dt.type) {
+    func->node.resType.bytes = func->node.resType.bytes * TSDB_NCHAR_SIZE;
   }
   nodesListMakeAppend(&func->pParameterList, pExpr);
   return (SNode*)func;
