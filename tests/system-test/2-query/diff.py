@@ -1,3 +1,4 @@
+from wsgiref.headers import tspecials
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -27,6 +28,36 @@ class TDTestCase:
 
     def run(self):
         tdSql.prepare()
+        tdSql.execute("create table ntb(ts timestamp,c1 int,c2 double,c3 float)")
+        tdSql.execute("insert into ntb values(now,1,1.0,10.5)(now+1s,10,-100.0,5.1)(now+10s,-1,15.1,5.0)")
+
+        tdSql.query("select diff(c1,0) from ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,9)
+        tdSql.checkData(1,0,-11)
+        tdSql.query("select diff(c1,1) from ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,9)
+        tdSql.checkData(1,0,None)
+        
+        tdSql.query("select diff(c2,0) from ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,-101)
+        tdSql.checkData(1,0,115.1)
+        tdSql.query("select diff(c2,1) from ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(1,0,115.1)
+
+        tdSql.query("select diff(c3,0) from ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,-5.4)
+        tdSql.checkData(1,0,-0.1)
+        tdSql.query("select diff(c3,1) from ntb")
+        tdSql.checkRows(2)
+        tdSql.checkData(0,0,None)
+        tdSql.checkData(1,0,None)
+
 
         tdSql.execute('''create table stb(ts timestamp, col1 tinyint, col2 smallint, col3 int, col4 bigint, col5 float, col6 double, 
                     col7 bool, col8 binary(20), col9 nchar(20), col11 tinyint unsigned, col12 smallint unsigned, col13 int unsigned, col14 bigint unsigned) tags(loc nchar(20))''')
