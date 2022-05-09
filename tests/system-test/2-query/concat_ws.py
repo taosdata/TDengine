@@ -49,7 +49,7 @@ class TDTestCase:
 
         for num_col in NUM_COL:
             concat_ws_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            concat_ws_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            concat_ws_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL)
 
         concat_ws_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
 
@@ -82,7 +82,7 @@ class TDTestCase:
 
             if num > 8 or num < 2 :
                 [tdSql.error(f"select concat_ws('_',  {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
-
+                break
 
             tdSql.query(f"select  {','.join(condition)}  from {tbname}  ")
             rows = tdSql.queryRows
@@ -271,13 +271,13 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
-        # tdSql.execute("use db")
+        tdSql.execute("use db")
 
-        # tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        # self.all_test()
+        tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        self.all_test()
 
     def stop(self):
         tdSql.close()

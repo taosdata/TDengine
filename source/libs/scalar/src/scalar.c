@@ -347,10 +347,21 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   if (fmIsUserDefinedFunc(node->funcId)) {
     UdfcFuncHandle udfHandle = NULL;
     
-    SCL_ERR_JRET(setupUdf(node->functionName, &udfHandle));
+    code = setupUdf(node->functionName, &udfHandle);
+    if (code != 0) {
+      sclError("fmExecFunction error. setupUdf. function name: %s, code:%d", node->functionName, code);
+      goto _return;
+    }
     code = callUdfScalarFunc(udfHandle, params, paramNum, output);
-    teardownUdf(udfHandle);
-    SCL_ERR_JRET(code);
+    if (code != 0) {
+      sclError("fmExecFunction error. callUdfScalarFunc. function name: %s, udf code:%d", node->functionName, code);
+      goto _return;
+    }
+    code = teardownUdf(udfHandle);
+    if (code != 0) {
+      sclError("fmExecFunction error. callUdfScalarFunc. function name: %s, udf code:%d", node->functionName, code);
+      goto _return;
+    }
   } else {
     SScalarFuncExecFuncs ffpSet = {0};
     code = fmGetScalarFuncExecFuncs(node->funcId, &ffpSet);
