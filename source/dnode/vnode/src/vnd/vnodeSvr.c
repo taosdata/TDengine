@@ -497,6 +497,47 @@ _exit:
   return 0;
 }
 
+static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char* tags) {
+  ASSERT(pMsg != NULL);
+  SSubmitMsgIter msgIter = {0};
+  SMeta         *pMeta = pVnode->pMeta;
+  SSubmitBlk    *pBlock = NULL;
+  SSubmitBlkIter blkIter = {0};
+  STSRow        *row = NULL;
+  STSchema      *pSchema = NULL;
+  tb_uid_t       suid = 0;
+
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+  while (true) {
+    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+    if (pBlock == NULL) break;
+    tInitSubmitBlkIter(&msgIter, pBlock, &blkIter);
+    if (blkIter.row == NULL) continue;
+    if (!pSchema || (suid != msgIter.suid)) {
+      if (pSchema) {
+        taosMemoryFreeClear(pSchema);
+      }
+      pSchema = metaGetTbTSchema(pMeta, msgIter.suid, 0);  // TODO: use the real schema
+      if(pSchema) {
+        suid = msgIter.suid;
+      }
+    }
+    if(!pSchema) {
+      printf("%s:%d no valid schema\n", tags, __LINE__);
+      continue;
+    }
+    char __tags[128] = {0};
+    snprintf(__tags, 128, "%s: uid %" PRIi64 " ", tags, msgIter.uid);
+    while ((row = tGetSubmitBlkNext(&blkIter))) {
+      tdSRowPrint(row, pSchema, __tags);
+    }
+  }
+
+  taosMemoryFreeClear(pSchema);
+
+  return 0;
+}
+
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
   SSubmitMsgIter msgIter = {0};
@@ -507,6 +548,10 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   int32_t        nRows;
 
   pRsp->code = 0;
+
+#ifdef TD_DEBUG_PRINT_ROW
+  vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
+#endif
 
   // handle the request
   if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
@@ -551,6 +596,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
     }
 
     rsp.affectedRows += nRows;
+    
   }
 
 _exit:
