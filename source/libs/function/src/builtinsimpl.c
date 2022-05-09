@@ -703,7 +703,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
   if (pInput->colDataAggIsSet) {
     numOfElems = pInput->numOfRows - pAgg->numOfNull;
     ASSERT(pInput->numOfRows == pInput->totalRows && numOfElems >= 0);
-
     if (numOfElems == 0) {
       return numOfElems;
     }
@@ -722,48 +721,79 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     // the index is the original position, not the relative position
     TSKEY key = (pCtx->ptsList != NULL) ? pCtx->ptsList[index] : TSKEY_INITIAL_VAL;
 
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      int64_t prev = 0;
-      GET_TYPED_DATA(prev, int64_t, type, pBuf->v);
-
-      int64_t val = GET_INT64_VAL(tval);
-      if ((prev < val) ^ isMinFunc) {
-        pBuf->v = val;
-        for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-            __ctx->tag.i = key;
-            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
-          }
-
-          __ctx->fpSet.process(__ctx);
-        }
-
+    if (!pBuf->assign) {
+      pBuf->v = *(int64_t*)tval;
+      if (pCtx->subsidiaries.num > 0) {
         saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
       }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      uint64_t prev = 0;
-      GET_TYPED_DATA(prev, uint64_t, type, pBuf->v);
+    } else {
+      if (IS_SIGNED_NUMERIC_TYPE(type)) {
+        int64_t prev = 0;
+        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
 
-      uint64_t val = GET_UINT64_VAL(tval);
-      if ((prev < val) ^ isMinFunc) {
-        pBuf->v = val;
-        for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-            __ctx->tag.i = key;
-            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+        int64_t val = GET_INT64_VAL(tval);
+        if ((prev < val) ^ isMinFunc) {
+          pBuf->v = val;
+          //        for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
+          //          SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
+          //          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
+          //            __ctx->tag.i = key;
+          //            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+          //          }
+          //
+          //          __ctx->fpSet.process(__ctx);
+          //        }
+
+          if (pCtx->subsidiaries.num > 0) {
+            saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
+        }
 
-          __ctx->fpSet.process(__ctx);
+      } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+        uint64_t prev = 0;
+        GET_TYPED_DATA(prev, uint64_t, type, &pBuf->v);
+
+        uint64_t val = GET_UINT64_VAL(tval);
+        if ((prev < val) ^ isMinFunc) {
+          pBuf->v = val;
+          //          for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
+          //            SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
+          //            if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
+          //              __ctx->tag.i = key;
+          //              __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
+          //            }
+          //
+          //            __ctx->fpSet.process(__ctx);
+          //          }
+          if (pCtx->subsidiaries.num > 0) {
+            saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+      } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+        double prev = 0;
+        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+
+        double val = GET_DOUBLE_VAL(tval);
+        if ((prev < val) ^ isMinFunc) {
+          pBuf->v = val;
+
+          if (pCtx->subsidiaries.num > 0) {
+            saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
+          }
+        }
+      } else if (type == TSDB_DATA_TYPE_FLOAT) {
+        double prev = 0;
+        GET_TYPED_DATA(prev, int64_t, type, &pBuf->v);
+
+        double val = GET_DOUBLE_VAL(tval);
+        if ((prev < val) ^ isMinFunc) {
+          pBuf->v = val;
+        }
+
+        if (pCtx->subsidiaries.num > 0) {
+          saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
         }
       }
-    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
-      double val = GET_DOUBLE_VAL(tval);
-      UPDATE_DATA(pCtx, *(double*)&pBuf->v, val, numOfElems, isMinFunc, key);
-    } else if (type == TSDB_DATA_TYPE_FLOAT) {
-      double val = GET_DOUBLE_VAL(tval);
-      UPDATE_DATA(pCtx, *(float*)&pBuf->v, val, numOfElems, isMinFunc, key);
     }
 
     pBuf->assign = true;
@@ -1058,7 +1088,7 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
     }
   } else if (type == TSDB_DATA_TYPE_FLOAT) {
     float* pData = (float*)pCol->pData;
-    float* val = (float*)&pBuf->v;
+    double* val = (double*)&pBuf->v;
 
     for (int32_t i = start; i < start + numOfRows; ++i) {
       if ((pCol->hasNull) && colDataIsNull_f(pCol->nullbitmap, i)) {
@@ -1119,10 +1149,14 @@ int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   // todo assign the tag value
   int32_t currentRow = pBlock->info.rows;
 
-  if (type)
-  colDataAppend(pCol, currentRow, (const char*)&pRes->v, false);
-  setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
+  if (pCol->info.type == TSDB_DATA_TYPE_FLOAT) {
+    float v = *(double*) &pRes->v;
+    colDataAppend(pCol, currentRow, (const char*)&v, false);
+  } else {
+    colDataAppend(pCol, currentRow, (const char*)&pRes->v, false);
+  }
 
+  setSelectivityValue(pCtx, pBlock, &pRes->tuplePos, currentRow);
   return pEntryInfo->numOfRes;
 }
 
