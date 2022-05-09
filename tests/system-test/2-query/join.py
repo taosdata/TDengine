@@ -99,6 +99,7 @@ class TDTestCase:
 
                 if not join_flag :
                     tdSql.error(sql=sql)
+                    break
                 if len(tblist) == 2:
                     if "ct1" in tblist or "t1" in tblist:
                         self.__join_current(sql, checkrows)

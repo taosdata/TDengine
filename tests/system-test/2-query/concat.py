@@ -82,7 +82,7 @@ class TDTestCase:
 
             if num > 8 or num < 2 :
                 [tdSql.error(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
-                return
+                break
 
             tdSql.query(f"select  {','.join(condition)}  from {tbname}  ")
             rows = tdSql.queryRows
