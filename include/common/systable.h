@@ -44,27 +44,26 @@ extern "C" {
 #define TSDB_INS_TABLE_VNODES                 "vnodes"
 #define TSDB_INS_TABLE_CONFIGS                "configs"
 
-#define TSDB_PERFORMANCE_SCHEMA_DB            "performance_schema"
-#define TSDB_PERFS_TABLE_SMAS                 "smas"
-#define TSDB_PERFS_TABLE_SUBSCRIBES           "subscribes"
-#define TSDB_PERFS_TABLE_CONNECTIONS          "connections"
-#define TSDB_PERFS_TABLE_QUERIES              "queries"
-#define TSDB_PERFS_TABLE_TOPICS               "topics"
-#define TSDB_PERFS_TABLE_CONSUMERS            "consumers"
-#define TSDB_PERFS_TABLE_SUBSCRIPTIONS        "subscriptions"
-#define TSDB_PERFS_TABLE_OFFSETS              "offsets"
-#define TSDB_PERFS_TABLE_TRANS                "trans"
-#define TSDB_PERFS_TABLE_STREAMS              "streams"
+#define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
+#define TSDB_PERFS_TABLE_SMAS          "smas"
+#define TSDB_PERFS_TABLE_CONNECTIONS   "connections"
+#define TSDB_PERFS_TABLE_QUERIES       "queries"
+#define TSDB_PERFS_TABLE_TOPICS        "topics"
+#define TSDB_PERFS_TABLE_CONSUMERS     "consumers"
+#define TSDB_PERFS_TABLE_SUBSCRIPTIONS "subscriptions"
+#define TSDB_PERFS_TABLE_OFFSETS       "offsets"
+#define TSDB_PERFS_TABLE_TRANS         "trans"
+#define TSDB_PERFS_TABLE_STREAMS       "streams"
 
 typedef struct SSysDbTableSchema {
-  const char   *name;
+  const char*   name;
   const int32_t type;
   const int32_t bytes;
 } SSysDbTableSchema;
 
 typedef struct SSysTableMeta {
-  const char              *name;
-  const SSysDbTableSchema *schema;
+  const char*              name;
+  const SSysDbTableSchema* schema;
   const int32_t            colNum;
 } SSysTableMeta;
 
