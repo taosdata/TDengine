@@ -6,7 +6,7 @@ python3 ./test.py -f 0-others/taosShell.py
 python3 ./test.py -f 0-others/taosShellError.py
 python3 ./test.py -f 0-others/taosShellNetChk.py
 python3 ./test.py -f 0-others/telemetry.py
-
+python3 ./test.py -f 0-others/taosdMonitor.py
 
 #python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
@@ -25,8 +25,7 @@ python3 ./test.py -f 2-query/last.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
 
-python3 ./test.py -f 2-query/Timediff.py
-# python3 ./test.py -f 2-query/diff.py
+# python3 ./test.py -f 2-query/Timediff.py
 #python3 ./test.py -f 2-query/cast.py
 
 
