@@ -33,6 +33,8 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw);
 
 int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 
+const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]);
+
 #ifdef __cplusplus
 }
 #endif
