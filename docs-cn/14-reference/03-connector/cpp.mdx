@@ -136,11 +136,11 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
 - `void taos_init()`
 
-  初始化运行环境。如果应用没有主动调用该 API，那么应用在调用 `taos_connect()` 时将自动调用，故应用程序一般无需手动调用该 API。
+  初始化运行环境。如果没有主动调用该 API，那么调用 `taos_connect()` 时驱动将自动调用该 API，故程序一般无需手动调用。
 
 - `void taos_cleanup()`
 
-  清理运行环境，应用退出前应调用此 API。
+  清理运行环境，应用退出前应调用。
 
 - `int taos_options(TSDB_OPTION option, const void * arg, ...)`
 
@@ -154,13 +154,13 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
   创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
 
-  - host：TDengine 管理主节点的 FQDN
+  - host：TDengine 集群中任一节点的 FQDN
   - user：用户名
   - pass：密码
-  - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
-  - port：TDengine 管理主节点的端口号
+  - db：  数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
+  - port：taosd 程序监听的端口
 
-  返回值为空表示失败。应用程序需要保存返回的参数，以便后续 API 调用。
+  返回值为空表示失败。应用程序需要保存返回的参数，以便后续使用。
 
   :::info
   同一进程可以根据不同的 host/port 连接多个 TDengine 集群
@@ -177,15 +177,15 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
 - `void taos_close(TAOS *taos)`
 
-  关闭连接，其中`taos`是 `taos_connect()` 函数返回的指针。
+  关闭连接，其中`taos`是 `taos_connect()` 返回的句柄。
 
 ### 同步查询 API
 
-传统的数据库操作 API，都属于同步操作。应用调用 API 后，一直处于阻塞状态，直到服务端返回结果。
+本小节介绍 API 均属于同步接口。应用调用后，会阻塞等待响应，直到获得返回结果或错误信息。
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-  该 API 用来执行 SQL 语句，可以是 DQL、DML 或 DDL 语句。 其中的 `taos` 参数是通过 `taos_connect()` 获得的指针。不能通过返回值是否是 `NULL` 来判断执行结果是否失败，而是需要用 `taos_errno()` 函数解析结果集中的错误代码来进行判断。
+  执行 SQL 语句，可以是 DQL、DML 或 DDL 语句。 其中的 `taos` 参数是通过 `taos_connect()` 获得的句柄。不能通过返回值是否是 `NULL` 来判断执行结果是否失败，而是需要用 `taos_errno()` 函数解析结果集中的错误代码来进行判断。
 
 - `int taos_result_precision(TAOS_RES *res)`
 
@@ -225,7 +225,7 @@ typedef struct taosField {
 
 - `void taos_stop_query(TAOS_RES *res)`
 
-  停止一个查询的执行。
+  停止当前查询的执行。
 
 - `void taos_free_result(TAOS_RES *res)`
 
@@ -233,7 +233,7 @@ typedef struct taosField {
 
 - `char *taos_errstr(TAOS_RES *res)`
 
-  获取最近一次 API 调用失败的原因,返回值为字符串。
+  获取最近一次 API 调用失败的原因,返回值为字符串标识的错误提示信息。
 
 - `int taos_errno(TAOS_RES *res)`
 
@@ -246,7 +246,7 @@ typedef struct taosField {
 
 ### 异步查询 API
 
-同步 API 之外，TDengine 还提供性能更高的异步调用 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2 ～ 4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优点尤为突出。
+TDengine 还提供性能更高的异步 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2 ～ 4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优势尤为突出。
 
 异步 API 都需要应用提供相应的回调函数，回调函数参数设置如下：前两个参数都是一致的，第三个参数依不同的 API 而定。第一个参数 param 是应用调用异步 API 时提供给系统的，用于回调时，应用能够找回具体操作的上下文，依具体实现而定。第二个参数是 SQL 操作的结果集，如果为空，比如 insert 操作，表示没有记录返回，如果不为空，比如 select 操作，表示有记录返回。
 
