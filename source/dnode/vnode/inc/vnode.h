@@ -157,7 +157,7 @@ struct SVnodeCfg {
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
-  SSyncCfg syncCfg;  // sync integration
+  SSyncCfg syncCfg;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;
