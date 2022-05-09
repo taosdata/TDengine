@@ -23,7 +23,7 @@ class TestStb(TDCase):
         """
         max length: 192
         """
-        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAMcE_MAX_LENGTH"], mode="letters")
+        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.error(f'create stable {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.query('show stables')
