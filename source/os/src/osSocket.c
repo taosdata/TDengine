@@ -692,11 +692,12 @@ int taosValidIp(uint32_t ip) {
       if (ret != 0) {
         break;
       }
+      ret = -1;
+      if (ip == (uint32_t)taosInetAddr(ip_str)) {
+        ret = 0;
+        break;
+      }
       ifreq++;
-    }
-    if (ip == (uint32_t)taosInetAddr(ip_str)) {
-      ret = 0;
-      break;
     }
   }
   taosCloseSocketNoCheck1(fd);
