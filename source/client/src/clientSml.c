@@ -98,6 +98,21 @@ typedef struct {
 } SSmlMsgBuf;
 
 typedef struct {
+  int32_t code;
+  int32_t lineNum;
+
+  int32_t numOfSTables;
+  int32_t numOfCTables;
+  int32_t numOfCreateSTables;
+
+  int64_t parseTime;
+  int64_t schemaTime;
+  int64_t insertBindTime;
+  int64_t insertRpcTime;
+  int64_t endTime;
+} SSmlCostInfo;
+
+typedef struct {
   uint64_t          id;
 
   SMLProtocolType   protocol;
@@ -114,6 +129,7 @@ typedef struct {
   SRequestObj       *pRequest;
   SQuery            *pQuery;
 
+  SSmlCostInfo      cost;
   int32_t           affectedRows;
   SSmlMsgBuf        msgBuf;
   SHashObj          *dumplicateKey;  // for dumplicate key
@@ -444,6 +460,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
         uError("SML:0x%"PRIx64" catalogGetSTableMeta failed. super table name %s", info->id, schemaAction.createSTable.sTableName);
         return code;
       }
+      info->cost.numOfCreateSTables++;
     }else if (code == TSDB_CODE_SUCCESS) {
     } else {
       uError("SML:0x%"PRIx64" load table meta error: %s", info->id, tstrerror(code));
@@ -1547,7 +1564,7 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
     tinfo->sTableName = elements.measure;
     tinfo->sTableNameLen = elements.measureLen;
     smlBuildChildTableName(tinfo);
-    uDebug("SML:0x%"PRIx64" child table name: %s", info->id, tinfo->childTableName);
+    //uDebug("SML:0x%"PRIx64" child table name: %s", info->id, tinfo->childTableName);
 
     SSmlSTableMeta** tableMeta = taosHashGet(info->superTables, elements.measure, elements.measureLen);
     if(tableMeta){  // update meta
@@ -1699,10 +1716,31 @@ static int32_t smlInsertData(SSmlHandle* info) {
   }
 
   smlBuildOutput(info->exec, info->pVgHash);
+  info->cost.insertRpcTime = taosGetTimestampUs();
+
   launchQueryImpl(info->pRequest, info->pQuery, TSDB_CODE_SUCCESS, true);
 
   info->affectedRows = taos_affected_rows(info->pRequest);
   return info->pRequest->code;
+}
+
+int32_t numOfSTables;
+int32_t numOfCTables;
+int32_t numOfCreateSTables;
+
+int64_t parseTime;
+int64_t schemaTime;
+int64_t insertBindTime;
+int64_t insertRpcTime;
+int64_t endTime;
+
+static void printStatisticInfo(SSmlHandle *info){
+  uError("SML:0x%"PRIx64" smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d \
+        parse cost:%lld,schema cost:%lld,bind cost:%lld,rpc cost:%lld,total cost:%lld", info->id, info->cost.code,
+         info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables, info->cost.numOfCreateSTables,
+         info->cost.schemaTime-info->cost.parseTime, info->cost.insertBindTime-info->cost.schemaTime,
+         info->cost.insertRpcTime-info->cost.insertBindTime, info->cost.endTime-info->cost.insertRpcTime,
+         info->cost.endTime-info->cost.parseTime);
 }
 
 static int smlInsertLines(SSmlHandle *info, char* lines[], int numLines) {
@@ -1714,6 +1752,7 @@ static int smlInsertLines(SSmlHandle *info, char* lines[], int numLines) {
     goto cleanup;
   }
 
+  info->cost.parseTime = taosGetTimestampUs();
   for (int32_t i = 0; i < numLines; ++i) {
     code = smlParseLine(info, lines[i]);
     if (code != TSDB_CODE_SUCCESS) {
@@ -1721,24 +1760,29 @@ static int smlInsertLines(SSmlHandle *info, char* lines[], int numLines) {
       goto cleanup;
     }
   }
-  uDebug("SML:0x%"PRIx64" smlInsertLines parse success. tables %d", info->id, taosHashGetSize(info->childTables));
-  uDebug("SML:0x%"PRIx64" smlInsertLines parse success. super tables %d", info->id, taosHashGetSize(info->superTables));
 
+  info->cost.lineNum = numLines;
+  info->cost.numOfSTables = taosHashGetSize(info->superTables);
+  info->cost.numOfCTables = taosHashGetSize(info->childTables);
+
+  info->cost.schemaTime = taosGetTimestampUs();
   code = smlModifyDBSchemas(info);
   if (code != 0) {
     uError("SML:0x%"PRIx64" smlModifyDBSchemas error : %s", info->id, tstrerror(code));
     goto cleanup;
   }
 
+  info->cost.insertBindTime = taosGetTimestampUs();
   code = smlInsertData(info);
   if (code != 0) {
     uError("SML:0x%"PRIx64" smlInsertData error : %s", info->id, tstrerror(code));
     goto cleanup;
   }
-
-  uDebug("SML:0x%"PRIx64" smlInsertLines finish inserting %d lines.", info->id, numLines);
+  info->cost.endTime = taosGetTimestampUs();
 
 cleanup:
+  info->cost.code = code;
+  printStatisticInfo(info);
   return code;
 }
 
