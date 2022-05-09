@@ -23,7 +23,7 @@ class TestStb(TDCase):
         """
         max length: 192
         """
-        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
+        stbname = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAMcE_MAX_LENGTH"], mode="letters")
         self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.error(f'create stable {stbname} (ts timestamp, c1 int) tags (t1 int)')
         self.tdSql.query('show stables')
@@ -140,6 +140,7 @@ class TestStb(TDCase):
     def desc(self) -> str:
         case_description = """
             stbname_length_check <jayden>: [TD-13419] : stb name length check (max 192);\n
+            stb_params_check <jayden>: [TD-14992] : check params;\n
             stbname_with_backquote <jayden>: [TD-13419] : backquote supported;\n
             stbname_without_backquote <jayden>: [TD-13419] : error occured when illegal stbname without backquote;\n
             upper_lower_stbname_check <jayden>: [TD-13419] : upper lower stbname check;\n
