@@ -3979,6 +3979,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   SSDataBlock* pRes = pInfo->pRes;
   blockDataCleanup(pRes);
 
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
   }
@@ -4042,8 +4043,12 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, false);
     blockDataEnsureCapacity(pInfo->pRes, pInfo->pRes->info.rows + pBlock->info.rows);
 
-    projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfExprs,
+    pTaskInfo->code = projectApplyFunctions(pOperator->pExpr, pInfo->pRes, pBlock, pInfo->pCtx, pOperator->numOfExprs,
                           pProjectInfo->pPseudoColInfo);
+
+    if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, pTaskInfo->code);
+    }
 
     int32_t status = handleLimitOffset(pOperator, pBlock);
     if (status == PROJECT_RETRIEVE_CONTINUE) {

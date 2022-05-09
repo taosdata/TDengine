@@ -114,7 +114,10 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   SOperatorInfo* pOperator = param;
   SSortOperatorInfo* pSort = pOperator->info;
   if (pOperator->pExpr != NULL) {
-    projectApplyFunctions(pOperator->pExpr, pBlock, pBlock, pSort->binfo.pCtx, pOperator->numOfExprs, NULL);
+    int32_t code = projectApplyFunctions(pOperator->pExpr, pBlock, pBlock, pSort->binfo.pCtx, pOperator->numOfExprs, NULL);
+    if (code != TSDB_CODE_SUCCESS) {
+      longjmp(pOperator->pTaskInfo->env, code);
+    }
   }
 }
 
