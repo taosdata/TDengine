@@ -1676,7 +1676,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
 
 static void smlPrintStatisticInfo(SSmlHandle *info){
   uError("SML:0x%"PRIx64" smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d \
-        parse cost:%"PRIx64",schema cost:%"PRIx64",bind cost:%"PRIx64",rpc cost:%"PRIx64",total cost:%"PRIx64"", info->id, info->cost.code,
+        parse cost:%"PRId64",schema cost:%"PRId64",bind cost:%"PRId64",rpc cost:%"PRId64",total cost:%"PRId64"", info->id, info->cost.code,
          info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables, info->cost.numOfCreateSTables,
          info->cost.schemaTime-info->cost.parseTime, info->cost.insertBindTime-info->cost.schemaTime,
          info->cost.insertRpcTime-info->cost.insertBindTime, info->cost.endTime-info->cost.insertRpcTime,
