@@ -666,7 +666,7 @@ static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pB
     struct tm * ptm = taosLocalTime(&tt, NULL);
     strftime(expire, 21, "%Y-%m-%d %H:%M:%S", ptm);
     src = grantStatus.expireTimeSec != GRANT_EXPIRE_TIME? expire : "unlimited";
-    STR_WITH_MAXSIZE_TO_VARSTR(tmp, src, pShow->bytes[cols]);
+    STR_WITH_SIZE_TO_VARSTR(tmp, src, strlen(src));
     colDataAppend(pColInfo, numOfRows, tmp, false);
 
     cols++;
