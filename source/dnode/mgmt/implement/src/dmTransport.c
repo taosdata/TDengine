@@ -144,7 +144,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
   if (msgType == TDMT_DND_NET_TEST) {
     dTrace("net test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
-    dmProcessServerStatusReq(pDnode, pMsg);
+    dmProcessNetTestReq(pDnode, pMsg);
     return;
   }
 

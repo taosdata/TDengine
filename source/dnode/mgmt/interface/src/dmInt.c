@@ -171,7 +171,7 @@ static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   }
 }
 
-void dmProcessNettestReq(SDnode *pDnode, SRpcMsg *pRpc) {
+void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pRpc) {
   dDebug("net test req is received");
   SRpcMsg rsp = {.handle = pRpc->handle, .refId = pRpc->refId, .ahandle = pRpc->ahandle, .code = 0};
   rsp.pCont = rpcMallocCont(pRpc->contLen);
