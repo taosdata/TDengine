@@ -921,18 +921,18 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func_desc,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
-                            #cur1.execute(sql2)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
+                            cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
-                            #cur1.execute(sql2)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
+                            cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
-                            #cur1.execute(sql2)
+                            self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
+                            cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -949,18 +949,18 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func_desc,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts desc;" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #TD-15286 self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,2,'%s' %sql2 ,1,1,1,2)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc;" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -977,18 +977,18 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s order by ts desc;'  % (func_desc,self.table,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s order by ts desc);" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s ) order by ts desc;" %(func_desc,self.table,qt_where,qt_like_match,qt_in_where,time_window_new)
@@ -1002,18 +1002,18 @@ class TDTestQuery(TDCase):
                             sql1 = 'select %s from %s %s %s order by ts desc;'  % (func_desc,self.table,interval_fill,time_window_new)
 
                             sql2 = "select %s from %s where  %s %s %s %s %s order by ts desc;" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select * from (select %s from %s where  %s %s %s %s %s order by ts desc);" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s) where  %s %s %s %s %s order by ts desc;" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
-                            #self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
-                            #cur1.execute(sql2)
+                            # self.tdCreateData.data_matrix_equal('%s' %sql1 ,1,1,1,1,'%s' %sql2 ,1,1,1,1)
+                            # cur1.execute(sql2)
                             sql= sql + sql2
 
                             sql2 = "select %s from (select * from %s where  %s %s %s %s %s ) order by ts desc;" %(func_desc,self.table,interval_fill_and,qt_where,qt_like_match,qt_in_where,time_window_new)
