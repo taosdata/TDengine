@@ -21,7 +21,7 @@ CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_n
 
 1. TAGS 列的数据类型不能是 timestamp 类型；（从 2.1.3.0 版本开始，TAGS 列中支持使用 timestamp 类型，但需注意在 TAGS 中的 timestamp 列写入数据时需要提供给定值，而暂不支持四则运算，例如 `NOW + 10s` 这类表达式）
 2. TAGS 列名不能与其他列名相同；
-3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](/reference/keywords/) 章节）；
+3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](/taos-sql/keywords/) 章节）；
 4. TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
 
 :::
@@ -111,6 +111,13 @@ ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
 ```
 
 如果标签的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
+
+### 超级表查询
+使用 SELECT 语句可以完成在超级表上的投影及聚合两类查询，在 WHERE 语句中可以对标签及列进行筛选及过滤。
+
+如果在超级表查询语句中不加 ORDER BY, 返回顺序是先返回一个子表的所有数据，然后再返回下个子表的所有数据，所以返回的数据是无序的。如果增加了 ORDER BY 语句，会严格按 ORDER BY 语句指定的顺序返回的。
+
+
 
 :::note
 除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于 STable，不能对单个子表操作。对 STable 添加标签以后，依托于该 STable 建立的所有表将自动增加了一个标签，所有新增标签的默认值都是 NULL。

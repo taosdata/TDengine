@@ -27,11 +27,14 @@ public class SubscribeDemo {
             properties.setProperty(TSDBDriver.PROPERTY_KEY_TIME_ZONE, "UTC-8");
             String jdbcUrl = "jdbc:TAOS://127.0.0.1:6030/power?user=root&password=taosdata";
             connection = DriverManager.getConnection(jdbcUrl, properties);
-            subscribe = ((TSDBConnection) connection).subscribe(topic, sql, true); // 创建订阅
+            // create subscribe
+            subscribe = ((TSDBConnection) connection).subscribe(topic, sql, true); 
             int count = 0;
             while (count < 10) {
-                TimeUnit.SECONDS.sleep(1); // 等待1秒，避免频繁调用 consume，给服务端造成压力
-                TSDBResultSet resultSet = subscribe.consume(); // 消费数据
+                // wait 1 second to avoid frequent calls to consume
+                TimeUnit.SECONDS.sleep(1); 
+                // consume
+                TSDBResultSet resultSet = subscribe.consume();
                 if (resultSet == null) {
                     continue;
                 }
@@ -50,7 +53,8 @@ public class SubscribeDemo {
         } finally {
             try {
                 if (null != subscribe)
-                    subscribe.close(true); // 关闭订阅
+                    // close subscribe
+                    subscribe.close(true);
                 if (connection != null)
                     connection.close();
             } catch (SQLException throwable) {

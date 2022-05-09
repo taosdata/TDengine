@@ -2034,8 +2034,6 @@ _return:
 /////////////////////////////////////////////////////////////////////////////////////////
 static void tscRetrieveDataRes(void *param, TAOS_RES *tres, int code);
 
-static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj);
-
 int32_t tscCreateJoinSubquery(SSqlObj *pSql, int16_t tableIndex, SJoinSupporter *pSupporter) {
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
@@ -2707,7 +2705,7 @@ static void doSendQueryReqs(SSchedMsg* pSchedMsg) {
   tfree(p);
 }
 
-static void doConcurrentlySendSubQueries(SSqlObj* pSql) {
+void doConcurrentlySendSubQueries(SSqlObj* pSql) {
   SSubqueryState *pState = &pSql->subState;
 
   // concurrently sent the query requests.
@@ -2810,7 +2808,7 @@ int32_t tscHandleMasterSTableQuery(SSqlObj *pSql) {
     trs->subqueryIndex = i;
     trs->pParentSql    = pSql;
 
-    SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL);
+    SSqlObj *pNew = tscCreateSTableSubquery(pSql, trs, NULL, tscRetrieveDataRes, TSDB_SQL_SELECT);
     if (pNew == NULL) {
       tscError("0x%"PRIx64" failed to malloc buffer for subObj, orderOfSub:%d, reason:%s", pSql->self, i, strerror(errno));
       tfree(trs->localBuffer);
@@ -2913,7 +2911,7 @@ static int32_t tscReissueSubquery(SRetrieveSupport *oriTrs, SSqlObj *pSql, int32
   tscError("0x%"PRIx64" sub:0x%"PRIx64" retrieve/query failed, code:%s, orderOfSub:%d, retry:%d", trsupport->pParentSql->self, pSql->self,
            tstrerror(code), subqueryIndex, trsupport->numOfRetry);
 
-  SSqlObj *pNew = tscCreateSTableSubquery(trsupport->pParentSql, trsupport, pSql);
+  SSqlObj *pNew = tscCreateSTableSubquery(trsupport->pParentSql, trsupport, pSql,tscRetrieveDataRes, TSDB_SQL_SELECT);
   if (pNew == NULL) {
     tscError("0x%"PRIx64" sub:0x%"PRIx64" failed to create new subquery due to error:%s, abort retry, vgId:%d, orderOfSub:%d",
              oriTrs->pParentSql->self, pSql->self, tstrerror(terrno), pVgroup->vgId, oriTrs->subqueryIndex);
@@ -3259,12 +3257,12 @@ static void tscRetrieveFromDnodeCallBack(void *param, TAOS_RES *tres, int numOfR
   }
 }
 
-static SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj) {
+SSqlObj *tscCreateSTableSubquery(SSqlObj *pSql, SRetrieveSupport *trsupport, SSqlObj *prevSqlObj, __async_cb_func_t fp, int32_t cmd) {
   const int32_t table_index = 0;
   SSqlCmd *   pCmd = &pSql->cmd;
   SQueryInfo *pPQueryInfo = tscGetQueryInfo(pCmd); // Parent SQueryInfo
   
-  SSqlObj *pNew = createSubqueryObj(pSql, table_index, tscRetrieveDataRes, trsupport, TSDB_SQL_SELECT, prevSqlObj);
+  SSqlObj *pNew = createSubqueryObj(pSql, table_index, fp, trsupport, cmd, prevSqlObj);
   if (pNew != NULL) {  // the sub query of two-stage super table query
     SQueryInfo *pQueryInfo = tscGetQueryInfo(&pNew->cmd);
 

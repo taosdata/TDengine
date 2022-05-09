@@ -34,13 +34,16 @@ typedef struct {
 void  tsdbGetRtnSnap(STsdbRepo *pRepo, SRtn *pRtn);
 int   tsdbEncodeKVRecord(void **buf, SKVRecord *pRecord);
 void *tsdbDecodeKVRecord(void *buf, SKVRecord *pRecord);
-void *tsdbCommitData(STsdbRepo *pRepo);
+void *tsdbCommitData(STsdbRepo *pRepo, bool end);
 int   tsdbApplyRtnOnFSet(STsdbRepo *pRepo, SDFileSet *pSet, SRtn *pRtn);
 int tsdbWriteBlockInfoImpl(SDFile *pHeadf, STable *pTable, SArray *pSupA, SArray *pSubA, void **ppBuf, SBlockIdx *pIdx);
 int tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 int   tsdbWriteBlockImpl(STsdbRepo *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDFileAggr, SDataCols *pDataCols,
                          SBlock *pBlock, bool isLast, bool isSuper, void **ppBuf, void **ppCBuf, void **ppExBuf);
 int   tsdbApplyRtn(STsdbRepo *pRepo);
+
+// commit control command 
+int tsdbCommitControl(STsdbRepo* pRepo, SControlDataInfo* pCtlDataInfo);
 
 static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
   if (fid >= pRtn->maxFid) {
@@ -52,6 +55,23 @@ static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
   } else {
     return -1;
   }
+}
+
+static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
+int64_t fid;
+  if (key < 0) {
+    fid = ((key + 1) / tsTickPerDay[precision] / days - 1);
+  } else {
+    fid = ((key / tsTickPerDay[precision] / days));
+  }
+
+  // check fid over int max or min, set with int max or min
+  if (fid > INT32_MAX) {
+    fid = INT32_MAX;
+  } else if(fid < INT32_MIN){
+    fid = INT32_MIN;
+  }
+  return (int)fid;
 }
 
 #endif /* _TD_TSDB_COMMIT_H_ */

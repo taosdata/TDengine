@@ -66,6 +66,8 @@ extern "C" {
 #include "tsdbCommit.h"
 // Compact
 #include "tsdbCompact.h"
+// Delete
+#include "tsdbDelete.h"
 // Commit Queue
 #include "tsdbCommitQueue.h"
 
@@ -97,6 +99,8 @@ struct STsdbRepo {
 
   SMergeBuf       mergeBuf;  //used when update=2
   int8_t          compactState;  // compact state: inCompact/noCompact/waitingCompact?
+  int8_t          deleteState;  // truncate state: inTruncate/noTruncate/waitingTruncate
+
   pthread_t*      pthread;
 };
 
@@ -112,9 +116,10 @@ STsdbMeta* tsdbGetMeta(STsdbRepo* pRepo);
 int        tsdbCheckCommit(STsdbRepo* pRepo);
 int        tsdbRestoreInfo(STsdbRepo* pRepo);
 UNUSED_FUNC int tsdbCacheLastData(STsdbRepo *pRepo, STsdbCfg* oldCfg);
-int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable);
+int32_t    tsdbLoadLastCache(STsdbRepo *pRepo, STable* pTable, bool force);
 void       tsdbGetRootDir(int repoid, char dirName[]);
 void       tsdbGetDataDir(int repoid, char dirName[]);
+int        tsdbRestoreLastRow(STsdbRepo *pRepo, STable *pTable, SReadH* pReadh, SBlockIdx *pIdx, bool onlyKey);
 
 static FORCE_INLINE STsdbBufBlock* tsdbGetCurrBufBlock(STsdbRepo* pRepo) {
   ASSERT(pRepo != NULL);

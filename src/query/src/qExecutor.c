@@ -330,11 +330,11 @@ SSDataBlock* createOutputBuf(SExprInfo* pExpr, int32_t numOfOutput, int32_t numO
 
     int64_t tmp = idata.info.bytes;
     tmp *= numOfRows;
-    if (tmp >= 1024*1024*1024) {   // 1G
-      qError("size is too large, failed to allocate column buffer for output buffer");
+    if (tmp >= INT32_MAX) {
+      qError("size is too large, failed to allocate column buffer for output buffer:%" PRId64, tmp);
       tmp = 128*1024*1024;
     }
-    int32_t size = (int32_t)MAX(tmp, minSize);
+    size_t size = (size_t)MAX(tmp, minSize);
     idata.pData = calloc(1, size);  // at least to hold a pointer on x64 platform
     if (idata.pData == NULL) {
       qError("failed to allocate column buffer for output buffer");
@@ -1744,6 +1744,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   STableQueryInfo*  item = pRuntimeEnv->current;
 
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+  bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
+
   // primary timestamp column
   SColumnInfoData* pColInfoData = taosArrayGet(pSDataBlock->pDataBlock, 0);
 
@@ -1783,7 +1786,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
 
-      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+      int32_t forwardStep = pInfo->numOfRows;
+      int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                        pSDataBlock->info.rows, pOperator->numOfOutput);
 
       pInfo->curWindow.skey = tsList[j];
@@ -1803,7 +1808,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
   }
 
-  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+  int32_t forwardStep = pInfo->numOfRows;
+  int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                    pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
@@ -2131,7 +2138,7 @@ static int32_t setupQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv, int32_t numOf
   pRuntimeEnv->sasArray = calloc(pQueryAttr->numOfOutput, sizeof(SScalarExprSupport));
 
   if (pRuntimeEnv->sasArray == NULL || pRuntimeEnv->pResultRowHashTable == NULL || pRuntimeEnv->keyBuf == NULL ||
-      pRuntimeEnv->prevRow == NULL  || pRuntimeEnv->tagVal == NULL) {
+      pRuntimeEnv->prevRow == NULL  || pRuntimeEnv->tagVal == NULL || pRuntimeEnv->pool == NULL) {
     goto _clean;
   }
 
@@ -2446,6 +2453,9 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   taosHashCleanup(pRuntimeEnv->pTableRetrieveTsMap);
   pRuntimeEnv->pTableRetrieveTsMap = NULL;
+  
+  taosHashCleanup(pRuntimeEnv->pTablesRead);
+  pRuntimeEnv->pTablesRead = NULL;
 
   taosHashCleanup(pRuntimeEnv->pResultRowListSet);
   pRuntimeEnv->pResultRowListSet = NULL;
@@ -6960,6 +6970,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   STableQueryInfo*  item = pRuntimeEnv->current;
   SColumnInfoData* pColInfoData = taosArrayGet(pSDataBlock->pDataBlock, pInfo->colIndex);
 
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+  bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
+
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
 
   bool    masterScan = IS_MASTER_SCAN(pRuntimeEnv);
@@ -7003,7 +7016,10 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
-      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+
+      int32_t forwardStep = pInfo->numOfRows;
+      int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                        pSDataBlock->info.rows, pOperator->numOfOutput);
 
       pInfo->curWindow.skey = tsList[j];
@@ -7023,7 +7039,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
   }
 
-  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+  int32_t forwardStep = pInfo->numOfRows;
+  int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                    pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
