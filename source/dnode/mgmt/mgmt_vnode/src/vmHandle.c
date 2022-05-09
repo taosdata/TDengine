@@ -216,6 +216,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
   msgCb.queueFps[MERGE_QUEUE] = vmPutMsgToMergeQueue;
   msgCb.qsizeFp = vmGetQueueSize;
+  msgCb.clientRpc = pMgmt->clientRpc;
 
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
   if (pImpl == NULL) {

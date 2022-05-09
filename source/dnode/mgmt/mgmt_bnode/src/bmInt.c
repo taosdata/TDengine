@@ -21,6 +21,7 @@ static int32_t bmRequire(SMgmtWrapper *pWrapper, bool *required) { return dmRead
 static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
   SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
   msgCb.pWrapper = pMgmt->pWrapper;
+  msgCb.clientRpc = pMgmt->clientRpc;
   pOption->msgCb = msgCb;
 }
 

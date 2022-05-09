@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
 #include "taoserror.h"
+#include "trpc.h"
 
 static SMsgCb tsDefaultMsgCb;
 
@@ -41,10 +42,10 @@ int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
   }
 }
 
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
-  SendReqFp fp = pMsgCb->sendReqFp;
-  if (fp != NULL) {
-    return (*fp)(pMsgCb->pWrapper, epSet, pReq);
+int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* pEpSet, SRpcMsg* pReq) {
+  if (pMsgCb->clientRpc != NULL) {
+    rpcSendRequest(pMsgCb->clientRpc, pEpSet, pReq, NULL);
+    return 0;
   } else {
     terrno = TSDB_CODE_INVALID_PTR;
     return -1;

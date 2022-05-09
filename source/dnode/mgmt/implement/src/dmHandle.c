@@ -385,6 +385,10 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
     dError("failed to init transport since %s", terrstr());
     return -1;
   }
+
+  pDnode->data.msgCb = dmGetMsgcb(&pDnode->wrappers[DNODE]);
+  tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
+
   dmReportStartup(pDnode, "dnode-transport", "initialized");
 
   if (dmStartUdfd(pDnode) != 0) {

@@ -124,9 +124,6 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  pDnode->data.msgCb = dmGetMsgcb(&pDnode->wrappers[DNODE]);
-  tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
-
   dInfo("dnode is created, data:%p", pDnode);
   code = 0;
 

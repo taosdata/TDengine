@@ -283,30 +283,30 @@ void dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
   rpcSendRecv(pDnode->trans.clientRpc, &epSet, pReq, pRsp);
 }
 
-static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
-  if (pWrapper->pDnode->status != DND_STAT_RUNNING) {
-    terrno = TSDB_CODE_NODE_OFFLINE;
-    dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
-    return -1;
-  }
+// static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
+//   if (pWrapper->pDnode->status != DND_STAT_RUNNING) {
+//     terrno = TSDB_CODE_NODE_OFFLINE;
+//     dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
+//     return -1;
+//   }
 
-  if (pWrapper->procType != DND_PROC_CHILD) {
-    return dmSendRpcReq(pWrapper->pDnode, pEpSet, pReq);
-  } else {
-    char *pHead = taosMemoryMalloc(sizeof(SRpcMsg) + sizeof(SEpSet));
-    if (pHead == NULL) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      return -1;
-    }
+//   if (pWrapper->procType != DND_PROC_CHILD) {
+//     return dmSendRpcReq(pWrapper->pDnode, pEpSet, pReq);
+//   } else {
+//     char *pHead = taosMemoryMalloc(sizeof(SRpcMsg) + sizeof(SEpSet));
+//     if (pHead == NULL) {
+//       terrno = TSDB_CODE_OUT_OF_MEMORY;
+//       return -1;
+//     }
 
-    memcpy(pHead, pReq, sizeof(SRpcMsg));
-    memcpy(pHead + sizeof(SRpcMsg), pEpSet, sizeof(SEpSet));
-    taosProcPutToParentQ(pWrapper->procObj, pHead, sizeof(SRpcMsg) + sizeof(SEpSet), pReq->pCont, pReq->contLen,
-                         PROC_FUNC_REQ);
-    taosMemoryFree(pHead);
-    return 0;
-  }
-}
+//     memcpy(pHead, pReq, sizeof(SRpcMsg));
+//     memcpy(pHead + sizeof(SRpcMsg), pEpSet, sizeof(SEpSet));
+//     taosProcPutToParentQ(pWrapper->procObj, pHead, sizeof(SRpcMsg) + sizeof(SEpSet), pReq->pCont, pReq->contLen,
+//                          PROC_FUNC_REQ);
+//     taosMemoryFree(pHead);
+//     return 0;
+//   }
+// }
 
 static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   if (pWrapper->procType != DND_PROC_CHILD) {
@@ -336,16 +336,16 @@ static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp
   }
 }
 
-#if 0
-static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
-  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
-  if (pWrapper->procType != DND_PROC_CHILD) {
-    rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
-  } else {
-    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
-  }
-}
-#endif
+// #if 0
+// static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
+//   ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
+//   if (pWrapper->procType != DND_PROC_CHILD) {
+//     rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
+//   } else {
+//     taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+//   }
+// }
+// #endif
 
 static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != DND_PROC_CHILD) {
@@ -554,13 +554,13 @@ void dmCleanupTrans(SDnode *pDnode) {
 
 SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
   SMsgCb msgCb = {
-      .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
       .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartupByWrapper,
       .pWrapper = pWrapper,
+      .clientRpc = pWrapper->pDnode->trans.clientRpc,
   };
   return msgCb;
 }

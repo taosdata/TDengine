@@ -139,6 +139,7 @@ static void *vmOpenVnodeInThread(void *param) {
     msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
     msgCb.queueFps[MERGE_QUEUE] = vmPutMsgToMergeQueue;
     msgCb.qsizeFp = vmGetQueueSize;
+    msgCb.clientRpc = pMgmt->clientRpc;
     snprintf(path, TSDB_FILENAME_LEN, "vnode%svnode%d", TD_DIRSEP, pCfg->vgId);
     SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
     if (pImpl == NULL) {
