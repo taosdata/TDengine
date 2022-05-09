@@ -140,6 +140,7 @@ class TestStb(TDCase):
     def desc(self) -> str:
         case_description = """
             stbname_length_check <jayden>: [TD-13419] : stb name length check (max 192);\n
+            stb_params_check <jayden>: [TD-14992] : check params;\n
             stbname_with_backquote <jayden>: [TD-13419] : backquote supported;\n
             stbname_without_backquote <jayden>: [TD-13419] : error occured when illegal stbname without backquote;\n
             upper_lower_stbname_check <jayden>: [TD-13419] : upper lower stbname check;\n
