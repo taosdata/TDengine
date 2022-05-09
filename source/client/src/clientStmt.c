@@ -29,6 +29,11 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
       if (STMT_STATUS_EQ(INIT) || STMT_STATUS_EQ(BIND_COL)) {
         code = TSDB_CODE_TSC_STMT_API_ERROR;
       }
+/*      
+      if ((pStmt->sql.type == STMT_TYPE_MULTI_INSERT) && ()) {
+        code = TSDB_CODE_TSC_STMT_API_ERROR;
+      }
+*/
       break;
     case STMT_BIND_COL:
       if (STMT_STATUS_EQ(INIT) || STMT_STATUS_EQ(BIND)) {
@@ -513,8 +518,6 @@ int32_t stmtFetchColFields(STscStmt* pStmt, int32_t *fieldNum, TAOS_FIELD** fiel
 int stmtBindBatch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int32_t colIdx) {
   STscStmt* pStmt = (STscStmt*)stmt;
 
-  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
-
   if (pStmt->bInfo.needParse && pStmt->sql.runTimes && pStmt->sql.type > 0 && STMT_TYPE_MULTI_INSERT != pStmt->sql.type) {
     pStmt->bInfo.needParse = false;
   }
@@ -531,6 +534,8 @@ int stmtBindBatch(TAOS_STMT *stmt, TAOS_MULTI_BIND *bind, int32_t colIdx) {
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
   }
+
+  STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_BIND));
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
     if (NULL == pStmt->sql.pQueryPlan) {

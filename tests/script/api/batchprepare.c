@@ -104,7 +104,7 @@ typedef struct {
   int32_t  colNum;
   int32_t *colList;         // full table column list
   int32_t  testType;     
-  bool     prepareStb;
+  bool     autoCreateTbl;
   bool     fullCol;
   int32_t  (*runFn)(TAOS_STMT*, TAOS*);
   int32_t  tblNum;
@@ -118,8 +118,8 @@ typedef struct {
 } CaseCfg;
 
 CaseCfg gCase[] = {
-  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
-  {"insert:MBSE1-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1,  1, 10, 10, 0, 0, 0, 1, -1},
+  {"insert:MBSE0-FULL", tListLen(shortColList), shortColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 100, 10, 0, 0, 0, 1, -1},
 
   {"insert:MBSE1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, false, true, insertMBSETest1, 10, 10, 2, 0, 0, 0, 1, -1},
   {"insert:MBSE1-C012", tListLen(fullColList), fullColList, TTYPE_INSERT, false, false, insertMBSETest1, 10, 10, 2, 12, 0, 0, 1, -1},
@@ -166,6 +166,7 @@ typedef struct {
   bool     printCreateTblSql;
   bool     printQuerySql;
   bool     printStmtSql;
+  bool     autoCreateTbl;
   int32_t  rowNum;               //row num for one table
   int32_t  bindColNum;
   int32_t  bindTagNum;
@@ -189,6 +190,35 @@ CaseCtrl gCaseCtrl = { // default
   .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
+  .autoCreateTbl = false,
+  .rowNum = 0,
+  .bindColNum = 0,
+  .bindTagNum = 0,
+  .bindRowNum = 0,
+  .bindColTypeNum = 0,
+  .bindColTypeList = NULL,
+  .bindTagTypeNum = 0,
+  .bindTagTypeList = NULL,
+  .optrIdxListNum = 0,
+  .optrIdxList = NULL,
+  .checkParamNum = false,
+  .printRes = true,
+  .runTimes = 0,
+  .caseIdx = -1,
+  .caseNum = -1,
+  .caseRunIdx = -1,
+  .caseRunNum = -1,
+};
+#endif
+
+
+#if 1
+CaseCtrl gCaseCtrl = { // default
+  .bindNullNum = 0,
+  .printCreateTblSql = true,
+  .printQuerySql = true,
+  .printStmtSql = true,
+  .autoCreateTbl = false,
   .rowNum = 0,
   .bindColNum = 0,
   .bindTagNum = 0,
@@ -236,12 +266,13 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
 };
 #endif
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindNullNum = 0,
   .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
+  .autoCreateTbl = true,
   .rowNum = 0,
   .bindColNum = 0,
   .bindTagNum = 0,
@@ -1237,6 +1268,15 @@ void bpCheckQueryResult(TAOS_STMT *stmt, TAOS *taos, char *stmtSql, TAOS_MULTI_B
   printf("***sql res num match stmt res num %d\n", stmtResNum);
 }
 
+int32_t bpSetTableNameTags(BindData *data, int32_t tblIdx, char *tblName, TAOS_STMT *stmt) {
+  if (gCurCase->bindTagNum > 0) {
+    return taos_stmt_set_tbname_tags(stmt, tblName, data->pTags + tblIdx * gCurCase->bindTagNum);  
+  } else {
+    return taos_stmt_set_tbname(stmt, tblName);
+  }
+}
+
+
 /* prepare [settbname [bind add]] exec */
 int insertMBSETest1(TAOS_STMT *stmt, TAOS *taos) {
   BindData data = {0};
@@ -1255,7 +1295,7 @@ int insertMBSETest1(TAOS_STMT *stmt, TAOS *taos) {
     if (gCurCase->tblNum > 1) {
       char buf[32];
       sprintf(buf, "t%d", t);
-      code = taos_stmt_set_tbname(stmt, buf);
+      code = bpSetTableNameTags(&data, t, buf, stmt);
       if (code != 0){
         printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
@@ -1312,7 +1352,7 @@ int insertMBSETest2(TAOS_STMT *stmt, TAOS *taos) {
       if (gCurCase->tblNum > 1) {
         char buf[32];
         sprintf(buf, "t%d", t);
-        code = taos_stmt_set_tbname(stmt, buf);
+        code = bpSetTableNameTags(&data, t, buf, stmt);
         if (code != 0){
           printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
@@ -1365,7 +1405,7 @@ int insertMBMETest1(TAOS_STMT *stmt, TAOS *taos) {
     if (gCurCase->tblNum > 1) {
       char buf[32];
       sprintf(buf, "t%d", t);
-      code = taos_stmt_set_tbname(stmt, buf);
+      code = bpSetTableNameTags(&data, t, buf, stmt);
       if (code != 0){
         printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
@@ -1419,7 +1459,7 @@ int insertMBMETest2(TAOS_STMT *stmt, TAOS *taos) {
     if (gCurCase->tblNum > 1) {
       char buf[32];
       sprintf(buf, "t%d", t);
-      code = taos_stmt_set_tbname(stmt, buf);
+      code = bpSetTableNameTags(&data, t, buf, stmt);
       if (code != 0){
         printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
@@ -1473,7 +1513,7 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos) {
     if (gCurCase->tblNum > 1) {
       char buf[32];
       sprintf(buf, "t%d", t);
-      code = taos_stmt_set_tbname(stmt, buf);
+      code = bpSetTableNameTags(&data, t, buf, stmt);
       if (code != 0){
         printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
         exit(1);
@@ -1488,7 +1528,7 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos) {
       if (gCurCase->tblNum > 1) {
         char buf[32];
         sprintf(buf, "t%d", t);
-        code = taos_stmt_set_tbname(stmt, buf);
+        code = bpSetTableNameTags(&data, t, buf, stmt);
         if (code != 0){
           printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
@@ -1540,7 +1580,7 @@ int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos) {
       if (gCurCase->tblNum > 1) {
         char buf[32];
         sprintf(buf, "t%d", t);
-        code = taos_stmt_set_tbname(stmt, buf);
+        code = bpSetTableNameTags(&data, t, buf, stmt);
         if (code != 0){
           printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
@@ -1596,7 +1636,7 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
       if (gCurCase->tblNum > 1) {
         char buf[32];
         sprintf(buf, "t%d", t);
-        code = taos_stmt_set_tbname(stmt, buf);
+        code = bpSetTableNameTags(&data, t, buf, stmt);
         if (code != 0){
           printf("!!!taos_stmt_set_tbname error:%s\n", taos_stmt_errstr(stmt));
           exit(1);
@@ -1640,11 +1680,12 @@ int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos) {
   return 0;
 }
 
+
 /* [prepare [settbnametag [bind add] exec]]   */
 int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos) {
   int32_t loop = 0;
   
-  while (gCurCase->bindColNum >= 2) {
+  while (gCurCase->bindTagNum > 0 && gCurCase->bindColNum > 0) {
     BindData data = {0};
     prepareInsertData(&data);
 
@@ -3316,10 +3357,23 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   if (gCaseCtrl.rowNum) {
     gCurCase->rowNum = gCaseCtrl.rowNum;
   }
+
+  if (gCaseCtrl.autoCreateTbl) {
+    if (gCurCase->testType == TTYPE_INSERT && gCurCase->tblNum > 1) {
+      gCurCase->autoCreateTbl = true;
+      if (gCurCase->bindTagNum <= 0) {
+        gCurCase->bindTagNum = gCurCase->colNum;
+      }
+    } else {
+      return 1;
+    }
+  }
   
   if (gCurCase->fullCol) {
     gCurCase->bindColNum = gCurCase->colNum;
-    gCurCase->bindTagNum = gCurCase->colNum;
+    if (gCurCase->autoCreateTbl) {
+      gCurCase->bindTagNum = gCurCase->colNum;
+    }
   }
   
   gCurCase->bindNullNum = gCaseCtrl.bindNullNum;
@@ -3350,7 +3404,7 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   totalUs = 0;
   for (int32_t n = 0; n < gCurCase->runTimes; ++n) {
     if (gCurCase->preCaseIdx < 0) {
-      prepare(taos, gCurCase->colNum, gCurCase->colList, gCurCase->prepareStb);
+      prepare(taos, gCurCase->colNum, gCurCase->colList, gCurCase->autoCreateTbl);
     }
     
     beginUs = taosGetTimestampUs();
@@ -3411,10 +3465,18 @@ void* runCaseList(TAOS *taos) {
 }
 
 void runAll(TAOS *taos) {
+/*
   strcpy(gCaseCtrl.caseCatalog, "Normal Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
+*/
+  strcpy(gCaseCtrl.caseCatalog, "Auto Create Table Test");
+  gCaseCtrl.autoCreateTbl = true;
+  printf("%s Begin\n", gCaseCtrl.caseCatalog);
+  runCaseList(taos);
+  gCaseCtrl.autoCreateTbl = false;
 
+/*
   strcpy(gCaseCtrl.caseCatalog, "Null Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindNullNum = 1;
@@ -3458,7 +3520,8 @@ void runAll(TAOS *taos) {
   gCaseCtrl.bindColTypeNum = tListLen(bindColTypeList);
   gCaseCtrl.bindColTypeList = bindColTypeList;  
   runCaseList(taos);
-  
+*/
+
   printf("All Test End\n");  
 }
 

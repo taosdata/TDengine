@@ -241,6 +241,15 @@ static int32_t getTableMetaImpl(SInsertParseContext* pCxt, SToken* pTname, bool 
   SParseContext* pBasicCtx = pCxt->pComCxt;
   SName          name = {0};
   createSName(&name, pTname, pBasicCtx->acctId, pBasicCtx->db, &pCxt->msg);
+
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+
+  bool pass = false;
+  CHECK_CODE(catalogChkAuth(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pBasicCtx->pUser, dbFname, AUTH_TYPE_WRITE, &pass));
+  if (!pass) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
   if (isStb) {
     CHECK_CODE(catalogGetSTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name,
                                     &pCxt->pTableMeta));
