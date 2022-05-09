@@ -367,8 +367,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
     EXPECT_EQ(numOfReadDbs, 1);
     EXPECT_EQ(numOfWriteDbs, 0);
 
-    char* dbname = (char*)taosHashGet(authRsp.readDbs, "1.d2", 5);
-    EXPECT_STREQ(dbname, "1.d2");
+    char* dbname = (char*)taosHashGet(authRsp.readDbs, "1.d2", 4);
+    EXPECT_TRUE(dbname != NULL);
 
     taosHashCleanup(authRsp.readDbs);
     taosHashCleanup(authRsp.writeDbs);
