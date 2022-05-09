@@ -37,13 +37,15 @@ TEST_F(ParserSelectTest, basic) {
 
 TEST_F(ParserSelectTest, constant) {
   useDb("root", "test");
-
+#if 0
   run("SELECT 123, 20.4, 'abc', \"wxy\", timestamp '2022-02-09 17:30:20', true, false, 10s FROM t1");
 
   run("SELECT 1234567890123456789012345678901234567890, 20.1234567890123456789012345678901234567890, 'abc', \"wxy\", "
       "timestamp '2022-02-09 17:30:20', true, false, 15s FROM t1");
 
   run("SELECT 123 + 45 FROM t1 WHERE 2 - 1");
+#endif
+  run("SELECT 1.1.1 FROM t1");
 }
 
 TEST_F(ParserSelectTest, expression) {

@@ -64,8 +64,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         goto abort_parse;
       }
       default:
-        Parse(pParser, t0.type, t0, &cxt);
         // ParseTrace(stdout, "");
+        Parse(pParser, t0.type, t0, &cxt);
         if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
         }

@@ -590,6 +590,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       if (seg == 4) {  // ip address
         *tokenId = TK_NK_IPTOKEN;
         return i;
+      } else if (seg > 2) {
+        break;
       }
 
       if ((z[i] == 'e' || z[i] == 'E') &&
