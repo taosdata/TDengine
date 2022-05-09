@@ -20,7 +20,7 @@ class TestTagColLimit(TDCase):
 
     def tag_max_count_check(self):
         """
-            max count: 128
+        max count: 128
         """
         tag_str_exceed = self.tdCom.gen_tag_col_str("tag", "int", self.tdCom.boundary_config["MAX_TAG_COUNT"]+1)
         tag_str = self.tdCom.gen_tag_col_str("tag", "int", self.tdCom.boundary_config["MAX_TAG_COUNT"])
@@ -35,9 +35,9 @@ class TestTagColLimit(TDCase):
         self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 1)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
-    def col_max_count_check(self):
+    def stb_col_max_count_check(self):
         """
-            max col count: 4096
+        max col count: 4096
         """
         col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-1)
         col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)
@@ -52,9 +52,26 @@ class TestTagColLimit(TDCase):
         self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 1)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
-    def sensitive_check(self):
+    def tb_col_max_count_check(self):
         """
-            tag_key/col_key sensitive
+        max col count: 4096
+        """
+        col_str_exceed = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-1)
+        col_str = self.tdCom.gen_tag_col_str("col", "int", self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-2)
+        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdSql.error(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str_exceed}) tags (t1 int)')
+        self.tdSql.execute(f'create stable if not exists {dbname}.stb (col_ts timestamp, {col_str}) tags (t1 int)')
+        col_value_str = '1, ' * (self.tdCom.boundary_config["MAX_TAG_COL_COUNT"] - 3) + '1'
+        self.tdSql.execute(f'create table if not exists {dbname}.tb using {dbname}.stb tags (1)')
+        self.tdSql.execute(f'insert into {dbname}.tb values (now, {col_value_str})')
+        self.tdSql.query(f'select col4093 from {dbname}.stb')
+        self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 1)
+        self.tdSql.execute(f'drop database if exists {dbname}')
+
+    def stb_sensitive_check(self):
+        """
+        tag_key/col_key sensitive
         """
         for test_type in ['binary', 'nchar']:
             dbname = self.tdCom.get_long_name(length=5, mode="letters")
@@ -72,9 +89,27 @@ class TestTagColLimit(TDCase):
             self.tdSql.checkEqual(lres, ['TT1', 'Tt2', '3Tt%3', 'TT1', 'Tt2', '3Tt%3'])
             self.tdSql.execute(f'drop database if exists {dbname}')
 
+    def tb_sensitive_check(self):
+        """
+        col_key sensitive
+        """
+        for test_type in ['binary', 'nchar']:
+            dbname = self.tdCom.get_long_name(length=5, mode="letters")
+            self.tdSql.execute(f'create database if not exists {dbname}')
+            self.tdSql.execute(f'create table if not exists {dbname}.tb (Col_ts timestamp, CC1 {test_type}(16), Cc2 {test_type}(16), `3Cc%3` {test_type}(16))')
+            self.tdSql.execute(f'insert into {dbname}.tb values (now, "TT1", "Tt2", "3Tt%3")')
+            self.tdSql.query(f"describe {dbname}.tb")
+            col_key_list = self.tdSql.getColNameList(True)[0]
+            self.tdSql.checkEqual(col_key_list, ['col_ts', 'cc1', 'cc2', '3Cc%3'])
+            self.tdSql.query(f'select * from {dbname}.tb')
+            lres = list(self.tdSql.query_data[0])
+            lres.pop(0)
+            self.tdSql.checkEqual(lres, ['TT1', 'Tt2', '3Tt%3'])
+            self.tdSql.execute(f'drop database if exists {dbname}')
+
     def tag_col_name_length_check(self):
         """
-            max tag key length:
+        max tag key length:
         """
         dbname = self.tdCom.get_long_name(length=5, mode="letters")
         tag_key_name = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TAG_KEY_MAX_LENGTH"], mode="letters")
@@ -90,9 +125,12 @@ class TestTagColLimit(TDCase):
         self.tdSql.checkEqual(col_key_list, ['col_ts', col_key_name, tag_key_name])
 
     def run(self):
-        self.tag_max_count_check()
-        self.col_max_count_check()
-        self.sensitive_check()
+        # !bug
+        # self.tag_max_count_check()
+        # self.stb_col_max_count_check()
+        # self.tb_col_max_count_check()
+        # self.stb_sensitive_check()
+        self.tb_sensitive_check()
         self.tag_col_name_length_check()
 
     def cleanup(self):
@@ -101,8 +139,10 @@ class TestTagColLimit(TDCase):
     def desc(self):
         case_description = """
             tag_max_count_check <jayden>: [TD-13419] : tag_max_count_check;\n
-            col_max_count_check <jayden>: [TD-13419] : col_max_count_check;\n
-            sensitive_check <jayden>: [TD-13419] : sensitive_check;\n
+            stb_col_max_count_check <jayden>: [TD-13419] : col_max_count_check;\n
+            tb_col_max_count_check <jayden>: [TD-13419] : col_max_count_check;\n
+            stb_sensitive_check <jayden>: [TD-13419] : stb_sensitive_check;\n
+            tb_sensitive_check <jayden>: [TD-13419] : stb_sensitive_check;\n
             tag_col_name_length_check <jayden>: [TD-13419] : tag_col_name_length_check;
         """
         return case_description

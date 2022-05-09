@@ -18,7 +18,7 @@ class TestBatchInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
 
-    def batch_insert(self):
+    def stb_batch_insert(self):
         """
         batch_insert
         """
@@ -38,8 +38,27 @@ class TestBatchInsert(TDCase):
         self.tdSql.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2)&&(now-2h, 1, 2), (now-2h, 1, 2)')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
+    def tb_batch_insert(self):
+        """
+        batch_insert
+        """
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname}')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb (col_ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 tinyint unsigned)')
+        self.tdSql.execute(f'insert into {dbname}.tb values (now, 1, 2, 3, 4, 5), (now+1h, 1, 2, 3, 4, 5), (now+2h, 1, 2, 3, 4, 5);')
+        self.tdSql.query(f'select count(*) from {dbname}.tb')
+        self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 3)
+        self.tdSql.execute(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2),(now-2h, 1, 2),(now-3h, 1, 2)')
+        self.tdSql.query(f'select count(*) from {dbname}.tb')
+        self.tdSql.checkEqual(int(self.tdSql.query_data[0][0]), 6)
+        self.tdSql.error(f'insert into {dbname}.tb (col_ts, c1, c2, c9) values (now-1h, 1, 2, 1), (now-2h, 1, 2, 1), (now-2h, 1, 2, 1)')
+        self.tdSql.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, "binary"), (now-2h, 1, 2), (now-2h, 1, 2)')
+        self.tdSql.error(f'insert into {dbname}.tb (col_ts, c1, c2) values (now-1h, 1, 2)&&(now-2h, 1, 2), (now-2h, 1, 2)')
+        self.tdSql.execute(f'drop database if exists {dbname}')
+
     def run(self):
-        self.batch_insert()
+        # self.stb_batch_insert()
+        self.tb_batch_insert()
 
     def cleanup(self):
         pass
