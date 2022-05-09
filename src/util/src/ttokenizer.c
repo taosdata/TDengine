@@ -64,6 +64,7 @@ static SKeyword keywordTable[] = {
     {"LE",           TK_LE},
     {"BITAND",       TK_BITAND},
     {"BITOR",        TK_BITOR},
+    {"BITXOR",       TK_BITXOR},
     {"LSHIFT",       TK_LSHIFT},
     {"RSHIFT",       TK_RSHIFT},
     {"PLUS",         TK_PLUS},
