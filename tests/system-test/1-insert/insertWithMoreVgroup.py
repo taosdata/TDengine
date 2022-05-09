@@ -199,7 +199,8 @@ class TDTestCase:
         os.system("%s -f %s -y " %(taosBenchbin,jsonFile))
        
         return
-    def taosBenchCreate(self,dbname,stbname,vgroups,threadNumbers,count):
+    def taosBenchCreate(self,host,dropdb,dbname,stbname,vgroups,threadNumbers,count):
+        
         # count=50000
         buildPath = self.getBuildPath()
         if (buildPath == ""):
@@ -207,12 +208,18 @@ class TDTestCase:
         else:
             tdLog.info("taosd found in %s" % buildPath)
         taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
+        buildPath = self.getBuildPath()
+        config = buildPath+ "../sim/dnode1/cfg/"
+        tsql=self.newcur(host,config)
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
-        tdSql.execute("drop database if exists %s"%dbname)
+        tsql.execute("drop database if exists %s"%dbname)
 
-        tdSql.execute("create database %s vgroups %d"%(dbname,vgroups))
-        tdSql.execute("use %s" %dbname)
+        tsql.execute("create database %s vgroups %d"%(dbname,vgroups))
+        print("db has been created")
+        # tsql.getResult("show databases")
+        # print(tdSql.queryResult)
+        tsql.execute("use %s" %dbname)
     
         threads = []
         # threadNumbers=2
@@ -220,7 +227,9 @@ class TDTestCase:
             jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
             os.system("cp -f 1-insert/manyVgroups.json   %s"%(jsonfile))
             os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
-            os.system("sed -i 's/\"childtable_count\": 300000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
+            os.system("sed -i 's/\"drop\": \"no\",/\"drop\": \"%s\",/g' %s"%(dropdb,jsonfile))
+            os.system("sed -i 's/\"host\": \"127.0.0.1\",/\"host\": \"%s\",/g' %s"%(host,jsonfile))
+            os.system("sed -i 's/\"childtable_count\": 10000,/\"childtable_count\": %d,/g' %s "%(count,jsonfile))
             os.system("sed -i 's/\"name\": \"stb1\",/\"name\":  \"%s%d\",/g' %s "%(stbname,i,jsonfile))
             os.system("sed -i 's/\"childtable_prefix\": \"stb1_\",/\"childtable_prefix\": \"%s%d_\",/g' %s "%(stbname,i,jsonfile))
             threads.append(mp.Process(target=self.taosBench, args=("%s"%jsonfile,))) 
@@ -337,7 +346,8 @@ class TDTestCase:
         return
 
     def test_case3(self):
-        self.taosBenchCreate("db1", "stb1", 1, 2, 1*50000)
+        # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
+        self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*1000)
 
         # self.taosBenchCreate("db1", "stb1", 4, 5, 100*10000)
         # self.taosBenchCreate("db1", "stb1", 1, 5, 100*10000)
