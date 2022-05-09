@@ -127,7 +127,7 @@ enum {
 
 int64_t gUdfTaskSeqNum = 0;
 typedef struct SUdfdProxy {
-  char udfdPipeName[UDF_LISTEN_PIPE_NAME_LEN];
+  char udfdPipeName[PATH_MAX + UDF_LISTEN_PIPE_NAME_LEN + 2];
   uv_barrier_t gUdfInitBarrier;
 
   uv_loop_t gUdfdLoop;
@@ -224,9 +224,15 @@ int32_t getUdfdPipeName(char* pipeName, int32_t size) {
   size_t  dnodeIdSize = sizeof(dnodeId);
   int32_t err = uv_os_getenv(UDF_DNODE_ID_ENV_NAME, dnodeId, &dnodeIdSize);
   if (err != 0) {
+    fnError("get dnode id from env. error: %s.", uv_err_name(err));
     dnodeId[0] = '1';
   }
+#ifdef _WIN32
   snprintf(pipeName, size, "%s%s", UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+#else
+  snprintf(pipeName, size, "%s/%s%s", tsDataDir, UDF_LISTEN_PIPE_NAME_PREFIX, dnodeId);
+#endif
+  fnInfo("get dnode id from env. dnode id: %s. pipe path: %s", dnodeId, pipeName);
   return 0;
 }
 
@@ -998,7 +1004,7 @@ int32_t udfcOpen() {
     return 0;
   }
   SUdfdProxy *proxy = &gUdfdProxy;
-  getUdfdPipeName(proxy->udfdPipeName, UDF_LISTEN_PIPE_NAME_LEN);
+  getUdfdPipeName(proxy->udfdPipeName, sizeof(proxy->udfdPipeName));
   proxy->gUdfcState = UDFC_STATE_STARTNG;
   uv_barrier_init(&proxy->gUdfInitBarrier, 2);
   uv_thread_create(&proxy->gUdfLoopThread, constructUdfService, proxy);
@@ -1253,7 +1259,9 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
     return false;
   }
   UdfcFuncHandle handle;
-  if (setupUdf((char*)pCtx->udfName, &handle) != 0) {
+  int32_t udfCode = 0;
+  if ((udfCode = setupUdf((char*)pCtx->udfName, &handle)) != 0) {
+    fnError("udfAggInit error. step setupUdf. udf code: %d", udfCode);
     return false;
   }
   SClientUdfUvSession *session = (SClientUdfUvSession *)handle;
@@ -1266,7 +1274,8 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
 
   udfRes->session = (SClientUdfUvSession *)handle;
   SUdfInterBuf buf = {0};
-  if (callUdfAggInit(handle, &buf) != 0) {
+  if ((udfCode = callUdfAggInit(handle, &buf)) != 0) {
+    fnError("udfAggInit error. step callUdfAggInit. udf code: %d", udfCode);
     return false;
   }
   udfRes->interResNum = buf.numOfResult;
@@ -1310,21 +1319,23 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
                         .numOfResult = udfRes->interResNum};
   SUdfInterBuf newState = {0};
 
-  callUdfAggProcess(session, inputBlock, &state, &newState);
-
-  udfRes->interResNum = newState.numOfResult;
-  memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
-
+  int32_t udfCode = callUdfAggProcess(session, inputBlock, &state, &newState);
+  if (udfCode != 0) {
+    fnError("udfAggProcess error. code: %d", udfCode);
+    newState.numOfResult = 0;
+  } else {
+    udfRes->interResNum = newState.numOfResult;
+    memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+  }
   if (newState.numOfResult == 1 || state.numOfResult == 1) {
     GET_RES_INFO(pCtx)->numOfRes = 1;
   }
 
   blockDataDestroy(inputBlock);
-
   taosArrayDestroy(tempBlock.pDataBlock);
 
   taosMemoryFree(newState.buf);
-  return 0;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
@@ -1338,15 +1349,22 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   SUdfInterBuf state = {.buf = udfRes->interResBuf,
                         .bufLen = session->bufSize,
                         .numOfResult = udfRes->interResNum};
-  callUdfAggFinalize(session, &state, &resultBuf);
-
-  udfRes->finalResBuf = resultBuf.buf;
-  udfRes->finalResNum = resultBuf.numOfResult;
-
-  teardownUdf(session);
-
-  if (resultBuf.numOfResult == 1) {
-    GET_RES_INFO(pCtx)->numOfRes = 1;
+  int32_t udfCallCode= 0;
+  udfCallCode= callUdfAggFinalize(session, &state, &resultBuf);
+  if (udfCallCode!= 0) {
+    fnError("udfAggFinalize error. callUdfAggFinalize step. udf code:%d", udfCallCode);
+    GET_RES_INFO(pCtx)->numOfRes = 0;
+  } else {
+    memcpy(udfRes->finalResBuf, resultBuf.buf, session->outputLen);
+    udfRes->finalResNum = resultBuf.numOfResult;
+    GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
   }
+
+  int32_t code = teardownUdf(session);
+  if (code != 0) {
+    fnError("udfAggFinalize error. teardownUdf step. udf code: %d", code);
+  }
+
   return functionFinalizeWithResultBuf(pCtx, pBlock, udfRes->finalResBuf);
+
 }

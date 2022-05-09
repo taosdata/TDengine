@@ -310,7 +310,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     code = taosFsyncFile(pFile);
     if (code != 0) {
       code = TAOS_SYSTEM_ERROR(errno);
-      mError("failed to write file:%s since %s", tmpfile, tstrerror(code));
+      mError("failed to sync file:%s since %s", tmpfile, tstrerror(code));
     }
   }
 

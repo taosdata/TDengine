@@ -65,7 +65,7 @@ static void mndPullupTrans(void *param, void *tmrId) {
     tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
   }
 
-  taosTmrReset(mndPullupTrans, tsTransPullupMs, pMnode, pMnode->timer, &pMnode->transTimer);
+  taosTmrReset(mndPullupTrans, tsTransPullupInterval * 1000, pMnode, pMnode->timer, &pMnode->transTimer);
 }
 
 static void mndCalMqRebalance(void *param, void *tmrId) {
@@ -81,7 +81,7 @@ static void mndCalMqRebalance(void *param, void *tmrId) {
     tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
   }
 
-  taosTmrReset(mndCalMqRebalance, tsMaRebalanceMs, pMnode, pMnode->timer, &pMnode->mqTimer);
+  taosTmrReset(mndCalMqRebalance, tsMqRebalanceInterval * 1000, pMnode, pMnode->timer, &pMnode->mqTimer);
 }
 
 static void mndPullupTelem(void *param, void *tmrId) {
@@ -103,12 +103,12 @@ static int32_t mndInitTimer(SMnode *pMnode) {
     return -1;
   }
 
-  if (taosTmrReset(mndPullupTrans, tsTransPullupMs, pMnode, pMnode->timer, &pMnode->transTimer)) {
+  if (taosTmrReset(mndPullupTrans, tsTransPullupInterval * 1000, pMnode, pMnode->timer, &pMnode->transTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (taosTmrReset(mndCalMqRebalance, tsMaRebalanceMs, pMnode, pMnode->timer, &pMnode->mqTimer)) {
+  if (taosTmrReset(mndCalMqRebalance, tsMqRebalanceInterval * 1000, pMnode, pMnode->timer, &pMnode->mqTimer)) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }

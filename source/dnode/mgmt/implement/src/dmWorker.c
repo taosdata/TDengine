@@ -105,12 +105,13 @@ void dmStopMonitorThread(SDnode *pDnode) {
 }
 
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
-  SDnode * pDnode = pInfo->ahandle;
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
-  int32_t  code = -1;
+  SDnode *pDnode = pInfo->ahandle;
+
+  int32_t code = -1;
+  tmsg_t  msgType = pMsg->rpcMsg.msgType;
   dTrace("msg:%p, will be processed in dnode-mgmt queue", pMsg);
 
-  switch (pRpc->msgType) {
+  switch (msgType) {
     case TDMT_DND_CONFIG_DNODE:
       code = dmProcessConfigReq(pDnode, pMsg);
       break;
@@ -148,9 +149,14 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
       break;
   }
 
-  if (pRpc->msgType & 1u) {
-    if (code != 0) code = terrno;
-    SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = code, .refId = pRpc->refId};
+  if (msgType & 1u) {
+    if (code != 0 && terrno != 0) code = terrno;
+    SRpcMsg rsp = {
+        .handle = pMsg->rpcMsg.handle,
+        .ahandle = pMsg->rpcMsg.ahandle,
+        .code = code,
+        .refId = pMsg->rpcMsg.refId,
+    };
     rpcSendResponse(&rsp);
   }
 
@@ -160,7 +166,13 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 }
 
 int32_t dmStartWorker(SDnode *pDnode) {
-  SSingleWorkerCfg cfg = {.min = 1, .max = 1, .name = "dnode-mgmt", .fp = (FItem)dmProcessMgmtQueue, .param = pDnode};
+  SSingleWorkerCfg cfg = {
+      .min = 1,
+      .max = 1,
+      .name = "dnode-mgmt",
+      .fp = (FItem)dmProcessMgmtQueue,
+      .param = pDnode,
+  };
   if (tSingleWorkerInit(&pDnode->data.mgmtWorker, &cfg) != 0) {
     dError("failed to start dnode-mgmt worker since %s", terrstr());
     return -1;
