@@ -394,6 +394,8 @@ static SHashObj *mndDupDbHash(SHashObj *pOld) {
 
 static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
   SMnode       *pMnode = pReq->pNode;
+  SSdb         *pSdb = pMnode->pSdb;
+  void         *pIter = NULL;
   int32_t       code = -1;
   SUserObj     *pUser = NULL;
   SUserObj     *pOperUser = NULL;
@@ -429,7 +431,13 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
+  if (mndCheckAlterUserAuth(pOperUser, pUser, &alterReq) != 0) {
+    goto _OVER;
+  }
+
   memcpy(&newUser, pUser, sizeof(SUserObj));
+  newUser.authVersion++;
+  newUser.updateTime = taosGetTimestampMs();
 
   taosRLockLatch(&pUser->lock);
   newUser.readDbs = mndDupDbHash(pUser->readDbs);
@@ -440,63 +448,90 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  int32_t len = strlen(alterReq.dbname) + 1;
-  SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
-  mndReleaseDb(pMnode, pDb);
-
   if (alterReq.alterType == TSDB_ALTER_USER_PASSWD) {
     char pass[TSDB_PASSWORD_LEN + 1] = {0};
     taosEncryptPass_c((uint8_t *)alterReq.pass, strlen(alterReq.pass), pass);
     memcpy(newUser.pass, pass, TSDB_PASSWORD_LEN);
-  } else if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER) {
-    newUser.superUser = alterReq.superUser;
-  } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB) {
-    if (pDb == NULL) {
-      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto _OVER;
-    }
-    if (taosHashPut(newUser.readDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto _OVER;
-    }
-    newUser.authVersion++;
-  } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_DB) {
-    if (taosHashRemove(newUser.readDbs, alterReq.dbname, len) != 0) {
-      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto _OVER;
-    }
-    newUser.authVersion++;
-  } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_READ_DB) {
-    taosHashClear(newUser.readDbs);
-    newUser.authVersion++;
-  } else if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB) {
-    if (pDb == NULL) {
-      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto _OVER;
-    }
-    if (taosHashPut(newUser.writeDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
-      terrno = TSDB_CODE_OUT_OF_MEMORY;
-      goto _OVER;
-    }
-    newUser.authVersion++;
-  } else if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB) {
-    if (taosHashRemove(newUser.writeDbs, alterReq.dbname, len) != 0) {
-      terrno = TSDB_CODE_MND_DB_NOT_EXIST;
-      goto _OVER;
-    }
-    newUser.authVersion++;
-  } else if (alterReq.alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB) {
-    taosHashClear(newUser.writeDbs);
-    newUser.authVersion++;
-  } else {
-    terrno = TSDB_CODE_MND_INVALID_ALTER_OPER;
-    goto _OVER;
   }
 
-  newUser.updateTime = taosGetTimestampMs();
+  if (alterReq.alterType == TSDB_ALTER_USER_SUPERUSER) {
+    newUser.superUser = alterReq.superUser;
+  }
 
-  if (mndCheckAlterUserAuth(pOperUser, pUser, pDb, &alterReq) != 0) {
-    goto _OVER;
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB) {
+    if (strcmp(alterReq.dbname, "*") != 0) {
+      int32_t len = strlen(alterReq.dbname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+      if (pDb == NULL) {
+        mndReleaseDb(pMnode, pDb);
+        goto _OVER;
+      }
+      if (taosHashPut(newUser.readDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
+        mndReleaseDb(pMnode, pDb);
+        goto _OVER;
+      }
+    } else {
+      while (1) {
+        SDbObj *pDb = NULL;
+        pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
+        if (pIter == NULL) break;
+        int32_t len = strlen(pDb->name) + 1;
+        taosHashPut(newUser.readDbs, pDb->name, len, pDb->name, TSDB_DB_FNAME_LEN);
+        sdbRelease(pSdb, pDb);
+      }
+    }
+  }
+
+  if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB) {
+    if (strcmp(alterReq.dbname, "*") != 0) {
+      int32_t len = strlen(alterReq.dbname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+      if (pDb == NULL) {
+        mndReleaseDb(pMnode, pDb);
+        goto _OVER;
+      }
+      if (taosHashPut(newUser.writeDbs, alterReq.dbname, len, alterReq.dbname, TSDB_DB_FNAME_LEN) != 0) {
+        mndReleaseDb(pMnode, pDb);
+        goto _OVER;
+      }
+    } else {
+      while (1) {
+        SDbObj *pDb = NULL;
+        pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pDb);
+        if (pIter == NULL) break;
+        int32_t len = strlen(pDb->name) + 1;
+        taosHashPut(newUser.writeDbs, pDb->name, len, pDb->name, TSDB_DB_FNAME_LEN);
+        sdbRelease(pSdb, pDb);
+      }
+    }
+  }
+
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_READ_DB || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_DB) {
+    if (strcmp(alterReq.dbname, "*") != 0) {
+      int32_t len = strlen(alterReq.dbname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+      if (pDb == NULL) {
+        mndReleaseDb(pMnode, pDb);
+        goto _OVER;
+      }
+      taosHashRemove(newUser.readDbs, alterReq.dbname, len);
+    } else {
+      taosHashClear(newUser.readDbs);
+    }
+  }
+
+  if (alterReq.alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB || alterReq.alterType == TSDB_ALTER_USER_REMOVE_ALL_DB) {
+    if (strcmp(alterReq.dbname, "*") != 0) {
+      int32_t len = strlen(alterReq.dbname) + 1;
+      SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
+      if (pDb == NULL) {
+        mndReleaseDb(pMnode, pDb);
+        goto _OVER;
+      }
+      taosHashRemove(newUser.writeDbs, alterReq.dbname, len);
+    } else {
+      taosHashClear(newUser.writeDbs);
+    }
   }
 
   code = mndAlterUser(pMnode, pUser, &newUser, pReq);
