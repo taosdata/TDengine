@@ -320,7 +320,7 @@ static bool emptyQueryTimewindow(STsdbReadHandle* pTsdbReadHandle) {
 // Update the query time window according to the data time to live(TTL) information, in order to avoid to return
 // the expired data to client, even it is queried already.
 static int64_t getEarliestValidTimestamp(STsdb* pTsdb) {
-  STsdbCfg* pCfg = REPO_CFG(pTsdb);
+  STsdbKeepCfg* pCfg = REPO_KEEP_CFG(pTsdb);
 
   int64_t now = taosGetTimestamp(pCfg->precision);
   return now - (tsTickPerDay[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
@@ -2425,7 +2425,7 @@ static int32_t getFirstFileDataBlock(STsdbReadHandle* pTsdbReadHandle, bool* exi
   int32_t numOfBlocks = 0;
   int32_t numOfTables = (int32_t)taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo);
 
-  STsdbCfg*   pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
+  STsdbKeepCfg* pCfg = REPO_KEEP_CFG(pTsdbReadHandle->pTsdb);
   STimeWindow win = TSWINDOW_INITIALIZER;
 
   while (true) {
@@ -2531,8 +2531,8 @@ int32_t tsdbGetFileBlocksDistInfo(tsdbReaderT* queryHandle, STableBlockDistInfo*
 
   // find the start data block in file
   pTsdbReadHandle->locateStart = true;
-  STsdbCfg* pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
-  int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
+  STsdbKeepCfg* pCfg = REPO_KEEP_CFG(pTsdbReadHandle->pTsdb);
+  int32_t       fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
 
   tsdbRLockFS(pFileHandle);
   tsdbFSIterInit(&pTsdbReadHandle->fileIter, pFileHandle, pTsdbReadHandle->order);
@@ -2632,8 +2632,8 @@ static int32_t getDataBlocksInFiles(STsdbReadHandle* pTsdbReadHandle, bool* exis
   // find the start data block in file
   if (!pTsdbReadHandle->locateStart) {
     pTsdbReadHandle->locateStart = true;
-    STsdbCfg* pCfg = REPO_CFG(pTsdbReadHandle->pTsdb);
-    int32_t   fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
+    STsdbKeepCfg* pCfg = REPO_KEEP_CFG(pTsdbReadHandle->pTsdb);
+    int32_t       fid = getFileIdFromKey(pTsdbReadHandle->window.skey, pCfg->days, pCfg->precision);
 
     tsdbRLockFS(pFileHandle);
     tsdbFSIterInit(&pTsdbReadHandle->fileIter, pFileHandle, pTsdbReadHandle->order);

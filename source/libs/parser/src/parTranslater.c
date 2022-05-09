@@ -3127,6 +3127,13 @@ static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionS
   return code;
 }
 
+static int32_t translateDropFunction(STranslateContext* pCxt, SDropFunctionStmt* pStmt) {
+  SDropFuncReq req = {0};
+  strcpy(req.name, pStmt->funcName);
+  req.igNotExists = pStmt->ignoreNotExists;
+  return buildCmdMsg(pCxt, TDMT_MND_DROP_FUNC, (FSerializeFunc)tSerializeSDropFuncReq, &req);
+}
+
 static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
   SAlterUserReq req = {0};
   if (PRIVILEGE_TYPE_TEST_MASK(pStmt->privileges, PRIVILEGE_TYPE_ALL) ||
@@ -3265,6 +3272,9 @@ static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode) {
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
       code = translateCreateFunction(pCxt, (SCreateFunctionStmt*)pNode);
+      break;
+    case QUERY_NODE_DROP_FUNCTION_STMT:
+      code = translateDropFunction(pCxt, (SDropFunctionStmt*)pNode);
       break;
     case QUERY_NODE_GRANT_STMT:
       code = translateGrant(pCxt, (SGrantStmt*)pNode);
@@ -4121,6 +4131,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       code = rewriteShow(pCxt, pQuery);
       break;
     case QUERY_NODE_CREATE_TABLE_STMT:

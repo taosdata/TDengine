@@ -51,6 +51,7 @@ void vmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonVmInfo *pInfo) {
   pInfo->vstat.numOfBatchInsertSuccessReqs = numOfBatchInsertSuccessReqs - pMgmt->state.numOfBatchInsertSuccessReqs;
   pMgmt->state = pInfo->vstat;
 
+  tfsGetMonitorInfo(pMgmt->pTfs, &pInfo->tfs);
   taosArrayDestroy(vloads.pVloads);
 }
 
@@ -177,6 +178,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
 
   SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
   msgCb.pWrapper = pMgmt->pWrapper;
+  msgCb.queueFps[WRITE_QUEUE] = vmPutMsgToWriteQueue;
   msgCb.queueFps[QUERY_QUEUE] = vmPutMsgToQueryQueue;
   msgCb.queueFps[FETCH_QUEUE] = vmPutMsgToFetchQueue;
   msgCb.queueFps[APPLY_QUEUE] = vmPutMsgToApplyQueue;

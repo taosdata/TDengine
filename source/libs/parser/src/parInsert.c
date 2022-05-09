@@ -1550,7 +1550,7 @@ typedef struct SmlExecHandle {
   SQuery* pQuery;
 } SSmlExecHandle;
 
-static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
+static int32_t smlBoundColumnData(SArray *cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
   col_id_t nCols = pColList->numOfCols;
 
   pColList->numOfBound = 0;
@@ -1621,7 +1621,7 @@ static int32_t smlBoundColumns(SArray *cols, SParsedDataColInfo* pColList, SSche
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlBoundTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SKVRow *row, SMsgBuf *msg) {
+static int32_t smlBuildTagRow(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema, SKVRow *row, SMsgBuf *msg) {
   if (tdInitKVRowBuilder(tagsBuilder) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1643,20 +1643,20 @@ static int32_t smlBoundTags(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedDat
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *colsHash, SArray *cols, bool format,
+int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *colsSchema, SArray *cols, bool format,
                     STableMeta *pTableMeta, char *tableName, char *msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle *smlHandle = (SSmlExecHandle *)handle;
   SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
   setBoundColumnInfo(&smlHandle->tags, pTagsSchema, getNumOfTags(pTableMeta));
-  int ret = smlBoundColumns(tags, &smlHandle->tags, pTagsSchema);
+  int ret = smlBoundColumnData(tags, &smlHandle->tags, pTagsSchema);
   if(ret != TSDB_CODE_SUCCESS){
     buildInvalidOperationMsg(&pBuf, "bound tags error");
     return ret;
   }
   SKVRow row = NULL;
-  ret = smlBoundTags(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &row, &pBuf);
+  ret = smlBuildTagRow(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &row, &pBuf);
   if(ret != TSDB_CODE_SUCCESS){
     return ret;
   }
@@ -1674,21 +1674,7 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
 
   SSchema* pSchema = getTableColumnSchema(pTableMeta);
 
-
-  if(format){
-    ret = smlBoundColumns(taosArrayGetP(colsFormat, 0), &pDataBlock->boundColumnInfo, pSchema);
-  }else{
-    SArray *columns = taosArrayInit(16, POINTER_BYTES);
-    void **p1 = taosHashIterate(colsHash, NULL);
-    while (p1) {
-      SSmlKv* kv = *p1;
-      taosArrayPush(columns, &kv);
-      p1 = taosHashIterate(colsHash, p1);
-    }
-    ret = smlBoundColumns(columns, &pDataBlock->boundColumnInfo, pSchema);
-    taosArrayDestroy(columns);
-  }
-
+  ret = smlBoundColumnData(colsSchema, &pDataBlock->boundColumnInfo, pSchema);
   if(ret != TSDB_CODE_SUCCESS){
     buildInvalidOperationMsg(&pBuf, "bound cols error");
     return ret;
@@ -1713,14 +1699,16 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
     void *rowData = NULL;
+    size_t rowDataSize = 0;
     if(format){
       rowData = taosArrayGetP(colsFormat, r);
+      rowDataSize = taosArrayGetSize(rowData);
     }else{
       rowData = taosArrayGetP(cols, r);
     }
 
     // 1. set the parsed value from sql string
-    for (int c = 0; c < spd->numOfBound; ++c) {
+    for (int c = 0, j = 0; c < spd->numOfBound; ++c) {
       SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
 
       param.schema = pColSchema;
@@ -1728,23 +1716,27 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SHashObj *co
 
       SSmlKv *kv = NULL;
       if(format){
-        kv = taosArrayGetP(rowData, c);
-        if (!kv){
-          char msg[64] = {0};
-          sprintf(msg, "cols num not the same like before:%d", r);
-          return buildInvalidOperationMsg(&pBuf, msg);
+        if(j < rowDataSize){
+          kv = taosArrayGetP(rowData, j);
+          if (rowDataSize != spd->numOfBound && (kv->keyLen != strlen(pColSchema->name) || strncmp(kv->key, pColSchema->name, kv->keyLen) != 0)){
+            kv = NULL;
+          }else{
+            j++;
+          }
         }
       }else{
         void **p =taosHashGet(rowData, pColSchema->name, strlen(pColSchema->name));
-        kv = *p;
+        if(p) kv = *p;
       }
 
-      if (kv->length == 0) {
+      if (!kv || kv->length == 0) {
         MemRowAppend(&pBuf, NULL, 0, &param);
       } else {
         int32_t colLen = pColSchema->bytes;
         if (IS_VAR_DATA_TYPE(pColSchema->type)) {
           colLen = kv->length;
+        } else if(pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP){
+          kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
         }
 
         MemRowAppend(&pBuf, &(kv->value), colLen, &param);
