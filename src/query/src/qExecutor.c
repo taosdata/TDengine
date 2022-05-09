@@ -2072,6 +2072,12 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     } else if (functionId == TSDB_FUNC_SCALAR_EXPR) {
       pCtx->param[1].pz = (char*) &pRuntimeEnv->sasArray[i];
     }
+
+    // if group by , TSDB_FUNC_PRJ operator must set one row
+    if (pQueryAttr->groupbyColumn && functionId == TSDB_FUNC_PRJ) {
+      pCtx->param[0].i64 = 1;
+      pCtx->param[0].nType = TSDB_DATA_TYPE_BIGINT;
+    }
   }
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
