@@ -60,7 +60,7 @@ class TDTestCase:
 
             for group_condition in groups:
                 tdSql.query(f"select lower( {condition} ), {condition} from {tbname} {where_condition}  {group_condition}")
-                for i in range(len(tdSql.queryRows)):
+                for i in range(tdSql.queryRows):
                     tdSql.checkData(i, 0, str(tdSql.getData(i, 1)).lower() ) if tdSql.getData(i, 1) else tdSql.checkData(i, 0, None)
 
     def __lower_err_check(self,tbname):
