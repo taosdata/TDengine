@@ -130,7 +130,7 @@ class TDTestCase:
         tdSql.error("select top(tbcol1, 12) from st1 order by tbcol1,ts")
         tdSql.error("select top(tbcol1, 12) from st order by tbcol1,ts,tbcol2")
         tdSql.error("select top(tbcol1, 12) from st order by ts, tbcol1")
-        tdSql.error("select top(tbcol1, 2) from st1 group by tbcol1 order by tbcol2")
+        #tdSql.error("select top(tbcol1, 2) from st1 group by tbcol1 order by tbcol2")
 
         fun_list = ['avg','count','twa','sum','stddev','leastsquares','min',
                     'max','first','last','top','bottom','percentile','apercentile',
