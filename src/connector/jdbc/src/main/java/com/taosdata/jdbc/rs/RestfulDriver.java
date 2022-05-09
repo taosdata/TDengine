@@ -1,8 +1,9 @@
 package com.taosdata.jdbc.rs;
 
-import com.alibaba.fastjson.JSON;
-import com.alibaba.fastjson.JSONObject;
-import com.taosdata.jdbc.*;
+import com.taosdata.jdbc.AbstractDriver;
+import com.taosdata.jdbc.TSDBDriver;
+import com.taosdata.jdbc.TSDBError;
+import com.taosdata.jdbc.TSDBErrorNumbers;
 import com.taosdata.jdbc.enums.TimestampFormat;
 import com.taosdata.jdbc.utils.HttpClientPoolUtil;
 import com.taosdata.jdbc.ws.InFlightRequest;
@@ -16,6 +17,7 @@ import java.net.URISyntaxException;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.*;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
@@ -52,7 +54,6 @@ public class RestfulDriver extends AbstractDriver {
 
         String user;
         String password;
-        String cloudToken = null;
         try {
             if (!props.containsKey(TSDBDriver.PROPERTY_KEY_USER))
                 throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_USER_IS_REQUIRED);
@@ -63,9 +64,6 @@ public class RestfulDriver extends AbstractDriver {
             password = URLEncoder.encode(props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD), StandardCharsets.UTF_8.displayName());
         } catch (UnsupportedEncodingException e) {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "unsupported UTF-8 concoding, user: " + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + ", password: " + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
-        }
-        if (props.containsKey(TSDBDriver.PROPERTY_KEY_TOKEN)) {
-            cloudToken = props.getProperty(TSDBDriver.PROPERTY_KEY_TOKEN);
         }
 
         String loginUrl;
@@ -106,24 +104,18 @@ public class RestfulDriver extends AbstractDriver {
             props.setProperty(TSDBDriver.PROPERTY_KEY_TIMESTAMP_FORMAT, String.valueOf(TimestampFormat.TIMESTAMP));
             return new WSConnection(url, props, transport, database);
         }
-        loginUrl = "http://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST) + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/login/" + user + "/" + password + "";
-        if (null != cloudToken) {
-            loginUrl += "?token=" + cloudToken;
-        }
         int poolSize = Integer.parseInt(props.getProperty("httpPoolSize", HttpClientPoolUtil.DEFAULT_MAX_PER_ROUTE));
         boolean keepAlive = Boolean.parseBoolean(props.getProperty("httpKeepAlive", HttpClientPoolUtil.DEFAULT_HTTP_KEEP_ALIVE));
-
         HttpClientPoolUtil.init(poolSize, keepAlive);
-        String result = HttpClientPoolUtil.execute(loginUrl);
-        JSONObject jsonResult = JSON.parseObject(result);
-        String status = jsonResult.getString("status");
-        String token = jsonResult.getString("desc");
 
-        if (!status.equals("succ")) {
-            throw new SQLException(jsonResult.getString("desc"));
+        String cloudToken = null;
+        if (props.containsKey(TSDBDriver.PROPERTY_KEY_TOKEN)) {
+            cloudToken = props.getProperty(TSDBDriver.PROPERTY_KEY_TOKEN);
         }
 
-        RestfulConnection conn = new RestfulConnection(host, port, props, database, url, token);
+        String auth = Base64.getEncoder().encodeToString(
+                (user + ":" + password).getBytes(StandardCharsets.UTF_8));
+        RestfulConnection conn = new RestfulConnection(host, port, props, database, url, auth, cloudToken);
         if (database != null && !database.trim().replaceAll("\\s", "").isEmpty()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("use " + database);
