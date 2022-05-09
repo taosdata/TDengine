@@ -574,6 +574,7 @@ typedef struct {
   char           sourceDb[TSDB_DB_FNAME_LEN];
   char           targetDb[TSDB_DB_FNAME_LEN];
   char           targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t        targetStbUid;
   int64_t        createTime;
   int64_t        updateTime;
   int64_t        uid;

@@ -137,28 +137,18 @@ struct STsdbCfg {
   int8_t  update;
   int8_t  compression;
   int8_t  slLevel;
-  int32_t days;
   int32_t minRows;
   int32_t maxRows;
-  int32_t keep0;
-  int32_t keep1;
-  int32_t keep2;
-  // TODO: save to tsdb cfg file
-  int8_t     type;  // ETsdbType
+  int32_t days;   // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
+  int32_t keep0;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
+  int32_t keep1;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
+  int32_t keep2;  // just for save config, don't use in tsdbRead/tsdbCommit/..., and use STsdbKeepCfg in STsdb instead
   SRetention retentions[TSDB_RETENTION_MAX];
 };
 
-typedef enum {
-  TSDB_TYPE_TSDB = 0,     // TSDB
-  TSDB_TYPE_TSMA = 1,     // TSMA
-  TSDB_TYPE_RSMA_L0 = 2,  // RSMA Level 0
-  TSDB_TYPE_RSMA_L1 = 3,  // RSMA Level 1
-  TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
-} ETsdbType;
-
 struct SVnodeCfg {
   int32_t  vgId;
-  char     dbname[TSDB_DB_NAME_LEN];
+  char     dbname[TSDB_DB_FNAME_LEN];
   uint64_t dbId;
   int32_t  szPage;
   int32_t  szCache;
@@ -167,7 +157,7 @@ struct SVnodeCfg {
   bool     isWeak;
   STsdbCfg tsdbCfg;
   SWalCfg  walCfg;
-  SSyncCfg syncCfg;  // sync integration
+  SSyncCfg syncCfg;
   uint32_t hashBegin;
   uint32_t hashEnd;
   int8_t   hashMethod;

@@ -27,10 +27,11 @@ extern "C" {
 typedef struct SBnodeMgmt {
   SBnode       *pBnode;
   SDnode       *pDnode;
-  SMgmtWrapper *pWrapper;  
+  SMgmtWrapper *pWrapper;
   const char   *path;
   SMultiWorker  writeWorker;
   SSingleWorker monitorWorker;
+  void         *clientRpc;
 } SBnodeMgmt;
 
 // bmHandle.c

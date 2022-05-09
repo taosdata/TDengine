@@ -35,9 +35,19 @@ static void smClose(SMgmtWrapper *pWrapper) {
     pMgmt->pSnode = NULL;
   }
 
+  if (pMgmt->clientRpc) {
+    rpcClose(pMgmt->clientRpc);
+    pMgmt->clientRpc = NULL;
+  }
+
   pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("snode-mgmt is cleaned up");
+}
+
+static void smProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  qWorkerProcessFetchRsp(NULL, NULL, pMsg);
+  pMsg->pCont = NULL;  // already freed in qworker
 }
 
 int32_t smOpen(SMgmtWrapper *pWrapper) {
@@ -52,6 +62,12 @@ int32_t smOpen(SMgmtWrapper *pWrapper) {
   pMgmt->pDnode = pWrapper->pDnode;
   pMgmt->pWrapper = pWrapper;
   pWrapper->pMgmt = pMgmt;
+
+  pMgmt->clientRpc = dmCreateClientRpc("VM", NULL, (RpcCfp)smProcessMsg);
+  if (pMgmt->clientRpc == NULL) {
+    smClose(pWrapper);
+    return -1;
+  }
 
   SSnodeOpt option = {0};
   smInitOption(pMgmt, &option);

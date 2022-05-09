@@ -360,6 +360,8 @@ static int32_t mndCreateStbForStream(SMnode *pMnode, STrans *pTrans, const SStre
     goto _OVER;
   }
 
+  stbObj.uid = pStream->targetStbUid;
+
   if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
 
   return 0;
@@ -379,6 +381,7 @@ static int32_t mndCreateStream(SMnode *pMnode, SNodeMsg *pReq, SCMCreateStreamRe
   streamObj.createTime = taosGetTimestampMs();
   streamObj.updateTime = streamObj.createTime;
   streamObj.uid = mndGenerateUid(pCreate->name, strlen(pCreate->name));
+  streamObj.targetStbUid = mndGenerateUid(pCreate->targetStbFullName, TSDB_TABLE_FNAME_LEN);
   streamObj.dbUid = pDb->uid;
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;

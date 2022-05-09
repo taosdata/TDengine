@@ -191,7 +191,7 @@ static int tsdbAddDFileSetToStatus(SFSStatus *pStatus, const SDFileSet *pSet) {
 }
 
 // ================== STsdbFS
-STsdbFS *tsdbNewFS(const STsdbCfg *pCfg) {
+STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg) {
   int      keep = pCfg->keep2;
   int      days = pCfg->days;
   int      maxFSet = TSDB_MAX_FSETS(keep, days);

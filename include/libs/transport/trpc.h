@@ -68,13 +68,13 @@ typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, cha
 typedef bool (*RpcRfp)(int32_t code);
 
 typedef struct SRpcInit {
-  char     localFqdn[TSDB_FQDN_LEN];
-  uint16_t localPort;     // local port
-  char *   label;         // for debug purpose
-  int      numOfThreads;  // number of threads to handle connections
-  int      sessions;      // number of sessions allowed
-  int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
-  int      idleTime;      // milliseconds, 0 means idle timer is disabled
+  char        localFqdn[TSDB_FQDN_LEN];
+  uint16_t    localPort;     // local port
+  const char *label;         // for debug purpose
+  int         numOfThreads;  // number of threads to handle connections
+  int         sessions;      // number of sessions allowed
+  int8_t      connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
+  int         idleTime;      // milliseconds, 0 means idle timer is disabled
 
   // the following is for client app ecurity only
   char *user;     // user name

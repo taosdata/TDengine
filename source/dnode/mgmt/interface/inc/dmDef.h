@@ -41,9 +41,16 @@
 #include "monitor.h"
 #include "sync.h"
 
+#include "qworker.h"
+#include "libs/function/function.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+#define INTERNAL_USER   "_dnd"
+#define INTERNAL_CKEY   "_key"
+#define INTERNAL_SECRET "_pwd"
 
 typedef enum { DNODE, VNODE, QNODE, SNODE, MNODE, BNODE, NODE_END } EDndNodeType;
 typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndRunStatus;

@@ -44,7 +44,8 @@ enum {
   UDFC_CODE_PIPE_READ_ERR = -2,
   UDFC_CODE_CONNECT_PIPE_ERR = -3,
   UDFC_CODE_LOAD_UDF_FAILURE = -4,
-  UDFC_CODE_INVALID_STATE = -5
+  UDFC_CODE_INVALID_STATE = -5,
+  UDFC_CODE_NO_PIPE = -6,
 };
 
 typedef void *UdfcFuncHandle;
@@ -140,6 +141,44 @@ typedef int32_t (*TUdfDestroyFunc)();
 
 #define UDF_MEMORY_EXP_GROWTH 1.5
 
+#define udfColDataIsNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] == -1)
+#define udfColDataIsNull_f(pColumn, row) ((BMCharPos(pColumn->colData.fixLenCol.nullBitmap, row) & (1u << (7u - BitPos(row)))) == (1u << (7u - BitPos(row))))
+#define udfColDataSetNull_f(pColumn, row)                                                \
+  do {                                                                                   \
+    BMCharPos(pColumn->colData.fixLenCol.nullBitmap, row) |= (1u << (7u - BitPos(row))); \
+  } while (0)
+
+#define udfColDataSetNotNull_f(pColumn, r_)                                               \
+  do {                                                                                    \
+    BMCharPos(pColumn->colData.fixLenCol.nullBitmap, r_) &= ~(1u << (7u - BitPos(r_)));   \
+  } while (0)
+#define udfColDataSetNull_var(pColumn, row)  ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
+
+
+static FORCE_INLINE char* udfColDataGetData(const SUdfColumn* pColumn, int32_t row) {
+  if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
+    return pColumn->colData.varLenCol.payload + pColumn->colData.varLenCol.varOffsets[row];
+  } else {
+    return pColumn->colData.fixLenCol.data + pColumn->colMeta.bytes * row;
+  }
+}
+
+static FORCE_INLINE bool udfColDataIsNull(const SUdfColumn* pColumn, int32_t row) {
+  if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
+    if (pColumn->colMeta.type == TSDB_DATA_TYPE_JSON) {
+      if (udfColDataIsNull_var(pColumn, row)) {
+        return true;
+      }
+      char* data = udfColDataGetData(pColumn, row);
+      return (*data == TSDB_DATA_TYPE_NULL);
+    } else {
+      return udfColDataIsNull_var(pColumn, row);
+    }
+  } else {
+    return udfColDataIsNull_f(pColumn, row);
+  }
+}
+
 static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn* pColumn, int32_t newCapacity) {
   SUdfColumnMeta *meta = &pColumn->colMeta;
   SUdfColumnData *data = &pColumn->colData;
@@ -186,17 +225,22 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn* pColumn, int32_t ne
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t udfColSetRow(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull) {
+static FORCE_INLINE void udfColDataSetNull(SUdfColumn* pColumn, int32_t row) {
+  udfColEnsureCapacity(pColumn, row+1);
+  if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
+    udfColDataSetNull_var(pColumn, row);
+  } else {
+    udfColDataSetNull_f(pColumn, row);
+  }
+}
+
+static FORCE_INLINE int32_t udfColDataSet(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull) {
   SUdfColumnMeta *meta = &pColumn->colMeta;
   SUdfColumnData *data = &pColumn->colData;
   udfColEnsureCapacity(pColumn, currentRow+1);
   bool isVarCol = IS_VAR_DATA_TYPE(meta->type);
   if (isNull) {
-    if (isVarCol) {
-      data->varLenCol.varOffsets[currentRow] = -1;
-    } else {
-      colDataSetNull_f(data->fixLenCol.nullBitmap, currentRow);
-    }
+      udfColDataSetNull(pColumn, currentRow);
   } else {
     if (!isVarCol) {
       colDataSetNotNull_f(data->fixLenCol.nullBitmap, currentRow);

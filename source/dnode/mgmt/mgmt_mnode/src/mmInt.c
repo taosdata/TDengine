@@ -128,9 +128,19 @@ static void mmClose(SMgmtWrapper *pWrapper) {
     pMgmt->pMnode = NULL;
   }
 
+  if (pMgmt->clientRpc) {
+    rpcClose(pMgmt->clientRpc);
+    pMgmt->clientRpc = NULL;
+  }
+
   pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("mnode-mgmt is cleaned up");
+}
+
+static void mmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  qWorkerProcessFetchRsp(NULL, NULL, pMsg);
+  pMsg->pCont = NULL;  // already freed in qworker
 }
 
 static int32_t mmOpen(SMgmtWrapper *pWrapper) {
@@ -151,6 +161,12 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
   pMgmt->pWrapper = pWrapper;
   pWrapper->pMgmt = pMgmt;
 
+  pMgmt->clientRpc = dmCreateClientRpc("MM", NULL, (RpcCfp)mmProcessMsg);
+  if (pMgmt->clientRpc == NULL) {
+    mmClose(pWrapper);
+    return -1;
+  }
+
   bool deployed = false;
   if (mmReadFile(pMgmt, &deployed) != 0) {
     dError("failed to read file since %s", terrstr());
@@ -161,9 +177,7 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
   SMnodeOpt option = {0};
   if (!deployed) {
     dInfo("mnode start to deploy");
-    // if (pWrapper->procType == DND_PROC_CHILD) {
-      pWrapper->pDnode->data.dnodeId = 1;
-    // }
+    pWrapper->pDnode->data.dnodeId = 1;
     mmBuildOptionForDeploy(pMgmt, &option);
   } else {
     dInfo("mnode start to open");

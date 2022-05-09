@@ -17,12 +17,14 @@
 #include "qmInt.h"
 
 static inline void qmSendRsp(SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
-                 .ahandle = pMsg->rpcMsg.ahandle,
-                 .refId = pMsg->rpcMsg.refId,
-                 .code = code,
-                 .pCont = pMsg->pRsp,
-                 .contLen = pMsg->rspLen};
+  SRpcMsg rsp = {
+      .handle = pMsg->rpcMsg.handle,
+      .ahandle = pMsg->rpcMsg.ahandle,
+      .refId = pMsg->rpcMsg.refId,
+      .code = code,
+      .pCont = pMsg->pRsp,
+      .contLen = pMsg->rspLen,
+  };
   tmsgSendRsp(&rsp);
 }
 
@@ -145,22 +147,26 @@ int32_t qmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
 }
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
-  SSingleWorkerCfg queryCfg = {.min = tsNumOfVnodeQueryThreads,
-                               .max = tsNumOfVnodeQueryThreads,
-                               .name = "qnode-query",
-                               .fp = (FItem)qmProcessQueryQueue,
-                               .param = pMgmt};
+  SSingleWorkerCfg queryCfg = {
+      .min = tsNumOfVnodeQueryThreads,
+      .max = tsNumOfVnodeQueryThreads,
+      .name = "qnode-query",
+      .fp = (FItem)qmProcessQueryQueue,
+      .param = pMgmt,
+  };
 
   if (tSingleWorkerInit(&pMgmt->queryWorker, &queryCfg) != 0) {
     dError("failed to start qnode-query worker since %s", terrstr());
     return -1;
   }
 
-  SSingleWorkerCfg fetchCfg = {.min = tsNumOfQnodeFetchThreads,
-                               .max = tsNumOfQnodeFetchThreads,
-                               .name = "qnode-fetch",
-                               .fp = (FItem)qmProcessFetchQueue,
-                               .param = pMgmt};
+  SSingleWorkerCfg fetchCfg = {
+      .min = tsNumOfQnodeFetchThreads,
+      .max = tsNumOfQnodeFetchThreads,
+      .name = "qnode-fetch",
+      .fp = (FItem)qmProcessFetchQueue,
+      .param = pMgmt,
+  };
 
   if (tSingleWorkerInit(&pMgmt->fetchWorker, &fetchCfg) != 0) {
     dError("failed to start qnode-fetch worker since %s", terrstr());
@@ -169,7 +175,12 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
 
   if (tsMultiProcess) {
     SSingleWorkerCfg mCfg = {
-        .min = 1, .max = 1, .name = "qnode-monitor", .fp = (FItem)qmProcessMonitorQueue, .param = pMgmt};
+        .min = 1,
+        .max = 1,
+        .name = "qnode-monitor",
+        .fp = (FItem)qmProcessMonitorQueue,
+        .param = pMgmt,
+    };
     if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
       dError("failed to start qnode-monitor worker since %s", terrstr());
       return -1;
