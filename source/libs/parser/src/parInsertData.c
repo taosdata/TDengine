@@ -601,6 +601,7 @@ int32_t qResetStmtDataBlock(void* block, bool keepBuf) {
   pBlock->numOfTables = 1;
   pBlock->nAllocSize = TSDB_PAYLOAD_SIZE;
   pBlock->headerSize = pBlock->size;
+  pBlock->createTbReqLen = 0;
 
   memset(&pBlock->rowBuilder, 0, sizeof(pBlock->rowBuilder));
 

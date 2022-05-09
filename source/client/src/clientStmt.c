@@ -465,9 +465,11 @@ int stmtSetTbTags(TAOS_STMT *stmt, TAOS_MULTI_BIND *tags) {
 
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_SETTAGS));
 
-  if (pStmt->bInfo.needParse) {
-    STMT_ERR_RET(stmtParseSql(pStmt));
+  if (!pStmt->bInfo.needParse) {
+    return TSDB_CODE_SUCCESS;
   }
+
+  STMT_ERR_RET(stmtParseSql(pStmt));
 
   STableDataBlocks **pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, (const char*)&pStmt->bInfo.tbUid, sizeof(pStmt->bInfo.tbUid));
   if (NULL == pDataBlock) {
