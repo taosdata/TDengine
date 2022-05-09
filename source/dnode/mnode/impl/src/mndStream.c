@@ -259,7 +259,7 @@ int32_t mndAddStreamToTrans(SMnode *pMnode, SStreamObj *pStream, const char *ast
     return -1;
   }
 
-#if 1
+#if 0
   printf("|");
   for (int i = 0; i < pStream->outputSchema.nCols; i++) {
     printf(" %15s |", (char *)pStream->outputSchema.pSchema[i].name);

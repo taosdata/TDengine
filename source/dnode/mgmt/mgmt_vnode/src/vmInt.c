@@ -324,7 +324,7 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
   dmReportStartup(pDnode, "vnode-vnodes", "initialized");
 
   if (udfcOpen() != 0) {
-    dError("failed to open udfc in dnode");
+    dError("failed to open udfc in vnode");
   }
 
   code = 0;

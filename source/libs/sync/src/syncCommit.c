@@ -65,6 +65,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         newCommitIndex = index;
         sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
                newCommitIndex, pSyncNode->commitIndex);
+
+        syncEntryDestory(pEntry);
         break;
       } else {
         sTrace(

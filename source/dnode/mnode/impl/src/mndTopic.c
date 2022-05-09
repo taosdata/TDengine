@@ -35,6 +35,7 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pTopic, SMqTopicObj
 static int32_t mndProcessCreateTopicReq(SNodeMsg *pReq);
 static int32_t mndProcessDropTopicReq(SNodeMsg *pReq);
 static int32_t mndProcessDropTopicInRsp(SNodeMsg *pRsp);
+
 static int32_t mndRetrieveTopic(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTopic(SMnode *pMnode, void *pIter);
 
@@ -60,6 +61,11 @@ int32_t mndInitTopic(SMnode *pMnode) {
 }
 
 void mndCleanupTopic(SMnode *pMnode) {}
+
+const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]) {
+  //
+  return strchr(topic, '.') + 1;
+}
 
 SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
