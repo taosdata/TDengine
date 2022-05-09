@@ -221,15 +221,12 @@ DLL_EXPORT void        tmq_list_destroy(tmq_list_t *);
 DLL_EXPORT int32_t     tmq_list_get_size(const tmq_list_t *);
 DLL_EXPORT char      **tmq_list_to_c_array(const tmq_list_t *);
 
-#if 0
-DLL_EXPORT tmq_t *tmq_consumer_new(void *conn, tmq_conf_t *conf, char *errstr, int32_t errstrLen);
-#endif
-
 DLL_EXPORT tmq_t *tmq_consumer_new(tmq_conf_t *conf, char *errstr, int32_t errstrLen);
 
 DLL_EXPORT const char *tmq_err2str(tmq_resp_err_t);
 
 /* ------------------------TMQ CONSUMER INTERFACE------------------------ */
+
 DLL_EXPORT tmq_resp_err_t tmq_subscribe(tmq_t *tmq, const tmq_list_t *topic_list);
 DLL_EXPORT tmq_resp_err_t tmq_unsubscribe(tmq_t *tmq);
 DLL_EXPORT tmq_resp_err_t tmq_subscription(tmq_t *tmq, tmq_list_t **topics);
@@ -240,6 +237,7 @@ DLL_EXPORT tmq_resp_err_t tmq_commit(tmq_t *tmq, const tmq_topic_vgroup_list_t *
 DLL_EXPORT tmq_resp_err_t tmq_commit_message(tmq_t* tmq, const tmq_message_t* tmqmessage, int32_t async);
 DLL_EXPORT tmq_resp_err_t tmq_seek(tmq_t *tmq, const tmq_topic_vgroup_t *offset);
 #endif
+
 /* ----------------------TMQ CONFIGURATION INTERFACE---------------------- */
 
 enum tmq_conf_res_t {
@@ -268,12 +266,9 @@ DLL_EXPORT char   *tmq_get_table_name(TAOS_RES *res);
 DLL_EXPORT int64_t     tmq_get_request_offset(tmq_message_t *message);
 DLL_EXPORT int64_t     tmq_get_response_offset(tmq_message_t *message);
 #endif
-/* --------------------TMPORARY INTERFACE FOR TESTING--------------------- */
-#if 0
-DLL_EXPORT TAOS_RES *tmq_create_topic(TAOS *taos, const char *name, const char *sql, int sqlLen);
-DLL_EXPORT TAOS_RES *tmq_create_stream(TAOS *taos, const char *streamName, const char *tbName, const char *sql);
-#endif
+
 /* ------------------------------ TMQ END -------------------------------- */
+
 #if 1  // Shuduo: temporary enable for app build
 typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB *tsub, TAOS_RES *res, void *param, int code);
 #endif
