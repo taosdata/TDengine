@@ -164,32 +164,6 @@ static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const 
   return TSDB_CODE_SML_INVALID_DATA;
 }
 
-static void smlBuildChildTableName(SSmlTableInfo *tags) {
-  int32_t size = taosArrayGetSize(tags->tags);
-  ASSERT(size > 0);
-  taosArraySort(tags->tags, smlCompareKv);
-
-  SStringBuilder sb = {0};
-  taosStringBuilderAppendStringLen(&sb, tags->sTableName, tags->sTableNameLen);
-  for (int j = 0; j < size; ++j) {
-    SSmlKv *tagKv = taosArrayGetP(tags->tags, j);
-    taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
-    taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->valueLen);
-  }
-  size_t len = 0;
-  char* keyJoined = taosStringBuilderGetResult(&sb, &len);
-  T_MD5_CTX context;
-  tMD5Init(&context);
-  tMD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
-  tMD5Final(&context);
-  uint64_t digest1 = *(uint64_t*)(context.digest);
-  //uint64_t digest2 = *(uint64_t*)(context.digest + 8);
-  //snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64"%016"PRIx64, digest1, digest2);
-  snprintf(tags->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64, digest1);
-  taosStringBuilderDestroy(&sb);
-  tags->uid = digest1;
-}
-
 static int32_t smlGenerateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, SArray* dbAttrArray, bool isTag, char sTableName[],
                                        SSchemaAction* action, bool* actionNeeded, SSmlHandle* info) {
 //  char fieldName[TSDB_COL_NAME_LEN] = {0};
@@ -1702,7 +1676,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
 
 static void smlPrintStatisticInfo(SSmlHandle *info){
   uError("SML:0x%"PRIx64" smlInsertLines result, code:%d,lineNum:%d,stable num:%d,ctable num:%d,create stable num:%d \
-        parse cost:%lld,schema cost:%lld,bind cost:%lld,rpc cost:%lld,total cost:%lld", info->id, info->cost.code,
+        parse cost:%"PRIx64",schema cost:%"PRIx64",bind cost:%"PRIx64",rpc cost:%"PRIx64",total cost:%"PRIx64"", info->id, info->cost.code,
          info->cost.lineNum, info->cost.numOfSTables, info->cost.numOfCTables, info->cost.numOfCreateSTables,
          info->cost.schemaTime-info->cost.parseTime, info->cost.insertBindTime-info->cost.schemaTime,
          info->cost.insertRpcTime-info->cost.insertBindTime, info->cost.endTime-info->cost.insertRpcTime,
@@ -1800,7 +1774,6 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
   }
   smlDestroyInfo(info);
 
-end:
   return (TAOS_RES*)request;
 }
 
