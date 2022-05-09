@@ -2120,7 +2120,6 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
 
         int32_t qstart = 0, qend = 0;
         getQualifiedRowsPos(pTsdbReadHandle, pos, end, numOfRows, &qstart, &qend);
-        lastKeyAppend = tsArray[qend];
 
         if ((lastKeyAppend != TSKEY_INITIAL_VAL) &&
             (lastKeyAppend != (ASCENDING_TRAVERSE(pTsdbReadHandle->order) ? tsArray[qstart] : tsArray[qend]))) {
