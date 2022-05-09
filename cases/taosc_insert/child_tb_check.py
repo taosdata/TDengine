@@ -15,7 +15,7 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 import copy
 
-class TestStb(TDCase):
+class TestChildTb(TDCase):
     def init(self):
         super().init()
         self.tdCom = TDCom(self.tdSql)
@@ -99,6 +99,32 @@ class TestStb(TDCase):
             self.tdSql.query(f'show tables')
             self.tdSql.checkEqual(self.tdSql.query_data[0][0], tbname)
             self.tdSql.execute(f'drop table if exists `{tbname}`')
+
+    def ttl_check(self):
+        """
+        check ttl
+        """
+        stbname = self.tdCom.get_long_name(length=10, mode="letters")
+        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        test_ttl = 2
+        self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) ttl {test_ttl}')
+        self.tdSql.query(f'show tables')
+        res = self.tdSql.get_db_field_kv(0, tbname)
+        self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
+
+    def comment_check(self):
+        """
+        check comment
+        """
+        stbname = self.tdCom.get_long_name(length=10, mode="letters")
+        tbname = self.tdCom.get_long_name(length=10, mode="letters")
+        comment = "comment_test"
+        self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
+        self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) comment {comment}')
+        self.tdSql.query(f'show tables')
+        res = self.tdSql.get_db_field_kv(0, tbname)
+        self.tdSql.checkEqual(int(res["table_comment"]), comment)
 
     def desc_check(self):
         """
@@ -185,19 +211,6 @@ class TestStb(TDCase):
         self.tdSql.execute(f'drop table if exists {dbname}.`{dbname}`')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
-    def ttl_check(self):
-        """
-        check ttl
-        """
-        stbname = self.tdCom.get_long_name(length=10, mode="letters")
-        tbname = self.tdCom.get_long_name(length=10, mode="letters")
-        test_ttl = 2
-        self.tdSql.execute(f'create stable if not exists {stbname} (ts timestamp, c1 int) tags (t1 int)')
-        self.tdSql.execute(f'create table if not exists {tbname} using {stbname} tags (127) ttl {test_ttl}')
-        self.tdSql.query(f'show tables')
-        res = self.tdSql.get_db_field_kv(0, tbname)
-        self.tdSql.checkEqual(int(res["ttl"]), test_ttl)
-
     def run(self):
         self.child_tbname_length_check()
         self.child_tbname_with_backquote()
@@ -205,6 +218,7 @@ class TestStb(TDCase):
         self.upper_lower_child_tbname_check()
         #! bug
         # self.ttl_check()
+        # self.comment_check()
         self.desc_check()
         # self.alter_child_tb()
         # self.add_drop_column()
@@ -217,6 +231,7 @@ class TestStb(TDCase):
             child_tbname_without_backquote <jayden>: [TD-12748] : error occured when illegal child tbname without backquote;\n
             upper_lower_child_tbname_check <jayden>: [TD-12748] : upper lower child tbname check;\n
             ttl_check <jayden>: [TD-14993] : ttl check;\n
+            comment_check <jayden>: [TD-14993] : comment check;\n
             desc_check <jayden>: [TD-12748] : describe child table;\n
             alter_child_tb <jayden>: [TD-12748] : alter child table modify (binary/nchar) length;\n
             add_drop_column <jayden>: [TD-12748] : add/drop column/tag;\n
