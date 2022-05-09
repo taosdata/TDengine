@@ -258,10 +258,20 @@ static void vmCleanup(SMgmtWrapper *pWrapper) {
   vmStopWorker(pMgmt);
   vnodeCleanup();
   tfsClose(pMgmt->pTfs);
+  if (pMgmt->clientRpc) {
+    rpcClose(pMgmt->clientRpc);
+    pMgmt->clientRpc = NULL;
+  }
+
   taosMemoryFree(pMgmt);
   pWrapper->pMgmt = NULL;
 
   dInfo("vnode-mgmt is cleaned up");
+}
+
+static void vmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  qWorkerProcessFetchRsp(NULL, NULL, pMsg);
+  pMsg->pCont = NULL;  // already freed in qworker
 }
 
 static int32_t vmInit(SMgmtWrapper *pWrapper) {
@@ -287,6 +297,9 @@ static int32_t vmInit(SMgmtWrapper *pWrapper) {
     pDisks = &dCfg;
     numOfDisks = 1;
   }
+
+  pMgmt->clientRpc = dmCreateClientRpc("VM", pDnode, (RpcCfp)vmProcessMsg);
+  if (pMgmt->clientRpc == NULL) goto _OVER;
 
   pMgmt->pTfs = tfsOpen(pDisks, numOfDisks);
   if (pMgmt->pTfs == NULL) {

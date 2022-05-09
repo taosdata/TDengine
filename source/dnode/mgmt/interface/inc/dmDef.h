@@ -41,6 +41,7 @@
 #include "monitor.h"
 #include "sync.h"
 
+#include "qworker.h"
 #include "libs/function/function.h"
 
 #ifdef __cplusplus

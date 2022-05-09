@@ -128,9 +128,19 @@ static void mmClose(SMgmtWrapper *pWrapper) {
     pMgmt->pMnode = NULL;
   }
 
+  if (pMgmt->clientRpc) {
+    rpcClose(pMgmt->clientRpc);
+    pMgmt->clientRpc = NULL;
+  }
+
   pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("mnode-mgmt is cleaned up");
+}
+
+static void mmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  qWorkerProcessFetchRsp(NULL, NULL, pMsg);
+  pMsg->pCont = NULL;  // already freed in qworker
 }
 
 static int32_t mmOpen(SMgmtWrapper *pWrapper) {
@@ -150,6 +160,12 @@ static int32_t mmOpen(SMgmtWrapper *pWrapper) {
   pMgmt->pDnode = pWrapper->pDnode;
   pMgmt->pWrapper = pWrapper;
   pWrapper->pMgmt = pMgmt;
+
+  pMgmt->clientRpc = dmCreateClientRpc("MM", NULL, (RpcCfp)mmProcessMsg);
+  if (pMgmt->clientRpc == NULL) {
+    mmClose(pWrapper);
+    return -1;
+  }
 
   bool deployed = false;
   if (mmReadFile(pMgmt, &deployed) != 0) {

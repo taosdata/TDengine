@@ -39,7 +39,7 @@ void   dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const
 void   dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pMsg);
 void   dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
 void   dmGetMonitorSysInfo(SMonSysInfo *pInfo);
-void  *dmCreateClientRpc(const char *label, void *parent, RpcCfp cfp, char *pass);
+void  *dmCreateClientRpc(const char *label, void *parent, RpcCfp cfp);
 
 // dmFile.c
 int32_t   dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed);

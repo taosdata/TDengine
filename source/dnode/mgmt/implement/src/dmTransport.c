@@ -434,10 +434,7 @@ SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper) {
 }
 
 static int32_t dmInitClient(SDnode *pDnode) {
-  char pass[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
-
-  pDnode->trans.clientRpc = dmCreateClientRpc("DM", pDnode, (RpcCfp)dmProcessMsg, pass);
+  pDnode->trans.clientRpc = dmCreateClientRpc("DM", pDnode, (RpcCfp)dmProcessMsg);
   return pDnode->trans.clientRpc == NULL ? -1 : 0;
 }
 

@@ -34,6 +34,7 @@ typedef struct SSnodeMgmt {
   SArray       *uniqueWorkers;  // SArray<SMultiWorker*>
   SSingleWorker sharedWorker;
   SSingleWorker monitorWorker;
+  void         *clientRpc;
 } SSnodeMgmt;
 
 // smHandle.c

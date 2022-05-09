@@ -32,6 +32,7 @@ typedef struct SQnodeMgmt {
   SSingleWorker queryWorker;
   SSingleWorker fetchWorker;
   SSingleWorker monitorWorker;
+  void         *clientRpc;
 } SQnodeMgmt;
 
 // qmHandle.c

@@ -37,6 +37,7 @@ typedef struct SMnodeMgmt {
   SReplica      replicas[TSDB_MAX_REPLICA];
   int8_t        replica;
   int8_t        selfIndex;
+  void         *clientRpc;
 } SMnodeMgmt;
 
 // mmFile.c

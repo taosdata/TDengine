@@ -231,7 +231,10 @@ static bool rpcRfp(int32_t code) {
   }
 }
 
-void *dmCreateClientRpc(const char *label, void *parent, RpcCfp cfp, char *pass) {
+void *dmCreateClientRpc(const char *label, void *parent, RpcCfp cfp) {
+  char pass[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+
   SRpcInit rpcInit = {0};
   rpcInit.label = label;
   rpcInit.numOfThreads = 1;
