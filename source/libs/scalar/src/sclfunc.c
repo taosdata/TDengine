@@ -822,7 +822,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           varDataSetLen(output, len);
         }
         //for constant conversion, need to set proper length of pOutput description
-        if (len < outputLen - VARSTR_HEADER_SIZE) {
+        if (len < outputLen) {
           pOutput->columnData->info.bytes = len;
         }
         break;
