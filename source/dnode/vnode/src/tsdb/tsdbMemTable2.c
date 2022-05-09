@@ -326,6 +326,16 @@ static int32_t tsdbMemSkipListCursorMoveTo(SMemSkipListCurosr *pSlc, int64_t ver
   return 0;
 }
 
+static int32_t tsdbMemSkipListCursorMoveToFirst(SMemSkipListCurosr *pSlc) {
+  // TODO
+  return 0;
+}
+
+static int32_t tsdbMemSkipListCursorMoveToLast(SMemSkipListCurosr *pSlc) {
+  // TODO
+  return 0;
+}
+
 static int32_t tsdbMemSkipListCursorMoveToNext(SMemSkipListCurosr *pSlc) {
   // TODO
   return 0;
