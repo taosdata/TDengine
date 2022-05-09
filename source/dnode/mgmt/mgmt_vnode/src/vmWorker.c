@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-#include "qworker.h"
 #include "sync.h"
 #include "syncTools.h"
 
@@ -51,11 +50,6 @@ static void vmProcessMgmtMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
       break;
     case TDMT_DND_DROP_VNODE:
       code = vmProcessDropVnodeReq(pMgmt, pMsg);
-      break;
-    case TDMT_VND_FETCH_RSP:
-      // todo refactor
-      code = qWorkerProcessFetchRsp(NULL, NULL, &pMsg->rpcMsg);
-      pMsg->rpcMsg.pCont = NULL;  // already freed in qworker
       break;
     default:
       terrno = TSDB_CODE_MSG_NOT_PROCESSED;
