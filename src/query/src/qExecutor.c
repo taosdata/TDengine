@@ -1730,6 +1730,8 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   STableQueryInfo*  item = pRuntimeEnv->current;
 
+  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
+
   // primary timestamp column
   SColumnInfoData* pColInfoData = taosArrayGet(pSDataBlock->pDataBlock, 0);
 
@@ -1770,7 +1772,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
 
-      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+      int32_t forwardStep = pInfo->numOfRows;
+      int32_t offset = ascQuery ? pInfo->start : pInfo->start + forwardStep - 1;
+      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                        pSDataBlock->info.rows, pOperator->numOfOutput);
 
       pInfo->curWindow.skey = tsList[j];
@@ -1791,7 +1795,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
   }
 
-  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+  int32_t forwardStep = pInfo->numOfRows;
+  int32_t offset = ascQuery ? pInfo->start : pInfo->start + forwardStep - 1;
+  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                    pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
