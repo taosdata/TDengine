@@ -1,9 +1,8 @@
-import datetime
-
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
+
 
 PRIMARY_COL = "ts"
 
@@ -24,151 +23,118 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
+
 class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __query_condition(self,tbname):
-        query_condition = []
+    def __rtrim_condition(self):  # sourcery skip: extract-method
+        rtrim_condition = []
         for char_col in CHAR_COL:
-            query_condition.extend(
+            rtrim_condition.extend(
                 (
-                    f"{tbname}.{char_col}",
-                    f"upper( {tbname}.{char_col} )",
+                    char_col,
+                    f"upper( {char_col} )",
                 )
             )
-            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
+            rtrim_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
+            rtrim_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
+            rtrim_condition.extend( f"concat( cast( {char_col} + {num_col} as binary(16) ), {char_col}) " for num_col in NUM_COL )
+            rtrim_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            rtrim_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            rtrim_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            # rtrim_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            rtrim_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
+            rtrim_condition.extend( f"concat( {char_col}, {char_col_2} ) " for char_col_2 in CHAR_COL )
+
         for num_col in NUM_COL:
-            query_condition.extend(
-                (
-                    f"{tbname}.{num_col}",
-                    f"sin( {tbname}.{num_col} )"
-                )
-            )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_1} " for num_col_1 in NUM_COL )
+            rtrim_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            rtrim_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL )
 
-        query_condition.append(''' "test1234!@#$%^&*():'><?/.,][}{" ''')
+        rtrim_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
 
-        return query_condition
+        rtrim_condition.append(''' "   test1234!@#$%^&*()  :'><?/.,][}{   " ''')
 
-    def __join_condition(self, tb_list, filter=PRIMARY_COL):
-        # sourcery skip: flip-comparison
-        if 1 == len(tb_list):
-            join_filter = f"{tb_list[0]}.{filter} = {tb_list[0]}.{filter} "
-        elif 2 == len(tb_list):
-            join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
-        else:
-            join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
-            for i in range(1, len(tb_list)-1 ):
-                join_filter += f"and {tb_list[i]}.{filter} = {tb_list[i+1]}.{filter}"
+        return rtrim_condition
 
-        return join_filter
+    def __where_condition(self, col):
+        # return f" where count({col}) > 0 "
+        return ""
 
-    def __where_condition(self, col, tbname):
-        if col in NUM_COL:
-            return f" abs( {tbname}.{col} ) >= 0"
-        elif col in CHAR_COL:
-            return f" lower( {tbname}.{col} ) like 'bina%' or lower( {tbname}.{col} ) like '_cha%' "
-        elif col in BOOLEAN_COL:
-            return f" {tbname}.{col} in (false, true)  "
-        elif col in TS_TYPE_COL or col in PRIMARY_COL:
-            return f" cast( {tbname}.{col} as binary(16) ) is not null "
-        else:
-            return ""
-
-    def __group_condition(self, tbname, col, having = ""):
+    def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __join_check(self, tblist, checkrows, join_flag=True):
-        query_conditions = self.__query_condition(tblist[0])
-        join_condition = self.__join_condition(tb_list=tblist) if join_flag else " "
-        for condition in query_conditions:
-            where_condition =  self.__where_condition(col=condition, tbname=tblist[0])
-            group_having = self.__group_condition(tbname=tblist[0], col=condition, having=f"{condition} is not null " )
-            group_no_having= self.__group_condition(tbname=tblist[0], col=condition )
-            groups = ["", group_having, group_no_having]
-            for group_condition in groups:
-                if where_condition:
-                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition} and {where_condition} {group_condition} "
-                else:
-                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition}  {group_condition} "
+    def __rtrim_check(self, tbname):
+        rtrim_condition = self.__rtrim_condition()
+        for condition in rtrim_condition:
+            where_condition = self.__where_condition(condition)
+            rtrim_group_having = self.__group_condition(condition, having=f"{condition} is not null " )
+            rtrim_group_no_having= self.__group_condition(condition)
+            groups = ["", rtrim_group_having, rtrim_group_no_having]
 
-                if not join_flag :
-                    tdSql.error(sql=sql)
-                    break
-                if len(tblist) == 2:
-                    if "ct1" in tblist or "t1" in tblist:
-                        self.__join_current(sql, checkrows)
-                    elif where_condition or "not null" in group_condition:
-                        self.__join_current(sql, checkrows + 2 )
-                    elif group_condition:
-                        self.__join_current(sql, checkrows + 3 )
-                    else:
-                        self.__join_current(sql, checkrows + 5 )
-                if len(tblist) > 2 or len(tblist) < 1:
-                    tdSql.error(sql=sql)
+            tdSql.query(f"select rtrim( {condition}) , {condition} from {tbname} ")
+            for j in range(tdSql.queryRows):
+                tdSql.checkData(j,0, tdSql.getData(j,1).rstrip()) if tdSql.getData(j,1) else tdSql.checkData(j, 0, None)
 
-    def __join_current(self, sql, checkrows):
-        tdSql.query(sql=sql)
-        # tdSql.checkRows(checkrows)
+            [ tdSql.query(f"select rtrim({condition})  from {tbname} {where_condition}  {group} ") for group in groups ]
 
 
-    def __test_current(self):
-        # sourcery skip: extract-duplicate-method, inline-immediately-returned-variable
+    def __rtrim_err_check(self,tbname):
+        sqls = []
+
+        for num_col in NUM_COL:
+            sqls.extend(
+                (
+                    f"select rtrim( {num_col} ) from {tbname} ",
+                    f"select rtrim(ceil( {num_col} )) from {tbname} ",
+                    f"select {num_col} from {tbname} group by rtrim( {num_col} ) ",
+                )
+            )
+
+            sqls.extend( f"select rtrim( {char_col} , {num_col} ) from {tbname} " for char_col in CHAR_COL )
+            sqls.extend( f"select rtrim( {num_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select rtrim( {num_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
+
+        sqls.extend( f"select rtrim( {ts_col}+{bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select rtrim( {num_col}+{ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select rtrim( {num_col}+ {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
+        sqls.extend( f"select rtrim( {num_col}+ {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
+        sqls.extend( f"select rtrim( {ts_col}+{ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select rtrim( {bool_col}+ {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
+
+        sqls.extend( f"select rtrim( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+        sqls.extend( f"select rtrim({num_col}, '1') from {tbname} " for num_col in NUM_COL )
+        sqls.extend( f"select rtrim({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select rtrim({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select rtrim({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+        sqls.extend(
+            (
+                f"select rtrim() from {tbname} ",
+                f"select rtrim(*) from {tbname} ",
+                f"select rtrim(ccccccc) from {tbname} ",
+                f"select rtrim(111) from {tbname} ",
+            )
+        )
+
+        return sqls
+
+    def __test_current(self):  # sourcery skip: use-itertools-product
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tblist_1 = ["ct1", "ct2"]
-        self.__join_check(tblist_1, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_1} over==========")
-        tblist_2 = ["ct2", "ct4"]
-        self.__join_check(tblist_2, self.rows)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_2} over==========")
-        tblist_3 = ["t1", "ct4"]
-        self.__join_check(tblist_3, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_3} over==========")
-        tblist_4 = ["t1", "ct1"]
-        self.__join_check(tblist_4, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_4} over==========")
+        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
+        for tb in tbname:
+            self.__rtrim_check(tb)
+            tdLog.printNoPrefix(f"==========current sql condition check in {tb} over==========")
 
     def __test_error(self):
-        # sourcery skip: extract-duplicate-method, move-assign-in-block
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
-        err_list_1 = ["ct1","ct2", "ct4"]
-        err_list_2 = ["ct1","ct2", "t1"]
-        err_list_3 = ["ct1","ct4", "t1"]
-        err_list_4 = ["ct2","ct4", "t1"]
-        err_list_5 = ["ct1", "ct2","ct4", "t1"]
-        self.__join_check(err_list_1, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_1} over==========")
-        self.__join_check(err_list_2, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_2} over==========")
-        self.__join_check(err_list_3, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_3} over==========")
-        self.__join_check(err_list_4, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_4} over==========")
-        self.__join_check(err_list_5, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_5} over==========")
-        self.__join_check(["ct2", "ct4"], -1, join_flag=False)
-        tdLog.printNoPrefix("==========err sql condition check in has no join condition over==========")
+        tbname = ["ct1", "ct2", "ct4", "t1", "stb1"]
 
-        tdSql.error( f"select c1, c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{INT_COL}=ct4.{INT_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{TS_COL}=ct4.{TS_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{TS_COL}" )
-        tdSql.error( f"select ct2.c1, ct1.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and c1 is not null " )
-        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct1.c1 is not null " )
-
-
-        tbname = ["ct1", "ct2", "ct4", "t1"]
-
-        # for tb in tbname:
-        #     for errsql in self.__join_err_check(tb):
-        #         tdSql.error(sql=errsql)
-        #     tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
+        for tb in tbname:
+            for errsql in self.__rtrim_err_check(tb):
+                tdSql.error(sql=errsql)
+            tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
     def all_test(self):
@@ -197,7 +163,6 @@ class TDTestCase:
 
         for i in range(4):
             tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
-            { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
 
     def __insert_data(self, rows):
         now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
@@ -272,7 +237,6 @@ class TDTestCase:
                 )
             '''
         )
-
 
     def run(self):
         tdSql.prepare()
