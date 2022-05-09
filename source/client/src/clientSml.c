@@ -1571,7 +1571,7 @@ static void smlDestroyInfo(SSmlHandle* info){
 
 static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocolType protocol, int8_t precision, bool dataFormat){
   int32_t code = TSDB_CODE_SUCCESS;
-  SSmlHandle* info = taosMemoryMalloc(sizeof(SSmlHandle));
+  SSmlHandle* info = taosMemoryCalloc(1, sizeof(SSmlHandle));
   if (NULL == info) {
     return NULL;
   }
