@@ -1074,7 +1074,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateSelectValue,
     .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
     .initFunc     = functionSetup,
-    .sprocessFunc = NULL,
+    .processFunc  = NULL,
     .finalizeFunc = NULL
   }
 };
