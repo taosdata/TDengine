@@ -298,6 +298,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       return -1;
     }
@@ -307,16 +309,22 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
     SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
     if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       return -1;
     }
 
     if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       return -1;
     }
 
     if (nodesNodeToString(pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       return -1;
     }
   } else {
@@ -331,6 +339,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+    taosMemoryFreeClear(topicObj.ast);
+    taosMemoryFreeClear(topicObj.sql);
     taosMemoryFreeClear(topicObj.physicalPlan);
     return -1;
   }

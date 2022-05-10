@@ -64,35 +64,35 @@ if $data00 != 1.414213562 then
   return -1
 endi
 
-#sql insert into t2 values(now+2s, 1, null)(now+3s, null, 2);
-#sql select udf1(f1, f2) from t2;
-#print $rows , $data00 , $data10 , $data20 , $data30
-#if $rows != 4 then
-#  return -1
-#endi
-#if $data00 != 88 then
-#  return -1
-#endi
-#if $data10 != 88 then
-#  return -1
-#endi
-#
-#if $data20 != NULL then
-#  return -1
-#endi
-#
-#if $data30 != NULL then
-#  return -1
-#endi
-#
-#sql select udf2(f1, f2) from t2;
-#print $rows, $data00
-#if $rows != 1 then
-#  return -1
-#endi
-#if $data00 != 2.645751311 then
-#  return -1
-#endi
+sql insert into t2 values(now+2s, 1, null)(now+3s, null, 2);
+sql select udf1(f1, f2) from t2;
+print $rows , $data00 , $data10 , $data20 , $data30
+if $rows != 4 then
+  return -1
+endi
+if $data00 != 88 then
+  return -1
+endi
+if $data10 != 88 then
+  return -1
+endi
+
+if $data20 != NULL then
+  return -1
+endi
+
+if $data30 != NULL then
+  return -1
+endi
+
+sql select udf2(f1, f2) from t2;
+print $rows, $data00
+if $rows != 1 then
+  return -1
+endi
+if $data00 != 2.645751311 then
+  return -1
+endi
 sql drop function udf1;
 sql show functions;
 if $rows != 1 then

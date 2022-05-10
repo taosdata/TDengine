@@ -248,11 +248,13 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
             pMergeInfo->nOperations++;
             pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
             pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
-            lastKey = rowKey;
             if (pCols) {
-              ++pCols->numOfRows;
+              if (lastKey != TSKEY_INITIAL_VAL) {
+                ++pCols->numOfRows;
+              }
               tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
             }
+            lastKey = rowKey;
           } else {
             tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
           }
@@ -325,6 +327,11 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   keyMin = TD_ROW_KEY(blkIter.row);
 
   tSkipListPutBatchByIter(pTbData->pData, &blkIter, (iter_next_fn_t)tGetSubmitBlkNext);
+
+#ifdef TD_DEBUG_PRINT_ROW
+  printf("!!! %s:%d table %" PRIi64 " has %d rows in skiplist\n\n", __func__, __LINE__, pTbData->uid,
+         SL_SIZE(pTbData->pData));
+#endif
 
   // Set statistics
   keyMax = TD_ROW_KEY(blkIter.row);
