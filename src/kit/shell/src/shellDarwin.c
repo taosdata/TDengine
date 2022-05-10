@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -36,7 +36,9 @@ void printHelp() {
   printf("taos shell is used to test the TDengine database\n");
 
   printf("%s%s\n", indent, "-h");
-  printf("%s%s%s\n", indent, indent, "TDengine server IP address to connect. The default host is localhost.");
+  printf("%s%s%s\n", indent, indent,
+         "TDengine server IP address to connect. The default host is "
+         "localhost.");
   printf("%s%s\n", indent, "-p");
   printf("%s%s%s\n", indent, indent, "The password to use when connecting to the server.");
   printf("%s%s\n", indent, "-P");
@@ -56,7 +58,9 @@ void printHelp() {
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-D");
-  printf("%s%s%s\n", indent, indent, "Use multi-thread to import all SQL files in the directory separately.");
+  printf("%s%s%s\n", indent, indent,
+         "Use multi-thread to import all SQL files in the directory "
+         "separately.");
   printf("%s%s\n", indent, "-T");
   printf("%s%s%s\n", indent, indent, "Number of threads when using multi-thread to import data.");
 
@@ -448,7 +452,8 @@ void get_history_path(char *history) { sprintf(history, "%s/%s", getpwuid(getuid
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
+    // fprintf(stderr, "No stream device, and use default value(col 120, row
+    // 30)\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }

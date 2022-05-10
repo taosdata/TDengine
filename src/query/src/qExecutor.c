@@ -1744,6 +1744,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
   SQueryRuntimeEnv* pRuntimeEnv = pOperator->pRuntimeEnv;
   STableQueryInfo*  item = pRuntimeEnv->current;
 
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+  bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
+
   // primary timestamp column
   SColumnInfoData* pColInfoData = taosArrayGet(pSDataBlock->pDataBlock, 0);
 
@@ -1783,7 +1786,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
 
-      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+      int32_t forwardStep = pInfo->numOfRows;
+      int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                        pSDataBlock->info.rows, pOperator->numOfOutput);
 
       pInfo->curWindow.skey = tsList[j];
@@ -1803,7 +1808,9 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSWindowOperatorInf
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
   }
 
-  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+  int32_t forwardStep = pInfo->numOfRows;
+  int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                    pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
@@ -2446,6 +2453,9 @@ static void teardownQueryRuntimeEnv(SQueryRuntimeEnv *pRuntimeEnv) {
 
   taosHashCleanup(pRuntimeEnv->pTableRetrieveTsMap);
   pRuntimeEnv->pTableRetrieveTsMap = NULL;
+  
+  taosHashCleanup(pRuntimeEnv->pTablesRead);
+  pRuntimeEnv->pTablesRead = NULL;
 
   taosHashCleanup(pRuntimeEnv->pResultRowListSet);
   pRuntimeEnv->pResultRowListSet = NULL;
@@ -6960,6 +6970,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   STableQueryInfo*  item = pRuntimeEnv->current;
   SColumnInfoData* pColInfoData = taosArrayGet(pSDataBlock->pDataBlock, pInfo->colIndex);
 
+  SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
+  bool ascQuery = QUERY_IS_ASC_QUERY(pQueryAttr);
+
   SOptrBasicInfo* pBInfo = &pInfo->binfo;
 
   bool    masterScan = IS_MASTER_SCAN(pRuntimeEnv);
@@ -7003,7 +7016,10 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       if (ret != TSDB_CODE_SUCCESS) {  // null data, too many state code
         longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
       }
-      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+
+      int32_t forwardStep = pInfo->numOfRows;
+      int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+      doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                        pSDataBlock->info.rows, pOperator->numOfOutput);
 
       pInfo->curWindow.skey = tsList[j];
@@ -7023,7 +7039,9 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
     longjmp(pRuntimeEnv->env, TSDB_CODE_QRY_APP_ERROR);
   }
 
-  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, pInfo->start, pInfo->numOfRows, tsList,
+  int32_t forwardStep = pInfo->numOfRows;
+  int32_t offset = (ascQuery) ? pInfo->start : pInfo->start + forwardStep - 1;
+  doApplyFunctions(pRuntimeEnv, pBInfo->pCtx, &pInfo->curWindow, offset, forwardStep, tsList,
                    pSDataBlock->info.rows, pOperator->numOfOutput);
 }
 
@@ -7934,6 +7952,14 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
 
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
                                            pRuntimeEnv->resultInfo.capacity);
+
+  // if have proj column, must set output row is 1
+  for (int32_t i = 0; i < numOfOutput; i++) {
+    if (pInfo->binfo.pCtx[i].functionId == TSDB_FUNC_PRJ) {
+      pInfo->binfo.pCtx[i].param[0].i64   = 1;
+      pInfo->binfo.pCtx[i].param[0].nType = TSDB_DATA_TYPE_BIGINT;
+    }
+  }
 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 

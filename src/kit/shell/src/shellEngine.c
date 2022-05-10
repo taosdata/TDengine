@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -31,12 +31,21 @@
 #include <regex.h>
 
 /**************** Global variables ****************/
+<<<<<<< HEAD
 char CLIENT_VERSION[] =
     "Welcome to the TDengine shell from %s, Client Version:%s\n"
     "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
 char PROMPT_HEADER[] = "taos> ";
 char CONTINUE_PROMPT[] = "   -> ";
 int  prompt_size = 6;
+=======
+char CLIENT_VERSION[] =
+    "Welcome to the TDengine shell from %s, Client Version:%s\n"
+    "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
+char PROMPT_HEADER[] = "taos> ";
+char CONTINUE_PROMPT[] = "   -> ";
+int  prompt_size = 6;
+>>>>>>> 2ab429ee59d47e11697c3664a7a62231f6a99275
 
 int64_t       result = 0;
 SShellHistory history;
@@ -491,9 +500,27 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
     int64_t oresult = atomic_load_64(&result);
 
+<<<<<<< HEAD
     if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
       fprintf(stdout, "Database changed.\n\n");
       fflush(stdout);
+=======
+    if (tscIsDeleteQuery(pSql)) {
+      // delete
+      int numOfRows = taos_affected_rows(pSql);
+      int numOfTables = taos_affected_tables(pSql);
+      int error_no = taos_errno(pSql);
+
+      et = taosGetTimestampUs();
+      if (error_no == TSDB_CODE_SUCCESS) {
+        printf("Deleted %d row(s) from %d table(s) (%.6fs)\n", numOfRows, numOfTables, (et - st) / 1E6);
+      } else {
+        printf("Deleted interrupted (%s), %d row(s) from %d tables (%.6fs)\n", taos_errstr(pSql), numOfRows,
+               numOfTables, (et - st) / 1E6);
+      }
+    } else if (!tscIsUpdateQuery(pSql)) {  // select and show kinds of commands
+      int error_no = 0;
+>>>>>>> 2ab429ee59d47e11697c3664a7a62231f6a99275
 
       atomic_store_64(&result, 0);
       freeResultWithRid(oresult);

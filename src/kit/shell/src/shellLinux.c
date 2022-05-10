@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -55,7 +55,8 @@ static struct argp_option options[] = {
     {"pktlen", 'l', "PKTLEN", 0, "Packet length used for net test, default is 1000 bytes."},
     {"pktnum", 'N', "PKTNUM", 0, "Packet numbers used for net test, default is 100."},
     {"pkttype", 'S', "PKTTYPE", 0,
-     "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
+     "Choose packet type used for net test, default is TCP. Only speed test "
+     "could be either TCP or UDP."},
     {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -480,7 +481,8 @@ void get_history_path(char *_history) { snprintf(_history, TSDB_FILENAME_LEN, "%
 void clearScreen(int ecmd_pos, int cursor_pos) {
   struct winsize w;
   if (ioctl(0, TIOCGWINSZ, &w) < 0 || w.ws_col == 0 || w.ws_row == 0) {
-    // fprintf(stderr, "No stream device, and use default value(col 120, row 30)\n");
+    // fprintf(stderr, "No stream device, and use default value(col 120, row
+    // 30)\n");
     w.ws_col = 120;
     w.ws_row = 30;
   }

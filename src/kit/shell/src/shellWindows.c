@@ -1,4 +1,5 @@
 /*******************************************************************
+<<<<<<< HEAD
  *           Copyright (c) 2017 by TAOS Technologies, Inc.
  *                     All rights reserved.
  *
@@ -8,8 +9,17 @@
  *  expressly provided by the written permission from Jianhui Tao
  *
  * ****************************************************************/
+=======
+*Copyright(c) 2022 by TAOS Technologies,
+    Inc.*All rights reserved.**This file is proprietary and confidential to TAOS Technologies
+        .*No part of this file may be reproduced,
+    stored, transmitted,
+    *disclosed or used in any form or
+        by any means other than as *expressly provided by the written
+            permission from Jianhui Tao ****************************************************************** /
+>>>>>>> 2ab429ee59d47e11697c3664a7a62231f6a99275
 
-#include <assert.h>
+            #include<assert.h>
 #include <regex.h>
 #include <stdio.h>
 #include "os.h"
@@ -19,7 +29,7 @@
 
 #define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
-extern char configDir[];
+            extern char configDir[];
 
 char WINCLIENT_VERSION[] =
     "Welcome to the TDengine shell from %s, Client Version:%s\n"

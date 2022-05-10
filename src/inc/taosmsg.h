@@ -120,6 +120,10 @@ TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_DROP_TP, "drop-tp" )
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_USE_TP, "use-tp" )	 
 TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_CM_ALTER_TP, "alter-tp" )
 
+// delete
+TAOS_DEFINE_MESSAGE_TYPE( TSDB_MSG_TYPE_DELDATA, "delete-data" )
+
+
 #ifndef TAOS_MESSAGE_C
   TSDB_MSG_TYPE_MAX  // 105
 #endif
@@ -195,6 +199,9 @@ enum _mgmt_table {
 #define TSDB_COL_IS_UD_COL(f)       ((f&(~(TSDB_COL_NULL))) == TSDB_COL_UDC)
 #define TSDB_COL_REQ_NULL(f)        (((f)&TSDB_COL_NULL) != 0)
 
+// SSubmitBlk->flag define
+#define FLAG_BLK_CONTROL            0x00000001 // SSubmitBlk is a control block to submit
+#define IS_CONTROL_BLOCK(x)         (x->flag & FLAG_BLK_CONTROL)
 
 extern char *taosMsg[];
 
@@ -219,7 +226,7 @@ typedef struct SMsgHead {
 typedef struct SSubmitBlk {
   uint64_t uid;        // table unique id
   int32_t  tid;        // table id
-  int32_t  padding;    // TODO just for padding here
+  int32_t  flag;       // extend special information, can see FLAG_BLK_??? define
   int32_t  sversion;   // data schema version
   int32_t  dataLen;    // data part length, not including the SSubmitBlk head
   int32_t  schemaLen;  // schema length, if length is 0, no schema exists
@@ -249,7 +256,7 @@ typedef struct {
   int32_t              numOfRows;     // number of records the client is trying to write
   int32_t              affectedRows;  // number of records actually written
   int32_t              failedRows;    // number of failed records (exclude duplicate records)
-  int32_t              numOfFailedBlocks;
+  int32_t              numOfTables;   // affected tables
   SShellSubmitRspBlock failedBlocks[];
 } SShellSubmitRspMsg;
 
@@ -259,6 +266,11 @@ typedef struct SSchema {
   int16_t colId;
   int16_t bytes;
 } SSchema;
+
+typedef struct STimeWindow {
+  TSKEY skey;
+  TSKEY ekey;
+} STimeWindow;
 
 typedef struct {
   int32_t  contLen;
@@ -408,6 +420,23 @@ typedef struct {
   int32_t vgId;
 } SDropVnodeMsg, SSyncVnodeMsg, SCompactVnodeMsg;
 
+typedef struct {
+  int32_t     contLen;
+  int32_t     vgId;
+  uint64_t    uid;
+  uint16_t    nSpan;
+  char        tableFname[TSDB_TABLE_FNAME_LEN];
+  STimeWindow span[];
+} STruncateTblMsg;
+typedef struct {
+  int32_t     contLen;
+  int32_t     vgId;
+  uint64_t    uid;
+  uint16_t    nSpan;
+  char        tableFname[TSDB_TABLE_FNAME_LEN];
+  STimeWindow span[];
+} SDeleteDataMsg;
+
 typedef struct SColIndex {
   int16_t  colId;      // column id
   int16_t  colIndex;   // column index in colList if it is a normal column or index in tagColList if a tag
@@ -459,11 +488,6 @@ typedef struct STableIdInfo {
   int32_t  tid;
   TSKEY    key;  // last accessed ts, for subscription
 } STableIdInfo;
-
-typedef struct STimeWindow {
-  TSKEY skey;
-  TSKEY ekey;
-} STimeWindow;
 
 typedef struct {
   int32_t     tsOffset;         // offset value in current msg body, NOTE: ts list is compressed
@@ -564,6 +588,7 @@ typedef struct {
   uint8_t  role;
   uint8_t  replica;
   uint8_t  compact;
+  uint8_t  truncate;
 } SVnodeLoad;
 
 typedef struct {
@@ -976,6 +1001,21 @@ typedef struct {
   int32_t len;
   char    value[];
 } STLV;
+
+// Ox00000001 ~ 0x00010000 command id  16 items
+#define CMD_DELETE_DATA 0x00000001
+
+// 0x00010000 ~ 0x10000000 command flag 16 items
+#define FLAG_SUPER_TABLE 0x00010000
+
+#define GET_CTLDATA_SIZE(p) (sizeof(SControlData) + p->tnum * sizeof(int32_t))
+typedef struct SControlData {
+  uint32_t    command;  // see define CMD_???
+  STimeWindow win;
+  // tag cond
+  int32_t     tagCondLen;
+  char        tagCond[];
+} SControlData;
 
 enum {
   TLV_TYPE_END_MARK = -1,

@@ -107,7 +107,7 @@ TDengine 提供了丰富的应用程序开发接口，其中包括 C/C++、Java�
 
 **Linux环境：**
 
-在 Linux shell 下直接执行 taos，应该就能正常连接到 TDegine 服务，进入到 taos shell 界面，示例如下：
+在 Linux shell 下直接执行 taos，应该就能正常连接到 TDengine 服务，进入到 taos shell 界面，示例如下：
 
 ```mysql
 $ taos     
