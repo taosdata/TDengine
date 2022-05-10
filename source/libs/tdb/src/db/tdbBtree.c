@@ -113,7 +113,9 @@ int tdbBtreeOpen(int keyLen, int valLen, SPager *pPager, tdb_cmpr_fn_t kcmpr, SB
 }
 
 int tdbBtreeClose(SBTree *pBt) {
-  // TODO
+  if (pBt) {
+    tdbOsFree(pBt);
+  }
   return 0;
 }
 

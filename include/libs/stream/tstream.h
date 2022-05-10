@@ -16,6 +16,7 @@
 #include "tdatablock.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
+#include "tqueue.h"
 #include "trpc.h"
 
 #ifdef __cplusplus
@@ -154,6 +155,10 @@ struct SStreamTask {
     STaskDispatcherShuffle shuffleDispatcher;
   };
 
+  // msg buffer
+  int32_t     memUsed;
+  STaosQueue* inputQ;
+
   // application storage
   void* ahandle;
 };
@@ -193,6 +198,8 @@ typedef struct {
   int64_t version;
   SArray* res;  // SArray<SSDataBlock>
 } SStreamSinkReq;
+
+int32_t streamEnqueueData(SStreamTask* pTask, const void* input, int32_t inputType);
 
 int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, int32_t inputType, int32_t workId);
 

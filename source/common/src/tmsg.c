@@ -607,6 +607,11 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
     if (tEncodeI32(&encoder, pField->bytes) < 0) return -1;
     if (tEncodeCStr(&encoder, pField->name) < 0) return -1;
   }
+  if (tEncodeI32(&encoder, pReq->ttl) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->commentLen) < 0) return -1;
+  if (pReq->commentLen > 0) {
+    if (tEncodeCStr(&encoder, pReq->comment) < 0) return -1;
+  }
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -637,6 +642,14 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
+  }
+
+  if (tDecodeI32(&decoder, &pReq->ttl) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->commentLen) < 0) return -1;
+  if (pReq->commentLen > 0) {
+    pReq->comment = taosMemoryMalloc(pReq->commentLen);
+    if (pReq->comment == NULL) return -1;
+    if (tDecodeCStrTo(&decoder, pReq->comment) < 0) return -1;
   }
 
   tEndDecode(&decoder);

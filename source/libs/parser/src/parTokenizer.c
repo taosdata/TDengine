@@ -214,6 +214,7 @@ static SKeyword keywordTable[] = {
     {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
     {"WITH",          TK_WITH},
     {"WRITE",         TK_WRITE},
+    {"_C0",           TK_ROWTS},
     {"_QENDTS",       TK_QENDTS},
     {"_QSTARTTS",     TK_QSTARTTS},
     {"_ROWTS",        TK_ROWTS},

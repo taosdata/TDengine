@@ -4,9 +4,10 @@ set +e
 #set -x
 
 echo "Executing copy_udf.sh"
-
-SCRIPT_DIR=`pwd`
+SCRIPT_DIR=`dirname $0`
 cd $SCRIPT_DIR/../
+SCRIPT_DIR=`pwd`
+echo "SCRIPT_DIR: ${SCRIPT_DIR}"
 
 IN_TDINTERNAL="community"
 if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
@@ -16,6 +17,7 @@ else
 fi
 
 TAOS_DIR=`pwd`
+echo "find udf library in $TAOS_DIR"
 UDF1_DIR=`find $TAOS_DIR -name "libudf1.so"|grep lib|head -n1`
 UDF2_DIR=`find $TAOS_DIR -name "libudf2.so"|grep lib|head -n1`
 

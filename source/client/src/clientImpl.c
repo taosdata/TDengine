@@ -25,7 +25,7 @@
 #include "tref.h"
 
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
-static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest, int8_t connType);
+static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
 static void          destroySendMsgInfo(SMsgSendInfo* pMsgBody);
 
 static bool stringLengthCheck(const char* str, size_t maxsize) {
@@ -491,7 +491,7 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
 
 STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __taos_async_fn_t fp, void* param,
                          SAppInstInfo* pAppInfo, int connType) {
-  STscObj* pTscObj = createTscObj(user, auth, db, pAppInfo);
+  STscObj* pTscObj = createTscObj(user, auth, db, connType, pAppInfo);
   if (NULL == pTscObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
     return pTscObj;
@@ -504,7 +504,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
     return NULL;
   }
 
-  SMsgSendInfo* body = buildConnectMsg(pRequest, connType);
+  SMsgSendInfo* body = buildConnectMsg(pRequest);
 
   int64_t transporterId = 0;
   asyncSendMsgToServer(pTscObj->pAppInfo->pTransporter, &pTscObj->pAppInfo->mgmtEp.epSet, &transporterId, body);
@@ -527,7 +527,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   return pTscObj;
 }
 
-static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest, int8_t connType) {
+static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
   if (pMsgSendInfo == NULL) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -550,9 +550,10 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest, int8_t connType) {
   }
   taosMemoryFreeClear(db);
 
-  connectReq.connType = connType;
-  connectReq.pid = htonl(appInfo.pid);
+  connectReq.connType  = pObj->connType;
+  connectReq.pid       = htonl(appInfo.pid);
   connectReq.startTime = htobe64(appInfo.startTime);
+
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));
   tstrncpy(connectReq.user, pObj->user, sizeof(connectReq.user));
   tstrncpy(connectReq.passwd, pObj->pass, sizeof(connectReq.passwd));

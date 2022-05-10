@@ -131,7 +131,7 @@ void destroyTscObj(void *pObj) {
   taosMemoryFreeClear(pTscObj);
 }
 
-void *createTscObj(const char *user, const char *auth, const char *db, SAppInstInfo *pAppInfo) {
+void *createTscObj(const char *user, const char *auth, const char *db, int32_t connType, SAppInstInfo *pAppInfo) {
   STscObj *pObj = (STscObj *)taosMemoryCalloc(1, sizeof(STscObj));
   if (NULL == pObj) {
     terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -145,6 +145,7 @@ void *createTscObj(const char *user, const char *auth, const char *db, SAppInstI
     return NULL;
   }
 
+  pObj->connType = connType;
   pObj->pAppInfo = pAppInfo;
   tstrncpy(pObj->user, user, sizeof(pObj->user));
   memcpy(pObj->pass, auth, TSDB_PASSWORD_LEN);

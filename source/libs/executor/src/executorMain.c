@@ -202,7 +202,7 @@ int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  return isTaskKilled(pTaskInfo) || Q_STATUS_EQUAL(pTaskInfo->status, TASK_OVER);
+  return isTaskKilled(pTaskInfo);
 }
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
