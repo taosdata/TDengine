@@ -92,8 +92,8 @@ class TestMultiTableInsert(TDCase):
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self) -> bool:
-        self.multi_stb_insert()
-        self.multi_stb_insert_with_specified_column()
+        # self.multi_stb_insert()
+        # self.multi_stb_insert_with_specified_column()
         self.multi_tb_insert()
 
     def cleanup(self):
