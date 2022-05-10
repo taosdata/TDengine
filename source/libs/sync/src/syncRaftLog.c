@@ -79,7 +79,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     if (code != 0) {
       int32_t err = terrno;
       const char *errStr = tstrerror(err);
-      sError("walWriteWithSyncInfo error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, errno, strerror(errno));
+      sError("walReadWithHandle error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, errno, strerror(errno));
       ASSERT(0);
     }    
     //assert(walReadWithHandle(pWalHandle, index) == 0);
