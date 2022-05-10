@@ -1,7 +1,7 @@
 {
     "filetype": "insert",
     "cfgdir": "/etc/taos/",
-    "host": "test216",
+    "host": "127.0.0.1",
     "port": 6030,
     "user": "root",
     "password": "taosdata",
@@ -16,14 +16,14 @@
         {
             "dbinfo": {
                 "name": "db",
-                "drop": "yes",
+                "drop": "no",
                 "vgroups": 1
             },
             "super_tables": [
                 {
                     "name": "stb1",
                     "child_table_exists": "no",
-                    "childtable_count": 300000,
+                    "childtable_count": 10000,
                     "childtable_prefix": "stb1_",
                     "auto_create_table": "no",
                     "batch_create_tbl_num": 50000,
