@@ -30,6 +30,22 @@
 extern "C" {
 #endif
 
+typedef struct {
+  TSKEY ts;
+  union {
+    uint32_t info;
+    struct {
+      uint16_t type : 2;
+      uint16_t del : 1;
+      uint16_t endian : 1;
+      uint16_t reserve : 12;
+      uint16_t sver;
+    };
+  };
+  uint32_t len;
+  char     data[];
+} STSRow;
+
 // Target of tdataformat.h:
 // 1. Row related definition in dataformat.h of 2.0 could be replaced with tdataformat.h of 3.0.
 // 2. The basic definition in dataformat.h is shared with tdataformat.h of 3.0.
@@ -116,31 +132,6 @@ typedef struct {
   uint16_t  ncols;
   SKvRowIdx cidx[];
 } SKvRow;
-
-typedef struct {
-  /// timestamp
-  TSKEY ts;
-  union {
-    /// union field for encode and decode
-    uint32_t info;
-    struct {
-      /// row type
-      uint16_t type : 2;
-      /// is delete row(0 not delete, 1 delete)
-      uint16_t del : 1;
-      /// endian(0 little endian, 1 big endian)
-      uint16_t endian : 1;
-      /// reserved for back compatibility
-      uint16_t reserve : 12;
-      /// row schema version
-      uint16_t sver;
-    };
-  };
-  /// row total length
-  uint32_t len;
-  /// the inline data, maybe a tuple or a k-v tuple
-  char data[];
-} STSRow;
 
 typedef struct {
   // basic info
