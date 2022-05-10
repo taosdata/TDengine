@@ -19,9 +19,9 @@ class TestDisorderInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
 
-    def disorder_insert(self):
+    def stb_disorder_insert(self):
         """
-        disorder_insert
+        stb_disorder_insert
         """
         dbname = self.tdCom.get_long_name(length=5, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
@@ -39,15 +39,36 @@ class TestDisorderInsert(TDCase):
         self.tdSql.query(f'select count(*) from {dbname}.tb')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], 100)
 
+    def tb_disorder_insert(self):
+        """
+        tb_disorder_insert
+        """
+        dbname = self.tdCom.get_long_name(length=5, mode="letters")
+        self.tdSql.execute(f'create database if not exists {dbname} precision "ms"')
+        self.tdSql.execute(f'create table {dbname}.tb (ts timestamp, c11 int, c12 float )')
+        timestamp = self.tdCom.genTs("ms")[0]
+        ts_list = list()
+        for i in range(1, 101):
+            ts = timestamp - 1000 + i
+            ts_list.append(ts)
+        random.shuffle(ts_list)
+        for ts in ts_list:
+            sql = f'insert into {dbname}.tb values ({ts}, 1, 1)'
+            self.tdSql.execute(sql)
+        self.tdSql.query(f'select count(*) from {dbname}.tb')
+        self.tdSql.checkEqual(self.tdSql.query_data[0][0], 100)
+
     def run(self):
-        self.disorder_insert()
+        self.stb_disorder_insert()
+        self.tb_disorder_insert()
 
     def cleanup(self):
         pass
 
     def desc(self):
         case_description = """
-            disorder_insert <jayden>: [TD-12748] : disorder insert;
+            stb_disorder_insert <jayden>: [TD-12748] : disorder insert;
+            tb_disorder_insert <jayden>: [TD-12748] : disorder insert;
         """
         return case_description
 
