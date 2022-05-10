@@ -3216,7 +3216,7 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
     req.alterType = TSDB_ALTER_USER_REMOVE_WRITE_DB;
   }
   strcpy(req.user, pStmt->userName);
-  strcpy(req.dbname, pStmt->dbName);
+  sprintf(req.dbname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->dbName);
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
 }
 
