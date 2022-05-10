@@ -259,7 +259,7 @@ void freeResultWithRid(int64_t rid) {
   }
 }
 
-int parseHttpResponse(char *response_buffer, int64_t st, int64_t et) {
+int parseHttpResponse(char *response_buffer, int64_t st, int64_t et, char *command) {
   cJSON *root = cJSON_Parse(response_buffer);
   if (root == NULL) {
     fprintf(stderr, "fail to parse response into json: %s\n", response_buffer);
@@ -271,18 +271,27 @@ int parseHttpResponse(char *response_buffer, int64_t st, int64_t et) {
       cJSON *desc = cJSON_GetObjectItem(root, "desc");
       if (cJSON_IsString(desc)) {
         fprintf(stdout, "error: %s(%.6fs)\n", desc->valuestring, (et - st) / 1E6);
+        cJSON_Delete(root);
         return -1;
       } else {
         fprintf(stderr, "fail to get desc from error response: %s\n", response_buffer);
+        cJSON_Delete(root);
         return -1;
       }
     } else if (0 == strcasecmp(status->valuestring, "succ")) {
+      if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
+        sscanf(command, "use %[a-zA-Z0-9_]", args.database);
+        fprintf(stdout, "Database changed.\n\n");
+        cJSON_Delete(root);
+        return 0;
+      }
       int    count;
       cJSON *head = cJSON_GetObjectItem(root, "head");
       if (cJSON_IsArray(head)) {
         count = cJSON_GetArraySize(head);
       } else {
         fprintf(stderr, "fail to get head from response: %s", response_buffer);
+        cJSON_Delete(root);
         return -1;
       }
       TAOS_FIELD *fields = calloc(count, sizeof(TAOS_FIELD));
@@ -299,6 +308,7 @@ int parseHttpResponse(char *response_buffer, int64_t st, int64_t et) {
         }
       } else {
         fprintf(stderr, "fail to get column_meta from response: %s", response_buffer);
+        cJSON_Delete(root);
         return -1;
       }
       int width[TSDB_MAX_COLUMNS];
@@ -337,6 +347,7 @@ int parseHttpResponse(char *response_buffer, int64_t st, int64_t et) {
         }
       } else {
         fprintf(stderr, "fail to get data from response: %s", response_buffer);
+        cJSON_Delete(root);
         return -1;
       }
       free(fields);
@@ -345,119 +356,21 @@ int parseHttpResponse(char *response_buffer, int64_t st, int64_t et) {
         printf("Query OK, %d row(s) in set (%.6fs)\n\n", (int)rows->valueint, (et - st) / 1E6);
       } else {
         fprintf(stderr, "fail to get rows from response:\n %s", response_buffer);
+        cJSON_Delete(root);
         return -1;
       }
     } else {
       fprintf(stderr, "cannot recognize status: %s\n", status->valuestring);
+      cJSON_Delete(root);
       return -1;
     }
   } else {
     fprintf(stderr, "fail to get status from response: %s\n", response_buffer);
+    cJSON_Delete(root);
     return -1;
   }
   cJSON_Delete(root);
   return 0;
-}
-
-bool restfulCheckDatabase(char *database) {
-  char *request_buffer = calloc(1, 1024);
-  char *http_protocol =
-      "POST /rest/sql HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
-      "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
-      "application/x-www-form-urlencoded\r\n\r\n%s";
-  snprintf(request_buffer, 1024, http_protocol, args.host, args.port, args.base64_buf, strlen("show databases"),
-           "show databases");
-  int bytes, sent, received, req_str_len;
-  sent = 0;
-  req_str_len = (int)strlen(request_buffer);
-  do {
-    bytes = write(args.socket, request_buffer + sent, req_str_len - sent);
-    if (bytes < 0) {
-      fprintf(stderr, "write show databases to socket failed");
-      exit(EXIT_FAILURE);
-    }
-    if (bytes == 0) {
-      break;
-    }
-    sent += bytes;
-  } while (sent < req_str_len);
-  free(request_buffer);
-  received = 0;
-  bool  chunked = false;
-  char *receive_buffer = calloc(1, 4096);
-  int   receive_size = 4096;
-  do {
-    bytes = read(args.socket, receive_buffer + received, receive_size - received);
-    received += bytes;
-    if (NULL != strstr(receive_buffer, "Transfer-Encoding: chunked")) {
-      chunked = true;
-    }
-    if (chunked && (NULL != strstr(receive_buffer, "\r\n0\r\n"))) {
-      break;
-    }
-    if (!chunked && (NULL != strstr(receive_buffer, "}"))) {
-      break;
-    }
-    if (received >= receive_size) {
-      receive_size += 4096;
-      receive_buffer = realloc(receive_buffer, receive_size);
-    }
-  } while (1);
-  char *start = strstr(receive_buffer, "\r\n{");
-  if (start == NULL) {
-    fprintf(stderr, "failed to parse: \n %s", receive_buffer);
-    free(receive_buffer);
-    return false;
-  }
-  int   pos = 0;
-  char *response_buffer = calloc(1, strlen(start) + 1);
-  do {
-    char *end = strstr(start + 2, "\r\n");
-    if (end == NULL) {
-      strcpy(response_buffer, start);
-      break;
-    }
-    strncpy(response_buffer + pos, start + 2, end - start - 2);
-    pos += end - start - 2;
-    start = strstr(end + 2, "\r\n");
-    if ((start - end) == 3 && end[2] == '0') {
-      break;
-    }
-  } while (1);
-  free(receive_buffer);
-  cJSON *root = cJSON_Parse(response_buffer);
-  if (root == NULL) {
-    fprintf(stderr, "fail to parse response into json: %s\n", response_buffer);
-    return -1;
-  }
-  cJSON *status = cJSON_GetObjectItem(root, "status");
-  if (cJSON_IsString(status)) {
-    if (0 == strcasecmp(status->valuestring, "error")) {
-      cJSON *desc = cJSON_GetObjectItem(root, "desc");
-      if (cJSON_IsString(desc)) {
-        fprintf(stdout, "error in show databases: %s\n", desc->valuestring);
-      } else {
-        fprintf(stderr, "fail to get desc from error response: %s\n", response_buffer);
-      }
-    } else if (0 == strcasecmp(status->valuestring, "succ")) {
-      cJSON *data = cJSON_GetObjectItem(root, "data");
-      if (cJSON_IsArray(data)) {
-        cJSON *iter = data->child;
-        while (iter) {
-          if (0 == strcmp(database, iter->child->valuestring)) {
-            return true;
-          }
-          iter = iter->next;
-        }
-      } else {
-        fprintf(stderr, "fail to get data from response: %s\n", response_buffer);
-      }
-    }
-  } else {
-    fprintf(stderr, "fail to get status from response: %s\n", response_buffer);
-  }
-  free(response_buffer);
-  return false;
 }
 
 void shellRunCommandOnServer(TAOS *con, char command[]) {
@@ -493,18 +406,6 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   }
 
   if (args.restful) {
-    if (regex_match(command, "^\\s*use\\s+[a-zA-Z0-9_]+\\s*;\\s*$", REG_EXTENDED | REG_ICASE)) {
-      char database[128];
-      sscanf(command, "use %[a-zA-Z0-9_]", database);
-      if (restfulCheckDatabase(database)) {
-        strncpy(args.database, database, 128);
-        fprintf(stdout, "Database changed.\n\n");
-      } else {
-        fprintf(stderr, "DB error: Invalid database name (%s)\n", database);
-      }
-      fflush(stdout);
-      return;
-    }
     char *request_buffer;
     request_buffer = calloc(1, strlen(command) + 1024);
     if (strlen(args.database) > 0) {
@@ -583,7 +484,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
       }
     } while (1);
     free(receive_buffer);
-    if (parseHttpResponse(response_buffer, st, et)) {
+    if (parseHttpResponse(response_buffer, st, et, command)) {
       free(response_buffer);
       return;
     }
