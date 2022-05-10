@@ -2072,12 +2072,6 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     } else if (functionId == TSDB_FUNC_SCALAR_EXPR) {
       pCtx->param[1].pz = (char*) &pRuntimeEnv->sasArray[i];
     }
-
-    // if group by , TSDB_FUNC_PRJ operator must set one row
-    if (pQueryAttr->groupbyColumn && functionId == TSDB_FUNC_PRJ) {
-      pCtx->param[0].i64 = 1;
-      pCtx->param[0].nType = TSDB_DATA_TYPE_BIGINT;
-    }
   }
 
   for(int32_t i = 1; i < numOfOutput; ++i) {
@@ -7931,6 +7925,14 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
 
   //pInfo->colIndex = -1;  // group by column index
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset);
+
+  // if have proj column, must set output row is 1
+  for (int32_t i = 0; i < numOfOutput; i++) {
+    if (pInfo->binfo.pCtx[i].functionId == TSDB_FUNC_PRJ) {
+      pInfo->binfo.pCtx[i].param[0].i64   = 1;
+      pInfo->binfo.pCtx[i].param[0].nType = TSDB_DATA_TYPE_BIGINT;
+    }
+  }
 
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
