@@ -16,7 +16,9 @@
 #ifndef _TD_DM_DEF_H_
 #define _TD_DM_DEF_H_
 
+// tobe deleted
 #include "uv.h"
+
 #include "dmLog.h"
 
 #include "cJSON.h"
@@ -40,6 +42,7 @@
 #include "mnode.h"
 #include "monitor.h"
 #include "sync.h"
+#include "wal.h"
 
 #include "libs/function/function.h"
 
@@ -47,10 +50,34 @@
 extern "C" {
 #endif
 
-typedef enum { DNODE, VNODE, QNODE, SNODE, MNODE, BNODE, NODE_END } EDndNodeType;
-typedef enum { DND_STAT_INIT, DND_STAT_RUNNING, DND_STAT_STOPPED } EDndRunStatus;
-typedef enum { DND_ENV_INIT, DND_ENV_READY, DND_ENV_CLEANUP } EDndEnvStatus;
-typedef enum { DND_PROC_SINGLE, DND_PROC_CHILD, DND_PROC_PARENT } EDndProcType;
+typedef enum {
+  DNODE = 0,
+  VNODE = 1,
+  QNODE = 2,
+  SNODE = 3,
+  MNODE = 4,
+  BNODE = 5,
+  NODE_END = 6,
+} EDndNodeType;
+
+typedef enum {
+  DND_STAT_INIT,
+  DND_STAT_RUNNING,
+  DND_STAT_STOPPED,
+} EDndRunStatus;
+
+typedef enum {
+  DND_ENV_INIT,
+  DND_ENV_READY,
+  DND_ENV_CLEANUP,
+} EDndEnvStatus;
+
+typedef enum {
+  DND_PROC_SINGLE,
+  DND_PROC_CHILD,
+  DND_PROC_PARENT,
+  DND_PROC_TEST,
+} EDndProcType;
 
 typedef int32_t (*NodeMsgFp)(struct SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*OpenNodeFp)(struct SMgmtWrapper *pWrapper);
@@ -146,18 +173,17 @@ typedef struct {
 } SStartupInfo;
 
 typedef struct SUdfdData {
-  bool          startCalled;
-  bool          needCleanUp;
-  uv_loop_t     loop;
-  uv_thread_t   thread;
-  uv_barrier_t  barrier;
-  uv_process_t  process;
-  int           spawnErr;
-  uv_pipe_t     ctrlPipe;
-  uv_async_t    stopAsync;
-  int32_t        stopCalled;
-
-  int32_t         dnodeId;
+  bool         startCalled;
+  bool         needCleanUp;
+  uv_loop_t    loop;
+  uv_thread_t  thread;
+  uv_barrier_t barrier;
+  uv_process_t process;
+  int          spawnErr;
+  uv_pipe_t    ctrlPipe;
+  uv_async_t   stopAsync;
+  int32_t      stopCalled;
+  int32_t      dnodeId;
 } SUdfdData;
 
 typedef struct SDnode {

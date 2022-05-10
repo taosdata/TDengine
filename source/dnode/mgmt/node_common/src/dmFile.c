@@ -29,7 +29,6 @@ int32_t dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    // dDebug("file %s not exist", file);
     code = 0;
     goto _OVER;
   }

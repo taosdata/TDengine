@@ -221,6 +221,16 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
   dInfo("dnode-mgmt start to init");
   SDnode *pDnode = pWrapper->pDnode;
 
+  SMonCfg monCfg = {0};
+  monCfg.maxLogs = tsMonitorMaxLogs;
+  monCfg.port = tsMonitorPort;
+  monCfg.server = tsMonitorFqdn;
+  monCfg.comp = tsMonitorComp;
+  if (monInit(&monCfg) != 0) {
+    dError("failed to init monitor since %s", terrstr());
+    return -1;
+  }
+
   pDnode->data.dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pDnode->data.dnodeHash == NULL) {
     dError("failed to init dnode hash");

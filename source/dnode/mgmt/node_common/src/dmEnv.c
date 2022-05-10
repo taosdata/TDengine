@@ -15,15 +15,14 @@
 
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
-#include "wal.h"
 
 static int8_t once = DND_ENV_INIT;
 
 int32_t dmInit() {
-  dDebug("start to init dnode env");
+  dInfo("start to init env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
+    dError("env is already initialized");
     terrno = TSDB_CODE_REPEAT_INIT;
-    dError("failed to init dnode env since %s", terrstr());
     return -1;
   }
 
@@ -31,24 +30,14 @@ int32_t dmInit() {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
-  SMonCfg monCfg = {0};
-  monCfg.maxLogs = tsMonitorMaxLogs;
-  monCfg.port = tsMonitorPort;
-  monCfg.server = tsMonitorFqdn;
-  monCfg.comp = tsMonitorComp;
-  if (monInit(&monCfg) != 0) {
-    dError("failed to init monitor since %s", terrstr());
-    return -1;
-  }
-
-  dInfo("dnode env is initialized");
+  dInfo("env is initialized");
   return 0;
 }
 
 void dmCleanup() {
-  dDebug("start to cleanup dnode env");
+  dDebug("start to cleanup env");
   if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
-    dError("dnode env is already cleaned up");
+    dError("env is already cleaned up");
     return;
   }
 
@@ -57,5 +46,5 @@ void dmCleanup() {
   walCleanUp();
   udfcClose();
   taosStopCacheRefreshWorker();
-  dInfo("dnode env is cleaned up");
+  dInfo("env is cleaned up");
 }
