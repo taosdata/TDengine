@@ -378,6 +378,7 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
       SReadHandle    handle = {
              .reader = pReadHandle,
              .meta = pTq->pVnode->pMeta,
+             .pMsgCb = &pTq->pVnode->msgCb,
       };
       pTopic->buffer.output[j].pReadHandle = pReadHandle;
       pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
@@ -857,6 +858,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         SReadHandle handle = {
             .reader = pExec->pExecReader[i],
             .meta = pTq->pVnode->pMeta,
+            .pMsgCb = &pTq->pVnode->msgCb,
         };
         pExec->task[i] = qCreateStreamExecTaskInfo(pExec->qmsg, &handle);
         ASSERT(pExec->task[i]);
@@ -914,6 +916,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
       SReadHandle    handle = {
              .reader = pStreamReader,
              .meta = pTq->pVnode->pMeta,
+             .pMsgCb = &pTq->pVnode->msgCb,
       };
       pTask->exec.runners[i].inputHandle = pStreamReader;
       pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);

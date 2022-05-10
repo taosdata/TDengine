@@ -34,6 +34,7 @@
 #include "tlockfree.h"
 #include "tlosertree.h"
 #include "tmallocator.h"
+#include "tmsgcb.h"
 #include "tskiplist.h"
 #include "tstream.h"
 #include "ttime.h"
@@ -121,7 +122,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
 
 // sma
 
-int32_t tsdbRegisterRSma(STsdb* pTsdb, SMeta* pMeta, SVCreateStbReq* pReq);
+int32_t tsdbRegisterRSma(STsdb* pTsdb, SMeta* pMeta, SVCreateStbReq* pReq, SMsgCb* pMsgCb);
 int32_t tsdbFetchTbUidList(STsdb* pTsdb, STbUidStore** ppStore, tb_uid_t suid, tb_uid_t uid);
 int32_t tsdbUpdateTbUidList(STsdb* pTsdb, STbUidStore* pUidStore);
 void    tsdbUidStoreDestory(STbUidStore* pStore);

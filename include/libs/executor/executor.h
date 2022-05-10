@@ -22,6 +22,7 @@ extern "C" {
 
 #include "query.h"
 #include "tcommon.h"
+#include "tmsgcb.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -29,11 +30,12 @@ struct SRpcMsg;
 struct SSubplan;
 
 typedef struct SReadHandle {
-  void* reader;
-  void* meta;
-  void* config;
-  void* vnode;
-  void* mnd;
+  void*   reader;
+  void*   meta;
+  void*   config;
+  void*   vnode;
+  void*   mnd;
+  SMsgCb* pMsgCb;
 } SReadHandle;
 
 #define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
