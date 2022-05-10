@@ -2714,36 +2714,36 @@ static int8_t getStateOpType(char *opStr) {
 }
 
 #define GET_STATE_VAL(param) \
-  ((param.nType == TSDB_DATA_TYPE_BIGINT) ? (param.i) : (param.d)) \
+  ((param.nType == TSDB_DATA_TYPE_BIGINT) ? (param.i) : (param.d))
 
 #define STATE_COMP(_op, _lval, _param)  \
-  STATE_COMP_IMPL(_op, _lval, GET_STATE_VAL(_param))  \
+  STATE_COMP_IMPL(_op, _lval, GET_STATE_VAL(_param))
 
-#define STATE_COMP_IMPL(_op, _lval, _rval)   \
-  do {                                  \
-    switch(_op) {                       \
-      case STATE_OPER_LT:               \
-        return ((_lval) < (_rval));     \
-        break;                          \
-      case STATE_OPER_GT:               \
-        return ((_lval) > (_rval));     \
-        break;                          \
-      case STATE_OPER_LE:               \
-        return ((_lval) <= (_rval));    \
-        break;                          \
-      case STATE_OPER_GE:               \
-        return ((_lval) >= (_rval));    \
-        break;                          \
-      case STATE_OPER_NE:               \
-        return ((_lval) != (_rval));    \
-        break;                          \
-      case STATE_OPER_EQ:               \
-        return ((_lval) == (_rval));    \
-        break;                          \
-      default:                          \
-        break;                          \
-    }                                   \
-  } while (0)                           \
+#define STATE_COMP_IMPL(_op, _lval, _rval)  \
+  do {                                      \
+    switch(_op) {                           \
+      case STATE_OPER_LT:                   \
+        return ((_lval) < (_rval));         \
+        break;                              \
+      case STATE_OPER_GT:                   \
+        return ((_lval) > (_rval));         \
+        break;                              \
+      case STATE_OPER_LE:                   \
+        return ((_lval) <= (_rval));        \
+        break;                              \
+      case STATE_OPER_GE:                   \
+        return ((_lval) >= (_rval));        \
+        break;                              \
+      case STATE_OPER_NE:                   \
+        return ((_lval) != (_rval));        \
+        break;                              \
+      case STATE_OPER_EQ:                   \
+        return ((_lval) == (_rval));        \
+        break;                              \
+      default:                              \
+        break;                              \
+    }                                       \
+  } while (0)
 
 static bool checkStateOp(int8_t op, SColumnInfoData* pCol, int32_t index, SVariant param) {
   char* data = colDataGetData(pCol, index);
