@@ -31,7 +31,7 @@ class TestDuration(TDCase):
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], default_value)
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
         param_value_list = [60, 5256000]
