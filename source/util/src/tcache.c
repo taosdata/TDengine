@@ -911,7 +911,7 @@ void taosCacheRefresh(SCacheObj *pCacheObj, __cache_trav_fn_t fp, void *param1) 
 
 void taosStopCacheRefreshWorker(void) {
   stopRefreshWorker = true;
-  taosThreadJoin(cacheRefreshWorker, NULL);
+  if(cacheThreadInit != PTHREAD_ONCE_INIT) taosThreadJoin(cacheRefreshWorker, NULL);
   taosArrayDestroy(pCacheArrayList);
 }
 
