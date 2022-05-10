@@ -30,6 +30,7 @@
 #include "ttimer.h"
 #include "ttokendef.h"
 #include "cJSON.h"
+#include "tscDelete.h"
 
 #ifdef HTTP_EMBEDDED
 #include "httpInt.h"
@@ -2701,8 +2702,11 @@ int32_t tscExprTopBottomIndex(SQueryInfo* pQueryInfo){
     SExprInfo* pExpr = tscExprGet(pQueryInfo, i);
     if (pExpr == NULL)
       continue;
-    if (pExpr->base.functionId == TSDB_FUNC_TOP || pExpr->base.functionId == TSDB_FUNC_BOTTOM
-        || pExpr->base.functionId == TSDB_FUNC_UNIQUE || pExpr->base.functionId == TSDB_FUNC_TAIL) {
+    if (pExpr->base.functionId == TSDB_FUNC_TOP 
+      || pExpr->base.functionId == TSDB_FUNC_BOTTOM 
+      || pExpr->base.functionId == TSDB_FUNC_SAMPLE 
+      || pExpr->base.functionId == TSDB_FUNC_UNIQUE 
+      || pExpr->base.functionId == TSDB_FUNC_TAIL) {
       return i;
     }
   }
@@ -3336,6 +3340,9 @@ bool tscShouldBeFreed(SSqlObj* pSql) {
 STableMetaInfo* tscGetTableMetaInfoFromCmd(SSqlCmd* pCmd, int32_t tableIndex) {
   assert(pCmd != NULL);
   SQueryInfo* pQueryInfo = tscGetQueryInfo(pCmd);
+  if(pQueryInfo == NULL) {
+    return NULL;
+  }
   return tscGetMetaInfo(pQueryInfo, tableIndex);
 }
 
@@ -4206,7 +4213,13 @@ void executeQuery(SSqlObj* pSql, SQueryInfo* pQueryInfo) {
   if (pSql->cmd.command == TSDB_SQL_RETRIEVE_EMPTY_RESULT) {
     (*pSql->fp)(pSql->param, pSql, 0);
     return;
-  }
+  } else if (pSql->cmd.command == TSDB_SQL_DELETE_DATA) {
+    code = executeDelete(pSql, pQueryInfo);
+    if (code != TSDB_CODE_SUCCESS) {
+      (*pSql->fp)(pSql->param, pSql, 0);
+    }
+    return ;
+  } 
 
   if (pSql->cmd.command == TSDB_SQL_SELECT) {
     tscAddIntoSqlList(pSql);
@@ -4344,6 +4357,15 @@ bool tscIsUpdateQuery(SSqlObj* pSql) {
 
   SSqlCmd* pCmd = &pSql->cmd;
   return ((pCmd->command >= TSDB_SQL_INSERT && pCmd->command <= TSDB_SQL_DROP_DNODE) || TSDB_SQL_RESET_CACHE == pCmd->command || TSDB_SQL_USE_DB == pCmd->command);
+}
+
+bool tscIsDeleteQuery(SSqlObj* pSql) {
+  if (pSql == NULL || pSql->signature != pSql) {
+    return false;
+  }
+
+  SSqlCmd* pCmd = &pSql->cmd;
+  return pCmd->command == TSDB_SQL_DELETE_DATA;
 }
 
 char* tscGetSqlStr(SSqlObj* pSql) {

@@ -222,48 +222,6 @@ pipeline {
                         }
                     }
                 }
-                stage ('build worker03') {
-                    agent {label " worker03 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker03 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-                stage ('build worker04') {
-                    agent {label " worker04 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker04 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
-                stage ('build worker05') {
-                    agent {label " worker05 "}
-                    steps {
-                        timeout(time: 20, unit: 'MINUTES') {
-                            pre_test()
-                            script {
-                                sh '''
-                                    echo "worker05 build done"
-                                    date
-                                '''
-                            }
-                        }
-                    }
-                }
             }
         }
         stage('run test') {

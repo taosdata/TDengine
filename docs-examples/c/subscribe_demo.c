@@ -1,3 +1,4 @@
+// A simple demo for asynchronous subscription.
 // compile with:
 // gcc -o subscribe_demo subscribe_demo.c -ltaos
 
@@ -52,6 +53,8 @@ int main() {
   int         interval = 2000;  // consumption interval in microseconds.
   TAOS_SUB*   tsub = taos_subscribe(taos, restart, topic, sql, subscribe_callback, NULL, interval);
 
+  // wait for insert from others process. you can open TDengine CLI to insert some records for test.
+  
   getchar();  // press Enter to stop
 
   printf("total rows consumed: %d\n", nTotalRows);

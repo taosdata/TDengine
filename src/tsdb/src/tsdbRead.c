@@ -639,7 +639,7 @@ static int32_t lazyLoadCacheLast(STsdbQueryHandle* pQueryHandle) {
       initTableMemIterator(pQueryHandle, pCheckInfo);
     }
 
-    code = tsdbLoadLastCache(pRepo, pTable);
+    code = tsdbLoadLastCache(pRepo, pTable, false);
     if (code != 0) {
       tsdbError("%p uid:%" PRId64 ", tid:%d, failed to load last cache since %s", pQueryHandle, pTable->tableId.uid,
                 pTable->tableId.tid, tstrerror(terrno));
@@ -4690,4 +4690,10 @@ void tsdbAddScanCallback(TsdbQueryHandleT* queryHandle, readover_callback callba
   pQueryHandle->readover_cb = callback;
   pQueryHandle->param       = param;
   return ;
+}
+
+// get table tid
+int32_t tsdbTableTid(void* pTable) {
+  STable *p = (STable *)pTable;
+  return p->tableId.tid;
 }

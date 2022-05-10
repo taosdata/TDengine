@@ -1,6 +1,5 @@
 import taos
 
-conn: taos.TaosConnection = None
 try:
     conn = taos.connect()
     conn.execute("CREATE TABLE 123")  # wrong sql
@@ -12,9 +11,6 @@ except taos.Error as e:
 except BaseException as other:
     print("exception occur")
     print(other)
-finally:
-    if conn is not None:
-        conn.close()
 
 # output:
 # [0x0216]: syntax error near 'Incomplete SQL statement'

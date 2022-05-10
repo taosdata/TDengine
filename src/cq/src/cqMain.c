@@ -514,7 +514,7 @@ static void cqProcessStreamRes(void *param, TAOS_RES *tres, TAOS_ROW row) {
   pBlk->tid = htonl(pObj->tid);
   pBlk->numOfRows = htons(1);
   pBlk->sversion = htonl(pSchema->version);
-  pBlk->padding = 0;
+  pBlk->flag = 0;
 
   pHead->len = sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + memRowDataTLen(trow);
 

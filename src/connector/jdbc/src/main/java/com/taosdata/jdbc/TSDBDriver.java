@@ -61,6 +61,12 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_PASSWORD = "password";
     /**
+     * Key used to retrieve the token value from the properties instance passed to 
+     * the driver.
+     * Just for Cloud Service
+     */
+    public static final String PROPERTY_KEY_TOKEN = "token";
+    /**
      * Key for the configuration file directory of TSDB client in properties instance
      */
     public static final String PROPERTY_KEY_CONFIG_DIR = "cfgdir";
