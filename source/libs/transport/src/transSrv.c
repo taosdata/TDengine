@@ -853,12 +853,13 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   taosThreadOnce(&transModuleInit, uvInitEnv);
   transSrvInst++;
 
-  char pipeName[64];
   assert(0 == uv_pipe_init(srv->loop, &srv->pipeListen, 0));
 #ifdef WINDOWS
-  snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc\\%p-%lu", taosSafeRand(), GetCurrentProcessId());
+  char pipeName[64];
+  snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%p-%lu", taosSafeRand(), GetCurrentProcessId());
 #else
-  snprintf(pipeName, sizeof(pipeName), ".trans.rpc\\%08X-%lu", taosSafeRand(), taosGetSelfPthreadId());
+  char pipeName[PATH_MAX] = {0};
+  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08X-%lu", tsTempDir, TD_DIRSEP, taosSafeRand(), taosGetSelfPthreadId());
 #endif
   assert(0 == uv_pipe_bind(&srv->pipeListen, pipeName));
   assert(0 == uv_listen((uv_stream_t*)&srv->pipeListen, SOMAXCONN, uvPipeListenCb));
@@ -871,20 +872,6 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     thrd->pTransInst = shandle;
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
-
-  // #ifdef WINDOWS
-  //   uv_file fds[2];
-  //   if (uv_pipe(fds, UV_READABLE_PIPE|UV_WRITABLE_PIPE|UV_NONBLOCK_PIPE, UV_READABLE_PIPE|UV_WRITABLE_PIPE|UV_NONBLOCK_PIPE) != 0) {
-  // #else
-  //   uv_os_sock_t fds[2];
-  //   if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
-  // #endif
-  //     goto End;
-  //   }
-    // uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
-    // uv_pipe_open(&(srv->pipe[i][0]), fds[1]);  // init write
-
-    // thrd->fd = fds[0];
     thrd->pipe = &(srv->pipe[i][1]);  // init read
 
     if (false == addHandleToWorkloop(thrd,pipeName)) {
@@ -1121,7 +1108,7 @@ void transSendResponse(const STransMsg* msg) {
   SSrvMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));
   srvMsg->msg = tmsg;
   srvMsg->type = Normal;
-  tTrace("server conn %p start to send resp (1/2)", exh->handle);
+  tDebug("server conn %p start to send resp (1/2)", exh->handle);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
   uvReleaseExHandle(refId);
   return;

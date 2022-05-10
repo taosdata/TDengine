@@ -187,7 +187,7 @@ typedef struct {
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
-  conf->autoCommit = false;
+  conf->autoCommit = true;
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   return conf;
@@ -395,7 +395,7 @@ tmq_resp_err_t tmq_subscription(tmq_t* tmq, tmq_list_t** topics) {
   }
   for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
     SMqClientTopic* topic = taosArrayGet(tmq->clientTopics, i);
-    tmq_list_append(*topics, topic->topicName);
+    tmq_list_append(*topics, strchr(topic->topicName, '.') + 1);
   }
   return TMQ_RESP_ERR__SUCCESS;
 }

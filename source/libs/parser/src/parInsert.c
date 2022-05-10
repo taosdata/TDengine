@@ -241,6 +241,15 @@ static int32_t getTableMetaImpl(SInsertParseContext* pCxt, SToken* pTname, bool 
   SParseContext* pBasicCtx = pCxt->pComCxt;
   SName          name = {0};
   createSName(&name, pTname, pBasicCtx->acctId, pBasicCtx->db, &pCxt->msg);
+
+  char dbFname[TSDB_DB_FNAME_LEN] = {0};
+  tNameGetFullDbName(&name, dbFname);
+
+  bool pass = false;
+  CHECK_CODE(catalogChkAuth(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, pBasicCtx->pUser, dbFname, AUTH_TYPE_WRITE, &pass));
+  if (!pass) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
   if (isStb) {
     CHECK_CODE(catalogGetSTableMeta(pBasicCtx->pCatalog, pBasicCtx->pTransporter, &pBasicCtx->mgmtEpSet, &name,
                                     &pCxt->pTableMeta));
@@ -1151,6 +1160,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     (*pCxt->pStmtCb->setExecInfoFn)(pCxt->pStmtCb->pStmt, pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
     pCxt->pVgroupsHashObj = NULL;
     pCxt->pTableBlockHashObj = NULL;
+    pCxt->pTableMeta = NULL;
 
     return TSDB_CODE_SUCCESS;
   }
@@ -1276,7 +1286,7 @@ int32_t qBindStmtTagsValue(void *pBlock, void *boundTags, int64_t suid, char *tN
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SSchema* pSchema = getTableTagSchema(pDataBlock->pTableMeta);
+  SSchema* pSchema = pDataBlock->pTableMeta->schema;
   SKvParam param = {.builder = &tagBuilder};
 
   for (int c = 0; c < tags->numOfBound; ++c) {

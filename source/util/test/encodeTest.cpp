@@ -440,6 +440,7 @@ TEST(td_encode_test, compound_struct_encode_test) {
   tCoderClear(&decoder);
 }
 #endif
+
 #pragma GCC diagnostic pop
 
 #endif

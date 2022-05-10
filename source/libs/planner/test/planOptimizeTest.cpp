@@ -37,4 +37,6 @@ TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
   run("SELECT * FROM t1 ORDER BY ts DESC");
   run("SELECT c1 FROM t1 ORDER BY ts");
   run("SELECT c1 FROM t1 ORDER BY ts DESC");
+
+  run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTARTTS DESC");
 }

@@ -37,11 +37,11 @@ bool getSumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t sumFunction(SqlFunctionCtx *pCtx);
 int32_t sumInvertFunction(SqlFunctionCtx *pCtx);
 
-bool minFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
-bool maxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+bool minmaxFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 bool getMinmaxFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t minFunction(SqlFunctionCtx* pCtx);
 int32_t maxFunction(SqlFunctionCtx *pCtx);
+int32_t minmaxFunctionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getAvgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool avgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -76,6 +76,7 @@ int32_t lastFunction(SqlFunctionCtx *pCtx);
 
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 int32_t topFunction(SqlFunctionCtx *pCtx);
+int32_t bottomFunction(SqlFunctionCtx *pCtx);
 int32_t topBotFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getSpreadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
@@ -91,6 +92,8 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 bool getStateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stateFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t stateCountFunction(SqlFunctionCtx* pCtx);
+
+bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 #ifdef __cplusplus
 }

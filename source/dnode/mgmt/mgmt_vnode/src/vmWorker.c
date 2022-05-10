@@ -198,6 +198,9 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
       rsp.refId = pMsg->rpcMsg.refId;
       tmsgSendRsp(&rsp);
     }
+
+    rpcFreeCont(pMsg->rpcMsg.pCont);
+    taosFreeQitem(pMsg);
   }
 }
 
@@ -211,6 +214,9 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
     // todo
     SRpcMsg *pRsp = NULL;
     (void)vnodeProcessSyncReq(pVnode->pImpl, &pMsg->rpcMsg, &pRsp);
+
+    rpcFreeCont(pMsg->rpcMsg.pCont);
+    taosFreeQitem(pMsg);
   }
 }
 

@@ -99,7 +99,7 @@ typedef enum _mgmt_table {
   TSDB_MGMT_TABLE_VGROUP,
   TSDB_MGMT_TABLE_TOPICS,
   TSDB_MGMT_TABLE_CONSUMERS,
-  TSDB_MGMT_TABLE_SUBSCRIBES,
+  TSDB_MGMT_TABLE_SUBSCRIPTIONS,
   TSDB_MGMT_TABLE_TRANS,
   TSDB_MGMT_TABLE_SMAS,
   TSDB_MGMT_TABLE_CONFIGS,
@@ -131,12 +131,10 @@ typedef enum _mgmt_table {
 #define TSDB_ALTER_USER_SUPERUSER       0x2
 #define TSDB_ALTER_USER_ADD_READ_DB     0x3
 #define TSDB_ALTER_USER_REMOVE_READ_DB  0x4
-#define TSDB_ALTER_USER_CLEAR_READ_DB   0x5
-#define TSDB_ALTER_USER_ADD_WRITE_DB    0x6
-#define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x7
-#define TSDB_ALTER_USER_CLEAR_WRITE_DB  0x8
-#define TSDB_ALTER_USER_ADD_ALL_DB      0x9
-#define TSDB_ALTER_USER_REMOVE_ALL_DB   0xA
+#define TSDB_ALTER_USER_ADD_WRITE_DB    0x5
+#define TSDB_ALTER_USER_REMOVE_WRITE_DB 0x6
+#define TSDB_ALTER_USER_ADD_ALL_DB      0x7
+#define TSDB_ALTER_USER_REMOVE_ALL_DB   0x8
 
 #define TSDB_ALTER_USER_PRIVILEGES 0x2
 
@@ -1457,7 +1455,7 @@ typedef struct {
 static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
   SMqRebInfo* pRebInfo = (SMqRebInfo*)taosMemoryCalloc(1, sizeof(SMqRebInfo));
   if (pRebInfo == NULL) {
-    goto _err;
+    return NULL;
   }
   strcpy(pRebInfo->key, key);
   pRebInfo->lostConsumers = taosArrayInit(0, sizeof(int64_t));

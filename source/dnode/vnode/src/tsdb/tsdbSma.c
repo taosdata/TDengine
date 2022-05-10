@@ -1698,7 +1698,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
  * @param pReq
  * @return int32_t
  */
-int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq) {
+int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq, SMsgCb *pMsgCb) {
   if (!pReq->rollup) {
     tsdbDebug("vgId:%d return directly since no rollup for stable %s %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
@@ -1742,6 +1742,7 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq) {
   SReadHandle handle = {
       .reader = pReadHandle,
       .meta = pMeta,
+      .pMsgCb = pMsgCb,
   };
 
   if (param->qmsg1) {

@@ -213,10 +213,12 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
     }
 
     pWrapper->procType = DND_PROC_CHILD;
+    if (dmInitClient(pDnode) != 0) {
+      return -1;
+    }
 
-    SMsgCb msgCb = pDnode->data.msgCb;
-    msgCb.pWrapper = pWrapper;
-    tmsgSetDefaultMsgCb(&msgCb);
+    pDnode->data.msgCb = dmGetMsgcb(pWrapper);
+    tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
 
     if (dmOpenNode(pWrapper) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
@@ -232,6 +234,15 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
         pWrapper->procType = DND_PROC_PARENT;
       } else {
         pWrapper->procType = DND_PROC_SINGLE;
+      }
+
+      if (n == DNODE) {
+        if (dmInitClient(pDnode) != 0) {
+          return -1;
+        }
+
+        pDnode->data.msgCb = dmGetMsgcb(pWrapper);
+        tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
       }
 
       if (dmOpenNode(pWrapper) != 0) {
@@ -281,21 +292,21 @@ static void dmProcessProcHandle(void *handle) {
 }
 
 static void dmWatchNodes(SDnode *pDnode) {
-  taosThreadMutexLock(&pDnode->mutex);
-  if (pDnode->ptype == DND_PROC_PARENT) {
-    for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
-      SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-      if (!pWrapper->required) continue;
-      if (pWrapper->procType != DND_PROC_PARENT) continue;
-      if (pDnode->ntype == NODE_END) continue;
+  if (pDnode->ptype != DND_PROC_PARENT) return;
+  if (pDnode->ntype == NODE_END) return;
 
-      if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
-        dWarn("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
-        if (pWrapper->procObj) {
-          taosProcCloseHandles(pWrapper->procObj, dmProcessProcHandle);
-        }
-        dmNewNodeProc(pWrapper, n);
+  taosThreadMutexLock(&pDnode->mutex);
+  for (EDndNodeType n = DNODE + 1; n < NODE_END; ++n) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+    if (!pWrapper->required) continue;
+    if (pWrapper->procType != DND_PROC_PARENT) continue;
+
+    if (pWrapper->procId <= 0 || !taosProcExist(pWrapper->procId)) {
+      dWarn("node:%s, process:%d is killed and needs to be restarted", pWrapper->name, pWrapper->procId);
+      if (pWrapper->procObj) {
+        taosProcCloseHandles(pWrapper->procObj, dmProcessProcHandle);
       }
+      dmNewNodeProc(pWrapper, n);
     }
   }
   taosThreadMutexUnlock(&pDnode->mutex);
