@@ -619,7 +619,7 @@ void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* 
       continue;
     }
 
-    if (functionNeedToExecute(&pCtx[k])) {
+    if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
       pCtx[k].fpSet.process(&pCtx[k]);
     }
 
@@ -802,9 +802,12 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
-      pCtx[k].startTs = startTs;  // this can be set during create the struct
-      if (pCtx[k].fpSet.process != NULL)
+      pCtx[k].startTs = startTs;
+      // this can be set during create the struct
+      // todo add a dummy funtion to avoid process check
+      if (pCtx[k].fpSet.process != NULL) {
         pCtx[k].fpSet.process(&pCtx[k]);
+      }
     }
   }
 }
@@ -1087,7 +1090,7 @@ static int32_t setCtxTagColumnInfo(SqlFunctionCtx* pCtx, int32_t numOfOutput) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     if (strcmp(pCtx[i].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
       pValCtx[num++] = &pCtx[i];
-    } else {
+    } else if (fmIsAggFunc(pCtx[i].functionId)) {
       p = &pCtx[i];
     }
 //    if (functionId == FUNCTION_TAG_DUMMY || functionId == FUNCTION_TS_DUMMY) {
@@ -2179,17 +2182,15 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbased
   int32_t numOfResult = pBlock->info.rows;  // there are already exists result rows
 
   int32_t start = 0;
-  int32_t step = -1;
+  int32_t step = 1;
 
   // qDebug("QInfo:0x%"PRIx64" start to copy data from windowResInfo to output buf", GET_TASKID(pRuntimeEnv));
   assert(orderType == TSDB_ORDER_ASC || orderType == TSDB_ORDER_DESC);
 
   if (orderType == TSDB_ORDER_ASC) {
     start = pGroupResInfo->index;
-    step = 1;
   } else {  // desc order copy all data
     start = numOfRows - pGroupResInfo->index - 1;
-    step = -1;
   }
 
   for (int32_t i = start; (i < numOfRows) && (i >= 0); i += step) {
@@ -2219,10 +2220,13 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbased
       } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
         // do nothing, todo refactor
       } else {
-        SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
-
-        char* in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
-        colDataAppend(pColInfoData, pBlock->info.rows, in, pCtx[j].resultInfo->isNullRes);
+        // expand the result into multiple rows. E.g., _wstartts, top(k, 20)
+        // the _wstartts needs to copy to 20 following rows, since the results of top-k expands to 20 different rows.
+          SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, slotId);
+          char* in = GET_ROWCELL_INTERBUF(pCtx[j].resultInfo);
+          for(int32_t k = 0; k < pRow->numOfRows; ++k) {
+            colDataAppend(pColInfoData, pBlock->info.rows + k, in, pCtx[j].resultInfo->isNullRes);
+          }
       }
     }
 
