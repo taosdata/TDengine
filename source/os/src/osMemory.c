@@ -103,8 +103,10 @@ Dwarf_Debug tDbg;
 static TdThreadOnce traceThreadInit = PTHREAD_ONCE_INIT;
 
 void endTrace() {
+  if (traceThreadInit != PTHREAD_ONCE_INIT) {
     delete_lookup_table(&lookup_table);
     dwarf_finish(tDbg);
+  }
 }
 void startTrace() {
   int ret;
@@ -128,15 +130,15 @@ void startTrace() {
   atexit(endTrace);
 }
 static void print_line(Dwarf_Debug dbg, Dwarf_Line line, Dwarf_Addr pc) {
-    char *linesrc = "??";
-    Dwarf_Unsigned lineno = 0;
+  char *linesrc = "??";
+  Dwarf_Unsigned lineno = 0;
 
-    if (line) {
-        dwarf_linesrc(line, &linesrc, NULL);
-        dwarf_lineno(line, &lineno, NULL);
-    }
-    printf("%s:%" DW_PR_DUu "\n", linesrc, lineno);
-    if (line) dwarf_dealloc(dbg, linesrc, DW_DLA_STRING);
+  if (line) {
+    dwarf_linesrc(line, &linesrc, NULL);
+    dwarf_lineno(line, &lineno, NULL);
+  }
+  printf("%s:%" DW_PR_DUu "\n", linesrc, lineno);
+  if (line) dwarf_dealloc(dbg, linesrc, DW_DLA_STRING);
 }
 void taosPrintBackTrace() {
   int size = 20;
