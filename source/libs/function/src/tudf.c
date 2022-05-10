@@ -18,6 +18,7 @@
 #include "tudf.h"
 #include "tudfInt.h"
 #include "tarray.h"
+#include "tglobal.h"
 #include "tdatablock.h"
 #include "querynodes.h"
 #include "builtinsimpl.h"
@@ -138,6 +139,9 @@ static void udfWatchUdfd(void *args) {
 }
 
 int32_t udfStartUdfd(int32_t startDnodeId) {
+  if (!tsStartUdfd) {
+    fnInfo("start udfd is disabled.")
+  }
   SUdfdData *pData = &udfdGlobal;
   if (pData->startCalled) {
     fnInfo("dnode-mgmt start udfd already called");
