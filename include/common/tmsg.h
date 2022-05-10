@@ -1455,7 +1455,7 @@ typedef struct {
 static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
   SMqRebInfo* pRebInfo = (SMqRebInfo*)taosMemoryCalloc(1, sizeof(SMqRebInfo));
   if (pRebInfo == NULL) {
-    goto _err;
+    return NULL;
   }
   strcpy(pRebInfo->key, key);
   pRebInfo->lostConsumers = taosArrayInit(0, sizeof(int64_t));
