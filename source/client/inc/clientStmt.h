@@ -62,7 +62,8 @@ typedef struct SStmtBindInfo {
   int8_t       tbType;
   bool         tagsCached;
   void*        boundTags;  
-  char*        tbName;
+  char         tbName[TSDB_TABLE_FNAME_LEN];;
+  char         tbFName[TSDB_TABLE_FNAME_LEN];
   SName        sname;
 } SStmtBindInfo;
 
@@ -76,7 +77,7 @@ typedef struct SStmtExecInfo {
 typedef struct SStmtSQLInfo {
   STMT_TYPE         type;
   STMT_STATUS       status;
-  bool              autoCreate;
+  bool              autoCreateTbl;
   uint64_t          runTimes;
   SHashObj*         pTableCache;   //SHash<SStmtTableCache>
   SQuery*           pQuery;

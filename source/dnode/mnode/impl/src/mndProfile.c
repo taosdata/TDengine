@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndUser.h"
+#include "mndDnode.h"
 #include "tglobal.h"
 #include "version.h"
 
