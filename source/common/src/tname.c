@@ -15,6 +15,8 @@
 
 #define _DEFAULT_SOURCE
 #include "tname.h"
+#include "tcommon.h"
+#include "tstrbuild.h"
 
 #define VALID_NAME_TYPE(x)  ((x) == TSDB_DB_NAME_T || (x) == TSDB_TABLE_NAME_T)
 
@@ -294,4 +296,43 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
   return 0;
 }
 
+static int compareKv(const void* p1, const void* p2) {
+  SSmlKv* kv1 = *(SSmlKv**)p1;
+  SSmlKv* kv2 = *(SSmlKv**)p2;
+  int32_t kvLen1 = kv1->keyLen;
+  int32_t kvLen2 = kv2->keyLen;
+  int32_t res = strncasecmp(kv1->key, kv2->key, TMIN(kvLen1, kvLen2));
+  if (res != 0) {
+    return res;
+  } else {
+    return kvLen1-kvLen2;
+  }
+}
 
+/*
+ * use stable name and tags to grearate child table name
+ */
+void buildChildTableName(RandTableName *rName) {
+  int32_t size = taosArrayGetSize(rName->tags);
+  ASSERT(size > 0);
+  taosArraySort(rName->tags, compareKv);
+
+  SStringBuilder sb = {0};
+  taosStringBuilderAppendStringLen(&sb, rName->sTableName, rName->sTableNameLen);
+  for (int j = 0; j < size; ++j) {
+    SSmlKv *tagKv = taosArrayGetP(rName->tags, j);
+    taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
+    taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->valueLen);
+  }
+  size_t len = 0;
+  char* keyJoined = taosStringBuilderGetResult(&sb, &len);
+  T_MD5_CTX context;
+  tMD5Init(&context);
+  tMD5Update(&context, (uint8_t *)keyJoined, (uint32_t)len);
+  tMD5Final(&context);
+  uint64_t digest1 = *(uint64_t*)(context.digest);
+  uint64_t digest2 = *(uint64_t*)(context.digest + 8);
+  snprintf(rName->childTableName, TSDB_TABLE_NAME_LEN, "t_%016"PRIx64"%016"PRIx64, digest1, digest2);
+  taosStringBuilderDestroy(&sb);
+  rName->uid = digest1;
+}
