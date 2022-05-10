@@ -242,7 +242,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = 512, .type = TSDB_DATA_TYPE_BINARY };
+  pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -274,7 +274,8 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  if (!IS_NUMERIC_TYPE(p1->resType.type)) {
+  if (!IS_SIGNED_NUMERIC_TYPE(p1->resType.type) && !IS_FLOAT_TYPE(p1->resType.type) &&
+      TSDB_DATA_TYPE_BOOL != p1->resType.type) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
   pFunc->node.resType = p1->resType;
@@ -550,7 +551,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "percentile",
     .type = FUNCTION_TYPE_PERCENTILE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_REPEAT_SCAN_FUNC,
     .translateFunc = translatePercentile,
     .getEnvFunc   = getPercentileFuncEnv,
     .initFunc     = percentileFunctionSetup,

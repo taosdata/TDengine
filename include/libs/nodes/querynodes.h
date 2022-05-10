@@ -233,6 +233,7 @@ typedef struct SSelectStmt {
   uint8_t     precision;
   bool        isEmptyResult;
   bool        hasAggFuncs;
+  bool        hasRepeatScanFuncs;
   bool        isTimeOrderQuery;
 } SSelectStmt;
 
