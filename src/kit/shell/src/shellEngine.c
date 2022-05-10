@@ -1,5 +1,5 @@
 /*
- * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ * Copyright (c) 2022 TAOS Data, Inc. <jhtao@taosdata.com>
  *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
@@ -31,7 +31,7 @@
 
 /**************** Global variables ****************/
 char      CLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 char      PROMPT_HEADER[] = "taos> ";
 char      CONTINUE_PROMPT[] = "   -> ";
 int       prompt_size = 6;
