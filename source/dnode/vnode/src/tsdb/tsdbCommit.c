@@ -883,7 +883,6 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
   SReadH *pReadh = &pCommith->readh;
   int     nBlocks = pIdx->numOfBlocks;
   int     bidx = 0;
-  SBlock *pBlock;
 
   tsdbResetCommitTable(pCommith);
 
@@ -895,6 +894,8 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
 
   while (bidx < nBlocks) {
     if (tsdbMoveBlock(pCommith, bidx) < 0) {
+      tsdbError("vgId:%d failed to move block into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+                TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
       return -1;
     }
     ++bidx;
