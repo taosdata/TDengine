@@ -141,6 +141,7 @@ static void udfWatchUdfd(void *args) {
 int32_t udfStartUdfd(int32_t startDnodeId) {
   if (!tsStartUdfd) {
     fnInfo("start udfd is disabled.")
+    return 0;
   }
   SUdfdData *pData = &udfdGlobal;
   if (pData->startCalled) {
