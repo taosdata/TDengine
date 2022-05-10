@@ -222,6 +222,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiSort";
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return "PhysiInterval";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+      return "PhysiStreamInterval";
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return "PhysiFill";
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -2893,6 +2895,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return physiSortNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return physiIntervalNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return physiFillNodeToJson(pObj, pJson);
@@ -2983,6 +2986,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
       return jsonToPhysiSortNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       return jsonToPhysiIntervalNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return jsonToPhysiFillNode(pJson, pObj);
@@ -3099,6 +3103,7 @@ int32_t nodesStringToNode(const char* pStr, SNode** pNode) {
     return TSDB_CODE_FAILED;
   }
   int32_t code = makeNodeByJson(pJson, pNode);
+  tjsonDelete(pJson);
   if (TSDB_CODE_SUCCESS != code) {
     nodesDestroyNode(*pNode);
     *pNode = NULL;

@@ -1108,7 +1108,7 @@ void transSendResponse(const STransMsg* msg) {
   SSrvMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));
   srvMsg->msg = tmsg;
   srvMsg->type = Normal;
-  tTrace("server conn %p start to send resp (1/2)", exh->handle);
+  tDebug("server conn %p start to send resp (1/2)", exh->handle);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
   uvReleaseExHandle(refId);
   return;

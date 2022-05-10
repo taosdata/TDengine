@@ -31,13 +31,13 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ELAPSED,
   FUNCTION_TYPE_IRATE,
   FUNCTION_TYPE_LAST_ROW,
-  FUNCTION_TYPE_LEASTSQUARES,
   FUNCTION_TYPE_MAX,
   FUNCTION_TYPE_MIN,
   FUNCTION_TYPE_MODE,
   FUNCTION_TYPE_PERCENTILE,
   FUNCTION_TYPE_SPREAD,
   FUNCTION_TYPE_STDDEV,
+  FUNCTION_TYPE_LEASTSQUARES,
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
   FUNCTION_TYPE_HISTOGRAM,
@@ -154,6 +154,7 @@ bool fmIsWindowClauseFunc(int32_t funcId);
 bool fmIsSpecialDataRequiredFunc(int32_t funcId);
 bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
 bool fmIsMultiResFunc(int32_t funcId);
+bool fmIsRepeatScanFunc(int32_t funcId);
 bool fmIsUserDefinedFunc(int32_t funcId);
 
 typedef enum EFuncDataRequired {
@@ -170,7 +171,7 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
 int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
-bool fmIsInvertible(int32_t funcId);
+bool    fmIsInvertible(int32_t funcId);
 
 #ifdef __cplusplus
 }

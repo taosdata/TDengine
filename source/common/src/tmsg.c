@@ -4015,3 +4015,65 @@ int32_t tDecodeSVSubmitReq(SDecoder *pCoder, SVSubmitReq *pReq) {
   tEndDecode(pCoder);
   return 0;
 }
+
+static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBlock) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+
+  if (tEncodeI8(pEncoder, pBlock->hashMeta) < 0) return -1;
+  if (pBlock->hashMeta) {
+    if (tEncodeI64(pEncoder, pBlock->uid) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pBlock->ename) < 0) return -1;
+  }
+  if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
+  if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
+
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+
+  if (tDecodeI8(pDecoder, &pBlock->hashMeta) < 0) return -1;
+  if (pBlock->hashMeta) {
+    if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
+    if (tDecodeCStr(pDecoder, &pBlock->dname) < 0) return -1;
+  }
+  if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
+
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tEncodeSSubmitRsp(SEncoder *pEncoder, const SSubmitRsp *pRsp) {
+  int32_t nBlocks = taosArrayGetSize(pRsp->pArray);
+
+  if (tStartEncode(pEncoder) < 0) return -1;
+
+  if (tEncodeI32v(pEncoder, pRsp->numOfRows) < 0) return -1;
+  if (tEncodeI32v(pEncoder, pRsp->affectedRows) < 0) return -1;
+  if (tEncodeI32v(pEncoder, nBlocks) < 0) return -1;
+  for (int32_t iBlock = 0; iBlock < nBlocks; iBlock++) {
+    if (tEncodeSSubmitBlkRsp(pEncoder, (SSubmitBlkRsp *)taosArrayGet(pRsp->pArray, iBlock)) < 0) return -1;
+  }
+
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeSSubmitRsp(SDecoder *pDecoder, SSubmitRsp *pRsp) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+
+  if (tDecodeI32v(pDecoder, &pRsp->numOfRows) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pRsp->affectedRows) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pRsp->nBlocks) < 0) return -1;
+  pRsp->pBlocks = tDecoderMalloc(pDecoder, sizeof(*pRsp->pBlocks) * pRsp->nBlocks);
+  if (pRsp->pBlocks == NULL) return -1;
+  for (int32_t iBlock = 0; iBlock < pRsp->nBlocks; iBlock++) {
+    if (tDecodeSSubmitBlkRsp(pDecoder, pRsp->pBlocks + iBlock) < 0) return -1;
+  }
+
+  tEndDecode(pDecoder);
+  return 0;
+}

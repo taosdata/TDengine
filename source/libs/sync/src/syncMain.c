@@ -522,6 +522,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   ret = raftStoreClose(pSyncNode->pRaftStore);
   assert(ret == 0);
 
+  syncRespMgrDestroy(pSyncNode->pSyncRespMgr);
   voteGrantedDestroy(pSyncNode->pVotesGranted);
   votesRespondDestory(pSyncNode->pVotesRespond);
   syncIndexMgrDestroy(pSyncNode->pNextIndex);
@@ -1138,6 +1139,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
     syncNodeReplicate(ths);
   }
 
+  syncEntryDestory(pEntry);
   return ret;
 }
 
