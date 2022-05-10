@@ -57,6 +57,7 @@ typedef struct {
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;
   ReportStartup           reportStartupFp;
+  void*                   clientRpc;
 } SMsgCb;
 
 void    tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb);

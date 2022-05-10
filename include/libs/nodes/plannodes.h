@@ -274,6 +274,8 @@ typedef struct SIntervalPhysiNode {
   int8_t           slidingUnit;
 } SIntervalPhysiNode;
 
+typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
+
 typedef struct SFillPhysiNode {
   SPhysiNode  node;
   EFillMode   mode;

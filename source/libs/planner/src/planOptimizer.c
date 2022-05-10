@@ -754,10 +754,7 @@ static int32_t opkDoOptimized(SOptimizeContext* pCxt, SSortLogicNode* pSort, SNo
   EOrder order = opkGetPrimaryKeyOrder(pSort);
   if (ORDER_DESC == order) {
     SNode* pScan = NULL;
-    FOREACH(pScan, pScanNodes) {
-      ((SScanLogicNode*)pScan)->scanSeq[0] = 0;
-      ((SScanLogicNode*)pScan)->scanSeq[1] = 1;
-    }
+    FOREACH(pScan, pScanNodes) { TSWAP(((SScanLogicNode*)pScan)->scanSeq[0], ((SScanLogicNode*)pScan)->scanSeq[1]); }
   }
 
   if (NULL == pSort->node.pParent) {
