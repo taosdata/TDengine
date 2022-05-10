@@ -515,7 +515,40 @@ static void doClearBufferedBlocks(SStreamBlockScanInfo* pInfo) {
   taosArrayClear(pInfo->pBlockLists);
 }
 
-static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo) {
+static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
+  SSDataBlock* pSDB = pInfo->pUpdateRes;
+  if (pInfo->updateResIndex < pSDB->info.rows) {
+    SColumnInfoData* pColDataInfo = taosArrayGet(pSDB->pDataBlock, 0);
+    TSKEY *tsCols = (TSKEY*)pColDataInfo->pData;
+    SResultRowInfo dumyInfo;
+    dumyInfo.cur.pageId = -1;
+    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[pInfo->updateResIndex], &pInfo->interval,
+                                        pInfo->interval.precision, NULL);
+    STableScanInfo* pTableScanInfo = pInfo->pOperatorDumy->info;
+    pTableScanInfo->cond.twindow = win;
+    tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond);
+    pInfo->updateResIndex += getNumOfRowsInTimeWindow(&pSDB->info, tsCols, pInfo->updateResIndex,
+        win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+    pTableScanInfo->scanTimes = 0;
+    return true;
+  } else {
+    return false;
+  }
+}
+
+static SSDataBlock* doDataScan(SStreamBlockScanInfo* pInfo) {
+  SSDataBlock* pResult = NULL;
+  pResult = doTableScan(pInfo->pOperatorDumy);
+  if (pResult == NULL) {
+    if (prepareDataScan(pInfo)) {
+      // scan next window data
+      pResult = doTableScan(pInfo->pOperatorDumy);
+    }
+  }
+  return pResult;
+}
+
+static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool invertible) {
   SColumnInfoData* pColDataInfo = taosArrayGet(pInfo->pRes->pDataBlock, pInfo->primaryTsIndex);
   TSKEY*           ts = (TSKEY*)pColDataInfo->pData;
   for (int32_t i = 0; i < pInfo->pRes->info.rows; i++) {
@@ -523,13 +556,19 @@ static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo) {
       taosArrayPush(pInfo->tsArray, ts + i);
     }
   }
-  if (taosArrayGetSize(pInfo->tsArray) > 0) {
+  int32_t size = taosArrayGetSize(pInfo->tsArray);
+  if (size > 0 && invertible) {
     // TODO(liuyao) get from tsdb
     //  SSDataBlock* p = createOneDataBlock(pInfo->pRes, true);
     //  p->info.type = STREAM_INVERT;
     //  taosArrayClear(pInfo->tsArray);
     //  return p;
-    return NULL;
+    SSDataBlock* p = createOneDataBlock(pInfo->pRes, false);
+    taosArraySet(p->pDataBlock, 0, pInfo->tsArray);
+    p->info.rows = size;
+    p->info.type = STREAM_REPROCESS;
+    taosArrayClear(pInfo->tsArray);
+    return p;
   }
   return NULL;
 }
@@ -556,14 +595,23 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     int32_t current = pInfo->validBlockIndex++;
     return taosArrayGetP(pInfo->pBlockLists, current);
   } else {
-    if (total > 0) {
-      ASSERT(total == 2);
-      SSDataBlock* pRes = taosArrayGetP(pInfo->pBlockLists, 0);
-      SSDataBlock* pUpRes = taosArrayGetP(pInfo->pBlockLists, 1);
-      blockDataDestroy(pUpRes);
-      taosArrayClear(pInfo->pBlockLists);
-      return pRes;
+    if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
+      blockDataDestroy(pInfo->pUpdateRes);
+      pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      return pInfo->pRes;
+    } else if (pInfo->scanMode == STREAM_SCAN_FROM_UPDATERES) {
+      blockDataCleanup(pInfo->pRes);
+      pInfo->scanMode = STREAM_SCAN_FROM_DATAREADER;
+      return pInfo->pUpdateRes;
+    } else if (pInfo->scanMode == STREAM_SCAN_FROM_DATAREADER) {
+      SSDataBlock* pSDB = doDataScan(pInfo);
+      if (pSDB == NULL) {
+        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      } else {
+        return pSDB;
+      }
     }
+
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
     blockDataCleanup(pInfo->pRes);
 
@@ -629,12 +677,18 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
     if (rows == 0) {
       pOperator->status = OP_EXEC_DONE;
-    } else {
-      SSDataBlock* upRes = getUpdateDataBlock(pInfo);
+    } else if (pInfo->interval.interval > 0) {
+      SSDataBlock* upRes = getUpdateDataBlock(pInfo, true); //TODO(liuyao) get invertible from plan
       if (upRes) {
-        taosArrayPush(pInfo->pBlockLists, &(pInfo->pRes));
-        taosArrayPush(pInfo->pBlockLists, &upRes);
-        return upRes;
+        pInfo->pUpdateRes = upRes;
+        if (upRes->info.type = STREAM_REPROCESS) {
+          pInfo->updateResIndex = 0;
+          prepareDataScan(pInfo);
+          pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
+        } else if (upRes->info.type = STREAM_INVERT) {
+          pInfo->scanMode = STREAM_SCAN_FROM_RES;
+          return upRes;
+        }
       }
     }
 
@@ -642,8 +696,10 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   }
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock* pResBlock, SArray* pColList,
-                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pCondition) {
+SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader,
+    SSDataBlock* pResBlock, SArray* pColList, SArray* pTableIdList,
+    SExecTaskInfo* pTaskInfo, SNode* pCondition, SOperatorInfo* pOperatorDumy,
+    SInterval* pInterval) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -683,7 +739,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   }
 
   pInfo->primaryTsIndex = 0;                           // TODO(liuyao) get it from physical plan
-  pInfo->pUpdateInfo = updateInfoInit(60000, 0, 100);  // TODO(liuyao) get it from physical plan
+  pInfo->pUpdateInfo = updateInfoInitP(pInterval, 10000); // TODO(liuyao) get watermark from physical plan
   if (pInfo->pUpdateInfo == NULL) {
     taosMemoryFreeClear(pInfo);
     taosMemoryFreeClear(pOperator);
@@ -693,6 +749,10 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock*
   pInfo->readerHandle = streamReadHandle;
   pInfo->pRes = pResBlock;
   pInfo->pCondition = pCondition;
+  pInfo->pDataReader = pDataReader;
+  pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+  pInfo->pOperatorDumy = pOperatorDumy;
+  pInfo->interval = *pInterval;
 
   pOperator->name = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;

@@ -945,6 +945,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
              .reader = pStreamReader,
              .meta = pTq->pVnode->pMeta,
              .pMsgCb = &pTq->pVnode->msgCb,
+             .vnode = pTq->pVnode,
       };
       pTask->exec.runners[i].inputHandle = pStreamReader;
       pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
