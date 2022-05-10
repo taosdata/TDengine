@@ -461,7 +461,9 @@ static int32_t createTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubp
   pTableScan->scanRange = pScanLogicNode->scanRange;
   pTableScan->ratio = pScanLogicNode->ratio;
   vgroupInfoToNodeAddr(pScanLogicNode->pVgroupList->vgroups, &pSubplan->execNode);
-  taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  if (pCxt->pExecNodeList) {
+    taosArrayPush(pCxt->pExecNodeList, &pSubplan->execNode);
+  }
   pSubplan->execNodeStat.tableNum = pScanLogicNode->pVgroupList->vgroups[0].numOfTable;
   tNameGetFullDbName(&pScanLogicNode->tableName, pSubplan->dbFName);
   pTableScan->dataRequired = pScanLogicNode->dataRequired;
@@ -505,13 +507,12 @@ static int32_t createSystemTableScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan*
 
 static int32_t createStreamScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
                                          SPhysiNode** pPhyNode) {
-  SStreamScanPhysiNode* pScan =
-      (SStreamScanPhysiNode*)makePhysiNode(pCxt, pScanLogicNode->pMeta->tableInfo.precision,
-                                           (SLogicNode*)pScanLogicNode, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
-  if (NULL == pScan) {
-    return TSDB_CODE_OUT_OF_MEMORY;
+  int32_t res = createTableScanPhysiNode(pCxt, pSubplan, pScanLogicNode, pPhyNode);
+  if (res == TSDB_CODE_SUCCESS) {
+    ENodeType type = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
+    setNodeType(*pPhyNode, type);
   }
-  return createScanPhysiNodeFinalize(pCxt, pScanLogicNode, (SScanPhysiNode*)pScan, pPhyNode);
+  return res;
 }
 
 static int32_t createScanPhysiNode(SPhysiPlanContext* pCxt, SSubplan* pSubplan, SScanLogicNode* pScanLogicNode,
@@ -786,7 +787,7 @@ static int32_t doCreateExchangePhysiNode(SPhysiPlanContext* pCxt, SExchangeLogic
 }
 static int32_t createStreamScanPhysiNodeByExchange(SPhysiPlanContext* pCxt, SExchangeLogicNode* pExchangeLogicNode,
                                                    SPhysiNode** pPhyNode) {
-  SStreamScanPhysiNode* pScan = (SStreamScanPhysiNode*)makePhysiNode(
+  SScanPhysiNode* pScan = (SScanPhysiNode*)makePhysiNode(
       pCxt, pExchangeLogicNode->precision, (SLogicNode*)pExchangeLogicNode, QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN);
   if (NULL == pScan) {
     return TSDB_CODE_OUT_OF_MEMORY;
