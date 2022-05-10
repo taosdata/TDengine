@@ -133,7 +133,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   tmsg_t        msgType = pMsg->msgType;
   bool          isReq = msgType & 1u;
   SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
-  SMgmtWrapper *pWrapper = pHandle->pNdWrapper;
+  SMgmtWrapper *pWrapper = NULL;
 
   switch (msgType) {
     case TDMT_DND_SERVER_STATUS:
@@ -171,7 +171,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     return;
   }
 
-  if (pWrapper == NULL) {
+  if (pHandle->defaultNtype == NODE_END) {
     dError("msg:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
     if (isReq) {
       SRpcMsg rspMsg = {
@@ -182,13 +182,14 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     return;
   }
 
-  if (pHandle->pMndWrapper != NULL || pHandle->pQndWrapper != NULL) {
+  pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
+  if (pHandle->needCheckVgId) {
     SMsgHead *pHead = pMsg->pCont;
     int32_t   vgId = ntohl(pHead->vgId);
     if (vgId == QNODE_HANDLE) {
-      pWrapper = pHandle->pQndWrapper;
+      pWrapper = &pDnode->wrappers[QNODE];
     } else if (vgId == MNODE_HANDLE) {
-      pWrapper = pHandle->pMndWrapper;
+      pWrapper = &pDnode->wrappers[MNODE];
     } else {
     }
   }
@@ -202,34 +203,25 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 int32_t dmInitMsgHandle(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
-
-  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-
+  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
-      NodeMsgFp msgFp = pWrapper->msgFps[msgIndex];
-      int8_t    vgId = pWrapper->msgVgIds[msgIndex];
-      if (msgFp == NULL) continue;
-
       SMsgHandle *pHandle = &pTrans->msgHandles[msgIndex];
-      if (vgId == QNODE_HANDLE) {
-        if (pHandle->pQndWrapper != NULL) {
-          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
-          return -1;
-        }
-        pHandle->pQndWrapper = pWrapper;
-      } else if (vgId == MNODE_HANDLE) {
-        if (pHandle->pMndWrapper != NULL) {
-          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
-          return -1;
-        }
-        pHandle->pMndWrapper = pWrapper;
-      } else {
-        if (pHandle->pNdWrapper != NULL) {
-          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
-          return -1;
-        }
-        pHandle->pNdWrapper = pWrapper;
+      pHandle->defaultNtype = NODE_END;
+    }
+  }
+
+  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
+      SMsgHandle *pHandle = &pTrans->msgHandles[msgIndex];
+      NodeMsgFp   msgFp = pWrapper->msgFps[msgIndex];
+      bool        needCheckVgId = pWrapper->needCheckVgIds[msgIndex];
+
+      if (msgFp == NULL) continue;
+      if (needCheckVgId) pHandle->needCheckVgId = needCheckVgId;
+      if (!needCheckVgId) {
+        pHandle->defaultNtype = ntype;
       }
     }
   }

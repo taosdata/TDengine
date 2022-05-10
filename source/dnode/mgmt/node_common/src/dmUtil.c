@@ -29,9 +29,9 @@ void dmSetEvent(SDnode *pDnode, EDndEvent event) {
   }
 }
 
-void dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId) {
+void dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, bool needCheckVgId) {
   pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
-  pWrapper->msgVgIds[TMSG_INDEX(msgType)] = vgId;
+  pWrapper->needCheckVgIds[TMSG_INDEX(msgType)] = needCheckVgId;
 }
 
 SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {

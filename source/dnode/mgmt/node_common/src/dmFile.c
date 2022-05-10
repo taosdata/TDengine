@@ -173,7 +173,7 @@ int32_t dmReadShmFile(SMgmtWrapper *pWrapper) {
     }
   }
 
-  if (!tsMultiProcess || pWrapper->nodeType == DNODE || pWrapper->nodeType == NODE_END) {
+  if (!tsMultiProcess || pWrapper->nodeType == DNODE) {
     if (pWrapper->procShm.id >= 0) {
       dDebug("node:%s, shmid:%d, is closed, size:%d", pWrapper->name, pWrapper->procShm.id, pWrapper->procShm.size);
       taosDropShm(&pWrapper->procShm);

@@ -34,7 +34,7 @@ const char   *dmProcStr(EDndProcType ptype);
 
 void   dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void   dmSetEvent(SDnode *pDnode, EDndEvent event);
-void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
+void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, bool needCheckVgIds);
 void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void   dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc);
 void   dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pMsg);

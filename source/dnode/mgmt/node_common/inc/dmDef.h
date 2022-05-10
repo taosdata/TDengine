@@ -89,9 +89,8 @@ typedef int32_t (*DropNodeFp)(struct SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 typedef int32_t (*RequireNodeFp)(struct SMgmtWrapper *pWrapper, bool *required);
 
 typedef struct {
-  SMgmtWrapper *pQndWrapper;
-  SMgmtWrapper *pMndWrapper;
-  SMgmtWrapper *pNdWrapper;
+  EDndNodeType defaultNtype;
+  bool         needCheckVgId;
 } SMsgHandle;
 
 typedef struct {
@@ -124,7 +123,7 @@ typedef struct SMgmtWrapper {
     SShm         procShm;
   };
   struct {
-    int8_t    msgVgIds[TDMT_MAX];  // Handle the case where the same message type is distributed to qnode or vnode
+    bool      needCheckVgIds[TDMT_MAX];
     NodeMsgFp msgFps[TDMT_MAX];
   };
 } SMgmtWrapper;
