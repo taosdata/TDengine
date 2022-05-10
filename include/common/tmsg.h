@@ -328,6 +328,9 @@ typedef struct {
   int8_t  alterType;
   int32_t numOfFields;
   SArray* pFields;
+  int32_t ttl;
+  int32_t commentLen;
+  char*   comment;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);

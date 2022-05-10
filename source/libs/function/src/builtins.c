@@ -988,6 +988,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "_c0",
+    .type = FUNCTION_TYPE_ROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "tbname",
     .type = FUNCTION_TYPE_TBNAME,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
