@@ -34,7 +34,7 @@ TDengine can be widely applied to Internet of Things (IoT), Connected Vehicles, 
 # Documentation
 
 For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)(中文版请点击[这里](https://www.taosdata.com/cn/documentation20/))
- for details. The documentation from our website can also be downloaded locally from *documentation/tdenginedocs-en* or *documentation/tdenginedocs-cn*.
+for details. The documentation from our website can also be downloaded locally from _documentation/tdenginedocs-en_ or _documentation/tdenginedocs-cn_.
 
 # Building
 
@@ -258,7 +258,9 @@ cmake .. && cmake --build .
 
 # Installing
 
-After building successfully, TDengine can be installed by: (On Windows platform, the following command should be `nmake install`)
+## On Linux platform
+
+After building successfully, TDengine can be installed by
 
 ```bash
 sudo make install
@@ -281,7 +283,7 @@ taos
 
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
-## Install TDengine by apt-get
+### Install TDengine by apt-get
 
 If you use Debian or Ubuntu system, you can use 'apt-get' command to install TDengine from official repository. Please use following commands to setup:
 
@@ -292,6 +294,40 @@ echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | 
 sudo apt-get update
 apt-cache policy tdengine
 sudo apt-get install tdengine
+```
+
+## On Windows platform
+
+After building successfully, TDengine can be installed by:
+
+```cmd
+nmake install
+```
+
+## On macOS platform
+
+After building successfully, TDengine can be installed by:
+
+```bash
+sudo make install
+```
+
+To start the service after installation, config `.plist` file first, in a terminal, use:
+
+```bash
+sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
+```
+
+To start the service, in a terminal, use:
+
+```bash
+sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
+```
+
+To stop the service, in a terminal, use:
+
+```bash
+sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
 ```
 
 ## Quick Run
@@ -315,13 +351,17 @@ option "-c test/cfg" specifies the system configuration file directory.
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
 
 ```sql
-create database db;
-use db;
-create table t (ts timestamp, a int);
-insert into t values ('2019-07-15 00:00:00', 1);
-insert into t values ('2019-07-15 01:00:00', 2);
-select * from t;
-drop database db;
+CREATE DATABASE demo;
+USE demo;
+CREATE TABLE t (ts TIMESTAMP, speed INT);
+INSERT INTO t VALUES('2019-07-15 00:00:00', 10);
+INSERT INTO t VALUES('2019-07-15 01:00:00', 20);
+SELECT * FROM t;
+          ts          |   speed   |
+===================================
+ 19-07-15 00:00:00.000|         10|
+ 19-07-15 01:00:00.000|         20|
+Query OK, 2 row(s) in set (0.001700s)
 ```
 
 # Developing with TDengine
@@ -348,8 +388,8 @@ The TDengine community has also kindly built some of their own connectors! Follo
 
 # How to run the test cases and how to add a new test case
 
-  TDengine's test framework and all test cases are fully open source.
-  Please refer to [this document](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
+TDengine's test framework and all test cases are fully open source.
+Please refer to [this document](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
 # TDengine Roadmap
 
