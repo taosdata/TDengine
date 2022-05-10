@@ -20,7 +20,7 @@ MESSAGE(STATUS "Project executable files output path: " ${EXECUTABLE_OUTPUT_PATH
 MESSAGE(STATUS "Project library files output path: " ${LIBRARY_OUTPUT_PATH})
 
 find_package(Git QUIET)
-if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
+if(GIT_FOUND AND EXISTS "${TD_COMMUNITY_DIR}/.git")
 # Update submodules as needed
     option(GIT_SUBMODULE "Check submodules during build" ON)
     if(GIT_SUBMODULE)
@@ -34,7 +34,7 @@ if(GIT_FOUND AND EXISTS "${PROJECT_SOURCE_DIR}/.git")
     endif()
 endif()
 
-if(NOT EXISTS "${PROJECT_SOURCE_DIR}/deps/jemalloc/Makefile.in")
+if(NOT EXISTS "${TD_COMMUNITY_DIR}/deps/jemalloc/Makefile.in")
     message(WARNING "The submodules were not downloaded! GIT_SUBMODULE was turned off or failed. Please update submodules manually if you need build them.")
 endif()
 
