@@ -326,6 +326,11 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
 
   tSkipListPutBatchByIter(pTbData->pData, &blkIter, (iter_next_fn_t)tGetSubmitBlkNext);
 
+#ifdef TD_DEBUG_PRINT_ROW
+  printf("!!! %s:%d table %" PRIi64 " has %d rows in skiplist\n\n", __func__, __LINE__, pTbData->uid,
+         SL_SIZE(pTbData->pData));
+#endif
+
   // Set statistics
   keyMax = TD_ROW_KEY(blkIter.row);
 

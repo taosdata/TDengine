@@ -4199,7 +4199,7 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
     }
   }
 
-  taosMemoryFree(pOperator->pExpr);
+  taosMemoryFreeClear(pOperator->pExpr);
   taosMemoryFreeClear(pOperator->info);
   taosMemoryFreeClear(pOperator);
 }
@@ -4384,6 +4384,9 @@ void destroySFillOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 static void destroyProjectOperatorInfo(void* param, int32_t numOfOutput) {
+  if (NULL == param) {
+    return;
+  }
   SProjectOperatorInfo* pInfo = (SProjectOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
   cleanupAggSup(&pInfo->aggSup);
