@@ -930,7 +930,7 @@ _cleanup:
   free(colKVs);
 
   if (r == fromIndex) {
-    tscError("buffer can not fit one line");
+    tscInfo("SML:0x%"PRIx64" Remaining buffer is not enough for line: %d of table %s. Allocate a new buffer to continue", info->id, fromIndex, cTableName);
     *cTableSqlLen = 0;
   } else {
     *cTableSqlLen = totalLen;
