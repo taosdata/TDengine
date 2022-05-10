@@ -98,13 +98,13 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
   smSetMgmtFp(&pDnode->wrappers[SNODE]);
   bmSetMgmtFp(&pDnode->wrappers[BNODE]);
 
-  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     snprintf(path, sizeof(path), "%s%s%s", pDnode->data.dataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = strdup(path);
     pWrapper->procShm.id = -1;
     pWrapper->pDnode = pDnode;
-    pWrapper->nodeType = n;
+    pWrapper->nodeType = ntype;
     pWrapper->procType = DND_PROC_SINGLE;
     taosInitRWLatch(&pWrapper->latch);
 
@@ -113,7 +113,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
       goto _OVER;
     }
 
-    if (n != DNODE && dmReadShmFile(pWrapper) != 0) {
+    if (ntype != DNODE && dmReadShmFile(pWrapper) != 0) {
       dError("node:%s, failed to read shm file since %s", pWrapper->name, terrstr());
       goto _OVER;
     }

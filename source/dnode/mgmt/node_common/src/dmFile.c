@@ -149,7 +149,6 @@ int32_t dmReadShmFile(SMgmtWrapper *pWrapper) {
   snprintf(file, sizeof(file), "%s%sshmfile", pWrapper->path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    // dDebug("node:%s, file %s not exist", pWrapper->name, file);
     code = 0;
     goto _OVER;
   }
@@ -173,7 +172,7 @@ int32_t dmReadShmFile(SMgmtWrapper *pWrapper) {
     }
   }
 
-  if (!tsMultiProcess || pWrapper->nodeType == DNODE) {
+  if (!tsMultiProcess) {
     if (pWrapper->procShm.id >= 0) {
       dDebug("node:%s, shmid:%d, is closed, size:%d", pWrapper->name, pWrapper->procShm.id, pWrapper->procShm.size);
       taosDropShm(&pWrapper->procShm);
