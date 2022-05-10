@@ -589,8 +589,8 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
       }
 
       submitBlkRsp.uid = createTbReq.uid;
-      submitBlkRsp.name = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
-      sprintf(submitBlkRsp.name, "%s.%s", pVnode->config.dbname, createTbReq.name);
+      submitBlkRsp.ename = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
+      sprintf(submitBlkRsp.ename, "%s.%s", pVnode->config.dbname, createTbReq.name);
 
       msgIter.uid = createTbReq.uid;
       if (createTbReq.type == TSDB_CHILD_TABLE) {
@@ -621,7 +621,7 @@ _exit:
   tEncoderClear(&encoder);
 
   for (int32_t i = 0; i < taosArrayGetSize(submitRsp.pArray); i++) {
-    taosMemoryFree(((SSubmitBlkRsp *)taosArrayGet(submitRsp.pArray, i))[0].name);
+    taosMemoryFree(((SSubmitBlkRsp *)taosArrayGet(submitRsp.pArray, i))[0].ename);
   }
 
   taosArrayDestroy(submitRsp.pArray);

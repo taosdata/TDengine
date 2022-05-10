@@ -4020,7 +4020,7 @@ static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBl
   if (tEncodeI8(pEncoder, pBlock->hashMeta) < 0) return -1;
   if (pBlock->hashMeta) {
     if (tEncodeI64(pEncoder, pBlock->uid) < 0) return -1;
-    if (tEncodeCStr(pEncoder, pBlock->name) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pBlock->ename) < 0) return -1;
   }
   if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
   if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
@@ -4035,7 +4035,7 @@ static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
   if (tDecodeI8(pDecoder, &pBlock->hashMeta) < 0) return -1;
   if (pBlock->hashMeta) {
     if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
-    if (tDecodeCStr(pDecoder, &pBlock->namec) < 0) return -1;
+    if (tDecodeCStr(pDecoder, &pBlock->dname) < 0) return -1;
   }
   if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;

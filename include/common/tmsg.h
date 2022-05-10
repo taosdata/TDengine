@@ -255,8 +255,8 @@ typedef struct {
   int8_t  hashMeta;
   int64_t uid;
   union {
-    char*       name;
-    const char* namec;
+    char*       ename; // used for encode
+    const char* dname; // used for decode
   };
   int32_t numOfRows;
   int32_t affectedRows;
