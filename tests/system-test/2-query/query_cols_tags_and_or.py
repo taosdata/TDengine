@@ -1242,11 +1242,11 @@ class TDTestCase:
         # and or
         query_sql = f'select {select_elm} from {tb_name} where c7 > "binary" and c7 >= "binary8" or c7 < "binary9" and c7 <= "binary" and c7 != 2 and c7 <> 2 and c7 = 4 or c7 is not null and c7 between 2 and 4 and c7 not between 1 and 2 and c7 in (2,4) and c7 not in (1,2) or c7 match "binary[28]" or c7 nmatch "binary"'
         tdSql.query(query_sql)
-        tdSql.checkRows(11)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 8) if select_elm == "*" else False
         query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c7 > "binary" and c7 >= "binary8" or c7 < "binary9" and c7 <= "binary" and c7 != 2 and c7 <> 2 and c7 = 4 or c7 is not null and c7 between 2 and 4 and c7 not between 1 and 2 and c7 in (2,4) and c7 not in (1,2) or c7 match "binary[28]" or c7 nmatch "binary"'
         tdSql.query(query_sql)
-        tdSql.checkRows(11)
+        tdSql.checkRows(1)
 
     def queryNcharCol(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm

@@ -409,7 +409,7 @@ void udfdPipeCloseCb(uv_handle_t *pipe) {
 void udfdUvHandleError(SUdfdUvConn *conn) { uv_close((uv_handle_t *)conn->client, udfdPipeCloseCb); }
 
 void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-  fnDebug("udf read %zu bytes from client", nread);
+  fnDebug("udf read %zd bytes from client", nread);
   if (nread == 0) return;
 
   SUdfdUvConn *conn = client->data;

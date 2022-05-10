@@ -32,8 +32,8 @@ python3 ./test.py -f 2-query/last.py
 #python3 ./test.py -f 2-query/To_iso8601.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
-
-# python3 ./test.py -f 2-query/Timediff.py
+# python3 ./test.py -f 2-query/diff.py
+python3 ./test.py -f 2-query/Timediff.py
 #python3 ./test.py -f 2-query/cast.py
 
 
@@ -50,3 +50,4 @@ python3 ./test.py -f 2-query/tan.py
 python3 ./test.py -f 2-query/arcsin.py
 python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
+# python3 ./test.py -f 2-query/query_cols_tags_and_or.py

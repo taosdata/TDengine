@@ -252,6 +252,8 @@ SNodeptr nodesMakeNode(ENodeType type) {
       return makeNode(type, sizeof(SSortPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
       return makeNode(type, sizeof(SIntervalPhysiNode));
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+      return makeNode(type, sizeof(SStreamIntervalPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return makeNode(type, sizeof(SFillPhysiNode));
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
@@ -644,6 +646,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       break;
     }
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
