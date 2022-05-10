@@ -49,6 +49,8 @@ struct TerminateFlag : public exception {
 
 class ParserTestBaseImpl {
  public:
+  ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase) {}
+
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
@@ -156,11 +158,13 @@ class ParserTestBaseImpl {
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {
     DO_WITH_THROW(parse, pCxt, pQuery);
+    ASSERT_NE(*pQuery, nullptr);
     res_.parsedAst_ = toString((*pQuery)->pRoot);
   }
 
   void doTranslate(SParseContext* pCxt, SQuery* pQuery) {
     DO_WITH_THROW(translate, pCxt, pQuery);
+    checkQuery(pQuery, PARSER_STAGE_TRANSLATE);
     res_.translatedAst_ = toString(pQuery->pRoot);
   }
 
@@ -178,12 +182,15 @@ class ParserTestBaseImpl {
     return str;
   }
 
-  caseEnv caseEnv_;
-  stmtEnv stmtEnv_;
-  stmtRes res_;
+  void checkQuery(const SQuery* pQuery, ParserStage stage) { pBase_->checkDdl(pQuery, stage); }
+
+  caseEnv         caseEnv_;
+  stmtEnv         stmtEnv_;
+  stmtRes         res_;
+  ParserTestBase* pBase_;
 };
 
-ParserTestBase::ParserTestBase() : impl_(new ParserTestBaseImpl()) {}
+ParserTestBase::ParserTestBase() : impl_(new ParserTestBaseImpl(this)) {}
 
 ParserTestBase::~ParserTestBase() {}
 
@@ -192,5 +199,7 @@ void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { i
 void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->run(sql, expect, checkStage);
 }
+
+void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }
 
 }  // namespace ParserTest

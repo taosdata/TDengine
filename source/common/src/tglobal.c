@@ -169,6 +169,9 @@ uint32_t tsMaxRange = 500;                      // max range
 uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
+// udf
+bool     tsStartUdfd = true;
+
 // internal
 int32_t tsTransPullupInterval = 6;
 int32_t tsMqRebalanceInterval = 2;
@@ -441,6 +444,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "startUdfd", tsStartUdfd, 0) != 0) return -1;
   return 0;
 }
 
@@ -580,6 +584,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
+
+  tsStartUdfd = cfgGetItem(pCfg, "startUdfd")->bval;
 
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;

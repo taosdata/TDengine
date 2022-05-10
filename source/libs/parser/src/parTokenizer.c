@@ -214,6 +214,7 @@ static SKeyword keywordTable[] = {
     {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
     {"WITH",          TK_WITH},
     {"WRITE",         TK_WRITE},
+    {"_C0",           TK_ROWTS},
     {"_QENDTS",       TK_QENDTS},
     {"_QSTARTTS",     TK_QSTARTTS},
     {"_ROWTS",        TK_ROWTS},
@@ -590,6 +591,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       if (seg == 4) {  // ip address
         *tokenId = TK_NK_IPTOKEN;
         return i;
+      } else if (seg > 2) {
+        break;
       }
 
       if ((z[i] == 'e' || z[i] == 'E') &&

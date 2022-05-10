@@ -60,50 +60,6 @@ static int32_t cacheSearchRange_JSON(void* cache, SIndexTerm* ct, SIdxTempResult
 static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s,
                                            RangeType type);
 
-typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
-typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
-
-static TExeCond tDoCommpare(__compar_fn_t func, int8_t comType, void* a, void* b) {
-  // optime later
-  int32_t ret = func(a, b);
-  switch (comType) {
-    case QUERY_LESS_THAN: {
-      if (ret < 0) return MATCH;
-    } break;
-    case QUERY_LESS_EQUAL: {
-      if (ret <= 0) return MATCH;
-      break;
-    }
-    case QUERY_GREATER_THAN: {
-      if (ret > 0) return MATCH;
-      break;
-    }
-    case QUERY_GREATER_EQUAL: {
-      if (ret >= 0) return MATCH;
-    }
-  }
-  return CONTINUE;
-}
-static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_LESS_THAN, a, b);
-}
-static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_LESS_EQUAL, a, b);
-}
-static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_GREATER_THAN, a, b);
-}
-static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_GREATER_EQUAL, a, b);
-}
-
-static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {tCompareLessThan, tCompareLessEqual,
-                                                                    tCompareGreaterThan, tCompareGreaterEqual};
-
 static int32_t (*cacheSearch[][QUERY_MAX])(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s) = {
     {cacheSearchTerm, cacheSearchPrefix, cacheSearchSuffix, cacheSearchRegex, cacheSearchLessThan, cacheSearchLessEqual,
      cacheSearchGreaterThan, cacheSearchGreaterEqual, cacheSearchRange},
@@ -169,7 +125,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTempRes
     return 0;
   }
 
-  _cache_range_compare cmpFn = rangeCompare[type];
+  _cache_range_compare cmpFn = indexGetCompare(type);
 
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
@@ -295,7 +251,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTe
   if (cache == NULL) {
     return 0;
   }
-  _cache_range_compare cmpFn = rangeCompare[type];
+  _cache_range_compare cmpFn = indexGetCompare(type);
 
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;

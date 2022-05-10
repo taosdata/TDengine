@@ -48,4 +48,6 @@ TEST_F(PlanBasicTest, func) {
   useDb("root", "test");
 
   run("SELECT DIFF(c1) FROM t1");
+
+  run("SELECT PERCENTILE(c1, 60) FROM t1");
 }

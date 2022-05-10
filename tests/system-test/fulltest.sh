@@ -18,6 +18,7 @@ python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
 python3 ./test.py -f 2-query/join.py
+python3 ./test.py -f 2-query/cast.py
 # python3 ./test.py -f 2-query/concat.py  # after wal ,crash occured
 # python3 ./test.py -f 2-query/concat_ws.py
 
@@ -31,8 +32,8 @@ python3 ./test.py -f 2-query/last.py
 #python3 ./test.py -f 2-query/To_iso8601.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
-
-# python3 ./test.py -f 2-query/Timediff.py
+# python3 ./test.py -f 2-query/diff.py
+python3 ./test.py -f 2-query/Timediff.py
 #python3 ./test.py -f 2-query/cast.py
 
 
@@ -49,3 +50,4 @@ python3 ./test.py -f 2-query/tan.py
 python3 ./test.py -f 2-query/arcsin.py
 python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
+# python3 ./test.py -f 2-query/query_cols_tags_and_or.py

@@ -351,35 +351,26 @@ static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableData
               pTsdbReadHandle->window.ekey, pTsdbReadHandle->idStr);
   }
 }
-#if 1
-int nQUERY = 0;
-#endif
+
 static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, TSKEY winSKey, SRetention* retentions) {
   if (vnodeIsRollup(pVnode)) {
-    int level = 0;
-#if 0
+    int     level = 0;
     int64_t now = taosGetTimestamp(pVnode->config.tsdbCfg.precision);
+
     for (int i = 0; i < TSDB_RETENTION_MAX; ++i) {
-      SRetention* pRetention = retentions + i;
-      if (pRetention->keep <= 0 || (now - pRetention->keep) >= winSKey) {
+      SRetention* pRetention = retentions + level;
+      if (pRetention->keep <= 0) {
+        if (level > 0) {
+          --level;
+        }
+        break;
+      }
+      if ((now - pRetention->keep) <= winSKey) {
         break;
       }
       ++level;
     }
-#endif
-#if 1
-    switch ((nQUERY++) % 3) {
-      case 0:
-        level = 0;
-        break;
-      case 1:
-        level = 1;
-        break;
-      default:
-        level = 2;
-        break;
-    }
-#endif
+
     if (level == TSDB_RETENTION_L0) {
       tsdbDebug("%p rsma level %d is selected to query\n", pReadHandle, level);
       return VND_RSMA0(pVnode);
@@ -391,7 +382,7 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, 
       return VND_RSMA2(pVnode);
     }
   }
-  return pVnode->pTsdb;
+  return VND_TSDB(pVnode);
 }
 
 static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond* pCond, uint64_t qId, uint64_t taskId) {
@@ -3879,7 +3870,7 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
 
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
     tsdbError("%p failed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
-    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _error;
   } else {
     tsdbDebug("%p succeed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
@@ -3949,7 +3940,7 @@ int32_t tsdbGetOneTableGroup(void* pMeta, uint64_t uid, TSKEY startKey, STableGr
   metaReaderInit(&mr, (SMeta*)pMeta, 0);
 
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
-    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _error;
   }
 

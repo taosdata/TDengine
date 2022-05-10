@@ -242,7 +242,7 @@ static int32_t dmInitMgmt(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  if (dmInitTrans(pDnode) != 0) {
+  if (dmInitServer(pDnode) != 0) {
     dError("failed to init transport since %s", terrstr());
     return -1;
   }
@@ -275,7 +275,8 @@ static void dmCleanupMgmt(SMgmtWrapper *pWrapper) {
   }
   taosWUnLockLatch(&pDnode->data.latch);
 
-  dmCleanupTrans(pDnode);
+  dmCleanupClient(pDnode);
+  dmCleanupServer(pDnode);
   dInfo("dnode-mgmt is cleaned up");
 }
 

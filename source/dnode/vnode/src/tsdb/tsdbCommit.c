@@ -211,7 +211,7 @@ int tsdbCommit(STsdb *pRepo) {
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
-  TSKEY     minKey, midKey, maxKey, now;
+  TSKEY         minKey, midKey, maxKey, now;
 
   now = taosGetTimestamp(pCfg->precision);
   minKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
@@ -1386,34 +1386,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
-#if 0
-      if (update != TD_ROW_OVERWRITE_UPDATE) {
-        // copy disk data
-        for (int i = 0; i < pDataCols->numOfCols; ++i) {
-          // TODO: dataColAppendVal may fail
-          SCellVal sVal = {0};
-          if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
-            TASSERT(0);
-          }
-          tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints, pTarget->bitmapMode);
-        }
-
-        if (update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
-      }
-      if (update != TD_ROW_DISCARD_UPDATE) {
-        // copy mem data
-        if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
-          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, TD_ROW_SVER(row));
-          ASSERT(pSchema != NULL);
-        }
-
-        tdAppendSTSRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
-      }
-      ++(*iter);
-      tSkipListIterNext(pCommitIter->pIter);
-#endif
-
-      if(lastKey != key1) {
+      if (lastKey != key1) {
         lastKey = key1;
         ++pTarget->numOfRows;
       }
@@ -1485,28 +1458,3 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
 
   return false;
 }
-
-// int tsdbApplyRtn(STsdbRepo *pRepo) {
-//   SRtn       rtn;
-//   SFSIter    fsiter;
-//   STsdbFS *  pfs = REPO_FS(pRepo);
-//   SDFileSet *pSet;
-
-//   // Get retention snapshot
-//   tsdbGetRtnSnap(pRepo, &rtn);
-
-//   tsdbFSIterInit(&fsiter, pfs, TSDB_FS_ITER_FORWARD);
-//   while ((pSet = tsdbFSIterNext(&fsiter))) {
-//     if (pSet->fid < rtn.minFid) {
-//       tsdbInfo("vgId:%d FSET %d at level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
-//                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
-//       continue;
-//     }
-
-//     if (tsdbApplyRtnOnFSet(pRepo, pSet, &rtn) < 0) {
-//       return -1;
-//     }
-//   }
-
-//   return 0;
-// }
