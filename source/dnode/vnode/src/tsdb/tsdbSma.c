@@ -1943,7 +1943,6 @@ static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid
 
 int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
   if (!pStore || (taosArrayGetSize(pStore->tbUids) == 0)) {
-    tsdbDebug("vgId:%d no need to update tbUids since empty uidStore", REPO_ID(pTsdb));
     return TSDB_CODE_SUCCESS;
   }
 
