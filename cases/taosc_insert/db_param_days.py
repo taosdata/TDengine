@@ -31,10 +31,19 @@ class TestMaxrows(TDCase):
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
         self.tdSql.execute(f'drop database {dbname}')
-
         # param_list
+        param_value_list = [60, 5256000]
+        for param_value in param_value_list:
+            dbname = self.tdCom.get_long_name(length=10, mode="letters")
+            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
+            self.tdSql.query('show databases')
+            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
+            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            self.tdSql.execute(f'drop database {dbname}')
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
         
-        pass
 
 
     def run(self) -> bool:
