@@ -2527,6 +2527,10 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   int8_t op = getStateOpType(varDataVal(pCtx->param[1].param.pz));
+  if (STATE_OPER_INVALID == op) {
+    return 0;
+  }
+
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
     numOfElems++;
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
