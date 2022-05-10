@@ -27,21 +27,21 @@ static bool dmRequireNode(SMgmtWrapper *pWrapper) {
 
 static int32_t dmInitParentProc(SMgmtWrapper *pWrapper) {
   int32_t shmsize = tsMnodeShmSize;
-  if (pWrapper->ntype == VNODE) {
+  if (pWrapper->nodeType == VNODE) {
     shmsize = tsVnodeShmSize;
-  } else if (pWrapper->ntype == QNODE) {
+  } else if (pWrapper->nodeType == QNODE) {
     shmsize = tsQnodeShmSize;
-  } else if (pWrapper->ntype == SNODE) {
+  } else if (pWrapper->nodeType == SNODE) {
     shmsize = tsSnodeShmSize;
-  } else if (pWrapper->ntype == MNODE) {
+  } else if (pWrapper->nodeType == MNODE) {
     shmsize = tsMnodeShmSize;
-  } else if (pWrapper->ntype == BNODE) {
+  } else if (pWrapper->nodeType == BNODE) {
     shmsize = tsBnodeShmSize;
   } else {
     return -1;
   }
 
-  if (taosCreateShm(&pWrapper->procShm, pWrapper->ntype, shmsize) != 0) {
+  if (taosCreateShm(&pWrapper->procShm, pWrapper->nodeType, shmsize) != 0) {
     terrno = TAOS_SYSTEM_ERROR(terrno);
     dError("node:%s, failed to create shm size:%d since %s", pWrapper->name, shmsize, terrstr());
     return -1;
@@ -86,7 +86,7 @@ static int32_t dmRunParentProc(SMgmtWrapper *pWrapper) {
   if (pWrapper->pDnode->ntype == NODE_END) {
     dInfo("node:%s, should be started manually in child process", pWrapper->name);
   } else {
-    if (dmNewNodeProc(pWrapper, pWrapper->ntype) != 0) {
+    if (dmNewNodeProc(pWrapper, pWrapper->nodeType) != 0) {
       return -1;
     }
   }
@@ -149,7 +149,7 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     dInfo("node:%s, not start in parent process", pWrapper->name);
   } else if (pWrapper->procType == DND_PROC_CHILD) {
     dInfo("node:%s, start in child process", pWrapper->name);
-    if (pWrapper->ntype != DNODE) {
+    if (pWrapper->nodeType != DNODE) {
       if (pWrapper->fp.startFp != NULL && (*pWrapper->fp.startFp)(pWrapper) != 0) {
         dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
         return -1;

@@ -104,7 +104,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     pWrapper->path = strdup(path);
     pWrapper->procShm.id = -1;
     pWrapper->pDnode = pDnode;
-    pWrapper->ntype = n;
+    pWrapper->nodeType = n;
     pWrapper->procType = DND_PROC_SINGLE;
     taosInitRWLatch(&pWrapper->latch);
 

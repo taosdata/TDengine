@@ -111,7 +111,7 @@ typedef struct SMgmtWrapper {
     char        *path;
     int32_t      refCount;
     SRWLatch     latch;
-    EDndNodeType ntype;
+    EDndNodeType nodeType;
     bool         deployed;
     bool         required;
     SMgmtFp      fp;

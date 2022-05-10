@@ -163,14 +163,14 @@ static SDnodeOpt dmGetOpt() {
 
 static int32_t dmInitLog() {
   char logName[12] = {0};
-  snprintf(logName, sizeof(logName), "%slog", dmLogName(global.ntype));
+  snprintf(logName, sizeof(logName), "%slog", dmNodeLogName(global.ntype));
   return taosCreateLog(logName, 1, configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0);
 }
 
 static void dmSetProcInfo(int32_t argc, char **argv) {
   taosSetProcPath(argc, argv);
   if (global.ntype != DNODE && global.ntype != NODE_END) {
-    const char *name = dmProcName(global.ntype);
+    const char *name = dmNodeProcName(global.ntype);
     taosSetProcName(argc, argv, name);
   }
 }

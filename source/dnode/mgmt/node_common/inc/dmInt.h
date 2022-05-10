@@ -26,12 +26,13 @@ extern "C" {
 SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
-const char   *dmStatName(EDndRunStatus stat);
-const char   *dmLogName(EDndNodeType ntype);
-const char   *dmProcName(EDndNodeType ntype);
-const char   *dmEventName(EDndEvent ev);
+const char   *dmStatStr(EDndRunStatus stype);
+const char   *dmNodeLogName(EDndNodeType ntype);
+const char   *dmNodeProcName(EDndNodeType ntype);
+const char   *dmEventStr(EDndEvent etype);
+const char   *dmProcStr(EDndProcType ptype);
 
-void   dmSetStatus(SDnode *pDnode, EDndRunStatus stat);
+void   dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void   dmSetEvent(SDnode *pDnode, EDndEvent event);
 void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, int8_t vgId);
 void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
