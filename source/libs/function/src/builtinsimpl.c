@@ -184,12 +184,15 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
-  /*cleanupResultRowEntry(pResInfo);*/
 
   char* in = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
+}
+
+int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) {
+  return 0;
 }
 
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult) {

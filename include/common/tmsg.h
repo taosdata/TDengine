@@ -328,6 +328,9 @@ typedef struct {
   int8_t  alterType;
   int32_t numOfFields;
   SArray* pFields;
+  int32_t ttl;
+  int32_t commentLen;
+  char*   comment;
 } SMAlterStbReq;
 
 int32_t tSerializeSMAlterStbReq(void* buf, int32_t bufLen, SMAlterStbReq* pReq);
@@ -1455,7 +1458,7 @@ typedef struct {
 static FORCE_INLINE SMqRebInfo* tNewSMqRebSubscribe(const char* key) {
   SMqRebInfo* pRebInfo = (SMqRebInfo*)taosMemoryCalloc(1, sizeof(SMqRebInfo));
   if (pRebInfo == NULL) {
-    goto _err;
+    return NULL;
   }
   strcpy(pRebInfo->key, key);
   pRebInfo->lostConsumers = taosArrayInit(0, sizeof(int64_t));

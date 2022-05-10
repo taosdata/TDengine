@@ -782,6 +782,7 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, bool* pHasSel
     return DEAL_RES_ERROR;
   }
   strcpy(pFunc->functionName, "_select_value");
+  strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     translateFunction(pCxt, pFunc);
@@ -2540,10 +2541,18 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
   pReq->igExists = pStmt->ignoreExists;
   pReq->xFilesFactor = pStmt->pOptions->filesFactor;
   pReq->delay = pStmt->pOptions->delay;
+  pReq->ttl = pStmt->pOptions->ttl;
   columnDefNodeToField(pStmt->pCols, &pReq->pColumns);
   columnDefNodeToField(pStmt->pTags, &pReq->pTags);
   pReq->numOfColumns = LIST_LENGTH(pStmt->pCols);
   pReq->numOfTags = LIST_LENGTH(pStmt->pTags);
+  if ('\0' != pStmt->pOptions->comment[0]) {
+    pReq->comment = strdup(pStmt->pOptions->comment);
+    if (NULL == pReq->comment) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    pReq->commentLen = strlen(pStmt->pOptions->comment) + 1;
+  }
 
   SName tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), pReq->name);
@@ -2602,6 +2611,18 @@ static int32_t translateDropSuperTable(STranslateContext* pCxt, SDropSuperTableS
 }
 
 static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterReq) {
+  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType) {
+    pAlterReq->ttl = pStmt->pOptions->ttl;
+    if ('\0' != pStmt->pOptions->comment[0]) {
+      pAlterReq->comment = strdup(pStmt->pOptions->comment);
+      if (NULL == pAlterReq->comment) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      pAlterReq->commentLen = strlen(pStmt->pOptions->comment) + 1;
+    }
+    return TSDB_CODE_SUCCESS;
+  }
+
   pAlterReq->pFields = taosArrayInit(2, sizeof(TAOS_FIELD));
   if (NULL == pAlterReq->pFields) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -2614,7 +2635,7 @@ static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterR
     case TSDB_ALTER_TABLE_DROP_COLUMN:
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES: {
-      TAOS_FIELD field = {.type = pStmt->dataType.type, .bytes = pStmt->dataType.bytes};
+      TAOS_FIELD field = {.type = pStmt->dataType.type, .bytes = calcTypeBytes(pStmt->dataType)};
       strcpy(field.name, pStmt->colName);
       taosArrayPush(pAlterReq->pFields, &field);
       break;
@@ -2625,7 +2646,7 @@ static int32_t setAlterTableField(SAlterTableStmt* pStmt, SMAlterStbReq* pAlterR
       strcpy(oldField.name, pStmt->colName);
       taosArrayPush(pAlterReq->pFields, &oldField);
       TAOS_FIELD newField = {0};
-      strcpy(oldField.name, pStmt->newColName);
+      strcpy(newField.name, pStmt->newColName);
       taosArrayPush(pAlterReq->pFields, &newField);
       break;
     }
@@ -2642,7 +2663,7 @@ static int32_t translateAlterTable(STranslateContext* pCxt, SAlterTableStmt* pSt
   SName         tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), alterReq.name);
   alterReq.alterType = pStmt->alterType;
-  if (TSDB_ALTER_TABLE_UPDATE_OPTIONS == pStmt->alterType || TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType) {
+  if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == pStmt->alterType) {
     return TSDB_CODE_FAILED;
   } else {
     if (TSDB_CODE_SUCCESS != setAlterTableField(pStmt, &alterReq)) {
@@ -2929,7 +2950,6 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
   SName name;
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
   tNameGetFullDbName(&name, pReq->name);
-  /*tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->topicName, &name), pReq->name);*/
   pReq->igExists = pStmt->ignoreExists;
   pReq->withTbName = pStmt->pOptions->withTable;
   pReq->withSchema = pStmt->pOptions->withSchema;
@@ -2993,7 +3013,8 @@ static int32_t translateDropTopic(STranslateContext* pCxt, SDropTopicStmt* pStmt
   SMDropTopicReq dropReq = {0};
 
   SName name;
-  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->topicName, &name), dropReq.name);
+  tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
+  tNameGetFullDbName(&name, dropReq.name);
   dropReq.igNotExists = pStmt->ignoreNotExists;
 
   return buildCmdMsg(pCxt, TDMT_MND_DROP_TOPIC, (FSerializeFunc)tSerializeSMDropTopicReq, &dropReq);
@@ -3033,28 +3054,48 @@ static int32_t translateKillTransaction(STranslateContext* pCxt, SKillStmt* pStm
   return buildCmdMsg(pCxt, TDMT_MND_KILL_TRANS, (FSerializeFunc)tSerializeSKillTransReq, &killReq);
 }
 
-static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
-  SCMCreateStreamReq createReq = {0};
+static int32_t checkCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  if (NULL == pStmt->pQuery) {
+    return TSDB_CODE_SUCCESS;
+  }
 
-  createReq.igExists = pStmt->ignoreExists;
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt->pQuery)) {
+    SSelectStmt* pSelect = (SSelectStmt*)pStmt->pQuery;
+    if (QUERY_NODE_REAL_TABLE == nodeType(pSelect->pFromTable)) {
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+
+  return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_STREAM_QUERY);
+}
+
+static void getSourceDatabase(SNode* pStmt, int32_t acctId, char* pDbFName) {
+  SName name = {.type = TSDB_DB_NAME_T, .acctId = acctId};
+  strcpy(name.dbname, ((SRealTableNode*)(((SSelectStmt*)pStmt)->pFromTable))->table.dbName);
+  tNameGetFullDbName(&name, pDbFName);
+}
+
+static int32_t buildCreateStreamReq(STranslateContext* pCxt, SCreateStreamStmt* pStmt, SCMCreateStreamReq* pReq) {
+  pReq->igExists = pStmt->ignoreExists;
 
   SName name;
-  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->streamName, &name), createReq.name);
+  tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pCxt->pParseCxt->db, pStmt->streamName, &name), pReq->name);
 
   if ('\0' != pStmt->targetTabName[0]) {
     strcpy(name.dbname, pStmt->targetDbName);
     strcpy(name.tname, pStmt->targetTabName);
-    tNameExtractFullName(&name, createReq.targetStbFullName);
+    tNameExtractFullName(&name, pReq->targetStbFullName);
   }
 
   int32_t code = translateQuery(pCxt, pStmt->pQuery);
   if (TSDB_CODE_SUCCESS == code) {
-    code = nodesNodeToString(pStmt->pQuery, false, &createReq.ast, NULL);
+    getSourceDatabase(pStmt->pQuery, pCxt->pParseCxt->acctId, pReq->sourceDB);
+    code = nodesNodeToString(pStmt->pQuery, false, &pReq->ast, NULL);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    createReq.sql = strdup(pCxt->pParseCxt->pSql);
-    if (NULL == createReq.sql) {
+    pReq->sql = strdup(pCxt->pParseCxt->pSql);
+    if (NULL == pReq->sql) {
       code = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
@@ -3064,11 +3105,20 @@ static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt*
                                                                                               : TSDB_CODE_SUCCESS;
   }
   if (TSDB_CODE_SUCCESS == code) {
-    createReq.triggerType = pStmt->pOptions->triggerType;
-    createReq.watermark =
-        (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
+    pReq->triggerType = pStmt->pOptions->triggerType;
+    pReq->watermark = (NULL != pStmt->pOptions->pWatermark ? ((SValueNode*)pStmt->pOptions->pWatermark)->datum.i : 0);
   }
 
+  return code;
+}
+
+static int32_t translateCreateStream(STranslateContext* pCxt, SCreateStreamStmt* pStmt) {
+  SCMCreateStreamReq createReq = {0};
+
+  int32_t code = checkCreateStream(pCxt, pStmt);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCreateStreamReq(pCxt, pStmt, &createReq);
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCmdMsg(pCxt, TDMT_MND_CREATE_STREAM, (FSerializeFunc)tSerializeSCMCreateStreamReq, &createReq);
   }
@@ -3166,7 +3216,7 @@ static int32_t translateRevoke(STranslateContext* pCxt, SRevokeStmt* pStmt) {
     req.alterType = TSDB_ALTER_USER_REMOVE_WRITE_DB;
   }
   strcpy(req.user, pStmt->userName);
-  strcpy(req.dbname, pStmt->dbName);
+  sprintf(req.dbname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->dbName);
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
 }
 

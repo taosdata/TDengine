@@ -70,6 +70,11 @@
 ./test.sh -f tsim/tmq/basic2.sim
 ./test.sh -f tsim/tmq/basic3.sim
 ./test.sh -f tsim/tmq/basic4.sim
+./test.sh -f tsim/tmq/basic1Of2Cons.sim
+./test.sh -f tsim/tmq/basic2Of2Cons.sim
+./test.sh -f tsim/tmq/basic3Of2Cons.sim
+./test.sh -f tsim/tmq/basic4Of2Cons.sim
+./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
