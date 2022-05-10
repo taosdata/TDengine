@@ -459,7 +459,7 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_READ_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB) {
-    if (strcmp(alterReq.dbname, "*") != 0) {
+    if (strcmp(alterReq.dbname, "1.*") != 0) {
       int32_t len = strlen(alterReq.dbname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
       if (pDb == NULL) {
@@ -483,7 +483,7 @@ static int32_t mndProcessAlterUserReq(SNodeMsg *pReq) {
   }
 
   if (alterReq.alterType == TSDB_ALTER_USER_ADD_WRITE_DB || alterReq.alterType == TSDB_ALTER_USER_ADD_ALL_DB) {
-    if (strcmp(alterReq.dbname, "*") != 0) {
+    if (strcmp(alterReq.dbname, "1.*") != 0) {
       int32_t len = strlen(alterReq.dbname) + 1;
       SDbObj *pDb = mndAcquireDb(pMnode, alterReq.dbname);
       if (pDb == NULL) {
