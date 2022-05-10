@@ -23,34 +23,34 @@
 #pragma GCC diagnostic ignored "-Wsign-compare"
 #include "os.h"
 
-#include "tglobal.h"
+#include "executor.h"
 #include "executorimpl.h"
 #include "function.h"
-#include "taos.h"
-#include "tdef.h"
-#include "tvariant.h"
-#include "tdatablock.h"
-#include "trpc.h"
 #include "stub.h"
-#include "executor.h"
+#include "taos.h"
+#include "tdatablock.h"
+#include "tdef.h"
+#include "tglobal.h"
 #include "tmsg.h"
 #include "tname.h"
+#include "trpc.h"
+#include "tvariant.h"
 
 namespace {
 
 enum {
   data_rand = 0x1,
-  data_asc  = 0x2,
+  data_asc = 0x2,
   data_desc = 0x3,
 };
 
 typedef struct SDummyInputInfo {
-  int32_t      totalPages;     // numOfPages
+  int32_t      totalPages;  // numOfPages
   int32_t      current;
   int32_t      startVal;
   int32_t      type;
   int32_t      numOfRowsPerPage;
-  int32_t      numOfCols;      // number of columns
+  int32_t      numOfCols;  // number of columns
   int64_t      tsStart;
   SSDataBlock* pBlock;
 } SDummyInputInfo;
@@ -75,26 +75,26 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
-//    SColumnInfoData colInfo1 = {0};
-//    colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
-//    colInfo1.info.bytes = 40;
-//    colInfo1.info.colId = 2;
-//
-//    colInfo1.varmeta.allocLen = 0;//numOfRows * sizeof(int32_t);
-//    colInfo1.varmeta.length = 0;
-//    colInfo1.varmeta.offset = static_cast<int32_t*>(taosMemoryCalloc(1, numOfRows * sizeof(int32_t)));
-//
-//    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
+    //    SColumnInfoData colInfo1 = {0};
+    //    colInfo1.info.type = TSDB_DATA_TYPE_BINARY;
+    //    colInfo1.info.bytes = 40;
+    //    colInfo1.info.colId = 2;
+    //
+    //    colInfo1.varmeta.allocLen = 0;//numOfRows * sizeof(int32_t);
+    //    colInfo1.varmeta.length = 0;
+    //    colInfo1.varmeta.offset = static_cast<int32_t*>(taosMemoryCalloc(1, numOfRows * sizeof(int32_t)));
+    //
+    //    taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo1);
   } else {
     blockDataCleanup(pInfo->pBlock);
   }
 
   SSDataBlock* pBlock = pInfo->pBlock;
 
-  char buf[128] = {0};
-  char b1[128] = {0};
+  char    buf[128] = {0};
+  char    b1[128] = {0};
   int32_t v = 0;
-  for(int32_t i = 0; i < pInfo->numOfRowsPerPage; ++i) {
+  for (int32_t i = 0; i < pInfo->numOfRowsPerPage; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
     if (pInfo->type == data_desc) {
@@ -107,11 +107,11 @@ SSDataBlock* getDummyBlock(SOperatorInfo* pOperator) {
 
     colDataAppend(pColInfo, i, reinterpret_cast<const char*>(&v), false);
 
-//    sprintf(buf, "this is %d row", i);
-//    STR_TO_VARSTR(b1, buf);
-//
-//    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
-//    colDataAppend(pColInfo2, i, b1, false);
+    //    sprintf(buf, "this is %d row", i);
+    //    STR_TO_VARSTR(b1, buf);
+    //
+    //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
+    //    colDataAppend(pColInfo2, i, b1, false);
   }
 
   pBlock->info.rows = pInfo->numOfRowsPerPage;
@@ -137,7 +137,7 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
     colInfo.info.bytes = sizeof(int64_t);
     colInfo.info.colId = 1;
     colInfo.pData = static_cast<char*>(taosMemoryCalloc(pInfo->numOfRowsPerPage, sizeof(int64_t)));
-//    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
+    //    colInfo.nullbitmap = static_cast<char*>(taosMemoryCalloc(1, (pInfo->numOfRowsPerPage + 7) / 8));
 
     taosArrayPush(pInfo->pBlock->pDataBlock, &colInfo);
 
@@ -156,11 +156,11 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
 
   SSDataBlock* pBlock = pInfo->pBlock;
 
-  char buf[128] = {0};
-  char b1[128] = {0};
+  char    buf[128] = {0};
+  char    b1[128] = {0};
   int64_t ts = 0;
-  int32_t v  = 0;
-  for(int32_t i = 0; i < pInfo->numOfRowsPerPage; ++i) {
+  int32_t v = 0;
+  for (int32_t i = 0; i < pInfo->numOfRowsPerPage; ++i) {
     SColumnInfoData* pColInfo = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 0));
 
     ts = (++pInfo->tsStart);
@@ -177,11 +177,11 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
 
     colDataAppend(pColInfo1, i, reinterpret_cast<const char*>(&v), false);
 
-//    sprintf(buf, "this is %d row", i);
-//    STR_TO_VARSTR(b1, buf);
-//
-//    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
-//    colDataAppend(pColInfo2, i, b1, false);
+    //    sprintf(buf, "this is %d row", i);
+    //    STR_TO_VARSTR(b1, buf);
+    //
+    //    SColumnInfoData* pColInfo2 = static_cast<SColumnInfoData*>(TARRAY_GET_ELEM(pBlock->pDataBlock, 1));
+    //    colDataAppend(pColInfo2, i, b1, false);
   }
 
   pBlock->info.rows = pInfo->numOfRowsPerPage;
@@ -191,10 +191,10 @@ SSDataBlock* get2ColsDummyBlock(SOperatorInfo* pOperator) {
 
   blockDataUpdateTsWindow(pBlock);
   return pBlock;
-
 }
 
-SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type, int32_t numOfCols) {
+SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_t rowsPerPage, int32_t type,
+                                   int32_t numOfCols) {
   SOperatorInfo* pOperator = static_cast<SOperatorInfo*>(taosMemoryCalloc(1, sizeof(SOperatorInfo)));
   pOperator->name = "dummyInputOpertor4Test";
 
@@ -204,24 +204,25 @@ SOperatorInfo* createDummyOperator(int32_t startVal, int32_t numOfBlocks, int32_
     pOperator->fpSet.getNextFn = get2ColsDummyBlock;
   }
 
-  SDummyInputInfo *pInfo = (SDummyInputInfo*) taosMemoryCalloc(1, sizeof(SDummyInputInfo));
+  SDummyInputInfo* pInfo = (SDummyInputInfo*)taosMemoryCalloc(1, sizeof(SDummyInputInfo));
   pInfo->totalPages = numOfBlocks;
-  pInfo->startVal   = startVal;
+  pInfo->startVal = startVal;
   pInfo->numOfRowsPerPage = rowsPerPage;
-  pInfo->type       = type;
-  pInfo->tsStart    = 1620000000000;
+  pInfo->type = type;
+  pInfo->tsStart = 1620000000000;
 
   pOperator->info = pInfo;
   return pOperator;
 }
-}
+}  // namespace
 int main(int argc, char** argv) {
   testing::InitGoogleTest(&argc, argv);
   return RUN_ALL_TESTS();
 }
 
 TEST(testCase, build_executor_tree_Test) {
-  const char* msg = "{\n"
+  const char* msg =
+      "{\n"
       "    \"NodeType\": \"48\",\n"
       "    \"Name\": \"PhysiSubplan\",\n"
       "    \"PhysiSubplan\": {\n"
@@ -938,16 +939,19 @@ TEST(testCase, build_executor_tree_Test) {
 
   SExecTaskInfo* pTaskInfo = nullptr;
   DataSinkHandle sinkHandle = nullptr;
-  SReadHandle handle = { reinterpret_cast<void*>(0x1), reinterpret_cast<void*>(0x1), NULL };
+  SReadHandle    handle = {reinterpret_cast<void*>(0x1), reinterpret_cast<void*>(0x1), NULL};
 
-  struct SSubplan *plan = NULL;
-  int32_t code = qStringToSubplan(msg, &plan);
+  struct SSubplan* plan = NULL;
+  int32_t          code = qStringToSubplan(msg, &plan);
   ASSERT_EQ(code, 0);
 
-  code = qCreateExecTask(&handle, 2, 1, plan, (void**) &pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
+  code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
   ASSERT_EQ(code, 0);
 }
-
+TEST(testCase, index_plan_test) {
+  // add later
+  EXPECT_EQ(0, 0);
+}
 #if 0
 
 TEST(testCase, inMem_sort_Test) {
@@ -983,19 +987,19 @@ TEST(testCase, inMem_sort_Test) {
 
 typedef struct su {
   int32_t v;
-  char   *c;
+  char*   c;
 } su;
 
 int32_t cmp(const void* p1, const void* p2) {
-  su* v1 = (su*) p1;
-  su* v2 = (su*) p2;
+  su* v1 = (su*)p1;
+  su* v2 = (su*)p2;
 
-  int32_t x1 = *(int32_t*) v1->c;
-  int32_t x2 = *(int32_t*) v2->c;
+  int32_t x1 = *(int32_t*)v1->c;
+  int32_t x2 = *(int32_t*)v2->c;
   if (x1 == x2) {
     return 0;
   } else {
-    return x1 < x2? -1:1;
+    return x1 < x2 ? -1 : 1;
   }
 }
 

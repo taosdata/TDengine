@@ -334,7 +334,12 @@ static int32_t tfSearchCompareFunc(void* reader, SIndexTerm* tem, SIdxTempResult
   while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
     FstSlice* s = &rt->data;
     char*     ch = (char*)fstSliceData(s, NULL);
-    TExeCond  cond = cmpFn(ch, p, tem->colType);
+    // if (0 != strncmp(ch, tem->colName, tem->nColName)) {
+    //  swsResultDestroy(rt);
+    //  break;
+    //}
+
+    TExeCond cond = cmpFn(ch, p, tem->colType);
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
@@ -455,16 +460,22 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
   AutomationCtx*    ctx = automCtxCreate((void*)p, AUTOMATION_PREFIX);
   FstStreamBuilder* sb = fstSearch(((TFileReader*)reader)->fst, ctx);
 
-  FstSlice h = fstSliceCreate((uint8_t*)p, skip);
-  fstStreamBuilderSetRange(sb, &h, ctype);
-  fstSliceDestroy(&h);
+  // FstSlice h = fstSliceCreate((uint8_t*)p, skip);
+  // fstStreamBuilderSetRange(sb, &h, ctype);
+  // fstSliceDestroy(&h);
 
   StreamWithState*       st = streamBuilderIntoStream(sb);
   StreamWithStateResult* rt = NULL;
   while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
     FstSlice* s = &rt->data;
-    char*     ch = (char*)fstSliceData(s, NULL);
-    TExeCond  cond = cmpFn(ch, p, tem->colType);
+
+    char* ch = (char*)fstSliceData(s, NULL);
+    if (0 != strncmp(ch, p, skip)) {
+      swsResultDestroy(rt);
+      break;
+    }
+
+    TExeCond cond = cmpFn(ch + skip, tem->colVal, tem->colType);
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
@@ -594,13 +605,16 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     if (tfileWriteData(tw, v) != 0) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
+      // printf("write faile\n");
     } else {
+      // printf("write sucee\n");
       // indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
       //          (int)taosArrayGetSize(v->tableId));
 
       // indexInfo("tfile write data size: %d", tw->ctx->size(tw->ctx));
     }
   }
+
   fstBuilderFinish(tw->fb);
   fstBuilderDestroy(tw->fb);
   tw->fb = NULL;
@@ -845,18 +859,24 @@ static int tfileWriteData(TFileWriter* write, TFileValue* tval) {
   uint8_t      colType = header->colType;
 
   colType = INDEX_TYPE_GET_TYPE(colType);
-  if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
-    FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
-    if (fstBuilderInsert(write->fb, key, tval->offset)) {
-      fstSliceDestroy(&key);
-      return 0;
-    }
+  FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
+  if (fstBuilderInsert(write->fb, key, tval->offset)) {
     fstSliceDestroy(&key);
-    return -1;
-  } else {
-    // handle other type later
+    return 0;
   }
-  return 0;
+  return -1;
+
+  // if (colType == TSDB_DATA_TYPE_BINARY || colType == TSDB_DATA_TYPE_NCHAR) {
+  //  FstSlice key = fstSliceCreate((uint8_t*)(tval->colVal), (size_t)strlen(tval->colVal));
+  //  if (fstBuilderInsert(write->fb, key, tval->offset)) {
+  //    fstSliceDestroy(&key);
+  //    return 0;
+  //  }
+  //  fstSliceDestroy(&key);
+  //  return -1;
+  //} else {
+  //  // handle other type later
+  //}
 }
 static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(tfileMagicNumber) + 1] = {0};
@@ -913,8 +933,9 @@ static int tfileReaderLoadFst(TFileReader* reader) {
 static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* result) {
   // TODO(yihao): opt later
   WriterCtx* ctx = reader->ctx;
-  char       block[1024] = {0};
-  int32_t    nread = ctx->readFrom(ctx, block, sizeof(block), offset);
+  // add block cache
+  char    block[1024] = {0};
+  int32_t nread = ctx->readFrom(ctx, block, sizeof(block), offset);
   assert(nread >= sizeof(uint32_t));
 
   char*   p = block;
