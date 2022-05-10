@@ -1,10 +1,10 @@
 aux_source_directory(src DNODE_INTERFACE)
-add_library(dnode_interface STATIC ${DNODE_INTERFACE})
+add_library(node_common STATIC ${DNODE_INTERFACE})
 target_include_directories(
-    dnode_interface
+    node_common
     PUBLIC "${TD_SOURCE_DIR}/include/dnode/mgmt"
     PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    dnode_interface cjson mnode vnode qnode snode bnode wal sync taos_static tfs monitor
+    node_common cjson mnode vnode qnode snode bnode wal sync taos_static tfs monitor
 )

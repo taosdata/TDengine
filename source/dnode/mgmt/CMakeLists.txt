@@ -1,5 +1,5 @@
-add_subdirectory(interface)
-add_subdirectory(implement)
+add_subdirectory(node_mgmt)
+add_subdirectory(node_common)
 add_subdirectory(mgmt_bnode)
 add_subdirectory(mgmt_mnode)
 add_subdirectory(mgmt_qnode)
@@ -11,6 +11,6 @@ aux_source_directory(exe EXEC_SRC)
 add_executable(taosd ${EXEC_SRC})
 target_include_directories(
     taosd
-    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/implement/inc"
+    PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/node_mgmt/inc"
 )
 target_link_libraries(taosd dnode)
