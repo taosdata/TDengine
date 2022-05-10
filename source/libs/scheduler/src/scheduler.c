@@ -1135,7 +1135,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
     case TDMT_VND_SUBMIT_RSP: {
       if (msg) {
         SSubmitRsp *rsp = (SSubmitRsp *)msg;
-        SCH_ERR_JRET(rsp->code);
+        // SCH_ERR_JRET(rsp->code);
       }
 
       SCH_ERR_JRET(rspCode);
