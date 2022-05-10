@@ -366,8 +366,8 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   }
 #endif
   // Loop to commit each table data in mem and file
-  int     mIter = 0, fIter = 0;
-  int32_t nBlkIdx = taosArrayGetSize(pCommith->readh.aBlkIdx);
+  int mIter = 0, fIter = 0;
+  int nBlkIdx = taosArrayGetSize(pCommith->readh.aBlkIdx);
 
   while (true) {
     SBlockIdx   *pIdx = NULL;
