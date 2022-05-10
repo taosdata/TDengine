@@ -60,7 +60,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
   if (code != 0) {
     int32_t err = terrno;
     const char *errStr = tstrerror(err);
-    sError("walWriteWithSyncInfo error, err:%d, msg:%s", err, errStr);
+    sError("walWriteWithSyncInfo error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, errno, strerror(errno));
     ASSERT(0);
   }    
   //assert(code == 0);
@@ -79,7 +79,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
     if (code != 0) {
       int32_t err = terrno;
       const char *errStr = tstrerror(err);
-      sError("walReadWithHandle error, err:%d, msg:%s", err, errStr);
+      sError("walWriteWithSyncInfo error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, errno, strerror(errno));
       ASSERT(0);
     }    
     //assert(walReadWithHandle(pWalHandle, index) == 0);
@@ -108,7 +108,14 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  assert(walRollback(pWal, fromIndex) == 0);
+  //assert(walRollback(pWal, fromIndex) == 0);
+  int32_t code = walRollback(pWal, fromIndex);
+  if (code != 0) {
+    int32_t err = terrno;
+    const char *errStr = tstrerror(err);
+    sError("walRollback error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, errno, strerror(errno));
+    ASSERT(0);
+  } 
   return 0;  // to avoid compiler error
 }
 
@@ -132,7 +139,14 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  assert(walCommit(pWal, index) == 0);
+  //assert(walCommit(pWal, index) == 0);
+  int32_t code = walCommit(pWal, index);
+  if (code != 0) {
+    int32_t err = terrno;
+    const char *errStr = tstrerror(err);
+    sError("walCommit error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, errno, strerror(errno));
+    ASSERT(0);
+  } 
   return 0;  // to avoid compiler error
 }
 
