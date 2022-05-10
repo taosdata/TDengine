@@ -83,17 +83,20 @@ class TDTestCase:
         tdSql.query("select diff(col6) from stb_1")
         tdSql.checkRows(0)
 
+        tdSql.query("select diff(col7) from stb_1")
+        tdSql.checkRows(0)
+
         for i in range(self.rowNum):
             tdSql.execute("insert into stb_1 values(%d, %d, %d, %d, %d, %f, %f, %d, 'taosdata%d', '涛思数据%d', %d, %d, %d, %d)" 
                         % (self.ts + i, i + 1, i + 1, i + 1, i + 1, i + 0.1, i + 0.1, i % 2, i + 1, i + 1, i + 1, i + 1, i + 1, i + 1))                                
         
-        tdSql.error("select diff(ts) from stb")
+        # tdSql.error("select diff(ts) from stb")
         tdSql.error("select diff(ts) from stb_1")
-        tdSql.error("select diff(col7) from stb")     
-        tdSql.error("select diff(col7) from stb_1")               
-        tdSql.error("select diff(col8) from stb") 
+        # tdSql.error("select diff(col7) from stb")     
+                       
+        # tdSql.error("select diff(col8) from stb") 
         tdSql.error("select diff(col8) from stb_1")
-        tdSql.error("select diff(col9) from stb")        
+        # tdSql.error("select diff(col9) from stb")        
         tdSql.error("select diff(col9) from stb_1")
         tdSql.error("select diff(col11) from stb_1")
         tdSql.error("select diff(col12) from stb_1")
@@ -101,31 +104,12 @@ class TDTestCase:
         tdSql.error("select diff(col14) from stb_1")
 
         tdSql.query("select ts,diff(col1),ts from stb_1")
-        tdSql.checkRows(10)
+        tdSql.checkRows(11)
         tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
-        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
-        tdSql.checkData(0, 3, "2018-09-17 09:00:00.000")
+        tdSql.checkData(1, 0, "2018-09-17 09:00:00.000")
+        tdSql.checkData(1, 2, "2018-09-17 09:00:00.000")
         tdSql.checkData(9, 0, "2018-09-17 09:00:00.009")
-        tdSql.checkData(9, 1, "2018-09-17 09:00:00.009")
-        tdSql.checkData(9, 3, "2018-09-17 09:00:00.009")
-
-        # tdSql.query("select ts,diff(col1),ts from stb group by tbname")
-        # tdSql.checkRows(10)
-        # tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
-        # tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
-        # tdSql.checkData(0, 3, "2018-09-17 09:00:00.000")
-        # tdSql.checkData(9, 0, "2018-09-17 09:00:00.009")
-        # tdSql.checkData(9, 1, "2018-09-17 09:00:00.009")
-        # tdSql.checkData(9, 3, "2018-09-17 09:00:00.009")
-
-        tdSql.query("select ts,diff(col1),ts from stb_1")
-        tdSql.checkRows(10)
-        tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
-        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
-        tdSql.checkData(0, 3, "2018-09-17 09:00:00.000")
-        tdSql.checkData(9, 0, "2018-09-17 09:00:00.009")
-        tdSql.checkData(9, 1, "2018-09-17 09:00:00.009")
-        tdSql.checkData(9, 3, "2018-09-17 09:00:00.009")
+        tdSql.checkData(9, 2, "2018-09-17 09:00:00.009")
 
         # tdSql.query("select ts,diff(col1),ts from stb group by tbname")
         # tdSql.checkRows(10)
@@ -153,15 +137,6 @@ class TDTestCase:
 
         tdSql.query("select diff(col6) from stb_1")
         tdSql.checkRows(10)
-
-        self.insertData()
-
-        tdSql.query("select diff(col) from st group by tbname")
-        tdSql.checkRows(185)
-
-        tdSql.error("select diff(col) from st group by dev")        
-
-        tdSql.error("select diff(col) from st group by col")
         
     def stop(self):
         tdSql.close()
