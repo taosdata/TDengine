@@ -145,11 +145,11 @@ pipeline {
             timeout(time: 45, unit: 'MINUTES'){
               pre_test()
               sh '''
-                  cd ${WKC}/debug
+                  cd ${WK}/debug
                   ctest -VV
               '''
               sh '''
-                  export LD_LIBRARY_PATH=${WKC}/debug/build/lib
+                  export LD_LIBRARY_PATH=${WK}/debug/build/lib
                   cd ${WKC}/tests/system-test
                   ./fulltest.sh
               '''
