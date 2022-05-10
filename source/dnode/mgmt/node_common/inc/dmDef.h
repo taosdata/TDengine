@@ -80,13 +80,13 @@ typedef enum {
 } EDndProcType;
 
 typedef int32_t (*NodeMsgFp)(struct SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-typedef int32_t (*OpenNodeFp)(struct SMgmtWrapper *pWrapper);
-typedef void (*CloseNodeFp)(struct SMgmtWrapper *pWrapper);
-typedef int32_t (*StartNodeFp)(struct SMgmtWrapper *pWrapper);
-typedef void (*StopNodeFp)(struct SMgmtWrapper *pWrapper);
-typedef int32_t (*CreateNodeFp)(struct SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-typedef int32_t (*DropNodeFp)(struct SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-typedef int32_t (*RequireNodeFp)(struct SMgmtWrapper *pWrapper, bool *required);
+typedef int32_t (*NodeOpenFp)(struct SMgmtWrapper *pWrapper);
+typedef void (*NodeCloseFp)(struct SMgmtWrapper *pWrapper);
+typedef int32_t (*NodeStartFp)(struct SMgmtWrapper *pWrapper);
+typedef void (*NodeStopFp)(struct SMgmtWrapper *pWrapper);
+typedef int32_t (*NodeCreateFp)(struct SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+typedef int32_t (*NodeDropFp)(struct SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+typedef int32_t (*NodeRequireFp)(struct SMgmtWrapper *pWrapper, bool *required);
 
 typedef struct {
   EDndNodeType defaultNtype;
@@ -94,13 +94,13 @@ typedef struct {
 } SMsgHandle;
 
 typedef struct {
-  OpenNodeFp    openFp;
-  CloseNodeFp   closeFp;
-  StartNodeFp   startFp;
-  StopNodeFp    stopFp;
-  CreateNodeFp  createFp;
-  DropNodeFp    dropFp;
-  RequireNodeFp requiredFp;
+  NodeOpenFp    openFp;
+  NodeCloseFp   closeFp;
+  NodeStartFp   startFp;
+  NodeStopFp    stopFp;
+  NodeCreateFp  createFp;
+  NodeDropFp    dropFp;
+  NodeRequireFp requiredFp;
 } SMgmtFp;
 
 typedef struct SMgmtWrapper {

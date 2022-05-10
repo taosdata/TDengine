@@ -77,7 +77,7 @@ static int32_t qmOpen(SMgmtWrapper *pWrapper) {
   return 0;
 }
 
-void qmSetMgmtFp(SMgmtWrapper *pWrapper) {
+void qmInitWrapper(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = qmOpen;
   mgmtFp.closeFp = qmClose;

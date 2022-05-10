@@ -295,7 +295,7 @@ static int32_t dmRequireMgmt(SMgmtWrapper *pWrapper, bool *required) {
   return 0;
 }
 
-void dmSetMgmtFp(SMgmtWrapper *pWrapper) {
+void dmInitWrapper(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = dmInitMgmt;
   mgmtFp.closeFp = dmCleanupMgmt;

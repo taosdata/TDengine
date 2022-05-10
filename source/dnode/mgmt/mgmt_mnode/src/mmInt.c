@@ -209,7 +209,7 @@ static void mmStop(SMgmtWrapper *pWrapper) {
   }
 }
 
-void mmSetMgmtFp(SMgmtWrapper *pWrapper) {
+void mmInitWrapper(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = mmOpen;
   mgmtFp.closeFp = mmClose;

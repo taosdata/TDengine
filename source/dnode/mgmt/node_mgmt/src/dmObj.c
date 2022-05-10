@@ -91,12 +91,12 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
   }
 
   dmSetStatus(pDnode, DND_STAT_INIT);
-  dmSetMgmtFp(&pDnode->wrappers[DNODE]);
-  mmSetMgmtFp(&pDnode->wrappers[MNODE]);
-  vmSetMgmtFp(&pDnode->wrappers[VNODE]);
-  qmSetMgmtFp(&pDnode->wrappers[QNODE]);
-  smSetMgmtFp(&pDnode->wrappers[SNODE]);
-  bmSetMgmtFp(&pDnode->wrappers[BNODE]);
+  dmInitWrapper(&pDnode->wrappers[DNODE]);
+  mmInitWrapper(&pDnode->wrappers[MNODE]);
+  vmInitWrapper(&pDnode->wrappers[VNODE]);
+  qmInitWrapper(&pDnode->wrappers[QNODE]);
+  smInitWrapper(&pDnode->wrappers[SNODE]);
+  bmInitWrapper(&pDnode->wrappers[BNODE]);
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];

@@ -371,7 +371,7 @@ static void vmStop(SMgmtWrapper *pWrapper) {
   // process inside the vnode
 }
 
-void vmSetMgmtFp(SMgmtWrapper *pWrapper) {
+void vmInitWrapper(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = vmInit;
   mgmtFp.closeFp = vmCleanup;

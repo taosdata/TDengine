@@ -65,12 +65,12 @@ int32_t dmProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 int32_t dmProcessStatusMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 // mgmt nodes
-void dmSetMgmtFp(SMgmtWrapper *pWrapper);
-void bmSetMgmtFp(SMgmtWrapper *pWrapper);
-void qmSetMgmtFp(SMgmtWrapper *pWrapper);
-void smSetMgmtFp(SMgmtWrapper *pWrapper);
-void vmSetMgmtFp(SMgmtWrapper *pWrapper);
-void mmSetMgmtFp(SMgmtWrapper *pWrapper);
+void dmInitWrapper(SMgmtWrapper *pWrapper);
+void bmInitWrapper(SMgmtWrapper *pWrapper);
+void qmInitWrapper(SMgmtWrapper *pWrapper);
+void smInitWrapper(SMgmtWrapper *pWrapper);
+void vmInitWrapper(SMgmtWrapper *pWrapper);
+void mmInitWrapper(SMgmtWrapper *pWrapper);
 
 void vmGetVnodeLoads(SMgmtWrapper *pWrapper, SMonVloadInfo *pInfo);
 void mmGetMnodeLoads(SMgmtWrapper *pWrapper, SMonMloadInfo *pInfo);

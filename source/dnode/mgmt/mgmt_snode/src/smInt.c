@@ -79,7 +79,7 @@ int32_t smOpen(SMgmtWrapper *pWrapper) {
   return 0;
 }
 
-void smSetMgmtFp(SMgmtWrapper *pWrapper) {
+void smInitWrapper(SMgmtWrapper *pWrapper) {
   SMgmtFp mgmtFp = {0};
   mgmtFp.openFp = smOpen;
   mgmtFp.closeFp = smClose;
