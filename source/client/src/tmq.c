@@ -1307,8 +1307,15 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t wait_time) {
 }
 
 tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) {
-  // TODO
-  return TMQ_RESP_ERR__SUCCESS;
+  tmq_list_t*    lst = tmq_list_new();
+  tmq_resp_err_t rsp = tmq_subscribe(tmq, lst);
+  tmq_list_destroy(lst);
+  if (rsp == TMQ_RESP_ERR__SUCCESS) {
+    // TODO: free resources
+    return TMQ_RESP_ERR__SUCCESS;
+  } else {
+    return TMQ_RESP_ERR__FAIL;
+  }
 }
 
 const char* tmq_err2str(tmq_resp_err_t err) {

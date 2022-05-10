@@ -684,6 +684,9 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
       if (pOldConsumer->status == MQ_CONSUMER_STATUS__MODIFY ||
           pOldConsumer->status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
         pOldConsumer->status = MQ_CONSUMER_STATUS__READY;
+        // TODO: remove
+        /*if (taosArrayGetSize(pOldConsumer->assignedTopics) == 0) {*/
+        /*}*/
       } else if (pOldConsumer->status == MQ_CONSUMER_STATUS__LOST_IN_REB ||
                  pOldConsumer->status == MQ_CONSUMER_STATUS__LOST) {
         pOldConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
@@ -789,6 +792,10 @@ static int32_t mndRetrieveConsumer(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) break;
+    if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
+      sdbRelease(pSdb, pConsumer);
+      continue;
+    }
 
     taosRLockLatch(&pConsumer->lock);
 
@@ -810,12 +817,12 @@ static int32_t mndRetrieveConsumer(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock 
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->consumerId, false);
 
-      // group id
-      char groupId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-      tstrncpy(varDataVal(groupId), pConsumer->cgroup, TSDB_CGROUP_LEN);
-      varDataSetLen(groupId, strlen(varDataVal(groupId)));
+      // consumer group
+      char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+      tstrncpy(varDataVal(cgroup), pConsumer->cgroup, TSDB_CGROUP_LEN);
+      varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)groupId, false);
+      colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
 
       // app id
       char appId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
