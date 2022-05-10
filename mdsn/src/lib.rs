@@ -250,6 +250,30 @@ impl Dsn {
     }
 }
 
+impl TryFrom<&str> for Dsn {
+    type Error = DsnError;
+
+    fn try_from(value: &str) -> Result<Self, Self::Error> {
+        Dsn::from_str(value)
+    }
+}
+
+impl TryFrom<&String> for Dsn {
+    type Error = DsnError;
+
+    fn try_from(value: &String) -> Result<Self, Self::Error> {
+        Dsn::from_str(value)
+    }
+}
+
+impl TryFrom<String> for Dsn {
+    type Error = DsnError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Dsn::from_str(&value)
+    }
+}
+
 impl FromStr for Dsn {
     type Err = DsnError;
 
@@ -494,14 +518,17 @@ fn username_with_host() {
 
 #[test]
 fn username_with_multi_addresses() {
-    let s = "taos://root@host1:6030,host2:6031";
+    let s = "taos://root@host1.domain:6030,host2.domain:6031";
     let dsn = Dsn::from_str(&s).unwrap();
     assert_eq!(
         dsn,
         Dsn {
             driver: "taos".to_string(),
             username: Some("root".to_string()),
-            addresses: vec![Address::new("host1", 6030), Address::new("host2", 6031)],
+            addresses: vec![
+                Address::new("host1.domain", 6030),
+                Address::new("host2.domain", 6031)
+            ],
             ..Default::default()
         }
     );
@@ -714,4 +741,9 @@ fn params() {
         }
     );
     assert_eq!(dsn.to_string(), s);
+}
+
+#[test]
+fn tmq() {
+    let tmq = "taos://root:taosdata@localhost/aa23d04011eca42cf7d8c1dd05a37985?topics=aa23d04011eca42cf7d8c1dd05a37985&group.id=tg2";
 }
