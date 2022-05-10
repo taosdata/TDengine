@@ -3879,7 +3879,7 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
 
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
     tsdbError("%p failed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
-    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _error;
   } else {
     tsdbDebug("%p succeed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
@@ -3949,7 +3949,7 @@ int32_t tsdbGetOneTableGroup(void* pMeta, uint64_t uid, TSKEY startKey, STableGr
   metaReaderInit(&mr, (SMeta*)pMeta, 0);
 
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
-    terrno = TSDB_CODE_TDB_INVALID_TABLE_ID;
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _error;
   }
 

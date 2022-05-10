@@ -13,32 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_INDEX_COMM_H_
-#define _TD_INDEX_COMM_H_
+#ifndef _TD_TDATA_H_
+#define _TD_TDATA_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-#include "indexInt.h"
-#include "tcompare.h"
+#include "os.h"
 
-extern char JSON_COLUMN[];
-extern char JSON_VALUE_DELIM;
+typedef struct STaosData TDATA, tdata_t;
 
-char* indexPackJsonData(SIndexTerm* itm);
-char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
+typedef enum {
+  TAOS_META_STABLE_DATA = 0,  // super table meta
+  TAOS_META_TABLE_DATA,       // non-super table meta
+  TAOS_TS_ROW_DATA,           // row time-series data
+  TAOS_TS_COL_DATA,           // col time-series data
+  TAOS_DATA_MAX
+} ETaosDataT;
 
-typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
-
-typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
-
-TExeCond tDoCommpare(__compar_fn_t func, int8_t comType, void* a, void* b);
-
-_cache_range_compare indexGetCompare(RangeType ty);
+struct STaosData {
+  ETaosDataT type;
+  uint32_t   nPayload;
+  uint8_t   *pPayload;
+};
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif /*_TD_TDATA_H_*/

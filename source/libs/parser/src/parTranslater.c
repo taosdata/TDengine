@@ -2579,7 +2579,7 @@ static int32_t translateDropTable(STranslateContext* pCxt, SDropTableStmt* pStmt
   SName       tableName;
   int32_t     code = getTableMetaImpl(
           pCxt, toName(pCxt->pParseCxt->acctId, pClause->dbName, pClause->tableName, &tableName), &pTableMeta);
-  if ((TSDB_CODE_TDB_INVALID_TABLE_ID == code || TSDB_CODE_VND_TB_NOT_EXIST == code) && pClause->ignoreNotExists) {
+  if ((TSDB_CODE_PAR_TABLE_NOT_EXIST == code || TSDB_CODE_VND_TB_NOT_EXIST == code) && pClause->ignoreNotExists) {
     return TSDB_CODE_SUCCESS;
   }
   if (TSDB_CODE_SUCCESS == code) {
@@ -3150,7 +3150,7 @@ static int32_t translateGrant(STranslateContext* pCxt, SGrantStmt* pStmt) {
     req.alterType = TSDB_ALTER_USER_ADD_WRITE_DB;
   }
   strcpy(req.user, pStmt->userName);
-  strcpy(req.dbname, pStmt->dbName);
+  sprintf(req.dbname, "%d.%s", pCxt->pParseCxt->acctId, pStmt->dbName);
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_USER, (FSerializeFunc)tSerializeSAlterUserReq, &req);
 }
 
