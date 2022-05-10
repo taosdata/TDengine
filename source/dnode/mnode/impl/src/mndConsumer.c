@@ -486,6 +486,14 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
       }
     }
 
+    if (pConsumerOld && taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 &&
+        taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+      /*if (taosArrayGetSize(pConsumerNew->assignedTopics) == 0) {*/
+      /*pConsumerNew->updateType = */
+      /*}*/
+      goto SUBSCRIBE_OVER;
+    }
+
     STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
     if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
@@ -684,9 +692,6 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
       if (pOldConsumer->status == MQ_CONSUMER_STATUS__MODIFY ||
           pOldConsumer->status == MQ_CONSUMER_STATUS__MODIFY_IN_REB) {
         pOldConsumer->status = MQ_CONSUMER_STATUS__READY;
-        // TODO: remove
-        /*if (taosArrayGetSize(pOldConsumer->assignedTopics) == 0) {*/
-        /*}*/
       } else if (pOldConsumer->status == MQ_CONSUMER_STATUS__LOST_IN_REB ||
                  pOldConsumer->status == MQ_CONSUMER_STATUS__LOST) {
         pOldConsumer->status = MQ_CONSUMER_STATUS__LOST_REBD;
