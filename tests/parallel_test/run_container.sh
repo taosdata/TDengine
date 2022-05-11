@@ -66,11 +66,13 @@ if [ $ent -ne 0 ]; then
     INTERNAL_REPDIR=$WORKDIR/TDinternal
     REPDIR=$INTERNAL_REPDIR/community
     CONTAINER_TESTDIR=/home/TDinternal/community
+    SIM_DIR=/home/TDinternal/sim
     REP_MOUNT_PARAM="$INTERNAL_REPDIR:/home/TDinternal"
 else
     # community edition
     REPDIR=$WORKDIR/TDengine
     CONTAINER_TESTDIR=/home/TDengine
+    SIM_DIR=/home/TDengine/sim
     REP_MOUNT_PARAM="$REPDIR:/home/TDengine"
 fi
 
@@ -95,7 +97,7 @@ coredump_dir=`cat /proc/sys/kernel/core_pattern | xargs dirname`
 docker run \
     -v $REP_MOUNT_PARAM \
     -v $MOUNT_DIR \
-    -v "$TMP_DIR/thread_volume/$thread_no/sim:${CONTAINER_TESTDIR}/sim" \
+    -v "$TMP_DIR/thread_volume/$thread_no/sim:${SIM_DIR}" \
     -v ${TMP_DIR}/thread_volume/$thread_no/coredump:$coredump_dir \
     -v $WORKDIR/taos-connector-python/taos:/usr/local/lib/python3.8/site-packages/taos:ro \
     --rm --ulimit core=-1 taos_test:v1.0 $CONTAINER_TESTDIR/tests/parallel_test/run_case.sh -d "$exec_dir" -c "$cmd" $extra_param
