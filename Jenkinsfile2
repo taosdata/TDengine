@@ -197,6 +197,7 @@ pipeline {
                                     ./collect_cases.sh -e
                                 '''
                                 sh '''
+                                    cd ${WKC}/tests/parallel_test
                                     date
                                     time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
                                 '''
