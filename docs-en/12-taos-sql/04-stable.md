@@ -1,118 +1,118 @@
 ---
-sidebar_label: 超级表管理
-title: 超级表 STable 管理
+sidebar_label: STable
+title: Super Table
 ---
 
 :::note
 
-在 2.0.15.0 及以后的版本中开始支持 STABLE 保留字。也即，在本节后文的指令说明中，CREATE、DROP、ALTER 三个指令在 2.0.15.0 之前的版本中 STABLE 保留字需写作 TABLE。
+Keyword `STABLE`, abbreviated for super table, is supported since version 2.0.15.
 
 :::
 
-## 创建超级表
+## Crate STable
 
 ```
 CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
 ```
 
-创建 STable，与创建表的 SQL 语法相似，但需要指定 TAGS 字段的名称和类型。
+The SQL statement of creating STable is similar to that of creating table, but a special column named as `TAGS` must be specified with the names and types of the tags.
 
 :::info
 
-1. TAGS 列的数据类型不能是 timestamp 类型；（从 2.1.3.0 版本开始，TAGS 列中支持使用 timestamp 类型，但需注意在 TAGS 中的 timestamp 列写入数据时需要提供给定值，而暂不支持四则运算，例如 `NOW + 10s` 这类表达式）
-2. TAGS 列名不能与其他列名相同；
-3. TAGS 列名不能为预留关键字（参见：[参数限制与保留关键字](/taos-sql/keywords/) 章节）；
-4. TAGS 最多允许 128 个，至少 1 个，总长度不超过 16 KB。
+1. The tag types specified in TAGS should NOT be timestamp. Since 2.1.3.0 timestamp type can be used in TAGS column, but its value must be fixed and arithmetic operation can't be applied on it.
+2. The tag names specified in TAGS should NOT be same as other columns.
+3. The tag names specified in TAGS should NOT be same as any reserved keywords.(Please refer to [keywords](/taos-sql/keywords/)
+4. The maximum number of tags specified in TAGS is 128, but there must be at least one tag, and the total length of all tag columns should NOT exceed 16KB.
 
 :::
 
-## 删除超级表
+## Drop STable
 
 ```
 DROP STABLE [IF EXISTS] stb_name;
 ```
 
-删除 STable 会自动删除通过 STable 创建的子表。
+All the sub-tables created using the deleted stable will be deleted automatically.
 
-## 显示当前数据库下的所有超级表信息
+## Show All STables
 
 ```
 SHOW STABLES [LIKE tb_name_wildcard];
 ```
 
-查看数据库内全部 STable，及其相关信息，包括 STable 的名称、创建时间、列数量、标签（TAG）数量、通过该 STable 建表的数量。
+This command can be used to display the information of all STables in the current database, including name, creation time, number of columns, number of tags, number of tables created using this STable.
 
-## 显示一个超级表的创建语句
+## Show The Create Statement of A STable
 
 ```
 SHOW CREATE STABLE stb_name;
 ```
 
-常用于数据库迁移。对一个已经存在的超级表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的超级表。
+This command is useful in migrating data from one TDengine cluster to another one because it can be used to create an exactly same STable in the target database.
 
-## 获取超级表的结构信息
+## Get STable Definition
 
 ```
 DESCRIBE stb_name;
 ```
 
-## 修改超级表普通列
+## Change Columns Of STable
 
-### 超级表增加列
+### Add A Column
 
 ```
 ALTER STABLE stb_name ADD COLUMN field_name data_type;
 ```
 
-### 超级表删除列
+### Remove A Column
 
 ```
 ALTER STABLE stb_name DROP COLUMN field_name;
 ```
 
-### 超级表修改列宽
+### Change Column Length
 
 ```
 ALTER STABLE stb_name MODIFY COLUMN field_name data_type(length);
 ```
 
-如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
+This command can be used to change (or incerase, more specifically) the length of a column of variable length types, like BINARY or NCHAR.
 
-## 修改超级表标签列
+## Change Tags of A STable
 
-### 添加标签
+### Add A Tag
 
 ```
 ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
 ```
 
-为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16k 个字符。
+This command is used to add a new tag for a STable and specify the tag type.
 
-### 删除标签
+### Remove A Tag
 
 ```
 ALTER STABLE stb_name DROP TAG tag_name;
 ```
 
-删除超级表的一个标签，从超级表删除某个标签后，该超级表下的所有子表也会自动删除该标签。
+The tag will be removed automatically from all the sub tables crated using the super table as template once a tag is removed from a super table.
 
-### 修改标签名
+### Change A Tag
 
 ```
 ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name;
 ```
 
-修改超级表的标签名，从超级表修改某个标签名后，该超级表下的所有子表也会自动更新该标签名。
+The tag name will be changed automatically from all the sub tables crated using the super table as template once a tag name is changed for a super table.
 
-### 修改标签列宽度
+### Change Tag Length
 
 ```
 ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
 ```
 
-如果标签的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
+This command can be used to change (or incerase, more specifically) the length of a tag of variable length types, like BINARY or NCHAR.
 
 :::note
-除了更新标签的值的操作是针对子表进行，其他所有的标签操作（添加标签、删除标签等）均只能作用于 STable，不能对单个子表操作。对 STable 添加标签以后，依托于该 STable 建立的所有表将自动增加了一个标签，所有新增标签的默认值都是 NULL。
+Changing tag value can be applied to only sub tables. All other tag operations, like add tag, remove tag, however, can be applied to only STable. If a new tag is added for a STable, the tag will be added with NULL value for all its sub tables.
 
 :::

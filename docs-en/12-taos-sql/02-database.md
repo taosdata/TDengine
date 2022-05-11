@@ -1,10 +1,10 @@
 ---
 sidebar_label: Database
-title: Database Management
+title: Database
 description: "create and drop database, show or change database parameters"
 ---
 
-## CREATE DATABASE
+## Create Datable
 
 ```
 CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
@@ -23,13 +23,13 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 
 :::
 
-## SHOW THE CURRENT CONFIGURATION
+## Show Current Configuration
 
 ```
 SHOW VARIABLES;
 ```
 
-## SPECIFY THE DEFAULT DATABASE IN FOLLOWING OPERATIONS
+## Specify The Database In Use
 
 ```
 USE db_name;
@@ -40,7 +40,7 @@ This way is not applicable when using a REST connection
 
 :::
 
-## DROP DATABASE
+## Drop Database
 
 ```
 DROP DATABASE [IF EXISTS] db_name;
@@ -51,7 +51,7 @@ All data in the database will be deleted too. This command must be used with cau
 
 :::
 
-## CHANGE DATABASE CONFIGURATION
+## Change Database Configuration
 
 Some examples are shown below to demonstrate how to change the configuration of a database. Please be noted that some configuration parameters can be changed after the database is created, but some others can't, for details of the configuration parameters of database please refer to [Configuration Parameters](/reference/config/).
 
@@ -96,13 +96,13 @@ The above parameters can be changed using `ALTER DATABASE` command without resta
 
 :::
 
-## SHOW ALL THE DATABASES
+## Show All Databases
 
 ```
 SHOW DATABASES;
 ```
 
-## SHOW THE CREATE STATEMENT OF A DATABASE
+## Show The Create Statement of A Database
 
 ```
 SHOW CREATE DATABASE db_name;
