@@ -41,8 +41,15 @@ int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
 int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
 
 // STSchema
-int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t ncols, STSchema **ppTSchema);
+int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
+
+// STSRowBuilder
+int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, SSchema *pSchema, int32_t nCols);
+int32_t tTSRowBuilderClear(STSRowBuilder *pBuilder);
+int32_t tTSRowBuilderReset(STSRowBuilder *pBuilder);
+int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pData, uint32_t nData);
+int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 
 // STRUCT =================
 struct STColumn {
@@ -74,6 +81,7 @@ struct STSRow2 {
 };
 
 struct STSRowBuilder {
+  STColumn *pTColumn;
   STSchema *pTSchema;
   STSRow2   row;
 };

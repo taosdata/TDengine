@@ -50,11 +50,100 @@ int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t ncols, STSchema *
     return -1;
   }
 
-  // (*ppTSchema)
+  (*ppTSchema)->numOfCols = ncols;
+  (*ppTSchema)->version = sver;
+  (*ppTSchema)->flen = 0;
+  (*ppTSchema)->vlen = 0;
+  (*ppTSchema)->tlen = 0;
+
+  for (int32_t iCol = 0; iCol < ncols; iCol++) {
+    SSchema  *pColumn = &pSchema[iCol];
+    STColumn *pTColumn = &((*ppTSchema)->columns[iCol]);
+
+    pTColumn->colId = pColumn->colId;
+    pTColumn->type = pColumn->type;
+    pTColumn->flags = pColumn->flags;
+    pTColumn->bytes = pColumn->bytes;
+    pTColumn->offset = (*ppTSchema)->flen;
+
+    // skip first column
+    if (iCol) {
+      (*ppTSchema)->flen += TYPE_BYTES[pColumn->type];
+      if (IS_VAR_DATA_TYPE(pColumn->type)) {
+        (*ppTSchema)->vlen += (pColumn->bytes + 5);
+      }
+    }
+  }
+
   return 0;
 }
 
 void tTSchemaDestroy(STSchema *pTSchema) { taosMemoryFree(pTSchema); }
+
+int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, SSchema *pSchema, int32_t nCols) {
+  // TODO
+  return 0;
+}
+
+int32_t tTSRowBuilderClear(STSRowBuilder *pBuilder) {
+  // TODO
+  return 0;
+}
+
+int32_t tTSRowBuilderReset(STSRowBuilder *pBuilder) {
+  for (int32_t iCol = pBuilder->pTSchema->numOfCols - 1; iCol >= 0; iCol--) {
+    pBuilder->pTColumn = &pBuilder->pTSchema->columns[iCol];
+
+    pBuilder->pTColumn->flags &= (~COL_VAL_SET);
+  }
+
+  return 0;
+}
+
+int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pData, uint32_t nData) {
+  if (pBuilder->pTColumn->colId < cid) {
+    // right search
+  } else if (pBuilder->pTColumn->colId > cid) {
+    // left search
+  }
+
+  // check if val is set already
+  if (pBuilder->pTColumn->flags & COL_VAL_SET) {
+    return -1;
+  }
+
+  // set value
+  if (cid == 0) {
+    ASSERT(pData && nData == sizeof(TSKEY));
+    pBuilder->row.ts = *(TSKEY *)pData;
+  } else {
+    if (pData) {
+      // set val
+    } else {
+      // set NULL val
+    }
+  }
+
+  pBuilder->pTColumn->flags |= COL_VAL_SET;
+
+  // TODO
+  return 0;
+}
+
+int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
+  if ((pBuilder->pTSchema->columns[0].flags & COL_VAL_SET) == 0) {
+    return -1;
+  }
+
+  // chose which type row to return
+
+  if (true /* tuple row is chosen */) {
+    // set non-set values as None
+  }
+
+  *ppRow = &pBuilder->row;
+  return 0;
+}
 
 #if 1  // ====================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
