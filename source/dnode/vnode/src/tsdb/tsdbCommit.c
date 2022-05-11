@@ -311,7 +311,7 @@ static int tsdbNextCommitFid(SCommitH *pCommith) {
 
   for (int i = 0; i < pCommith->niters; i++) {
     SCommitIter *pIter = pCommith->iters + i;
-    if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
+    // if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
 
     TSKEY nextKey = tsdbNextIterKey(pIter->pIter);
     if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
@@ -382,7 +382,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
     } else {
       break;
     }
-    
+
     if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->uid <= pIdx->uid))) {
       if (tsdbCommitToTable(pCommith, mIter) < 0) {
         tsdbCloseCommitFile(pCommith, true);
@@ -464,16 +464,16 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pTbData = (STbData *)pNode->pData;
 
     pCommitIter = pCommith->iters + i;
-    pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
-    tSkipListIterNext(pCommitIter->pIter);
-
-    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0); // TODO: schema version
+    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);  // TODO: schema version
 
     if (pTSchema) {
+      pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
+      tSkipListIterNext(pCommitIter->pIter);
+
       pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
       pCommitIter->pTable->uid = pTbData->uid;
       pCommitIter->pTable->tid = pTbData->uid;
-      pCommitIter->pTable->pSchema = pTSchema; //metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
+      pCommitIter->pTable->pSchema = pTSchema;  // metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
     }
   }
 
