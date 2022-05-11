@@ -90,6 +90,10 @@ bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultIn
 int32_t histogramFunction(SqlFunctionCtx* pCtx);
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool getStateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool stateFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t stateCountFunction(SqlFunctionCtx* pCtx);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 #ifdef __cplusplus
