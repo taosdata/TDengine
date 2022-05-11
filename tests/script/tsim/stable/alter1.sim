@@ -6,7 +6,7 @@ sql connect
 print ========== create stable
 sql create database db
 sql use db
-sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16))
+sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
 
 sql show db.stables
 if $rows != 1 then
@@ -16,6 +16,9 @@ if $data[0][3] != 3 then
   return -1
 endi
 if $data[0][4] != 3 then
+  return -1
+endi
+if $data[0][6] != abd then
   return -1
 endi
 
@@ -153,5 +156,13 @@ print ========== rename tag
 sql_error alter table db.stb rename tag ts tx
 sql_error alter table db.stb rename tag c2 cx
 sql alter table db.stb rename tag t1 tx
+
+print ========== alter common
+sql alter table db.stb comment 'abcde' ;
+
+sql show db.stables;
+if $data[0][6] != abcde then
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
