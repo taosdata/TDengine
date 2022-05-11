@@ -21,7 +21,7 @@ static void qmGetMonitorInfo(SQnodeMgmt *pMgmt, SMonQmInfo *qmInfo) {}
 int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SNodeMsg *pReq) {
   SMonQmInfo qmInfo = {0};
   qmGetMonitorInfo(pMgmt, &qmInfo);
-  dmGetSystemInfo(&qmInfo.sys);
+  dmGetMonitorSystemInfo(&qmInfo.sys);
   monGetLogs(&qmInfo.log);
 
   int32_t rspLen = tSerializeSMonQmInfo(NULL, 0, &qmInfo);

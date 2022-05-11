@@ -23,7 +23,7 @@ static void mmGetMonitorInfo(SMnodeMgmt *pMgmt, SMonMmInfo *mmInfo) {
 int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SNodeMsg *pReq) {
   SMonMmInfo mmInfo = {0};
   mmGetMonitorInfo(pMgmt, &mmInfo);
-  dmGetSystemInfo(&mmInfo.sys);
+  dmGetMonitorSystemInfo(&mmInfo.sys);
   monGetLogs(&mmInfo.log);
 
   int32_t rspLen = tSerializeSMonMmInfo(NULL, 0, &mmInfo);

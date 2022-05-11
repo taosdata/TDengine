@@ -85,7 +85,7 @@ static void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
 int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SNodeMsg *pReq) {
   SMonVmInfo vmInfo = {0};
   vmGetMonitorInfo(pMgmt, &vmInfo);
-  dmGetSystemInfo(&vmInfo.sys);
+  dmGetMonitorSystemInfo(&vmInfo.sys);
   monGetLogs(&vmInfo.log);
 
   int32_t rspLen = tSerializeSMonVmInfo(NULL, 0, &vmInfo);

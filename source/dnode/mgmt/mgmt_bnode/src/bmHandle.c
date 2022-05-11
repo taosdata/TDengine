@@ -21,7 +21,7 @@ static void bmGetMonitorInfo(SBnodeMgmt *pMgmt, SMonBmInfo *bmInfo) {}
 int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SNodeMsg *pReq) {
   SMonBmInfo bmInfo = {0};
   bmGetMonitorInfo(pMgmt, &bmInfo);
-  dmGetSystemInfo(&bmInfo.sys);
+  dmGetMonitorSystemInfo(&bmInfo.sys);
   monGetLogs(&bmInfo.log);
 
   int32_t rspLen = tSerializeSMonBmInfo(NULL, 0, &bmInfo);
