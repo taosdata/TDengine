@@ -17,7 +17,7 @@
 #include <malloc.h>
 #include "os.h"
 
-#ifdef USE_TD_MEMORY
+#if defined(USE_TD_MEMORY) || defined(USE_ADDR2LINE)
 
 #define TD_MEMORY_SYMBOL ('T' << 24 | 'A' << 16 | 'O' << 8 | 'S')
 
@@ -71,14 +71,112 @@ int32_t taosBackTrace(void **buffer, int32_t size) {
   return frame;
 }
 
-#endif
-
 // char **taosBackTraceSymbols(int32_t *size) {
 //   void  *buffer[20] = {NULL};
 //   *size = taosBackTrace(buffer, 20);
 //   return backtrace_symbols(buffer, *size);
 // }
 
+#ifdef USE_ADDR2LINE
+
+#include "osThread.h"
+#include "libdwarf.h"
+#include "dwarf.h"
+
+#define DW_PR_DUu "llu"
+
+typedef struct lookup_table
+{
+    Dwarf_Line *table;
+    Dwarf_Line_Context *ctxts;
+    int cnt;
+    Dwarf_Addr low;
+    Dwarf_Addr high;
+} lookup_tableT;
+
+extern int create_lookup_table(Dwarf_Debug dbg, lookup_tableT *lookup_table);
+extern void delete_lookup_table(lookup_tableT *lookup_table);
+
+size_t addr = 0;
+lookup_tableT lookup_table;
+Dwarf_Debug tDbg;
+static TdThreadOnce traceThreadInit = PTHREAD_ONCE_INIT;
+
+void endTrace() {
+  if (traceThreadInit != PTHREAD_ONCE_INIT) {
+    delete_lookup_table(&lookup_table);
+    dwarf_finish(tDbg);
+  }
+}
+void startTrace() {
+  int ret;
+  Dwarf_Ptr errarg = 0;
+
+  FILE *fp = fopen("/proc/self/maps", "r");
+  fscanf(fp, "%lx-", &addr);
+  fclose(fp);
+
+  ret = dwarf_init_path("/proc/self/exe", NULL, 0, DW_GROUPNUMBER_ANY, NULL, errarg, &tDbg, NULL);
+  if (ret == DW_DLV_NO_ENTRY) {
+    printf("Unable to open file");
+    return;
+  }
+
+  ret = create_lookup_table(tDbg, &lookup_table);
+  if (ret != DW_DLV_OK) {
+    printf("Unable to create lookup table");
+    return;
+  }
+  atexit(endTrace);
+}
+static void print_line(Dwarf_Debug dbg, Dwarf_Line line, Dwarf_Addr pc) {
+  char *linesrc = "??";
+  Dwarf_Unsigned lineno = 0;
+
+  if (line) {
+    dwarf_linesrc(line, &linesrc, NULL);
+    dwarf_lineno(line, &lineno, NULL);
+  }
+  printf("%s:%" DW_PR_DUu "\n", linesrc, lineno);
+  if (line) dwarf_dealloc(dbg, linesrc, DW_DLA_STRING);
+}
+void taosPrintBackTrace() {
+  int size = 20;
+  void **buffer[20];
+  Dwarf_Addr pc;
+  int32_t frame = 0;
+  void **ebp;
+  void **ret = NULL;
+  size_t func_frame_distance = 0;
+
+  taosThreadOnce(&traceThreadInit, startTrace);
+
+  if (buffer != NULL && size > 0) {
+      ebp = taosGetEbp();
+    func_frame_distance = (size_t)*ebp - (size_t)ebp;
+    while (ebp && frame < size && (func_frame_distance < (1ULL << 24)) && (func_frame_distance > 0)) {
+      ret = ebp + 1;
+      buffer[frame++] = *ret;
+      ebp = (void **)(*ebp);
+      func_frame_distance = (size_t)*ebp - (size_t)ebp;
+    }
+    for (size_t i = 0; i < frame; i++) {
+      pc = (size_t)buffer[i] - addr;
+      if (pc > 0) {
+        if (pc >= lookup_table.low && pc < lookup_table.high) {
+          Dwarf_Line line = lookup_table.table[pc - lookup_table.low];
+          if (line) print_line(tDbg, line, pc);
+        }
+      }
+    }
+  }
+}
+#endif
+#endif
+#endif
+
+#ifndef USE_ADDR2LINE
+void taosPrintBackTrace() { return; }
 #endif
 
 void *taosMemoryMalloc(int32_t size) {

@@ -121,6 +121,9 @@ extern char     tsCompressor[];
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
 
+// udf
+extern bool  tsStartUdfd;
+
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;

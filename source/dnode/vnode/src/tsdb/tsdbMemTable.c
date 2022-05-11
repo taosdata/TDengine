@@ -248,11 +248,13 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
             pMergeInfo->nOperations++;
             pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
             pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
-            lastKey = rowKey;
             if (pCols) {
-              ++pCols->numOfRows;
+              if (lastKey != TSKEY_INITIAL_VAL) {
+                ++pCols->numOfRows;
+              }
               tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
             }
+            lastKey = rowKey;
           } else {
             tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
           }

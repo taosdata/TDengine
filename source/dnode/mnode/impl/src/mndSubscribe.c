@@ -171,14 +171,21 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
   return 0;
 }
 
-static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup) {
+static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup, bool fullName) {
   int32_t i = 0;
   while (key[i] != TMQ_SEPARATOR) {
     i++;
   }
   memcpy(cgroup, key, i);
   cgroup[i] = 0;
-  strcpy(topic, &key[i + 1]);
+  if (fullName) {
+    strcpy(topic, &key[i + 1]);
+  } else {
+    while (key[i] != '.') {
+      i++;
+    }
+    strcpy(topic, &key[i + 1]);
+  }
   return 0;
 }
 
@@ -426,7 +433,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
     pConsumerNew->updateType = CONSUMER_UPDATE__ADD;
     char *topic = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     char  cgroup[TSDB_CGROUP_LEN];
-    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup);
+    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
     taosArrayPush(pConsumerNew->rebNewTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
@@ -444,7 +451,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
     pConsumerNew->updateType = CONSUMER_UPDATE__REMOVE;
     char *topic = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     char  cgroup[TSDB_CGROUP_LEN];
-    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup);
+    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
     taosArrayPush(pConsumerNew->rebRemovedTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
@@ -494,7 +501,7 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
       // split sub key and extract topic
       char topic[TSDB_TOPIC_FNAME_LEN];
       char cgroup[TSDB_CGROUP_LEN];
-      mndSplitSubscribeKey(pRebInfo->key, topic, cgroup);
+      mndSplitSubscribeKey(pRebInfo->key, topic, cgroup, true);
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       ASSERT(pTopic);
       taosRLockLatch(&pTopic->lock);
@@ -747,7 +754,7 @@ static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock
         // topic and cgroup
         char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
         char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-        mndSplitSubscribeKey(pSub->key, topic, cgroup);
+        mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
         varDataSetLen(topic, strlen(varDataVal(topic)));
         varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 
@@ -790,7 +797,7 @@ static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock
       // topic and cgroup
       char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
       char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-      mndSplitSubscribeKey(pSub->key, topic, cgroup);
+      mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
       varDataSetLen(topic, strlen(varDataVal(topic)));
       varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
 

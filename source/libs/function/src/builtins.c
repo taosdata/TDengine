@@ -263,6 +263,26 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BIGINT &&
+       ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_DOUBLE)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // todo
   return TSDB_CODE_SUCCESS;
@@ -678,6 +698,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = histogramFinalize
   },
   {
+    .name = "state_count",
+    .type = FUNCTION_TYPE_STATE_COUNT,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .translateFunc = translateState,
+    .getEnvFunc   = getStateFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = stateCountFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "abs",
     .type = FUNCTION_TYPE_ABS,
     .classification = FUNC_MGT_SCALAR_FUNC,
@@ -988,6 +1018,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "_c0",
+    .type = FUNCTION_TYPE_ROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "tbname",
     .type = FUNCTION_TYPE_TBNAME,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
@@ -1064,7 +1104,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateSelectValue,
     .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
     .initFunc     = functionSetup,
-    .sprocessFunc = NULL,
+    .processFunc  = NULL,
     .finalizeFunc = NULL
   }
 };

@@ -62,11 +62,6 @@ enum {
    * 2. when all data within queried time window, it is also denoted as query_completed
    */
   TASK_COMPLETED = 0x2u,
-
-  /* when the result is not completed return to client, this status will be
-   * usually used in case of interval query with interpolation option
-   */
-  TASK_OVER = 0x4u,
 };
 
 typedef struct SResultRowCell {
@@ -287,12 +282,6 @@ typedef struct SOperatorInfo {
   int32_t                 numOfDownstream;  // number of downstream. The value is always ONE expect for join operator
   SOperatorFpSet          fpSet;
 } SOperatorInfo;
-
-typedef struct {
-  int32_t      numOfTags;
-  int32_t      numOfCols;
-  SColumnInfo* colList;
-} SQueriedTableInfo;
 
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
@@ -629,8 +618,7 @@ int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInf
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
 void doBuildResultDatablock(SOptrBasicInfo *pbInfo, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf);
 
-void    finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf,
-                                      SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
+void    finalizeMultiTupleQueryResult(int32_t numOfOutput, SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
 void    doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                          int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
 int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes,
@@ -711,8 +699,6 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, SExprInfo* pE
 
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
-SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
-                                                        SExprInfo* pExpr, int32_t numOfOutput);
 #endif
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
@@ -737,7 +723,6 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 int32_t getMaximumIdleDurationSec();
 
-void    doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx* pCtx, int32_t idx, int32_t type);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model);

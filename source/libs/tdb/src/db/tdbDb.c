@@ -66,7 +66,10 @@ int tdbDbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn
 }
 
 int tdbDbClose(TDB *pDb) {
-  // TODO
+  if (pDb) {
+    tdbBtreeClose(pDb->pBt);
+    tdbOsFree(pDb);
+  }
   return 0;
 }
 

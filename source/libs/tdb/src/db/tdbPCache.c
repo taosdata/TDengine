@@ -292,6 +292,10 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
     pPage->pFreeNext = pCache->pFree;
     pCache->pFree = pPage;
     pCache->nFree++;
+
+    // add to local list
+    pPage->pCacheNext = pCache->pList;
+    pCache->pList = pPage;
   }
 
   // Open the hash table
@@ -317,9 +321,10 @@ static int tdbPCacheCloseImpl(SPCache *pCache) {
 
   for (pPage = pCache->pList; pPage; pPage = pCache->pList) {
     pCache->pList = pPage->pCacheNext;
-    tdbPageDestroy(pPage, NULL, NULL);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
   }
 
+  tdbOsFree(pCache->pgHash);
   tdbPCacheDestroyLock(pCache);
   return 0;
 }
