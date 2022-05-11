@@ -37,8 +37,8 @@ typedef enum {
   QUEUE_MAX,
 } EQueueType;
 
-typedef int32_t (*PutToQueueFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
-typedef int32_t (*GetQueueSizeFp)(SMgmtWrapper* pWrapper, int32_t vgId, EQueueType qtype);
+typedef int32_t (*PutToQueueFp)(void *pMgmt, SRpcMsg* pReq);
+typedef int32_t (*GetQueueSizeFp)(void *pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, const SEpSet* epSet, SRpcMsg* pReq);
 typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp);
@@ -49,6 +49,8 @@ typedef void (*ReportStartup)(SMgmtWrapper* pWrapper, const char* name, const ch
 
 typedef struct {
   SMgmtWrapper*           pWrapper;
+  void*                   pMgmt;
+  void*                   clientRpc;
   PutToQueueFp            queueFps[QUEUE_MAX];
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;
@@ -57,7 +59,6 @@ typedef struct {
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;
   ReportStartup           reportStartupFp;
-  void*                   clientRpc;
 } SMsgCb;
 
 void    tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb);

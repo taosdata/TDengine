@@ -24,7 +24,7 @@ void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
   PutToQueueFp fp = pMsgCb->queueFps[qtype];
   if (fp != NULL) {
-    return (*fp)(pMsgCb->pWrapper, pReq);
+    return (*fp)(pMsgCb->pMgmt, pReq);
   } else {
     terrno = TSDB_CODE_INVALID_PTR;
     return -1;
@@ -34,7 +34,7 @@ int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
   GetQueueSizeFp fp = pMsgCb->qsizeFp;
   if (fp != NULL) {
-    return (*fp)(pMsgCb->pWrapper, vgId, qtype);
+    return (*fp)(pMsgCb->pMgmt, vgId, qtype);
   } else {
     terrno = TSDB_CODE_INVALID_PTR;
     return -1;
