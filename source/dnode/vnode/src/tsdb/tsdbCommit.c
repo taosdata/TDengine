@@ -311,7 +311,7 @@ static int tsdbNextCommitFid(SCommitH *pCommith) {
 
   for (int i = 0; i < pCommith->niters; i++) {
     SCommitIter *pIter = pCommith->iters + i;
-    // if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
+    if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
 
     TSKEY nextKey = tsdbNextIterKey(pIter->pIter);
     if (nextKey == TSDB_DATA_TIMESTAMP_NULL) {
@@ -394,6 +394,9 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
         ++fIter;
       }
       ++mIter;
+    } else if (pIter && !pIter->pTable) {
+      // When table already dropped during commit, pIter is not NULL but pIter->pTable is NULL.
+      ++mIter; // skip the table and do nothing
     } else if (pIdx) {
       if (tsdbMoveBlkIdx(pCommith, pIdx) < 0) {
         tsdbCloseCommitFile(pCommith, true);
@@ -439,6 +442,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
   SCommitIter       *pCommitIter;
   SSkipListNode     *pNode;
   STbData           *pTbData;
+  STSchema          *pTSchema = NULL;
 
   pCommith->niters = SL_SIZE(pMem->pSlIdx);
   pCommith->iters = (SCommitIter *)taosMemoryCalloc(pCommith->niters, sizeof(SCommitIter));
@@ -462,10 +466,14 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
     tSkipListIterNext(pCommitIter->pIter);
 
-    pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
-    pCommitIter->pTable->uid = pTbData->uid;
-    pCommitIter->pTable->tid = pTbData->uid;
-    pCommitIter->pTable->pSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
+    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0); // TODO: schema version
+
+    if (pTSchema) {
+      pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
+      pCommitIter->pTable->uid = pTbData->uid;
+      pCommitIter->pTable->tid = pTbData->uid;
+      pCommitIter->pTable->pSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
+    }
   }
 
   return 0;
