@@ -1,6 +1,6 @@
 ---
-sidebar_label: 产品简介
-title: 产品简介
+sidebar_label: Introduction
+title: Introduction
 toc_max_heading_level: 2
 ---
 
