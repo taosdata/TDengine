@@ -16,18 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-static int32_t bmRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
-
-static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) {
-  SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
-  msgCb.pWrapper = pMgmt->pWrapper;
-  pOption->msgCb = msgCb;
+static int32_t bmRequire(const SMgmtInputOpt *pInput, bool *required) {
+  return dmReadFile(pInput->path, pInput->name, required);
 }
 
-static void bmClose(SMgmtWrapper *pWrapper) {
-  SBnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
+static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
 
+static void bmClose(SBnodeMgmt *pMgmt) {
   dInfo("bnode-mgmt start to cleanup");
   if (pMgmt->pBnode != NULL) {
     bmStopWorker(pMgmt);
@@ -35,12 +30,11 @@ static void bmClose(SMgmtWrapper *pWrapper) {
     pMgmt->pBnode = NULL;
   }
 
-  pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("bnode-mgmt is cleaned up");
 }
 
-int32_t bmOpen(SMgmtWrapper *pWrapper) {
+int32_t bmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   dInfo("bnode-mgmt start to init");
   SBnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SBnodeMgmt));
   if (pMgmt == NULL) {
@@ -48,40 +42,42 @@ int32_t bmOpen(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  pMgmt->path = pWrapper->path;
-  pMgmt->pDnode = pWrapper->pDnode;
-  pMgmt->pWrapper = pWrapper;
-  pWrapper->pMgmt = pMgmt;
+  pMgmt->path = pInput->path;
+  pMgmt->name = pInput->name;
+  pMgmt->dnodeId = pInput->dnodeId;
+  pMgmt->msgCb = pInput->msgCb;
+  pMgmt->msgCb.pMgmt = pMgmt;
 
   SBnodeOpt option = {0};
   bmInitOption(pMgmt, &option);
   pMgmt->pBnode = bndOpen(pMgmt->path, &option);
   if (pMgmt->pBnode == NULL) {
     dError("failed to open bnode since %s", terrstr());
-    bmClose(pWrapper);
+    bmClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "bnode-impl", "initialized");
+  tmsgReportStartup("bnode-impl", "initialized");
 
   if (bmStartWorker(pMgmt) != 0) {
     dError("failed to start bnode worker since %s", terrstr());
-    bmClose(pWrapper);
+    bmClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "bnode-worker", "initialized");
+  tmsgReportStartup("bnode-worker", "initialized");
 
+  pOutput->pMgmt = pMgmt;
+  dInfo("bnode-mgmt is initialized");
   return 0;
 }
 
-void bmInitWrapper(SMgmtWrapper *pWrapper) {
-  SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = bmOpen;
-  mgmtFp.closeFp = bmClose;
-  mgmtFp.createFp = bmProcessCreateReq;
-  mgmtFp.dropFp = bmProcessDropReq;
-  mgmtFp.requiredFp = bmRequire;
+SMgmtFunc bmGetMgmtFunc() {
+  SMgmtFunc mgmtFunc = {0};
+  mgmtFunc.openFp = bmOpen;
+  mgmtFunc.closeFp = (NodeCloseFp)bmClose;
+  mgmtFunc.createFp = (NodeCreateFp)bmProcessCreateReq;
+  mgmtFunc.dropFp = (NodeDropFp)bmProcessDropReq;
+  mgmtFunc.requiredFp = bmRequire;
+  mgmtFunc.getHandlesFp = bmGetMsgHandles;
 
-  bmInitMsgHandle(pWrapper);
-  pWrapper->name = "bnode";
-  pWrapper->fp = mgmtFp;
+  return mgmtFunc;
 }
