@@ -832,6 +832,8 @@ static int32_t mndProcessVCreateStbRsp(SNodeMsg *pRsp) {
 }
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
+  if (pAlter->commentLen != 0) return 0;
+
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
@@ -878,6 +880,23 @@ static int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
 
   memcpy(pNew->pColumns, pOld->pColumns, sizeof(SSchema) * pOld->numOfColumns);
   memcpy(pNew->pTags, pOld->pTags, sizeof(SSchema) * pOld->numOfTags);
+  return 0;
+}
+
+static int32_t mndUpdateStbComment(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen) {
+  if (commentLen > 0) {
+    pNew->commentLen = commentLen;
+    pNew->comment = taosMemoryCalloc(1, commentLen);
+    if (pNew->comment == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    memcpy(pNew->comment, pComment, commentLen);
+  }
+
+  if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
   return 0;
 }
 
@@ -1184,29 +1203,36 @@ static int32_t mndAlterStb(SMnode *pMnode, SNodeMsg *pReq, const SMAlterStbReq *
 
   int32_t code = -1;
   STrans *pTrans = NULL;
-  SField *pField0 = taosArrayGet(pAlter->pFields, 0);
+  SField *pField0 = NULL;
 
   switch (pAlter->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
       code = mndAddSuperTableTag(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
       break;
     case TSDB_ALTER_TABLE_DROP_TAG:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndDropSuperTableTag(pOld, &stbObj, pField0->name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
       code = mndAlterStbTagName(pOld, &stbObj, pAlter->pFields);
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndAlterStbTagBytes(pOld, &stbObj, pField0);
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndDropSuperTableColumn(pOld, &stbObj, pField0->name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndAlterStbColumnBytes(pOld, &stbObj, pField0);
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      code = mndUpdateStbComment(pOld, &stbObj, pAlter->comment, pAlter->commentLen);
       break;
     default:
       terrno = TSDB_CODE_OPS_NOT_SUPPORT;
