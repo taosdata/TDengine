@@ -1,5 +1,10 @@
 CMAKE_MINIMUM_REQUIRED(VERSION 3.16)
 
+project(
+    TDinternal
+    VERSION 3.0
+    DESCRIPTION "An open-source big data platform designed and optimized for the Internet of Things(IOT)"
+)
 
 SET(TD_COMMUNITY_DIR ${PROJECT_SOURCE_DIR}/community)
 SET(TD_ENTERPRISE_DIR ${PROJECT_SOURCE_DIR}/enterprise)
