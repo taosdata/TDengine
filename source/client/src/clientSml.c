@@ -402,7 +402,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
-      SSchemaAction schemaAction = {.action = SCHEMA_ACTION_CREATE_STABLE};
+      SSchemaAction schemaAction = { SCHEMA_ACTION_CREATE_STABLE, 0};
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
       schemaAction.createSTable.tags = sTableData->tags;
       schemaAction.createSTable.fields = sTableData->cols;
@@ -1505,8 +1505,8 @@ static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
 
     tinfo->sTableName = elements.measure;
     tinfo->sTableNameLen = elements.measureLen;
-    RandTableName rName = {.tags=tinfo->tags, .sTableName=tinfo->sTableName, .sTableNameLen=tinfo->sTableNameLen,
-                            .childTableName=tinfo->childTableName};
+    RandTableName rName = { tinfo->tags, tinfo->sTableName, tinfo->sTableNameLen,
+                            tinfo->childTableName, 0 };
     buildChildTableName(&rName);
     tinfo->uid = rName.uid;
 
