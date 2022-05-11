@@ -201,30 +201,32 @@ pipeline {
                     steps {
                         timeout(time: 45, unit: 'MINUTES'){
                             pre_test()
-                            if (env.CHANGE_URL =~ /\/TDengine\//) {
-                                sh '''
-                                    cd ${WK}/debug
-                                    ctest -VV
-                                '''
-                                sh '''
-                                    export LD_LIBRARY_PATH=${WK}/debug/build/lib
-                                    cd ${WKC}/tests/system-test
-                                    ./fulltest.sh
-                                '''
-                            } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
-                                sh '''
-                                    cd ${WKC}/debug
-                                    ctest -VV
-                                '''
-                                sh '''
-                                    export LD_LIBRARY_PATH=${WKC}/debug/build/lib
-                                    cd ${WKC}/tests/system-test
-                                    ./fulltest.sh
-                                '''
-                            } else {
-                                sh '''
-                                    echo "unmatched reposiotry ${CHANGE_URL}"
-                                '''
+                            script {
+                                if (env.CHANGE_URL =~ /\/TDengine\//) {
+                                    sh '''
+                                        cd ${WK}/debug
+                                        ctest -VV
+                                    '''
+                                    sh '''
+                                        export LD_LIBRARY_PATH=${WK}/debug/build/lib
+                                        cd ${WKC}/tests/system-test
+                                        ./fulltest.sh
+                                    '''
+                                } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+                                    sh '''
+                                        cd ${WKC}/debug
+                                        ctest -VV
+                                    '''
+                                    sh '''
+                                        export LD_LIBRARY_PATH=${WKC}/debug/build/lib
+                                        cd ${WKC}/tests/system-test
+                                        ./fulltest.sh
+                                    '''
+                                } else {
+                                    sh '''
+                                        echo "unmatched reposiotry ${CHANGE_URL}"
+                                    '''
+                                }
                             }
                             sh '''
                                 cd ${WKC}/tests
