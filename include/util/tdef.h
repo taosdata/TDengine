@@ -29,6 +29,8 @@ extern "C" {
 #define TSKEY_MAX         (INT64_MAX - 1)
 #define TSKEY_INITIAL_VAL TSKEY_MIN
 
+#define TD_VER_MAX UINT64_MAX  // TODO: use the real max version from query handle
+
 // Bytes for each type.
 extern const int32_t TYPE_BYTES[15];
 
@@ -84,9 +86,12 @@ extern const int32_t TYPE_BYTES[15];
 #define TS_PATH_DELIMITER "."
 #define TS_ESCAPE_CHAR    '`'
 
-#define TSDB_TIME_PRECISION_MILLI 0
-#define TSDB_TIME_PRECISION_MICRO 1
-#define TSDB_TIME_PRECISION_NANO  2
+#define TSDB_TIME_PRECISION_MILLI   0
+#define TSDB_TIME_PRECISION_MICRO   1
+#define TSDB_TIME_PRECISION_NANO    2
+#define TSDB_TIME_PRECISION_HOURS   3
+#define TSDB_TIME_PRECISION_MINUTES 4
+#define TSDB_TIME_PRECISION_SECONDS 5
 
 #define TSDB_TIME_PRECISION_MILLI_STR "ms"
 #define TSDB_TIME_PRECISION_MICRO_STR "us"
@@ -96,43 +101,6 @@ extern const int32_t TYPE_BYTES[15];
 #define TSDB_TIME_PRECISION_MILLI_DIGITS 13
 #define TSDB_TIME_PRECISION_MICRO_DIGITS 16
 #define TSDB_TIME_PRECISION_NANO_DIGITS  19
-
-#define TSDB_INFORMATION_SCHEMA_DB            "information_schema"
-#define TSDB_PERFORMANCE_SCHEMA_DB            "performance_schema"
-#define TSDB_INS_TABLE_DNODES                 "dnodes"
-#define TSDB_INS_TABLE_MNODES                 "mnodes"
-#define TSDB_INS_TABLE_MODULES                "modules"
-#define TSDB_INS_TABLE_QNODES                 "qnodes"
-#define TSDB_INS_TABLE_BNODES                 "bnodes"
-#define TSDB_INS_TABLE_SNODES                 "snodes"
-#define TSDB_INS_TABLE_CLUSTER                "cluster"
-#define TSDB_INS_TABLE_USER_DATABASES         "user_databases"
-#define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
-#define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
-#define TSDB_INS_TABLE_USER_STABLES           "user_stables"
-#define TSDB_INS_TABLE_USER_STREAMS           "user_streams"
-#define TSDB_INS_TABLE_USER_TABLES            "user_tables"
-#define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
-#define TSDB_INS_TABLE_USER_USERS             "user_users"
-#define TSDB_INS_TABLE_LICENCES               "grants"
-#define TSDB_INS_TABLE_VGROUPS                "vgroups"
-#define TSDB_INS_TABLE_CONSUMERS              "consumers"
-#define TSDB_INS_TABLE_SUBSCRIBES             "subscribes"
-#define TSDB_INS_TABLE_TRANS                  "trans"
-#define TSDB_INS_TABLE_SMAS                   "smas"
-#define TSDB_INS_TABLE_CONFIGS                "configs"
-#define TSDB_INS_TABLE_CONNS                  "connections"
-#define TSDB_INS_TABLE_QUERIES                "queries"
-#define TSDB_INS_TABLE_VNODES                 "vnodes"
-
-#define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
-#define TSDB_PERFS_TABLE_CONNECTIONS   "connections"
-#define TSDB_PERFS_TABLE_QUERIES       "queries"
-#define TSDB_PERFS_TABLE_TOPICS        "topics"
-#define TSDB_PERFS_TABLE_CONSUMERS     "consumers"
-#define TSDB_PERFS_TABLE_SUBSCRIPTIONS "subscriptions"
-#define TSDB_PERFS_TABLE_OFFSETS       "offsets"
-#define TSDB_PERFS_TABLE_STREAMS       "streams"
 
 #define TSDB_INDEX_TYPE_SMA      "SMA"
 #define TSDB_INDEX_TYPE_FULLTEXT "FULLTEXT"
@@ -204,16 +172,6 @@ typedef enum ELogicConditionType {
   LOGIC_COND_TYPE_OR,
   LOGIC_COND_TYPE_NOT,
 } ELogicConditionType;
-
-#define FUNCTION_CEIL  4500
-#define FUNCTION_FLOOR 4501
-#define FUNCTION_ABS   4502
-#define FUNCTION_ROUND 4503
-
-#define FUNCTION_LENGTH 4800
-#define FUNCTION_CONCAT 4801
-#define FUNCTION_LTRIM  4802
-#define FUNCTION_RTRIM  4803
 
 #define TSDB_NAME_DELIMITER_LEN 1
 
@@ -290,7 +248,6 @@ typedef enum ELogicConditionType {
 #define TSDB_SHOW_SQL_LEN       512
 #define TSDB_SLOW_QUERY_SQL_LEN 512
 #define TSDB_SHOW_SUBQUERY_LEN  1000
-#define TSDB_SHOW_LIST_LEN      1000
 
 #define TSDB_TRANS_STAGE_LEN 12
 #define TSDB_TRANS_TYPE_LEN  16
@@ -327,15 +284,21 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_VNODES_PER_DB          1
 #define TSDB_MAX_VNODES_PER_DB          4096
 #define TSDB_DEFAULT_VN_PER_DB          2
-#define TSDB_MIN_CACHE_BLOCK_SIZE       1
-#define TSDB_MAX_CACHE_BLOCK_SIZE       128  // 128MB for each vnode
-#define TSDB_DEFAULT_CACHE_BLOCK_SIZE   16
-#define TSDB_MIN_TOTAL_BLOCKS           3
-#define TSDB_MAX_TOTAL_BLOCKS           10000
-#define TSDB_DEFAULT_TOTAL_BLOCKS       6
+#define TSDB_MIN_BUFFER_PER_VNODE       3      // unit MB
+#define TSDB_MAX_BUFFER_PER_VNODE       16384  // unit MB
+#define TSDB_DEFAULT_BUFFER_PER_VNODE   96
+#define TSDB_MIN_PAGES_PER_VNODE        64
+#define TSDB_MAX_PAGES_PER_VNODE        16384
+#define TSDB_DEFAULT_PAGES_PER_VNODE    256
+#define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
+#define TSDB_MAX_PAGESIZE_PER_VNODE     16384
+#define TSDB_DEFAULT_PAGESIZE_PER_VNODE 4
 #define TSDB_MIN_DAYS_PER_FILE          60  // unit minute
 #define TSDB_MAX_DAYS_PER_FILE          (3650 * 1440)
 #define TSDB_DEFAULT_DAYS_PER_FILE      (10 * 1440)
+#define TSDB_MIN_DURATION_PER_FILE      60  // unit minute
+#define TSDB_MAX_DURATION_PER_FILE      (3650 * 1440)
+#define TSDB_DEFAULT_DURATION_PER_FILE  (10 * 1440)
 #define TSDB_MIN_KEEP                   (1 * 1440)       // data in db to be reserved. unit minute
 #define TSDB_MAX_KEEP                   (365000 * 1440)  // data in db to be reserved.
 #define TSDB_DEFAULT_KEEP               (3650 * 1440)    // ten years
@@ -345,9 +308,6 @@ typedef enum ELogicConditionType {
 #define TSDB_MIN_MAXROWS_FBLOCK         200
 #define TSDB_MAX_MAXROWS_FBLOCK         10000
 #define TSDB_DEFAULT_MAXROWS_FBLOCK     4096
-#define TSDB_MIN_COMMIT_TIME            30
-#define TSDB_MAX_COMMIT_TIME            40960
-#define TSDB_DEFAULT_COMMIT_TIME        3600
 #define TSDB_MIN_FSYNC_PERIOD           0
 #define TSDB_MAX_FSYNC_PERIOD           180000  // millisecond
 #define TSDB_DEFAULT_FSYNC_PERIOD       3000    // three second
@@ -366,9 +326,6 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STRICT_OFF              0
 #define TSDB_DB_STRICT_ON               1
 #define TSDB_DEFAULT_DB_STRICT          0
-#define TSDB_MIN_DB_UPDATE              0
-#define TSDB_MAX_DB_UPDATE              2
-#define TSDB_DEFAULT_DB_UPDATE          0
 #define TSDB_MIN_DB_CACHE_LAST_ROW      0
 #define TSDB_MAX_DB_CACHE_LAST_ROW      3
 #define TSDB_DEFAULT_CACHE_LAST_ROW     0
@@ -378,13 +335,6 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_SINGLE_STABLE_ON        0
 #define TSDB_DB_SINGLE_STABLE_OFF       1
 #define TSDB_DEFAULT_DB_SINGLE_STABLE   0
-#define TSDB_MIN_BUFFER_PER_VNODE       3  // unit MB
-#define TSDB_DEFAULT_BUFFER_PER_VNODE   96
-#define TSDB_MIN_PAGES_PER_VNODE        64
-#define TSDB_DEFAULT_PAGES_PER_VNODE    256
-#define TSDB_MIN_PAGESIZE_PER_VNODE     1  // unit KB
-#define TSDB_MAX_PAGESIZE_PER_VNODE     16384
-#define TSDB_DEFAULT_PAGESIZE_PER_VNODE 4
 
 #define TSDB_MIN_ROLLUP_FILE_FACTOR     0
 #define TSDB_MAX_ROLLUP_FILE_FACTOR     1
@@ -424,21 +374,9 @@ typedef enum ELogicConditionType {
  * 1. ordinary sub query for select * from super_table
  * 2. all sqlobj generated by createSubqueryObj with this flag
  */
-#define TSDB_QUERY_TYPE_SUBQUERY        0x02u
-#define TSDB_QUERY_TYPE_STABLE_SUBQUERY 0x04u  // two-stage subquery for super table
-
-#define TSDB_QUERY_TYPE_TABLE_QUERY      0x08u  // query ordinary table; below only apply to client side
-#define TSDB_QUERY_TYPE_STABLE_QUERY     0x10u  // query on super table
-#define TSDB_QUERY_TYPE_JOIN_QUERY       0x20u  // join query
-#define TSDB_QUERY_TYPE_PROJECTION_QUERY 0x40u  // select *,columns... query
-#define TSDB_QUERY_TYPE_JOIN_SEC_STAGE   0x80u  // join sub query at the second stage
-
-#define TSDB_QUERY_TYPE_TAG_FILTER_QUERY 0x400u
-#define TSDB_QUERY_TYPE_INSERT           0x100u  // insert type
-#define TSDB_QUERY_TYPE_MULTITABLE_QUERY 0x200u
-#define TSDB_QUERY_TYPE_FILE_INSERT      0x400u   // insert data from file
-#define TSDB_QUERY_TYPE_STMT_INSERT      0x800u   // stmt insert type
-#define TSDB_QUERY_TYPE_NEST_SUBQUERY    0x1000u  // nested sub query
+#define TSDB_QUERY_TYPE_INSERT      0x100u  // insert type
+#define TSDB_QUERY_TYPE_FILE_INSERT 0x400u  // insert data from file
+#define TSDB_QUERY_TYPE_STMT_INSERT 0x800u  // stmt insert type
 
 #define TSDB_QUERY_HAS_TYPE(x, _type)   (((x) & (_type)) != 0)
 #define TSDB_QUERY_SET_TYPE(x, _type)   ((x) |= (_type))

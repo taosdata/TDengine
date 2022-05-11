@@ -24,26 +24,36 @@ int32_t udf2_start(SUdfInterBuf *buf) {
   return 0;
 }
 
-int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf) {
+int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
   int64_t sumSquares = *(int64_t*)interBuf->buf;
+  int8_t numOutput = 0;
   for (int32_t i = 0; i < block->numOfCols; ++i) {
-    for (int32_t j = 0; j < block->numOfRows; ++i) {
+    for (int32_t j = 0; j < block->numOfRows; ++j) {
       SUdfColumn* col = block->udfCols[i];
-      //TODO: check the bitmap for null value
-      int32_t* rows = (int32_t*)col->colData.fixLenCol.data;
-      sumSquares += rows[j] * rows[j];
+      if (udfColDataIsNull(col, j)) {
+        continue;
+      }
+
+      char* cell = udfColDataGetData(col, j);
+      int32_t num = *(int32_t*)cell;
+      sumSquares += num * num;
+      numOutput = 1;
     }
   }
 
-  *(int64_t*)interBuf = sumSquares;
-  interBuf->bufLen = sizeof(int64_t);
-  //TODO: if all null value, numOfResult = 0;
-  interBuf->numOfResult = 1;
+  if (numOutput == 1) {
+    *(int64_t*)(newInterBuf->buf) = sumSquares;
+    newInterBuf->bufLen = sizeof(int64_t);
+  }
+  newInterBuf->numOfResult = numOutput;
   return 0;
 }
 
 int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
-  //TODO: check numOfResults;
+  if (buf->numOfResult == 0) {
+    resultData->numOfResult = 0;
+    return 0;
+  }
   int64_t sumSquares = *(int64_t*)(buf->buf);
   *(double*)(resultData->buf) = sqrt(sumSquares);
   resultData->bufLen = sizeof(double);

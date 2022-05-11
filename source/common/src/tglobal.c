@@ -169,6 +169,13 @@ uint32_t tsMaxRange = 500;                      // max range
 uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
+// udf
+bool     tsStartUdfd = true;
+
+// internal
+int32_t tsTransPullupInterval = 6;
+int32_t tsMqRebalanceInterval = 2;
+
 void taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary) {
   tstrncpy(tsDiskCfg[index].dir, v1, TSDB_FILENAME_LEN);
   tsDiskCfg[index].level = level;
@@ -220,7 +227,8 @@ struct SConfig *taosGetCfg() {
   return tsCfg;
 }
 
-static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile, char *apolloUrl) {
+static int32_t taosLoadCfg(SConfig *pCfg, const char **envCmd, const char *inputCfgDir, const char *envFile,
+                           char *apolloUrl) {
   char cfgDir[PATH_MAX] = {0};
   char cfgFile[PATH_MAX + 100] = {0};
 
@@ -296,15 +304,10 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
 static int32_t taosAddClientCfg(SConfig *pCfg) {
   char    defaultFqdn[TSDB_FQDN_LEN] = {0};
   int32_t defaultServerPort = 6030;
-  char    defaultFirstEp[TSDB_EP_LEN] = {0};
-  char    defaultSecondEp[TSDB_EP_LEN] = {0};
-
   if (taosGetFqdn(defaultFqdn) != 0) return -1;
-  snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
-  snprintf(defaultSecondEp, TSDB_EP_LEN, "%s:%d", defaultFqdn, defaultServerPort);
 
-  if (cfgAddString(pCfg, "firstEp", defaultFirstEp, 1) != 0) return -1;
-  if (cfgAddString(pCfg, "secondEp", defaultSecondEp, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "firstEp", "", 1) != 0) return -1;
+  if (cfgAddString(pCfg, "secondEp", "", 1) != 0) return -1;
   if (cfgAddString(pCfg, "fqdn", defaultFqdn, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "serverPort", defaultServerPort, 1, 65056, 1) != 0) return -1;
   if (cfgAddDir(pCfg, "tempDir", tsTempDir, 1) != 0) return -1;
@@ -348,7 +351,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 }
 
 static int32_t taosAddServerCfg(SConfig *pCfg) {
-  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 4096, 0) != 0) return -1;
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, 0) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
@@ -438,6 +441,10 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddString(pCfg, "telemetryServer", tsTelemServer, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "telemetryPort", tsTelemPort, 1, 65056, 0) != 0) return -1;
 
+  if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
+  if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
+
+  if (cfgAddBool(pCfg, "startUdfd", tsStartUdfd, 0) != 0) return -1;
   return 0;
 }
 
@@ -474,15 +481,18 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   tsServerPort = (uint16_t)cfgGetItem(pCfg, "serverPort")->i32;
   snprintf(tsLocalEp, sizeof(tsLocalEp), "%s:%u", tsLocalFqdn, tsServerPort);
 
+  char defaultFirstEp[TSDB_EP_LEN] = {0};
+  snprintf(defaultFirstEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+
   SConfigItem *pFirstEpItem = cfgGetItem(pCfg, "firstEp");
   SEp          firstEp = {0};
-  taosGetFqdnPortFromEp(pFirstEpItem->str, &firstEp);
+  taosGetFqdnPortFromEp(strlen(pFirstEpItem->str) == 0 ? defaultFirstEp : pFirstEpItem->str, &firstEp);
   snprintf(tsFirst, sizeof(tsFirst), "%s:%u", firstEp.fqdn, firstEp.port);
   cfgSetItem(pCfg, "firstEp", tsFirst, pFirstEpItem->stype);
 
   SConfigItem *pSecondpItem = cfgGetItem(pCfg, "secondEp");
   SEp          secondEp = {0};
-  taosGetFqdnPortFromEp(pSecondpItem->str, &secondEp);
+  taosGetFqdnPortFromEp(strlen(pSecondpItem->str) == 0 ? defaultFirstEp : pSecondpItem->str, &secondEp);
   snprintf(tsSecond, sizeof(tsSecond), "%s:%u", secondEp.fqdn, secondEp.port);
   cfgSetItem(pCfg, "secondEp", tsSecond, pSecondpItem->stype);
 
@@ -572,6 +582,11 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tstrncpy(tsTelemServer, cfgGetItem(pCfg, "telemetryServer")->str, TSDB_FQDN_LEN);
   tsTelemPort = (uint16_t)cfgGetItem(pCfg, "telemetryPort")->i32;
 
+  tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
+  tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
+
+  tsStartUdfd = cfgGetItem(pCfg, "startUdfd")->bval;
+
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
   }
@@ -579,8 +594,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   return 0;
 }
 
-int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,
-                      char *apolloUrl, SArray *pArgs, bool tsc) {
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
+                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
   osDefaultInit();
 
   SConfig *pCfg = cfgInit();
@@ -632,7 +647,24 @@ int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDi
   return 0;
 }
 
-int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc) {
+static int32_t taosCheckGlobalCfg() {
+  uint32_t ipv4 = taosGetIpv4FromFqdn(tsLocalFqdn);
+  if (ipv4 == 0xffffffff) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    uError("failed to get ip from fqdn:%s since %s, dnode can not be initialized", tsLocalFqdn, terrstr());
+    return -1;
+  }
+
+  if (tsServerPort <= 0) {
+    uError("invalid server port:%u, dnode can not be initialized", tsServerPort);
+    return -1;
+  }
+
+  return 0;
+}
+
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                    bool tsc) {
   if (tsCfg != NULL) return 0;
   tsCfg = cfgInit();
 
@@ -670,6 +702,11 @@ int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile
   taosSetSystemCfg(tsCfg);
 
   cfgDumpCfg(tsCfg, tsc, false);
+
+  if (taosCheckGlobalCfg() != 0) {
+    return -1;
+  }
+
   return 0;
 }
 

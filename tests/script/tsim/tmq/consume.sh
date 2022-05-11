@@ -62,11 +62,7 @@ fi
 
 TOP_DIR=`pwd`
 
-if [[ "$SCRIPT_DIR" == *"$IN_TDINTERNAL"* ]]; then
-  BIN_DIR=`find . -name "tmq_sim"|grep bin|head -n1|cut -d '/' -f 2,3`
-else
-  BIN_DIR=`find . -name "tmq_sim"|grep bin|head -n1|cut -d '/' -f 2`
-fi
+BIN_DIR=`find . -name "tmq_sim"|grep bin|head -n1|cut -d '/' -f 2`
 
 declare -x BUILD_DIR=$TOP_DIR/$BIN_DIR
 

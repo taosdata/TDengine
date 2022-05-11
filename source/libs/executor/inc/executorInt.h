@@ -20,6 +20,12 @@
 extern "C" {
 #endif
 
+typedef struct {
+  char*           pData;
+  bool            isNull;
+  int16_t         type;
+  int32_t         bytes;
+} SGroupKeys, SStateKeys;
 
 #ifdef __cplusplus
 }

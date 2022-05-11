@@ -3577,6 +3577,22 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
   }
   
   if (QUERY_NODE_NODE_LIST == nodeType(*pNode)) {
+    SNodeListNode *listNode = (SNodeListNode *)*pNode;
+    if (QUERY_NODE_VALUE != nodeType(listNode->pNodeList->pHead->pNode)) {
+      stat->scalarMode = true;
+      return DEAL_RES_CONTINUE;
+    }
+
+    SValueNode *valueNode = (SValueNode *)listNode->pNodeList->pHead->pNode;
+    uint8_t type = valueNode->node.resType.type;
+    SNode *node = NULL;
+    FOREACH(node, listNode->pNodeList) {
+      if (type != ((SValueNode *)node)->node.resType.type) {
+        stat->scalarMode = true;
+        return DEAL_RES_CONTINUE;
+      }
+    }
+
     return DEAL_RES_CONTINUE;
   }
 
@@ -3765,6 +3781,7 @@ int32_t filterInitFromNode(SNode* pNode, SFilterInfo **pInfo, uint32_t options) 
   FLT_ERR_JRET(fltReviseNodes(info, &pNode, &stat));
 
   info->scalarMode = stat.scalarMode;
+  fltDebug("scalar mode: %d", info->scalarMode);
 
   if (!info->scalarMode) {
     FLT_ERR_JRET(fltInitFromNode(pNode, info, options));

@@ -126,6 +126,26 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "slimit/soffset only available for PARTITION BY query";
     case TSDB_CODE_PAR_INVALID_TOPIC_QUERY:
       return "Invalid topic query";
+    case TSDB_CODE_PAR_INVALID_DROP_STABLE:
+      return "Cannot drop super table in batch";
+    case TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE:
+      return "Start(end) time of query range required or time range too large";
+    case TSDB_CODE_PAR_DUPLICATED_COLUMN:
+      return "Duplicated column names";
+    case TSDB_CODE_PAR_INVALID_TAGS_LENGTH:
+      return "Tags length exceeds max length %d";
+    case TSDB_CODE_PAR_INVALID_ROW_LENGTH:
+      return "Row length exceeds max length %d";
+    case TSDB_CODE_PAR_INVALID_COLUMNS_NUM:
+      return "Illegal number of columns";
+    case TSDB_CODE_PAR_TOO_MANY_COLUMNS:
+      return "Too many columns";
+    case TSDB_CODE_PAR_INVALID_FIRST_COLUMN:
+      return "First column must be timestamp";
+    case TSDB_CODE_PAR_INVALID_VAR_COLUMN_LEN:
+      return "Invalid binary/nchar column length";
+    case TSDB_CODE_PAR_INVALID_TAGS_NUM:
+      return "Invalid number of tag columns";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -138,7 +158,6 @@ int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...) {
   va_start(vArgList, errCode);
   vsnprintf(pBuf->buf, pBuf->len, getSyntaxErrFormat(errCode), vArgList);
   va_end(vArgList);
-  terrno = errCode;
   return errCode;
 }
 
@@ -172,27 +191,7 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
 }
 
-static uint32_t getTableMetaSize(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-
-  int32_t totalCols = 0;
-  if (pTableMeta->tableInfo.numOfColumns >= 0) {
-    totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
-  }
-
-  return sizeof(STableMeta) + totalCols * sizeof(SSchema);
-}
-
-STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
-  assert(pTableMeta != NULL);
-  size_t size = getTableMetaSize(pTableMeta);
-
-  STableMeta* p = taosMemoryMalloc(size);
-  memcpy(p, pTableMeta, size);
-  return p;
-}
-
-SSchema* getTableColumnSchema(const STableMeta* pTableMeta) {
+SSchema *getTableColumnSchema(const STableMeta *pTableMeta) {
   assert(pTableMeta != NULL);
   return (SSchema*)pTableMeta->schema;
 }

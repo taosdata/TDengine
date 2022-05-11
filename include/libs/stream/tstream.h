@@ -16,6 +16,7 @@
 #include "tdatablock.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
+#include "tqueue.h"
 #include "trpc.h"
 
 #ifdef __cplusplus
@@ -24,6 +25,8 @@ extern "C" {
 
 #ifndef _TSTREAM_H_
 #define _TSTREAM_H_
+
+typedef struct SStreamTask SStreamTask;
 
 enum {
   STREAM_TASK_STATUS__RUNNING = 1,
@@ -34,19 +37,6 @@ enum {
   STREAM_CREATED_BY__USER = 1,
   STREAM_CREATED_BY__SMA,
 };
-
-#if 0
-// pipe  -> fetch/pipe queue
-// merge -> merge      queue
-// write -> write      queue
-enum {
-  TASK_DISPATCH_MSG__SND_PIPE = 1,
-  TASK_DISPATCH_MSG__SND_MERGE,
-  TASK_DISPATCH_MSG__VND_PIPE,
-  TASK_DISPATCH_MSG__VND_MERGE,
-  TASK_DISPATCH_MSG__VND_WRITE,
-};
-#endif
 
 typedef struct {
   int32_t nodeId;  // 0 for snode
@@ -82,27 +72,29 @@ typedef struct {
   SUseDbRsp dbInfo;
 } STaskDispatcherShuffle;
 
+typedef void FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
+
 typedef struct {
-  int8_t reserved;
+  int64_t         stbUid;
+  SSchemaWrapper* pSchemaWrapper;
   // not applicable to encoder and decoder
+  void*     vnode;
+  FTbSink*  tbSinkFunc;
+  STSchema* pTSchema;
   SHashObj* pHash;  // groupId to tbuid
 } STaskSinkTb;
 
-typedef void FSmaHandle(void* vnode, int64_t smaId, const SArray* data);
+typedef void FSmaSink(void* vnode, int64_t smaId, const SArray* data);
 
 typedef struct {
   int64_t smaId;
   // following are not applicable to encoder and decoder
-  FSmaHandle* smaHandle;
+  FSmaSink* smaSink;
 } STaskSinkSma;
 
 typedef struct {
   int8_t reserved;
 } STaskSinkFetch;
-
-typedef struct {
-  int8_t reserved;
-} STaskSinkShow;
 
 enum {
   TASK_SOURCE__SCAN = 1,
@@ -128,10 +120,9 @@ enum {
   TASK_SINK__TABLE,
   TASK_SINK__SMA,
   TASK_SINK__FETCH,
-  TASK_SINK__SHOW,
 };
 
-typedef struct {
+struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
   int8_t  status;
@@ -155,7 +146,6 @@ typedef struct {
     STaskSinkTb    tbSink;
     STaskSinkSma   smaSink;
     STaskSinkFetch fetchSink;
-    STaskSinkShow  showSink;
   };
 
   // dispatch
@@ -165,14 +155,17 @@ typedef struct {
     STaskDispatcherShuffle shuffleDispatcher;
   };
 
+  // msg buffer
+  int32_t     memUsed;
+  STaosQueue* inputQ;
+
   // application storage
   void* ahandle;
-
-} SStreamTask;
+};
 
 SStreamTask* tNewSStreamTask(int64_t streamId);
-int32_t      tEncodeSStreamTask(SCoder* pEncoder, const SStreamTask* pTask);
-int32_t      tDecodeSStreamTask(SCoder* pDecoder, SStreamTask* pTask);
+int32_t      tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask);
+int32_t      tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask);
 void         tFreeSStreamTask(SStreamTask* pTask);
 
 typedef struct {
@@ -205,6 +198,8 @@ typedef struct {
   int64_t version;
   SArray* res;  // SArray<SSDataBlock>
 } SStreamSinkReq;
+
+int32_t streamEnqueueData(SStreamTask* pTask, const void* input, int32_t inputType);
 
 int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, int32_t inputType, int32_t workId);
 

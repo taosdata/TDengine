@@ -55,7 +55,7 @@ typedef struct {
 #define TSDB_COMMIT_BUF(ch)          TSDB_READ_BUF(&((ch)->readh))
 #define TSDB_COMMIT_COMP_BUF(ch)     TSDB_READ_COMP_BUF(&((ch)->readh))
 #define TSDB_COMMIT_EXBUF(ch)        TSDB_READ_EXBUF(&((ch)->readh))
-#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->config.maxRows)
+#define TSDB_COMMIT_DEFAULT_ROWS(ch) TSDB_DEFAULT_BLOCK_ROWS(TSDB_COMMIT_REPO(ch)->pVnode->config.tsdbCfg.maxRows)
 #define TSDB_COMMIT_TXN_VERSION(ch)  FS_TXN_VERSION(REPO_FS(TSDB_COMMIT_REPO(ch)))
 
 static void tsdbStartCommit(STsdb *pRepo);
@@ -69,11 +69,8 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith);
 static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static void tsdbResetCommitFile(SCommitH *pCommith);
 static int  tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
-// static int  tsdbCommitMeta(STsdbRepo *pRepo);
-// static int  tsdbUpdateMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid, void *cont, int contLen, bool compact);
-// static int  tsdbDropMetaRecord(STsdbFS *pfs, SMFile *pMFile, uint64_t uid);
-// static int  tsdbCompactMetaFile(STsdbRepo *pRepo, STsdbFS *pfs, SMFile *pMFile);
 static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
+static int  tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx);
 static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
 static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
 static int  tsdbWriteBlockInfo(SCommitH *pCommih);
@@ -214,8 +211,8 @@ int tsdbCommit(STsdb *pRepo) {
 }
 
 void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
-  TSKEY     minKey, midKey, maxKey, now;
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
+  TSKEY         minKey, midKey, maxKey, now;
 
   now = taosGetTimestamp(pCfg->precision);
   minKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
@@ -308,9 +305,9 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key) {
 }
 
 static int tsdbNextCommitFid(SCommitH *pCommith) {
-  STsdb    *pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
-  int       fid = TSDB_IVLD_FID;
+  STsdb        *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
+  int           fid = TSDB_IVLD_FID;
 
   for (int i = 0; i < pCommith->niters; i++) {
     SCommitIter *pIter = pCommith->iters + i;
@@ -341,8 +338,8 @@ static void tsdbDestroyCommitH(SCommitH *pCommith) {
 }
 
 static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
-  STsdb    *pRepo = TSDB_COMMIT_REPO(pCommith);
-  STsdbCfg *pCfg = REPO_CFG(pRepo);
+  STsdb        *pRepo = TSDB_COMMIT_REPO(pCommith);
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pRepo);
 
   ASSERT(pSet == NULL || pSet->fid == fid);
 
@@ -353,7 +350,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   if (tsdbSetAndOpenCommitFile(pCommith, pSet, fid) < 0) {
     return -1;
   }
-
+#if 0
   // Loop to commit each table data
   for (int tid = 0; tid < pCommith->niters; tid++) {
     SCommitIter *pIter = pCommith->iters + tid;
@@ -365,6 +362,46 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
       // revert the file change
       tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
       return -1;
+    }
+  }
+#endif
+  // Loop to commit each table data in mem and file
+  int mIter = 0, fIter = 0;
+  int nBlkIdx = taosArrayGetSize(pCommith->readh.aBlkIdx);
+
+  while (true) {
+    SBlockIdx   *pIdx = NULL;
+    SCommitIter *pIter = NULL;
+    if (mIter < pCommith->niters) {
+      pIter = pCommith->iters + mIter;
+      if (fIter < nBlkIdx) {
+        pIdx = taosArrayGet(pCommith->readh.aBlkIdx, fIter);
+      }
+    } else if (fIter < nBlkIdx) {
+      pIdx = taosArrayGet(pCommith->readh.aBlkIdx, fIter);
+    } else {
+      break;
+    }
+    if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->uid <= pIdx->uid))) {
+      if (tsdbCommitToTable(pCommith, mIter) < 0) {
+        tsdbCloseCommitFile(pCommith, true);
+        // revert the file change
+        tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+        return -1;
+      }
+
+      if (pIdx && (pIter->pTable->uid == pIdx->uid)) {
+        ++fIter;
+      }
+      ++mIter;
+    } else if (pIdx) {
+      if (tsdbMoveBlkIdx(pCommith, pIdx) < 0) {
+        tsdbCloseCommitFile(pCommith, true);
+        // revert the file change
+        tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+        return -1;
+      }
+      ++fIter;
     }
   }
 
@@ -842,6 +879,40 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
   return 0;
 }
 
+static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
+  SReadH *pReadh = &pCommith->readh;
+  int     nBlocks = pIdx->numOfBlocks;
+  int     bidx = 0;
+
+  tsdbResetCommitTable(pCommith);
+
+  pReadh->pBlkIdx = pIdx;
+
+  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+    return -1;
+  }
+
+  while (bidx < nBlocks) {
+    if (tsdbMoveBlock(pCommith, bidx) < 0) {
+      tsdbError("vgId:%d failed to move block into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+                TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
+      return -1;
+    }
+    ++bidx;
+  }
+
+  STable table = {.tid = pIdx->uid, .uid = pIdx->uid, .pSchema = NULL};
+  TSDB_COMMIT_TABLE(pCommith) = &table;
+
+  if (tsdbWriteBlockInfo(pCommith) < 0) {
+    tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+              TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
+    return -1;
+  }
+
+  return 0;
+}
+
 static int tsdbSetCommitTable(SCommitH *pCommith, STable *pTable) {
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
 
@@ -922,7 +993,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     STColumn    *pColumn = pSchema->columns + ncol;
     SDataCol    *pDataCol = pDataCols->cols + ncol;
     SBlockCol   *pBlockCol = pBlockData->cols + nColsNotAllNull;
-    SAggrBlkCol *pAggrBlkCol = (SAggrBlkCol *)pAggrBlkData + nColsNotAllNull;
+    SAggrBlkCol *pAggrBlkCol = (SAggrBlkCol *)pAggrBlkData + nColsOfBlockSma;
 
     if (isAllRowsNull(pDataCol)) {  // all data to commit are NULL, just ignore it
       continue;
@@ -935,7 +1006,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
     pBlockCol->type = pDataCol->type;
     pAggrBlkCol->colId = pDataCol->colId;
 
-    if (isSuper && pColumn->sma && tDataTypes[pDataCol->type].statisFunc) {
+    if (isSuper && IS_BSMA_ON(pColumn) && tDataTypes[pDataCol->type].statisFunc) {
 #if 0
       (*tDataTypes[pDataCol->type].statisFunc)(pDataCol->pData, rowsToWrite, &(pBlockCol->min), &(pBlockCol->max),
                                                &(pBlockCol->sum), &(pBlockCol->minIndex), &(pBlockCol->maxIndex),
@@ -947,22 +1018,19 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
                                                &(pAggrBlkCol->numOfNull));
 
       if (pAggrBlkCol->numOfNull == 0) {
-        TD_SET_COL_ROWS_NORM(pBlockCol);
+        pBlockCol->blen = 0;
       } else {
-        TD_SET_COL_ROWS_MISC(pBlockCol);
+        pBlockCol->blen = 1;
       }
+      ++nColsOfBlockSma;
     } else if (tdIsBitmapBlkNorm(pDataCol->pBitmap, rowsToWrite, pDataCols->bitmapMode)) {
       // check if all rows normal
-      TD_SET_COL_ROWS_NORM(pBlockCol);
+      pBlockCol->blen = 0;
     } else {
-      TD_SET_COL_ROWS_MISC(pBlockCol);
+      pBlockCol->blen = 1;
     }
 
     ++nColsNotAllNull;
-
-    if (isSuper && pColumn->sma) {
-      ++nColsOfBlockSma;
-    }
   }
 
   ASSERT(nColsNotAllNull >= 0 && nColsNotAllNull <= pDataCols->numOfCols);
@@ -992,7 +1060,7 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
 #ifdef TD_SUPPORT_BITMAP
     int32_t tBitmaps = 0;
     int32_t tBitmapsLen = 0;
-    if ((ncol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+    if ((ncol != 0) && (pBlockCol->blen > 0)) {
       tBitmaps = isSuper ? sBitmaps : nBitmaps;
     }
 #endif
@@ -1337,13 +1405,15 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
                                       TSKEY maxKey, int maxRows, int8_t update) {
   TSKEY     key1 = INT64_MAX;
   TSKEY     key2 = INT64_MAX;
+  TSKEY     lastKey = TSKEY_INITIAL_VAL;
   STSchema *pSchema = NULL;
 
   ASSERT(maxRows > 0 && dataColsKeyLast(pDataCols) <= maxKey);
   tdResetDataCols(pTarget);
 
   pTarget->bitmapMode = pDataCols->bitmapMode;
-
+  // TODO: filter Multi-Version
+  // TODO: support delete function
   while (true) {
     key1 = (*iter >= pDataCols->numOfRows) ? INT64_MAX : dataColsKeyAt(pDataCols, *iter);
     STSRow *row = tsdbNextIterRow(pCommitIter->pIter);
@@ -1356,6 +1426,9 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
     if (key1 == INT64_MAX && key2 == INT64_MAX) break;
 
     if (key1 < key2) {
+      if (lastKey != TSKEY_INITIAL_VAL) {
+        ++pTarget->numOfRows;
+      }
       for (int i = 0; i < pDataCols->numOfCols; ++i) {
         // TODO: dataColAppendVal may fail
         SCellVal sVal = {0};
@@ -1363,10 +1436,10 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
           TASSERT(0);
         }
         tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
-                             pTarget->bitmapMode);
+                             pTarget->bitmapMode, false);
       }
 
-      ++pTarget->numOfRows;
+      lastKey = key1;
       ++(*iter);
     } else if (key1 > key2) {
       if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
@@ -1374,36 +1447,25 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         ASSERT(pSchema != NULL);
       }
 
-      tdAppendSTSRowToDataCol(row, pSchema, pTarget);
+      if (key2 == lastKey) {
+        if (TD_SUPPORT_UPDATE(update)) {
+          tdAppendSTSRowToDataCol(row, pSchema, pTarget, true);
+        }
+      } else {
+        if (lastKey != TSKEY_INITIAL_VAL) {
+          ++pTarget->numOfRows;
+        }
+        tdAppendSTSRowToDataCol(row, pSchema, pTarget, false);
+        lastKey = key2;
+      }
 
       tSkipListIterNext(pCommitIter->pIter);
     } else {
-#if 0
-      if (update != TD_ROW_OVERWRITE_UPDATE) {
-        // copy disk data
-        for (int i = 0; i < pDataCols->numOfCols; ++i) {
-          // TODO: dataColAppendVal may fail
-          SCellVal sVal = {0};
-          if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
-            TASSERT(0);
-          }
-          tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints, pTarget->bitmapMode);
-        }
-
-        if (update == TD_ROW_DISCARD_UPDATE) pTarget->numOfRows++;
+      if (lastKey != key1) {
+        lastKey = key1;
+        ++pTarget->numOfRows;
       }
-      if (update != TD_ROW_DISCARD_UPDATE) {
-        // copy mem data
-        if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
-          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, TD_ROW_SVER(row));
-          ASSERT(pSchema != NULL);
-        }
 
-        tdAppendSTSRowToDataCol(row, pSchema, pTarget, update == TD_ROW_OVERWRITE_UPDATE);
-      }
-      ++(*iter);
-      tSkipListIterNext(pCommitIter->pIter);
-#endif
       // copy disk data
       for (int i = 0; i < pDataCols->numOfCols; ++i) {
         SCellVal sVal = {0};
@@ -1412,7 +1474,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         }
         // TODO: tdAppendValToDataCol may fail
         tdAppendValToDataCol(pTarget->cols + i, sVal.valType, sVal.val, pTarget->numOfRows, pTarget->maxPoints,
-                             pTarget->bitmapMode);
+                             pTarget->bitmapMode, false);
       }
 
       if (TD_SUPPORT_UPDATE(update)) {
@@ -1423,26 +1485,17 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
         }
 
         // TODO: merge with Multi-Version
-        STSRow *curRow = row;
-
-        ++(*iter);
-        tSkipListIterNext(pCommitIter->pIter);
-        STSRow *nextRow = tsdbNextIterRow(pCommitIter->pIter);
-
-        if (key2 < TD_ROW_KEY(nextRow)) {
-          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
-        } else {
-          tdAppendSTSRowToDataCol(row, pSchema, pTarget);
-        }
-        // TODO: merge with Multi-Version
-      } else {
-        ++pTarget->numOfRows;
-        ++(*iter);
-        tSkipListIterNext(pCommitIter->pIter);
+        tdAppendSTSRowToDataCol(row, pSchema, pTarget, true);
       }
+      ++(*iter);
+      tSkipListIterNext(pCommitIter->pIter);
     }
 
-    if (pTarget->numOfRows >= maxRows) break;
+    if (pTarget->numOfRows >= (maxRows - 1)) break;
+  }
+
+  if (lastKey != TSKEY_INITIAL_VAL) {
+    ++pTarget->numOfRows;
   }
 }
 
@@ -1480,28 +1533,3 @@ static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *p
 
   return false;
 }
-
-// int tsdbApplyRtn(STsdbRepo *pRepo) {
-//   SRtn       rtn;
-//   SFSIter    fsiter;
-//   STsdbFS *  pfs = REPO_FS(pRepo);
-//   SDFileSet *pSet;
-
-//   // Get retention snapshot
-//   tsdbGetRtnSnap(pRepo, &rtn);
-
-//   tsdbFSIterInit(&fsiter, pfs, TSDB_FS_ITER_FORWARD);
-//   while ((pSet = tsdbFSIterNext(&fsiter))) {
-//     if (pSet->fid < rtn.minFid) {
-//       tsdbInfo("vgId:%d FSET %d at level %d disk id %d expires, remove it", REPO_ID(pRepo), pSet->fid,
-//                TSDB_FSET_LEVEL(pSet), TSDB_FSET_ID(pSet));
-//       continue;
-//     }
-
-//     if (tsdbApplyRtnOnFSet(pRepo, pSet, &rtn) < 0) {
-//       return -1;
-//     }
-//   }
-
-//   return 0;
-// }

@@ -41,6 +41,8 @@
 #include "monitor.h"
 #include "sync.h"
 
+#include "libs/function/function.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -154,6 +156,8 @@ typedef struct SUdfdData {
   uv_pipe_t     ctrlPipe;
   uv_async_t    stopAsync;
   int32_t        stopCalled;
+
+  int32_t         dnodeId;
 } SUdfdData;
 
 typedef struct SDnode {

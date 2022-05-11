@@ -35,27 +35,24 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
     SCreateDbReq createReq = {0};
     strcpy(createReq.db, "1.d1");
     createReq.numOfVgroups = 2;
-    createReq.cacheBlockSize = 16;
-    createReq.totalBlocks = 10;
+    createReq.buffer = -1;
+    createReq.pageSize = -1;
+    createReq.pages = -1;
     createReq.daysPerFile = 1000;
     createReq.daysToKeep0 = 3650;
     createReq.daysToKeep1 = 3650;
     createReq.daysToKeep2 = 3650;
     createReq.minRows = 100;
     createReq.maxRows = 4096;
-    createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
-    createReq.ttl = 1;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replications = 1;
     createReq.strict = 1;
-    createReq.update = 0;
     createReq.cacheLastRow = 0;
     createReq.ignoreExist = 1;
-    createReq.streamMode = 0;
-    createReq.singleSTable = 0;
+    createReq.numOfStables = 0;
     createReq.numOfRetensions = 0;
 
     int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -76,14 +73,19 @@ TEST_F(MndTestDb, 02_Create_Alter_Drop_Db) {
   {
     SAlterDbReq alterdbReq = {0};
     strcpy(alterdbReq.db, "1.d1");
-    alterdbReq.totalBlocks = 12;
-    alterdbReq.daysToKeep0 = 300;
-    alterdbReq.daysToKeep1 = 400;
-    alterdbReq.daysToKeep2 = 500;
+
+    alterdbReq.buffer = 12;
+    alterdbReq.pageSize = -1;
+    alterdbReq.pages = -1;
+    alterdbReq.daysPerFile = -1;
+    alterdbReq.daysToKeep0 = -1;
+    alterdbReq.daysToKeep1 = -1;
+    alterdbReq.daysToKeep2 = -1;
     alterdbReq.fsyncPeriod = 4000;
     alterdbReq.walLevel = 2;
-    alterdbReq.strict = 2;
+    alterdbReq.strict = 1;
     alterdbReq.cacheLastRow = 1;
+    alterdbReq.replications = 1;
 
     int32_t contLen = tSerializeSAlterDbReq(NULL, 0, &alterdbReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -129,27 +131,24 @@ TEST_F(MndTestDb, 03_Create_Use_Restart_Use_Db) {
     SCreateDbReq createReq = {0};
     strcpy(createReq.db, "1.d2");
     createReq.numOfVgroups = 2;
-    createReq.cacheBlockSize = 16;
-    createReq.totalBlocks = 10;
+    createReq.buffer = -1;
+    createReq.pageSize = -1;
+    createReq.pages = -1;
     createReq.daysPerFile = 1000;
     createReq.daysToKeep0 = 3650;
     createReq.daysToKeep1 = 3650;
     createReq.daysToKeep2 = 3650;
     createReq.minRows = 100;
     createReq.maxRows = 4096;
-    createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
-    createReq.ttl = 1;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replications = 1;
     createReq.strict = 1;
-    createReq.update = 0;
     createReq.cacheLastRow = 0;
     createReq.ignoreExist = 1;
-    createReq.streamMode = 0;
-    createReq.singleSTable = 0;
+    createReq.numOfStables = 0;
     createReq.numOfRetensions = 0;
 
     int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);

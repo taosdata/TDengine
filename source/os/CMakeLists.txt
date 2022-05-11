@@ -17,15 +17,25 @@ endif ()
 if(USE_TD_MEMORY)
     add_definitions(-DUSE_TD_MEMORY) 
 endif ()
+if(BUILD_ADDR2LINE)
+    target_include_directories(
+        os
+        PUBLIC "${TD_SOURCE_DIR}/contrib/libdwarf/src/lib/libdwarf"
+    )
+    add_definitions(-DUSE_ADDR2LINE)
+    target_link_libraries(
+        os PUBLIC addr2line dl z
+    )
+endif ()
 target_link_libraries(
-    os pthread
+    os PUBLIC pthread
 )
 if(NOT TD_WINDOWS)
     target_link_libraries(
-        os dl m rt
+        os PUBLIC dl m rt
     )
 else()
     target_link_libraries(
-        os ws2_32 iconv msvcregex wcwidth winmm
+        os PUBLIC ws2_32 iconv msvcregex wcwidth winmm
     )
 endif(NOT TD_WINDOWS)

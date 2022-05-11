@@ -175,55 +175,19 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
   return 0;
 }
 int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result) {
-#ifdef USE_LUCENE
-  EIndexOperatorType opera = multiQuerys->opera;
-
-  int    nQuery = taosArrayGetSize(multiQuerys->query);
-  char** fields = taosMemoryMalloc(sizeof(char*) * nQuery);
-  char** keys = taosMemoryMalloc(sizeof(char*) * nQuery);
-  int*   types = taosMemoryMalloc(sizeof(int) * nQuery);
-
-  for (int i = 0; i < nQuery; i++) {
-    SIndexTermQuery* p = taosArrayGet(multiQuerys->query, i);
-    SIndexTerm*      term = p->field_value;
-
-    fields[i] = taosMemoryCalloc(1, term->nKey + 1);
-    keys[i] = taosMemoryCalloc(1, term->nVal + 1);
-
-    memcpy(fields[i], term->key, term->nKey);
-    memcpy(keys[i], term->val, term->nVal);
-    types[i] = (int)(p->type);
-  }
-  int* tResult = NULL;
-  int  tsz = 0;
-  index_multi_search(index->index, (const char**)fields, (const char**)keys, types, nQuery, opera, &tResult, &tsz);
-
-  for (int i = 0; i < tsz; i++) {
-    taosArrayPush(result, &tResult[i]);
-  }
-
-  for (int i = 0; i < nQuery; i++) {
-    taosMemoryFree(fields[i]);
-    taosMemoryFree(keys[i]);
-  }
-  taosMemoryFree(fields);
-  taosMemoryFree(keys);
-  taosMemoryFree(types);
-#endif
-
 #ifdef USE_INVERTED_INDEX
   EIndexOperatorType opera = multiQuerys->opera;  // relation of querys
 
-  SArray* interResults = taosArrayInit(4, POINTER_BYTES);
+  SArray* iRslts = taosArrayInit(4, POINTER_BYTES);
   int     nQuery = taosArrayGetSize(multiQuerys->query);
   for (size_t i = 0; i < nQuery; i++) {
-    SIndexTermQuery* qTerm = taosArrayGet(multiQuerys->query, i);
-    SArray*          tResult = NULL;
-    indexTermSearch(index, qTerm, &tResult);
-    taosArrayPush(interResults, (void*)&tResult);
+    SIndexTermQuery* qterm = taosArrayGet(multiQuerys->query, i);
+    SArray*          trslt = NULL;
+    indexTermSearch(index, qterm, &trslt);
+    taosArrayPush(iRslts, (void*)&trslt);
   }
-  indexMergeFinalResults(interResults, opera, result);
-  indexInterResultsDestroy(interResults);
+  indexMergeFinalResults(iRslts, opera, result);
+  indexInterResultsDestroy(iRslts);
 
 #endif
   return 0;
@@ -258,13 +222,13 @@ void indexOptsDestroy(SIndexOpts* opts) {
  *
  */
 SIndexMultiTermQuery* indexMultiTermQueryCreate(EIndexOperatorType opera) {
-  SIndexMultiTermQuery* p = (SIndexMultiTermQuery*)taosMemoryMalloc(sizeof(SIndexMultiTermQuery));
-  if (p == NULL) {
+  SIndexMultiTermQuery* mtq = (SIndexMultiTermQuery*)taosMemoryMalloc(sizeof(SIndexMultiTermQuery));
+  if (mtq == NULL) {
     return NULL;
   }
-  p->opera = opera;
-  p->query = taosArrayInit(4, sizeof(SIndexTermQuery));
-  return p;
+  mtq->opera = opera;
+  mtq->query = taosArrayInit(4, sizeof(SIndexTermQuery));
+  return mtq;
 }
 void indexMultiTermQueryDestroy(SIndexMultiTermQuery* pQuery) {
   for (int i = 0; i < taosArrayGetSize(pQuery->query); i++) {
@@ -282,23 +246,24 @@ int indexMultiTermQueryAdd(SIndexMultiTermQuery* pQuery, SIndexTerm* term, EInde
 
 SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colType, const char* colName,
                             int32_t nColName, const char* colVal, int32_t nColVal) {
-  SIndexTerm* t = (SIndexTerm*)taosMemoryCalloc(1, (sizeof(SIndexTerm)));
-  if (t == NULL) {
+  SIndexTerm* tm = (SIndexTerm*)taosMemoryCalloc(1, (sizeof(SIndexTerm)));
+  if (tm == NULL) {
     return NULL;
   }
 
-  t->suid = suid;
-  t->operType = oper;
-  t->colType = colType;
+  tm->suid = suid;
+  tm->operType = oper;
+  tm->colType = colType;
 
-  t->colName = (char*)taosMemoryCalloc(1, nColName + 1);
-  memcpy(t->colName, colName, nColName);
-  t->nColName = nColName;
+  tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
+  memcpy(tm->colName, colName, nColName);
+  tm->nColName = nColName;
 
-  t->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
-  memcpy(t->colVal, colVal, nColVal);
-  t->nColVal = nColVal;
-  return t;
+  tm->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
+  memcpy(tm->colVal, colVal, nColVal);
+  tm->nColVal = nColVal;
+
+  return tm;
 }
 void indexTermDestroy(SIndexTerm* p) {
   taosMemoryFree(p->colName);

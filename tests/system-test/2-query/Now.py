@@ -144,6 +144,12 @@ class TDTestCase:
 
         tdSql.error("select now()+1.5 from ntb")
         tdSql.error("select now()+1.5 from db.ntb")
+        tdSql.error("select now()-1.5 from ntb")
+        tdSql.error("select now()-1.5 from db.ntb")
+        tdSql.error("select now()*1.5 from ntb")
+        tdSql.error("select now()*1.5 from db.ntb")
+        tdSql.error("select now()/1.5 from ntb")
+        tdSql.error("select now()/1.5 from db.ntb")
         tdSql.error("select now()+'abc' from ntb")
         tdSql.error("select now()+'abc' from db.ntb")
         tdSql.error("select now()+abc from ntb")
@@ -262,7 +268,10 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select now() +1 from db.stb")
         tdSql.checkRows(3)
-
+        tdSql.error("select now() +1.5 from stb")
+        tdSql.error("select now() -1.5 from stb")
+        tdSql.error("select now() *1.5 from stb")
+        tdSql.error("select now() /1.5 from stb")
         tdSql.error("select now() +'abc' from stb")
         tdSql.error("select now() +'abc' from db.stb")
         tdSql.error("select now() + ! from stb")
@@ -271,6 +280,7 @@ class TDTestCase:
         tdSql.error("select now() + today() from db.stb")
         tdSql.error("select now() -today() from stb")
         tdSql.error("select now() - today() from db.stb")
+
 
         tdSql.query("select now()+null from stb")
         tdSql.checkData(0,0,None)

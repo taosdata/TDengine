@@ -30,7 +30,7 @@ typedef struct SUdfdContext {
   uv_loop_t  *loop;
   uv_pipe_t   ctrlPipe;
   uv_signal_t intrSignal;
-  char        listenPipeName[UDF_LISTEN_PIPE_NAME_LEN];
+  char        listenPipeName[PATH_MAX + UDF_LISTEN_PIPE_NAME_LEN + 2];
   uv_pipe_t   listeningPipe;
 
   void       *clientRpc;
@@ -75,12 +75,15 @@ typedef struct SUdf {
   char   path[PATH_MAX];
 
   uv_lib_t              lib;
+
   TUdfScalarProcFunc    scalarProcFunc;
-  TUdfFreeUdfColumnFunc freeUdfColumn;
 
   TUdfAggStartFunc      aggStartFunc;
   TUdfAggProcessFunc    aggProcFunc;
   TUdfAggFinishFunc     aggFinishFunc;
+
+  TUdfInitFunc          initFunc;
+  TUdfDestroyFunc       destroyFunc;
 } SUdf;
 
 // TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
@@ -101,16 +104,23 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
     return UDFC_CODE_LOAD_UDF_FAILURE;
   }
-  //TODO: init and destroy function
+
+  char initFuncName[TSDB_FUNC_NAME_LEN+5] = {0};
+  char *initSuffix = "_init";
+  strcpy(initFuncName, udfName);
+  strncat(initFuncName, initSuffix, strlen(initSuffix));
+  uv_dlsym(&udf->lib, initFuncName, (void**)(&udf->initFunc));
+
+  char destroyFuncName[TSDB_FUNC_NAME_LEN+5] = {0};
+  char *destroySuffix = "_destroy";
+  strcpy(destroyFuncName, udfName);
+  strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
+  uv_dlsym(&udf->lib, destroyFuncName, (void**)(&udf->destroyFunc));
+
   if (udf->funcType == TSDB_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
     uv_dlsym(&udf->lib, processFuncName, (void **)(&udf->scalarProcFunc));
-    char  freeFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
-    char *freeSuffix = "_free";
-    strncpy(freeFuncName, processFuncName, strlen(processFuncName));
-    strncat(freeFuncName, freeSuffix, strlen(freeSuffix));
-    uv_dlsym(&udf->lib, freeFuncName, (void **)(&udf->freeUdfColumn));
   } else if (udf->funcType == TSDB_FUNC_TYPE_AGGREGATE) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
     strcpy(processFuncName, udfName);
@@ -124,7 +134,7 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     char *finishSuffix = "_finish";
     strncpy(finishFuncName, processFuncName, strlen(processFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
-    uv_dlsym(&udf->lib, startFuncName, (void **)(&udf->aggFinishFunc));
+    uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
     //TODO: merge
   }
   return 0;
@@ -164,6 +174,9 @@ void udfdProcessRequest(uv_work_t *req) {
       if (udf->state == UDF_STATE_INIT) {
         udf->state = UDF_STATE_LOADING;
         udfdLoadUdf(setup->udfName, udf);
+        if (udf->initFunc) {
+          udf->initFunc();
+        }
         udf->state = UDF_STATE_READY;
         uv_cond_broadcast(&udf->condReady);
         uv_mutex_unlock(&udf->lock);
@@ -175,7 +188,6 @@ void udfdProcessRequest(uv_work_t *req) {
       }
       SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
       handle->udf = udf;
-      // TODO: allocate private structure and call init function and set it to handle
       SUdfResponse rsp;
       rsp.seqNum = request.seqNum;
       rsp.type = request.type;
@@ -215,7 +227,7 @@ void udfdProcessRequest(uv_work_t *req) {
           udf->scalarProcFunc(&input, &output);
 
           convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
-          udf->freeUdfColumn(&output);
+          freeUdfColumn(&output);
           break;
         }
         case TSDB_UDF_CALL_AGG_INIT: {
@@ -232,7 +244,7 @@ void udfdProcessRequest(uv_work_t *req) {
           SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize),
                                  .bufLen= udf->bufSize,
                                  .numOfResult = 0};
-          udf->aggProcFunc(&input, &outBuf);
+          udf->aggProcFunc(&input, &call->interBuf, &outBuf);
           subRsp->resultBuf = outBuf;
 
           break;
@@ -280,10 +292,12 @@ void udfdProcessRequest(uv_work_t *req) {
       if (unloadUdf) {
         uv_cond_destroy(&udf->condReady);
         uv_mutex_destroy(&udf->lock);
+        if (udf->destroyFunc) {
+          (udf->destroyFunc)();
+        }
         uv_dlclose(&udf->lib);
         taosMemoryFree(udf);
       }
-      // TODO: call destroy and free udf private
       taosMemoryFree(handle);
 
       SUdfResponse  response;
@@ -395,7 +409,7 @@ void udfdPipeCloseCb(uv_handle_t *pipe) {
 void udfdUvHandleError(SUdfdUvConn *conn) { uv_close((uv_handle_t *)conn->client, udfdPipeCloseCb); }
 
 void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
-  fnDebug("udf read %zu bytes from client", nread);
+  fnDebug("udf read %zd bytes from client", nread);
   if (nread == 0) return;
 
   SUdfdUvConn *conn = client->data;
@@ -638,7 +652,7 @@ static int32_t udfdUvInit() {
   uv_pipe_open(&global.ctrlPipe, 0);
   uv_read_start((uv_stream_t *)&global.ctrlPipe, udfdCtrlAllocBufCb, udfdCtrlReadCb);
 
-  getUdfdPipeName(global.listenPipeName, UDF_LISTEN_PIPE_NAME_LEN);
+  getUdfdPipeName(global.listenPipeName, sizeof(global.listenPipeName));
 
   removeListeningPipe();
 
@@ -682,6 +696,7 @@ static int32_t udfdRun() {
   fnInfo("udfd stopped. result: %s, code: %d", uv_err_name(code), code);
   int codeClose = uv_loop_close(global.loop);
   fnDebug("uv loop close. result: %s", uv_err_name(codeClose));
+  removeListeningPipe();
   udfdCloseClientRpc();
   uv_mutex_destroy(&global.udfsMutex);
   taosHashCleanup(global.udfsHash);

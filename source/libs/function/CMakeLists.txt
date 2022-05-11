@@ -36,7 +36,7 @@ target_link_libraries(
         PRIVATE os util common nodes function
 )
 
-add_library(udf1 MODULE test/udf1.c)
+add_library(udf1 STATIC MODULE test/udf1.c)
 target_include_directories(
         udf1
         PUBLIC
@@ -48,10 +48,9 @@ target_include_directories(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    udf1 PUBLIC os
-)
+    udf1 PUBLIC os)
 
-add_library(udf2 MODULE test/udf2.c)
+add_library(udf2 STATIC MODULE test/udf2.c)
 target_include_directories(
         udf2
         PUBLIC

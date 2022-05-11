@@ -49,18 +49,21 @@ void walCloseReadHandle(SWalReadHandle *pRead) {
   taosMemoryFree(pRead);
 }
 
-int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) { return 0; }
+int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) {
+  // TODO
+  return 0;
+}
 
 static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
-  int code = 0;
+  int ret = 0;
 
   TdFilePtr pIdxTFile = pRead->pReadIdxTFile;
   TdFilePtr pLogTFile = pRead->pReadLogTFile;
 
   // seek position
   int64_t offset = (ver - fileFirstVer) * sizeof(SWalIdxEntry);
-  code = taosLSeekFile(pIdxTFile, offset, SEEK_SET);
-  if (code < 0) {
+  ret = taosLSeekFile(pIdxTFile, offset, SEEK_SET);
+  if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -69,14 +72,14 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
-  // TODO:deserialize
+
   ASSERT(entry.ver == ver);
-  code = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
-  if (code < 0) {
+  ret = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
+  if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-  return code;
+  return ret;
 }
 
 static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
@@ -105,7 +108,6 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
 }
 
 static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
-  int   code;
   SWal *pWal = pRead->pWal;
   if (ver == pRead->curVersion) {
     return 0;
@@ -123,16 +125,15 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
   if (pRead->curFileFirstVer != pRet->firstVer) {
-    code = walReadChangeFile(pRead, pRet->firstVer);
-    if (code < 0) {
+    if (walReadChangeFile(pRead, pRet->firstVer) < 0) {
       return -1;
     }
   }
 
-  code = walReadSeekFilePos(pRead, pRet->firstVer, ver);
-  if (code < 0) {
+  if (walReadSeekFilePos(pRead, pRet->firstVer, ver) < 0) {
     return -1;
   }
+
   pRead->curVersion = ver;
 
   return 0;
@@ -142,7 +143,11 @@ void walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity) { pRead->capa
 
 int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
   int32_t code;
+
   // TODO: valid ver
+  if (ver > pRead->pWal->vers.commitVer) {
+    return -1;
+  }
 
   if (pRead->curVersion != ver) {
     code = walReadSeekVer(pRead, ver);
@@ -243,8 +248,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   int code;
   // TODO: check wal life
   if (pRead->curVersion != ver) {
-    code = walReadSeekVer(pRead, ver);
-    if (code < 0) {
+    if (walReadSeekVer(pRead, ver) < 0) {
       return -1;
     }
   }
@@ -275,8 +279,12 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     pRead->capacity = pRead->pHead->head.bodyLen;
   }
 
-  if (pRead->pHead->head.bodyLen !=
-      taosReadFile(pRead->pReadLogTFile, pRead->pHead->head.body, pRead->pHead->head.bodyLen)) {
+  if ((code = taosReadFile(pRead->pReadLogTFile, pRead->pHead->head.body, pRead->pHead->head.bodyLen)) !=
+      pRead->pHead->head.bodyLen) {
+    if (code < 0)
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    else
+      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 

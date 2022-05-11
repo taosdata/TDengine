@@ -29,6 +29,12 @@ void     mndReleaseStb(SMnode *pMnode, SStbObj *pStb);
 SSdbRaw *mndStbActionEncode(SStbObj *pStb);
 int32_t  mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbs, int32_t numOfStbs, void **ppRsp,
                             int32_t *pRspLen);
+int32_t  mndGetNumOfStbs(SMnode *pMnode, char *dbName, int32_t *pNumOfStbs);
+
+int32_t mndCheckCreateStbReq(SMCreateStbReq *pCreate);
+SDbObj *mndAcquireDbByStb(SMnode *pMnode, const char *stbName);
+int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreate, SDbObj *pDb);
+int32_t mndAddStbToTrans(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SStbObj *pStb);
 
 #ifdef __cplusplus
 }

@@ -101,7 +101,7 @@ class TDTestCase:
         # tdSql.error("select distinct  c1, ts from stb1 group by c2")
         tdSql.error("select distinct  c1, ts from t1 group by c2")
         # tdSql.error("select distinct  c1, max(c2) from stb1 ")
-        tdSql.error("select distinct  c1, max(c2) from t1 ")
+        # tdSql.error("select distinct  c1, max(c2) from t1 ")
         # tdSql.error("select max(c2), distinct  c1 from stb1 ")
         tdSql.error("select max(c2), distinct  c1 from t1 ")
         # tdSql.error("select distinct  c1, c2 from stb1 where c1 > 3 group by t0")

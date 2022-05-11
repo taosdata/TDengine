@@ -115,7 +115,7 @@ void destroyBoundColumnInfo(void* pBoundInfo) {
   taosMemoryFreeClear(pColList->colIdxInfo);
 }
 
-static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, const STableMeta* pTableMeta,
+static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t startOffset, STableMeta* pTableMeta,
                                STableDataBlocks** dataBlocks) {
   STableDataBlocks* dataBuf = (STableDataBlocks*)taosMemoryCalloc(1, sizeof(STableDataBlocks));
   if (dataBuf == NULL) {
@@ -137,8 +137,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
-  // Here we keep the tableMeta to avoid it to be remove by other threads.
-  dataBuf->pTableMeta = tableMetaDup(pTableMeta);
+  dataBuf->pTableMeta = pTableMeta;
 
   SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
   SSchema*            pSchema = getTableColumnSchema(dataBuf->pTableMeta);
@@ -157,7 +156,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
 }
 
 int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq) {
-  SCoder coder = {0};
+  SEncoder coder = {0};
   char* pBuf;
   int32_t len;
 
@@ -177,9 +176,9 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
 
   pBuf= pBlocks->pData + pBlocks->size;
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, len, TD_ENCODER);
+  tEncoderInit(&coder, pBuf, len);
   tEncodeSVCreateTbReq(&coder, pCreateTbReq);
-  tCoderClear(&coder);
+  tEncoderClear(&coder);
 
   pBlocks->size += len;
   pBlocks->createTbReqLen = len;
@@ -187,7 +186,7 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
 }
 
 int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
-                             const STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
+                             STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
                              SVCreateTbReq* pCreateTbReq) {
   *dataBlocks = NULL;
   STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
@@ -238,9 +237,9 @@ static void destroyDataBlock(STableDataBlocks* pDataBlock) {
   taosMemoryFreeClear(pDataBlock->pData);
   if (!pDataBlock->cloned) {
     // free the refcount for metermeta
-    if (pDataBlock->pTableMeta != NULL) {
-      taosMemoryFreeClear(pDataBlock->pTableMeta);
-    }
+//    if (pDataBlock->pTableMeta != NULL) {
+//      taosMemoryFreeClear(pDataBlock->pTableMeta);
+//    }
 
     destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
   }
@@ -456,6 +455,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
     SSubmitBlk* pBlocks = (SSubmitBlk*)pOneTableBlock->pData;
     if (pBlocks->numOfRows > 0) {
       STableDataBlocks* dataBuf = NULL;
+      pOneTableBlock->pTableMeta->vgId = pOneTableBlock->vgId;    // for schemaless, restore origin vgId
       int32_t           ret =
           getDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE, INSERT_HEAD_SIZE, 0,
                                pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList, NULL);
@@ -469,7 +469,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
       int32_t expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize +
-                         sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta);
+                         sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta) + pOneTableBlock->createTbReqLen;
 
       if (dataBuf->nAllocSize < destSize) {
         dataBuf->nAllocSize = (uint32_t)(destSize * 1.5);
@@ -498,14 +498,9 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
         ASSERT(blkKeyInfo.pKeyTuple != NULL && pBlocks->numOfRows > 0);
       }
 
-      int32_t len = pBlocks->numOfRows *
-                        (isRawPayload ? (pOneTableBlock->rowSize + expandSize) : getExtendedRowSize(pOneTableBlock)) +
-                    sizeof(STColumn) * getNumOfColumns(pOneTableBlock->pTableMeta);
-
       // erase the empty space reserved for binary data
       int32_t finalLen =
           trimDataBlock(dataBuf->pData + dataBuf->size, pOneTableBlock, blkKeyInfo.pKeyTuple, isRawPayload);
-      assert(finalLen <= len);
 
       dataBuf->size += (finalLen + sizeof(SSubmitBlk));
       assert(dataBuf->size <= dataBuf->nAllocSize);
@@ -606,6 +601,7 @@ int32_t qResetStmtDataBlock(void* block, bool keepBuf) {
   pBlock->numOfTables = 1;
   pBlock->nAllocSize = TSDB_PAYLOAD_SIZE;
   pBlock->headerSize = pBlock->size;
+  pBlock->createTbReqLen = 0;
 
   memset(&pBlock->rowBuilder, 0, sizeof(pBlock->rowBuilder));
 

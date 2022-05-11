@@ -102,13 +102,20 @@ typedef struct SWindowLogicNode {
   int64_t     sliding;
   int8_t      intervalUnit;
   int8_t      slidingUnit;
-  SFillNode*  pFill;
   int64_t     sessionGap;
   SNode*      pTspk;
   SNode*      pStateExpr;
   int8_t      triggerType;
   int64_t     watermark;
 } SWindowLogicNode;
+
+typedef struct SFillLogicNode {
+  SLogicNode  node;
+  EFillMode   mode;
+  SNode*      pWStartTs;
+  SNode*      pValues;  // SNodeListNode
+  STimeWindow timeRange;
+} SFillLogicNode;
 
 typedef struct SSortLogicNode {
   SLogicNode node;
@@ -223,9 +230,11 @@ typedef struct SProjectPhysiNode {
 typedef struct SJoinPhysiNode {
   SPhysiNode node;
   EJoinType  joinType;
-  SNode*     pOnConditions;  // in or out tuple ?
+  SNode*     pOnConditions;
   SNodeList* pTargets;
 } SJoinPhysiNode;
+
+typedef SJoinPhysiNode SSortMergeJoinPhysiNode;
 
 typedef struct SAggPhysiNode {
   SPhysiNode node;
@@ -263,8 +272,18 @@ typedef struct SIntervalPhysiNode {
   int64_t          sliding;
   int8_t           intervalUnit;
   int8_t           slidingUnit;
-  SFillNode*       pFill;
 } SIntervalPhysiNode;
+
+typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
+
+typedef struct SFillPhysiNode {
+  SPhysiNode  node;
+  EFillMode   mode;
+  SNode*      pWStartTs;  // SColumnNode
+  SNode*      pValues;    // SNodeListNode
+  SNodeList*  pTargets;
+  STimeWindow timeRange;
+} SFillPhysiNode;
 
 typedef struct SMultiTableIntervalPhysiNode {
   SIntervalPhysiNode interval;
@@ -340,7 +359,7 @@ typedef struct SQueryPlan {
   int32_t      numOfSubplans;
   SNodeList*   pSubplans;  // Element is SNodeListNode. The execution level of subplan, starting from 0.
   SExplainInfo explainInfo;
-  SArray* pPlaceholderValues;
+  SArray*      pPlaceholderValues;
 } SQueryPlan;
 
 void nodesWalkPhysiPlan(SNode* pNode, FNodeWalker walker, void* pContext);

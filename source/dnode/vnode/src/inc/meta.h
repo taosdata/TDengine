@@ -39,11 +39,10 @@ typedef struct SMSmaCursor SMSmaCursor;
 // metaOpen ==================
 
 // metaEntry ==================
-int metaEncodeEntry(SCoder* pCoder, const SMetaEntry* pME);
-int metaDecodeEntry(SCoder* pCoder, SMetaEntry* pME);
+int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
+int metaDecodeEntry(SDecoder* pCoder, SMetaEntry* pME);
 
 // metaTable ==================
-int metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 
 // metaQuery ==================
 int metaGetTableEntryByVersion(SMetaReader* pReader, int64_t version, tb_uid_t uid);
@@ -104,8 +103,6 @@ typedef struct {
 
 #if 1
 
-// int             metaCreateTable(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
-int          metaDropTable(SMeta* pMeta, tb_uid_t uid);
 SMSmaCursor* metaOpenSmaCursor(SMeta* pMeta, tb_uid_t uid);
 void         metaCloseSmaCursor(SMSmaCursor* pSmaCur);
 int64_t      metaSmaCursorNext(SMSmaCursor* pSmaCur);

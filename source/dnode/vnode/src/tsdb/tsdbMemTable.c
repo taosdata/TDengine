@@ -20,7 +20,7 @@ static void     tsdbFreeTbData(STbData *pTbData);
 static char    *tsdbGetTsTupleKey(const void *data);
 static int      tsdbTbDataComp(const void *arg1, const void *arg2);
 static char    *tsdbTbDataGetUid(const void *arg);
-static int      tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row);
+static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row, bool merge);
 
 int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
   STsdbMemTable *pMemTable;
@@ -82,13 +82,18 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
   ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
-  STSchema  *pSchema = NULL;
-  TSKEY      rowKey = 0;
-  TSKEY      fKey = 0;
+  STSchema *pSchema = NULL;
+  TSKEY     rowKey = 0;
+  TSKEY     fKey = 0;
+  // only fetch lastKey from mem data as file data not used in this function actually
+  TSKEY      lastKey = TSKEY_INITIAL_VAL;
   bool       isRowDel = false;
   int        filterIter = 0;
   STSRow    *row = NULL;
   SMergeInfo mInfo;
+
+  // TODO: support Multi-Version(the rows with the same TS keys in memory can't be merged if its version refered by
+  // query handle)
 
   if (pMergeInfo == NULL) pMergeInfo = &mInfo;
 
@@ -111,7 +116,8 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   } else {
     fKey = tdGetKey(filterKeys[filterIter]);
   }
-
+  // 1. fkey - no dup since merged up to maxVersion of each query handle by tsdbLoadBlockDataCols
+  // 2. rowKey - would dup since Multi-Version supported
   while (true) {
     if (fKey == INT64_MAX && rowKey == INT64_MAX) break;
 
@@ -125,12 +131,14 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
       } else {
         fKey = tdGetKey(filterKeys[filterIter]);
       }
+#if 0
     } else if (fKey > rowKey) {
       if (isRowDel) {
         pMergeInfo->rowsDeleteFailed++;
       } else {
         if (pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed >= maxRowsToRead) break;
         if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+
         pMergeInfo->rowsInserted++;
         pMergeInfo->nOperations++;
         pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
@@ -185,43 +193,104 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
         fKey = tdGetKey(filterKeys[filterIter]);
       }
     }
+#endif
+#if 1
+    } else if (fKey > rowKey) {
+      if (isRowDel) {
+        // TODO: support delete function
+        pMergeInfo->rowsDeleteFailed++;
+      } else {
+        if (pMergeInfo->rowsInserted - pMergeInfo->rowsDeleteSucceed >= maxRowsToRead) break;
+        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+
+        if (lastKey != rowKey) {
+          pMergeInfo->rowsInserted++;
+          pMergeInfo->nOperations++;
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
+          if (pCols) {
+            if (lastKey != TSKEY_INITIAL_VAL) {
+              ++pCols->numOfRows;
+            }
+            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+          }
+          lastKey = rowKey;
+        } else {
+          if (keepDup) {
+            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
+          } else {
+            // discard
+          }
+        }
+      }
+
+      tSkipListIterNext(pIter);
+      row = tsdbNextIterRow(pIter);
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
+        rowKey = INT64_MAX;
+        isRowDel = false;
+      } else {
+        rowKey = TD_ROW_KEY(row);
+        isRowDel = TD_ROW_IS_DELETED(row);
+      }
+    } else {           // fkey == rowKey
+      if (isRowDel) {  // TODO: support delete function(How to stands for delete in file? rowVersion = -1?)
+        ASSERT(!keepDup);
+        if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+        pMergeInfo->rowsDeleteSucceed++;
+        pMergeInfo->nOperations++;
+        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+      } else {
+        if (keepDup) {
+          if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
+          if (lastKey != rowKey) {
+            pMergeInfo->rowsUpdated++;
+            pMergeInfo->nOperations++;
+            pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
+            pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
+            if (pCols) {
+              if (lastKey != TSKEY_INITIAL_VAL) {
+                ++pCols->numOfRows;
+              }
+              tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+            }
+            lastKey = rowKey;
+          } else {
+            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
+          }
+        } else {
+          pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
+          pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, fKey);
+        }
+      }
+
+      tSkipListIterNext(pIter);
+      row = tsdbNextIterRow(pIter);
+      if (row == NULL || TD_ROW_KEY(row) > maxKey) {
+        rowKey = INT64_MAX;
+        isRowDel = false;
+      } else {
+        rowKey = TD_ROW_KEY(row);
+        isRowDel = TD_ROW_IS_DELETED(row);
+      }
+
+      filterIter++;
+      if (filterIter >= nFilterKeys) {
+        fKey = INT64_MAX;
+      } else {
+        fKey = tdGetKey(filterKeys[filterIter]);
+      }
+    }
+#endif
+  }
+  if (pCols && (lastKey != TSKEY_INITIAL_VAL)) {
+    ++pCols->numOfRows;
   }
 
   return 0;
 }
 
-int32_t tdScanAndConvertSubmitMsg(SSubmitReq *pMsg) {
-  ASSERT(pMsg != NULL);
-  SSubmitMsgIter msgIter = {0};
-  SSubmitBlk    *pBlock = NULL;
-  SSubmitBlkIter blkIter = {0};
-  STSRow        *row = NULL;
-
-  terrno = TSDB_CODE_SUCCESS;
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
-
-  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
-  while (true) {
-    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
-    if (pBlock == NULL) break;
-
-    pBlock->uid = htobe64(pBlock->uid);
-    pBlock->suid = htobe64(pBlock->suid);
-    pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->dataLen = htonl(pBlock->dataLen);
-    pBlock->schemaLen = htonl(pBlock->schemaLen);
-    pBlock->numOfRows = htons(pBlock->numOfRows);
-  }
-
-  if (terrno != TSDB_CODE_SUCCESS) return -1;
-  return 0;
-}
-
-int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
-  // STsdbMeta       *pMeta = pRepo->tsdbMeta;
-  // int32_t          points = 0;
-  // STable          *pTable = NULL;
+int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
   SSubmitBlkIter blkIter = {0};
   STsdbMemTable *pMemTable = pTsdb->mem;
   void          *tptr;
@@ -232,15 +301,15 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows
   SSubmitBlk    *pBlkCopy;
 
   // create container is nedd
-  tptr = taosHashGet(pMemTable->pHashIdx, &(pBlock->uid), sizeof(pBlock->uid));
+  tptr = taosHashGet(pMemTable->pHashIdx, &(pMsgIter->uid), sizeof(pMsgIter->uid));
   if (tptr == NULL) {
-    pTbData = tsdbNewTbData(pBlock->uid);
+    pTbData = tsdbNewTbData(pMsgIter->uid);
     if (pTbData == NULL) {
       return -1;
     }
 
     // Put into hash
-    taosHashPut(pMemTable->pHashIdx, &(pBlock->uid), sizeof(pBlock->uid), &(pTbData), sizeof(pTbData));
+    taosHashPut(pMemTable->pHashIdx, &(pMsgIter->uid), sizeof(pMsgIter->uid), &(pTbData), sizeof(pTbData));
 
     // Put into skiplist
     tSkipListPut(pMemTable->pSlIdx, pTbData);
@@ -249,27 +318,33 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows
   }
 
   // copy data to buffer pool
-  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, pBlock->dataLen + sizeof(*pBlock));
-  memcpy(pBlkCopy, pBlock, pBlock->dataLen + sizeof(*pBlock));
+  int32_t tlen = pMsgIter->dataLen + pMsgIter->schemaLen + sizeof(*pBlock);
+  pBlkCopy = (SSubmitBlk *)vnodeBufPoolMalloc(pTsdb->mem->pPool, tlen);
+  memcpy(pBlkCopy, pBlock, tlen);
 
-  tInitSubmitBlkIter(pBlkCopy, &blkIter);
+  tInitSubmitBlkIter(pMsgIter, pBlkCopy, &blkIter);
   if (blkIter.row == NULL) return 0;
   keyMin = TD_ROW_KEY(blkIter.row);
 
   tSkipListPutBatchByIter(pTbData->pData, &blkIter, (iter_next_fn_t)tGetSubmitBlkNext);
 
+#ifdef TD_DEBUG_PRINT_ROW
+  printf("!!! %s:%d table %" PRIi64 " has %d rows in skiplist\n\n", __func__, __LINE__, pTbData->uid,
+         SL_SIZE(pTbData->pData));
+#endif
+
   // Set statistics
   keyMax = TD_ROW_KEY(blkIter.row);
 
-  pTbData->nrows += pBlock->numOfRows;
+  pTbData->nrows += pMsgIter->numOfRows;
   if (pTbData->keyMin > keyMin) pTbData->keyMin = keyMin;
   if (pTbData->keyMax < keyMax) pTbData->keyMax = keyMax;
 
-  pMemTable->nRow += pBlock->numOfRows;
+  pMemTable->nRow += pMsgIter->numOfRows;
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
-  (*pAffectedRows) += pBlock->numOfRows;
+  (*pAffectedRows) = pMsgIter->numOfRows;
 
   return 0;
 }
@@ -284,9 +359,12 @@ static STbData *tsdbNewTbData(tb_uid_t uid) {
   pTbData->keyMin = TSKEY_MAX;
   pTbData->keyMax = TSKEY_MIN;
   pTbData->nrows = 0;
-
+#if 0
   pTbData->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_DISCARD_DUP_KEY,
                                    tsdbGetTsTupleKey);
+#endif
+  pTbData->pData =
+      tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_ALLOW_DUP_KEY, tsdbGetTsTupleKey);
   if (pTbData->pData == NULL) {
     taosMemoryFree(pTbData);
     return NULL;
@@ -321,7 +399,7 @@ static char *tsdbTbDataGetUid(const void *arg) {
   STbData *pTbData = (STbData *)arg;
   return (char *)(&(pTbData->uid));
 }
-static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row) {
+static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row, bool merge) {
   if (pCols) {
     if (*ppSchema == NULL || schemaVersion(*ppSchema) != TD_ROW_SVER(row)) {
       *ppSchema = tsdbGetTableSchemaImpl(pTable, false, false, TD_ROW_SVER(row));
@@ -331,7 +409,7 @@ static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema *
       }
     }
 
-    tdAppendSTSRowToDataCol(row, *ppSchema, pCols);
+    tdAppendSTSRowToDataCol(row, *ppSchema, pCols, merge);
   }
 
   return 0;

@@ -53,20 +53,20 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       }
       case TK_NK_ILLEGAL: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unrecognized token: \"%s\"", t0.z);
-        cxt.valid = false;
+        cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
       }
       case TK_NK_HEX:
       case TK_NK_OCT:
       case TK_NK_BIN: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unsupported token: \"%s\"", t0.z);
-        cxt.valid = false;
+        cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
       }
       default:
-        Parse(pParser, t0.type, t0, &cxt);
         // ParseTrace(stdout, "");
-        if (!cxt.valid) {
+        Parse(pParser, t0.type, t0, &cxt);
+        if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
         }
     }
@@ -74,7 +74,7 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
 
 abort_parse:
   ParseFree(pParser, (FFree)taosMemoryFree);
-  if (cxt.valid) {
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
     *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
@@ -82,5 +82,5 @@ abort_parse:
     (*pQuery)->pRoot = cxt.pRootNode;
     (*pQuery)->placeholderNum = cxt.placeholderNo;
   }
-  return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+  return cxt.errCode;
 }

@@ -57,11 +57,11 @@ typedef enum {
   TRN_STAGE_PREPARE = 0,
   TRN_STAGE_REDO_LOG = 1,
   TRN_STAGE_REDO_ACTION = 2,
-  TRN_STAGE_COMMIT = 3,
-  TRN_STAGE_COMMIT_LOG = 4,
-  TRN_STAGE_UNDO_ACTION = 5,
-  TRN_STAGE_UNDO_LOG = 6,
-  TRN_STAGE_ROLLBACK = 7,
+  TRN_STAGE_ROLLBACK = 3,
+  TRN_STAGE_UNDO_ACTION = 4,
+  TRN_STAGE_UNDO_LOG = 5,
+  TRN_STAGE_COMMIT = 6,
+  TRN_STAGE_COMMIT_LOG = 7,
   TRN_STAGE_FINISHED = 8
 } ETrnStage;
 
@@ -72,6 +72,7 @@ typedef enum {
   TRN_TYPE_DROP_USER = 1003,
   TRN_TYPE_CREATE_FUNC = 1004,
   TRN_TYPE_DROP_FUNC = 1005,
+
   TRN_TYPE_CREATE_SNODE = 1006,
   TRN_TYPE_DROP_SNODE = 1007,
   TRN_TYPE_CREATE_QNODE = 1008,
@@ -91,10 +92,12 @@ typedef enum {
   TRN_TYPE_CONSUMER_LOST = 1022,
   TRN_TYPE_CONSUMER_RECOVER = 1023,
   TRN_TYPE_BASIC_SCOPE_END,
+
   TRN_TYPE_GLOBAL_SCOPE = 2000,
   TRN_TYPE_CREATE_DNODE = 2001,
   TRN_TYPE_DROP_DNODE = 2002,
   TRN_TYPE_GLOBAL_SCOPE_END,
+
   TRN_TYPE_DB_SCOPE = 3000,
   TRN_TYPE_CREATE_DB = 3001,
   TRN_TYPE_ALTER_DB = 3002,
@@ -102,6 +105,7 @@ typedef enum {
   TRN_TYPE_SPLIT_VGROUP = 3004,
   TRN_TYPE_MERGE_VGROUP = 3015,
   TRN_TYPE_DB_SCOPE_END,
+
   TRN_TYPE_STB_SCOPE = 4000,
   TRN_TYPE_CREATE_STB = 4001,
   TRN_TYPE_ALTER_STB = 4002,
@@ -111,7 +115,10 @@ typedef enum {
   TRN_TYPE_STB_SCOPE_END,
 } ETrnType;
 
-typedef enum { TRN_POLICY_ROLLBACK = 0, TRN_POLICY_RETRY = 1 } ETrnPolicy;
+typedef enum {
+  TRN_POLICY_ROLLBACK = 0,
+  TRN_POLICY_RETRY = 1,
+} ETrnPolicy;
 
 typedef enum {
   DND_REASON_ONLINE = 0,
@@ -127,11 +134,20 @@ typedef enum {
   DND_REASON_OTHERS
 } EDndReason;
 
+typedef enum {
+  CONSUMER_UPDATE__TOUCH = 1,
+  CONSUMER_UPDATE__ADD,
+  CONSUMER_UPDATE__REMOVE,
+  CONSUMER_UPDATE__LOST,
+  CONSUMER_UPDATE__RECOVER,
+  CONSUMER_UPDATE__MODIFY,
+} ECsmUpdateType;
+
 typedef struct {
   int32_t    id;
   ETrnStage  stage;
   ETrnPolicy policy;
-  ETrnType   transType;
+  ETrnType   type;
   int32_t    code;
   int32_t    failedTimes;
   void*      rpcHandle;
@@ -251,32 +267,31 @@ typedef struct {
   int64_t   updateTime;
   int8_t    superUser;
   int32_t   acctId;
+  int32_t   authVersion;
   SHashObj* readDbs;
   SHashObj* writeDbs;
+  SRWLatch  lock;
 } SUserObj;
 
 typedef struct {
   int32_t numOfVgroups;
-  int32_t cacheBlockSize;
-  int32_t totalBlocks;
+  int32_t numOfStables;
+  int32_t buffer;
+  int32_t pageSize;
+  int32_t pages;
   int32_t daysPerFile;
   int32_t daysToKeep0;
   int32_t daysToKeep1;
   int32_t daysToKeep2;
   int32_t minRows;
   int32_t maxRows;
-  int32_t commitTime;
   int32_t fsyncPeriod;
-  int32_t ttl;
   int8_t  walLevel;
   int8_t  precision;
   int8_t  compression;
   int8_t  replications;
   int8_t  strict;
-  int8_t  update;
   int8_t  cacheLastRow;
-  int8_t  streamMode;
-  int8_t  singleSTable;
   int8_t  hashMethod;  // default is 1
   int32_t numOfRetensions;
   SArray* pRetensions;
@@ -316,7 +331,6 @@ typedef struct {
   int64_t   pointsWritten;
   int8_t    compact;
   int8_t    replica;
-  int8_t    streamMode;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
 
@@ -384,7 +398,6 @@ typedef struct {
   int32_t codeSize;
   char*   pComment;
   char*   pCode;
-  char    pData[];
 } SFuncObj;
 
 typedef struct {
@@ -392,15 +405,12 @@ typedef struct {
   int8_t         type;
   int8_t         replica;
   int16_t        numOfColumns;
-  int32_t        rowSize;
   int32_t        numOfRows;
   void*          pIter;
   SMnode*        pMnode;
   STableMetaRsp* pMeta;
   bool           sysDbRsp;
   char           db[TSDB_DB_FNAME_LEN];
-  int16_t        offset[TSDB_MAX_COLUMNS];
-  int32_t        bytes[TSDB_MAX_COLUMNS];
 } SShowObj;
 
 typedef struct {
@@ -422,21 +432,12 @@ typedef struct {
 
 typedef struct {
   char    key[TSDB_PARTITION_KEY_LEN];
+  int64_t dbUid;
   int64_t offset;
 } SMqOffsetObj;
 
-static FORCE_INLINE int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset) {
-  int32_t tlen = 0;
-  tlen += taosEncodeString(buf, pOffset->key);
-  tlen += taosEncodeFixedI64(buf, pOffset->offset);
-  return tlen;
-}
-
-static FORCE_INLINE void* tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset) {
-  buf = taosDecodeStringTo(buf, pOffset->key);
-  buf = taosDecodeFixedI64(buf, &pOffset->offset);
-  return buf;
-}
+int32_t tEncodeSMqOffsetObj(void** buf, const SMqOffsetObj* pOffset);
+void*   tDecodeSMqOffsetObj(void* buf, SMqOffsetObj* pOffset);
 
 typedef struct {
   char           name[TSDB_TOPIC_FNAME_LEN];
@@ -451,6 +452,7 @@ typedef struct {
   int8_t         withSchema;
   int8_t         withTag;
   SRWLatch       lock;
+  int32_t        consumerCnt;
   int32_t        sqlLen;
   int32_t        astLen;
   char*          sql;
@@ -459,26 +461,15 @@ typedef struct {
   SSchemaWrapper schema;
 } SMqTopicObj;
 
-enum {
-  CONSUMER_UPDATE__TOUCH = 1,
-  CONSUMER_UPDATE__ADD,
-  CONSUMER_UPDATE__REMOVE,
-  CONSUMER_UPDATE__LOST,
-  CONSUMER_UPDATE__RECOVER,
-  CONSUMER_UPDATE__MODIFY,
-};
-
 typedef struct {
-  int64_t consumerId;
-  char    cgroup[TSDB_CGROUP_LEN];
-  char    appId[TSDB_CGROUP_LEN];
-  int8_t  updateType;  // used only for update
-  int32_t epoch;
-  int32_t status;
-  // hbStatus is not applicable to serialization
-  int32_t hbStatus;
-  // lock is used for topics update
-  SRWLatch lock;
+  int64_t  consumerId;
+  char     cgroup[TSDB_CGROUP_LEN];
+  char     appId[TSDB_CGROUP_LEN];
+  int8_t   updateType;  // used only for update
+  int32_t  epoch;
+  int32_t  status;
+  int32_t  hbStatus;          // hbStatus is not applicable to serialization
+  SRWLatch lock;              // lock is used for topics update
   SArray*  currentTopics;     // SArray<char*>
   SArray*  rebNewTopics;      // SArray<char*>
   SArray*  rebRemovedTopics;  // SArray<char*>
@@ -492,7 +483,6 @@ typedef struct {
   int64_t upTime;
   int64_t subscribeTime;
   int64_t rebalanceTime;
-
 } SMqConsumerObj;
 
 SMqConsumerObj* tNewSMqConsumerObj(int64_t consumerId, char cgroup[TSDB_CGROUP_LEN]);
@@ -524,6 +514,7 @@ void*          tDecodeSMqConsumerEp(const void* buf, SMqConsumerEp* pEp);
 typedef struct {
   char      key[TSDB_SUBSCRIBE_KEY_LEN];
   SRWLatch  lock;
+  int64_t   dbUid;
   int32_t   vgNum;
   int8_t    subType;
   int8_t    withTbName;
@@ -560,9 +551,8 @@ int32_t             tEncodeSMqSubActionLogObj(void** buf, const SMqSubActionLogO
 void*               tDecodeSMqSubActionLogObj(const void* buf, SMqSubActionLogObj* pLog);
 
 typedef struct {
-  const SMqSubscribeObj* pOldSub;
-  const SMqTopicObj*     pTopic;
-  const SMqRebSubscribe* pRebInfo;
+  int32_t           oldConsumerNum;
+  const SMqRebInfo* pRebInfo;
 } SMqRebInputObj;
 
 typedef struct {
@@ -581,19 +571,19 @@ typedef struct {
 } SMqRebOutputObj;
 
 typedef struct {
-  char     name[TSDB_TOPIC_FNAME_LEN];
-  char     sourceDb[TSDB_DB_FNAME_LEN];
-  char     targetDb[TSDB_DB_FNAME_LEN];
-  char     targetSTbName[TSDB_TABLE_FNAME_LEN];
-  int64_t  createTime;
-  int64_t  updateTime;
-  int64_t  uid;
-  int64_t  dbUid;
-  int32_t  version;
-  int32_t  vgNum;
-  SRWLatch lock;
-  int8_t   status;
-  // int32_t  sqlLen;
+  char           name[TSDB_TOPIC_FNAME_LEN];
+  char           sourceDb[TSDB_DB_FNAME_LEN];
+  char           targetDb[TSDB_DB_FNAME_LEN];
+  char           targetSTbName[TSDB_TABLE_FNAME_LEN];
+  int64_t        targetStbUid;
+  int64_t        createTime;
+  int64_t        updateTime;
+  int64_t        uid;
+  int64_t        dbUid;
+  int32_t        version;
+  int32_t        vgNum;
+  SRWLatch       lock;
+  int8_t         status;
   int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
   int32_t        fixedSinkVgId;  // 0 for shuffle
   int64_t        smaId;          // 0 for unused
@@ -601,14 +591,13 @@ typedef struct {
   int32_t        triggerParam;
   int64_t        waterMark;
   char*          sql;
-  char*          logicalPlan;
   char*          physicalPlan;
   SArray*        tasks;  // SArray<SArray<SStreamTask>>
   SSchemaWrapper outputSchema;
 } SStreamObj;
 
-int32_t tEncodeSStreamObj(SCoder* pEncoder, const SStreamObj* pObj);
-int32_t tDecodeSStreamObj(SCoder* pDecoder, SStreamObj* pObj);
+int32_t tEncodeSStreamObj(SEncoder* pEncoder, const SStreamObj* pObj);
+int32_t tDecodeSStreamObj(SDecoder* pDecoder, SStreamObj* pObj);
 
 #ifdef __cplusplus
 }

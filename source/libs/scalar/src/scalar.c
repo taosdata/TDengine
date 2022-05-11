@@ -75,7 +75,15 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     
     if (valueNode->node.resType.type != type) {
       out.columnData->info.type = type;
-      out.columnData->info.bytes = tDataTypes[type].bytes;
+      if (IS_VAR_DATA_TYPE(type)) {
+        if (IS_VAR_DATA_TYPE(valueNode->node.resType.type)) {
+          out.columnData->info.bytes = valueNode->node.resType.bytes * TSDB_NCHAR_SIZE;
+        } else {
+          out.columnData->info.bytes = 64 * TSDB_NCHAR_SIZE;
+        }
+      } else {
+        out.columnData->info.bytes = tDataTypes[type].bytes;
+      }
 
       code = doConvertDataType(valueNode, &out);
       if (code != TSDB_CODE_SUCCESS) {
@@ -339,10 +347,21 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
   if (fmIsUserDefinedFunc(node->funcId)) {
     UdfcFuncHandle udfHandle = NULL;
     
-    SCL_ERR_JRET(setupUdf(node->functionName, &udfHandle));
+    code = setupUdf(node->functionName, &udfHandle);
+    if (code != 0) {
+      sclError("fmExecFunction error. setupUdf. function name: %s, code:%d", node->functionName, code);
+      goto _return;
+    }
     code = callUdfScalarFunc(udfHandle, params, paramNum, output);
-    teardownUdf(udfHandle);
-    SCL_ERR_JRET(code);
+    if (code != 0) {
+      sclError("fmExecFunction error. callUdfScalarFunc. function name: %s, udf code:%d", node->functionName, code);
+      goto _return;
+    }
+    code = teardownUdf(udfHandle);
+    if (code != 0) {
+      sclError("fmExecFunction error. callUdfScalarFunc. function name: %s, udf code:%d", node->functionName, code);
+      goto _return;
+    }
   } else {
     SScalarFuncExecFuncs ffpSet = {0};
     code = fmGetScalarFuncExecFuncs(node->funcId, &ffpSet);
@@ -598,7 +617,7 @@ EDealRes sclRewriteFunction(SNode** pNode, SScalarCtx *ctx) {
       res->datum.p = taosMemoryCalloc(res->node.resType.bytes + VARSTR_HEADER_SIZE + 1, 1);
       memcpy(res->datum.p, output.columnData->pData, varDataTLen(output.columnData->pData));
     } else {
-      memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+      nodesSetValueNodeValue(res, output.columnData->pData);
     }
   }
 
@@ -638,7 +657,7 @@ EDealRes sclRewriteLogic(SNode** pNode, SScalarCtx *ctx) {
     res->datum.p = output.columnData->pData;
     output.columnData->pData = NULL;
   } else {
-    memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+    nodesSetValueNodeValue(res, output.columnData->pData);
   }
 
   nodesDestroyNode(*pNode);
@@ -680,7 +699,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
       res->datum.p = output.columnData->pData;
       output.columnData->pData = NULL;
     } else {
-      memcpy(nodesGetValueFromNode(res), output.columnData->pData, tDataTypes[type].bytes);
+      nodesSetValueNodeValue(res, output.columnData->pData);    
     }
   }
 

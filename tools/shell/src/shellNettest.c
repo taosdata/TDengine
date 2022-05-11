@@ -21,7 +21,7 @@ static void shellWorkAsClient() {
   SRpcInit    rpcInit = {0};
   SEpSet      epSet = {.inUse = 0, .numOfEps = 1};
   SRpcMsg     rpcRsp = {0};
-  void       *clientRpc = NULL;
+  void *      clientRpc = NULL;
   char        pass[TSDB_PASSWORD_LEN + 1] = {0};
 
   taosEncryptPass_c((uint8_t *)("_pwd"), strlen("_pwd"), pass);
@@ -116,6 +116,7 @@ static void shellWorkAsServer() {
   }
 
   SRpcInit rpcInit = {0};
+  memcpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
   rpcInit.localPort = pArgs->port;
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
@@ -126,7 +127,7 @@ static void shellWorkAsServer() {
 
   void *serverRpc = rpcOpen(&rpcInit);
   if (serverRpc == NULL) {
-    printf("failed to init net test server since %s", terrstr());
+    printf("failed to init net test server since %s\n", terrstr());
   } else {
     printf("network test server is initialized, port:%u\n", pArgs->port);
     taosSetSignal(SIGTERM, shellNettestHandler);

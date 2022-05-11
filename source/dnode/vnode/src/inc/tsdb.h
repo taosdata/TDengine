@@ -40,7 +40,6 @@ typedef struct STable        STable;
 
 int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable);
-int  tsdbInsertTableData(STsdb *pTsdb, SSubmitBlk *pBlock, int32_t *pAffectedRows);
 int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
                            TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
@@ -71,9 +70,10 @@ struct SSmaEnvs {
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
-  bool           repoLocked;
   TdThreadMutex  mutex;
-  STsdbCfg       config;
+  bool           repoLocked;
+  int8_t         level;  // retention level
+  STsdbKeepCfg   keepCfg;
   STsdbMemTable *mem;
   STsdbMemTable *imem;
   SRtn           rtn;
@@ -185,7 +185,9 @@ struct STsdbFS {
 };
 
 #define REPO_ID(r)        TD_VID((r)->pVnode)
-#define REPO_CFG(r)       (&(r)->config)
+#define REPO_CFG(r)       (&(r)->pVnode->config.tsdbCfg)
+#define REPO_KEEP_CFG(r)  (&(r)->keepCfg)
+#define REPO_LEVEL(r)     ((r)->level)
 #define REPO_FS(r)        ((r)->fs)
 #define REPO_META(r)      ((r)->pVnode->pMeta)
 #define REPO_TFS(r)       ((r)->pVnode->pTfs)
@@ -273,7 +275,8 @@ typedef enum {
 
 typedef struct {
   uint8_t  last : 1;
-  uint8_t  blkVer : 7;
+  uint8_t  hasDupKey : 1;  // 0: no dup TS key, 1: has dup TS key(since supporting Multi-Version)
+  uint8_t  blkVer : 6;
   uint8_t  numOfSubBlocks;
   col_id_t numOfCols;    // not including timestamp column
   uint32_t len;          // data block length
@@ -324,9 +327,8 @@ typedef struct {
 typedef struct {
   int16_t  colId;
   uint16_t type : 6;
-  uint16_t blen : 10;   // bitmap length(TODO: full UT for the bitmap compress of various data input)
-  uint32_t bitmap : 1;  // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
-  uint32_t len : 31;    // data length + bitmap length
+  uint16_t blen : 10;  // 0 no bitmap if all rows are NORM, > 0 bitmap length
+  uint32_t len;        // data length + bitmap length
   uint32_t offset;
 } SBlockColV0;
 
@@ -533,23 +535,6 @@ static FORCE_INLINE int tsdbGetFidLevel(int fid, SRtn *pRtn) {
     return -1;
   }
 }
-
-// tsdbDBDef
-// typedef struct SDBFile SDBFile;
-// typedef DB_ENV*        TDBEnv;
-
-// struct SDBFile {
-//   int32_t fid;
-//   DB*     pDB;
-//   char*   path;
-// };
-
-// int32_t tsdbOpenDBF(TDBEnv pEnv, SDBFile* pDBF);
-// void    tsdbCloseDBF(SDBFile* pDBF);
-// int32_t tsdbOpenBDBEnv(DB_ENV** ppEnv, const char* path);
-// void    tsdbCloseBDBEnv(DB_ENV* pEnv);
-// int32_t tsdbSaveSmaToDB(SDBFile* pDBF, void* key, uint32_t keySize, void* data, uint32_t dataSize);
-// void*   tsdbGetSmaDataByKey(SDBFile* pDBF, void* key, uint32_t keySize, uint32_t* valueSize);
 
 // tsdbFile
 #define TSDB_FILE_HEAD_SIZE  512
@@ -847,7 +832,7 @@ typedef struct {
 #define TSDB_FS_ITER_FORWARD  TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFS *tsdbNewFS(const STsdbCfg *pCfg);
+STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg);
 void    *tsdbFreeFS(STsdbFS *pfs);
 int      tsdbOpenFS(STsdb *pRepo);
 void     tsdbCloseFS(STsdb *pRepo);

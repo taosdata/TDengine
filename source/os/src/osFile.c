@@ -22,20 +22,6 @@
 #define W_OK 2
 #define R_OK 4
 
-#if defined(_MSDOS)
-#define open _open
-#endif
-
-#if defined(_WIN32)
-extern int openA(const char *, int, ...); /* MsvcLibX ANSI version of open */
-extern int openU(const char *, int, ...); /* MsvcLibX UTF-8 version of open */
-#if defined(_UTF8_SOURCE) || defined(_BSD_SOURCE) || defined(_GNU_SOURCE)
-#define open openU
-#else /* _ANSI_SOURCE */
-#define open openA
-#endif /* defined(_UTF8_SOURCE) */
-#endif /* defined(_WIN32) */
-
 #define _SEND_FILE_STEP_ 1000
 
 #else
@@ -228,9 +214,6 @@ int32_t taosDevInoFile(const char *path, int64_t *stDev, int64_t *stIno) {
 void autoDelFileListAdd(const char *path) { return; }
 
 TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
-#ifdef WINDOWS
-  return NULL;
-#else
   int   fd = -1;
   FILE *fp = NULL;
   if (tdFileOptions & TD_FILE_STREAM) {
@@ -263,7 +246,11 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     access |= (tdFileOptions & TD_FILE_APPEND) ? O_APPEND : 0;
     access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
     access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
+  #ifdef WINDOWS
+    fd = _open(path, access, _S_IREAD|_S_IWRITE);
+  #else
     fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
+  #endif
     if (fd == -1) {
       return NULL;
     }
@@ -286,7 +273,6 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
   pFile->fp = fp;
   pFile->refId = 0;
   return pFile;
-#endif
 }
 
 int64_t taosCloseFile(TdFilePtr *ppFile) {
@@ -557,7 +543,7 @@ int32_t taosFsyncFile(TdFilePtr pFile) {
 
   HANDLE h = (HANDLE)_get_osfhandle(pFile->fd);
 
-  return FlushFileBuffers(h);
+  return !FlushFileBuffers(h);
 #else
   if (pFile == NULL) {
     return 0;
@@ -701,6 +687,16 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   size_t len = 0;
   return getline(ptrBuf, &len, pFile->fp);
 #endif
+}
+int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
+  if (pFile == NULL || buf == NULL ) {
+    return -1;
+  }
+  assert(pFile->fp != NULL);
+  if (fgets(buf, maxSize, pFile->fp) == NULL) {
+    return -1;
+  }
+  return strlen(buf);
 }
 int32_t taosEOFFile(TdFilePtr pFile) {
   if (pFile == NULL) {

@@ -17,8 +17,8 @@
 #include "mndCluster.h"
 #include "mndShow.h"
 
-#define TSDB_CLUSTER_VER_NUMBE    1
-#define TSDB_CLUSTER_RESERVE_SIZE 64
+#define CLUSTER_VER_NUMBE    1
+#define CLUSTER_RESERVE_SIZE 64
 
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster);
 static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw);
@@ -30,14 +30,16 @@ static int32_t  mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock
 static void     mndCancelGetNextCluster(SMnode *pMnode, void *pIter);
 
 int32_t mndInitCluster(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_CLUSTER,
-                     .keyType = SDB_KEY_INT64,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultCluster,
-                     .encodeFp = (SdbEncodeFp)mndClusterActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndClusterActionDecode,
-                     .insertFp = (SdbInsertFp)mndClusterActionInsert,
-                     .updateFp = (SdbUpdateFp)mndClusterActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndClusterActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_CLUSTER,
+      .keyType = SDB_KEY_INT64,
+      .deployFp = (SdbDeployFp)mndCreateDefaultCluster,
+      .encodeFp = (SdbEncodeFp)mndClusterActionEncode,
+      .decodeFp = (SdbDecodeFp)mndClusterActionDecode,
+      .insertFp = (SdbInsertFp)mndClusterActionInsert,
+      .updateFp = (SdbUpdateFp)mndClusterActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndClusterActionDelete,
+  };
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndRetrieveClusters);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_CLUSTER, mndCancelGetNextCluster);
@@ -79,19 +81,19 @@ int64_t mndGetClusterId(SMnode *pMnode) {
 static SSdbRaw *mndClusterActionEncode(SClusterObj *pCluster) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
-  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, TSDB_CLUSTER_VER_NUMBE, sizeof(SClusterObj) + TSDB_CLUSTER_RESERVE_SIZE);
-  if (pRaw == NULL) goto CLUSTER_ENCODE_OVER;
+  SSdbRaw *pRaw = sdbAllocRaw(SDB_CLUSTER, CLUSTER_VER_NUMBE, sizeof(SClusterObj) + CLUSTER_RESERVE_SIZE);
+  if (pRaw == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_SET_INT64(pRaw, dataPos, pCluster->id, CLUSTER_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pCluster->createdTime, CLUSTER_ENCODE_OVER)
-  SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, CLUSTER_ENCODE_OVER)
-  SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, CLUSTER_ENCODE_OVER)
-  SDB_SET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE, CLUSTER_ENCODE_OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->id, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->createdTime, _OVER)
+  SDB_SET_INT64(pRaw, dataPos, pCluster->updateTime, _OVER)
+  SDB_SET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
+  SDB_SET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
-CLUSTER_ENCODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("cluster:%" PRId64 ", failed to encode to raw:%p since %s", pCluster->id, pRaw, terrstr());
     sdbFreeRaw(pRaw);
@@ -106,29 +108,29 @@ static SSdbRow *mndClusterActionDecode(SSdbRaw *pRaw) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
 
   int8_t sver = 0;
-  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto CLUSTER_DECODE_OVER;
+  if (sdbGetRawSoftVer(pRaw, &sver) != 0) goto _OVER;
 
-  if (sver != TSDB_CLUSTER_VER_NUMBE) {
+  if (sver != CLUSTER_VER_NUMBE) {
     terrno = TSDB_CODE_SDB_INVALID_DATA_VER;
-    goto CLUSTER_DECODE_OVER;
+    goto _OVER;
   }
 
   SSdbRow *pRow = sdbAllocRow(sizeof(SClusterObj));
-  if (pRow == NULL) goto CLUSTER_DECODE_OVER;
+  if (pRow == NULL) goto _OVER;
 
   SClusterObj *pCluster = sdbGetRowObj(pRow);
-  if (pCluster == NULL) goto CLUSTER_DECODE_OVER;
+  if (pCluster == NULL) goto _OVER;
 
   int32_t dataPos = 0;
-  SDB_GET_INT64(pRaw, dataPos, &pCluster->id, CLUSTER_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pCluster->createdTime, CLUSTER_DECODE_OVER)
-  SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, CLUSTER_DECODE_OVER)
-  SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, CLUSTER_DECODE_OVER)
-  SDB_GET_RESERVE(pRaw, dataPos, TSDB_CLUSTER_RESERVE_SIZE, CLUSTER_DECODE_OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->id, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->createdTime, _OVER)
+  SDB_GET_INT64(pRaw, dataPos, &pCluster->updateTime, _OVER)
+  SDB_GET_BINARY(pRaw, dataPos, pCluster->name, TSDB_CLUSTER_ID_LEN, _OVER)
+  SDB_GET_RESERVE(pRaw, dataPos, CLUSTER_RESERVE_SIZE, _OVER)
 
   terrno = 0;
 
-CLUSTER_DECODE_OVER:
+_OVER:
   if (terrno != 0) {
     mError("cluster:%" PRId64 ", failed to decode from raw:%p since %s", pCluster->id, pRaw, terrstr());
     taosMemoryFreeClear(pRow);
@@ -161,7 +163,7 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
 
   int32_t code = taosGetSystemUUID(clusterObj.name, TSDB_CLUSTER_ID_LEN);
   if (code != 0) {
-    strcpy(clusterObj.name, "tdengine2.0");
+    strcpy(clusterObj.name, "tdengine3.0");
     mError("failed to get name from system, set to default val %s", clusterObj.name);
   }
 
@@ -190,17 +192,17 @@ static int32_t mndRetrieveClusters(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock 
     if (pShow->pIter == NULL) break;
 
     cols = 0;
-    SColumnInfoData* pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pCluster->id, false);
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pCluster->id, false);
 
     char buf[tListLen(pCluster->name) + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->bytes[cols]);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pCluster->name, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, buf, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char*) &pCluster->createdTime, false);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pCluster->createdTime, false);
 
     sdbRelease(pSdb, pCluster);
     numOfRows++;

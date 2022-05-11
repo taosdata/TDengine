@@ -563,7 +563,11 @@ const char *taos_get_server_info(TAOS *taos) {
 }
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
-  // TODO
+  if (taos == NULL || sql == NULL) {
+    // todo directly call fp
+  }
+
+  taos_query_l(taos, sql, (int32_t) strlen(sql));
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {
@@ -785,10 +789,5 @@ int taos_stmt_close(TAOS_STMT *stmt) {
   }
 
   return stmtClose(stmt);
-}
-
-TAOS_RES *taos_schemaless_insert(TAOS *taos, char *lines[], int numLines, int protocol, int precision) {
-  // TODO
-  return NULL;
 }
 

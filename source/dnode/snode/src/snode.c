@@ -99,10 +99,10 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       ASSERT(0);
       return;
     }
-    SCoder decoder;
-    tCoderInit(&decoder, TD_LITTLE_ENDIAN, msg, pMsg->contLen - sizeof(SMsgHead), TD_DECODER);
+    SDecoder decoder;
+    tDecoderInit(&decoder, msg, pMsg->contLen - sizeof(SMsgHead));
     tDecodeSStreamTask(&decoder, pTask);
-    tCoderClear(&decoder);
+    tDecoderClear(&decoder);
 
     sndMetaDeployTask(pSnode->pMeta, pTask);
   } else if (pMsg->msgType == TDMT_SND_TASK_EXEC) {

@@ -29,6 +29,7 @@ enum {
   MQ_CONSUMER_STATUS__LOST,
   MQ_CONSUMER_STATUS__LOST_IN_REB,
   MQ_CONSUMER_STATUS__LOST_REBD,
+  MQ_CONSUMER_STATUS__REMOVED,
 };
 
 int32_t mndInitConsumer(SMnode *pMnode);
@@ -43,6 +44,11 @@ SSdbRaw *mndConsumerActionEncode(SMqConsumerObj *pConsumer);
 SSdbRow *mndConsumerActionDecode(SSdbRaw *pRaw);
 
 int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj *pConsumer);
+
+bool mndRebTryStart();
+void mndRebEnd();
+void mndRebCntInc();
+void mndRebCntDec();
 
 #ifdef __cplusplus
 }

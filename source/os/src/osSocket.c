@@ -28,6 +28,7 @@
 #else
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -638,6 +639,116 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
   return 0;
 }
 
+int taosGetLocalIp(const char *eth, char *ip) {
+#if defined(WINDOWS)
+  // DO NOTHAING
+  return 0;
+#else
+  int                fd;
+  struct ifreq       ifr;
+  struct sockaddr_in sin;
+
+  fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (-1 == fd) {
+    return -1;
+  }
+  strncpy(ifr.ifr_name, eth, IFNAMSIZ);
+  ifr.ifr_name[IFNAMSIZ - 1] = 0;
+
+  if (ioctl(fd, SIOCGIFADDR, &ifr) < 0) {
+    taosCloseSocketNoCheck1(fd);
+    return -1;
+  }
+  memcpy(&sin, &ifr.ifr_addr, sizeof(sin));
+  snprintf(ip, 64, "%s", inet_ntoa(sin.sin_addr));
+  taosCloseSocketNoCheck1(fd);
+#endif
+  return 0;
+}
+int taosValidIp(uint32_t ip) {
+#if defined(WINDOWS)
+  // DO NOTHAING
+  return 0;
+#else
+  int ret = -1;
+  int fd;
+
+  struct ifconf ifconf;
+
+  char buf[512] = {0};
+  ifconf.ifc_len = 512;
+  ifconf.ifc_buf = buf;
+
+  if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    return -1;
+  }
+
+  ioctl(fd, SIOCGIFCONF, &ifconf);
+  struct ifreq *ifreq = (struct ifreq *)ifconf.ifc_buf;
+  for (int i = (ifconf.ifc_len / sizeof(struct ifreq)); i > 0; i--) {
+    char ip_str[64] = {0};
+    if (ifreq->ifr_flags == AF_INET) {
+      ret = taosGetLocalIp(ifreq->ifr_name, ip_str);
+      if (ret != 0) {
+        break;
+      }
+      ret = -1;
+      if (ip == (uint32_t)taosInetAddr(ip_str)) {
+        ret = 0;
+        break;
+      }
+      ifreq++;
+    }
+  }
+  taosCloseSocketNoCheck1(fd);
+  return ret;
+#endif
+  return 0;
+}
+
+bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
+  struct sockaddr_in serverAdd;
+  SocketFd           fd;
+  int32_t            reuse;
+
+  // printf("open tcp server socket:0x%x:%hu", ip, port);
+
+  bzero((char *)&serverAdd, sizeof(serverAdd));
+  serverAdd.sin_family = AF_INET;
+  serverAdd.sin_addr.s_addr = ip;
+  serverAdd.sin_port = (uint16_t)htons(port);
+
+  if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
+    // printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+    taosCloseSocketNoCheck1(fd);
+    return false;
+  }
+
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
+  if (pSocket == NULL) {
+    taosCloseSocketNoCheck1(fd);
+    return false;
+  }
+  pSocket->refId = 0;
+  pSocket->fd = fd;
+
+  /* set REUSEADDR option, so the portnumber can be re-used */
+  reuse = 1;
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
+    // printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
+    taosCloseSocket(&pSocket);
+    return false;
+  }
+  /* bind socket to server address */
+  if (bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
+    // printf("bind tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    taosCloseSocket(&pSocket);
+    return false;
+  }
+  taosCloseSocket(&pSocket);
+  return true;
+  // return 0 == taosValidIp(ip) ? true : false;
+}
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   SocketFd           fd;

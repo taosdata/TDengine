@@ -265,13 +265,53 @@ static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam* pOut, int32_t r
 }
 
 static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
-  int64_t value = strtoll(buf, NULL, 10);
-  colDataAppendInt64(pOut->columnData, rowIndex, &value);
+  switch (pOut->columnData->info.type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t value = (int8_t)strtoll(buf, NULL, 10);
+      colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
+      break;
+    } 
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t value = (int16_t)strtoll(buf, NULL, 10);
+      colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
+      break;
+    } 
+    case TSDB_DATA_TYPE_INT: {
+      int32_t value = (int32_t)strtoll(buf, NULL, 10);
+      colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
+      break;
+    } 
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t value = (int64_t)strtoll(buf, NULL, 10);
+      colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
+      break;
+    }   
+  }
 }
 
 static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
-  uint64_t value = strtoull(buf, NULL, 10);
-  colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*) &value);
+  switch (pOut->columnData->info.type) {
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t value = (uint8_t)strtoull(buf, NULL, 10);
+      colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
+      break;
+    } 
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t value = (uint16_t)strtoull(buf, NULL, 10);
+      colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
+      break;
+    } 
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t value = (uint32_t)strtoull(buf, NULL, 10);
+      colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
+      break;
+    } 
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t value = (uint64_t)strtoull(buf, NULL, 10);
+      colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
+      break;
+    }   
+  }
 }
 
 static FORCE_INLINE void varToFloat(char *buf, SScalarParam* pOut, int32_t rowIndex) {
@@ -297,6 +337,22 @@ static FORCE_INLINE void varToNchar(char* buf, SScalarParam* pOut, int32_t rowIn
   taosMemoryFree(t);
 }
 
+static FORCE_INLINE void ncharToVar(char* buf, SScalarParam* pOut, int32_t rowIndex) {
+  int32_t inputLen = varDataLen(buf);
+
+  char* t = taosMemoryCalloc(1, inputLen + VARSTR_HEADER_SIZE);
+  int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(buf), varDataLen(buf), varDataVal(t));
+  if (len < 0) {
+    taosMemoryFree(t);
+    return;
+  }
+  varDataSetLen(t, len);
+
+  colDataAppend(pOut->columnData, rowIndex, t, false);
+  taosMemoryFree(t);
+}
+
+
 //TODO opt performance, tmp is not needed.
 int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, int32_t inType, int32_t outType) {
   int32_t bufSize = pIn->columnData->info.bytes;
@@ -313,6 +369,10 @@ int32_t vectorConvertFromVarData(const SScalarParam* pIn, SScalarParam* pOut, in
     func = varToUnsigned;
   } else if (IS_FLOAT_TYPE(outType)) {
     func = varToFloat;
+  } else if (outType == TSDB_DATA_TYPE_BINARY) {   // nchar -> binary
+    ASSERT(inType == TSDB_DATA_TYPE_NCHAR);
+    func = ncharToVar;
+    vton = true;
   } else if (outType == TSDB_DATA_TYPE_NCHAR) {   // binary -> nchar
     ASSERT(inType == TSDB_DATA_TYPE_VARCHAR);
     func = varToNchar;
@@ -432,6 +492,71 @@ void convertJsonValue(__compar_fn_t *fp, int32_t optr, int8_t typeLeft, int8_t t
     *pRightData = pRightOut;
   }
 }
+
+int32_t vectorConvertToVarData(const SScalarParam* pIn, SScalarParam* pOut, int16_t inType, int16_t outType) {
+  SColumnInfoData* pInputCol  = pIn->columnData;
+  SColumnInfoData* pOutputCol = pOut->columnData;
+  char tmp[128] = {0};
+
+  if (IS_SIGNED_NUMERIC_TYPE(inType) || inType == TSDB_DATA_TYPE_BOOL || inType == TSDB_DATA_TYPE_TIMESTAMP) {
+    for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        colDataAppendNULL(pOutputCol, i);
+        continue;
+      }
+      
+      int64_t value = 0;
+      GET_TYPED_DATA(value, int64_t, inType, colDataGetData(pInputCol, i));
+      int32_t len = sprintf(varDataVal(tmp), "%" PRId64, value);
+      varDataLen(tmp) = len;
+      if (outType == TSDB_DATA_TYPE_NCHAR) {
+        varToNchar(tmp, pOut, i);
+      } else {
+        colDataAppend(pOutputCol, i, (char *)&value, false);
+      }
+    }
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(inType)) {
+    for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        colDataAppendNULL(pOutputCol, i);
+        continue;
+      }
+      
+      uint64_t value = 0;
+      GET_TYPED_DATA(value, uint64_t, inType, colDataGetData(pInputCol, i));
+      int32_t len = sprintf(varDataVal(tmp), "%" PRIu64, value);
+      varDataLen(tmp) = len;
+      if (outType == TSDB_DATA_TYPE_NCHAR) {
+        varToNchar(tmp, pOut, i);
+      } else {
+        colDataAppend(pOutputCol, i, (char *)&value, false);
+      }
+    }
+  } else if (IS_FLOAT_TYPE(inType)) {
+    for (int32_t i = 0; i < pIn->numOfRows; ++i) {
+      if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+        colDataAppendNULL(pOutputCol, i);
+        continue;
+      }
+      
+      double value = 0;
+      GET_TYPED_DATA(value, double, inType, colDataGetData(pInputCol, i));
+      int32_t len = sprintf(varDataVal(tmp), "%lf", value);
+      varDataLen(tmp) = len;
+      if (outType == TSDB_DATA_TYPE_NCHAR) {
+        varToNchar(tmp, pOut, i);
+      } else {
+        colDataAppend(pOutputCol, i, (char *)&value, false);
+      }
+    }
+  } else {
+    sclError("not supported input type:%d", inType);
+    return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 // TODO opt performance
 int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
@@ -590,6 +715,10 @@ int32_t vectorConvertImpl(const SScalarParam* pIn, SScalarParam* pOut) {
       }
       break;  
     }
+    case TSDB_DATA_TYPE_BINARY: 
+    case TSDB_DATA_TYPE_NCHAR: {
+      return vectorConvertToVarData(pIn, pOut, inType, outType);
+    }
     default:
       sclError("invalid convert output type:%d", outType);
       return TSDB_CODE_QRY_APP_ERROR;
@@ -608,7 +737,7 @@ int8_t gConvertTypes[TSDB_DATA_TYPE_BLOB+1][TSDB_DATA_TYPE_BLOB+1] = {
 /*BIGI*/   0,   0,   0,   0,   0,   0,   6,   7,   7,   0,   7,   5,   5,   5,   7,   0,   7,   0,   0,
 /*FLOA*/   0,   0,   0,   0,   0,   0,   0,   7,   7,   6,   7,   6,   6,   6,   6,   0,   7,   0,   0,
 /*DOUB*/   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   7,   7,   7,   0,   7,   0,   0,
-/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   0,   7,   7,   7,   7,   0,   0,   0,   0,
+/*VARC*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   8,   7,   7,   7,   7,   0,   0,   0,   0,
 /*TIME*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   9,   9,   9,   9,   7,   0,   7,   0,   0,
 /*NCHA*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   7,   7,   7,   7,   0,   0,   0,   0,
 /*UTIN*/   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   0,   12,  13,  14,  0,   7,   0,   0,
@@ -1003,8 +1132,7 @@ static void vectorMathMultiplyHelper(SColumnInfoData* pLeftCol, SColumnInfoData*
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
-      *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
-                * getVectorDoubleValueFnRight(RIGHT_COL, 0);
+      *output = getVectorDoubleValueFnLeft(LEFT_COL, i) * getVectorDoubleValueFnRight(RIGHT_COL, 0);
     }
   }
 }
@@ -1030,8 +1158,7 @@ void vectorMathMultiply(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam 
         colDataAppendNULL(pOutputCol, i);
         continue;  // TODO set null or ignore
       }
-      *output = getVectorDoubleValueFnLeft(LEFT_COL, i)
-                * getVectorDoubleValueFnRight(RIGHT_COL, i);
+      *output = getVectorDoubleValueFnLeft(LEFT_COL, i) * getVectorDoubleValueFnRight(RIGHT_COL, i);
     }
   } else if (pLeft->numOfRows == 1) {
     vectorMathMultiplyHelper(pRightCol, pLeftCol, pOutputCol, pRight->numOfRows, step, i);

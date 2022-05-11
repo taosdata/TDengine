@@ -36,7 +36,7 @@ extern "C" {
 
 #define CTG_DEFAULT_INVALID_VERSION (-1)
 
-#define CTG_ERR_CODE_TABLE_NOT_EXIST TSDB_CODE_TDB_INVALID_TABLE_ID
+#define CTG_ERR_CODE_TABLE_NOT_EXIST TSDB_CODE_PAR_TABLE_NOT_EXIST
 
 enum {
   CTG_READ = 1,
@@ -54,6 +54,7 @@ enum {
   CTG_ACT_REMOVE_DB,
   CTG_ACT_REMOVE_STB,
   CTG_ACT_REMOVE_TBL,
+  CTG_ACT_UPDATE_USER,
   CTG_ACT_MAX
 };
 
@@ -95,8 +96,18 @@ typedef struct SCtgRentMgmt {
   SCtgRentSlot  *slots;
 } SCtgRentMgmt;
 
+typedef struct SCtgUserAuth {
+  int32_t   version;
+  SRWLatch  lock;
+  bool      superUser;
+  SHashObj *createdDbs;
+  SHashObj *readDbs;
+  SHashObj *writeDbs;
+} SCtgUserAuth;
+
 typedef struct SCatalog {
   uint64_t         clusterId;  
+  SHashObj        *userCache;    //key:user, value:SCtgUserAuth
   SHashObj        *dbCache;      //key:dbname, value:SCtgDBCache
   SCtgRentMgmt     dbRent;
   SCtgRentMgmt     stbRent;
@@ -124,6 +135,8 @@ typedef struct SCtgCacheStat {
   uint64_t vgMissNum;
   uint64_t tblHitNum;
   uint64_t tblMissNum;
+  uint64_t userHitNum;
+  uint64_t userMissNum;
 } SCtgCacheStat;
 
 typedef struct SCatalogStat {
@@ -168,6 +181,11 @@ typedef struct SCtgRemoveTblMsg {
   char  tbName[TSDB_TABLE_NAME_LEN];
   uint64_t dbId;
 } SCtgRemoveTblMsg;
+
+typedef struct SCtgUpdateUserMsg {
+  SCatalog* pCtg;
+  SGetUserAuthRsp userAuth;
+} SCtgUpdateUserMsg;
 
 
 typedef struct SCtgMetaAction {
@@ -233,6 +251,8 @@ typedef struct SCtgAction {
 #define CTG_FLAG_UNKNOWN_STB  0x4
 #define CTG_FLAG_SYS_DB       0x8
 #define CTG_FLAG_FORCE_UPDATE 0x10
+
+#define CTG_FLAG_SET(_flag, _v) ((_flag) |= (_v))
 
 #define CTG_FLAG_IS_STB(_flag) ((_flag) & CTG_FLAG_STB)
 #define CTG_FLAG_IS_NOT_STB(_flag) ((_flag) & CTG_FLAG_NOT_STB)

@@ -46,9 +46,21 @@ void* rpcOpen(const SRpcInit* pInit) {
     pRpc->numOfThreads = pInit->numOfThreads > TSDB_MAX_RPC_THREADS ? TSDB_MAX_RPC_THREADS : pInit->numOfThreads;
   }
 
+  uint32_t ip = 0;
+  if (pInit->connType == TAOS_CONN_SERVER) {
+    ip = taosGetIpv4FromFqdn(pInit->localFqdn);
+    if (ip == 0xFFFFFFFF) {
+      tError("invalid fqdn: %s", pInit->localFqdn);
+      terrno = TSDB_CODE_RPC_FQDN_ERROR;
+      taosMemoryFree(pRpc);
+      return NULL;
+    }
+  }
+
   pRpc->connType = pInit->connType;
   pRpc->idleTime = pInit->idleTime;
-  pRpc->tcphandle = (*taosInitHandle[pRpc->connType])(0, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
+  pRpc->tcphandle =
+      (*taosInitHandle[pRpc->connType])(ip, pInit->localPort, pRpc->label, pRpc->numOfThreads, NULL, pRpc);
   if (pRpc->tcphandle == NULL) {
     taosMemoryFree(pRpc);
     return NULL;
@@ -101,18 +113,8 @@ void* rpcReallocCont(void* ptr, int contLen) {
 }
 
 void rpcSendRedirectRsp(void* thandle, const SEpSet* pEpSet) {
-  SRpcMsg rpcMsg;
-  memset(&rpcMsg, 0, sizeof(rpcMsg));
-
-  SMEpSet msg = {.epSet = *pEpSet};
-  int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
-  rpcMsg.pCont = rpcMallocCont(len);
-  tSerializeSMEpSet(rpcMsg.pCont, len, &msg);
-
-  rpcMsg.code = TSDB_CODE_RPC_REDIRECT;
-  rpcMsg.handle = thandle;
-
-  rpcSendResponse(&rpcMsg);
+  // deprecated api
+  assert(0);
 }
 
 int  rpcReportProgress(void* pConn, char* pCont, int contLen) { return -1; }

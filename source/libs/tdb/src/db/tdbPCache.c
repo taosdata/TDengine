@@ -135,7 +135,7 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
   // 1. Search the hash table
   pPage = pCache->pgHash[tdbPCachePageHash(pPgid) % pCache->nHash];
   while (pPage) {
-    if (TDB_IS_SAME_PAGE(&(pPage->pgid), pPgid)) break;
+    if (memcmp(pPage->pgid.fileid, pPgid->fileid, TDB_FILE_ID_LEN) == 0 && pPage->pgid.pgno == pPgid->pgno) break;
     pPage = pPage->pHashNext;
   }
 
@@ -292,6 +292,10 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
     pPage->pFreeNext = pCache->pFree;
     pCache->pFree = pPage;
     pCache->nFree++;
+
+    // add to local list
+    pPage->pCacheNext = pCache->pList;
+    pCache->pList = pPage;
   }
 
   // Open the hash table
@@ -317,9 +321,10 @@ static int tdbPCacheCloseImpl(SPCache *pCache) {
 
   for (pPage = pCache->pList; pPage; pPage = pCache->pList) {
     pCache->pList = pPage->pCacheNext;
-    tdbPageDestroy(pPage, NULL, NULL);
+    tdbPageDestroy(pPage, tdbDefaultFree, NULL);
   }
 
+  tdbOsFree(pCache->pgHash);
   tdbPCacheDestroyLock(pCache);
   return 0;
 }

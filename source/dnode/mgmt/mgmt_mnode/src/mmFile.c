@@ -22,7 +22,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   int32_t   maxLen = 4096;
   char     *content = taosMemoryCalloc(1, maxLen + 1);
   cJSON    *root = NULL;
-  char      file[PATH_MAX];
+  char      file[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
   snprintf(file, sizeof(file), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
@@ -30,39 +30,39 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   if (pFile == NULL) {
     // dDebug("file %s not exist", file);
     code = 0;
-    goto PRASE_MNODE_OVER;
+    goto _OVER;
   }
 
   len = (int32_t)taosReadFile(pFile, content, maxLen);
   if (len <= 0) {
     dError("failed to read %s since content is null", file);
-    goto PRASE_MNODE_OVER;
+    goto _OVER;
   }
 
   content[len] = 0;
   root = cJSON_Parse(content);
   if (root == NULL) {
     dError("failed to read %s since invalid json format", file);
-    goto PRASE_MNODE_OVER;
+    goto _OVER;
   }
 
   cJSON *deployed = cJSON_GetObjectItem(root, "deployed");
   if (!deployed || deployed->type != cJSON_Number) {
     dError("failed to read %s since deployed not found", file);
-    goto PRASE_MNODE_OVER;
+    goto _OVER;
   }
   *pDeployed = deployed->valueint;
 
   cJSON *mnodes = cJSON_GetObjectItem(root, "mnodes");
   if (!mnodes || mnodes->type != cJSON_Array) {
     dError("failed to read %s since nodes not found", file);
-    goto PRASE_MNODE_OVER;
+    goto _OVER;
   }
 
   pMgmt->replica = cJSON_GetArraySize(mnodes);
   if (pMgmt->replica <= 0 || pMgmt->replica > TSDB_MAX_REPLICA) {
     dError("failed to read %s since mnodes size %d invalid", file, pMgmt->replica);
-    goto PRASE_MNODE_OVER;
+    goto _OVER;
   }
 
   for (int32_t i = 0; i < pMgmt->replica; ++i) {
@@ -74,21 +74,21 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
     cJSON *id = cJSON_GetObjectItem(node, "id");
     if (!id || id->type != cJSON_Number) {
       dError("failed to read %s since id not found", file);
-      goto PRASE_MNODE_OVER;
+      goto _OVER;
     }
     pReplica->id = id->valueint;
 
     cJSON *fqdn = cJSON_GetObjectItem(node, "fqdn");
     if (!fqdn || fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
       dError("failed to read %s since fqdn not found", file);
-      goto PRASE_MNODE_OVER;
+      goto _OVER;
     }
     tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
 
     cJSON *port = cJSON_GetObjectItem(node, "port");
     if (!port || port->type != cJSON_Number) {
       dError("failed to read %s since port not found", file);
-      goto PRASE_MNODE_OVER;
+      goto _OVER;
     }
     pReplica->port = port->valueint;
   }
@@ -96,7 +96,7 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   code = 0;
   dDebug("succcessed to read file %s, deployed:%d", file, *pDeployed);
 
-PRASE_MNODE_OVER:
+_OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);

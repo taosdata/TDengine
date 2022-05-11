@@ -171,6 +171,11 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
   return 0;
 }
 
+int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
+  tdbPageDropCell(pPage, idx);
+  return tdbPageInsertCell(pPage, idx, pCell, szCell, 0);
+}
+
 int tdbPageDropCell(SPage *pPage, int idx) {
   int    lidx;
   SCell *pCell;

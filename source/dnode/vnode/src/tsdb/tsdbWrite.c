@@ -38,11 +38,11 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   while (true) {
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
-    if (tsdbInsertTableData(pTsdb, pBlock, &affectedrows) < 0) {
+    if (tsdbInsertTableData(pTsdb, &msgIter, pBlock, &affectedrows) < 0) {
       return -1;
     }
 
-    numOfRows += pBlock->numOfRows;
+    numOfRows += msgIter.numOfRows;
   }
 
   if (pRsp != NULL) {
@@ -60,25 +60,26 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   SSubmitBlk    *pBlock = NULL;
   SSubmitBlkIter blkIter = {0};
   STSRow        *row = NULL;
-  TSKEY          now = taosGetTimestamp(pTsdb->config.precision);
-  TSKEY          minKey = now - tsTickPerDay[pTsdb->config.precision] * pTsdb->config.keep2;
-  TSKEY          maxKey = now + tsTickPerDay[pTsdb->config.precision] * pTsdb->config.days;
+  STsdbKeepCfg  *pCfg = REPO_KEEP_CFG(pTsdb);
+  TSKEY          now = taosGetTimestamp(pCfg->precision);
+  TSKEY          minKey = now - tsTickPerDay[pCfg->precision] * pCfg->keep2;
+  TSKEY          maxKey = now + tsTickPerDay[pCfg->precision] * pCfg->days;
 
   terrno = TSDB_CODE_SUCCESS;
-  pMsg->length = htonl(pMsg->length);
-  pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
+  // pMsg->length = htonl(pMsg->length);
+  // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
   if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
   while (true) {
     if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
     if (pBlock == NULL) break;
 
-    pBlock->uid = htobe64(pBlock->uid);
-    pBlock->suid = htobe64(pBlock->suid);
-    pBlock->sversion = htonl(pBlock->sversion);
-    pBlock->dataLen = htonl(pBlock->dataLen);
-    pBlock->schemaLen = htonl(pBlock->schemaLen);
-    pBlock->numOfRows = htons(pBlock->numOfRows);
+      // pBlock->uid = htobe64(pBlock->uid);
+      // pBlock->suid = htobe64(pBlock->suid);
+      // pBlock->sversion = htonl(pBlock->sversion);
+      // pBlock->dataLen = htonl(pBlock->dataLen);
+      // pBlock->schemaLen = htonl(pBlock->schemaLen);
+      // pBlock->numOfRows = htons(pBlock->numOfRows);
 
 #if 0
     if (pBlock->tid <= 0 || pBlock->tid >= pMeta->maxTables) {

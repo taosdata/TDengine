@@ -34,6 +34,7 @@
 extern "C" {
 #endif
 
+typedef enum { LT, LE, GT, GE } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
 typedef struct SIndexStat {
@@ -57,7 +58,7 @@ struct SIndex {
 
   char* path;
 
-  SIndexStat      stat;
+  SIndexStat    stat;
   TdThreadMutex mtx;
 };
 
@@ -165,7 +166,9 @@ int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
   } while (0)
 
 #define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
+
 #define INDEX_TYPE_GET_TYPE(ty) (ty & 0x0F)
+
 #define INDEX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
   do {                                       \
     uint8_t oldTy = ty;                      \

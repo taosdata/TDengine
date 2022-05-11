@@ -40,6 +40,11 @@ enum {
   CTG_DBG_STB_RENT_NUM,
 };
 
+typedef enum {
+  AUTH_TYPE_READ = 1,
+  AUTH_TYPE_WRITE,
+  AUTH_TYPE_OTHER,
+} AUTH_TYPE;
 
 typedef struct SCatalogReq {
   SArray *pTableName;     // element is SNAME
@@ -57,6 +62,7 @@ typedef struct SMetaData {
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
+  uint32_t maxUserCacheNum;
   uint32_t dbRentSec;
   uint32_t stbRentSec;
 } SCatalogCfg;
@@ -76,6 +82,11 @@ typedef struct SDbVgVersion {
   int32_t vgVersion;
   int32_t numOfTable; // unit is TSDB_TABLE_NUM_UNIT
 } SDbVgVersion;
+
+typedef struct SUserAuthVersion {
+  char    user[TSDB_USER_LEN];
+  int32_t version;
+} SUserAuthVersion;
 
 typedef SDbCfgRsp SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
@@ -219,11 +230,17 @@ int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion **stable
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
 
+int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion **users, uint32_t *num);
+
 int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg);
 
 int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
 
 int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo** pInfo);
+
+int32_t catalogChkAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass);
+
+int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
 
 
 /**

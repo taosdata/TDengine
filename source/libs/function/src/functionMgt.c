@@ -21,10 +21,7 @@
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
-#include "builtins.h"
-#include "catalog.h"
 #include "tudf.h"
-
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
@@ -124,7 +121,10 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetUdafExecFuncs(SFuncExecFuncs* pFpSet) {
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (!fmIsUserDefinedFunc(funcId)) {
+    return TSDB_CODE_FAILED;
+  }
   pFpSet->getEnv = udfAggGetEnv;
   pFpSet->init = udfAggInit;
   pFpSet->process = udfAggProcess;
@@ -144,6 +144,10 @@ int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
 bool fmIsAggFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_AGG_FUNC); }
 
 bool fmIsScalarFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC); }
+
+bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SELECT_FUNC); }
+
+bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
 bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
 
@@ -165,6 +169,8 @@ bool fmIsDynamicScanOptimizedFunc(int32_t funcId) {
 
 bool fmIsMultiResFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_RES_FUNC); }
 
+bool fmIsRepeatScanFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_REPEAT_SCAN_FUNC); }
+
 bool fmIsUserDefinedFunc(int32_t funcId) { return funcId > FUNC_UDF_ID_START; }
 
 void fmFuncMgtDestroy() {
@@ -172,4 +178,35 @@ void fmFuncMgtDestroy() {
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
+}
+
+int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->process = funcMgtBuiltins[funcId].invertFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->process = funcMgtBuiltins[funcId].processFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+bool fmIsInvertible(int32_t funcId) {
+  bool res = false;
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_COUNT:
+    case FUNCTION_TYPE_SUM:
+    case FUNCTION_TYPE_STDDEV:
+    case FUNCTION_TYPE_AVG:
+      res = true;
+      break;
+    default:
+      break;
+  }
+  return res;
 }

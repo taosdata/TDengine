@@ -20,7 +20,7 @@
 
 int32_t mndProcessQueryMsg(SNodeMsg *pReq) {
   SMnode     *pMnode = pReq->pNode;
-  SReadHandle handle = {0};
+  SReadHandle handle = {.mnd = pMnode, .pMsgCb = &pMnode->msgCb};
 
   mTrace("msg:%p, in query queue is processing", pReq);
   switch (pReq->rpcMsg.msgType) {
