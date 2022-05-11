@@ -125,7 +125,10 @@ typedef enum {
 } EHistoBinType;
 
 typedef struct SStateInfo {
-  int64_t count;
+  union {
+    int64_t count;
+    int64_t durationStart;
+  };
 } SStateInfo;
 
 typedef enum {
@@ -2838,6 +2841,55 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
       output = ++pInfo->count;
     } else {
       pInfo->count = 0;
+    }
+    colDataAppend(pOutput, i, (char *)&output, false);
+  }
+
+  return numOfElems;
+}
+
+int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SStateInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+
+  int32_t numOfElems = 0;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  //TODO: process timeUnit for different db precisions
+  int32_t timeUnit = 1000;
+  if (pCtx->numOfParams == 5) { //TODO: param number incorrect
+    timeUnit = pCtx->param[3].param.i;
+  }
+
+  int8_t op = getStateOpType(varDataVal(pCtx->param[1].param.pz));
+  if (STATE_OPER_INVALID == op) {
+    return 0;
+  }
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    numOfElems++;
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    bool ret = checkStateOp(op, pInputCol, i, pCtx->param[2].param);
+    int64_t output = -1;
+    if (ret) {
+      if (pInfo->durationStart == 0) {
+        output = 0;
+        pInfo->durationStart = tsList[i];
+      } else {
+        output = (tsList[i] - pInfo->durationStart) / timeUnit;
+      }
+    } else {
+      pInfo->durationStart = 0;
     }
     colDataAppend(pOutput, i, (char *)&output, false);
   }
