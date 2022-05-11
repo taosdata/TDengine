@@ -260,7 +260,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 20;
       } else if (optr == OP_TYPE_LIKE) {
         comparFn = 9;
-      } else if (optr == OP_TYPE_LIKE) {
+      } else if (optr == OP_TYPE_NOT_LIKE) {
         comparFn = 27;
       } else if (optr == OP_TYPE_IN) {
         comparFn = 8;

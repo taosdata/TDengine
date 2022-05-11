@@ -11,8 +11,8 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_NCHAR};
-int32_t optrIdxList[] = {0, 1, 2};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR};
+int32_t optrIdxList[] = {0, 9};
 
 typedef struct {
   char*   oper;
@@ -184,7 +184,7 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = { // default
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -202,7 +202,7 @@ CaseCtrl gCaseCtrl = { // default
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
   .checkParamNum = false,
-  .printRes = true,
+  .printRes = false,
   .runTimes = 0,
   .caseIdx = -1,
   .caseNum = -1,
@@ -212,7 +212,7 @@ CaseCtrl gCaseCtrl = { // default
 #endif
 
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = {
   .bindNullNum = 0,
   .printCreateTblSql = true,
@@ -223,18 +223,18 @@ CaseCtrl gCaseCtrl = {
   .bindColNum = 0,
   .bindTagNum = 0,
   .bindRowNum = 0,
-  .bindColTypeNum = 0,
-  .bindColTypeList = NULL,
+  .bindColTypeNum = tListLen(bindColTypeList),
+  .bindColTypeList = bindColTypeList,
   .bindTagTypeNum = 0,
   .bindTagTypeList = NULL,
-  .optrIdxListNum = 0,
-  .optrIdxList = NULL,
+  .optrIdxListNum = tListLen(optrIdxList),
+  .optrIdxList = optrIdxList,
   .checkParamNum = false,
   .printRes = false,
   .runTimes = 0,
-  .caseIdx = -1,
+  .caseIdx = 23,
   .caseNum = 1,
-  .caseRunIdx = 20,
+  .caseRunIdx = -1,
   .caseRunNum = 1,
 };
 #endif
@@ -253,14 +253,14 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
   .checkParamNum = false,
-  .printRes = true,
+  .printRes = false,
   .runTimes = 0,
   .caseRunIdx = -1,
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
-  .caseIdx = 22,
+  .caseIdx = 23,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -3332,6 +3332,7 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   TAOS_STMT *stmt = NULL;
   int64_t beginUs, endUs, totalUs;  
   CaseCfg cfg = gCase[caseIdx];
+  CaseCfg cfgBk;
   gCurCase = &cfg;
   
   if ((gCaseCtrl.bindColTypeNum || gCaseCtrl.bindColNum) && (gCurCase->colNum != gFullColNum)) {
@@ -3402,6 +3403,7 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   }
   
   totalUs = 0;
+  cfgBk = cfg;
   for (int32_t n = 0; n < gCurCase->runTimes; ++n) {
     if (gCurCase->preCaseIdx < 0) {
       prepare(taos, gCurCase->colNum, gCurCase->colList, gCurCase->autoCreateTbl);
@@ -3423,6 +3425,8 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
     totalUs += (endUs - beginUs);
 
     prepareCheckResult(taos, silent);
+
+    cfg = cfgBk;
   }
 
   if (!silent) {  
@@ -3465,18 +3469,19 @@ void* runCaseList(TAOS *taos) {
 }
 
 void runAll(TAOS *taos) {
-#if 0
+#if 1
+
   strcpy(gCaseCtrl.caseCatalog, "Normal Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
-#endif
 
-#if 1
+
   strcpy(gCaseCtrl.caseCatalog, "Auto Create Table Test");
   gCaseCtrl.autoCreateTbl = true;
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
   gCaseCtrl.autoCreateTbl = false;
+  
 #endif
 
 /*
@@ -3499,6 +3504,7 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.rowNum = 0;
   gCaseCtrl.printRes = true;
+*/
 
   strcpy(gCaseCtrl.caseCatalog, "Runtimes Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
@@ -3506,12 +3512,15 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.runTimes = 0;
 
+#if 1
   strcpy(gCaseCtrl.caseCatalog, "Check Param Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.checkParamNum = true;
   runCaseList(taos);
   gCaseCtrl.checkParamNum = false;
+#endif
 
+/*
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColNum = 6;

@@ -512,7 +512,7 @@ int32_t vectorConvertToVarData(const SScalarParam* pIn, SScalarParam* pOut, int1
       if (outType == TSDB_DATA_TYPE_NCHAR) {
         varToNchar(tmp, pOut, i);
       } else {
-        colDataAppend(pOutputCol, i, (char *)&value, false);
+        colDataAppend(pOutputCol, i, (char *)tmp, false);
       }
     }
   } else if (IS_UNSIGNED_NUMERIC_TYPE(inType)) {
@@ -529,7 +529,7 @@ int32_t vectorConvertToVarData(const SScalarParam* pIn, SScalarParam* pOut, int1
       if (outType == TSDB_DATA_TYPE_NCHAR) {
         varToNchar(tmp, pOut, i);
       } else {
-        colDataAppend(pOutputCol, i, (char *)&value, false);
+        colDataAppend(pOutputCol, i, (char *)tmp, false);
       }
     }
   } else if (IS_FLOAT_TYPE(inType)) {
@@ -546,7 +546,7 @@ int32_t vectorConvertToVarData(const SScalarParam* pIn, SScalarParam* pOut, int1
       if (outType == TSDB_DATA_TYPE_NCHAR) {
         varToNchar(tmp, pOut, i);
       } else {
-        colDataAppend(pOutputCol, i, (char *)&value, false);
+        colDataAppend(pOutputCol, i, (char *)tmp, false);
       }
     }
   } else {
