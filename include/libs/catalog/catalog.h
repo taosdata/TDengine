@@ -122,6 +122,24 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
  */
 int32_t catalogGetDBVgInfo(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, SArray** pVgroupList);
 
+typedef void *__async_cb_fn_t(void* pResult, void* param, int32_t code);
+
+typedef struct {
+  SCatalog* pCatalog;
+  void*     pTransporter;
+  SEpSet*   pMgmtEps;
+  char*     pDbname;
+} CatalogParamWrapper;
+
+/**
+ *
+ * @param pCatalogWrapper
+ * @param fp
+ * @param param
+ * @return
+ */
+int32_t catalogGetDBVgInfo_a(CatalogParamWrapper* pCatalogWrapper, __async_cb_fn_t fp, void* param);
+
 int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
 
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);

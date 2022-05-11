@@ -563,6 +563,10 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmt
   return TSDB_CODE_SUCCESS;
 }
 
+//typedef void __taos_async_internal_fn_t(void* param, )
+void ctgGetDBVgInfoFromMnode_a(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SBuildUseDBInput *input, __taos_async_fn_t fp) {
+
+}
 
 int32_t ctgGetDBVgInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SBuildUseDBInput *input, SUseDbOutput *out) {
   char *msg = NULL;
@@ -1768,7 +1772,7 @@ int32_t ctgCloneVgInfo(SDBVgInfo *src, SDBVgInfo **dst) {
   return TSDB_CODE_SUCCESS;
 }
 
-
+void ctgGetDBVgInfo_a();
 
 int32_t ctgGetDBVgInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SCtgDBCache** dbCache, SDBVgInfo **pInfo) {
   bool inCache = false;

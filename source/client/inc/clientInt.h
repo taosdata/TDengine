@@ -121,7 +121,7 @@ struct SAppInstInfo {
   SCorEpSet        mgmtEp;
   SInstanceSummary summary;
   SList*           pConnList;  // STscObj linked list
-  int64_t          clusterId;
+  uint64_t         clusterId;
   void*            pTransporter;
   SAppHbMgr*       pAppHbMgr;
 };
@@ -281,6 +281,8 @@ void initMsgHandleFp();
 
 TAOS* taos_connect_internal(const char* ip, const char* user, const char* pass, const char* auth, const char* db,
                             uint16_t port, int connType);
+
+SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen);
 
 int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtCallback* pStmtCb);
 

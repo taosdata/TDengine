@@ -572,8 +572,10 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
   int32_t      retryNum = 0;
   int32_t      code = 0;
 
+  size_t sqlLen = strlen(sql);
+
   while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
-//    pRequest = launchQuery(pTscObj, sql, sqlLen);
+    pRequest = launchQuery(taos, sql, sqlLen);
     if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
     }
