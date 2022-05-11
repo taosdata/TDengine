@@ -142,7 +142,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->dbId = pCreate->dbUid;
   pCfg->szPage = pCreate->pageSize * 1024;
   pCfg->szCache = pCreate->pages;
-  pCfg->szBuf = pCreate->buffer;
+  pCfg->szBuf = pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.precision = pCreate->precision;
   pCfg->tsdbCfg.days = 10;
