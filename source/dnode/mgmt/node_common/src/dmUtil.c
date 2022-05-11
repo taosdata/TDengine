@@ -92,10 +92,10 @@ const char *dmProcStr(EDndProcType etype) {
   }
 }
 
-void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, NodeMsgFp nodeMsgFp, bool needCheckVgId) {
+void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId) {
   SMgmtHandle handle = {
       .msgType = msgType,
-      .msgFp = nodeMsgFp,
+      .msgFp = (NodeMsgFp)nodeMsgFp,
       .needCheckVgId = needCheckVgId,
   };
 

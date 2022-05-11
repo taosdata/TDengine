@@ -87,12 +87,14 @@ typedef struct {
   SMsgCb      msgCb;
   int32_t     dnodeId;
   int64_t     clusterId;
-  const char *dataDir;
   const char *localEp;
   const char *firstEp;
   const char *localFqdn;
   uint16_t    serverPort;
   int32_t     supportVnodes;
+  int32_t     numOfDisks;
+  SDiskCfg   *disks;
+  const char *dataDir;
 } SMgmtInputOpt;
 
 typedef struct {
@@ -133,7 +135,7 @@ const char *dmNodeLogName(EDndNodeType ntype);
 const char *dmNodeProcName(EDndNodeType ntype);
 const char *dmEventStr(EDndEvent etype);
 const char *dmProcStr(EDndProcType ptype);
-void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, NodeMsgFp nodeMsgFp, bool needCheckVgId);
+void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId);
 void        dmGetSystemInfo(SMonSysInfo *pInfo);
 
 // dmFile.c

@@ -272,8 +272,8 @@ static int32_t vmInit(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   tstrncpy(dCfg.dir, pInput->dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  SDiskCfg *pDisks = tsDiskCfg;
-  int32_t   numOfDisks = tsDiskCfgNum;
+  SDiskCfg *pDisks = pInput->disks;
+  int32_t   numOfDisks = pInput->numOfDisks;
   if (numOfDisks <= 0 || pDisks == NULL) {
     pDisks = &dCfg;
     numOfDisks = 1;
