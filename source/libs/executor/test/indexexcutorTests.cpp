@@ -177,15 +177,45 @@ void sifMakeTargetNode(SNode **pNode, int16_t dataBlockId, int16_t slotId, SNode
 
 #if 1
 TEST(testCase, index_filter) {
-  SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
+    nodesDestroyNode(res);
+  }
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
 
-  sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
-  sifMakeValueNode(&pRight, TSDB_DATA_TYPE_SMALLINT, &sifRightV);
-  sifMakeOpNode(&opNode, OP_TYPE_ADD, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
-  nodesDestroyNode(res);
+    nodesDestroyNode(res);
+  }
 }
 
-TEST(testCase, index_filter_varify) { EXPECT_EQ(0, 0); }
+TEST(testCase, index_filter_varify) {
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
+    nodesDestroyNode(res);
+
+    SIdxFltStatus st = idxGetFltStatus(opNode);
+    EXPECT_EQ(st, SFLT_ACCURATE_INDEX);
+  }
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+
+    SIdxFltStatus st = idxGetFltStatus(opNode);
+    EXPECT_EQ(st, SFLT_COARSE_INDEX);
+    nodesDestroyNode(res);
+  }
+}
 
 #endif
 
