@@ -1,6 +1,7 @@
 ---
 sidebar_label: Introduction
-title: TDengine Introduction
+docs/dingbo/en-titles
+title: Introduction
 toc_max_heading_level: 2
 ---
 
