@@ -263,7 +263,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t translateState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (3 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -276,6 +276,31 @@ static int32_t translateState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) 
   if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
       (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BIGINT &&
        ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_DOUBLE)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (3 != paraNum && 4 != paraNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BIGINT &&
+       ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_DOUBLE)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (paraNum == 4 && ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -701,10 +726,20 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .name = "state_count",
     .type = FUNCTION_TYPE_STATE_COUNT,
     .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
-    .translateFunc = translateState,
+    .translateFunc = translateStateCount,
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = stateCountFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "state_duration",
+    .type = FUNCTION_TYPE_STATE_DURATION,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateStateDuration,
+    .getEnvFunc   = getStateFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = stateDurationFunction,
     .finalizeFunc = NULL
   },
   {
