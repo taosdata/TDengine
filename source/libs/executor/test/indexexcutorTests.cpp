@@ -23,10 +23,12 @@
 #pragma GCC diagnostic ignored "-Wunused-function"
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
-#include "os.h"
 
 #include "executor.h"
 #include "executorimpl.h"
+#include "indexoperator.h"
+#include "os.h"
+
 #include "stub.h"
 #include "taos.h"
 #include "tcompare.h"
@@ -181,15 +183,24 @@ TEST(testCase, index_filter) {
     SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
     sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
     sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
-    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
+    sifMakeOpNode(&opNode, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
+    SArray *result = taosArrayInit(4, sizeof(uint64_t));
+    doFilterTag(opNode, result);
+    EXPECT_EQ(1, taosArrayGetSize(result));
+    taosArrayDestroy(result);
     nodesDestroyNode(res);
   }
   {
     SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
     sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
     sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
-    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+    sifMakeOpNode(&opNode, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
 
+    SArray *result = taosArrayInit(4, sizeof(uint64_t));
+    doFilterTag(opNode, result);
+    EXPECT_EQ(1, taosArrayGetSize(result));
+
+    taosArrayDestroy(result);
     nodesDestroyNode(res);
   }
 }
@@ -199,7 +210,7 @@ TEST(testCase, index_filter_varify) {
     SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
     sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
     sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
-    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
+    sifMakeOpNode(&opNode, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
     nodesDestroyNode(res);
 
     SIdxFltStatus st = idxGetFltStatus(opNode);
@@ -209,7 +220,27 @@ TEST(testCase, index_filter_varify) {
     SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
     sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
     sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
-    sifMakeOpNode(&opNode, OP_LESS_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+    sifMakeOpNode(&opNode, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+
+    SIdxFltStatus st = idxGetFltStatus(opNode);
+    EXPECT_EQ(st, SFLT_COARSE_INDEX);
+    nodesDestroyNode(res);
+  }
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
+    nodesDestroyNode(res);
+
+    SIdxFltStatus st = idxGetFltStatus(opNode);
+    EXPECT_EQ(st, SFLT_ACCURATE_INDEX);
+  }
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
 
     SIdxFltStatus st = idxGetFltStatus(opNode);
     EXPECT_EQ(st, SFLT_COARSE_INDEX);
