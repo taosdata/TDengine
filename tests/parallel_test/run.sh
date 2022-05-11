@@ -137,7 +137,7 @@ function run_thread() {
     local count=0
     local script="${workdirs[index]}/TDengine/tests/parallel_test/run_container.sh"
     if [ $ent -ne 0 ]; then
-        local script="${workdirs[index]}/TDinternal/community/tests/parallel_test/run_container.sh"
+        local script="${workdirs[index]}/TDinternal/community/tests/parallel_test/run_container.sh -e"
     fi
     local cmd="${runcase_script} ${script}"
 
