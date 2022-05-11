@@ -241,7 +241,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
-    strcpy(alterReq.dbname, "*");
+    strcpy(alterReq.dbname, "1.*");
 
     int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -257,7 +257,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
-    strcpy(alterReq.dbname, "*");
+    strcpy(alterReq.dbname, "1.*");
 
     int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
