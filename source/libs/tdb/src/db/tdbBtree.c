@@ -1528,6 +1528,7 @@ int tdbBtcUpsert(SBTC *pBtc, const void *pKey, int kLen, const void *pData, int 
     }
   }
 
+  tdbOsFree(pBuf);
   return 0;
 }
 
