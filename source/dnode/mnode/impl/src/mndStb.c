@@ -839,15 +839,6 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
 
   for (int32_t i = 0; i < pAlter->numOfFields; ++i) {
     SField *pField = taosArrayGet(pAlter->pFields, i);
-
-    if (pField->type <= 0) {
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return -1;
-    }
-    if (pField->bytes <= 0) {
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return -1;
-    }
     if (pField->name[0] == 0) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
@@ -908,12 +899,12 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
   for (int32_t i = 0; i < ntags; i++) {
     SField *pField = taosArrayGet(pFields, i);
-    if (mndFindSuperTableColumnIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       return -1;
     }
 
-    if (mndFindSuperTableTagIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableTagIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
       return -1;
     }
@@ -1034,12 +1025,12 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
 
   for (int32_t i = 0; i < ncols; i++) {
     SField *pField = taosArrayGet(pFields, i);
-    if (mndFindSuperTableColumnIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       return -1;
     }
 
-    if (mndFindSuperTableTagIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableTagIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
       return -1;
     }
@@ -1218,7 +1209,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SNodeMsg *pReq, const SMAlterStbReq *
       code = mndAlterStbColumnBytes(pOld, &stbObj, pField0);
       break;
     default:
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+      terrno = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
   }
 
