@@ -81,6 +81,10 @@ def pre_test(){
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
+            git log|head -n20
+            cd ${WK}
+            git pull >/dev/null
+            git log|head -n20
         '''
     } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
         sh '''
@@ -88,6 +92,10 @@ def pre_test(){
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
+            git log|head -n20
+            cd ${WKC}
+            git pull >/dev/null
+            git log|head -n20
         '''
     } else {
         sh '''
