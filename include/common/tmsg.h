@@ -267,8 +267,9 @@ typedef struct {
   SSubmitRspBlock failedBlocks[];
 } SSubmitRsp;
 
-#define SCHEMA_SMA_ON 0x1
-#define SCHEMA_IDX_ON 0x2
+#define COL_SMA_ON  ((int8_t)0x1)
+#define COL_IDX_ON  ((int8_t)0x2)
+#define COL_VAL_SET ((int8_t)0x4)
 typedef struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -277,7 +278,7 @@ typedef struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
-#define IS_BSMA_ON(s) (((s)->flags & 0x01) == SCHEMA_SMA_ON)
+#define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)

@@ -117,7 +117,7 @@ TEST_F(ParserInitialCTest, createStable) {
   };
 
   auto addFieldToCreateStbReqFunc = [&](bool col, const char* pFieldName, uint8_t type, int32_t bytes = 0,
-                                        int8_t flags = SCHEMA_SMA_ON) {
+                                        int8_t flags = COL_SMA_ON) {
     SField field = {0};
     strcpy(field.name, pFieldName);
     field.type = type;

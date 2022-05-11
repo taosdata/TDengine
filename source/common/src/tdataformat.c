@@ -19,12 +19,33 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow) {
+  if (tEncodeI64(pEncoder, pRow->ts) < 0) return -1;
+  if (tEncodeU32v(pEncoder, pRow->flags) < 0) return -1;
+  if (pRow->flags & TD_KV_ROW) {
+    if (tEncodeI32v(pEncoder, pRow->ncols) < 0) return -1;
+  } else {
+    if (tEncodeI32v(pEncoder, pRow->sver) < 0) return -1;
+  }
+  if (tEncodeBinary(pEncoder, pRow->pData, pRow->nData) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow) {
+  if (tDecodeI64(pDecoder, &pRow->ts) < 0) return -1;
+  if (tDecodeU32v(pDecoder, &pRow->flags) < 0) return -1;
+  if (pRow->flags & TD_KV_ROW) {
+    if (tDecodeI32v(pDecoder, &pRow->ncols) < 0) return -1;
+  } else {
+    if (tDecodeI32v(pDecoder, &pRow->sver) < 0) return -1;
+  }
+  if (tDecodeBinary(pDecoder, &pRow->pData, &pRow->nData) < 0) return -1;
+  return 0;
+}
+
+#if 1  // ====================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
-#if 0
-static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
-                               int limit2, int tRows, bool forceSetNull);
-#endif
-int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
+int         tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
@@ -504,3 +525,4 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
 
   return row;
 }
+#endif
