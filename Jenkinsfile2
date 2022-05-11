@@ -195,6 +195,8 @@ pipeline {
                                     time ./container_build.sh -w ${WKDIR} -t 8 -e
                                     rm -f /tmp/cases.task
                                     ./collect_cases.sh -e
+                                '''
+                                sh '''
                                     date
                                     time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
                                 '''
