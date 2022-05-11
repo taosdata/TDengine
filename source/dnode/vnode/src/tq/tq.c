@@ -401,7 +401,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
     fetchOffset = walGetFirstVer(pTq->pWal);
   } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
-    fetchOffset = walGetLastVer(pTq->pWal);
+    fetchOffset = walGetCommittedVer(pTq->pWal);
   } else {
     fetchOffset = pReq->currentOffset + 1;
   }

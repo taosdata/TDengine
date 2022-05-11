@@ -143,7 +143,11 @@ void walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity) { pRead->capa
 
 int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
   int32_t code;
+
   // TODO: valid ver
+  if (ver > pRead->pWal->vers.commitVer) {
+    return -1;
+  }
 
   if (pRead->curVersion != ver) {
     code = walReadSeekVer(pRead, ver);
