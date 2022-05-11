@@ -33,9 +33,6 @@ typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
 typedef struct SKVIdx        SKVIdx;
 
-#define TD_TP_ROW 0x0U
-#define TD_KV_ROW 0x1U
-
 // STSchema
 
 // STSRow2
@@ -48,8 +45,8 @@ void    tTSchemaDestroy(STSchema *pTSchema);
 
 // STSRowBuilder
 int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, SSchema *pSchema, int32_t nCols);
-int32_t tTSRowBuilderClear(STSRowBuilder *pBuilder);
-int32_t tTSRowBuilderReset(STSRowBuilder *pBuilder);
+void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
+void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
 int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pData, uint32_t nData);
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 
@@ -85,11 +82,13 @@ struct STSRow2 {
 struct STSRowBuilder {
   STColumn *pTColumn;
   STSchema *pTSchema;
+  int32_t   szKVBuf;
+  uint8_t  *pKVBuf;
+  int32_t   szTPBuf;
+  uint8_t  *pTPBuf;
   int32_t   nCols;
   int32_t   kvVLen;
-  uint8_t  *pKV;
   int32_t   tpVLen;
-  uint8_t  *pTuple;
   STSRow2   row;
 };
 
