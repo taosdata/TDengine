@@ -81,20 +81,28 @@ typedef enum {
   DND_PROC_TEST,
 } EDndProcType;
 
+typedef int32_t (*ProcessCreateNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
+typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
+typedef int8_t (*IsNodeDeployedFp)(struct SDnode *pDnode, EDndNodeType ntype);
+
 typedef struct {
-  const char *path;
-  const char *name;
-  SMsgCb      msgCb;
-  int32_t     dnodeId;
-  int64_t     clusterId;
-  const char *localEp;
-  const char *firstEp;
-  const char *localFqdn;
-  uint16_t    serverPort;
-  int32_t     supportVnodes;
-  int32_t     numOfDisks;
-  SDiskCfg   *disks;
-  const char *dataDir;
+  const char         *path;
+  const char         *name;
+  SMsgCb              msgCb;
+  int32_t             dnodeId;
+  int64_t             clusterId;
+  const char         *localEp;
+  const char         *firstEp;
+  const char         *localFqdn;
+  uint16_t            serverPort;
+  int32_t             supportVnodes;
+  int32_t             numOfDisks;
+  SDiskCfg           *disks;
+  const char         *dataDir;
+  struct SDnode      *pDnode;
+  ProcessCreateNodeFp processCreateNodeFp;
+  ProcessDropNodeFp   processDropNodeFp;
+  IsNodeDeployedFp    isNodeDeployedFp;
 } SMgmtInputOpt;
 
 typedef struct {
@@ -137,7 +145,7 @@ const char *dmNodeName(EDndNodeType ntype);
 const char *dmEventStr(EDndEvent etype);
 const char *dmProcStr(EDndProcType ptype);
 void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId);
-void        dmGetSystemInfo(SMonSysInfo *pInfo);
+void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
 // dmFile.c
 int32_t   dmReadFile(const char *path, const char *name, bool *pDeployed);
@@ -145,6 +153,35 @@ int32_t   dmWriteFile(const char *path, const char *name, bool deployed);
 TdFilePtr dmCheckRunning(const char *dataDir);
 int32_t   dmReadShmFile(const char *path, const char *name, SShm *pShm);
 int32_t   dmWriteShmFile(const char *path, const char *name, const SShm *pShm);
+
+// common define
+typedef struct {
+  int32_t    dnodeId;
+  int64_t    clusterId;
+  int64_t    dnodeVer;
+  int64_t    updateTime;
+  int64_t    rebootTime;
+  int32_t    unsyncedVgId;
+  ESyncState vndState;
+  ESyncState mndState;
+  bool       isMnode;
+  bool       dropped;
+  SEpSet     mnodeEps;
+  SArray    *dnodeEps;
+  SHashObj  *dnodeHash;
+  SRWLatch   latch;
+  SMsgCb     msgCb;
+  TdFilePtr  lockfile;
+  char      *localEp;
+  char      *localFqdn;
+  char      *firstEp;
+  char      *secondEp;
+  char      *dataDir;
+  SDiskCfg  *disks;
+  int32_t    numOfDisks;
+  int32_t    supportVnodes;
+  uint16_t   serverPort;
+} SDnodeData;
 
 #ifdef __cplusplus
 }

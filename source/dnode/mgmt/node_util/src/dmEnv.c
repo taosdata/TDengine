@@ -30,6 +30,16 @@ int32_t dmInit() {
   taosBlockSIGPIPE();
   taosResolveCRC();
 
+  SMonCfg monCfg = {0};
+  monCfg.maxLogs = tsMonitorMaxLogs;
+  monCfg.port = tsMonitorPort;
+  monCfg.server = tsMonitorFqdn;
+  monCfg.comp = tsMonitorComp;
+  if (monInit(&monCfg) != 0) {
+    dError("failed to init monitor since %s", terrstr());
+    return -1;
+  }
+
   dInfo("env is initialized");
   return 0;
 }
@@ -45,6 +55,7 @@ void dmCleanup() {
   syncCleanUp();
   walCleanUp();
   udfcClose();
+  udfStopUdfd();
   taosStopCacheRefreshWorker();
   dInfo("env is cleaned up");
 }

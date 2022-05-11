@@ -119,7 +119,7 @@ void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool need
   return taosArrayPush(pArray, &handle);
 }
 
-void dmGetSystemInfo(SMonSysInfo *pInfo) {
+void dmGetMonitorSystemInfo(SMonSysInfo *pInfo) {
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
   taosGetCpuCores(&pInfo->cpu_cores);
   taosGetProcMemory(&pInfo->mem_engine);
