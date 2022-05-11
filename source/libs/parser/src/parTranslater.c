@@ -1886,6 +1886,9 @@ static int32_t checkDbKeepOption(STranslateContext* pCxt, SDatabaseOptions* pOpt
         TIME_UNIT_DAY != pVal->unit) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_KEEP_UNIT, pVal->unit);
     }
+    if (!pVal->isDuration) {
+      pVal->datum.i = pVal->datum.i * 1440;
+    }
   }
 
   pOptions->keep[0] = getBigintFromValueNode((SValueNode*)nodesListGetNode(pOptions->pKeep, 0));

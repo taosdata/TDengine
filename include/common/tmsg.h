@@ -252,24 +252,31 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 int32_t tPrintFixedSchemaSubmitReq(const SSubmitReq* pReq, STSchema* pSchema);
 
 typedef struct {
-  int32_t index;  // index of failed block in submit blocks
-  int32_t vnode;  // vnode index of failed block
-  int32_t sid;    // table index of failed block
-  int32_t code;   // errorcode while write data to vnode, such as not created, dropped, no space, invalid table
-} SSubmitRspBlock;
+  int8_t  hashMeta;
+  int64_t uid;
+  char*   tblFName;
+  int32_t numOfRows;
+  int32_t affectedRows;
+} SSubmitBlkRsp;
 
 typedef struct {
-  int32_t         code;          // 0-success, > 0 error code
-  int32_t         numOfRows;     // number of records the client is trying to write
-  int32_t         affectedRows;  // number of records actually written
-  int32_t         failedRows;    // number of failed records (exclude duplicate records)
-  int32_t         numOfFailedBlocks;
-  SSubmitRspBlock failedBlocks[];
+  int32_t numOfRows;
+  int32_t affectedRows;
+  int32_t nBlocks;
+  union {
+    SArray*        pArray;
+    SSubmitBlkRsp* pBlocks;
+  };
 } SSubmitRsp;
+
+int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
+int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
+void tFreeSSubmitRsp(SSubmitRsp *pRsp);
 
 #define COL_SMA_ON  ((int8_t)0x1)
 #define COL_IDX_ON  ((int8_t)0x2)
 #define COL_VAL_SET ((int8_t)0x4)
+
 typedef struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -476,6 +483,7 @@ typedef struct {
   int32_t  acctId;
   int64_t  clusterId;
   uint32_t connId;
+  int32_t  dnodeNum;
   int8_t   superUser;
   int8_t   connType;
   SEpSet   epSet;
