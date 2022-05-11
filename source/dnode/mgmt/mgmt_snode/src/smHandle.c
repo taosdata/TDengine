@@ -16,12 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-void smGetMonitorInfo(SMgmtWrapper *pWrapper, SMonSmInfo *smInfo) {}
+static void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
 
-int32_t smProcessGetMonSmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SNodeMsg *pReq) {
   SMonSmInfo smInfo = {0};
-  smGetMonitorInfo(pWrapper, &smInfo);
-  dmGetMonitorSysInfo(&smInfo.sys);
+  smGetMonitorInfo(pMgmt, &smInfo);
+  dmGetSystemInfo(&smInfo.sys);
   monGetLogs(&smInfo.log);
 
   int32_t rspLen = tSerializeSMonSmInfo(NULL, 0, &smInfo);
@@ -43,8 +43,7 @@ int32_t smProcessGetMonSmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   return 0;
 }
 
-int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pWrapper->pDnode;
+int32_t smProcessCreateReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDCreateSnodeReq createReq = {0};
@@ -53,14 +52,14 @@ int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (createReq.dnodeId != pDnode->data.dnodeId) {
+  if (createReq.dnodeId != pMgmt->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create snode since %s", terrstr());
     return -1;
   }
 
   bool deployed = true;
-  if (dmWriteFile(pWrapper, deployed) != 0) {
+  if (dmWriteFile(pMgmt->path, pMgmt->name, deployed) != 0) {
     dError("failed to write snode file since %s", terrstr());
     return -1;
   }
@@ -68,8 +67,7 @@ int32_t smProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pWrapper->pDnode;
+int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDDropSnodeReq dropReq = {0};
@@ -78,14 +76,14 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (dropReq.dnodeId != pDnode->data.dnodeId) {
+  if (dropReq.dnodeId != pMgmt->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop snode since %s", terrstr());
     return -1;
   }
 
   bool deployed = false;
-  if (dmWriteFile(pWrapper, deployed) != 0) {
+  if (dmWriteFile(pMgmt->path, pMgmt->name, deployed) != 0) {
     dError("failed to write snode file since %s", terrstr());
     return -1;
   }
@@ -93,10 +91,23 @@ int32_t smProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-void smInitMsgHandle(SMgmtWrapper *pWrapper) {
-  dmSetMsgHandle(pWrapper, TDMT_MON_SM_INFO, smProcessMonitorMsg, 0);
+SArray *smGetMsgHandles() {
+  int32_t code = -1;
+  SArray *pArray = taosArrayInit(4, sizeof(SMgmtHandle));
+  if (pArray == NULL) goto _OVER;
+
+  if (dmSetMgmtHandle(pArray, TDMT_MON_SM_INFO, smPutNodeMsgToMonitorQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by SNODE
-  dmSetMsgHandle(pWrapper, TDMT_SND_TASK_DEPLOY, smProcessMgmtMsg, 0);
-  dmSetMsgHandle(pWrapper, TDMT_SND_TASK_EXEC, smProcessExecMsg, 0);
+  if (dmSetMgmtHandle(pArray, TDMT_SND_TASK_DEPLOY, smPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_SND_TASK_EXEC, smPutNodeMsgToExecQueue, 0) == NULL) goto _OVER;
+
+  code = 0;
+_OVER:
+  if (code != 0) {
+    taosArrayDestroy(pArray);
+    return NULL;
+  } else {
+    return pArray;
+  }
 }

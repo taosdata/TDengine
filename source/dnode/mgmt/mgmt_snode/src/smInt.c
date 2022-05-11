@@ -17,34 +17,25 @@
 #include "smInt.h"
 #include "libs/function/function.h"
 
-static int32_t smRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
-
-static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) {
-  SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
-  msgCb.pWrapper = pMgmt->pWrapper;
-  pOption->msgCb = msgCb;
+static int32_t smRequire(const SMgmtInputOpt *pInput, bool *required) {
+  return dmReadFile(pInput->path, pInput->name, required);
 }
 
-static void smClose(SMgmtWrapper *pWrapper) {
-  SSnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
+static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
 
+static void smClose(SSnodeMgmt *pMgmt) {
   dInfo("snode-mgmt start to cleanup");
-
-  udfcClose();
-
   if (pMgmt->pSnode != NULL) {
     smStopWorker(pMgmt);
     sndClose(pMgmt->pSnode);
     pMgmt->pSnode = NULL;
   }
 
-  pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("snode-mgmt is cleaned up");
 }
 
-int32_t smOpen(SMgmtWrapper *pWrapper) {
+int32_t smOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   dInfo("snode-mgmt start to init");
   SSnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SSnodeMgmt));
   if (pMgmt == NULL) {
@@ -52,42 +43,47 @@ int32_t smOpen(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  pMgmt->path = pWrapper->path;
-  pMgmt->pDnode = pWrapper->pDnode;
-  pMgmt->pWrapper = pWrapper;
-  pWrapper->pMgmt = pMgmt;
+  pMgmt->path = pInput->path;
+  pMgmt->name = pInput->name;
+  pMgmt->dnodeId = pInput->dnodeId;
+  pMgmt->msgCb = pInput->msgCb;
+  pMgmt->msgCb.pMgmt = pMgmt;
 
   SSnodeOpt option = {0};
   smInitOption(pMgmt, &option);
   pMgmt->pSnode = sndOpen(pMgmt->path, &option);
   if (pMgmt->pSnode == NULL) {
     dError("failed to open snode since %s", terrstr());
+    smClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "snode-impl", "initialized");
+  tmsgReportStartup("snode-impl", "initialized");
 
   if (smStartWorker(pMgmt) != 0) {
     dError("failed to start snode worker since %s", terrstr());
+    smClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "snode-worker", "initialized");
+  tmsgReportStartup("snode-worker", "initialized");
 
   if (udfcOpen() != 0) {
     dError("failed to open udfc in snode");
+    smClose(pMgmt);
+    return -1;
   }
 
+  pOutput->pMgmt = pMgmt;
   return 0;
 }
 
-void smInitWrapper(SMgmtWrapper *pWrapper) {
-  SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = smOpen;
-  mgmtFp.closeFp = smClose;
-  mgmtFp.createFp = smProcessCreateReq;
-  mgmtFp.dropFp = smProcessDropReq;
-  mgmtFp.requiredFp = smRequire;
+SMgmtFunc smGetMgmtFunc() {
+  SMgmtFunc mgmtFunc = {0};
+  mgmtFunc.openFp = smOpen;
+  mgmtFunc.closeFp = (NodeCloseFp)smClose;
+  mgmtFunc.createFp = (NodeCreateFp)smProcessCreateReq;
+  mgmtFunc.dropFp = (NodeDropFp)smProcessDropReq;
+  mgmtFunc.requiredFp = smRequire;
+  mgmtFunc.getHandlesFp = smGetMsgHandles;
 
-  smInitMsgHandle(pWrapper);
-  pWrapper->name = "snode";
-  pWrapper->fp = mgmtFp;
+  return mgmtFunc;
 }

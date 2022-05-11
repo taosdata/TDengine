@@ -36,7 +36,7 @@ static void smProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   int32_t  code = -1;
 
   if (pMsg->rpcMsg.msgType == TDMT_MON_SM_INFO) {
-    code = smProcessGetMonSmInfoReq(pMgmt->pWrapper, pMsg);
+    code = smProcessGetMonitorInfoReq(pMgmt, pMsg);
   } else {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
@@ -163,8 +163,7 @@ static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
+int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
@@ -176,8 +175,7 @@ int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
+int32_t smPutNodeMsgToMonitorQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -185,8 +183,7 @@ int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
+int32_t smPutNodeMsgToUniqueQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   int32_t       index = smGetSWIdFromMsg(&pMsg->rpcMsg);
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
   if (pWorker == NULL) {
@@ -199,8 +196,7 @@ int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
+int32_t smPutNodeMsgToSharedQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->sharedWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -208,11 +204,11 @@ int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessExecMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+int32_t smPutNodeMsgToExecQueue(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   int32_t workerType = smGetSWTypeFromMsg(&pMsg->rpcMsg);
   if (workerType == SND_WORKER_TYPE__SHARED) {
-    return smProcessSharedMsg(pWrapper, pMsg);
+    return smPutNodeMsgToSharedQueue(pMgmt, pMsg);
   } else {
-    return smProcessUniqueMsg(pWrapper, pMsg);
+    return smPutNodeMsgToUniqueQueue(pMgmt, pMsg);
   }
 }
