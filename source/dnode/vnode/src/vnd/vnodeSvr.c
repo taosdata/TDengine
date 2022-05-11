@@ -392,7 +392,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   tEncoderClear(&encoder);
 
 _exit:
-  taosArrayClear(rsp.pArray);
+  taosArrayDestroy(rsp.pArray);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
   return rcode;
@@ -454,6 +454,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   SVDropTbBatchReq req = {0};
   SVDropTbBatchRsp rsp = {0};
   SDecoder         decoder = {0};
+  SEncoder         encoder = {0};
   int              ret;
 
   pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
@@ -471,7 +472,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   }
 
   // process req
-  rsp.pArray = taosArrayInit(sizeof(SVDropTbRsp), req.nReqs);
+  rsp.pArray = taosArrayInit(req.nReqs, sizeof(SVDropTbRsp));
   for (int iReq = 0; iReq < req.nReqs; iReq++) {
     SVDropTbReq *pDropTbReq = req.pReqs + iReq;
     SVDropTbRsp  dropTbRsp = {0};
@@ -493,11 +494,15 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
 
 _exit:
   tDecoderClear(&decoder);
-  // encode rsp (TODO)
+  tEncodeSize(tEncodeSVDropTbBatchRsp, &rsp, pRsp->contLen, ret);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
+  tEncodeSVDropTbBatchRsp(&encoder, &rsp);
+  tEncoderClear(&encoder);
   return 0;
 }
 
-static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char* tags) {
+static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char *tags) {
   ASSERT(pMsg != NULL);
   SSubmitMsgIter msgIter = {0};
   SMeta         *pMeta = pVnode->pMeta;
@@ -518,11 +523,11 @@ static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char
         taosMemoryFreeClear(pSchema);
       }
       pSchema = metaGetTbTSchema(pMeta, msgIter.suid, 0);  // TODO: use the real schema
-      if(pSchema) {
+      if (pSchema) {
         suid = msgIter.suid;
       }
     }
-    if(!pSchema) {
+    if (!pSchema) {
       printf("%s:%d no valid schema\n", tags, __LINE__);
       continue;
     }
@@ -596,7 +601,6 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
     }
 
     rsp.affectedRows += nRows;
-    
   }
 
 _exit:
