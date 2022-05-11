@@ -1159,7 +1159,7 @@ bool tdGetKvRowValOfColEx(STSRowIter *pIter, col_id_t colId, col_type_t colType,
 
 #ifdef TD_SUPPORT_BITMAP
   int16_t colIdx = -1;
-  if (pKvIdx) colIdx = POINTER_DISTANCE(TD_ROW_COL_IDX(pRow), pKvIdx) / sizeof(SKvRowIdx);
+  if (pKvIdx) colIdx = POINTER_DISTANCE(pKvIdx, TD_ROW_COL_IDX(pRow)) / sizeof(SKvRowIdx);
   if (tdGetBitmapValType(pIter->pBitmap, colIdx, &pVal->valType, 0) != TSDB_CODE_SUCCESS) {
     pVal->valType = TD_VTYPE_NONE;
   }
@@ -1226,7 +1226,7 @@ bool tdSTSRowGetVal(STSRowIter *pIter, col_id_t colId, col_type_t colType, SCell
                                                compareKvRowColId, TD_EQ);
 #ifdef TD_SUPPORT_BITMAP
     if (pIdx) {
-      colIdx = POINTER_DISTANCE(TD_ROW_COL_IDX(pRow), pIdx) / sizeof(SKvRowIdx);
+      colIdx = POINTER_DISTANCE(pIdx, TD_ROW_COL_IDX(pRow)) / sizeof(SKvRowIdx);
     }
 #endif
     tdGetKvRowValOfCol(pVal, pRow, pIter->pBitmap, pIdx ? pIdx->offset : -1, colIdx);
