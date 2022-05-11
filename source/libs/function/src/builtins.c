@@ -207,7 +207,8 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 }
 
 static int32_t translateBottom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  // todo
+  SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
+  pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -222,6 +223,23 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (3 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  for (int32_t i = 0; i < numOfParams; ++i) {
+    uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+    if (!IS_NUMERIC_TYPE(colType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY };
   return TSDB_CODE_SUCCESS;
 }
 
@@ -241,7 +259,27 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = 512, .type = TSDB_DATA_TYPE_BINARY };
+  pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateState(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BIGINT &&
+       ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_DOUBLE)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
   return TSDB_CODE_SUCCESS;
 }
 
@@ -273,7 +311,8 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  if (!IS_NUMERIC_TYPE(p1->resType.type)) {
+  if (!IS_SIGNED_NUMERIC_TYPE(p1->resType.type) && !IS_FLOAT_TYPE(p1->resType.type) &&
+      TSDB_DATA_TYPE_BOOL != p1->resType.type) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
   pFunc->node.resType = p1->resType;
@@ -509,9 +548,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = minFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = minFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = minmaxFunctionFinalize
   },
   {
     .name = "max",
@@ -520,9 +559,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateInOutNum,
     .dataRequiredFunc = statisDataRequired,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = minmaxFunctionFinalize
   },
   {
     .name = "stddev",
@@ -534,6 +573,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .processFunc  = stddevFunction,
     .finalizeFunc = stddevFinalize,
     .invertFunc   = stddevInvertFunction
+  },
+  {
+    .name = "leastsquares",
+    .type = FUNCTION_TYPE_LEASTSQUARES,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateLeastSQR,
+    .getEnvFunc   = getLeastSQRFuncEnv,
+    .initFunc     = leastSQRFunctionSetup,
+    .processFunc  = leastSQRFunction,
+    .finalizeFunc = leastSQRFinalize,
+    .invertFunc   = leastSQRInvertFunction
   },
   {
     .name = "avg",
@@ -549,7 +599,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "percentile",
     .type = FUNCTION_TYPE_PERCENTILE,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_REPEAT_SCAN_FUNC,
     .translateFunc = translatePercentile,
     .getEnvFunc   = getPercentileFuncEnv,
     .initFunc     = percentileFunctionSetup,
@@ -562,14 +612,14 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentile,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = functionFinalize
   },
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateTop,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
@@ -579,12 +629,12 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_AGG_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateBottom,
-    .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
-    .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .getEnvFunc   = getTopBotFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = bottomFunction,
+    .finalizeFunc = topBotFinalize
   },
   {
     .name = "spread",
@@ -603,7 +653,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_MULTI_RES_FUNC,
     .translateFunc = translateLastRow,
     .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = maxFunctionSetup,
+    .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
     .finalizeFunc = functionFinalize
   },
@@ -646,6 +696,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = histogramFunctionSetup,
     .processFunc  = histogramFunction,
     .finalizeFunc = histogramFinalize
+  },
+  {
+    .name = "state_count",
+    .type = FUNCTION_TYPE_STATE_COUNT,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .translateFunc = translateState,
+    .getEnvFunc   = getStateFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = stateCountFunction,
+    .finalizeFunc = NULL
   },
   {
     .name = "abs",
@@ -958,6 +1018,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
+    .name = "_c0",
+    .type = FUNCTION_TYPE_ROWTS,
+    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
+    .translateFunc = translateTimePseudoColumn,
+    .getEnvFunc   = getTimePseudoFuncEnv,
+    .initFunc     = NULL,
+    .sprocessFunc = NULL,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "tbname",
     .type = FUNCTION_TYPE_TBNAME,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
@@ -1032,9 +1102,9 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_SELECT_VALUE,
     .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC,
     .translateFunc = translateSelectValue,
-    .getEnvFunc   = NULL,
-    .initFunc     = NULL,
-    .sprocessFunc = NULL,
+    .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
+    .initFunc     = functionSetup,
+    .processFunc  = NULL,
     .finalizeFunc = NULL
   }
 };

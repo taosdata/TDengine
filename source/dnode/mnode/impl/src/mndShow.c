@@ -85,8 +85,8 @@ static int32_t convertToRetrieveType(char *name, int32_t len) {
     type = TSDB_MGMT_TABLE_VGROUP;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_CONSUMERS, len) == 0) {
     type = TSDB_MGMT_TABLE_CONSUMERS;
-  } else if (strncasecmp(name, TSDB_PERFS_TABLE_SUBSCRIBES, len) == 0) {
-    type = TSDB_MGMT_TABLE_SUBSCRIBES;
+  } else if (strncasecmp(name, TSDB_PERFS_TABLE_SUBSCRIPTIONS, len) == 0) {
+    type = TSDB_MGMT_TABLE_SUBSCRIPTIONS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_TRANS, len) == 0) {
     type = TSDB_MGMT_TABLE_TRANS;
   } else if (strncasecmp(name, TSDB_PERFS_TABLE_SMAS, len) == 0) {

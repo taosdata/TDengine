@@ -493,7 +493,7 @@ SSDataBlock* blockDataExtractBlock(SSDataBlock* pBlock, int32_t startIndex, int3
     for (int32_t j = startIndex; j < (startIndex + rowCount); ++j) {
       bool isNull = false;
       if (pBlock->pBlockAgg == NULL) {
-        isNull = colDataIsNull_s(pColData, pBlock->info.rows);
+        isNull = colDataIsNull_s(pColData, j);
       } else {
         isNull = colDataIsNull(pColData, pBlock->info.rows, j, pBlock->pBlockAgg[i]);
       }

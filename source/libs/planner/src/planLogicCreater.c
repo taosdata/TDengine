@@ -54,6 +54,9 @@ static EDealRes doRewriteExpr(SNode** pNode, void* pContext) {
           pCol->node.resType = pToBeRewrittenExpr->resType;
           strcpy(pCol->node.aliasName, pToBeRewrittenExpr->aliasName);
           strcpy(pCol->colName, ((SExprNode*)pExpr)->aliasName);
+          if (QUERY_NODE_FUNCTION == nodeType(pExpr) && FUNCTION_TYPE_WSTARTTS == ((SFunctionNode*)pExpr)->funcType) {
+            pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+          }
           nodesDestroyNode(*pNode);
           *pNode = (SNode*)pCol;
           return DEAL_RES_IGNORE_CHILD;
@@ -253,7 +256,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
   TSWAP(pScan->pMeta, pRealTable->pMeta);
   TSWAP(pScan->pVgroupList, pRealTable->pVgroupList);
-  pScan->scanSeq[0] = 1;
+  pScan->scanSeq[0] = pSelect->hasRepeatScanFuncs ? 2 : 1;
   pScan->scanSeq[1] = 0;
   pScan->scanRange = TSWINDOW_INITIALIZER;
   pScan->tableName.type = TSDB_TABLE_NAME_T;

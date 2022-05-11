@@ -13,11 +13,57 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "indexComm.h"
 #include "index.h"
 #include "indexInt.h"
+#include "tcompare.h"
 
 char JSON_COLUMN[] = "JSON";
 char JSON_VALUE_DELIM = '&';
+
+static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_LESS_THAN, a, b);
+}
+static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_LESS_EQUAL, a, b);
+}
+static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_GREATER_THAN, a, b);
+}
+static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
+  __compar_fn_t func = getComparFunc(type, 0);
+  return tDoCommpare(func, QUERY_GREATER_EQUAL, a, b);
+}
+
+TExeCond tDoCommpare(__compar_fn_t func, int8_t comType, void* a, void* b) {
+  // optime later
+  int32_t ret = func(a, b);
+  switch (comType) {
+    case QUERY_LESS_THAN: {
+      if (ret < 0) return MATCH;
+    } break;
+    case QUERY_LESS_EQUAL: {
+      if (ret <= 0) return MATCH;
+      break;
+    }
+    case QUERY_GREATER_THAN: {
+      if (ret > 0) return MATCH;
+      break;
+    }
+    case QUERY_GREATER_EQUAL: {
+      if (ret >= 0) return MATCH;
+    }
+  }
+  return CONTINUE;
+}
+
+static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {tCompareLessThan, tCompareLessEqual,
+                                                                    tCompareGreaterThan, tCompareGreaterEqual};
+
+_cache_range_compare indexGetCompare(RangeType ty) { return rangeCompare[ty]; }
 
 char* indexPackJsonData(SIndexTerm* itm) {
   /*
@@ -46,6 +92,7 @@ char* indexPackJsonData(SIndexTerm* itm) {
 
   return buf;
 }
+
 char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip) {
   /*
    * |<-----colname---->|<-----dataType---->|<--------colVal---------->|

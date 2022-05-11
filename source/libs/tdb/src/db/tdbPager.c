@@ -88,7 +88,13 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
 }
 
 int tdbPagerClose(SPager *pPager) {
-  // TODO
+  if (pPager) {
+    if (pPager->inTran) {
+      tdbOsClose(pPager->jfd);
+    }
+    tdbOsClose(pPager->fd);
+    tdbOsFree(pPager);
+  }
   return 0;
 }
 

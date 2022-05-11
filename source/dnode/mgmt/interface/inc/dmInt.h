@@ -37,7 +37,7 @@ void   dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgF
 void   dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void   dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc);
 void   dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pMsg);
-void   dmProcessNettestReq(SDnode *pDnode, SRpcMsg *pMsg);
+void   dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
 void   dmGetMonitorSysInfo(SMonSysInfo *pInfo);
 
 // dmFile.c

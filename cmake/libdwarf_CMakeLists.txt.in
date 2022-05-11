@@ -1,0 +1,12 @@
+
+# libdwarf
+ExternalProject_Add(libdwarf
+        GIT_REPOSITORY https://github.com/davea42/libdwarf-code.git
+        GIT_TAG libdwarf-0.3.1
+        SOURCE_DIR "${TD_CONTRIB_DIR}/libdwarf"
+        BINARY_DIR "${TD_CONTRIB_DIR}/libdwarf"
+        CONFIGURE_COMMAND "" 
+        BUILD_COMMAND ""  
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+        )

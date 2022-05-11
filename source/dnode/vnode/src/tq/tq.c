@@ -233,16 +233,18 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
 
+  // make sure msgType == TDMT_VND_SUBMIT
+  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+    return -1;
+  }
+
+  if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
+
   void* data = taosMemoryMalloc(msgLen);
   if (data == NULL) {
     return -1;
   }
   memcpy(data, msg, msgLen);
-
-  // make sure msgType == TDMT_VND_SUBMIT
-  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
-    return -1;
-  }
 
   SRpcMsg req = {
       .msgType = TDMT_VND_STREAM_TRIGGER,
@@ -378,6 +380,7 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
       SReadHandle    handle = {
              .reader = pReadHandle,
              .meta = pTq->pVnode->pMeta,
+             .pMsgCb = &pTq->pVnode->msgCb,
       };
       pTopic->buffer.output[j].pReadHandle = pReadHandle;
       pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
@@ -857,6 +860,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         SReadHandle handle = {
             .reader = pExec->pExecReader[i],
             .meta = pTq->pVnode->pMeta,
+            .pMsgCb = &pTq->pVnode->msgCb,
         };
         pExec->task[i] = qCreateStreamExecTaskInfo(pExec->qmsg, &handle);
         ASSERT(pExec->task[i]);
@@ -914,6 +918,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
       SReadHandle    handle = {
              .reader = pStreamReader,
              .meta = pTq->pVnode->pMeta,
+             .pMsgCb = &pTq->pVnode->msgCb,
       };
       pTask->exec.runners[i].inputHandle = pStreamReader;
       pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);

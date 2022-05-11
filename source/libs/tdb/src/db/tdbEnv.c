@@ -56,7 +56,7 @@ int tdbEnvOpen(const char *rootDir, int szPage, int pages, TENV **ppEnv) {
 
   pEnv->nPgrHash = 8;
   tsize = sizeof(SPager *) * pEnv->nPgrHash;
-  pEnv->pgrHash = tdbRealloc(pEnv->pgrHash, tsize);
+  pEnv->pgrHash = tdbOsMalloc(tsize);
   if (pEnv->pgrHash == NULL) {
     return -1;
   }
@@ -69,7 +69,19 @@ int tdbEnvOpen(const char *rootDir, int szPage, int pages, TENV **ppEnv) {
 }
 
 int tdbEnvClose(TENV *pEnv) {
-  // TODO
+  SPager *pPager;
+
+  if (pEnv) {
+    for (pPager = pEnv->pgrList; pPager; pPager = pEnv->pgrList) {
+      pEnv->pgrList = pPager->pNext;
+      tdbPagerClose(pPager);
+    }
+
+    tdbPCacheClose(pEnv->pCache);
+    tdbOsFree(pEnv->pgrHash);
+    tdbOsFree(pEnv);
+  }
+
   return 0;
 }
 

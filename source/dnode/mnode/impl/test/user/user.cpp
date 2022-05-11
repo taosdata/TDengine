@@ -238,9 +238,10 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_CLEAR_WRITE_DB;
+    alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
+    strcpy(alterReq.dbname, "1.*");
 
     int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -253,9 +254,10 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_CLEAR_READ_DB;
+    alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
+    strcpy(alterReq.dbname, "1.*");
 
     int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -365,8 +367,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
     EXPECT_EQ(numOfReadDbs, 1);
     EXPECT_EQ(numOfWriteDbs, 0);
 
-    char* dbname = (char*)taosHashGet(authRsp.readDbs, "1.d2", 5);
-    EXPECT_STREQ(dbname, "1.d2");
+    char* dbname = (char*)taosHashGet(authRsp.readDbs, "1.d2", 4);
+    EXPECT_TRUE(dbname != NULL);
 
     taosHashCleanup(authRsp.readDbs);
     taosHashCleanup(authRsp.writeDbs);

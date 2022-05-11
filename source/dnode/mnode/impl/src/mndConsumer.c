@@ -486,6 +486,14 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
       }
     }
 
+    if (pConsumerOld && taosArrayGetSize(pConsumerNew->rebNewTopics) == 0 &&
+        taosArrayGetSize(pConsumerNew->rebRemovedTopics) == 0) {
+      /*if (taosArrayGetSize(pConsumerNew->assignedTopics) == 0) {*/
+      /*pConsumerNew->updateType = */
+      /*}*/
+      goto SUBSCRIBE_OVER;
+    }
+
     STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
     if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
@@ -789,72 +797,88 @@ static int32_t mndRetrieveConsumer(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock 
   while (numOfRows < rowsCapacity) {
     pShow->pIter = sdbFetch(pSdb, SDB_CONSUMER, pShow->pIter, (void **)&pConsumer);
     if (pShow->pIter == NULL) break;
-
-    SColumnInfoData *pColInfo;
-    int32_t          cols = 0;
+    if (taosArrayGetSize(pConsumer->assignedTopics) == 0) {
+      sdbRelease(pSdb, pConsumer);
+      continue;
+    }
 
     taosRLockLatch(&pConsumer->lock);
 
-    // consumer id
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->consumerId, false);
+    int32_t topicSz = taosArrayGetSize(pConsumer->assignedTopics);
+    bool    hasTopic = true;
+    if (topicSz == 0) {
+      hasTopic = false;
+      topicSz = 1;
+    }
 
-    // group id
-    char groupId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-    tstrncpy(varDataVal(groupId), pConsumer->cgroup, TSDB_CGROUP_LEN);
-    varDataSetLen(groupId, strlen(varDataVal(groupId)));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)groupId, false);
+    for (int32_t i = 0; i < topicSz; i++) {
+      if (numOfRows + topicSz > rowsCapacity) {
+        blockDataEnsureCapacity(pBlock, numOfRows + topicSz);
+      }
+      SColumnInfoData *pColInfo;
+      int32_t          cols = 0;
 
-    // app id
-    char appId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-    tstrncpy(varDataVal(appId), pConsumer->appId, TSDB_CGROUP_LEN);
-    varDataSetLen(appId, strlen(varDataVal(appId)));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)appId, false);
+      // consumer id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->consumerId, false);
 
-    // status
-    char status[20 + VARSTR_HEADER_SIZE] = {0};
-    tstrncpy(varDataVal(status), mndConsumerStatusName(pConsumer->status), 20);
-    varDataSetLen(status, strlen(varDataVal(status)));
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)status, false);
+      // consumer group
+      char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+      tstrncpy(varDataVal(cgroup), pConsumer->cgroup, TSDB_CGROUP_LEN);
+      varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
 
-    // subscribed topics
-    // TODO: split into multiple rows
-    char  topics[TSDB_SHOW_LIST_LEN + VARSTR_HEADER_SIZE] = {0};
-    char *showStr = taosShowStrArray(pConsumer->assignedTopics);
-    tstrncpy(varDataVal(topics), showStr, TSDB_SHOW_LIST_LEN);
-    taosMemoryFree(showStr);
-    varDataSetLen(topics, strlen(varDataVal(topics)));
+      // app id
+      char appId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+      tstrncpy(varDataVal(appId), pConsumer->appId, TSDB_CGROUP_LEN);
+      varDataSetLen(appId, strlen(varDataVal(appId)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)appId, false);
 
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)topics, false);
+      // status
+      char status[20 + VARSTR_HEADER_SIZE] = {0};
+      tstrncpy(varDataVal(status), mndConsumerStatusName(pConsumer->status), 20);
+      varDataSetLen(status, strlen(varDataVal(status)));
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)status, false);
 
-    // pid
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->pid, true);
+      // one subscribed topic
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      if (hasTopic) {
+        char        topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+        const char *topicName = mndTopicGetShowName(taosArrayGetP(pConsumer->assignedTopics, i));
+        tstrncpy(varDataVal(topic), topicName, TSDB_TOPIC_FNAME_LEN);
+        varDataSetLen(topic, strlen(varDataVal(topic)));
+        colDataAppend(pColInfo, numOfRows, (const char *)topic, false);
+      } else {
+        colDataAppend(pColInfo, numOfRows, NULL, true);
+      }
 
-    // end point
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->ep, true);
+      // pid
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->pid, true);
 
-    // up time
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->upTime, false);
+      // end point
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->ep, true);
 
-    // subscribe time
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->subscribeTime, false);
+      // up time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->upTime, false);
 
-    // rebalance time
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->rebalanceTime, pConsumer->rebalanceTime == 0);
+      // subscribe time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->subscribeTime, false);
 
+      // rebalance time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pConsumer->rebalanceTime, pConsumer->rebalanceTime == 0);
+
+      numOfRows++;
+    }
     taosRUnLockLatch(&pConsumer->lock);
     sdbRelease(pSdb, pConsumer);
-
-    numOfRows++;
   }
 
   pShow->numOfRows += numOfRows;

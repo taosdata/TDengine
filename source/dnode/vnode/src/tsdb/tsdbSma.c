@@ -1698,7 +1698,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
  * @param pReq
  * @return int32_t
  */
-int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq) {
+int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq, SMsgCb *pMsgCb) {
   if (!pReq->rollup) {
     tsdbDebug("vgId:%d return directly since no rollup for stable %s %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
@@ -1742,6 +1742,7 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq) {
   SReadHandle handle = {
       .reader = pReadHandle,
       .meta = pMeta,
+      .pMsgCb = pMsgCb,
   };
 
   if (param->qmsg1) {
@@ -1942,7 +1943,6 @@ static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid
 
 int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
   if (!pStore || (taosArrayGetSize(pStore->tbUids) == 0)) {
-    tsdbDebug("vgId:%d no need to update tbUids since empty uidStore", REPO_ID(pTsdb));
     return TSDB_CODE_SUCCESS;
   }
 

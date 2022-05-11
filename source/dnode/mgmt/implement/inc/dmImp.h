@@ -26,8 +26,10 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper);
 void    dmCloseNode(SMgmtWrapper *pWrapper);
 
 // dmTransport.c
-int32_t  dmInitTrans(SDnode *pDnode);
-void     dmCleanupTrans(SDnode *pDnode);
+int32_t  dmInitServer(SDnode *pDnode);
+void     dmCleanupServer(SDnode *pDnode);
+int32_t  dmInitClient(SDnode *pDnode);
+void     dmCleanupClient(SDnode *pDnode);
 SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper);
 SMsgCb   dmGetMsgcb(SMgmtWrapper *pWrapper);
 int32_t  dmInitMsgHandle(SDnode *pDnode);

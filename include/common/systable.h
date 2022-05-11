@@ -45,7 +45,6 @@ extern "C" {
 
 #define TSDB_PERFORMANCE_SCHEMA_DB     "performance_schema"
 #define TSDB_PERFS_TABLE_SMAS          "smas"
-#define TSDB_PERFS_TABLE_SUBSCRIBES    "subscribes"
 #define TSDB_PERFS_TABLE_CONNECTIONS   "connections"
 #define TSDB_PERFS_TABLE_QUERIES       "queries"
 #define TSDB_PERFS_TABLE_TOPICS        "topics"

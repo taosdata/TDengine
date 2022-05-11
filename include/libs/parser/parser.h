@@ -48,36 +48,6 @@ typedef struct SParseContext {
   bool             isSuperUser;
 } SParseContext;
 
-typedef struct SCmdMsgInfo {
-  int16_t msgType;
-  SEpSet  epSet;
-  void*   pMsg;
-  int32_t msgLen;
-  void*   pExtension;  // todo remove it soon
-} SCmdMsgInfo;
-
-typedef enum EQueryExecMode {
-  QUERY_EXEC_MODE_LOCAL = 1,
-  QUERY_EXEC_MODE_RPC,
-  QUERY_EXEC_MODE_SCHEDULE,
-  QUERY_EXEC_MODE_EMPTY_RESULT
-} EQueryExecMode;
-
-typedef struct SQuery {
-  EQueryExecMode execMode;
-  bool           haveResultSet;
-  SNode*         pRoot;
-  int32_t        numOfResCols;
-  SSchema*       pResSchema;
-  int8_t         precision;
-  SCmdMsgInfo*   pCmdMsg;
-  int32_t        msgType;
-  SArray*        pDbList;
-  SArray*        pTableList;
-  bool           showRewrite;
-  int32_t        placeholderNum;
-} SQuery;
-
 int32_t qParseQuerySql(SParseContext* pCxt, SQuery** pQuery);
 bool    isInsertSql(const char* pStr, size_t length);
 
@@ -103,9 +73,10 @@ void    destroyBoundColumnInfo(void* pBoundInfo);
 int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char* dbName, char* msgBuf,
                      int32_t msgBufLen);
 
-void*   smlInitHandle(SQuery *pQuery);
-void    smlDestroyHandle(void *pHandle);
-int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *colsSchema, SArray *cols, bool format, STableMeta *pTableMeta, char *tableName, char *msgBuf, int16_t msgBufLen);
+void*   smlInitHandle(SQuery* pQuery);
+void    smlDestroyHandle(void* pHandle);
+int32_t smlBindData(void* handle, SArray* tags, SArray* colsFormat, SArray* colsSchema, SArray* cols, bool format,
+                    STableMeta* pTableMeta, char* tableName, char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
 #ifdef __cplusplus

@@ -169,6 +169,8 @@ bool fmIsDynamicScanOptimizedFunc(int32_t funcId) {
 
 bool fmIsMultiResFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_RES_FUNC); }
 
+bool fmIsRepeatScanFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_REPEAT_SCAN_FUNC); }
+
 bool fmIsUserDefinedFunc(int32_t funcId) { return funcId > FUNC_UDF_ID_START; }
 
 void fmFuncMgtDestroy() {
@@ -197,15 +199,14 @@ int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
 bool fmIsInvertible(int32_t funcId) {
   bool res = false;
   switch (funcMgtBuiltins[funcId].type) {
-  case FUNCTION_TYPE_COUNT:
-  case FUNCTION_TYPE_SUM:
-  case FUNCTION_TYPE_STDDEV:
-  case FUNCTION_TYPE_AVG:
-    res = true;
-    break;
-  default:
-    break;
+    case FUNCTION_TYPE_COUNT:
+    case FUNCTION_TYPE_SUM:
+    case FUNCTION_TYPE_STDDEV:
+    case FUNCTION_TYPE_AVG:
+      res = true;
+      break;
+    default:
+      break;
   }
   return res;
 }
-

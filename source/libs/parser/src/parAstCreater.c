@@ -907,6 +907,13 @@ SNode* createDropSuperTableStmt(SAstCreateContext* pCxt, bool ignoreNotExists, S
   return (SNode*)pStmt;
 }
 
+static SNode* createAlterTableStmtFinalize(SNode* pRealTable, SAlterTableStmt* pStmt) {
+  strcpy(pStmt->dbName, ((SRealTableNode*)pRealTable)->table.dbName);
+  strcpy(pStmt->tableName, ((SRealTableNode*)pRealTable)->table.tableName);
+  nodesDestroyNode(pRealTable);
+  return (SNode*)pStmt;
+}
+
 SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable, SNode* pOptions) {
   if (NULL == pRealTable) {
     return NULL;
@@ -915,7 +922,7 @@ SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable,
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
   pStmt->pOptions = (STableOptions*)pOptions;
-  return (SNode*)pStmt;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
 SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
@@ -928,7 +935,7 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   pStmt->alterType = alterType;
   strncpy(pStmt->colName, pColName->z, pColName->n);
   pStmt->dataType = dataType;
-  return (SNode*)pStmt;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
 SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pColName) {
@@ -939,7 +946,7 @@ SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_
   CHECK_OUT_OF_MEM(pStmt);
   pStmt->alterType = alterType;
   strncpy(pStmt->colName, pColName->z, pColName->n);
-  return (SNode*)pStmt;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
 SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
@@ -952,7 +959,7 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
   pStmt->alterType = alterType;
   strncpy(pStmt->colName, pOldColName->z, pOldColName->n);
   strncpy(pStmt->newColName, pNewColName->z, pNewColName->n);
-  return (SNode*)pStmt;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
 SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal) {
@@ -964,7 +971,7 @@ SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const 
   pStmt->alterType = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
   strncpy(pStmt->colName, pTagName->z, pTagName->n);
   pStmt->pVal = (SValueNode*)pVal;
-  return (SNode*)pStmt;
+  return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
 SNode* createUseDatabaseStmt(SAstCreateContext* pCxt, SToken* pDbName) {

@@ -44,6 +44,9 @@ static int32_t  mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubs
 static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg);
 static int32_t mndProcessSubscribeInternalRsp(SNodeMsg *pMsg);
 
+static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static void    mndCancelGetNextSubscribe(SMnode *pMnode, void *pIter);
+
 static int32_t mndSetSubRedoLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
   SSdbRaw *pRedoRaw = mndSubActionEncode(pSub);
   if (pRedoRaw == NULL) return -1;
@@ -71,6 +74,10 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
+
+  mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SUBSCRIPTIONS, mndRetrieveSubscribe);
+  mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextSubscribe);
+
   return sdbSetTable(pMnode->pSdb, table);
 }
 
@@ -164,14 +171,21 @@ static int32_t mndPersistSubChangeVgReq(SMnode *pMnode, STrans *pTrans, const SM
   return 0;
 }
 
-static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup) {
+static int32_t mndSplitSubscribeKey(const char *key, char *topic, char *cgroup, bool fullName) {
   int32_t i = 0;
   while (key[i] != TMQ_SEPARATOR) {
     i++;
   }
   memcpy(cgroup, key, i);
   cgroup[i] = 0;
-  strcpy(topic, &key[i + 1]);
+  if (fullName) {
+    strcpy(topic, &key[i + 1]);
+  } else {
+    while (key[i] != '.') {
+      i++;
+    }
+    strcpy(topic, &key[i + 1]);
+  }
   return 0;
 }
 
@@ -419,7 +433,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
     pConsumerNew->updateType = CONSUMER_UPDATE__ADD;
     char *topic = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     char  cgroup[TSDB_CGROUP_LEN];
-    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup);
+    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
     taosArrayPush(pConsumerNew->rebNewTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
@@ -437,7 +451,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
     pConsumerNew->updateType = CONSUMER_UPDATE__REMOVE;
     char *topic = taosMemoryCalloc(1, TSDB_TOPIC_FNAME_LEN);
     char  cgroup[TSDB_CGROUP_LEN];
-    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup);
+    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
     taosArrayPush(pConsumerNew->rebRemovedTopics, &topic);
     mndReleaseConsumer(pMnode, pConsumerOld);
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) {
@@ -487,7 +501,7 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
       // split sub key and extract topic
       char topic[TSDB_TOPIC_FNAME_LEN];
       char cgroup[TSDB_CGROUP_LEN];
-      mndSplitSubscribeKey(pRebInfo->key, topic, cgroup);
+      mndSplitSubscribeKey(pRebInfo->key, topic, cgroup, true);
       SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
       ASSERT(pTopic);
       taosRLockLatch(&pTopic->lock);
@@ -705,4 +719,125 @@ int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
   code = 0;
 END:
   return code;
+}
+
+static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  SMnode          *pMnode = pReq->pNode;
+  SSdb            *pSdb = pMnode->pSdb;
+  int32_t          numOfRows = 0;
+  SMqSubscribeObj *pSub = NULL;
+
+  while (numOfRows < rowsCapacity) {
+    pShow->pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pShow->pIter, (void **)&pSub);
+    if (pShow->pIter == NULL) break;
+
+    taosRLockLatch(&pSub->lock);
+
+    if (numOfRows + pSub->vgNum > rowsCapacity) {
+      blockDataEnsureCapacity(pBlock, numOfRows + pSub->vgNum);
+    }
+
+    SMqConsumerEp *pConsumerEp = NULL;
+    void          *pIter = NULL;
+    while (1) {
+      pIter = taosHashIterate(pSub->consumerHash, pIter);
+      if (pIter == NULL) break;
+      pConsumerEp = (SMqConsumerEp *)pIter;
+
+      int32_t sz = taosArrayGetSize(pConsumerEp->vgs);
+      for (int32_t j = 0; j < sz; j++) {
+        SMqVgEp *pVgEp = taosArrayGetP(pConsumerEp->vgs, j);
+
+        SColumnInfoData *pColInfo;
+        int32_t          cols = 0;
+
+        // topic and cgroup
+        char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+        char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+        mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
+        varDataSetLen(topic, strlen(varDataVal(topic)));
+        varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)topic, false);
+
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
+
+        // vg id
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
+
+        // consumer id
+        pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+        colDataAppend(pColInfo, numOfRows, (const char *)&pConsumerEp->consumerId, false);
+
+        // offset
+#if 0
+      // subscribe time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
+
+      // rebalance time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
+#endif
+
+        numOfRows++;
+      }
+    }
+
+    int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
+    for (int32_t i = 0; i < sz; i++) {
+      SMqVgEp *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
+
+      SColumnInfoData *pColInfo;
+      int32_t          cols = 0;
+
+      // topic and cgroup
+      char topic[TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+      char cgroup[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+      mndSplitSubscribeKey(pSub->key, varDataVal(topic), varDataVal(cgroup), false);
+      varDataSetLen(topic, strlen(varDataVal(topic)));
+      varDataSetLen(cgroup, strlen(varDataVal(cgroup)));
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)topic, false);
+
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
+
+      // vg id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pVgEp->vgId, false);
+
+      // consumer id
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, NULL, true);
+
+      // offset
+#if 0
+      // subscribe time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->subscribeTime, false);
+
+      // rebalance time
+      pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+      colDataAppend(pColInfo, numOfRows, (const char *)&pSub->rebalanceTime, pConsumer->rebalanceTime == 0);
+#endif
+
+      numOfRows++;
+    }
+
+    taosRUnLockLatch(&pSub->lock);
+    sdbRelease(pSdb, pSub);
+  }
+
+  pShow->numOfRows += numOfRows;
+  return numOfRows;
+}
+
+static void mndCancelGetNextSubscribe(SMnode *pMnode, void *pIter) {
+  SSdb *pSdb = pMnode->pSdb;
+  sdbCancelFetch(pSdb, pIter);
 }

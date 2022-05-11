@@ -688,6 +688,16 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
   return getline(ptrBuf, &len, pFile->fp);
 #endif
 }
+int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
+  if (pFile == NULL || buf == NULL ) {
+    return -1;
+  }
+  assert(pFile->fp != NULL);
+  if (fgets(buf, maxSize, pFile->fp) == NULL) {
+    return -1;
+  }
+  return strlen(buf);
+}
 int32_t taosEOFFile(TdFilePtr pFile) {
   if (pFile == NULL) {
     return 0;

@@ -60,50 +60,6 @@ static int32_t cacheSearchRange_JSON(void* cache, SIndexTerm* ct, SIdxTempResult
 static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTempResult* tr, STermValueType* s,
                                            RangeType type);
 
-typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
-typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
-
-static TExeCond tDoCommpare(__compar_fn_t func, int8_t comType, void* a, void* b) {
-  // optime later
-  int32_t ret = func(a, b);
-  switch (comType) {
-    case QUERY_LESS_THAN: {
-      if (ret < 0) return MATCH;
-    } break;
-    case QUERY_LESS_EQUAL: {
-      if (ret <= 0) return MATCH;
-      break;
-    }
-    case QUERY_GREATER_THAN: {
-      if (ret > 0) return MATCH;
-      break;
-    }
-    case QUERY_GREATER_EQUAL: {
-      if (ret >= 0) return MATCH;
-    }
-  }
-  return CONTINUE;
-}
-static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_LESS_THAN, a, b);
-}
-static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_LESS_EQUAL, a, b);
-}
-static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_GREATER_THAN, a, b);
-}
-static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
-  __compar_fn_t func = getComparFunc(type, 0);
-  return tDoCommpare(func, QUERY_GREATER_EQUAL, a, b);
-}
-
-static TExeCond (*rangeCompare[])(void* a, void* b, int8_t type) = {tCompareLessThan, tCompareLessEqual,
-                                                                    tCompareGreaterThan, tCompareGreaterEqual};
-
 static int32_t (*cacheSearch[][QUERY_MAX])(void* cache, SIndexTerm* ct, SIdxTempResult* tr, STermValueType* s) = {
     {cacheSearchTerm, cacheSearchPrefix, cacheSearchSuffix, cacheSearchRegex, cacheSearchLessThan, cacheSearchLessEqual,
      cacheSearchGreaterThan, cacheSearchGreaterEqual, cacheSearchRange},
@@ -169,7 +125,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTempRes
     return 0;
   }
 
-  _cache_range_compare cmpFn = rangeCompare[type];
+  _cache_range_compare cmpFn = indexGetCompare(type);
 
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
@@ -295,7 +251,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTe
   if (cache == NULL) {
     return 0;
   }
-  _cache_range_compare cmpFn = rangeCompare[type];
+  _cache_range_compare cmpFn = indexGetCompare(type);
 
   MemTable*   mem = cache;
   IndexCache* pCache = mem->pCache;
@@ -322,9 +278,9 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTe
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    printf("json val: %s\n", c->colVal);
-    if (0 != strncmp(c->colVal, term->colName, term->nColName)) {
-      continue;
+    // printf("json val: %s\n", c->colVal);
+    if (0 != strncmp(c->colVal, pCt->colVal, skip)) {
+      break;
     }
 
     TExeCond cond = cmpFn(c->colVal + skip, term->colVal, dType);
@@ -684,30 +640,30 @@ static int indexFindCh(char* a, char c) {
   return p - a;
 }
 static int indexCacheJsonTermCompareImpl(char* a, char* b) {
-  int alen = indexFindCh(a, '&');
-  int blen = indexFindCh(b, '&');
+  // int alen = indexFindCh(a, '&');
+  // int blen = indexFindCh(b, '&');
 
-  int cmp = strncmp(a, b, MIN(alen, blen));
-  if (cmp == 0) {
-    cmp = alen - blen;
-    if (cmp != 0) {
-      return cmp;
-    }
-    cmp = *(a + alen) - *(b + blen);
-    if (cmp != 0) {
-      return cmp;
-    }
-    alen += 2;
-    blen += 2;
-    cmp = strcmp(a + alen, b + blen);
-  }
-  return cmp;
+  // int cmp = strncmp(a, b, MIN(alen, blen));
+  // if (cmp == 0) {
+  //  cmp = alen - blen;
+  //  if (cmp != 0) {
+  //    return cmp;
+  //  }
+  //  cmp = *(a + alen) - *(b + blen);
+  //  if (cmp != 0) {
+  //    return cmp;
+  //  }
+  //  alen += 2;
+  //  blen += 2;
+  //  cmp = strcmp(a + alen, b + blen);
+  //}
+  return 0;
 }
 static int32_t indexCacheJsonTermCompare(const void* l, const void* r) {
   CacheTerm* lt = (CacheTerm*)l;
   CacheTerm* rt = (CacheTerm*)r;
   // compare colVal
-  int cmp = indexCacheJsonTermCompareImpl(lt->colVal, rt->colVal);
+  int32_t cmp = strcmp(lt->colVal, rt->colVal);
   if (cmp == 0) {
     return rt->version - lt->version;
   }
@@ -748,6 +704,8 @@ static bool indexCacheIteratorNext(Iterate* itera) {
     iv->type = ct->operaType;
     iv->ver = ct->version;
     iv->colVal = tstrdup(ct->colVal);
+    // printf("col Val: %s\n", iv->colVal);
+    // iv->colType = cv->colType;
 
     taosArrayPush(iv->val, &ct->uid);
   }

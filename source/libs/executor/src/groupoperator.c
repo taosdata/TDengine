@@ -262,6 +262,8 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     return NULL;
   }
 
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
   SGroupbyOperatorInfo* pInfo = pOperator->info;
   SSDataBlock* pRes = pInfo->binfo.pRes;
 
@@ -289,7 +291,10 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->pScalarExprInfo != NULL) {
-      projectApplyFunctions(pInfo->pScalarExprInfo, pBlock, pBlock, pInfo->pScalarFuncCtx, pInfo->numOfScalarExpr, NULL);
+      pTaskInfo->code = projectApplyFunctions(pInfo->pScalarExprInfo, pBlock, pBlock, pInfo->pScalarFuncCtx, pInfo->numOfScalarExpr, NULL);
+      if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+        longjmp(pTaskInfo->env, pTaskInfo->code);
+      }
     }
 
     //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfExprs);
@@ -299,8 +304,8 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
 
-  finalizeMultiTupleQueryResult(pInfo->binfo.pCtx, pOperator->numOfExprs, pInfo->aggSup.pResultBuf,
-                                &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
+  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pInfo->binfo.resultRowInfo,
+                                pInfo->binfo.rowCellInfoOffset);
   //  if (!stableQuery) { // finalize include the update of result rows
   //    finalizeQueryResult(pInfo->binfo.pCtx, pOperator->numOfExprs);
   //  } else {
