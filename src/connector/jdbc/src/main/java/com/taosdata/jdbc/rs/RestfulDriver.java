@@ -66,11 +66,24 @@ public class RestfulDriver extends AbstractDriver {
             throw TSDBError.createSQLException(TSDBErrorNumbers.ERROR_INVALID_VARIABLE, "unsupported UTF-8 concoding, user: " + props.getProperty(TSDBDriver.PROPERTY_KEY_USER) + ", password: " + props.getProperty(TSDBDriver.PROPERTY_KEY_PASSWORD));
         }
 
+        String cloudToken = null;
+        if (props.containsKey(TSDBDriver.PROPERTY_KEY_TOKEN)) {
+            cloudToken = props.getProperty(TSDBDriver.PROPERTY_KEY_TOKEN);
+        }
+
+        boolean useSsl = Boolean.parseBoolean(props.getProperty(TSDBDriver.PROPERTY_KEY_USE_SSL, "false"));
         String loginUrl;
         String batchLoad = info.getProperty(TSDBDriver.PROPERTY_KEY_BATCH_LOAD);
         if (Boolean.parseBoolean(batchLoad)) {
-            loginUrl = "ws://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST)
+            String protocol = "ws";
+            if (useSsl) {
+                protocol = "wss";
+            }
+            loginUrl = protocol + "://" + props.getProperty(TSDBDriver.PROPERTY_KEY_HOST)
                     + ":" + props.getProperty(TSDBDriver.PROPERTY_KEY_PORT) + "/rest/ws";
+            if (null != cloudToken) {
+                loginUrl = loginUrl + "?token=" + cloudToken;
+            }
             WSClient client;
             Transport transport;
             try {
@@ -108,14 +121,9 @@ public class RestfulDriver extends AbstractDriver {
         boolean keepAlive = Boolean.parseBoolean(props.getProperty("httpKeepAlive", HttpClientPoolUtil.DEFAULT_HTTP_KEEP_ALIVE));
         HttpClientPoolUtil.init(poolSize, keepAlive);
 
-        String cloudToken = null;
-        if (props.containsKey(TSDBDriver.PROPERTY_KEY_TOKEN)) {
-            cloudToken = props.getProperty(TSDBDriver.PROPERTY_KEY_TOKEN);
-        }
-
         String auth = Base64.getEncoder().encodeToString(
                 (user + ":" + password).getBytes(StandardCharsets.UTF_8));
-        RestfulConnection conn = new RestfulConnection(host, port, props, database, url, auth, cloudToken);
+        RestfulConnection conn = new RestfulConnection(host, port, props, database, url, auth, useSsl, cloudToken);
         if (database != null && !database.trim().replaceAll("\\s", "").isEmpty()) {
             try (Statement stmt = conn.createStatement()) {
                 stmt.execute("use " + database);
