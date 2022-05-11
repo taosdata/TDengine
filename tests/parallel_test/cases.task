@@ -606,6 +606,7 @@
 7,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeBigInt.py 
 7,,develop-test,python3 ./test.py -f 2-query/function_timetruncate.py
 7,,develop-test,python3 ./test.py -f 2-query/function_timediff.py
+7,,pytest,python3 test.py -f tsdb/delete.py
 6,,system-test,python3 ./test.py -f 2-query/TD-12229.py 
 6,,system-test,python3 ./test.py -f 2-query/TD-11943.py 
 6,,system-test,python3 ./test.py -f 2-query/function_elapsed.py 

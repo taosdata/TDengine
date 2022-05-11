@@ -1,54 +1,78 @@
 ---
-sidebar_label: 边界限制
-title: 边界限制
+sidebar_label: Limits
+title: Limits and Restrictions
 ---
 
-## 一般限制
+## Naming Rules
 
-- 数据库名最大长度为 32。
-- 表名最大长度为 192，不包括数据库名前缀和分隔符
-- 每行数据最大长度 16k 个字符, 从 2.1.7.0 版本开始，每行数据最大长度 48k 个字符（注意：数据行内每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）。
-- 列名最大长度为 64，最多允许 4096 列，最少需要 2 列，第一列必须是时间戳。注：从 2.1.7.0 版本（不含)以前最多允许 4096 列
-- 标签名最大长度为 64，最多允许 128 个，至少要有 1 个标签，一个表中标签值的总长度不超过 16k 个字符。
-- SQL 语句最大长度 1048576 个字符，也可通过客户端配置参数 maxSQLLength 修改，取值范围 65480 ~ 1048576。
-- SELECT 语句的查询结果，最多允许返回 4096 列（语句中的函数调用可能也会占用一些列空间），超限时需要显式指定较少的返回数据列，以避免语句执行报错。注： 2.1.7.0 版本（不含）之前为最多允许 1024 列
-- 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制。
+1. Only English characters, digits and underscore are allowed
+2. Can't be started with digits
+3. Case Insensitive without escape character "\`"
+4. Identifier with escape character "\`"
+   To support more flexible table or column names, a new escape character "\`" is introduced. For more details please refer to [escape](/taos-sql/escape).
 
-## GROUP BY 的限制
+## Password Rule
 
-TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进行 GROUP BY，前提是：仅限一列且该列的唯一值小于 10 万个。注意：group by 不支持 float,double 类型。
+The legal character set is `[a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/]`.
 
-## IS NOT NULL 的限制
+## General Limits
 
-IS NOT NULL 与不为空的表达式适用范围。
+- Maximum length of database name is 32 bytes
+- Maximum length of table name is 192 bytes, excluding the database name prefix and the separator
+- Maximum length of each data row is 48K bytes from version 2.1.7.0 , before which the limit is 16K bytes. Please be noted that the upper limit includes the extra 2 bytes consumed by each column of BINARY/NCHAR type.
+- Maximum of column name is 64.
+- Maximum number of columns is 4096. There must be at least 2 columns, and the first column must be timestamp.
+- Maximum length of tag name is 64.
+- Maximum number of tags is 128. There must be at least 1 tag. The total length of tag values should not exceed 16K bytes.
+- Maximum length of singe SQL statement is 1048576, i.e. 1 MB bytes. It can be configured in the parameter `maxSQLLength` in the client side, the applicable range is [65480, 1048576].
+- At most 4096 columns (or 1024 prior to 2.1.7.0) can be returned by `SELECT`, functions in the query statement may constitute columns. Error will be returned if the limit is exceeded.
+- Maximum numbers of databases, stables, tables are only depending on the system resources.
+- Maximum of database name is 32 bytes, can't include "." and special characters.
+- Maximum replica number of database is 3
+- Maximum length of user name is 23 bytes
+- Maximum length of password is 15 bytes
+- Maximum number of rows depends on the storage space only.
+- Maximum number of tables depends on the number of nodes only.
+- Maximum number of databases depends on the number of nodes only.
+- Maximum number of vnodes for single database is 64.
 
-IS NOT NULL 支持所有类型的列。不为空的表达式为 <\>""，仅对非数值类型的列适用。
+## Restrictions of `GROUP BY`
 
-## ORDER BY 的限制
+`GROUP BY` can be performed on tags and `TBNAME`. It can be performed on data columns too, with one restriction that only one column and the number of unique values on that column is lower than 100,000. Please be noted that `GROUP BY` can't be performed on float or double type.
 
-- 非超级表只能有一个 order by.
-- 超级表最多两个 order by， 并且第二个必须为 ts.
-- order by tag，必须和 group by tag 一起，并且是同一个 tag。 tbname 和 tag 一样逻辑。 只适用于超级表
-- order by 普通列，必须和 group by 一起或者和 top/bottom 一起，并且是同一个普通列。 适用于超级表和普通表。如果同时存在 group by 和 top/bottom 一起，order by 优先必须和 group by 同一列。
-- order by ts. 适用于超级表和普通表。
-- order by ts 同时含有 group by 时 针对 group 内部用 ts 排序
+## Restrictions of `IS NOT NULL`
 
-## 表(列)名合法性说明
+`IS NOT NULL` can be used on any data type of columns. The non-empty string evaluation expression, i.e. `<\>""` can only be used on non-numeric data types.
 
-### TDengine 中的表（列）名命名规则如下：
-只能由字母、数字、下划线构成，数字不能在首位，长度不能超过 192 字节，不区分大小写。这里表名称不包括数据库名的前缀和分隔符。
+## Restrictions of `ORDER BY`
 
-### 转义后表（列）名规则：
-为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符 "`"，可以避免表名与关键词的冲突，同时不受限于上述表名合法性约束检查，转义符不计入表名的长度。
-转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一。
+- Only one `order by` is allowed for normal table and sub table.
+- At most two `order by` are allowed for stable, and the second one must be `ts`.
+- `order by tag` must be used with `group by tag` on same tag, this rule is also applicable to `tbname`.
+- `order by column` must be used with `group by column` or `top/bottom` on same column. This rule is applicable to table and stable.
+- `order by ts` is applicable to table and stable.
+- If `order by ts` is used with `group by`, the result set is sorted using `ts` in each group.
 
-例如：
-\`aBc\` 和 \`abc\` 是不同的表（列）名，但是 abc 和 aBc 是相同的表（列）名。
+## Restrictions of Table/Column Names
+
+### Name Restrictions of Table/Column
+
+The name of a table or column can only be composed of ASCII characters, digits and underscore, while digit can't be used as the beginning. The maximum length is 192 bytes. Names are case insensitive. The name mentioned in this rule doesn't include the database name prefix and the separator.
+
+### Name Restrictions After Escaping
+
+To support more flexible table or column names, new escape character "`" is introduced in TDengine to avoid the conflict between table name and keywords and break the above restrictions for table name. The escape character is not counted in the length of table name.
+
+With escaping, the string inside escape characters are case sensitive, i.e. will not be converted to lower case internally.
+
+For example:
+\`aBc\` and \`abc\` are different table or column names, but "abc" and "aBc" are same names because internally they are all "abc".
 
 :::note
-转义字符中的内容必须是可打印字符。
+The characters inside escape characters must be printable characters.
 
 :::
 
-### 支持版本
-支持转义符的功能从 2.3.0.1 版本开始。
+### Applicable Versions
+
+Escape character "\`" is available from version 2.3.0.1.
