@@ -331,12 +331,6 @@ void loop_consume(SThreadInfo* pInfo) {
     }
   }
 
-  err = tmq_consumer_close(pInfo->tmq);
-  if (err) {
-    printf("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
-    exit(-1);
-  }
-
   pInfo->consumeMsgCnt = totalMsgs;
   pInfo->consumeRowCnt = totalRows;
 
@@ -371,6 +365,13 @@ void* consumeThreadFunc(void* param) {
     pInfo->consumeMsgCnt = -1;
     return NULL;
   }
+
+  err = tmq_consumer_close(pInfo->tmq);
+  if (err) {
+    printf("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
+    exit(-1);
+  }
+  pInfo->tmq = NULL;
 
   // save consume result into consumeresult table
   saveConsumeResult(pInfo);

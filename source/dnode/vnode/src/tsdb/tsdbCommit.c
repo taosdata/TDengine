@@ -70,6 +70,7 @@ static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static void tsdbResetCommitFile(SCommitH *pCommith);
 static int  tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
+static int  tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx);
 static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
 static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
 static int  tsdbWriteBlockInfo(SCommitH *pCommih);
@@ -349,7 +350,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
   if (tsdbSetAndOpenCommitFile(pCommith, pSet, fid) < 0) {
     return -1;
   }
-
+#if 0
   // Loop to commit each table data
   for (int tid = 0; tid < pCommith->niters; tid++) {
     SCommitIter *pIter = pCommith->iters + tid;
@@ -361,6 +362,46 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
       // revert the file change
       tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
       return -1;
+    }
+  }
+#endif
+  // Loop to commit each table data in mem and file
+  int mIter = 0, fIter = 0;
+  int nBlkIdx = taosArrayGetSize(pCommith->readh.aBlkIdx);
+
+  while (true) {
+    SBlockIdx   *pIdx = NULL;
+    SCommitIter *pIter = NULL;
+    if (mIter < pCommith->niters) {
+      pIter = pCommith->iters + mIter;
+      if (fIter < nBlkIdx) {
+        pIdx = taosArrayGet(pCommith->readh.aBlkIdx, fIter);
+      }
+    } else if (fIter < nBlkIdx) {
+      pIdx = taosArrayGet(pCommith->readh.aBlkIdx, fIter);
+    } else {
+      break;
+    }
+    if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->uid <= pIdx->uid))) {
+      if (tsdbCommitToTable(pCommith, mIter) < 0) {
+        tsdbCloseCommitFile(pCommith, true);
+        // revert the file change
+        tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+        return -1;
+      }
+
+      if (pIdx && (pIter->pTable->uid == pIdx->uid)) {
+        ++fIter;
+      }
+      ++mIter;
+    } else if (pIdx) {
+      if (tsdbMoveBlkIdx(pCommith, pIdx) < 0) {
+        tsdbCloseCommitFile(pCommith, true);
+        // revert the file change
+        tsdbApplyDFileSetChange(TSDB_COMMIT_WRITE_FSET(pCommith), pSet);
+        return -1;
+      }
+      ++fIter;
     }
   }
 
@@ -828,6 +869,40 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
       nextKey = tsdbNextIterKey(pIter->pIter);
     }
   }
+
+  if (tsdbWriteBlockInfo(pCommith) < 0) {
+    tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+              TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
+    return -1;
+  }
+
+  return 0;
+}
+
+static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
+  SReadH *pReadh = &pCommith->readh;
+  int     nBlocks = pIdx->numOfBlocks;
+  int     bidx = 0;
+
+  tsdbResetCommitTable(pCommith);
+
+  pReadh->pBlkIdx = pIdx;
+
+  if (tsdbLoadBlockInfo(pReadh, NULL) < 0) {
+    return -1;
+  }
+
+  while (bidx < nBlocks) {
+    if (tsdbMoveBlock(pCommith, bidx) < 0) {
+      tsdbError("vgId:%d failed to move block into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
+                TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
+      return -1;
+    }
+    ++bidx;
+  }
+
+  STable table = {.tid = pIdx->uid, .uid = pIdx->uid, .pSchema = NULL};
+  TSDB_COMMIT_TABLE(pCommith) = &table;
 
   if (tsdbWriteBlockInfo(pCommith) < 0) {
     tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
