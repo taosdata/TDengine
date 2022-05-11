@@ -133,6 +133,7 @@ typedef struct {
 const char *dmStatStr(EDndRunStatus stype);
 const char *dmNodeLogName(EDndNodeType ntype);
 const char *dmNodeProcName(EDndNodeType ntype);
+const char *dmNodeName(EDndNodeType ntype);
 const char *dmEventStr(EDndEvent etype);
 const char *dmProcStr(EDndProcType ptype);
 void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId);

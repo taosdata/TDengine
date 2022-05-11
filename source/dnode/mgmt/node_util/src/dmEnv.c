@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dmUtil.h"
 
 static int8_t once = DND_ENV_INIT;
 

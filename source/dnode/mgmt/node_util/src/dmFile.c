@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dmUtil.h"
 
 #define MAXLEN 1024
 

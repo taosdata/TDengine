@@ -16,7 +16,7 @@
 #ifndef _TD_DND_QNODE_INT_H_
 #define _TD_DND_QNODE_INT_H_
 
-#include "dmInt.h"
+#include "dmUtil.h"
 
 #include "qnode.h"
 

@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dmUtil.h"
 
 
 const char *dmStatStr(EDndRunStatus stype) {
@@ -61,6 +61,23 @@ const char *dmNodeProcName(EDndNodeType ntype) {
       return "taosb";
     default:
       return "taosd";
+  }
+}
+
+const char *dmNodeName(EDndNodeType ntype) {
+  switch (ntype) {
+    case VNODE:
+      return "vnode";
+    case QNODE:
+      return "qnode";
+    case SNODE:
+      return "snode";
+    case MNODE:
+      return "mnode";
+    case BNODE:
+      return "bnode";
+    default:
+      return "dnode";
   }
 }
 
