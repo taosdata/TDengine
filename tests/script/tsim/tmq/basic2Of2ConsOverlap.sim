@@ -331,6 +331,16 @@ endi
 return -1
 check_ok_3:
 
+sql select * from performance_schema.`consumers`
+if $rows != 0 then
+  return -1
+endi 
+
+#sql select * from performance_schema.`subscriptions`
+#if $rows != 0 then
+#  return -1
+#endi 
+
 #------ not need stop consumer, because it exit after pull msg overthan expect msg
 #system tsim/tmq/consume.sh -s stop -x SIGINT
 
