@@ -69,6 +69,15 @@ void tmsgSendRedirectRsp(const SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
   }
 }
 
+void tmsgSendMnodeRecv(SRpcMsg* pReq, SRpcMsg* pRsp) {
+  SendMnodeRecvFp fp = tsDefaultMsgCb.sendMnodeRecvFp;
+  if (fp != NULL) {
+    (*fp)(tsDefaultMsgCb.pWrapper, pReq, pRsp);
+  } else {
+    terrno = TSDB_CODE_INVALID_PTR;
+  }
+}
+
 void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
   RegisterBrokenLinkArgFp fp = pMsgCb->registerBrokenLinkArgFp;
   if (fp != NULL) {

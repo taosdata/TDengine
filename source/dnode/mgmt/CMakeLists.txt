@@ -5,6 +5,7 @@ add_subdirectory(mgmt_mnode)
 add_subdirectory(mgmt_qnode)
 add_subdirectory(mgmt_snode)
 add_subdirectory(mgmt_vnode)
+add_subdirectory(mgmt_dnode)
 add_subdirectory(test)
 
 aux_source_directory(exe EXEC_SRC)
