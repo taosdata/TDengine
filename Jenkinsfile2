@@ -47,36 +47,60 @@ def pre_test(){
     script {
         if (env.CHANGE_TARGET == 'master') {
             sh '''
+                cd ${WK}
+                git checkout master
                 cd ${WKC}
                 git checkout master
             '''
         } else if(env.CHANGE_TARGET == '2.0') {
             sh '''
+                cd ${WK}
+                git checkout 2.0
                 cd ${WKC}
                 git checkout 2.0
             '''
         } else if(env.CHANGE_TARGET == '3.0') {
             sh '''
+                cd ${WK}
+                git checkout 3.0
                 cd ${WKC}
                 git checkout 3.0
                 [ -d contrib/bdb ] && cd contrib/bdb && git clean -fxd && cd ../..
             '''
         } else {
             sh '''
+                cd ${WK}
+                git checkout develop
                 cd ${WKC}
                 git checkout develop
             '''
         }
     }
+    if (env.CHANGE_URL =~ /\/TDengine\//) {
+        sh '''
+            cd ${WKC}
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD
+        '''
+    } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+        sh '''
+            cd ${WK}
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD
+        '''
+    } else {
+        sh '''
+            echo "unmatched reposiotry ${CHANGE_URL}"
+        '''
+    }
     sh '''
         cd ${WKC}
-        git pull >/dev/null
-        git fetch origin +refs/pull/${CHANGE_ID}/merge
-        git checkout -qf FETCH_HEAD
         git submodule update --init --recursive
     '''
     sh '''
-        cd ${WKC}
+        cd ${WK}
         export TZ=Asia/Harbin
         date
         rm -rf debug
@@ -162,8 +186,8 @@ pipeline {
     options { skipDefaultCheckout() } 
     environment{
         WK = '/var/lib/jenkins/workspace/TDinternal'
-        WKC= '/var/lib/jenkins/workspace/TDengine'
-        WKPY= '/var/lib/jenkins/workspace/taos-connector-python'
+        WKC = '/var/lib/jenkins/workspace/TDinternal/community'
+        WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
     }
     stages {
         stage('run test') {
@@ -177,15 +201,31 @@ pipeline {
                     steps {
                         timeout(time: 45, unit: 'MINUTES'){
                             pre_test()
-                            sh '''
-                                cd ${WKC}/debug
-                                ctest -VV
-                            '''
-                            sh '''
-                                export LD_LIBRARY_PATH=${WKC}/debug/build/lib
-                                cd ${WKC}/tests/system-test
-                                ./fulltest.sh
-                            '''
+                            if (env.CHANGE_URL =~ /\/TDengine\//) {
+                                sh '''
+                                    cd ${WK}/debug
+                                    ctest -VV
+                                '''
+                                sh '''
+                                    export LD_LIBRARY_PATH=${WK}/debug/build/lib
+                                    cd ${WKC}/tests/system-test
+                                    ./fulltest.sh
+                                '''
+                            } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+                                sh '''
+                                    cd ${WKC}/debug
+                                    ctest -VV
+                                '''
+                                sh '''
+                                    export LD_LIBRARY_PATH=${WKC}/debug/build/lib
+                                    cd ${WKC}/tests/system-test
+                                    ./fulltest.sh
+                                '''
+                            } else {
+                                sh '''
+                                    echo "unmatched reposiotry ${CHANGE_URL}"
+                                '''
+                            }
                             sh '''
                                 cd ${WKC}/tests
                                 ./test-all.sh b1fq
