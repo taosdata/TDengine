@@ -16,143 +16,93 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 
-void dmSetStatus(SDnode *pDnode, EDndRunStatus status) {
-  if (pDnode->status != status) {
-    dDebug("dnode status set from %s to %s", dmStatStr(pDnode->status), dmStatStr(status));
-    pDnode->status = status;
+
+const char *dmStatStr(EDndRunStatus stype) {
+  switch (stype) {
+    case DND_STAT_INIT:
+      return "init";
+    case DND_STAT_RUNNING:
+      return "running";
+    case DND_STAT_STOPPED:
+      return "stopped";
+    default:
+      return "UNKNOWN";
   }
 }
 
-void dmSetEvent(SDnode *pDnode, EDndEvent event) {
-  if (event == DND_EVENT_STOP) {
-    pDnode->event = event;
+const char *dmNodeLogName(EDndNodeType ntype) {
+  switch (ntype) {
+    case VNODE:
+      return "vnode";
+    case QNODE:
+      return "qnode";
+    case SNODE:
+      return "snode";
+    case MNODE:
+      return "mnode";
+    case BNODE:
+      return "bnode";
+    default:
+      return "taosd";
   }
 }
 
-void dmSetMsgHandle(SMgmtWrapper *pWrapper, tmsg_t msgType, NodeMsgFp nodeMsgFp, bool needCheckVgId) {
-  pWrapper->msgFps[TMSG_INDEX(msgType)] = nodeMsgFp;
-  pWrapper->needCheckVgIds[TMSG_INDEX(msgType)] = needCheckVgId;
-}
-
-SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
-  SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-  SMgmtWrapper *pRetWrapper = pWrapper;
-
-  taosRLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed) {
-    int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is acquired, refCount:%d", pWrapper->name, refCount);
-  } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
-    pRetWrapper = NULL;
-  }
-  taosRUnLockLatch(&pWrapper->latch);
-
-  return pRetWrapper;
-}
-
-int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
-  int32_t code = 0;
-
-  taosRLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed || (pWrapper->procType == DND_PROC_PARENT && pWrapper->required)) {
-    int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is marked, refCount:%d", pWrapper->name, refCount);
-  } else {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
-    code = -1;
-  }
-  taosRUnLockLatch(&pWrapper->latch);
-
-  return code;
-}
-
-void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
-  if (pWrapper == NULL) return;
-
-  taosRLockLatch(&pWrapper->latch);
-  int32_t refCount = atomic_sub_fetch_32(&pWrapper->refCount, 1);
-  taosRUnLockLatch(&pWrapper->latch);
-  dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
-}
-
-void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
-  SStartupInfo *pStartup = &pDnode->startup;
-  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
-  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  dInfo("step:%s, %s", pStartup->name, pStartup->desc);
-}
-
-void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc) {
-  dmReportStartup(pWrapper->pDnode, pName, pDesc);
-}
-
-static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
-  pStatus->details[0] = 0;
-
-  if (pDnode->status == DND_STAT_INIT) {
-    pStatus->statusCode = TSDB_SRV_STATUS_NETWORK_OK;
-    snprintf(pStatus->details, sizeof(pStatus->details), "%s: %s", pDnode->startup.name, pDnode->startup.desc);
-  } else if (pDnode->status == DND_STAT_STOPPED) {
-    pStatus->statusCode = TSDB_SRV_STATUS_EXTING;
-  } else {
-    SDnodeData *pData = &pDnode->data;
-    if (pData->isMnode && pData->mndState != TAOS_SYNC_STATE_LEADER && pData->mndState == TAOS_SYNC_STATE_FOLLOWER) {
-      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
-      snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(pData->mndState));
-    } else if (pData->unsyncedVgId != 0 && pData->vndState != TAOS_SYNC_STATE_LEADER &&
-               pData->vndState != TAOS_SYNC_STATE_FOLLOWER) {
-      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
-      snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pData->unsyncedVgId,
-               syncStr(pData->vndState));
-    } else {
-      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
-    }
+const char *dmNodeProcName(EDndNodeType ntype) {
+  switch (ntype) {
+    case VNODE:
+      return "taosv";
+    case QNODE:
+      return "taosq";
+    case SNODE:
+      return "taoss";
+    case MNODE:
+      return "taosm";
+    case BNODE:
+      return "taosb";
+    default:
+      return "taosd";
   }
 }
 
-void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("net test req is received");
-  SRpcMsg rsp = {.handle = pReq->handle, .refId = pReq->refId, .ahandle = pReq->ahandle, .code = 0};
-  rsp.pCont = rpcMallocCont(pReq->contLen);
-  if (rsp.pCont == NULL) {
-    rsp.code = TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    rsp.contLen = pReq->contLen;
+const char *dmEventStr(EDndEvent ev) {
+  switch (ev) {
+    case DND_EVENT_START:
+      return "start";
+    case DND_EVENT_STOP:
+      return "stop";
+    case DND_EVENT_CHILD:
+      return "child";
+    default:
+      return "UNKNOWN";
   }
-  rpcSendResponse(&rsp);
-  rpcFreeCont(pReq->pCont);
 }
 
-void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("server status req is received");
-
-  SServerStatusRsp statusRsp = {0};
-  dmGetServerStatus(pDnode, &statusRsp);
-
-  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle, .refId = pReq->refId};
-  int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
-  if (rspLen < 0) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
+const char *dmProcStr(EDndProcType etype) {
+  switch (etype) {
+    case DND_PROC_SINGLE:
+      return "start";
+    case DND_PROC_CHILD:
+      return "stop";
+    case DND_PROC_PARENT:
+      return "child";
+    case DND_PROC_TEST:
+      return "test";
+    default:
+      return "UNKNOWN";
   }
-
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-
-  tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
-  rspMsg.pCont = pRsp;
-  rspMsg.contLen = rspLen;
-
-_OVER:
-  rpcSendResponse(&rspMsg);
-  rpcFreeCont(pReq->pCont);
 }
 
-void dmGetMonitorSysInfo(SMonSysInfo *pInfo) {
+void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, NodeMsgFp nodeMsgFp, bool needCheckVgId) {
+  SMgmtHandle handle = {
+      .msgType = msgType,
+      .msgFp = nodeMsgFp,
+      .needCheckVgId = needCheckVgId,
+  };
+
+  return taosArrayPush(pArray, &handle);
+}
+
+void dmGetSystemInfo(SMonSysInfo *pInfo) {
   taosGetCpuUsage(&pInfo->cpu_engine, &pInfo->cpu_system);
   taosGetCpuCores(&pInfo->cpu_cores);
   taosGetProcMemory(&pInfo->mem_engine);
