@@ -1,11 +1,11 @@
 ---
-sidebar_label: 数据查询
-title: 数据查询
+sidebar_label: Select
+title: Select
 ---
 
-## 查询语法
+## Syntax
 
-```
+```SQL
 SELECT select_expr [, select_expr ...]
     FROM {tb_name_list}
     [WHERE where_condition]
@@ -20,9 +20,9 @@ SELECT select_expr [, select_expr ...]
     [>> export_file];
 ```
 
-## 通配符
+## Wildcard
 
-通配符 \* 可以用于代指全部列。对于普通表，结果中只有普通列。
+Wilcard \* can be used to specify all columns. The result includes only data columns for normal tables.
 
 ```
 taos> SELECT * FROM d1001;
@@ -34,7 +34,7 @@ taos> SELECT * FROM d1001;
 Query OK, 3 row(s) in set (0.001165s)
 ```
 
-在针对超级表，通配符包含 _标签列_ 。
+The result includes both data columns and tag columns for super table.
 
 ```
 taos> SELECT * FROM meters;
@@ -52,14 +52,14 @@ taos> SELECT * FROM meters;
 Query OK, 9 row(s) in set (0.002022s)
 ```
 
-通配符支持表名前缀，以下两个 SQL 语句均为返回全部的列：
+Wildcard can be used with table name as prefix, both below SQL statements have same effects and return all columns.
 
-```
+```SQL
 SELECT * FROM d1001;
 SELECT d1001.* FROM d1001;
 ```
 
-在 JOIN 查询中，带前缀的\*和不带前缀\*返回的结果有差别， \*返回全部表的所有列数据（不包含标签），带前缀的通配符，则只返回该表的列数据。
+In JOIN query, however, with or without table name prefix will return different results. \* without table prefix will return all the columns of both tables, but \* with table name as prefix will return only the columns of that table.
 
 ```
 taos> SELECT * FROM d1001, d1003 WHERE d1001.ts=d1003.ts;
@@ -77,8 +77,7 @@ taos> SELECT d1001.* FROM d1001,d1003 WHERE d1001.ts = d1003.ts;
 Query OK, 1 row(s) in set (0.020443s)
 ```
 
-在使用 SQL 函数来进行查询的过程中，部分 SQL 函数支持通配符操作。其中的区别在于：
-`count(*)`函数只返回一列。`first`、`last`、`last_row`函数则是返回全部列。
+Wilcard \* can be used with some functions, but the result may be different depending on the function being used. For example, `count(*)` returns only one column, i.e. the number of rows; `first`, `last` and `last_row` return all columns of the selected row.
 
 ```
 taos> SELECT COUNT(*) FROM d1001;
@@ -96,9 +95,9 @@ taos> SELECT FIRST(*) FROM d1001;
 Query OK, 1 row(s) in set (0.000849s)
 ```
 
-## 标签列
+## Tags
 
-从 2.0.14 版本开始，支持在普通表的查询中指定 _标签列_，且标签列的值会与普通列的数据一起返回。
+Starting from version 2.0.14, tag columns can be selected together with data columns when querying sub tables. Please be noted that, however, wildcard \* doesn't represent any tag column, that means tag columns must be specified explicitly like below example.
 
 ```
 taos> SELECT location, groupid, current FROM d1001 LIMIT 2;
@@ -109,33 +108,26 @@ taos> SELECT location, groupid, current FROM d1001 LIMIT 2;
 Query OK, 2 row(s) in set (0.003112s)
 ```
 
-注意：普通表的通配符 \* 中并不包含 _标签列_。
+## Get distinct values
 
-## 获取标签列或普通列的去重取值
-
-从 2.0.15.0 版本开始，支持在超级表查询标签列时，指定 DISTINCT 关键字，这样将返回指定标签列的所有不重复取值。注意，在 2.1.6.0 版本之前，DISTINCT 只支持处理单个标签列，而从 2.1.6.0 版本开始，DISTINCT 可以对多个标签列进行处理，输出这些标签列取值不重复的组合。
+`DISTINCT` keyword can be used to get all the unique values of tag columns from a super table, it can also be used to get all the unique values of data columns from a table or sub table.
 
 ```sql
 SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
-```
-
-从 2.1.7.0 版本开始，DISTINCT 也支持对数据子表或普通表进行处理，也即支持获取单个普通列的不重复取值，或多个普通列取值的不重复组合。
-
-```sql
 SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 ```
 
 :::info
 
-1. cfg 文件中的配置参数 maxNumOfDistinctRes 将对 DISTINCT 能够输出的数据行数进行限制。其最小值是 100000，最大值是 100000000，默认值是 10000000。如果实际计算结果超出了这个限制，那么会仅输出这个数量范围内的部分。
-2. 由于浮点数天然的精度机制原因，在特定情况下，对 FLOAT 和 DOUBLE 列使用 DISTINCT 并不能保证输出值的完全唯一性。
-3. 在当前版本下，DISTINCT 不能在嵌套查询的子查询中使用，也不能与聚合函数、GROUP BY、或 JOIN 在同一条语句中混用。
+1. Configuration parameter `maxNumOfDistinctRes` in `taos.cfg` is used to control the number of rows to output. The minimum configurable value is 100,000, the maximum configurable value is 100,000,000, the default value is 1000,000. If the actual number of rows exceeds the value of this parameter, only the number of rows specified by this parameter will be output.
+2. It can't be guaranteed that the results selected by using `DISTINCT` on columns of `FLOAT` or `DOUBLE` are exactly unique because of the precision nature of floating numbers.
+3. `DISTINCT` can't be used in the sub-query of a nested query statement, and can't be used together with aggregate functions, `GROUP BY` or `JOIN` in same SQL statement.
 
 :::
 
-## 结果集列名
+## Columns Names of Result Set
 
-`SELECT`子句中，如果不指定返回结果集合的列名，结果集列名称默认使用`SELECT`子句中的表达式名称作为列名称。此外，用户可使用`AS`来重命名返回结果集合中列的名称。例如：
+When using `SELECT`, the column names in the result set will be same as that in the select clause if `AS` is not used. `AS` can be used to rename the column names in the result set. For example
 
 ```
 taos> SELECT ts, ts AS primary_key_ts FROM d1001;
@@ -147,27 +139,30 @@ taos> SELECT ts, ts AS primary_key_ts FROM d1001;
 Query OK, 3 row(s) in set (0.001191s)
 ```
 
-但是针对`first(*)`、`last(*)`、`last_row(*)`不支持针对单列的重命名。
+`AS` can't be used together with `first(*)`, `last(*)`, or `last_row(*)`.
 
-## 隐式结果列
+## Implicit Columns
 
-`Select_exprs`可以是表所属列的列名，也可以是基于列的函数表达式或计算式，数量的上限 256 个。当用户使用了`interval`或`group by tags`的子句以后，在最后返回结果中会强制返回时间戳列（第一列）和 group by 子句中的标签列。后续的版本中可以支持关闭 group by 子句中隐式列的输出，列输出完全由 select 子句控制。
+`Select_exprs` can be column names of a table, or function expression or arithmetic expression on columns. The maximum number of allowed column names and expressions is 256. Timestamp and the corresponding tag names will be returned in the result set if `interval` or `group by tags` are used, and timestamp will always be the first column in the result set.
 
-## 表（超级表）列表
+## Table List
 
-FROM 关键字后面可以是若干个表（超级表）列表，也可以是子查询的结果。
-如果没有指定用户的当前数据库，可以在表名称之前使用数据库的名称来指定表所属的数据库。例如：`power.d1001` 方式来跨库使用表。
+`FROM` can be followed by a number of tables or super tables, or can be followed by a sub-query. If no database is specified as current database in use, table names must be preceded with database name, like `power.d1001`.
 
-```
+```SQL
 SELECT * FROM power.d1001;
-------------------------------
+```
+
+has same effect as
+
+```SQL
 USE power;
 SELECT * FROM d1001;
 ```
 
-## 特殊功能
+## Special Query
 
-部分特殊的查询功能可以不使用 FROM 子句执行。获取当前所在的数据库 database()：
+Some special query functionalities can be performed without `FORM` sub-clause. For example, below statement can be used to get the current database in use.
 
 ```
 taos> SELECT DATABASE();
@@ -177,7 +172,7 @@ taos> SELECT DATABASE();
 Query OK, 1 row(s) in set (0.000079s)
 ```
 
-如果登录的时候没有指定默认数据库，且没有使用`USE`命令切换数据，则返回 NULL。
+If no database is specified upon logging in and no database is specified with `USE` after login, NULL will be returned by `select database()`.
 
 ```
 taos> SELECT DATABASE();
@@ -187,7 +182,7 @@ taos> SELECT DATABASE();
 Query OK, 1 row(s) in set (0.000184s)
 ```
 
-获取服务器和客户端版本号：
+Below statement can be used to get the version of client or server.
 
 ```
 taos> SELECT CLIENT_VERSION();
@@ -203,7 +198,7 @@ taos> SELECT SERVER_VERSION();
 Query OK, 1 row(s) in set (0.000077s)
 ```
 
-服务器状态检测语句。如果服务器正常，返回一个数字（例如 1）。如果服务器异常，返回 error code。该 SQL 语法能兼容连接池对于 TDengine 状态的检查及第三方工具对于数据库服务器状态的检查。并可以避免出现使用了错误的心跳检测 SQL 语句导致的连接池连接丢失的问题。
+Below statement is used to check the server status. One integer, like `1`, is returned if the server status is OK, otherwise an error code is returned. This way is compatible with the status check for TDengine from connection pool or 3rd party tools, and can avoid the problem of losing connection from connection pool when using wrong heartbeat checking SQL statement.
 
 ```
 taos> SELECT SERVER_STATUS();
@@ -219,66 +214,59 @@ taos> SELECT SERVER_STATUS() AS status;
 Query OK, 1 row(s) in set (0.000081s)
 ```
 
-## \_block_dist 函数
+## \_block_dist
 
-**功能说明**: 用于获得指定的（超级）表的数据块分布信息
+**Description**: Get the data block distribution of a table or stable.
 
-```txt title="语法"
+```SQL title="Syntax"
 SELECT _block_dist() FROM { tb_name | stb_name }
 ```
 
-**返回结果类型**：字符串。
+**Restrictions**：No argument is allowed, where clause is not allowed
 
-**适用数据类型**：不能输入任何参数。
+**Sub Query**：Sub query or nested query are not supported
 
-**嵌套子查询支持**：不支持子查询或嵌套查询。
+**Return value**: A string which includes the data block distribution of the specified table or stable, i.e. the histogram of rows stored in the data blocks of the table or stable.
 
-**返回结果**:
-
-- 返回 FROM 子句中输入的表或超级表的数据块分布情况。不支持查询条件。
-- 返回的结果是该表或超级表的数据块所包含的行数的数据分布直方图。
-
-```txt title="返回结果"
+```text title="Result"
 summary:
 5th=[392], 10th=[392], 20th=[392], 30th=[392], 40th=[792], 50th=[792] 60th=[792], 70th=[792], 80th=[792], 90th=[792], 95th=[792], 99th=[792] Min=[392(Rows)] Max=[800(Rows)] Avg=[666(Rows)] Stddev=[2.17] Rows=[2000], Blocks=[3], Size=[5.440(Kb)] Comp=[0.23] RowsInMem=[0] SeekHeaderTime=[1(us)]
 ```
 
-**上述信息的说明如下**:
+**More explanation about above example**:
 
-- 查询的（超级）表所包含的存储在文件中的数据块（data block）中所包含的数据行的数量分布直方图信息：5%， 10%， 20%， 30%， 40%， 50%， 60%， 70%， 80%， 90%， 95%， 99% 的数值；
-- 所有数据块中，包含行数最少的数据块所包含的行数量， 其中的 Min 指标 392 行。
-- 所有数据块中，包含行数最多的数据块所包含的行数量， 其中的 Max 指标 800 行。
-- 所有数据块行数的算数平均值 666 行（其中的 Avg 项）。
-- 所有数据块中行数分布的均方差为 2.17 ( stddev ）。
-- 数据块包含的行的总数为 2000 行（Rows）。
-- 数据块总数是 3 个数据块 （Blocks）。
-- 数据块占用磁盘空间大小 5.44 Kb （size）。
-- 压缩后的数据块的大小除以原始数据的所获得的压缩比例： 23%（Comp），及压缩后的数据规模是原始数据规模的 23%。
-- 内存中存在的数据行数是 0，表示内存中没有数据缓存。
-- 获取数据块信息的过程中读取头文件的时间开销 1 微秒（SeekHeaderTime）。
+- Histogram about the rows stored in the data blocks of the table or stable: the value of rows for 5%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 95%, and 99%
+- Minimum number of rows stored in a data block, i.e. Min=[392(Rows)]
+- Maximum number of rows stored in a data block, i.e. Max=[800(Rows)]
+- Average number of rows stored in a data block, i.e. Avg=[666(Rows)]
+- stddev of number of rows, i.e. Stddev=[2.17]
+- Total number of rows, i.e. Rows[2000]
+- Total number of data blocks, i.e. Blocks=[3]
+- Total disk size consumed, i.e. Size=[5.440(Kb)]
+- Compression ratio, which means the compressed size divided by original size, i.e. Comp=[0.23]
+- Total number of rows in memory, i.e. RowsInMem=[0], which means no rows in memory
+- The time spent on reading head file (to retrieve data block information), i.e. SeekHeaderTime=[1(us)], which means 1 microsecond.
 
-**支持版本**：指定计算算法的功能从 2.1.0.x 版本开始，2.1.0.0 之前的版本不支持指定使用算法的功能。
+## Special Keywords in TAOS SQL
 
-## TAOS SQL 中特殊关键词
+- `TBNAME`： it is treated as a special tag when selecting on a super table, representing the name of sub-tables in that super table.
+- `_c0`: represents the first column of a table or super table.
 
-- `TBNAME`： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名
-- `_c0`: 表示表（超级表）的第一列
+## Tips
 
-## 小技巧
+To get all the sub tables and corresponding tag values from a super table:
 
-获取一个超级表所有的子表名及相关的标签信息：
-
-```
+```SQL
 SELECT TBNAME, location FROM meters;
 ```
 
-统计超级表下辖子表数量：
+To get the number of sub tables in a super table：
 
-```
+```SQL
 SELECT COUNT(TBNAME) FROM meters;
 ```
 
-以上两个查询均只支持在 WHERE 条件子句中添加针对标签（TAGS）的过滤条件。例如：
+Only filter on `TAGS` are allowed in the `where` clause for above two query statements. For example:
 
 ```
 taos> SELECT TBNAME, location FROM meters;
@@ -297,17 +285,19 @@ taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
 Query OK, 1 row(s) in set (0.001091s)
 ```
 
-- 可以使用 \* 返回所有列，或指定列名。可以对数字列进行四则运算，可以给输出的列取列名。
-  - 暂不支持含列名的四则运算表达式用于条件过滤算子（例如，不支持 `where a*2>6;`，但可以写 `where a>6/2;`）。
-  - 暂不支持含列名的四则运算表达式作为 SQL 函数的应用对象（例如，不支持 `select min(2*a) from t;`，但可以写 `select 2*min(a) from t;`）。
-- WHERE 语句可以使用各种逻辑判断来过滤数字值，或使用通配符来过滤字符串。
-- 输出结果缺省按首列时间戳升序排序，但可以指定按降序排序( \_c0 指首列时间戳)。使用 ORDER BY 对其他字段进行排序,排序结果顺序不确定。
-- 参数 LIMIT 控制输出条数，OFFSET 指定从第几条开始输出。LIMIT/OFFSET 对结果集的执行顺序在 ORDER BY 之后。且 `LIMIT 5 OFFSET 2` 可以简写为 `LIMIT 2, 5`。
-  - 在有 GROUP BY 子句的情况下，LIMIT 参数控制的是每个分组中至多允许输出的条数。
-- 参数 SLIMIT 控制由 GROUP BY 指令划分的分组中，至多允许输出几个分组的数据。且 `SLIMIT 5 SOFFSET 2` 可以简写为 `SLIMIT 2, 5`。
-- 通过 “>>” 输出结果可以导出到指定文件。
+- Wildcard \* can be used to get all columns, or specific column names can be specified. Arithmetic operation can be performed on columns of number types, columns can be renamed in the result set.
+- Arithmetic operation on columns can't be used in where clause. For example, `where a*2>6;` is not allowed but `where a>6/2;` can be used instead for same purpose.
+- Arithmetic operation on columns can't be used as the objectives of select statement. For example, `select min(2*a) from t;` is not allowed but `select 2*min(a) from t;` can be used instead.
+- Logical operation can be used in `WHERE` clause to filter numeric values, wildcard can be used to filter string values.
+- Result set are arranged in ascending order of the first column, i.e. timestamp, but it can be controlled to output as descending order of timestamp. If `order by` is used on other columns, the result may be not as expected. By the way, \_c0 is used to represent the first column, i.e. timestamp.
+- `LIMIT` parameter is used to control the number of rows to output. `OFFSET` parameter is used to specify from which row to output. `LIMIT` and `OFFSET` are executed after `ORDER BY` in the query execution. A simple tip is that `LIMIT 5 OFFSET 2` can be abbreviated as `LIMIT 2, 5`.
+- What is controlled by `LIMIT` is the number of rows in each group when `GROUP BY` is used.
+- `SLIMIT` parameter is used to control the number of groups when `GROUP BY` is used. Similar to `LIMIT`, `SLIMIT 5 OFFSET 2` can be abbreviated as `SLIMIT 2, 5`.
+- ">>" can be used to output the result set of `select` statement to the specified file.
 
-## 条件过滤操作
+## Where
+
+Logical operations in below table can be used in `where` clause to filter the resulting rows.
 
 | **Operation** | **Note**                 | **Applicable Data Types**                 |
 | ------------- | ------------------------ | ----------------------------------------- |
@@ -325,42 +315,41 @@ Query OK, 1 row(s) in set (0.001091s)
 
 **使用说明**:
 
-- <\> 算子也可以写为 != ，请注意，这个算子不能用于数据表第一列的 timestamp 字段。
-- like 算子使用通配符字符串进行匹配检查。
-   - 在通配符字符串中：'%'（百分号）匹配 0 到任意个字符；'\_'（下划线）匹配单个任意 ASCII 字符。
-   - 如果希望匹配字符串中原本就带有的 \_（下划线）字符，那么可以在通配符字符串中写作 `\_`，也即加一个反斜线来进行转义。（从 2.2.0.0 版本开始支持）
-   - 通配符字符串最长不能超过 20 字节。（从 2.1.6.1 版本开始，通配符字符串的长度放宽到了 100 字节，并可以通过 taos.cfg 中的 maxWildCardsLength 参数来配置这一长度限制。但不建议使用太长的通配符字符串，将有可能严重影响 LIKE 操作的执行性能。）
-- 同时进行多个字段的范围过滤，需要使用关键词 AND 来连接不同的查询条件，暂不支持 OR 连接的不同列之间的查询过滤条件。
-   - 从 2.3.0.0 版本开始，已支持完整的同一列和/或不同列间的 AND/OR 运算。
-- 针对单一字段的过滤，如果是时间过滤条件，则一条语句中只支持设定一个；但针对其他的（普通）列或标签列，则可以使用 `OR` 关键字进行组合条件的查询过滤。例如： `((value > 20 AND value < 30) OR (value < 12))`。
-   - 从 2.3.0.0 版本开始，允许使用多个时间过滤条件，但首列时间戳的过滤运算结果只能包含一个区间。
-- 从 2.0.17.0 版本开始，条件过滤开始支持 BETWEEN AND 语法，例如 `WHERE col2 BETWEEN 1.5 AND 3.25` 表示查询条件为“1.5 ≤ col2 ≤ 3.25”。
-- 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。
-- 从 2.3.0.0 版本开始，条件过滤开始支持正则表达式，关键字 match/nmatch，不区分大小写。
+- Operator `<\>` is equal to `!=`, please be noted that this operator can't be used on the first column of any table, i.e.timestamp column.
+- Operator `like` is used together with wildcards to match strings
+  - '%' matches 0 or any number of characters, '\_' matches any single ASCII character.
+  - `\_` is used to match the \_ in the string.
+  - The maximum length of wildcard string is 100 bytes from version 2.1.6.1 (before that the maximum length is 20 bytes). `maxWildCardsLength` in `taos.cfg` can be used to control this threshold. Too long wildcard string may slowdown the execution performance of `LIKE` operator.
+- `AND` keyword can be used to filter multiple columns simultaneously. AND/OR operation can be performed on single or multiple columns from version 2.3.0.0. However, before 2.3.0.0 `OR` can't be used on multiple columns.
+- For timestamp column, only one condition can be used; for other columns or tags, `OR` keyword can be used to combine multiple logical operators. For example, `((value > 20 AND value < 30) OR (value < 12))`.
+  - From version 2.3.0.0, multiple conditions can be used on timestamp column, but the result set can only contain single time range.
+- From version 2.0.17.0, operator `BETWEEN AND` can be used in where clause, for example `WHERE col2 BETWEEN 1.5 AND 3.25` means the filter condition is equal to "1.5 ≤ col2 ≤ 3.25".
+- From version 2.1.4.0, operator `IN` can be used in where clause. For example, `WHERE city IN ('Beijing', 'Shanghai')`. For bool type, both `{true, false}` and `{0, 1}` are allowed, but integers other than 0 or 1 are not allowed. FLOAT and DOUBLE types are impacted by floating precision, only values that match the condition within the tolerance will be selected. Non-primary key column of timestamp type can be used with `IN`.
+- From version 2.3.0.0, regular expression is supported in where clause with keyword `match` or `nmatch`, the regular expression is case insensitive.
 
-## 正则表达式过滤
+## Regular Expression
 
-### 语法
+### Syntax
 
-```txt
+```SQL
 WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** _regex_
 ```
 
-### 正则表达式规范
+### Specification
 
-确保使用的正则表达式符合 POSIX 的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+The regular expression being used must be compliant with POSIX specification, please refer to [Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html).
 
-### 使用限制
+### Restrictions
 
-只能针对表名（即 tbname 筛选）、binary/nchar 类型标签值进行正则表达式过滤，不支持普通列的过滤。
+Regular expression can be used against only table names, i.e. `tbname`, and tags of binary/nchar types, but can't be used against data columns.
 
-正则匹配字符串长度不能超过 128 字节。可以通过参数 _maxRegexStringLen_ 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
+The maximum length of regular expression string is 128 bytes. Configuration parameter `maxRegexStringLen` can be used to set the maximum allowed regular expression. It's a configuration parameter on client side, and will take in effect after restarting the client.
 
-## JOIN 子句
+## JOIN
 
-从 2.2.0.0 版本开始，TDengine 对内连接（INNER JOIN）中的自然连接（Natural join）操作实现了完整的支持。也即支持“普通表与普通表之间”、“超级表与超级表之间”、“子查询与子查询之间”进行自然连接。自然连接与内连接的主要区别是，自然连接要求参与连接的字段在不同的表/超级表中必须是同名字段。也即，TDengine 在连接关系的表达中，要求必须使用同名数据列/标签列的相等关系。
+From version 2.2.0.0, inner join is fully supported in TDengine. More specifically, the inner join between table and table, that between stable and stable, and that between sub query and sub query are supported.
 
-在普通表与普通表之间的 JOIN 操作中，只能使用主键时间戳之间的相等关系。例如：
+Only primary key, i.e. timestamp, can be used in the join operation between table and table. For example:
 
 ```sql
 SELECT *
@@ -368,7 +357,7 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-在超级表与超级表之间的 JOIN 操作中，除了主键时间戳一致的条件外，还要求引入能实现一一对应的标签列的相等关系。例如：
+In the join operation between stable and stable, besides the primary key, i.e. timestamp, tags can also be used. For example:
 
 ```sql
 SELECT *
@@ -376,88 +365,86 @@ FROM temp_stable t1, temp_stable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
-类似地，也可以对多个子查询的查询结果进行 JOIN 操作。
+Similary, join operation can be performed on the result set of multiple sub queries.
 
 :::note
+Restrictions on join operation:
 
-JOIN语句存在如下限制要求：
-
-- 参与一条语句中 JOIN 操作的表/超级表最多可以有 10 个。
-- 在包含 JOIN 操作的查询语句中不支持 FILL。
-- 暂不支持参与 JOIN 操作的表之间聚合后的四则运算。
-- 不支持只对其中一部分表做 GROUP BY。
-- JOIN 查询的不同表的过滤条件之间不能为 OR。
-- JOIN 查询要求连接条件不能是普通列，只能针对标签和主时间字段列（第一列）。
+- The number of tables or stables in single join operation can't exceed 10.
+- `FILL` is not allowed in the query statement that includes JOIN operation.
+- Arithmetic operation is not allowed on the result set of join operation.
+- `GROUP BY` is not allowed on a part of tables that participate in join operation.
+- `OR` can't be used in the conditions for join operation
+- join operation can't be performed on data columns, i.e. can only be performed on tags or primary key, i.e. timestamp
 
 :::
 
-## 嵌套查询
+## Nested Query
 
-“嵌套查询”又称为“子查询”，也即在一条 SQL 语句中，“内层查询”的计算结果可以作为“外层查询”的计算对象来使用。
+Nested query is also called sub query, that means in a single SQL statement the result of inner query can be used as the data source of the outer query.
 
-从 2.2.0.0 版本开始，TDengine 的查询引擎开始支持在 FROM 子句中使用非关联子查询（“非关联”的意思是，子查询不会用到父查询中的参数）。也即在普通 SELECT 语句的 tb_name_list 位置，用一个独立的 SELECT 语句来代替（这一 SELECT 语句被包含在英文圆括号内），于是完整的嵌套查询 SQL 语句形如：
+From 2.2.0.0, unassociated sub query can be used in the `FROM` clause. unassociated means the sub query doesn't use the parameters in the parent query. More specifically, in the `tb_name_list` of `SELECT` statement, an independent SELECT statement can be used. So a complete nested query looks like:
 
-```
+```SQL
 SELECT ... FROM (SELECT ... FROM ...) ...;
 ```
 
 :::info
 
-- 目前仅支持一层嵌套，也即不能在子查询中再嵌入子查询。
-- 内层查询的返回结果将作为“虚拟表”供外层查询使用，此虚拟表可以使用 AS 语法做重命名，以便于外层查询中方便引用。
-- 目前不能在“连续查询”功能中使用子查询。
-- 在内层和外层查询中，都支持普通的表间/超级表间 JOIN。内层查询的计算结果也可以再参与数据子表的 JOIN 操作。
-- 目前内层查询、外层查询均不支持 UNION 操作。
-- 内层查询支持的功能特性与非嵌套的查询语句能力是一致的。
-   - 内层查询的 ORDER BY 子句一般没有意义，建议避免这样的写法以免无谓的资源消耗。
-- 与非嵌套的查询语句相比，外层查询所能支持的功能特性存在如下限制：
-   - 计算函数部分：
-      - 如果内层查询的结果数据未提供时间戳，那么计算过程依赖时间戳的函数在外层会无法正常工作。例如：TOP, BOTTOM, FIRST, LAST, DIFF。
-      - 计算过程需要两遍扫描的函数，在外层查询中无法正常工作。例如：此类函数包括：STDDEV, PERCENTILE。
-   - 外层查询中不支持 IN 算子，但在内层中可以使用。
-   - 外层查询不支持 GROUP BY。
+- Only one layer of nesting is allowed, that means no sub query is allowed in a sub query
+- The result set returned by the inner query will be used as a "virtual table" by the outer query, the "virtual table" can be renamed using `AS` keyword for easy reference in the outer query.
+- Sub query is not allowed in continuous query.
+- JOIN operation is allowed between tables/stables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
+- UNION operation is not allowed in either inner query or outer query.
+- The functionalities that can be used in the inner query is same as non-nested query.
+  - `ORDER BY` inside the inner query doesn't make any sense but will slow down the query performance significantly, so please avoid such usage.
+- Compared to the non-nested query, the functionalities that can be used in the outer query have such restrictions as:
+  - Functions
+    - If the result set returned by the inner query doesn't contain timestamp column, then functions relying on timestamp can't be used in the outer query, like `TOP`, `BOTTOM`, `FIRST`, `LAST`, `DIFF`.
+    - Functions that need to scan the data twice can't be used in the outer query, like `STDDEV`, `PERCENTILE`.
+  - `IN` operator is not allowed in the outer query but can be used in the inner query.
+  - `GROUP BY` is not supported in the outer query.
 
 :::
 
-## UNION ALL 子句
+## UNION ALL
 
-```txt title=语法
+```SQL title=Syntax
 SELECT ...
 UNION ALL SELECT ...
 [UNION ALL SELECT ...]
 ```
 
-TDengine 支持 UNION ALL 操作符。也就是说，如果多个 SELECT 子句返回结果集的结构完全相同（列名、列类型、列数、顺序），那么可以通过 UNION ALL 把这些结果集合并到一起。目前只支持 UNION ALL 模式，也即在结果集的合并过程中是不去重的。在同一个 sql 语句中，UNION ALL 最多支持 100 个。
+`UNION ALL` operator can be used to combine the result set from multiple select statements as long as the result set of these select statements have exactly same columns. `UNION ALL` doesn't remove redundant rows from multiple result sets. In single SQL statement, at most 100 `UNION ALL` can be supported.
 
-### SQL 示例
+### Examples
 
-对于下面的例子，表 tb1 用以下语句创建：
+table `tb1` is created using below SQL statement:
 
-```
+```SQL
 CREATE TABLE tb1 (ts TIMESTAMP, col1 INT, col2 FLOAT, col3 BINARY(50));
 ```
 
-查询 tb1 刚过去的一个小时的所有记录：
+The rows in the past one hour in `tb1` can be selected using below SQL statement:
 
-```
+```SQL
 SELECT * FROM tb1 WHERE ts >= NOW - 1h;
 ```
 
-查询表 tb1 从 2018-06-01 08:00:00.000 到 2018-06-02 08:00:00.000 时间范围，并且 col3 的字符串是'nny'结尾的记录，结果按照时间戳降序：
+The rows between 2018-06-01 08:00:00.000 and 2018-06-02 08:00:00.000 and col3 ends with 'nny' can be selected in the descending order of timestamp using below SQL statement:
 
-```
+```SQL
 SELECT * FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND ts <= '2018-06-02 08:00:00.000' AND col3 LIKE '%nny' ORDER BY ts DESC;
 ```
 
-查询 col1 与 col2 的和，并取名 complex, 时间大于 2018-06-01 08:00:00.000, col2 大于 1.2，结果输出仅仅 10 条记录，从第 5 条开始：
+The sum of col1 and col2 for rows later than 2018-06-01 08:00:00.000 and whose col2 is bigger than 1.2 can be selected and renamed as "complex", while only 10 rows are output from the 5th row, by below SQL statement:
 
-```
+```SQL
 SELECT (col1 + col2) AS 'complex' FROM tb1 WHERE ts > '2018-06-01 08:00:00.000' AND col2 > 1.2 LIMIT 10 OFFSET 5;
 ```
 
-查询过去 10 分钟的记录，col2 的值大于 3.14，并且将结果输出到文件 `/home/testoutpu.csv`：
+The rows in the past 10 minutes and whose col2 is bigger than 3.14 are selected and output to the result file `/home/testoutpu.csv` with below SQL statement:
 
-```
+```SQL
 SELECT COUNT(*) FROM tb1 WHERE ts >= NOW - 10m AND col2 > 3.14 >> /home/testoutpu.csv;
 ```
-

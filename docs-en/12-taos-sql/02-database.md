@@ -1,104 +1,111 @@
 ---
-sidebar_label: 数据库管理
-title: 数据库管理
-description: "创建、删除数据库，查看、修改数据库参数"
+sidebar_label: Database
+title: Database
+description: "create and drop database, show or change database parameters"
 ---
 
-## 创建数据库
+## Create Datable
 
 ```
 CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 ```
 
 :::info
-1. KEEP 是该数据库的数据保留多长天数，缺省是 3650 天(10 年)，数据库会自动删除超过时限的数据；<!-- REPLACE_OPEN_TO_ENTERPRISE__KEEP_PARAM_DESCRIPTION -->
-2. UPDATE 标志数据库支持更新相同时间戳数据；（从 2.1.7.0 版本开始此参数支持设为 2，表示允许部分列更新，也即更新数据行时未被设置的列会保留原值。）（从 2.0.8.0 版本开始支持此参数。注意此参数不能通过 `ALTER DATABASE` 指令进行修改。）
-   1. UPDATE 设为 0 时，表示不允许更新数据，后发送的相同时间戳的数据会被直接丢弃；
-   2. UPDATE 设为 1 时，表示更新全部列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会被设为 NULL；
-   3. UPDATE 设为 2 时，表示支持更新部分列数据，即如果更新一个数据行，其中某些列没有提供取值，那么这些列会保持原有数据行中的对应值；
-   4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-faq/faq)。
-3. 数据库名最大长度为 33；
-4. 一条 SQL 语句的最大长度为 65480 个字符；
-5. 数据库还有更多与数据库相关的配置参数，如 cache, blocks, days, keep, minRows, maxRows, wal, fsync, update, cacheLast, replica, quorum, maxVgroupsPerDb, ctime, comp, prec, 具体细节请参见 [配置参数](/reference/config/) 章节。
+
+1. KEEP specifies the number of days for which the data in the database to be created will be kept, the default value is 3650 days, i.e. 10 years. The data will be deleted automatically once its age exceeds this threshold.
+2. UPDATE specifies whether the data can be updated and how the data can be updated.
+   1. UPDATE set to 0 means update operation is not allowed, the data with an existing timestamp will be dropped silently.
+   2. UPDATE set to 1 means the whole row will be updated, the columns for which no value is specified will be set to NULL
+   3. UPDATE set to 2 means updating a part of columns for a row is allowed, the columns for which no value is specified will be kept as no change
+3. The maximum length of database name is 33 bytes.
+4. The maximum length of a SQL statement is 65,480 bytes.
+5. For more parameters that can be used when creating a database, like cache, blocks, days, keep, minRows, maxRows, wal, fsync, update, cacheLast, replica, quorum, maxVgroupsPerDb, ctime, comp, prec, Please refer to [Configuration Parameters](/reference/config/).
 
 :::
 
-## 显示系统当前参数
+## Show Current Configuration
 
 ```
 SHOW VARIABLES;
 ```
 
-## 使用数据库
+## Specify The Database In Use
 
 ```
 USE db_name;
 ```
 
-使用/切换数据库（在 REST 连接方式下无效）。
+:::note
+This way is not applicable when using a REST connection
 
-## 删除数据库
+:::
+
+## Drop Database
 
 ```
 DROP DATABASE [IF EXISTS] db_name;
 ```
 
-删除数据库。指定 Database 所包含的全部数据表将被删除，谨慎使用！
+:::note
+All data in the database will be deleted too. This command must be used with caution.
 
-## 修改数据库参数
+:::
+
+## Change Database Configuration
+
+Some examples are shown below to demonstrate how to change the configuration of a database. Please be noted that some configuration parameters can be changed after the database is created, but some others can't, for details of the configuration parameters of database please refer to [Configuration Parameters](/reference/config/).
 
 ```
 ALTER DATABASE db_name COMP 2;
 ```
 
-COMP 参数是指修改数据库文件压缩标志位，缺省值为 2，取值范围为 [0, 2]。0 表示不压缩，1 表示一阶段压缩，2 表示两阶段压缩。
+COMP parameter specifies whether the data is compressed and how the data is compressed.
 
 ```
 ALTER DATABASE db_name REPLICA 2;
 ```
 
-REPLICA 参数是指修改数据库副本数，取值范围 [1, 3]。在集群中使用，副本数必须小于或等于 DNODE 的数目。
+REPLICA parameter specifies the number of replications of the database.
 
 ```
 ALTER DATABASE db_name KEEP 365;
 ```
 
-KEEP 参数是指修改数据文件保存的天数，缺省值为 3650，取值范围 [days, 365000]，必须大于或等于 days 参数值。
+KEEP parameter specifies the number of days for which the data will be kept.
 
 ```
 ALTER DATABASE db_name QUORUM 2;
 ```
 
-QUORUM 参数是指数据写入成功所需要的确认数，取值范围 [1, 2]。对于异步复制，quorum 设为 1，具有 master 角色的虚拟节点自己确认即可。对于同步复制，quorum 设为 2。原则上，Quorum >= 1 并且 Quorum <= replica(副本数)，这个参数在启动一个同步模块实例时需要提供。
+QUORUM parameter specifies the necessary number of confirmations to determine whether the data is written successfully.
 
 ```
 ALTER DATABASE db_name BLOCKS 100;
 ```
 
-BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache \* blocks）。取值范围 [3, 1000]。
+BLOCKS parameter specifies the number of memory blocks used by each VNODE.
 
 ```
 ALTER DATABASE db_name CACHELAST 0;
 ```
 
-CACHELAST 参数控制是否在内存中缓存子表的最近数据。缺省值为 0，取值范围 [0, 1, 2, 3]。其中 0 表示不缓存，1 表示缓存子表最近一行数据，2 表示缓存子表每一列的最近的非 NULL 值，3 表示同时打开缓存最近行和列功能。（从 2.0.11.0 版本开始支持参数值 [0, 1]，从 2.1.2.0 版本开始支持参数值 [0, 1, 2, 3]。）  
-说明：缓存最近行，将显著改善 LAST_ROW 函数的性能表现；缓存每列的最近非 NULL 值，将显著改善无特殊影响（WHERE、ORDER BY、GROUP BY、INTERVAL）下的 LAST 函数的性能表现。
+CACHELAST parameter specifies whether and how the latest data of a sub table is cached.
 
 :::tip
-以上所有参数修改后都可以用 show databases 来确认是否修改成功。另外，从 2.1.3.0 版本开始，修改这些参数后无需重启服务器即可生效。
-:::tip
+The above parameters can be changed using `ALTER DATABASE` command without restarting. For more details of all configuration parameters please refer to [Configuration Parameters](/reference/config/).
 
-## 显示系统所有数据库
+:::
+
+## Show All Databases
 
 ```
 SHOW DATABASES;
 ```
 
-## 显示一个数据库的创建语句
+## Show The Create Statement of A Database
 
 ```
 SHOW CREATE DATABASE db_name;
 ```
 
-常用于数据库迁移。对一个已经存在的数据库，返回其创建语句；在另一个集群中执行该语句，就能得到一个设置完全相同的 Database。
-
+This command is useful when migrating the data from one TDengine cluster to another one. Firstly this command can be used to get the CREATE statement, which in turn can be used in another TDengine to create an exactly same database.

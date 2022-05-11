@@ -1,91 +1,83 @@
 ---
-sidebar_label: JSON 类型使用说明
-title: JSON 类型使用说明
+sidebar_label: JSON
+title: JSON Type
 ---
 
+## Syntax
 
-## 语法说明
+1. Tag of JSON type
 
-1. 创建 json 类型 tag
+   ```sql
+   create stable s1 (ts timestamp, v1 int) tags (info json);
 
-   ```
-   create stable s1 (ts timestamp, v1 int) tags (info json)
-
-   create table s1_1 using s1 tags ('{"k1": "v1"}')
-   ```
-
-2. json 取值操作符 ->
-
-   ```
-   select * from s1 where info->'k1' = 'v1'
-
-   select info->'k1' from s1
+   create table s1_1 using s1 tags ('{"k1": "v1"}');
    ```
 
-3. json key 是否存在操作符 contains
+2. -> Operator of JSON
 
+   ```sql
+   select * from s1 where info->'k1' = 'v1';
+
+   select info->'k1' from s1;
    ```
-   select * from s1 where info contains 'k2'
 
-   select * from s1 where info contains 'k1'
+3. contains Operator of JSON
+
+   ```sql
+   select * from s1 where info contains 'k2';
+
+   select * from s1 where info contains 'k1';
    ```
 
-## 支持的操作
+## Applicable Operations
 
-1. 在 where 条件中时，支持函数 match/nmatch/between and/like/and/or/is null/is no null，不支持 in
+1. When JSON data type is used in `where`, `match/nmatch/between and/like/and/or/is null/is no null` can be used but `in` can't be used.
 
-   ```
+   ```sql
    select * from s1 where info->'k1' match 'v*';
 
    select * from s1 where info->'k1' like 'v%' and info contains 'k2';
 
    select * from s1 where info is null;
 
-   select * from s1 where info->'k1' is not null
+   select * from s1 where info->'k1' is not null;
    ```
 
-2. 支持 json tag 放在 group by、order by、join 子句、union all 以及子查询中，比如 group by json->'key'
+2. Tag of JSON type can be used in `group by`, `order by`, `join`, `union all` and sub query, for example `group by json->'key'`
 
-3. 支持 distinct 操作.
+3. `Distinct` can be used with tag of JSON type
 
-   ```
-   select distinct info->'k1' from s1
-   ```
-
-4. 标签操作
-
-   支持修改 json 标签值（全量覆盖）
-
-   支持修改 json 标签名
-
-   不支持添加 json 标签、删除 json 标签、修改 json 标签列宽
-
-## 其他约束条件
-
-1. 只有标签列可以使用 json 类型，如果用 json 标签，标签列只能有一个。
-
-2. 长度限制：json 中 key 的长度不能超过 256，并且 key 必须为可打印 ascii 字符；json 字符串总长度不超过 4096 个字节。
-
-3. json 格式限制：
-
-   1. json 输入字符串可以为空（"","\t"," "或 null）或 object，不能为非空的字符串，布尔型和数组。
-   2. object 可为{}，如果 object 为{}，则整个 json 串记为空。key 可为""，若 key 为""，则 json 串中忽略该 k-v 对。
-   3. value 可以为数字(int/double)或字符串或 bool 或 null，暂不可以为数组。不允许嵌套。
-   4. 若 json 字符串中出现两个相同的 key，则第一个生效。
-   5. json 字符串里暂不支持转义。
-
-4. 当查询 json 中不存在的 key 时，返回 NULL
-
-5. 当 json tag 作为子查询结果时，不再支持上层查询继续对子查询中的 json 串做解析查询。
-
-   比如暂不支持
-
-   ```
-   select jtag->'key' from (select jtag from stable)
+   ```sql
+   select distinct info->'k1' from s1;
    ```
 
-   不支持
+4. Tag Operations
 
-   ```
-   select jtag->'key' from (select jtag from stable) where jtag->'key'>0
-   ```
+   The value of JSON tag can be altered. Please be noted that the full JSON will be override when doing this.
+
+   The name of JSON tag can be altered. A tag of JSON type can't be added or removed. The column length of a JSON tag can't be changed.
+
+## Other Restrictions
+
+- JSON type can only be used for tag. There can be only one tag of JSON type, and it's exclusive to any other types of tag.
+
+- The maximum length of keys in JSON is 256 bytes, and key must be printable ASCII characters. The maximum total length of a JSON is 4,096 bytes.
+
+- JSON format：
+
+  - The input string for JSON can be empty, i.e. "", "\t", or NULL, but can't be non-NULL string, bool or array.
+  - object can be {}, and the whole JSON is empty if so. Key can be "", and it's ignored if so.
+  - value can be int, double, string, boll or NULL, can't be array. Nesting is not allowed, that means value can't be another JSON.
+  - If one key occurs twice in JSON, only the first one is valid.
+  - Escape characters are not allowed in JSON.
+
+- NULL is returned if querying a key that doesn't exist in JSON.
+
+- If a tag of JSON is the result of inner query, it can't be parsed and queried in the outer query.
+
+For example, below SQL statements are not supported.
+
+```sql;
+select jtag->'key' from (select jtag from stable);
+select jtag->'key' from (select jtag from stable) where jtag->'key'>0;
+```
