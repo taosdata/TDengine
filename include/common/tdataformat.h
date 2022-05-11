@@ -31,7 +31,9 @@ typedef struct STColumn      STColumn;
 typedef struct STSchema      STSchema;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
+typedef struct SKVIdx        SKVIdx;
 
+#define TD_TP_ROW 0x0U
 #define TD_KV_ROW 0x1U
 
 // STSchema
@@ -83,6 +85,11 @@ struct STSRow2 {
 struct STSRowBuilder {
   STColumn *pTColumn;
   STSchema *pTSchema;
+  int32_t   nCols;
+  int32_t   kvVLen;
+  uint8_t  *pKV;
+  int32_t   tpVLen;
+  uint8_t  *pTuple;
   STSRow2   row;
 };
 

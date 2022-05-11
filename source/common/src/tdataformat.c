@@ -19,6 +19,11 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+struct SKVIdx {
+  int32_t cid;
+  int32_t offset;
+};
+
 int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow) {
   if (tEncodeI64(pEncoder, pRow->ts) < 0) return -1;
   if (tEncodeU32v(pEncoder, pRow->flags) < 0) return -1;
@@ -97,6 +102,11 @@ int32_t tTSRowBuilderReset(STSRowBuilder *pBuilder) {
     pBuilder->pTColumn->flags &= (~COL_VAL_SET);
   }
 
+  pBuilder->nCols = 0;
+  pBuilder->kvVLen = 0;
+  pBuilder->tpVLen = 0;
+  pBuilder->row.flags = 0;
+
   return 0;
 }
 
@@ -125,8 +135,7 @@ int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pD
   }
 
   pBuilder->pTColumn->flags |= COL_VAL_SET;
-
-  // TODO
+  pBuilder->nCols++;
   return 0;
 }
 
@@ -135,10 +144,37 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
     return -1;
   }
 
-  // chose which type row to return
+  if (pBuilder->nCols * sizeof(SKVIdx) + pBuilder->kvVLen < pBuilder->pTSchema->flen + pBuilder->tpVLen) {
+    // encode as TD_KV_ROW
+    pBuilder->row.flags |= TD_KV_ROW;
+    pBuilder->row.ncols = pBuilder->nCols;
+    pBuilder->row.nData = pBuilder->nCols * sizeof(SKVIdx) + pBuilder->kvVLen;
+    pBuilder->row.pData = pBuilder->pKV;
 
-  if (true /* tuple row is chosen */) {
-    // set non-set values as None
+    if (pBuilder->nCols < pBuilder->pTSchema->numOfCols) {
+      memmove(pBuilder->pKV + sizeof(SKVIdx) * pBuilder->nCols,
+              pBuilder->pKV + sizeof(SKVIdx) * pBuilder->pTSchema->numOfCols, pBuilder->kvVLen);
+    }
+  } else {
+    // encode as TD_TUPLE_ROW
+    pBuilder->row.flags &= (~TD_KV_ROW);
+    pBuilder->row.sver = pBuilder->pTSchema->version;
+    pBuilder->row.nData = pBuilder->pTSchema->flen + pBuilder->tpVLen;
+    pBuilder->row.pData = pBuilder->pTuple;
+
+    if (pBuilder->nCols < pBuilder->pTSchema->numOfCols) {
+      // set non-set cols as None
+      for (int32_t iCol = 1; iCol < pBuilder->pTSchema->numOfCols; iCol++) {
+        pBuilder->pTColumn = &pBuilder->pTSchema->columns[iCol];
+        if (pBuilder->pTColumn->flags & COL_VAL_SET) continue;
+
+        {
+          // set None (todo)
+        }
+
+        pBuilder->pTColumn->flags |= COL_VAL_SET;
+      }
+    }
   }
 
   *ppRow = &pBuilder->row;
