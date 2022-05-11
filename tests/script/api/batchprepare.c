@@ -230,12 +230,12 @@ CaseCtrl gCaseCtrl = {
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
   .checkParamNum = false,
-  .printRes = true,
+  .printRes = false,
   .runTimes = 0,
   .caseIdx = -1,
-  .caseNum = 15,
-  .caseRunIdx = 8,
-  .caseRunNum = 15,
+  .caseNum = -1,
+  .caseRunIdx = -1,
+  .caseRunNum = -1,
 };
 #endif
 
@@ -3465,16 +3465,17 @@ void* runCaseList(TAOS *taos) {
 }
 
 void runAll(TAOS *taos) {
-/*
   strcpy(gCaseCtrl.caseCatalog, "Normal Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
-*/
+
+#if 0
   strcpy(gCaseCtrl.caseCatalog, "Auto Create Table Test");
   gCaseCtrl.autoCreateTbl = true;
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
   gCaseCtrl.autoCreateTbl = false;
+#endif
 
 /*
   strcpy(gCaseCtrl.caseCatalog, "Null Test");

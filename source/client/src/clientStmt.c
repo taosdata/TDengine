@@ -321,6 +321,18 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t stmtRebuildDataBlock(STscStmt* pStmt, STableDataBlocks *pDataBlock, STableDataBlocks **newBlock, uint64_t uid) {
+  SEpSet ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+  SVgroupInfo vgInfo = {0};
+  
+  STMT_ERR_RET(catalogGetTableHashVgroup(pStmt->pCatalog, pStmt->taos->pAppInfo->pTransporter, &ep, &pStmt->bInfo.sname, &vgInfo));
+  STMT_ERR_RET(taosHashPut(pStmt->exec.pVgHash, (const char*)&vgInfo.vgId, sizeof(vgInfo.vgId), (char*)&vgInfo, sizeof(vgInfo)));
+  
+  STMT_ERR_RET(qRebuildStmtDataBlock(newBlock, pDataBlock, uid, vgInfo.vgId));
+
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t stmtGetFromCache(STscStmt* pStmt) {
   pStmt->bInfo.needParse = true;
   pStmt->bInfo.inExecCache = false;
@@ -344,14 +356,18 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     return TSDB_CODE_SUCCESS;
   }
 
+  if (NULL == pStmt->pCatalog) {
+    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
+  }
+
   if (pStmt->sql.autoCreateTbl) {
     SStmtTableCache* pCache = taosHashGet(pStmt->sql.pTableCache, &pStmt->bInfo.tbSuid, sizeof(pStmt->bInfo.tbSuid));
     if (pCache) {
       pStmt->bInfo.needParse = false;
     
       STableDataBlocks* pNewBlock = NULL;
-      STMT_ERR_RET(qRebuildStmtDataBlock(&pNewBlock, pCache->pDataBlock, 0));
-    
+      STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataBlock, &pNewBlock, 0));
+      
       if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock, POINTER_BYTES)) {
         STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
       }
@@ -362,9 +378,6 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     STMT_RET(stmtCleanBindInfo(pStmt));
   }
   
-  if (NULL == pStmt->pCatalog) {
-    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &pStmt->pCatalog));
-  }
 
   STableMeta *pTableMeta = NULL;
   SEpSet ep = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
@@ -419,7 +432,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     pStmt->bInfo.tagsCached = true;
 
     STableDataBlocks* pNewBlock = NULL;
-    STMT_ERR_RET(qRebuildStmtDataBlock(&pNewBlock, pCache->pDataBlock, uid));
+    STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataBlock, &pNewBlock, uid));
 
     if (taosHashPut(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName), &pNewBlock, POINTER_BYTES)) {
       STMT_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);

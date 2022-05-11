@@ -620,7 +620,7 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc) {
   return qResetStmtDataBlock(*pDst, false);
 }
 
-int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid) {
+int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId) {
   int32_t code = qCloneStmtDataBlock(pDst, pSrc);
   if (code) {
     return code;
@@ -633,8 +633,11 @@ int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pBlock->vgId = vgId;
+  
   if (pBlock->pTableMeta) {
     pBlock->pTableMeta->uid = uid;
+    pBlock->pTableMeta->vgId = vgId;
   }
   
   memset(pBlock->pData, 0, sizeof(SSubmitBlk));
