@@ -544,28 +544,7 @@ static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char
   while (true) {
     if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
     if (pBlock == NULL) break;
-    tInitSubmitBlkIter(&msgIter, pBlock, &blkIter);
-    if (blkIter.row == NULL) continue;
-    if (!pSchema || (suid != msgIter.suid)) {
-      if (pSchema) {
-        taosMemoryFreeClear(pSchema);
-      }
-      pSchema = metaGetTbTSchema(pMeta, msgIter.suid, 0);  // TODO: use the real schema
-      if (pSchema) {
-        suid = msgIter.suid;
-      }
-    }
-    if (!pSchema) {
-      printf("%s:%d no valid schema\n", tags, __LINE__);
-      continue;
-    }
-    char __tags[128] = {0};
-    snprintf(__tags, 128, "%s: uid %" PRIi64 " ", tags, msgIter.uid);
-    while ((row = tGetSubmitBlkNext(&blkIter))) {
-      tdSRowPrint(row, pSchema, __tags);
-    }
-  }
-
+    
     vnodeDebugPrintSingleSubmitMsg(pMeta, pBlock, &msgIter, tags);
   }
 
