@@ -339,6 +339,7 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
   
   STableDataBlocks *pBlockInExec = taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
   if (pBlockInExec) {
+    pStmt->bInfo.needParse = false;
     pStmt->bInfo.inExecCache = true;
 
     if (pStmt->sql.autoCreateTbl) {
@@ -364,7 +365,10 @@ int32_t stmtGetFromCache(STscStmt* pStmt) {
     SStmtTableCache* pCache = taosHashGet(pStmt->sql.pTableCache, &pStmt->bInfo.tbSuid, sizeof(pStmt->bInfo.tbSuid));
     if (pCache) {
       pStmt->bInfo.needParse = false;
-    
+      pStmt->exec.autoCreateTbl = true;
+
+      pStmt->bInfo.tbUid = 0;
+      
       STableDataBlocks* pNewBlock = NULL;
       STMT_ERR_RET(stmtRebuildDataBlock(pStmt, pCache->pDataBlock, &pNewBlock, 0));
       

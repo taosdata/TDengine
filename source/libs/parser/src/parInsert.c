@@ -1393,7 +1393,6 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     tdSRowPrint(row, pSTSchema, __func__);
     taosMemoryFree(pSTSchema);
 #endif
-
     pDataBlock->size += extendedRowSize;
   }
 
@@ -1480,6 +1479,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
       taosMemoryFree(pSTSchema);
     }
 #endif
+
   }
 
   if (rowEnd) {

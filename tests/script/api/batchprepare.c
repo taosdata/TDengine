@@ -233,9 +233,9 @@ CaseCtrl gCaseCtrl = {
   .printRes = false,
   .runTimes = 0,
   .caseIdx = -1,
-  .caseNum = -1,
-  .caseRunIdx = -1,
-  .caseRunNum = -1,
+  .caseNum = 1,
+  .caseRunIdx = 20,
+  .caseRunNum = 1,
 };
 #endif
 
@@ -2988,7 +2988,7 @@ void prepareCheckResultImpl(TAOS     * taos, char *tname, bool printr, int expec
     }
   } else {
     printf("!!!expect rows %d mis-match rows %d fetched from %s\n", expected, rows, tname);
-    //exit(1);
+    exit(1);
   }
 }
 
@@ -3465,11 +3465,13 @@ void* runCaseList(TAOS *taos) {
 }
 
 void runAll(TAOS *taos) {
+#if 0
   strcpy(gCaseCtrl.caseCatalog, "Normal Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
+#endif
 
-#if 0
+#if 1
   strcpy(gCaseCtrl.caseCatalog, "Auto Create Table Test");
   gCaseCtrl.autoCreateTbl = true;
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
