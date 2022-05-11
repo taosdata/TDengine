@@ -735,7 +735,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
         pInput->numOfRows = pBlock->info.rows;
         pInput->startRowIndex = 0;
 
-        // the last parameter is the timestamp column
+        // NOTE: the last parameter is the primary timestamp column
         if (fmIsTimelineFunc(pCtx[i].functionId) && (j == pOneExpr->base.numOfParams - 1)) {
           pInput->pPTS = pInput->pData[j];
         }
@@ -873,7 +873,8 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
     } else if (pExpr[k].pExpr->nodeType == QUERY_NODE_FUNCTION) {
       ASSERT(!fmIsAggFunc(pfCtx->functionId));
 
-      if (fmIsPseudoColumnFunc(pfCtx->functionId)) {
+      // _rowts/_c0, not tbname column
+      if (fmIsPseudoColumnFunc(pfCtx->functionId) && (!fmIsScanPseudoColumnFunc(pfCtx->functionId))) {
         // do nothing
       } else if (fmIsNonstandardSQLFunc(pfCtx->functionId)) {
         SResultRowEntryInfo* pResInfo = GET_RES_INFO(&pCtx[k]);
