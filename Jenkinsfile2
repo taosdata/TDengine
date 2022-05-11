@@ -65,7 +65,6 @@ def pre_test(){
                 git checkout 3.0
                 cd ${WKC}
                 git checkout 3.0
-                [ -d contrib/bdb ] && cd contrib/bdb && git clean -fxd && cd ../..
             '''
         } else {
             sh '''
