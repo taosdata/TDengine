@@ -26,8 +26,7 @@ extern "C" {
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);
-  int32_t (*setBindInfoFn)(TAOS_STMT*, STableMeta*, void*);
-  int32_t (*setExecInfoFn)(TAOS_STMT*, SHashObj*, SHashObj*);
+  int32_t (*setInfoFn)(TAOS_STMT*, STableMeta*, void*, char*, bool, SHashObj*, SHashObj*);
   int32_t (*getExecInfoFn)(TAOS_STMT*, SHashObj**, SHashObj**);
 } SStmtCallback;
 
@@ -59,8 +58,9 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 int32_t qResetStmtDataBlock(void* block, bool keepBuf);
 int32_t qCloneStmtDataBlock(void** pDst, void* pSrc);
 void    qFreeStmtDataBlock(void* pDataBlock);
-int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc);
+int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId);
 void    qDestroyStmtDataBlock(void* pBlock);
+STableMeta *qGetTableMetaInDataBlock(void* pDataBlock);
 
 int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
 int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, int32_t colIdx,
