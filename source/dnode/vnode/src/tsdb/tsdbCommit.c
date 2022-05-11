@@ -382,6 +382,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
     } else {
       break;
     }
+    
     if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->uid <= pIdx->uid))) {
       if (tsdbCommitToTable(pCommith, mIter) < 0) {
         tsdbCloseCommitFile(pCommith, true);
@@ -472,7 +473,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
       pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
       pCommitIter->pTable->uid = pTbData->uid;
       pCommitIter->pTable->tid = pTbData->uid;
-      pCommitIter->pTable->pSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
+      pCommitIter->pTable->pSchema = pTSchema; //metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
     }
   }
 
