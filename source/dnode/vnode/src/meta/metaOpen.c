@@ -22,6 +22,9 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
+static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
+static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
+
 int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   SMeta *pMeta = NULL;
   int    ret;
@@ -36,6 +39,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     return -1;
   }
 
+  metaInitLock(pMeta);
   pMeta->path = (char *)&pMeta[1];
   sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
           VNODE_META_DIR);
@@ -121,6 +125,7 @@ _err:
   if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
   if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
   if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
+  metaDestroyLock(pMeta);
   taosMemoryFree(pMeta);
   return -1;
 }
@@ -136,11 +141,18 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
     if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
+    metaDestroyLock(pMeta);
     taosMemoryFree(pMeta);
   }
 
   return 0;
 }
+
+int32_t metaRLock(SMeta *pMeta) { return taosThreadRwlockRdlock(&pMeta->lock); }
+
+int32_t metaWLock(SMeta *pMeta) { return taosThreadRwlockWrlock(&pMeta->lock); }
+
+int32_t metaULock(SMeta *pMeta) { return taosThreadRwlockUnlock(&pMeta->lock); }
 
 static int tbDbKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STbDbKey *pTbDbKey1 = (STbDbKey *)pKey1;
