@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-SVnodeObj **vmGetVnodeListFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes) {
+SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
   taosRLockLatch(&pMgmt->latch);
 
   int32_t     num = 0;
@@ -44,7 +44,7 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes) {
   return pVnodes;
 }
 
-int32_t vmGetVnodeListFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
+int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
   int32_t      code = TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t      len = 0;
   int32_t      maxLen = 30000;
@@ -148,9 +148,9 @@ _OVER:
   return code;
 }
 
-int32_t vmWriteVnodeListToFile(SVnodesMgmt *pMgmt) {
-  char file[PATH_MAX];
-  char realfile[PATH_MAX];
+int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
+  char file[PATH_MAX] = {0};
+  char realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
   snprintf(realfile, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
