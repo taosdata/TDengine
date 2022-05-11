@@ -213,7 +213,7 @@ CaseCtrl gCaseCtrl = { // default
 
 
 #if 1
-CaseCtrl gCaseCtrl = { // default
+CaseCtrl gCaseCtrl = {
   .bindNullNum = 0,
   .printCreateTblSql = true,
   .printQuerySql = true,
@@ -233,9 +233,9 @@ CaseCtrl gCaseCtrl = { // default
   .printRes = true,
   .runTimes = 0,
   .caseIdx = -1,
-  .caseNum = 1,
-  .caseRunIdx = 11,
-  .caseRunNum = 1,
+  .caseNum = 15,
+  .caseRunIdx = 8,
+  .caseRunNum = 15,
 };
 #endif
 

@@ -254,10 +254,7 @@ int32_t tPrintFixedSchemaSubmitReq(const SSubmitReq* pReq, STSchema* pSchema);
 typedef struct {
   int8_t  hashMeta;
   int64_t uid;
-  union {
-    char*       ename; // used for encode
-    const char* dname; // used for decode
-  };
+  char*   tblFName;
   int32_t numOfRows;
   int32_t affectedRows;
 } SSubmitBlkRsp;
@@ -274,6 +271,7 @@ typedef struct {
 
 int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
+void tFreeSSubmitRsp(SSubmitRsp *pRsp);
 
 #define SCHEMA_SMA_ON 0x1
 #define SCHEMA_IDX_ON 0x2

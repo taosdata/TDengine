@@ -1668,7 +1668,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
   smlBuildOutput(info->exec, info->pVgHash);
   info->cost.insertRpcTime = taosGetTimestampUs();
 
-  launchQueryImpl(info->pRequest, info->pQuery, TSDB_CODE_SUCCESS, true);
+  launchQueryImpl(info->pRequest, info->pQuery, TSDB_CODE_SUCCESS, true, NULL);
 
   info->affectedRows = taos_affected_rows(info->pRequest);
   return info->pRequest->code;

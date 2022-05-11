@@ -497,43 +497,51 @@ _exit:
   return 0;
 }
 
+static int vnodeDebugPrintSingleSubmitMsg(SMeta         *pMeta, SSubmitBlk  *pBlock, SSubmitMsgIter *msgIter, const char *tags) {
+  SSubmitBlkIter blkIter = {0};
+  STSchema      *pSchema = NULL;
+  tb_uid_t       suid = 0;
+  STSRow        *row = NULL;
+
+  tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
+  if (blkIter.row == NULL) return 0;
+  if (!pSchema || (suid != msgIter->suid)) {
+    if (pSchema) {
+      taosMemoryFreeClear(pSchema);
+    }
+    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, 0);  // TODO: use the real schema
+    if (pSchema) {
+      suid = msgIter->suid;
+    }
+  }
+  if (!pSchema) {
+    printf("%s:%d no valid schema\n", tags, __LINE__);
+    return -1;
+  }
+  char __tags[128] = {0};
+  snprintf(__tags, 128, "%s: uid %" PRIi64 " ", tags, msgIter->uid);
+  while ((row = tGetSubmitBlkNext(&blkIter))) {
+    tdSRowPrint(row, pSchema, __tags);
+  }
+
+  taosMemoryFreeClear(pSchema);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char *tags) {
   ASSERT(pMsg != NULL);
   SSubmitMsgIter msgIter = {0};
   SMeta         *pMeta = pVnode->pMeta;
   SSubmitBlk    *pBlock = NULL;
-  SSubmitBlkIter blkIter = {0};
-  STSRow        *row = NULL;
-  STSchema      *pSchema = NULL;
-  tb_uid_t       suid = 0;
 
   if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
   while (true) {
     if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
     if (pBlock == NULL) break;
-    tInitSubmitBlkIter(&msgIter, pBlock, &blkIter);
-    if (blkIter.row == NULL) continue;
-    if (!pSchema || (suid != msgIter.suid)) {
-      if (pSchema) {
-        taosMemoryFreeClear(pSchema);
-      }
-      pSchema = metaGetTbTSchema(pMeta, msgIter.suid, 0);  // TODO: use the real schema
-      if (pSchema) {
-        suid = msgIter.suid;
-      }
-    }
-    if (!pSchema) {
-      printf("%s:%d no valid schema\n", tags, __LINE__);
-      continue;
-    }
-    char __tags[128] = {0};
-    snprintf(__tags, 128, "%s: uid %" PRIi64 " ", tags, msgIter.uid);
-    while ((row = tGetSubmitBlkNext(&blkIter))) {
-      tdSRowPrint(row, pSchema, __tags);
-    }
-  }
 
-  taosMemoryFreeClear(pSchema);
+    vnodeDebugPrintSingleSubmitMsg(pMeta, pBlock, &msgIter, tags);
+  }
 
   return 0;
 }
@@ -589,8 +597,8 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
       }
 
       submitBlkRsp.uid = createTbReq.uid;
-      submitBlkRsp.ename = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
-      sprintf(submitBlkRsp.ename, "%s.%s", pVnode->config.dbname, createTbReq.name);
+      submitBlkRsp.tblFName = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
+      sprintf(submitBlkRsp.tblFName, "%s.%s", pVnode->config.dbname, createTbReq.name);
 
       msgIter.uid = createTbReq.uid;
       if (createTbReq.type == TSDB_CHILD_TABLE) {
@@ -599,6 +607,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
         msgIter.suid = 0;
       }
 
+      vnodeDebugPrintSingleSubmitMsg(pVnode->pMeta, pBlock, &msgIter, "real uid");
       tDecoderClear(&decoder);
     }
 
@@ -621,7 +630,7 @@ _exit:
   tEncoderClear(&encoder);
 
   for (int32_t i = 0; i < taosArrayGetSize(submitRsp.pArray); i++) {
-    taosMemoryFree(((SSubmitBlkRsp *)taosArrayGet(submitRsp.pArray, i))[0].ename);
+    taosMemoryFree(((SSubmitBlkRsp *)taosArrayGet(submitRsp.pArray, i))[0].tblFName);
   }
 
   taosArrayDestroy(submitRsp.pArray);

@@ -286,12 +286,12 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
   pResInfo->precision = precision;
 }
 
-int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList) {
+int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** pRes) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
   SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
   int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
-                                       pRequest->metric.start, &res);
+                                       pRequest->metric.start, NULL != pRes, &res);
   if (code != TSDB_CODE_SUCCESS) {
     if (pRequest->body.queryJob != 0) {
       schedulerFreeJob(pRequest->body.queryJob);
@@ -310,6 +310,10 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     }
   }
 
+  if (pRes) {
+    *pRes = res.res;
+  }
+
   pRequest->code = res.code;
   terrno = res.code;
   return pRequest->code;
@@ -320,7 +324,7 @@ int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) 
   return getPlan(pRequest, pQuery, &pRequest->body.pDag, *pNodeList);
 }
 
-SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery) {
+SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res) {
   if (TSDB_CODE_SUCCESS == code) {
     switch (pQuery->execMode) {
       case QUERY_EXEC_MODE_LOCAL:
@@ -333,7 +337,7 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
         SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
         code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
         if (TSDB_CODE_SUCCESS == code) {
-          code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList);
+          code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList, res);
         }
         taosArrayDestroy(pNodeList);
         break;
@@ -373,7 +377,7 @@ SRequestObj* launchQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
     return pRequest;
   }
 
-  return launchQueryImpl(pRequest, pQuery, code, false);
+  return launchQueryImpl(pRequest, pQuery, code, false, NULL);
 }
 
 int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {

@@ -839,6 +839,7 @@ static int32_t storeTableMeta(SInsertParseContext* pCxt, SHashObj* pHash, SName*
 
   pMeta->uid = 0;
   pMeta->vgId = vg.vgId;
+  pMeta->tableType = TSDB_CHILD_TABLE;
 
   STableMeta* pBackup = NULL;
   if (TSDB_CODE_SUCCESS != cloneTableMeta(pMeta, &pBackup)) {
@@ -1094,8 +1095,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
         sToken.z = tbName;
         sToken.n = strlen(tbName);
-
-        autoCreateTbl = true;
       } else {
         return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", sToken.z);
       }
@@ -1112,6 +1111,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     if (TK_USING == sToken.type) {
       CHECK_CODE(parseUsingClause(pCxt, &name, tbFName));
       NEXT_TOKEN(pCxt->pSql, sToken);
+      autoCreateTbl = true;
     } else {
       CHECK_CODE(getTableMeta(pCxt, &name, tbFName));
     }

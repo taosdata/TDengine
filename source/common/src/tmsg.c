@@ -4022,7 +4022,7 @@ static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBl
   if (tEncodeI8(pEncoder, pBlock->hashMeta) < 0) return -1;
   if (pBlock->hashMeta) {
     if (tEncodeI64(pEncoder, pBlock->uid) < 0) return -1;
-    if (tEncodeCStr(pEncoder, pBlock->ename) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pBlock->tblFName) < 0) return -1;
   }
   if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
   if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
@@ -4037,7 +4037,9 @@ static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
   if (tDecodeI8(pDecoder, &pBlock->hashMeta) < 0) return -1;
   if (pBlock->hashMeta) {
     if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
-    if (tDecodeCStr(pDecoder, &pBlock->dname) < 0) return -1;
+    pBlock->tblFName= taosMemoryCalloc(TSDB_TABLE_FNAME_LEN, 1);
+    if (NULL == pBlock->tblFName) return -1;
+    if (tDecodeCStrTo(pDecoder, pBlock->tblFName) < 0) return -1;
   }
   if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
@@ -4068,12 +4070,29 @@ int32_t tDecodeSSubmitRsp(SDecoder *pDecoder, SSubmitRsp *pRsp) {
   if (tDecodeI32v(pDecoder, &pRsp->numOfRows) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pRsp->affectedRows) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pRsp->nBlocks) < 0) return -1;
-  pRsp->pBlocks = tDecoderMalloc(pDecoder, sizeof(*pRsp->pBlocks) * pRsp->nBlocks);
+  pRsp->pBlocks = taosMemoryCalloc(pRsp->nBlocks, sizeof(*pRsp->pBlocks));
   if (pRsp->pBlocks == NULL) return -1;
   for (int32_t iBlock = 0; iBlock < pRsp->nBlocks; iBlock++) {
     if (tDecodeSSubmitBlkRsp(pDecoder, pRsp->pBlocks + iBlock) < 0) return -1;
   }
 
-  tEndDecode(pDecoder);
+  tEndDecode(pDecoder);  
+  tDecoderClear(pDecoder);
   return 0;
 }
+
+void tFreeSSubmitRsp(SSubmitRsp *pRsp) {
+  if (NULL == pRsp) return;
+
+  if (pRsp->pBlocks) {
+    for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
+      SSubmitBlkRsp *sRsp = pRsp->pBlocks + i;
+      taosMemoryFree(sRsp->tblFName);
+    }
+
+    taosMemoryFree(pRsp->pBlocks);
+  }
+
+  taosMemoryFree(pRsp);
+}
+

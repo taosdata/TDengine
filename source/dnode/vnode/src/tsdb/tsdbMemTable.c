@@ -342,8 +342,8 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
-  pRsp->numOfRows = pRsp->numOfRows;
-  pRsp->affectedRows = pRsp->affectedRows;
+  pRsp->numOfRows = pMsgIter->numOfRows;
+  pRsp->affectedRows = pMsgIter->numOfRows;
 
   return 0;
 }
