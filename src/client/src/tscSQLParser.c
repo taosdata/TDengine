@@ -6900,7 +6900,7 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
   const char* msg5 = "only primary timestamp/column in top/bottom function allowed as order column";
   const char* msg6 = "only primary timestamp allowed as the second order column";
   const char* msg7 = "only primary timestamp/column in groupby clause allowed as order column";
-  const char* msg8 = "only column in groupby clause allowed as order column";
+  //const char* msg8 = "only column in groupby clause allowed as order column";
   const char* msg10 = "not support distinct mixed with order by";
   const char* msg11 = "not support order with udf";
   const char* msg12 = "order by tags not supported with diff/derivative/csum/mavg/stateCount/stateDuration";
@@ -7117,11 +7117,11 @@ int32_t validateOrderbyNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSq
     }else if (isTopBottomUniqueQuery(pQueryInfo)) {
       SArray *columnInfo = pQueryInfo->groupbyExpr.columnInfo;
       if (columnInfo != NULL && taosArrayGetSize(columnInfo) > 0) {
-        SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
+        /*SColIndex* pColIndex = taosArrayGet(columnInfo, 0);
 
         if (pColIndex->colIndex != index.columnIndex) {
           return invalidOperationMsg(pMsgBuf, msg8);
-        }
+        }*/
       } else {
         int32_t pos = tscExprTopBottomIndex(pQueryInfo);
         assert(pos > 0);

@@ -24,18 +24,9 @@ import numpy as np
 WAITS = 10 # wait seconds
 
 class TDTestCase:
-    #
-    # --------------- main frame -------------------
-    #
     
-    def caseDescription(self):
-        '''
-        limit and offset keyword function test cases;
-        case1: limit offset base function test
-        case2: limit offset advance test
-        '''
-        return 
-
+    updatecfgDict = {'numOfNodes': 3, '1':{'replica': 3}, '2':{'replica': 3}, '3':{'replica': 3}}
+    
     # init
     def init(self, conn, logSql):
         tdLog.debug("start to execute %s" % __file__)
@@ -49,8 +40,8 @@ class TDTestCase:
     def run(self):
         # insert data
         for i in range(10):
-          tbname = "t%d"%i
-          self.insert_data(tbname, self.ts, (i+1)*10000, 20000);
+            tbname = "t%d"%i
+            self.insert_data(tbname, self.ts, (i+1)*10000, 20000);
 
         tdLog.debug(" INSERT data 10 tables ....... [OK]")  
 
@@ -60,7 +51,7 @@ class TDTestCase:
         # test advance case
         self.test_case2()
         tdLog.debug(" DELETE test_case2 ............ [OK]")
-        # test delete with functions
+        # test advance case
         self.test_case3()
         tdLog.debug(" DELETE test_case3 ............ [OK]")
 

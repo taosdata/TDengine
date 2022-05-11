@@ -1,30 +1,31 @@
 ---
-title: 转义字符说明
+sidebar-label: Escape
+title: Escape
 ---
 
-## 转义字符表
+## Escape Characters
 
-| 字符序列 | **代表的字符** |
-| :------: | -------------- |
-|   `\'`   | 单引号'        |
-|   `\"`   | 双引号"        |
-|    \n    | 换行符         |
-|    \r    | 回车符         |
-|    \t    | tab 符         |
-|   `\\`   | 斜杠\          |
-|   `\%`   | % 规则见下     |
-|   `\_`   | \_ 规则见下    |
+| Escape Character | **Actual Meaning**       |
+| :--------------: | ------------------------ |
+|       `\'`       | Single quote '           |
+|       `\"`       | Double quote "           |
+|        \n        | Line Break               |
+|        \r        | Carriage Return          |
+|        \t        | tab                      |
+|       `\\`       | Back Slash \             |
+|       `\%`       | % see below for details  |
+|       `\_`       | \_ see below for details |
 
 :::note
-转义符的功能从 2.4.0.4 版本开始
+Escape characters are available from version 2.4.0.4 .
 
 :::
 
-## 转义字符使用规则
+## Restrictions
 
-1. 标识符里有转义字符（数据库名、表名、列名）
-   1. 普通标识符： 直接提示错误的标识符，因为标识符规定必须是数字、字母和下划线，并且不能以数字开头。
-   2. 反引号``标识符： 保持原样，不转义
-2. 数据里有转义字符
-   1. 遇到上面定义的转义字符会转义（%和\_见下面说明），如果没有匹配的转义字符会忽略掉转义符\。
-   2. 对于%和\_，因为在 like 里这两个字符是通配符，所以在模式匹配 like 里用`\%`%和`\_`表示字符里本身的%和\_，如果在 like 模式匹配上下文之外使用`\%`或`\_`，则它们的计算结果为字符串`\%`和`\_`，而不是%和\_。
+1. If there are escape characters in identifiers (database name, table name, column name)
+   - Identifier without ``: Error will be returned because identifier must be constituted of digits, ASCII characters or underscore and can't be started with digits
+   - Identifier quoted with ``： Original content is kept, no escaping
+2. If there are escape characters in values
+   - The escape characters will be escaped as the above table. If the escape character doesn't match any supported one, the escape character "\" will be ignored.
+   - "%" and "\_" are used as wildcards in `like`. `\%` and `\_` should be used to represent literal "%" and "\_" in `like`,. If `\%` and `\_` are used out of `like` context, the evaluation result is "`\%`"and "`\_`", instead of "%" and "\_".

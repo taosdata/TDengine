@@ -135,6 +135,33 @@ class TDTestCase:
         tdSql.execute(sql)
         tdSql.query('select bottom(c,1) from meters interval(10a)')
         tdSql.checkData(0,1,0)
+        
+        # TD-15187 test case
+        tdSql.execute("create database dd keep 36500")
+        tdSql.execute("use dd")
+        tdSql.execute("create table table_1(ts timestamp , q_int int,q_bool bool)")
+        tdSql.execute("insert into table_1 (ts , q_int,q_bool) values(1630000000000, 1,0)")
+        tdSql.execute("insert into table_1 (ts , q_int,q_bool) values(1630000010000, 2,0)")
+        tdSql.execute("insert into table_1 (ts , q_int,q_bool) values(1630000020000, 3,0)")
+        tdSql.execute("insert into table_1 (ts , q_int,q_bool) values(1630000100000, 3,0)")
+        tdSql.execute("insert into table_1 (ts , q_int,q_bool) values(1630000110000, 2,0)")
+        tdSql.execute("insert into table_1 (ts , q_int,q_bool) values(1630000120000, 1,0)")
+        
+        tdSql.query("select BOTTOM(q_int,40) from table_1 SESSION(ts,10m) order by ts")
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 3)
+        tdSql.checkData(3, 1, 3)
+        tdSql.checkData(4, 1, 2)
+        tdSql.checkData(5, 1, 1)
+        
+        tdSql.query("select BOTTOM(q_int,40) from table_1 SESSION(ts,10m) order by ts desc;")
+        tdSql.checkData(0, 1, 1)
+        tdSql.checkData(1, 1, 2)
+        tdSql.checkData(2, 1, 3)
+        tdSql.checkData(3, 1, 3)
+        tdSql.checkData(4, 1, 2)
+        tdSql.checkData(5, 1, 1)
 
     def stop(self):
         tdSql.close()

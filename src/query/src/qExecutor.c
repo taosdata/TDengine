@@ -7953,6 +7953,14 @@ SOperatorInfo* createGroupbyOperatorInfo(SQueryRuntimeEnv* pRuntimeEnv, SOperato
   pInfo->binfo.pCtx = createSQLFunctionCtx(pRuntimeEnv, pExpr, numOfOutput, &pInfo->binfo.rowCellInfoOffset,
                                            pRuntimeEnv->resultInfo.capacity);
 
+  // if have proj column, must set output row is 1
+  for (int32_t i = 0; i < numOfOutput; i++) {
+    if (pInfo->binfo.pCtx[i].functionId == TSDB_FUNC_PRJ) {
+      pInfo->binfo.pCtx[i].param[0].i64   = 1;
+      pInfo->binfo.pCtx[i].param[0].nType = TSDB_DATA_TYPE_BIGINT;
+    }
+  }
+
   SQueryAttr *pQueryAttr = pRuntimeEnv->pQueryAttr;
 
   pQueryAttr->resultRowSize = (pQueryAttr->resultRowSize *
