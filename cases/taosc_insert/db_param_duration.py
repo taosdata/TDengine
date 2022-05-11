@@ -53,6 +53,8 @@ class TestDuration(TDCase):
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)))
             self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {"59m"}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {"5256001m"}')
         param_hour_list =['1h','87600h']
         for param_value in param_hour_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -61,6 +63,8 @@ class TestDuration(TDCase):
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60)
             self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {"0h"}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {"87601h"}')
         param_day_list =['1d','3650d']
         for param_value in param_day_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -69,6 +73,8 @@ class TestDuration(TDCase):
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60 *24)
             self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {"0d"}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} {"3651d"}')
     def run(self) -> bool:
         self.duration_check()
 
