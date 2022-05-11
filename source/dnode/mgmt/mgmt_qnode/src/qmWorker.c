@@ -36,7 +36,7 @@ static void qmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   int32_t  code = -1;
 
   if (pMsg->rpcMsg.msgType == TDMT_MON_QM_INFO) {
-    code = qmProcessGetMonQmInfoReq(pMgmt->pWrapper, pMsg);
+    code = qmProcessGetMonitorInfoReq(pMgmt, pMsg);
   } else {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
@@ -83,27 +83,22 @@ static void qmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void qmPutMsgToWorker(SSingleWorker *pWorker, SNodeMsg *pMsg) {
+static int32_t qmPutNodeMsgToWorker(SSingleWorker *pWorker, SNodeMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
-}
-
-int32_t qmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  qmPutMsgToWorker(&pMgmt->queryWorker, pMsg);
   return 0;
 }
 
-int32_t qmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  qmPutMsgToWorker(&pMgmt->fetchWorker, pMsg);
-  return 0;
+int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  return qmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 
-int32_t qmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  qmPutMsgToWorker(&pMgmt->monitorWorker, pMsg);
-  return 0;
+int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  return qmPutNodeMsgToWorker(&pMgmt->fetchWorker, pMsg);
+}
+
+int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  return qmPutNodeMsgToWorker(&pMgmt->monitorWorker, pMsg);
 }
 
 static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pRpc) {
@@ -118,19 +113,16 @@ static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SR
   return 0;
 }
 
-int32_t qmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t qmPutRpcMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pRpc) {
   return qmPutRpcMsgToWorker(pMgmt, &pMgmt->queryWorker, pRpc);
 }
 
-int32_t qmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t qmPutRpcMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pRpc) {
   return qmPutRpcMsgToWorker(pMgmt, &pMgmt->fetchWorker, pRpc);
 }
 
-int32_t qmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
-  int32_t     size = -1;
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
+  int32_t size = -1;
 
   switch (qtype) {
     case QUERY_QUEUE:

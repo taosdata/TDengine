@@ -16,21 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-static int32_t qmRequire(SMgmtWrapper *pWrapper, bool *required) { return dmReadFile(pWrapper, required); }
-
-static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) {
-  SMsgCb msgCb = pMgmt->pDnode->data.msgCb;
-  msgCb.pWrapper = pMgmt->pWrapper;
-  msgCb.queueFps[QUERY_QUEUE] = qmPutMsgToQueryQueue;
-  msgCb.queueFps[FETCH_QUEUE] = qmPutMsgToFetchQueue;
-  msgCb.qsizeFp = qmGetQueueSize;
-  pOption->msgCb = msgCb;
+static int32_t qmRequire(const SMgmtInputOpt *pInput, bool *required) {
+  return dmReadFile(pInput->path, pInput->name, required);
 }
 
-static void qmClose(SMgmtWrapper *pWrapper) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pMgmt == NULL) return;
+static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
 
+static void qmClose(SQnodeMgmt *pMgmt) {
   dInfo("qnode-mgmt start to cleanup");
   if (pMgmt->pQnode != NULL) {
     qmStopWorker(pMgmt);
@@ -38,12 +30,11 @@ static void qmClose(SMgmtWrapper *pWrapper) {
     pMgmt->pQnode = NULL;
   }
 
-  pWrapper->pMgmt = NULL;
   taosMemoryFree(pMgmt);
   dInfo("qnode-mgmt is cleaned up");
 }
 
-static int32_t qmOpen(SMgmtWrapper *pWrapper) {
+static int32_t qmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   dInfo("qnode-mgmt start to init");
   SQnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SQnodeMgmt));
   if (pMgmt == NULL) {
@@ -51,41 +42,45 @@ static int32_t qmOpen(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  pMgmt->path = pWrapper->path;
-  pMgmt->pDnode = pWrapper->pDnode;
-  pMgmt->pWrapper = pWrapper;
-  pWrapper->pMgmt = pMgmt;
+  pMgmt->path = pInput->path;
+  pMgmt->name = pInput->name;
+  pMgmt->dnodeId = pInput->dnodeId;
+  pMgmt->msgCb = pInput->msgCb;
+  pMgmt->msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qmPutRpcMsgToQueryQueue;
+  pMgmt->msgCb.queueFps[FETCH_QUEUE] = (PutToQueueFp)qmPutRpcMsgToFetchQueue;
+  pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)qmGetQueueSize;
+  pMgmt->msgCb.pMgmt = pMgmt;
 
   SQnodeOpt option = {0};
   qmInitOption(pMgmt, &option);
   pMgmt->pQnode = qndOpen(&option);
   if (pMgmt->pQnode == NULL) {
     dError("failed to open qnode since %s", terrstr());
-    qmClose(pWrapper);
+    qmClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "qnode-impl", "initialized");
+  tmsgReportStartup("qnode-impl", "initialized");
 
   if (qmStartWorker(pMgmt) != 0) {
     dError("failed to start qnode worker since %s", terrstr());
-    qmClose(pWrapper);
+    qmClose(pMgmt);
     return -1;
   }
-  dmReportStartup(pWrapper->pDnode, "qnode-worker", "initialized");
+  tmsgReportStartup("qnode-worker", "initialized");
 
+  pOutput->pMgmt = pMgmt;
   dInfo("qnode-mgmt is initialized");
   return 0;
 }
 
-void qmInitWrapper(SMgmtWrapper *pWrapper) {
-  SMgmtFp mgmtFp = {0};
-  mgmtFp.openFp = qmOpen;
-  mgmtFp.closeFp = qmClose;
-  mgmtFp.createFp = qmProcessCreateReq;
-  mgmtFp.dropFp = qmProcessDropReq;
-  mgmtFp.requiredFp = qmRequire;
+SMgmtFunc qmGetMgmtFunc() {
+  SMgmtFunc mgmtFunc = {0};
+  mgmtFunc.openFp = qmOpen;
+  mgmtFunc.closeFp = (NodeCloseFp)qmClose;
+  mgmtFunc.createFp = (NodeCreateFp)qmProcessCreateReq;
+  mgmtFunc.dropFp = (NodeDropFp)qmProcessDropReq;
+  mgmtFunc.requiredFp = qmRequire;
+  mgmtFunc.getHandlesFp = qmGetMsgHandles;
 
-  qmInitMsgHandle(pWrapper);
-  pWrapper->name = "qnode";
-  pWrapper->fp = mgmtFp;
+  return mgmtFunc;
 }
