@@ -41,8 +41,8 @@ int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
 int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
 
 // STSchema
-int32_t tTSchemaCreate(STSchema **ppTSchema);
-int32_t tTSchemaDestroy(STSchema *pTSchema);
+int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t ncols, STSchema **ppTSchema);
+void    tTSchemaDestroy(STSchema *pTSchema);
 
 // STRUCT =================
 struct STColumn {
@@ -54,12 +54,12 @@ struct STColumn {
 };
 
 struct STSchema {
-  int32_t      numOfCols;
-  schema_ver_t version;
-  uint16_t     flen;
-  int32_t      vlen;
-  int32_t      tlen;
-  STColumn     columns[];
+  int32_t  numOfCols;
+  int32_t  version;
+  int32_t  flen;
+  int32_t  vlen;
+  int32_t  tlen;
+  STColumn columns[];
 };
 
 struct STSRow2 {

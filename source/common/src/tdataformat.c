@@ -43,6 +43,19 @@ int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow) {
   return 0;
 }
 
+int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t ncols, STSchema **ppTSchema) {
+  *ppTSchema = (STSchema *)taosMemoryMalloc(sizeof(STSchema) + sizeof(STColumn) * ncols);
+  if (*ppTSchema == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  // (*ppTSchema)
+  return 0;
+}
+
+void tTSchemaDestroy(STSchema *pTSchema) { taosMemoryFree(pTSchema); }
+
 #if 1  // ====================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
 int         tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
