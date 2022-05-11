@@ -34,16 +34,6 @@ def abort_previous(){
 }
 def pre_test(){
     sh 'hostname'
-    sh '''
-        date
-        sudo rmtaos || echo "taosd has not installed"
-    '''
-    sh '''
-        killall -9 taosd ||echo "no taosd running"
-        killall -9 gdb || echo "no gdb running"
-        killall -9 python3.8 || echo "no python program running"
-        cd ${WKC}
-    '''
     script {
         if (env.CHANGE_TARGET == 'master') {
             sh '''
@@ -105,16 +95,6 @@ def pre_test(){
     sh '''
         cd ${WKC}
         git submodule update --init --recursive
-    '''
-    sh '''
-        cd ${WK}
-        export TZ=Asia/Harbin
-        date
-        rm -rf debug
-        mkdir debug
-        cd debug
-        cmake .. > /dev/null
-        make -j4> /dev/null
     '''
     sh '''
         cd ${WKPY}
@@ -209,31 +189,15 @@ pipeline {
                         timeout(time: 20, unit: 'MINUTES'){
                             pre_test()
                             script {
-                                if (env.CHANGE_URL =~ /\/TDengine\//) {
-                                    sh '''
-                                        cd ${WKC}/tests/parallel_test
-                                        date
-                                        time ./container_build.sh -w ${WKDIR} -t 8
-                                        rm -f /tmp/cases.task
-                                        ./collect_cases.sh
-                                        date
-                                        time ./run.sh -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
-                                    '''
-                                } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
-                                    sh '''
-                                        cd ${WKC}/tests/parallel_test
-                                        date
-                                        time ./container_build.sh -w ${WKDIR} -t 8 -e
-                                        rm -f /tmp/cases.task
-                                        ./collect_cases.sh -e
-                                        date
-                                        time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
-                                    '''
-                                } else {
-                                    sh '''
-                                        echo "unmatched reposiotry ${CHANGE_URL}"
-                                    '''
-                                }
+                                sh '''
+                                    cd ${WKC}/tests/parallel_test
+                                    date
+                                    time ./container_build.sh -w ${WKDIR} -t 8 -e
+                                    rm -f /tmp/cases.task
+                                    ./collect_cases.sh -e
+                                    date
+                                    time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
+                                '''
                             }
                         }
                     }
