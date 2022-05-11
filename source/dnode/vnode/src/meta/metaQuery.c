@@ -19,9 +19,13 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
   pReader->pMeta = pMeta;
+  metaRLock(pMeta);
 }
 
 void metaReaderClear(SMetaReader *pReader) {
+  if (pReader->pMeta) {
+    metaULock(pReader->pMeta);
+  }
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
 }
