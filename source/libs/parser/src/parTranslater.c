@@ -2138,7 +2138,7 @@ static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
     SField          field = {.type = pCol->dataType.type, .bytes = calcTypeBytes(pCol->dataType)};
     strcpy(field.name, pCol->colName);
     if (pCol->sma) {
-      field.flags |= SCHEMA_SMA_ON;
+      field.flags |= COL_SMA_ON;
     }
     taosArrayPush(*pArray, &field);
   }
@@ -2321,7 +2321,7 @@ static int32_t checkCreateTable(STranslateContext* pCxt, SCreateTableStmt* pStmt
 static void toSchema(const SColumnDefNode* pCol, col_id_t colId, SSchema* pSchema) {
   int8_t flags = 0;
   if (pCol->sma) {
-    flags |= SCHEMA_SMA_ON;
+    flags |= COL_SMA_ON;
   }
   pSchema->colId = colId;
   pSchema->type = pCol->dataType.type;

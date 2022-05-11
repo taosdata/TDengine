@@ -19,12 +19,238 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+#define TD_KV_ROW 0x1U
+
+struct SKVIdx {
+  int32_t cid;
+  int32_t offset;
+};
+
+int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow) {
+  if (tEncodeI64(pEncoder, pRow->ts) < 0) return -1;
+  if (tEncodeU32v(pEncoder, pRow->flags) < 0) return -1;
+  if (pRow->flags & TD_KV_ROW) {
+    if (tEncodeI32v(pEncoder, pRow->ncols) < 0) return -1;
+  } else {
+    if (tEncodeI32v(pEncoder, pRow->sver) < 0) return -1;
+  }
+  if (tEncodeBinary(pEncoder, pRow->pData, pRow->nData) < 0) return -1;
+  return 0;
+}
+
+int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow) {
+  if (tDecodeI64(pDecoder, &pRow->ts) < 0) return -1;
+  if (tDecodeU32v(pDecoder, &pRow->flags) < 0) return -1;
+  if (pRow->flags & TD_KV_ROW) {
+    if (tDecodeI32v(pDecoder, &pRow->ncols) < 0) return -1;
+  } else {
+    if (tDecodeI32v(pDecoder, &pRow->sver) < 0) return -1;
+  }
+  if (tDecodeBinary(pDecoder, &pRow->pData, &pRow->nData) < 0) return -1;
+  return 0;
+}
+
+int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t ncols, STSchema **ppTSchema) {
+  *ppTSchema = (STSchema *)taosMemoryMalloc(sizeof(STSchema) + sizeof(STColumn) * ncols);
+  if (*ppTSchema == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  (*ppTSchema)->numOfCols = ncols;
+  (*ppTSchema)->version = sver;
+  (*ppTSchema)->flen = 0;
+  (*ppTSchema)->vlen = 0;
+  (*ppTSchema)->tlen = 0;
+
+  for (int32_t iCol = 0; iCol < ncols; iCol++) {
+    SSchema  *pColumn = &pSchema[iCol];
+    STColumn *pTColumn = &((*ppTSchema)->columns[iCol]);
+
+    pTColumn->colId = pColumn->colId;
+    pTColumn->type = pColumn->type;
+    pTColumn->flags = pColumn->flags;
+    pTColumn->bytes = pColumn->bytes;
+    pTColumn->offset = (*ppTSchema)->flen;
+
+    // skip first column
+    if (iCol) {
+      (*ppTSchema)->flen += TYPE_BYTES[pColumn->type];
+      if (IS_VAR_DATA_TYPE(pColumn->type)) {
+        (*ppTSchema)->vlen += (pColumn->bytes + 5);
+      }
+    }
+  }
+
+  return 0;
+}
+
+void tTSchemaDestroy(STSchema *pTSchema) { taosMemoryFree(pTSchema); }
+
+int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, SSchema *pSchema, int32_t nCols) {
+  int32_t  kvBufLen;
+  int32_t  tpBufLen;
+  uint8_t *p;
+
+  if (tTSchemaCreate(sver, pSchema, nCols, &pBuilder->pTSchema) < 0) return -1;
+
+  kvBufLen = sizeof(SKVIdx) * nCols + pBuilder->pTSchema->flen + pBuilder->pTSchema->vlen;
+  tpBufLen = pBuilder->pTSchema->flen + pBuilder->pTSchema->vlen;
+
+  if (pBuilder->szKVBuf < kvBufLen) {
+    p = taosMemoryRealloc(pBuilder->pKVBuf, kvBufLen);
+    if (p == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    pBuilder->pKVBuf = p;
+    pBuilder->szKVBuf = kvBufLen;
+  }
+
+  if (pBuilder->szTPBuf < tpBufLen) {
+    p = taosMemoryRealloc(pBuilder->pTPBuf, tpBufLen);
+    if (p == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    pBuilder->pTPBuf = p;
+    pBuilder->szTPBuf = tpBufLen;
+  }
+
+  tTSRowBuilderReset(pBuilder);
+
+  return 0;
+}
+
+void tTSRowBuilderClear(STSRowBuilder *pBuilder) {
+  taosMemoryFree(pBuilder->pKVBuf);
+  taosMemoryFree(pBuilder->pTPBuf);
+}
+
+void tTSRowBuilderReset(STSRowBuilder *pBuilder) {
+  for (int32_t iCol = pBuilder->pTSchema->numOfCols - 1; iCol >= 0; iCol--) {
+    pBuilder->pTColumn = &pBuilder->pTSchema->columns[iCol];
+
+    pBuilder->pTColumn->flags &= (~COL_VAL_SET);
+  }
+
+  pBuilder->nCols = 0;
+  pBuilder->kvVLen = 0;
+  pBuilder->tpVLen = 0;
+  pBuilder->row.flags = 0;
+}
+
+int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pData, uint32_t nData) {
+  int32_t  iCol;
+  uint8_t *p;
+
+  // search column
+  if (pBuilder->pTColumn->colId < cid) {
+    iCol = (pBuilder->pTColumn - pBuilder->pTSchema->columns) / sizeof(STColumn) + 1;
+    for (; iCol < pBuilder->pTSchema->numOfCols; iCol++) {
+      pBuilder->pTColumn = &pBuilder->pTSchema->columns[iCol];
+      if (pBuilder->pTColumn->colId == cid) break;
+    }
+  } else if (pBuilder->pTColumn->colId > cid) {
+    iCol = (pBuilder->pTColumn - pBuilder->pTSchema->columns) / sizeof(STColumn) - 1;
+    for (; iCol >= 0; iCol--) {
+      pBuilder->pTColumn = &pBuilder->pTSchema->columns[iCol];
+      if (pBuilder->pTColumn->colId == cid) break;
+    }
+  }
+
+  // check
+  if (pBuilder->pTColumn->colId != cid || pBuilder->pTColumn->flags & COL_VAL_SET) {
+    return -1;
+  }
+
+  // set value
+  if (cid == 0) {
+    ASSERT(pData && nData == sizeof(TSKEY));
+    pBuilder->row.ts = *(TSKEY *)pData;
+  } else {
+    if (pData) {
+      // ASSERT(!IS_NULL(pData));
+
+      // set tuple data
+      p = pBuilder->pTPBuf + pBuilder->pTColumn->offset;
+      if (IS_VAR_DATA_TYPE(pBuilder->pTColumn->type)) {
+        *(int32_t *)p = pBuilder->tpVLen;
+
+        // encode the variant-length data
+        p = pBuilder->pTPBuf + pBuilder->pTSchema->flen + pBuilder->tpVLen;
+        pBuilder->tpVLen += tPutBinary(p, pData, nData);
+      } else {
+        memcpy(p, pData, nData);
+      }
+
+      // set kv data
+      p = pBuilder->pKVBuf + sizeof(SKVIdx) * pBuilder->nCols;
+      ((SKVIdx *)p)->cid = cid;
+      ((SKVIdx *)p)->offset = pBuilder->kvVLen;
+
+      p = pBuilder->pKVBuf + sizeof(SKVIdx) * pBuilder->pTSchema->numOfCols + pBuilder->kvVLen;
+      if (IS_VAR_DATA_TYPE(pBuilder->pTColumn->type)) {
+        pBuilder->kvVLen += tPutBinary(p, pData, nData);
+      } else {
+        memcpy(p, pData, nData);
+        pBuilder->kvVLen += nData;
+      }
+    } else {
+      // set NULL val
+    }
+  }
+
+  pBuilder->pTColumn->flags |= COL_VAL_SET;
+  pBuilder->nCols++;
+  return 0;
+}
+
+int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
+  if ((pBuilder->pTSchema->columns[0].flags & COL_VAL_SET) == 0) {
+    return -1;
+  }
+
+  if (pBuilder->nCols * sizeof(SKVIdx) + pBuilder->kvVLen < pBuilder->pTSchema->flen + pBuilder->tpVLen) {
+    // encode as TD_KV_ROW
+    pBuilder->row.flags |= TD_KV_ROW;
+    pBuilder->row.ncols = pBuilder->nCols;
+    pBuilder->row.nData = pBuilder->nCols * sizeof(SKVIdx) + pBuilder->kvVLen;
+    pBuilder->row.pData = pBuilder->pKVBuf;
+
+    if (pBuilder->nCols < pBuilder->pTSchema->numOfCols) {
+      memmove(pBuilder->pKVBuf + sizeof(SKVIdx) * pBuilder->nCols,
+              pBuilder->pKVBuf + sizeof(SKVIdx) * pBuilder->pTSchema->numOfCols, pBuilder->kvVLen);
+    }
+  } else {
+    // encode as TD_TUPLE_ROW
+    pBuilder->row.flags &= (~TD_KV_ROW);
+    pBuilder->row.sver = pBuilder->pTSchema->version;
+    pBuilder->row.nData = pBuilder->pTSchema->flen + pBuilder->tpVLen;
+    pBuilder->row.pData = pBuilder->pTPBuf;
+
+    if (pBuilder->nCols < pBuilder->pTSchema->numOfCols) {
+      // set non-set cols as None
+      for (int32_t iCol = 1; iCol < pBuilder->pTSchema->numOfCols; iCol++) {
+        pBuilder->pTColumn = &pBuilder->pTSchema->columns[iCol];
+        if (pBuilder->pTColumn->flags & COL_VAL_SET) continue;
+
+        {
+          // set None (todo)
+        }
+
+        pBuilder->pTColumn->flags |= COL_VAL_SET;
+      }
+    }
+  }
+
+  *ppRow = &pBuilder->row;
+  return 0;
+}
+
+#if 1  // ====================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
-#if 0
-static void tdMergeTwoDataCols(SDataCols *target, SDataCols *src1, int *iter1, int limit1, SDataCols *src2, int *iter2,
-                               int limit2, int tRows, bool forceSetNull);
-#endif
-int tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
+int         tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
   if (IS_VAR_DATA_TYPE(pCol->type)) {
     spaceNeeded += sizeof(VarDataOffsetT) * maxPoints;
@@ -504,3 +730,4 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
 
   return row;
 }
+#endif

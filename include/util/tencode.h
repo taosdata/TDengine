@@ -457,6 +457,55 @@ static FORCE_INLINE void* tDecoderMalloc(SDecoder* pCoder, int32_t size) {
   return p;
 }
 
+static FORCE_INLINE int32_t tPutBinary(uint8_t* p, const uint8_t* pData, uint32_t nData) {
+  int      n = 0;
+  uint32_t v = nData;
+
+  for (;;) {
+    if (v <= 0x7f) {
+      if (p) p[n] = v;
+      n++;
+      break;
+    }
+
+    if (p) p[n] = (v & 0x7f) | 0x80;
+    n++;
+    v >>= 7;
+  }
+
+  if (p) {
+    memcpy(p + n, pData, nData);
+  }
+  n += nData;
+
+  return n;
+}
+
+static FORCE_INLINE int32_t tGetBinary(const uint8_t* p, const uint8_t** ppData, uint32_t* nData) {
+  int32_t  n = 0;
+  uint32_t tv = 0;
+  uint32_t t;
+
+  for (;;) {
+    if (p[n] <= 0x7f) {
+      t = p[n];
+      tv |= (t << (7 * n));
+      n++;
+      break;
+    }
+
+    t = p[n] & 0x7f;
+    tv |= (t << (7 * n));
+    n++;
+  }
+
+  if (nData) *nData = n;
+  if (ppData) *ppData = p + n;
+
+  n += tv;
+  return n;
+}
+
 #ifdef __cplusplus
 }
 #endif
