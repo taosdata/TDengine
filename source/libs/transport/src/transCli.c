@@ -82,7 +82,7 @@ typedef struct SConnList {
 static void*     createConnPool(int size);
 static void*     destroyConnPool(void* pool);
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port);
-static void      addConnToPool(void* pool, SCliConn* conn);
+static void      addConnToPool(SCliConn* conn);
 
 // register timer in each thread to clear expire conn
 static void cliTimeoutCb(uv_timer_t* handle);
@@ -157,12 +157,10 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
       transClearBuffer(&conn->readBuf);                                                  \
       transFreeMsg(transContFromHead((char*)head));                                      \
       tDebug("cli conn %p receive release request, ref: %d", conn, T_REF_VAL_GET(conn)); \
-      while (T_REF_VAL_GET(conn) > 1) {                                                  \
+      if (T_REF_VAL_GET(conn) > 1) {                                                     \
         transUnrefCliHandle(conn);                                                       \
       }                                                                                  \
-      if (T_REF_VAL_GET(conn) == 1) {                                                    \
-        transUnrefCliHandle(conn);                                                       \
-      }                                                                                  \
+      addConnToPool(conn);                                                               \
       destroyCmsg(pMsg);                                                                 \
       return;                                                                            \
     }                                                                                    \
@@ -328,7 +326,7 @@ void cliHandleResp(SCliConn* conn) {
   }
 
   if (CONN_NO_PERSIST_BY_APP(conn)) {
-    addConnToPool(pThrd->pool, conn);
+    addConnToPool(conn);
   }
 
   uv_read_start((uv_stream_t*)conn->stream, cliAllocRecvBufferCb, cliRecvCb);
@@ -440,7 +438,7 @@ void* destroyConnPool(void* pool) {
 static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   char key[128] = {0};
   CONN_CONSTRUCT_HASH_KEY(key, ip, port);
-
+  tTrace("construct conn: %s", key);
   SHashObj*  pPool = pool;
   SConnList* plist = taosHashGet(pPool, key, strlen(key));
   if (plist == NULL) {
@@ -460,11 +458,12 @@ static SCliConn* getConnFromPool(void* pool, char* ip, uint32_t port) {
   QUEUE_INIT(&conn->conn);
   return conn;
 }
-static void addConnToPool(void* pool, SCliConn* conn) {
+static void addConnToPool(SCliConn* conn) {
   SCliThrdObj* thrd = conn->hostThrd;
-  CONN_HANDLE_THREAD_QUIT(thrd);
+  void*        pool = thrd->pool;
 
-  STrans* pTransInst = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
+  STrans* pTransInst = (thrd)->pTransInst;
+
   conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
   transCtxCleanup(&conn->ctx);
   transQueueClear(&conn->cliMsgs);
@@ -567,7 +566,7 @@ static bool cliHandleNoResp(SCliConn* conn) {
     if (res == true) {
       if (cliMaySendCachedMsg(conn) == false) {
         SCliThrdObj* thrd = conn->hostThrd;
-        addConnToPool(thrd->pool, conn);
+        addConnToPool(conn);
       }
     }
   }
@@ -936,7 +935,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
         tDeserializeSMEpSet(pResp->pCont, pResp->contLen, &emsg);
         pCtx->epSet = emsg.epSet;
       }
-      addConnToPool(pThrd->pool, pConn);
+      addConnToPool(pConn);
       tTrace("use remote epset, current in use: %d, retry count:%d, try limit: %d", pEpSet->inUse, pCtx->retryCount + 1,
              TRANS_RETRY_COUNT_LIMIT);
 
