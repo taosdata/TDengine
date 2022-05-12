@@ -131,7 +131,7 @@ class TDTestCase:
                          'vgroups':    1,        \
                          'stbName':    'stb',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,   \
+                         'rowsPerTbl': 100,   \
                          'batchNum':   10,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
