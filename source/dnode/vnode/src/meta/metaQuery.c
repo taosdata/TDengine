@@ -466,3 +466,8 @@ void *metaGetSmaInfoByIndex(SMeta *pMeta, int64_t indexUid, bool isDecode) {
 }
 
 #endif
+
+const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid) {
+  ASSERT(pEntry->type == TSDB_CHILD_TABLE);
+  return tdGetKVRowValOfCol((const SKVRow)pEntry->ctbEntry.pTags, cid);
+}
