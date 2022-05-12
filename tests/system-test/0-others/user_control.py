@@ -169,26 +169,32 @@ class TDTestCase:
         login_except = False
         try:
             with taos_connect(user=user, passwd=passwd) as conn:
-                cursor = conn.cursor()
+                pass
         except BaseException:
             login_except = True
             cursor = None
+
+        # with taos_connect(user=user, passwd=passwd) as conn:
+        #         cursor = conn.cursor()
+        # if not cursor:
+        #     login_except = True
 
         return login_except, cursor
 
     def login_currrent(self, user, passwd):
         login_except, _ = self.user_login(user, passwd)
         if login_except:
-            tdLog.info("connect successfully, user and pass matched!")
-        else:
             tdLog.exit("connect failed, user and pass do not match!")
+        else:
+            tdLog.info("connect successfully, user and pass matched!")
+
 
     def login_err(self, user, passwd):
         login_except, _ = self.user_login(user, passwd)
         if login_except:
-            tdLog.exit("connect successfully, except error not occrued!")
-        else:
             tdLog.info("connect failed, except error occured!")
+        else:
+            tdLog.exit("connect successfully, except error not occrued!")
 
 
 
