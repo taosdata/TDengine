@@ -155,9 +155,7 @@ int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
     if (code < 0) return -1;
   }
 
-  if (!taosValidFile(pRead->pReadLogTFile)) {
-    return -1;
-  }
+  ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
 
   code = taosReadFile(pRead->pReadLogTFile, pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {
@@ -256,9 +254,7 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
     }
   }
 
-  /*if (!taosValidFile(pRead->pReadLogTFile)) {*/
-  /*return -1;*/
-  /*}*/
+  ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
 
   code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {

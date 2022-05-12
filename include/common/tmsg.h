@@ -2371,6 +2371,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t   withTbName;
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
