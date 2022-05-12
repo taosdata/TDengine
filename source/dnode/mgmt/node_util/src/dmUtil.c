@@ -16,7 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmUtil.h"
 
-
 const char *dmStatStr(EDndRunStatus stype) {
   switch (stype) {
     case DND_STAT_INIT:
