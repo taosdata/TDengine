@@ -184,7 +184,7 @@ class TDTestCase:
         login_except = False
         try:
             with taos_connect(user=user, passwd=passwd) as conn:
-                cursor = conn.cursor()
+                cursor = conn.cursor
         except BaseException:
             login_except = True
             cursor = None
