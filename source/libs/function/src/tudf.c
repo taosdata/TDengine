@@ -1497,7 +1497,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   taosArrayDestroy(tempBlock.pDataBlock);
 
   taosMemoryFree(newState.buf);
-  return TSDB_CODE_SUCCESS;
+  return udfCode;
 }
 
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {

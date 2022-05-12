@@ -444,7 +444,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
 
-  if (cfgAddBool(pCfg, "startUdfd", tsStartUdfd, 0) != 0) return -1;
+  if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   return 0;
 }
 
@@ -585,7 +585,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
 
-  tsStartUdfd = cfgGetItem(pCfg, "startUdfd")->bval;
+  tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
 
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;
