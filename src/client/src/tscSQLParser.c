@@ -1789,7 +1789,7 @@ int32_t validateOneColumn(SSqlCmd* pCmd, TAOS_FIELD* pColField) {
 
   // field name must be unique
   for (int32_t i = 0; i < numOfTags + numOfCols; ++i) {
-    if (strncasecmp(pColField->name, pSchema[i].name, sizeof(pColField->name) - 1) == 0) {
+    if (strncmp(pColField->name, pSchema[i].name, sizeof(pColField->name) - 1) == 0) {
       //return tscErrorMsgWithCode(TSDB_CODE_TSC_DUP_COL_NAMES, tscGetErrorMsgPayload(pCmd), pColField->name, NULL);
       return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "duplicated column names");
     }
@@ -1803,7 +1803,7 @@ static bool has(SArray* pFieldList, int32_t startIdx, const char* name) {
   size_t numOfCols = taosArrayGetSize(pFieldList);
   for (int32_t j = startIdx; j < numOfCols; ++j) {
     TAOS_FIELD* field = taosArrayGet(pFieldList, j);
-    if (strncasecmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
+    if (strncmp(name, field->name, sizeof(field->name) - 1) == 0) return true;
   }
 
   return false;
