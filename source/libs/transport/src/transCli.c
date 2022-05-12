@@ -21,15 +21,16 @@ typedef struct SCliConn {
   uv_connect_t connReq;
   uv_stream_t* stream;
   uv_write_t   writeReq;
-  void*        hostThrd;
-  SConnBuffer  readBuf;
-  void*        data;
-  STransQueue  cliMsgs;
-  queue        conn;
-  uint64_t     expireTime;
-  int          hThrdIdx;
-  STransCtx    ctx;
 
+  void* hostThrd;
+  int   hThrdIdx;
+
+  SConnBuffer readBuf;
+  STransQueue cliMsgs;
+  queue       conn;
+  uint64_t    expireTime;
+
+  STransCtx  ctx;
   bool       broken;  // link broken or not
   ConnStatus status;  //
 
@@ -157,13 +158,11 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
       transClearBuffer(&conn->readBuf);                                                  \
       transFreeMsg(transContFromHead((char*)head));                                      \
       tDebug("cli conn %p receive release request, ref: %d", conn, T_REF_VAL_GET(conn)); \
-      while (T_REF_VAL_GET(conn) > 1) {                                                  \
-        transUnrefCliHandle(conn);                                                       \
-      }                                                                                  \
-      if (T_REF_VAL_GET(conn) == 1) {                                                    \
+      if (T_REF_VAL_GET(conn) > 1) {                                                     \
         transUnrefCliHandle(conn);                                                       \
       }                                                                                  \
       destroyCmsg(pMsg);                                                                 \
+      addConnToPool(((SCliThrdObj*)conn->hostThrd)->pool, conn);                         \
       return;                                                                            \
     }                                                                                    \
   } while (0)
