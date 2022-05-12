@@ -427,12 +427,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
   rsp.withSchema = pExec->withSchema;
-  rsp.withTbName = pExec->withTbName;
 
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
   rsp.blockSchema = taosArrayInit(0, sizeof(void*));
   rsp.blockTbName = taosArrayInit(0, sizeof(void*));
+
+  int8_t withTbName = pExec->withTbName;
+  if (pReq->withTbName != -1) {
+    withTbName = pReq->withTbName;
+  }
+  rsp.withTbName = withTbName;
 
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
@@ -538,7 +543,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
             taosArrayPush(rsp.blockSchema, &pSW);
           }
 
-          if (pExec->withTbName) {
+          if (withTbName) {
             SMetaReader mr = {0};
             metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
             int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
@@ -578,7 +583,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(actualLen <= dataStrLen);
           taosArrayPush(rsp.blockDataLen, &actualLen);
           taosArrayPush(rsp.blockData, &buf);
-          if (pExec->withTbName) {
+          if (withTbName) {
             SMetaReader mr = {0};
             metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
             if (metaGetTableEntryByUid(&mr, block.info.uid) < 0) {
