@@ -38,6 +38,8 @@ typedef struct SKVIdx        SKVIdx;
 // STSRow2
 int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
 int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
+int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t cid, const uint8_t **ppData, uint32_t *nData,
+                  int8_t *flags);
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
@@ -86,6 +88,7 @@ struct STSRowBuilder {
   uint8_t  *pKVBuf;
   int32_t   szTPBuf;
   uint8_t  *pTPBuf;
+  uint8_t  *pBitBuf;
   int32_t   nCols;
   int32_t   kvVLen;
   int32_t   tpVLen;
