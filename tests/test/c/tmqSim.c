@@ -333,8 +333,8 @@ void loop_consume(SThreadInfo* pInfo) {
 
       totalMsgs++;
 
-      if (totalMsgs >= pInfo->expectMsgCnt) {
-	  	taosFprintfFile(g_fp, "==== totalMsgs >= pInfo->expectMsgCnt, so break\n");
+      if (totalRows >= pInfo->expectMsgCnt) {
+	  	taosFprintfFile(g_fp, "==== totalRows >= pInfo->expectMsgCnt, so break\n");
         break;
       }
     } else {    
