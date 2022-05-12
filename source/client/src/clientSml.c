@@ -239,11 +239,11 @@ static int32_t smlBuildColumnDescription(SSmlKv* field, char* buf, int32_t bufSi
   memcpy(tname, field->key, field->keyLen);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     int32_t bytes = field->valueLen;   // todo
-    int out = snprintf(buf, bufSize,"%s %s(%d)",
+    int out = snprintf(buf, bufSize,"`%s` %s(%d)",
                        tname,tDataTypes[field->type].name, bytes);
     *outBytes = out;
   } else {
-    int out = snprintf(buf, bufSize, "%s %s", tname, tDataTypes[type].name);
+    int out = snprintf(buf, bufSize, "`%s` %s", tname, tDataTypes[type].name);
     *outBytes = out;
   }
 
@@ -352,7 +352,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CREATE_STABLE: {
-      int n = sprintf(result, "create stable %s (", action->createSTable.sTableName);
+      int n = sprintf(result, "create stable `%s` (", action->createSTable.sTableName);
       char* pos = result + n; int freeBytes = capacity - n;
 
       SArray *cols = action->createSTable.fields;
@@ -1426,7 +1426,7 @@ cleanup:
 
 /************* TSDB_SML_JSON_PROTOCOL function start **************/
 static int32_t smlJsonCreateSring(const char **output, char *input, int32_t inputLen){
-  *output = taosMemoryMalloc(inputLen);
+  *output = (const char *)taosMemoryMalloc(inputLen);
   if (*output == NULL){
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
@@ -1754,7 +1754,7 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
        * user configured parameter tsDefaultJSONStrType
        */
 
-      char *tsDefaultJSONStrType = "nchar";   //todo
+      char *tsDefaultJSONStrType = "binary";   //todo
       smlConvertJSONString(kv, tsDefaultJSONStrType, root);
       break;
     }
@@ -1954,14 +1954,15 @@ static int32_t smlParseInfluxLine(SSmlHandle* info, const char* sql) {
   }
 
   bool hasTable = true;
+  SSmlTableInfo *tinfo = NULL;
   SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashGet(info->childTables, elements.measure, elements.measureTagsLen);
   if(!oneTable){
-    SSmlTableInfo *tinfo = smlBuildTableInfo();
+    tinfo = smlBuildTableInfo();
     if(!tinfo){
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tinfo, POINTER_BYTES);
-    *oneTable = tinfo;
+    oneTable = &tinfo;
     hasTable = false;
   }
 
@@ -1984,7 +1985,7 @@ static int32_t smlParseInfluxLine(SSmlHandle* info, const char* sql) {
 
     (*oneTable)->sTableName = elements.measure;
     (*oneTable)->sTableNameLen = elements.measureLen;
-    RandTableName rName = {.tags=(*oneTable)->tags, .sTableName=(*oneTable)->sTableName, .sTableNameLen=(*oneTable)->sTableNameLen,
+    RandTableName rName = {.tags=(*oneTable)->tags, .sTableName=(*oneTable)->sTableName, .sTableNameLen=(uint8_t)(*oneTable)->sTableNameLen,
                            .childTableName=(*oneTable)->childTableName};
     buildChildTableName(&rName);
     (*oneTable)->uid = rName.uid;
@@ -2031,7 +2032,7 @@ static int32_t smlParseTelnetLine(SSmlHandle* info, void *data) {
     ASSERT(0);
   }
   if(ret != TSDB_CODE_SUCCESS){
-    uError("SML:0x%"PRIx64" smlParseInflux failed", info->id);
+    uError("SML:0x%"PRIx64" smlParseTelnetLine failed", info->id);
     smlDestroyTableInfo(tinfo, true);
     taosArrayDestroy(cols);
     return ret;
@@ -2043,23 +2044,23 @@ static int32_t smlParseTelnetLine(SSmlHandle* info, void *data) {
   }
   taosHashClear(info->dumplicateKey);
 
-  RandTableName rName = {.tags=tinfo->tags, .sTableName=tinfo->sTableName, .sTableNameLen=tinfo->sTableNameLen,
+  RandTableName rName = {.tags=tinfo->tags, .sTableName=tinfo->sTableName, .sTableNameLen=(uint8_t)tinfo->sTableNameLen,
                          .childTableName=tinfo->childTableName};
   buildChildTableName(&rName);
   tinfo->uid = rName.uid;
 
   bool hasTable = true;
-  SSmlTableInfo **oneTable = taosHashGet(info->childTables, tinfo->childTableName, strlen(tinfo->childTableName));
+  SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashGet(info->childTables, tinfo->childTableName, strlen(tinfo->childTableName));
   if(!oneTable) {
     taosHashPut(info->childTables, tinfo->childTableName, strlen(tinfo->childTableName), &tinfo, POINTER_BYTES);
-    *oneTable = tinfo;
+    oneTable = &tinfo;
     hasTable = false;
   }else{
     smlDestroyTableInfo(tinfo, true);
   }
 
   taosArrayPush((*oneTable)->cols, &cols);
-  SSmlSTableMeta** tableMeta = taosHashGet(info->superTables, (*oneTable)->sTableName, (*oneTable)->sTableNameLen);
+  SSmlSTableMeta** tableMeta = (SSmlSTableMeta** )taosHashGet(info->superTables, (*oneTable)->sTableName, (*oneTable)->sTableNameLen);
   if(tableMeta){  // update meta
     ret = smlUpdateMeta(*tableMeta, hasTable ? NULL : (*oneTable)->tags, cols, &info->msgBuf);
     if(!ret){
