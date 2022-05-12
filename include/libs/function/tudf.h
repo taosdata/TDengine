@@ -39,15 +39,6 @@ extern "C" {
 //======================================================================================
 //begin API to taosd and qworker
 
-enum {
-  UDFC_CODE_STOPPING = -1,
-  UDFC_CODE_PIPE_READ_ERR = -2,
-  UDFC_CODE_CONNECT_PIPE_ERR = -3,
-  UDFC_CODE_LOAD_UDF_FAILURE = -4,
-  UDFC_CODE_INVALID_STATE = -5,
-  UDFC_CODE_NO_PIPE = -6,
-};
-
 typedef void *UdfcFuncHandle;
 
 /**
@@ -89,6 +80,7 @@ typedef struct SUdfColumnData {
 
 typedef struct SUdfColumn {
   SUdfColumnMeta colMeta;
+  bool           hasNull;
   SUdfColumnData colData;
 } SUdfColumn;
 
@@ -232,6 +224,7 @@ static FORCE_INLINE void udfColDataSetNull(SUdfColumn* pColumn, int32_t row) {
   } else {
     udfColDataSetNull_f(pColumn, row);
   }
+  pColumn->hasNull = true;
 }
 
 static FORCE_INLINE int32_t udfColDataSet(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull) {

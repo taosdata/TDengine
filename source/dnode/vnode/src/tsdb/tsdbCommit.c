@@ -70,6 +70,7 @@ static int  tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static void tsdbResetCommitFile(SCommitH *pCommith);
 static int  tsdbSetAndOpenCommitFile(SCommitH *pCommith, SDFileSet *pSet, int fid);
 static int  tsdbCommitToTable(SCommitH *pCommith, int tid);
+static bool tsdbCommitIsSameFile(SCommitH *pCommith, int bidx);
 static int  tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx);
 static int  tsdbSetCommitTable(SCommitH *pCommith, STable *pTable);
 static int  tsdbComparKeyBlock(const void *arg1, const void *arg2);
@@ -485,8 +486,10 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith) {
 
   for (int i = 1; i < pCommith->niters; i++) {
     tSkipListDestroyIter(pCommith->iters[i].pIter);
-    tdFreeSchema(pCommith->iters[i].pTable->pSchema);
-    taosMemoryFree(pCommith->iters[i].pTable);
+    if (pCommith->iters[i].pTable) {
+      tdFreeSchema(pCommith->iters[i].pTable->pSchema);
+      taosMemoryFreeClear(pCommith->iters[i].pTable);
+    }
   }
 
   taosMemoryFree(pCommith->iters);
@@ -889,9 +892,11 @@ static int tsdbCommitToTable(SCommitH *pCommith, int tid) {
 }
 
 static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
-  SReadH *pReadh = &pCommith->readh;
-  int     nBlocks = pIdx->numOfBlocks;
-  int     bidx = 0;
+  SReadH   *pReadh = &pCommith->readh;
+  STsdb    *pTsdb = TSDB_READ_REPO(pReadh);
+  STSchema *pTSchema = NULL;
+  int       nBlocks = pIdx->numOfBlocks;
+  int       bidx = 0;
 
   tsdbResetCommitTable(pCommith);
 
@@ -901,29 +906,48 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
     return -1;
   }
 
+  STable table = {.tid = pIdx->uid, .uid = pIdx->uid, .pSchema = NULL};
+  pCommith->pTable = &table;
+
   while (bidx < nBlocks) {
+    if (!pTSchema && !tsdbCommitIsSameFile(pCommith, bidx)) {
+      // Set commit table
+      pTSchema = metaGetTbTSchema(REPO_META(pTsdb), pIdx->uid, 0);  // TODO: schema version
+      if (!pTSchema) {
+        terrno = TSDB_CODE_OUT_OF_MEMORY;
+        return -1;
+      }
+      table.pSchema = pTSchema;
+      if (tsdbSetCommitTable(pCommith, &table) < 0) {
+        taosMemoryFreeClear(pTSchema);
+        return -1;
+      }
+    }
+
     if (tsdbMoveBlock(pCommith, bidx) < 0) {
       tsdbError("vgId:%d failed to move block into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
                 TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
+      taosMemoryFreeClear(pTSchema);
       return -1;
     }
+
     ++bidx;
   }
-
-  STable table = {.tid = pIdx->uid, .uid = pIdx->uid, .pSchema = NULL};
-  TSDB_COMMIT_TABLE(pCommith) = &table;
 
   if (tsdbWriteBlockInfo(pCommith) < 0) {
     tsdbError("vgId:%d failed to write SBlockInfo part into file %s since %s", TSDB_COMMIT_REPO_ID(pCommith),
               TSDB_FILE_FULL_NAME(TSDB_COMMIT_HEAD_FILE(pCommith)), tstrerror(terrno));
+    taosMemoryFreeClear(pTSchema);
     return -1;
   }
 
+  taosMemoryFreeClear(pTSchema);
   return 0;
 }
 
 static int tsdbSetCommitTable(SCommitH *pCommith, STable *pTable) {
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+
 
   pCommith->pTable = pTable;
 
@@ -1319,6 +1343,14 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
   }
 
   return 0;
+}
+
+static bool tsdbCommitIsSameFile(SCommitH *pCommith, int bidx) {
+  SBlock *pBlock = pCommith->readh.pBlkInfo->blocks + bidx;
+  if (pBlock->last) {
+    return pCommith->isLFileSame;
+  }
+  return pCommith->isDFileSame;
 }
 
 static int tsdbMoveBlock(SCommitH *pCommith, int bidx) {

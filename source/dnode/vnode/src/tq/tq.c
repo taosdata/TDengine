@@ -427,9 +427,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
   rsp.withSchema = pExec->withSchema;
+
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
   rsp.blockSchema = taosArrayInit(0, sizeof(void*));
+  rsp.blockTbName = taosArrayInit(0, sizeof(void*));
+
+  int8_t withTbName = pExec->withTbName;
+  if (pReq->withTbName != -1) {
+    withTbName = pReq->withTbName;
+  }
+  rsp.withTbName = withTbName;
 
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
@@ -535,6 +543,18 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
             taosArrayPush(rsp.blockSchema, &pSW);
           }
 
+          if (withTbName) {
+            SMetaReader mr = {0};
+            metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+            int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
+            if (metaGetTableEntryByUid(&mr, uid) < 0) {
+              ASSERT(0);
+            }
+            char* tbName = strdup(mr.me.name);
+            taosArrayPush(rsp.blockTbName, &tbName);
+            metaReaderClear(&mr);
+          }
+
           rsp.blockNum++;
         }
         // db subscribe
@@ -563,6 +583,16 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(actualLen <= dataStrLen);
           taosArrayPush(rsp.blockDataLen, &actualLen);
           taosArrayPush(rsp.blockData, &buf);
+          if (withTbName) {
+            SMetaReader mr = {0};
+            metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+            if (metaGetTableEntryByUid(&mr, block.info.uid) < 0) {
+              ASSERT(0);
+            }
+            char* tbName = strdup(mr.me.name);
+            taosArrayPush(rsp.blockTbName, &tbName);
+            metaReaderClear(&mr);
+          }
 
           SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
           taosArrayPush(rsp.blockSchema, &pSW);
@@ -614,6 +644,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   taosArrayDestroy(rsp.blockData);
   taosArrayDestroy(rsp.blockDataLen);
   taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(rsp.blockTbName, (FDelete)taosMemoryFree);
 
   return 0;
 }
