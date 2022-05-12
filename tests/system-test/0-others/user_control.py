@@ -128,18 +128,18 @@ class TDTestCase:
         for sql in sqls:
             tdSql.error(sql)
 
-    @property
-    def __alter_pass_sql(self):
-        return [f'''ALTER USER {self.__user_list[0]} PASS 'new{self.__passwd_list[0]}' ''', f'''ALTER USER {self.__user_list[0]} PASS '{self.__passwd_list[0]}' ''']
+    def __alter_pass_sql(self, user, passwd):
+        return f'''ALTER USER {user} PASS '{passwd}' '''
 
     def alter_pass_current(self):
         self.__init_pass = True
-        if self.__init_pass:
-            tdSql.query(self.__alter_pass_sql[0])
-            self.__init_pass = False
-        else:
-            tdSql.query(self.__alter_pass_sql[1] )
-            self.__init_pass = True
+        for i in range(len(self.__user_list)):
+            if self.__init_pass:
+                tdSql.query(self.__alter_pass_sql(self.__user_list[i], f"new{self.__passwd_list[i]}"))
+                self.__init_pass = False
+            else:
+                tdSql.query(self.__alter_pass_sql(self.__user_list[i], self.__passwd_list[i] ) )
+                self.__init_pass = True
 
     def alter_pass_err(self):
         sqls = [
