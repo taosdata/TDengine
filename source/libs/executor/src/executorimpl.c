@@ -3656,18 +3656,23 @@ _error:
 }
 
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag) {
-  if (pOperator->operatorType != QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+  // todo add more information about exchange operation
+  if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE) {
+    *order = TSDB_ORDER_ASC;
+    *scanFlag = MAIN_SCAN;
+    return TSDB_CODE_SUCCESS;
+  } else if (pOperator->operatorType == QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN) {
+    STableScanInfo* pTableScanInfo = pOperator->info;
+    *order = pTableScanInfo->cond.order;
+    *scanFlag = pTableScanInfo->scanFlag;
+    return TSDB_CODE_SUCCESS;
+  } else {
     if (pOperator->pDownstream == NULL || pOperator->pDownstream[0] == NULL) {
       return TSDB_CODE_INVALID_PARA;
     } else {
       return getTableScanInfo(pOperator->pDownstream[0], order, scanFlag);
     }
   }
-
-  STableScanInfo* pTableScanInfo = pOperator->info;
-  *order = pTableScanInfo->cond.order;
-  *scanFlag = pTableScanInfo->scanFlag;
-  return TSDB_CODE_SUCCESS;
 }
 
 // this is a blocking operator
