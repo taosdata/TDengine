@@ -114,6 +114,7 @@ void    tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond)
 void    tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
 int32_t tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
 int32_t tsdbGetTableGroupFromIdList(SVnode *pVnode, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
+void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 
 // tq
 

@@ -27,19 +27,6 @@
 #include "tvariant.h"
 #include "tdef.h"
 
-//static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
-//  if (pLeft->nodeType == TEXPR_COL_NODE) {
-//    // if left node is the primary column,return true
-//    return (strcmp(primaryColumnName, pLeft->pSchema->name) == 0) ? 1 : 0;
-//  } else {
-//    // if any children have query on primary key, their parents are also keep this value
-//    return ((pLeft->nodeType == TEXPR_BINARYEXPR_NODE && pLeft->_node.hasPK == 1) ||
-//            (pRight->nodeType == TEXPR_BINARYEXPR_NODE && pRight->_node.hasPK == 1)) == true
-//               ? 1
-//               : 0;
-//  }
-//}
-
 static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *));
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
