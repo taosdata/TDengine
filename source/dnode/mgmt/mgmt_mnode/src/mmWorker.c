@@ -33,7 +33,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   int32_t     code = -1;
   tmsg_t      msgType = pMsg->rpcMsg.msgType;
   bool        isRequest = msgType & 1U;
-  dTrace("msg:%p, get from mnode queue", pMsg);
+  dTrace("msg:%p, get from mnode queue, type:%s", pMsg, TMSG_INFO(msgType));
 
   switch (msgType) {
     case TDMT_DND_ALTER_MNODE:
