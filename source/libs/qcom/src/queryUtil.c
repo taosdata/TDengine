@@ -153,10 +153,10 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
                     .handle = pInfo->msgInfo.handle,
                     .persistHandle = persistHandle,
                     .code = 0};
-  if (pInfo->msgType == TDMT_VND_QUERY || pInfo->msgType == TDMT_VND_FETCH ||
-      pInfo->msgType == TDMT_VND_QUERY_CONTINUE) {
-    rpcMsg.persistHandle = 1;
-  }
+  // if (pInfo->msgType == TDMT_VND_QUERY || pInfo->msgType == TDMT_VND_FETCH ||
+  //    pInfo->msgType == TDMT_VND_QUERY_CONTINUE) {
+  //  rpcMsg.persistHandle = 1;
+  //}
 
   assert(pInfo->fp != NULL);
 
@@ -168,7 +168,7 @@ int32_t asyncSendMsgToServer(void* pTransporter, SEpSet* epSet, int64_t* pTransp
   return asyncSendMsgToServerExt(pTransporter, epSet, pTransporterId, pInfo, false, NULL);
 }
 
-char *jobTaskStatusStr(int32_t status) {
+char* jobTaskStatusStr(int32_t status) {
   switch (status) {
     case JOB_TASK_STATUS_NULL:
       return "NULL";
@@ -197,13 +197,10 @@ char *jobTaskStatusStr(int32_t status) {
 
 SSchema createSchema(int8_t type, int32_t bytes, col_id_t colId, const char* name) {
   SSchema s = {0};
-  s.type  = type;
+  s.type = type;
   s.bytes = bytes;
   s.colId = colId;
 
   tstrncpy(s.name, name, tListLen(s.name));
   return s;
 }
-
-
-
