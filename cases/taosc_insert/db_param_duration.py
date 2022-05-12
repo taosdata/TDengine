@@ -51,13 +51,20 @@ class TestDuration(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
         # without unit
-        param_value_list = [1, 3650]
+        param_value_list = [1, 3650,'60m','5256000m','1h','87600h','1d','3650d']
         for param_value in param_value_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname}  {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], param_value*60*24)
+            if param_value == 1 or param_value == 3650: # days
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], param_value*60*24)
+            elif param_value == '60m' or param_value == '5256000m': # minutes
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)))
+            elif param_value == '1h' or param_value =='87600h': # hours
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60)
+            elif param_value == '1d' or param_value == '3650d':
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60 *24)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
@@ -67,67 +74,15 @@ class TestDuration(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
-
-        # unit with "m"
-        param_minute_list =['60m','5256000m']
-        for param_value in param_minute_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
-            self.tdSql.execute(f'create database if not exists {dbname}  {test_param} {param_value}')
-            self.tdSql.query('show databases')
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)))
-            self.tdSql.query(f'show {dbname}.vgroups')
-            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
-            # print(data['config']['daysPerFile'])
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
-            self.tdSql.execute(f'drop database {dbname}')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} -1')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 3651')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} 59m')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} 5256001m')
-
-        #unit with "h"
-        param_hour_list =['1h','87600h']
-        for param_value in param_hour_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
-            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
-            self.tdSql.query('show databases')
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60)
-
-            self.tdSql.query(f'show {dbname}.vgroups')
-            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            # print(db_vnode_kv_dict)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
-            # print(data['config']['daysPerFile'])
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
-            self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} 0h')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} 87601h')
-
-        #unit with "d"
-        param_day_list =['1d','3650d']
-        for param_value in param_day_list:
-            dbname = self.tdCom.get_long_name(length=10, mode="letters")
-            self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
-            self.tdSql.query('show databases')
-            db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60 *24)
-            self.tdSql.query(f'show {dbname}.vgroups')
-            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
-            print(data['config']['daysPerFile'])
-            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
-            self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} "0d"')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} "3651d"')
+        
     def run(self) -> bool:
         self.duration_check()
 
