@@ -23,12 +23,9 @@ static void *dmStatusThreadFp(void *param) {
   setThreadName("dnode-status");
 
   while (1) {
-    taosThreadTestCancel();
     taosMsleep(200);
-
-    if (pMgmt->data.status != DND_STAT_RUNNING || pMgmt->data.dropped) {
-      continue;
-    }
+    taosThreadTestCancel();
+    if (pMgmt->data.dropped) continue;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
@@ -48,12 +45,9 @@ static void *dmMonitorThreadFp(void *param) {
   setThreadName("dnode-monitor");
 
   while (1) {
-    taosThreadTestCancel();
     taosMsleep(200);
-
-    if (pMgmt->data.status != DND_STAT_RUNNING || pMgmt->data.dropped) {
-      continue;
-    }
+    taosThreadTestCancel();
+    if (pMgmt->data.dropped) continue;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;

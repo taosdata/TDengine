@@ -109,6 +109,7 @@ typedef struct {
 typedef struct {
   int32_t dnodeId;
   void   *pMgmt;
+  SEpSet  mnodeEps;
 } SMgmtOutputOpt;
 
 typedef int32_t (*NodeMsgFp)(void *pMgmt, SNodeMsg *pMsg);

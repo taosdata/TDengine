@@ -16,15 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
-static bool dmRequireNode(SMgmtWrapper *pWrapper) {
-  bool    required = false;
-  int32_t code = (*pWrapper->fp.requiredFp)(pWrapper, &required);
-  if (!required) {
-    dDebug("node:%s, does not require startup", pWrapper->name);
-  }
-  return required;
-}
-
 static int32_t dmInitParentProc(SMgmtWrapper *pWrapper) {
   int32_t shmsize = tsMnodeShmSize;
   if (pWrapper->nodeType == VNODE) {
@@ -123,8 +114,15 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
+  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
+  SMgmtOutputOpt output = {0};
+  pInput->msgCb = dmGetMsgcb(pWrapper);
+  if (pWrapper->nodeType == DNODE) {
+    tmsgSetDefaultMsgCb(&pInput->msgCb);
+  }
+
   if (pWrapper->procType == DND_PROC_SINGLE || pWrapper->procType == DND_PROC_CHILD) {
-    if ((*pWrapper->fp.openFp)(pWrapper) != 0) {
+    if ((*pWrapper->func.openFp)(pInput, &output) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
       return -1;
     }
@@ -136,8 +134,18 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     pWrapper->deployed = true;
   } else {
     if (dmInitParentProc(pWrapper) != 0) return -1;
-    if (dmWriteShmFile(pWrapper) != 0) return -1;
+    if (dmWriteShmFile(pWrapper->path, pWrapper->name, &pWrapper->procShm) != 0) return -1;
     if (dmRunParentProc(pWrapper) != 0) return -1;
+  }
+
+  if (output.dnodeId != 0) {
+    pInput->dnodeId = output.dnodeId;
+  }
+  if (output.pMgmt != NULL) {
+    pWrapper->pMgmt = output.pMgmt;
+  }
+  if (output.mnodeEps.numOfEps != 0) {
+    pWrapper->pDnode->mnodeEps = output.mnodeEps;
   }
 
   dmReportStartup(pWrapper->pDnode, pWrapper->name, "openned");
@@ -145,18 +153,20 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
 }
 
 int32_t dmStartNode(SMgmtWrapper *pWrapper) {
+  if (!pWrapper->required) return 0;
+
   if (pWrapper->procType == DND_PROC_PARENT) {
     dInfo("node:%s, not start in parent process", pWrapper->name);
   } else if (pWrapper->procType == DND_PROC_CHILD) {
     dInfo("node:%s, start in child process", pWrapper->name);
     if (pWrapper->nodeType != DNODE) {
-      if (pWrapper->fp.startFp != NULL && (*pWrapper->fp.startFp)(pWrapper) != 0) {
+      if (pWrapper->func.startFp != NULL && (*pWrapper->func.startFp)(pWrapper->pMgmt) != 0) {
         dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
         return -1;
       }
     }
   } else {
-    if (pWrapper->fp.startFp != NULL && (*pWrapper->fp.startFp)(pWrapper) != 0) {
+    if (pWrapper->func.startFp != NULL && (*pWrapper->func.startFp)(pWrapper->pMgmt) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
     }
@@ -167,8 +177,8 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
 }
 
 void dmStopNode(SMgmtWrapper *pWrapper) {
-  if (pWrapper->fp.stopFp != NULL) {
-    (*pWrapper->fp.stopFp)(pWrapper);
+  if (pWrapper->func.stopFp != NULL) {
+    (*pWrapper->func.stopFp)(pWrapper->pMgmt);
   }
 }
 
@@ -190,10 +200,8 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
     }
   }
 
-  dmStopNode(pWrapper);
-
   taosWLockLatch(&pWrapper->latch);
-  (*pWrapper->fp.closeFp)(pWrapper);
+  (*pWrapper->func.closeFp)(pWrapper->pMgmt);
   taosWUnLockLatch(&pWrapper->latch);
 
   if (pWrapper->procObj) {
@@ -207,48 +215,18 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
 static int32_t dmOpenNodes(SDnode *pDnode) {
   if (pDnode->ptype == DND_PROC_CHILD) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-    pWrapper->required = dmRequireNode(pWrapper);
-    if (!pWrapper->required) {
-      dError("dnode:%s, failed to open since not required", pWrapper->name);
-    }
-
     pWrapper->procType = DND_PROC_CHILD;
-    if (dmInitClient(pDnode) != 0) {
-      return -1;
-    }
-
-    pDnode->data.msgCb = dmGetMsgcb(pWrapper);
-    tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
-
-    if (dmOpenNode(pWrapper) != 0) {
-      dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
-      return -1;
-    }
+    return dmOpenNode(pWrapper);
   } else {
     for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
       SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-      pWrapper->required = dmRequireNode(pWrapper);
       if (!pWrapper->required) continue;
-
-      if (pDnode->ptype == DND_PROC_PARENT && n != DNODE) {
-        pWrapper->procType = DND_PROC_PARENT;
-      } else {
-        pWrapper->procType = DND_PROC_SINGLE;
-      }
-
       if (n == DNODE) {
-        if (dmInitClient(pDnode) != 0) {
-          return -1;
-        }
-
-        pDnode->data.msgCb = dmGetMsgcb(pWrapper);
-        tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
+        pWrapper->procType = DND_PROC_SINGLE;
+      } else {
+        pWrapper->procType = pDnode->ptype;
       }
-
-      if (dmOpenNode(pWrapper) != 0) {
-        dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
-        return -1;
-      }
+      return dmOpenNode(pWrapper);
     }
   }
 
@@ -259,7 +237,6 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
 static int32_t dmStartNodes(SDnode *pDnode) {
   for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-    if (!pWrapper->required) continue;
     if (dmStartNode(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
@@ -313,16 +290,27 @@ static void dmWatchNodes(SDnode *pDnode) {
 }
 
 int32_t dmRun(SDnode *pDnode) {
-  if (!tsMultiProcess) {
+  if (tsMultiProcess == 0) {
     pDnode->ptype = DND_PROC_SINGLE;
-    dInfo("dnode run in single process");
+    dInfo("dnode run in single process mode");
+  } else if (tsMultiProcess == 2) {
+    pDnode->ptype = DND_PROC_TEST;
+    dInfo("dnode run in multi-process test mode");
   } else if (pDnode->ntype == DNODE || pDnode->ntype == NODE_END) {
     pDnode->ptype = DND_PROC_PARENT;
-    dInfo("dnode run in parent process");
+    dInfo("dnode run in parent process mode");
   } else {
     pDnode->ptype = DND_PROC_CHILD;
     SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-    dInfo("%s run in child process", pWrapper->name);
+    dInfo("%s run in child process mode", pWrapper->name);
+  }
+
+  if (pDnode->ptype != DND_PROC_CHILD) {
+    if (dmInitServer(pDnode) != 0) {
+      dError("failed to init transport since %s", terrstr());
+      return -1;
+    }
+    dmReportStartup(pDnode, "dnode-transport", "initialized");
   }
 
   if (dmOpenNodes(pDnode) != 0) {

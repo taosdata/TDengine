@@ -15,7 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
-
 #include "qworker.h"
 
 #define INTERNAL_USER   "_dnd"
@@ -23,21 +22,21 @@
 #define INTERNAL_SECRET "_pwd"
 
 static void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
-  taosRLockLatch(&pDnode->data.latch);
-  *pEpSet = pDnode->data.mnodeEps;
-  taosRUnLockLatch(&pDnode->data.latch);
+  taosRLockLatch(&pDnode->latch);
+  *pEpSet = pDnode->mnodeEps;
+  taosRUnLockLatch(&pDnode->latch);
 }
 
 static void dmSetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
 
-  taosWLockLatch(&pDnode->data.latch);
-  pDnode->data.mnodeEps = *pEpSet;
+  taosWLockLatch(&pDnode->latch);
+  pDnode->mnodeEps = *pEpSet;
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
 
-  taosWUnLockLatch(&pDnode->data.latch);
+  taosWUnLockLatch(&pDnode->latch);
 }
 
 static inline NodeMsgFp dmGetMsgFp(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
@@ -64,7 +63,7 @@ static inline int32_t dmBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
   if ((pRpc->msgType & 1u)) {
     assert(pRpc->refId != 0);
   }
-  // assert(pRpc->handle != NULL && pRpc->refId != 0 && pMsg->rpcMsg.refId != 0);
+
   return 0;
 }
 
@@ -76,13 +75,9 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   bool      needRelease = false;
   bool      isReq = msgType & 1U;
 
-  if (pEpSet && pEpSet->numOfEps > 0 && msgType == TDMT_MND_STATUS_RSP) {
-    dmSetMnodeEpSet(pWrapper->pDnode, pEpSet);
-  }
-
   if (dmMarkWrapper(pWrapper) != 0) goto _OVER;
-
   needRelease = true;
+
   if ((msgFp = dmGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
@@ -203,27 +198,25 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
 int32_t dmInitMsgHandle(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
-  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
-      SMsgHandle *pHandle = &pTrans->msgHandles[msgIndex];
-      pHandle->defaultNtype = NODE_END;
-    }
-  }
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
-      SMsgHandle *pHandle = &pTrans->msgHandles[msgIndex];
-      NodeMsgFp   msgFp = pWrapper->msgFps[msgIndex];
-      bool        needCheckVgId = pWrapper->needCheckVgIds[msgIndex];
+    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
+    if (pArray == NULL) return -1;
 
-      if (msgFp == NULL) continue;
-      if (needCheckVgId) pHandle->needCheckVgId = needCheckVgId;
-      if (!needCheckVgId) {
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+      SMgmtHandle *pMgmt = taosArrayGet(pArray, i);
+      SMsgHandle  *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
+      if (pMgmt->needCheckVgId) {
+        pHandle->needCheckVgId = pMgmt->needCheckVgId;
+      }
+      if (!pMgmt->needCheckVgId) {
         pHandle->defaultNtype = ntype;
       }
+      pWrapper->msgFps[TMSG_INDEX(pMgmt->msgType)] = pMgmt->msgFp;
     }
+
+    taosArrayDestroy(pArray);
   }
 
   return 0;
@@ -236,7 +229,7 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    if (strcmp(epSet.eps[i].fqdn, pDnode->data.localFqdn) == 0 && epSet.eps[i].port == pDnode->data.serverPort) {
+    if (strcmp(epSet.eps[i].fqdn, pDnode->input.localFqdn) == 0 && epSet.eps[i].port == pDnode->input.serverPort) {
       epSet.inUse = (i + 1) % epSet.numOfEps;
     }
 
@@ -317,17 +310,6 @@ static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp
     taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
   }
 }
-
-#if 0
-static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
-  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
-  if (pWrapper->procType != DND_PROC_CHILD) {
-    rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
-  } else {
-    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
-  }
-}
-#endif
 
 static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != DND_PROC_CHILD) {
@@ -452,11 +434,7 @@ int32_t dmInitClient(SDnode *pDnode) {
     return -1;
   }
 
-  pDnode->data.msgCb = dmGetMsgcb(&pDnode->wrappers[DNODE]);
-  tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
-
   dDebug("dnode rpc client is initialized");
-
   return 0;
 }
 
@@ -533,8 +511,8 @@ int32_t dmInitServer(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
 
-  strncpy(rpcInit.localFqdn, pDnode->data.localFqdn, strlen(pDnode->data.localFqdn));
-  rpcInit.localPort = pDnode->data.serverPort;
+  strncpy(rpcInit.localFqdn, pDnode->input.localFqdn, strlen(pDnode->input.localFqdn));
+  rpcInit.localPort = pDnode->input.serverPort;
   rpcInit.label = "DND";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessMsg;
@@ -571,8 +549,8 @@ SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartupByWrapper,
-      .pWrapper = pWrapper,
       .clientRpc = pWrapper->pDnode->trans.clientRpc,
+      .pWrapper = pWrapper,
   };
   return msgCb;
 }
