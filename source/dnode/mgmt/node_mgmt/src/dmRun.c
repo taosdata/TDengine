@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmImp.h"
+#include "dmMgmt.h"
 
 static int32_t dmInitParentProc(SMgmtWrapper *pWrapper) {
   int32_t shmsize = tsMnodeShmSize;

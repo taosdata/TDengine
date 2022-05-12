@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmImp.h"
+#include "dmMgmt.h"
 #include "qworker.h"
 
 #define INTERNAL_USER   "_dnd"

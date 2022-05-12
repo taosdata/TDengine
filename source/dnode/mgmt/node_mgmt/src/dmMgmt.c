@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmImp.h"
+#include "dmMgmt.h"
 
 static bool dmIsNodeDeployedFp(SDnode *pDnode, EDndNodeType ntype) { return pDnode->wrappers[ntype].required; }
 

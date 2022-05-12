@@ -27,8 +27,8 @@ static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   }
 }
 
-static int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
-  if (pRsp->code != TSDB_CODE_SUCCESS) {
+static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
+  if (pRsp->code != 0) {
     if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->data.dropped && pMgmt->data.dnodeId > 0) {
       dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->data.dnodeId);
       pMgmt->data.dropped = 1;
@@ -45,8 +45,6 @@ static int32_t dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
     rpcFreeCont(pRsp->pCont);
     tFreeSStatusRsp(&statusRsp);
   }
-
-  return TSDB_CODE_SUCCESS;
 }
 
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {

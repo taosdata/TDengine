@@ -86,6 +86,7 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
   }
 
   pOutput->pMgmt = pMgmt;
+  pOutput->mnodeEps = pMgmt->data.mnodeEps;
   dInfo("dnode-mgmt is initialized");
   return 0;
 }
