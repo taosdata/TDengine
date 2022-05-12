@@ -274,7 +274,7 @@ int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SNodeMsg *pMsg) {
 
 SArray *vmGetMsgHandles() {
   int32_t code = -1;
-  SArray *pArray = taosArrayInit(64, sizeof(SMgmtHandle));
+  SArray *pArray = taosArrayInit(32, sizeof(SMgmtHandle));
   if (pArray == NULL) goto _OVER;
 
   if (dmSetMgmtHandle(pArray, TDMT_MON_VM_INFO, vmPutNodeMsgToMonitorQueue, 0) == NULL) goto _OVER;

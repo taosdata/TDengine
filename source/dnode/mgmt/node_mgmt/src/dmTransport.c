@@ -256,14 +256,14 @@ static inline void dmSendRpcRsp(SDnode *pDnode, const SRpcMsg *pRsp) {
   }
 }
 
-void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
+static inline void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
   rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
 }
 
-void dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
+static inline void dmSendToMnodeRecv(SMgmtWrapper *pWrapper, SRpcMsg *pReq, SRpcMsg *pRsp) {
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(pDnode, &epSet);
-  rpcSendRecv(pDnode->trans.clientRpc, &epSet, pReq, pRsp);
+  dmGetMnodeEpSet(pWrapper->pDnode, &epSet);
+  dmSendRecv(pWrapper->pDnode, &epSet, pReq, pRsp);
 }
 
 static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
@@ -485,8 +485,10 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
   SRpcMsg rpcRsp = {0};
+  SEpSet  epSet = {0};
   dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);
-  dmSendToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
+  dmGetMnodeEpSet(pDnode, &epSet);
+  dmSendRecv(pDnode, &epSet, &rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
     terrno = rpcRsp.code;
@@ -543,14 +545,15 @@ void dmCleanupServer(SDnode *pDnode) {
 
 SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
   SMsgCb msgCb = {
+      .pWrapper = pWrapper,
+      .clientRpc = pWrapper->pDnode->trans.clientRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
+      .sendMnodeRecvFp = dmSendToMnodeRecv,
       .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartupByWrapper,
-      .clientRpc = pWrapper->pDnode->trans.clientRpc,
-      .pWrapper = pWrapper,
   };
   return msgCb;
 }

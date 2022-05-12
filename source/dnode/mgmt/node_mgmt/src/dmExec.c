@@ -114,8 +114,10 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     return -1;
   }
 
-  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
   SMgmtOutputOpt output = {0};
+  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
+  pInput->name = pWrapper->name;
+  pInput->path = pWrapper->path;
   pInput->msgCb = dmGetMsgcb(pWrapper);
   if (pWrapper->nodeType == DNODE) {
     tmsgSetDefaultMsgCb(&pInput->msgCb);

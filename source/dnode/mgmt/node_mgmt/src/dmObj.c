@@ -71,8 +71,12 @@ static void dmClearVars(SDnode *pDnode) {
 }
 
 static bool dmRequireNode(SMgmtWrapper *pWrapper) {
+  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
+  pInput->name = pWrapper->name;
+  pInput->path = pWrapper->path;
+
   bool    required = false;
-  int32_t code = (*pWrapper->func.requiredFp)(&pWrapper->pDnode->input, &required);
+  int32_t code = (*pWrapper->func.requiredFp)(pInput, &required);
   if (!required) {
     dDebug("node:%s, does not require startup", pWrapper->name);
   }
@@ -80,7 +84,7 @@ static bool dmRequireNode(SMgmtWrapper *pWrapper) {
 }
 
 SDnode *dmCreate(const SDnodeOpt *pOption) {
-  dDebug("start to create dnode");
+  dInfo("start to create dnode");
   int32_t code = -1;
   char    path[PATH_MAX + 100] = {0};
   SDnode *pDnode = NULL;
@@ -88,6 +92,10 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
   pDnode = taosMemoryCalloc(1, sizeof(SDnode));
   if (pDnode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    goto _OVER;
+  }
+
+  if (dmInitVars(pDnode, pOption) != 0) {
     goto _OVER;
   }
 
