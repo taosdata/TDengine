@@ -3013,18 +3013,22 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
       } else {
         pInfo->sum = pInfo->sum + v - pInfo->points[pInfo->pos];
       }
+
+      pInfo->points[pInfo->pos] = v;
+      double result = pInfo->sum / pInfo->numOfPoints;
+      colDataAppend(pOutput, pos, (char *)&result, false);
+
+      //TODO: remove this after pTsOutput is handled
+      if (pTsOutput != NULL) {
+        colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+      }
+      numOfElems++;
     }
 
-    pInfo->points[pInfo->pos] = v;
-    double result = pInfo->sum / pInfo->numOfPoints;
-    colDataAppend(pOutput, pos, (char *)&result, false);
-
-    //TODO: remove this after pTsOutput is handled
-    if (pTsOutput != NULL) {
-      colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+    pInfo->pos++;
+    if (pInfo->pos == pInfo->numOfPoints) {
+      pInfo->pos = 0;
     }
-
-    numOfElems++;
   }
 
   return numOfElems;
