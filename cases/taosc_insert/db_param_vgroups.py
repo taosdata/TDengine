@@ -44,13 +44,15 @@ class TestVgroups(TDCase):
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
         # ! 4096 bug TD-15451
-        param_value_list = [1, 10]
+        param_value_list = [1, 128]
         for param_value in param_value_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
             self.tdSql.execute(f'create database if not exists {dbname} {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            if param_value == param_value_list[-1]:
+                self.tdSql.error(f'create database if not exists {dbname}_error {test_param} 1')
             self.tdSql.execute(f'drop database {dbname}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
         # ! bug TD-15096
