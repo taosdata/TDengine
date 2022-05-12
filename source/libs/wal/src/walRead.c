@@ -65,11 +65,18 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
   ret = taosLSeekFile(pIdxTFile, offset, SEEK_SET);
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
+    wError("failed to seek idx file, ver %ld, pos: %ld, since %s", ver, offset, terrstr());
     return -1;
   }
   SWalIdxEntry entry;
-  if (taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry)) != sizeof(SWalIdxEntry)) {
-    terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+  if ((ret = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry))) != sizeof(SWalIdxEntry)) {
+    if (ret < 0) {
+      terrno = TAOS_SYSTEM_ERROR(errno);
+      wError("failed to read idx file, since %s", terrstr());
+    } else {
+      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
+      wError("read idx file incompletely, read bytes %d, bytes should be %lu", ret, sizeof(SWalIdxEntry));
+    }
     return -1;
   }
 
@@ -77,6 +84,7 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
   ret = taosLSeekFile(pLogTFile, entry.offset, SEEK_SET);
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
+    wError("failed to seek log file, ver %ld, pos: %ld, since %s", ver, entry.offset, terrstr());
     return -1;
   }
   return ret;
@@ -92,6 +100,8 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   TdFilePtr pLogTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pLogTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TSDB_CODE_WAL_INVALID_VER;
+    wError("cannot open file %s, since %s", fnameStr, terrstr());
     return -1;
   }
 
@@ -99,6 +109,7 @@ static int32_t walReadChangeFile(SWalReadHandle *pRead, int64_t fileFirstVer) {
   TdFilePtr pIdxTFile = taosOpenFile(fnameStr, TD_FILE_READ);
   if (pIdxTFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
+    wError("cannot open file %s, since %s", fnameStr, terrstr());
     return -1;
   }
 
@@ -113,6 +124,7 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
     return 0;
   }
   if (ver > pWal->vers.lastVer || ver < pWal->vers.firstVer) {
+    wError("invalid version: % " PRId64 ", first ver %ld, last ver %ld", ver, pWal->vers.firstVer, pWal->vers.lastVer);
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
   }
@@ -125,12 +137,13 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
   SWalFileInfo *pRet = taosArraySearch(pWal->fileInfoSet, &tmpInfo, compareWalFileInfo, TD_LE);
   ASSERT(pRet != NULL);
   if (pRead->curFileFirstVer != pRet->firstVer) {
+    // error code set inner
     if (walReadChangeFile(pRead, pRet->firstVer) < 0) {
       return -1;
     }
   }
 
-  // code set inner
+  // error code set inner
   if (walReadSeekFilePos(pRead, pRet->firstVer, ver) < 0) {
     return -1;
   }
@@ -155,9 +168,7 @@ int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
     if (code < 0) return -1;
   }
 
-  if (!taosValidFile(pRead->pReadLogTFile)) {
-    return -1;
-  }
+  ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
 
   code = taosReadFile(pRead->pReadLogTFile, pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {
@@ -250,15 +261,12 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {
-      terrno = TSDB_CODE_WAL_INVALID_VER;
-      wError("unexpected wal log version: % " PRId64 ", since seek error", ver);
+      wError("unexpected wal log version: % " PRId64 ", since %s", ver, terrstr());
       return -1;
     }
   }
 
-  /*if (!taosValidFile(pRead->pReadLogTFile)) {*/
-  /*return -1;*/
-  /*}*/
+  ASSERT(taosValidFile(pRead->pReadLogTFile) == true);
 
   code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {

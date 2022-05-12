@@ -502,7 +502,7 @@ _exit:
   return 0;
 }
 
-static int vnodeDebugPrintSingleSubmitMsg(SMeta         *pMeta, SSubmitBlk  *pBlock, SSubmitMsgIter *msgIter, const char *tags) {
+static int vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, SSubmitMsgIter *msgIter, const char *tags) {
   SSubmitBlkIter blkIter = {0};
   STSchema      *pSchema = NULL;
   tb_uid_t       suid = 0;
@@ -544,7 +544,7 @@ static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char
   while (true) {
     if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
     if (pBlock == NULL) break;
-    
+
     vnodeDebugPrintSingleSubmitMsg(pMeta, pBlock, &msgIter, tags);
   }
 
@@ -562,6 +562,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   int32_t        nRows;
   int32_t        tsize, ret;
   SEncoder       encoder = {0};
+  terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
 
@@ -576,6 +577,11 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   }
 
   submitRsp.pArray = taosArrayInit(pSubmitReq->numOfBlocks, sizeof(SSubmitBlkRsp));
+  if (!submitRsp.pArray) {
+    pRsp->code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
   for (int i = 0;;) {
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
@@ -595,7 +601,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 
       if (metaCreateTable(pVnode->pMeta, version, &createTbReq) < 0) {
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
-          pRsp->code = terrno;
+          submitBlkRsp.code = terrno;
           tDecoderClear(&decoder);
           goto _exit;
         }
@@ -617,8 +623,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
     }
 
     if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &submitBlkRsp) < 0) {
-      pRsp->code = terrno;
-      goto _exit;
+      submitBlkRsp.code = terrno;
     }
 
     submitRsp.numOfRows += submitBlkRsp.numOfRows;
@@ -640,7 +645,12 @@ _exit:
 
   taosArrayDestroy(submitRsp.pArray);
 
-  tsdbTriggerRSma(pVnode->pTsdb, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+  // TODO: the partial success scenario and the error case
+  // TODO: refactor
+  if ((terrno == TSDB_CODE_SUCCESS || terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) &&
+      (pRsp->code == TSDB_CODE_SUCCESS)) {
+    tsdbTriggerRSma(pVnode->pTsdb, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+  }
 
   return 0;
 }

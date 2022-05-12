@@ -72,10 +72,11 @@ typedef struct SMeta       SMeta;  // todo: remove
 typedef struct SMetaReader SMetaReader;
 typedef struct SMetaEntry  SMetaEntry;
 
-void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
-void metaReaderClear(SMetaReader *pReader);
-int  metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
-int  metaReadNext(SMetaReader *pReader);
+void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
+void        metaReaderClear(SMetaReader *pReader);
+int         metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int         metaReadNext(SMetaReader *pReader);
+const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid);
 
 #if 1  // refact APIs below (TODO)
 typedef SVCreateTbReq   STbCfg;

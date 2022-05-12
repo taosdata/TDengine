@@ -252,6 +252,7 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 int32_t tPrintFixedSchemaSubmitReq(const SSubmitReq* pReq, STSchema* pSchema);
 
 typedef struct {
+  int32_t code;
   int8_t  hashMeta;
   int64_t uid;
   char*   tblFName;
@@ -2383,6 +2384,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t   withTbName;
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
