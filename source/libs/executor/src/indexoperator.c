@@ -583,7 +583,7 @@ int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
 
   SFilterInfo *filter = NULL;
   // todo move to the initialization function
-  SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
+  // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
   SIFParam param = {0};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
@@ -598,9 +598,9 @@ SIdxFltStatus idxGetFltStatus(SNode *pFilterNode) {
   if (pFilterNode == NULL) {
     return SFLT_NOT_INDEX;
   }
-  SFilterInfo *filter = NULL;
+  // SFilterInfo *filter = NULL;
   // todo move to the initialization function
-  SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
+  // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
   SIF_ERR_RET(sifGetFltHint((SNode *)pFilterNode, &st));
   return st;
