@@ -241,7 +241,7 @@ class TDTestCase:
 
         # 普通用户权限
         _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
-        with taos_connect(self.__user_list[0], f"new{self.__passwd_list[0]}") as conn:
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as conn:
             user = conn
         # 不能创建用户
         tdLog.printNoPrefix("==========step5: normal user can not create user")
