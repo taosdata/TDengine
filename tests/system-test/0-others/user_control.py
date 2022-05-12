@@ -175,7 +175,7 @@ class TDTestCase:
             login_except = True
             cursor = None
 
-        tdLog.printNoPrefix("end,", login_except)
+        tdLog.printNoPrefix(f"end,{login_except}")
 
         return login_except, cursor
 
