@@ -810,7 +810,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
     .translateFunc = translateMavg,
     .getEnvFunc   = getMavgFuncEnv,
-    .initFunc     = functionSetup,
+    .initFunc     = mavgFunctionSetup,
     .processFunc  = mavgFunction,
     .finalizeFunc = NULL
   },
