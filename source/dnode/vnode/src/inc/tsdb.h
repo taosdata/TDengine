@@ -99,7 +99,6 @@ int32_t tsdbInitSma(STsdb *pTsdb);
 int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
 int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
 int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
-void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 typedef enum {
   TSDB_FILE_HEAD = 0,  // .head
   TSDB_FILE_DATA,      // .data
