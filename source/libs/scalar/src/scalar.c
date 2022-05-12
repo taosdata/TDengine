@@ -8,6 +8,7 @@
 #include "tdatablock.h"
 #include "scalar.h"
 #include "tudf.h"
+#include "ttime.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type 
