@@ -363,6 +363,10 @@ void uvOnSendCb(uv_write_t* req, int status) {
       if (msg->type == Release && conn->status != ConnNormal) {
         conn->status = ConnNormal;
         transUnrefSrvHandle(conn);
+        reallocConnRefHandle(conn);
+        destroySmsg(msg);
+        transQueueClear(&conn->srvMsgs);
+        return;
       }
       destroySmsg(msg);
       // send second data, just use for push
@@ -973,7 +977,7 @@ void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
 }
 void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
   SSrvConn* conn = msg->pConn;
-  reallocConnRefHandle(conn);
+  // reallocConnRefHandle(conn);
   if (conn->status == ConnAcquire) {
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
