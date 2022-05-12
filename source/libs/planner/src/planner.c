@@ -224,7 +224,7 @@ static int32_t calcConstList(SNodeList* pList) {
 }
 
 static bool isEmptyResultCond(SNode** pCond) {
-  if (QUERY_NODE_VALUE != nodeType(*pCond)) {
+  if (NULL == *pCond || QUERY_NODE_VALUE != nodeType(*pCond)) {
     return false;
   }
   if (((SValueNode*)*pCond)->datum.b) {
