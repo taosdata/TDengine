@@ -297,8 +297,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
     topicObj.ast = strdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
     topicObj.subType = TOPIC_SUB_TYPE__TABLE;
-    topicObj.withTbName = 0;
-    topicObj.withSchema = 0;
+    topicObj.withTbName = pCreate->withTbName;
+    topicObj.withSchema = pCreate->withSchema;
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
