@@ -252,23 +252,32 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 int32_t tPrintFixedSchemaSubmitReq(const SSubmitReq* pReq, STSchema* pSchema);
 
 typedef struct {
-  int32_t index;  // index of failed block in submit blocks
-  int32_t vnode;  // vnode index of failed block
-  int32_t sid;    // table index of failed block
-  int32_t code;   // errorcode while write data to vnode, such as not created, dropped, no space, invalid table
-} SSubmitRspBlock;
+  int32_t code;
+  int8_t  hashMeta;
+  int64_t uid;
+  char*   tblFName;
+  int32_t numOfRows;
+  int32_t affectedRows;
+} SSubmitBlkRsp;
 
 typedef struct {
-  int32_t         code;          // 0-success, > 0 error code
-  int32_t         numOfRows;     // number of records the client is trying to write
-  int32_t         affectedRows;  // number of records actually written
-  int32_t         failedRows;    // number of failed records (exclude duplicate records)
-  int32_t         numOfFailedBlocks;
-  SSubmitRspBlock failedBlocks[];
+  int32_t numOfRows;
+  int32_t affectedRows;
+  int32_t nBlocks;
+  union {
+    SArray*        pArray;
+    SSubmitBlkRsp* pBlocks;
+  };
 } SSubmitRsp;
 
-#define SCHEMA_SMA_ON 0x1
-#define SCHEMA_IDX_ON 0x2
+int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
+int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
+void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
+
+#define COL_SMA_ON  ((int8_t)0x1)
+#define COL_IDX_ON  ((int8_t)0x2)
+#define COL_VAL_SET ((int8_t)0x4)
+
 typedef struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -277,7 +286,7 @@ typedef struct SSchema {
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
 
-#define IS_BSMA_ON(s) (((s)->flags & 0x01) == SCHEMA_SMA_ON)
+#define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
 
 #define SSCHMEA_TYPE(s)  ((s)->type)
 #define SSCHMEA_FLAGS(s) ((s)->flags)
@@ -475,6 +484,7 @@ typedef struct {
   int32_t  acctId;
   int64_t  clusterId;
   uint32_t connId;
+  int32_t  dnodeNum;
   int8_t   superUser;
   int8_t   connType;
   SEpSet   epSet;
@@ -2371,6 +2381,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t   withTbName;
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
@@ -2480,6 +2491,10 @@ static FORCE_INLINE int32_t tEncodeSMqDataBlkRsp(void** buf, const SMqDataBlkRsp
         SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRsp->blockSchema, i);
         tlen += taosEncodeSSchemaWrapper(buf, pSW);
       }
+      if (pRsp->withTbName) {
+        char* tbName = (char*)taosArrayGetP(pRsp->blockTbName, i);
+        tlen += taosEncodeString(buf, tbName);
+      }
     }
   }
   return tlen;
@@ -2492,6 +2507,7 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   buf = taosDecodeFixedI32(buf, &pRsp->blockNum);
   pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(void*));
+  pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
   if (pRsp->blockNum != 0) {
     buf = taosDecodeFixedI8(buf, &pRsp->withTbName);
@@ -2509,6 +2525,11 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
         SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
         buf = taosDecodeSSchemaWrapper(buf, pSW);
         taosArrayPush(pRsp->blockSchema, &pSW);
+      }
+      if (pRsp->withTbName) {
+        char* name = NULL;
+        buf = taosDecodeString(buf, &name);
+        taosArrayPush(pRsp->blockTbName, &name);
       }
     }
   }

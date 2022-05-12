@@ -323,7 +323,7 @@ static int64_t getEarliestValidTimestamp(STsdb* pTsdb) {
   STsdbKeepCfg* pCfg = REPO_KEEP_CFG(pTsdb);
 
   int64_t now = taosGetTimestamp(pCfg->precision);
-  return now - (tsTickPerDay[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
+  return now - (tsTickPerMin[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
 }
 
 static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableDataCond* pCond) {
@@ -1047,10 +1047,10 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
   }
 
   if (key < 0) {
-    key -= (daysPerFile * tsTickPerDay[precision]);
+    key -= (daysPerFile * tsTickPerMin[precision]);
   }
 
-  int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerDay[precision]));  // set the starting fileId
+  int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerMin[precision]));  // set the starting fileId
   if (fid < 0L && llabs(fid) > INT32_MAX) {                                // data value overflow for INT32
     fid = INT32_MIN;
   }
@@ -3870,6 +3870,7 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
 
   if (metaGetTableEntryByUid(&mr, uid) < 0) {
     tsdbError("%p failed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
+    metaReaderClear(&mr);
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _error;
   } else {
@@ -3880,6 +3881,7 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
     tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId,
               reqId);
     terrno = TSDB_CODE_OPS_NOT_SUPPORT;  // basically, this error is caused by invalid sql issued by client
+    metaReaderClear(&mr);
     goto _error;
   }
 

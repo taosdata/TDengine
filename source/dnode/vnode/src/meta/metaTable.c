@@ -439,29 +439,36 @@ _exit:
 }
 
 static int metaHandleEntry(SMeta *pMeta, const SMetaEntry *pME) {
+  metaWLock(pMeta);
+
   // save to table.db
-  if (metaSaveToTbDb(pMeta, pME) < 0) return -1;
+  if (metaSaveToTbDb(pMeta, pME) < 0) goto _err;
 
   // update uid.idx
-  if (metaUpdateUidIdx(pMeta, pME) < 0) return -1;
+  if (metaUpdateUidIdx(pMeta, pME) < 0) goto _err;
 
   // update name.idx
-  if (metaUpdateNameIdx(pMeta, pME) < 0) return -1;
+  if (metaUpdateNameIdx(pMeta, pME) < 0) goto _err;
 
   if (pME->type == TSDB_CHILD_TABLE) {
     // update ctb.idx
-    if (metaUpdateCtbIdx(pMeta, pME) < 0) return -1;
+    if (metaUpdateCtbIdx(pMeta, pME) < 0) goto _err;
 
     // update tag.idx
-    if (metaUpdateTagIdx(pMeta, pME) < 0) return -1;
+    if (metaUpdateTagIdx(pMeta, pME) < 0) goto _err;
   } else {
     // update schema.db
-    if (metaSaveToSkmDb(pMeta, pME) < 0) return -1;
+    if (metaSaveToSkmDb(pMeta, pME) < 0) goto _err;
   }
 
   if (pME->type != TSDB_SUPER_TABLE) {
-    if (metaUpdateTtlIdx(pMeta, pME) < 0) return -1;
+    if (metaUpdateTtlIdx(pMeta, pME) < 0) goto _err;
   }
 
+  metaULock(pMeta);
   return 0;
+
+_err:
+  metaULock(pMeta);
+  return -1;
 }
