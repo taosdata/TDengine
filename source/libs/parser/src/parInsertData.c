@@ -137,7 +137,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
-  dataBuf->pTableMeta = pTableMeta;
+  dataBuf->pTableMeta = tableMetaDup(pTableMeta);
 
   SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
   SSchema*            pSchema = getTableColumnSchema(dataBuf->pTableMeta);
@@ -465,7 +465,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
         taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
         return ret;
       }
-
+      ASSERT(pOneTableBlock->pTableMeta->tableInfo.rowSize > 0);
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
       int32_t expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize +
