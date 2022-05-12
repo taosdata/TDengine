@@ -44,7 +44,7 @@ function prepareBuild {
   if [[ "$CURR_DIR" == *"$IN_TDINTERNAL"* ]]; then
     if [ ! -e $DOCKER_DIR/TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz ] || [ ! -e $DOCKER_DIR/TDengine-enterprise-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
               
-      echo "generating TDeninge enterprise packages"
+      echo "generating TDengine enterprise packages"
       ./release.sh -v cluster -n $VERSION >> /dev/null 2>&1
       
       if [ ! -e $CURR_DIR/../../release/TDengine-enterprise-server-$VERSION-Linux-x64.tar.gz ]; then
@@ -64,7 +64,7 @@ function prepareBuild {
   else
     if [ ! -e $DOCKER_DIR/TDengine-server-$VERSION-Linux-x64.tar.gz ] || [ ! -e $DOCKER_DIR/TDengine-arbitrator-$VERSION-Linux-x64.tar.gz ]; then
 
-      echo "generating TDeninge community packages"
+      echo "generating TDengine community packages"
       ./release.sh -v edge -n $VERSION >> /dev/null 2>&1
       
       if [ ! -e $CURR_DIR/../../release/TDengine-server-$VERSION-Linux-x64.tar.gz ]; then
