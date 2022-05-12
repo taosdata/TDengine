@@ -124,6 +124,22 @@ typedef enum {
   LOG_BIN
 } EHistoBinType;
 
+typedef struct SStateInfo {
+  union {
+    int64_t count;
+    int64_t durationStart;
+  };
+} SStateInfo;
+
+typedef enum {
+  STATE_OPER_INVALID = 0,
+  STATE_OPER_LT,
+  STATE_OPER_GT,
+  STATE_OPER_LE,
+  STATE_OPER_GE,
+  STATE_OPER_NE,
+  STATE_OPER_EQ,
+} EStateOperType;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -184,12 +200,15 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   pResInfo->isNullRes = (pResInfo->numOfRes == 0) ? 1 : 0;
-  /*cleanupResultRowEntry(pResInfo);*/
 
   char* in = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
+}
+
+int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) {
+  return 0;
 }
 
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult) {
@@ -2672,4 +2691,261 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return pResInfo->numOfRes;
+}
+
+bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SStateInfo);
+  return true;
+}
+
+static int8_t getStateOpType(char *opStr) {
+  int8_t opType;
+  if (strcasecmp(opStr, "LT") == 0) {
+    opType = STATE_OPER_LT;
+  } else if (strcasecmp(opStr, "GT") == 0) {
+    opType = STATE_OPER_GT;
+  } else if (strcasecmp(opStr, "LE") == 0) {
+    opType = STATE_OPER_LE;
+  } else if (strcasecmp(opStr, "GE") == 0) {
+    opType = STATE_OPER_GE;
+  } else if (strcasecmp(opStr, "NE") == 0) {
+    opType = STATE_OPER_NE;
+  } else if (strcasecmp(opStr, "EQ") == 0) {
+    opType = STATE_OPER_EQ;
+  } else {
+    opType = STATE_OPER_INVALID;
+  }
+
+  return opType;
+}
+
+#define GET_STATE_VAL(param) \
+  ((param.nType == TSDB_DATA_TYPE_BIGINT) ? (param.i) : (param.d))
+
+#define STATE_COMP(_op, _lval, _param)  \
+  STATE_COMP_IMPL(_op, _lval, GET_STATE_VAL(_param))
+
+#define STATE_COMP_IMPL(_op, _lval, _rval)  \
+  do {                                      \
+    switch(_op) {                           \
+      case STATE_OPER_LT:                   \
+        return ((_lval) < (_rval));         \
+        break;                              \
+      case STATE_OPER_GT:                   \
+        return ((_lval) > (_rval));         \
+        break;                              \
+      case STATE_OPER_LE:                   \
+        return ((_lval) <= (_rval));        \
+        break;                              \
+      case STATE_OPER_GE:                   \
+        return ((_lval) >= (_rval));        \
+        break;                              \
+      case STATE_OPER_NE:                   \
+        return ((_lval) != (_rval));        \
+        break;                              \
+      case STATE_OPER_EQ:                   \
+        return ((_lval) == (_rval));        \
+        break;                              \
+      default:                              \
+        break;                              \
+    }                                       \
+  } while (0)
+
+static bool checkStateOp(int8_t op, SColumnInfoData* pCol, int32_t index, SVariant param) {
+  char* data = colDataGetData(pCol, index);
+  switch(pCol->info.type) {
+    case TSDB_DATA_TYPE_TINYINT: {
+      int8_t v = *(int8_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_UTINYINT: {
+      uint8_t v = *(uint8_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_SMALLINT: {
+      int16_t v = *(int16_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_USMALLINT: {
+      uint16_t v = *(uint16_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_INT: {
+      int32_t v = *(int32_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_UINT: {
+      uint32_t v = *(uint32_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_BIGINT: {
+      int64_t v = *(int64_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_UBIGINT: {
+      uint64_t v = *(uint64_t *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_FLOAT: {
+      float v = *(float *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    case TSDB_DATA_TYPE_DOUBLE: {
+      double v = *(double *)data;
+      STATE_COMP(op, v, param);
+      break;
+    }
+    default: {
+      ASSERT(0);
+    }
+  }
+  return false;
+}
+
+int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SStateInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+
+  int32_t numOfElems = 0;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int8_t op = getStateOpType(varDataVal(pCtx->param[1].param.pz));
+  if (STATE_OPER_INVALID == op) {
+    return 0;
+  }
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    numOfElems++;
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    bool ret = checkStateOp(op, pInputCol, i, pCtx->param[2].param);
+    int64_t output = -1;
+    if (ret) {
+      output = ++pInfo->count;
+    } else {
+      pInfo->count = 0;
+    }
+    colDataAppend(pOutput, i, (char *)&output, false);
+  }
+
+  return numOfElems;
+}
+
+int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SStateInfo*          pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+
+  int32_t numOfElems = 0;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  //TODO: process timeUnit for different db precisions
+  int32_t timeUnit = 1000;
+  if (pCtx->numOfParams == 5) { //TODO: param number incorrect
+    timeUnit = pCtx->param[3].param.i;
+  }
+
+  int8_t op = getStateOpType(varDataVal(pCtx->param[1].param.pz));
+  if (STATE_OPER_INVALID == op) {
+    return 0;
+  }
+
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    numOfElems++;
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    bool ret = checkStateOp(op, pInputCol, i, pCtx->param[2].param);
+    int64_t output = -1;
+    if (ret) {
+      if (pInfo->durationStart == 0) {
+        output = 0;
+        pInfo->durationStart = tsList[i];
+      } else {
+        output = (tsList[i] - pInfo->durationStart) / timeUnit;
+      }
+    } else {
+      pInfo->durationStart = 0;
+    }
+    colDataAppend(pOutput, i, (char *)&output, false);
+  }
+
+  return numOfElems;
+}
+
+bool getCsumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SSumRes);
+  return true;
+}
+
+int32_t csumFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSumRes*             pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t numOfElems = 0;
+  int32_t type = pInputCol->info.type;
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    int32_t pos = startOffset + numOfElems;
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      //colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputCol, i);
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t v;
+      GET_TYPED_DATA(v, int64_t, type, data);
+      pSumRes->isum += v;
+      colDataAppend(pOutput, pos, (char *)&pSumRes->isum, false);
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t v;
+      GET_TYPED_DATA(v, uint64_t, type, data);
+      pSumRes->usum += v;
+      colDataAppend(pOutput, pos, (char *)&pSumRes->usum, false);
+    } else if (IS_FLOAT_TYPE(type)) {
+      double v;
+      GET_TYPED_DATA(v, double, type, data);
+      pSumRes->dsum += v;
+      colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+    }
+
+    //TODO: remove this after pTsOutput is handled
+    if (pTsOutput != NULL) {
+      colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+    }
+
+    numOfElems++;
+  }
+
+  return numOfElems;
 }

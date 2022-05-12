@@ -153,11 +153,11 @@ bool tsStreamSchedV = true;
 
 /*
  * minimum scale for whole system, millisecond by default
- * for TSDB_TIME_PRECISION_MILLI: 86400000L
- *     TSDB_TIME_PRECISION_MICRO: 86400000000L
- *     TSDB_TIME_PRECISION_NANO:  86400000000000L
+ * for TSDB_TIME_PRECISION_MILLI: 60000L
+ *     TSDB_TIME_PRECISION_MICRO: 60000000L
+ *     TSDB_TIME_PRECISION_NANO:  60000000000L
  */
-int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
+int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
 
 // lossy compress 6
 char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
@@ -168,6 +168,9 @@ double   tsDPrecision = 1E-16;                  // double column precision
 uint32_t tsMaxRange = 500;                      // max range
 uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
+
+// udf
+bool tsStartUdfd = true;
 
 // internal
 int32_t tsTransPullupInterval = 6;
@@ -348,7 +351,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 }
 
 static int32_t taosAddServerCfg(SConfig *pCfg) {
-  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 65536, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 4096, 0) != 0) return -1;
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, 0) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
@@ -441,6 +444,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "transPullupInterval", tsTransPullupInterval, 1, 10000, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "mqRebalanceInterval", tsMqRebalanceInterval, 1, 10000, 1) != 0) return -1;
 
+  if (cfgAddBool(pCfg, "udf", tsStartUdfd, 0) != 0) return -1;
   return 0;
 }
 
@@ -580,6 +584,8 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
 
   tsTransPullupInterval = cfgGetItem(pCfg, "transPullupInterval")->i32;
   tsMqRebalanceInterval = cfgGetItem(pCfg, "mqRebalanceInterval")->i32;
+
+  tsStartUdfd = cfgGetItem(pCfg, "udf")->bval;
 
   if (tsQueryBufferSize >= 0) {
     tsQueryBufferSizeBytes = tsQueryBufferSize * 1048576UL;

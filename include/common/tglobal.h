@@ -43,7 +43,7 @@ extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
 extern bool    tsEnableSlaveQuery;
 extern bool    tsPrintAuth;
-extern int64_t tsTickPerDay[3];
+extern int64_t tsTickPerMin[3];
 
 // multi-process
 extern bool    tsMultiProcess;
@@ -120,6 +120,9 @@ extern char     tsCompressor[];
 // tfs
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
+
+// udf
+extern bool tsStartUdfd;
 
 // internal
 extern int32_t tsTransPullupInterval;

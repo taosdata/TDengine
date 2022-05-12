@@ -18,7 +18,7 @@
 static char* getUsageErrFormat(int32_t errCode) {
   switch (errCode) {
     case TSDB_CODE_PLAN_EXPECTED_TS_EQUAL:
-      return "l.ts = r.ts is expected in join expression";
+      return "left.ts = right.ts is expected in join expression";
     case TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN:
       return "not support cross join";
     default:

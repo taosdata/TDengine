@@ -36,9 +36,10 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   // loop to insert
   tInitSubmitMsgIter(pMsg, &msgIter);
   while (true) {
+    SSubmitBlkRsp r = {0};
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
-    if (tsdbInsertTableData(pTsdb, &msgIter, pBlock, &affectedrows) < 0) {
+    if (tsdbInsertTableData(pTsdb, &msgIter, pBlock, &r) < 0) {
       return -1;
     }
 
@@ -46,8 +47,8 @@ int tsdbInsertData(STsdb *pTsdb, int64_t version, SSubmitReq *pMsg, SSubmitRsp *
   }
 
   if (pRsp != NULL) {
-    pRsp->affectedRows = affectedrows;
-    pRsp->numOfRows = numOfRows;
+    // pRsp->affectedRows = affectedrows;
+    // pRsp->numOfRows = numOfRows;
   }
 
   return 0;
@@ -62,8 +63,8 @@ static int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
   STSRow        *row = NULL;
   STsdbKeepCfg  *pCfg = REPO_KEEP_CFG(pTsdb);
   TSKEY          now = taosGetTimestamp(pCfg->precision);
-  TSKEY          minKey = now - tsTickPerDay[pCfg->precision] * pCfg->keep2;
-  TSKEY          maxKey = now + tsTickPerDay[pCfg->precision] * pCfg->days;
+  TSKEY          minKey = now - tsTickPerMin[pCfg->precision] * pCfg->keep2;
+  TSKEY          maxKey = now + tsTickPerMin[pCfg->precision] * pCfg->days;
 
   terrno = TSDB_CODE_SUCCESS;
   // pMsg->length = htonl(pMsg->length);

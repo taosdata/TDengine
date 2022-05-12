@@ -151,19 +151,31 @@ static bool needOptimizeDynamicScan(const SFunctionNode* pFunc) {
 
 static int32_t osdGetRelatedFuncs(SScanLogicNode* pScan, SNodeList** pSdrFuncs, SNodeList** pDsoFuncs) {
   SNodeList* pAllFuncs = osdGetAllFuncs(pScan->node.pParent);
+  SNodeList* pTmpSdrFuncs = NULL;
+  SNodeList* pTmpDsoFuncs = NULL;
   SNode*     pFunc = NULL;
+  bool       otherFunc = false;
   FOREACH(pFunc, pAllFuncs) {
     int32_t code = TSDB_CODE_SUCCESS;
     if (needOptimizeDataRequire((SFunctionNode*)pFunc)) {
-      code = nodesListMakeStrictAppend(pSdrFuncs, nodesCloneNode(pFunc));
+      code = nodesListMakeStrictAppend(&pTmpSdrFuncs, nodesCloneNode(pFunc));
     } else if (needOptimizeDynamicScan((SFunctionNode*)pFunc)) {
-      code = nodesListMakeStrictAppend(pDsoFuncs, nodesCloneNode(pFunc));
+      code = nodesListMakeStrictAppend(&pTmpDsoFuncs, nodesCloneNode(pFunc));
+    } else {
+      otherFunc = true;
     }
     if (TSDB_CODE_SUCCESS != code) {
-      nodesDestroyList(*pSdrFuncs);
-      nodesDestroyList(*pDsoFuncs);
+      nodesDestroyList(pTmpSdrFuncs);
+      nodesDestroyList(pTmpDsoFuncs);
       return code;
     }
+  }
+  if (otherFunc) {
+    nodesDestroyList(pTmpSdrFuncs);
+    nodesDestroyList(pTmpDsoFuncs);
+  } else {
+    *pSdrFuncs = pTmpSdrFuncs;
+    *pDsoFuncs = pTmpDsoFuncs;
   }
   return TSDB_CODE_SUCCESS;
 }

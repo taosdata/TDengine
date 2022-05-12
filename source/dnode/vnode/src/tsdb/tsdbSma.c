@@ -1017,7 +1017,7 @@ static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLe
   int32_t       daysPerFile = pCfg->days;
 
   if (storageLevel == SMA_STORAGE_LEVEL_TSDB) {
-    int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerDay[pCfg->precision]);
+    int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerMin[pCfg->precision]);
     daysPerFile = days > SMA_STORAGE_TSDB_DAYS ? days : SMA_STORAGE_TSDB_DAYS;
   }
 
@@ -1943,7 +1943,6 @@ static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid
 
 int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
   if (!pStore || (taosArrayGetSize(pStore->tbUids) == 0)) {
-    tsdbDebug("vgId:%d no need to update tbUids since empty uidStore", REPO_ID(pTsdb));
     return TSDB_CODE_SUCCESS;
   }
 

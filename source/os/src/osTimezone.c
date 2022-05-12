@@ -170,64 +170,110 @@ void taosGetSystemTimezone(char *outTimezoneStr, enum TdTimezone *tsTimezone) {
    */
   snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
            -timezone / 3600);
-
 #else
+
+  char  buf[4096] = {0};
+  char *tz = NULL;
+  {
+    int n = readlink("/etc/localtime", buf, sizeof(buf));
+    if (n < 0) {
+      printf("read /etc/localtime error, reason:%s", strerror(errno));
+      
+      if (taosCheckExistFile("/etc/timezone")) {
+        /*
+        * NOTE: do not remove it.
+        * Enforce set the correct daylight saving time(DST) flag according
+        * to current time
+        */
+        time_t    tx1 = taosGetTimestampSec();
+        struct tm tm1;
+        taosLocalTime(&tx1, &tm1);
+        /* load time zone string from /etc/timezone */
+        // FILE *f = fopen("/etc/timezone", "r");
+        errno = 0;
+        TdFilePtr pFile = taosOpenFile("/etc/timezone", TD_FILE_READ);
+        char  buf[68] = {0};
+        if (pFile != NULL) {
+          int len = taosReadFile(pFile, buf, 64);
+          if (len < 64 && taosGetErrorFile(pFile)) {
+            taosCloseFile(&pFile);
+            printf("read /etc/timezone error, reason:%s", strerror(errno));
+            return;
+          }
+
+          taosCloseFile(&pFile);
+
+          buf[sizeof(buf) - 1] = 0;
+          char *lineEnd = strstr(buf, "\n");
+          if (lineEnd != NULL) {
+            *lineEnd = 0;
+          }
+
+          // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
+          if (strlen(buf) > 0) {
+            setenv("TZ", buf, 1);
+          }
+        }
+        // get and set default timezone
+        tzset();
+        /*
+        * get CURRENT time zone.
+        * system current time zone is affected by daylight saving time(DST)
+        *
+        * e.g., the local time zone of London in DST is GMT+01:00,
+        * otherwise is GMT+00:00
+        */
+        int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
+        *tsTimezone = tz;
+        tz += daylight;
+
+        /*
+        * format example:
+        *
+        * Asia/Shanghai   (CST, +0800)
+        * Europe/London   (BST, +0100)
+        */
+        snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
+      } else {
+        printf("There is not /etc/timezone.\n");
+      }
+      return;
+    }
+    buf[n] = '\0';
+    for (int i = n - 1; i >= 0; --i) {
+      if (buf[i] == '/') {
+        if (tz) {
+          tz = buf + i + 1;
+          break;
+        }
+        tz = buf + i + 1;
+      }
+    }
+    if (!tz || 0 == strchr(tz, '/')) {
+      printf("parsing /etc/localtime failed");
+      return;
+    }
+
+    setenv("TZ", tz, 1);
+    tzset();
+  }
+
   /*
-   * NOTE: do not remove it.
-   * Enforce set the correct daylight saving time(DST) flag according
-   * to current time
-   */
+  * NOTE: do not remove it.
+  * Enforce set the correct daylight saving time(DST) flag according
+  * to current time
+  */
   time_t    tx1 = taosGetTimestampSec();
   struct tm tm1;
   taosLocalTime(&tx1, &tm1);
 
-  /* load time zone string from /etc/timezone */
-  // FILE *f = fopen("/etc/timezone", "r");
-  errno = 0;
-  TdFilePtr pFile = taosOpenFile("/etc/timezone", TD_FILE_READ);
-  char  buf[68] = {0};
-  if (pFile != NULL) {
-    int len = taosReadFile(pFile, buf, 64);
-    if (len < 64 && taosGetErrorFile(pFile)) {
-      taosCloseFile(&pFile);
-      printf("read /etc/timezone error, reason:%s", strerror(errno));
-      return;
-    }
-
-    taosCloseFile(&pFile);
-
-    buf[sizeof(buf) - 1] = 0;
-    char *lineEnd = strstr(buf, "\n");
-    if (lineEnd != NULL) {
-      *lineEnd = 0;
-    }
-
-    // for CentOS system, /etc/timezone does not exist. Ignore the TZ environment variables
-    if (strlen(buf) > 0) {
-      setenv("TZ", buf, 1);
-    }
-  }
-  // get and set default timezone
-  tzset();
-
   /*
-   * get CURRENT time zone.
-   * system current time zone is affected by daylight saving time(DST)
-   *
-   * e.g., the local time zone of London in DST is GMT+01:00,
-   * otherwise is GMT+00:00
-   */
-  int32_t tz = (-timezone * MILLISECOND_PER_SECOND) / MILLISECOND_PER_HOUR;
-  *tsTimezone = tz;
-  tz += daylight;
-
-  /*
-   * format example:
-   *
-   * Asia/Shanghai   (CST, +0800)
-   * Europe/London   (BST, +0100)
-   */
-  snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %s%02d00)", buf, tzname[daylight], tz >= 0 ? "+" : "-", abs(tz));
-
+  * format example:
+  *
+  * Asia/Shanghai   (CST, +0800)
+  * Europe/London   (BST, +0100)
+  */
+  snprintf(outTimezoneStr, TD_TIMEZONE_LEN, "%s (%s, %+03ld00)", tz, tm1.tm_isdst ? tzname[daylight] : tzname[0],
+          -timezone / 3600);
 #endif
 }
