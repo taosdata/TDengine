@@ -1069,8 +1069,9 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 //   [...];
 static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   int32_t tbNum = 0;
-  char    tbFName[TSDB_TABLE_FNAME_LEN];
-  bool    autoCreateTbl = false;
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  bool autoCreateTbl = false;
+  STableMeta *pMeta = NULL;
 
   // for each table
   while (1) {
@@ -1127,10 +1128,12 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, tbFName, strlen(tbFName), TSDB_DEFAULT_PAYLOAD_SIZE,
                                     sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta,
                                     &dataBuf, NULL, &pCxt->createTblReq));
-
+    pMeta = pCxt->pTableMeta;
+    pCxt->pTableMeta = NULL;
+    
     if (TK_NK_LP == sToken.type) {
       // pSql -> field1_name, ...)
-      CHECK_CODE(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pCxt->pTableMeta)));
+      CHECK_CODE(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pMeta)));
       NEXT_TOKEN(pCxt->pSql, sToken);
     }
 
@@ -1166,8 +1169,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
-    (*pCxt->pStmtCb->setInfoFn)(pCxt->pStmtCb->pStmt, pCxt->pTableMeta, tags, tbFName, autoCreateTbl,
-                                pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
+    (*pCxt->pStmtCb->setInfoFn)(pCxt->pStmtCb->pStmt, pMeta, tags, tbFName, autoCreateTbl, pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
 
     memset(&pCxt->tags, 0, sizeof(pCxt->tags));
     pCxt->pVgroupsHashObj = NULL;
