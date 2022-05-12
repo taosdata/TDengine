@@ -2480,6 +2480,10 @@ static FORCE_INLINE int32_t tEncodeSMqDataBlkRsp(void** buf, const SMqDataBlkRsp
         SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRsp->blockSchema, i);
         tlen += taosEncodeSSchemaWrapper(buf, pSW);
       }
+      if (pRsp->withTbName) {
+        char* tbName = (char*)taosArrayGetP(pRsp->blockTbName, i);
+        tlen += taosEncodeString(buf, tbName);
+      }
     }
   }
   return tlen;
@@ -2492,6 +2496,7 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   buf = taosDecodeFixedI32(buf, &pRsp->blockNum);
   pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(void*));
+  pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
   if (pRsp->blockNum != 0) {
     buf = taosDecodeFixedI8(buf, &pRsp->withTbName);
@@ -2509,6 +2514,11 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
         SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
         buf = taosDecodeSSchemaWrapper(buf, pSW);
         taosArrayPush(pRsp->blockSchema, &pSW);
+      }
+      if (pRsp->withTbName) {
+        char* name = NULL;
+        buf = taosDecodeString(buf, &name);
+        taosArrayPush(pRsp->blockTbName, &name);
       }
     }
   }

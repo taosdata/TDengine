@@ -1346,3 +1346,16 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
     return -1;
   }
 }
+
+const char* tmq_get_table_name(TAOS_RES* res) {
+  if (TD_RES_TMQ(res)) {
+    SMqRspObj* pRspObj = (SMqRspObj*)res;
+    if (!pRspObj->rsp.withTbName || pRspObj->rsp.blockTbName == NULL || pRspObj->resIter < 0 ||
+        pRspObj->resIter >= pRspObj->rsp.blockNum) {
+      return NULL;
+    }
+    const char* name = taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+    return name;
+  }
+  return NULL;
+}
