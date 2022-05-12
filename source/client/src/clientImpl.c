@@ -180,7 +180,7 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
     return code;
   }
 
-  code = qParseQuerySql(&cxt, pQuery);
+  code = qParseSql(&cxt, pQuery);
   if (TSDB_CODE_SUCCESS == code) {
     if ((*pQuery)->haveResultSet) {
       setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
@@ -554,8 +554,8 @@ static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest) {
   }
   taosMemoryFreeClear(db);
 
-  connectReq.connType  = pObj->connType;
-  connectReq.pid       = htonl(appInfo.pid);
+  connectReq.connType = pObj->connType;
+  connectReq.pid = htonl(appInfo.pid);
   connectReq.startTime = htobe64(appInfo.startTime);
 
   tstrncpy(connectReq.app, appInfo.appName, sizeof(connectReq.app));

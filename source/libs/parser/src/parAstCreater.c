@@ -299,6 +299,14 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
   val->placeholderNo = ++pCxt->placeholderNo;
+  if (NULL == pCxt->pPlaceholderValues) {
+    pCxt->pPlaceholderValues = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    if (NULL == pCxt->pPlaceholderValues) {
+      nodesDestroyNode(val);
+      return NULL;
+    }
+  }
+  taosArrayPush(pCxt->pPlaceholderValues, &val);
   return (SNode*)val;
 }
 
