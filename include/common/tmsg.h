@@ -252,6 +252,7 @@ STSRow* tGetSubmitBlkNext(SSubmitBlkIter* pIter);
 int32_t tPrintFixedSchemaSubmitReq(const SSubmitReq* pReq, STSchema* pSchema);
 
 typedef struct {
+  int32_t code;
   int8_t  hashMeta;
   int64_t uid;
   char*   tblFName;
@@ -271,7 +272,7 @@ typedef struct {
 
 int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
-void tFreeSSubmitRsp(SSubmitRsp *pRsp);
+void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
 #define COL_SMA_ON  ((int8_t)0x1)
 #define COL_IDX_ON  ((int8_t)0x2)
@@ -2380,6 +2381,7 @@ typedef struct {
 typedef struct {
   SMsgHead head;
   char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+  int8_t   withTbName;
   int32_t  epoch;
   uint64_t reqId;
   int64_t  consumerId;
@@ -2489,6 +2491,10 @@ static FORCE_INLINE int32_t tEncodeSMqDataBlkRsp(void** buf, const SMqDataBlkRsp
         SSchemaWrapper* pSW = (SSchemaWrapper*)taosArrayGetP(pRsp->blockSchema, i);
         tlen += taosEncodeSSchemaWrapper(buf, pSW);
       }
+      if (pRsp->withTbName) {
+        char* tbName = (char*)taosArrayGetP(pRsp->blockTbName, i);
+        tlen += taosEncodeString(buf, tbName);
+      }
     }
   }
   return tlen;
@@ -2501,6 +2507,7 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   buf = taosDecodeFixedI32(buf, &pRsp->blockNum);
   pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(void*));
+  pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
   if (pRsp->blockNum != 0) {
     buf = taosDecodeFixedI8(buf, &pRsp->withTbName);
@@ -2518,6 +2525,11 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
         SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
         buf = taosDecodeSSchemaWrapper(buf, pSW);
         taosArrayPush(pRsp->blockSchema, &pSW);
+      }
+      if (pRsp->withTbName) {
+        char* name = NULL;
+        buf = taosDecodeString(buf, &name);
+        taosArrayPush(pRsp->blockTbName, &name);
       }
     }
   }

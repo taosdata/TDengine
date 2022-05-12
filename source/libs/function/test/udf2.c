@@ -28,6 +28,12 @@ int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInte
   int64_t sumSquares = *(int64_t*)interBuf->buf;
   int8_t numOutput = 0;
   for (int32_t i = 0; i < block->numOfCols; ++i) {
+    SUdfColumn* col = block->udfCols[i];
+    if (col->colMeta.type != TSDB_DATA_TYPE_INT) {
+      return TSDB_CODE_UDF_INVALID_INPUT;
+    }
+  }
+  for (int32_t i = 0; i < block->numOfCols; ++i) {
     for (int32_t j = 0; j < block->numOfRows; ++j) {
       SUdfColumn* col = block->udfCols[i];
       if (udfColDataIsNull(col, j)) {

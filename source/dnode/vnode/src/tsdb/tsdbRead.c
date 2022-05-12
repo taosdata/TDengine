@@ -323,7 +323,7 @@ static int64_t getEarliestValidTimestamp(STsdb* pTsdb) {
   STsdbKeepCfg* pCfg = REPO_KEEP_CFG(pTsdb);
 
   int64_t now = taosGetTimestamp(pCfg->precision);
-  return now - (tsTickPerDay[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
+  return now - (tsTickPerMin[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
 }
 
 static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableDataCond* pCond) {
@@ -1047,10 +1047,10 @@ static int32_t getFileIdFromKey(TSKEY key, int32_t daysPerFile, int32_t precisio
   }
 
   if (key < 0) {
-    key -= (daysPerFile * tsTickPerDay[precision]);
+    key -= (daysPerFile * tsTickPerMin[precision]);
   }
 
-  int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerDay[precision]));  // set the starting fileId
+  int64_t fid = (int64_t)(key / (daysPerFile * tsTickPerMin[precision]));  // set the starting fileId
   if (fid < 0L && llabs(fid) > INT32_MAX) {                                // data value overflow for INT32
     fid = INT32_MIN;
   }
