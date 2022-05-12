@@ -45,22 +45,17 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
   pMgmt->data.updateTime = 0;
   pMgmt->data.rebootTime = taosGetTimestampMs();
   pMgmt->data.dropped = 0;
-  pMgmt->data.localEp = strdup(pInput->localEp);
-  pMgmt->data.localFqdn = strdup(pInput->localFqdn);
-  pMgmt->data.firstEp = strdup(pInput->firstEp);
-  pMgmt->data.secondEp = strdup(pInput->secondEp);
-  pMgmt->data.dataDir = strdup(pInput->dataDir);
-  pMgmt->data.disks = pInput->disks;
-  pMgmt->data.numOfDisks = pInput->numOfDisks;
+  pMgmt->data.localEp = pInput->localEp;
+  pMgmt->data.localFqdn = pInput->localFqdn;
+  pMgmt->data.firstEp = pInput->firstEp;
+  pMgmt->data.secondEp = pInput->secondEp;
   pMgmt->data.supportVnodes = pInput->supportVnodes;
   pMgmt->data.serverPort = pInput->serverPort;
+  pMgmt->pDnode = pInput->pDnode;
+  pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
+  pMgmt->processDropNodeFp = pInput->processDropNodeFp;
+  pMgmt->isNodeDeployedFp = pInput->isNodeDeployedFp;
   taosInitRWLatch(&pMgmt->data.latch);
-
-  if (pMgmt->data.dataDir == NULL || pMgmt->data.localEp == NULL || pMgmt->data.localFqdn == NULL ||
-      pMgmt->data.firstEp == NULL || pMgmt->data.secondEp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
 
   pMgmt->data.dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pMgmt->data.dnodeHash == NULL) {
@@ -87,6 +82,7 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
     dError("failed to start udfd");
   }
 
+  pOutput->pMgmt = pMgmt;
   dInfo("dnode-mgmt is initialized");
   return 0;
 }
@@ -110,7 +106,6 @@ static void dmCloseMgmt(SDnodeMgmt *pMgmt) {
   taosMemoryFreeClear(pMgmt->data.localFqdn);
   taosMemoryFreeClear(pMgmt->data.firstEp);
   taosMemoryFreeClear(pMgmt->data.secondEp);
-  taosMemoryFreeClear(pMgmt->data.dataDir);
 
   dInfo("dnode-mgmt is cleaned up");
 }

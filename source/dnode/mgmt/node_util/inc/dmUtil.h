@@ -158,31 +158,26 @@ int32_t   dmWriteShmFile(const char *path, const char *name, const SShm *pShm);
 
 // common define
 typedef struct {
-  int32_t    dnodeId;
-  int64_t    clusterId;
-  int64_t    dnodeVer;
-  int64_t    updateTime;
-  int64_t    rebootTime;
-  int32_t    unsyncedVgId;
-  ESyncState vndState;
-  ESyncState mndState;
-  bool       isMnode;
-  bool       dropped;
-  SEpSet     mnodeEps;
-  SArray    *dnodeEps;
-  SHashObj  *dnodeHash;
-  SRWLatch   latch;
-  SMsgCb     msgCb;
-  TdFilePtr  lockfile;
-  char      *localEp;
-  char      *localFqdn;
-  char      *firstEp;
-  char      *secondEp;
-  char      *dataDir;
-  SDiskCfg  *disks;
-  int32_t    numOfDisks;
-  int32_t    supportVnodes;
-  uint16_t   serverPort;
+  int32_t     dnodeId;
+  int64_t     clusterId;
+  int64_t     dnodeVer;
+  int64_t     updateTime;
+  int64_t     rebootTime;
+  int32_t     unsyncedVgId;
+  ESyncState  vndState;
+  ESyncState  mndState;
+  bool        dropped;
+  SEpSet      mnodeEps;
+  SArray     *dnodeEps;
+  SHashObj   *dnodeHash;
+  SRWLatch    latch;
+  SMsgCb      msgCb;
+  const char *localEp;
+  const char *localFqdn;
+  const char *firstEp;
+  const char *secondEp;
+  int32_t     supportVnodes;
+  uint16_t    serverPort;
 } SDnodeData;
 
 #ifdef __cplusplus

@@ -88,7 +88,6 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
 
   SMonMloadInfo minfo = {0};
   dmGetMnodeLoads(pMgmt, &minfo);
-  pMgmt->data.isMnode = minfo.isMnode;
   pMgmt->data.mndState = minfo.load.syncState;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);

@@ -228,7 +228,9 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
       } else {
         pWrapper->procType = pDnode->ptype;
       }
-      return dmOpenNode(pWrapper);
+      if (dmOpenNode(pWrapper) != 0) {
+        return -1;
+      }
     }
   }
 
