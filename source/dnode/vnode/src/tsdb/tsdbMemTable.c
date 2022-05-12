@@ -310,6 +310,17 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   TSKEY          keyMax;
   SSubmitBlk    *pBlkCopy;
 
+  // check if table exists
+  SMetaReader mr = {0};
+  SMetaEntry  me = {0};
+  metaReaderInit(&mr, pTsdb->pVnode->pMeta, 0);
+  if (metaGetTableEntryByUid(&mr, pMsgIter->uid) < 0) {
+    metaReaderClear(&mr);
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return -1;
+  }
+  metaReaderClear(&mr);
+
   // create container is nedd
   tptr = taosHashGet(pMemTable->pHashIdx, &(pMsgIter->uid), sizeof(pMsgIter->uid));
   if (tptr == NULL) {

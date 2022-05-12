@@ -246,11 +246,11 @@ TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
     access |= (tdFileOptions & TD_FILE_APPEND) ? O_APPEND : 0;
     access |= (tdFileOptions & TD_FILE_TEXT) ? O_TEXT : 0;
     access |= (tdFileOptions & TD_FILE_EXCL) ? O_EXCL : 0;
-  #ifdef WINDOWS
-    fd = _open(path, access, _S_IREAD|_S_IWRITE);
-  #else
+#ifdef WINDOWS
+    fd = _open(path, access, _S_IREAD | _S_IWRITE);
+#else
     fd = open(path, access, S_IRWXU | S_IRWXG | S_IRWXO);
-  #endif
+#endif
     if (fd == -1) {
       return NULL;
     }
@@ -310,9 +310,6 @@ int64_t taosCloseFile(TdFilePtr *ppFile) {
 }
 
 int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
-  if (pFile == NULL) {
-    return 0;
-  }
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
@@ -356,10 +353,10 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
-  assert(pFile->fd >= 0); // Please check if you have closed the file.
+  assert(pFile->fd >= 0);  // Please check if you have closed the file.
 #ifdef WINDOWS
   size_t pos = lseek(pFile->fd, 0, SEEK_CUR);
-  lseek(pFile->fd, (long)offset, SEEK_SET);
+  lseek(pFile->fd, offset, SEEK_SET);
   int64_t ret = read(pFile->fd, buf, count);
   lseek(pFile->fd, pos, SEEK_SET);
 #else
@@ -372,9 +369,6 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 }
 
 int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
-  if (pFile == NULL) {
-    return 0;
-  }
 #if FILE_WITH_LOCK
   taosThreadRwlockWrlock(&(pFile->rwlock));
 #endif
@@ -406,14 +400,11 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count) {
 }
 
 int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
-  if (pFile == NULL) {
-    return 0;
-  }
 #if FILE_WITH_LOCK
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
-  int64_t ret = lseek(pFile->fd, (long)offset, whence);
+  int64_t ret = lseek(pFile->fd, offset, whence);
 #if FILE_WITH_LOCK
   taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
@@ -424,9 +415,6 @@ int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime) {
 #ifdef WINDOWS
   return 0;
 #else
-  if (pFile == NULL) {
-    return 0;
-  }
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
   struct stat fileStat;
@@ -451,9 +439,6 @@ int32_t taosLockFile(TdFilePtr pFile) {
 #ifdef WINDOWS
   return 0;
 #else
-  if (pFile == NULL) {
-    return 0;
-  }
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
   return (int32_t)flock(pFile->fd, LOCK_EX | LOCK_NB);
@@ -464,9 +449,6 @@ int32_t taosUnLockFile(TdFilePtr pFile) {
 #ifdef WINDOWS
   return 0;
 #else
-  if (pFile == NULL) {
-    return 0;
-  }
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
   return (int32_t)flock(pFile->fd, LOCK_UN | LOCK_NB);
@@ -667,7 +649,7 @@ int32_t taosUmaskFile(int32_t maskVal) {
 
 int32_t taosGetErrorFile(TdFilePtr pFile) { return errno; }
 int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
-  if (pFile == NULL || ptrBuf == NULL ) {
+  if (pFile == NULL || ptrBuf == NULL) {
     return -1;
   }
   if (*ptrBuf != NULL) {
@@ -689,7 +671,7 @@ int64_t taosGetLineFile(TdFilePtr pFile, char **__restrict ptrBuf) {
 #endif
 }
 int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf) {
-  if (pFile == NULL || buf == NULL ) {
+  if (pFile == NULL || buf == NULL) {
     return -1;
   }
   assert(pFile->fp != NULL);

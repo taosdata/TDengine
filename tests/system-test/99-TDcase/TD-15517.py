@@ -110,10 +110,19 @@ class TDTestCase:
                          parameterDict["rowsPerTbl"],\
                          parameterDict["batchNum"],\
                          parameterDict["startTs"])                           
-        return
+        return                   
+        
+    def run(self):
+        tdSql.prepare()
 
+        buildPath = self.getBuildPath()
+        if (buildPath == ""):
+            tdLog.exit("taosd not found!")
+        else:
+            tdLog.info("taosd found in %s" % buildPath)
+        cfgPath = buildPath + "/../sim/psim/cfg"
+        tdLog.info("cfgPath: %s" % cfgPath)
 
-    def tmqCase1(self, cfgPath, buildPath):
         tdLog.printNoPrefix("======== test scenario 1: ")
         tdLog.info("step 1: create database, stb, ctb and insert data")
         # create and start thread
@@ -150,12 +159,16 @@ class TDTestCase:
         #tdSql.checkRows(2)
         topic1 = tdSql.getData(0 , 0)
         topic2 = tdSql.getData(1 , 0)
+        print (topic1)
+        print (topic2)
         
-        tdLog.info("show topics: %s, %s"%(topic1, topic2))
-        if topic1 != topicFromStb and topic1 != topicFromCtb:
-            tdLog.exit("topic error1") 
-        if topic2 != topicFromStb and topic2 != topicFromCtb:
-            tdLog.exit("topic error2") 
+        print (topicFromStb)
+        print (topicFromCtb)
+        #tdLog.info("show topics: %s, %s"%topic1, topic2)
+        #if topic1 != topicFromStb or topic1 != topicFromCtb:
+        #    tdLog.exit("topic error1") 
+        #if topic2 != topicFromStb or topic2 != topicFromCtb:
+        #    tdLog.exit("topic error2") 
          
         tdLog.info("create consume info table and consume result table")
         cdbName = parameterDict["dbName"]
@@ -218,9 +231,9 @@ class TDTestCase:
         tdSql.query("drop topic %s"%topicFromStb)
         tdSql.query("drop topic %s"%topicFromCtb)
         
-        
-    def tmqCase2(self, cfgPath, buildPath):
+        # ==============================================================================
         tdLog.printNoPrefix("======== test scenario 2: add child table with consuming ")
+        tdLog.info(" clean database")        
         # create and start thread
         parameterDict = {'cfg':        '',       \
                          'dbName':     'db2',    \
@@ -264,11 +277,16 @@ class TDTestCase:
         tdSql.query("show topics")
         topic1 = tdSql.getData(0 , 0)
         topic2 = tdSql.getData(1 , 0)
-        tdLog.info("show topics: %s, %s"%(topic1, topic2))
-        if topic1 != topicFromStb and topic1 != topicFromCtb:
-            tdLog.exit("topic error1") 
-        if topic2 != topicFromStb and topic2 != topicFromCtb:
-            tdLog.exit("topic error2") 
+        print (topic1)
+        print (topic2)
+        
+        print (topicFromStb)
+        print (topicFromCtb)
+        #tdLog.info("show topics: %s, %s"%topic1, topic2)
+        #if topic1 != topicFromStb or topic1 != topicFromCtb:
+        #    tdLog.exit("topic error1") 
+        #if topic2 != topicFromStb or topic2 != topicFromCtb:
+        #    tdLog.exit("topic error2") 
          
         tdLog.info("create consume info table and consume result table")
         cdbName = parameterDict["dbName"]
@@ -339,22 +357,12 @@ class TDTestCase:
         tdSql.checkData(0 , 2, expectmsgcnt)
         tdSql.checkData(0 , 3, expectrowcnt)
 
-        tdLog.printNoPrefix("======== test scenario 2 end ...... ")
+        
+        # ==============================================================================
+        tdLog.printNoPrefix("======== test scenario 3: ")
 
-    def run(self):
-        tdSql.prepare()
+        #os.system('pkill tmq_sim')
 
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        cfgPath = buildPath + "/../sim/psim/cfg"
-        tdLog.info("cfgPath: %s" % cfgPath)
-
-        self.tmqCase1(cfgPath, buildPath)
-        #self.tmqCase2(cfgPath, buildPath)        
-        #self.tmqCase3(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()

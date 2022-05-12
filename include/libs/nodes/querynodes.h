@@ -232,9 +232,9 @@ typedef struct SSelectStmt {
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   bool        isEmptyResult;
+  bool        isTimeOrderQuery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
-  bool        isTimeOrderQuery;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -324,6 +324,7 @@ typedef struct SQuery {
   SArray*        pTableList;
   bool           showRewrite;
   int32_t        placeholderNum;
+  SArray*        pPlaceholderValues;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
