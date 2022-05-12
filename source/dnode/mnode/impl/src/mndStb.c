@@ -318,6 +318,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->updateTime = pNew->updateTime;
   pOld->version = pNew->version;
   pOld->nextColId = pNew->nextColId;
+  pOld->ttl = pNew->ttl;
   pOld->numOfColumns = pNew->numOfColumns;
   pOld->numOfTags = pNew->numOfTags;
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
@@ -832,7 +833,7 @@ static int32_t mndProcessVCreateStbRsp(SNodeMsg *pRsp) {
 }
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
-  if (pAlter->commentLen != 0) return 0;
+  if (pAlter->commentLen != 0 || pAlter->ttl != 0) return 0;
 
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
@@ -883,7 +884,8 @@ static int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
   return 0;
 }
 
-static int32_t mndUpdateStbComment(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen) {
+static int32_t mndUpdateStbCommentAndTTL(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
+                                         int32_t ttl) {
   if (commentLen > 0) {
     pNew->commentLen = commentLen;
     pNew->comment = taosMemoryCalloc(1, commentLen);
@@ -892,6 +894,9 @@ static int32_t mndUpdateStbComment(const SStbObj *pOld, SStbObj *pNew, char *pCo
       return -1;
     }
     memcpy(pNew->comment, pComment, commentLen);
+  }
+  if (ttl >= 0) {
+    pNew->ttl = ttl;
   }
 
   if (mndAllocStbSchemas(pOld, pNew) != 0) {
@@ -1232,7 +1237,7 @@ static int32_t mndAlterStb(SMnode *pMnode, SNodeMsg *pReq, const SMAlterStbReq *
       code = mndAlterStbColumnBytes(pOld, &stbObj, pField0);
       break;
     case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
-      code = mndUpdateStbComment(pOld, &stbObj, pAlter->comment, pAlter->commentLen);
+      code = mndUpdateStbCommentAndTTL(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl);
       break;
     default:
       terrno = TSDB_CODE_OPS_NOT_SUPPORT;
@@ -1723,7 +1728,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
 
-    char *p = taosMemoryMalloc(pStb->commentLen + VARSTR_HEADER_SIZE);  // check malloc failures
+    char *p = taosMemoryCalloc(1, pStb->commentLen + 1 + VARSTR_HEADER_SIZE);  // check malloc failures
     if (p != NULL) {
       if (pStb->commentLen != 0) {
         STR_TO_VARSTR(p, pStb->comment);
