@@ -390,6 +390,16 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
   return interval;
 }
 
+static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
+  STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
+  taosMemoryFree(pTableScanInfo->pResBlock);
+  tsdbCleanupReadHandle(pTableScanInfo->dataReader);
+
+  if (pTableScanInfo->pColMatchInfo != NULL) {
+    taosArrayDestroy(pTableScanInfo->pColMatchInfo);
+  }
+}
+
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader, SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
@@ -436,7 +446,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->numOfExprs   = numOfCols;
   pOperator->pTaskInfo    = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, NULL, NULL, NULL, NULL);
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo, NULL, NULL, NULL);
 
   static int32_t cost = 0;
 

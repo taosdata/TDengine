@@ -222,13 +222,6 @@ enum {
 typedef struct tExprNode {
   int32_t nodeType;
   union {
-//    struct {
-//      int32_t           optr;   // binary operator
-//      void             *info;   // support filter operation on this expression only available for leaf node
-//      struct tExprNode *pLeft;  // left child pointer
-//      struct tExprNode *pRight; // right child pointer
-//    } _node;
-
     SSchema            *pSchema;// column node
     struct SVariant    *pVal;   // value node
 
