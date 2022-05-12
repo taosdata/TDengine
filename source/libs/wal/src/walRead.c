@@ -55,7 +55,7 @@ int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) {
 }
 
 static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
-  int ret = 0;
+  int64_t ret = 0;
 
   TdFilePtr pIdxTFile = pRead->pReadIdxTFile;
   TdFilePtr pLogTFile = pRead->pReadLogTFile;
@@ -68,7 +68,7 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
     wError("failed to seek idx file, ver %ld, pos: %ld, since %s", ver, offset, terrstr());
     return -1;
   }
-  SWalIdxEntry entry;
+  SWalIdxEntry entry = {0};
   if ((ret = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry))) != sizeof(SWalIdxEntry)) {
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
