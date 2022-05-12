@@ -1311,6 +1311,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
     tlen += taosEncodeFixedI16(buf, pColData->info.colId);
     tlen += taosEncodeFixedI16(buf, pColData->info.type);
     tlen += taosEncodeFixedI32(buf, pColData->info.bytes);
+    tlen += taosEncodeFixedBool(buf, pColData->hasNull);
 
     if (IS_VAR_DATA_TYPE(pColData->info.type)) {
       tlen += taosEncodeBinary(buf, pColData->varmeta.offset, sizeof(int32_t) * rows);
@@ -1340,6 +1341,7 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     buf = taosDecodeFixedI16(buf, &data.info.colId);
     buf = taosDecodeFixedI16(buf, &data.info.type);
     buf = taosDecodeFixedI32(buf, &data.info.bytes);
+    buf = taosDecodeFixedBool(buf, &data.hasNull);
 
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       buf = taosDecodeBinary(buf, (void**)&data.varmeta.offset, pBlock->info.rows * sizeof(int32_t));

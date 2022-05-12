@@ -213,3 +213,31 @@ void syncUtilMsgNtoH(void* msg) {
   pHead->contLen = ntohl(pHead->contLen);
   pHead->vgId = ntohl(pHead->vgId);
 }
+
+bool syncUtilIsData(tmsg_t msgType) {
+  if (msgType == TDMT_VND_SYNC_NOOP || msgType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+    return false;
+  }
+  return true;
+}
+
+bool syncUtilUserPreCommit(tmsg_t msgType) {
+  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+    return true;
+  }
+  return false;
+}
+
+bool syncUtilUserCommit(tmsg_t msgType) {
+  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+    return true;
+  }
+  return false;
+}
+
+bool syncUtilUserRollback(tmsg_t msgType) {
+  if (msgType != TDMT_VND_SYNC_NOOP && msgType != TDMT_VND_SYNC_CONFIG_CHANGE) {
+    return true;
+  }
+  return false;
+}
