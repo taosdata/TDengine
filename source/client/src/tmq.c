@@ -187,7 +187,7 @@ typedef struct {
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
-  conf->autoCommit = false;
+  conf->autoCommit = true;
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
   return conf;
@@ -1307,7 +1307,18 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t wait_time) {
 }
 
 tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) {
-  // TODO
+  if (tmq->status == TMQ_CONSUMER_STATUS__READY) {
+    tmq_list_t*    lst = tmq_list_new();
+    tmq_resp_err_t rsp = tmq_subscribe(tmq, lst);
+    tmq_list_destroy(lst);
+    if (rsp == TMQ_RESP_ERR__SUCCESS) {
+      // TODO: free resources
+      return TMQ_RESP_ERR__SUCCESS;
+    } else {
+      return TMQ_RESP_ERR__FAIL;
+    }
+  }
+  // TODO: free resources
   return TMQ_RESP_ERR__SUCCESS;
 }
 
@@ -1334,4 +1345,17 @@ int32_t tmq_get_vgroup_id(TAOS_RES* res) {
   } else {
     return -1;
   }
+}
+
+const char* tmq_get_table_name(TAOS_RES* res) {
+  if (TD_RES_TMQ(res)) {
+    SMqRspObj* pRspObj = (SMqRspObj*)res;
+    if (!pRspObj->rsp.withTbName || pRspObj->rsp.blockTbName == NULL || pRspObj->resIter < 0 ||
+        pRspObj->resIter >= pRspObj->rsp.blockNum) {
+      return NULL;
+    }
+    const char* name = taosArrayGetP(pRspObj->rsp.blockTbName, pRspObj->resIter);
+    return name;
+  }
+  return NULL;
 }

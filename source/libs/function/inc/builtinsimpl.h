@@ -25,6 +25,7 @@ extern "C" {
 
 bool functionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx));
 int32_t functionFinalizeWithResultBuf(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, char* finalResult);
 
 EFuncDataRequired countDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
@@ -88,6 +89,14 @@ bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t histogramFunction(SqlFunctionCtx* pCtx);
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool getStateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool stateFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t stateCountFunction(SqlFunctionCtx* pCtx);
+int32_t stateDurationFunction(SqlFunctionCtx* pCtx);
+
+bool getCsumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t csumFunction(SqlFunctionCtx* pCtx);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 

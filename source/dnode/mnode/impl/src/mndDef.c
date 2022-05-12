@@ -196,7 +196,9 @@ SMqVgEp *tCloneSMqVgEp(const SMqVgEp *pVgEp) {
   return pVgEpNew;
 }
 
-void tDeleteSMqVgEp(SMqVgEp *pVgEp) { taosMemoryFree(pVgEp->qmsg); }
+void tDeleteSMqVgEp(SMqVgEp *pVgEp) {
+  if (pVgEp->qmsg) taosMemoryFree(pVgEp->qmsg);
+}
 
 int32_t tEncodeSMqVgEp(void **buf, const SMqVgEp *pVgEp) {
   int32_t tlen = 0;

@@ -119,7 +119,7 @@ _exit:
   taosMemoryFree(metaRsp.pSchemas);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {

@@ -89,6 +89,8 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   SDB_SET_INT8(pRaw, dataPos, pTopic->withTbName, TOPIC_ENCODE_OVER);
   SDB_SET_INT8(pRaw, dataPos, pTopic->withSchema, TOPIC_ENCODE_OVER);
   SDB_SET_INT8(pRaw, dataPos, pTopic->withTag, TOPIC_ENCODE_OVER);
+
+  SDB_SET_INT32(pRaw, dataPos, pTopic->consumerCnt, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, pTopic->sql, pTopic->sqlLen, TOPIC_ENCODE_OVER);
   SDB_SET_INT32(pRaw, dataPos, pTopic->astLen, TOPIC_ENCODE_OVER);
@@ -151,6 +153,8 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT8(pRaw, dataPos, &pTopic->withTbName, TOPIC_DECODE_OVER);
   SDB_GET_INT8(pRaw, dataPos, &pTopic->withSchema, TOPIC_DECODE_OVER);
   SDB_GET_INT8(pRaw, dataPos, &pTopic->withTag, TOPIC_DECODE_OVER);
+
+  SDB_GET_INT32(pRaw, dataPos, &pTopic->consumerCnt, TOPIC_DECODE_OVER);
 
   SDB_GET_INT32(pRaw, dataPos, &pTopic->sqlLen, TOPIC_DECODE_OVER);
   pTopic->sql = taosMemoryCalloc(pTopic->sqlLen, sizeof(char));
@@ -293,11 +297,13 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
     topicObj.ast = strdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
     topicObj.subType = TOPIC_SUB_TYPE__TABLE;
-    topicObj.withTbName = 0;
-    topicObj.withSchema = 0;
+    topicObj.withTbName = pCreate->withTbName;
+    topicObj.withSchema = pCreate->withSchema;
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
       return -1;
     }
@@ -307,16 +313,22 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
     SPlanContext cxt = {.pAstRoot = pAst, .topicQuery = true};
     if (qCreateQueryPlan(&cxt, &pPlan, NULL) != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       return -1;
     }
 
     if (qExtractResultSchema(pAst, &topicObj.schema.nCols, &topicObj.schema.pSchema) != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       return -1;
     }
 
     if (nodesNodeToString(pPlan, false, &topicObj.physicalPlan, NULL) != 0) {
       mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+      taosMemoryFree(topicObj.ast);
+      taosMemoryFree(topicObj.sql);
       return -1;
     }
   } else {
@@ -331,6 +343,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SNodeMsg *pReq, SCMCreateTopicReq 
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_TOPIC, &pReq->rpcMsg);
   if (pTrans == NULL) {
     mError("topic:%s, failed to create since %s", pCreate->name, terrstr());
+    taosMemoryFreeClear(topicObj.ast);
+    taosMemoryFreeClear(topicObj.sql);
     taosMemoryFreeClear(topicObj.physicalPlan);
     return -1;
   }

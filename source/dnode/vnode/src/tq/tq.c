@@ -66,9 +66,9 @@ static void tdSRowDemo() {
   SRowBuilder rb = {0};
 
   SSchema schema[DEMO_N_COLS] = {
-      {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .name = "ts", .bytes = 8, .flags = SCHEMA_SMA_ON},
-      {.type = TSDB_DATA_TYPE_INT, .colId = 2, .name = "c1", .bytes = 4, .flags = SCHEMA_SMA_ON},
-      {.type = TSDB_DATA_TYPE_INT, .colId = 3, .name = "c2", .bytes = 4, .flags = SCHEMA_SMA_ON}};
+      {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .name = "ts", .bytes = 8, .flags = COL_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 2, .name = "c1", .bytes = 4, .flags = COL_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 3, .name = "c2", .bytes = 4, .flags = COL_SMA_ON}};
 
   SSchema*  pSchema = schema;
   STSchema* pTSChema = tdGetSTSChemaFromSSChema(&pSchema, numOfCols);
@@ -233,16 +233,18 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
 int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
 
+  // make sure msgType == TDMT_VND_SUBMIT
+  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+    return -1;
+  }
+
+  if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
+
   void* data = taosMemoryMalloc(msgLen);
   if (data == NULL) {
     return -1;
   }
   memcpy(data, msg, msgLen);
-
-  // make sure msgType == TDMT_VND_SUBMIT
-  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
-    return -1;
-  }
 
   SRpcMsg req = {
       .msgType = TDMT_VND_STREAM_TRIGGER,
@@ -399,7 +401,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
     fetchOffset = walGetFirstVer(pTq->pWal);
   } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
-    fetchOffset = walGetLastVer(pTq->pWal);
+    fetchOffset = walGetCommittedVer(pTq->pWal);
   } else {
     fetchOffset = pReq->currentOffset + 1;
   }
@@ -425,9 +427,12 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
   rsp.withSchema = pExec->withSchema;
+  rsp.withTbName = pExec->withTbName;
+
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
   rsp.blockSchema = taosArrayInit(0, sizeof(void*));
+  rsp.blockTbName = taosArrayInit(0, sizeof(void*));
 
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
@@ -533,6 +538,18 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
             taosArrayPush(rsp.blockSchema, &pSW);
           }
 
+          if (pExec->withTbName) {
+            SMetaReader mr = {0};
+            metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+            int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
+            if (metaGetTableEntryByUid(&mr, uid) < 0) {
+              ASSERT(0);
+            }
+            char* tbName = strdup(mr.me.name);
+            taosArrayPush(rsp.blockTbName, &tbName);
+            metaReaderClear(&mr);
+          }
+
           rsp.blockNum++;
         }
         // db subscribe
@@ -561,6 +578,16 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(actualLen <= dataStrLen);
           taosArrayPush(rsp.blockDataLen, &actualLen);
           taosArrayPush(rsp.blockData, &buf);
+          if (pExec->withTbName) {
+            SMetaReader mr = {0};
+            metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+            if (metaGetTableEntryByUid(&mr, block.info.uid) < 0) {
+              ASSERT(0);
+            }
+            char* tbName = strdup(mr.me.name);
+            taosArrayPush(rsp.blockTbName, &tbName);
+            metaReaderClear(&mr);
+          }
 
           SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
           taosArrayPush(rsp.blockSchema, &pSW);
@@ -612,6 +639,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   taosArrayDestroy(rsp.blockData);
   taosArrayDestroy(rsp.blockDataLen);
   taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(rsp.blockTbName, (FDelete)taosMemoryFree);
 
   return 0;
 }

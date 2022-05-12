@@ -278,9 +278,9 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTe
       break;
     }
     CacheTerm* c = (CacheTerm*)SL_GET_NODE_DATA(node);
-    printf("json val: %s\n", c->colVal);
-    if (0 != strncmp(c->colVal, term->colName, term->nColName)) {
-      continue;
+    // printf("json val: %s\n", c->colVal);
+    if (0 != strncmp(c->colVal, pCt->colVal, skip)) {
+      break;
     }
 
     TExeCond cond = cmpFn(c->colVal + skip, term->colVal, dType);
@@ -640,30 +640,30 @@ static int indexFindCh(char* a, char c) {
   return p - a;
 }
 static int indexCacheJsonTermCompareImpl(char* a, char* b) {
-  int alen = indexFindCh(a, '&');
-  int blen = indexFindCh(b, '&');
+  // int alen = indexFindCh(a, '&');
+  // int blen = indexFindCh(b, '&');
 
-  int cmp = strncmp(a, b, MIN(alen, blen));
-  if (cmp == 0) {
-    cmp = alen - blen;
-    if (cmp != 0) {
-      return cmp;
-    }
-    cmp = *(a + alen) - *(b + blen);
-    if (cmp != 0) {
-      return cmp;
-    }
-    alen += 2;
-    blen += 2;
-    cmp = strcmp(a + alen, b + blen);
-  }
-  return cmp;
+  // int cmp = strncmp(a, b, MIN(alen, blen));
+  // if (cmp == 0) {
+  //  cmp = alen - blen;
+  //  if (cmp != 0) {
+  //    return cmp;
+  //  }
+  //  cmp = *(a + alen) - *(b + blen);
+  //  if (cmp != 0) {
+  //    return cmp;
+  //  }
+  //  alen += 2;
+  //  blen += 2;
+  //  cmp = strcmp(a + alen, b + blen);
+  //}
+  return 0;
 }
 static int32_t indexCacheJsonTermCompare(const void* l, const void* r) {
   CacheTerm* lt = (CacheTerm*)l;
   CacheTerm* rt = (CacheTerm*)r;
   // compare colVal
-  int cmp = indexCacheJsonTermCompareImpl(lt->colVal, rt->colVal);
+  int32_t cmp = strcmp(lt->colVal, rt->colVal);
   if (cmp == 0) {
     return rt->version - lt->version;
   }
@@ -704,6 +704,8 @@ static bool indexCacheIteratorNext(Iterate* itera) {
     iv->type = ct->operaType;
     iv->ver = ct->version;
     iv->colVal = tstrdup(ct->colVal);
+    // printf("col Val: %s\n", iv->colVal);
+    // iv->colType = cv->colType;
 
     taosArrayPush(iv->val, &ct->uid);
   }

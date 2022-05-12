@@ -62,6 +62,16 @@ int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
+    SSkipListIterator *pIter = tSkipListCreateIter(pMemTable->pSlIdx);
+    SSkipListNode     *pNode = NULL;
+    STbData           *pTbData = NULL;
+    for (;;) {
+      if (!tSkipListIterNext(pIter)) break;
+      pNode = tSkipListIterGet(pIter);
+      pTbData = (STbData *)pNode->pData;
+      tsdbFreeTbData(pTbData);
+    }
+    tSkipListDestroyIter(pIter);
     tSkipListDestroy(pMemTable->pSlIdx);
     taosMemoryFree(pMemTable);
   }
@@ -248,11 +258,13 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
             pMergeInfo->nOperations++;
             pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, rowKey);
             pMergeInfo->keyLast = TMAX(pMergeInfo->keyLast, rowKey);
-            lastKey = rowKey;
             if (pCols) {
-              ++pCols->numOfRows;
+              if (lastKey != TSKEY_INITIAL_VAL) {
+                ++pCols->numOfRows;
+              }
               tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
             }
+            lastKey = rowKey;
           } else {
             tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
           }
@@ -288,7 +300,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   return 0;
 }
 
-int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
+int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkRsp *pRsp) {
   SSubmitBlkIter blkIter = {0};
   STsdbMemTable *pMemTable = pTsdb->mem;
   void          *tptr;
@@ -342,7 +354,8 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
-  (*pAffectedRows) = pMsgIter->numOfRows;
+  pRsp->numOfRows = pMsgIter->numOfRows;
+  pRsp->affectedRows = pMsgIter->numOfRows;
 
   return 0;
 }

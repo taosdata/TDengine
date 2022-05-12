@@ -412,8 +412,8 @@ static void mndSetDefaultDbCfg(SDbCfg *pCfg) {
   if (pCfg->numOfVgroups < 0) pCfg->numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
   if (pCfg->numOfStables < 0) pCfg->numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
   if (pCfg->buffer < 0) pCfg->buffer = TSDB_DEFAULT_BUFFER_PER_VNODE;
-  if (pCfg->pageSize < 0) pCfg->pageSize = TSDB_DEFAULT_PAGES_PER_VNODE;
-  if (pCfg->pages < 0) pCfg->pages = TSDB_MAX_PAGESIZE_PER_VNODE;
+  if (pCfg->pageSize < 0) pCfg->pageSize = TSDB_DEFAULT_PAGESIZE_PER_VNODE;
+  if (pCfg->pages < 0) pCfg->pages = TSDB_DEFAULT_PAGES_PER_VNODE;
   if (pCfg->daysPerFile < 0) pCfg->daysPerFile = TSDB_DEFAULT_DURATION_PER_FILE;
   if (pCfg->daysToKeep0 < 0) pCfg->daysToKeep0 = TSDB_DEFAULT_KEEP;
   if (pCfg->daysToKeep1 < 0) pCfg->daysToKeep1 = pCfg->daysToKeep0;
@@ -1550,10 +1550,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)t, false);
 
-    //  single stable model
-    int8_t m = 0;
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)&m, false);
+    colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
     colDataAppend(pColInfo, rows, (const char *)b, false);
