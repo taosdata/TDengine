@@ -1,5 +1,6 @@
 import taos
 import sys
+import inspect
 
 from util.log import *
 from util.sql import *
@@ -38,9 +39,23 @@ class TDconnect:
         )
 
         self.cursor = self._conn.cursor()
-        return self.cursor
+        return self
 
+    def error(self, sql):
+        expectErrNotOccured = True
+        try:
+            self.cursor.execute(sql)
+        except BaseException:
+            expectErrNotOccured = False
 
+        if expectErrNotOccured:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
+        else:
+            self.queryRows = 0
+            self.queryCols = 0
+            self.queryResult = None
+            tdLog.info(f"sql:{sql}, expect error occured")
 
     def __exit__(self, types, values, trace):
         if self._conn:
@@ -168,8 +183,8 @@ class TDTestCase:
     def user_login(self, user, passwd):
         login_except = False
         try:
-            with taos_connect(user=user, passwd=passwd) as cursor:
-                cursor
+            with taos_connect(user=user, passwd=passwd) as conn:
+                cursor = conn.cursor()
         except BaseException:
             login_except = True
             cursor = None
@@ -224,6 +239,13 @@ class TDTestCase:
         self.login_err(self.__user_list[0], self.__passwd_list[0])
         self.login_currrent(self.__user_list[0], f"new{self.__passwd_list[0]}")
 
+        # 普通用户权限
+        _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
+        with taos_connect(self.__user_list[0], f"new{self.__passwd_list[0]}") as conn:
+            user = conn.cursor()
+            user_err = conn.error()
+        # 不能创建用户
+        user_err("create use utest1 pass 'utest1pass'")
 
 
         # 删除用户测试
