@@ -308,6 +308,37 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of CSUM function can only be column");
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t resType;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  } else {
+    if (IS_SIGNED_NUMERIC_TYPE(colType)) {
+      resType = TSDB_DATA_TYPE_BIGINT;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+      resType = TSDB_DATA_TYPE_UBIGINT;
+    } else if (IS_FLOAT_TYPE(colType)) {
+      resType = TSDB_DATA_TYPE_DOUBLE;
+    } else {
+      ASSERT(0);
+    }
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // todo
   return TSDB_CODE_SUCCESS;
@@ -740,6 +771,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getStateFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = stateDurationFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "csum",
+    .type = FUNCTION_TYPE_CSUM,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateCsum,
+    .getEnvFunc   = getCsumFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = csumFunction,
     .finalizeFunc = NULL
   },
   {
