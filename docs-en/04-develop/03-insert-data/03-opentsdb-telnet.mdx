@@ -1,6 +1,6 @@
 ---
-sidebar_label: OpenTSDB 行协议
-title: OpenTSDB 行协议
+sidebar_label: OpenTSDB Line Protocol
+title: OpenTSDB Line Protocol
 ---
 
 import Tabs from "@theme/Tabs";
@@ -13,28 +13,28 @@ import NodeTelnet from "./_js_opts_telnet.mdx";
 import CsTelnet from "./_cs_opts_telnet.mdx";
 import CTelnet from "./_c_opts_telnet.mdx";
 
-## 协议介绍
+## Introduction
 
-OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB 采用的是单列模型，因此一行只能包含一个普通数据列。标签列依然可以有多个。分为四部分，具体格式约定如下：
+A single line of text is used in OpenTSDB line protocol to represent one row of data. OpenTSDB employs single column data model, so one line can only contains single data column. There can be multiple tags. Each line contains 4 parts as below:
 
-```txt
+```
 <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
 ```
 
-- metric 将作为超级表名。
-- timestamp 本行数据对应的时间戳。根据时间戳的长度自动识别时间精度。支持秒和毫秒两种时间精度
-- value 度量值，必须为一个数值。对应的列名也是 “value”。
-- 最后一部分是标签集， 用空格分隔不同标签， 所有标签自动转化为 nchar 数据类型;
+- `metric` will be used as stable name.
+- `timestamp` is the timestamp of current row of data. The time precision will be determined automatically based on the length of the timestamp. second and millisecond time precision are supported.\
+- `value` is a physical variable which must be a numeric value, the corresponding column name is "value".
+- The last part is tag sets separated by space, all tags will be converted to nchar type automatically.
 
-例如：
+For example:
 
 ```txt
 meters.current 1648432611250 11.3 location=Beijing.Haidian groupid=3
 ```
 
-参考[OpenTSDB Telnet API文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
+Please refer to [OpenTSDB Telnet API](http://opentsdb.net/docs/build/html/api_telnet/put.html) for more details.
 
-## 示例代码
+## Examples
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
@@ -60,7 +60,7 @@ meters.current 1648432611250 11.3 location=Beijing.Haidian groupid=3
   </TabItem>
 </Tabs>
 
-以上示例代码会自动创建 2 个超级表， 每个超级表有 4 条数据。
+2 stables will be crated automatically while each stable has 4 rows of data in the above sample code.
 
 ```cmd
 taos> use test;
