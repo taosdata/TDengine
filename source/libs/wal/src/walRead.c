@@ -130,6 +130,7 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
     }
   }
 
+  // code set inner
   if (walReadSeekFilePos(pRead, pRet->firstVer, ver) < 0) {
     return -1;
   }
@@ -249,16 +250,22 @@ int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {
+      terrno = TSDB_CODE_WAL_INVALID_VER;
+      wError("unexpected wal log version: % " PRId64 ", since seek error", ver);
       return -1;
     }
   }
 
-  if (!taosValidFile(pRead->pReadLogTFile)) {
-    return -1;
-  }
+  /*if (!taosValidFile(pRead->pReadLogTFile)) {*/
+  /*return -1;*/
+  /*}*/
 
   code = taosReadFile(pRead->pReadLogTFile, pRead->pHead, sizeof(SWalHead));
   if (code != sizeof(SWalHead)) {
+    if (code < 0)
+      terrno = TAOS_SYSTEM_ERROR(errno);
+    else
+      terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 
