@@ -61,7 +61,7 @@ class TDTestCase:
         tdLog.debug("complete to create database[%s], stable[%s] and %d child tables" %(dbName, stbName, ctbNum))
         return
 
-    def insert_data(self,dbName,stbName,ctbNum,rowsPerTbl,startTs):
+    def insert_data(self,dbName,stbName,ctbNum,rowsPerTbl,batchNum,startTs):
         tdLog.debug("start to insert data ............")
         tdSql.execute("use %s" %dbName)
         pre_insert = "insert into "
@@ -72,13 +72,15 @@ class TDTestCase:
             sql += " %s_%d values "%(stbName,i)
             for j in range(rowsPerTbl):
                 sql += "(%d, %d, 'tmqrow_%d') "%(startTs + j, j, j)
-                if (j > 0) and (j%2000 == 0):
+                if (j > 0) and ((j%batchNum == 0) or (j == rowsPerTbl - 1)):
                     tdSql.execute(sql)
-                    sql = "insert into %s_%d values " %(stbName,i)
+                    if j < rowsPerTbl - 1:
+                        sql = "insert into %s_%d values " %(stbName,i)
+                    else:
+                        sql = "insert into "
         #end sql
         if sql != pre_insert:
-            # print(sql)
-            print("sql:%s"%sql)
+            #print("insert sql:%s"%sql)
             tdSql.execute(sql)
         tdLog.debug("insert data ............ [OK]")
         return
@@ -96,6 +98,7 @@ class TDTestCase:
                            parameterDict["stbName"],\
                            parameterDict["ctbNum"],\
                            parameterDict["rowsPerTbl"],\
+                           parameterDict["batchNum"],\
                            parameterDict["startTs"])                           
         return                   
         
@@ -117,13 +120,81 @@ class TDTestCase:
                          'vgroups':    1,        \
                          'stbName':    'stb',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 10,    \
+                         'rowsPerTbl': 10000,    \
+                         'batchNum':   10,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
         prepareEnvThread.start()
+        time.sleep(1)
         
+        # wait stb ready
+        while 1:
+            tdSql.query("show %s.stables"%parameterDict['dbName'])
+            if tdSql.getRows() == 1:
+            #if (self.queryRows == 1):
+                time.sleep(1)
+                break
+
+        tdLog.info("create topics from super table")
+        topicFromStb = 'topic_stb_column'
+        topicFromCtb = 'topic_ctb_column'        
+        
+        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb, parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s_0" %(topicFromCtb, parameterDict['dbName'], parameterDict['stbName']))
+
+        tdSql.query("show topics")
+        tdSql.checkRows(2)
+        topic1 = tdSql.getData(0 , 0)
+        topic2 = tdSql.getData(1 , 0)
+        if topic1 != topicFromStb or topic1 != topicFromCtb:
+            tdLog.exit("topic error") 
+        if topic2 != topicFromStb or topic2 != topicFromCtb:
+            tdLog.exit("topic error") 
+         
+        tdLog.info("create consume info table and consume result table")
+        cdbName = 'cdb'
+        tdSql.query("create database %s"%cdbName)
+        tdSql.query("create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)")
+        tdSql.query("create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)")
+
+        consumerId   = 0
+        expectmsgcnt = (parameterDict["rowsPerTbl"] / parameterDict["batchNum"] + 1) * parameterDict["ctbNum"]
+        topicList    = topicFromStb
+        ifcheckdata  = 0
+        keyList      = 'group.id:cgrp1,               \
+                        enable.auto.commit:false,     \
+                        auto.commit.interval.ms:6000, \
+                        auto.offset.reset:none'
+        sql = "insert into consumeinfo values "
+        sql += "(now, %d, '%s', '%s', %l64d, %d)"%(consumerId, topicList, keyList, expectmsgcnt, ifcheckdata)
+        tdSql.query(sql)
+        
+        tdLog.info("start consume processor")
+        pollDelay = 5
+        showMsg   = 1
+        showRow   = 1
+        
+        shellCmd = 'nohup ' + buildPath + '/build/bin/tmq_sim -c ' + cfgPath
+        shellCmd += " -y %d -d %s, -g %d, -r %d -w %s "%(pollDelay, parameterDict["dbName"], showMsg, showRow, cdbName) 
+        shellCmd += "> /dev/null 2>&1 &"        
+        tdLog.info(shellCmd)
+        os.system(taosCmd)        
+
         # wait for data ready
-        prepareEnvThread.join()        
+        prepareEnvThread.join()
+        
+        tdLog.info("check consume result")
+        while 1:
+            tdSql.query("select * from consumeresult")
+            #tdLog.info("row: %d, %l64d, %l64d"%(tdSql.getData(0, 1),tdSql.getData(0, 2),tdSql.getData(0, 3))
+            if tdSql.getRows() == 1:
+            #if (self.queryRows == 1):
+                time.sleep(1)
+                break
+            
+        tdSql.checkData(0 , 1, consumerId)
+        tdSql.checkData(0 , 2, expectmsgcnt)
+        tdSql.checkData(0 , 3, expectrowcnt)
         
         tdLog.printNoPrefix("======== test scenario 2: ")
 
