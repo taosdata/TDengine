@@ -347,7 +347,7 @@ class TDTestCase:
 
     def test_case3(self):
         self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 8, 1*10000)
-        self.taosBenchCreate("test209","no","db1", "stb1", 1, 8, 1*10000)
+        # self.taosBenchCreate("test209","no","db2", "stb2", 1, 8, 1*10000)
 
         # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
 
