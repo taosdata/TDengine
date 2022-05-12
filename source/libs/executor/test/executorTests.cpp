@@ -948,10 +948,6 @@ TEST(testCase, build_executor_tree_Test) {
   code = qCreateExecTask(&handle, 2, 1, plan, (void**)&pTaskInfo, &sinkHandle, OPTR_EXEC_MODEL_BATCH);
   ASSERT_EQ(code, 0);
 }
-TEST(testCase, index_plan_test) {
-  // add later
-  EXPECT_EQ(0, 0);
-}
 #if 0
 
 TEST(testCase, inMem_sort_Test) {

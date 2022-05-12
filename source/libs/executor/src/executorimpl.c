@@ -155,7 +155,7 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 
 void operatorDummyCloseFn(void* param, int32_t numOfCols) {}
 
-static int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
+static int32_t doCopyToSDataBlock(SExecTaskInfo *taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
                                   SGroupResInfo* pGroupResInfo, int32_t orderType, int32_t* rowCellOffset,
                                   SqlFunctionCtx* pCtx);
 
@@ -579,7 +579,7 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
   colDataAppendInt64(pColData, 4, &pQueryWindow->ekey);
 }
 
-void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
+void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                       int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     pCtx[k].startTs = pWin->skey;
@@ -618,9 +618,14 @@ void doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* 
       pEntryInfo->numOfRes = 1;
       continue;
     }
-
+    int32_t code = TSDB_CODE_SUCCESS;
     if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
-      pCtx[k].fpSet.process(&pCtx[k]);
+      code = pCtx[k].fpSet.process(&pCtx[k]);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
+        taskInfo->code = code;
+        longjmp(taskInfo->env, code);
+      }
     }
 
     // restore it
@@ -806,7 +811,13 @@ static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunction
       // this can be set during create the struct
       // todo add a dummy funtion to avoid process check
       if (pCtx[k].fpSet.process != NULL) {
-        pCtx[k].fpSet.process(&pCtx[k]);
+        int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("%s call aggregate function error happens, code : %s",
+                 GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
+          pOperator->pTaskInfo->code = code;
+          longjmp(pOperator->pTaskInfo->env, code);
+        }
       }
     }
   }
@@ -2176,7 +2187,7 @@ void setExecutionContext(int32_t numOfOutput, uint64_t groupId, SExecTaskInfo* p
  * @param pQInfo
  * @param result
  */
-int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
+int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
                            int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t numOfResult = pBlock->info.rows;  // there are already exists result rows
@@ -2215,8 +2226,14 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbased
       int32_t slotId = pExprInfo[j].base.resSchema.slotId;
 
       pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
-      if (pCtx[j].fpSet.process) {
-        pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+      if (pCtx[j].fpSet.finalize) {
+        int32_t code = TSDB_CODE_SUCCESS;
+        code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+        if (TAOS_FAILED(code)) {
+          qError("%s build result data block error, code %s", GET_TASKID(taskInfo), tstrerror(code));
+          taskInfo->code = code;
+          longjmp(taskInfo->env, code);
+        }
       } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
         // do nothing, todo refactor
       } else {
@@ -2243,7 +2260,7 @@ int32_t doCopyToSDataBlock(SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbased
   return 0;
 }
 
-void doBuildResultDatablock(SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
+void doBuildResultDatablock(SExecTaskInfo *taskInfo, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
                             SDiskbasedBuf* pBuf) {
   assert(pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
 
@@ -2257,7 +2274,7 @@ void doBuildResultDatablock(SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo
   }
 
   int32_t orderType = TSDB_ORDER_ASC;
-  doCopyToSDataBlock(pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx);
+  doCopyToSDataBlock(taskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx);
 
   // add condition (pBlock->info.rows >= 1) just to runtime happy
   blockDataUpdateTsWindow(pBlock);
@@ -3749,7 +3766,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   }
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pInfo, &pAggInfo->groupResInfo, pOperator->pExpr, pAggInfo->aggSup.pResultBuf);
+  doBuildResultDatablock(pTaskInfo, pInfo, &pAggInfo->groupResInfo, pOperator->pExpr, pAggInfo->aggSup.pResultBuf);
   if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pAggInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }

@@ -95,6 +95,9 @@ bool stateFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t stateCountFunction(SqlFunctionCtx* pCtx);
 int32_t stateDurationFunction(SqlFunctionCtx* pCtx);
 
+bool getCsumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t csumFunction(SqlFunctionCtx* pCtx);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 #ifdef __cplusplus
