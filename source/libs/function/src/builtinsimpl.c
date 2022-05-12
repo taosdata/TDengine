@@ -1653,7 +1653,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       pResInfo->complete = true;
       return 0;
     } else {
-      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+      pInfo->pMemBucket = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval);
     }
   }
 
@@ -1704,30 +1704,28 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         pInfo->numOfElems += 1;
       }
     }
+  } else {
+    // the second stage, calculate the true percentile value
+    int32_t start = pInput->startRowIndex;
+    for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        continue;
+      }
 
-    return 0;
-  }
-
-  // the second stage, calculate the true percentile value
-  int32_t start = pInput->startRowIndex;
-  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    if (colDataIsNull_f(pCol->nullbitmap, i)) {
-      continue;
+      char* data = colDataGetData(pCol, i);
+      notNullElems += 1;
+      tMemBucketPut(pInfo->pMemBucket, data, 1);
     }
 
-    char* data = colDataGetData(pCol, i);
-
-    notNullElems += 1;
-    tMemBucketPut(pInfo->pMemBucket, data, 1);
+    SET_VAL(pResInfo, notNullElems, 1);
   }
 
-  SET_VAL(pResInfo, notNullElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
-  double    v = pVal->nType == TSDB_DATA_TYPE_INT ? pVal->i : pVal->d;
+  double    v = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
