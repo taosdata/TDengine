@@ -62,6 +62,16 @@ int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
+    SSkipListIterator *pIter = tSkipListCreateIter(pMemTable->pSlIdx);
+    SSkipListNode     *pNode = NULL;
+    STbData           *pTbData = NULL;
+    for (;;) {
+      if (!tSkipListIterNext(pIter)) break;
+      pNode = tSkipListIterGet(pIter);
+      pTbData = (STbData *)pNode->pData;
+      tsdbFreeTbData(pTbData);
+    }
+    tSkipListDestroyIter(pIter);
     tSkipListDestroy(pMemTable->pSlIdx);
     taosMemoryFree(pMemTable);
   }

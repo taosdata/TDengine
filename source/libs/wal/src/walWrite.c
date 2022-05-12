@@ -225,6 +225,7 @@ int walRoll(SWal *pWal) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+  // terrno set inner
   code = walRollFileInfo(pWal);
   if (code != 0) {
     return -1;
