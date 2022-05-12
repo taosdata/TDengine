@@ -158,7 +158,9 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   skmDbKey.sver = sver;
   pKey = &skmDbKey;
   kLen = sizeof(skmDbKey);
+  metaRLock(pMeta);
   ret = tdbDbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
+  metaULock(pMeta);
   if (ret < 0) {
     return NULL;
   }
@@ -181,6 +183,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 }
 
 struct SMCtbCursor {
+  SMeta   *pMeta;
   TDBC    *pCur;
   tb_uid_t suid;
   void    *pKey;
@@ -200,9 +203,13 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
     return NULL;
   }
 
+  pCtbCur->pMeta = pMeta;
   pCtbCur->suid = uid;
+  metaRLock(pMeta);
+
   ret = tdbDbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur, NULL);
   if (ret < 0) {
+    metaULock(pMeta);
     taosMemoryFree(pCtbCur);
     return NULL;
   }
@@ -220,6 +227,7 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
 
 void metaCloseCtbCurosr(SMCtbCursor *pCtbCur) {
   if (pCtbCur) {
+    if (pCtbCur->pMeta) metaULock(pCtbCur->pMeta);
     if (pCtbCur->pCur) {
       tdbDbcClose(pCtbCur->pCur);
 
@@ -269,7 +277,7 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
 
   pSW = metaGetTableSchema(pMeta, quid, sver, 0);
   if (!pSW) return NULL;
-  
+
   tdInitTSchemaBuilder(&sb, 0);
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
