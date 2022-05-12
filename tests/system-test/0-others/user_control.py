@@ -169,8 +169,8 @@ class TDTestCase:
         login_except = False
         tdLog.printNoPrefix(login_except)
         try:
-            with taos_connect(user=user, passwd=passwd) as conn:
-                cursor = conn.cursor()
+            with taos_connect(user=user, passwd=passwd) as cursor:
+                cursor
         except BaseException:
             login_except = True
             cursor = None
