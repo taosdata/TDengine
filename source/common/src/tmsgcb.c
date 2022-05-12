@@ -20,9 +20,9 @@
 static SMsgCb tsDefaultMsgCb;
 
 void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) {
-  if (tsDefaultMsgCb.pWrapper == NULL) {
-    tsDefaultMsgCb = *pMsgCb;
-  }
+  // if (tsDefaultMsgCb.pWrapper == NULL) {
+  tsDefaultMsgCb = *pMsgCb;
+  //}
 }
 
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {

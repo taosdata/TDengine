@@ -84,6 +84,7 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
 }
 
 TEST_F(DndTestBnode, 02_Drop_Bnode) {
+#if 0  
   {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 2;
@@ -96,7 +97,7 @@ TEST_F(DndTestBnode, 02_Drop_Bnode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
   }
-
+#endif
   {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 1;

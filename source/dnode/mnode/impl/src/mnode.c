@@ -56,82 +56,75 @@ static void *mndBuildTimerMsg(int32_t *pContLen) {
   return pReq;
 }
 
-static void mndPullupTrans(void *param, void *tmrId) {
-  SMnode *pMnode = param;
-  if (mndIsMaster(pMnode)) {
-    int32_t contLen = 0;
-    void   *pReq = mndBuildTimerMsg(&contLen);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
-    tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
-  }
-
-  taosTmrReset(mndPullupTrans, tsTransPullupInterval * 1000, pMnode, pMnode->timer, &pMnode->transTimer);
+static void mndPullupTrans(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TRANS_TIMER, .pCont = pReq, .contLen = contLen};
+  tmsgPutToQueue(&pMnode->msgCb, WRITE_QUEUE, &rpcMsg);
 }
 
-static void mndCalMqRebalance(void *param, void *tmrId) {
-  SMnode *pMnode = param;
-  if (mndIsMaster(pMnode)) {
-    int32_t contLen = 0;
-    void   *pReq = mndBuildTimerMsg(&contLen);
-    SRpcMsg rpcMsg = {
-        .msgType = TDMT_MND_MQ_TIMER,
-        .pCont = pReq,
-        .contLen = contLen,
-    };
-    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
-  }
-
-  taosTmrReset(mndCalMqRebalance, tsMqRebalanceInterval * 1000, pMnode, pMnode->timer, &pMnode->mqTimer);
+static void mndCalMqRebalance(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_MQ_TIMER,
+      .pCont = pReq,
+      .contLen = contLen,
+  };
+  tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
 
-static void mndPullupTelem(void *param, void *tmrId) {
+static void mndPullupTelem(SMnode *pMnode) {
+  int32_t contLen = 0;
+  void   *pReq = mndBuildTimerMsg(&contLen);
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
+}
+
+static void *mndThreadFp(void *param) {
   SMnode *pMnode = param;
-  if (mndIsMaster(pMnode)) {
-    int32_t contLen = 0;
-    void   *pReq = mndBuildTimerMsg(&contLen);
-    SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
-    tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
+  int64_t lastTime = 0;
+  setThreadName("mnode-timer");
+
+  while (1) {
+    lastTime++;
+    taosMsleep(100);
+    if (pMnode->stopped) break;
+    if (!mndIsMaster(pMnode)) continue;
+
+    if (lastTime % (tsTransPullupInterval * 10) == 0) {
+      mndPullupTrans(pMnode);
+    }
+
+    if (lastTime % (tsMqRebalanceInterval * 10) == 0) {
+      mndCalMqRebalance(pMnode);
+    }
+
+    if (lastTime % (tsTelemInterval * 10) == 0) {
+      mndPullupTelem(pMnode);
+    }
   }
 
-  taosTmrReset(mndPullupTelem, tsTelemInterval * 1000, pMnode, pMnode->timer, &pMnode->telemTimer);
+  return NULL;
 }
 
 static int32_t mndInitTimer(SMnode *pMnode) {
-  pMnode->timer = taosTmrInit(5000, 200, 3600000, "MND");
-  if (pMnode->timer == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMnode->thread, &thAttr, mndThreadFp, pMnode) != 0) {
+    mError("failed to create timer thread since %s", strerror(errno));
     return -1;
   }
 
-  if (taosTmrReset(mndPullupTrans, tsTransPullupInterval * 1000, pMnode, pMnode->timer, &pMnode->transTimer)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (taosTmrReset(mndCalMqRebalance, tsMqRebalanceInterval * 1000, pMnode, pMnode->timer, &pMnode->mqTimer)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  int32_t interval = tsTelemInterval < 10 ? tsTelemInterval : 10;
-  if (taosTmrReset(mndPullupTelem, interval * 1000, pMnode, pMnode->timer, &pMnode->telemTimer)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
+  taosThreadAttrDestroy(&thAttr);
+  tmsgReportStartup("mnode-timer", "initialized");
   return 0;
 }
 
 static void mndCleanupTimer(SMnode *pMnode) {
-  if (pMnode->timer != NULL) {
-    taosTmrStop(pMnode->transTimer);
-    pMnode->transTimer = NULL;
-    taosTmrStop(pMnode->mqTimer);
-    pMnode->mqTimer = NULL;
-    taosTmrStop(pMnode->telemTimer);
-    pMnode->telemTimer = NULL;
-    taosTmrCleanUp(pMnode->timer);
-    pMnode->timer = NULL;
+  pMnode->stopped = true;
+  if (taosCheckPthreadValid(pMnode->thread)) {
+    taosThreadJoin(pMnode->thread, NULL);
   }
 }
 
