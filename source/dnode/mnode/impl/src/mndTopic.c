@@ -485,8 +485,10 @@ static int32_t mndProcessDropTopicReq(SNodeMsg *pReq) {
       return -1;
     }
   }
+  // TODO: check ref
 
   int32_t code = mndDropTopic(pMnode, pReq, pTopic);
+  // TODO: iterate and drop related subscriptions and offsets
   mndReleaseTopic(pMnode, pTopic);
 
   if (code != 0) {

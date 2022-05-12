@@ -55,7 +55,7 @@ int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) {
 }
 
 static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
-  int ret = 0;
+  int64_t ret = 0;
 
   TdFilePtr pIdxTFile = pRead->pReadIdxTFile;
   TdFilePtr pLogTFile = pRead->pReadLogTFile;
@@ -68,14 +68,14 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
     wError("failed to seek idx file, ver %ld, pos: %ld, since %s", ver, offset, terrstr());
     return -1;
   }
-  SWalIdxEntry entry;
+  SWalIdxEntry entry = {0};
   if ((ret = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry))) != sizeof(SWalIdxEntry)) {
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       wError("failed to read idx file, since %s", terrstr());
     } else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      wError("read idx file incompletely, read bytes %d, bytes should be %lu", ret, sizeof(SWalIdxEntry));
+      wError("read idx file incompletely, read bytes %ld, bytes should be %lu", ret, sizeof(SWalIdxEntry));
     }
     return -1;
   }
@@ -187,7 +187,7 @@ int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
 }
 
 int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead) {
-  int32_t code;
+  int64_t code;
 
   ASSERT(pRead->curVersion == pHead->head.version);
 
