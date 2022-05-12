@@ -1652,7 +1652,7 @@ static int32_t smlBuildTagRow(SArray *cols, SKVRowBuilder *tagsBuilder, SParsedD
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *colsSchema, SArray *cols, bool format,
+int32_t smlBindData(void *handle, SArray *tags, SArray *colsSchema, SArray *cols, bool format,
                     STableMeta *pTableMeta, char *tableName, char *msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
@@ -1695,7 +1695,7 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
 
   initRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo);
 
-  int32_t rowNum = format ? taosArrayGetSize(colsFormat) : taosArrayGetSize(cols);
+  int32_t rowNum = taosArrayGetSize(cols);
   if(rowNum <= 0) {
     return buildInvalidOperationMsg(&pBuf, "cols size <= 0");
   }
@@ -1707,13 +1707,10 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsFormat, SArray *cols
   for (int32_t r = 0; r < rowNum; ++r) {
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
-    void *rowData = NULL;
+    void *rowData = taosArrayGetP(cols, r);
     size_t rowDataSize = 0;
     if(format){
-      rowData = taosArrayGetP(colsFormat, r);
       rowDataSize = taosArrayGetSize(rowData);
-    }else{
-      rowData = taosArrayGetP(cols, r);
     }
 
     // 1. set the parsed value from sql string

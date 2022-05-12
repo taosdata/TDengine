@@ -16,6 +16,7 @@
 #include "catalog.h"
 #include "clientInt.h"
 #include "tname.h"
+#include "cJSON.h"
 //=================================================================================================
 
 #define SPACE ' '
@@ -25,6 +26,22 @@
 #define SLASH '\\'
 #define tsMaxSQLStringLen (1024*1024)
 
+#define OTD_MAX_FIELDS_NUM      2
+#define OTD_JSON_SUB_FIELDS_NUM 2
+#define OTD_JSON_FIELDS_NUM     4
+
+#define OTD_TIMESTAMP_COLUMN_NAME "ts"
+#define OTD_METRIC_VALUE_COLUMN_NAME "value"
+
+#define TS        "_ts"
+#define TS_LEN    3
+#define TAG       "_tagNone"
+#define TAG_LEN   8
+#define VALUE     "value"
+#define VALUE_LEN 5
+
+#define BINARY_ADD_LEN 2        // "binary"   2 means " "
+#define NCHAR_ADD_LEN 3         // L"nchar"   3 means L" "
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -70,17 +87,15 @@ typedef struct {
 
 typedef struct {
   const char     *sTableName;   // super table name
-  uint8_t        sTableNameLen;
+  int32_t        sTableNameLen;
   char           childTableName[TSDB_TABLE_NAME_LEN];
   uint64_t       uid;
 
   SArray         *tags;
 
-  // colsFormat store cols formated, for quick parse, if info->formatData is true
-  SArray         *colsFormat;  // elements are SArray<SSmlKv*>
-
-  // cols store cols un formated
-  SArray         *cols;        // elements are SHashObj<cols key string, SSmlKv*> for find by key quickly
+  // if info->formatData is true, elements are SArray<SSmlKv*>.
+  // if info->formatData is false, elements are SHashObj<cols key string, SSmlKv*> for find by key quickly
+  SArray         *cols;
 } SSmlTableInfo;
 
 typedef struct {
@@ -114,11 +129,11 @@ typedef struct {
 } SSmlCostInfo;
 
 typedef struct {
-  uint64_t          id;
+  int64_t           id;
 
   SMLProtocolType   protocol;
   int8_t            precision;
-  bool              dataFormat;     // true means that the name, number and order of keys in each line are the same
+  bool              dataFormat;     // true means that the name, number and order of keys in each line are the same(only for influx protocol)
 
   SHashObj          *childTables;
   SHashObj          *superTables;
@@ -134,16 +149,12 @@ typedef struct {
   int32_t           affectedRows;
   SSmlMsgBuf        msgBuf;
   SHashObj          *dumplicateKey;  // for dumplicate key
-  SArray            *colsContainer;  // for cols parse, if is dataFormat == false
+  SArray            *colsContainer;  // for cols parse, if dataFormat == false
 } SSmlHandle;
 //=================================================================================================
 
-static volatile int64_t linesSmlHandleId = 0;
-static const char* TS = "_ts";
-static const char* TAG = "_tagNone";
-
 //=================================================================================================
-
+static volatile int64_t linesSmlHandleId = 0;
 static int64_t smlGenId() {
   int64_t id;
 
@@ -152,6 +163,20 @@ static int64_t smlGenId() {
   } while (id == 0);
 
   return id;
+}
+
+static inline bool smlDoubleToInt64OverFlow(double num) {
+  if(num >= (double)INT64_MAX || num <= (double)INT64_MIN) return true;
+  return false;
+}
+
+static inline bool smlCheckDuplicateKey(const char *key, int32_t keyLen, SHashObj *pHash) {
+  void *val = taosHashGet(pHash, key, keyLen);
+  if (val) {
+    return true;
+  }
+  taosHashPut(pHash, key, keyLen, key, 1);
+  return false;
 }
 
 static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const char *msg2) {
@@ -480,294 +505,99 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
 //  *pos = cur;
 //}
 
-static bool smlParseTinyInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 2) {
-    return false;
-  }
-  const char *signalPos = pVal + len - 2;
-  if (!strncasecmp(signalPos, "i8", 2)) {
-    char *endptr = NULL;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid tiny int", endptr);
-    }else if(!IS_VALID_TINYINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "tiny int out of range[-128,127]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseTinyUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 2) {
-    return false;
-  }
-  if (pVal[0] == '-') {
-    return false;
-  }
-  const char *signalPos = pVal + len - 2;
-  if (!strncasecmp(signalPos, "u8", 2)) {
-    char *endptr = NULL;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid unsigned tiny int", endptr);
-    }else if(!IS_VALID_UTINYINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "unsigned tiny int out of range[0,255]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseSmallInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 3) {
-    return false;
-  }
-  const char *signalPos = pVal + len - 3;
-  if (!strncasecmp(signalPos, "i16", 3)) {
-    char *endptr = NULL;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid small int", endptr);
-    }else if(!IS_VALID_SMALLINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "small int our of range[-32768,32767]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseSmallUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 3) {
-    return false;
-  }
-  if (pVal[0] == '-') {
-    return false;
-  }
-  const char *signalPos = pVal + len - 3;
-  if (strncasecmp(signalPos, "u16", 3) == 0) {
-    char *endptr = NULL;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid unsigned small int", endptr);
-    }else if(!IS_VALID_USMALLINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "unsigned small int out of rang[0,65535]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 3) {
-    return false;
-  }
-  const char *signalPos = pVal + len - 3;
-  if (strncasecmp(signalPos, "i32", 3) == 0) {
-    char *endptr = NULL;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid int", endptr);
-    }else if(!IS_VALID_INT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 3) {
-    return false;
-  }
-  if (pVal[0] == '-') {
-    return false;
-  }
-  const char *signalPos = pVal + len - 3;
-  if (strncasecmp(signalPos, "u32", 3) == 0) {
-    char *endptr = NULL;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid unsigned int", endptr);
-    }else if(!IS_VALID_UINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "unsigned int out of range[0,4294967295]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseBigInt(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len > 3 && strncasecmp(pVal + len - 3, "i64", 3) == 0) {
-    char *endptr = NULL;
-    errno = 0;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != pVal + len - 3){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid big int", endptr);
-    }else if(errno == ERANGE || !IS_VALID_BIGINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }else if (len > 1 && pVal[len - 1] == 'i') {
-    char *endptr = NULL;
-    errno = 0;
-    int64_t result = strtoll(pVal, &endptr, 10);
-    if(endptr != pVal + len - 1){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid big int", endptr);
-    }else if(errno == ERANGE || !IS_VALID_BIGINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", endptr);
-    }else{
-      kvVal->i = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseBigUint(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 3) {
-    return false;
-  }
-  if (pVal[0] == '-') {
-    return false;
-  }
-  const char *signalPos = pVal + len - 3;
-  if (strncasecmp(signalPos, "u64", 3) == 0) {
-    char *endptr = NULL;
-    errno = 0;
-    uint64_t result = strtoull(pVal, &endptr, 10);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid unsigned big int", endptr);
-    }else if(errno == ERANGE || !IS_VALID_UBIGINT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", endptr);
-    }else{
-      kvVal->u = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseFloat(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
+static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg){
   const char *pVal = kvVal->value;
   int32_t len = kvVal->valueLen;
   char *endptr = NULL;
-  errno = 0;
-  float result = strtof(pVal, &endptr);
-  if(endptr == pVal + len && errno != ERANGE && IS_VALID_FLOAT(result)){       // 78
-    kvVal->f = result;
-    *isValid = true;
-    return true;
-  }
-
-  if (len > 3 && strncasecmp(pVal + len - 3, "f32", 3) == 0) {
-    if(endptr != pVal + len - 3){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid float", endptr);
-    }else if(errno == ERANGE || !IS_VALID_FLOAT(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", endptr);
-    }else{
-      kvVal->f = result;
-      *isValid = true;
-    }
-    return true;
-  }
-  return false;
-}
-
-static bool smlParseDouble(SSmlKv *kvVal, bool *isValid, SSmlMsgBuf *msg) {
-  const char *pVal = kvVal->value;
-  int32_t len = kvVal->valueLen;
-  if (len <= 3) {
+  double result = strtod(pVal, &endptr);
+  if(pVal == endptr){
+    smlBuildInvalidDataMsg(msg, "invalid data", pVal);
     return false;
   }
-  const char *signalPos = pVal + len - 3;
-  if (strncasecmp(signalPos, "f64", 3) == 0) {
-    char *endptr = NULL;
-    errno = 0;
-    double result = strtod(pVal, &endptr);
-    if(endptr != signalPos){       // 78ri8
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "invalid double", endptr);
-    }else if(errno == ERANGE || !IS_VALID_DOUBLE(result)){
-      *isValid = false;
-      smlBuildInvalidDataMsg(msg, "double out of range[-1.7976931348623158e+308,1.7976931348623158e+308]", endptr);
-    }else{
-      kvVal->d = result;
-      *isValid = true;
+
+  int32_t left = len - (endptr - pVal);
+  if(left == 0 || (left == 3 && strncasecmp(endptr, "f64", left) == 0)){
+    kvVal->type = TSDB_DATA_TYPE_DOUBLE;
+    kvVal->d = result;
+  }else if ((left == 3 && strncasecmp(endptr, "f32", left) == 0)){
+    if(!IS_VALID_FLOAT(result)){
+      smlBuildInvalidDataMsg(msg, "float out of range[-3.402823466e+38,3.402823466e+38]", pVal);
+      return false;
     }
-    return true;
+    kvVal->type = TSDB_DATA_TYPE_FLOAT;
+    kvVal->f = (float)result;
+  }else if ((left == 1 && *endptr == 'i') || (left == 3 && strncasecmp(endptr, "i64", left) == 0)){
+    if(smlDoubleToInt64OverFlow(result)){
+      smlBuildInvalidDataMsg(msg, "big int is too large, out of precision", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_BIGINT;
+    kvVal->i = (int64_t)result;
+  }else if ((left == 3 && strncasecmp(endptr, "u64", left) == 0)){
+    if(result >= (double)UINT64_MAX || result < 0){
+      smlBuildInvalidDataMsg(msg, "unsigned big int is too large, out of precision", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_UBIGINT;
+    kvVal->u = result;
+  }else if (left == 3 && strncasecmp(endptr, "i32", left) == 0){
+    if(!IS_VALID_INT(result)){
+      smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_INT;
+    kvVal->i = result;
+  }else if (left == 3 && strncasecmp(endptr, "u32", left) == 0){
+    if(!IS_VALID_UINT(result)){
+      smlBuildInvalidDataMsg(msg, "unsigned int out of range[0,4294967295]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_UINT;
+    kvVal->u = result;
+  }else if (left == 3 && strncasecmp(endptr, "i16", left) == 0){
+    if(!IS_VALID_SMALLINT(result)){
+      smlBuildInvalidDataMsg(msg, "small int our of range[-32768,32767]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_SMALLINT;
+    kvVal->i = result;
+  }else if (left == 3 && strncasecmp(endptr, "u16", left) == 0){
+    if(!IS_VALID_USMALLINT(result)){
+      smlBuildInvalidDataMsg(msg, "unsigned small int out of rang[0,65535]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_USMALLINT;
+    kvVal->u = result;
+  }else if (left == 2 && strncasecmp(endptr, "i8", left) == 0){
+    if(!IS_VALID_TINYINT(result)){
+      smlBuildInvalidDataMsg(msg, "tiny int out of range[-128,127]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_TINYINT;
+    kvVal->i = result;
+  }else if (left == 2 && strncasecmp(endptr, "u8", left) == 0){
+    if(!IS_VALID_UTINYINT(result)){
+      smlBuildInvalidDataMsg(msg, "unsigned tiny int out of range[0,255]", pVal);
+      return false;
+    }
+    kvVal->type = TSDB_DATA_TYPE_UTINYINT;
+    kvVal->u = result;
+  }else{
+    smlBuildInvalidDataMsg(msg, "invalid data", pVal);
+    return false;
   }
-  return false;
+  return true;
 }
 
 static bool smlParseBool(SSmlKv *kvVal) {
   const char *pVal = kvVal->value;
   int32_t len = kvVal->valueLen;
-  if ((len == 1) && pVal[len - 1] == 't') {
+  if ((len == 1) && pVal[0] == 't') {
     kvVal->i = true;
     return true;
   }
 
-  if ((len == 1) && pVal[len - 1] == 'f') {
+  if ((len == 1) && pVal[0] == 'f') {
     kvVal->i = false;
     return true;
   }
@@ -805,268 +635,6 @@ static bool smlIsNchar(const char *pVal, uint16_t len) {
   return false;
 }
 
-static bool smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
-  // put high probability matching type first
-  bool isValid = false;
-
-  //binary
-  if (smlIsBinary(pVal->value, pVal->valueLen)) {
-    pVal->type = TSDB_DATA_TYPE_BINARY;
-    pVal->valueLen -= 2;
-    pVal->length = pVal->valueLen;
-    pVal->value++;
-    return true;
-  }
-  //nchar
-  if (smlIsNchar(pVal->value, pVal->valueLen)) {
-    pVal->type = TSDB_DATA_TYPE_NCHAR;
-    pVal->valueLen -= 3;
-    pVal->length = pVal->valueLen;
-    pVal->value += 2;
-    return true;
-  }
-  //float
-  if (smlParseFloat(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_FLOAT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  //double
-  if (smlParseDouble(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_DOUBLE;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-
-    return true;
-  }
-  //bool
-  if (smlParseBool(pVal)) {
-    pVal->type = TSDB_DATA_TYPE_BOOL;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-
-  if (smlParseTinyInt(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_TINYINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  if (smlParseTinyUint(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_UTINYINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  if (smlParseSmallInt(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_SMALLINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  if (smlParseSmallUint(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_USMALLINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  if (smlParseInt(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_INT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  if (smlParseUint(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_UINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  if (smlParseBigInt(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_BIGINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-  if (smlParseBigUint(pVal, &isValid, msg)) {
-    if(!isValid) return false;
-    pVal->type = TSDB_DATA_TYPE_UBIGINT;
-    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    return true;
-  }
-
-  smlBuildInvalidDataMsg(msg, "invalid data", pVal->value);
-  return false;
-}
-
-static int32_t smlParseString(const char* sql, SSmlLineInfo *elements, SSmlMsgBuf *msg){
-  if(!sql) return TSDB_CODE_SML_INVALID_DATA;
-  while (*sql != '\0') {           // jump the space at the begining
-    if(*sql != SPACE) {
-      elements->measure = sql;
-      break;
-    }
-    sql++;
-  }
-  if (!elements->measure || *sql == COMMA) {
-    smlBuildInvalidDataMsg(msg, "invalid data", sql);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-
-  // parse measure and tag
-  while (*sql != '\0') {
-    if (elements->measureLen == 0 && *sql == COMMA && *(sql - 1) != SLASH) {  // find the first comma
-      elements->measureLen = sql - elements->measure;
-      sql++;
-      elements->tags = sql;
-      continue;
-    }
-
-    if (*sql == SPACE && *(sql - 1) != SLASH) {   // find the first space
-      if (elements->measureLen == 0) {
-        elements->measureLen = sql - elements->measure;
-        elements->tags = sql;
-      }
-      elements->tagsLen = sql - elements->tags;
-      elements->measureTagsLen = sql - elements->measure;
-      break;
-    }
-
-    sql++;
-  }
-  if(elements->tagsLen == 0){     // measure, cols1=a         measure cols1=a
-    elements->measureTagsLen = elements->measureLen;
-  }
-  if(elements->measureLen == 0) {
-    smlBuildInvalidDataMsg(msg, "invalid measure", elements->measure);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-
-  // parse cols
-  while (*sql != '\0') {
-    if(*sql != SPACE) {
-      elements->cols = sql;
-      break;
-    }
-    sql++;
-  }
-  if(!elements->cols) {
-    smlBuildInvalidDataMsg(msg, "invalid columns", elements->cols);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-
-  bool isInQuote = false;
-  while (*sql != '\0') {
-    if(*sql == QUOTE && *(sql - 1) != SLASH){
-      isInQuote = !isInQuote;
-    }
-    if(!isInQuote && *sql == SPACE && *(sql - 1) != SLASH) {
-      break;
-    }
-    sql++;
-  }
-  if(isInQuote){
-    smlBuildInvalidDataMsg(msg, "only one quote", elements->cols);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-  elements->colsLen = sql - elements->cols;
-
-  // parse ts,ts can be empty
-  while (*sql != '\0') {
-    if(*sql != SPACE && elements->timestamp == NULL) {
-      elements->timestamp = sql;
-    }
-    if(*sql == SPACE && elements->timestamp != NULL){
-      break;
-    }
-    sql++;
-  }
-  if(elements->timestamp){
-    elements->timestampLen = sql - elements->timestamp;
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
-static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
-  if(isTag && len == 0){
-    SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
-    kv->key = TAG;
-    kv->keyLen = strlen(TAG);
-    kv->value = TAG;
-    kv->valueLen = strlen(TAG);
-    kv->type = TSDB_DATA_TYPE_NCHAR;
-    if(cols) taosArrayPush(cols, &kv);
-    return TSDB_CODE_SUCCESS;
-  }
-
-  for(int i = 0; i < len; i++){
-    // parse key
-    const char *key = data + i;
-    int32_t keyLen = 0;
-    while(i < len){
-      if(data[i] == EQUAL && i > 0 && data[i-1] != SLASH){
-        keyLen = data + i - key;
-        break;
-      }
-      i++;
-    }
-    if(keyLen == 0 || keyLen >= TSDB_COL_NAME_LEN){
-      smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
-      return TSDB_CODE_SML_INVALID_DATA;
-    }
-
-    if(taosHashGet(dumplicateKey, key, keyLen)){
-      smlBuildInvalidDataMsg(msg, "dumplicate key", key);
-      return TSDB_CODE_SML_INVALID_DATA;
-    }else{
-      taosHashPut(dumplicateKey, key, keyLen, key, CHAR_BYTES);
-    }
-
-    // parse value
-    i++;
-    const char *value = data + i;
-    bool isInQuote = false;
-    while(i < len){
-      if(data[i] == QUOTE && data[i-1] != SLASH){
-        isInQuote = !isInQuote;
-      }
-      if(!isInQuote && data[i] == COMMA && i > 0 && data[i-1] != SLASH){
-        break;
-      }
-      i++;
-    }
-    if(isInQuote){
-      smlBuildInvalidDataMsg(msg, "only one quote", value);
-      return TSDB_CODE_SML_INVALID_DATA;
-    }
-    int32_t valueLen = data + i - value;
-    if(valueLen == 0){
-      smlBuildInvalidDataMsg(msg, "invalid value", value);
-      return TSDB_CODE_SML_INVALID_DATA;
-    }
-
-    // add kv to SSmlKv
-    SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
-    kv->key = key;
-    kv->keyLen = keyLen;
-    kv->value = value;
-    kv->valueLen = valueLen;
-    if(isTag){
-      kv->type = TSDB_DATA_TYPE_NCHAR;
-    }else{
-      if(!smlParseValue(kv, msg)){
-        return TSDB_CODE_SML_INVALID_DATA;
-      }
-    }
-
-    if(cols) taosArrayPush(cols, &kv);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-
 static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   char *endPtr = NULL;
   double ts = (double)strtoll(value, &endPtr, 10);
@@ -1094,7 +662,7 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
     default:
       ASSERT(0);
   }
-  if(ts > (double)INT64_MAX || ts < 0){
+  if(ts >= (double)INT64_MAX || ts <= 0){
     return -1;
   }
 
@@ -1200,11 +768,334 @@ static int32_t smlParseTS(SSmlHandle* info, const char* data, int32_t len, SArra
   }
 
   kv->key = TS;
-  kv->keyLen = strlen(kv->key);
+  kv->keyLen = TS_LEN;
   kv->i = ts;
   kv->type = TSDB_DATA_TYPE_TIMESTAMP;
   kv->length = (int16_t)tDataTypes[kv->type].bytes;
   if(cols) taosArrayPush(cols, &kv);
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
+  //binary
+  if (smlIsBinary(pVal->value, pVal->valueLen)) {
+    pVal->type = TSDB_DATA_TYPE_BINARY;
+    pVal->valueLen -= BINARY_ADD_LEN;
+    pVal->length = pVal->valueLen;
+    pVal->value += (BINARY_ADD_LEN - 1);
+    return true;
+  }
+  //nchar
+  if (smlIsNchar(pVal->value, pVal->valueLen)) {
+    pVal->type = TSDB_DATA_TYPE_NCHAR;
+    pVal->valueLen -= NCHAR_ADD_LEN;
+    pVal->length = pVal->valueLen;
+    pVal->value += (NCHAR_ADD_LEN - 1);
+    return true;
+  }
+
+  //bool
+  if (smlParseBool(pVal)) {
+    pVal->type = TSDB_DATA_TYPE_BOOL;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    return true;
+  }
+  //number
+  if (smlParseNumber(pVal, msg)) {
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    return true;
+  }
+
+  return false;
+}
+
+static int32_t smlParseInfluxString(const char* sql, SSmlLineInfo *elements, SSmlMsgBuf *msg){
+  if(!sql) return TSDB_CODE_SML_INVALID_DATA;
+  while (*sql != '\0') {           // jump the space at the begining
+    if(*sql != SPACE) {
+      elements->measure = sql;
+      break;
+    }
+    sql++;
+  }
+  if (!elements->measure || *sql == COMMA) {
+    smlBuildInvalidDataMsg(msg, "invalid data", sql);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  // parse measure and tag
+  while (*sql != '\0') {
+    if (elements->measureLen == 0 && *sql == COMMA && *(sql - 1) != SLASH) {  // find the first comma
+      elements->measureLen = sql - elements->measure;
+      sql++;
+      elements->tags = sql;
+      continue;
+    }
+
+    if (*sql == SPACE && *(sql - 1) != SLASH) {   // find the first space
+      if (elements->measureLen == 0) {
+        elements->measureLen = sql - elements->measure;
+        elements->tags = sql;
+      }
+      elements->tagsLen = sql - elements->tags;
+      elements->measureTagsLen = sql - elements->measure;
+      break;
+    }
+
+    sql++;
+  }
+  if(elements->tagsLen == 0){     // measure, cols1=a         measure cols1=a
+    elements->measureTagsLen = elements->measureLen;
+  }
+  if(elements->measureLen == 0) {
+    smlBuildInvalidDataMsg(msg, "invalid measure", elements->measure);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  // parse cols
+  while (*sql != '\0') {
+    if(*sql != SPACE) {
+      elements->cols = sql;
+      break;
+    }
+    sql++;
+  }
+  if(!elements->cols) {
+    smlBuildInvalidDataMsg(msg, "invalid columns", elements->cols);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  bool isInQuote = false;
+  while (*sql != '\0') {
+    if(*sql == QUOTE && *(sql - 1) != SLASH){
+      isInQuote = !isInQuote;
+    }
+    if(!isInQuote && *sql == SPACE && *(sql - 1) != SLASH) {
+      break;
+    }
+    sql++;
+  }
+  if(isInQuote){
+    smlBuildInvalidDataMsg(msg, "only one quote", elements->cols);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+  elements->colsLen = sql - elements->cols;
+
+  // parse ts,ts can be empty
+  while (*sql != '\0') {
+    if(*sql != SPACE && elements->timestamp == NULL) {
+      elements->timestamp = sql;
+    }
+    if(*sql == SPACE && elements->timestamp != NULL){
+      break;
+    }
+    sql++;
+  }
+  if(elements->timestamp){
+    elements->timestampLen = sql - elements->timestamp;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static void smlParseTelnetElement(const char **sql, const char **data, int32_t *len){
+  while (**sql != '\0') {
+    if(**sql != SPACE && !(*data)) {
+      *data = *sql;
+    }else if (**sql == SPACE && *data) {
+      *len = *sql - *data;
+      break;
+    }
+    (*sql)++;
+  }
+}
+
+static int32_t smlParseTelnetTags(const char* data, int32_t len, SArray *cols, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
+  for(int i = 0; i < len; i++){
+    // parse key
+    const char *key = data + i;
+    int32_t keyLen = 0;
+    while(i < len){
+      if(data[i] == EQUAL){
+        keyLen = data + i - key;
+        break;
+      }
+      i++;
+    }
+    if(keyLen == 0 || keyLen >= TSDB_COL_NAME_LEN){
+      smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+
+    if(smlCheckDuplicateKey(key, keyLen, dumplicateKey)){
+      smlBuildInvalidDataMsg(msg, "dumplicate key", key);
+      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+    }
+
+    // parse value
+    i++;
+    const char *value = data + i;
+    while(i < len){
+      if(data[i] == SPACE){
+        break;
+      }
+      i++;
+    }
+    int32_t valueLen = data + i - value;
+    if(valueLen == 0){
+      smlBuildInvalidDataMsg(msg, "invalid value", value);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+
+    // add kv to SSmlKv
+    SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
+    if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
+    kv->key = key;
+    kv->keyLen = keyLen;
+    kv->value = value;
+    kv->valueLen = valueLen;
+    kv->type = TSDB_DATA_TYPE_NCHAR;
+
+    if(cols) taosArrayPush(cols, &kv);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+// format: <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
+static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTableInfo *tinfo, SArray *cols){
+  if(!sql) return TSDB_CODE_SML_INVALID_DATA;
+
+  // parse metric
+  smlParseTelnetElement(&sql, &tinfo->sTableName, &tinfo->sTableNameLen);
+  if (!(tinfo->sTableName) || tinfo->sTableNameLen == 0) {
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  // parse timestamp
+  const char *timestamp = NULL;
+  int32_t tLen = 0;
+  smlParseTelnetElement(&sql, &timestamp, &tLen);
+  if (!timestamp || tLen == 0) {
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  int32_t ret = smlParseTS(info, timestamp, tLen, cols);
+  if (ret != TSDB_CODE_SUCCESS) {
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp", sql);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  // parse value
+  const char *value = NULL;
+  int32_t valueLen = 0;
+  smlParseTelnetElement(&sql, &value, &valueLen);
+  if (!value || valueLen == 0) {
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid value", sql);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
+  if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
+  taosArrayPush(cols, &kv);
+  kv->key = VALUE;
+  kv->keyLen = VALUE_LEN;
+  kv->value = value;
+  kv->valueLen = valueLen;
+  if(!smlParseValue(kv, &info->msgBuf) || kv->type == TSDB_DATA_TYPE_BINARY
+      || kv->type == TSDB_DATA_TYPE_NCHAR || kv->type == TSDB_DATA_TYPE_BOOL){
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  // parse tags
+  while(*sql == SPACE){
+    sql++;
+  }
+  ret = smlParseTelnetTags(sql, strlen(sql), tinfo->tags, info->dumplicateKey, &info->msgBuf);
+  if (ret != TSDB_CODE_SUCCESS) {
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
+  if(isTag && len == 0){
+    SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
+    if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
+    kv->key = TAG;
+    kv->keyLen = TAG_LEN;
+    kv->value = TAG;
+    kv->valueLen = TAG_LEN;
+    kv->type = TSDB_DATA_TYPE_NCHAR;
+    if(cols) taosArrayPush(cols, &kv);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  for(int i = 0; i < len; i++){
+    // parse key
+    const char *key = data + i;
+    int32_t keyLen = 0;
+    while(i < len){
+      if(data[i] == EQUAL && i > 0 && data[i-1] != SLASH){
+        keyLen = data + i - key;
+        break;
+      }
+      i++;
+    }
+    if(keyLen == 0 || keyLen >= TSDB_COL_NAME_LEN){
+      smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+
+    if(smlCheckDuplicateKey(key, keyLen, dumplicateKey)){
+      smlBuildInvalidDataMsg(msg, "dumplicate key", key);
+      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+    }
+
+    // parse value
+    i++;
+    const char *value = data + i;
+    bool isInQuote = false;
+    while(i < len){
+      if(!isTag && data[i] == QUOTE && data[i-1] != SLASH){
+        isInQuote = !isInQuote;
+      }
+      if(!isInQuote && data[i] == COMMA && i > 0 && data[i-1] != SLASH){
+        break;
+      }
+      i++;
+    }
+    if(!isTag && isInQuote){
+      smlBuildInvalidDataMsg(msg, "only one quote", value);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+    int32_t valueLen = data + i - value;
+    if(valueLen == 0){
+      smlBuildInvalidDataMsg(msg, "invalid value", value);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+
+    // add kv to SSmlKv
+    SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
+    if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
+    if(cols) taosArrayPush(cols, &kv);
+
+    kv->key = key;
+    kv->keyLen = keyLen;
+    kv->value = value;
+    kv->valueLen = valueLen;
+    if(isTag){
+      kv->type = TSDB_DATA_TYPE_NCHAR;
+    }else{
+      if(!smlParseValue(kv, msg)){
+        return TSDB_CODE_SML_INVALID_DATA;
+      }
+    }
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1321,29 +1212,21 @@ static void smlInsertMeta(SSmlSTableMeta* tableMeta, SArray *tags, SArray *cols)
   }
 }
 
-static SSmlTableInfo* smlBuildTableInfo(bool format){
+static SSmlTableInfo* smlBuildTableInfo(){
   SSmlTableInfo *tag = (SSmlTableInfo *)taosMemoryCalloc(sizeof(SSmlTableInfo), 1);
   if(!tag){
     return NULL;
   }
 
-  if(format){
-    tag->colsFormat = taosArrayInit(16, POINTER_BYTES);
-    if (tag->colsFormat == NULL) {
-      uError("SML:smlParseLine failed to allocate memory");
-      goto cleanup;
-    }
-  }else{
-    tag->cols = taosArrayInit(16, POINTER_BYTES);
-    if (tag->cols == NULL) {
-      uError("SML:smlParseLine failed to allocate memory");
-      goto cleanup;
-    }
+  tag->cols = taosArrayInit(16, POINTER_BYTES);
+  if (tag->cols == NULL) {
+    uError("SML:smlBuildTableInfo failed to allocate memory");
+    goto cleanup;
   }
 
   tag->tags = taosArrayInit(16, POINTER_BYTES);
   if (tag->tags == NULL) {
-    uError("SML:smlParseLine failed to allocate memory");
+    uError("SML:smlBuildTableInfo failed to allocate memory");
     goto cleanup;
   }
   return tag;
@@ -1353,11 +1236,17 @@ cleanup:
   return NULL;
 }
 
-static void smlDestroyBuildTableInfo(SSmlTableInfo *tag, bool format){
+static void smlDestroyTableInfo(SSmlTableInfo *tag, bool format){
   if(format){
-    taosArrayDestroy(tag->colsFormat);
+    for(size_t i = 0; i < taosArrayGetSize(tag->cols); i++){
+      SArray *kvArray = (SArray *)taosArrayGetP(tag->cols, i);
+      for (int j = 0; j < taosArrayGetSize(kvArray); ++j) {
+        void *p = taosArrayGetP(kvArray, j);
+        taosMemoryFree(p);
+      }
+      taosArrayDestroy(kvArray);
+    }
   }else{
-    tag->cols = taosArrayInit(16, POINTER_BYTES);
     for(size_t i = 0; i < taosArrayGetSize(tag->cols); i++){
       SHashObj *kvHash = (SHashObj *)taosArrayGetP(tag->cols, i);
       void** p1 = (void**)taosHashIterate(kvHash, NULL);
@@ -1368,13 +1257,14 @@ static void smlDestroyBuildTableInfo(SSmlTableInfo *tag, bool format){
       taosHashCleanup(kvHash);
     }
   }
+  taosArrayDestroy(tag->cols);
   taosArrayDestroy(tag->tags);
   taosMemoryFree(tag);
 }
 
 static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *cols){
   if(dataFormat){
-    taosArrayPush(oneTable->colsFormat, &cols);
+    taosArrayPush(oneTable->cols, &cols);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -1435,102 +1325,12 @@ static void smlDestroySTableMeta(SSmlSTableMeta *meta){
   taosMemoryFree(meta->tableMeta);
 }
 
-static int32_t smlParseLine(SSmlHandle* info, const char* sql) {
-  SSmlLineInfo elements = {0};
-  int ret = smlParseString(sql, &elements, &info->msgBuf);
-  if(ret != TSDB_CODE_SUCCESS){
-    uError("SML:0x%"PRIx64" smlParseString failed", info->id);
-    return ret;
+static void smlDestroyCols(SArray *cols) {
+  if (!cols) return;
+  for (int i = 0; i < taosArrayGetSize(cols); ++i) {
+    void *kv = taosArrayGet(cols, i);
+    taosMemoryFree(kv);
   }
-
-  SArray *cols = NULL;
-  if(info->dataFormat){   // if dataFormat, cols need new memory to save data
-    cols = taosArrayInit(16, POINTER_BYTES);
-    if (cols == NULL) {
-      uError("SML:0x%"PRIx64" smlParseLine failed to allocate memory", info->id);
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-  }else{      // if dataFormat is false, cols do not need to save data, there is another new memory to save data
-    cols = info->colsContainer;
-  }
-
-  ret = smlParseTS(info, elements.timestamp, elements.timestampLen, cols);
-  if(ret != TSDB_CODE_SUCCESS){
-    uError("SML:0x%"PRIx64" smlParseTS failed", info->id);
-    return ret;
-  }
-  ret = smlParseCols(elements.cols, elements.colsLen, cols, false, info->dumplicateKey, &info->msgBuf);
-  if(ret != TSDB_CODE_SUCCESS){
-    uError("SML:0x%"PRIx64" smlParseCols parse cloums fields failed", info->id);
-    return ret;
-  }
-  if(taosArrayGetSize(cols) > TSDB_MAX_COLUMNS){
-    smlBuildInvalidDataMsg(&info->msgBuf, "too many columns than 4096", NULL);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-
-  SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashGet(info->childTables, elements.measure, elements.measureTagsLen);
-  if(oneTable){
-    SSmlSTableMeta** tableMeta = (SSmlSTableMeta**)taosHashGet(info->superTables, elements.measure, elements.measureLen);
-    ASSERT(tableMeta);
-    ret = smlUpdateMeta(*tableMeta, NULL, cols, &info->msgBuf);    // update meta cols
-    if(!ret){
-      uError("SML:0x%"PRIx64" smlUpdateMeta cols failed", info->id);
-      return TSDB_CODE_SML_INVALID_DATA;
-    }
-    ret = smlDealCols(*oneTable, info->dataFormat, cols);
-    if(ret != TSDB_CODE_SUCCESS){
-      return ret;
-    }
-  }else{
-    SSmlTableInfo *tinfo = smlBuildTableInfo(info->dataFormat);
-    if(!tinfo){
-      return TSDB_CODE_TSC_OUT_OF_MEMORY;
-    }
-    ret = smlDealCols(tinfo, info->dataFormat, cols);
-    if(ret != TSDB_CODE_SUCCESS){
-      return ret;
-    }
-
-    ret = smlParseCols(elements.tags, elements.tagsLen, tinfo->tags, true, info->dumplicateKey, &info->msgBuf);
-    if(ret != TSDB_CODE_SUCCESS){
-      uError("SML:0x%"PRIx64" smlParseCols parse tag fields failed", info->id);
-      return ret;
-    }
-
-    if(taosArrayGetSize(tinfo->tags) > TSDB_MAX_TAGS){
-      smlBuildInvalidDataMsg(&info->msgBuf, "too many tags than 128", NULL);
-      return TSDB_CODE_SML_INVALID_DATA;
-    }
-
-    tinfo->sTableName = elements.measure;
-    tinfo->sTableNameLen = elements.measureLen;
-    RandTableName rName = {.tags=tinfo->tags, .sTableName=tinfo->sTableName, .sTableNameLen=tinfo->sTableNameLen,
-                            .childTableName=tinfo->childTableName};
-    buildChildTableName(&rName);
-    tinfo->uid = rName.uid;
-
-    SSmlSTableMeta** tableMeta = (SSmlSTableMeta**)taosHashGet(info->superTables, elements.measure, elements.measureLen);
-    if(tableMeta){  // update meta
-      ret = smlUpdateMeta(*tableMeta, tinfo->tags, cols, &info->msgBuf);
-      if(!ret){
-        uError("SML:0x%"PRIx64" smlUpdateMeta failed", info->id);
-        return TSDB_CODE_SML_INVALID_DATA;
-      }
-    }else{
-      SSmlSTableMeta *meta = smlBuildSTableMeta();
-      smlInsertMeta(meta, tinfo->tags, cols);
-      taosHashPut(info->superTables, elements.measure, elements.measureLen, &meta, POINTER_BYTES);
-    }
-
-    taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tinfo, POINTER_BYTES);
-  }
-
-  if(!info->dataFormat){
-    taosArrayClear(info->colsContainer);
-  }
-  taosHashClear(info->dumplicateKey);
-  return TSDB_CODE_SUCCESS;
 }
 
 static void smlDestroyInfo(SSmlHandle* info){
@@ -1541,7 +1341,7 @@ static void smlDestroyInfo(SSmlHandle* info){
   // destroy info->childTables
   void** p1 = (void**)taosHashIterate(info->childTables, NULL);
   while (p1) {
-    smlDestroyBuildTableInfo((SSmlTableInfo*)(*p1), info->dataFormat);
+    smlDestroyTableInfo((SSmlTableInfo*)(*p1), info->dataFormat);
     p1 = (void**)taosHashIterate(info->childTables, p1);
   }
   taosHashCleanup(info->childTables);
@@ -1623,6 +1423,698 @@ cleanup:
   smlDestroyInfo(info);
   return NULL;
 }
+
+/************* TSDB_SML_JSON_PROTOCOL function start **************/
+static int32_t smlJsonCreateSring(const char **output, char *input, int32_t inputLen){
+  *output = taosMemoryMalloc(inputLen);
+  if (*output == NULL){
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  memcpy((void*)(*output), input, inputLen);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlParseMetricFromJSON(SSmlHandle *info, cJSON *root, SSmlTableInfo *tinfo) {
+  cJSON *metric = cJSON_GetObjectItem(root, "metric");
+  if (!cJSON_IsString(metric)) {
+    return  TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  tinfo->sTableNameLen = strlen(metric->valuestring);
+  if (tinfo->sTableNameLen >= TSDB_TABLE_NAME_LEN) {
+    uError("OTD:0x%"PRIx64" Metric cannot exceeds %d characters in JSON", info->id, TSDB_TABLE_NAME_LEN - 1);
+    return TSDB_CODE_TSC_INVALID_TABLE_ID_LENGTH;
+  }
+
+  return smlJsonCreateSring(&tinfo->sTableName, metric->valuestring, tinfo->sTableNameLen);
+}
+
+static int32_t smlParseTSFromJSONObj(SSmlHandle *info, cJSON *root, int64_t *tsVal) {
+  int32_t size = cJSON_GetArraySize(root);
+  if (size != OTD_JSON_SUB_FIELDS_NUM) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  cJSON *value = cJSON_GetObjectItem(root, "value");
+  if (!cJSON_IsNumber(value)) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  cJSON *type = cJSON_GetObjectItem(root, "type");
+  if (!cJSON_IsString(type)) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  double timeDouble = value->valuedouble;
+  if(smlDoubleToInt64OverFlow(timeDouble)){
+    smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
+    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+  }
+  if(timeDouble <= 0){
+    return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+  }
+
+  size_t typeLen = strlen(type->valuestring);
+  if (typeLen == 1 && type->valuestring[0] == 's') {
+    //seconds
+    timeDouble = timeDouble * 1e9;
+    if(smlDoubleToInt64OverFlow(timeDouble)){
+      smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    }
+    *tsVal = timeDouble;
+  } else if (typeLen == 2 && type->valuestring[1] == 's') {
+    switch (type->valuestring[0]) {
+      case 'm':
+        //milliseconds
+        timeDouble = timeDouble * 1e6;
+        if(smlDoubleToInt64OverFlow(timeDouble)){
+          smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
+          return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+        }
+        *tsVal = timeDouble;
+        break;
+      case 'u':
+        //microseconds
+        timeDouble = timeDouble * 1e3;
+        if(smlDoubleToInt64OverFlow(timeDouble)){
+          smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
+          return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+        }
+        *tsVal = timeDouble;
+        break;
+      case 'n':
+        //nanoseconds
+        *tsVal = timeDouble;
+        break;
+      default:
+        return TSDB_CODE_TSC_INVALID_JSON;
+    }
+  } else {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static uint8_t smlGetTimestampLen(int64_t num) {
+  uint8_t len = 0;
+  while ((num /= 10) != 0) {
+    len++;
+  }
+  len++;
+  return len;
+}
+
+static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
+  //Timestamp must be the first KV to parse
+  int64_t tsVal = 0;
+
+  cJSON *timestamp = cJSON_GetObjectItem(root, "timestamp");
+  if (cJSON_IsNumber(timestamp)) {
+    //timestamp value 0 indicates current system time
+    double timeDouble = timestamp->valuedouble;
+    if(smlDoubleToInt64OverFlow(timeDouble)){
+      smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    }
+    if(timeDouble <= 0){
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    }
+    uint8_t tsLen = smlGetTimestampLen((int64_t)timeDouble);
+    if (tsLen == TSDB_TIME_PRECISION_SEC_DIGITS) {
+      timeDouble = timeDouble * 1e9;
+      if(smlDoubleToInt64OverFlow(timeDouble)){
+        smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      }
+      tsVal = timeDouble;
+    } else if (tsLen == TSDB_TIME_PRECISION_MILLI_DIGITS) {
+      timeDouble = timeDouble * 1e6;
+      if(smlDoubleToInt64OverFlow(timeDouble)){
+        smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
+        return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+      }
+      tsVal = timeDouble;
+    } else {
+      return TSDB_CODE_TSC_INVALID_TIME_STAMP;
+    }
+  } else if (cJSON_IsObject(timestamp)) {
+    int32_t ret = smlParseTSFromJSONObj(info, timestamp, &tsVal);
+    if (ret != TSDB_CODE_SUCCESS) {
+      uError("SML:0x%"PRIx64" Failed to parse timestamp from JSON Obj", info->id);
+      return ret;
+    }
+  } else {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  // add ts to
+  SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
+  if(!kv){
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  kv->key = TS;
+  kv->keyLen = TS_LEN;
+  kv->i = tsVal;
+  kv->type = TSDB_DATA_TYPE_TIMESTAMP;
+  kv->length = (int16_t)tDataTypes[kv->type].bytes;
+  if(cols) taosArrayPush(cols, &kv);
+  return TSDB_CODE_SUCCESS;
+
+}
+
+static int32_t smlConvertJSONBool(SSmlKv *pVal, char* typeStr, cJSON *value) {
+  if (strcasecmp(typeStr, "bool") != 0) {
+    uError("OTD:invalid type(%s) for JSON Bool", typeStr);
+    return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+  }
+  pVal->type = TSDB_DATA_TYPE_BOOL;
+  pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+  pVal->i = value->valueint;
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlConvertJSONNumber(SSmlKv *pVal, char* typeStr, cJSON *value) {
+  //tinyint
+  if (strcasecmp(typeStr, "i8") == 0 ||
+      strcasecmp(typeStr, "tinyint") == 0) {
+    if (!IS_VALID_TINYINT(value->valuedouble)) {
+      uError("OTD:JSON value(%f) cannot fit in type(tinyint)", value->valuedouble);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_TINYINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->i = value->valuedouble;
+    return TSDB_CODE_SUCCESS;
+  }
+  //smallint
+  if (strcasecmp(typeStr, "i16") == 0 ||
+      strcasecmp(typeStr, "smallint") == 0) {
+    if (!IS_VALID_SMALLINT(value->valuedouble)) {
+      uError("OTD:JSON value(%f) cannot fit in type(smallint)", value->valuedouble);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_SMALLINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->i = value->valuedouble;
+    return TSDB_CODE_SUCCESS;
+  }
+  //int
+  if (strcasecmp(typeStr, "i32") == 0 ||
+      strcasecmp(typeStr, "int") == 0) {
+    if (!IS_VALID_INT(value->valuedouble)) {
+      uError("OTD:JSON value(%f) cannot fit in type(int)", value->valuedouble);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_INT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->i = value->valuedouble;
+    return TSDB_CODE_SUCCESS;
+  }
+  //bigint
+  if (strcasecmp(typeStr, "i64") == 0 ||
+      strcasecmp(typeStr, "bigint") == 0) {
+    pVal->type = TSDB_DATA_TYPE_BIGINT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    if(smlDoubleToInt64OverFlow(value->valuedouble)){
+      uError("OTD:JSON value(%f) cannot fit in type(big int)", value->valuedouble);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->i = value->valuedouble;
+    return TSDB_CODE_SUCCESS;
+  }
+  //float
+  if (strcasecmp(typeStr, "f32") == 0 ||
+      strcasecmp(typeStr, "float") == 0) {
+    if (!IS_VALID_FLOAT(value->valuedouble)) {
+      uError("OTD:JSON value(%f) cannot fit in type(float)", value->valuedouble);
+      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    }
+    pVal->type = TSDB_DATA_TYPE_FLOAT;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->f = value->valuedouble;
+    return TSDB_CODE_SUCCESS;
+  }
+  //double
+  if (strcasecmp(typeStr, "f64") == 0 ||
+      strcasecmp(typeStr, "double") == 0) {
+    pVal->type = TSDB_DATA_TYPE_DOUBLE;
+    pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
+    pVal->d = value->valuedouble;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  //if reach here means type is unsupported
+  uError("OTD:invalid type(%s) for JSON Number", typeStr);
+  return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+}
+
+static int32_t smlConvertJSONString(SSmlKv *pVal, char* typeStr, cJSON *value) {
+  if (strcasecmp(typeStr, "binary") == 0) {
+    pVal->type = TSDB_DATA_TYPE_BINARY;
+  } else if (strcasecmp(typeStr, "nchar") == 0) {
+    pVal->type = TSDB_DATA_TYPE_NCHAR;
+  } else {
+    uError("OTD:invalid type(%s) for JSON String", typeStr);
+    return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+  }
+  pVal->length = (int16_t)strlen(value->valuestring);
+  pVal->valueLen = pVal->length;
+  return smlJsonCreateSring(&pVal->value, value->valuestring, pVal->valueLen);
+}
+
+static int32_t smlParseValueFromJSONObj(cJSON *root, SSmlKv *kv) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+  int32_t size = cJSON_GetArraySize(root);
+
+  if (size != OTD_JSON_SUB_FIELDS_NUM) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  cJSON *value = cJSON_GetObjectItem(root, "value");
+  if (value == NULL) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  cJSON *type = cJSON_GetObjectItem(root, "type");
+  if (!cJSON_IsString(type)) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  switch (value->type) {
+    case cJSON_True:
+    case cJSON_False: {
+      ret = smlConvertJSONBool(kv, type->valuestring, value);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
+      }
+      break;
+    }
+    case cJSON_Number: {
+      ret = smlConvertJSONNumber(kv, type->valuestring, value);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
+      }
+      break;
+    }
+    case cJSON_String: {
+      ret = smlConvertJSONString(kv, type->valuestring, value);
+      if (ret != TSDB_CODE_SUCCESS) {
+        return ret;
+      }
+      break;
+    }
+    default:
+      return TSDB_CODE_TSC_INVALID_JSON_TYPE;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
+  switch (root->type) {
+    case cJSON_True:
+    case cJSON_False: {
+      kv->type = TSDB_DATA_TYPE_BOOL;
+      kv->length = (int16_t)tDataTypes[kv->type].bytes;
+      kv->i = root->valueint;
+      break;
+    }
+    case cJSON_Number: {
+      kv->type = TSDB_DATA_TYPE_DOUBLE;
+      kv->length = (int16_t)tDataTypes[kv->type].bytes;
+      kv->d = root->valuedouble;
+      break;
+    }
+    case cJSON_String: {
+      /* set default JSON type to binary/nchar according to
+       * user configured parameter tsDefaultJSONStrType
+       */
+
+      char *tsDefaultJSONStrType = "nchar";   //todo
+      smlConvertJSONString(kv, tsDefaultJSONStrType, root);
+      break;
+    }
+    case cJSON_Object: {
+      int32_t ret = smlParseValueFromJSONObj(root, kv);
+      if (ret != TSDB_CODE_SUCCESS) {
+        uError("OTD:Failed to parse value from JSON Obj");
+        return ret;
+      }
+      break;
+    }
+    default:
+      return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlParseColsFromJSON(cJSON *root, SArray *cols) {
+  cJSON *metricVal = cJSON_GetObjectItem(root, "value");
+  if (metricVal == NULL) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
+  if(!kv){
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  if(cols) taosArrayPush(cols, &kv);
+
+  kv->key = VALUE;
+  kv->keyLen = VALUE_LEN;
+  int32_t ret = smlParseValueFromJSON(metricVal, kv);
+  if (ret != TSDB_CODE_SUCCESS) {
+    return ret;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlParseTagsFromJSON(cJSON *root, SArray *pKVs, SHashObj *dumplicateKey, SSmlMsgBuf *msg) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+
+  cJSON *tags = cJSON_GetObjectItem(root, "tags");
+  if (tags == NULL || tags->type != cJSON_Object) {
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+  //handle child table name  todo
+//  size_t childTableNameLen = strlen(tsSmlChildTableName);
+//  char childTbName[TSDB_TABLE_NAME_LEN] = {0};
+//  if (childTableNameLen != 0) {
+//    memcpy(childTbName, tsSmlChildTableName, childTableNameLen);
+//    cJSON *id = cJSON_GetObjectItem(tags, childTbName);
+//    if (id != NULL) {
+//      if (!cJSON_IsString(id)) {
+//        tscError("OTD:0x%"PRIx64" ID must be JSON string", info->id);
+//        return TSDB_CODE_TSC_INVALID_JSON;
+//      }
+//      size_t idLen = strlen(id->valuestring);
+//      *childTableName = tcalloc(idLen + TS_BACKQUOTE_CHAR_SIZE + 1, sizeof(char));
+//      memcpy(*childTableName, id->valuestring, idLen);
+//      addEscapeCharToString(*childTableName, (int32_t)idLen);
+//
+//      //check duplicate IDs
+//      cJSON_DeleteItemFromObject(tags, childTbName);
+//      id = cJSON_GetObjectItem(tags, childTbName);
+//      if (id != NULL) {
+//        return TSDB_CODE_TSC_DUP_TAG_NAMES;
+//      }
+//    }
+//  }
+
+  int32_t tagNum = cJSON_GetArraySize(tags);
+  for (int32_t i = 0; i < tagNum; ++i) {
+    cJSON *tag = cJSON_GetArrayItem(tags, i);
+    if (tag == NULL) {
+      return TSDB_CODE_TSC_INVALID_JSON;
+    }
+    //check duplicate keys
+    if (smlCheckDuplicateKey(tag->string, strlen(tag->string), dumplicateKey)) {
+      return TSDB_CODE_TSC_DUP_TAG_NAMES;
+    }
+
+    // add kv to SSmlKv
+    SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
+    if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
+    if(pKVs) taosArrayPush(pKVs, &kv);
+
+    //key
+    kv->keyLen = strlen(tag->string);
+    if (kv->keyLen >= TSDB_COL_NAME_LEN) {
+      uError("OTD:Tag key cannot exceeds %d characters in JSON", TSDB_COL_NAME_LEN - 1);
+      return TSDB_CODE_TSC_INVALID_COLUMN_LENGTH;
+    }
+    ret = smlJsonCreateSring(&kv->key, tag->string, kv->keyLen);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
+    //value
+    ret = smlParseValueFromJSON(tag, kv);
+    if (ret != TSDB_CODE_SUCCESS) {
+      return ret;
+    }
+  }
+
+  return ret;
+
+}
+
+static int32_t smlParseJSONString(SSmlHandle *info, cJSON *root, SSmlTableInfo *tinfo, SArray *cols) {
+  int32_t ret = TSDB_CODE_SUCCESS;
+
+  if (!cJSON_IsObject(root)) {
+    uError("OTD:0x%"PRIx64" data point needs to be JSON object", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  int32_t size = cJSON_GetArraySize(root);
+  //outmost json fields has to be exactly 4
+  if (size != OTD_JSON_FIELDS_NUM) {
+    uError("OTD:0x%"PRIx64" Invalid number of JSON fields in data point %d", info->id, size);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  //Parse metric
+  ret = smlParseMetricFromJSON(info, root, tinfo);
+  if (ret != TSDB_CODE_SUCCESS) {
+    uError("OTD:0x%"PRIx64" Unable to parse metric from JSON payload", info->id);
+    return ret;
+  }
+  uDebug("OTD:0x%"PRIx64" Parse metric from JSON payload finished", info->id);
+
+  //Parse timestamp
+  ret = smlParseTSFromJSON(info, root, cols);
+  if (ret) {
+    uError("OTD:0x%"PRIx64" Unable to parse timestamp from JSON payload", info->id);
+    return ret;
+  }
+  uDebug("OTD:0x%"PRIx64" Parse timestamp from JSON payload finished", info->id);
+
+  //Parse metric value
+  ret = smlParseColsFromJSON(root, cols);
+  if (ret) {
+    uError("OTD:0x%"PRIx64" Unable to parse metric value from JSON payload", info->id);
+    return ret;
+  }
+  uDebug("OTD:0x%"PRIx64" Parse metric value from JSON payload finished", info->id);
+
+  //Parse tags
+  ret = smlParseTagsFromJSON(root, tinfo->tags, info->dumplicateKey, &info->msgBuf);
+  if (ret) {
+    uError("OTD:0x%"PRIx64" Unable to parse tags from JSON payload", info->id);
+    return ret;
+  }
+  uDebug("OTD:0x%"PRIx64" Parse tags from JSON payload finished", info->id);
+
+  return TSDB_CODE_SUCCESS;
+}
+/************* TSDB_SML_JSON_PROTOCOL function end **************/
+
+
+
+static int32_t smlParseInfluxLine(SSmlHandle* info, const char* sql) {
+  SSmlLineInfo elements = {0};
+  int ret = smlParseInfluxString(sql, &elements, &info->msgBuf);
+  if(ret != TSDB_CODE_SUCCESS){
+    uError("SML:0x%"PRIx64" smlParseInfluxLine failed", info->id);
+    return ret;
+  }
+
+  SArray *cols = NULL;
+  if(info->dataFormat){   // if dataFormat, cols need new memory to save data
+    cols = taosArrayInit(16, POINTER_BYTES);
+    if (cols == NULL) {
+      uError("SML:0x%"PRIx64" smlParseInfluxLine failed to allocate memory", info->id);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+  }else{      // if dataFormat is false, cols do not need to save data, there is another new memory to save data
+    cols = info->colsContainer;
+  }
+
+  ret = smlParseTS(info, elements.timestamp, elements.timestampLen, cols);
+  if(ret != TSDB_CODE_SUCCESS){
+    uError("SML:0x%"PRIx64" smlParseTS failed", info->id);
+    if(info->dataFormat) taosArrayDestroy(cols);
+    return ret;
+  }
+  ret = smlParseCols(elements.cols, elements.colsLen, cols, false, info->dumplicateKey, &info->msgBuf);
+  if(ret != TSDB_CODE_SUCCESS){
+    uError("SML:0x%"PRIx64" smlParseCols parse cloums fields failed", info->id);
+    smlDestroyCols(cols);
+    if(info->dataFormat) taosArrayDestroy(cols);
+    return ret;
+  }
+  if(taosArrayGetSize(cols) > TSDB_MAX_COLUMNS){
+    smlBuildInvalidDataMsg(&info->msgBuf, "too many columns than 4096", NULL);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+
+  bool hasTable = true;
+  SSmlTableInfo **oneTable = (SSmlTableInfo **)taosHashGet(info->childTables, elements.measure, elements.measureTagsLen);
+  if(!oneTable){
+    SSmlTableInfo *tinfo = smlBuildTableInfo();
+    if(!tinfo){
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    taosHashPut(info->childTables, elements.measure, elements.measureTagsLen, &tinfo, POINTER_BYTES);
+    *oneTable = tinfo;
+    hasTable = false;
+  }
+
+  ret = smlDealCols(*oneTable, info->dataFormat, cols);
+  if(ret != TSDB_CODE_SUCCESS){
+    return ret;
+  }
+
+  if(!hasTable){
+    ret = smlParseCols(elements.tags, elements.tagsLen, (*oneTable)->tags, true, info->dumplicateKey, &info->msgBuf);
+    if(ret != TSDB_CODE_SUCCESS){
+      uError("SML:0x%"PRIx64" smlParseCols parse tag fields failed", info->id);
+      return ret;
+    }
+
+    if(taosArrayGetSize((*oneTable)->tags) > TSDB_MAX_TAGS){
+      smlBuildInvalidDataMsg(&info->msgBuf, "too many tags than 128", NULL);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+
+    (*oneTable)->sTableName = elements.measure;
+    (*oneTable)->sTableNameLen = elements.measureLen;
+    RandTableName rName = {.tags=(*oneTable)->tags, .sTableName=(*oneTable)->sTableName, .sTableNameLen=(*oneTable)->sTableNameLen,
+                           .childTableName=(*oneTable)->childTableName};
+    buildChildTableName(&rName);
+    (*oneTable)->uid = rName.uid;
+  }
+
+  SSmlSTableMeta** tableMeta = (SSmlSTableMeta**)taosHashGet(info->superTables, elements.measure, elements.measureLen);
+  if(tableMeta){  // update meta
+    ret = smlUpdateMeta(*tableMeta, hasTable ? NULL : (*oneTable)->tags, cols, &info->msgBuf);
+    if(!ret){
+      uError("SML:0x%"PRIx64" smlUpdateMeta failed", info->id);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+  }else{
+    SSmlSTableMeta *meta = smlBuildSTableMeta();
+    smlInsertMeta(meta, (*oneTable)->tags, cols);
+    taosHashPut(info->superTables, elements.measure, elements.measureLen, &meta, POINTER_BYTES);
+  }
+
+  if(!info->dataFormat){
+    taosArrayClear(info->colsContainer);
+  }
+  taosHashClear(info->dumplicateKey);
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlParseTelnetLine(SSmlHandle* info, void *data) {
+  int ret = TSDB_CODE_SUCCESS;
+  SSmlTableInfo *tinfo = smlBuildTableInfo();
+  if(!tinfo){
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  SArray *cols = taosArrayInit(16, POINTER_BYTES);
+  if (cols == NULL) {
+    uError("SML:0x%"PRIx64" smlParseTelnetLine failed to allocate memory", info->id);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+
+  if(info->protocol == TSDB_SML_TELNET_PROTOCOL){
+    smlParseTelnetString(info, (const char*)data, tinfo, cols);
+  }else if(info->protocol == TSDB_SML_JSON_PROTOCOL){
+    smlParseJSONString(info, (cJSON *)data, tinfo, cols);
+  }else{
+    ASSERT(0);
+  }
+  if(ret != TSDB_CODE_SUCCESS){
+    uError("SML:0x%"PRIx64" smlParseInflux failed", info->id);
+    smlDestroyTableInfo(tinfo, true);
+    taosArrayDestroy(cols);
+    return ret;
+  }
+
+  if(taosArrayGetSize(tinfo->tags) <= 0 || taosArrayGetSize(tinfo->tags) > TSDB_MAX_TAGS){
+    smlBuildInvalidDataMsg(&info->msgBuf, "invalidate tags length:[1,128]", NULL);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
+  taosHashClear(info->dumplicateKey);
+
+  RandTableName rName = {.tags=tinfo->tags, .sTableName=tinfo->sTableName, .sTableNameLen=tinfo->sTableNameLen,
+                         .childTableName=tinfo->childTableName};
+  buildChildTableName(&rName);
+  tinfo->uid = rName.uid;
+
+  bool hasTable = true;
+  SSmlTableInfo **oneTable = taosHashGet(info->childTables, tinfo->childTableName, strlen(tinfo->childTableName));
+  if(!oneTable) {
+    taosHashPut(info->childTables, tinfo->childTableName, strlen(tinfo->childTableName), &tinfo, POINTER_BYTES);
+    *oneTable = tinfo;
+    hasTable = false;
+  }else{
+    smlDestroyTableInfo(tinfo, true);
+  }
+
+  taosArrayPush((*oneTable)->cols, &cols);
+  SSmlSTableMeta** tableMeta = taosHashGet(info->superTables, (*oneTable)->sTableName, (*oneTable)->sTableNameLen);
+  if(tableMeta){  // update meta
+    ret = smlUpdateMeta(*tableMeta, hasTable ? NULL : (*oneTable)->tags, cols, &info->msgBuf);
+    if(!ret){
+      uError("SML:0x%"PRIx64" smlUpdateMeta failed", info->id);
+      return TSDB_CODE_SML_INVALID_DATA;
+    }
+  }else{
+    SSmlSTableMeta *meta = smlBuildSTableMeta();
+    smlInsertMeta(meta, (*oneTable)->tags, cols);
+    taosHashPut(info->superTables, (*oneTable)->sTableName, (*oneTable)->sTableNameLen, &meta, POINTER_BYTES);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t smlParseJSON(SSmlHandle *info, char* payload) {
+  int32_t payloadNum = 0;
+  int32_t ret = TSDB_CODE_SUCCESS;
+
+  if (payload == NULL) {
+    uError("SML:0x%"PRIx64" empty JSON Payload", info->id);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+
+  cJSON *root = cJSON_Parse(payload);
+  if (root == NULL) {
+    uError("SML:0x%"PRIx64" parse json failed:%s", info->id, payload);
+    return TSDB_CODE_TSC_INVALID_JSON;
+  }
+  //multiple data points must be sent in JSON array
+  if (cJSON_IsObject(root)) {
+    payloadNum = 1;
+  } else if (cJSON_IsArray(root)) {
+    payloadNum = cJSON_GetArraySize(root);
+  } else {
+    uError("SML:0x%"PRIx64" Invalid JSON Payload", info->id);
+    ret = TSDB_CODE_TSC_INVALID_JSON;
+    goto end;
+  }
+
+  for (int32_t i = 0; i < payloadNum; ++i) {
+    cJSON *dataPoint = (payloadNum == 1 && cJSON_IsObject(root)) ? root : cJSON_GetArrayItem(root, i);
+    ret = smlParseTelnetLine(info, dataPoint);
+    if(ret != TSDB_CODE_SUCCESS){
+      uError("SML:0x%"PRIx64" Invalid JSON Payload", info->id);
+      goto end;
+    }
+  }
+
+end:
+  cJSON_Delete(root);
+  return ret;
+}
+
+
 static int32_t smlInsertData(SSmlHandle* info) {
   int32_t code = TSDB_CODE_SUCCESS;
 
@@ -1636,7 +2128,7 @@ static int32_t smlInsertData(SSmlHandle* info) {
     SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
     SVgroupInfo vg;
     code = catalogGetTableHashVgroup(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &vg);
-    if (code != 0) {
+    if (code != TSDB_CODE_SUCCESS) {
       uError("SML:0x%"PRIx64" catalogGetTableHashVgroup failed. table name: %s", info->id, tableData->childTableName);
       return code;
     }
@@ -1649,15 +2141,19 @@ static int32_t smlInsertData(SSmlHandle* info) {
     (*pMeta)->tableMeta->vgId = vg.vgId;
     (*pMeta)->tableMeta->uid = tableData->uid; // one table merge data block together according uid
 
-    code = smlBindData(info->exec, tableData->tags, tableData->colsFormat, (*pMeta)->cols,
-                       tableData->cols, info->dataFormat, (*pMeta)->tableMeta, tableData->childTableName, info->msgBuf.buf, info->msgBuf.len);
+    code = smlBindData(info->exec, tableData->tags, (*pMeta)->cols, tableData->cols, info->dataFormat,
+                       (*pMeta)->tableMeta, tableData->childTableName, info->msgBuf.buf, info->msgBuf.len);
     if(code != TSDB_CODE_SUCCESS){
       return code;
     }
     oneTable = (SSmlTableInfo**)taosHashIterate(info->childTables, oneTable);
   }
 
-  smlBuildOutput(info->exec, info->pVgHash);
+  code = smlBuildOutput(info->exec, info->pVgHash);
+  if (code != TSDB_CODE_SUCCESS) {
+    uError("SML:0x%"PRIx64" smlBuildOutput failed", info->id);
+    return code;
+  }
   info->cost.insertRpcTime = taosGetTimestampUs();
 
   launchQueryImpl(info->pRequest, info->pQuery, TSDB_CODE_SUCCESS, true);
@@ -1675,22 +2171,40 @@ static void smlPrintStatisticInfo(SSmlHandle *info){
          info->cost.endTime-info->cost.parseTime);
 }
 
-static int smlInsertLines(SSmlHandle *info, char* lines[], int numLines) {
+static int32_t smlParseLine(SSmlHandle *info, char* lines[], int numLines){
   int32_t code = TSDB_CODE_SUCCESS;
-
-  if (numLines <= 0 || numLines > 65536) {
-    uError("SML:0x%"PRIx64" smlInsertLines numLines should be between 1 and 65536. numLines: %d", info->id, numLines);
-    code = TSDB_CODE_TSC_APP_ERROR;
-    goto cleanup;
+  if (info->protocol == TSDB_SML_JSON_PROTOCOL) {
+    code = smlParseJSON(info, *lines);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, *lines);
+      return code;
+    }
   }
 
-  info->cost.parseTime = taosGetTimestampUs();
   for (int32_t i = 0; i < numLines; ++i) {
-    code = smlParseLine(info, lines[i]);
-    if (code != TSDB_CODE_SUCCESS) {
-      uError("SML:0x%"PRIx64" smlParseLine failed. line %d : %s", info->id, i, lines[i]);
-      goto cleanup;
+    if(info->protocol == TSDB_SML_LINE_PROTOCOL){
+      code = smlParseInfluxLine(info, lines[i]);
+    }else if(info->protocol == TSDB_SML_TELNET_PROTOCOL){
+      code = smlParseTelnetLine(info, lines[i]);
+    }else{
+      ASSERT(0);
     }
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("SML:0x%" PRIx64 " smlParseLine failed. line %d : %s", info->id, i, lines[i]);
+      return code;
+    }
+  }
+  return code;
+}
+
+static int smlProcess(SSmlHandle *info, char* lines[], int numLines) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  info->cost.parseTime = taosGetTimestampUs();
+
+  code = smlParseLine(info, lines, numLines);
+  if (code != 0) {
+    uError("SML:0x%"PRIx64" smlParseLine error : %s", info->id, tstrerror(code));
+    goto cleanup;
   }
 
   info->cost.lineNum = numLines;
@@ -1742,6 +2256,7 @@ cleanup:
 TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int protocol, int precision) {
   SRequestObj* request = (SRequestObj*)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   if(!request){
+    uError("SML:taos_schemaless_insert error request is null");
     return NULL;
   }
 
@@ -1750,22 +2265,28 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     return (TAOS_RES*)request;
   }
 
-  switch (protocol) {
-    case TSDB_SML_LINE_PROTOCOL:{
-      smlInsertLines(info, lines, numLines);
-      break;
-    }
-    case TSDB_SML_TELNET_PROTOCOL:
-      //code = taos_insert_telnet_lines(taos, lines, numLines, protocol, tsType, &affected_rows);
-      break;
-    case TSDB_SML_JSON_PROTOCOL:
-      //code = taos_insert_json_payload(taos, *lines, protocol, tsType, &affected_rows);
-      break;
-    default:
-      break;
+  if (numLines <= 0 || numLines > 65536) {
+    request->code = TSDB_CODE_SML_INVALID_DATA;
+    smlBuildInvalidDataMsg(&info->msgBuf, "numLines should be between 1 and 65536", NULL);
+    goto end;
   }
-  smlDestroyInfo(info);
 
+  if(protocol < TSDB_SML_LINE_PROTOCOL || protocol > TSDB_SML_JSON_PROTOCOL){
+    request->code = TSDB_CODE_SML_INVALID_PROTOCOL_TYPE;
+    smlBuildInvalidDataMsg(&info->msgBuf, "protocol invalidate", NULL);
+    goto end;
+  }
+
+  if(protocol == TSDB_SML_LINE_PROTOCOL && (precision < TSDB_SML_TIMESTAMP_HOURS || precision > TSDB_SML_TIMESTAMP_NANO_SECONDS)){
+    request->code = TSDB_CODE_SML_INVALID_PRECISION_TYPE;
+    smlBuildInvalidDataMsg(&info->msgBuf, "precision invalidate for line protocol", NULL);
+    goto end;
+  }
+
+  info->pRequest->code = smlProcess(info, lines, numLines);
+
+end:
+  smlDestroyInfo(info);
   return (TAOS_RES*)request;
 }
 
