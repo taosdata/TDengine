@@ -224,7 +224,7 @@ class TDTestCase:
 
         # 密码登录认证
         tdLog.printNoPrefix("==========step4: check login test")
-        self.login_err("err1", "passwd1")
+        self.login_err(self.__user_list[0], "passwd1")
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
 
 
