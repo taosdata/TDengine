@@ -62,7 +62,7 @@ class TestComp(TDCase):
             self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
             file = open(f"{self.vnode_dir}/vnode.json")
             data = json.load(file)
-            print(data)
+            # print(data)
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['compression']))
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
