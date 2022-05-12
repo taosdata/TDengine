@@ -177,11 +177,6 @@ class TDTestCase:
 
         tdLog.printNoPrefix("end,", login_except)
 
-        # with taos_connect(user=user, passwd=passwd) as conn:
-        #         cursor = conn.cursor()
-        # if not cursor:
-        #     login_except = True
-
         return login_except, cursor
 
     def login_currrent(self, user, passwd):
