@@ -89,6 +89,7 @@ typedef struct SUdfColumnData {
 
 typedef struct SUdfColumn {
   SUdfColumnMeta colMeta;
+  bool           hasNull;
   SUdfColumnData colData;
 } SUdfColumn;
 
@@ -232,6 +233,7 @@ static FORCE_INLINE void udfColDataSetNull(SUdfColumn* pColumn, int32_t row) {
   } else {
     udfColDataSetNull_f(pColumn, row);
   }
+  pColumn->hasNull = true;
 }
 
 static FORCE_INLINE int32_t udfColDataSet(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull) {
