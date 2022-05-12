@@ -1,6 +1,7 @@
 import taos
 import sys
 import inspect
+import traceback
 
 from util.log import *
 from util.sql import *
@@ -50,12 +51,29 @@ class TDconnect:
 
         if expectErrNotOccured:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
-            tdLog.exit("%s(%d) failed: sql:%s, expect error not occured" % (caller.filename, caller.lineno, sql))
+            tdLog.exit(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, expect error not occured" )
         else:
             self.queryRows = 0
             self.queryCols = 0
             self.queryResult = None
             tdLog.info(f"sql:{sql}, expect error occured")
+
+    def query(self, sql, row_tag=None):
+        # sourcery skip: raise-from-previous-error, raise-specific-error
+        self.sql = sql
+        try:
+            self.cursor.execute(sql)
+            self.queryResult = self.cursor.fetchall()
+            self.queryRows = len(self.queryResult)
+            self.queryCols = len(self.cursor.description)
+        except Exception as e:
+            caller = inspect.getframeinfo(inspect.stack()[1][0])
+            tdLog.notice(f"{caller.filename}({caller.lineno}) failed: sql:{sql}, {repr(e)}")
+            traceback.print_exc()
+            raise Exception(repr(e))
+        if row_tag:
+            return self.queryResult
+        return self.queryRows
 
     def __exit__(self, types, values, trace):
         if self._conn:
@@ -127,8 +145,8 @@ class TDTestCase:
             "create user u1, u2 pass 'u1passwd'  'u2passwd' ",
             # length of user_name must <= 23
             "create user u12345678901234567890123 pass 'u1passwd' " ,
-            # length of passwd must <= 15
-            "create user u1 pass 'u123456789012345' " ,
+            # length of passwd must <= 128
+            "create user u1 pass 'u12345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678901234567890123456789012345678' " ,
             # password must have not " ' ~ ` \
             "create user u1 pass 'u1passwd\\' " ,
             "create user u1 pass 'u1passwd~' " ,
@@ -205,7 +223,32 @@ class TDTestCase:
         else:
             tdLog.exit("connect successfully, except error not occrued!")
 
+    def __drop_user(self, user):
+        return f"DROP USER {user}"
 
+    def drop_user_current(self):
+        for user in self.__user_list:
+            tdSql.query(self.__drop_user(user))
+
+    def drop_user_error(self):
+        sqls = [
+            f"DROP {self.__user_list[0]}",
+            f"DROP user {self.__user_list[0]}  {self.__user_list[1]}",
+            f"DROP user {self.__user_list[0]} , {self.__user_list[1]}",
+            f"DROP users {self.__user_list[0]}  {self.__user_list[1]}",
+            f"DROP users {self.__user_list[0]} , {self.__user_list[1]}",
+            "DROP user root",
+            "DROP user abcde",
+            "DROP user ALL",
+        ]
+
+        for sql in sqls:
+            tdSql.error(sql)
+
+    def test_drop_user(self):
+        # must drop err first
+        self.drop_user_error()
+        self.drop_user_current()
 
     def run(self):
 
@@ -240,21 +283,38 @@ class TDTestCase:
         self.login_currrent(self.__user_list[0], f"new{self.__passwd_list[0]}")
 
         # 普通用户权限
+        # 密码登录
         _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
         with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as conn:
             user = conn
         # 不能创建用户
         tdLog.printNoPrefix("==========step5: normal user can not create user")
         user.error("create use utest1 pass 'utest1pass'")
+        # 可以查看用户
+        tdLog.printNoPrefix("==========step6: normal user can show user")
+        user.query("show users")
+        assert user.queryRows == self.users_count + 2
+        # 不可以修改其他用户的密码
+        tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
+        user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
+        user.error("root", "taosdata_root")
+        # 可以修改自己的密码
+        tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
+        user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
+        # 不可以删除用户，包括自己
+        tdLog.printNoPrefix("==========step9: normal user can not drop any user ")
+        user.error(f"drop user {self.__user_list[0]}")
+        user.error(f"drop user {self.__user_list[1]}")
+        user.error("drop user root")
 
+        # root删除用户测试
+        tdLog.printNoPrefix("==========step10: super user drop normal user")
+        self.test_drop_user()
 
-        # 删除用户测试
-        tdLog.printNoPrefix("==========step2: drop user")
-
-
-
-
-
+        tdSql.query("show users")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "root")
+        tdSql.checkData(0, 1, "super")
 
 
     def stop(self):
