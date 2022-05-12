@@ -184,7 +184,7 @@ class TDTestCase:
     def login_currrent(self, user, passwd):
         login_except, _ = self.user_login(user, passwd)
         if login_except:
-            tdLog.exit("connect failed, user and pass do not match!")
+            tdLog.exit(f"connect failed, user: {user} and pass: {passwd} do not match!")
         else:
             tdLog.info("connect successfully, user and pass matched!")
 
