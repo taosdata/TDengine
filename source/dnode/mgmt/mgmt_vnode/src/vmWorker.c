@@ -496,18 +496,16 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
     return -1;
   }
 
-  if (tsMultiProcess) {
-    SSingleWorkerCfg mCfg = {
-        .min = 1,
-        .max = 1,
-        .name = "vnode-monitor",
-        .fp = (FItem)vmProcessMgmtMonitorQueue,
-        .param = pMgmt,
-    };
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-      dError("failed to start mnode vnode-monitor worker since %s", terrstr());
-      return -1;
-    }
+  SSingleWorkerCfg mCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "vnode-monitor",
+      .fp = (FItem)vmProcessMgmtMonitorQueue,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+    dError("failed to start mnode vnode-monitor worker since %s", terrstr());
+    return -1;
   }
 
   dDebug("vnode workers are initialized");

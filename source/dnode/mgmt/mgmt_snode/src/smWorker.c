@@ -121,18 +121,16 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return -1;
   }
 
-  if (tsMultiProcess) {
-    SSingleWorkerCfg mCfg = {
-        .min = 1,
-        .max = 1,
-        .name = "snode-monitor",
-        .fp = (FItem)smProcessMonitorQueue,
-        .param = pMgmt,
-    };
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-      dError("failed to start snode-monitor worker since %s", terrstr());
-      return -1;
-    }
+  SSingleWorkerCfg mCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "snode-monitor",
+      .fp = (FItem)smProcessMonitorQueue,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+    dError("failed to start snode-monitor worker since %s", terrstr());
+    return -1;
   }
 
   dDebug("snode workers are initialized");

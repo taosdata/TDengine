@@ -83,7 +83,7 @@ typedef enum {
 
 typedef int32_t (*ProcessCreateNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
-typedef int8_t (*IsNodeDeployedFp)(struct SDnode *pDnode, EDndNodeType ntype);
+typedef bool (*IsNodeDeployedFp)(struct SDnode *pDnode, EDndNodeType ntype);
 
 typedef struct {
   const char         *path;

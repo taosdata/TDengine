@@ -84,7 +84,7 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
 
   if (pWrapper->procType != DND_PROC_PARENT) {
     dTrace("msg:%p, created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType), pRpc->handle, pMsg->user);
-    code = (*msgFp)(pWrapper, pMsg);
+    code = (*msgFp)(pWrapper->pMgmt, pMsg);
   } else {
     dTrace("msg:%p, created and put into child queue, type:%s handle:%p code:0x%04x user:%s contLen:%d", pMsg,
            TMSG_INFO(msgType), pRpc->handle, pMsg->rpcMsg.code & 0XFFFF, pMsg->user, pRpc->contLen);
@@ -335,7 +335,7 @@ static void dmConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t 
   dTrace("msg:%p, get from child queue, handle:%p app:%p", pMsg, pRpc->handle, pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
-  int32_t   code = (*msgFp)(pWrapper, pMsg);
+  int32_t   code = (*msgFp)(pWrapper->pMgmt, pMsg);
 
   if (code != 0) {
     dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));

@@ -165,18 +165,16 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     return -1;
   }
 
-  if (tsMultiProcess) {
-    SSingleWorkerCfg mCfg = {
-        .min = 1,
-        .max = 1,
-        .name = "qnode-monitor",
-        .fp = (FItem)qmProcessMonitorQueue,
-        .param = pMgmt,
-    };
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-      dError("failed to start qnode-monitor worker since %s", terrstr());
-      return -1;
-    }
+  SSingleWorkerCfg mCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "qnode-monitor",
+      .fp = (FItem)qmProcessMonitorQueue,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+    dError("failed to start qnode-monitor worker since %s", terrstr());
+    return -1;
   }
 
   dDebug("qnode workers are initialized");

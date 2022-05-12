@@ -52,6 +52,9 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
   pMgmt->data.supportVnodes = pInput->supportVnodes;
   pMgmt->data.serverPort = pInput->serverPort;
   pMgmt->pDnode = pInput->pDnode;
+  pMgmt->msgCb = pInput->msgCb;
+  pMgmt->path = pInput->path;
+  pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->isNodeDeployedFp = pInput->isNodeDeployedFp;

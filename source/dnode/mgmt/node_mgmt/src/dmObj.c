@@ -16,6 +16,8 @@
 #define _DEFAULT_SOURCE
 #include "dmImp.h"
 
+static bool dmIsNodeDeployedFp(SDnode *pDnode, EDndNodeType ntype) { return pDnode->wrappers[ntype].required; }
+
 static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->input.dnodeId = 0;
   pDnode->input.clusterId = 0;
@@ -29,6 +31,9 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->input.disks = pOption->disks;
   pDnode->input.dataDir = strdup(pOption->dataDir);
   pDnode->input.pDnode = pDnode;
+  pDnode->input.processCreateNodeFp = dmProcessCreateNodeReq;
+  pDnode->input.processDropNodeFp = dmProcessDropNodeReq;
+  pDnode->input.isNodeDeployedFp = dmIsNodeDeployedFp;
 
   if (pDnode->input.dataDir == NULL || pDnode->input.localEp == NULL || pDnode->input.localFqdn == NULL ||
       pDnode->input.firstEp == NULL || pDnode->input.secondEp == NULL) {
