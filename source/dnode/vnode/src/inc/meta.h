@@ -116,10 +116,10 @@ int64_t      metaSmaCursorNext(SMSmaCursor* pSmaCur);
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);
-int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
-int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
-int  metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
-int  metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);
+// int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
+int metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
+int metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
+int metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);
 #endif
 
 #endif
