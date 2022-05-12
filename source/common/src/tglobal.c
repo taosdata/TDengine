@@ -153,11 +153,11 @@ bool tsStreamSchedV = true;
 
 /*
  * minimum scale for whole system, millisecond by default
- * for TSDB_TIME_PRECISION_MILLI: 86400000L
- *     TSDB_TIME_PRECISION_MICRO: 86400000000L
- *     TSDB_TIME_PRECISION_NANO:  86400000000000L
+ * for TSDB_TIME_PRECISION_MILLI: 60000L
+ *     TSDB_TIME_PRECISION_MICRO: 60000000L
+ *     TSDB_TIME_PRECISION_NANO:  60000000000L
  */
-int64_t tsTickPerDay[] = {86400000L, 86400000000L, 86400000000000L};
+int64_t tsTickPerMin[] = {60000L, 60000000L, 60000000000L};
 
 // lossy compress 6
 char tsLossyColumns[32] = "";  // "float|double" means all float and double columns can be lossy compressed.  set empty
@@ -170,7 +170,7 @@ uint32_t tsCurRange = 100;                      // range
 char     tsCompressor[32] = "ZSTD_COMPRESSOR";  // ZSTD_COMPRESSOR or GZIP_COMPRESSOR
 
 // udf
-bool     tsStartUdfd = true;
+bool tsStartUdfd = true;
 
 // internal
 int32_t tsTransPullupInterval = 6;

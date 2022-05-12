@@ -518,9 +518,9 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
 
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
-    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
+    return (int)((key + 1) / tsTickPerMin[precision] / days - 1);
   } else {
-    return (int)((key / tsTickPerDay[precision] / days));
+    return (int)((key / tsTickPerMin[precision] / days));
   }
 }
 
@@ -770,8 +770,8 @@ static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
 }
 
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fid * days * tsTickPerDay[precision];
-  *maxKey = *minKey + days * tsTickPerDay[precision] - 1;
+  *minKey = fid * days * tsTickPerMin[precision];
+  *maxKey = *minKey + days * tsTickPerMin[precision] - 1;
 }
 
 static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet *pSet) {

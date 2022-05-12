@@ -216,9 +216,9 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn) {
   TSKEY         minKey, midKey, maxKey, now;
 
   now = taosGetTimestamp(pCfg->precision);
-  minKey = now - pCfg->keep2 * tsTickPerDay[pCfg->precision];
-  midKey = now - pCfg->keep1 * tsTickPerDay[pCfg->precision];
-  maxKey = now - pCfg->keep0 * tsTickPerDay[pCfg->precision];
+  minKey = now - pCfg->keep2 * tsTickPerMin[pCfg->precision];
+  midKey = now - pCfg->keep1 * tsTickPerMin[pCfg->precision];
+  maxKey = now - pCfg->keep0 * tsTickPerMin[pCfg->precision];
 
   pRtn->minKey = minKey;
   pRtn->minFid = (int)(TSDB_KEY_FID(minKey, pCfg->days, pCfg->precision));
@@ -398,7 +398,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
       ++mIter;
     } else if (pIter && !pIter->pTable) {
       // When table already dropped during commit, pIter is not NULL but pIter->pTable is NULL.
-      ++mIter; // skip the table and do nothing
+      ++mIter;  // skip the table and do nothing
     } else if (pIdx) {
       if (tsdbMoveBlkIdx(pCommith, pIdx) < 0) {
         tsdbCloseCommitFile(pCommith, true);
@@ -947,7 +947,6 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
 
 static int tsdbSetCommitTable(SCommitH *pCommith, STable *pTable) {
   STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
-
 
   pCommith->pTable = pTable;
 
