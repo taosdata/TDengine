@@ -486,8 +486,10 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith) {
 
   for (int i = 1; i < pCommith->niters; i++) {
     tSkipListDestroyIter(pCommith->iters[i].pIter);
-    tdFreeSchema(pCommith->iters[i].pTable->pSchema);
-    taosMemoryFree(pCommith->iters[i].pTable);
+    if (pCommith->iters[i].pTable) {
+      tdFreeSchema(pCommith->iters[i].pTable->pSchema);
+      taosMemoryFreeClear(pCommith->iters[i].pTable);
+    }
   }
 
   taosMemoryFree(pCommith->iters);

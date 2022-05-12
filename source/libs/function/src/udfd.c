@@ -102,7 +102,7 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   int err = uv_dlopen(udf->path, &udf->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
-    return UDFC_CODE_LOAD_UDF_FAILURE;
+    return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
 
   char initFuncName[TSDB_FUNC_NAME_LEN+5] = {0};

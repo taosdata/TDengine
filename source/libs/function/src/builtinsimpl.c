@@ -2818,7 +2818,6 @@ int32_t stateCountFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
 
   SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
 
   int32_t numOfElems = 0;
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
@@ -2856,7 +2855,6 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
   TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
 
   SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
 
   int32_t numOfElems = 0;
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
@@ -2892,6 +2890,61 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx) {
       pInfo->durationStart = 0;
     }
     colDataAppend(pOutput, i, (char *)&output, false);
+  }
+
+  return numOfElems;
+}
+
+bool getCsumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SSumRes);
+  return true;
+}
+
+int32_t csumFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSumRes*             pSumRes = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t numOfElems = 0;
+  int32_t type = pInputCol->info.type;
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    int32_t pos = startOffset + numOfElems;
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      //colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputCol, i);
+    if (IS_SIGNED_NUMERIC_TYPE(type)) {
+      int64_t v;
+      GET_TYPED_DATA(v, int64_t, type, data);
+      pSumRes->isum += v;
+      colDataAppend(pOutput, pos, (char *)&pSumRes->isum, false);
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+      uint64_t v;
+      GET_TYPED_DATA(v, uint64_t, type, data);
+      pSumRes->usum += v;
+      colDataAppend(pOutput, pos, (char *)&pSumRes->usum, false);
+    } else if (IS_FLOAT_TYPE(type)) {
+      double v;
+      GET_TYPED_DATA(v, double, type, data);
+      pSumRes->dsum += v;
+      colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+    }
+
+    //TODO: remove this after pTsOutput is handled
+    if (pTsOutput != NULL) {
+      colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+    }
+
+    numOfElems++;
   }
 
   return numOfElems;
