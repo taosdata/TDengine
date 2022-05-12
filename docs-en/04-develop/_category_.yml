@@ -2,4 +2,4 @@ label: Develop
 link:
   type: generated-index
   slug: /develop
-  description: "开始指南是对开发者友好的使用教程，既包括数据建模、写入、查询等基础功能的使用，也包括数据订阅、连续查询等高级功能的使用。对于每个主题，都配有各编程语言的连接器的示例代码，方便开发者快速上手。如果想更深入地了解各连接器的使用，请阅读连接器参考指南。"
+  description: "The guide is for developers to quickly learn about the functionalities of TDengine, including fundamentals like data model, inserting data, query and advanced features like data subscription, continuous query. For each functionality, sample code of multiple programming languages are provided for developers to get started quickly."
