@@ -931,7 +931,7 @@ void udfcUvHandleError(SClientUvConn *conn) {
   while (!QUEUE_EMPTY(&conn->taskQueue)) {
     QUEUE* h = QUEUE_HEAD(&conn->taskQueue);
     SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, connTaskQueue);
-    task->errCode = UDFC_CODE_PIPE_READ_ERR;
+    task->errCode = TSDB_CODE_UDF_PIPE_READ_ERR;
     QUEUE_REMOVE(&task->connTaskQueue);
     QUEUE_REMOVE(&task->procTaskQueue);
     uv_sem_post(&task->taskSem);
@@ -1119,7 +1119,7 @@ void cleanUpUvTasks(SUdfdProxy *udfc) {
     QUEUE_REMOVE(h);
     SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, recvTaskQueue);
     if (udfc->gUdfcState == UDFC_STATE_STOPPING) {
-      task->errCode = UDFC_CODE_STOPPING;
+      task->errCode = TSDB_CODE_UDF_STOPPING;
     }
     uv_sem_post(&task->taskSem);
   }
@@ -1129,7 +1129,7 @@ void cleanUpUvTasks(SUdfdProxy *udfc) {
     QUEUE_REMOVE(h);
     SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, procTaskQueue);
     if (udfc->gUdfcState == UDFC_STATE_STOPPING) {
-      task->errCode = UDFC_CODE_STOPPING;
+      task->errCode = TSDB_CODE_UDF_STOPPING;
     }
     uv_sem_post(&task->taskSem);
   }
@@ -1213,7 +1213,7 @@ int32_t udfcRunUdfUvTask(SClientUdfTask *task, int8_t uvTaskType) {
 int32_t setupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   fnInfo("udfc setup udf. udfName: %s", udfName);
   if (gUdfdProxy.gUdfcState != UDFC_STATE_READY) {
-    return UDFC_CODE_INVALID_STATE;
+    return TSDB_CODE_UDF_INVALID_STATE;
   }
   SClientUdfTask *task = taosMemoryCalloc(1,sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1227,7 +1227,7 @@ int32_t setupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t errCode = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
     fnError("failed to connect to pipe. udfName: %s, pipe: %s", udfName, (&gUdfdProxy)->udfdPipeName);
-    return UDFC_CODE_CONNECT_PIPE_ERR;
+    return TSDB_CODE_UDF_PIPE_CONNECT_ERR;
   }
 
   udfcRunUdfUvTask(task, UV_TASK_REQ_RSP);
@@ -1254,7 +1254,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
   SClientUdfUvSession *session = (SClientUdfUvSession *) handle;
   if (session->udfUvPipe == NULL) {
     fnError("No pipe to udfd");
-    return UDFC_CODE_NO_PIPE;
+    return TSDB_CODE_UDF_PIPE_NO_PIPE;
   }
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1374,7 +1374,7 @@ int32_t teardownUdf(UdfcFuncHandle handle) {
   SClientUdfUvSession *session = (SClientUdfUvSession *) handle;
   if (session->udfUvPipe == NULL) {
     fnError("pipe to udfd does not exist");
-    return UDFC_CODE_NO_PIPE;
+    return TSDB_CODE_UDF_PIPE_NO_PIPE;
   }
 
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));

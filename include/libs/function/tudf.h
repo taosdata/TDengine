@@ -39,15 +39,6 @@ extern "C" {
 //======================================================================================
 //begin API to taosd and qworker
 
-enum {
-  UDFC_CODE_STOPPING = -1,
-  UDFC_CODE_PIPE_READ_ERR = -2,
-  UDFC_CODE_CONNECT_PIPE_ERR = -3,
-  UDFC_CODE_LOAD_UDF_FAILURE = -4,
-  UDFC_CODE_INVALID_STATE = -5,
-  UDFC_CODE_NO_PIPE = -6,
-};
-
 typedef void *UdfcFuncHandle;
 
 /**

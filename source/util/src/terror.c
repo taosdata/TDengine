@@ -454,6 +454,14 @@ TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PERMISSION_DENIED,        "Permission denied")
 //planner
 TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,          "planner internal error")
 
+//udf
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                 "udf is stopping")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_READ_ERR,            "udf pipe read error")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_CONNECT_ERR,         "udf pipe connect error")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_NO_PIPE,             "udf no pipe")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_LOAD_UDF_FAILURE,         "udf load failure")
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_STATE,            "udf invalid state")
+
 //schemaless
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
