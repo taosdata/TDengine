@@ -143,12 +143,12 @@ class TDTestCase:
 
     def alter_pass_err(self):
         sqls = [
-            f"alter users {self.__user_list[0]} pass 'newpass' "
-            f"alter user {self.__user_list[0]} pass '' "
-            f"alter user {self.__user_list[0]} pass '  ' "
-            f"alter user anyuser pass 'newpass' "
-            f"alter user {self.__user_list[0]} pass  "
-            f"alter user {self.__user_list[0]} password 'newpass'  "
+            f"alter users {self.__user_list[0]} pass 'newpass' " ,
+            f"alter user {self.__user_list[0]} pass '' " ,
+            f"alter user {self.__user_list[0]} pass '  ' " ,
+            f"alter user anyuser pass 'newpass' " ,
+            f"alter user {self.__user_list[0]} pass  " ,
+            f"alter user {self.__user_list[0]} password 'newpass'  " ,
         ]
         for sql in sqls:
             tdSql.error(sql)
