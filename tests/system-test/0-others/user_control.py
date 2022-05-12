@@ -242,10 +242,10 @@ class TDTestCase:
         # 普通用户权限
         _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
         with taos_connect(self.__user_list[0], f"new{self.__passwd_list[0]}") as conn:
-            user = conn.cursor()
-            user_err = conn.error()
+            user = conn
         # 不能创建用户
-        user_err("create use utest1 pass 'utest1pass'")
+        tdLog.printNoPrefix("==========step4: normal user can not create user")
+        user.error("create use utest1 pass 'utest1pass'")
 
 
         # 删除用户测试
