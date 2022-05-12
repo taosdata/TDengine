@@ -1,4 +1,3 @@
-from distutils.command.config import config
 import taos
 import sys
 
@@ -129,12 +128,70 @@ class TDTestCase:
         for sql in sqls:
             tdSql.error(sql)
 
+    @property
+    def __alter_pass_sql(self):
+        return [f'''ALTER USER {self.__user_list[0]} PASS 'new{self.__passwd_list[0]}' ''', f'''ALTER USER {self.__user_list[0]} PASS '{self.__passwd_list[0]}' ''']
+
+    def alter_pass_current(self):
+        self.__init_pass = True
+        tdSql.execute(self.__alter_pass_sql[0]) if self.__init_pass else tdSql.execute(self.__alter_pass_sql[1] )
+        if self.__init_pass:
+            tdSql.execute(self.__alter_pass_sql[0])
+            self.__init_pass = False
+        else:
+            tdSql.execute(self.__alter_pass_sql[1] )
+            self.__init_pass = True
+
+    def alter_pass_err(self):
+        sqls = [
+            f"alter users {self.__user_list[0]} pass 'newpass' "
+            f"alter user {self.__user_list[0]} pass '' "
+            f"alter user {self.__user_list[0]} pass '  ' "
+            f"alter user anyuser pass 'newpass' "
+            f"alter user {self.__user_list[0]} pass  "
+            f"alter user {self.__user_list[0]} password 'newpass'  "
+        ]
+        for sql in sqls:
+            tdSql.error(sql)
+
+
     def grant_user_privileges(self, privilege,  dbname=None, user_name="root"):
         return f"GRANT {privilege} ON {self.__priv_level(dbname)} TO {user_name} "
 
     def test_user_create(self):
         self.create_user_current()
         self.create_user_err()
+
+    def test_alter_pass(self):
+        self.alter_pass_current()
+        self.alter_pass_err()
+
+    def user_login(self, user, passwd):
+        login_except = False
+        try:
+            with taos_connect(user=user, passwd=passwd) as conn:
+                cursor = conn.cursor()
+        except BaseException:
+            login_except = True
+            cursor = None
+
+        return login_except, cursor
+
+    def login_currrent(self, user, passwd):
+        login_except, _ = self.user_login(user, passwd)
+        if login_except:
+            tdLog.info("connect successfully, user and pass matched!")
+        else:
+            tdLog.exit("connect failed, user and pass do not match!")
+
+    def login_err(self, user, passwd):
+        login_except, _ = self.user_login(user, passwd)
+        if login_except:
+            tdLog.exit("connect successfully, except error not occrued!")
+        else:
+            tdLog.info("connect failed, except error occured!")
+
+
 
     def run(self):
 
@@ -156,9 +213,15 @@ class TDTestCase:
         tdSql.checkRows(self.users_count + 2)
 
         # 修改密码
-        #
+        tdLog.printNoPrefix("==========step3: alter user pass test")
+        self.test_alter_pass()
+
 
         # 密码登录认证
+        tdLog.printNoPrefix("==========step3: alter user pass test")
+        self.login_err("err1", "passwd1")
+        self.login_currrent(self.__user_list[0], self.__passwd_list[0])
+
 
 
         # 删除用户测试
