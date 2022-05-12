@@ -337,7 +337,6 @@ int32_t dmRun(SDnode *pDnode) {
       dmSetStatus(pDnode, DND_STAT_STOPPED);
       dmStopNodes(pDnode);
       dmCloseNodes(pDnode);
-      dmClose(pDnode);
       return 0;
     } else {
       dmWatchNodes(pDnode);
