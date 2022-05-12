@@ -62,7 +62,7 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
     const char *errStr = tstrerror(err);
     int32_t linuxErr = errno;
     const char *linuxErrMsg = strerror(errno);
-    sError("walWriteWithSyncInfo error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, linuxErr, linuxErrMsg);
+    sError("walWriteWithSyncInfo error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
     ASSERT(0);
   }    
   //assert(code == 0);
@@ -83,7 +83,7 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
       const char *errStr = tstrerror(err);
       int32_t linuxErr = errno;
       const char *linuxErrMsg = strerror(errno);
-      sError("walReadWithHandle error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, linuxErr, linuxErrMsg);
+      sError("walReadWithHandle error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
       ASSERT(0);
     }    
     //assert(walReadWithHandle(pWalHandle, index) == 0);
@@ -119,7 +119,7 @@ int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
     const char *errStr = tstrerror(err);
     int32_t linuxErr = errno;
     const char *linuxErrMsg = strerror(errno);
-    sError("walRollback error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, linuxErr, linuxErrMsg);
+    sError("walRollback error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
     ASSERT(0);
   } 
   return 0;  // to avoid compiler error
@@ -152,7 +152,7 @@ int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
     const char *errStr = tstrerror(err);
     int32_t linuxErr = errno;
     const char *linuxErrMsg = strerror(errno);
-    sError("walCommit error, err:%d, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, errStr, linuxErr, linuxErrMsg);
+    sError("walCommit error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
     ASSERT(0);
   } 
   return 0;  // to avoid compiler error
