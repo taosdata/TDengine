@@ -136,10 +136,10 @@ class TDTestCase:
         self.__init_pass = True
         tdSql.execute(self.__alter_pass_sql[0]) if self.__init_pass else tdSql.execute(self.__alter_pass_sql[1] )
         if self.__init_pass:
-            tdSql.execute(self.__alter_pass_sql[0])
+            tdSql.query(self.__alter_pass_sql[0])
             self.__init_pass = False
         else:
-            tdSql.execute(self.__alter_pass_sql[1] )
+            tdSql.query(self.__alter_pass_sql[1] )
             self.__init_pass = True
 
     def alter_pass_err(self):
