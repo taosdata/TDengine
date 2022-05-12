@@ -215,11 +215,9 @@ class TDTestCase:
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
         self.login_err(self.__user_list[0], f"new{self.__passwd_list[0]}")
 
-
         # 修改密码
         tdLog.printNoPrefix("==========step3: alter user pass test")
         self.test_alter_pass()
-
 
         # 密码修改后的登录认证
         tdLog.printNoPrefix("==========step4: check login test")
