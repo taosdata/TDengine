@@ -365,7 +365,6 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
     pBuilder->row.sver = pBuilder->pTSchema->version;
 
     pBuilder->row.nData = tpDataLen;
-    pBuilder->row.pData
   }
 
   return 0;
