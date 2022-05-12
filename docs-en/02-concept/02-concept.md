@@ -1,5 +1,5 @@
 ---
-title: 数据模型和基本概念
+title: Concepts
 ---
 
 ## 物联网典型场景

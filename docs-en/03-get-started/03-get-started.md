@@ -1,5 +1,5 @@
 ---
-title: 立即开始
+title: Get Started
 description: "从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序TAOS CLI和工具 taosdemo 快速体验 TDengine 功能"
 ---
 
