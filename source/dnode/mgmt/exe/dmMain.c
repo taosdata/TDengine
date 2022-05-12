@@ -195,8 +195,6 @@ static int32_t dmRunDnode() {
   int32_t code = dmRun(pDnode);
   dInfo("start shutting down the service");
 
-  global.pDnode = NULL;
-  dmClose(pDnode);
   dmCleanup();
   taosCloseLog();
   taosCleanupCfg();

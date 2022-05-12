@@ -203,7 +203,10 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
   }
 
   taosWLockLatch(&pWrapper->latch);
-  (*pWrapper->func.closeFp)(pWrapper->pMgmt);
+  if (pWrapper->pMgmt != NULL) {
+    (*pWrapper->func.closeFp)(pWrapper->pMgmt);
+    pWrapper->pMgmt = NULL;
+  }
   taosWUnLockLatch(&pWrapper->latch);
 
   if (pWrapper->procObj) {
@@ -334,6 +337,7 @@ int32_t dmRun(SDnode *pDnode) {
       dmSetStatus(pDnode, DND_STAT_STOPPED);
       dmStopNodes(pDnode);
       dmCloseNodes(pDnode);
+      dmClose(pDnode);
       return 0;
     } else {
       dmWatchNodes(pDnode);
