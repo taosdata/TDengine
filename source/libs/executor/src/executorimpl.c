@@ -2229,7 +2229,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
       if (pCtx[j].fpSet.finalize) {
         int32_t code = TSDB_CODE_SUCCESS;
         code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
-        if (code != TSDB_CODE_SUCCESS) {
+        if (TAOS_FAILED(code)) {
           qError("%s build result data block error, code %s", GET_TASKID(taskInfo), tstrerror(code));
           taskInfo->code = code;
           longjmp(taskInfo->env, code);
