@@ -67,6 +67,11 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_TOKEN = "token";
     /**
+     * Use SSL (true/false) to communicate with the server. The default value is false.
+     * Just for Cloud Service
+     */
+    public static final String PROPERTY_KEY_USE_SSL = "useSSL";
+    /**
      * Key for the configuration file directory of TSDB client in properties instance
      */
     public static final String PROPERTY_KEY_CONFIG_DIR = "cfgdir";
