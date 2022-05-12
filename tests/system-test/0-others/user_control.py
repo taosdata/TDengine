@@ -134,7 +134,6 @@ class TDTestCase:
 
     def alter_pass_current(self):
         self.__init_pass = True
-        tdSql.execute(self.__alter_pass_sql[0]) if self.__init_pass else tdSql.execute(self.__alter_pass_sql[1] )
         if self.__init_pass:
             tdSql.query(self.__alter_pass_sql[0])
             self.__init_pass = False
@@ -218,7 +217,7 @@ class TDTestCase:
 
 
         # 密码登录认证
-        tdLog.printNoPrefix("==========step3: alter user pass test")
+        tdLog.printNoPrefix("==========step4: check login test")
         self.login_err("err1", "passwd1")
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
 
