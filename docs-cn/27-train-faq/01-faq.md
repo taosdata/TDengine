@@ -191,3 +191,11 @@ title: 常见问题及反馈
 
     如果希望继续使用之前的内置 httpd，可以关闭 taosAdapter 编译，使用
     `cmake .. -DBUILD_HTTP=true` 使用原来内置的 httpd。
+    
+**19. 如何查询数据占用的存储空间大小？**
+
+    默认情况下，TDengine 的数据文件存储在 /var/lib/taos ，日志文件存储在 /var/log/taos 。
+    若想查看所有数据文件占用的具体大小，可以执行：`du -sh /var/lib/taos/vnode --exclude='wal'` 来查看。此处排除了 wal 目录，因为在持续写入的情况下，这里大小几乎是固定的，并且每当正常关闭 TDengine 让数据落盘后， wal 目录都会清空。
+    若想查看单个数据库占用的大小，可在命令行程序 taos 内指定要查看的数据库后执行 `show vgroups;` ，通过得到的 VGroup id 去 /var/lib/taos/vnode 下查看包含的文件夹大小。
+    若仅仅想查看指定（超级）表的数据块分布及大小，可查看[ _block_dist 函数](https://docs.taosdata.com/taos-sql/select/#_block_dist-%E5%87%BD%E6%95%B0)
+    
