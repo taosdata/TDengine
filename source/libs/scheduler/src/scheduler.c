@@ -1092,11 +1092,10 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
           for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
             SVCreateTbRsp *rsp = batchRsp.pRsps + i;
-            if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              tDecoderClear(&coder);
-              SCH_ERR_JRET(rsp->code);
-            } else if (TSDB_CODE_SUCCESS != rsp->code) {
+            if (TSDB_CODE_SUCCESS != rsp->code) {
               code = rsp->code;
+              tDecoderClear(&coder);
+              SCH_ERR_JRET(code);
             }
           }
         }
@@ -1117,11 +1116,10 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         if (TSDB_CODE_SUCCESS == code && batchRsp.nRsps > 0) {
           for (int32_t i = 0; i < batchRsp.nRsps; ++i) {
             SVDropTbRsp *rsp = batchRsp.pRsps + i;
-            if (NEED_CLIENT_HANDLE_ERROR(rsp->code)) {
-              tDecoderClear(&coder);
-              SCH_ERR_JRET(rsp->code);
-            } else if (TSDB_CODE_SUCCESS != rsp->code) {
+            if (TSDB_CODE_SUCCESS != rsp->code) {
               code = rsp->code;
+              tDecoderClear(&coder);
+              SCH_ERR_JRET(code);
             }
           }
         }
@@ -1137,7 +1135,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       SCH_ERR_JRET(rspCode);
 
       if (msg) {
-        SDecoder coder = {0};
+        SDecoder    coder = {0};
         SSubmitRsp *rsp = taosMemoryMalloc(sizeof(*rsp));
         tDecoderInit(&coder, msg, msgSize);
         code = tDecodeSSubmitRsp(&coder, rsp);
@@ -1146,10 +1144,21 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
           tFreeSSubmitRsp(rsp);
           SCH_ERR_JRET(code);
         }
-        
+
+        if (rsp->nBlocks > 0) {
+          for (int32_t i = 0; i < rsp->nBlocks; ++i) {
+            SSubmitBlkRsp *blk = rsp->pBlocks + i;
+            if (TSDB_CODE_SUCCESS != blk->code) {
+              code = blk->code;
+              tFreeSSubmitRsp(rsp);
+              SCH_ERR_JRET(code);
+            }
+          }
+        }
+
         atomic_add_fetch_32(&pJob->resNumOfRows, rsp->affectedRows);
         SCH_TASK_DLOG("submit succeed, affectedRows:%d", rsp->affectedRows);
-        
+
         if (pJob->attr.needRes) {
           SCH_LOCK(SCH_WRITE, &pJob->resLock);
           if (pJob->resData) {
@@ -1160,7 +1169,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
             memcpy(sum->pBlocks + sum->nBlocks - rsp->nBlocks, rsp->pBlocks, rsp->nBlocks * sizeof(*sum->pBlocks));
             taosMemoryFree(rsp->pBlocks);
             taosMemoryFree(rsp);
-          } else {        
+          } else {
             pJob->resData = rsp;
           }
           SCH_UNLOCK(SCH_WRITE, &pJob->resLock);

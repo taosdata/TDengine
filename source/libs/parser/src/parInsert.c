@@ -53,6 +53,7 @@ typedef struct SInsertParseContext {
   SHashObj*          pTableBlockHashObj;  // global
   SHashObj*          pSubTableHashObj;    // global
   SArray*            pVgDataBlocks;       // global
+  SHashObj*          pTableNameHashObj;   // global
   int32_t            totalNum;
   SVnodeModifOpStmt* pOutput;
   SStmtCallback*     pStmtCb;
@@ -1111,6 +1112,8 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
     tNameExtractFullName(&name, tbFName);
 
+    CHECK_CODE(taosHashPut(pCxt->pTableNameHashObj, tbFName, strlen(tbFName), &name, sizeof(SName)));
+
     // USING cluase
     if (TK_USING == sToken.type) {
       CHECK_CODE(parseUsingClause(pCxt, &name, tbFName));
@@ -1193,7 +1196,8 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
       .pSql = (char*)pContext->pSql,
       .msg = {.buf = pContext->pMsg, .len = pContext->msgLen},
       .pTableMeta = NULL,
-      .pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, false),
+      .pSubTableHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
+      .pTableNameHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_VARCHAR), true, HASH_NO_LOCK),
       .totalNum = 0,
       .pOutput = (SVnodeModifOpStmt*)nodesMakeNode(QUERY_NODE_VNODE_MODIF_STMT),
       .pStmtCb = pContext->pStmtCb};
@@ -1202,12 +1206,13 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     (*pContext->pStmtCb->getExecInfoFn)(pContext->pStmtCb->pStmt, &context.pVgroupsHashObj,
                                         &context.pTableBlockHashObj);
   } else {
-    context.pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
-    context.pTableBlockHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+    context.pVgroupsHashObj = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+    context.pTableBlockHashObj =
+        taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   }
 
   if (NULL == context.pVgroupsHashObj || NULL == context.pTableBlockHashObj || NULL == context.pSubTableHashObj ||
-      NULL == context.pOutput) {
+      NULL == context.pTableNameHashObj || NULL == context.pOutput) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1218,6 +1223,10 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   if (NULL == *pQuery) {
     *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
     if (NULL == *pQuery) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    (*pQuery)->pTableList = taosArrayInit(taosHashGetSize(context.pTableNameHashObj), sizeof(SName));
+    if (NULL == (*pQuery)->pTableList) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
@@ -1231,6 +1240,13 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
   int32_t code = skipInsertInto(&context);
   if (TSDB_CODE_SUCCESS == code) {
     code = parseInsertBody(&context);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    SName* pTable = taosHashIterate(context.pTableNameHashObj, NULL);
+    while (NULL != pTable) {
+      taosArrayPush((*pQuery)->pTableList, pTable);
+      pTable = taosHashIterate(context.pTableNameHashObj, pTable);
+    }
   }
   destroyInsertParseContext(&context);
   return code;
