@@ -695,6 +695,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
     udfCol->colMeta.scale = col->info.scale;
     udfCol->colMeta.precision = col->info.precision;
     udfCol->colData.numOfRows = udfBlock->numOfRows;
+    udfCol->hasNull = col->hasNull;
     if (IS_VAR_DATA_TYPE(udfCol->colMeta.type)) {
       udfCol->colData.varLenCol.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
       udfCol->colData.varLenCol.varOffsets = taosMemoryMalloc(udfCol->colData.varLenCol.varOffsetsLen);
@@ -731,6 +732,7 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   col->info.bytes = meta->bytes;
   col->info.scale = meta->scale;
   col->info.type = meta->type;
+  col->hasNull = udfCol->hasNull;
   SUdfColumnData *data = &udfCol->colData;
 
   if (!IS_VAR_DATA_TYPE(meta->type)) {

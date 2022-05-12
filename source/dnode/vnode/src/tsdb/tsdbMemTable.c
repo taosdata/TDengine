@@ -62,6 +62,16 @@ int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
+    SSkipListIterator *pIter = tSkipListCreateIter(pMemTable->pSlIdx);
+    SSkipListNode     *pNode = NULL;
+    STbData           *pTbData = NULL;
+    for (;;) {
+      if (!tSkipListIterNext(pIter)) break;
+      pNode = tSkipListIterGet(pIter);
+      pTbData = (STbData *)pNode->pData;
+      tsdbFreeTbData(pTbData);
+    }
+    tSkipListDestroyIter(pIter);
     tSkipListDestroy(pMemTable->pSlIdx);
     taosMemoryFree(pMemTable);
   }
@@ -299,6 +309,17 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   TSKEY          keyMin;
   TSKEY          keyMax;
   SSubmitBlk    *pBlkCopy;
+
+  // check if table exists
+  SMetaReader mr = {0};
+  SMetaEntry  me = {0};
+  metaReaderInit(&mr, pTsdb->pVnode->pMeta, 0);
+  if (metaGetTableEntryByUid(&mr, pMsgIter->uid) < 0) {
+    metaReaderClear(&mr);
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return -1;
+  }
+  metaReaderClear(&mr);
 
   // create container is nedd
   tptr = taosHashGet(pMemTable->pHashIdx, &(pMsgIter->uid), sizeof(pMsgIter->uid));
