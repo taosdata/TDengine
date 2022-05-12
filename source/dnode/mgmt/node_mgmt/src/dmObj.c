@@ -63,15 +63,16 @@ static void dmClearVars(SDnode *pDnode) {
     taosCloseFile(&pDnode->lockfile);
     pDnode->lockfile = NULL;
   }
-  taosThreadMutexDestroy(&pDnode->mutex);
-  memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
-  taosMemoryFree(pDnode);
 
   taosMemoryFreeClear(pDnode->input.localEp);
   taosMemoryFreeClear(pDnode->input.localFqdn);
   taosMemoryFreeClear(pDnode->input.firstEp);
   taosMemoryFreeClear(pDnode->input.secondEp);
   taosMemoryFreeClear(pDnode->input.dataDir);
+
+  taosThreadMutexDestroy(&pDnode->mutex);
+  memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
+  taosMemoryFree(pDnode);
   dDebug("dnode memory is cleared, data:%p", pDnode);
 }
 

@@ -104,11 +104,7 @@ static void dmCloseMgmt(SDnodeMgmt *pMgmt) {
     pMgmt->data.dnodeHash = NULL;
   }
   taosWUnLockLatch(&pMgmt->data.latch);
-
-  taosMemoryFreeClear(pMgmt->data.localEp);
-  taosMemoryFreeClear(pMgmt->data.localFqdn);
-  taosMemoryFreeClear(pMgmt->data.firstEp);
-  taosMemoryFreeClear(pMgmt->data.secondEp);
+  taosMemoryFree(pMgmt);
 
   dInfo("dnode-mgmt is cleaned up");
 }
