@@ -75,7 +75,7 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
       wError("failed to read idx file, since %s", terrstr());
     } else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      wError("read idx file incompletely, read bytes %d, bytes should be %lu", ret, sizeof(SWalIdxEntry));
+      wError("read idx file incompletely, read bytes %ld, bytes should be %lu", ret, sizeof(SWalIdxEntry));
     }
     return -1;
   }
@@ -187,7 +187,7 @@ int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
 }
 
 int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead) {
-  int32_t code;
+  int64_t code;
 
   ASSERT(pRead->curVersion == pHead->head.version);
 
