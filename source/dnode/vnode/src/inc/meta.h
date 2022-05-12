@@ -37,6 +37,9 @@ typedef struct SMSmaCursor SMSmaCursor;
 // clang-format on
 
 // metaOpen ==================
+int32_t metaRLock(SMeta* pMeta);
+int32_t metaWLock(SMeta* pMeta);
+int32_t metaULock(SMeta* pMeta);
 
 // metaEntry ==================
 int metaEncodeEntry(SEncoder* pCoder, const SMetaEntry* pME);
@@ -57,6 +60,8 @@ int  metaRemoveTableFromIdx(SMeta* pMeta, tb_uid_t uid);
 static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64(); }
 
 struct SMeta {
+  TdThreadRwlock lock;
+
   char*     path;
   SVnode*   pVnode;
   TENV*     pEnv;
