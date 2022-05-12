@@ -136,10 +136,10 @@ class TDTestCase:
         for count, i in enumerate(range(self.users_count)):
             if self.__init_pass:
                 tdSql.query(self.__alter_pass_sql(self.__user_list[i], f"new{self.__passwd_list[i]}"))
-                self.__init_pass = count != self.user_count - 1
+                self.__init_pass = count != self.users_count - 1
             else:
                 tdSql.query(self.__alter_pass_sql(self.__user_list[i], self.__passwd_list[i] ) )
-                self.__init_pass = count == self.user_count - 1
+                self.__init_pass = count == self.users_count - 1
 
     def alter_pass_err(self):  # sourcery skip: remove-redundant-fstring
         sqls = [
