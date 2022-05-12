@@ -144,6 +144,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->szCache = pCreate->pages;
   pCfg->szBuf = pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
+  pCfg->tsdbCfg.compression = pCreate->compression;
   pCfg->tsdbCfg.precision = pCreate->precision;
   pCfg->tsdbCfg.days = pCreate->daysPerFile;
   pCfg->tsdbCfg.keep0 = pCreate->daysToKeep0;
