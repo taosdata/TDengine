@@ -38,7 +38,7 @@ struct SMemTable {
 
 struct SMemSkipListNode {
   int8_t            level;
-  SMemSkipListNode *forwards[];
+  SMemSkipListNode *forwards[1]; // Windows does not allow 0 
 };
 
 struct SMemSkipList {
@@ -46,7 +46,7 @@ struct SMemSkipList {
   int8_t           maxLevel;
   int8_t           level;
   int32_t          size;
-  SMemSkipListNode pHead[];
+  SMemSkipListNode pHead[1]; // Windows does not allow 0 
 };
 
 struct SMemData {

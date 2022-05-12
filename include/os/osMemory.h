@@ -35,6 +35,7 @@ void *taosMemoryRealloc(void *ptr, int32_t size);
 void *taosMemoryStrDup(void *ptr);
 void taosMemoryFree(void *ptr);
 int32_t taosMemorySize(void *ptr);
+void taosPrintBackTrace();
 
 #define taosMemoryFreeClear(ptr)   \
   do {                             \

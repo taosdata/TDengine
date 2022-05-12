@@ -452,6 +452,7 @@ typedef struct {
   int8_t         withSchema;
   int8_t         withTag;
   SRWLatch       lock;
+  int32_t        consumerCnt;
   int32_t        sqlLen;
   int32_t        astLen;
   char*          sql;

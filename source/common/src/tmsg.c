@@ -2764,6 +2764,7 @@ int32_t tSerializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->acctId) < 0) return -1;
   if (tEncodeI64(&encoder, pRsp->clusterId) < 0) return -1;
   if (tEncodeU32(&encoder, pRsp->connId) < 0) return -1;
+  if (tEncodeI32(&encoder, pRsp->dnodeNum) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->superUser) < 0) return -1;
   if (tEncodeI8(&encoder, pRsp->connType) < 0) return -1;
   if (tEncodeSEpSet(&encoder, &pRsp->epSet) < 0) return -1;
@@ -2783,6 +2784,7 @@ int32_t tDeserializeSConnectRsp(void *buf, int32_t bufLen, SConnectRsp *pRsp) {
   if (tDecodeI32(&decoder, &pRsp->acctId) < 0) return -1;
   if (tDecodeI64(&decoder, &pRsp->clusterId) < 0) return -1;
   if (tDecodeU32(&decoder, &pRsp->connId) < 0) return -1;
+  if (tDecodeI32(&decoder, &pRsp->dnodeNum) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->superUser) < 0) return -1;
   if (tDecodeI8(&decoder, &pRsp->connType) < 0) return -1;
   if (tDecodeSEpSet(&decoder, &pRsp->epSet) < 0) return -1;
@@ -4026,3 +4028,84 @@ int32_t tDecodeSVSubmitReq(SDecoder *pCoder, SVSubmitReq *pReq) {
   tEndDecode(pCoder);
   return 0;
 }
+
+static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBlock) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+
+  if (tEncodeI8(pEncoder, pBlock->hashMeta) < 0) return -1;
+  if (pBlock->hashMeta) {
+    if (tEncodeI64(pEncoder, pBlock->uid) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pBlock->tblFName) < 0) return -1;
+  }
+  if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
+  if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
+
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+
+  if (tDecodeI8(pDecoder, &pBlock->hashMeta) < 0) return -1;
+  if (pBlock->hashMeta) {
+    if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
+    pBlock->tblFName= taosMemoryCalloc(TSDB_TABLE_FNAME_LEN, 1);
+    if (NULL == pBlock->tblFName) return -1;
+    if (tDecodeCStrTo(pDecoder, pBlock->tblFName) < 0) return -1;
+  }
+  if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
+
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tEncodeSSubmitRsp(SEncoder *pEncoder, const SSubmitRsp *pRsp) {
+  int32_t nBlocks = taosArrayGetSize(pRsp->pArray);
+
+  if (tStartEncode(pEncoder) < 0) return -1;
+
+  if (tEncodeI32v(pEncoder, pRsp->numOfRows) < 0) return -1;
+  if (tEncodeI32v(pEncoder, pRsp->affectedRows) < 0) return -1;
+  if (tEncodeI32v(pEncoder, nBlocks) < 0) return -1;
+  for (int32_t iBlock = 0; iBlock < nBlocks; iBlock++) {
+    if (tEncodeSSubmitBlkRsp(pEncoder, (SSubmitBlkRsp *)taosArrayGet(pRsp->pArray, iBlock)) < 0) return -1;
+  }
+
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeSSubmitRsp(SDecoder *pDecoder, SSubmitRsp *pRsp) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+
+  if (tDecodeI32v(pDecoder, &pRsp->numOfRows) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pRsp->affectedRows) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pRsp->nBlocks) < 0) return -1;
+  pRsp->pBlocks = taosMemoryCalloc(pRsp->nBlocks, sizeof(*pRsp->pBlocks));
+  if (pRsp->pBlocks == NULL) return -1;
+  for (int32_t iBlock = 0; iBlock < pRsp->nBlocks; iBlock++) {
+    if (tDecodeSSubmitBlkRsp(pDecoder, pRsp->pBlocks + iBlock) < 0) return -1;
+  }
+
+  tEndDecode(pDecoder);  
+  tDecoderClear(pDecoder);
+  return 0;
+}
+
+void tFreeSSubmitRsp(SSubmitRsp *pRsp) {
+  if (NULL == pRsp) return;
+
+  if (pRsp->pBlocks) {
+    for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
+      SSubmitBlkRsp *sRsp = pRsp->pBlocks + i;
+      taosMemoryFree(sRsp->tblFName);
+    }
+
+    taosMemoryFree(pRsp->pBlocks);
+  }
+
+  taosMemoryFree(pRsp);
+}
+

@@ -350,7 +350,18 @@ SNode* createNotBetweenAnd(SAstCreateContext* pCxt, SNode* pExpr, SNode* pLeft, 
                                   createOperatorNode(pCxt, OP_TYPE_GREATER_THAN, nodesCloneNode(pExpr), pRight));
 }
 
+static SNode* createPrimaryKeyCol(SAstCreateContext* pCxt) {
+  SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  CHECK_OUT_OF_MEM(pCol);
+  pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(pCol->colName, PK_TS_COL_INTERNAL_NAME);
+  return (SNode*)pCol;
+}
+
 SNode* createFunctionNode(SAstCreateContext* pCxt, const SToken* pFuncName, SNodeList* pParameterList) {
+  if (0 == strncasecmp("_rowts", pFuncName->z, pFuncName->n) || 0 == strncasecmp("_c0", pFuncName->z, pFuncName->n)) {
+    return createPrimaryKeyCol(pCxt);
+  }
   SFunctionNode* func = (SFunctionNode*)nodesMakeNode(QUERY_NODE_FUNCTION);
   CHECK_OUT_OF_MEM(func);
   strncpy(func->functionName, pFuncName->z, pFuncName->n);
@@ -467,13 +478,11 @@ SNode* createSessionWindowNode(SAstCreateContext* pCxt, SNode* pCol, SNode* pGap
 SNode* createStateWindowNode(SAstCreateContext* pCxt, SNode* pExpr) {
   SStateWindowNode* state = (SStateWindowNode*)nodesMakeNode(QUERY_NODE_STATE_WINDOW);
   CHECK_OUT_OF_MEM(state);
-  state->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  state->pCol = createPrimaryKeyCol(pCxt);
   if (NULL == state->pCol) {
     nodesDestroyNode(state);
     CHECK_OUT_OF_MEM(state->pCol);
   }
-  ((SColumnNode*)state->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(((SColumnNode*)state->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
   state->pExpr = pExpr;
   return (SNode*)state;
 }
@@ -482,13 +491,11 @@ SNode* createIntervalWindowNode(SAstCreateContext* pCxt, SNode* pInterval, SNode
                                 SNode* pFill) {
   SIntervalWindowNode* interval = (SIntervalWindowNode*)nodesMakeNode(QUERY_NODE_INTERVAL_WINDOW);
   CHECK_OUT_OF_MEM(interval);
-  interval->pCol = nodesMakeNode(QUERY_NODE_COLUMN);
+  interval->pCol = createPrimaryKeyCol(pCxt);
   if (NULL == interval->pCol) {
     nodesDestroyNode(interval);
     CHECK_OUT_OF_MEM(interval->pCol);
   }
-  ((SColumnNode*)interval->pCol)->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
-  strcpy(((SColumnNode*)interval->pCol)->colName, PK_TS_COL_INTERNAL_NAME);
   interval->pInterval = pInterval;
   interval->pOffset = pOffset;
   interval->pSliding = pSliding;
@@ -667,7 +674,7 @@ SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOpti
     case DB_OPTION_DAYS: {
       SToken* pToken = pVal;
       if (TK_NK_INTEGER == pToken->type) {
-        ((SDatabaseOptions*)pOptions)->daysPerFile = strtol(pToken->z, NULL, 10);
+        ((SDatabaseOptions*)pOptions)->daysPerFile = strtol(pToken->z, NULL, 10) * 1440;
       } else {
         ((SDatabaseOptions*)pOptions)->pDaysPerFile = (SValueNode*)createDurationValueNode(pCxt, pToken);
       }

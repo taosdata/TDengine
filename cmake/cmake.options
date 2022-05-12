@@ -49,6 +49,12 @@ IF(${TD_WINDOWS})
 ENDIF ()
 
 option(
+    BUILD_ADDR2LINE
+    "If build addr2line"
+    OFF
+    )
+
+option(
     BUILD_TEST 
     "If build unit tests using googletest" 
     ON

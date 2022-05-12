@@ -214,7 +214,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   msgBuf.len = 256;
 
   SArray *cols = taosArrayInit(16, POINTER_BYTES);
-  ASSERT_NE(cols, NULL);
+  ASSERT_NE(cols, nullptr);
   SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
   const char *data =
@@ -226,7 +226,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(size, 19);
 
   // nchar
-  SSmlKv *kv = taosArrayGetP(cols, 0);
+  SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, 0);
   ASSERT_EQ(strncasecmp(kv->key, "cbin", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
@@ -235,7 +235,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   taosMemoryFree(kv);
 
   // nchar
-  kv = taosArrayGetP(cols, 3);
+  kv = (SSmlKv *)taosArrayGetP(cols, 3);
   ASSERT_EQ(strncasecmp(kv->key, "cf64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
@@ -257,7 +257,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(size, 1);
 
   // nchar
-  kv = taosArrayGetP(cols, 0);
+  kv = (SSmlKv *)taosArrayGetP(cols, 0);
   ASSERT_EQ(strncasecmp(kv->key, TAG, strlen(TAG)), 0);
   ASSERT_EQ(kv->keyLen, strlen(TAG));
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
@@ -276,7 +276,7 @@ TEST(testCase, smlParseCols_Test) {
   msgBuf.len = 256;
 
   SArray *cols = taosArrayInit(16, POINTER_BYTES);
-  ASSERT_NE(cols, NULL);
+  ASSERT_NE(cols, nullptr);
 
   SHashObj *dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
 
@@ -288,7 +288,7 @@ TEST(testCase, smlParseCols_Test) {
   ASSERT_EQ(size, 19);
 
   // binary
-  SSmlKv *kv = taosArrayGetP(cols, 0);
+  SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, 0);
   ASSERT_EQ(strncasecmp(kv->key, "cbin", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BINARY);
@@ -297,7 +297,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // nchar
-  kv = taosArrayGetP(cols, 1);
+  kv = (SSmlKv *)taosArrayGetP(cols, 1);
   ASSERT_EQ(strncasecmp(kv->key, "cnch", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
@@ -306,7 +306,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // bool
-  kv = taosArrayGetP(cols, 2);
+  kv = (SSmlKv *)taosArrayGetP(cols, 2);
   ASSERT_EQ(strncasecmp(kv->key, "cbool", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -315,7 +315,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // double
-  kv = taosArrayGetP(cols, 3);
+  kv = (SSmlKv *)taosArrayGetP(cols, 3);
   ASSERT_EQ(strncasecmp(kv->key, "cf64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_DOUBLE);
@@ -325,7 +325,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // float
-  kv = taosArrayGetP(cols, 4);
+  kv = (SSmlKv *)taosArrayGetP(cols, 4);
   ASSERT_EQ(strncasecmp(kv->key, "cf32_", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_FLOAT);
@@ -335,7 +335,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // float
-  kv = taosArrayGetP(cols, 5);
+  kv = (SSmlKv *)taosArrayGetP(cols, 5);
   ASSERT_EQ(strncasecmp(kv->key, "cf32", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_FLOAT);
@@ -345,7 +345,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // tiny int
-  kv = taosArrayGetP(cols, 6);
+  kv = (SSmlKv *)taosArrayGetP(cols, 6);
   ASSERT_EQ(strncasecmp(kv->key, "ci8", 3), 0);
   ASSERT_EQ(kv->keyLen, 3);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_TINYINT);
@@ -354,7 +354,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // unsigned tiny int
-  kv = taosArrayGetP(cols, 7);
+  kv = (SSmlKv *)taosArrayGetP(cols, 7);
   ASSERT_EQ(strncasecmp(kv->key, "cu8", 3), 0);
   ASSERT_EQ(kv->keyLen, 3);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_UTINYINT);
@@ -363,7 +363,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // small int
-  kv = taosArrayGetP(cols, 8);
+  kv = (SSmlKv *)taosArrayGetP(cols, 8);
   ASSERT_EQ(strncasecmp(kv->key, "ci16", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_SMALLINT);
@@ -372,7 +372,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // unsigned smallint
-  kv = taosArrayGetP(cols, 9);
+  kv = (SSmlKv *)taosArrayGetP(cols, 9);
   ASSERT_EQ(strncasecmp(kv->key, "cu16", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_USMALLINT);
@@ -381,7 +381,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // int
-  kv = taosArrayGetP(cols, 10);
+  kv = (SSmlKv *)taosArrayGetP(cols, 10);
   ASSERT_EQ(strncasecmp(kv->key, "ci32", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_INT);
@@ -390,7 +390,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // unsigned int
-  kv = taosArrayGetP(cols, 11);
+  kv = (SSmlKv *)taosArrayGetP(cols, 11);
   ASSERT_EQ(strncasecmp(kv->key, "cu32", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_UINT);
@@ -400,7 +400,7 @@ TEST(testCase, smlParseCols_Test) {
 
 
   // bigint
-  kv = taosArrayGetP(cols, 12);
+  kv = (SSmlKv *)taosArrayGetP(cols, 12);
   ASSERT_EQ(strncasecmp(kv->key, "ci64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BIGINT);
@@ -409,7 +409,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // bigint
-  kv = taosArrayGetP(cols, 13);
+  kv = (SSmlKv *)taosArrayGetP(cols, 13);
   ASSERT_EQ(strncasecmp(kv->key, "ci", 2), 0);
   ASSERT_EQ(kv->keyLen, 2);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BIGINT);
@@ -418,7 +418,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // unsigned bigint
-  kv = taosArrayGetP(cols, 14);
+  kv = (SSmlKv *)taosArrayGetP(cols, 14);
   ASSERT_EQ(strncasecmp(kv->key, "cu64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_UBIGINT);
@@ -427,7 +427,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // bool
-  kv = taosArrayGetP(cols, 15);
+  kv = (SSmlKv *)taosArrayGetP(cols, 15);
   ASSERT_EQ(strncasecmp(kv->key, "cbooltrue", 9), 0);
   ASSERT_EQ(kv->keyLen, 9);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -437,7 +437,7 @@ TEST(testCase, smlParseCols_Test) {
 
 
   // bool
-  kv = taosArrayGetP(cols, 16);
+  kv = (SSmlKv *)taosArrayGetP(cols, 16);
   ASSERT_EQ(strncasecmp(kv->key, "cboolt", 6), 0);
   ASSERT_EQ(kv->keyLen, 6);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -446,7 +446,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // bool
-  kv = taosArrayGetP(cols, 17);
+  kv = (SSmlKv *)taosArrayGetP(cols, 17);
   ASSERT_EQ(strncasecmp(kv->key, "cboolf", 6), 0);
   ASSERT_EQ(kv->keyLen, 6);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_BOOL);
@@ -455,7 +455,7 @@ TEST(testCase, smlParseCols_Test) {
   taosMemoryFree(kv);
 
   // nchar
-  kv = taosArrayGetP(cols, 18);
+  kv = (SSmlKv *)taosArrayGetP(cols, 18);
   ASSERT_EQ(strncasecmp(kv->key, "cnch_", 5), 0);
   ASSERT_EQ(kv->keyLen, 5);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
@@ -469,7 +469,7 @@ TEST(testCase, smlParseCols_Test) {
 
 TEST(testCase, smlParseLine_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(taos, NULL);
+  ASSERT_NE(taos, nullptr);
 
   TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
   taos_free_result(pRes);
@@ -477,11 +477,11 @@ TEST(testCase, smlParseLine_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = createRequest(taos, NULL, NULL, TSDB_SQL_INSERT);
-  ASSERT_NE(request, NULL);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
-  ASSERT_NE(info, NULL);
+  ASSERT_NE(info, nullptr);
 
   const char *sql[9] = {
     "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0 1451606400000000000",
@@ -494,7 +494,7 @@ TEST(testCase, smlParseLine_Test) {
     "readings,name=truck_2,fleet=North,driver=Derek,model=F-150 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451609400000000000",
     "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451629400000000000"
   };
-  smlInsertLines(info, sql, 9);
+  smlInsertLines(info, (char**)sql, 9);
 //  for (int i = 0; i < 3; i++) {
 //    smlParseLine(info, sql[i]);
 //  }
@@ -502,7 +502,7 @@ TEST(testCase, smlParseLine_Test) {
 
 TEST(testCase, smlParseLine_error_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(taos, NULL);
+  ASSERT_NE(taos, nullptr);
 
   TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
   taos_free_result(pRes);
@@ -510,17 +510,17 @@ TEST(testCase, smlParseLine_error_Test) {
   pRes = taos_query(taos, "use sml_db");
   taos_free_result(pRes);
 
-  SRequestObj *request = createRequest(taos, NULL, NULL, TSDB_SQL_INSERT);
-  ASSERT_NE(request, NULL);
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
 
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
-  ASSERT_NE(info, NULL);
+  ASSERT_NE(info, nullptr);
 
   const char *sql[2] = {
       "measure,t1=3 c1=8",
       "measure,t2=3 c1=8u8"
   };
-  int ret = smlInsertLines(info, sql, 2);
+  int ret = smlInsertLines(info, (char **)sql, 2);
   ASSERT_NE(ret, 0);
 }
 
