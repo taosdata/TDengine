@@ -105,8 +105,9 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       }
 
       if (IS_VAR_DATA_TYPE(type)) {
-        len = varDataLen(out.columnData->pData);
-        buf = varDataVal(out.columnData->pData);
+        char* data = colDataGetVarData(out.columnData, 0);
+        len = varDataLen(data);
+        buf = varDataVal(data);
       } else {
         len = tDataTypes[type].bytes;
         buf = out.columnData->pData;
@@ -122,7 +123,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     }
     
     if (taosHashPut(pObj, buf, (size_t)len, NULL, 0)) {
-      sclError("taosHashPut failed");
+      sclError("taosHashPut to set failed");
       SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 

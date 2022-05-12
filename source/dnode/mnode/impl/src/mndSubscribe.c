@@ -787,6 +787,8 @@ static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock
       }
     }
 
+    // do not show for cleared subscription
+#if 0
     int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
     for (int32_t i = 0; i < sz; i++) {
       SMqVgEp *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
@@ -829,6 +831,7 @@ static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock
       numOfRows++;
     }
 
+#endif
     taosRUnLockLatch(&pSub->lock);
     sdbRelease(pSdb, pSub);
   }

@@ -382,6 +382,7 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
     } else {
       break;
     }
+
     if (pIter && pIter->pTable && (!pIdx || (pIter->pTable->uid <= pIdx->uid))) {
       if (tsdbCommitToTable(pCommith, mIter) < 0) {
         tsdbCloseCommitFile(pCommith, true);
@@ -394,6 +395,9 @@ static int tsdbCommitToFile(SCommitH *pCommith, SDFileSet *pSet, int fid) {
         ++fIter;
       }
       ++mIter;
+    } else if (pIter && !pIter->pTable) {
+      // When table already dropped during commit, pIter is not NULL but pIter->pTable is NULL.
+      ++mIter; // skip the table and do nothing
     } else if (pIdx) {
       if (tsdbMoveBlkIdx(pCommith, pIdx) < 0) {
         tsdbCloseCommitFile(pCommith, true);
@@ -439,6 +443,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
   SCommitIter       *pCommitIter;
   SSkipListNode     *pNode;
   STbData           *pTbData;
+  STSchema          *pTSchema = NULL;
 
   pCommith->niters = SL_SIZE(pMem->pSlIdx);
   pCommith->iters = (SCommitIter *)taosMemoryCalloc(pCommith->niters, sizeof(SCommitIter));
@@ -459,13 +464,17 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pTbData = (STbData *)pNode->pData;
 
     pCommitIter = pCommith->iters + i;
-    pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
-    tSkipListIterNext(pCommitIter->pIter);
+    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);  // TODO: schema version
 
-    pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
-    pCommitIter->pTable->uid = pTbData->uid;
-    pCommitIter->pTable->tid = pTbData->uid;
-    pCommitIter->pTable->pSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
+    if (pTSchema) {
+      pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
+      tSkipListIterNext(pCommitIter->pIter);
+
+      pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
+      pCommitIter->pTable->uid = pTbData->uid;
+      pCommitIter->pTable->tid = pTbData->uid;
+      pCommitIter->pTable->pSchema = pTSchema;  // metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
+    }
   }
 
   return 0;
