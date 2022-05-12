@@ -159,3 +159,22 @@ ALTER LOCAL RESETLOG;
 
 This means wiping up all client-generated log files on the machine.
 
+## 18. How to solve the golang component compilation failure?
+
+The new version of TDengine 2.3.0.0 contains a taosAdapter standalone component developed in go, which needs to be run separately, replacing the httpd built into taosd. Provides data access functionality including the original httpd functionality and support for a variety of other software (Prometheus, Telegraf, CollectD, StatsD, etc.).
+
+To compile with the latest Develop branch, run `git submodule update --init --recursive` to download the taosAdapter repository code and then compile it.
+
+## 19. How do I query the disk space occupied by data?
+
+By default, TDengine data files are stored in /var/lib/taos and log files are stored in /var/log/taos.
+
+To check the size of all data files, run the following command: `du -sh /var/lib/taos/vnode --exclude='wal'` .The wal directory is excluded here because the size is almost fixed in the case of continuous heavy writes, and wal directories are emptied whenever TDengine is normally shut down.
+
+To check the size of a single database, run the `show vgroups;` command in the taos command to specify a database, go to /var/lib/taos/vnode with the obtained VGroup ID to check the contained folder size.
+
+If you only want to see the block distribution and size of a (super) table, You can use _block_dist functions: 
+
+```mysql
+SELECT _block_dist () the FROM {tb_name | stb_name}
+```
