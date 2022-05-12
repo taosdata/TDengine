@@ -141,7 +141,7 @@ class TDTestCase:
                 tdSql.query(self.__alter_pass_sql(self.__user_list[i], self.__passwd_list[i] ) )
                 self.__init_pass = True
 
-    def alter_pass_err(self):
+    def alter_pass_err(self):  # sourcery skip: remove-redundant-fstring
         sqls = [
             f"alter users {self.__user_list[0]} pass 'newpass' " ,
             f"alter user {self.__user_list[0]} pass '' " ,
