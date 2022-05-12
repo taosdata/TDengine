@@ -103,7 +103,8 @@ Dwarf_Debug tDbg;
 static TdThreadOnce traceThreadInit = PTHREAD_ONCE_INIT;
 
 void endTrace() {
-  if (traceThreadInit != PTHREAD_ONCE_INIT) {
+  TdThreadOnce tmp = PTHREAD_ONCE_INIT;
+  if (memcmp(&traceThreadInit, &tmp, sizeof(TdThreadOnce)) != 0) {
     delete_lookup_table(&lookup_table);
     dwarf_finish(tDbg);
   }

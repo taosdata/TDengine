@@ -30,8 +30,8 @@ int32_t walCommit(SWal *pWal, int64_t ver) {
 }
 
 int32_t walRollback(SWal *pWal, int64_t ver) {
-  int  code;
-  char fnameStr[WAL_FILE_LEN];
+  int64_t code;
+  char    fnameStr[WAL_FILE_LEN];
   if (ver > pWal->vers.lastVer || ver < pWal->vers.commitVer) {
     terrno = TSDB_CODE_WAL_INVALID_VER;
     return -1;
@@ -225,6 +225,7 @@ int walRoll(SWal *pWal) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
+  // terrno set inner
   code = walRollFileInfo(pWal);
   if (code != 0) {
     return -1;

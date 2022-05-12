@@ -137,7 +137,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
-  dataBuf->pTableMeta = pTableMeta;
+  dataBuf->pTableMeta = tableMetaDup(pTableMeta);
 
   SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
   SSchema*            pSchema = getTableColumnSchema(dataBuf->pTableMeta);
@@ -185,11 +185,11 @@ int32_t buildCreateTbMsg(STableDataBlocks* pBlocks, SVCreateTbReq* pCreateTbReq)
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int32_t startOffset, int32_t rowSize,
+int32_t getDataBlockFromList(SHashObj* pHashList, void* id, int32_t idLen, int32_t size, int32_t startOffset, int32_t rowSize,
                              STableMeta* pTableMeta, STableDataBlocks** dataBlocks, SArray* pBlockList,
                              SVCreateTbReq* pCreateTbReq) {
   *dataBlocks = NULL;
-  STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)&id, sizeof(id));
+  STableDataBlocks** t1 = (STableDataBlocks**)taosHashGet(pHashList, (const char*)id, idLen);
   if (t1 != NULL) {
     *dataBlocks = *t1;
   }
@@ -207,7 +207,7 @@ int32_t getDataBlockFromList(SHashObj* pHashList, int64_t id, int32_t size, int3
       }
     }
 
-    taosHashPut(pHashList, (const char*)&id, sizeof(int64_t), (char*)dataBlocks, POINTER_BYTES);
+    taosHashPut(pHashList, (const char*)id, idLen, (char*)dataBlocks, POINTER_BYTES);
     if (pBlockList) {
       taosArrayPush(pBlockList, dataBlocks);
     }
@@ -445,7 +445,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
   const int INSERT_HEAD_SIZE = sizeof(SSubmitReq);
   int       code = 0;
   bool      isRawPayload = IS_RAW_PAYLOAD(payloadType);
-  SHashObj* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, false);
+  SHashObj* pVnodeDataBlockHashList = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, false);
   SArray*   pVnodeDataBlockList = taosArrayInit(8, POINTER_BYTES);
 
   STableDataBlocks** p = taosHashIterate(pHashObj, NULL);
@@ -457,7 +457,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
       STableDataBlocks* dataBuf = NULL;
       pOneTableBlock->pTableMeta->vgId = pOneTableBlock->vgId;    // for schemaless, restore origin vgId
       int32_t           ret =
-          getDataBlockFromList(pVnodeDataBlockHashList, pOneTableBlock->vgId, TSDB_PAYLOAD_SIZE, INSERT_HEAD_SIZE, 0,
+          getDataBlockFromList(pVnodeDataBlockHashList, &pOneTableBlock->vgId, sizeof(pOneTableBlock->vgId), TSDB_PAYLOAD_SIZE, INSERT_HEAD_SIZE, 0,
                                pOneTableBlock->pTableMeta, &dataBuf, pVnodeDataBlockList, NULL);
       if (ret != TSDB_CODE_SUCCESS) {
         taosHashCleanup(pVnodeDataBlockHashList);
@@ -465,7 +465,7 @@ int32_t mergeTableDataBlocks(SHashObj* pHashObj, uint8_t payloadType, SArray** p
         taosMemoryFreeClear(blkKeyInfo.pKeyTuple);
         return ret;
       }
-
+      ASSERT(pOneTableBlock->pTableMeta->tableInfo.rowSize > 0);
       // the maximum expanded size in byte when a row-wise data is converted to SDataRow format
       int32_t expandSize = isRawPayload ? getRowExpandSize(pOneTableBlock->pTableMeta) : 0;
       int64_t destSize = dataBuf->size + pOneTableBlock->size + pBlocks->numOfRows * expandSize +
@@ -620,7 +620,7 @@ int32_t qCloneStmtDataBlock(void** pDst, void* pSrc) {
   return qResetStmtDataBlock(*pDst, false);
 }
 
-int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc) {
+int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t vgId) {
   int32_t code = qCloneStmtDataBlock(pDst, pSrc);
   if (code) {
     return code;
@@ -633,9 +633,20 @@ int32_t qRebuildStmtDataBlock(void** pDst, void* pSrc) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
+  pBlock->vgId = vgId;
+  
+  if (pBlock->pTableMeta) {
+    pBlock->pTableMeta->uid = uid;
+    pBlock->pTableMeta->vgId = vgId;
+  }
+  
   memset(pBlock->pData, 0, sizeof(SSubmitBlk));
 
   return TSDB_CODE_SUCCESS;
+}
+
+STableMeta *qGetTableMetaInDataBlock(void* pDataBlock) {
+  return ((STableDataBlocks*)pDataBlock)->pTableMeta;
 }
 
 void qFreeStmtDataBlock(void* pDataBlock) {

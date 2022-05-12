@@ -66,9 +66,9 @@ static void tdSRowDemo() {
   SRowBuilder rb = {0};
 
   SSchema schema[DEMO_N_COLS] = {
-      {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .name = "ts", .bytes = 8, .flags = SCHEMA_SMA_ON},
-      {.type = TSDB_DATA_TYPE_INT, .colId = 2, .name = "c1", .bytes = 4, .flags = SCHEMA_SMA_ON},
-      {.type = TSDB_DATA_TYPE_INT, .colId = 3, .name = "c2", .bytes = 4, .flags = SCHEMA_SMA_ON}};
+      {.type = TSDB_DATA_TYPE_TIMESTAMP, .colId = 1, .name = "ts", .bytes = 8, .flags = COL_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 2, .name = "c1", .bytes = 4, .flags = COL_SMA_ON},
+      {.type = TSDB_DATA_TYPE_INT, .colId = 3, .name = "c2", .bytes = 4, .flags = COL_SMA_ON}};
 
   SSchema*  pSchema = schema;
   STSchema* pTSChema = tdGetSTSChemaFromSSChema(&pSchema, numOfCols);
@@ -401,7 +401,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__EARLIEAST) {
     fetchOffset = walGetFirstVer(pTq->pWal);
   } else if (pReq->currentOffset == TMQ_CONF__RESET_OFFSET__LATEST) {
-    fetchOffset = walGetLastVer(pTq->pWal);
+    fetchOffset = walGetCommittedVer(pTq->pWal);
   } else {
     fetchOffset = pReq->currentOffset + 1;
   }
@@ -427,9 +427,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
   rsp.withSchema = pExec->withSchema;
+
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
   rsp.blockSchema = taosArrayInit(0, sizeof(void*));
+  rsp.blockTbName = taosArrayInit(0, sizeof(void*));
+
+  int8_t withTbName = pExec->withTbName;
+  if (pReq->withTbName != -1) {
+    withTbName = pReq->withTbName;
+  }
+  rsp.withTbName = withTbName;
 
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
@@ -535,6 +543,18 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
             taosArrayPush(rsp.blockSchema, &pSW);
           }
 
+          if (withTbName) {
+            SMetaReader mr = {0};
+            metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+            int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
+            if (metaGetTableEntryByUid(&mr, uid) < 0) {
+              ASSERT(0);
+            }
+            char* tbName = strdup(mr.me.name);
+            taosArrayPush(rsp.blockTbName, &tbName);
+            metaReaderClear(&mr);
+          }
+
           rsp.blockNum++;
         }
         // db subscribe
@@ -563,6 +583,16 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(actualLen <= dataStrLen);
           taosArrayPush(rsp.blockDataLen, &actualLen);
           taosArrayPush(rsp.blockData, &buf);
+          if (withTbName) {
+            SMetaReader mr = {0};
+            metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
+            if (metaGetTableEntryByUid(&mr, block.info.uid) < 0) {
+              ASSERT(0);
+            }
+            char* tbName = strdup(mr.me.name);
+            taosArrayPush(rsp.blockTbName, &tbName);
+            metaReaderClear(&mr);
+          }
 
           SSchemaWrapper* pSW = tCloneSSchemaWrapper(pExec->pExecReader[workerId]->pSchemaWrapper);
           taosArrayPush(rsp.blockSchema, &pSW);
@@ -614,6 +644,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   taosArrayDestroy(rsp.blockData);
   taosArrayDestroy(rsp.blockDataLen);
   taosArrayDestroyP(rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
+  taosArrayDestroyP(rsp.blockTbName, (FDelete)taosMemoryFree);
 
   return 0;
 }

@@ -11,14 +11,19 @@
 
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_NCHAR};
-int32_t optrIdxList[] = {0, 1, 2};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR};
+int32_t optrIdxList[] = {0, 9};
 
 typedef struct {
   char*   oper;
   int32_t paramNum;
   bool    enclose;
 } OperInfo;
+
+typedef struct {
+  char*   funcName;
+  int32_t paramNum;
+} FuncInfo;
 
 typedef enum {
   BP_BIND_TAG = 1,
@@ -43,6 +48,13 @@ OperInfo operInfo[] = {
 
 int32_t operatorList[] = {0, 1, 2, 3, 4, 5, 6, 7};
 int32_t varoperatorList[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+FuncInfo funcInfo[] = {
+  {"count", 1},
+  {"sum",   1},
+  {"min",   1},
+  {"sin",   1},
+};
 
 char *bpStbPrefix = "st";
 char *bpTbPrefix = "t";
@@ -92,7 +104,8 @@ int insertMBMETest3(TAOS_STMT *stmt, TAOS *taos);
 int insertMBMETest4(TAOS_STMT *stmt, TAOS *taos);
 int insertMPMETest1(TAOS_STMT *stmt, TAOS *taos);
 int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos);
-int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos);
+int queryColumnTest(TAOS_STMT *stmt, TAOS *taos);
+int queryMiscTest(TAOS_STMT *stmt, TAOS *taos);
 
 enum {
   TTYPE_INSERT = 1,
@@ -152,7 +165,8 @@ CaseCfg gCase[] = {
   // 22
   {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, true, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
 
-  {"query:SUBT-FULL", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, querySUBTTest1, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 3, 0, 0, 1, 2},
 
 };
 
@@ -177,6 +191,8 @@ typedef struct {
   int32_t* bindTagTypeList;
   int32_t  optrIdxListNum;
   int32_t* optrIdxList;
+  int32_t  funcIdxListNum;
+  int32_t* funcIdxList;
   int32_t  runTimes;
   int32_t  caseIdx;              // static case idx
   int32_t  caseNum;              // num in static case list
@@ -201,8 +217,10 @@ CaseCtrl gCaseCtrl = { // default
   .bindTagTypeList = NULL,
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
+  .funcIdxListNum = 0,
+  .funcIdxList = NULL,
   .checkParamNum = false,
-  .printRes = true,
+  .printRes = false,
   .runTimes = 0,
   .caseIdx = -1,
   .caseNum = -1,
@@ -212,8 +230,8 @@ CaseCtrl gCaseCtrl = { // default
 #endif
 
 
-#if 1
-CaseCtrl gCaseCtrl = { // default
+#if 0
+CaseCtrl gCaseCtrl = {
   .bindNullNum = 0,
   .printCreateTblSql = true,
   .printQuerySql = true,
@@ -223,23 +241,23 @@ CaseCtrl gCaseCtrl = { // default
   .bindColNum = 0,
   .bindTagNum = 0,
   .bindRowNum = 0,
-  .bindColTypeNum = 0,
-  .bindColTypeList = NULL,
+  .bindColTypeNum = tListLen(bindColTypeList),
+  .bindColTypeList = bindColTypeList,
   .bindTagTypeNum = 0,
   .bindTagTypeList = NULL,
-  .optrIdxListNum = 0,
-  .optrIdxList = NULL,
+  .optrIdxListNum = tListLen(optrIdxList),
+  .optrIdxList = optrIdxList,
   .checkParamNum = false,
-  .printRes = true,
+  .printRes = false,
   .runTimes = 0,
-  .caseIdx = -1,
+  .caseIdx = 23,
   .caseNum = 1,
-  .caseRunIdx = 11,
+  .caseRunIdx = -1,
   .caseRunNum = 1,
 };
 #endif
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -260,7 +278,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .optrIdxList = NULL,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
-  .caseIdx = 22,
+  .caseIdx = 24,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -511,9 +529,81 @@ void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType, int32
       }
       break;
     default:
-      printf("!!!invalid paramNum:%d\n", pInfo->paramNum);
+      printf("!!!invalid operator paramNum:%d\n", pInfo->paramNum);
       exit(1);
   }
+}
+
+void bpAppendFunctionParam(BindData *data, int32_t *len, int32_t dataType, int32_t idx) {
+  FuncInfo *pInfo = NULL;
+
+  if (gCaseCtrl.funcIdxListNum > 0) {
+    pInfo = &funcInfo[gCaseCtrl.funcIdxList[idx]];
+  } else {
+    pInfo = &funcInfo[rand() % tListLen(funcInfo)];
+  }
+  
+  switch (pInfo->paramNum) {
+    case 1:
+      *len += sprintf(data->sql + *len, " %s(?)", pInfo->funcName);
+      break;
+    default:
+      printf("!!!invalid function  paramNum:%d\n", pInfo->paramNum);
+      exit(1);
+  }
+}
+
+
+int32_t bpAppendColumnName(BindData *data, int32_t type, int32_t len) {
+  switch (type) {  
+    case TSDB_DATA_TYPE_BOOL:
+      return sprintf(data->sql + len, "booldata");
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      return sprintf(data->sql + len, "tinydata");
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return sprintf(data->sql + len, "smalldata");
+      break;
+    case TSDB_DATA_TYPE_INT:
+      return sprintf(data->sql + len, "intdata");
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      return sprintf(data->sql + len, "bigdata");
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      return sprintf(data->sql + len, "floatdata");
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return sprintf(data->sql + len, "doubledata");
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+      return sprintf(data->sql + len, "binarydata");
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return sprintf(data->sql + len, "ts");
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+      return sprintf(data->sql + len, "nchardata");
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return sprintf(data->sql + len, "utinydata");
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return sprintf(data->sql + len, "usmalldata");
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      return sprintf(data->sql + len, "uintdata");
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return sprintf(data->sql + len, "ubigdata");
+      break;
+    default:
+      printf("!!!invalid col type:%d", type);
+      exit(1);
+  }
+
+  return 0;
 }
 
 void generateQueryCondSQL(BindData *data, int32_t tblIdx) {
@@ -523,53 +613,7 @@ void generateQueryCondSQL(BindData *data, int32_t tblIdx) {
       if (c) {
         len += sprintf(data->sql + len, " and ");
       }
-      switch (data->pBind[c].buffer_type) {  
-        case TSDB_DATA_TYPE_BOOL:
-          len += sprintf(data->sql + len, "booldata");
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          len += sprintf(data->sql + len, "tinydata");
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          len += sprintf(data->sql + len, "smalldata");
-          break;
-        case TSDB_DATA_TYPE_INT:
-          len += sprintf(data->sql + len, "intdata");
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          len += sprintf(data->sql + len, "bigdata");
-          break;
-        case TSDB_DATA_TYPE_FLOAT:
-          len += sprintf(data->sql + len, "floatdata");
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
-          len += sprintf(data->sql + len, "doubledata");
-          break;
-        case TSDB_DATA_TYPE_VARCHAR:
-          len += sprintf(data->sql + len, "binarydata");
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          len += sprintf(data->sql + len, "ts");
-          break;
-        case TSDB_DATA_TYPE_NCHAR:
-          len += sprintf(data->sql + len, "nchardata");
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          len += sprintf(data->sql + len, "utinydata");
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          len += sprintf(data->sql + len, "usmalldata");
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          len += sprintf(data->sql + len, "uintdata");
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          len += sprintf(data->sql + len, "ubigdata");
-          break;
-        default:
-          printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
-          exit(1);
-      }
+      len += bpAppendColumnName(data, data->pBind[c].buffer_type, len);
       
       bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type, c);
     }
@@ -580,64 +624,50 @@ void generateQueryCondSQL(BindData *data, int32_t tblIdx) {
   }  
 }
 
+void bpGenerateConstInOpSQL(BindData *data, int32_t tblIdx) {
+  int32_t len = 0;
+  len = sprintf(data->sql, "select ");
+  
+  for (int c = 0; c < gCurCase->bindColNum; ++c) {
+    if (c) {
+      len += sprintf(data->sql + len, ", ");
+    }
+    
+    len += bpAppendColumnName(data, data->pBind[c].buffer_type, len);
+    
+    bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type, c);
+  }
+
+  len += sprintf(data->sql + len, " from %s%d", bpTbPrefix, tblIdx);
+}
+
+
+void bpGenerateConstInFuncSQL(BindData *data, int32_t tblIdx) {
+  int32_t len = 0;
+  len = sprintf(data->sql, "select ");
+  
+  for (int c = 0; c < gCurCase->bindColNum; ++c) {
+    if (c) {
+      len += sprintf(data->sql + len, ", ");
+    }
+    
+    bpAppendFunctionParam(data, &len, data->pBind[c].buffer_type, c);
+  }
+
+  len += sprintf(data->sql + len, " from %s%d", bpTbPrefix, tblIdx);
+}
+
 
 void generateQueryMiscSQL(BindData *data, int32_t tblIdx) {
-  int32_t len = sprintf(data->sql, "select * from %s%d where ", bpTbPrefix, tblIdx);
-  if (!gCurCase->fullCol) {
-    for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      if (c) {
-        len += sprintf(data->sql + len, " and ");
-      }
-      switch (data->pBind[c].buffer_type) {  
-        case TSDB_DATA_TYPE_BOOL:
-          len += sprintf(data->sql + len, "booldata");
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          len += sprintf(data->sql + len, "tinydata");
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          len += sprintf(data->sql + len, "smalldata");
-          break;
-        case TSDB_DATA_TYPE_INT:
-          len += sprintf(data->sql + len, "intdata");
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          len += sprintf(data->sql + len, "bigdata");
-          break;
-        case TSDB_DATA_TYPE_FLOAT:
-          len += sprintf(data->sql + len, "floatdata");
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
-          len += sprintf(data->sql + len, "doubledata");
-          break;
-        case TSDB_DATA_TYPE_VARCHAR:
-          len += sprintf(data->sql + len, "binarydata");
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          len += sprintf(data->sql + len, "ts");
-          break;
-        case TSDB_DATA_TYPE_NCHAR:
-          len += sprintf(data->sql + len, "nchardata");
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          len += sprintf(data->sql + len, "utinydata");
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          len += sprintf(data->sql + len, "usmalldata");
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          len += sprintf(data->sql + len, "uintdata");
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          len += sprintf(data->sql + len, "ubigdata");
-          break;
-        default:
-          printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
-          exit(1);
-      }
-      
-      bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type, c);
-    }
+  switch(tblIdx) {
+    case 0:
+      bpGenerateConstInOpSQL(data, tblIdx);
+      break;
+    case 1:
+      //TODO FILL TEST
+    default:
+      bpGenerateConstInFuncSQL(data, tblIdx);
+      break;
   }
 
   if (gCaseCtrl.printStmtSql) {
@@ -1749,7 +1779,7 @@ int insertAUTOTest1(TAOS_STMT *stmt, TAOS *taos) {
 
 
 /* select * from table */
-int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos) {
+int queryColumnTest(TAOS_STMT *stmt, TAOS *taos) {
   BindData data = {0};
 
   for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
@@ -1795,7 +1825,7 @@ int querySUBTTest1(TAOS_STMT *stmt, TAOS *taos) {
 }
 
 /* value in query sql */
-int querySUBTTest2(TAOS_STMT *stmt, TAOS *taos) {
+int queryMiscTest(TAOS_STMT *stmt, TAOS *taos) {
   BindData data = {0};
 
   for (int32_t t = 0; t< gCurCase->tblNum; ++t) {
@@ -1861,1119 +1891,6 @@ int errorSQLTest1(TAOS_STMT *stmt, TAOS *taos) {
 
   return 0;
 }
-
-
-#if 0
-
-//1 tables 10 records
-int stmt_funcb_autoctb1(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-    exit(1);
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
-    }  
-
-    taos_stmt_bind_param_batch(stmt, params + id * 10);
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb2(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_INT;
-    tags[i+0].buffer = v.v4;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+1].buffer = v.b;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    tags[i+2].buffer = v.v1;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+3].buffer = v.v2;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = NULL;
-
-    tags[i+4].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    tags[i+4].buffer = v.v8;
-    tags[i+4].is_null = &one_not_null;
-    tags[i+4].length = NULL;
-
-    tags[i+5].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+5].buffer = v.f4;
-    tags[i+5].is_null = &one_not_null;
-    tags[i+5].length = NULL;
-
-    tags[i+6].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    tags[i+6].buffer = v.f8;
-    tags[i+6].is_null = &one_not_null;
-    tags[i+6].length = NULL;
-
-    tags[i+7].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+7].buffer = v.bin;
-    tags[i+7].is_null = &one_not_null;
-    tags[i+7].length = (uintptr_t *)lb;
-
-    tags[i+8].buffer_type = TSDB_DATA_TYPE_NCHAR;
-    tags[i+8].buffer = v.bin;
-    tags[i+8].is_null = &one_not_null;
-    tags[i+8].length = (uintptr_t *)lb;
-  }
-
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 tags(1,true,2,3,4,5.0,6.0,'a','b') values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-    exit(1);
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
-    }  
-
-    taos_stmt_bind_param_batch(stmt, params + id * 10);
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb3(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+0].buffer = v.b;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+1].buffer = v.v2;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+2].buffer = v.f4;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+3].buffer = v.bin;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = (uintptr_t *)lb;
-  }
-
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 tags(1,?,2,?,4,?,6.0,?,'b') values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-    exit(1);
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
-    }  
-
-    taos_stmt_bind_param_batch(stmt, params + id * 10);
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb4(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*5);
-
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 5; i+=5) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+2].buffer_length = sizeof(int32_t);
-    params[i+2].buffer = v.v4;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+3].buffer_length = sizeof(int64_t);
-    params[i+3].buffer = v.v8;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+4].buffer_length = sizeof(double);
-    params[i+4].buffer = v.f8;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+0].buffer = v.b;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+1].buffer = v.v2;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+2].buffer = v.f4;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+3].buffer = v.bin;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = (uintptr_t *)lb;
-  }
-
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 tags(1,?,2,?,4,?,6.0,?,'b') (ts,b,v4,v8,f8) values(?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-    exit(1);
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
-    }  
-
-    taos_stmt_bind_param_batch(stmt, params + id * 5);
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb_e1(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-//  int one_null = 1;
-  int one_not_null = 0;
-  
-  char* is_null = taosMemoryMalloc(sizeof(char) * 10);
-  char* no_null = taosMemoryMalloc(sizeof(char) * 10);
-
-  for (int i = 0; i < 10; ++i) {
-    lb[i] = 40;
-    no_null[i] = 0;
-    is_null[i] = (i % 10 == 2) ? 1 : 0;
-    v.b[i] = (int8_t)(i % 2);
-    v.v1[i] = (int8_t)((i+1) % 2);
-    v.v2[i] = (int16_t)i;
-    v.v4[i] = (int32_t)(i+1);
-    v.v8[i] = (int64_t)(i+2);
-    v.f4[i] = (float)(i+3);
-    v.f8[i] = (double)(i+4);
-    memset(v.bin[i], '0'+i%10, 40);
-  }
-  
-  for (int i = 0; i < 10; i+=10) {
-    params[i+0].buffer_type = TSDB_DATA_TYPE_TIMESTAMP;
-    params[i+0].buffer_length = sizeof(int64_t);
-    params[i+0].buffer = &v.ts[10*i/10];
-    params[i+0].length = NULL;
-    params[i+0].is_null = no_null;
-    params[i+0].num = 10;
-    
-    params[i+1].buffer_type = TSDB_DATA_TYPE_BOOL;
-    params[i+1].buffer_length = sizeof(int8_t);
-    params[i+1].buffer = v.b;
-    params[i+1].length = NULL;
-    params[i+1].is_null = is_null;
-    params[i+1].num = 10;
-
-    params[i+2].buffer_type = TSDB_DATA_TYPE_TINYINT;
-    params[i+2].buffer_length = sizeof(int8_t);
-    params[i+2].buffer = v.v1;
-    params[i+2].length = NULL;
-    params[i+2].is_null = is_null;
-    params[i+2].num = 10;
-
-    params[i+3].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    params[i+3].buffer_length = sizeof(int16_t);
-    params[i+3].buffer = v.v2;
-    params[i+3].length = NULL;
-    params[i+3].is_null = is_null;
-    params[i+3].num = 10;
-
-    params[i+4].buffer_type = TSDB_DATA_TYPE_INT;
-    params[i+4].buffer_length = sizeof(int32_t);
-    params[i+4].buffer = v.v4;
-    params[i+4].length = NULL;
-    params[i+4].is_null = is_null;
-    params[i+4].num = 10;
-
-    params[i+5].buffer_type = TSDB_DATA_TYPE_BIGINT;
-    params[i+5].buffer_length = sizeof(int64_t);
-    params[i+5].buffer = v.v8;
-    params[i+5].length = NULL;
-    params[i+5].is_null = is_null;
-    params[i+5].num = 10;
-
-    params[i+6].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    params[i+6].buffer_length = sizeof(float);
-    params[i+6].buffer = v.f4;
-    params[i+6].length = NULL;
-    params[i+6].is_null = is_null;
-    params[i+6].num = 10;
-
-    params[i+7].buffer_type = TSDB_DATA_TYPE_DOUBLE;
-    params[i+7].buffer_length = sizeof(double);
-    params[i+7].buffer = v.f8;
-    params[i+7].length = NULL;
-    params[i+7].is_null = is_null;
-    params[i+7].num = 10;
-
-    params[i+8].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+8].buffer_length = 40;
-    params[i+8].buffer = v.bin;
-    params[i+8].length = lb;
-    params[i+8].is_null = is_null;
-    params[i+8].num = 10;
-
-    params[i+9].buffer_type = TSDB_DATA_TYPE_BINARY;
-    params[i+9].buffer_length = 40;
-    params[i+9].buffer = v.bin;
-    params[i+9].length = lb;
-    params[i+9].is_null = is_null;
-    params[i+9].num = 10;
-    
-  }
-
-  int64_t tts = 1591060628000;
-  for (int i = 0; i < 10; ++i) {
-    v.ts[i] = tts + i;
-  }
-
-
-  for (int i = 0; i < 1; ++i) {
-    tags[i+0].buffer_type = TSDB_DATA_TYPE_BOOL;
-    tags[i+0].buffer = v.b;
-    tags[i+0].is_null = &one_not_null;
-    tags[i+0].length = NULL;
-
-    tags[i+1].buffer_type = TSDB_DATA_TYPE_SMALLINT;
-    tags[i+1].buffer = v.v2;
-    tags[i+1].is_null = &one_not_null;
-    tags[i+1].length = NULL;
-
-    tags[i+2].buffer_type = TSDB_DATA_TYPE_FLOAT;
-    tags[i+2].buffer = v.f4;
-    tags[i+2].is_null = &one_not_null;
-    tags[i+2].length = NULL;
-
-    tags[i+3].buffer_type = TSDB_DATA_TYPE_BINARY;
-    tags[i+3].buffer = v.bin;
-    tags[i+3].is_null = &one_not_null;
-    tags[i+3].length = (uintptr_t *)lb;
-  }
-
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 (id1,id2,id3,id4,id5,id6,id7,id8,id9) tags(1,?,2,?,4,?,6.0,?,'b') values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. error:%s\n", taos_stmt_errstr(stmt));
-    return -1;
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
-    }  
-
-    taos_stmt_bind_param_batch(stmt, params + id * 10);
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb_e2(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:0x%x\n", code);
-    exit(1);
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, NULL);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. code:%s\n", taos_stmt_errstr(stmt));
-      return -1;
-    }  
-
-    taos_stmt_bind_param_batch(stmt, params + id * 10);
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb_e3(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 (id1,id2,id3,id4,id5,id6,id7,id8,id9) tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
-    return -1;
-    //exit(1);
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, NULL);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. code:0x%x\n", code);
-      return -1;
-    }  
-
-    taos_stmt_bind_param_batch(stmt, params + id * 10);
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb_e4(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(stmt, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(stmt));
-    exit(1);
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. error:%s\n", taos_stmt_errstr(stmt));
-      exit(1);
-    }  
-
-    code = taos_stmt_bind_param_batch(stmt, params + id * 10);
-    if (code != 0) {
-      printf("failed to execute taos_stmt_bind_param_batch. error:%s\n", taos_stmt_errstr(stmt));
-      exit(1);
-    }
-    
-    code = taos_stmt_bind_param_batch(stmt, params + id * 10);
-    if (code != 0) {
-      printf("failed to execute taos_stmt_bind_param_batch. error:%s\n", taos_stmt_errstr(stmt));
-      return -1;
-    }
-    
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-
-
-
-
-
-//1 tables 10 records
-int stmt_funcb_autoctb_e5(TAOS_STMT *stmt) {
-  struct {
-      int64_t *ts;
-      int8_t b[10];
-      int8_t v1[10];
-      int16_t v2[10];
-      int32_t v4[10];
-      int64_t v8[10];
-      float f4[10];
-      double f8[10];
-      char bin[10][40];
-  } v = {0};
-
-  v.ts = taosMemoryMalloc(sizeof(int64_t) * 1 * 10);
-  
-  int *lb = taosMemoryMalloc(10 * sizeof(int));
-
-  TAOS_BIND *tags = taosMemoryCalloc(1, sizeof(TAOS_BIND) * 9 * 1);
-  TAOS_MULTI_BIND *params = taosMemoryCalloc(1, sizeof(TAOS_MULTI_BIND) * 1*10);
-
-  unsigned long long starttime = taosGetTimestampUs();
-
-  char *sql = "insert into ? using stb1 tags(?,?,?,?,?,?,?,?,?) values(?,?,?,?,?,?,?,?,?,?)";
-  int code = taos_stmt_prepare(NULL, sql, 0);
-  if (code != 0){
-    printf("failed to execute taos_stmt_prepare. code:%s\n", taos_stmt_errstr(NULL));
-    return -1;
-  }
-
-  int id = 0;
-  for (int zz = 0; zz < 1; zz++) {
-    char buf[32];
-    sprintf(buf, "m%d", zz);
-    code = taos_stmt_set_tbname_tags(stmt, buf, tags);
-    if (code != 0){
-      printf("failed to execute taos_stmt_set_tbname_tags. error:%s\n", taos_stmt_errstr(stmt));
-      exit(1);
-    }  
-
-    code = taos_stmt_bind_param_batch(stmt, params + id * 10);
-    if (code != 0) {
-      printf("failed to execute taos_stmt_bind_param_batch. error:%s\n", taos_stmt_errstr(stmt));
-      exit(1);
-    }
-    
-    code = taos_stmt_bind_param_batch(stmt, params + id * 10);
-    if (code != 0) {
-      printf("failed to execute taos_stmt_bind_param_batch. error:%s\n", taos_stmt_errstr(stmt));
-      return -1;
-    }
-    
-    taos_stmt_add_batch(stmt);
-  }
-
-  if (taos_stmt_execute(stmt) != 0) {
-    printf("failed to execute insert statement.\n");
-    exit(1);
-  }
-
-  ++id;
-
-  unsigned long long endtime = taosGetTimestampUs();
-  printf("insert total %d records, used %u seconds, avg:%u useconds\n", 10, (endtime-starttime)/1000000UL, (endtime-starttime)/(10));
-
-  taosMemoryFree(v.ts);  
-  taosMemoryFree(lb);
-  taosMemoryFree(params);
-  taosMemoryFree(is_null);
-  taosMemoryFree(no_null);
-  taosMemoryFree(tags);
-
-  return 0;
-}
-
-#endif
-
 
 void prepareCheckResultImpl(TAOS     * taos, char *tname, bool printr, int expected, bool silent) {
   char sql[255] = "SELECT * FROM ";
@@ -3332,6 +2249,7 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   TAOS_STMT *stmt = NULL;
   int64_t beginUs, endUs, totalUs;  
   CaseCfg cfg = gCase[caseIdx];
+  CaseCfg cfgBk;
   gCurCase = &cfg;
   
   if ((gCaseCtrl.bindColTypeNum || gCaseCtrl.bindColNum) && (gCurCase->colNum != gFullColNum)) {
@@ -3402,6 +2320,7 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
   }
   
   totalUs = 0;
+  cfgBk = cfg;
   for (int32_t n = 0; n < gCurCase->runTimes; ++n) {
     if (gCurCase->preCaseIdx < 0) {
       prepare(taos, gCurCase->colNum, gCurCase->colList, gCurCase->autoCreateTbl);
@@ -3423,6 +2342,8 @@ int32_t runCase(TAOS *taos, int32_t caseIdx, int32_t caseRunIdx, bool silent) {
     totalUs += (endUs - beginUs);
 
     prepareCheckResult(taos, silent);
+
+    cfg = cfgBk;
   }
 
   if (!silent) {  
@@ -3465,16 +2386,20 @@ void* runCaseList(TAOS *taos) {
 }
 
 void runAll(TAOS *taos) {
-/*
+#if 1
+
   strcpy(gCaseCtrl.caseCatalog, "Normal Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
-*/
+
+
   strcpy(gCaseCtrl.caseCatalog, "Auto Create Table Test");
   gCaseCtrl.autoCreateTbl = true;
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   runCaseList(taos);
   gCaseCtrl.autoCreateTbl = false;
+  
+#endif
 
 /*
   strcpy(gCaseCtrl.caseCatalog, "Null Test");
@@ -3496,6 +2421,7 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.rowNum = 0;
   gCaseCtrl.printRes = true;
+*/
 
   strcpy(gCaseCtrl.caseCatalog, "Runtimes Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
@@ -3503,12 +2429,15 @@ void runAll(TAOS *taos) {
   runCaseList(taos);
   gCaseCtrl.runTimes = 0;
 
+#if 1
   strcpy(gCaseCtrl.caseCatalog, "Check Param Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.checkParamNum = true;
   runCaseList(taos);
   gCaseCtrl.checkParamNum = false;
+#endif
 
+/*
   strcpy(gCaseCtrl.caseCatalog, "Bind Col Num Test");
   printf("%s Begin\n", gCaseCtrl.caseCatalog);
   gCaseCtrl.bindColNum = 6;

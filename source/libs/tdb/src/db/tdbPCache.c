@@ -242,7 +242,7 @@ static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
   int     h;
 
   h = tdbPCachePageHash(&(pPage->pgid));
-  for (ppPage = &(pCache->pgHash[h % pCache->nHash]); *ppPage != pPage; ppPage = &((*ppPage)->pHashNext))
+  for (ppPage = &(pCache->pgHash[h % pCache->nHash]); (*ppPage) && *ppPage != pPage; ppPage = &((*ppPage)->pHashNext))
     ;
   ASSERT(*ppPage == pPage);
   *ppPage = pPage->pHashNext;

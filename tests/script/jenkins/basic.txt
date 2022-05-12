@@ -77,6 +77,7 @@
 ./test.sh -f tsim/tmq/basic3Of2Cons.sim
 ./test.sh -f tsim/tmq/basic4Of2Cons.sim
 ./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
+./test.sh -f tsim/tmq/topic.sim
 
 # --- stable
 ./test.sh -f tsim/stable/alter1.sim
