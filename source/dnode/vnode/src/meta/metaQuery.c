@@ -19,9 +19,13 @@ void metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags) {
   memset(pReader, 0, sizeof(*pReader));
   pReader->flags = flags;
   pReader->pMeta = pMeta;
+  metaRLock(pMeta);
 }
 
 void metaReaderClear(SMetaReader *pReader) {
+  if (pReader->pMeta) {
+    metaULock(pReader->pMeta);
+  }
   tDecoderClear(&pReader->coder);
   tdbFree(pReader->pBuf);
 }
@@ -264,6 +268,8 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   metaReaderClear(&mr);
 
   pSW = metaGetTableSchema(pMeta, quid, sver, 0);
+  if (!pSW) return NULL;
+  
   tdInitTSchemaBuilder(&sb, 0);
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;

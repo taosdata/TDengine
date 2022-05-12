@@ -239,7 +239,7 @@ static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY };
+  pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1040,26 +1040,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = NULL,
     .initFunc     = NULL,
     .sprocessFunc = timezoneFunction,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "_rowts",
-    .type = FUNCTION_TYPE_ROWTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
-    .translateFunc = translateTimePseudoColumn,
-    .getEnvFunc   = getTimePseudoFuncEnv,
-    .initFunc     = NULL,
-    .sprocessFunc = NULL,
-    .finalizeFunc = NULL
-  },
-  {
-    .name = "_c0",
-    .type = FUNCTION_TYPE_ROWTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
-    .translateFunc = translateTimePseudoColumn,
-    .getEnvFunc   = getTimePseudoFuncEnv,
-    .initFunc     = NULL,
-    .sprocessFunc = NULL,
     .finalizeFunc = NULL
   },
   {
