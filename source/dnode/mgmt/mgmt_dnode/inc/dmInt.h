@@ -27,8 +27,8 @@ typedef struct SDnodeMgmt {
   SMsgCb              msgCb;
   const char         *path;
   const char         *name;
-  TdThread           *statusThreadId;
-  TdThread           *monitorThreadId;
+  TdThread            statusThread;
+  TdThread            monitorThread;
   SSingleWorker       mgmtWorker;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;

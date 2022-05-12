@@ -43,7 +43,7 @@ int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SNodeMsg *pReq) {
   return 0;
 }
 
-int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDCreateBnodeReq createReq = {0};
@@ -52,14 +52,14 @@ int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (pMgmt->dnodeId != 0 && createReq.dnodeId != pMgmt->dnodeId) {
+  if (pInput->dnodeId != 0 && createReq.dnodeId != pInput->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pMgmt->dnodeId);
+    dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pInput->dnodeId);
     return -1;
   }
 
   bool deployed = true;
-  if (dmWriteFile(pMgmt->path, pMgmt->name, deployed) != 0) {
+  if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write bnode file since %s", terrstr());
     return -1;
   }
@@ -76,7 +76,7 @@ int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (dropReq.dnodeId != pMgmt->dnodeId) {
+  if (pMgmt->dnodeId != 0 && dropReq.dnodeId != pMgmt->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop bnode since %s", terrstr());
     return -1;

@@ -24,8 +24,7 @@ static void *dmStatusThreadFp(void *param) {
 
   while (1) {
     taosMsleep(200);
-    taosThreadTestCancel();
-    if (pMgmt->data.dropped) continue;
+    if (pMgmt->data.dropped || pMgmt->data.stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
@@ -46,8 +45,7 @@ static void *dmMonitorThreadFp(void *param) {
 
   while (1) {
     taosMsleep(200);
-    taosThreadTestCancel();
-    if (pMgmt->data.dropped) continue;
+    if (pMgmt->data.dropped || pMgmt->data.stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
@@ -61,40 +59,42 @@ static void *dmMonitorThreadFp(void *param) {
 }
 
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
-  pMgmt->statusThreadId = taosCreateThread(dmStatusThreadFp, pMgmt);
-  if (pMgmt->statusThreadId == NULL) {
-    dError("failed to init dnode status thread");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->statusThread, &thAttr, dmStatusThreadFp, pMgmt) != 0) {
+    dError("failed to create status thread since %s", strerror(errno));
     return -1;
   }
 
+  taosThreadAttrDestroy(&thAttr);
   tmsgReportStartup("dnode-status", "initialized");
   return 0;
 }
 
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
-  if (pMgmt->statusThreadId != NULL) {
-    taosDestoryThread(pMgmt->statusThreadId);
-    pMgmt->statusThreadId = NULL;
+  if (taosCheckPthreadValid(pMgmt->statusThread)) {
+    taosThreadJoin(pMgmt->statusThread, NULL);
   }
 }
 
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
-  pMgmt->monitorThreadId = taosCreateThread(dmMonitorThreadFp, pMgmt);
-  if (pMgmt->monitorThreadId == NULL) {
-    dError("failed to init dnode monitor thread");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  TdThreadAttr thAttr;
+  taosThreadAttrInit(&thAttr);
+  taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
+  if (taosThreadCreate(&pMgmt->monitorThread, &thAttr, dmMonitorThreadFp, pMgmt) != 0) {
+    dError("failed to create monitor thread since %s", strerror(errno));
     return -1;
   }
 
+  taosThreadAttrDestroy(&thAttr);
   tmsgReportStartup("dnode-monitor", "initialized");
   return 0;
 }
 
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
-  if (pMgmt->monitorThreadId != NULL) {
-    taosDestoryThread(pMgmt->monitorThreadId);
-    pMgmt->monitorThreadId = NULL;
+  if (taosCheckPthreadValid(pMgmt->monitorThread)) {
+    taosThreadJoin(pMgmt->monitorThread, NULL);
   }
 }
 

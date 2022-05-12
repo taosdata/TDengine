@@ -124,21 +124,19 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq, bool deployed) {
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
 
-  if (pReq != NULL || pMgmt != NULL) {
-    int8_t replica = (pReq != NULL ? pReq->replica : pMgmt->replica);
-    for (int32_t i = 0; i < replica; ++i) {
-      SReplica *pReplica = &pMgmt->replicas[i];
-      if (pReq != NULL) {
-        pReplica = &pReq->replicas[i];
-      }
-      len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
-      len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
-      len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
-      if (i < replica - 1) {
-        len += snprintf(content + len, maxLen - len, "  },{\n");
-      } else {
-        len += snprintf(content + len, maxLen - len, "  }],\n");
-      }
+  int8_t replica = (pReq != NULL ? pReq->replica : pMgmt->replica);
+  for (int32_t i = 0; i < replica; ++i) {
+    SReplica *pReplica = &pMgmt->replicas[i];
+    if (pReq != NULL) {
+      pReplica = &pReq->replicas[i];
+    }
+    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
+    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
+    len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
+    if (i < replica - 1) {
+      len += snprintf(content + len, maxLen - len, "  },{\n");
+    } else {
+      len += snprintf(content + len, maxLen - len, "  }],\n");
     }
   }
 

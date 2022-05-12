@@ -43,7 +43,7 @@ int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SNodeMsg *pReq) {
   return 0;
 }
 
-int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
   SRpcMsg *pReq = &pMsg->rpcMsg;
 
   SDCreateQnodeReq createReq = {0};
@@ -52,14 +52,14 @@ int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (createReq.dnodeId != pMgmt->dnodeId) {
+  if (pInput->dnodeId != 0 && createReq.dnodeId != pInput->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create qnode since %s", terrstr());
     return -1;
   }
 
   bool deployed = true;
-  if (dmWriteFile(pMgmt->path, pMgmt->name, deployed) != 0) {
+  if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write qnode file since %s", terrstr());
     return -1;
   }
@@ -76,7 +76,7 @@ int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (dropReq.dnodeId != pMgmt->dnodeId) {
+  if (pMgmt->dnodeId != 0 && dropReq.dnodeId != pMgmt->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop qnode since %s", terrstr());
     return -1;

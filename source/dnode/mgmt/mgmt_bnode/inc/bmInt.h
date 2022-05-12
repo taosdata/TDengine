@@ -36,7 +36,7 @@ typedef struct SBnodeMgmt {
 
 // bmHandle.c
 SArray *bmGetMsgHandles();
-int32_t bmProcessCreateReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
 int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SNodeMsg *pReq);
 

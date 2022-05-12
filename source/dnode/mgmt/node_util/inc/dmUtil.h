@@ -54,10 +54,10 @@ extern "C" {
 
 typedef enum {
   DNODE = 0,
-  VNODE = 1,
-  QNODE = 2,
-  SNODE = 3,
-  MNODE = 4,
+  MNODE = 1,
+  VNODE = 2,
+  QNODE = 3,
+  SNODE = 4,
   BNODE = 5,
   NODE_END = 6,
 } EDndNodeType;
@@ -117,7 +117,7 @@ typedef int32_t (*NodeOpenFp)(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutp
 typedef void (*NodeCloseFp)(void *pMgmt);
 typedef int32_t (*NodeStartFp)(void *pMgmt);
 typedef void (*NodeStopFp)(void *pMgmt);
-typedef int32_t (*NodeCreateFp)(void *pMgmt, SNodeMsg *pMsg);
+typedef int32_t (*NodeCreateFp)(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
 typedef int32_t (*NodeDropFp)(void *pMgmt, SNodeMsg *pMsg);
 typedef int32_t (*NodeRequireFp)(const SMgmtInputOpt *pInput, bool *required);
 typedef SArray *(*NodeGetHandlesFp)();  // array of SMgmtHandle
@@ -167,6 +167,7 @@ typedef struct {
   ESyncState  vndState;
   ESyncState  mndState;
   bool        dropped;
+  bool        stopped;
   SEpSet      mnodeEps;
   SArray     *dnodeEps;
   SHashObj   *dnodeHash;

@@ -37,7 +37,7 @@ typedef struct SQnodeMgmt {
 
 // qmHandle.c
 SArray *qmGetMsgHandles();
-int32_t qmProcessCreateReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
 int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SNodeMsg *pReq);
 

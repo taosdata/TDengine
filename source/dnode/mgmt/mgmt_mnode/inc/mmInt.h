@@ -48,7 +48,7 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();
-int32_t mmProcessCreateReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
 int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
 int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SNodeMsg *pReq);

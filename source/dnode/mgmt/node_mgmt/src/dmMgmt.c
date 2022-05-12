@@ -320,7 +320,12 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
     return -1;
   }
 
-  int32_t code = (*pWrapper->func.createFp)(pWrapper, pMsg);
+  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
+  pInput->name = pWrapper->name;
+  pInput->path = pWrapper->path;
+  pInput->msgCb = dmGetMsgcb(pWrapper);
+
+  int32_t code = (*pWrapper->func.createFp)(pInput, pMsg);
   if (code != 0) {
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
@@ -345,7 +350,7 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
 
   taosThreadMutexLock(&pDnode->mutex);
 
-  int32_t code = (*pWrapper->func.dropFp)(pWrapper, pMsg);
+  int32_t code = (*pWrapper->func.dropFp)(pWrapper->pMgmt, pMsg);
   if (code != 0) {
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
   } else {

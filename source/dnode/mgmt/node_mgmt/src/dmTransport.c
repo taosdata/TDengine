@@ -257,13 +257,21 @@ static inline void dmSendRpcRsp(SDnode *pDnode, const SRpcMsg *pRsp) {
 }
 
 static inline void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
-  rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
+  if (pDnode->status != DND_STAT_RUNNING) {
+    pRsp->code = TSDB_CODE_NODE_OFFLINE;
+  } else {
+    rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
+  }
 }
 
 static inline void dmSendToMnodeRecv(SMgmtWrapper *pWrapper, SRpcMsg *pReq, SRpcMsg *pRsp) {
-  SEpSet epSet = {0};
-  dmGetMnodeEpSet(pWrapper->pDnode, &epSet);
-  dmSendRecv(pWrapper->pDnode, &epSet, pReq, pRsp);
+  if (pWrapper->pDnode->status != DND_STAT_RUNNING) {
+    pRsp->code = TSDB_CODE_NODE_OFFLINE;
+  } else {
+    SEpSet epSet = {0};
+    dmGetMnodeEpSet(pWrapper->pDnode, &epSet);
+    dmSendRecv(pWrapper->pDnode, &epSet, pReq, pRsp);
+  }
 }
 
 static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {

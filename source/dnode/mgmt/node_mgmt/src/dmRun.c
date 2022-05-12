@@ -181,6 +181,7 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
 void dmStopNode(SMgmtWrapper *pWrapper) {
   if (pWrapper->func.stopFp != NULL && pWrapper->pMgmt != NULL) {
     (*pWrapper->func.stopFp)(pWrapper->pMgmt);
+    dDebug("node:%s, has been stopped", pWrapper->name);
   }
 }
 

@@ -27,6 +27,7 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
 }
 
 static void dmStopMgmt(SDnodeMgmt *pMgmt) {
+  pMgmt->data.stopped = true;
   dmStopMonitorThread(pMgmt);
   dmStopStatusThread(pMgmt);
 }
