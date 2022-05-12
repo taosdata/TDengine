@@ -250,6 +250,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     *rowNum = param->numOfRows;
   }
 
+  param->param = ctx->param;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -884,7 +885,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   }
 
   int32_t code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst->param};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
