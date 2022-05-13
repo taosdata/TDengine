@@ -28,7 +28,6 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   snprintf(file, sizeof(file), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    // dDebug("file %s not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -105,11 +104,11 @@ _OVER:
   return code;
 }
 
-int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deployed) {
+int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq, bool deployed) {
   char file[PATH_MAX] = {0};
   char realfile[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%smnode.json.bak", pWrapper->path, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pWrapper->path, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%smnode.json.bak", pMgmt->path, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%smnode.json", pMgmt->path, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -125,22 +124,19 @@ int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deploye
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
 
-  SMnodeMgmt *pMgmt = pWrapper->pMgmt;
-  if (pReq != NULL || pMgmt != NULL) {
-    int8_t replica = (pReq != NULL ? pReq->replica : pMgmt->replica);
-    for (int32_t i = 0; i < replica; ++i) {
-      SReplica *pReplica = &pMgmt->replicas[i];
-      if (pReq != NULL) {
-        pReplica = &pReq->replicas[i];
-      }
-      len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
-      len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
-      len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
-      if (i < replica - 1) {
-        len += snprintf(content + len, maxLen - len, "  },{\n");
-      } else {
-        len += snprintf(content + len, maxLen - len, "  }],\n");
-      }
+  int8_t replica = (pReq != NULL ? pReq->replica : pMgmt->replica);
+  for (int32_t i = 0; i < replica; ++i) {
+    SReplica *pReplica = &pMgmt->replicas[i];
+    if (pReq != NULL) {
+      pReplica = &pReq->replicas[i];
+    }
+    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
+    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
+    len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
+    if (i < replica - 1) {
+      len += snprintf(content + len, maxLen - len, "  },{\n");
+    } else {
+      len += snprintf(content + len, maxLen - len, "  }],\n");
     }
   }
 

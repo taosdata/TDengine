@@ -33,18 +33,17 @@ int32_t  tsStatusInterval = 1;  // second
 
 // common
 int32_t tsMaxShellConns = 50000;
-int32_t tsMaxConnections = 50000;
 int32_t tsShellActivityTimer = 3;  // second
 bool    tsEnableSlaveQuery = true;
 bool    tsPrintAuth = false;
 
 // multi process
 bool    tsMultiProcess = false;
-int32_t tsMnodeShmSize = TSDB_MAX_WAL_SIZE * 2;
-int32_t tsVnodeShmSize = TSDB_MAX_WAL_SIZE * 10;
-int32_t tsQnodeShmSize = TSDB_MAX_WAL_SIZE * 4;
-int32_t tsSnodeShmSize = TSDB_MAX_WAL_SIZE * 4;
-int32_t tsBnodeShmSize = TSDB_MAX_WAL_SIZE * 4;
+int32_t tsMnodeShmSize = TSDB_MAX_WAL_SIZE * 2 + 128;
+int32_t tsVnodeShmSize = TSDB_MAX_WAL_SIZE * 10 + 128;
+int32_t tsQnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 128;
+int32_t tsSnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 128;
+int32_t tsBnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 128;
 
 // queue & threads
 int32_t tsNumOfRpcThreads = 1;
@@ -352,15 +351,14 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 }
 
 static int32_t taosAddServerCfg(SConfig *pCfg) {
-  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 4096, 0) != 0) return -1;
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, 0) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "maxConnections", tsMaxConnections, 1, 100000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 4096, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 10, 1000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "minIntervalTime", tsMinIntervalTime, 1, 1000000, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "maxNumOfDistinctRes", tsMaxNumOfDistinctResults, 10 * 10000, 10000 * 10000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxStreamCompDelay", tsMaxStreamComputDelay, 10, 1000000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxFirstStreamCompDelay", tsStreamCompStartDelay, 1000, 1000000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "retryStreamCompDelay", tsRetryStreamCompDelay, 10, 1000000000, 0) != 0) return -1;
@@ -372,11 +370,11 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
 
   if (cfgAddBool(pCfg, "multiProcess", tsMultiProcess, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "mnodeShmSize", tsMnodeShmSize, 4096, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "vnodeShmSize", tsVnodeShmSize, 4096, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "qnodeShmSize", tsQnodeShmSize, 4096, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "snodeShmSize", tsSnodeShmSize, 4096, INT32_MAX, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "bnodeShmSize", tsBnodeShmSize, 4096, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "mnodeShmSize", tsMnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "vnodeShmSize", tsVnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "qnodeShmSize", tsQnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "snodeShmSize", tsSnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "bnodeShmSize", tsBnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
 
   tsNumOfRpcThreads = tsNumOfCores / 2;
   tsNumOfRpcThreads = TRANGE(tsNumOfRpcThreads, 1, 4);
@@ -535,12 +533,11 @@ static void taosSetSystemCfg(SConfig *pCfg) {
 
 static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
-  tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
-  tsMaxConnections = cfgGetItem(pCfg, "maxConnections")->i32;
   tsMaxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
   tsStatusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
   tsMinSlidingTime = cfgGetItem(pCfg, "minSlidingTime")->i32;
   tsMinIntervalTime = cfgGetItem(pCfg, "minIntervalTime")->i32;
+  tsMaxNumOfDistinctResults = cfgGetItem(pCfg, "maxNumOfDistinctRes")->i32;
   tsMaxStreamComputDelay = cfgGetItem(pCfg, "maxStreamCompDelay")->i32;
   tsStreamCompStartDelay = cfgGetItem(pCfg, "maxFirstStreamCompDelay")->i32;
   tsRetryStreamCompDelay = cfgGetItem(pCfg, "retryStreamCompDelay")->i32;

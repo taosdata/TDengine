@@ -27,11 +27,13 @@ typedef struct SScalarCtx {
   SArray      *pBlockList;  /* element is SSDataBlock* */
   SHashObj    *pRes;  /* element is SScalarParam */
   void        *param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
+  SHashObj    *udf2Handle;
 } SScalarCtx;
 
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
 #define SCL_DEFAULT_OP_NUM 10
+#define SCL_DEFAULT_UDF_NUM 8
 
 #define SCL_IS_CONST_NODE(_node) ((NULL == (_node)) || (QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
 #define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList)
