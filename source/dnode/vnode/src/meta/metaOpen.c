@@ -227,8 +227,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey1 = (STagIdxKey *)pKey1;
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
-  int8_t     *p1, *p2;
-  int8_t      type;
+  tb_uid_t    uid1, uid2;
   int         c;
 
   // compare suid
@@ -245,31 +244,34 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     return -1;
   }
 
-  // compare value
-  p1 = pTagIdxKey1->data;
-  p2 = pTagIdxKey2->data;
-  ASSERT(p1[0] == p2[0]);
-  type = p1[0];
+  ASSERT(pTagIdxKey1->type == pTagIdxKey2->type);
 
-  p1++;
-  p2++;
+  // check NULL, NULL is always the smallest
+  if (pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
+    return -1;
+  } else if (!pTagIdxKey1->isNull && pTagIdxKey2->isNull) {
+    return 1;
+  } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
+    // all not NULL, compr tag vals
+    c = doCompare(pTagIdxKey1->data, pTagIdxKey2->data, pTagIdxKey1->type, 0);
+    if (c) return c;
 
-  c = doCompare(p1, p2, type, 0);
-  if (c) return c;
-
-  if (IS_VAR_DATA_TYPE(type)) {
-    p1 = p1 + varDataTLen(p1);
-    p2 = p2 + varDataTLen(p2);
-  } else {
-    p1 = p1 + tDataTypes[type].bytes;
-    p2 = p2 + tDataTypes[type].bytes;
+    if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
+      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
+      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
+    } else {
+      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
+      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
+    }
   }
 
-  // compare suid
-  if (*(tb_uid_t *)p1 > *(tb_uid_t *)p2) {
-    return 1;
-  } else if (*(tb_uid_t *)p1 < *(tb_uid_t *)p2) {
+  // compare uid
+  if (uid1 < uid2) {
     return -1;
+  } else if (uid1 > uid2) {
+    return 1;
+  } else {
+    return 0;
   }
 
   return 0;

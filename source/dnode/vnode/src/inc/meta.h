@@ -96,8 +96,10 @@ typedef struct {
 #pragma pack(push, 1)
 typedef struct {
   tb_uid_t suid;
-  int16_t  cid;
-  char     data[];
+  int32_t  cid;
+  uint8_t  isNull : 1;
+  uint8_t  type : 7;
+  uint8_t  data[];  // val + uid
 } STagIdxKey;
 #pragma pack(pop)
 
