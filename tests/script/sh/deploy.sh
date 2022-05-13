@@ -143,6 +143,5 @@ echo "statusInterval         1"                  >> $TAOS_CFG
 echo "asyncLog               0"                  >> $TAOS_CFG
 echo "locale                 en_US.UTF-8"        >> $TAOS_CFG
 echo "telemetryReporting     0"                  >> $TAOS_CFG
-echo "numOfRpcThreads     2"                  >> $TAOS_CFG
 echo "multiProcess           ${MULTIPROCESS}"    >> $TAOS_CFG
 echo " "                                         >> $TAOS_CFG  

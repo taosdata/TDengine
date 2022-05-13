@@ -78,6 +78,7 @@ static void mndPullupTelem(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
   SRpcMsg rpcMsg = {.msgType = TDMT_MND_TELEM_TIMER, .pCont = pReq, .contLen = contLen};
+  tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
 
 static void *mndThreadFp(void *param) {
