@@ -225,6 +225,7 @@ int32_t vmProcessCreateVnodeReq(SVnodesMgmt *pMgmt, SNodeMsg *pMsg) {
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    code = terrno;
     goto _OVER;
   }
 
