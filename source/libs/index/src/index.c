@@ -90,12 +90,6 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
     return -1;
   }
 
-#ifdef USE_LUCENE
-  index_t* index = index_open(path);
-  sIdx->index = index;
-#endif
-
-#ifdef USE_INVERTED_INDEX
   // sIdx->cache = (void*)indexCacheCreate(sIdx);
   sIdx->tindex = indexTFileCreate(path);
   if (sIdx->tindex == NULL) {
@@ -108,7 +102,6 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadMutexInit(&sIdx->mtx, NULL);
   *index = sIdx;
   return 0;
-#endif
 
 END:
   if (sIdx != NULL) {
@@ -120,12 +113,6 @@ END:
 }
 
 void indexClose(SIndex* sIdx) {
-#ifdef USE_LUCENE
-  index_close(sIdex->index);
-  sIdx->index = NULL;
-#endif
-
-#ifdef USE_INVERTED_INDEX
   void* iter = taosHashIterate(sIdx->colObj, NULL);
   while (iter) {
     IndexCache** pCache = iter;
@@ -137,31 +124,12 @@ void indexClose(SIndex* sIdx) {
   taosHashCleanup(sIdx->colObj);
   taosThreadMutexDestroy(&sIdx->mtx);
   indexTFileDestroy(sIdx->tindex);
-#endif
   taosMemoryFree(sIdx->path);
   taosMemoryFree(sIdx);
   return;
 }
 
 int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
-#ifdef USE_LUCENE
-  index_document_t* doc = index_document_create();
-
-  char buf[16] = {0};
-  sprintf(buf, "%d", uid);
-
-  for (int i = 0; i < taosArrayGetSize(fVals); i++) {
-    SIndexTerm* p = taosArrayGetP(fVals, i);
-    index_document_add(doc, (const char*)(p->key), p->nKey, (const char*)(p->val), p->nVal, 1);
-  }
-  index_document_add(doc, NULL, 0, buf, strlen(buf), 0);
-
-  index_put(index->index, doc);
-  index_document_destroy(doc);
-#endif
-
-#ifdef USE_INVERTED_INDEX
-
   // TODO(yihao): reduce the lock range
   taosThreadMutexLock(&index->mtx);
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
@@ -193,12 +161,9 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
       return ret;
     }
   }
-
-#endif
   return 0;
 }
 int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result) {
-#ifdef USE_INVERTED_INDEX
   EIndexOperatorType opera = multiQuerys->opera;  // relation of querys
 
   SArray* iRslts = taosArrayInit(4, POINTER_BYTES);
@@ -211,35 +176,14 @@ int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result
   }
   indexMergeFinalResults(iRslts, opera, result);
   indexInterResultsDestroy(iRslts);
-
-#endif
   return 0;
 }
 
-int indexDelete(SIndex* index, SIndexMultiTermQuery* query) {
-#ifdef USE_INVERTED_INDEX
+int indexDelete(SIndex* index, SIndexMultiTermQuery* query) { return 1; }
+int indexRebuild(SIndex* index, SIndexOpts* opts) { return 0; }
 
-#endif
-
-  return 1;
-}
-int indexRebuild(SIndex* index, SIndexOpts* opts) {
-#ifdef USE_INVERTED_INDEX
-#endif
-
-  return 0;
-}
-
-SIndexOpts* indexOptsCreate() {
-#ifdef USE_LUCENE
-#endif
-  return NULL;
-}
-void indexOptsDestroy(SIndexOpts* opts) {
-#ifdef USE_LUCENE
-#endif
-  return;
-}
+SIndexOpts* indexOptsCreate() { return NULL; }
+void        indexOptsDestroy(SIndexOpts* opts) { return; }
 /*
  * @param: oper
  *
