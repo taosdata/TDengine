@@ -559,6 +559,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         }
         // db subscribe
       } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
+        rsp.withSchema = 1;
         STqReadHandle* pReader = pExec->pExecReader[workerId];
         tqReadHandleSetMsg(pReader, pCont, 0);
         while (tqNextDataBlock(pReader)) {

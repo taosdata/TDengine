@@ -46,8 +46,6 @@ typedef struct {
   int32_t  vgId;
   int32_t  vgVersion;
   int8_t   dropped;
-  uint64_t dbUid;
-  char     db[TSDB_DB_FNAME_LEN];
   char     path[PATH_MAX + 20];
 } SWrapperCfg;
 
@@ -57,8 +55,6 @@ typedef struct {
   int32_t       vgVersion;
   int8_t        dropped;
   int8_t        accessState;
-  uint64_t      dbUid;
-  char         *db;
   char         *path;
   SVnode       *pImpl;
   STaosQueue   *pWriteQ;
