@@ -13,12 +13,11 @@ from util.dnodes import *
 
 class TDTestCase:
     hostname = socket.gethostname()
-    #rpcDebugFlagVal = '143'
-    #clientCfgDict = {'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
-    #clientCfgDict["rpcDebugFlag"]  = rpcDebugFlagVal
-    #updatecfgDict = {'clientCfg': {}, 'serverPort': '', 'firstEp': '', 'secondEp':'', 'rpcDebugFlag':'135', 'fqdn':''}
-    #updatecfgDict["rpcDebugFlag"] = rpcDebugFlagVal
-    #print ("===================: ", updatecfgDict)
+
+    clientCfgDict = {'qdebugflag':'143'}
+    updatecfgDict = {'clientCfg': {}, 'qdebugflag':'143'}
+    updatecfgDict["clientCfg"]  = clientCfgDict
+    print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
