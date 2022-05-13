@@ -64,7 +64,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 </figure>
 <center>图 1. TDengine技术生态图</center>
 
-上图中，左侧是各种数据采集或消息队列，包括OPC-UA, MQTT, Telegraf, 也包括Kafaka, 他们的数据将被源源不断的写入到TDengine。右侧则是可视化、BI工具、组态软件、应用程序。下侧则是TDengine自身提供的命令行程序 (CLI) 以及可视化管理管理。
+上图中，左侧是各种数据采集或消息队列，包括 OPC-UA, MQTT, Telegraf, 也包括 Kafaka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
 
 ## TDengine 总体适用场景
 
