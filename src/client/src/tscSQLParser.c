@@ -3448,7 +3448,7 @@ static int16_t doGetColumnIndex(SQueryInfo* pQueryInfo, int32_t index, SStrToken
       continue;
     }
 
-    if (strncasecmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
+    if (strncmp(pSchema[i].name, pToken->z, pToken->n) == 0) {
       columnIndex = i;
       break;
     }
