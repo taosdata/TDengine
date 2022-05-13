@@ -270,7 +270,7 @@ class TDTestCase:
         # 查看用户
         tdLog.printNoPrefix("==========step2: show user test")
         tdSql.query("show users")
-        tdSql.checkRows(self.users_count + 2)
+        tdSql.checkRows(self.users_count + 1)
 
         # 密码登录认证
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
