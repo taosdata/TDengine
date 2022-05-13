@@ -54,15 +54,13 @@ typedef enum {
 } ESchemaAction;
 
 typedef struct {
-  const char    *sTableName;
-  int32_t       sTableNameLen;
+  char          sTableName[TSDB_TABLE_NAME_LEN];
   SArray        *tags;
   SArray        *fields;
 } SCreateSTableActionInfo;
 
 typedef struct {
-  const char    *sTableName;
-  int32_t       sTableNameLen;
+  char          sTableName[TSDB_TABLE_NAME_LEN];
   SSmlKv        *field;
 } SAlterSTableActionInfo;
 
@@ -182,6 +180,7 @@ static inline bool smlCheckDuplicateKey(const char *key, int32_t keyLen, SHashOb
 }
 
 static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const char *msg2) {
+  memset(pBuf->buf, 0 , pBuf->len);
   if(msg1) strncat(pBuf->buf, msg1, pBuf->len);
   int32_t left = pBuf->len - strlen(pBuf->buf);
   if(left > 2 && msg2) {
@@ -193,7 +192,7 @@ static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const 
 
 static int32_t smlGenerateSchemaAction(SSchema* colField, SHashObj* colHash, SSmlKv* kv, bool isTag,
                                        SSchemaAction* action, bool* actionNeeded, SSmlHandle* info) {
-  uint16_t *index = taosHashGet(colHash, kv->key, kv->keyLen);
+  uint16_t *index = (uint16_t *)taosHashGet(colHash, kv->key, kv->keyLen);
   if (index) {
     if (colField[*index].type != kv->type) {
       uError("SML:0x%"PRIx64" point type and db type mismatch. key: %s. point type: %d, db type: %d", info->id, kv->key,
@@ -201,7 +200,8 @@ static int32_t smlGenerateSchemaAction(SSchema* colField, SHashObj* colHash, SSm
       return TSDB_CODE_TSC_INVALID_VALUE;
     }
 
-    if (IS_VAR_DATA_TYPE(colField[*index].type) && (colField[*index].bytes > kv->length)) {
+    if ((colField[*index].type == TSDB_DATA_TYPE_VARCHAR && (colField[*index].bytes - VARSTR_HEADER_SIZE) < kv->length) ||
+        (colField[*index].type == TSDB_DATA_TYPE_NCHAR &&((colField[*index].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE < kv->length))) {
       if (isTag) {
         action->action = SCHEMA_ACTION_CHANGE_TAG_SIZE;
       } else {
@@ -252,7 +252,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
   uDebug("SML:0x%"PRIx64" apply schema action. action: %d", info->id, action->action);
   switch (action->action) {
     case SCHEMA_ACTION_ADD_COLUMN: {
-      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` add column ", action->alterSTable.sTableName);
+      int n = sprintf(result, "alter stable `%s` add column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
@@ -275,7 +275,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_ADD_TAG: {
-      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` add tag ", action->alterSTable.sTableName);
+      int n = sprintf(result, "alter stable `%s` add tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field,
                              result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
@@ -299,7 +299,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CHANGE_COLUMN_SIZE: {
-      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` modify column ", action->alterSTable.sTableName);
+      int n = sprintf(result, "alter stable `%s` modify column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result+n,
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
@@ -322,7 +322,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CHANGE_TAG_SIZE: {
-      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` modify tag ", action->alterSTable.sTableName);
+      int n = sprintf(result, "alter stable `%s` modify tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result+n,
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
@@ -345,7 +345,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CREATE_STABLE: {
-      int n = snprintf(result, action->createSTable.sTableNameLen + 1, "create stable `%s` (", action->createSTable.sTableName);
+      int n = sprintf(result, "create stable `%s` (", action->createSTable.sTableName);
       char* pos = result + n; int freeBytes = capacity - n;
 
       SArray *cols = action->createSTable.fields;
@@ -404,7 +404,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
 static int32_t smlProcessSchemaAction(SSmlHandle* info, SSchema* schemaField, SHashObj* schemaHash, SArray *cols, SSchemaAction* action, bool isTag){
   int32_t code = TSDB_CODE_SUCCESS;
   for (int j = 0; j < taosArrayGetSize(cols); ++j) {
-    SSmlKv* kv = taosArrayGet(cols, j);
+    SSmlKv* kv = (SSmlKv*)taosArrayGetP(cols, j);
     bool actionNeeded = false;
     code = smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, action, &actionNeeded, info);
     if(code != TSDB_CODE_SUCCESS){
@@ -439,9 +439,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
-      SSchemaAction schemaAction = { SCHEMA_ACTION_CREATE_STABLE, {0}};
-      schemaAction.createSTable.sTableName = superTable;
-      schemaAction.createSTable.sTableNameLen = superTableLen;
+      SSchemaAction schemaAction = { .action = SCHEMA_ACTION_CREATE_STABLE, .createSTable = {0}};
+      memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
       schemaAction.createSTable.tags = sTableData->tags;
       schemaAction.createSTable.fields = sTableData->cols;
       code = smlApplySchemaAction(info, &schemaAction);
@@ -451,14 +450,13 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
       }
       info->cost.numOfCreateSTables++;
     }else if (code == TSDB_CODE_SUCCESS) {
-      SHashObj *hashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+      SHashObj *hashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
       for(uint16_t i = pTableMeta->tableInfo.numOfColumns; i < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; i++){
         taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
       }
 
-      SSchemaAction schemaAction = {0};
-      schemaAction.alterSTable.sTableName = superTable;
-      schemaAction.alterSTable.sTableNameLen = superTableLen;
+      SSchemaAction schemaAction = {.alterSTable = {0}};
+      memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
       code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, &schemaAction, true);
       if (code != TSDB_CODE_SUCCESS) {
         taosHashCleanup(hashTmp);
@@ -727,7 +725,7 @@ static int8_t smlGetTsTypeByLen(int32_t len) {
   if (len == TSDB_TIME_PRECISION_SEC_DIGITS) {
     return TSDB_TIME_PRECISION_SECONDS;
   } else if (len == TSDB_TIME_PRECISION_MILLI_DIGITS) {
-    return TSDB_TIME_PRECISION_MILLI_DIGITS;
+    return TSDB_TIME_PRECISION_MILLI;
   } else {
     return -1;
   }
@@ -793,9 +791,12 @@ static int32_t smlParseTS(SSmlHandle* info, const char* data, int32_t len, SArra
   int64_t ts = 0;
   if(info->protocol == TSDB_SML_LINE_PROTOCOL){
     ts = smlParseInfluxTime(info, data, len);
-  }else{
+  }else if(info->protocol == TSDB_SML_TELNET_PROTOCOL){
     ts = smlParseOpenTsdbTime(info, data, len);
+  }else{
+    ASSERT(0);
   }
+
   if(ts == -1)  return TSDB_CODE_TSC_INVALID_TIME_STAMP;
 
   // add ts to
@@ -989,7 +990,7 @@ static int32_t smlParseTelnetTags(const char* data, int32_t len, SArray *cols, S
     kv->keyLen = keyLen;
     kv->value = value;
     kv->length = valueLen;
-    kv->type = TSDB_DATA_TYPE_NCHAR;
+    kv->type = TSDB_DATA_TYPE_NCHAR;    //todo
 
     if(cols) taosArrayPush(cols, &kv);
   }
@@ -1774,7 +1775,7 @@ static int32_t smlParseValueFromJSON(cJSON *root, SSmlKv *kv) {
        * user configured parameter tsDefaultJSONStrType
        */
 
-      char *tsDefaultJSONStrType = "binary";   //todo
+      char *tsDefaultJSONStrType = "nchar";   //todo
       smlConvertJSONString(kv, tsDefaultJSONStrType, root);
       break;
     }
@@ -2050,9 +2051,9 @@ static int32_t smlParseTelnetLine(SSmlHandle* info, void *data) {
   }
 
   if(info->protocol == TSDB_SML_TELNET_PROTOCOL){
-    smlParseTelnetString(info, (const char*)data, tinfo, cols);
+    ret = smlParseTelnetString(info, (const char*)data, tinfo, cols);
   }else if(info->protocol == TSDB_SML_JSON_PROTOCOL){
-    smlParseJSONString(info, (cJSON *)data, tinfo, cols);
+    ret = smlParseJSONString(info, (cJSON *)data, tinfo, cols);
   }else{
     ASSERT(0);
   }

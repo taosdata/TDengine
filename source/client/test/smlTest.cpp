@@ -499,7 +499,7 @@ TEST(testCase, smlProcess_influx_Test) {
   TAOS_RES *res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
   ASSERT_NE(res, nullptr);
   int fieldNum = taos_field_count(res);
-  ASSERT_EQ(fieldNum, 11);
+  ASSERT_EQ(fieldNum, 5);
   int rowNum = taos_affected_rows(res);
   ASSERT_EQ(rowNum, 2);
   for (int i = 0; i < rowNum; ++i) {
@@ -575,11 +575,12 @@ TEST(testCase, smlProcess_telnet_Test) {
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
   ASSERT_NE(info, nullptr);
 
-  const char *sql[4] = {
+  const char *sql[5] = {
      "sys.if.bytes.out 1479496100 1.3E0 host=web01 interface=eth0",
-     "sys.if.bytes.out 1479496101 1.3E1 interface=eth0 host=web01 ",
+     "sys.if.bytes.out 1479496101 1.3E1 interface=eth0 host=web01",
      "sys.if.bytes.out 1479496102 1.3E3 network=tcp",
-     "sys.procs.running 1479496100 42 host=web01"
+     "sys.procs.running 1479496100 42 host=web01 ",
+     " sys.procs.running 1479496200 42 host=web01=4"
   };
   int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
   ASSERT_EQ(ret, 0);
@@ -678,7 +679,7 @@ TEST(testCase, smlProcess_json2_Test) {
   ASSERT_NE(info, nullptr);
   const char *sql =
      "{\n"
-     "    \"metric\": \"meter_current\",\n"
+     "    \"metric\": \"meter_current0\",\n"
      "    \"timestamp\": {\n"
      "        \"value\"  : 1346846400,\n"
      "        \"type\"   : \"s\"\n"
@@ -722,7 +723,7 @@ TEST(testCase, smlProcess_json3_Test) {
   ASSERT_NE(info, nullptr);
   const char *sql =
      "{\n"
-     "    \"metric\": \"meter_current\",\n"
+     "    \"metric\": \"meter_current1\",\n"
      "    \"timestamp\": {\n"
      "        \"value\"  : 1346846400,\n"
      "        \"type\"   : \"s\"\n"
@@ -793,9 +794,9 @@ TEST(testCase, smlProcess_json4_Test) {
   SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
   ASSERT_NE(info, nullptr);
   const char *sql = "{\n"
-     "    \"metric\": \"meter_current\",\n"
+     "    \"metric\": \"meter_current2\",\n"
      "    \"timestamp\": {\n"
-     "        \"value\"  : 1346846400000,\n"
+     "        \"value\"  : 1346846500000,\n"
      "        \"type\"   : \"ms\"\n"
      "    },\n"
      "    \"value\": \"ni\",\n"
@@ -836,5 +837,237 @@ TEST(testCase, smlProcess_json4_Test) {
   int32_t ret = smlProcess(info, (char**)(&sql), -1);
   ASSERT_EQ(ret, 0);
   taos_free_result(pRes);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_error_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  ASSERT_NE(info, nullptr);
+
+  int32_t ret = 0;
+  const char *sql[19] = {
+      "sys.procs.running 14794961040 42 host=web01",
+      "sys.procs.running 14791040 42 host=web01",
+      "sys.procs.running erere 42 host=web01",
+      "sys.procs.running 1.6e10 42 host=web01",
+      "sys.procs.running 1.47949610 42 host=web01",
+      "sys.procs.running 147949610i 42 host=web01",
+      "sys.procs.running -147949610 42 host=web01",
+      "",
+      "   ",
+      "sys  ",
+      "sys.procs.running 1479496100 42 ",
+      "sys.procs.running 1479496100 42 host= ",
+      "sys.procs.running 1479496100 42or host=web01",
+      "sys.procs.running 1479496100 true host=web01",
+      "sys.procs.running 1479496100 \"binary\" host=web01",
+      "sys.procs.running 1479496100 L\"rfr\" host=web01",
+      "sys.procs.running 1479496100 42 host=web01 cpu= ",
+      "sys.procs.running 1479496100 42 host=web01 host=w2",
+      "sys.procs.running 1479496100 42 host=web01 host",
+  };
+  for(int i = 0; i < sizeof(sql)/sizeof(sql[0]); i++){
+    ret = smlParseTelnetLine(info, (void*)sql[i]);
+    ASSERT_NE(ret, 0);
+  }
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_diff_type_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[2] = {
+      "sys.procs.running 1479496104000 42 host=web01",
+      "sys.procs.running 1479496104000 42u8 host=web01"
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_json_error_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  ASSERT_NE(info, nullptr);
+
+  int32_t ret = 0;
+  const char *sql[] = {
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 13468464009999333322222223,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"web01\",\n"
+      "           \"dc\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400i,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"web01\",\n"
+      "           \"dc\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"groupid\": { \n"
+      "                 \"value\" : 2,\n"
+      "                 \"type\"  : \"nchar\"\n"
+      "             },\n"
+      "           \"location\": { \n"
+      "                 \"value\" : \"北京\",\n"
+      "                 \"type\"  : \"binary\"\n"
+      "             },\n"
+      "           \"id\": \"d1001\"\n"
+      "         }\n"
+      "    },\n"
+      "]",
+  };
+  for(int i = 0; i < sizeof(sql)/sizeof(sql[0]); i++){
+    ret = smlParseTelnetLine(info, (void*)sql[i]);
+    ASSERT_NE(ret, 0);
+  }
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[2] = {
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": 8\n"
+      "        }\n"
+      "    },\n"
+      "]",
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[2] = {
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": 18,\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"lga\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+      "[\n"
+      "    {\n"
+      "        \"metric\": \"sys.cpu.nice\",\n"
+      "        \"timestamp\": 1346846400,\n"
+      "        \"value\": \"18\",\n"
+      "        \"tags\": {\n"
+      "           \"host\": \"fff\"\n"
+      "        }\n"
+      "    },\n"
+      "]",
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
   smlDestroyInfo(info);
 }
