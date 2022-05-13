@@ -317,7 +317,11 @@ void buildChildTableName(RandTableName* rName) {
   for (int j = 0; j < size; ++j) {
     SSmlKv* tagKv = taosArrayGetP(rName->tags, j);
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
-    taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->length);
+    if(IS_VAR_DATA_TYPE(tagKv->type)){
+      taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->length);
+    }else{
+      taosStringBuilderAppendStringLen(&sb, (char*)(&(tagKv->value)), tagKv->length);
+    }
   }
   size_t    len = 0;
   char*     keyJoined = taosStringBuilderGetResult(&sb, &len);
