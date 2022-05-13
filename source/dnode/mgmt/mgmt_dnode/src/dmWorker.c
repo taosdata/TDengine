@@ -100,10 +100,10 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
 
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
-
-  int32_t code = -1;
-  tmsg_t  msgType = pMsg->rpcMsg.msgType;
-  dTrace("msg:%p, will be processed in dnode-mgmt queue", pMsg);
+  int32_t     code = -1;
+  tmsg_t      msgType = pMsg->rpcMsg.msgType;
+  bool        isRequest = msgType & 1u;
+  dTrace("msg:%p, will be processed in dnode-mgmt queue, type:%s", pMsg, TMSG_INFO(msgType));
 
   switch (msgType) {
     case TDMT_DND_CONFIG_DNODE:
@@ -139,17 +139,23 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     case TDMT_DND_DROP_BNODE:
       code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, BNODE, pMsg);
       break;
+    case TDMT_DND_SERVER_STATUS:
+      code = dmProcessServerRunStatus(pMgmt, pMsg);
+      break;
     default:
+      terrno = TSDB_CODE_MSG_NOT_PROCESSED;
       break;
   }
 
-  if (msgType & 1u) {
+  if (isRequest) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
         .handle = pMsg->rpcMsg.handle,
         .ahandle = pMsg->rpcMsg.ahandle,
         .code = code,
         .refId = pMsg->rpcMsg.refId,
+        .pCont = pMsg->pRsp,
+        .contLen = pMsg->rspLen,
     };
     rpcSendResponse(&rsp);
   }

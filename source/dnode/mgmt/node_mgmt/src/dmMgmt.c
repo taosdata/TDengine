@@ -235,44 +235,18 @@ void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const c
   dmReportStartup(pWrapper->pDnode, pName, pDesc);
 }
 
-static void dmGetServerStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
+static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   SDnodeMgmt *pMgmt = pDnode->wrappers[DNODE].pMgmt;
-  pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   pStatus->details[0] = 0;
 
   if (pDnode->status == DND_STAT_INIT) {
     pStatus->statusCode = TSDB_SRV_STATUS_NETWORK_OK;
     snprintf(pStatus->details, sizeof(pStatus->details), "%s: %s", pDnode->startup.name, pDnode->startup.desc);
-    return;
-  }
-
-  if (pDnode->status == DND_STAT_STOPPED) {
+  } else if (pDnode->status == DND_STAT_STOPPED) {
     pStatus->statusCode = TSDB_SRV_STATUS_EXTING;
-    return;
+  } else {
+    pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
   }
-
-  SMonMloadInfo minfo = {0};
-  dmGetMnodeLoads(pMgmt, &minfo);
-  if (minfo.isMnode && minfo.load.syncState != TAOS_SYNC_STATE_LEADER &&
-      minfo.load.syncState != TAOS_SYNC_STATE_CANDIDATE) {
-    pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
-    snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
-    return;
-  }
-
-  SMonVloadInfo vinfo = {0};
-  dmGetVnodeLoads(pMgmt, &vinfo);
-  for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
-    SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
-    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
-      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
-      snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pLoad->vgId,
-               syncStr(pLoad->syncState));
-      break;
-    }
-  }
-
-  taosArrayDestroy(vinfo.pVloads);
 }
 
 void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
@@ -288,11 +262,11 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
   rpcFreeCont(pReq->pCont);
 }
 
-void dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("server status req is received");
+void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pReq) {
+  dDebug("server startup status req is received");
 
   SServerStatusRsp statusRsp = {0};
-  dmGetServerStatus(pDnode, &statusRsp);
+  dmGetServerStartupStatus(pDnode, &statusRsp);
 
   SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle, .refId = pReq->refId};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);

@@ -120,6 +120,59 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
 
+static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
+  pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_OK;
+  pStatus->details[0] = 0;
+
+  SServerStatusRsp statusRsp = {0};
+  SMonMloadInfo    minfo = {0};
+  dmGetMnodeLoads(pMgmt, &minfo);
+  if (minfo.isMnode && minfo.load.syncState != TAOS_SYNC_STATE_LEADER &&
+      minfo.load.syncState != TAOS_SYNC_STATE_CANDIDATE) {
+    pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
+    snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
+    return;
+  }
+
+  SMonVloadInfo vinfo = {0};
+  dmGetVnodeLoads(pMgmt, &vinfo);
+  for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
+    SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
+    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
+      pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
+      snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pLoad->vgId,
+               syncStr(pLoad->syncState));
+      break;
+    }
+  }
+
+  taosArrayDestroy(vinfo.pVloads);
+}
+
+int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+  dDebug("server run status req is received");
+  SServerStatusRsp statusRsp = {0};
+  dmGetServerRunStatus(pMgmt, &statusRsp);
+
+  SRpcMsg rspMsg = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .refId = pMsg->rpcMsg.refId};
+  int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
+  if (rspLen < 0) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  void *pRsp = rpcMallocCont(rspLen);
+  if (pRsp == NULL) {
+    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
+  pMsg->pRsp = pRsp;
+  pMsg->rspLen = rspLen;
+  return 0;
+}
+
 SArray *dmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(16, sizeof(SMgmtHandle));
@@ -135,6 +188,7 @@ SArray *dmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_DND_CREATE_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_DROP_BNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_DND_CONFIG_DNODE, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
+  if (dmSetMgmtHandle(pArray, TDMT_DND_SERVER_STATUS, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
 
   // Requests handled by MNODE
   if (dmSetMgmtHandle(pArray, TDMT_MND_GRANT_RSP, dmPutNodeMsgToMgmtQueue, 0) == NULL) goto _OVER;
