@@ -86,16 +86,17 @@ struct STSRow2 {
 };
 
 struct STSRowBuilder {
-  STColumn *pTColumn;
   STSchema *pTSchema;
+  int32_t   szBitMap1;
+  int32_t   szBitMap2;
   int32_t   szKVBuf;
   uint8_t  *pKVBuf;
   int32_t   szTPBuf;
   uint8_t  *pTPBuf;
-  uint8_t  *pBitBuf;
+  int32_t   iCol;
   int32_t   nCols;
-  int32_t   kvVLen;
-  int32_t   tpVLen;
+  int32_t   vlenKV;
+  int32_t   vlenTP;
   STSRow2   row;
 };
 
