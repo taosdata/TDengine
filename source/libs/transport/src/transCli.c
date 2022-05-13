@@ -13,7 +13,6 @@
  */
 
 #ifdef USE_UV
-
 #include "transComm.h"
 
 typedef struct SCliConn {
@@ -21,15 +20,16 @@ typedef struct SCliConn {
   uv_connect_t connReq;
   uv_stream_t* stream;
   uv_write_t   writeReq;
-  void*        hostThrd;
-  SConnBuffer  readBuf;
-  void*        data;
-  STransQueue  cliMsgs;
-  queue        conn;
-  uint64_t     expireTime;
-  int          hThrdIdx;
-  STransCtx    ctx;
 
+  void* hostThrd;
+  int   hThrdIdx;
+
+  SConnBuffer readBuf;
+  STransQueue cliMsgs;
+  queue       conn;
+  uint64_t    expireTime;
+
+  STransCtx  ctx;
   bool       broken;  // link broken or not
   ConnStatus status;  //
 
@@ -157,13 +157,11 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
       transClearBuffer(&conn->readBuf);                                                  \
       transFreeMsg(transContFromHead((char*)head));                                      \
       tDebug("cli conn %p receive release request, ref: %d", conn, T_REF_VAL_GET(conn)); \
-      while (T_REF_VAL_GET(conn) > 1) {                                                  \
-        transUnrefCliHandle(conn);                                                       \
-      }                                                                                  \
-      if (T_REF_VAL_GET(conn) == 1) {                                                    \
+      if (T_REF_VAL_GET(conn) > 1) {                                                     \
         transUnrefCliHandle(conn);                                                       \
       }                                                                                  \
       destroyCmsg(pMsg);                                                                 \
+      addConnToPool(((SCliThrdObj*)conn->hostThrd)->pool, conn);                         \
       return;                                                                            \
     }                                                                                    \
   } while (0)
@@ -707,7 +705,8 @@ SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   uint64_t et = taosGetTimestampUs();
   uint64_t el = et - pMsg->st;
-  tTrace("%s cli msg tran time cost: %" PRIu64 "us", ((STrans*)pThrd->pTransInst)->label, el);
+  tTrace("%s cli msg tran time cost: %" PRIu64 "us, threadID: %" PRId64 "", ((STrans*)pThrd->pTransInst)->label, el,
+         pThrd->thread);
 
   STransConnCtx* pCtx = pMsg->ctx;
   STrans*        pTransInst = pThrd->pTransInst;
@@ -1030,8 +1029,8 @@ void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STra
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
 
-  tDebug("send request at thread:%d %p, dst: %s:%d, app:%p", index, pReq, EPSET_GET_INUSE_IP(&pCtx->epSet),
-         EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->ahandle);
+  tDebug("send request at thread:%d, threadID: %" PRId64 ",  msg: %p, dst: %s:%d, app:%p", index, thrd->thread, pReq,
+         EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->ahandle);
   ASSERT(transSendAsync(thrd->asyncPool, &(cliMsg->q)) == 0);
 }
 
@@ -1058,8 +1057,8 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   cliMsg->type = Normal;
 
   SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[index];
-  tDebug("send request at thread:%d %p, dst: %s:%d, app:%p", index, pReq, EPSET_GET_INUSE_IP(&pCtx->epSet),
-         EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->ahandle);
+  tDebug("send request at thread:%d, threadID:%" PRId64 ", msg: %p, dst: %s:%d, app:%p", index, thrd->thread, pReq,
+         EPSET_GET_INUSE_IP(&pCtx->epSet), EPSET_GET_INUSE_PORT(&pCtx->epSet), pReq->ahandle);
 
   transSendAsync(thrd->asyncPool, &(cliMsg->q));
   tsem_t* pSem = pCtx->pSem;
