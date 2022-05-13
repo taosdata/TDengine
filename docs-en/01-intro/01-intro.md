@@ -14,7 +14,7 @@ TDengine is a high-performance, scalable time-series database with SQL support. 
 5. Support [caching](/develop/cache). TDengine always save the last data point in cache, so Redis is not needed in some scenarios.
 6. Support [continuous query](/develop/continuous-query).
 7. Support [data subscription](/develop/subscribe)，and the filter condition can be specified.
-8. Support [cluster](/cluster/), so it can gain more processing by adding more nodes. The high availability is supported by replication. 
+8. Support [cluster](/cluster/), so it can gain more processing power by adding more nodes. The high availability is supported by replication. 
 9. Provide interactive [command line intrerface](/reference/taos-shell) for management, maintainence and ad-hoc query.
 10. Provide many ways to [import](/operation/import), [export](/operation/export) data.
 11. Provide [monitoring](/operation/monitor) on TDengine running instances.
@@ -27,7 +27,7 @@ For more detailed features, please read through the whole document.
 
 ## TDenginge Highlights
 
-TDengine makes full use of the [characteristics of time series data](https://tdengine.com/2019/07/09/86.html）, such as structured, no transaction, rarely delete or update, etc., and builds its own innovative storage engine and computing engine to differentiate itself from other TSDBs with the following advantages.
+TDengine makes full use of [the characteristics of time series data](https://tdengine.com/2019/07/09/86.html), such as structured, no transaction, rarely delete or update, etc., and builds its own innovative storage engine and computing engine to differentiate itself from other TSDBs with the following advantages.
 
 - **High Performance**: TDengine outperforms other time series databases in data ingestion and querying while significantly reducing storage cost and compute costs, with an innovatively designed and purpose-built storage engine.
 
