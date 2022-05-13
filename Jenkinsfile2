@@ -33,7 +33,18 @@ def abort_previous(){
     milestone(buildNumber)
 }
 def pre_test(){
-    sh 'hostname'
+    sh '''
+        hostname
+        date
+    '''
+    sh '''
+        cd ${WK}
+        git reset --hard
+        git fetch || git fetch
+        cd ${WKC}
+        git reset --hard
+        git fetch || git fetch
+    '''
     script {
         if (env.CHANGE_TARGET == 'master') {
             sh '''
@@ -235,7 +246,7 @@ pipeline {
                                 sh '''
                                     cd ${WKC}/tests/parallel_test
                                     date
-                                    time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${CHANGE_TARGET} -l ${WKDIR}/log
+                                    time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME} -l ${WKDIR}/log
                                 '''
                             }
                         }
