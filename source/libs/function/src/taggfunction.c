@@ -37,7 +37,7 @@
 
 #define GET_TRUE_DATA_TYPE()                          \
   int32_t type = 0;                                   \
-  if (pCtx->currentStage == MERGE_STAGE) {            \
+  if (pCtx->scanFlag == MERGE_STAGE) {            \
     type = pCtx->resDataInfo.type;                          \
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY); \
   } else {                                            \
@@ -908,7 +908,7 @@ static void avg_func_merge(SqlFunctionCtx *pCtx) {
 static void avg_finalizer(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
     if (GET_INT64_VAL(GET_ROWCELL_INTERBUF(pResInfo)) <= 0) {
@@ -1152,7 +1152,7 @@ static void stddev_function(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SStddevInfo *pStd = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if (pCtx->currentStage == REPEAT_SCAN && pStd->stage == 0) {
+  if (pCtx->scanFlag == REPEAT_SCAN && pStd->stage == 0) {
     pStd->stage++;
     avg_finalizer(pCtx);
 
@@ -1814,7 +1814,7 @@ static STopBotInfo *getTopBotOutputInfo(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
   // only the first_stage_merge is directly written data into final output buffer
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
+  if (pCtx->stableQuery && pCtx->scanFlag != MERGE_STAGE) {
     return (STopBotInfo*) pCtx->pOutput;
   } else { // during normal table query and super table at the secondary_stage, result is written to intermediate buffer
     return GET_ROWCELL_INTERBUF(pResInfo);
@@ -1956,7 +1956,7 @@ static void top_func_merge(SqlFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pInput->num; ++i) {
     int16_t type = (pCtx->resDataInfo.type == TSDB_DATA_TYPE_FLOAT)? TSDB_DATA_TYPE_DOUBLE:pCtx->resDataInfo.type;
 //    do_top_function_add(pOutput, (int32_t)pCtx->param[0].param.i, &pInput->res[i]->v.i, pInput->res[i]->timestamp,
-//                        type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
+//                        type, &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->scanFlag);
   }
   
   SET_VAL(pCtx, pInput->num, pOutput->num);
@@ -2013,7 +2013,7 @@ static void bottom_func_merge(SqlFunctionCtx *pCtx) {
   for (int32_t i = 0; i < pInput->num; ++i) {
     int16_t type = (pCtx->resDataInfo.type == TSDB_DATA_TYPE_FLOAT) ? TSDB_DATA_TYPE_DOUBLE : pCtx->resDataInfo.type;
 //    do_bottom_function_add(pOutput, (int32_t)pCtx->param[0].param.i, &pInput->res[i]->v.i, pInput->res[i]->timestamp, type,
-//                           &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->currentStage);
+//                           &pCtx->tagInfo, pInput->res[i]->pTags, pCtx->scanFlag);
   }
 
   SET_VAL(pCtx, pInput->num, pOutput->num);
@@ -2073,7 +2073,7 @@ static void percentile_function(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+  if (pCtx->scanFlag == REPEAT_SCAN && pInfo->stage == 0) {
     pInfo->stage += 1;
 
     // all data are null, set it completed
@@ -2180,7 +2180,7 @@ static SAPercentileInfo *getAPerctInfo(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo* pInfo = NULL;
 
-  if (pCtx->stableQuery && pCtx->currentStage != MERGE_STAGE) {
+  if (pCtx->stableQuery && pCtx->scanFlag != MERGE_STAGE) {
     pInfo = (SAPercentileInfo*) pCtx->pOutput;
   } else {
     pInfo = GET_ROWCELL_INTERBUF(pResInfo);
@@ -2270,7 +2270,7 @@ static void apercentile_finalizer(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *     pResInfo = GET_RES_INFO(pCtx);
   SAPercentileInfo *pOutput = GET_ROWCELL_INTERBUF(pResInfo);
 
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
 //    if (pResInfo->hasResult == DATA_SET_FLAG) {  // check for null
 //      assert(pOutput->pHisto->numOfElems > 0);
 //
@@ -2510,7 +2510,7 @@ static void copy_function(SqlFunctionCtx *pCtx);
 
 static void tag_function(SqlFunctionCtx *pCtx) {
   SET_VAL(pCtx, 1, 1);
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
     copy_function(pCtx);
   } else {
     taosVariantDump(&pCtx->tag, pCtx->pOutput, pCtx->resDataInfo.type, true);
@@ -2966,7 +2966,7 @@ static bool spread_function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pRe
   SSpreadInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
   
   // this is the server-side setup function in client-side, the secondary merge do not need this procedure
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
 //    pCtx->param[0].param.d = DBL_MAX;
 //    pCtx->param[3].param.d = -DBL_MAX;
   } else {
@@ -3086,7 +3086,7 @@ void spread_function_finalizer(SqlFunctionCtx *pCtx) {
    */
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
   
-  if (pCtx->currentStage == MERGE_STAGE) {
+  if (pCtx->scanFlag == MERGE_STAGE) {
     assert(pCtx->inputType == TSDB_DATA_TYPE_BINARY);
     
 //    if (pResInfo->hasResult != DATA_SET_FLAG) {
