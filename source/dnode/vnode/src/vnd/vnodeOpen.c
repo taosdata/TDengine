@@ -137,21 +137,21 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   // open query
   if (vnodeQueryOpen(pVnode)) {
     vError("vgId:%d failed to open vnode query since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   // vnode begin
   if (vnodeBegin(pVnode) < 0) {
     vError("vgId:%d failed to begin since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   // open sync
   if (vnodeSyncOpen(pVnode, dir)) {
     vError("vgId:%d failed to open sync since %s", TD_VID(pVnode), tstrerror(terrno));
-    terrno = TAOS_SYSTEM_ERROR(errno);
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
