@@ -20,6 +20,7 @@
 #include "uv.h"
 
 #include "dmUtil.h"
+#include "dmInt.h"
 
 #ifdef __cplusplus
 extern "C" {
