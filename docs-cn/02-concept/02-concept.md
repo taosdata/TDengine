@@ -6,100 +6,101 @@ title: 数据模型和基本概念
 
 在典型的物联网、车联网、运维监测场景中，往往有多种不同类型的数据采集设备或采集点，采集一个到多个不同的物理量。而同一种采集设备类型，往往又有多个具体的采集设备分布在不同的地点。采集的物理量都带有时间标签，而且数据量随时间不断增长，但每个数据采集设备或采集点还有自身的静态属性。对于同一类设备，其采集的数据以及静态属性都是很规则的。以智能电表为例，假设每个智能电表采集电流、电压、相位三个量，其采集的数据类似如下的表格：
 
+<div className="center-table">
 <table>
 <thead><tr>
-    <th >设备ID</th>
-    <th >时间戳</th>
-    <th  colspan="3">采集量</th>
-    <th  colspan="2">标签</th>
+    <th>Device ID</th>
+    <th>Time Stamp</th>
+    <th colSpan="3">Collected Metrics</th>
+    <th colSpan="2">Tags</th>
     </tr>
 <tr>
-<th >Device ID</th>
-<th >Time Stamp</th>
-<th >current</th>
-<th >voltage</th>
-<th >phase</th>
-<th >location</th>
-<th >groupId</th>
+<th>Device ID</th>
+<th>Time Stamp</th>
+<th>current</th>
+<th>voltage</th>
+<th>phase</th>
+<th>location</th>
+<th>groupId</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td >d1001</td>
-<td >1538548685000</td>
-<td >10.3</td>
-<td >219</td>
-<td >0.31</td>
-<td >Beijing.Chaoyang</td>
-<td >2</td>
+<td>d1001</td>
+<td>1538548685000</td>
+<td>10.3</td>
+<td>219</td>
+<td>0.31</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1002</td>
-<td >1538548684000</td>
-<td >10.2</td>
-<td >220</td>
-<td >0.23</td>
-<td >Beijing.Chaoyang</td>
-<td >3</td>
+<td>d1002</td>
+<td>1538548684000</td>
+<td>10.2</td>
+<td>220</td>
+<td>0.23</td>
+<td>Beijing.Chaoyang</td>
+<td>3</td>
 </tr>
 <tr>
-<td >d1003</td>
-<td >1538548686500</td>
-<td >11.5</td>
-<td >221</td>
-<td >0.35</td>
-<td >Beijing.Haidian</td>
-<td >3</td>
+<td>d1003</td>
+<td>1538548686500</td>
+<td>11.5</td>
+<td>221</td>
+<td>0.35</td>
+<td>Beijing.Haidian</td>
+<td>3</td>
 </tr>
 <tr>
-<td >d1004</td>
-<td >1538548685500</td>
-<td >13.4</td>
-<td >223</td>
-<td >0.29</td>
-<td >Beijing.Haidian</td>
-<td >2</td>
+<td>d1004</td>
+<td>1538548685500</td>
+<td>13.4</td>
+<td>223</td>
+<td>0.29</td>
+<td>Beijing.Haidian</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1001</td>
-<td >1538548695000</td>
-<td >12.6</td>
-<td >218</td>
-<td >0.33</td>
-<td >Beijing.Chaoyang</td>
-<td >2</td>
+<td>d1001</td>
+<td>1538548695000</td>
+<td>12.6</td>
+<td>218</td>
+<td>0.33</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1004</td>
-<td >1538548696600</td>
-<td >11.8</td>
-<td >221</td>
-<td >0.28</td>
-<td >Beijing.Haidian</td>
-<td >2</td>
+<td>d1004</td>
+<td>1538548696600</td>
+<td>11.8</td>
+<td>221</td>
+<td>0.28</td>
+<td>Beijing.Haidian</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1002</td>
-<td >1538548696650</td>
-<td >10.3</td>
-<td >218</td>
-<td >0.25</td>
-<td >Beijing.Chaoyang</td>
-<td >3</td>
+<td>d1002</td>
+<td>1538548696650</td>
+<td>10.3</td>
+<td>218</td>
+<td>0.25</td>
+<td>Beijing.Chaoyang</td>
+<td>3</td>
 </tr>
 <tr>
-<td >d1001</td>
-<td >1538548696800</td>
-<td >12.3</td>
-<td >221</td>
-<td >0.31</td>
-<td >Beijing.Chaoyang</td>
-<td >2</td>
+<td>d1001</td>
+<td>1538548696800</td>
+<td>12.3</td>
+<td>221</td>
+<td>0.31</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 </tbody>
 </table>
-
-<center> <a href="#model_table1">表 1：智能电表数据示例</a></center>
+<a href="#model_table1">表 1：智能电表数据示例</a>
+</div>
 
 每一条记录都有设备 ID，时间戳，采集的物理量（如上图中的电流、电压、相位），还有与每个设备相关的静态标签（如上述表 1 中的位置 location 和分组 groupId）。每个设备是受外界的触发，或按照设定的周期采集数据。采集的数据点是时序的，是一个数据流。
 
