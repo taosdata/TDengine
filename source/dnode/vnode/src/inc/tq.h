@@ -93,6 +93,7 @@ struct STqReadHandle {
   SMeta*            pVnodeMeta;
   SArray*           pColIdList;  // SArray<int16_t>
   int32_t           sver;
+  int64_t           cachedSchemaUid;
   SSchemaWrapper*   pSchemaWrapper;
   STSchema*         pSchema;
 };

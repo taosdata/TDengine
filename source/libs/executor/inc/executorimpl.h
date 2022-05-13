@@ -706,7 +706,7 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader, SSDataBlock* pResBlock,
                                              SArray* pColList, SArray* pTableIdList, SExecTaskInfo* pTaskInfo,
-                                             SNode* pConditions, SOperatorInfo* pOperatorDumy, SInterval* pInterval);
+                                             SNode* pConditions, SOperatorInfo* pOperatorDumy);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                       SInterval* pInterval, STimeWindow* pWindow, SSDataBlock* pResBlock, int32_t fillType, SNodeListNode* fillVal,

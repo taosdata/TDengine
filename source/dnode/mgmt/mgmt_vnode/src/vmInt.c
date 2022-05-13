@@ -57,13 +57,11 @@ int32_t vmOpenVnode(SVnodesMgmt *pMgmt, SWrapperCfg *pCfg, SVnode *pImpl) {
   pVnode->vgVersion = pCfg->vgVersion;
   pVnode->dropped = 0;
   pVnode->accessState = TSDB_VN_ALL_ACCCESS;
-  pVnode->dbUid = pCfg->dbUid;
-  pVnode->db = tstrdup(pCfg->db);
   pVnode->path = tstrdup(pCfg->path);
   pVnode->pImpl = pImpl;
   pVnode->pWrapper = pMgmt->pWrapper;
 
-  if (pVnode->path == NULL || pVnode->db == NULL) {
+  if (pVnode->path == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -109,7 +107,6 @@ void vmCloseVnode(SVnodesMgmt *pMgmt, SVnodeObj *pVnode) {
   }
 
   taosMemoryFree(pVnode->path);
-  taosMemoryFree(pVnode->db);
   taosMemoryFree(pVnode);
 }
 
