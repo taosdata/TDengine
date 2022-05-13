@@ -1,0 +1,31 @@
+settings:
+  - name: taosd
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0  # 默认最新版
+      config: # common config for all dnodes
+        firstEP: ceph01:6030
+      dnodes:
+        - endpoint: ceph01:6030
+          config_dir: /etc/taos
+          config: # will write into taos.cfg
+            multiProcess: 1
+            vnodeShmSize: 31457280
+            mnodeShmSize: 6291456
+            # qnodeShmSize: 15728640
+            # snodeShmSize: 15728640
+            # bnodeShmSize: 15728640
+            dataDir: /var/lib/taos
+            logDir: /var/log/taos
+            debugFlag: 135
+
+  - name: taospy
+    fqdn: [ceph01]
+    spec:
+      version: 3.0.0.0
+      client_version: 3.0.0.0
+      config:
+        firstEP: ceph01:6030
+        logDir: /var/log/taos
+        debugFlag: 135
+        asynclog: 0

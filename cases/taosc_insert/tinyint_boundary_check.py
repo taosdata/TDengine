@@ -52,7 +52,7 @@ class TestTinyintBoundary(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], -self.tdCom.boundary_config["TINYINT_MAX"])
         # ! bug TD-15378
         # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["TINYINT_MAX"]+1})')
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["TINYINT_MAX"]+1})')
+        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["TINYINT_MAX"]+2})')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):
