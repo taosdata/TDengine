@@ -226,7 +226,6 @@ int32_t stmtParseSql(STscStmt* pStmt) {
       break;
     case QUERY_NODE_SELECT_STMT:
       pStmt->sql.type = STMT_TYPE_QUERY;
-      STMT_ERR_RET(stmtBackupQueryFields(pStmt));
       break;
     default:
       tscError("not supported stmt type %d", nodeType(pStmt->sql.pQuery->pRoot));
@@ -616,8 +615,6 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
 
   if (pStmt->bInfo.needParse) {
     STMT_ERR_RET(stmtParseSql(pStmt));
-  } else if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    STMT_ERR_RET(stmtRestoreQueryFields(pStmt));
   }
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
@@ -634,7 +631,24 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
                          .pTransporter = pStmt->taos->pAppInfo->pTransporter,
                          .pStmtCb = NULL,
                          .pUser = pStmt->taos->user};
+    ctx.mgmtEpSet = getEpSet_s(&pStmt->taos->pAppInfo->mgmtEp);
+    STMT_ERR_RET(catalogGetHandle(pStmt->taos->pAppInfo->clusterId, &ctx.pCatalog));
+    
     STMT_ERR_RET(qStmtParseQuerySql(&ctx, pStmt->sql.pQuery));
+
+    if (pStmt->sql.pQuery->haveResultSet) {
+      setResSchemaInfo(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->pResSchema, pStmt->sql.pQuery->numOfResCols);
+      setResPrecision(&pStmt->exec.pRequest->body.resInfo, pStmt->sql.pQuery->precision);
+    }
+  
+    TSWAP(pStmt->exec.pRequest->dbList, pStmt->sql.pQuery->pDbList);
+    TSWAP(pStmt->exec.pRequest->tableList, pStmt->sql.pQuery->pTableList);  
+
+    //if (STMT_TYPE_QUERY == pStmt->sql.queryRes) {
+    //  STMT_ERR_RET(stmtRestoreQueryFields(pStmt));
+    //}
+
+    //STMT_ERR_RET(stmtBackupQueryFields(pStmt));
 
     return TSDB_CODE_SUCCESS;
   }
