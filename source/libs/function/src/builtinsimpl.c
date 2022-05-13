@@ -23,6 +23,7 @@
 
 #define HISTOGRAM_MAX_BINS_NUM   1000
 #define MAVG_MAX_POINTS_NUM      1000
+#define SAMPLE_MAX_POINTS_NUM    1000
 
 typedef struct SSumRes {
   union {
@@ -149,6 +150,15 @@ typedef struct SMavgInfo {
   bool    pointsMeet;
   double  points[];
 } SMavgInfo;
+
+typedef struct SSampleInfo {
+  int32_t samples;
+  int32_t totalPoints;
+  int32_t numSampled;
+  int16_t colBytes;
+  char *data;
+  int64_t *timestamp;
+} SSampleInfo;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -3032,4 +3042,96 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
   }
 
   return numOfElems;
+}
+
+bool getSampleFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  int32_t numOfSamples = pVal->datum.i;
+  pEnv->calcMemSize = sizeof(SSampleInfo) + numOfSamples * (pCol->node.resType.bytes + sizeof(int64_t));
+  return true;
+}
+
+bool sampleFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  taosSeedRand(taosSafeRand());
+
+  SSampleInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->samples = pCtx->param[1].param.i;
+  pInfo->totalPoints = 0;
+  pInfo->numSampled = 0;
+  pInfo->colBytes = ((SColumnInfoData*)pCtx->pOutput)->info.bytes;
+  if (pInfo->samples < 1 || pInfo->samples > SAMPLE_MAX_POINTS_NUM) {
+    return false;
+  }
+  pInfo->data = (char *)pInfo + sizeof(SSampleInfo);
+  pInfo->timestamp = (int64_t *)((char *)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
+
+  return true;
+}
+
+static void sampleAssignResult(SColumnInfoData *pOutput, SSampleInfo* pInfo,
+                                char *data, TSKEY ts, int32_t index) {
+  assignVal(pInfo->data + index * pInfo->colBytes, data, pOutput->info.bytes, pOutput->info.type);
+  *(pInfo->timestamp + index) = ts;
+}
+
+static void doReservoirSample(SColumnInfoData *pOutput, SSampleInfo* pInfo,
+                              char *data, TSKEY ts, int32_t index) {
+  pInfo->totalPoints++;
+  if (pInfo->numSampled < pInfo->samples) {
+    sampleAssignResult(pOutput, pInfo, data, ts, pInfo->numSampled);
+    pInfo->numSampled++;
+  } else {
+    int32_t j = taosRand() % (pInfo->totalPoints);
+    if (j < pInfo->samples) {
+      sampleAssignResult(pOutput, pInfo, data, ts, j);
+    }
+  }
+}
+
+int32_t sampleFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSampleInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t type = pInputCol->info.type;
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      //colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputCol, i);
+    doReservoirSample(pOutput, pInfo, data, tsList[i], i);
+  }
+
+  return pInfo->numSampled;
+}
+
+int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSampleInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  //int32_t currentRow = pBlock->info.rows;
+  pResInfo->numOfRes = pInfo->numSampled;
+
+  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
+    colDataAppend(pCol, i, pInfo->data + i * pInfo->colBytes, false);
+    //TODO: handle ts output
+  }
+
+  return pResInfo->numOfRes;
 }

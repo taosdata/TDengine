@@ -101,6 +101,11 @@ bool getMavgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool mavgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t mavgFunction(SqlFunctionCtx* pCtx);
 
+bool getSampleFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool sampleFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t sampleFunction(SqlFunctionCtx* pCtx);
+int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 #ifdef __cplusplus
