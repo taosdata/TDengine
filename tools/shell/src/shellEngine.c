@@ -509,7 +509,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
 
 bool shellIsLimitQuery(const char *sql) {
   //todo refactor
-  if (strstr(sql, "limit") != NULL || strstr(sql, "LIMIT") != NULL) {
+  if (strcasestr(sql, " limit ") != NULL) {
     return true;
   }
 
