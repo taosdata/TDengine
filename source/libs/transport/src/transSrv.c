@@ -360,14 +360,14 @@ void uvOnSendCb(uv_write_t* req, int status) {
     tTrace("server conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
       SSrvMsg* msg = transQueuePop(&conn->srvMsgs);
-      if (msg->type == Release && conn->status != ConnNormal) {
-        conn->status = ConnNormal;
-        transUnrefSrvHandle(conn);
-        reallocConnRefHandle(conn);
-        destroySmsg(msg);
-        transQueueClear(&conn->srvMsgs);
-        return;
-      }
+      // if (msg->type == Release && conn->status != ConnNormal) {
+      //  conn->status = ConnNormal;
+      //  transUnrefSrvHandle(conn);
+      //  reallocConnRefHandle(conn);
+      //  destroySmsg(msg);
+      //  transQueueClear(&conn->srvMsgs);
+      //  return;
+      //}
       destroySmsg(msg);
       // send second data, just use for push
       if (!transQueueEmpty(&conn->srvMsgs)) {
@@ -425,8 +425,15 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   if (pConn->status == ConnNormal) {
     pHead->msgType = pConn->inType + 1;
   } else {
-    pHead->msgType = smsg->type == Release ? 0 : pMsg->msgType;
+    if (smsg->type == Release) {
+      pHead->msgType = 0;
+      pConn->status = ConnNormal;
+      transUnrefSrvHandle(pConn);
+    } else {
+      pHead->msgType = pMsg->msgType;
+    }
   }
+
   pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
 
@@ -977,8 +984,8 @@ void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
 }
 void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
   SSrvConn* conn = msg->pConn;
-  // reallocConnRefHandle(conn);
   if (conn->status == ConnAcquire) {
+    reallocConnRefHandle(conn);
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
     }
