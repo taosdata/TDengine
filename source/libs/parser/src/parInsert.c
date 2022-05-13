@@ -758,7 +758,7 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
     int32_t output = 0;
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
       char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
       return buildSyntaxErrMsg(pMsgBuf, buf, value);
     }
 

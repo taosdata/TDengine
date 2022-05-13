@@ -1179,7 +1179,7 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool is
 //}
 
 static bool smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, SSmlMsgBuf *msg){
-  for (int i = 1; i < taosArrayGetSize(cols); ++i) {  //jump timestamp
+  for (int i = 0; i < taosArrayGetSize(cols); ++i) {  //jump timestamp
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
 
     int16_t *index = (int16_t *)taosHashGet(metaHash, kv->key, kv->keyLen);
