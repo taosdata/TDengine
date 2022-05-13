@@ -4789,7 +4789,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
-      int32_t     numOfCols = 0;
+      int32_t numOfCols = 0;
 
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
@@ -4798,6 +4798,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, 
             queryId, taskId);
       }
+
       if (pDataReader == NULL && terrno != 0) {
         qDebug("pDataReader is     NULL");
         // return NULL;
@@ -4817,12 +4818,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SInterval      interval = extractIntervalInfo(pTableScanNode);
-      SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(
-          pDataReader, &cond, numOfCols, pTableScanNode->dataRequired, pTableScanNode->scanSeq, pColList,
-          pResBlockDumy, pScanPhyNode->node.pConditions, &interval, pTableScanNode->ratio, pTaskInfo);
+      SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
-      // int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo,
-      //                                   queryId, taskId);
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
       SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
 
