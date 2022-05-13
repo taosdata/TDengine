@@ -17,9 +17,9 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，能广
 7. 支持[数据订阅](/develop/subscribe)，而且可以指定过滤条件
 8. 支持[集群](/cluster/)，可以通过多节点进行水平扩展，并通过多副本实现高可靠
 10. 提供[命令行程序](/reference/taos-shell)，便于管理集群，检查系统状态，做即席查询
-11. 提供多种数据的[导入](/operation/import)、[导出](/operation/export）
+11. 提供多种数据的[导入](/operation/import)、[导出](/operation/export)
 12. 支持对[TDengine集群本身的监控](/operation/monitor)
-13. 支持C/C++, Java, Python, Go, Rust, NodeJS等多种语言的[连接器](/reference/connector/)
+13. 提供[C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node)等多种编程语言的[连接器](/reference/connector/)
 14. 支持[REST接口](/reference/rest-api/)
 15. 支持与[Grafana无缝集成](/third-party/grafana)
 16. 支持与Google Data Studio无缝集成
@@ -48,10 +48,13 @@ TDengine核心代码，包括集群功能全部开源（开源协议，AGPL v3.0
 
 采用 TDengine，可将典型的物联网、车联网、工业互联网大数据平台的总拥有成本大幅降低。表现在几个方面，1：由于其超强性能，它能将系统需要的计算资源和存储资源大幅降低；2：因为采用SQL接口，能与众多第三放软件无缝集成，学习迁移成本大幅下降；3：因为其All In One的特性，系统复杂度降低，能降研发成本；4：因为运维维护简单，运营维护成本能大幅降低。
 
+## TDengine 技术生态
 在整个时序大数据平台中，TDengine在其中扮演的角色如下：
 ![TDengine技术生态图](eco_system.png)
 
 <center>图 1. TDengine技术生态图</center>
+
+上图中，左侧是各种数据采集或消息队列，包括OPC-UA, MQTT, Telegraf, 也包括Kafaka, 他们的数据将被远远不断的写入到TDengine。右侧则是可视化、BI工具、组态软件、应用程序。下侧则是TDengine自身提供的命令行程序 (CLI) 以及可视化管理管理。
 
 ## TDengine 总体适用场景
 
