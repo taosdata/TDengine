@@ -54,8 +54,8 @@ int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) {
   return 0;
 }
 
-static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
-  int ret = 0;
+static int64_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
+  int64_t ret = 0;
 
   TdFilePtr pIdxTFile = pRead->pReadIdxTFile;
   TdFilePtr pLogTFile = pRead->pReadLogTFile;
@@ -68,14 +68,14 @@ static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, i
     wError("failed to seek idx file, ver %ld, pos: %ld, since %s", ver, offset, terrstr());
     return -1;
   }
-  SWalIdxEntry entry;
+  SWalIdxEntry entry = {0};
   if ((ret = taosReadFile(pIdxTFile, &entry, sizeof(SWalIdxEntry))) != sizeof(SWalIdxEntry)) {
     if (ret < 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       wError("failed to read idx file, since %s", terrstr());
     } else {
       terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
-      wError("read idx file incompletely, read bytes %d, bytes should be %lu", ret, sizeof(SWalIdxEntry));
+      wError("read idx file incompletely, read bytes %ld, bytes should be %lu", ret, sizeof(SWalIdxEntry));
     }
     return -1;
   }
@@ -156,7 +156,7 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
 void walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity) { pRead->capacity = capacity; }
 
 int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
-  int32_t code;
+  int64_t code;
 
   // TODO: valid ver
   if (ver > pRead->pWal->vers.commitVer) {
@@ -187,7 +187,7 @@ int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
 }
 
 int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead) {
-  int32_t code;
+  int64_t code;
 
   ASSERT(pRead->curVersion == pHead->head.version);
 
@@ -214,23 +214,24 @@ int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead) {
       return -1;
     }
     *ppHead = ptr;
+    pReadHead = &((*ppHead)->head);
     pRead->capacity = pReadHead->bodyLen;
   }
 
   if (pReadHead->bodyLen != taosReadFile(pRead->pReadLogTFile, pReadHead->body, pReadHead->bodyLen)) {
+    ASSERT(0);
     return -1;
   }
 
   if (pReadHead->version != ver) {
-    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version,
-           ver);
+    wError("wal fetch body error: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version, ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 
   if (walValidBodyCksum(*ppHead) != 0) {
-    wError("unexpected wal log version: % " PRId64 ", since body checksum not passed", ver);
+    wError("wal fetch body error: % " PRId64 ", since body checksum not passed", ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
@@ -257,7 +258,7 @@ int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **p
 }
 
 int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
-  int code;
+  int64_t code;
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {

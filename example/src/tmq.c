@@ -22,7 +22,7 @@
 static int  running = 1;
 static void msg_process(TAOS_RES* msg) {
   char buf[1024];
-  memset(buf, 0, 1024);
+  /*memset(buf, 0, 1024);*/
   printf("topic: %s\n", tmq_get_topic_name(msg));
   printf("vg: %d\n", tmq_get_vgroup_id(msg));
   while (1) {
