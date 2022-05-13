@@ -4603,7 +4603,7 @@ static SResSchema createResSchema(int32_t type, int32_t bytes, int32_t slotId, i
   return s;
 }
 
-static SColumn* createColumn(int32_t blockId, int32_t slotId, SDataType* pType) {
+static SColumn* createColumn(int32_t blockId, int32_t slotId, int32_t colId, SDataType* pType) {
   SColumn* pCol = taosMemoryCalloc(1, sizeof(SColumn));
   if (pCol == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -4611,9 +4611,10 @@ static SColumn* createColumn(int32_t blockId, int32_t slotId, SDataType* pType) 
   }
 
   pCol->slotId = slotId;
-  pCol->bytes = pType->bytes;
-  pCol->type = pType->type;
-  pCol->scale = pType->scale;
+  pCol->colId  = colId;
+  pCol->bytes  = pType->bytes;
+  pCol->type   = pType->type;
+  pCol->scale  = pType->scale;
   pCol->precision = pType->precision;
   pCol->dataBlockId = blockId;
 
@@ -4656,7 +4657,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
       SDataType* pType = &pColNode->node.resType;
       pExp->base.resSchema = createResSchema(pType->type, pType->bytes, pTargetNode->slotId, pType->scale,
                                              pType->precision, pColNode->colName);
-      pExp->base.pParam[0].pCol = createColumn(pColNode->dataBlockId, pColNode->slotId, pType);
+      pExp->base.pParam[0].pCol = createColumn(pColNode->dataBlockId, pColNode->slotId, pColNode->colId, pType);
       pExp->base.pParam[0].type = FUNC_PARAM_TYPE_COLUMN;
     } else if (type == QUERY_NODE_VALUE) {
       pExp->pExpr->nodeType = QUERY_NODE_VALUE;
@@ -4708,7 +4709,7 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
           SColumnNode* pcn = (SColumnNode*)p1;
 
           pExp->base.pParam[j].type = FUNC_PARAM_TYPE_COLUMN;
-          pExp->base.pParam[j].pCol = createColumn(pcn->dataBlockId, pcn->slotId, &pcn->node.resType);
+          pExp->base.pParam[j].pCol = createColumn(pcn->dataBlockId, pcn->slotId, pcn->colId, &pcn->node.resType);
         } else if (p1->type == QUERY_NODE_VALUE) {
           SValueNode* pvn = (SValueNode*)p1;
           pExp->base.pParam[j].type = FUNC_PARAM_TYPE_VALUE;
@@ -4788,7 +4789,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
-      int32_t     numOfCols = 0;
+      int32_t numOfCols = 0;
 
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
@@ -4797,6 +4798,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, 
             queryId, taskId);
       }
+
       if (pDataReader == NULL && terrno != 0) {
         qDebug("pDataReader is     NULL");
         // return NULL;
@@ -4816,12 +4818,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SInterval      interval = extractIntervalInfo(pTableScanNode);
-      SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(
-          pDataReader, &cond, numOfCols, pTableScanNode->dataRequired, pTableScanNode->scanSeq, pColList,
-          pResBlockDumy, pScanPhyNode->node.pConditions, &interval, pTableScanNode->ratio, pTaskInfo);
+      SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
-      // int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo,
-      //                                   queryId, taskId);
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
       SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
 
