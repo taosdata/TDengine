@@ -286,6 +286,9 @@ class TDTestCase:
         tdDnodes.stop(1)
         tdDnodes.start(1)
 
+        tdSql.query("show users")
+        tdSql.checkRows(self.users_count + 2)
+
         # 普通用户权限
         # 密码登录
         _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
