@@ -14,7 +14,7 @@
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
 int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
-int32_t optrIdxList[] = {0, 1};
+int32_t optrIdxList[] = {0, 7};
 
 typedef struct {
   char*   oper;
@@ -170,7 +170,10 @@ CaseCfg gCase[] = {
   // 22
   {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, true, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
 
-  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
+//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
+//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+
+  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
   {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
 
 };
@@ -266,26 +269,22 @@ CaseCtrl gCaseCtrl = {
 
 #if 1
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
-  .bindNullNum = 0,
+  .bindNullNum = 1,
   .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
   .rowNum = 0,
   .bindColNum = 0,
   .bindRowNum = 0,
-  .bindColTypeNum = 0,
-  .bindColTypeList = NULL,
-  .optrIdxListNum = 0,
-  .optrIdxList = NULL,
+  .optrIdxListNum = tListLen(optrIdxList),
+  .optrIdxList = optrIdxList,
+  .bindColTypeNum = tListLen(bindColTypeList),
+  .bindColTypeList = bindColTypeList,
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
-  .optrIdxListNum = 0,
-  .optrIdxList = NULL,
-  .bindColTypeNum = 0,
-  .bindColTypeList = NULL,
-  .caseIdx = 24,
+  .caseIdx = 23,
   .caseNum = 1,
   .caseRunNum = 1,
 };
