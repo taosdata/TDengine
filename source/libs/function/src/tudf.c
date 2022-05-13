@@ -166,7 +166,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
   }
   SUdfdData *pData = &udfdGlobal;
   if (pData->startCalled) {
-    fnInfo("dnode-mgmt start udfd already called");
+    fnInfo("dnode start udfd already called");
     return 0;
   }
   pData->startCalled = true;
@@ -184,7 +184,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
     uv_async_send(&pData->stopAsync);
     uv_thread_join(&pData->thread);
     pData->needCleanUp = false;
-    fnInfo("dnode-mgmt udfd cleaned up after spawn err");
+    fnInfo("dnode udfd cleaned up after spawn err");
   } else {
     pData->needCleanUp = true;
   }
@@ -193,7 +193,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
 
 int32_t udfStopUdfd() {
   SUdfdData *pData = &udfdGlobal;
-  fnInfo("dnode-mgmt to stop udfd. need cleanup: %d, spawn err: %d",
+  fnInfo("dnode to stop udfd. need cleanup: %d, spawn err: %d",
         pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
     return 0;
@@ -206,7 +206,7 @@ int32_t udfStopUdfd() {
 #ifdef WINDOWS
   if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
 #endif
-  fnInfo("dnode-mgmt udfd cleaned up");
+  fnInfo("dnode udfd cleaned up");
   return 0;
 }
 
