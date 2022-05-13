@@ -14,10 +14,10 @@ from util.dnodes import *
 class TDTestCase:
     hostname = socket.gethostname()
 
-    clientCfgDict = {'qdebugflag':'143'}
-    updatecfgDict = {'clientCfg': {}, 'qdebugflag':'143'}
-    updatecfgDict["clientCfg"]  = clientCfgDict
-    print ("===================: ", updatecfgDict)
+    #clientCfgDict = {'qdebugflag':'143'}
+    #updatecfgDict = {'clientCfg': {}, 'qdebugflag':'143'}
+    #updatecfgDict["clientCfg"]  = clientCfgDict
+    #print ("===================: ", updatecfgDict)
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")

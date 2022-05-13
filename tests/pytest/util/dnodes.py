@@ -40,7 +40,7 @@ class TDSimClient:
             "cDebugFlag": "135",
             "udebugFlag": "135",
             "jnidebugFlag": "135",
-            "qdebugFlag": "135",
+            "qdebugFlag": "143",
             "telemetryReporting": "0",
         }
 
