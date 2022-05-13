@@ -260,6 +260,53 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
 }
 
+static void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
+  // currently only the tbname pseudo column
+  if (pTableScanInfo->numOfPseudoExpr == 0) {
+    return;
+  }
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pTableScanInfo->readHandle.meta, 0);
+  metaGetTableEntryByUid(&mr, pBlock->info.uid);
+
+  for (int32_t j = 0; j < pTableScanInfo->numOfPseudoExpr; ++j) {
+    SExprInfo* pExpr = &pTableScanInfo->pPseudoExpr[j];
+
+    int32_t dstSlotId = pExpr->base.resSchema.slotId;
+
+    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
+    colInfoDataEnsureCapacity(pColInfoData, 0, pBlock->info.rows);
+
+    int32_t functionId = pExpr->pExpr->_function.functionId;
+
+    // this is to handle the tbname
+    if (fmIsScanPseudoColumnFunc(functionId)) {
+      struct SScalarFuncExecFuncs fpSet = {0};
+      fmGetScalarFuncExecFuncs(functionId, &fpSet);
+
+      SColumnInfoData infoData = {0};
+      infoData.info.type = TSDB_DATA_TYPE_BIGINT;
+      infoData.info.bytes = sizeof(uint64_t);
+      colInfoDataEnsureCapacity(&infoData, 0, 1);
+
+      colDataAppendInt64(&infoData, 0, &pBlock->info.uid);
+      SScalarParam srcParam = {
+          .numOfRows = pBlock->info.rows, .param = pTableScanInfo->readHandle.meta, .columnData = &infoData};
+
+      SScalarParam param = {.columnData = pColInfoData};
+      fpSet.process(&srcParam, 1, &param);
+    } else {  // these are tags
+      const char* p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
+      for (int32_t i = 0; i < pBlock->info.rows; ++i) {
+        colDataAppend(pColInfoData, i, p, (p == NULL));
+      }
+    }
+  }
+
+  metaReaderClear(&mr);
+}
+
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
@@ -285,23 +332,7 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
 
     // currently only the tbname pseudo column
     if (pTableScanInfo->numOfPseudoExpr > 0) {
-      int32_t dstSlotId = pTableScanInfo->pPseudoExpr->base.resSchema.slotId;
-      SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, dstSlotId);
-      colInfoDataEnsureCapacity(pColInfoData, 0, pBlock->info.rows);
-
-      struct SScalarFuncExecFuncs fpSet;
-      fmGetScalarFuncExecFuncs(pTableScanInfo->pPseudoExpr->pExpr->_function.functionId, &fpSet);
-
-      SColumnInfoData infoData = {0};
-      infoData.info.type = TSDB_DATA_TYPE_BIGINT;
-      infoData.info.bytes = sizeof(uint64_t);
-      colInfoDataEnsureCapacity(&infoData, 0, 1);
-
-      colDataAppendInt64(&infoData, 0, &pBlock->info.uid);
-      SScalarParam srcParam = {.numOfRows = pBlock->info.rows, .param = pTableScanInfo->readHandle.meta, .columnData = &infoData};
-
-      SScalarParam param = {.columnData = pColInfoData};
-      fpSet.process(&srcParam, 1, &param);
+      addTagPseudoColumnData(pTableScanInfo, pBlock);
     }
 
     return pBlock;

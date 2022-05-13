@@ -746,7 +746,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     pCtx[i].pSrcBlock = pBlock;
-    pCtx[i].currentStage = scanFlag;
+    pCtx[i].scanFlag  = scanFlag;
 
     SInputColumnInfoData* pInput = &pCtx[i].input;
     pInput->uid = pBlock->info.uid;
@@ -826,23 +826,22 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
   return code;
 }
 
-static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
+static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       pCtx[k].startTs = startTs;
-      // this can be set during create the struct
       // todo add a dummy funtion to avoid process check
       if (pCtx[k].fpSet.process != NULL) {
         int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
         if (code != TSDB_CODE_SUCCESS) {
-          qError("%s call aggregate function error happens, code : %s",
-                 GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
-          pOperator->pTaskInfo->code = code;
-          longjmp(pOperator->pTaskInfo->env, code);
+          qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
+          return code;
         }
       }
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, SArray* pPseudoList) {
@@ -998,18 +997,22 @@ static bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
     return false;
   }
 
+  if (pCtx->scanFlag == REPEAT_SCAN) {
+    return fmIsRepeatScanFunc(pCtx->functionId);
+  }
+
   if (isRowEntryCompleted(pResInfo)) {
     return false;
   }
 
-  if (functionId == FUNCTION_FIRST_DST || functionId == FUNCTION_FIRST) {
-    //    return QUERY_IS_ASC_QUERY(pQueryAttr);
-  }
-
-  // denote the order type
-  if ((functionId == FUNCTION_LAST_DST || functionId == FUNCTION_LAST)) {
-    //    return pCtx->param[0].i == pQueryAttr->order.order;
-  }
+//  if (functionId == FUNCTION_FIRST_DST || functionId == FUNCTION_FIRST) {
+//    //    return QUERY_IS_ASC_QUERY(pQueryAttr);
+//  }
+//
+//  // denote the order type
+//  if ((functionId == FUNCTION_LAST_DST || functionId == FUNCTION_LAST)) {
+//    //    return pCtx->param[0].i == pQueryAttr->order.order;
+//  }
 
   // in the reverse table scan, only the following functions need to be executed
   //  if (IS_REVERSE_SCAN(pRuntimeEnv) ||
@@ -1944,7 +1947,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
     cleanupResultRowEntry(pEntry);
 
     pCtx[i].resultInfo = pEntry;
-    pCtx[i].currentStage = stage;
+    pCtx[i].scanFlag = stage;
 
     // set the timestamp output buffer for top/bottom/diff query
     //    int32_t fid = pCtx[i].functionId;
@@ -3724,7 +3727,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
   SOptrBasicInfo* pInfo = &pAggInfo->binfo;
-
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   int32_t order = TSDB_ORDER_ASC;
@@ -3738,9 +3740,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       break;
     }
-    //    if (pAggInfo->current != NULL) {
-    //      setTagValue(pOperator, pAggInfo->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
-    //    }
 
     int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
     if (code != TSDB_CODE_SUCCESS) {
@@ -3750,17 +3749,19 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->pScalarExprInfo != NULL) {
       code = projectApplyFunctions(pAggInfo->pScalarExprInfo, pBlock, pBlock, pAggInfo->pScalarCtx,
-                                           pAggInfo->numOfScalarExpr, NULL);
+                                   pAggInfo->numOfScalarExpr, NULL);
       if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        longjmp(pTaskInfo->env, pTaskInfo->code);
+        longjmp(pTaskInfo->env, code);
       }
     }
 
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator->numOfExprs, pBlock->info.groupId, pTaskInfo, pAggInfo);
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, scanFlag, true);
-    doAggregateImpl(pOperator, 0, pInfo->pCtx);
+    code = doAggregateImpl(pOperator, 0, pInfo->pCtx);
+    if (code != 0) {
+      longjmp(pTaskInfo->env, code);
+    }
 
 #if 0  // test for encode/decode result info
     if(pOperator->encodeResultRow){
