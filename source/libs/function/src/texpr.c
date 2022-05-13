@@ -27,19 +27,6 @@
 #include "tvariant.h"
 #include "tdef.h"
 
-//static uint8_t UNUSED_FUNC isQueryOnPrimaryKey(const char *primaryColumnName, const tExprNode *pLeft, const tExprNode *pRight) {
-//  if (pLeft->nodeType == TEXPR_COL_NODE) {
-//    // if left node is the primary column,return true
-//    return (strcmp(primaryColumnName, pLeft->pSchema->name) == 0) ? 1 : 0;
-//  } else {
-//    // if any children have query on primary key, their parents are also keep this value
-//    return ((pLeft->nodeType == TEXPR_BINARYEXPR_NODE && pLeft->_node.hasPK == 1) ||
-//            (pRight->nodeType == TEXPR_BINARYEXPR_NODE && pRight->_node.hasPK == 1)) == true
-//               ? 1
-//               : 0;
-//  }
-//}
-
 static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *));
 
 void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
@@ -64,21 +51,7 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   }
 
   int32_t type = (*pExpr)->nodeType;
-  if (type == TEXPR_BINARYEXPR_NODE) {
-    doExprTreeDestroy(&(*pExpr)->_node.pLeft, fp);
-    doExprTreeDestroy(&(*pExpr)->_node.pRight, fp);
-  
-    if (fp != NULL) {
-      fp((*pExpr)->_node.info);
-    }
-  } else if (type == TEXPR_UNARYEXPR_NODE) {
-    doExprTreeDestroy(&(*pExpr)->_node.pLeft, fp);
-    if (fp != NULL) {
-      fp((*pExpr)->_node.info);
-    }
-
-    assert((*pExpr)->_node.pRight == NULL);
-  } else if (type == TEXPR_VALUE_NODE) {
+  if (type == TEXPR_VALUE_NODE) {
     taosVariantDestroy((*pExpr)->pVal);
     taosMemoryFree((*pExpr)->pVal);
   } else if (type == TEXPR_COL_NODE) {
@@ -90,9 +63,7 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
 }
 
 bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp *param) {
-  tExprNode *pLeft  = pExpr->_node.pLeft;
-  tExprNode *pRight = pExpr->_node.pRight;
-
+#if 0
   //non-leaf nodes, recursively traverse the expression tree in the post-root order
   if (pLeft->nodeType == TEXPR_BINARYEXPR_NODE && pRight->nodeType == TEXPR_BINARYEXPR_NODE) {
     if (pExpr->_node.optr == LOGIC_COND_TYPE_OR) {  // or
@@ -114,6 +85,9 @@ bool exprTreeApplyFilter(tExprNode *pExpr, const void *pItem, SExprTraverseSupp 
   // handle the leaf node
   param->setupInfoFn(pExpr, param->pExtInfo);
   return param->nodeFilterFn(pItem, pExpr->_node.info);
+#endif
+
+  return 0;
 }
 
 // TODO: these three functions should be made global
@@ -139,59 +113,6 @@ static UNUSED_FUNC char* exception_strdup(const char* str) {
     THROW(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
   return p;
-}
-
-static tExprNode* exprTreeFromBinaryImpl(SBufferReader* br) {
-  int32_t anchor = CLEANUP_GET_ANCHOR();
-  if (CLEANUP_EXCEED_LIMIT()) {
-    THROW(TSDB_CODE_QRY_EXCEED_TAGS_LIMIT);
-    return NULL;
-  }
-
-  tExprNode* pExpr = exception_calloc(1, sizeof(tExprNode));
-  CLEANUP_PUSH_VOID_PTR_PTR(true, tExprTreeDestroy, pExpr, NULL);
-  pExpr->nodeType = tbufReadUint8(br);
-  
-  if (pExpr->nodeType == TEXPR_VALUE_NODE) {
-    SVariant* pVal = exception_calloc(1, sizeof(SVariant));
-    pExpr->pVal = pVal;
-  
-    pVal->nType = tbufReadUint32(br);
-    if (pVal->nType == TSDB_DATA_TYPE_BINARY) {
-      tbufReadToBuffer(br, &pVal->nLen, sizeof(pVal->nLen));
-      pVal->pz = taosMemoryCalloc(1, pVal->nLen + 1);
-      tbufReadToBuffer(br, pVal->pz, pVal->nLen);
-    } else {
-      pVal->i = tbufReadInt64(br);
-    }
-    
-  } else if (pExpr->nodeType == TEXPR_COL_NODE) {
-    SSchema* pSchema = exception_calloc(1, sizeof(SSchema));
-    pExpr->pSchema = pSchema;
-
-    pSchema->colId = tbufReadInt16(br);
-    pSchema->bytes = tbufReadInt16(br);
-    pSchema->type = tbufReadUint8(br);
-    tbufReadToString(br, pSchema->name, TSDB_COL_NAME_LEN);
-    
-  } else if (pExpr->nodeType == TEXPR_BINARYEXPR_NODE) {
-    pExpr->_node.optr = tbufReadUint8(br);
-    pExpr->_node.pLeft = exprTreeFromBinaryImpl(br);
-    pExpr->_node.pRight = exprTreeFromBinaryImpl(br);
-    assert(pExpr->_node.pLeft != NULL && pExpr->_node.pRight != NULL);
-  }
-  
-  CLEANUP_EXECUTE_TO(anchor, false);
-  return pExpr;
-}
-
-tExprNode* exprTreeFromBinary(const void* data, size_t size) {
-  if (size == 0) {
-    return NULL;
-  }
-
-  SBufferReader br = tbufInitReader(data, size, false);
-  return exprTreeFromBinaryImpl(&br);
 }
 
 void buildFilterSetFromBinary(void **q, const char *buf, int32_t len) {
@@ -405,38 +326,3 @@ err_ret:
   taosHashCleanup(pObj);
   taosMemoryFreeClear(tmp);
 }
-
-tExprNode* exprdup(tExprNode* pNode) {
-  if (pNode == NULL) {
-    return NULL;
-  }
-
-  tExprNode* pCloned = taosMemoryCalloc(1, sizeof(tExprNode));
-  if (pNode->nodeType == TEXPR_BINARYEXPR_NODE) {
-    tExprNode* pLeft  = exprdup(pNode->_node.pLeft);
-    tExprNode* pRight = exprdup(pNode->_node.pRight);
-
-    pCloned->_node.pLeft  = pLeft;
-    pCloned->_node.pRight = pRight;
-    pCloned->_node.optr  = pNode->_node.optr;
-  } else if (pNode->nodeType == TEXPR_VALUE_NODE) {
-    pCloned->pVal = taosMemoryCalloc(1, sizeof(SVariant));
-    taosVariantAssign(pCloned->pVal, pNode->pVal);
-  } else if (pNode->nodeType == TEXPR_COL_NODE) {
-    pCloned->pSchema = taosMemoryCalloc(1, sizeof(SSchema));
-    *pCloned->pSchema = *pNode->pSchema;
-  } else if (pNode->nodeType == TEXPR_FUNCTION_NODE) {
-    strcpy(pCloned->_function.functionName, pNode->_function.functionName);
-
-    int32_t num = pNode->_function.num;
-    pCloned->_function.num = num;
-    pCloned->_function.pChild = taosMemoryCalloc(num, POINTER_BYTES);
-    for(int32_t i = 0; i < num; ++i) {
-      pCloned->_function.pChild[i] = exprdup(pNode->_function.pChild[i]);
-    }
-  }
-
-  pCloned->nodeType = pNode->nodeType;
-  return pCloned;
-}
-
