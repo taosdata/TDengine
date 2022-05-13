@@ -162,6 +162,8 @@ class TDTestCase:
         for sql in sqls:
             tdSql.error(sql)
 
+        tdSql.execute("DROP USER u1")
+
     def __alter_pass_sql(self, user, passwd):
         return f'''ALTER USER {user} PASS '{passwd}' '''
 
