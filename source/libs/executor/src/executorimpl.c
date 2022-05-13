@@ -344,6 +344,28 @@ SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, 
   return pResultRow;
 }
 
+void doClearWindow(SIntervalAggOperatorInfo* pInfo, char* pData, int16_t bytes,
+    uint64_t groupId, int32_t numOfOutput) {
+  SAggSupporter* pSup = &pInfo->aggSup;
+  SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
+  SResultRowPosition* p1 =
+      (SResultRowPosition*)taosHashGet(pSup->pResultRowHashTable, pSup->keyBuf,
+          GET_RES_WINDOW_KEY_LEN(bytes));
+  SResultRow* pResult = getResultRowByPos(pSup->pResultBuf, p1);
+  SqlFunctionCtx* pCtx = pInfo->binfo.pCtx;
+  for (int32_t i = 0; i < numOfOutput; ++i) {
+    pCtx[i].resultInfo = getResultCell(pResult, i, pInfo->binfo.rowCellInfoOffset);
+    struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
+    if (fmIsWindowPseudoColumnFunc(pCtx[i].functionId)) {
+      continue;
+    }
+    pResInfo->initialized = false;
+    if (pCtx[i].functionId != -1) {
+      pCtx[i].fpSet.init(&pCtx[i], pResInfo);
+    }
+  }
+}
+
 /**
  * the struct of key in hash table
  * +----------+---------------+
@@ -4764,18 +4786,48 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return createExchangeOperatorInfo(pHandle->pMsgCb->clientRpc, pExchange->pSrcEndPoints, pResBlock, pTaskInfo);
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       SScanPhysiNode* pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
+      STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
-      int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo,
-                                        queryId, taskId);
-      SArray* tableIdList = extractTableIdList(pTableGroupInfo);
+      int32_t     numOfCols = 0;
+
+      tsdbReaderT pDataReader = NULL;
+      if (pHandle->vnode) {
+        pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableGroupInfo, (uint64_t)queryId, taskId);
+      } else {
+        doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, 
+            queryId, taskId);
+      }
+      if (pDataReader == NULL && terrno != 0) {
+        qDebug("pDataReader is     NULL");
+        // return NULL;
+      } else {
+        qDebug("pDataReader is not NULL");
+      }
 
       SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
+
+      SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
+      SSDataBlock* pResBlockDumy = createResDataBlock(pDescNode);
+
+      SQueryTableDataCond cond = {0};
+      int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
+      if (code != TSDB_CODE_SUCCESS) {
+        return NULL;
+      }
+
+      SInterval      interval = extractIntervalInfo(pTableScanNode);
+      SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(
+          pDataReader, &cond, numOfCols, pTableScanNode->dataRequired, pTableScanNode->scanSeq, pColList,
+          pResBlockDumy, pScanPhyNode->node.pConditions, &interval, pTableScanNode->ratio, pTaskInfo);
+
+      // int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo,
+      //                                   queryId, taskId);
+      SArray* tableIdList = extractTableIdList(pTableGroupInfo);
       SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
 
-      int32_t        numOfCols = 0;
       SArray*        pCols = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pResBlock, pCols, tableIdList, pTaskInfo,
-                                                              pScanPhyNode->node.pConditions);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pDataReader, pResBlock, pCols, tableIdList, pTaskInfo,
+                                                              pScanPhyNode->node.pConditions, pOperatorDumy, &interval);
       taosArrayDestroy(tableIdList);
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
