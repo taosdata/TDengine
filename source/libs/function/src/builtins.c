@@ -848,7 +848,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getSampleFuncEnv,
     .initFunc     = sampleFunctionSetup,
     .processFunc  = sampleFunction,
-    .finalizeFunc = sampleFinalize
+    .finalizeFunc = NULL
   },
   {
     .name = "abs",

@@ -3124,19 +3124,19 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   return pInfo->numSampled;
 }
 
-int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SSampleInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
-  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  //int32_t currentRow = pBlock->info.rows;
-  pResInfo->numOfRes = pInfo->numSampled;
-
-  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
-    colDataAppend(pCol, i, pInfo->data + i * pInfo->colBytes, false);
-    //TODO: handle ts output
-  }
-
-  return pResInfo->numOfRes;
-}
+//int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+//  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+//  SSampleInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+//  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
+//  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+//
+//  //int32_t currentRow = pBlock->info.rows;
+//  pResInfo->numOfRes = pInfo->numSampled;
+//
+//  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
+//    colDataAppend(pCol, i, pInfo->data + i * pInfo->colBytes, false);
+//    //TODO: handle ts output
+//  }
+//
+//  return pResInfo->numOfRes;
+//}
