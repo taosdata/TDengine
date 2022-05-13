@@ -4,102 +4,103 @@ title: Concepts
 
 ## A Typical Time-Series Data Scenario
 
-In typical IoT, Connected Vehicles and IT Monitoring scenarios, there are often one or multiple types of data collection points that collect one or multiple metrics. However, for a data collection point type, there are often a number of specific points distributed in places. All the collected metric data are always time-stamped, and the volume of metric data grows with time, but each data collection point has its static attributes. For a speicific type of data collection point, its collected data and static attributes are always structured. Taking power smart meter as an example, each smater meter collects three metrics: current, voltage and phase. The collected data points are similiar to the following table: 
+In typical IoT, Connected Vehicles and IT Monitoring scenarios, there are often one or multiple types of data collection points that collect one or multiple metrics. However, for a data collection point type, there are often a number of specific points distributed in places. All the collected metric data are always time-stamped, and the volume of metric data grows with time, but each data collection point has its static attributes. For a specific type of data collection point, its collected data and static attributes are always structured. Taking power smart meter as an example, each smarter meter collects three metrics: current, voltage and phase. The collected data points are similar to the following table:
 
-<figure><table>
+<div className="center-table">
+<table>
 <thead><tr>
-    <th style="text-align:center;">Device ID</th>
-    <th style="text-align:center;">Time Stamp</th>
-    <th style="text-align:center;" colspan="3">Collected Metrics</th>
-    <th style="text-align:center;" colspan="2">Tags</th>
+    <th>Device ID</th>
+    <th>Time Stamp</th>
+    <th colSpan="3">Collected Metrics</th>
+    <th colSpan="2">Tags</th>
     </tr>
 <tr>
-<th style="text-align:center;">Device ID</th>
-<th style="text-align:center;">Time Stamp</th>
-<th style="text-align:center;">current</th>
-<th style="text-align:center;">voltage</th>
-<th style="text-align:center;">phase</th>
-<th style="text-align:center;">location</th>
-<th style="text-align:center;">groupId</th>
+<th>Device ID</th>
+<th>Time Stamp</th>
+<th>current</th>
+<th>voltage</th>
+<th>phase</th>
+<th>location</th>
+<th>groupId</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td style="text-align:center;">d1001</td>
-<td style="text-align:center;">1538548685000</td>
-<td style="text-align:center;">10.3</td>
-<td style="text-align:center;">219</td>
-<td style="text-align:center;">0.31</td>
-<td style="text-align:center;">Beijing.Chaoyang</td>
-<td style="text-align:center;">2</td>
+<td>d1001</td>
+<td>1538548685000</td>
+<td>10.3</td>
+<td>219</td>
+<td>0.31</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 <tr>
-<td style="text-align:center;">d1002</td>
-<td style="text-align:center;">1538548684000</td>
-<td style="text-align:center;">10.2</td>
-<td style="text-align:center;">220</td>
-<td style="text-align:center;">0.23</td>
-<td style="text-align:center;">Beijing.Chaoyang</td>
-<td style="text-align:center;">3</td>
+<td>d1002</td>
+<td>1538548684000</td>
+<td>10.2</td>
+<td>220</td>
+<td>0.23</td>
+<td>Beijing.Chaoyang</td>
+<td>3</td>
 </tr>
 <tr>
-<td style="text-align:center;">d1003</td>
-<td style="text-align:center;">1538548686500</td>
-<td style="text-align:center;">11.5</td>
-<td style="text-align:center;">221</td>
-<td style="text-align:center;">0.35</td>
-<td style="text-align:center;">Beijing.Haidian</td>
-<td style="text-align:center;">3</td>
+<td>d1003</td>
+<td>1538548686500</td>
+<td>11.5</td>
+<td>221</td>
+<td>0.35</td>
+<td>Beijing.Haidian</td>
+<td>3</td>
 </tr>
 <tr>
-<td style="text-align:center;">d1004</td>
-<td style="text-align:center;">1538548685500</td>
-<td style="text-align:center;">13.4</td>
-<td style="text-align:center;">223</td>
-<td style="text-align:center;">0.29</td>
-<td style="text-align:center;">Beijing.Haidian</td>
-<td style="text-align:center;">2</td>
+<td>d1004</td>
+<td>1538548685500</td>
+<td>13.4</td>
+<td>223</td>
+<td>0.29</td>
+<td>Beijing.Haidian</td>
+<td>2</td>
 </tr>
 <tr>
-<td style="text-align:center;">d1001</td>
-<td style="text-align:center;">1538548695000</td>
-<td style="text-align:center;">12.6</td>
-<td style="text-align:center;">218</td>
-<td style="text-align:center;">0.33</td>
-<td style="text-align:center;">Beijing.Chaoyang</td>
-<td style="text-align:center;">2</td>
+<td>d1001</td>
+<td>1538548695000</td>
+<td>12.6</td>
+<td>218</td>
+<td>0.33</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 <tr>
-<td style="text-align:center;">d1004</td>
-<td style="text-align:center;">1538548696600</td>
-<td style="text-align:center;">11.8</td>
-<td style="text-align:center;">221</td>
-<td style="text-align:center;">0.28</td>
-<td style="text-align:center;">Beijing.Haidian</td>
-<td style="text-align:center;">2</td>
+<td>d1004</td>
+<td>1538548696600</td>
+<td>11.8</td>
+<td>221</td>
+<td>0.28</td>
+<td>Beijing.Haidian</td>
+<td>2</td>
 </tr>
 <tr>
-<td style="text-align:center;">d1002</td>
-<td style="text-align:center;">1538548696650</td>
-<td style="text-align:center;">10.3</td>
-<td style="text-align:center;">218</td>
-<td style="text-align:center;">0.25</td>
-<td style="text-align:center;">Beijing.Chaoyang</td>
-<td style="text-align:center;">3</td>
+<td>d1002</td>
+<td>1538548696650</td>
+<td>10.3</td>
+<td>218</td>
+<td>0.25</td>
+<td>Beijing.Chaoyang</td>
+<td>3</td>
 </tr>
 <tr>
-<td style="text-align:center;">d1001</td>
-<td style="text-align:center;">1538548696800</td>
-<td style="text-align:center;">12.3</td>
-<td style="text-align:center;">221</td>
-<td style="text-align:center;">0.31</td>
-<td style="text-align:center;">Beijing.Chaoyang</td>
-<td style="text-align:center;">2</td>
+<td>d1001</td>
+<td>1538548696800</td>
+<td>12.3</td>
+<td>221</td>
+<td>0.31</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 </tbody>
-</table></figure>
-
-<center> Table 1: Smart meter example data </center>
+</table>
+<a href="#model_table1">Table 1: Smart meter example data</a>
+</div>
 
 Each row contains the device ID, timestamp, collected metrics (current, voltage, phase as above), and static tags (Location and groupId in Table 1) associated with the devices. Each device generates a row (data point) in a pre-defined timer or triggered by an external event. It is a sequence of data points like a stream.
 
@@ -127,9 +128,9 @@ Metric refers to the physical quantity collected by sensors, equipment or other 
 
 ## Label/Tag
 
-Label/Tage refers to the static properties of sensors, devices or other types of data collection devices, which do not change with time, such as device model, color, fixed location of the device, etc. The data type can be any type. Although static, TDengine allows users to add, delete or update tag values. Unlike the collected metric data, the amount of tag data stored does not change over time.
+Label/Tag refers to the static properties of sensors, devices or other types of data collection devices, which do not change with time, such as device model, color, fixed location of the device, etc. The data type can be any type. Although static, TDengine allows users to add, delete or update tag values. Unlike the collected metric data, the amount of tag data stored does not change over time.
 
-## Data Colletion Point
+## Data Collection Point
 
 Data Collection Point(DCP) refers to hardware or software that collects metrics based on preset time periods or triggered by events. A data collection point can collect one or multiple metrics, but these metrics are collected at the same time and have the same time stamp. For some complex equipments, there are often multiple data collection points, and the sampling rate of each collection point may be different, and fully independent. For example, for a car, there is a data collection point to collect GPS position metrics, a data collection point to collect engine status metrics, and a data collection point to collect the environment metrics inside the car, so a car has three data collection points.
 
@@ -137,7 +138,7 @@ Data Collection Point(DCP) refers to hardware or software that collects metrics 
 
 Since time-series data is most likely to be structured data, TDengine adopts the traditional relational database model to process them with a short learning curve. You need to create a database, create tables with schema definitions, then insert data points and execute queries to explore the data. Structured storage is used, instead of NoSQL’s key-value storage.
 
-Compared with general database, TDegine adopts "one table for data collection point" strategy to enhance the data ingestion rate and query speed significantly. At the mean time, it introduces "Super Table" to allow each table have a set of labels to make aggregation across tables efficiently.
+Compared with general database, TDengine adopts "one table for data collection point" strategy to enhance the data ingestion rate and query speed significantly. At the mean time, it introduces "Super Table" to allow each table have a set of labels to make aggregation across tables efficiently.
 
 ## One Table for One Data Collection Point
 
@@ -150,7 +151,7 @@ To utilize this time-series and other data features, TDengine requires the user 
 
 If the metric data of multiple DPCs are traditionally written into a single table, due to the uncontrollable network delay, the timing of the data from different DCPs arriving at the server cannot be guaranteed, the writing operation must be protected by locks, and the metric data from one DCP cannot be guaranteed to be continuously stored together. **One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest extent.**
 
-TDengine suggests using DCP ID as the table name (like D1001 in the above table). Each DCP may collect one or multiple metrics (like the current, voltage, phase as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the time stamp as the index, and won’t build the index on any metrics stored. Column wise storage is used. 
+TDengine suggests using DCP ID as the table name (like D1001 in the above table). Each DCP may collect one or multiple metrics (like the current, voltage, phase as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the time stamp as the index, and won’t build the index on any metrics stored. Column wise storage is used.
 
 ## STable: A Collection of Data Collection Points in the Same Type
 
@@ -170,6 +171,6 @@ Query can be executed on both table and STable. For a query on a STable, TDengin
 
 FQDN (Fully Qualified Domain Name) is the full domain name of a specific computer or host on the Internet. FQDN consists of two parts: hostname and domain name. For example, the FQDN of a mail server might be mail.tdengine.com. The hostname is mail, and the host is located in the domain name tdengine.com. DNS (Domain Name System) is responsible for translating FQDN into IP. For systems without DNS, it can be solved by configuring the hosts file.
 
-Each node of a TDengine cluster is uniquely identified by an End Point, which consists of an FQDN and a Port, such as h1.tdengine.com:6030. In this way, when the IP changes, we can still use the FQDN to dynamically find the node without changing any configuration of the cluster. In addition, FQDN is used to facilitate unified access to the same cluster from the Intranet and the Inetnet.
+Each node of a TDengine cluster is uniquely identified by an End Point, which consists of an FQDN and a Port, such as h1.tdengine.com:6030. In this way, when the IP changes, we can still use the FQDN to dynamically find the node without changing any configuration of the cluster. In addition, FQDN is used to facilitate unified access to the same cluster from the Intranet and the Internet.
 
-TDengine does not recommend using IP address to access the cluster, which is not good for cluster management. 
+TDengine does not recommend using IP address to access the cluster, which is not good for cluster management.
