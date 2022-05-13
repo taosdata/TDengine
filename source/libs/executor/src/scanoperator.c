@@ -782,14 +782,15 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
 SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader,
     SSDataBlock* pResBlock, SArray* pColList, SArray* pTableIdList,
-    SExecTaskInfo* pTaskInfo, SNode* pCondition, SOperatorInfo* pOperatorDumy,
-    SInterval* pInterval) {
+    SExecTaskInfo* pTaskInfo, SNode* pCondition, SOperatorInfo* pOperatorDumy ) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _error;
   }
+
+  STableScanInfo* pSTInfo = (STableScanInfo*)pOperatorDumy->info;
 
   int32_t numOfOutput = taosArrayGetSize(pColList);
 
@@ -823,7 +824,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
   }
 
   pInfo->primaryTsIndex = 0;                           // TODO(liuyao) get it from physical plan
-  pInfo->pUpdateInfo = updateInfoInitP(pInterval, 10000); // TODO(liuyao) get watermark from physical plan
+  pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, 10000); // TODO(liuyao) get watermark from physical plan
   if (pInfo->pUpdateInfo == NULL) {
     taosMemoryFreeClear(pInfo);
     taosMemoryFreeClear(pOperator);
@@ -836,7 +837,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
   pInfo->pDataReader = pDataReader;
   pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->pOperatorDumy = pOperatorDumy;
-  pInfo->interval = *pInterval;
+  pInfo->interval = pSTInfo->interval;
 
   pOperator->name = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;

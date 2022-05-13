@@ -4808,17 +4808,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
-
-      SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
-      SSDataBlock* pResBlockDumy = createResDataBlock(pDescNode);
-
-      SQueryTableDataCond cond = {0};
-      int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
-      if (code != TSDB_CODE_SUCCESS) {
-        return NULL;
-      }
-
-      SInterval      interval = extractIntervalInfo(pTableScanNode);
       SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
@@ -4826,7 +4815,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       SArray*        pCols = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pDataReader, pResBlock, pCols, tableIdList, pTaskInfo,
-                                                              pScanPhyNode->node.pConditions, pOperatorDumy, &interval);
+                                                              pScanPhyNode->node.pConditions, pOperatorDumy);
       taosArrayDestroy(tableIdList);
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
