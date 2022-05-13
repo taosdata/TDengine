@@ -1,7 +1,8 @@
 ---
 slug: /query-data
-title: 查询数据
-description: "主要查询功能，通过连接器执行同步查询和异步查询"
+Sidebar_label: Select
+title: Select
+description: "This chapter introduces major query functionalities and how to perform sync and async query using connectors."
 ---
 
 import Tabs from "@theme/Tabs";
@@ -18,20 +19,26 @@ import NodeAsync from "./_js_async.mdx";
 import CsAsync from "./_cs_async.mdx";
 import CAsync from "./_c_async.mdx";
 
-## 主要查询功能
+## Introduction
 
-TDengine 采用 SQL 作为查询语言。应用程序可以通过 REST API 或连接器发送 SQL 语句，用户还可以通过 TDengine 命令行工具 taos 手动执行 SQL 即席查询（Ad-Hoc Query）。TDengine 支持如下查询功能：
+SQL is used by TDengine as the language for query. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine CLI `taos` can also be used to execute SQL Ad-Hoc query. Here is the list of major query functionalities supported by TDengine：
 
-- 单列、多列数据查询
-- 标签和数值的多种过滤条件：>, <, =, <\>, like 等
-- 聚合结果的分组（Group by）、排序（Order by）、约束输出（Limit/Offset）
-- 数值列及聚合结果的四则运算
-- 时间戳对齐的连接查询（Join Query: 隐式连接）操作
-- 多种聚合/计算函数: count, max, min, avg, sum, twa, stddev, leastsquares, top, bottom, first, last, percentile, apercentile, last_row, spread, diff 等
+- Query on single column or multiple columns
+- Filter on tags or data columns：>, <, =, <\>, like
+- Grouping of results: `Group By`
+- Sorting of results: `Order By`
+- Limit the number of results: `Limit/Offset`
+- Arithmetic on columns of numeric types or aggregate results
+- Join query with timestamp alignment
+- Aggregate functions: count, max, min, avg, sum, twa, stddev, leastsquares, top, bottom, first, last, percentile, apercentile, last_row, spread, diff
 
-例如：在命令行工具 taos 中，从表 d1001 中查询出 voltage > 215 的记录，按时间降序排列，仅仅输出 2 条。
+For example, below SQL statement can be executed in TDengine CLI `taos` to select the rows whose voltage column is bigger than 215 and limit the output to only 2 rows.
 
 ```sql
+select * from d1001 where voltage > 215 order by ts desc limit 2;
+```
+
+```title=Output
 taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
            ts            |       current        |   voltage   |        phase         |
 ======================================================================================
@@ -40,17 +47,17 @@ taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
 Query OK, 2 row(s) in set (0.001100s)
 ```
 
-为满足物联网场景的需求，TDengine 支持几个特殊的函数，比如 twa(时间加权平均)，spread (最大值与最小值的差)，last_row(最后一条记录)等，更多与物联网场景相关的函数将添加进来。TDengine 还支持连续查询。
+To meet the requirements in IoT use cases, some special functions have been added in TDengine, for example `twa` (Time Weighted Average), `spared` (The difference between the maximum and the minimum), `last_row` (the last row), more and more functions will be added to better perform in IoT use cases. Furthermore, continuous query is also supported in TDengine.
 
-具体的查询语法请看 [TAOS SQL 的数据查询](/taos-sql/select) 章节。
+For detailed query syntax please refer to [Select](/taos-sql/select).
 
-## 多表聚合查询
+## Join Query
 
-物联网场景中，往往同一个类型的数据采集点有多个。TDengine 采用超级表(STable)的概念来描述某一个类型的数据采集点，一张普通的表来描述一个具体的数据采集点。同时 TDengine 使用标签来描述数据采集点的静态属性，一个具体的数据采集点有具体的标签值。通过指定标签的过滤条件，TDengine 提供了一高效的方法将超级表(某一类型的数据采集点)所属的子表进行聚合查询。对普通表的聚合函数以及绝大部分操作都适用于超级表，语法完全一样。
+In IoT use cases, there are always multiple data collecting points of same kind. A new concept, called STable (abbreviated for super table), is used in TDengine to represent a kind of data collecting points, and a table is used to represent a specific data collecting point. Tags are used by TDengine to represent the static properties of data collecting points. A specific data collecting point has its own values for static properties. By specifying filter conditions on tags, join query can be performed efficiently between all the tables belonging to same stable, i.e. same kind of data collecting points, can be. Aggregate functions applicable for tables can be used directly on stables, syntax is exactly same.
 
-### 示例一
+### Example 1
 
-在 TAOS Shell，查找北京所有智能电表采集的电压平均值，并按照 location 分组。
+In TDengine CLI `taos`, use below SQL to get the average voltage of all the meters in BeiJing grouped by location.
 
 ```
 taos> SELECT AVG(voltage) FROM meters GROUP BY location;
@@ -61,9 +68,9 @@ taos> SELECT AVG(voltage) FROM meters GROUP BY location;
 Query OK, 2 row(s) in set (0.002136s)
 ```
 
-### 示例二
+### Example 2
 
-在 TAOS shell, 查找 groupId 为 2 的所有智能电表过去 24 小时的记录条数，电流的最大值。
+In TDengine CLI `taos`, use below SQL to get the number of rows and the maximum current in the past 24 hours from meters whose groupId is 2.
 
 ```
 taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now - 24h;
@@ -73,11 +80,11 @@ taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now -
 Query OK, 1 row(s) in set (0.002136s)
 ```
 
-TDengine 仅容许对属于同一个超级表的表之间进行聚合查询，不同超级表之间的聚合查询不支持。在 [TAOS SQL 的数据查询](/taos-sql/select) 一章，查询类操作都会注明是否支持超级表。
+Join query is allowed between only the tables of same stable. In [Select](/taos-sql/select), all query operations are marked as whether it supports stable or not.
 
-## 降采样查询、插值
+## Down Sampling and Interpolation
 
-物联网场景里，经常需要通过降采样（down sampling）将采集的数据按时间段进行聚合。TDengine 提供了一个简便的关键词 interval 让按照时间窗口的查询操作变得极为简单。比如，将智能电表 d1001 采集的电流值每 10 秒钟求和
+In IoT use cases, down sampling is widely used to aggregate the data by time range. `INTERVAL` keyword in TDengine can be used to simplify the query by time window. For example, below SQL statement can be used to get the sum of current every 10 seconds from meters table d1001.
 
 ```
 taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
@@ -88,7 +95,7 @@ taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
 Query OK, 2 row(s) in set (0.000883s)
 ```
 
-降采样操作也适用于超级表，比如：将北京所有智能电表采集的电流值每秒钟求和
+Down sampling can also be used for stable. For example, below SQL statement can be used to get the sum of current from all meters in BeiJing.
 
 ```
 taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s);
@@ -102,7 +109,7 @@ taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s
 Query OK, 5 row(s) in set (0.001538s)
 ```
 
-降采样操作也支持时间偏移，比如：将所有智能电表采集的电流值每秒钟求和，但要求每个时间窗口从 500 毫秒开始
+Down sample also supports time offset. For example, below SQL statement can be used to get the sum of current from all meters but each time window must start at the boundary of 500 milliseconds.
 
 ```
 taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
@@ -116,17 +123,17 @@ taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
 Query OK, 5 row(s) in set (0.001521s)
 ```
 
-物联网场景里，每个数据采集点采集数据的时间是难同步的，但很多分析算法(比如 FFT)需要把采集的数据严格按照时间等间隔的对齐，在很多系统里，需要应用自己写程序来处理，但使用 TDengine 的降采样操作就轻松解决。
+In IoT use cases, it's hard to align the timestamp of the data collected by each collecting point. However, a lot of algorithms like FFT require the data to be aligned with same time interval and application programs have to handle by themselves in many systems. In TDengine, it's easy to achieve the alignment using down sampling.
 
-如果一个时间间隔里，没有采集的数据，TDengine 还提供插值计算的功能。
+Interpolation can be performed in TDengine if there is no data in a time range.
 
-语法规则细节请见 [TAOS SQL 的按时间窗口切分聚合](/taos-sql/interval) 章节。
+For more details please refer to [Aggregate by Window](/taos-sql/interval).
 
-## 示例代码
+## Examples
 
-### 查询数据
+### Query
 
-在 [SQL 写入](/develop/insert-data/sql-writing) 一章，我们创建了 power 数据库，并向 meters 表写入了一些数据，以下示例代码展示如何查询这个表的数据。
+In the section describing [Insert](/develop/insert-data/sql-writing), a database named `power` is created and some data are inserted into stable `meters`. Below sample code demonstrates how to query the data in this stable.
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
@@ -154,16 +161,16 @@ Query OK, 5 row(s) in set (0.001521s)
 
 :::note
 
-1. 无论是使用 REST 连接还是原生连接的连接器，以上示例代码都能正常工作。
-2. 唯一需要注意的是：由于 RESTful 接口无状态， 不能使用 `use db` 语句来切换数据库。
+1. With either REST connection or native connection, the above sample code work well.
+2. Please be noted that `use db` can't be used in case of REST connection because it's stateless.
 
 :::
 
-### 异步查询
+### Asynchronous Query
 
-除同步查询 API 之外，TDengine 还提供性能更高的异步调用 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2-4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优点尤为突出。
+Besides synchronous query, asynchronous query API is also provided by TDengine to insert or query data more efficiently. With similar hardware and software environment, async API is 2~4 times faster than sync APIs. Async API works in non-blocking mode, which means an operation can be returned without finishing so that the calling thread can switch to other works to improve the performance of the whole application system. Async APIs perform especially better in case of poor network.
 
-需要注意的是，只有使用原生连接的连接器，才能使用异步查询功能。
+Please be noted that async query can only be used with native connection.
 
 <Tabs defaultValue="python" groupId="lang">
   <TabItem label="Python" value="python">
