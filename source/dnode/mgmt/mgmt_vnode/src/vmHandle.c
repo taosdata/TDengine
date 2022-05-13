@@ -170,8 +170,6 @@ static void vmGenerateWrapperCfg(SVnodeMgmt *pMgmt, SCreateVnodeReq *pCreate, SW
   pCfg->vgId = pCreate->vgId;
   pCfg->vgVersion = pCreate->vgVersion;
   pCfg->dropped = 0;
-  pCfg->dbUid = pCreate->dbUid;
-  tstrncpy(pCfg->db, pCreate->db, TSDB_DB_FNAME_LEN);
   snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCreate->vgId);
 }
 
@@ -213,6 +211,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SVnode *pImpl = vnodeOpen(path, pMgmt->pTfs, pMgmt->msgCb);
   if (pImpl == NULL) {
     dError("vgId:%d, failed to create vnode since %s", createReq.vgId, terrstr());
+    code = terrno;
     goto _OVER;
   }
 
