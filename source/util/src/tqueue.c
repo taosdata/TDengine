@@ -23,36 +23,36 @@ typedef struct STaosQnode STaosQnode;
 typedef struct STaosQnode {
   STaosQnode *next;
   STaosQueue *queue;
+  int32_t     size;
   char        item[];
 } STaosQnode;
 
 typedef struct STaosQueue {
-  int32_t         itemSize;
-  int32_t         numOfItems;
-  int32_t         threadId;
-  STaosQnode     *head;
-  STaosQnode     *tail;
-  STaosQueue     *next;     // for queue set
-  STaosQset      *qset;     // for queue set
-  void           *ahandle;  // for queue set
-  FItem           itemFp;
-  FItems          itemsFp;
+  int32_t       memOfItems;
+  int32_t       numOfItems;
+  int32_t       threadId;
+  STaosQnode   *head;
+  STaosQnode   *tail;
+  STaosQueue   *next;     // for queue set
+  STaosQset    *qset;     // for queue set
+  void         *ahandle;  // for queue set
+  FItem         itemFp;
+  FItems        itemsFp;
   TdThreadMutex mutex;
 } STaosQueue;
 
 typedef struct STaosQset {
-  STaosQueue     *head;
-  STaosQueue     *current;
+  STaosQueue   *head;
+  STaosQueue   *current;
   TdThreadMutex mutex;
-  int32_t         numOfQueues;
-  int32_t         numOfItems;
-  tsem_t          sem;
+  int32_t       numOfQueues;
+  int32_t       numOfItems;
+  tsem_t        sem;
 } STaosQset;
 
 typedef struct STaosQall {
   STaosQnode *current;
   STaosQnode *start;
-  int32_t     itemSize;
   int32_t     numOfItems;
 } STaosQall;
 
@@ -118,15 +118,23 @@ bool taosQueueEmpty(STaosQueue *queue) {
   return empty;
 }
 
-int32_t taosQueueSize(STaosQueue *queue) {
+int32_t taosQueueItemSize(STaosQueue *queue) {
   taosThreadMutexLock(&queue->mutex);
   int32_t numOfItems = queue->numOfItems;
   taosThreadMutexUnlock(&queue->mutex);
   return numOfItems;
 }
 
+int32_t taosQueueMemorySize(STaosQueue *queue) {
+  taosThreadMutexLock(&queue->mutex);
+  int32_t memOfItems = queue->memOfItems;
+  taosThreadMutexUnlock(&queue->mutex);
+  return memOfItems;
+}
+
 void *taosAllocateQitem(int32_t size) {
   STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
+  pNode->size = size;
 
   if (pNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -161,8 +169,9 @@ void taosWriteQitem(STaosQueue *queue, void *pItem) {
   }
 
   queue->numOfItems++;
+  queue->memOfItems += pNode->size;
   if (queue->qset) atomic_add_fetch_32(&queue->qset->numOfItems, 1);
-  uTrace("item:%p is put into queue:%p, items:%d", pItem, queue, queue->numOfItems);
+  uTrace("item:%p is put into queue:%p, items:%d mem:%" PRId64, pItem, queue, queue->numOfItems, queue->memOfItems);
 
   taosThreadMutexUnlock(&queue->mutex);
 
@@ -181,9 +190,11 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
     queue->head = pNode->next;
     if (queue->head == NULL) queue->tail = NULL;
     queue->numOfItems--;
+    queue->memOfItems -= pNode->size;
     if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, 1);
     code = 1;
-    uTrace("item:%p is read out from queue:%p, items:%d", *ppItem, queue, queue->numOfItems);
+    uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
+           queue->memOfItems);
   }
 
   taosThreadMutexUnlock(&queue->mutex);
@@ -207,12 +218,12 @@ int32_t taosReadAllQitems(STaosQueue *queue, STaosQall *qall) {
     qall->current = queue->head;
     qall->start = queue->head;
     qall->numOfItems = queue->numOfItems;
-    qall->itemSize = queue->itemSize;
     code = qall->numOfItems;
 
     queue->head = NULL;
     queue->tail = NULL;
     queue->numOfItems = 0;
+    queue->memOfItems = 0;
     if (queue->qset) atomic_sub_fetch_32(&queue->qset->numOfItems, qall->numOfItems);
   }
 
@@ -377,9 +388,11 @@ int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FI
       queue->head = pNode->next;
       if (queue->head == NULL) queue->tail = NULL;
       queue->numOfItems--;
+      queue->memOfItems -= pNode->size;
       atomic_sub_fetch_32(&qset->numOfItems, 1);
       code = 1;
-      uTrace("item:%p is read out from queue:%p, items:%d", *ppItem, queue, queue->numOfItems);
+      uTrace("item:%p is read out from queue:%p, items:%d mem:%" PRId64, *ppItem, queue, queue->numOfItems,
+             queue->memOfItems);
     }
 
     taosThreadMutexUnlock(&queue->mutex);
@@ -411,7 +424,6 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahand
       qall->current = queue->head;
       qall->start = queue->head;
       qall->numOfItems = queue->numOfItems;
-      qall->itemSize = queue->itemSize;
       code = qall->numOfItems;
       if (ahandle) *ahandle = queue->ahandle;
       if (itemsFp) *itemsFp = queue->itemsFp;
@@ -419,6 +431,7 @@ int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahand
       queue->head = NULL;
       queue->tail = NULL;
       queue->numOfItems = 0;
+      queue->memOfItems = 0;
       atomic_sub_fetch_32(&qset->numOfItems, qall->numOfItems);
       for (int32_t j = 1; j < qall->numOfItems; ++j) {
         tsem_wait(&qset->sem);

@@ -126,10 +126,10 @@ int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
 
   switch (qtype) {
     case QUERY_QUEUE:
-      size = taosQueueSize(pMgmt->queryWorker.queue);
+      size = taosQueueItemSize(pMgmt->queryWorker.queue);
       break;
     case FETCH_QUEUE:
-      size = taosQueueSize(pMgmt->fetchWorker.queue);
+      size = taosQueueItemSize(pMgmt->fetchWorker.queue);
       break;
     default:
       break;
