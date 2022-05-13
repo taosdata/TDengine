@@ -28,7 +28,7 @@ typedef struct STaosQnode {
 } STaosQnode;
 
 typedef struct STaosQueue {
-  int32_t       memOfItems;
+  int64_t       memOfItems;
   int32_t       numOfItems;
   int32_t       threadId;
   STaosQnode   *head;
@@ -125,9 +125,9 @@ int32_t taosQueueItemSize(STaosQueue *queue) {
   return numOfItems;
 }
 
-int32_t taosQueueMemorySize(STaosQueue *queue) {
+int64_t taosQueueMemorySize(STaosQueue *queue) {
   taosThreadMutexLock(&queue->mutex);
-  int32_t memOfItems = queue->memOfItems;
+  int64_t memOfItems = queue->memOfItems;
   taosThreadMutexUnlock(&queue->mutex);
   return memOfItems;
 }
