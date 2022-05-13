@@ -1985,8 +1985,8 @@ static int32_t smlParseInfluxLine(SSmlHandle* info, const char* sql) {
 
     (*oneTable)->sTableName = elements.measure;
     (*oneTable)->sTableNameLen = elements.measureLen;
-    RandTableName rName = {.tags=(*oneTable)->tags, .sTableName=(*oneTable)->sTableName, .sTableNameLen=(uint8_t)(*oneTable)->sTableNameLen,
-                           .childTableName=(*oneTable)->childTableName};
+    RandTableName rName = { (*oneTable)->tags, (*oneTable)->sTableName, (uint8_t)(*oneTable)->sTableNameLen,
+                           (*oneTable)->childTableName, 0 };
 
     buildChildTableName(&rName);
     (*oneTable)->uid = rName.uid;
@@ -2045,8 +2045,8 @@ static int32_t smlParseTelnetLine(SSmlHandle* info, void *data) {
   }
   taosHashClear(info->dumplicateKey);
 
-  RandTableName rName = {.tags=tinfo->tags, .sTableName=tinfo->sTableName, .sTableNameLen=(uint8_t)tinfo->sTableNameLen,
-                         .childTableName=tinfo->childTableName};
+  RandTableName rName = { tinfo->tags, tinfo->sTableName, (uint8_t)tinfo->sTableNameLen,
+                         tinfo->childTableName, 0 };
   buildChildTableName(&rName);
   tinfo->uid = rName.uid;
 
