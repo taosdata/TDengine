@@ -33,7 +33,10 @@ def abort_previous(){
     milestone(buildNumber)
 }
 def pre_test(){
-    sh 'hostname'
+    sh '''
+        hostname
+        date
+    '''
     sh '''
         cd ${WK}
         git reset --hard
