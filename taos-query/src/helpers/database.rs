@@ -178,11 +178,11 @@ pub struct DatabaseRepr {
 #[derive(Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ShowDatabase {
     pub name: String,
-    pub created_time: NaiveDateTime,
-    pub ntables: usize,
+    pub created_time: Option<NaiveDateTime>,
+    pub ntables: Option<usize>,
     #[serde(flatten)]
     pub props: DatabaseProperties,
-    pub status: String,
+    pub status: Option<String>,
 }
 
 unsafe impl Send for ShowDatabase {}

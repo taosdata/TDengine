@@ -51,7 +51,7 @@ impl<W: ParquetWriter + 'static> Serialize<W> {
         self.serialize(taos_describe);
     }
 
-    pub async fn serialize_tag(&mut self, name: &str, stream: BlockStream<'_>) {
+    pub async fn serialize_tag(&mut self, name: &str, stream: BlockStream) {
         stream
             .enumerate()
             .for_each(|(_, block)| {
@@ -62,7 +62,7 @@ impl<W: ParquetWriter + 'static> Serialize<W> {
             .await;
     }
 
-    pub async fn serialize_data(&mut self, name: &str, stream: BlockStream<'_>) {
+    pub async fn serialize_data(&mut self, name: &str, stream: BlockStream) {
         stream
             .enumerate()
             .for_each(|(_, block)| {

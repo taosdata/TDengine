@@ -1,10 +1,9 @@
 char = { ASCII_ALPHANUMERIC | "." | "_" | "-" }
-digit = { '0'..'9' }
 
 encoded_char = { ASCII_ALPHANUMERIC | "%" }
 
 driver = { char* }
-protocol = { char* }
+protocol = { char+ }
 SCHEME_IDENT = { "://" }
 
 scheme = { driver ~ ("+" ~ protocol)? }
@@ -14,25 +13,27 @@ password = { char+ }
 with_password = { ":" ~ password? }
 username_with_password = { username? ~ (":" ~ password)? ~ "@" }
 
-host = { (ASCII_ALPHANUMERIC | "_" | "-") + }
-port = { digit+ }
+nondot = { ASCII_ALPHANUMERIC | "-" | "|" }
+host = { nondot+ ~ ("." ~ nondot+)* }
+port = { ASCII_DIGIT+ }
 // url encoded path
-path = { encoded_char+ }
-address = { host ~ (":" ~ port?)? | ":" ~ port | ":" | path }
+path = { "%" ~ (char | "%" | "+" )+ }
+address = { path | host ~ (":" ~ port?)? | ":" ~ port | ":" }
 addresses = { address? ~ ("," ~ address)* }
+paths = { path | ("," ~ path)}
+// frag_char = { char | "." }
+// frag_front = { "./" | "/" }
+// frag_path = { (frag_char | "/") + }
+fchar = { char | ":" }
+fragment = { "./" ~ fchar+  ~ ("/" ~ fchar+)? | ("/" ~ fchar+) ~ ("/" ~ fchar+)+ }
 
-frag_char = { char | "." | ":" }
-frag_front = { "." | "/" }
-frag_path = { (frag_char | "/") + }
-fragment = { frag_front ~ frag_char* ~ "/" ~ frag_path }
-
-protocol_with_addresses = { protocol ~ "(" ~ addresses? ~ ")" | addresses }
+protocol_with_addresses = { protocol ~ "(" ~ addresses ~ ")" | addresses }
 
 name = { char+ }
 value = { char* }
 param = { name ~ "=" ~ value }
 
-database = { char+ }
+database = { nondot+ }
 
 dsn = {
   SOI ~

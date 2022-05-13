@@ -166,7 +166,7 @@ async fn de_all(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[taos::test]
+#[taos::test(log_level = "trace", dropping = "none")]
 async fn de_all_option(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(

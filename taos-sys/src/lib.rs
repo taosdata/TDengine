@@ -160,12 +160,11 @@ unsafe impl Send for RawRes {}
 unsafe impl Sync for RawRes {}
 
 #[derive(Debug)]
-pub struct DroppableRawRes<'q> {
+pub struct DroppableRawRes {
     raw: Arc<RawRes>,
-    _marker: PhantomData<&'q u8>,
 }
 
-impl<'q> Deref for DroppableRawRes<'q> {
+impl Deref for DroppableRawRes {
     type Target = RawRes;
 
     fn deref(&self) -> &Self::Target {
@@ -173,12 +172,9 @@ impl<'q> Deref for DroppableRawRes<'q> {
     }
 }
 
-impl<'q> DroppableRawRes<'q> {
+impl DroppableRawRes {
     pub fn new(raw: RawRes) -> Self {
-        Self {
-            raw: Arc::new(raw),
-            _marker: PhantomData,
-        }
+        Self { raw: Arc::new(raw) }
     }
 
     pub fn from_ptr_with_code(ptr: *mut TAOS_RES, code: Code) -> Result<Self, Error> {
@@ -190,7 +186,9 @@ impl<'q> DroppableRawRes<'q> {
     }
 }
 
-impl<'q> Drop for DroppableRawRes<'q> {
+pub type VGroupId = i32;
+
+impl Drop for DroppableRawRes {
     fn drop(&mut self) {
         if let Some(raw) = Arc::get_mut(&mut self.raw) {
             raw.free_result();
@@ -266,9 +264,7 @@ impl RawRes {
 
     #[inline]
     pub fn fetch_lengths(&self) -> *const i32 {
-        unsafe {
-            taos_fetch_lengths(self.as_ptr())
-        }
+        unsafe { taos_fetch_lengths(self.as_ptr()) }
     }
     #[inline]
     unsafe fn fetch_lengths_raw(&self) -> *const i32 {
@@ -359,6 +355,41 @@ impl RawRes {
     #[inline]
     pub fn block(&self) -> *mut *mut c_void {
         unsafe { taos_result_block(self.as_ptr()).read() }
+    }
+
+    #[inline]
+    pub fn tmq_topic_name(&self) -> Option<&str> {
+        unsafe {
+            let c = tmq_get_topic_name(self.as_ptr());
+            if c.is_null() {
+                None
+            } else {
+                CStr::from_ptr(c).to_str().ok()
+            }
+        }
+    }
+    #[inline]
+    pub fn tmq_vgroup_id(&self) -> Option<VGroupId> {
+        unsafe {
+            let c = tmq_get_vgroup_id(self.as_ptr());
+            if c == -1 {
+                None
+            } else {
+                Some(c)
+            }
+        }
+    }
+
+    #[inline]
+    pub fn tmq_table_name(&self) -> Option<&str> {
+        unsafe {
+            let c = tmq_get_table_name(self.as_ptr());
+            if c.is_null() {
+                None
+            } else {
+                CStr::from_ptr(c).to_str().ok()
+            }
+        }
     }
 }
 

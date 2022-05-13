@@ -90,7 +90,7 @@ fn sync_consume_loop(database: &str, consumer: &Consumer, topics: &TmqList) -> R
     println!("inserting thread spawned.");
     while running.load(atomic::Ordering::SeqCst) || msg_count.load(atomic::Ordering::SeqCst) < 10 {
         println!("looping...");
-        if let Some(Ok(mut msg)) = consumer.poll(10) {
+        if let Some(Ok(mut msg)) = consumer.poll_wait(10) {
             println!("msg: {}", msg_count.load(atomic::Ordering::SeqCst));
             process_message(&mut msg);
             msg_count.fetch_add(1, atomic::Ordering::SeqCst);

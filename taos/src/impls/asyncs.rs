@@ -11,8 +11,8 @@ use super::ResultSet;
 use crate::util::IntoCStr;
 use crate::Taos;
 
-impl<'q> AsyncFetchable for ResultSet<'q> {
-    type BlockStream = crate::block::BlockStream<'q>;
+impl AsyncFetchable for ResultSet {
+    type BlockStream = crate::block::BlockStream;
 
     #[inline]
     fn affected_rows(&self) -> i32 {
@@ -48,7 +48,7 @@ impl<'q> AsyncFetchable for ResultSet<'q> {
 impl<'q> AsyncQueryable<'q> for Taos {
     type Error = super::Error;
 
-    type AsyncResultSet = ResultSet<'q>;
+    type AsyncResultSet = ResultSet;
 
     /// Query use taosc query_a API.
     async fn query<T: AsRef<str> + Send>(

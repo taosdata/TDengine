@@ -2,7 +2,7 @@
 name = "mdsn"
 version = "0.1.0"
 edition = "2021"
-keywords = ["url", "dsn"]
+keywords = ["url", "dsn", "mdsn"]
 license = "MIT OR Apache-2.0"
 readme = "README.md"
 description = "M-DSN: A Multi-address DSN(Data Source Name) parser."

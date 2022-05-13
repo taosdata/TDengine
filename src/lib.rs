@@ -9,6 +9,7 @@ use taos::{block::*, helpers::ColumnMeta};
 use url::Url;
 
 pub mod metrics;
+pub mod task;
 
 #[derive(Debug, Args)]
 pub struct TaosUri {
