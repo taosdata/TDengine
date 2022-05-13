@@ -98,12 +98,24 @@ static void printHelp() {
 }
 
 void initLogFile() {
-  // FILE *fp = fopen(g_stConfInfo.resultFileName, "a");
-  char file[256];
-  sprintf(file, "%s/../log/tmqlog.txt", configDir);
-  TdFilePtr pFile = taosOpenFile(file, TD_FILE_TEXT | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
+  time_t     now;
+  struct tm  curTime;  
+  char filename[256];
+
+  now     = taosTime(NULL);
+  taosLocalTime(&now, &curTime);
+  sprintf(filename,"%s/../log/tmqlog_%04d-%02d-%02d %02d-%02d-%02d.txt",
+  	                configDir,
+  	                curTime.tm_year+1900,
+                    curTime.tm_mon+1,
+                    curTime.tm_mday,
+                    curTime.tm_hour,
+                    curTime.tm_min,
+                    curTime.tm_sec);  
+  //sprintf(filename, "%s/../log/tmqlog.txt", configDir);
+  TdFilePtr pFile = taosOpenFile(filename, TD_FILE_TEXT | TD_FILE_WRITE | TD_FILE_TRUNC | TD_FILE_STREAM);
   if (NULL == pFile) {
-    fprintf(stderr, "Failed to open %s for save result\n", "./tmqlog.txt");
+    fprintf(stderr, "Failed to open %s for save result\n", filename);
     exit(-1);
   }
   g_fp = pFile;
