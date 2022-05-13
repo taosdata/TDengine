@@ -54,29 +54,31 @@ typedef enum {
 } ESchemaAction;
 
 typedef struct {
-  char sTableName[TSDB_TABLE_NAME_LEN];
-  SArray *tags;
-  SArray *fields;
+  const char    *sTableName;
+  int32_t       sTableNameLen;
+  SArray        *tags;
+  SArray        *fields;
 } SCreateSTableActionInfo;
 
 typedef struct {
-  char sTableName[TSDB_TABLE_NAME_LEN];
-  SSmlKv * field;
+  const char    *sTableName;
+  int32_t       sTableNameLen;
+  SSmlKv        *field;
 } SAlterSTableActionInfo;
 
 typedef struct {
-  ESchemaAction action;
+  ESchemaAction             action;
   union {
     SCreateSTableActionInfo createSTable;
-    SAlterSTableActionInfo alterSTable;
+    SAlterSTableActionInfo  alterSTable;
   };
 } SSchemaAction;
 
 typedef struct {
-  const char* measure;
-  const char* tags;
-  const char* cols;
-  const char* timestamp;
+  const char  *measure;
+  const char  *tags;
+  const char  *cols;
+  const char  *timestamp;
 
   int32_t measureLen;
   int32_t measureTagsLen;
@@ -189,47 +191,38 @@ static int32_t smlBuildInvalidDataMsg(SSmlMsgBuf* pBuf, const char *msg1, const 
   return TSDB_CODE_SML_INVALID_DATA;
 }
 
-static int32_t smlGenerateSchemaAction(SSchema* pointColField, SHashObj* dbAttrHash, SArray* dbAttrArray, bool isTag, char sTableName[],
+static int32_t smlGenerateSchemaAction(SSchema* colField, SHashObj* colHash, SSmlKv* kv, bool isTag,
                                        SSchemaAction* action, bool* actionNeeded, SSmlHandle* info) {
-//  char fieldName[TSDB_COL_NAME_LEN] = {0};
-//  strcpy(fieldName, pointColField->name);
-//
-//  size_t* pDbIndex = taosHashGet(dbAttrHash, fieldName, strlen(fieldName));
-//  if (pDbIndex) {
-//    SSchema* dbAttr = taosArrayGet(dbAttrArray, *pDbIndex);
-//    assert(strcasecmp(dbAttr->name, pointColField->name) == 0);
-//    if (pointColField->type != dbAttr->type) {
-//      uError("SML:0x%"PRIx64" point type and db type mismatch. key: %s. point type: %d, db type: %d", info->id, pointColField->name,
-//               pointColField->type, dbAttr->type);
-//      return TSDB_CODE_TSC_INVALID_VALUE;
-//    }
-//
-//    if (IS_VAR_DATA_TYPE(pointColField->type) && (pointColField->bytes > dbAttr->bytes)) {
-//      if (isTag) {
-//        action->action = SCHEMA_ACTION_CHANGE_TAG_SIZE;
-//      } else {
-//        action->action = SCHEMA_ACTION_CHANGE_COLUMN_SIZE;
-//      }
-//      memset(&action->alterSTable, 0,  sizeof(SAlterSTableActionInfo));
-//      memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN);
-//      action->alterSTable.field = pointColField;
-//      *actionNeeded = true;
-//    }
-//  } else {
-//    if (isTag) {
-//      action->action = SCHEMA_ACTION_ADD_TAG;
-//    } else {
-//      action->action = SCHEMA_ACTION_ADD_COLUMN;
-//    }
-//    memset(&action->alterSTable, 0, sizeof(SAlterSTableActionInfo));
-//    memcpy(action->alterSTable.sTableName, sTableName, TSDB_TABLE_NAME_LEN);
-//    action->alterSTable.field = pointColField;
-//    *actionNeeded = true;
-//  }
-//  if (*actionNeeded) {
-//    uDebug("SML:0x%" PRIx64 " generate schema action. column name: %s, action: %d", info->id, fieldName,
-//             action->action);
-//  }
+  uint16_t *index = taosHashGet(colHash, kv->key, kv->keyLen);
+  if (index) {
+    if (colField[*index].type != kv->type) {
+      uError("SML:0x%"PRIx64" point type and db type mismatch. key: %s. point type: %d, db type: %d", info->id, kv->key,
+             colField[*index].type, kv->type);
+      return TSDB_CODE_TSC_INVALID_VALUE;
+    }
+
+    if (IS_VAR_DATA_TYPE(colField[*index].type) && (colField[*index].bytes > kv->length)) {
+      if (isTag) {
+        action->action = SCHEMA_ACTION_CHANGE_TAG_SIZE;
+      } else {
+        action->action = SCHEMA_ACTION_CHANGE_COLUMN_SIZE;
+      }
+      action->alterSTable.field = kv;
+      *actionNeeded = true;
+    }
+  } else {
+    if (isTag) {
+      action->action = SCHEMA_ACTION_ADD_TAG;
+    } else {
+      action->action = SCHEMA_ACTION_ADD_COLUMN;
+    }
+    action->alterSTable.field = kv;
+    *actionNeeded = true;
+  }
+  if (*actionNeeded) {
+    uDebug("SML:0x%" PRIx64 " generate schema action. column name: %s, action: %d", info->id, colField->name,
+             action->action);
+  }
   return 0;
 }
 
@@ -240,7 +233,7 @@ static int32_t smlBuildColumnDescription(SSmlKv* field, char* buf, int32_t bufSi
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     int32_t bytes = field->length;   // todo
     int out = snprintf(buf, bufSize,"`%s` %s(%d)",
-                       tname,tDataTypes[field->type].name, bytes);
+                       tname, tDataTypes[field->type].name, bytes);
     *outBytes = out;
   } else {
     int out = snprintf(buf, bufSize, "`%s` %s", tname, tDataTypes[type].name);
@@ -259,7 +252,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
   uDebug("SML:0x%"PRIx64" apply schema action. action: %d", info->id, action->action);
   switch (action->action) {
     case SCHEMA_ACTION_ADD_COLUMN: {
-      int n = sprintf(result, "alter stable %s add column ", action->alterSTable.sTableName);
+      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` add column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
       code = taos_errno(res);
@@ -282,7 +275,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_ADD_TAG: {
-      int n = sprintf(result, "alter stable %s add tag ", action->alterSTable.sTableName);
+      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` add tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field,
                              result+n, capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
@@ -306,7 +299,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CHANGE_COLUMN_SIZE: {
-      int n = sprintf(result, "alter stable %s modify column ", action->alterSTable.sTableName);
+      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` modify column ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result+n,
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
@@ -329,7 +322,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CHANGE_TAG_SIZE: {
-      int n = sprintf(result, "alter stable %s modify tag ", action->alterSTable.sTableName);
+      int n = snprintf(result, action->alterSTable.sTableNameLen + 1, "alter stable `%s` modify tag ", action->alterSTable.sTableName);
       smlBuildColumnDescription(action->alterSTable.field, result+n,
                              capacity-n, &outBytes);
       TAOS_RES* res = taos_query(info->taos, result); //TODO async doAsyncQuery
@@ -352,7 +345,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       break;
     }
     case SCHEMA_ACTION_CREATE_STABLE: {
-      int n = sprintf(result, "create stable `%s` (", action->createSTable.sTableName);
+      int n = snprintf(result, action->createSTable.sTableNameLen + 1, "create stable `%s` (", action->createSTable.sTableName);
       char* pos = result + n; int freeBytes = capacity - n;
 
       SArray *cols = action->createSTable.fields;
@@ -408,6 +401,25 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
   return code;
 }
 
+static int32_t smlProcessSchemaAction(SSmlHandle* info, SSchema* schemaField, SHashObj* schemaHash, SArray *cols, SSchemaAction* action, bool isTag){
+  int32_t code = TSDB_CODE_SUCCESS;
+  for (int j = 0; j < taosArrayGetSize(cols); ++j) {
+    SSmlKv* kv = taosArrayGet(cols, j);
+    bool actionNeeded = false;
+    code = smlGenerateSchemaAction(schemaField, schemaHash, kv, isTag, action, &actionNeeded, info);
+    if(code != TSDB_CODE_SUCCESS){
+      return code;
+    }
+    if (actionNeeded) {
+      code = smlApplySchemaAction(info, action);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t smlModifyDBSchemas(SSmlHandle* info) {
   int32_t code = 0;
 
@@ -427,25 +439,50 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
-      SSchemaAction schemaAction = { SCHEMA_ACTION_CREATE_STABLE, 0};
-      memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
+      SSchemaAction schemaAction = { SCHEMA_ACTION_CREATE_STABLE, {0}};
+      schemaAction.createSTable.sTableName = superTable;
+      schemaAction.createSTable.sTableNameLen = superTableLen;
       schemaAction.createSTable.tags = sTableData->tags;
       schemaAction.createSTable.fields = sTableData->cols;
       code = smlApplySchemaAction(info, &schemaAction);
-      if (code != 0) {
+      if (code != TSDB_CODE_SUCCESS) {
         uError("SML:0x%"PRIx64" smlApplySchemaAction failed. can not create %s", info->id, schemaAction.createSTable.sTableName);
-        return code;
-      }
-
-      code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
-      if (code != 0) {
-        uError("SML:0x%"PRIx64" catalogGetSTableMeta failed. super table name %s", info->id, schemaAction.createSTable.sTableName);
         return code;
       }
       info->cost.numOfCreateSTables++;
     }else if (code == TSDB_CODE_SUCCESS) {
+      SHashObj *hashTmp = taosHashInit(pTableMeta->tableInfo.numOfTags, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, false);
+      for(uint16_t i = pTableMeta->tableInfo.numOfColumns; i < pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags; i++){
+        taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
+      }
+
+      SSchemaAction schemaAction = {0};
+      schemaAction.alterSTable.sTableName = superTable;
+      schemaAction.alterSTable.sTableNameLen = superTableLen;
+      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, &schemaAction, true);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosHashCleanup(hashTmp);
+        return code;
+      }
+
+      taosHashClear(hashTmp);
+      for(uint16_t i = 0; i < pTableMeta->tableInfo.numOfColumns; i++){
+        taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
+      }
+      code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->cols, &schemaAction, false);
+      taosHashCleanup(hashTmp);
+      if (code != TSDB_CODE_SUCCESS) {
+        return code;
+      }
     } else {
       uError("SML:0x%"PRIx64" load table meta error: %s", info->id, tstrerror(code));
+      return code;
+    }
+    if(pTableMeta) taosMemoryFree(pTableMeta);
+
+    code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
+    if (code != TSDB_CODE_SUCCESS) {
+      uError("SML:0x%"PRIx64" catalogGetSTableMeta failed. super table name %s", info->id, (char*)superTable);
       return code;
     }
     sTableData->tableMeta = pTableMeta;
