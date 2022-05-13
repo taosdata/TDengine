@@ -119,7 +119,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   pInput->name = pWrapper->name;
   pInput->path = pWrapper->path;
   pInput->msgCb = dmGetMsgcb(pWrapper);
-  if (pWrapper->nodeType == DNODE) {
+  if (pWrapper->nodeType == DNODE || pWrapper->procType == DND_PROC_CHILD) {
     tmsgSetDefaultMsgCb(&pInput->msgCb);
   }
 
@@ -222,24 +222,26 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     if (!pWrapper->required) continue;
-
-    if (pDnode->ptype == DND_PROC_CHILD) {
-      if (pDnode->ntype == ntype) {
-        pWrapper->procType = DND_PROC_CHILD;
+    if (ntype == DNODE) {
+      pWrapper->procType = DND_PROC_SINGLE;
+      if (dmOpenNode(pWrapper) != 0) {
+        return -1;
+      }
+    } else {
+      if (pDnode->ptype == DND_PROC_CHILD) {
+        if (pDnode->ntype == ntype) {
+          pWrapper->procType = DND_PROC_CHILD;
+          if (dmOpenNode(pWrapper) != 0) {
+            return -1;
+          }
+        } else {
+          pWrapper->required = false;
+        }
+      } else {
+        pWrapper->procType = pDnode->ptype;
         if (dmOpenNode(pWrapper) != 0) {
           return -1;
         }
-      } else {
-        pWrapper->required = false;
-      }
-    } else {
-      if (ntype == DNODE) {
-        pWrapper->procType = DND_PROC_SINGLE;
-      } else {
-        pWrapper->procType = pDnode->ptype;
-      }
-      if (dmOpenNode(pWrapper) != 0) {
-        return -1;
       }
     }
   }
@@ -249,8 +251,9 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
 }
 
 static int32_t dmStartNodes(SDnode *pDnode) {
-  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    if (ntype == DNODE && (pDnode->ptype == DND_PROC_CHILD || pDnode->ptype == DND_PROC_TEST)) continue;
     if (dmStartNode(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;
