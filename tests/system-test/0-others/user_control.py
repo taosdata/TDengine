@@ -304,7 +304,7 @@ class TDTestCase:
             # 不可以修改其他用户的密码
             tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
             user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
-            user.error("root", "taosdata_root")
+            user.error(self.__alter_pass_sql("root", "taosdata_root" ))
             # 可以修改自己的密码
             tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
             user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
