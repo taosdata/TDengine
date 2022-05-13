@@ -57,6 +57,11 @@ SyncIndex   syncUtilMinIndex(SyncIndex a, SyncIndex b);
 SyncIndex   syncUtilMaxIndex(SyncIndex a, SyncIndex b);
 void        syncUtilMsgHtoN(void* msg);
 void        syncUtilMsgNtoH(void* msg);
+bool        syncUtilIsData(tmsg_t msgType);
+bool        syncUtilUserPreCommit(tmsg_t msgType);
+bool        syncUtilUserCommit(tmsg_t msgType);
+bool        syncUtilUserRollback(tmsg_t msgType);
+
 
 #ifdef __cplusplus
 }

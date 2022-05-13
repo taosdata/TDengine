@@ -193,7 +193,6 @@ typedef struct SScanPhysiNode {
 } SScanPhysiNode;
 
 typedef SScanPhysiNode STagScanPhysiNode;
-typedef SScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
@@ -217,6 +216,7 @@ typedef struct STableScanPhysiNode {
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
+typedef STableScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct SProjectPhysiNode {
   SPhysiNode node;

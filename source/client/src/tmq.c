@@ -57,16 +57,17 @@ struct tmq_topic_vgroup_list_t {
 };
 
 struct tmq_conf_t {
-  char           clientId[256];
-  char           groupId[TSDB_CGROUP_LEN];
-  int8_t         autoCommit;
-  int8_t         resetOffset;
-  uint16_t       port;
-  int32_t        autoCommitInterval;
-  char*          ip;
-  char*          user;
-  char*          pass;
-  char*          db;
+  char     clientId[256];
+  char     groupId[TSDB_CGROUP_LEN];
+  int8_t   autoCommit;
+  int8_t   resetOffset;
+  int8_t   withTbName;
+  uint16_t port;
+  int32_t  autoCommitInterval;
+  char*    ip;
+  char*    user;
+  char*    pass;
+  /*char*          db;*/
   tmq_commit_cb* commitCb;
   void*          commitCbUserParam;
 };
@@ -75,6 +76,7 @@ struct tmq_t {
   // conf
   char           groupId[TSDB_CGROUP_LEN];
   char           clientId[256];
+  int8_t         withTbName;
   int8_t         autoCommit;
   int32_t        autoCommitInterval;
   int32_t        resetOffsetCfg;
@@ -187,6 +189,7 @@ typedef struct {
 
 tmq_conf_t* tmq_conf_new() {
   tmq_conf_t* conf = taosMemoryCalloc(1, sizeof(tmq_conf_t));
+  conf->withTbName = -1;
   conf->autoCommit = true;
   conf->autoCommitInterval = 5000;
   conf->resetOffset = TMQ_CONF__RESET_OFFSET__EARLIEAST;
@@ -240,6 +243,18 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     }
   }
 
+  if (strcmp(key, "msg.with.table.name") == 0) {
+    if (strcmp(value, "true") == 0) {
+      conf->withTbName = 1;
+    } else if (strcmp(value, "false") == 0) {
+      conf->withTbName = 0;
+    } else if (strcmp(value, "none") == 0) {
+      conf->withTbName = -1;
+    } else {
+      return TMQ_CONF_INVALID;
+    }
+  }
+
   if (strcmp(key, "td.connect.ip") == 0) {
     conf->ip = strdup(value);
     return TMQ_CONF_OK;
@@ -257,7 +272,7 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
     return TMQ_CONF_OK;
   }
   if (strcmp(key, "td.connect.db") == 0) {
-    conf->db = strdup(value);
+    /*conf->db = strdup(value);*/
     return TMQ_CONF_OK;
   }
 
@@ -485,6 +500,7 @@ tmq_t* tmq_consumer_new(tmq_conf_t* conf, char* errstr, int32_t errstrLen) {
   // set conf
   strcpy(pTmq->clientId, conf->clientId);
   strcpy(pTmq->groupId, conf->groupId);
+  pTmq->withTbName = conf->withTbName;
   pTmq->autoCommit = conf->autoCommit;
   pTmq->autoCommitInterval = conf->autoCommitInterval;
   pTmq->commitCb = conf->commitCb;
@@ -1104,6 +1120,7 @@ SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t waitTime, SMqClientTopic*
   pReq->subKey[tlen] = TMQ_SEPARATOR;
   strcpy(pReq->subKey + tlen + 1, pTopic->topicName);
 
+  pReq->withTbName = tmq->withTbName;
   pReq->waitTime = waitTime;
   pReq->consumerId = tmq->consumerId;
   pReq->epoch = tmq->epoch;

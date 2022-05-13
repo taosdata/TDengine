@@ -303,6 +303,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         break;
     }
   }
+  str[len] = 0;
 
   return len;
 }
@@ -567,7 +568,7 @@ void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param
     // todo directly call fp
   }
 
-  taos_query_l(taos, sql, (int32_t) strlen(sql));
+  taos_query_l(taos, sql, (int32_t)strlen(sql));
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {

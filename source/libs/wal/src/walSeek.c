@@ -19,8 +19,8 @@
 #include "tref.h"
 #include "walInt.h"
 
-static int walSeekWritePos(SWal* pWal, int64_t ver) {
-  int code = 0;
+static int64_t walSeekWritePos(SWal* pWal, int64_t ver) {
+  int64_t code = 0;
 
   TdFilePtr pIdxTFile = pWal->pWriteIdxTFile;
   TdFilePtr pLogTFile = pWal->pWriteLogTFile;
@@ -45,7 +45,7 @@ static int walSeekWritePos(SWal* pWal, int64_t ver) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
-  return code;
+  return 0;
 }
 
 int walSetWrite(SWal* pWal) {
@@ -124,7 +124,7 @@ int walChangeWrite(SWal* pWal, int64_t ver) {
 }
 
 int walSeekWriteVer(SWal* pWal, int64_t ver) {
-  int code;
+  int64_t code;
   if (ver == pWal->vers.lastVer) {
     return 0;
   }

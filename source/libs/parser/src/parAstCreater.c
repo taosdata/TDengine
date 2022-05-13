@@ -44,6 +44,7 @@ void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
   pCxt->notSupport = false;
   pCxt->pRootNode = NULL;
   pCxt->placeholderNo = 0;
+  pCxt->pPlaceholderValues = NULL;
   pCxt->errCode = TSDB_CODE_SUCCESS;
 }
 
@@ -78,7 +79,7 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
 static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
   if (NULL == pPasswordToken) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
-  } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN - 2)) {
+  } else if (pPasswordToken->n >= (TSDB_USET_PASSWORD_LEN + 2)) {
     pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NAME_OR_PASSWD_TOO_LONG);
   } else {
     strncpy(pPassword, pPasswordToken->z, pPasswordToken->n);
@@ -299,6 +300,14 @@ SNode* createPlaceholderValueNode(SAstCreateContext* pCxt, const SToken* pLitera
   val->literal = strndup(pLiteral->z, pLiteral->n);
   CHECK_OUT_OF_MEM(val->literal);
   val->placeholderNo = ++pCxt->placeholderNo;
+  if (NULL == pCxt->pPlaceholderValues) {
+    pCxt->pPlaceholderValues = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
+    if (NULL == pCxt->pPlaceholderValues) {
+      nodesDestroyNode(val);
+      return NULL;
+    }
+  }
+  taosArrayPush(pCxt->pPlaceholderValues, &val);
   return (SNode*)val;
 }
 

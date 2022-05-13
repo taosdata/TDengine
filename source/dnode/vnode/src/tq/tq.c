@@ -427,12 +427,17 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
   SMqDataBlkRsp rsp = {0};
   rsp.reqOffset = pReq->currentOffset;
   rsp.withSchema = pExec->withSchema;
-  rsp.withTbName = pExec->withTbName;
 
   rsp.blockData = taosArrayInit(0, sizeof(void*));
   rsp.blockDataLen = taosArrayInit(0, sizeof(int32_t));
   rsp.blockSchema = taosArrayInit(0, sizeof(void*));
   rsp.blockTbName = taosArrayInit(0, sizeof(void*));
+
+  int8_t withTbName = pExec->withTbName;
+  if (pReq->withTbName != -1) {
+    withTbName = pReq->withTbName;
+  }
+  rsp.withTbName = withTbName;
 
   while (1) {
     consumerEpoch = atomic_load_32(&pExec->epoch);
@@ -452,9 +457,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     }
 
     if (pHeadWithCkSum->head.msgType != TDMT_VND_SUBMIT) {
-      walSkipFetchBody(pExec->pWalReader, pHeadWithCkSum);
+      ASSERT(walSkipFetchBody(pExec->pWalReader, pHeadWithCkSum) == 0);
     } else {
-      walFetchBody(pExec->pWalReader, &pHeadWithCkSum);
+      ASSERT(walFetchBody(pExec->pWalReader, &pHeadWithCkSum) == 0);
     }
 
     SWalReadHead* pHead = &pHeadWithCkSum->head;
@@ -538,7 +543,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
             taosArrayPush(rsp.blockSchema, &pSW);
           }
 
-          if (pExec->withTbName) {
+          if (withTbName) {
             SMetaReader mr = {0};
             metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
             int64_t uid = pExec->pExecReader[workerId]->msgIter.uid;
@@ -578,7 +583,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           ASSERT(actualLen <= dataStrLen);
           taosArrayPush(rsp.blockDataLen, &actualLen);
           taosArrayPush(rsp.blockData, &buf);
-          if (pExec->withTbName) {
+          if (withTbName) {
             SMetaReader mr = {0};
             metaReaderInit(&mr, pTq->pVnode->pMeta, 0);
             if (metaGetTableEntryByUid(&mr, block.info.uid) < 0) {
@@ -945,6 +950,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
              .reader = pStreamReader,
              .meta = pTq->pVnode->pMeta,
              .pMsgCb = &pTq->pVnode->msgCb,
+             .vnode = pTq->pVnode,
       };
       pTask->exec.runners[i].inputHandle = pStreamReader;
       pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);

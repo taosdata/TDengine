@@ -279,6 +279,7 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool freeRequest) {
   }
 
   pStmt->exec.autoCreateTbl = false;
+  pStmt->exec.emptyRes = false;
   
   if (keepTable) {
     return TSDB_CODE_SUCCESS;
@@ -628,8 +629,7 @@ int stmtBindBatch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind, int32_t colIdx) {
       STMT_ERR_RET(stmtRestoreQueryFields(pStmt));
     }
 
-    bool emptyResult = false;
-    STMT_RET(qStmtBindParam(pStmt->sql.pQueryPlan, bind, colIdx, pStmt->exec.pRequest->requestId, &emptyResult));
+    STMT_RET(qStmtBindParam(pStmt->sql.pQueryPlan, bind, colIdx, pStmt->exec.pRequest->requestId, &pStmt->exec.emptyRes));
   }
   
   STableDataBlocks **pDataBlock = (STableDataBlocks**)taosHashGet(pStmt->exec.pBlockHash, pStmt->bInfo.tbFName, strlen(pStmt->bInfo.tbFName));
@@ -736,7 +736,11 @@ int stmtExec(TAOS_STMT *stmt) {
   STMT_ERR_RET(stmtSwitchStatus(pStmt, STMT_EXECUTE));
 
   if (STMT_TYPE_QUERY == pStmt->sql.type) {
-    scheduleQuery(pStmt->exec.pRequest, pStmt->sql.pQueryPlan, pStmt->sql.nodeList, NULL);
+    if (pStmt->exec.emptyRes) {
+      pStmt->exec.pRequest->type = TSDB_SQL_RETRIEVE_EMPTY_RESULT;
+    } else {
+      scheduleQuery(pStmt->exec.pRequest, pStmt->sql.pQueryPlan, pStmt->sql.nodeList, NULL);
+    }
   } else {
     STMT_ERR_RET(qBuildStmtOutput(pStmt->sql.pQuery, pStmt->exec.pVgHash, pStmt->exec.pBlockHash));
     launchQueryImpl(pStmt->exec.pRequest, pStmt->sql.pQuery, TSDB_CODE_SUCCESS, true, (autoCreateTbl ? (void**)&pRsp : NULL));

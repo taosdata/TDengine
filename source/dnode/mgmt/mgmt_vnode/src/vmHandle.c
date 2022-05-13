@@ -140,11 +140,12 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->szCache = pCreate->pages;
   pCfg->szBuf = pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
+  pCfg->tsdbCfg.compression = pCreate->compression;
   pCfg->tsdbCfg.precision = pCreate->precision;
-  pCfg->tsdbCfg.days = 10;
-  pCfg->tsdbCfg.keep0 = 3650;
-  pCfg->tsdbCfg.keep1 = 3650;
-  pCfg->tsdbCfg.keep2 = 3650;
+  pCfg->tsdbCfg.days = pCreate->daysPerFile;
+  pCfg->tsdbCfg.keep0 = pCreate->daysToKeep0;
+  pCfg->tsdbCfg.keep1 = pCreate->daysToKeep1;
+  pCfg->tsdbCfg.keep2 = pCreate->daysToKeep2;
   pCfg->tsdbCfg.minRows = pCreate->minRows;
   pCfg->tsdbCfg.maxRows = pCreate->maxRows;
   for (size_t i = 0; i < taosArrayGetSize(pCreate->pRetensions); ++i) {

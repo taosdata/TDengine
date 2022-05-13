@@ -32,6 +32,7 @@ typedef struct SAstCreateContext {
   bool           notSupport;
   SNode*         pRootNode;
   int16_t        placeholderNo;
+  SArray*        pPlaceholderValues;
   int32_t        errCode;
 } SAstCreateContext;
 
