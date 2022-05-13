@@ -103,6 +103,16 @@ void syncStart(int64_t rid) {
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
 
+void syncStartStandBy(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return;
+  }
+  syncNodeStartStandBy(pSyncNode);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
 void syncStop(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -522,6 +532,17 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   // ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
+}
+
+void syncNodeStartStandBy(SSyncNode* pSyncNode) {
+  // state change
+  pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // reset elect timer, long enough
+  int32_t electMS = TIMER_MAX_MS;
+  int32_t ret = syncNodeRestartElectTimer(pSyncNode, electMS);
+  ASSERT(ret == 0);
 }
 
 void syncNodeClose(SSyncNode* pSyncNode) {

@@ -247,6 +247,7 @@ typedef struct SSyncNode {
 // open/close --------------
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeStart(SSyncNode* pSyncNode);
+void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 
 // ping --------------
