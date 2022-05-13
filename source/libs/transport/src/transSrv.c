@@ -167,25 +167,25 @@ static void* transAcceptThread(void* arg);
 static bool addHandleToWorkloop(SWorkThrdObj* pThrd, char* pipeName);
 static bool addHandleToAcceptloop(void* arg);
 
-#define CONN_SHOULD_RELEASE(conn, head)                                     \
-  do {                                                                      \
-    if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {          \
-      conn->status = ConnRelease;                                           \
-      transClearBuffer(&conn->readBuf);                                     \
-      transFreeMsg(transContFromHead((char*)head));                         \
-      tTrace("server conn %p received release request", conn);              \
-                                                                            \
-      STransMsg tmsg = {.code = 0, .handle = (void*)conn, .ahandle = NULL}; \
-      SSrvMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));              \
-      srvMsg->msg = tmsg;                                                   \
-      srvMsg->type = Release;                                               \
-      srvMsg->pConn = conn;                                                 \
-      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                        \
-        return;                                                             \
-      }                                                                     \
-      uvStartSendRespInternal(srvMsg);                                      \
-      return;                                                               \
-    }                                                                       \
+#define CONN_SHOULD_RELEASE(conn, head)                                                           \
+  do {                                                                                            \
+    if ((head)->release == 1 && (head->msgLen) == sizeof(*head) && conn->status == ConnAcquire) { \
+      transClearBuffer(&conn->readBuf);                                                           \
+      transFreeMsg(transContFromHead((char*)head));                                               \
+      tTrace("server conn %p received release request", conn);                                    \
+                                                                                                  \
+      STransMsg tmsg = {.code = 0, .handle = (void*)conn, .ahandle = NULL};                       \
+      SSrvMsg*  srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));                                    \
+      srvMsg->msg = tmsg;                                                                         \
+      srvMsg->type = Release;                                                                     \
+      srvMsg->pConn = conn;                                                                       \
+      reallocConnRefHandle(conn);                                                                 \
+      if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                                              \
+        return;                                                                                   \
+      }                                                                                           \
+      uvStartSendRespInternal(srvMsg);                                                            \
+      return;                                                                                     \
+    }                                                                                             \
   } while (0)
 
 #define SRV_RELEASE_UV(loop)       \
