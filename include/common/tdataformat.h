@@ -34,8 +34,6 @@ typedef struct STSRowBuilder STSRowBuilder;
 typedef struct SKVIdx        SKVIdx;
 
 // STSRow2
-#define TSROW_SVER(r) (((r)->flags & TSROW_KV_ROW) ? -1 : (r)->sver)
-
 int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
 int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t cid, const uint8_t **ppData, uint32_t *nData,
@@ -75,12 +73,9 @@ struct STSchema {
 #define TSROW_HAS_VAL  ((uint8_t)0x4U)
 #define TSROW_KV_ROW   ((uint8_t)0x10U)
 struct STSRow2 {
-  TSKEY   ts;
-  uint8_t flags;
-  union {
-    int32_t sver;
-    int32_t ncols;
-  };
+  TSKEY          ts;
+  uint8_t        flags;
+  int32_t        sver;
   uint32_t       nData;
   const uint8_t *pData;
 };
@@ -94,7 +89,6 @@ struct STSRowBuilder {
   int32_t   szTPBuf;
   uint8_t  *pTPBuf;
   int32_t   iCol;
-  int32_t   nCols;
   int32_t   vlenKV;
   int32_t   vlenTP;
   STSRow2   row;
