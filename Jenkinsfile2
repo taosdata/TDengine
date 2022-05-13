@@ -37,8 +37,10 @@ def pre_test(){
     sh '''
         cd ${WK}
         git reset --hard
+        git fetch || git fetch
         cd ${WKC}
         git reset --hard
+        git fetch || git fetch
     '''
     script {
         if (env.CHANGE_TARGET == 'master') {
