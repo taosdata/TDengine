@@ -50,5 +50,5 @@ class PlanStmtTest : public PlannerTestBase {
 TEST_F(PlanStmtTest, stmt) {
   useDb("root", "test");
 
-  run("select * from t1 where c1 = ?");
+  // run("select * from t1 where c1 = ?");
 }

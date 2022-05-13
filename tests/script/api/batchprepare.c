@@ -20,6 +20,11 @@ typedef struct {
   bool    enclose;
 } OperInfo;
 
+typedef struct {
+  char*   funcName;
+  int32_t paramNum;
+} FuncInfo;
+
 typedef enum {
   BP_BIND_TAG = 1,
   BP_BIND_COL,
@@ -43,6 +48,13 @@ OperInfo operInfo[] = {
 
 int32_t operatorList[] = {0, 1, 2, 3, 4, 5, 6, 7};
 int32_t varoperatorList[] = {0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11};
+
+FuncInfo funcInfo[] = {
+  {"count", 1},
+  {"sum",   1},
+  {"min",   1},
+  {"sin",   1},
+};
 
 char *bpStbPrefix = "st";
 char *bpTbPrefix = "t";
@@ -154,7 +166,7 @@ CaseCfg gCase[] = {
   {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, true, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
 
   {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
-  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 3, 0, 0, 1, 2},
 
 };
 
@@ -179,6 +191,8 @@ typedef struct {
   int32_t* bindTagTypeList;
   int32_t  optrIdxListNum;
   int32_t* optrIdxList;
+  int32_t  funcIdxListNum;
+  int32_t* funcIdxList;
   int32_t  runTimes;
   int32_t  caseIdx;              // static case idx
   int32_t  caseNum;              // num in static case list
@@ -186,7 +200,7 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = { // default
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -203,6 +217,8 @@ CaseCtrl gCaseCtrl = { // default
   .bindTagTypeList = NULL,
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
+  .funcIdxListNum = 0,
+  .funcIdxList = NULL,
   .checkParamNum = false,
   .printRes = false,
   .runTimes = 0,
@@ -241,7 +257,7 @@ CaseCtrl gCaseCtrl = {
 };
 #endif
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -255,14 +271,14 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
   .checkParamNum = false,
-  .printRes = false,
+  .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
   .optrIdxListNum = 0,
   .optrIdxList = NULL,
   .bindColTypeNum = 0,
   .bindColTypeList = NULL,
-  .caseIdx = 23,
+  .caseIdx = 24,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -513,9 +529,81 @@ void bpAppendOperatorParam(BindData *data, int32_t *len, int32_t dataType, int32
       }
       break;
     default:
-      printf("!!!invalid paramNum:%d\n", pInfo->paramNum);
+      printf("!!!invalid operator paramNum:%d\n", pInfo->paramNum);
       exit(1);
   }
+}
+
+void bpAppendFunctionParam(BindData *data, int32_t *len, int32_t dataType, int32_t idx) {
+  FuncInfo *pInfo = NULL;
+
+  if (gCaseCtrl.funcIdxListNum > 0) {
+    pInfo = &funcInfo[gCaseCtrl.funcIdxList[idx]];
+  } else {
+    pInfo = &funcInfo[rand() % tListLen(funcInfo)];
+  }
+  
+  switch (pInfo->paramNum) {
+    case 1:
+      *len += sprintf(data->sql + *len, " %s(?)", pInfo->funcName);
+      break;
+    default:
+      printf("!!!invalid function  paramNum:%d\n", pInfo->paramNum);
+      exit(1);
+  }
+}
+
+
+int32_t bpAppendColumnName(BindData *data, int32_t type, int32_t len) {
+  switch (type) {  
+    case TSDB_DATA_TYPE_BOOL:
+      return sprintf(data->sql + len, "booldata");
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      return sprintf(data->sql + len, "tinydata");
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      return sprintf(data->sql + len, "smalldata");
+      break;
+    case TSDB_DATA_TYPE_INT:
+      return sprintf(data->sql + len, "intdata");
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      return sprintf(data->sql + len, "bigdata");
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      return sprintf(data->sql + len, "floatdata");
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      return sprintf(data->sql + len, "doubledata");
+      break;
+    case TSDB_DATA_TYPE_VARCHAR:
+      return sprintf(data->sql + len, "binarydata");
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      return sprintf(data->sql + len, "ts");
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+      return sprintf(data->sql + len, "nchardata");
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      return sprintf(data->sql + len, "utinydata");
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      return sprintf(data->sql + len, "usmalldata");
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      return sprintf(data->sql + len, "uintdata");
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      return sprintf(data->sql + len, "ubigdata");
+      break;
+    default:
+      printf("!!!invalid col type:%d", type);
+      exit(1);
+  }
+
+  return 0;
 }
 
 void generateQueryCondSQL(BindData *data, int32_t tblIdx) {
@@ -525,53 +613,7 @@ void generateQueryCondSQL(BindData *data, int32_t tblIdx) {
       if (c) {
         len += sprintf(data->sql + len, " and ");
       }
-      switch (data->pBind[c].buffer_type) {  
-        case TSDB_DATA_TYPE_BOOL:
-          len += sprintf(data->sql + len, "booldata");
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          len += sprintf(data->sql + len, "tinydata");
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          len += sprintf(data->sql + len, "smalldata");
-          break;
-        case TSDB_DATA_TYPE_INT:
-          len += sprintf(data->sql + len, "intdata");
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          len += sprintf(data->sql + len, "bigdata");
-          break;
-        case TSDB_DATA_TYPE_FLOAT:
-          len += sprintf(data->sql + len, "floatdata");
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
-          len += sprintf(data->sql + len, "doubledata");
-          break;
-        case TSDB_DATA_TYPE_VARCHAR:
-          len += sprintf(data->sql + len, "binarydata");
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          len += sprintf(data->sql + len, "ts");
-          break;
-        case TSDB_DATA_TYPE_NCHAR:
-          len += sprintf(data->sql + len, "nchardata");
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          len += sprintf(data->sql + len, "utinydata");
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          len += sprintf(data->sql + len, "usmalldata");
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          len += sprintf(data->sql + len, "uintdata");
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          len += sprintf(data->sql + len, "ubigdata");
-          break;
-        default:
-          printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
-          exit(1);
-      }
+      len += bpAppendColumnName(data, data->pBind[c].buffer_type, len);
       
       bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type, c);
     }
@@ -582,64 +624,50 @@ void generateQueryCondSQL(BindData *data, int32_t tblIdx) {
   }  
 }
 
+void bpGenerateConstInOpSQL(BindData *data, int32_t tblIdx) {
+  int32_t len = 0;
+  len = sprintf(data->sql, "select ");
+  
+  for (int c = 0; c < gCurCase->bindColNum; ++c) {
+    if (c) {
+      len += sprintf(data->sql + len, ", ");
+    }
+    
+    len += bpAppendColumnName(data, data->pBind[c].buffer_type, len);
+    
+    bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type, c);
+  }
+
+  len += sprintf(data->sql + len, " from %s%d", bpTbPrefix, tblIdx);
+}
+
+
+void bpGenerateConstInFuncSQL(BindData *data, int32_t tblIdx) {
+  int32_t len = 0;
+  len = sprintf(data->sql, "select ");
+  
+  for (int c = 0; c < gCurCase->bindColNum; ++c) {
+    if (c) {
+      len += sprintf(data->sql + len, ", ");
+    }
+    
+    bpAppendFunctionParam(data, &len, data->pBind[c].buffer_type, c);
+  }
+
+  len += sprintf(data->sql + len, " from %s%d", bpTbPrefix, tblIdx);
+}
+
 
 void generateQueryMiscSQL(BindData *data, int32_t tblIdx) {
-  int32_t len = sprintf(data->sql, "select * from %s%d where ", bpTbPrefix, tblIdx);
-  if (!gCurCase->fullCol) {
-    for (int c = 0; c < gCurCase->bindColNum; ++c) {
-      if (c) {
-        len += sprintf(data->sql + len, " and ");
-      }
-      switch (data->pBind[c].buffer_type) {  
-        case TSDB_DATA_TYPE_BOOL:
-          len += sprintf(data->sql + len, "booldata");
-          break;
-        case TSDB_DATA_TYPE_TINYINT:
-          len += sprintf(data->sql + len, "tinydata");
-          break;
-        case TSDB_DATA_TYPE_SMALLINT:
-          len += sprintf(data->sql + len, "smalldata");
-          break;
-        case TSDB_DATA_TYPE_INT:
-          len += sprintf(data->sql + len, "intdata");
-          break;
-        case TSDB_DATA_TYPE_BIGINT:
-          len += sprintf(data->sql + len, "bigdata");
-          break;
-        case TSDB_DATA_TYPE_FLOAT:
-          len += sprintf(data->sql + len, "floatdata");
-          break;
-        case TSDB_DATA_TYPE_DOUBLE:
-          len += sprintf(data->sql + len, "doubledata");
-          break;
-        case TSDB_DATA_TYPE_VARCHAR:
-          len += sprintf(data->sql + len, "binarydata");
-          break;
-        case TSDB_DATA_TYPE_TIMESTAMP:
-          len += sprintf(data->sql + len, "ts");
-          break;
-        case TSDB_DATA_TYPE_NCHAR:
-          len += sprintf(data->sql + len, "nchardata");
-          break;
-        case TSDB_DATA_TYPE_UTINYINT:
-          len += sprintf(data->sql + len, "utinydata");
-          break;
-        case TSDB_DATA_TYPE_USMALLINT:
-          len += sprintf(data->sql + len, "usmalldata");
-          break;
-        case TSDB_DATA_TYPE_UINT:
-          len += sprintf(data->sql + len, "uintdata");
-          break;
-        case TSDB_DATA_TYPE_UBIGINT:
-          len += sprintf(data->sql + len, "ubigdata");
-          break;
-        default:
-          printf("!!!invalid col type:%d", data->pBind[c].buffer_type);
-          exit(1);
-      }
-      
-      bpAppendOperatorParam(data, &len, data->pBind[c].buffer_type, c);
-    }
+  switch(tblIdx) {
+    case 0:
+      bpGenerateConstInOpSQL(data, tblIdx);
+      break;
+    case 1:
+      //TODO FILL TEST
+    default:
+      bpGenerateConstInFuncSQL(data, tblIdx);
+      break;
   }
 
   if (gCaseCtrl.printStmtSql) {

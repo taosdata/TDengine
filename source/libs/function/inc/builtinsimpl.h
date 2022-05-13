@@ -98,6 +98,10 @@ int32_t stateDurationFunction(SqlFunctionCtx* pCtx);
 bool getCsumFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t csumFunction(SqlFunctionCtx* pCtx);
 
+bool getMavgFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool mavgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t mavgFunction(SqlFunctionCtx* pCtx);
+
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 
 #ifdef __cplusplus

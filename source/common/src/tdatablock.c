@@ -1447,6 +1447,10 @@ void blockDebugShowData(const SArray* dataBlocks) {
       for (int32_t k = 0; k < colNum; k++) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+        if (pColInfoData->hasNull) {
+          printf(" %15s |", "NULL");
+          continue;
+        }
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
@@ -1463,6 +1467,9 @@ void blockDebugShowData(const SArray* dataBlocks) {
             break;
           case TSDB_DATA_TYPE_UBIGINT:
             printf(" %15lu |", *(uint64_t*)var);
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            printf(" %15f |", *(double*)var);
             break;
         }
       }
