@@ -138,7 +138,8 @@ class TDTestCase:
         if "2: service ok" in retVal:
             tdLog.info("taos -k success")
         else:
-            tdLog.exit("taos -k fail")
+            tdLog.info(retVal)  
+            tdLog.exit("taos -k fail 1")
 
         # stop taosd
         tdDnodes.stop(1)
@@ -149,7 +150,8 @@ class TDTestCase:
         if "0: unavailable" in retVal:
             tdLog.info("taos -k success")
         else:
-            tdLog.exit("taos -k fail")
+            tdLog.info(retVal)  
+            tdLog.exit("taos -k fail 2")
 
         # restart taosd
         tdDnodes.start(1)
@@ -158,7 +160,8 @@ class TDTestCase:
         if "2: service ok" in retVal:
             tdLog.info("taos -k success")
         else:
-            tdLog.exit("taos -k fail")
+            tdLog.info(retVal)  
+            tdLog.exit("taos -k fail 3")
 
         tdLog.printNoPrefix("================================ parameter: -n")
         # stop taosd
