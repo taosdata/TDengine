@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "filter.h"
 #include "function.h"
+#include "filter.h"
 #include "functionMgt.h"
 #include "os.h"
 #include "querynodes.h"
@@ -1348,34 +1348,32 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   char        str[512] = {0};
   int32_t     count = 0;
   SMetaReader mr = {0};
+  metaReaderInit(&mr, pInfo->readHandle.meta, 0);
 
   while (pInfo->curPos < pInfo->pTableGroups->numOfTables && count < pOperator->resultInfo.capacity) {
     STableKeyInfo* item = taosArrayGet(pa, pInfo->curPos);
+    metaGetTableEntryByUid(&mr, item->uid);
 
     for (int32_t j = 0; j < pOperator->numOfExprs; ++j) {
       SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, pExprInfo[j].base.resSchema.slotId);
 
       // refactor later
       if (fmIsScanPseudoColumnFunc(pExprInfo[j].pExpr->_function.functionId)) {
-        metaReaderInit(&mr, pInfo->readHandle.meta, 0);
-        metaGetTableEntryByUid(&mr, item->uid);
-
         STR_TO_VARSTR(str, mr.me.name);
-        metaReaderClear(&mr);
-
         colDataAppend(pDst, count, str, false);
-        //        data = tsdbGetTableTagVal(item->pTable, pExprInfo[j].base.pColumns->info.colId, type, bytes);
-        //        dst  = pColInfo->pData + count * pExprInfo[j].base.resSchema.bytes;
-        //        doSetTagValueToResultBuf(dst, data, type, bytes);
+      } else { // it is a tag value
+        const char* p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
+        colDataAppend(pDst, count, p, (p == NULL));
       }
-
-      count += 1;
     }
 
+    count += 1;
     if (++pInfo->curPos >= pInfo->pTableGroups->numOfTables) {
       pOperator->status = OP_EXEC_DONE;
     }
   }
+
+  metaReaderClear(&mr);
 
   // qDebug("QInfo:0x%"PRIx64" create tag values results completed, rows:%d", GET_TASKID(pRuntimeEnv), count);
   if (pOperator->status == OP_EXEC_DONE) {
