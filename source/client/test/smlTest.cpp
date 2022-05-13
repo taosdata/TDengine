@@ -228,7 +228,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(strncasecmp(kv->key, "cbin", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->valueLen, 17);
+  ASSERT_EQ(kv->length, 17);
   ASSERT_EQ(strncasecmp(kv->value, "\"passit", 7), 0);
   taosMemoryFree(kv);
 
@@ -237,7 +237,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(strncasecmp(kv->key, "cf64", 4), 0);
   ASSERT_EQ(kv->keyLen, 4);
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->valueLen, 7);
+  ASSERT_EQ(kv->length, 7);
   ASSERT_EQ(strncasecmp(kv->value, "4.31f64", 7), 0);
   taosMemoryFree(kv);
 
@@ -259,7 +259,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(strncasecmp(kv->key, TAG, strlen(TAG)), 0);
   ASSERT_EQ(kv->keyLen, strlen(TAG));
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->valueLen, strlen(TAG));
+  ASSERT_EQ(kv->length, strlen(TAG));
   ASSERT_EQ(strncasecmp(kv->value, TAG, strlen(TAG)), 0);
   taosMemoryFree(kv);
 

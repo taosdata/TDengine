@@ -1668,7 +1668,7 @@ static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedD
     SSchema* pTagSchema = &pSchema[tags->boundColumns[i] - 1];  // colId starts with 1
     param.schema = pTagSchema;
     SSmlKv* kv = taosArrayGetP(cols, i);
-    KvRowAppend(msg, kv->value, kv->valueLen, &param);
+    KvRowAppend(msg, kv->value, kv->length, &param);
   }
 
   *row = tdGetKVRowFromBuilder(tagsBuilder);
@@ -1766,10 +1766,8 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsSchema, SArray *cols
       if (!kv || kv->length == 0) {
         MemRowAppend(&pBuf, NULL, 0, &param);
       } else {
-        int32_t colLen = pColSchema->bytes;
-        if (IS_VAR_DATA_TYPE(pColSchema->type)) {
-          colLen = kv->length;
-        } else if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+        int32_t colLen = kv->length;
+        if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
           kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
         }
 
