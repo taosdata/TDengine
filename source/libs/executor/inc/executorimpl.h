@@ -658,6 +658,7 @@ void    initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWin
 void    cleanupAggSup(SAggSupporter* pAggSup);
 void    destroyBasicOperatorInfo(void* param, int32_t numOfOutput);
 void    appendOneRowToDataBlock(SSDataBlock* pBlock, STupleHandle* pTupleHandle);
+SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode);
 
 SSDataBlock* getSortedBlockData(SSortHandle* pHandle, SSDataBlock* pDataBlock, int32_t capacity, SArray* pColMatchInfo);
 SSDataBlock* loadNextDataBlock(void* param);
