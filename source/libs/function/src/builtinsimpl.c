@@ -3104,7 +3104,6 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pTsOutput = pCtx->pTsOutput;
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
-  int32_t type = pInputCol->info.type;
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
     if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
@@ -3114,6 +3113,12 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 
     char* data = colDataGetData(pInputCol, i);
     doReservoirSample(pInfo, data, tsList[i], i);
+  }
+
+  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
+    int32_t pos = startOffset + i;
+    colDataAppend(pOutput, pos, pInfo->data + i * pInfo->colBytes, false);
+    //TODO: handle ts output
   }
 
   return pInfo->numSampled;
