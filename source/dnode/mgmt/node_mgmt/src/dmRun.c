@@ -219,15 +219,21 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
 }
 
 static int32_t dmOpenNodes(SDnode *pDnode) {
-  if (pDnode->ptype == DND_PROC_CHILD) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->ntype];
-    pWrapper->procType = DND_PROC_CHILD;
-    return dmOpenNode(pWrapper);
-  } else {
-    for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-      SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
-      if (!pWrapper->required) continue;
-      if (n == DNODE) {
+  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    if (!pWrapper->required) continue;
+
+    if (pDnode->ptype == DND_PROC_CHILD) {
+      if (pDnode->ntype == ntype) {
+        pWrapper->procType = DND_PROC_CHILD;
+        if (dmOpenNode(pWrapper) != 0) {
+          return -1;
+        }
+      } else {
+        pWrapper->required = false;
+      }
+    } else {
+      if (ntype == DNODE) {
         pWrapper->procType = DND_PROC_SINGLE;
       } else {
         pWrapper->procType = pDnode->ptype;

@@ -129,7 +129,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
       goto _OVER;
     }
 
-    if (ntype != DNODE && dmReadShmFile(pWrapper->path, pWrapper->name, &pWrapper->procShm) != 0) {
+    if (ntype != DNODE && dmReadShmFile(pWrapper->path, pWrapper->name, pDnode->ntype, &pWrapper->procShm) != 0) {
       dError("node:%s, failed to read shm file since %s", pWrapper->name, terrstr());
       goto _OVER;
     }

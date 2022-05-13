@@ -139,7 +139,7 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
   return pFile;
 }
 
-int32_t dmReadShmFile(const char *path, const char *name, SShm *pShm) {
+int32_t dmReadShmFile(const char *path, const char *name, EDndNodeType runType, SShm *pShm) {
   int32_t   code = -1;
   char      content[MAXLEN + 1] = {0};
   char      file[PATH_MAX] = {0};
@@ -172,7 +172,7 @@ int32_t dmReadShmFile(const char *path, const char *name, SShm *pShm) {
     }
   }
 
-  if (!tsMultiProcess) {
+  if (!tsMultiProcess || runType == DNODE || runType == NODE_END) {
     if (pShm->id >= 0) {
       dDebug("node:%s, shmid:%d, is closed, size:%d", name, pShm->id, pShm->size);
       taosDropShm(pShm);

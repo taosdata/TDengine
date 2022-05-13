@@ -17,7 +17,7 @@
 #include "dmInt.h"
 
 #define dmSendLocalRecv(pMgmt, mtype, func, pInfo)                     \
-  {                                                                    \
+  if (!tsMultiProcess) {                                                \
     SRpcMsg rsp = {0};                                                 \
     SRpcMsg req = {.msgType = mtype};                                  \
     SEpSet  epset = {.inUse = 0, .numOfEps = 1};                       \
