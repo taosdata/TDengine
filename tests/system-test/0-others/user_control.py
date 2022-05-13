@@ -238,7 +238,7 @@ class TDTestCase:
             f"DROP user {self.__user_list[0]} , {self.__user_list[1]}",
             f"DROP users {self.__user_list[0]}  {self.__user_list[1]}",
             f"DROP users {self.__user_list[0]} , {self.__user_list[1]}",
-            "DROP user root",
+            # "DROP user root",
             "DROP user abcde",
             "DROP user ALL",
         ]
