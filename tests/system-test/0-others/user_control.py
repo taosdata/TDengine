@@ -6,6 +6,7 @@ import traceback
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.dnodes import *
 
 
 PRIVILEGES_ALL      = "ALL"
@@ -282,6 +283,9 @@ class TDTestCase:
         self.login_err(self.__user_list[0], self.__passwd_list[0])
         self.login_currrent(self.__user_list[0], f"new{self.__passwd_list[0]}")
 
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
         # 普通用户权限
         # 密码登录
         _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
@@ -310,6 +314,20 @@ class TDTestCase:
         # root删除用户测试
         tdLog.printNoPrefix("==========step10: super user drop normal user")
         self.test_drop_user()
+
+        tdSql.query("show users")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "root")
+        tdSql.checkData(0, 1, "super")
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        # 删除后无法登录
+        self.login_err(self.__user_list[0], self.__passwd_list[0])
+        self.login_currrent(self.__user_list[0], f"new{self.__passwd_list[0]}")
+        self.login_err(self.__user_list[1], self.__passwd_list[1])
+        self.login_currrent(self.__user_list[1], f"new{self.__passwd_list[1]}")
 
         tdSql.query("show users")
         tdSql.checkRows(1)
