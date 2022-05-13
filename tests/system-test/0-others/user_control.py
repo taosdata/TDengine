@@ -6,6 +6,7 @@ import traceback
 from util.log import *
 from util.sql import *
 from util.cases import *
+from util.dnodes import *
 
 
 PRIVILEGES_ALL      = "ALL"
@@ -161,6 +162,8 @@ class TDTestCase:
         for sql in sqls:
             tdSql.error(sql)
 
+        tdSql.execute("DROP USER u1")
+
     def __alter_pass_sql(self, user, passwd):
         return f'''ALTER USER {user} PASS '{passwd}' '''
 
@@ -237,7 +240,7 @@ class TDTestCase:
             f"DROP user {self.__user_list[0]} , {self.__user_list[1]}",
             f"DROP users {self.__user_list[0]}  {self.__user_list[1]}",
             f"DROP users {self.__user_list[0]} , {self.__user_list[1]}",
-            "DROP user root",
+            # "DROP user root",
             "DROP user abcde",
             "DROP user ALL",
         ]
@@ -267,7 +270,7 @@ class TDTestCase:
         # 查看用户
         tdLog.printNoPrefix("==========step2: show user test")
         tdSql.query("show users")
-        tdSql.checkRows(self.users_count + 2)
+        tdSql.checkRows(self.users_count + 1)
 
         # 密码登录认证
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
@@ -282,34 +285,54 @@ class TDTestCase:
         self.login_err(self.__user_list[0], self.__passwd_list[0])
         self.login_currrent(self.__user_list[0], f"new{self.__passwd_list[0]}")
 
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.query("show users")
+        tdSql.checkRows(self.users_count + 1)
+
         # 普通用户权限
         # 密码登录
-        _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
-        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as conn:
-            user = conn
-        # 不能创建用户
-        tdLog.printNoPrefix("==========step5: normal user can not create user")
-        user.error("create use utest1 pass 'utest1pass'")
-        # 可以查看用户
-        tdLog.printNoPrefix("==========step6: normal user can show user")
-        user.query("show users")
-        assert user.queryRows == self.users_count + 2
-        # 不可以修改其他用户的密码
-        tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
-        user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
-        user.error("root", "taosdata_root")
-        # 可以修改自己的密码
-        tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
-        user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
-        # 不可以删除用户，包括自己
-        tdLog.printNoPrefix("==========step9: normal user can not drop any user ")
-        user.error(f"drop user {self.__user_list[0]}")
-        user.error(f"drop user {self.__user_list[1]}")
-        user.error("drop user root")
+        # _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user:
+            # user = conn
+            # 不能创建用户
+            tdLog.printNoPrefix("==========step5: normal user can not create user")
+            user.error("create use utest1 pass 'utest1pass'")
+            # 可以查看用户
+            tdLog.printNoPrefix("==========step6: normal user can show user")
+            user.query("show users")
+            assert user.queryRows == self.users_count + 1
+            # 不可以修改其他用户的密码
+            tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
+            user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
+            user.error(self.__alter_pass_sql("root", "taosdata_root" ))
+            # 可以修改自己的密码
+            tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
+            user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
+            # 不可以删除用户，包括自己
+            tdLog.printNoPrefix("==========step9: normal user can not drop any user ")
+            user.error(f"drop user {self.__user_list[0]}")
+            user.error(f"drop user {self.__user_list[1]}")
+            user.error("drop user root")
 
         # root删除用户测试
         tdLog.printNoPrefix("==========step10: super user drop normal user")
         self.test_drop_user()
+
+        tdSql.query("show users")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "root")
+        tdSql.checkData(0, 1, "super")
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        # 删除后无法登录
+        self.login_err(self.__user_list[0], self.__passwd_list[0])
+        self.login_err(self.__user_list[0], f"new{self.__passwd_list[0]}")
+        self.login_err(self.__user_list[1], self.__passwd_list[1])
+        self.login_err(self.__user_list[1], f"new{self.__passwd_list[1]}")
 
         tdSql.query("show users")
         tdSql.checkRows(1)
