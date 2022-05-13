@@ -36,7 +36,7 @@ int64_t interlocked_add_fetch_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_add_fetch_ptr(void* volatile* ptr, void*  val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)(_InterlockedExchangeAdd((int32_t volatile*)(ptr), (int32_t)val) + (int32_t)val);
 #else
   return (void*)(InterlockedExchangeAdd64((int64_t volatile*)(ptr), (int64_t)val) + (int64_t)val);
@@ -56,7 +56,7 @@ int32_t interlocked_and_fetch_32(int32_t volatile* ptr, int32_t val) {
 }
 
 int64_t interlocked_and_fetch_64(int64_t volatile* ptr, int64_t val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   int64_t old, res;
   do {
     old = *ptr;
@@ -69,7 +69,7 @@ int64_t interlocked_and_fetch_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_and_fetch_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)interlocked_and_fetch_32((int32_t volatile*)ptr, (int32_t)val);
 #else
   return (void*)interlocked_and_fetch_64((int64_t volatile*)ptr, (int64_t)val);
@@ -77,7 +77,7 @@ void* interlocked_and_fetch_ptr(void* volatile* ptr, void* val) {
 }
 
 int64_t interlocked_fetch_and_64(int64_t volatile* ptr, int64_t val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   int64_t old;
   do {
     old = *ptr;
@@ -89,7 +89,7 @@ int64_t interlocked_fetch_and_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_fetch_and_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)_InterlockedAnd((int32_t volatile*)(ptr), (int32_t)(val));
 #else
   return (void*)_InterlockedAnd64((int64_t volatile*)(ptr), (int64_t)(val));
@@ -109,7 +109,7 @@ int32_t interlocked_or_fetch_32(int32_t volatile* ptr, int32_t val) {
 }
 
 int64_t interlocked_or_fetch_64(int64_t volatile* ptr, int64_t val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   int64_t old, res;
   do {
     old = *ptr;
@@ -122,7 +122,7 @@ int64_t interlocked_or_fetch_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_or_fetch_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)interlocked_or_fetch_32((int32_t volatile*)ptr, (int32_t)val);
 #else
   return (void*)interlocked_or_fetch_64((int64_t volatile*)ptr, (int64_t)val);
@@ -130,7 +130,7 @@ void* interlocked_or_fetch_ptr(void* volatile* ptr, void* val) {
 }
 
 int64_t interlocked_fetch_or_64(int64_t volatile* ptr, int64_t val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   int64_t old;
   do {
     old = *ptr;
@@ -142,7 +142,7 @@ int64_t interlocked_fetch_or_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_fetch_or_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)_InterlockedOr((int32_t volatile*)(ptr), (int32_t)(val));
 #else
   return (void*)interlocked_fetch_or_64((int64_t volatile*)(ptr), (int64_t)(val));
@@ -162,7 +162,7 @@ int32_t interlocked_xor_fetch_32(int32_t volatile* ptr, int32_t val) {
 }
 
 int64_t interlocked_xor_fetch_64(int64_t volatile* ptr, int64_t val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   int64_t old, res;
   do {
     old = *ptr;
@@ -175,7 +175,7 @@ int64_t interlocked_xor_fetch_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_xor_fetch_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)interlocked_xor_fetch_32((int32_t volatile*)(ptr), (int32_t)(val));
 #else
   return (void*)interlocked_xor_fetch_64((int64_t volatile*)(ptr), (int64_t)(val));
@@ -183,7 +183,7 @@ void* interlocked_xor_fetch_ptr(void* volatile* ptr, void* val) {
 }
 
 int64_t interlocked_fetch_xor_64(int64_t volatile* ptr, int64_t val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   int64_t old;
   do {
     old = *ptr;
@@ -195,7 +195,7 @@ int64_t interlocked_fetch_xor_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_fetch_xor_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)_InterlockedXor((int32_t volatile*)(ptr), (int32_t)(val));
 #else
   return (void*)interlocked_fetch_xor_64((int64_t volatile*)(ptr), (int64_t)(val));
@@ -211,7 +211,7 @@ int64_t interlocked_sub_fetch_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_sub_fetch_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)interlocked_sub_fetch_32((int32_t volatile*)ptr, (int32_t)val);
 #else
   return (void*)interlocked_add_fetch_64((int64_t volatile*)ptr, (int64_t)val);
@@ -226,7 +226,7 @@ int64_t interlocked_fetch_sub_64(int64_t volatile* ptr, int64_t val) {
 }
 
 void* interlocked_fetch_sub_ptr(void* volatile* ptr, void* val) {
-#ifdef _TD_WINDOWS_32
+#ifdef WINDOWS
   return (void*)interlocked_fetch_sub_32((int32_t volatile*)ptr, (int32_t)val);
 #else
   return (void*)interlocked_fetch_sub_64((int64_t volatile*)ptr, (int64_t)val);
