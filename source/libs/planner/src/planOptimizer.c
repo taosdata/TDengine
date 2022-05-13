@@ -228,10 +228,12 @@ static void setScanWindowInfo(SScanLogicNode* pScan) {
 static int32_t osdOptimize(SOptimizeContext* pCxt, SLogicNode* pLogicNode) {
   SOsdInfo info = {0};
   int32_t  code = osdMatch(pCxt, pLogicNode, &info);
+  if (TSDB_CODE_SUCCESS == code && info.pScan) {
+    setScanWindowInfo((SScanLogicNode*)info.pScan);
+  }
   if (TSDB_CODE_SUCCESS == code && (NULL != info.pDsoFuncs || NULL != info.pSdrFuncs)) {
     info.pScan->dataRequired = osdGetDataRequired(info.pSdrFuncs);
     info.pScan->pDynamicScanFuncs = info.pDsoFuncs;
-    setScanWindowInfo((SScanLogicNode*)info.pScan);
     OPTIMIZE_FLAG_SET_MASK(info.pScan->node.optimizedFlag, OPTIMIZE_FLAG_OSD);
     pCxt->optimized = true;
   }
