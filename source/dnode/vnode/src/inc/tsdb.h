@@ -99,7 +99,6 @@ int32_t tsdbInitSma(STsdb *pTsdb);
 int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
 int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
 int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
-void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 typedef enum {
   TSDB_FILE_HEAD = 0,  // .head
   TSDB_FILE_DATA,      // .data
@@ -518,9 +517,9 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
 
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
-    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
+    return (int)((key + 1) / tsTickPerMin[precision] / days - 1);
   } else {
-    return (int)((key / tsTickPerDay[precision] / days));
+    return (int)((key / tsTickPerMin[precision] / days));
   }
 }
 
@@ -770,8 +769,8 @@ static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
 }
 
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fid * days * tsTickPerDay[precision];
-  *maxKey = *minKey + days * tsTickPerDay[precision] - 1;
+  *minKey = fid * days * tsTickPerMin[precision];
+  *maxKey = *minKey + days * tsTickPerMin[precision] - 1;
 }
 
 static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet *pSet) {

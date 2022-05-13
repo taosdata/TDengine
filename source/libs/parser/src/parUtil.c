@@ -146,6 +146,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid binary/nchar column length";
     case TSDB_CODE_PAR_INVALID_TAGS_NUM:
       return "Invalid number of tag columns";
+    case TSDB_CODE_PAR_INVALID_INTERNAL_PK:
+      return "Invalid _c0 or _rowts expression";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -191,7 +193,7 @@ int32_t buildSyntaxErrMsg(SMsgBuf* pBuf, const char* additionalInfo, const char*
   return TSDB_CODE_TSC_SQL_SYNTAX_ERROR;
 }
 
-SSchema *getTableColumnSchema(const STableMeta *pTableMeta) {
+SSchema* getTableColumnSchema(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   return (SSchema*)pTableMeta->schema;
 }
@@ -224,6 +226,23 @@ int32_t getNumOfTags(const STableMeta* pTableMeta) {
 STableComInfo getTableInfo(const STableMeta* pTableMeta) {
   assert(pTableMeta != NULL);
   return pTableMeta->tableInfo;
+}
+
+static uint32_t getTableMetaSize(const STableMeta* pTableMeta) {
+  int32_t totalCols = 0;
+  if (pTableMeta->tableInfo.numOfColumns >= 0) {
+    totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
+  }
+
+  return sizeof(STableMeta) + totalCols * sizeof(SSchema);
+}
+
+STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
+  size_t size = getTableMetaSize(pTableMeta);
+
+  STableMeta* p = taosMemoryMalloc(size);
+  memcpy(p, pTableMeta, size);
+  return p;
 }
 
 int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen) {

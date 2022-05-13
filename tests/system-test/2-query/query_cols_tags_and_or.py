@@ -93,104 +93,124 @@ class TDTestCase:
             res = tdSql.query(query_sql.replace('*', 'last(*)'), True)
         return int(res[0][-4])
 
-    def queryTsCol(self, tb_name):
+    def queryTsCol(self, tb_name, check_elm=None):
+        select_elm = "*" if check_elm is None else check_elm
         # ts and ts
-        query_sql = f'select * from {tb_name} where ts > "2021-01-11 12:00:00" or ts < "2021-01-13 12:00:00"'
+        query_sql = f'select {select_elm} from {tb_name} where ts > "2021-01-11 12:00:00" or ts < "2021-01-13 12:00:00"'
         tdSql.query(query_sql)
         tdSql.checkRows(11)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts >= "2021-01-11 12:00:00" and ts <= "2021-01-13 12:00:00"'
+        query_sql = f'select {select_elm} from {tb_name} where ts >= "2021-01-11 12:00:00" and ts <= "2021-01-13 12:00:00"'
         tdSql.query(query_sql)
-        # tdSql.checkRows(2)
-        # tdSql.checkEqual(self.queryLastC10(query_sql), 6)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 6) if select_elm == "*" else False
 
         ## ts or and tinyint col
-        query_sql = f'select * from {tb_name} where ts > "2021-01-11 12:00:00" or c1 = 2'
-        tdSql.error(query_sql)
+        query_sql = f'select {select_elm} from {tb_name} where ts > "2021-01-11 12:00:00" or c1 = 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(7)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts <= "2021-01-11 12:00:00" and c1 != 2'
+        query_sql = f'select {select_elm} from {tb_name} where ts <= "2021-01-11 12:00:00" and c1 != 2'
         tdSql.query(query_sql)
         tdSql.checkRows(4)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 5)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5) if select_elm == "*" else False
 
         ## ts or and smallint col
-        query_sql = f'select * from {tb_name} where ts <> "2021-01-11 12:00:00" or c2 = 10'
-        tdSql.error(query_sql)
+        query_sql = f'select {select_elm} from {tb_name} where ts <> "2021-01-11 12:00:00" or c2 = 10'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts <= "2021-01-11 12:00:00" and c2 <= 1'
+
+        query_sql = f'select {select_elm} from {tb_name} where ts <= "2021-01-11 12:00:00" and c2 <= 1'
         tdSql.query(query_sql)
         tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 1) if select_elm == "*" else False
 
         ## ts or and int col
-        query_sql = f'select * from {tb_name} where ts >= "2021-01-11 12:00:00" or c3 = 4'
-        tdSql.error(query_sql)
+        query_sql = f'select {select_elm} from {tb_name} where ts >= "2021-01-11 12:00:00" or c3 = 4'
+        tdSql.query(query_sql)
+        tdSql.checkRows(8)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts < "2021-01-11 12:00:00" and c3 = 4'
+        query_sql = f'select {select_elm} from {tb_name} where ts < "2021-01-11 12:00:00" and c3 = 4'
         tdSql.query(query_sql)
         tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 4)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 4) if select_elm == "*" else False
 
         ## ts or and big col
-        query_sql = f'select * from {tb_name} where ts is Null or c4 = 5'
-        tdSql.error(query_sql)
-
-        query_sql = f'select * from {tb_name} where ts is not Null and c4 = 2'
+        query_sql = f'select {select_elm} from {tb_name} where ts is Null or c4 = 5'
         tdSql.query(query_sql)
         tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 3)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5) if select_elm == "*" else False
+
+        query_sql = f'select {select_elm} from {tb_name} where ts is not Null and c4 = 2'
+        tdSql.query(query_sql)
+        tdSql.checkRows(1)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 3) if select_elm == "*" else False
 
         ## ts or and float col
-        query_sql = f'select * from {tb_name} where ts between "2021-01-17 12:00:00" and "2021-01-23 12:00:00" or c5 = 6.6'
-        tdSql.error(query_sql)
+        query_sql = f'select {select_elm} from {tb_name} where ts between "2021-01-17 12:00:00" and "2021-01-23 12:00:00" or c5 = 6.6'
+        tdSql.query(query_sql)
+        tdSql.checkRows(5)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts < "2021-01-11 12:00:00" and c5 = 1.1'
+        query_sql = f'select {select_elm} from {tb_name} where ts < "2021-01-11 12:00:00" and c5 = 1.1'
         tdSql.query(query_sql)
         tdSql.checkRows(4)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 4)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 4) if select_elm == "*" else False
 
         ## ts or and double col
-        query_sql = f'select * from {tb_name} where ts between "2021-01-17 12:00:00" and "2021-01-23 12:00:00" or c6 = 7.7'
-        tdSql.error(query_sql) 
+        query_sql = f'select {select_elm} from {tb_name} where ts between "2021-01-17 12:00:00" and "2021-01-23 12:00:00" or c6 = 7.7'
+        tdSql.query(query_sql)
+        tdSql.checkRows(5)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts < "2021-01-11 12:00:00" and c6 = 1.1'
+        query_sql = f'select {select_elm} from {tb_name} where ts < "2021-01-11 12:00:00" and c6 = 1.1'
         tdSql.query(query_sql)
         tdSql.checkRows(4)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 4)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 4) if select_elm == "*" else False
 
         ## ts or and binary col
-        query_sql = f'select * from {tb_name} where ts < "2021-01-11 12:00:00" or c7 like "binary_"'
-        tdSql.error(query_sql)
-
-        query_sql = f'select * from {tb_name} where ts <= "2021-01-11 12:00:00" and c7 in ("binary")'
+        query_sql = f'select {select_elm} from {tb_name} where ts < "2021-01-11 12:00:00" or c7 like "binary_"'
         tdSql.query(query_sql)
         tdSql.checkRows(5)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 5)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 8) if select_elm == "*" else False
+
+        query_sql = f'select {select_elm} from {tb_name} where ts <= "2021-01-11 12:00:00" and c7 in ("binary")'
+        tdSql.query(query_sql)
+        tdSql.checkRows(5)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 5) if select_elm == "*" else False
 
         ## ts or and nchar col
-        query_sql = f'select * from {tb_name} where ts < "2021-01-11 12:00:00" or c8 like "nchar%"'
-        tdSql.error(query_sql)
+        query_sql = f'select {select_elm} from {tb_name} where ts < "2021-01-11 12:00:00" or c8 like "nchar%"'
+        tdSql.query(query_sql)
+        tdSql.checkRows(10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 10) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts >= "2021-01-11 12:00:00" and c8 is Null'
+        query_sql = f'select {select_elm} from {tb_name} where ts >= "2021-01-11 12:00:00" and c8 is Null'
         tdSql.query(query_sql)
         tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
         ## ts or and bool col
-        query_sql = f'select * from {tb_name} where ts < "2021-01-11 12:00:00" or c9=false'
-        tdSql.error(query_sql)
+        query_sql = f'select {select_elm} from {tb_name} where ts < "2021-01-11 12:00:00" or c9=false'
+        tdSql.query(query_sql)
+        tdSql.checkRows(6)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
 
-        query_sql = f'select * from {tb_name} where ts >= "2021-01-11 12:00:00" and c9=true'
+        query_sql = f'select {select_elm} from {tb_name} where ts >= "2021-01-11 12:00:00" and c9=true'
         tdSql.query(query_sql)
         tdSql.checkRows(5)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 9) if select_elm == "*" else False
 
         ## multi cols
-        query_sql = f'select * from {tb_name} where ts > "2021-01-03 12:00:00" and c1 != 2 and c2 >= 2 and c3 <> 4 and c4 < 4 and c5 > 1 and c6 >= 1.1 and c7 is not Null and c8 = "nchar" and c9=false'
+        query_sql = f'select {select_elm} from {tb_name} where ts > "2021-01-03 12:00:00" and c1 != 2 and c2 >= 2 and c3 <> 4 and c4 < 4 and c5 > 1 and c6 >= 1.1 and c7 is not Null and c8 = "nchar" and c9=false'
         tdSql.query(query_sql)
         tdSql.checkRows(1)
-        tdSql.checkEqual(self.queryLastC10(query_sql), 10)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 10) if select_elm == "*" else False
 
     def queryTsTag(self, tb_name):
         ## ts and tinyint col
@@ -2029,12 +2049,12 @@ class TDTestCase:
         tb_name = self.initStb()
         self.queryFullTagType(tb_name)
 
-    def checkTbTsCol(self):
+    def checkTbTsCol(self, check_elm):
         '''
             Ordinary table ts and col check
         '''
         tb_name = self.initTb()
-        self.queryTsCol(tb_name)
+        self.queryTsCol(tb_name, check_elm)
 
     def checkStbTsTol(self):
         tb_name = self.initStb()
@@ -2112,8 +2132,8 @@ class TDTestCase:
         for check_elm in [None, column_name]:
             self.checkTbColTypeOperator(check_elm)
             self.checkStbColTypeOperator(check_elm)
+            self.checkTbTsCol(check_elm)
         # self.checkStbTagTypeOperator()
-        # self.checkTbTsCol()
         # self.checkStbTsTol()
         # self.checkStbTsTag()
         # self.checkStbTsColTag()

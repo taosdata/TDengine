@@ -150,6 +150,9 @@ class TDSql:
             raise Exception(repr(e))
         return (self.queryRows, timeout)
 
+    def getRows(self):
+        return self.queryRows
+
     def checkRows(self, expectRows):
         if self.queryRows == expectRows:
             tdLog.info("sql:%s, queryRows:%d == expect:%d" % (self.sql, self.queryRows, expectRows))
