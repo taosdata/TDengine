@@ -289,7 +289,7 @@ class TDTestCase:
         tdDnodes.start(1)
 
         tdSql.query("show users")
-        tdSql.checkRows(self.users_count + 2)
+        tdSql.checkRows(self.users_count + 1)
 
         # 普通用户权限
         # 密码登录
@@ -302,7 +302,7 @@ class TDTestCase:
             # 可以查看用户
             tdLog.printNoPrefix("==========step6: normal user can show user")
             user.query("show users")
-            assert user.queryRows == self.users_count + 2
+            assert user.queryRows == self.users_count + 1
             # 不可以修改其他用户的密码
             tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
             user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
