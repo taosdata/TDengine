@@ -179,7 +179,7 @@ void parseArgument(int32_t argc, char* argv[]) {
     } else if (strcmp(argv[i], "-y") == 0) {
       g_stConfInfo.consumeDelay = atol(argv[++i]);
     } else {
-      printf("%s unknow para: %s %s", GREEN, argv[++i], NC);
+      pError("%s unknow para: %s %s", GREEN, argv[++i], NC);
       exit(-1);
     }
   }
@@ -259,7 +259,7 @@ int queryDB(TAOS* taos, char* command) {
 }
 
 static void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
-  printf("tmq_commit_cb_print() commit %d\n", resp);
+  pError("tmq_commit_cb_print() commit %d\n", resp);
 }
 
 void build_consumer(SThreadInfo* pInfo) {
@@ -318,7 +318,7 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
 
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
-    printf("error in save consumeinfo, reason:%s\n", taos_errstr(pRes));
+    pError("error in save consumeinfo, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);
     exit(-1);
   }
@@ -375,7 +375,7 @@ void* consumeThreadFunc(void* param) {
 
   tmq_resp_err_t err = tmq_subscribe(pInfo->tmq, pInfo->topicList);
   if (err) {
-    printf("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
+    pError("tmq_subscribe() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
   
@@ -388,14 +388,14 @@ void* consumeThreadFunc(void* param) {
 
   err = tmq_unsubscribe(pInfo->tmq);
   if (err) {
-    printf("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
+    pError("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
     pInfo->consumeMsgCnt = -1;
     return NULL;
   }
   
   err = tmq_consumer_close(pInfo->tmq);
   if (err) {
-    printf("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
+    pError("tmq_consumer_close() fail, reason: %s\n", tmq_err2str(err));
     exit(-1);
   }
   pInfo->tmq = NULL;
@@ -451,7 +451,7 @@ int32_t getConsumeInfo() {
   sprintf(sqlStr, "select * from %s.consumeinfo", g_stConfInfo.cdbName);
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
-    printf("error in get consumeinfo, reason:%s\n", taos_errstr(pRes));
+    pError("error in get consumeinfo, reason:%s\n", taos_errstr(pRes));
     taosFprintfFile(g_fp, "error in get consumeinfo, reason:%s\n", taos_errstr(pRes));
     taosCloseFile(&g_fp);
     taos_free_result(pRes);
