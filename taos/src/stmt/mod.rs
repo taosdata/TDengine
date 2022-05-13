@@ -179,6 +179,31 @@ impl<'c> From<&'c Column> for MultiBind<'c> {
     }
 }
 
+impl<'b> From<BorrowedColumn<'b>> for MultiBind<'b> {
+    fn from(col: BorrowedColumn<'b>) -> Self {
+        match col {
+            BorrowedColumn::Null(n) => MultiBind::nulls(n),
+            BorrowedColumn::Bool(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::TinyInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::SmallInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::Int(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::BigInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::UTinyInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::USmallInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::UInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::UBigInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::Float(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::Double(nulls, values) => MultiBind::from_primitives(&nulls, values),
+            BorrowedColumn::Timestamp(nulls, values) => {
+                MultiBind::from_raw_timestamps(&nulls, values)
+            }
+            BorrowedColumn::Binary(values) => MultiBind::from_binary_vec(&values),
+            BorrowedColumn::NChar(values) => MultiBind::from_string_vec(&values),
+            _ => unreachable!(),
+        }
+    }
+}
+
 impl<'b, 'c> From<&'c BorrowedColumn<'b>> for MultiBind<'c> {
     fn from(col: &'c BorrowedColumn<'b>) -> Self {
         match col {

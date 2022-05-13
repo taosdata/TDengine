@@ -17,6 +17,8 @@ use crate::{util::IntoCStr, Taos};
 
 #[derive(Debug, Error)]
 pub enum Error {
+    #[error("parse dsn error: {0}")]
+    DsnError(#[from] DsnError),
     #[error("{0}")]
     Driver(#[from] taos_error::Error),
     #[error("deserialization error {0}")]
@@ -28,12 +30,12 @@ pub enum Error {
 // A result should not be clone-able.
 // Result set live shorter than query lifetime.
 #[derive(Debug)]
-pub struct ResultSet<'q> {
-    raw: DroppableRawRes<'q>,
+pub struct ResultSet {
+    raw: DroppableRawRes,
     summary: Arc<(AtomicU64, AtomicU64)>,
 }
 
-impl<'q> ResultSet<'q> {
+impl ResultSet {
     pub(crate) fn from_ptr(ptr: *mut c_void) -> Result<Self, taos_error::Error> {
         let raw = RawRes::from_ptr(ptr).map(DroppableRawRes::new)?;
         Ok(ResultSet {
@@ -52,7 +54,7 @@ impl<'q> ResultSet<'q> {
         })
     }
 
-    pub(crate) fn new(raw: DroppableRawRes<'q>) -> Self {
+    pub(crate) fn new(raw: DroppableRawRes) -> Self {
         Self {
             raw,
             summary: Default::default(),
@@ -67,19 +69,24 @@ impl<'q> ResultSet<'q> {
 }
 
 #[derive(Debug)]
-pub struct SyncBlock<'r> {
+pub struct SyncBlock {
     pub raw: Arc<RawRes>,
     pub precision: Precision,
     pub data: *mut *mut c_void,
     pub lengths: *const i32,
     pub num_of_rows: usize,
-    pub _marker: PhantomData<&'r u8>,
 }
 
-unsafe impl<'r> Send for SyncBlock<'r> {}
-unsafe impl<'r> Sync for SyncBlock<'r> {}
+unsafe impl Send for SyncBlock {}
+unsafe impl Sync for SyncBlock {}
 
-impl<'b, 'r> BlockExt for SyncBlock<'r> {
+impl SyncBlock {
+    pub fn tmq_table_name(&self) -> Option<&str> {
+        self.raw.tmq_table_name()
+    }
+}
+
+impl<'b> BlockExt for SyncBlock {
     // type Value = BorrowedValue<'b>;
 
     fn num_of_rows(&self) -> usize {
@@ -245,7 +252,7 @@ impl<'b, 'r> BlockExt for SyncBlock<'r> {
     }
 }
 
-impl<'q> Fetchable for ResultSet<'q> {
+impl Fetchable for ResultSet {
     fn fields(&self) -> &[Field] {
         &self.raw.fields()
     }
@@ -267,8 +274,8 @@ impl<'q> Fetchable for ResultSet<'q> {
     }
 }
 
-impl<'r, 'q> Iterator for &'r mut ResultSet<'q> {
-    type Item = SyncBlock<'r>;
+impl Iterator for ResultSet {
+    type Item = SyncBlock;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
@@ -281,7 +288,6 @@ impl<'r, 'q> Iterator for &'r mut ResultSet<'q> {
                 data,
                 lengths,
                 num_of_rows: num_of_rows as _,
-                _marker: PhantomData,
             })
         } else {
             None
@@ -289,7 +295,7 @@ impl<'r, 'q> Iterator for &'r mut ResultSet<'q> {
     }
 }
 
-impl<'r, 'q> SyncBlock<'r> {
+impl<'r, 'q> SyncBlock {
     #[inline]
     pub fn from_raw_with_ptr(
         raw: Arc<RawRes>,
@@ -305,7 +311,6 @@ impl<'r, 'q> SyncBlock<'r> {
                 precision: precision,
                 lengths,
                 num_of_rows: num_of_rows as _,
-                _marker: PhantomData,
             })
         } else {
             None
@@ -325,9 +330,10 @@ impl<'r, 'q> SyncBlock<'r> {
 impl<'q> Queryable<'q> for Taos {
     type Error = Error;
 
-    type ResultSet = ResultSet<'q>;
+    type ResultSet = ResultSet;
 
-    fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<ResultSet<'q>, Self::Error> {
+    fn query<T: AsRef<str>>(&self, sql: T) -> Result<ResultSet, Self::Error> {
+        log::debug!("sql: {}", sql.as_ref());
         let raw = self.0.query(sql.as_ref().into_c_str().as_ptr())?;
         Ok(ResultSet::new(raw))
     }

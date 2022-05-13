@@ -207,6 +207,23 @@ where
 
     fn query<T: AsRef<str>>(&'q self, sql: T) -> Result<Self::ResultSet, Self::Error>;
 
+    fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
+        self.query(sql).map(|res| res.affected_rows() as _)
+    }
+
+    fn exec_many<T: AsRef<str>, I: IntoIterator<Item = T>>(
+        &'q self,
+        input: I,
+    ) -> Result<usize, Self::Error> {
+        input
+            .into_iter()
+            .map(|sql| self.exec(sql))
+            .try_fold(0, |mut acc, aff| {
+                acc += aff?;
+                Ok(acc)
+            })
+    }
+
     fn query_one<T: AsRef<str>, O: DeserializeOwned>(
         &'q self,
         sql: T,
@@ -217,9 +234,18 @@ where
             .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
     }
 
-    fn exec<T: AsRef<str>>(&'q self, sql: T) -> Result<usize, Self::Error> {
-        self.query(sql).map(|res| res.affected_rows() as _)
+    fn create_topic(
+        &'q self,
+        name: impl AsRef<str>,
+        sql: impl AsRef<str>,
+    ) -> Result<(), Self::Error> {
+        let (name, sql) = (name.as_ref(), sql.as_ref());
+        let query = format!("create topic if not exists {name} as {sql}");
+
+        self.query(&query)?;
+        Ok(())
     }
+
     fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
         use itertools::Itertools;
         self.query("show databases")?
@@ -293,6 +319,19 @@ where
         self.query(sql).await.map(|res| res.affected_rows() as _)
     }
 
+    async fn exec_many<T, I>(&'q self, input: I) -> Result<usize, Self::Error>
+    where
+        T: AsRef<str> + Send,
+        I::IntoIter: Send,
+        I: IntoIterator<Item = T> + Send,
+    {
+        let mut aff = 0;
+        for sql in input {
+            aff += self.exec(sql).await?;
+        }
+        Ok(aff)
+    }
+
     /// To conveniently get first row of the result, useful for queries like
     ///
     /// - `select count(*) from ...`
@@ -322,6 +361,18 @@ where
             .into_iter()
             .next()
             .map_or(Ok(None), |v| v.map(Some).map_err(Into::into))
+    }
+
+    async fn create_topic<N: AsRef<str> + Send, S: AsRef<str> + Send>(
+        &'q self,
+        name: N,
+        sql: S,
+    ) -> Result<(), Self::Error> {
+        let (name, sql) = (name.as_ref(), sql.as_ref());
+        let query = format!("create topic if not exists {name} as {sql}");
+
+        self.query(query).await?;
+        Ok(())
     }
 
     async fn databases(&'q self) -> Result<Vec<ShowDatabase>, Self::Error> {
@@ -425,10 +476,13 @@ impl<T: FromDsn> Manager<T> {
     pub fn into_pool(self) -> Result<Pool<T>, r2d2::Error> {
         r2d2::Pool::new(self)
     }
-    
+
     #[cfg(feature = "r2d2")]
     #[inline]
-    pub fn into_pool_with_builder(self, builder: r2d2::Builder<Self>) -> Result<Pool<T>, r2d2::Error> {
+    pub fn into_pool_with_builder(
+        self,
+        builder: r2d2::Builder<Self>,
+    ) -> Result<Pool<T>, r2d2::Error> {
         builder.build(self)
     }
 }

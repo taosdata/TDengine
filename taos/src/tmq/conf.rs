@@ -1,6 +1,7 @@
 use crate::{Error, IntoCStr, Result, TaosOptions};
 
-use std::iter::Iterator;
+use std::{ffi::c_void, iter::Iterator};
+use taos_query::Dsn;
 use taos_sys::*;
 
 use super::Consumer;
@@ -11,8 +12,30 @@ impl TmqConf {
     pub(crate) fn as_ptr(&self) -> *mut tmq_conf_t {
         self.0
     }
-    pub fn new() -> Self {
+    pub(crate) fn new() -> Self {
         Self(unsafe { tmq_conf_new() })
+    }
+
+    pub(crate) fn from_dsn(dsn: &Dsn) -> Result<Self> {
+        let mut conf = Self::new();
+        macro_rules! _set_opt {
+            ($f:ident, $c:literal) => {
+                if let Some($f) = &dsn.$f {
+                    conf.set(format!("td.connect.{}", $c), format!("{}", $f))?;
+                }
+            };
+            ($f:ident) => {
+                if let Some($f) = &dsn.$f {
+                    conf.set(format!("td.connect.{}", stringify!($c)), format!("{}", $f))?;
+                }
+            };
+        }
+
+        // todo: host port?
+        _set_opt!(username, "user");
+        _set_opt!(password, "pass");
+        _set_opt!(database, "db");
+        conf.with(dsn.params.iter().filter(|(k, _)| k.contains(".")))
     }
 
     pub fn from_opts(opts: &TaosOptions) -> Result<Self> {
@@ -82,9 +105,9 @@ impl TmqConf {
         }
     }
 
-    pub fn set_offset_commit_cb(&mut self, cb: tmq_commit_cb) -> () {
+    pub fn set_offset_commit_cb(&mut self, cb: tmq_commit_cb, param: *mut c_void) -> () {
         unsafe {
-            tmq_conf_set_offset_commit_cb(self.0, cb);
+            tmq_conf_set_offset_commit_cb(self.0, cb, param);
         }
     }
 
@@ -97,7 +120,7 @@ impl TmqConf {
                     String::from_utf8_lossy(&err).to_string(),
                 ))
             } else {
-                Ok(Consumer::new(tmq))
+                Ok(Consumer::new(tmq, 0))
             }
         }
     }

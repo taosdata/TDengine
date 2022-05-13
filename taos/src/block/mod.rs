@@ -15,14 +15,13 @@ pub use taos_query::common::*;
 
 use crate::impls::SyncBlock;
 
-pub struct BlockStream<'a> {
+pub struct BlockStream {
     raw: Arc<RawRes>,
     summary: Arc<(AtomicU64, AtomicU64)>,
     state: Arc<Mutex<BlockState>>,
-    _marker: PhantomData<&'a u8>,
 }
 
-impl<'a> BlockStream<'a> {
+impl BlockStream {
     pub(crate) fn from_raw(raw: Arc<RawRes>, summary: Arc<(AtomicU64, AtomicU64)>) -> Self {
         let state = Arc::new(Mutex::new(BlockState {
             completed: false,
@@ -35,7 +34,6 @@ impl<'a> BlockStream<'a> {
             raw,
             state,
             summary,
-            _marker: PhantomData,
         }
     }
     pub(crate) fn append_num_of_rows(&self, num_of_rows: i32) {
@@ -45,8 +43,8 @@ impl<'a> BlockStream<'a> {
     }
 }
 
-unsafe impl<'a> Send for BlockStream<'a> {}
-unsafe impl<'a> Sync for BlockStream<'a> {}
+unsafe impl Send for BlockStream {}
+unsafe impl Sync for BlockStream {}
 
 struct BlockState {
     /// Whether or not the sleep time has elapsed
@@ -56,9 +54,9 @@ struct BlockState {
     waker: Option<Waker>,
 }
 
-impl<'a> Stream for BlockStream<'a> {
+impl Stream for BlockStream {
     // type Item = (*mut TAOS_RES, i32);
-    type Item = SyncBlock<'a>;
+    type Item = SyncBlock;
 
     fn poll_next(
         self: std::pin::Pin<&mut Self>,
@@ -77,7 +75,6 @@ impl<'a> Stream for BlockStream<'a> {
                     data,
                     lengths,
                     num_of_rows: num_of_rows as _,
-                    _marker: PhantomData,
                 })
             } else {
                 None
