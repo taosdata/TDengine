@@ -291,27 +291,37 @@ class TDTestCase:
 
         # 普通用户权限
         # 密码登录
-        _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
-        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as conn:
-            user = conn
+        # _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
         # 不能创建用户
         tdLog.printNoPrefix("==========step5: normal user can not create user")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.error("create use utest1 pass 'utest1pass'")
+
         # 可以查看用户
         tdLog.printNoPrefix("==========step6: normal user can show user")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.query("show users")
         assert user.queryRows == self.users_count + 2
+
         # 不可以修改其他用户的密码
         tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.error("root", "taosdata_root")
+
         # 可以修改自己的密码
         tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
+
         # 不可以删除用户，包括自己
         tdLog.printNoPrefix("==========step9: normal user can not drop any user ")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.error(f"drop user {self.__user_list[0]}")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.error(f"drop user {self.__user_list[1]}")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user: pass
         user.error("drop user root")
 
         # root删除用户测试
