@@ -34,6 +34,9 @@ typedef struct SUdfdData {
   uv_thread_t   thread;
   uv_barrier_t  barrier;
   uv_process_t  process;
+#ifdef WINDOWS
+  HANDLE        jobHandle;
+#endif
   int           spawnErr;
   uv_pipe_t     ctrlPipe;
   uv_async_t    stopAsync;
@@ -104,6 +107,24 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
   int err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void*)pData;
 
+#ifdef WINDOWS
+  // End udfd.exe by Job.
+  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
+  pData->jobHandle = CreateJobObject(NULL, NULL);
+  bool add_job_ok = AssignProcessToJobObject(pData->jobHandle, pData->process.process_handle);
+  if (!add_job_ok) {
+    fnError("Assign udfd to job failed.");
+  } else {
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info;
+    memset(&limit_info, 0x0, sizeof(limit_info));
+    limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    bool set_auto_kill_ok = SetInformationJobObject(pData->jobHandle, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
+    if (!set_auto_kill_ok) {
+      fnError("Set job auto kill udfd failed.");
+    }
+  }
+#endif
+
   if (err != 0) {
     fnError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
   }
@@ -145,7 +166,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
   }
   SUdfdData *pData = &udfdGlobal;
   if (pData->startCalled) {
-    fnInfo("dnode-mgmt start udfd already called");
+    fnInfo("dnode start udfd already called");
     return 0;
   }
   pData->startCalled = true;
@@ -163,7 +184,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
     uv_async_send(&pData->stopAsync);
     uv_thread_join(&pData->thread);
     pData->needCleanUp = false;
-    fnInfo("dnode-mgmt udfd cleaned up after spawn err");
+    fnInfo("dnode udfd cleaned up after spawn err");
   } else {
     pData->needCleanUp = true;
   }
@@ -172,7 +193,7 @@ int32_t udfStartUdfd(int32_t startDnodeId) {
 
 int32_t udfStopUdfd() {
   SUdfdData *pData = &udfdGlobal;
-  fnInfo("dnode-mgmt to stop udfd. need cleanup: %d, spawn err: %d",
+  fnInfo("dnode to stop udfd. need cleanup: %d, spawn err: %d",
         pData->needCleanUp, pData->spawnErr);
   if (!pData->needCleanUp || atomic_load_32(&pData->stopCalled)) {
     return 0;
@@ -182,7 +203,10 @@ int32_t udfStopUdfd() {
   uv_barrier_destroy(&pData->barrier);
   uv_async_send(&pData->stopAsync);
   uv_thread_join(&pData->thread);
-  fnInfo("dnode-mgmt udfd cleaned up");
+#ifdef WINDOWS
+  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
+#endif
+  fnInfo("dnode udfd cleaned up");
   return 0;
 }
 
