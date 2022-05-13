@@ -330,9 +330,9 @@ class TDTestCase:
 
         # 删除后无法登录
         self.login_err(self.__user_list[0], self.__passwd_list[0])
-        self.login_currrent(self.__user_list[0], f"new{self.__passwd_list[0]}")
+        self.login_err(self.__user_list[0], f"new{self.__passwd_list[0]}")
         self.login_err(self.__user_list[1], self.__passwd_list[1])
-        self.login_currrent(self.__user_list[1], f"new{self.__passwd_list[1]}")
+        self.login_err(self.__user_list[1], f"new{self.__passwd_list[1]}")
 
         tdSql.query("show users")
         tdSql.checkRows(1)
