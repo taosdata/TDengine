@@ -55,7 +55,7 @@ int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
   }
 }
 
-void tmsgSendRsp(const SRpcMsg* pRsp) {
+void tmsgSendRsp(SRpcMsg* pRsp) {
   SendRspFp fp = tsDefaultMsgCb.sendRspFp;
   if (fp != NULL) {
     return (*fp)(tsDefaultMsgCb.pWrapper, pRsp);
@@ -64,7 +64,7 @@ void tmsgSendRsp(const SRpcMsg* pRsp) {
   }
 }
 
-void tmsgSendRedirectRsp(const SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
+void tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
   SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
   if (fp != NULL) {
     (*fp)(tsDefaultMsgCb.pWrapper, pRsp, pNewEpSet);

@@ -259,31 +259,26 @@ static inline void dmSendRpcRsp(SDnode *pDnode, const SRpcMsg *pRsp) {
 static inline void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
   if (pDnode->status != DND_STAT_RUNNING) {
     pRsp->code = TSDB_CODE_NODE_OFFLINE;
+    rpcFreeCont(pReq->pCont);
+    pReq->pCont = NULL;
   } else {
     rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
   }
 }
 
 static inline void dmSendToMnodeRecv(SMgmtWrapper *pWrapper, SRpcMsg *pReq, SRpcMsg *pRsp) {
-  if (pWrapper->pDnode->status != DND_STAT_RUNNING) {
-    pRsp->code = TSDB_CODE_NODE_OFFLINE;
-  } else {
-    SEpSet epSet = {0};
-    dmGetMnodeEpSet(pWrapper->pDnode, &epSet);
-    dmSendRecv(pWrapper->pDnode, &epSet, pReq, pRsp);
-  }
+  SEpSet epSet = {0};
+  dmGetMnodeEpSet(pWrapper->pDnode, &epSet);
+  dmSendRecv(pWrapper->pDnode, &epSet, pReq, pRsp);
 }
 
 static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
   SDnode *pDnode = pWrapper->pDnode;
-  if (pDnode->status != DND_STAT_RUNNING) {
+  if (pDnode->status != DND_STAT_RUNNING || pDnode->trans.clientRpc == NULL) {
+    rpcFreeCont(pReq->pCont);
+    pReq->pCont = NULL;
     terrno = TSDB_CODE_NODE_OFFLINE;
     dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
-    return -1;
-  }
-
-  if (pDnode->trans.clientRpc == NULL) {
-    terrno = TSDB_CODE_NODE_OFFLINE;
     return -1;
   }
 
