@@ -248,6 +248,7 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   char *    cptr = NULL;
   char *    fname = NULL;
   bool      printMode = false;
+  int       match;
 
   sptr = command;
   while ((sptr = tstrstr(sptr, ">>", true)) != NULL) {
@@ -259,18 +260,24 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
   sptr = tmp;
 
   if (sptr != NULL) {
-    if (regex_match(sptr + 2, "^\\s*[0-9]+\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.*;\\s*$", REG_EXTENDED | REG_ICASE) == 0) {
-      cptr = tstrstr(command, ";", true);
-      if (cptr != NULL) {
-        *cptr = '\0';
-      }
+    // select ... where col >> n op m ...;
+    match = regex_match(sptr + 2, "^\\s*[0-9]{1,}\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.*;\\s*$", REG_EXTENDED | REG_ICASE);
+    if (match == 0) {
+      // select col >> n from ...;
+      match = regex_match(sptr + 2, "^\\s*[0-9]{1,}\\s*.*;\\s*$", REG_EXTENDED | REG_ICASE);
+      if (match == 0) {
+        cptr = tstrstr(command, ";", true);
+        if (cptr != NULL) {
+          *cptr = '\0';
+        }
 
-      if (wordexp(sptr + 2, &full_path, 0) != 0) {
-        fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
-        return;
+        if (wordexp(sptr + 2, &full_path, 0) != 0) {
+          fprintf(stderr, "ERROR: invalid filename: %s\n", sptr + 2);
+          return;
+        }
+        *sptr = '\0';
+        fname = full_path.we_wordv[0];
       }
-      *sptr = '\0';
-      fname = full_path.we_wordv[0];
     }
   }
 
