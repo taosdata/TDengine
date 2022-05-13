@@ -333,6 +333,8 @@ typedef struct SScanInfo {
 
 typedef struct STableScanInfo {
   void*           dataReader;
+  SReadHandle     readHandle;
+
   SFileBlockLoadRecorder readRecorder;
   int64_t         numOfRows;
   int64_t         elapsedTime;
@@ -347,6 +349,11 @@ typedef struct STableScanInfo {
   SSDataBlock*    pResBlock;
   SArray*         pColMatchInfo;
   int32_t         numOfOutput;
+
+  SExprInfo*      pPseudoExpr;
+  int32_t         numOfPseudoExpr;
+  SqlFunctionCtx* pPseudoCtx;
+//  int32_t*        rowCellInfoOffset;
 
   SQueryTableDataCond cond;
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
@@ -628,7 +635,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
 void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
-int32_t getTableScanOrder(SOperatorInfo* pOperator);
+int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
@@ -644,12 +651,17 @@ SSDataBlock* loadNextDataBlock(void* param);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
 
+SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
+                            int32_t type);
+SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
+SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo,
                                    char* pData, int16_t bytes, bool masterscan, uint64_t groupId,
                                    SExecTaskInfo* pTaskInfo, bool isIntervalQuery, SAggSupporter* pSup);
 
-SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, SQueryTableDataCond* pCond, int32_t numOfOutput, int32_t dataLoadFlag, const uint8_t* scanInfo,
-                                           SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
@@ -704,7 +716,7 @@ SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntim
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                            int32_t numOfOutput, SArray* pPseudoList);
 
-void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order, bool createDummyCol);
+void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order, int32_t scanFlag, bool createDummyCol);
 
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 

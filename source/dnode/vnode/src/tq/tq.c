@@ -457,9 +457,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     }
 
     if (pHeadWithCkSum->head.msgType != TDMT_VND_SUBMIT) {
-      walSkipFetchBody(pExec->pWalReader, pHeadWithCkSum);
+      ASSERT(walSkipFetchBody(pExec->pWalReader, pHeadWithCkSum) == 0);
     } else {
-      walFetchBody(pExec->pWalReader, &pHeadWithCkSum);
+      ASSERT(walFetchBody(pExec->pWalReader, &pHeadWithCkSum) == 0);
     }
 
     SWalReadHead* pHead = &pHeadWithCkSum->head;

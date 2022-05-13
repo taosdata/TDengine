@@ -1069,8 +1069,9 @@ static void destroyInsertParseContext(SInsertParseContext* pCxt) {
 //   [...];
 static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   int32_t tbNum = 0;
-  char    tbFName[TSDB_TABLE_FNAME_LEN];
-  bool    autoCreateTbl = false;
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  bool autoCreateTbl = false;
+  STableMeta *pMeta = NULL;
 
   // for each table
   while (1) {
@@ -1127,10 +1128,12 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, tbFName, strlen(tbFName), TSDB_DEFAULT_PAYLOAD_SIZE,
                                     sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta,
                                     &dataBuf, NULL, &pCxt->createTblReq));
-
+    pMeta = pCxt->pTableMeta;
+    pCxt->pTableMeta = NULL;
+    
     if (TK_NK_LP == sToken.type) {
       // pSql -> field1_name, ...)
-      CHECK_CODE(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pCxt->pTableMeta)));
+      CHECK_CODE(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pMeta)));
       NEXT_TOKEN(pCxt->pSql, sToken);
     }
 
@@ -1166,8 +1169,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
-    (*pCxt->pStmtCb->setInfoFn)(pCxt->pStmtCb->pStmt, pCxt->pTableMeta, tags, tbFName, autoCreateTbl,
-                                pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
+    (*pCxt->pStmtCb->setInfoFn)(pCxt->pStmtCb->pStmt, pMeta, tags, tbFName, autoCreateTbl, pCxt->pVgroupsHashObj, pCxt->pTableBlockHashObj);
 
     memset(&pCxt->tags, 0, sizeof(pCxt->tags));
     pCxt->pVgroupsHashObj = NULL;
@@ -1677,8 +1679,8 @@ static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedD
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t smlBindData(void* handle, SArray* tags, SArray* colsFormat, SArray* colsSchema, SArray* cols, bool format,
-                    STableMeta* pTableMeta, char* tableName, char* msgBuf, int16_t msgBufLen) {
+int32_t smlBindData(void *handle, SArray *tags, SArray *colsSchema, SArray *cols, bool format,
+                    STableMeta *pTableMeta, char *tableName, char *msgBuf, int16_t msgBufLen) {
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
@@ -1720,8 +1722,8 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsFormat, SArray* cols
 
   initRowBuilder(&pDataBlock->rowBuilder, pDataBlock->pTableMeta->sversion, &pDataBlock->boundColumnInfo);
 
-  int32_t rowNum = format ? taosArrayGetSize(colsFormat) : taosArrayGetSize(cols);
-  if (rowNum <= 0) {
+  int32_t rowNum = taosArrayGetSize(cols);
+  if(rowNum <= 0) {
     return buildInvalidOperationMsg(&pBuf, "cols size <= 0");
   }
   ret = allocateMemForSize(pDataBlock, extendedRowSize * rowNum);
@@ -1732,13 +1734,10 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsFormat, SArray* cols
   for (int32_t r = 0; r < rowNum; ++r) {
     STSRow* row = (STSRow*)(pDataBlock->pData + pDataBlock->size);  // skip the SSubmitBlk header
     tdSRowResetBuf(pBuilder, row);
-    void*  rowData = NULL;
+    void *rowData = taosArrayGetP(cols, r);
     size_t rowDataSize = 0;
-    if (format) {
-      rowData = taosArrayGetP(colsFormat, r);
+    if(format){
       rowDataSize = taosArrayGetSize(rowData);
-    } else {
-      rowData = taosArrayGetP(cols, r);
     }
 
     // 1. set the parsed value from sql string
