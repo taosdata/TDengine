@@ -71,10 +71,10 @@ def pre_test(){
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
-            git log|head -n20
+            git log -5
             cd ${WK}
             git pull >/dev/null
-            git log|head -n20
+            git log -5
         '''
     } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
         sh '''
@@ -82,10 +82,10 @@ def pre_test(){
             git pull >/dev/null
             git fetch origin +refs/pull/${CHANGE_ID}/merge
             git checkout -qf FETCH_HEAD
-            git log|head -n20
+            git log -5
             cd ${WKC}
             git pull >/dev/null
-            git log|head -n20
+            git log -5
         '''
     } else {
         sh '''
@@ -110,12 +110,14 @@ def pre_test_win(){
         time /t
         taskkill /f /t /im python.exe
         taskkill /f /t /im bash.exe
-        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
-        rd /s /Q C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine\\debug
+        rd /s /Q C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
         exit 0
     '''
     bat '''
-        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+        git reset --hard
+        git fetch || git fetch
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
         git reset --hard
         git fetch || git fetch
         git checkout -f
@@ -123,39 +125,73 @@ def pre_test_win(){
     script {
         if (env.CHANGE_TARGET == 'master') {
             bat '''
-                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout master
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout master
             '''
         } else if(env.CHANGE_TARGET == '2.0') {
             bat '''
-                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout 2.0
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout 2.0
             '''
         } else if(env.CHANGE_TARGET == '3.0') {
             bat '''
-                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout 3.0
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout 3.0
             '''
         } else {
             bat '''
-                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout develop
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout develop
             '''
         }
     }
+    script {
+        if (env.CHANGE_URL =~ /\/TDengine\//) {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git pull
+                git log -5
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git pull
+                git fetch origin +refs/pull/${CHANGE_ID}/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+            '''
+        } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git pull
+                git fetch origin +refs/pull/${CHANGE_ID}/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git pull
+                git log -5
+            '''
+        } else {
+            sh '''
+                echo "unmatched reposiotry ${CHANGE_URL}"
+            '''
+        }
+    }
     bat '''
-        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
-        git branch
-        git pull || git pull
-        git fetch origin +refs/pull/%CHANGE_ID%/merge
-        git checkout -qf FETCH_HEAD
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+        git submodule update --init --recursive
     '''
 }
 def pre_test_build_win() {
     bat '''
         echo "building ..."
         time /t
-        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDengine
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
         mkdir debug
         cd debug
         call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
