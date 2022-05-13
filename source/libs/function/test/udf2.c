@@ -44,7 +44,7 @@ int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInte
         case TSDB_DATA_TYPE_INT: {
           char* cell = udfColDataGetData(col, j);
           int32_t num = *(int32_t*)cell;
-          sumSquares += num * num;
+          sumSquares += (double)num * num;
           break;
         }
         case TSDB_DATA_TYPE_DOUBLE: {
