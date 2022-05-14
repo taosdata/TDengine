@@ -32,6 +32,10 @@ static bool dmRequireNode(SMgmtWrapper *pWrapper) {
     dDebug("node:%s, does not require startup in child process", pWrapper->name);
   }
 
+  if (required) {
+    dDebug("node:%s, required to startup", pWrapper->name);
+  }
+
   return required;
 }
 
@@ -71,8 +75,8 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pData->disks = pOption->disks;
   pData->dataDir = strdup(pOption->dataDir);
 
-  if (pData->dataDir == NULL || pData->localEp == NULL || pData->localFqdn == NULL ||
-      pData->firstEp == NULL || pData->secondEp == NULL) {
+  if (pData->dataDir == NULL || pData->localEp == NULL || pData->localFqdn == NULL || pData->firstEp == NULL ||
+      pData->secondEp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -191,10 +195,6 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  if (dmInitClient(pDnode) != 0) {
-    goto _OVER;
-  }
-
   if (OnlyInSingleProc(pDnode->ptype) || InParentProc(pDnode->ptype)) {
     pDnode->lockfile = dmCheckRunning(pOption->dataDir);
     if (pDnode->lockfile == NULL) {
@@ -205,6 +205,10 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
       dError("failed to init transport since %s", terrstr());
       goto _OVER;
     }
+  }
+
+  if (dmInitClient(pDnode) != 0) {
+    goto _OVER;
   }
 
   dmReportStartup(pDnode, "dnode-transport", "initialized");
@@ -226,7 +230,6 @@ void dmClose(SDnode *pDnode) {
 
   dmCleanupClient(pDnode);
   dmCleanupServer(pDnode);
-
   dmClearVars(pDnode);
   dInfo("dnode is closed, data:%p", pDnode);
 }

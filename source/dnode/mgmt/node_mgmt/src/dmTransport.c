@@ -22,21 +22,23 @@
 #define INTERNAL_SECRET "_pwd"
 
 static void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
-  taosRLockLatch(&pDnode->latch);
-  *pEpSet = pDnode->mnodeEps;
-  taosRUnLockLatch(&pDnode->latch);
+  SDnodeData *pData = &pDnode->data;
+  taosRLockLatch(&pData->latch);
+  *pEpSet = pData->mnodeEps;
+  taosRUnLockLatch(&pData->latch);
 }
 
 static void dmSetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
+  SDnodeData *pData = &pDnode->data;
 
-  taosWLockLatch(&pDnode->latch);
-  pDnode->mnodeEps = *pEpSet;
+  taosWLockLatch(&pData->latch);
+  pData->mnodeEps = *pEpSet;
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
 
-  taosWUnLockLatch(&pDnode->latch);
+  taosWUnLockLatch(&pData->latch);
 }
 
 static inline NodeMsgFp dmGetMsgFp(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {

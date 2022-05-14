@@ -144,9 +144,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
 }
 
 int32_t dmStartNode(SMgmtWrapper *pWrapper) {
-  if (!pWrapper->required) return 0;
   if (OnlyInParentProc(pWrapper->proc.ptype)) return 0;
-
   if (pWrapper->func.startFp != NULL && (*pWrapper->func.startFp)(pWrapper->pMgmt) != 0) {
     dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
     return -1;
@@ -201,6 +199,7 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     if (!pWrapper->required) continue;
     if (dmOpenNode(pWrapper) != 0) {
+      dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
       return -1;
     }
   }
@@ -212,7 +211,7 @@ static int32_t dmOpenNodes(SDnode *pDnode) {
 static int32_t dmStartNodes(SDnode *pDnode) {
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    if (ntype == DNODE && (InChildProc(pDnode->ptype) || !OnlyInTestProc(pDnode->ptype))) continue;
+    if (!pWrapper->required) continue;
     if (dmStartNode(pWrapper) != 0) {
       dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
       return -1;

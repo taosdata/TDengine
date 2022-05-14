@@ -125,8 +125,6 @@ typedef struct SDnode {
   SDnodeTrans   trans;
   SUdfdData     udfdData;
   TdThreadMutex mutex;
-  SRWLatch      latch;
-  SEpSet        mnodeEps;
   TdFilePtr     lockfile;
   SDnodeData    data;
   SMgmtWrapper  wrappers[NODE_END];
