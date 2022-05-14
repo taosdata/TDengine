@@ -501,7 +501,7 @@ int32_t getConsumeInfo() {
         g_stConfInfo.stThreads[numOfThread].expectMsgCnt = *((int64_t*)row[i]);
       } else if ((5 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
         g_stConfInfo.stThreads[numOfThread].ifCheckData = *((int32_t*)row[i]);
-      } else if ((5 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
+      } else if ((6 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
         g_stConfInfo.stThreads[numOfThread].ifManualCommit = *((int32_t*)row[i]);
       }
     }
