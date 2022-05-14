@@ -1,5 +1,5 @@
 # tdb
-add_library(tdb STATIC "")
+add_library(tdb SHARED "")
 target_sources(tdb
     PRIVATE
     "src/db/tdbPCache.c"

@@ -27,6 +27,7 @@ void sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode) {
     valueNode->datum.i = 0;
   }
   taosMemoryFree(timeStr);
+  valueNode->typeData = valueNode->datum.i;
   
   valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
   valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;

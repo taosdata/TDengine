@@ -23,12 +23,15 @@ class PlanSubqeuryTest : public PlannerTestBase {};
 TEST_F(PlanSubqeuryTest, basic) {
   useDb("root", "test");
 
-  run("select * from (select * from t1)");
+  run("SELECT * FROM (SELECT * FROM t1)");
+
+  // run("SELECT LAST(c1) FROM ( SELECT * FROM t1)");
 }
 
 TEST_F(PlanSubqeuryTest, doubleGroupBy) {
   useDb("root", "test");
 
-  run("select count(*) from (select c1 + c3 a, c1 + count(*) b from t1 where c2 = 'abc' group by c1, c3) where a > 100 "
-      "group by b");
+  run("SELECT COUNT(*) FROM ("
+      "SELECT c1 + c3 a, c1 + COUNT(*) b FROM t1 WHERE c2 = 'abc' GROUP BY c1, c3) "
+      "WHERE a > 100 GROUP BY b");
 }

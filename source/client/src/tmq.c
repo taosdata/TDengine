@@ -316,7 +316,7 @@ static int32_t tmqMakeTopicVgKey(char* dst, const char* topicName, int32_t vg) {
 
 void tmqAssignDelayedHbTask(void* param, void* tmrId) {
   tmq_t*  tmq = (tmq_t*)param;
-  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t));
+  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM);
   *pTaskType = TMQ_DELAYED_TASK__HB;
   taosWriteQitem(tmq->delayedTask, pTaskType);
   tsem_post(&tmq->rspSem);
@@ -324,7 +324,7 @@ void tmqAssignDelayedHbTask(void* param, void* tmrId) {
 
 void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
   tmq_t*  tmq = (tmq_t*)param;
-  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t));
+  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM);
   *pTaskType = TMQ_DELAYED_TASK__COMMIT;
   taosWriteQitem(tmq->delayedTask, pTaskType);
   tsem_post(&tmq->rspSem);
@@ -332,7 +332,7 @@ void tmqAssignDelayedCommitTask(void* param, void* tmrId) {
 
 void tmqAssignDelayedReportTask(void* param, void* tmrId) {
   tmq_t*  tmq = (tmq_t*)param;
-  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t));
+  int8_t* pTaskType = taosAllocateQitem(sizeof(int8_t), DEF_QITEM);
   *pTaskType = TMQ_DELAYED_TASK__REPORT;
   taosWriteQitem(tmq->delayedTask, pTaskType);
   tsem_post(&tmq->rspSem);
@@ -848,7 +848,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
     tscWarn("mismatch rsp from vg %d, epoch %d, current epoch %d", pParam->vgId, msgEpoch, tmqEpoch);
   }
 
-  SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper));
+  SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
   if (pRspWrapper == NULL) {
     tscWarn("msg discard from vg %d, epoch %d since out of memory", pParam->vgId, pParam->epoch);
     goto CREATE_MSG_FAIL;
@@ -987,7 +987,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
     tmqUpdateEp(tmq, head->epoch, &rsp);
     tDeleteSMqAskEpRsp(&rsp);
   } else {
-    SMqAskEpRspWrapper* pWrapper = taosAllocateQitem(sizeof(SMqAskEpRspWrapper));
+    SMqAskEpRspWrapper* pWrapper = taosAllocateQitem(sizeof(SMqAskEpRspWrapper), DEF_QITEM);
     if (pWrapper == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       code = -1;
