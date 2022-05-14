@@ -148,6 +148,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid number of tag columns";
     case TSDB_CODE_PAR_INVALID_INTERNAL_PK:
       return "Invalid _c0 or _rowts expression";
+    case TSDB_CODE_PAR_INVALID_TIMELINE_FUNC:
+      return "Invalid timeline function";
+    case TSDB_CODE_PAR_INVALID_PASSWD:
+      return "Invalid password";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
