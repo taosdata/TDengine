@@ -13,6 +13,7 @@
 
 import sys
 import os
+import time
 from util.log import *
 from util.cases import *
 from util.sql import *
@@ -24,7 +25,7 @@ class TDTestCase:
         tdLog.debug("start to execute %s" % __file__)
         tdSql.init(conn.cursor(), logSql)
 
-    def getBuildPath(self):
+    def getPath(self, tool="taosBenchmark"):
         selfPath = os.path.dirname(os.path.realpath(__file__))
 
         if ("community" in selfPath):
@@ -32,28 +33,28 @@ class TDTestCase:
         else:
             projPath = selfPath[:selfPath.find("tests")]
 
+        paths = []
         for root, dirs, files in os.walk(projPath):
-            if ("taosd" in files):
+            if ((tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
-                    buildPath = root[:len(root) - len("/build/bin")]
+                    paths.append(os.path.join(root, tool))
                     break
-        return buildPath
+        return paths[0]
 
     def run(self):
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
+        binPath = self.getPath("taosBenchmark")
+        if (binPath == ""):
+            tdLog.exit("taosBenchmark not found!")
         else:
-            tdLog.info("taosd found in %s" % buildPath)
-        binPath = buildPath + "/build/bin/"
+            tdLog.info("taosBenchmark found in %s" % binPath)
 
         # insert: create one  or mutiple tables per sql and insert multiple rows per sql
         # insert data from a special timestamp
         # check stable stb0
 
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabase.json -y " %
             binPath)
         tdSql.execute("use nsdb")
         tdSql.query("show stables")
@@ -88,7 +89,7 @@ class TDTestCase:
 
         # check stable stb0
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabaseNow.json -y " %
             binPath)
 
         tdSql.execute("use nsdb2")
@@ -108,7 +109,7 @@ class TDTestCase:
         # cols
 
         os.system(
-            "%staosBenchmark -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
+            "%s -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestNanoDatabasecsv.json  -y " %
             binPath)
         tdSql.execute("use nsdbcsv")
         tdSql.query("show stables")
@@ -117,9 +118,11 @@ class TDTestCase:
         tdSql.checkData(0, 0, 10000)
         tdSql.query("describe stb0")
         tdSql.checkDataType(3, 1, "TIMESTAMP")
+
         tdSql.query(
-            "select count(*) from stb0 where ts > \"2021-07-01 00:00:00.490000000\"")
+            "select count(*) from nsdbcsv.stb0 where ts > \"2021-07-01 00:00:00.490000000\"")
         tdSql.checkData(0, 0, 5000)
+
         tdSql.query("select count(*) from stb0 where ts < 1626918583000000000")
         tdSql.checkData(0, 0, 10000)
 
@@ -130,35 +133,13 @@ class TDTestCase:
         # taosdemo test insert with command and parameter , detals show
         # taosdemo --help
         os.system(
-            "%staosBenchmark  -u root -ptaosdata -P 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " %
+            "%s  -u root -ptaosdata -P 6030  -a 1  -m pre -n 10 -T 20 -t 60 -o res.txt -y " %
             binPath)
         tdSql.query("select count(*) from test.meters")
         tdSql.checkData(0, 0, 600)
-        # check taosdemo -s
-
-        sqls_ls = [
-            'drop database  if exists nsdbsql;',
-            'create database nsdbsql precision "ns" keep 3600 days 6 update 1;',
-            'use nsdbsql;',
-            'CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAGS (location binary(64), groupdId int);',
-            'CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);',
-            'INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);',
-            'INSERT INTO d1001 USING METERS TAGS ("Beijng.Chaoyang", 2) VALUES (now, 85, 32, 0.76);']
-
-        with open("./taosdemoTestNanoCreateDB.sql", mode="a") as sql_files:
-            for sql in sqls_ls:
-                sql_files.write(sql + "\n")
-            sql_files.close()
-
-        sleep(10)
-
-        os.system("%staosBenchmark  -s taosdemoTestNanoCreateDB.sql  -y " % binPath)
-        tdSql.query("select count(*) from nsdbsql.meters")
-        tdSql.checkData(0, 0, 2)
 
         os.system("rm -rf ./res.txt")
         os.system("rm -rf ./*.py.sql")
-        os.system("rm -rf ./taosdemoTestNanoCreateDB.sql")
 
     def stop(self):
         tdSql.close()

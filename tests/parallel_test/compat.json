@@ -1,0 +1,14 @@
+[
+  {
+    "host": "192.168.0.38",
+    "username": "root",
+    "workdir": "/var/data/jenkins/workspace",
+    "thread": 10
+  },
+  {
+    "host": "192.168.0.39",
+    "username": "root",
+    "workdir": "/var/data/jenkins/workspace",
+    "thread": 10
+  }
+]

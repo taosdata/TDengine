@@ -32,7 +32,7 @@ class TDTestCase:
         tb_str = ""
 
         for tbname in tbname_list:
-            globals()[tbname] = tdCom.getLongName(8, "letters_mixed")
+            globals()[tbname] = tdCom.getLongName(8, "letters_mixed").upper()
         tdSql.execute(f'CREATE TABLE {table_name} (ts timestamp, {table_name_sub1} tinyint, \
                      {table_name_sub2} smallint, {table_name_sub3} int, {table_name_sub4} bigint, \
                     {table_name_sub5} float, {table_name_sub6} double, {table_name_sub7} binary(20),\
@@ -44,7 +44,7 @@ class TDTestCase:
 
         for i in range(10):
             for tbname in tbname_list:
-                tdSql.execute(f'insert into {globals()[tbname]} values (now, 1, 2, 3, 4, 1.1, 2.2, "{globals()[tbname]}", "{globals()[tbname]}", True)')
+                tdSql.execute(f'insert into {globals()[tbname]} values (now-{i*i}s, 1, 2, 3, 4, 1.1, 2.2, "{globals()[tbname]}", "{globals()[tbname]}", True)')
         
         for i in range(100):
             tdSql.query(f'select {table_name_sub1},{table_name_sub2},{table_name_sub3},{table_name_sub4},{table_name_sub5},{table_name_sub6},{table_name_sub7},{table_name_sub8},{table_name_sub9} from {table_name} where tbname in ("{table_name_sub1}","{table_name_sub2}","{table_name_sub3}","{table_name_sub4}","{table_name_sub5}","{table_name_sub6}","{table_name_sub7}","{table_name_sub8}","{table_name_sub9}") and ts >= "1980-01-01 00:00:00.000"')

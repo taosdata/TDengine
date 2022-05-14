@@ -71,18 +71,16 @@ public class NanoSecondTimestampJNITest {
         long ns = ms * 1000_000L + random.nextInt(1000_000);
 
         // when
-        ResultSet rs = null;
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("insert into weather(ts, temperature, humidity) values(" + ns + ", 12.3, 4)");
-            rs = stmt.executeQuery("select * from weather");
+            ResultSet rs = stmt.executeQuery("select * from weather");
             rs.next();
+            // then
+            long actual = rs.getLong(1);
+            Assert.assertEquals(ns, actual);
+            actual = rs.getLong("ts");
+            Assert.assertEquals(ns, actual);
         }
-
-        // then
-        long actual = rs.getLong(1);
-        Assert.assertEquals(ns, actual);
-        actual = rs.getLong("ts");
-        Assert.assertEquals(ns, actual);
     }
 
     @Test
@@ -91,18 +89,16 @@ public class NanoSecondTimestampJNITest {
         String timestampStr = "2021-01-01 12:00:00.123456789";
 
         // when
-        ResultSet rs;
         try (Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("insert into weather(ts, temperature, humidity) values('" + timestampStr + "', 12.3, 4)");
-            rs = stmt.executeQuery("select * from weather");
+            ResultSet rs = stmt.executeQuery("select * from weather");
             rs.next();
+            // then
+            String actual = rs.getString(1);
+            Assert.assertEquals(timestampStr, actual);
+            actual = rs.getString("ts");
+            Assert.assertEquals(timestampStr, actual);
         }
-
-        // then
-        String actual = rs.getString(1);
-        Assert.assertEquals(timestampStr, actual);
-        actual = rs.getString("ts");
-        Assert.assertEquals(timestampStr, actual);
     }
 
     @Test
@@ -123,19 +119,17 @@ public class NanoSecondTimestampJNITest {
         }
 
         // when
-        ResultSet rs = null;
         try (Statement stmt = conn.createStatement()) {
-            rs = stmt.executeQuery("select * from weather");
+            ResultSet rs = stmt.executeQuery("select * from weather");
             rs.next();
+            // then
+            Timestamp actual = rs.getTimestamp(1);
+            Assert.assertEquals(ts, actual);
+            actual = rs.getTimestamp("ts");
+            Assert.assertEquals(ts, actual);
+            Assert.assertEquals(timeMillis, actual.getTime());
+            Assert.assertEquals(nanoAdjustment, actual.getNanos());
         }
-
-        // then
-        Timestamp actual = rs.getTimestamp(1);
-        Assert.assertEquals(ts, actual);
-        actual = rs.getTimestamp("ts");
-        Assert.assertEquals(ts, actual);
-        Assert.assertEquals(timeMillis, actual.getTime());
-        Assert.assertEquals(nanoAdjustment, actual.getNanos());
     }
 
     @Before

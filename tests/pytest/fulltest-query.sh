@@ -1,14 +1,11 @@
 #!/bin/bash
 ulimit -c unlimited
 #======================p1-start===============
-
 # timezone
 python3 ./test.py -f TimeZone/TestCaseTimeZone.py
-
 #stable
 python3 ./test.py -f stable/insert.py
 python3 ./test.py -f stable/query_after_reset.py
-
 #table
 python3 ./test.py -f table/alter_wal0.py
 python3 ./test.py -f table/column_name.py
@@ -22,7 +19,6 @@ python3 ./test.py -f table/boundary.py
 #python3 ./test.py -f table/create.py
 python3 ./test.py -f table/del_stable.py
 python3 ./test.py -f table/create_db_from_normal_db.py
-
 # tag
 python3 ./test.py -f tag_lite/filter.py
 python3 ./test.py -f tag_lite/create-tags-boundary.py
@@ -38,10 +34,8 @@ python3 ./test.py -f tag_lite/bool_binary.py
 python3 ./test.py -f tag_lite/bool_int.py
 python3 ./test.py -f tag_lite/bool.py
 python3 ./test.py -f tag_lite/change.py
-
 #======================p1-end===============
 #======================p2-start===============
-
 python3 ./test.py -f tag_lite/column.py
 python3 ./test.py -f tag_lite/commit.py
 python3 ./test.py -f tag_lite/create.py
@@ -65,10 +59,8 @@ python3 ./test.py -f tag_lite/unsignedTinyint.py
 python3 ./test.py -f tag_lite/alter_tag.py
 python3 ./test.py -f tag_lite/drop_auto_create.py
 python3 ./test.py -f tag_lite/json_tag_extra.py
-
 #======================p2-end===============
 #======================p3-start===============
-
 #query
 python3 ./test.py -f query/distinctOneColTb.py
 python3 ./test.py -f query/filter.py
@@ -118,10 +110,8 @@ python3 ./test.py -f query/subqueryFilter.py
 python3 ./test.py -f query/nestedQuery/queryInterval.py
 python3 ./test.py -f query/queryStateWindow.py
 # python3 ./test.py -f query/nestedQuery/queryWithOrderLimit.py
-
 #======================p3-end===============
 #======================p4-start===============
-
 python3 ./test.py -f query/nestquery_last_row.py
 python3 ./test.py -f query/nestedQuery/nestedQuery.py
 python3 ./test.py -f query/nestedQuery/nestedQuery_datacheck.py
@@ -145,7 +135,6 @@ python3 ./test.py -f query/query.py
 python3 ./test.py -f query/queryDiffColsTagsAndOr.py
 python3 ./test.py -f query/queryGroupTbname.py
 python3 ./test.py -f query/queryRegex.py
-
 #stream
 python3 ./test.py -f stream/metric_1.py
 python3 ./test.py -f stream/metric_n.py
@@ -154,23 +143,19 @@ python3 ./test.py -f stream/stream1.py
 python3 ./test.py -f stream/stream2.py
 #python3 ./test.py -f stream/parser.py
 python3 ./test.py -f stream/history.py
-python3 ./test.py -f stream/sys.py
+#python3 ./test.py -f stream/sys.py
 python3 ./test.py -f stream/table_1.py
 python3 ./test.py -f stream/table_n.py
 python3 ./test.py -f stream/showStreamExecTimeisNull.py
 python3 ./test.py -f stream/cqSupportBefore1970.py
-
 python3 ./test.py -f query/queryGroupbyWithInterval.py
 python3 queryCount.py
-
 # subscribe
 python3 test.py -f subscribe/singlemeter.py
 #python3 test.py -f subscribe/stability.py
 python3 test.py -f subscribe/supertable.py
-
 #======================p4-end===============
 #======================p5-start===============
-
 # functions
 python3 ./test.py -f functions/all_null_value.py
 python3 ./test.py -f functions/function_avg.py -r 1
@@ -208,12 +193,6 @@ python3 ./test.py -f functions/function_mavg.py
 python3 ./test.py -f functions/function_csum.py
 python3 ./test.py -f functions/function_percentile2.py
 python3 ./test.py -f functions/variable_httpDbNameMandatory.py
-
-
-
 ######## system-test
 #python3 ./test.py -f ../system-test/2-query/9-others/TD-11389.py # this case will run when this bug fix  TD-11389
-
-
 #======================p5-end===============
-

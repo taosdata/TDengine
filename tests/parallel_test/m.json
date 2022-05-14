@@ -1,0 +1,12 @@
+[{
+    "host":"192.168.0.210",
+    "username":"root",
+    "workdir":"/var/data/jenkins/workspace",
+    "thread":25
+},
+{
+    "host":"192.168.0.211",
+    "username":"root",
+    "workdir":"/var/data/jenkins/workspace",
+    "thread":25
+}]

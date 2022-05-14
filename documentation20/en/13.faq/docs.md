@@ -30,7 +30,7 @@ Version 2.0 is a complete refactoring of the previous version, and the configura
 4. Install the latest stable version of TDengine
 5. If you need to migrate data or the data file is corrupted, please contact the official technical support team of TAOS Data to assist
 
-## 2. When encoutered with the error " Unable to establish connection " in Windows, what can I do?
+## 2. When encountered with the error " Unable to establish connection " in Windows, what can I do?
 
 See the [technical blog](https://www.taosdata.com/blog/2019/12/03/jdbcdriver%E6%89%BE%E4%B8%8D%E5%88%B0%E5%8A%A8%E6%80%81%E9%93%BE%E6%8E%A5%E5%BA%93/) for this issue.
 
@@ -52,19 +52,19 @@ When the client encountered a connection failure, please follow the following st
    - Local virtual machine: Check whether the network can be pinged, and try to avoid using localhost as hostname
    - Corporate server: If you are in a NAT network environment, be sure to check whether the server can return messages to the client
 
-2. Make sure that the client and server version numbers are exactly the same, and the open source Community Edition and Enterprise Edition cannot be mixed.
-3. On the server, execute systemctl status taosd to check the running status of *taosd*. If not running, start *taosd*.
-4. Verify that the correct server FQDN (Fully Qualified Domain Name, which is available by executing the Linux command hostname-f on the server) is specified when the client connects. FQDN configuration reference: "[All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)".
-5. Ping the server FQDN. If there is no response, please check your network, DNS settings, or the system hosts file of the computer where the client is located.
-6. Check the firewall settings (Ubuntu uses ufw status, CentOS uses firewall-cmd-list-port) to confirm that TCP/UDP ports 6030-6042 are open.
-7. For JDBC (ODBC, Python, Go and other interfaces are similar) connections on Linux, make sure that libtaos.so is in the directory /usr/local/taos/driver, and /usr/local/taos/driver is in the system library function search path LD_LIBRARY_PATH.
-8. For JDBC, ODBC, Python, Go, etc. connections on Windows, make sure that C:\ TDengine\ driver\ taos.dll is in your system library function search directory (it is recommended that taos.dll be placed in the directory C:\ Windows\ System32)
-9. If the connection issue still exist
+3. Make sure that the client and server version numbers are exactly the same, and the open source Community Edition and Enterprise Edition cannot be mixed.
+4. On the server, execute systemctl status taosd to check the running status of *taosd*. If not running, start *taosd*.
+5. Verify that the correct server FQDN (Fully Qualified Domain Name, which is available by executing the Linux command hostname-f on the server) is specified when the client connects. FQDN configuration reference: "[All about FQDN of TDengine](https://www.taosdata.com/blog/2020/09/11/1824.html)".
+6. Ping the server FQDN. If there is no response, please check your network, DNS settings, or the system hosts file of the computer where the client is located.
+7. Check the firewall settings (Ubuntu uses ufw status, CentOS uses firewall-cmd-list-port) to confirm that TCP/UDP ports 6030-6042 are open.
+8. For JDBC (ODBC, Python, Go and other interfaces are similar) connections on Linux, make sure that libtaos.so is in the directory /usr/local/taos/driver, and /usr/local/taos/driver is in the system library function search path LD_LIBRARY_PATH.
+9. For JDBC, ODBC, Python, Go, etc. connections on Windows, make sure that C:\ TDengine\ driver\ taos.dll is in your system library function search directory (it is recommended that taos.dll be placed in the directory C:\ Windows\ System32)
+10. If the connection issue still exist
 
-1. - On Linux system, please use the command line tool nc to determine whether the TCP and UDP connections on the specified ports are unobstructed. Check whether the UDP port connection works: nc -vuz {hostIP} {port} Check whether the server-side TCP port connection works: nc -l {port}Check whether the client-side TCP port connection works: nc {hostIP} {port}
-   - Windows systems use the PowerShell command Net-TestConnection-ComputerName {fqdn} Port {port} to detect whether the service-segment port is accessed
+  - On Linux system, please use the command line tool nc to determine whether the TCP and UDP connections on the specified ports are unobstructed. Check whether the UDP port connection works: nc -vuz {hostIP} {port} Check whether the server-side TCP port connection works: nc -l {port}Check whether the client-side TCP port connection works: nc {hostIP} {port}
+  - Windows systems use the PowerShell command Net-TestConnection-ComputerName {fqdn} Port {port} to detect whether the service-segment port is accessed
 
-10. You can also use the built-in network connectivity detection function of taos program to verify whether the specified port connection between the server and the client is unobstructed (including TCP and UDP): [TDengine's Built-in Network Detection Tool Use Guide](https://www.taosdata.com/blog/2020/09/08/1816.html).
+11. You can also use the built-in network connectivity detection function of taos program to verify whether the specified port connection between the server and the client is unobstructed (including TCP and UDP): [TDengine's Built-in Network Detection Tool Use Guide](https://www.taosdata.com/blog/2020/09/08/1816.html).
 
 
 
@@ -103,7 +103,7 @@ Insert in batches. Each write statement can insert multiple records into one or 
 
 ## 12. What is the most effective way to write data? How to solve the problem that Chinese characters in nchar inserted under Windows systems are parsed into messy code?
 
-If there are Chinese characters in nchar data under Windows, please first confirm that the region of the system is set to China (which can be set in the Control Panel), then the taos client in cmd should already support it normally; If you are developing Java applications in an IDE, such as Eclipse and Intellij, please confirm that the file code in the IDE is GBK (this is the default coding type of Java), and then initialize the configuration of the client when generating the Connection. The specific statement is as follows:
+If there are Chinese characters in nchar data under Windows, please first confirm that the region of the system is set to China (which can be set in the Control Panel), then the taos client in cmd should already support it normally; If you are developing Java applications in an IDE, such as Eclipse and IntelliJ, please confirm that the file code in the IDE is GBK (this is the default coding type of Java), and then initialize the configuration of the client when generating the Connection. The specific statement is as follows:
 
 ```JAVA
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -126,7 +126,7 @@ Please update to the latest JDBC driver.
 
 ## 14. taos connect failed, reason: invalid timestamp.
 
-The common reason is that the server time and client time are not calibrated, which can be calibrated by synchronizing with the time server (use ntpdate command under Linux, and select automatic synchronization in the Windows time setting).
+The common reason is that the server time and client time are not calibrated, which can be calibrated by synchronizing with the time server (use `ntpdate` command under Linux, and select automatic synchronization in the Windows time setting).
 
 ## 15. Incomplete display of table name
 
@@ -159,3 +159,22 @@ ALTER LOCAL RESETLOG;
 
 This means wiping up all client-generated log files on the machine.
 
+## 18. How to solve the golang component compilation failure?
+
+From version 2.3.0.0, a new component taosAdapter developed in go has been added in TDengine. taosAdapter needs to be run separately to replace the httpd built in taosd. It provideds REST API and data flow a variety of 3rd party tools like Prometheus, Telegraf, CollectD, StatsD, etc, can be inserted into TDengine through it.
+
+For details about taosAdapter, please refer to [taosAdapter](https://tdengine.com/docs/en/v2.0/tools/adapter#install-taosadapter).
+
+## 19. How do I query the disk space occupied by data?
+
+By default, TDengine data files are stored in /var/lib/taos and log files are stored in /var/log/taos.
+
+To check the size of all data files, run command `du -sh /var/lib/taos/vnode --exclude='wal'` on Linux Shell. The wal directory is excluded here because the size is almost fixed in case of continuous heavy writes, and wal directories are emptied whenever TDengine is normally shut down.
+
+To check the size of a single database, run the `show vgroups;` command in the taos command to specify a database, go to /var/lib/taos/vnode with the obtained VGroup ID to check the contained folder size.
+
+If you only want to see the block distribution and size of a (super) table, You can use _block_dist functions: 
+
+```mysql
+SELECT _block_dist () FROM {tb_name | stb_name}
+```

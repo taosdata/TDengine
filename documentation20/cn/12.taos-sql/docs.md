@@ -4,7 +4,7 @@
 
 TAOS SQL 是用户对 TDengine 进行数据写入和查询的主要工具。TAOS SQL 为了便于用户快速上手，在一定程度上提供类似于标准 SQL 类似的风格和模式。严格意义上，TAOS SQL 并不是也不试图提供 SQL 标准的语法。此外，由于 TDengine 针对的时序性结构化数据不提供删除功能，因此在 TAO SQL 中不提供数据删除的相关功能。
 
-TAOS SQL 不支持关键字的缩写，例如 DESCRIBE 不能缩写为 DESC。 
+TAOS SQL 目前仅支持 DESCRIBE 关键字的缩写，DESCRIBE 可以缩写为 DESC。
 
 本章节 SQL 语法遵循如下约定：
 
@@ -37,7 +37,11 @@ taos> DESCRIBE meters;
 - Epoch Time：时间戳也可以是一个长整数，表示从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始的毫秒数（相应地，如果所在 Database 的时间精度设置为“微秒”，则长整型格式的时间戳含义也就对应于从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始的微秒数；纳秒精度的逻辑也是类似的。）
 - 时间可以加减，比如 now-2h，表明查询时刻向前推 2 个小时（最近 2 小时）。数字后面的时间单位可以是 b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 比如 `select * from t1 where ts > now-2w and ts <= now-1w`，表示查询两周前整整一周的数据。在指定降采样操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n(自然月) 和 y(自然年)。
 
-TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒和纳秒。（从 2.1.5.0 版本开始支持纳秒精度）
+TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传递的 PRECISION 参数就可以支持微秒和纳秒。（从 2.1.5.0 版本开始支持纳秒精度） 
+
+```mysql
+CREATE DATABASE db_name PRECISION 'ns';
+```
 
 在TDengine中，普通表的数据模型中可使用以下 10 种数据类型。 
 
@@ -48,16 +52,18 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
 | 3    |  BIGINT   | 8      | 长整型，范围 [-2^63+1,   2^63-1], -2^63 用于 NULL                                 |
 | 4    |   FLOAT   | 4      | 浮点型，有效位数 6-7，范围 [-3.4E38, 3.4E38]                  |
 | 5    |  DOUBLE   | 8      | 双精度浮点型，有效位数 15-16，范围 [-1.7E308, 1.7E308]      |
-| 6    |  BINARY   | 自定义 | 记录单字节字符串，建议只用于处理 ASCII 可见字符，中文等多字节字符需使用 nchar。理论上，最长可以有 16374 字节，但由于每行数据最多 16K 字节，实际上限一般小于理论值。binary 仅支持字符串输入，字符串两端需使用单引号引用。使用时须指定大小，如 binary(20) 定义了最长为 20 个单字节字符的字符串，每个字符占 1 byte 的存储空间，总共固定占用 20 bytes 的空间，此时如果用户字符串超出 20 字节将会报错。对于字符串内的单引号，可以用转义字符反斜线加单引号来表示，即 `\’`。 |
+| 6    |  BINARY   | 自定义 | 记录单字节字符串，建议只用于处理 ASCII 可见字符，中文等多字节字符需使用 nchar。理论上，最长可以有 16374 字节。binary 仅支持字符串输入，字符串两端需使用单引号引用。使用时须指定大小，如 binary(20) 定义了最长为 20 个单字节字符的字符串，每个字符占 1 byte 的存储空间，总共固定占用 20 bytes 的空间，此时如果用户字符串超出 20 字节将会报错。对于字符串内的单引号，可以用转义字符反斜线加单引号来表示，即 `\’`。 |
 | 7    | SMALLINT  | 2      | 短整型， 范围 [-32767, 32767], -32768 用于 NULL                                |
 | 8    |  TINYINT  | 1      | 单字节整型，范围 [-127, 127], -128 用于 NULL                                |
 | 9    |   BOOL    | 1      | 布尔型，{true, false}                                      |
 | 10   |   NCHAR   | 自定义 | 记录包含多字节字符在内的字符串，如中文字符。每个 nchar 字符占用 4 bytes 的存储空间。字符串两端使用单引号引用，字符串内的单引号需用转义字符 `\’`。nchar 使用时须指定字符串大小，类型为 nchar(10) 的列表示此列的字符串最多存储 10 个 nchar 字符，会固定占用 40 bytes 的空间。如果用户字符串长度超出声明长度，将会报错。 |
+| 11   |   JSON    |       | json数据类型， 只有tag类型可以是json格式                                    |
 <!-- REPLACE_OPEN_TO_ENTERPRISE__COLUMN_TYPE_ADDONS -->
 
 **Tips**:
 1. TDengine 对 SQL 语句中的英文字符不区分大小写，自动转化为小写执行。因此用户大小写敏感的字符串及密码，需要使用单引号将字符串引起来。
 2. **注意**，虽然 Binary 类型在底层存储上支持字节型的二进制字符，但不同编程语言对二进制数据的处理方式并不保证一致，因此建议在 Binary 类型中只存储 ASCII 可见字符，而避免存储不可见字符。多字节的数据，例如中文字符，则需要使用 nchar 类型进行保存。如果强行使用 Binary 类型保存中文字符，虽然有时也能正常读写，但并不带有字符集信息，很容易出现数据乱码甚至数据损坏等情况。
+3. **注意**，SQL语句中的数值类型将依据是否存在小数点，或使用科学计数法表示，来判断数值类型是否为整型或者浮点型，因此在使用时要注意相应类型越界的情况。例如，9999999999999999999会认为超过长整型的上边界而溢出，而9999999999999999999.0会被认为是有效的浮点数。
 
 ## <a class="anchor" id="management"></a>数据库管理
 
@@ -80,7 +86,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
         
         4) 更多关于UPDATE参数的用法，请参考[FAQ](https://www.taosdata.com/cn/documentation/faq)。
 
-    3) 数据库名最大长度为33；
+    3) 数据库名最大长度为32；
 
     4) 一条SQL 语句的最大长度为65480个字符；
 
@@ -129,7 +135,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ```mysql
     ALTER DATABASE db_name BLOCKS 100;
     ```
-    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 1000]。
+    BLOCKS 参数是每个 VNODE (TSDB) 中有多少 cache 大小的内存块，因此一个 VNODE 的用的内存大小粗略为（cache * blocks）。取值范围 [3, 10000]。
 
     ```mysql
     ALTER DATABASE db_name CACHELAST 0;
@@ -166,7 +172,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
 
     2) 表名最大长度为 192；
 
-    3) 表的每行长度不能超过 16k 个字符;（注意：每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）
+    3) 表的每行长度不能超过 48K 个字符（2.1.7.0 之前的版本为 16K，每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
 
     4) 子表名只能由字母、数字和下划线组成，且不能以数字开头，不区分大小写
 
@@ -340,7 +346,7 @@ TDengine 缺省的时间戳是毫秒精度，但通过在 CREATE DATABASE 时传
     ```mysql
     ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
     ```
-    为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16k 个字符。
+    为 STable 增加一个新的标签，并指定新标签的类型。标签总数不能超过 128 个，总长度不超过 16K 个字符。
 
 - **删除标签**
 
@@ -599,7 +605,6 @@ SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
 SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 ```
 
-需要注意的是，DISTINCT 目前不支持对超级表中的普通列进行处理。如果需要进行此类操作，那么需要把超级表放在子查询中，再对子查询的计算结果执行 DISTINCT。
 
 说明：
 1. cfg 文件中的配置参数 maxNumOfDistinctRes 将对 DISTINCT 能够输出的数据行数进行限制。其最小值是 100000，最大值是 100000000，默认值是 10000000。如果实际计算结果超出了这个限制，那么会仅输出这个数量范围内的部分。
@@ -682,10 +687,54 @@ taos> SELECT SERVER_STATUS() AS status;
 Query OK, 1 row(s) in set (0.000081s)
 ```
 
+函数_block_dist()使用说明
+<br/>语法
+
+SELECT _block_dist() FROM { tb_name | stb_name }
+
+功能说明：获得指定的（超级）表的数据块分布信息
+
+返回结果类型：字符串。
+
+
+适用数据类型：不能输入任何参数。
+
+嵌套子查询支持：不支持子查询或嵌套查询。
+
+
+说明：
+
+返回 FROM 子句中输入的表或超级表的数据块分布情况。不支持查询条件。
+
+返回的结果是该表或超级表的数据块所包含的行数的数据分布直方图。
+
+返回结果如下：
+```
+summary:
+5th=[392], 10th=[392], 20th=[392], 30th=[392], 40th=[792], 50th=[792] 60th=[792], 70th=[792], 80th=[792], 90th=[792], 95th=[792], 99th=[792] Min=[392(Rows)] Max=[800(Rows)] Avg=[666(Rows)] Stddev=[2.17] Rows=[2000], Blocks=[3], Size=[5.440(Kb)] Comp=[0.23] RowsInMem=[0] SeekHeaderTime=[1(us)]
+```
+上述信息的说明如下：
+<br/>1、查询的（超级）表所包含的存储在文件中的数据块（data block）中所包含的数据行的数量分布直方图信息：5%， 10%， 20%， 30%， 40%， 50%， 60%， 70%， 80%， 90%， 95%， 99% 的数值；
+<br/>2、所有数据块中，包含行数最少的数据块所包含的行数量， 其中的 Min 指标 392 行。
+<br/>3、所有数据块中，包含行数最多的数据块所包含的行数量， 其中的 Max 指标 800 行。
+<br/>4、所有数据块行数的算数平均值 666行（其中的 Avg 项）。
+<br/>5、所有数据块中行数分布的均方差为 2.17 ( stddev ）。
+<br/>6、数据块包含的行的总数为 2000 行（Rows）。
+<br/>7、数据块总数是 3 个数据块 （Blocks）。
+<br/>8、数据块占用磁盘空间大小 5.44 Kb （size）。
+<br/>9、压缩后的数据块的大小除以原始数据的所获得的压缩比例： 23%（Comp），及压缩后的数据规模是原始数据规模的 23%。
+<br/>10、内存中存在的数据行数是0，表示内存中没有数据缓存。
+<br/>11、获取数据块信息的过程中读取头文件的时间开销 1 微秒（SeekHeaderTime）。
+
+支持版本：指定计算算法的功能从2.1.0.x 版本开始，2.1.0.0之前的版本不支持指定使用算法的功能。
+
+
 #### TAOS SQL中特殊关键词
 
  >   TBNAME： 在超级表查询中可视为一个特殊的标签，代表查询涉及的子表名<br>
     \_c0: 表示表（超级表）的第一列
+    \_qstart,\_qstop,\_qduration: 表示查询过滤窗口的起始，结束以及持续时间（从 2.6.0.0 版本开始支持）
+    \_wstart,\_wstop,\_wduration: 窗口切分聚合查询（例如 interval/session window/state window）中表示每个切分窗口的起始，结束以及持续时间（从 2.6.0.0 版本开始支持）
 
 #### 小技巧
 
@@ -754,21 +803,54 @@ Query OK, 1 row(s) in set (0.001091s)
 
 6. 从 2.1.4.0 版本开始，条件过滤开始支持 IN 算子，例如 `WHERE city IN ('Beijing', 'Shanghai')`。说明：BOOL 类型写作 `{true, false}` 或 `{0, 1}` 均可，但不能写作 0、1 之外的整数；FLOAT 和 DOUBLE 类型会受到浮点数精度影响，集合内的值在精度范围内认为和数据行的值完全相等才能匹配成功；TIMESTAMP 类型支持非主键的列。
 
-7. 从2.3.0.0版本开始，条件过滤开始支持正则表达式，关键字match/nmatch，不区分大小写。
+7. 从2.3.0.0版本开始，条件过滤开始支持正则表达式，关键字 match/nmatch 不区分大小写。
 
    **语法**
 
-   WHERE (column|tbname) **match/MATCH/nmatch/NMATCH** *regex*
+   WHERE (column|tag|tbname) **match/MATCH/nmatch/NMATCH** *regex*
+
+   match/MATCH 匹配正则表达式
+
+   nmatch/NMATCH 不匹配正则表达式
 
    **正则表达式规范**
 
-   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见[Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)
+   确保使用的正则表达式符合POSIX的规范，具体规范内容可参见 [Regular Expressions](https://pubs.opengroup.org/onlinepubs/9699919799/basedefs/V1_chap09.html)，目前 TDengine 使用的是 glibc 里面的 regex 实现，使用正则表达式进行 match 时是区分大小写的
+
+   **正则表达使用示例**
+
+    ```sql
+    taos> select distinct location from meters;
+        location     |
+    ===================
+    beijing          |
+    shanghai         |
+    Query OK, 2 row(s) in set (0.003513s)
+
+    taos> select count(*) from meters;
+        count(*)        |
+    ========================
+                    100000 |
+    Query OK, 1 row(s) in set (0.015054s)
+
+    taos> select count(*) from meters where location match '^b';
+        count(*)        |
+    ========================
+                    48000 |
+    Query OK, 1 row(s) in set (0.006977s)
+
+    taos> select count(*) from meters where location nmatch '^b';
+        count(*)        |
+    ========================
+                    52000 |
+    Query OK, 1 row(s) in set (0.008188s)
+    ```
 
    **使用限制**
 
-   只能针对表名（即 tbname 筛选）、binary/nchar类型标签值进行正则表达式过滤，不支持普通列的过滤。
+   只能针对表名 (tbname) 以及binary类型的普通列或标签进行正则表达式过滤。
 
-   正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启才能生效。
+   正则匹配字符串长度不能超过 128 字节。可以通过参数 *maxRegexStringLen* 设置和调整最大允许的正则匹配字符串，该参数是客户端配置参数，需要重启客户端才能生效。
 
 
 <a class="anchor" id="join"></a>
@@ -798,6 +880,7 @@ WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 3. 暂不支持参与 JOIN 操作的表之间聚合后的四则运算。
 4. 不支持只对其中一部分表做 GROUP BY。
 5. JOIN 查询的不同表的过滤条件之间不能为 OR。
+6. JOIN 查询要求连接条件不能是普通列，只能针对标签和主时间字段列（第一列）。
 
 <a class="anchor" id="nested"></a>
 ### 嵌套查询
@@ -1035,7 +1118,75 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     {slop:1.000000, intercept:9.733334}                 |
     Query OK, 1 row(s) in set (0.000921s)
     ```
+  
+- **MODE**
+    ```mysql
+    SELECT MODE(field_name) FROM tb_name [WHERE clause];
+    ```
+    功能说明：返回出现频率最高的值，若存在多个频率相同的最高值，输出空。不能匹配标签、时间戳输出。
 
+    返回结果数据类型：同应用的字段。
+
+    应用字段：适合于除时间主列外的任何类型字段。
+    
+    支持的版本：2.6.0.x 之后的版本。
+
+    说明：由于返回数据量未知，考虑到内存因素，为了函数可以正常返回结果，建议不重复的数据量在10万级别，否则会报错。
+
+    示例：
+    ```mysql
+    taos> select voltage from d002;
+        voltage        |
+    ========================
+           1           |
+           1           |
+           2           |
+           19          |
+    Query OK, 4 row(s) in set (0.003545s)
+  
+    taos> select mode(voltage) from d002;
+      mode(voltage)    |
+    ========================
+           1           |
+   Query OK, 1 row(s) in set (0.019393s)
+    ```  
+  
+- **HYPERLOGLOG**
+    ```mysql
+    SELECT HYPERLOGLOG(field_name) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：
+    - 采用hyperloglog算法，返回某列的基数。该算法在数据量很大的情况下，可以明显降低内存的占用，但是求出来的基数是个估算值，标准误差（标准误差是多次实验，每次的平均数的标准差，不是与真实结果的误差）为0.81%。
+    - 在数据量较少的时候该算法不是很准确，可以使用select count(data) from (select unique(col) as data from table) 的方法。
+
+    返回结果类型：整形。
+
+    适用数据类型：适合于任何类型字段。
+
+    支持的版本：2.6.0.x 之后的版本。
+
+    示例：
+    ```mysql
+    taos> select dbig from shll;
+         dbig          |
+    ========================
+           1           |
+           1           |
+           1           |
+           NULL        |
+           2           |
+           19          |
+           NULL        |
+           9           |
+    Query OK, 8 row(s) in set (0.003755s)
+  
+    taos> select hyperloglog(dbig) from shll;
+      hyperloglog(dbig)|
+    ========================
+           4           |
+    Query OK, 1 row(s) in set (0.008388s)
+     ```
+  
 ### 选择函数
 
 在使用所有的选择函数的时候，可以同时指定输出 ts 列或标签列（包括 tbname），这样就可以方便地知道被选出的值是源于哪个数据行的。
@@ -1305,18 +1456,18 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```mysql
     SELECT LAST_ROW(field_name) FROM { tb_name | stb_name };
     ```
-功能说明：返回表/超级表的最后一条记录。
-    
-返回结果数据类型：同应用的字段。
-    
-应用字段：所有字段。
-    
-适用于：**表、超级表**。
-    
-限制：LAST_ROW() 不能与 INTERVAL 一起使用。
-    
-说明：在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。<br/>
-   <br/>示例：
+    功能说明：返回表/超级表的最后一条记录。
+
+    返回结果数据类型：同应用的字段。
+
+    应用字段：所有字段。
+
+    适用于：**表、超级表**。
+
+    限制：LAST_ROW() 不能与 INTERVAL 一起使用。
+
+    说明：在用于超级表时，时间戳完全一样且同为最大的数据行可能有多个，那么会从中随机返回一条，而并不保证多次运行所挑选的数据行必然一致。<br/>
+    <br/>示例：
 
    ```mysql
     taos> SELECT LAST_ROW(current) FROM meters;
@@ -1331,23 +1482,75 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
                 10.30000 |
     Query OK, 1 row(s) in set (0.001042s)
    ```
+
+- **INTERP  [2.3.1及之后的版本]** 
+    
+    ```mysql
+    SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ RANGE(timestamp1,timestamp2) ] [EVERY(interval)] [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
+    ```
+
+    功能说明：返回表/超级表的指定时间截面指定列的记录值（插值）。
+
+    返回结果数据类型：同字段类型。
+
+    应用字段：数值型字段。
+
+    适用于：**表、超级表、嵌套查询**。
+
+    说明：
+    1）INTERP用于在指定时间断面获取指定列的记录值，如果该时间断面不存在符合条件的行数据，那么会根据 FILL 参数的设定进行插值。
+
+    2）INTERP的输入数据为指定列的数据，可以通过条件语句（where子句）来对原始列数据进行过滤，如果没有指定过滤条件则输入为全部数据。
+
+    3）INTERP的输出时间范围根据RANGE(timestamp1,timestamp2)字段来指定，需满足timestamp1<=timestamp2。其中timestamp1（必选值）为输出时间范围的起始值，即如果timestamp1时刻符合插值条件则timestamp1为输出的第一条记录，timestamp2（必选值）为输出时间范围的结束值，即输出的最后一条记录的timestamp不能大于timestamp2。如果没有指定RANGE，那么满足过滤条件的输入数据中第一条记录的timestamp即为timestamp1，最后一条记录的timestamp即为timestamp2，同样也满足timestamp1 <= timestamp2。
+
+    4）INTERP根据EVERY字段来确定输出时间范围内的结果条数，即从timestamp1开始每隔固定长度的时间（EVERY值）进行插值。如果没有指定EVERY，则默认窗口大小为无穷大，即从timestamp1开始只有一个窗口。
+
+    5）INTERP根据FILL字段来决定在每个符合输出条件的时刻如何进行插值，如果没有FILL字段则默认不插值，即输出为原始记录值或不输出（原始记录不存在）。
+
+    6）INTERP只能在一个时间序列内进行插值，因此当作用于超级表时必须跟group by tbname一起使用，当作用嵌套查询外层时内层子查询不能含GROUP BY信息。
+
+    7）INTERP的插值结果不受ORDER BY timestamp的影响，ORDER BY timestamp只影响输出结果的排序。
+
+  SQL示例（基于文档中广泛使用的电表 schema ）
+
+      1) 单点线性插值
+     ```mysql
+      taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:40:00','2017-7-14 18:40:00') FILL(LINEAR);
+     ```
+      2) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行取值(不插值)
+     ```mysql
+      taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s);
+     ```
+      3) 在2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
+     ```mysql
+       taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+     ```
+     4.在所有时间范围内每隔5秒钟进行向后插值
+     ```mysql
+       taos> SELECT INTERP(current) FROM t1 EVERY(5s) FILL(NEXT);
+     ```
+     5.根据2017-07-14 17:00:00到2017-07-14 20:00:00间的数据进行从2017-07-14 18:00:00到2017-07-14 19:00:00间每隔5秒钟进行线性插值
+     ```mysql
+       taos> SELECT INTERP(current) FROM t1 where ts >= '2017-07-14 17:00:00' and ts <= '2017-07-14 20:00:00' RANGE('2017-7-14 18:00:00'，'2017-7-14 19:00:00') EVERY(5s) FILL(LINEAR);
+     ```
     
 
-- **INTERP** 
+- **INTERP  [2.3.1之前的版本]** 
     
     ```mysql
     SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL ({ VALUE | PREV | NULL | LINEAR | NEXT})];
     ```
 
-功能说明：返回表/超级表的指定时间截面、指定字段的记录。
+    功能说明：返回表/超级表的指定时间截面、指定字段的记录。
 
-返回结果数据类型：同字段类型。
+    返回结果数据类型：同字段类型。
 
-应用字段：数值型字段。
+    应用字段：数值型字段。
 
-适用于：**表、超级表**。
+    适用于：**表、超级表**。
 
-说明：（从 2.0.15.0 版本开始新增此函数） <br/>1）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。此外，条件语句里面可附带筛选条件，例如标签、tbname。<br/>2）INTERP 查询要求查询的时间区间必须位于数据集合（表）的所有记录的时间范围之内。如果给定的时间戳位于时间范围之外，即使有插值指令，仍然不返回结果。<br/>3）单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值。<br/>    
+    说明：（从 2.0.15.0 版本开始新增此函数） <br/>1）INTERP 必须指定时间断面，如果该时间断面不存在直接对应的数据，那么会根据 FILL 参数的设定进行插值。此外，条件语句里面可附带筛选条件，例如标签、tbname。<br/>2）INTERP 查询要求查询的时间区间必须位于数据集合（表）的所有记录的时间范围之内。如果给定的时间戳位于时间范围之外，即使有插值指令，仍然不返回结果。<br/>3）单个 INTERP 函数查询只能够针对一个时间点进行查询，如果需要返回等时间间隔的断面数据，可以通过 INTERP 配合 EVERY 的方式来进行查询处理（而不是使用 INTERVAL），其含义是每隔固定长度的时间进行插值。<br/>    
     示例：
     
    ```mysql
@@ -1358,7 +1561,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     Query OK, 1 row(s) in set (0.002652s)
    ```
 
-如果给定的时间戳无对应的数据，在不指定插值生成策略的情况下，不会返回结果，如果指定了插值策略，会根据插值策略返回结果。
+    如果给定的时间戳无对应的数据，在不指定插值生成策略的情况下，不会返回结果，如果指定了插值策略，会根据插值策略返回结果。
 
    ```mysql
     taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005';
@@ -1371,7 +1574,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     Query OK, 1 row(s) in set (0.003056s)
    ```
 
-如下所示代码表示在时间区间 `['2017-7-14 18:40:00', '2017-7-14 18:40:00.014']` 中每隔 5 毫秒 进行一次断面计算。
+    如下所示代码表示在时间区间 `['2017-7-14 18:40:00', '2017-7-14 18:40:00.014']` 中每隔 5 毫秒 进行一次断面计算。
 
    ```mysql
     taos> SELECT INTERP(current) FROM d636 WHERE ts>='2017-7-14 18:40:00' AND ts<='2017-7-14 18:40:00.014' EVERY(5a);
@@ -1382,13 +1585,93 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     Query OK, 2 row(s) in set (0.003487s)
    ```
 
+- **TAIL**
+    ```mysql
+    SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    功能说明：返回跳过最后 offset_value个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于order by ts desc LIMIT  k OFFSET offset_val。
+
+    参数范围：k: [1,100]  offset_val: [0,100]。 
+
+    返回结果数据类型：同应用的字段。
+
+    应用字段：适合于除时间主列外的任何类型字段。
+
+    适用于：**表、超级表**。
+
+    支持版本：2.6.0.x 之后的版本。
+
+    示例：
+    ```mysql
+    taos> select ts,dbig from tail2;
+           ts            |         dbig          |
+    ==================================================
+    2021-10-15 00:31:33.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    2022-01-01 08:00:06.000 |                  NULL |
+    2022-01-01 08:00:07.000 |                     9 |
+    Query OK, 6 row(s) in set (0.001952s)
+  
+    taos> select tail(dbig,2,2) from tail2;
+    ts                      |    tail(dbig,2,2)     |
+    ==================================================
+    2021-12-24 00:31:34.000 |                     2 |
+    2022-01-01 08:00:05.000 |                    19 |
+    Query OK, 2 row(s) in set (0.002307s)
+
+- **UNIQUE**
+    ```mysql
+    SELECT UNIQUE(field_name) FROM {tb_name | stb_name} [WHERE clause];
+    ```
+    功能说明：返回该列的数值首次出现的值。该函数功能与 distinct 相似，但是可以匹配标签和时间戳信息。可以针对除时间列以外的字段进行查询，可以匹配标签和时间戳，其中的标签和时间戳是第一次出现时刻的标签和时间戳。
+
+    返回结果数据类型：同应用的字段。
+
+    应用字段：适合于除时间类型以外的字段。
+
+    适用于：**表、超级表**。
+
+    支持版本：2.6.0.x 之后的版本。
+  
+    说明：
+    - 该函数可以应用在普通表和超级表上。不能和窗口操作一起使用，例如 interval/state_window/session_window 。
+    - 由于返回数据量未知，考虑到内存因素，为了函数可以正常返回结果，建议不重复的数据量在10万级别，否则会报错。
+
+    示例：
+    ```mysql
+    taos> select ts,voltage from unique1;
+           ts            |        voltage        |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2022-01-24 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2022-01-01 08:00:02.000 |                  NULL |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 8 row(s) in set (0.003018s)
+  
+    taos> select unique(voltage) from unique1;
+    ts                      |    unique(voltage)    |
+    ==================================================
+    2021-10-17 00:31:31.000 |                     1 |
+    2021-10-17 00:31:31.000 |                  NULL |
+    2021-12-24 00:31:31.000 |                     2 |
+    2022-01-01 08:00:01.000 |                    19 |
+    2022-01-01 08:00:03.000 |                     9 |
+    Query OK, 5 row(s) in set (0.108458s)
+  
+
 ### 计算函数
 
 - **DIFF**
     ```mysql
-    SELECT DIFF(field_name) FROM tb_name [WHERE clause];
+    SELECT {DIFF(field_name, ignore_negative) | DIFF(field_name)} FROM tb_name [WHERE clause];
     ```
-    功能说明：统计表中某列的值与前一行对应值的差。
+    功能说明：统计表中某列的值与前一行对应值的差。 ignore_negative 取值为 0|1 , 可以不填，默认值为 0. 不忽略负值。ignore_negative为1时表示忽略负数。
 
     返回结果数据类型：同应用字段。
 
@@ -1396,7 +1679,7 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
 
     适用于：**表、（超级表）**。
 
-    说明：输出结果行数是范围内总行数减一，第一行没有结果输出。从 2.1.3.0 版本开始，DIFF 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。
+    说明：输出结果行数是范围内总行数减一，第一行没有结果输出。从 2.1.3.0 版本开始，DIFF 函数可以在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）。从2.6.0开始，DIFF函数支持ignore_negative参数
 
     示例：
     ```mysql
@@ -1481,8 +1764,6 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
       只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
       该函数可以应用在普通表和超级表上。
 
-    支持版本：指定计算算法的功能从 2.2.0.x 版本开始，2.2.0.0 之前的版本不支持指定使用算法的功能。
-  
 - **FLOOR**
     ```mysql
     SELECT FLOOR(field_name) FROM { tb_name | stb_name } [WHERE clause];
@@ -1496,6 +1777,438 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
     ```
     功能说明：获得指定列的四舍五入的结果。  
     其他使用说明参见CEIL函数描述。
+
+-  **CSUM**
+    ```sql
+    SELECT CSUM(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    功能说明：累加和（Cumulative sum），输出行与输入行数相同。
+
+    返回结果类型： 输入列如果是整数类型返回值为长整型 （int64_t），浮点数返回值为双精度浮点数（Double）。无符号整数类型返回值为无符号长整型（uint64_t）。 返回结果中同时带有每行记录对应的时间戳。
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在标签之上。
+
+    嵌套子查询支持： 适用于内层查询和外层查询。
+
+    补充说明： 不支持 +、-、*、/ 运算，如 csum(col1) + csum(col2)。只能与聚合（Aggregation）函数一起使用。 该函数可以应用在普通表和超级表上。 使用在超级表上的时候，需要搭配 Group by tbname使用，将结果强制规约到单个时间线。
+
+    支持版本： 从2.3.0.x开始支持
+
+-  **MAVG**
+    ```sql
+    SELECT MAVG(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    功能说明： 计算连续 k 个值的移动平均数（moving average）。如果输入行数小于 k，则无结果输出。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+
+    返回结果类型： 返回双精度浮点数类型。
+
+    适用数据类型： 不能应用在 timestamp、binary、nchar、bool 类型上；在超级表查询中使用时，不能应用在标签之上。
+
+    嵌套子查询支持： 适用于内层查询和外层查询。
+
+    补充说明： 不支持 +、-、*、/ 运算，如 mavg(col1, k1) + mavg(col2, k1); 只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用；该函数可以应用在普通表和超级表上；使用在超级表上的时候，需要搭配 Group by tbname使用，将结果强制规约到单个时间线。
+
+    支持版本： 从2.3.0.x开始支持
+
+-  **SAMPLE**
+    ```sql
+    SELECT SAMPLE(field_name, K) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+
+    功能说明： 获取数据的 k 个采样值。参数 k 的合法输入范围是 1≤ k ≤ 1000。
+
+    返回结果类型： 同原始数据类型， 返回结果中带有该行记录的时间戳。
+
+    适用数据类型： 在超级表查询中使用时，不能应用在标签之上。
+
+    嵌套子查询支持： 适用于内层查询和外层查询。
+
+    补充说明： 不能参与表达式计算；该函数可以应用在普通表和超级表上；使用在超级表上的时候，需要搭配 Group by tbname 使用，将结果强制规约到单个时间线。
+
+    支持版本： 从2.3.0.x开始支持
+
+
+
+- **ASIN**
+    ```mysql
+    SELECT ASIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的反正弦结果
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **ACOS**
+    ```mysql
+    SELECT ACOS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的反余弦结果
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **ATAN**
+    ```mysql
+    SELECT ATAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的反正切结果
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **SIN**
+    ```mysql
+    SELECT SIN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的正弦结果
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **COS**
+    ```mysql
+    SELECT COS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的余弦结果
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **TAN**
+    ```mysql
+    SELECT TAN(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的正切结果
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **POW**
+    ```mysql
+    SELECT POW(field_name, power) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的指数为power的幂
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **LOG**
+    ```mysql
+    SELECT LOG(field_name, base) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列对于底数base的对数
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **ABS**
+    ```mysql
+    SELECT ABS(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的绝对值
+
+    返回结果类型：如果输入值为整数，输出值是UBIGINT类型。如果输入值是FLOAT/DOUBLE数据类型，输出值是DOUBLE数据类型。
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **SQRT**
+    ```mysql
+    SELECT SQRT(field_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：获得指定列的平方根
+
+    返回结果类型：DOUBLE。如果输入值为NULL，输出值也为NULL
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上；在超级表查询中使用时，不能应用在 tag 列
+
+    嵌套子查询支持：适用于内层查询和外层查询。
+
+    使用说明：
+
+      只能与普通列，选择（Selection）、投影（Projection）函数一起使用，不能与聚合（Aggregation）函数一起使用。
+
+      该函数可以应用在普通表和超级表上。
+
+      版本2.6.0.x后支持
+
+- **CAST**
+    ```mysql
+    SELECT CAST(expression AS type_name) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：数据类型转换函数，输入参数expression支持普通列、常量、标量函数及它们之间的四则运算，不支持tag列，只适用于select子句中。
+
+    返回结果类型：CAST中指定的类型（type_name）。
+
+    适用数据类型：输入参数expression的类型可以是除JSON外目前所有类型字段（BOOL/TINYINT/SMALLINT/INT/BIGINT/FLOAT/DOUBLE/BINARY(M)/TIMESTAMP/NCHAR(M)/TINYINT UNSIGNED/SMALLINT UNSIGNED/INT UNSIGNED/BIGINT UNSIGNED）; 输出目标类型只支持BIGINT/BINARY(N)/TIMESTAMP/NCHAR(N)/BIGINT UNSIGNED。
+
+    说明：
+
+      对于不能支持的类型转换会直接报错。
+
+      如果输入值为NULL则输出值也为NULL。
+
+      对于类型支持但某些值无法正确转换的情况对应的转换后的值以转换函数输出为准。目前可能遇到的几种情况：
+        1）BINARY/NCHAR转BIGINT/BIGINT UNSIGNED时可能出现的无效字符情况，例如"a"可能转为0。
+        2）有符号数或TIMESTAMP转BIGINT UNSIGNED可能遇到的溢出问题。
+        3）BIGINT UNSIGNED转BIGINT可能遇到的溢出问题。
+        4）FLOAT/DOUBLE转BIGINT/BIGINT UNSIGNED可能遇到的溢出问题。
+      版本2.6.0.x后支持  
+
+- **CONCAT**
+    ```mysql
+    SELECT CONCAT(str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：字符串连接函数。
+
+    返回结果类型：同输入参数类型，BINARY或者NCHAR。
+
+    适用数据类型：输入参数或者全部是BINARY格式的字符串或者列，或者全部是NCHAR格式的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数最小参数个数为2个，最大参数个数为8个。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+      
+- **CONCAT_WS**
+    ```
+    SELECT CONCAT_WS(separator, str1|column1, str2|column2, ...) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：带分隔符的字符串连接函数。
+
+    返回结果类型：同输入参数类型，BINARY或者NCHAR。
+
+    适用数据类型：输入参数或者全部是BINARY格式的字符串或者列，或者全部是NCHAR格式的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果separator值为NULL，输出值为NULL。如果separator值不为NULL，其他输入为NULL，输出为空串
+      该函数最小参数个数为3个，最大参数个数为9个。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+
+- **LENGTH**
+    ```
+    SELECT LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：以字节计数的字符串长度。
+
+    返回结果类型：INT。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+
+- **CHAR_LENGTH**
+    ```
+    SELECT CHAR_LENGTH(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：以字符计数的字符串长度。
+
+    返回结果类型：INT。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+
+- **LOWER**
+    ```
+    SELECT LOWER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：将字符串参数值转换为全小写字母。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+
+- **UPPER**
+    ```
+    SELECT UPPER(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：将字符串参数值转换为全大写字母。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+
+- **LTRIM**
+    ```
+    SELECT LTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：返回清除左边空格后的字符串。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+
+- **RTRIM**
+    ```
+    SELECT RTRIM(str|column) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：返回清除右边空格后的字符串。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
+
+- **SUBSTR**
+    ```
+    SELECT SUBSTR(str,pos[,len]) FROM { tb_name | stb_name } [WHERE clause]
+    ```
+    功能说明：从源字符串str中的指定位置pos开始取一个长度为len的子串并返回。
+
+    返回结果类型：同输入类型。
+
+    适用数据类型：输入参数是BINARY类型或者NCHAR类型的字符串或者列。不能应用在TAG列。
+
+    说明：
+    
+      如果输入值为NULL，输出值为NULL。
+      输入参数pos可以为正数，也可以为负数。如果pos是正数，表示开始位置从字符串开头正数计算。如果pos为负数，表示开始位置从字符串结尾倒数计算。如果输入参数len被忽略，返回的子串包含从pos开始的整个字串。
+      该函数可以应用在普通表和超级表上。
+      该函数适用于内层查询和外层查询。
+      版本2.6.0.x后支持
 
 - **四则运算**
 
@@ -1525,10 +2238,469 @@ TDengine支持针对数据的聚合查询。提供支持的聚合和选择函数
                 80.810000718 |
     Query OK, 3 row(s) in set (0.001046s)
     ```
+  
+- **STATECOUNT**
+    ```mysql
+    SELECT STATECOUNT(field_name, oper, val) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：返回满足某个条件的连续记录的个数，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为true则加1，条件为false则重置为-1，如果数据为NULL，跳过该条数据。
 
+    参数范围： 
+    - oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于），不区分大小写。 
+    - val : 数值型
+
+    返回结果类型：整形。
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上。
+
+    嵌套子查询支持：不支持应用在子查询上。
+
+    支持的版本：2.6.0.x 之后的版本。
+
+    说明：
+
+    - 该函数可以应用在普通表上，在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）
+  
+    - 不能和窗口操作一起使用，例如interval/state_window/session_window。
+
+    示例：
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002977s)
+  
+    taos> select stateCount(dbig,GT,2) from statef2;
+    ts               |         dbig          | statecount(dbig,gt,2) |
+    ================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                    -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                    -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                     1 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                     2 |
+    Query OK, 6 row(s) in set (0.002791s)
+   ```
+
+- **STATEDURATION**
+    ```mysql
+    SELECT stateDuration(field_name, oper, val, unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：返回满足某个条件的连续记录的时间长度，结果作为新的一列追加在每行后面。条件根据参数计算，如果条件为true则加上两个记录之间的时间长度（第一个满足条件的记录时间长度记为0），条件为false则重置为-1，如果数据为NULL，跳过该条数据。
+
+    参数范围：
+    - oper : LT (小于)、GT（大于）、LE（小于等于）、GE（大于等于）、NE（不等于）、EQ（等于），不区分大小写。
+    - val : 数值型
+    - unit : 时间长度的单位，范围[1s、1m、1h ]，不足一个单位舍去。默认为1s。
+
+    返回结果类型：整形。
+
+    适用数据类型：不能应用在 timestamp、binary、nchar、bool 类型字段上。
+
+    嵌套子查询支持：不支持应用在子查询上。
+
+    支持的版本：2.6.0.x 之后的版本。
+
+    说明：
+
+    - 该函数可以应用在普通表上，在由 GROUP BY 划分出单独时间线的情况下用于超级表（也即 GROUP BY tbname）
+
+    - 不能和窗口操作一起使用，例如interval/state_window/session_window。
+
+    示例：
+    ```mysql
+    taos> select ts,dbig from statef2;
+              ts               |         dbig          |
+    ========================================================
+    2021-10-15 00:31:33.000000000 |                     1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |
+    2022-01-01 08:00:05.000000000 |                    19 |
+    2022-01-01 08:00:06.000000000 |                  NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |
+    Query OK, 6 row(s) in set (0.002407s)
+  
+    taos> select stateDuration(dbig,GT,2) from statef2;
+    ts               |         dbig          | stateduration(dbig,gt,2) |
+    ===================================================================================
+    2021-10-15 00:31:33.000000000 |                     1 |                       -1 |
+    2021-10-17 00:31:31.000000000 |                  NULL |                     NULL |
+    2021-12-24 00:31:34.000000000 |                     2 |                       -1 |
+    2022-01-01 08:00:05.000000000 |                    19 |                        0 |
+    2022-01-01 08:00:06.000000000 |                  NULL |                     NULL |
+    2022-01-01 08:00:07.000000000 |                     9 |                        2 |
+    Query OK, 6 row(s) in set (0.002613s)
+     ```
+- **HISTOGRAM**
+    ```mysql
+    SELECT HISTOGRAM(field_name，bin_type, bin_description, normalized) FROM tb_name [WHERE clause];
+    ```
+    功能说明：统计数据按照用户指定区间的分布。
+
+    返回结果数据类型：如归一化参数 normalized 设置为 1，返回结果为双精度浮点类型 DOUBLE，否则为长整形 INT64。
+
+    应用字段：数值型字段。
+
+    适用于：**表、（超级表）**。
+
+    说明：
+    1）从 2.6.0.0 版本开始支持此函数。
+    2）bin_type 用户指定的分桶类型, 有效输入类型为"user_input“, ”linear_bin", "log_bin"。
+    3）bin_description 描述如何生成分桶区间，针对三种桶类型，分别为以下描述格式(均为 JSON 格式字符串)：       
+       - "user_input": "[1, 3, 5, 7]" 
+       用户指定 bin 的具体数值。
+       
+       - "linear_bin": "{"start": 0.0, "width": 5.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"width" 表示每次 bin 偏移量, "count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       生成区间为[-inf, 0.0, 5.0, 10.0, 15.0, 20.0, +inf]。
+ 
+       - "log_bin": "{"start":1.0, "factor": 2.0, "count": 5, "infinity": true}"
+       "start" 表示数据起始点，"factor" 表示按指数递增的因子，"count" 为 bin 的总数，"infinity" 表示是否添加（-inf, inf）作为区间起点跟终点，
+       生成区间为[-inf, 1.0, 2.0, 4.0, 8.0, 16.0, +inf]。
+    4）normalized 是否将返回结果归一化到 0~1 之间 。有效输入为 0 和 1。
+
+    示例：
+    ```mysql
+     taos> SELECT HISTOGRAM(voltage, "user_input", "[1,3,5,7]", 1) FROM meters;
+         histogram(voltage, "user_input", "[1,3,5,7]", 1) |
+     =======================================================
+     {"lower_bin":1, "upper_bin":3, "count":0.333333}     |
+     {"lower_bin":3, "upper_bin":5, "count":0.333333}     |
+     {"lower_bin":5, "upper_bin":7, "count":0.333333}     |
+     Query OK, 3 row(s) in set (0.004273s)
+     
+     taos> SELECT HISTOGRAM(voltage, 'linear_bin', '{"start": 1, "width": 3, "count": 3, "infinity": false}', 0) FROM meters;
+         histogram(voltage, 'linear_bin', '{"start": 1, "width": 3, " |
+     ===================================================================
+     {"lower_bin":1, "upper_bin":4, "count":3}                        |
+     {"lower_bin":4, "upper_bin":7, "count":3}                        |
+     {"lower_bin":7, "upper_bin":10, "count":3}                       |
+     Query OK, 3 row(s) in set (0.004887s)
+    
+     taos> SELECT HISTOGRAM(voltage, 'log_bin', '{"start": 1, "factor": 3, "count": 3, "infinity": true}', 0) FROM meters;
+     histogram(voltage, 'log_bin', '{"start": 1, "factor": 3, "count" |
+     ===================================================================
+     {"lower_bin":-inf, "upper_bin":1, "count":3}                     |
+     {"lower_bin":1, "upper_bin":3, "count":2}                        |
+     {"lower_bin":3, "upper_bin":9, "count":6}                        |
+     {"lower_bin":9, "upper_bin":27, "count":3}                       |
+     {"lower_bin":27, "upper_bin":inf, "count":1}                     |
+    ```
+
+### 时间函数
+
+从 2.6.0.0 版本开始，TDengine查询引擎支持以下时间相关函数：
+
+- **NOW**
+    ```mysql
+    SELECT NOW() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior NOW();
+    INSERT INTO tb_name VALUES (NOW(), ...);
+    ```
+    功能说明：返回客户端当前系统时间。
+
+    返回结果数据类型：TIMESTAMP 时间戳类型。
+
+    应用字段：在 WHERE 或 INSERT 语句中使用时只能作用于TIMESTAMP类型的字段。
+
+    适用于：**表、超级表**。
+
+    说明：
+      1）支持时间加减操作，如NOW() + 1s, 支持的时间单位如下：
+         b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。
+      2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT NOW() FROM meters;
+              now()          |
+    ==========================
+      2022-02-02 02:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT NOW() + 1h FROM meters;
+           now() + 1h         |
+    ==========================
+      2022-02-02 03:02:02.456 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < NOW();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (NOW(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+    
+- **TODAY**
+    ```mysql
+    SELECT TODAY() FROM { tb_name | stb_name } [WHERE clause];
+    SELECT select_expr FROM { tb_name | stb_name } WHERE ts_col cond_operatior TODAY()];
+    INSERT INTO tb_name VALUES (TODAY(), ...);
+    ```
+    功能说明：返回客户端当日零时的系统时间。
+
+    返回结果数据类型：TIMESTAMP 时间戳类型。
+
+    应用字段：在 WHERE 或 INSERT 语句中使用时只能作用于 TIMESTAMP 类型的字段。
+
+    适用于：**表、超级表**。
+
+    说明：
+      1）支持时间加减操作，如TODAY() + 1s, 支持的时间单位如下：
+         b(纳秒)，u(微秒)，a(毫秒)，s(秒)，m(分)，h(小时)，d(天)，w(周)。
+      2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TODAY() FROM meters;
+             today()          |
+    ==========================
+      2022-02-02 00:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+      
+    taos> SELECT TODAY() + 1h FROM meters;
+          today() + 1h        |
+    ==========================
+      2022-02-02 01:00:00.000 |
+    Query OK, 1 row(s) in set (0.002093s)
+    
+    taos> SELECT COUNT(voltage) FROM d1001 WHERE ts < TODAY();
+            count(voltage)       |
+    =============================
+                               5 |
+    Query OK, 5 row(s) in set (0.004475s)
+    
+    taos> INSERT INTO d1001 VALUES (TODAY(), 10.2, 219, 0.32);
+    Query OK, 1 of 1 row(s) in database (0.002210s)
+    ```
+    
+- **TIMEZONE**
+    ```mysql
+    SELECT TIMEZONE() FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：返回客户端当前时区信息。
+
+    返回结果数据类型：BINARY 类型。
+
+    应用字段：无
+
+    适用于：**表、超级表**。
+
+    示例：
+    ```mysql
+    taos> SELECT TIMEZONE() FROM meters;
+               timezone()           |
+    =================================
+     UTC (UTC, +0000)               |
+    Query OK, 1 row(s) in set (0.002093s)
+    ```
+    
+- **TO_ISO8601**
+    ```mysql
+    SELECT TO_ISO8601(ts_val | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：将 UNIX 时间戳转换成为 ISO8601 标准的日期时间格式，并附加客户端时区信息。
+
+    返回结果数据类型：BINARY 类型。
+
+    应用字段：UNIX 时间戳常量或是 TIMESTAMP 类型的列
+
+    适用于：**表、超级表**。
+    
+    说明：如果输入是 UNIX 时间戳常量，返回格式精度由时间戳的位数决定，如果输入是 TIMSTAMP 类型的列，返回格式的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TO_ISO8601(1643738400) FROM meters;
+       to_iso8601(1643738400)    |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     
+    taos> SELECT TO_ISO8601(ts) FROM meters;
+           to_iso8601(ts)        |
+    ==============================
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+     2022-02-02T02:00:00+0800    |
+    ```
+      
+ - **TO_UNIXTIMESTAMP**
+    ```mysql
+    SELECT TO_UNIXTIMESTAMP(datetime_string | ts_col) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：将日期时间格式的字符串转换成为 UNIX 时间戳。
+
+    返回结果数据类型：长整型INT64。
+
+    应用字段：字符串常量或是 BINARY/NCHAR 类型的列。
+
+    适用于：**表、超级表**。
+    
+    说明：
+    1）输入的日期时间字符串须符合 ISO8601/RFC3339 标准，无法转换的字符串格式将返回0。
+    2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TO_UNIXTIMESTAMP("2022-02-02T02:00:00.000Z") FROM meters;
+    to_unixtimestamp("2022-02-02T02:00:00.000Z") |
+    ==============================================
+                                   1643767200000 |
+
+     
+    taos> SELECT TO_UNIXTIMESTAMP(col_binary) FROM meters;
+          to_unixtimestamp(col_binary)     |
+    ========================================
+                             1643767200000 |
+                             1643767200000 |
+                             1643767200000 |
+    ```
+    
+ - **TIMETRUNCATE**
+    ```mysql
+    SELECT TIMETRUNCATE(ts_val | datetime_string | ts_col, time_unit) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：将时间戳按照指定时间单位 time_unit 进行截断。
+
+    返回结果数据类型：TIMESTAMP 时间戳类型。
+
+    应用字段：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+    适用于：**表、超级表**。
+    
+    说明：
+    1）支持的时间单位 time_unit 如下：
+         1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+    2）返回的时间戳精度与当前 DATABASE 设置的时间精度一致。
+
+    示例：
+    ```mysql
+    taos> SELECT TIMETRUNCATE(1643738522000, 1h) FROM meters;
+      timetruncate(1643738522000, 1h) |
+    ===================================
+          2022-02-02 02:00:00.000     |
+    Query OK, 1 row(s) in set (0.001499s)
+    
+    taos> SELECT TIMETRUNCATE("2022-02-02 02:02:02", 1h) FROM meters;
+      timetruncate("2022-02-02 02:02:02", 1h) |
+    ===========================================
+          2022-02-02 02:00:00.000             |
+    Query OK, 1 row(s) in set (0.003903s)
+    
+    taos> SELECT TIMETRUNCATE(ts, 1h) FROM meters;
+      timetruncate(ts, 1h)   |
+    ==========================
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+     2022-02-02 02:00:00.000 |
+    Query OK, 3 row(s) in set (0.003903s)
+    ```
+    
+ - **TIMEDIFF**
+    ```mysql
+    SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2 | ts_col2 [, time_unit]) FROM { tb_name | stb_name } [WHERE clause];
+    ```
+    功能说明：计算两个时间戳之间的差值，并近似到时间单位 time_unit 指定的精度。
+
+    返回结果数据类型：长整型INT64。
+
+    应用字段：UNIX 时间戳，日期时间格式的字符串，或者 TIMESTAMP 类型的列。
+
+    适用于：**表、超级表**。
+    
+    说明：
+    1）支持的时间单位 time_unit 如下：
+         1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
+    2）如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。  
+
+    示例：
+    ```mysql
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000) FROM meters;
+     timediff(1643738400000, 1643742000000) |
+    =========================================
+                                    3600000 |
+    Query OK, 1 row(s) in set (0.002553s)
+
+    taos> SELECT TIMEDIFF(1643738400000, 1643742000000, 1h) FROM meters;
+     timediff(1643738400000, 1643742000000, 1h) |
+    =============================================
+                                              1 |
+    Query OK, 1 row(s) in set (0.003726s)
+    
+    taos> SELECT TIMEDIFF("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) FROM meters;
+     timediff("2022-02-02 03:00:00", "2022-02-02 02:00:00", 1h) |
+    =============================================================
+                                                              1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    
+    taos> SELECT TIMEDIFF(ts_col1, ts_col2, 1h) FROM meters;
+       timediff(ts_col1, ts_col2, 1h) |
+    ===================================
+                                    1 |
+    Query OK, 1 row(s) in set (0.001937s)
+    ```
+    
 ## <a class="anchor" id="aggregation"></a>按窗口切分聚合
 
-TDengine 支持按时间段等窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这类聚合适合于降维（down sample）操作，语法如下：
+TDengine 支持按时间段窗口切分方式进行聚合结果查询，比如温度传感器每秒采集一次数据，但需查询每隔 10 分钟的温度平均值。这种场景下可以使用窗口子句来获得需要的查询结果。
+窗口子句用于针对查询的数据集合进行按照窗口切分成为查询子集并进行聚合，窗口包含时间窗口（time window）、状态窗口（status window）、会话窗口（session window）三种窗口。其中时间窗口又可划分为滑动时间窗口和翻转时间窗口。
+
+时间窗口
+
+INTERVAL子句用于产生相等时间周期的窗口，SLIDING用以指定窗口向前滑动的时间。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window ）大小和每次前向增量时间（forward sliding times）。如图，[t0s, t0e] ，[t1s , t1e]， [t2s, t2e] 是分别是执行三次连续查询的时间窗口范围，窗口的前向滑动的时间范围sliding time标识 。查询过滤、聚合等操作按照每个时间窗口为独立的单位执行。当SLIDING与INTERVAL相等的时候，滑动窗口即为翻转窗口。
+
+![时间窗口示意图](../images/sql/timewindow-1.png)
+
+INTERVAL和SLIDING子句需要配合聚合和选择函数来使用。以下SQL语句非法：
+```mysql
+SELECT * FROM temp_table INTERVAL(1S)
+```
+
+SLIDING的向前滑动的时间不能超过一个窗口的时间范围。以下语句非法：
+```mysql
+SELECT COUNT(*) FROM temp_table INTERVAL(1D) SLIDING(2D)
+```
+当 SLIDING 与 INTERVAL 取值相等的时候，滑动窗口即为翻转窗口。
+    * 聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。
+    * 从 2.1.5.0 版本开始，INTERVAL 语句允许的最短时间间隔调整为 1 微秒（1u），当然如果所查询的 DATABASE 的时间精度设置为毫秒级，那么允许的最短时间间隔为 1 毫秒（1a）。
+    * **注意**：用到 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 taos.cfg 配置文件中的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
+    
+    
+状态窗口
+
+使用整数（布尔值）或字符串来标识产生记录时候设备的状态量。产生的记录如果具有相同的状态量数值则归属于同一个状态窗口，数值改变后该窗口关闭。如下图所示，根据状态量确定的状态窗口分别是[2019-04-28 14:22:07，2019-04-28 14:22:10]和[2019-04-28 14:22:11，2019-04-28 14:22:12]两个。（状态窗口暂不支持对超级表使用）
+
+![时间窗口示意图](../images/sql/timewindow-3.png)
+
+
+使用STATE_WINDOW来确定状态窗口划分的列。例如：
+```mysql
+SELECT COUNT(*), FIRST(ts), status FROM temp_tb_1 STATE_WINDOW(status)
+```
+
+会话窗口
+
+会话窗口根据记录的时间戳主键的值来确定是否属于同一个会话。如下图所示，如果设置时间戳的连续的间隔小于等于12秒，则以下6条记录构成2个会话窗口，分别是：[2019-04-28 14:22:10，2019-04-28 14:22:30]和[2019-04-28 14:23:10，2019-04-28 14:23:30]。因为2019-04-28 14:22:30与2019-04-28 14:23:10之间的时间间隔是40秒，超过了连续时间间隔（12秒）。
+
+![时间窗口示意图](../images/sql/timewindow-2.png)
+
+在tol_value时间间隔范围内的结果都认为归属于同一个窗口，如果连续的两条记录的时间超过tol_val，则自动开启下一个窗口。（会话窗口暂不支持对超级表使用）
+
+```mysql
+
+SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val)
+```
+
+这种类型的查询语法如下：
 
 ```mysql
 SELECT function_list FROM tb_name
@@ -1545,13 +2717,12 @@ SELECT function_list FROM stb_name
   [GROUP BY tags]
 ```
 
-- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：TOP、BOTTOM、DIFF 以及四则运算）。
-- 查询过滤、聚合等操作按照每个切分窗口为独立的单位执行。聚合查询目前支持三种窗口的划分方式：
-  1. 时间窗口：聚合时间段的窗口宽度由关键词 INTERVAL 指定，最短时间间隔 10 毫秒（10a）；并且支持偏移 offset（偏移必须小于间隔），也即时间窗口划分与“UTC 时刻 0”相比的偏移量。SLIDING 语句用于指定聚合时间段的前向增量，也即每次窗口向前滑动的时长。当 SLIDING 与 INTERVAL 取值相等的时候，滑动窗口即为翻转窗口。
-    * 从 2.1.5.0 版本开始，INTERVAL 语句允许的最短时间间隔调整为 1 微秒（1u），当然如果所查询的 DATABASE 的时间精度设置为毫秒级，那么允许的最短时间间隔为 1 毫秒（1a）。
-    * **注意：**用到 INTERVAL 语句时，除非极特殊的情况，都要求把客户端和服务端的 taos.cfg 配置文件中的 timezone 参数配置为相同的取值，以避免时间处理函数频繁进行跨时区转换而导致的严重性能影响。
-  2. 状态窗口：使用整数或布尔值来标识产生记录时设备的状态量，产生的记录如果具有相同的状态量取值则归属于同一个状态窗口，数值改变后该窗口关闭。状态量所对应的列作为 STATE_WINDOW 语句的参数来指定。（状态窗口暂不支持对超级表使用）
-  3. 会话窗口：时间戳所在的列由 SESSION 语句的 ts_col 参数指定，会话窗口根据相邻两条记录的时间戳差值来确定是否属于同一个会话——如果时间戳差异在 tol_val 以内，则认为记录仍属于同一个窗口；如果时间变化超过 tol_val，则自动开启下一个窗口。（会话窗口暂不支持对超级表使用）
+- 在聚合查询中，function_list 位置允许使用聚合和选择函数，并要求每个函数仅输出单个结果（例如：COUNT、AVG、SUM、STDDEV、LEASTSQUARES、PERCENTILE、MIN、MAX、FIRST、LAST），而不能使用具有多行输出结果的函数（例如：DIFF 以及四则运算）。
+- 此外也 LAST_ROW 查询也不能与窗口聚合同时出现。
+- 标量函数（如：CEIL/FLOOR 等）也不能使用在窗口聚合查询中。
+- 
+  
+
 - WHERE 语句可以指定查询的起止时间和其他过滤条件。
 - FILL 语句指定某一窗口区间数据缺失的情况下的填充模式。填充模式包括以下几种：
   1. 不进行填充：NONE（默认填充模式）。
@@ -1586,10 +2757,10 @@ SELECT AVG(current), MAX(current), APERCENTILE(current, 50) FROM meters
 ## <a class="anchor" id="limitation"></a>TAOS SQL 边界限制
 
 - 数据库名最大长度为 32。
-- 表名最大长度为 192，每行数据最大长度 16k 个字符, 从 2.1.7.0 版本开始，每行数据最大长度 48k 个字符（注意：数据行内每个 BINARY/NCHAR 类型的列还会额外占用 2 个字节的存储位置）。
+- 表名最大长度为 192。每行数据最大长度 48K 个字符（2.1.7.0 之前的版本为 16K，每个 BINARY/NCHAR 类型的列还会额外占用 2 个 byte 的存储位置）
 - 列名最大长度为 64，最多允许 1024 列，最少需要 2 列，第一列必须是时间戳。（从 2.1.7.0 版本开始，改为最多允许 4096 列）
-- 标签名最大长度为 64，最多允许 128 个，可以 1 个，一个表中标签值的总长度不超过 16k 个字符。
-- SQL 语句最大长度 1048576 个字符，也可通过系统配置参数 maxSQLLength 修改，取值范围 65480 ~ 1048576。
+- 标签名最大长度为 64，最多允许 128 个，可以 1 个，一个表中标签值的总长度不超过 16K 个字符。
+- SQL 语句最大长度 1048576 个字符，也可通过客户端配置参数 maxSQLLength 修改，取值范围 65480 ~ 1048576。
 - SELECT 语句的查询结果，最多允许返回 1024 列（语句中的函数调用可能也会占用一些列空间），超限时需要显式指定较少的返回数据列，以避免语句执行报错。（从 2.1.7.0 版本开始，改为最多允许 4096 列）
 - 库的数目，超级表的数目、表的数目，系统不做限制，仅受系统资源限制。
 
@@ -1603,12 +2774,21 @@ TAOS SQL 支持对标签、TBNAME 进行 GROUP BY 操作，也支持普通列进
 
 IS NOT NULL 支持所有类型的列。不为空的表达式为 <>""，仅对非数值类型的列适用。
 
+**ORDER BY的限制**
+
+- 非超级表只能有一个order by.
+- 超级表最多两个order by， 并且第二个必须为ts.
+- order by tag，必须和group by tag一起，并且是同一个tag。 tbname和tag一样逻辑。  只适用于超级表
+- order by 普通列，必须和group by一起或者和top/bottom一起，并且是同一个普通列。 适用于超级表和普通表。如果同时存在 group by和 top/bottom一起，order by优先必须和group by同一列。
+- order by ts. 适用于超级表和普通表。
+- order by ts同时含有group by时 针对group内部用ts排序
+
 ## 表(列)名合法性说明
 TDengine 中的表（列）名命名规则如下：
-只能由字母、数字、下划线构成，数字不能在首位，长度不能超过192字节，不区分大小写。
+只能由字母、数字、下划线构成，数字不能在首位，长度不能超过192字节，不区分大小写。这里表名称不包括数据库名的前缀和分隔符。
 
-转移后表（列）名规则：
-为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符  "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查。
+转义后表（列）名规则：
+为了兼容支持更多形式的表（列）名，TDengine 引入新的转义符  "`"。可用让表名与关键词不冲突，同时不受限于上述表名称合法性约束检查，转义符不计入表名称的长度。
 转义后的表（列）名同样受到长度限制要求，且长度计算的时候不计算转义符。使用转义字符以后，不再对转义字符中的内容进行大小写统一。
 
 例如：
@@ -1618,3 +2798,108 @@ TDengine 中的表（列）名命名规则如下：
 
 支持版本
 支持转义符的功能从 2.3.0.1 版本开始。
+
+
+## Json类型使用说明
+- 语法说明
+
+  1. 创建json类型tag
+
+     ```mysql
+     create stable s1 (ts timestamp, v1 int) tags (info json)
+
+     create table s1_1 using s1 tags ('{"k1": "v1"}')
+     ```
+  3. json取值操作符 ->
+
+     ```mysql   
+     select * from s1 where info->'k1' = 'v1'
+
+     select info->'k1' from s1 
+     ```
+  4. json key是否存在操作符 contains
+
+     ```mysql
+     select * from s1 where info contains 'k2'
+    
+     select * from s1 where info contains 'k1'
+     ```
+     
+- 支持的操作
+
+  1. 在where条件中时，支持函数match/nmatch/between and/like/and/or/is null/is no null，不支持in
+
+     ```mysql 
+     select * from s1 where info->'k1' match 'v*'; 
+
+     select * from s1 where info->'k1' like 'v%' and info contains 'k2';
+
+     select * from s1 where info is null; 
+  
+     select * from s1 where info->'k1' is not null
+     ```
+
+  2. 支持json tag放在group by、order by、join子句、union all以及子查询中，比如group by json->'key'
+
+  3. 支持distinct操作.
+
+     ```mysql 
+     select distinct info->'k1' from s1
+     ```
+  
+  5. 标签操作
+    
+     支持修改json标签值（全量覆盖）
+
+     支持修改json标签名 
+  
+     不支持添加json标签、删除json标签、修改json标签列宽
+
+- 其他约束条件
+  
+  1. 只有标签列可以使用json类型，如果用json标签，标签列只能有一个。
+  
+  2. 长度限制：json 中key的长度不能超过256，并且key必须为可打印ascii字符；json字符串总长度不超过4096个字节。
+
+  3. json格式限制：
+
+     1. json输入字符串可以为空（"","\t"," "或null）或object，不能为非空的字符串，布尔型和数组。
+     2. object 可为{}，如果object为{}，则整个json串记为空。key可为""，若key为""，则json串中忽略该k-v对。
+     3. value可以为数字(int/double)或字符串或bool或null，暂不可以为数组。不允许嵌套。
+     4. 若json字符串中出现两个相同的key，则第一个生效。
+     5. json字符串里暂不支持转义。
+  
+  4. 当查询json中不存在的key时，返回NULL
+
+  5. 当json tag作为子查询结果时，不再支持上层查询继续对子查询中的json串做解析查询。
+  
+     比如暂不支持 
+     ```mysql 
+     select jtag->'key' from (select jtag from stable)
+     ```
+  
+     不支持 
+     ```mysql 
+     select jtag->'key' from (select jtag from stable) where jtag->'key'>0
+     ```
+## 转义字符说明
+- 转义字符表 （转义符的功能从 2.4.0.4 版本开始）
+
+  | 字符序列    | **代表的字符**  |
+    | :--------:     |   -------    |
+  | `\'`             |  单引号'      | 
+  | `\"`             |  双引号"      |
+  | \n             |  换行符       |
+  | \r             |  回车符       |
+  | \t             |  tab符       |
+  | `\\`             |  斜杠\        |
+  | `\%`             |  % 规则见下    |
+  | `\_`             |  _ 规则见下    |
+
+- 转义字符使用规则
+  1. 标识符里有转义字符（数据库名、表名、列名）
+    1. 普通标识符：    直接提示错误的标识符，因为标识符规定必须是数字、字母和下划线，并且不能以数字开头。
+    2. 反引号``标识符： 保持原样，不转义
+  2. 数据里有转义字符
+    1. 遇到上面定义的转义字符会转义（%和_见下面说明），如果没有匹配的转义字符会忽略掉转义符\。
+    2. 对于%和_，因为在like里这两个字符是通配符，所以在模式匹配like里用`\%`%和`\_`表示字符里本身的%和_，如果在like模式匹配上下文之外使用`\%`或`\_`，则它们的计算结果为字符串`\%`和`\_`，而不是%和_。

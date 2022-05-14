@@ -47,17 +47,7 @@ int32_t    tscNumOfObj = 0;         // number of sqlObj in current process.
 static void  *tscCheckDiskUsageTmr;
 void      *tscRpcCache;            // cache to keep rpc obj
 int32_t    tscNumOfThreads = 1;     // num of rpc threads
-#ifdef _TD_POWER_
-char       tscLogFileName[12] = "powerlog";
-#elif (_TD_TQ_ == true)
-char       tscLogFileName[12] = "tqlog";
-#elif (_TD_PRO_ == true)
-char       tscLogFileName[12] = "prolog";
-#elif (_TD_KH_ == true)
-char       tscLogFileName[12] = "khclientlog";
-#else
 char       tscLogFileName[12] = "taoslog";
-#endif
 int        tscLogFileNum = 10;
 
 static pthread_mutex_t rpcObjMutex; // mutex to protect open the rpc obj concurrently
@@ -397,6 +387,10 @@ static int taos_options_imp(TSDB_OPTION option, const char *pStr) {
           cfg->cfgStatus = TAOS_CFG_CSTATUS_OPTION;
         } else { // set the user specified locale failed, use default LC_CTYPE as current locale
           locale = setlocale(LC_CTYPE, tsLocale);
+          if (locale == NULL) {
+            tscError("failed to set locale:%s failed, neither default LC_CTYPE: %s", pStr, tsLocale);
+            return -1;
+          }
           tscInfo("failed to set locale:%s, current locale:%s", pStr, tsLocale);
         }
 

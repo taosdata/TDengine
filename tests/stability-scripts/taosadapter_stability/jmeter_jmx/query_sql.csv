@@ -1,0 +1,64 @@
+﻿select * from db0.stb1 limit 1000;
+select * from db0.stb3 limit 10000;
+select * from db0.stb5 limit 100000;
+"select avg(c1), max(c2), count(c3), sum(c4) from db0.stb1 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-08 00:00:00"" interval (1h);"
+"select avg(c1), max(c2), count(c3), sum(c4) from db0.stb1 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-08 00:00:00"" group by c7;"
+show db0.stables;
+select count(tbname) from db1.tb1;
+select count(*) from db2.tb2;
+select * from db3.tb3 limit 10;
+select * from db2.stb25 limit 10000;
+select * from db3.stb31 limit 100000;
+select * from db1.stb16 limit 100000;
+"select avg(c1), max(c2), count(c3), sum(c4) from db3.stb31 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-01 00:35:00"" group by c7;"
+"select avg(c1), max(c2), count(c3), sum(c4) from db2.stb23 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-01 00:35:00"" interval (1s);"
+"select avg(c1), max(c2), count(c3), sum(c4) from db1.stb13 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-01 00:35:00"" interval (10s);"
+select count(tbname) from long_db1.tb1;
+select count(*) from long_db2.tb2;
+select * from long_db3.tb3 limit 10;
+select * from long_db2.stb25 limit 10000;
+select * from long_db3.stb31 limit 100000;
+select * from long_db1.stb16 limit 100000;
+"select avg(c1), max(c2), count(c3), sum(c4) from long_db3.stb31 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-01 00:35:00"" group by c7;"
+"select avg(c1), max(c2), count(c3), sum(c4) from long_db2.stb23 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-01 00:35:00"" interval (1s);"
+"select avg(c1), max(c2), count(c3), sum(c4) from long_db1.stb13 where ts>""2021-03-01 00:00:00"" and ts < ""2021-03-01 00:35:00"" interval (10s);"
+show taosadapter1_collectd.stables;
+select count(*) from taosadapter1_collectd.`cpu.6.cpu.interrupt`;
+select last(*) from taosadapter2_collectd.`cpu.2.cpu.interrupt`;
+select * from taosadapter3_collectd.`cpu.2.cpu.system` limit 100;
+select count(*) from taosadapter1_telegraf.mem;
+select last(*) from taosadapter2_telegraf.cpu;
+select * from taosadapter3_telegraf.kernel;
+select count(*) from taosadapter1_tcollector.`net.stat.tcp.retransmit`;
+select last(*) from taosadapter2_tcollector.`proc.meminfo.shmem`;
+select * from taosadapter3_tcollector.`sys.numa.allocation`;
+select count(*) from taosadapter1_icinga2.`icinga.host.rta_min`;
+select last(*) from taosadapter2_icinga2.`icinga.host.acknowledgement`;
+select *  from taosadapter3_icinga2.`icinga.host.rta_crit`;
+select count(*) from taosadapter1_node_exporter.`node_time_seconds`;
+select last(*) from taosadapter2_node_exporter.`go_memstats_next_gc_bytes`;
+select *  from taosadapter3_node_exporter.`node_sockstat_TCP_mem`;
+select count(*) from taosadapter2_statsd.taosadapter2_statsd_agent_count50;
+select c199 from db0.stb2;
+select null from db1.stb11;
+select * from db2.tb0;
+select blank from db3.stb31 limit 100000;
+select null from long_db1.stb11;
+select * from long_db2.tb0;
+select blank from long_db3.stb31 limit 100000;
+select count(*) from taosadapter1_collectd.cpu.6.cpu.interrupt;
+select last(*) from taosadapter2_collectd.cpu.2.cpu.interr;
+select * from taosadapter3_coll*.`cpu.2.cpu.system` limit 100;
+select count(*) from taosadapter1_telegraf.`mem`;
+select last(*) from `taosadapter2_telegraf`.cpu;
+select * from taos_telegraf.kernel;
+select count(*) from `taosadapter1_tcollector`.`net.stat.tcp.retransmit`;
+select last(*) from taosadapter2_`tcollector`.`proc.meminfo.shmem`;
+select * from taosadapter3_tcollector.sys.numa.`allocation`;
+select count(*) from taosadapter1_icinga2.:icinga.host.rta_min;
+"select last(*) from taosadapter2_icinga2.""""""`icinga.host.acknowledgement`;"
+select *  from taosadapter3_icinga2.```icinga.host.rta_crit`;
+select count(*) from taosadapter1_node_exporter..`node_time_seconds`;
+select last(*) from ..taosadapter2_node_exporter.`go_memstats_next_gc_bytes`;
+select *  from taosa%%dapter3___node_exporter.`node_sockstat_TCP_mem`;
+select count(*) from taosadapter2_statsd%.taosadapter2_statsd_agent_count50;

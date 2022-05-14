@@ -567,7 +567,7 @@ void bnCheckStatus() {
   while (1) {
     pIter = mnodeGetNextDnode(pIter, &pDnode);
     if (pDnode == NULL) break;
-    if (tsAccessSquence - pDnode->lastAccess > 3) {
+    if (tsAccessSquence - pDnode->lastAccess > tsOfflineInterval) {
       if (pDnode->status != TAOS_DN_STATUS_DROPPING && pDnode->status != TAOS_DN_STATUS_OFFLINE) {
         pDnode->status = TAOS_DN_STATUS_OFFLINE;
         pDnode->offlineReason = TAOS_DN_OFF_STATUS_MSG_TIMEOUT;

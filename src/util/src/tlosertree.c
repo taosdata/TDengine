@@ -96,6 +96,11 @@ void tLoserTreeAdjust(SLoserTreeInfo* pTree, int32_t idx) {
       return;
     }
 
+    /* there is a risk
+     * there should be  pTree->comparFn(&pCur->index, &kLeaf.index, pTree->param)
+     * but the first element in SLoserTreeNode is int32_t
+     * and the comparFn get data as *(int32_t*)(void *), so it is just ok.
+    */
     int32_t ret = pTree->comparFn(pCur, &kLeaf, pTree->param);
     if (ret < 0) {
       SLoserTreeNode t = pTree->pNode[parentId];

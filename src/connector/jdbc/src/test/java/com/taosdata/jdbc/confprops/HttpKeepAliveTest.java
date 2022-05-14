@@ -1,6 +1,7 @@
 package com.taosdata.jdbc.confprops;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 
 import java.sql.Connection;
@@ -13,6 +14,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+@Ignore
 public class HttpKeepAliveTest {
 
     private static final String host = "127.0.0.1";

@@ -1,0 +1,89 @@
+<script type="text/javascript">
+    "use strict";
+    /*global RED*/
+    RED.nodes.registerType('taos-config', {
+        category: 'config',
+        defaults: {
+            host: {
+                value: "localhost",
+                required: true
+            },
+            port: {
+                value: "6030",
+                required: true
+            },
+            username: {
+                value: "",
+                required: false
+            },
+            password: {
+                value: "",
+                required: false
+            }
+        },
+        label: function () {
+            return this.host || "TDEngine host";
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="taos-config">
+    <div class="form-row">
+        <label for="node-config-input-host"><i class="fa fa-server"></i> Host</label>
+        <input type="text" id="node-config-input-host">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-port"><i class="fa fa-server"></i> Port</label>
+        <input type="text" id="node-config-input-port">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-username"><i class="fa fa-server"></i> User Name</label>
+        <input type="text" id="node-config-input-username">
+    </div>
+    <div class="form-row">
+        <label for="node-config-input-password"><i class="fa fa-server"></i> Password</label>
+        <input type="text" id="node-config-input-password">
+    </div>
+</script>
+
+<script type="text/javascript">
+    /*global RED*/
+    RED.nodes.registerType('taos-query', {
+        category: 'TDEngine',
+        inputs: 1,
+        outputs: 1,
+        color: "#ffffff",
+        paletteLabel: "taos query",
+        defaults: {
+            server: {
+                value: "",
+                type: "taos-config"
+            },
+            database: {
+                value: ""
+            },
+            sql: {
+                value: ""
+            }
+        },
+        label: function () {
+            return this.name || "taos " + this.database;
+        }
+    });
+</script>
+
+<script type="text/x-red" data-template-name="taos-query">
+    <div class="form-row">
+        <label for="node-input-server"><i class="fa fa-globe"></i> Server</label>
+        <input type="text" id="node-input-server" placeholder="Server">
+    </div>
+    <div class="form-row">
+        <label for="node-input-database"><i class="fa fa-tag"></i> Database</label>
+        <input type="text" id="node-input-database" placeholder="Database">
+    </div>
+</script>
+
+<script type="text/x-red" data-help-name="taos-query">
+    <p>TDEngine Query</p>
+    <p>Execute SQL on remote TDEngine server by restful API</p>
+</script>

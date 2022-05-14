@@ -25,6 +25,7 @@ extern "C" {
 #include "tstrbuild.h"
 #include "ttoken.h"
 #include "tvariant.h"
+#include "tname.h"
 
 #define ParseTOKENTYPE SStrToken
 
@@ -156,8 +157,11 @@ typedef struct SCreatedTableInfo {
 
 typedef struct SCreateTableSql {
   SStrToken          name;  // table name, create table [name] xxx
+  SStrToken          to;    // create stream to anohter table  
+  SStrToken          split; // split columns  
   int8_t             type;  // create normal table/from super table/ stream
   bool               existCheck;
+  SName              toSName;
 
   struct {
     SArray          *pTagColumns; // SArray<TAOS_FIELD>
@@ -248,6 +252,12 @@ typedef struct SMiscInfo {
   };
 } SMiscInfo;
 
+typedef struct SDelData {
+  bool      existsCheck;
+  SStrToken tableName;
+  struct tSqlExpr* pWhere;
+} SDelData;
+
 typedef struct SSqlInfo {
   int32_t            type;
   bool               valid;
@@ -258,6 +268,7 @@ typedef struct SSqlInfo {
     SCreateTableSql *pCreateTableInfo;
     SAlterTableInfo *pAlterInfo;
     SMiscInfo       *pMiscInfo;
+    SDelData        *pDelData;
   };
 } SSqlInfo;
 
@@ -334,6 +345,7 @@ SArray   *setSubclause(SArray *pList, void *pSqlNode);
 SArray   *appendSelectClause(SArray *pList, void *pSubclause);
 
 void setCreatedTableName(SSqlInfo *pInfo, SStrToken *pTableNameToken, SStrToken *pIfNotExists);
+void setCreatedStreamOpt(SSqlInfo *pInfo, SStrToken *pTo, SStrToken *pSplit);
 
 void SqlInfoDestroy(SSqlInfo *pInfo);
 
@@ -358,6 +370,9 @@ void tSetDbName(SStrToken *pCpxName, SStrToken *pDb);
 
 void tSetColumnInfo(TAOS_FIELD *pField, SStrToken *pName, TAOS_FIELD *pType);
 void tSetColumnType(TAOS_FIELD *pField, SStrToken *type);
+
+// malloc new SDelData and set with args
+SDelData *tGetDelData(SStrToken *pTableName, SStrToken* existsCheck, tSqlExpr* pWhere);
 
 /**
  *

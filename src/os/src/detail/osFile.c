@@ -179,7 +179,7 @@ int64_t taosFSendFile(FILE *out_file, FILE *in_file, int64_t *offset, int64_t co
       fwrite(buffer, 1, rlen, out_file);
       return (int64_t)(writeLen + rlen);
     } else {
-      fwrite(buffer, 1, _SEND_FILE_STEP_, in_file);
+      fwrite(buffer, 1, _SEND_FILE_STEP_, out_file);
       writeLen += _SEND_FILE_STEP_;
     }
   }
@@ -223,7 +223,7 @@ int64_t taosSendFile(SocketFd dfd, FileFd sfd, int64_t *offset, int64_t count) {
     if (rlen <= 0) {
       return writeLen;
     } else {
-      taosWriteSocket(sfd, buffer, (int32_t)remain);
+      taosWriteSocket(dfd, buffer, (int32_t)remain);
       writeLen += remain;
     }
   }
@@ -370,8 +370,11 @@ int32_t taosFsync(FileFd fd) {
   }
 
   HANDLE h = (HANDLE)_get_osfhandle(fd);
-
-  return FlushFileBuffers(h);
+  
+  //If the function succeeds, the return value is nonzero.
+  //If the function fails, the return value is zero. To get extended error information, call GetLastError.
+  //The function fails if hFile is a handle to the console output. That is because the console output is not buffered. The function returns FALSE, and GetLastError returns ERROR_INVALID_HANDLE.
+  return FlushFileBuffers(h)-1;
 }
 
 int32_t taosRename(char *oldName, char *newName) {

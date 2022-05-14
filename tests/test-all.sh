@@ -139,17 +139,17 @@ function runPyCaseOneByOne {
           case=`echo $line|awk '{print $NF}'`
         fi
         start_time=`date +%s`
-        date +%F\ %T | tee -a pytest-out.log
+        date +%F\ %T | tee -a $tests_dir/pytest-out.log
         echo -n $case
         $line > /dev/null 2>&1 && \
-          echo -e "${GREEN} success${NC}" | tee -a pytest-out.log || \
-          echo -e "${RED} failed${NC}" | tee -a pytest-out.log
+          echo -e "${GREEN} success${NC}" | tee -a $tests_dir/pytest-out.log || \
+          echo -e "${RED} failed${NC}" | tee -a $tests_dir/pytest-out.log
         end_time=`date +%s`
         out_log=`tail -1 pytest-out.log  `
         # if [[ $out_log =~ 'failed' ]];then
         #   exit 8
         # fi
-        echo execution time of $case was `expr $end_time - $start_time`s. | tee -a pytest-out.log
+        echo execution time of $case was `expr $end_time - $start_time`s. | tee -a $tests_dir/pytest-out.log
       else
         $line > /dev/null 2>&1
       fi
@@ -339,16 +339,26 @@ if [ "$2" != "sim" ] && [ "$2" != "jdbc" ] && [ "$2" != "unit" ]  && [ "$2" != "
 
   export LD_LIBRARY_PATH=$TOP_DIR/$LIB_DIR:$LD_LIBRARY_PATH
 
+  [ -f $tests_dir/pytest-out.log ] && rm -f $tests_dir/pytest-out.log
   cd $tests_dir/pytest
-
-  [ -f pytest-out.log ] && rm -f pytest-out.log
 
   if [ "$1" == "cron" ]; then
     echo "### run Python regression test ###"
     runPyCaseOneByOne regressiontest.sh
   elif [ "$1" == "full" ]; then
     echo "### run Python full test ###"
-    runPyCaseOneByOne fulltest.sh
+    cd $tests_dir/develop-test
+    for name in *.sh
+    do
+      runPyCaseOneByOne $name
+    done
+    cd $tests_dir/system-test
+    for name in *.sh
+    do
+      runPyCaseOneByOne $name
+    done
+    cd $tests_dir/pytest
+    runPyCaseOneByOne fulltest.sh    
   elif [ "$1" == "pytest" ]; then
     echo "### run Python full test ###"
     runPyCaseOneByOne fulltest.sh

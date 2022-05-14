@@ -173,7 +173,7 @@ int32_t dnodeInitSystem() {
   dnodeInitTmr();
 
   if (dnodeCreateDir(tsLogDir) < 0) {
-   printf("failed to create dir: %s, reason: %s\n", tsLogDir, strerror(errno));
+   printf("failed to initialize dir: %s, reason: %s\n", tsLogDir, strerror(errno));
    return -1;
   }
 
@@ -240,7 +240,7 @@ static void dnodeCheckDataDirOpenned(char *dir) {
   char filepath[256] = {0};
   sprintf(filepath, "%s/.running", dir);
 
-  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC, S_IRWXU | S_IRWXG | S_IRWXO);
+  int fd = open(filepath, O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, S_IRWXU | S_IRWXG | S_IRWXO);
   if (fd < 0) {
     dError("failed to open lock file:%s, reason: %s, quit", filepath, strerror(errno));
     exit(0);
@@ -261,7 +261,7 @@ static int32_t dnodeInitStorage() {
 
   // storage module init
   if (tsDiskCfgNum == 1 && dnodeCreateDir(tsDataDir) < 0) {
-    dError("failed to create dir: %s, reason: %s", tsDataDir, strerror(errno));
+    dError("failed to initialize dir: %s, reason: %s", tsDataDir, strerror(errno));
     return -1;
   }
 

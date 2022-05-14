@@ -1,6 +1,6 @@
 name: tdengine
 base: core20
-version: '2.3.2.0'
+version: '2.4.0.0'
 icon: snap/gui/t-dengine.svg
 summary: an open-source big data platform designed and optimized for IoT. 
 description: |
@@ -24,11 +24,6 @@ apps:
     plugs:
       - network
       - system-observe
-
-  taosdemo:
-    command: usr/bin/taosdemo
-    plugs:
-      - network
 
 parts:
   script:
@@ -74,8 +69,7 @@ parts:
       - etc/taos/taos.cfg
       - usr/bin/taosd
       - usr/bin/taos
-      - usr/bin/taosdemo
-      - usr/lib/libtaos.so.2.3.0.0
+      - usr/lib/libtaos.so.2.4.0.0
       - usr/lib/libtaos.so.1
       - usr/lib/libtaos.so
 

@@ -120,7 +120,7 @@ static void taosGetSystemLocale() {
 
   SGlobalCfg *cfg_charset = taosGetConfigOption("charset");
   if (cfg_charset && cfg_charset->cfgStatus < TAOS_CFG_CSTATUS_DEFAULT) {
-    strcpy(tsCharset, "cp936");
+    strcpy(tsCharset, "UTF-8");
     cfg_charset->cfgStatus = TAOS_CFG_CSTATUS_DEFAULT;
     uInfo("charset not configured, set to default:%s", tsCharset);
   }
@@ -257,11 +257,6 @@ void taosPrintDiskInfo() {
 void taosKillSystem() {
   uError("function taosKillSystem, exit!");
   exit(0);
-}
-
-int taosSystem(const char *cmd) {
-  uError("taosSystem not support");
-  return -1;
 }
 
 int flock(int fd, int option) { return 0; }

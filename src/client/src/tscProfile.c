@@ -24,6 +24,7 @@
 #include "taos.h"
 #include "tscUtil.h"
 
+void taos_close_stream(TAOS_STREAM *handle);
 void  tscSaveSlowQueryFp(void *handle, void *tmrId);
 TAOS *tscSlowQueryConn = NULL;
 bool  tscSlowQueryConnInitialized = false;
@@ -170,6 +171,16 @@ void tscAddIntoStreamList(SSqlStream *pStream) {
   STscObj *       pObj = pStream->pSql->pTscObj;
 
   pthread_mutex_lock(&pObj->mutex);
+  //check if newly added stream node is present
+  //in the streamList to prevent loop in the list
+  SSqlStream *iter = pObj->streamList;
+  while (iter) {
+    if (pStream == iter) {
+      pthread_mutex_unlock(&pObj->mutex);
+      return;
+    }
+    iter = iter->next;
+  }
 
   pStream->next = pObj->streamList;
   if (pObj->streamList) pObj->streamList->prev = pStream;
@@ -270,7 +281,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
 //      } else {
 //        pQdesc->stableQuery = 0;
 //      }
-
+      pthread_mutex_lock(&pSql->subState.mutex);
       if (pSql->pSubs != NULL && pSql->subState.states != NULL) {
         for (int32_t i = 0; i < pQdesc->numOfSub; ++i) {
           SSqlObj *psub = pSql->pSubs[i];
@@ -285,6 +296,7 @@ int tscBuildQueryStreamDesc(void *pMsg, STscObj *pObj) {
           p += len;
         }
       }
+      pthread_mutex_unlock(&pSql->subState.mutex);
     }
 
     pQdesc->numOfSub = htonl(pQdesc->numOfSub);

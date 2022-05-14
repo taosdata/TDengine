@@ -1,0 +1,6 @@
+label: Third Party Tools
+link:
+  type: generated-index
+  slug: /third-party/
+  description: TDengine's support for standard SQL commands, common database connector standards (e.g., JDBC), ORM, and other popular temporal database writing protocols (e.g., InfluxDB Line Protocol, OpenTSDB JSON, OpenTSDB Telnet, etc.) makes TDengine very easy to use with third-party tools.
+  

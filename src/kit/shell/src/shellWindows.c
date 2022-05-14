@@ -1,5 +1,5 @@
 /*******************************************************************
-*           Copyright (c) 2017 by TAOS Technologies, Inc.
+*           Copyright (c) 2022 by TAOS Technologies, Inc.
 *                     All rights reserved.
 *
 *  This file is proprietary and confidential to TAOS Technologies.
@@ -22,7 +22,7 @@
 extern char configDir[];
 
 char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 
 void printVersion() {
   printf("version: %s\n", version);
@@ -93,7 +93,7 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
                   || (strncmp(argv[i], "--password", 10) == 0)) {
             printf("Enter password: ");
             taosSetConsoleEcho(false);
-            if (scanf("%s", g_password) > 1) {
+            if (scanf("%128s", g_password) > 1) {
                 fprintf(stderr, "password read error!\n");
             }
             taosSetConsoleEcho(true);
@@ -333,19 +333,7 @@ void *shellLoopQuery(void *arg) {
 }
 
 void get_history_path(char *history) {
-#ifdef _TD_POWER_
-  sprintf(history, "C:/PowerDB/%s", HISTORY_FILE); 
-#elif (_TD_TQ_ == true)
-  sprintf(history, "C:/TQueue/%s", HISTORY_FILE); 
-#elif (_TD_PRO_ == true)
-  sprintf(history, "C:/ProDB/%s", HISTORY_FILE); 
-#elif (_TD_KH_ == true)
-  sprintf(history, "C:/KingHistorian/%s", HISTORY_FILE); 
-#elif (_TD_JH_ == true)
-  sprintf(history, "C:/jh_iot/%s", HISTORY_FILE); 
-#else
-  sprintf(history, "C:/TDengine/%s", HISTORY_FILE); 
-#endif
+  sprintf(history, "C:/TDengine/%s", HISTORY_FILE);
 }
 
 void exitShell() { exit(EXIT_SUCCESS); }

@@ -256,6 +256,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_NOT_SYNCED,               "Database suspended")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_NO_WRITE_AUTH,            "Database write operation denied")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_IS_SYNCING,               "Database is syncing")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_TSDB_STATE,       "Invalid tsdb state")
+TAOS_DEFINE_ERROR(TSDB_CODE_WAIT_THREAD_TOO_MANY,         "Wait threads too many")
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -282,7 +283,6 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_MESSED_MSG,               "TSDB messed message")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_IVLD_TAG_VAL,             "TSDB invalid tag value")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_CACHE_LAST_ROW,        "TSDB no cache last row data")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INCOMPLETE_DFILESET,      "Incomplete DFileSet")
-TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_JSON_TAG_KEY,          "TSDB no tag json key")
 
 // query
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_QHANDLE,          "Invalid handle")
@@ -300,6 +300,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QRY_NOT_ENOUGH_BUFFER,        "Query buffer limit ha
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INCONSISTAN,              "File inconsistance in replica")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_INVALID_TIME_CONDITION,   "One valid time range condition expected")
 TAOS_DEFINE_ERROR(TSDB_CODE_QRY_SYS_ERROR,                "System error")
+TAOS_DEFINE_ERROR(TSDB_CODE_QRY_RESULT_TOO_LARGE,         "result num is too large")
 
 // grant
 TAOS_DEFINE_ERROR(TSDB_CODE_GRANT_EXPIRED,                "License expired")
@@ -334,9 +335,9 @@ TAOS_DEFINE_ERROR(TSDB_CODE_WAL_FILE_CORRUPTED,           "WAL file is corrupted
 TAOS_DEFINE_ERROR(TSDB_CODE_WAL_SIZE_LIMIT,               "WAL size exceeds limit")
 
 // http
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_SERVER_OFFLINE,          "http server is not onlin")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_UNSUPPORT_URL,           "url is not support")
-TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_URL,            "invalid url format")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_SERVER_OFFLINE,          "http server is not online")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_UNSUPPORT_URL,           "url is not supported")
+TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_INVALID_URL,             "invalid url format")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_NO_ENOUGH_MEMORY,        "no enough memory")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_REQUSET_TOO_BIG,         "request size is too big")
 TAOS_DEFINE_ERROR(TSDB_CODE_HTTP_NO_AUTH_INFO,            "no auth info input")

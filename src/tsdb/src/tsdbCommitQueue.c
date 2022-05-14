@@ -28,6 +28,7 @@ typedef struct {
 typedef struct {
   TSDB_REQ_T req;
   STsdbRepo *pRepo;
+  void *     param;
 } SReq;
 
 static void *tsdbLoopCommit(void *arg);
@@ -91,7 +92,7 @@ void tsdbDestroyCommitQueue() {
   pthread_mutex_destroy(&(pQueue->lock));
 }
 
-int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req) {
+int tsdbScheduleCommit(STsdbRepo *pRepo, void *param, TSDB_REQ_T req) {
   SCommitQueue *pQueue = &tsCommitQueue;
 
   SListNode *pNode = (SListNode *)calloc(1, sizeof(SListNode) + sizeof(SReq));
@@ -102,6 +103,7 @@ int tsdbScheduleCommit(STsdbRepo *pRepo, TSDB_REQ_T req) {
 
   ((SReq *)pNode->data)->req = req;
   ((SReq *)pNode->data)->pRepo = pRepo;
+  ((SReq *)pNode->data)->param = param;
 
   pthread_mutex_lock(&(pQueue->lock));
 
@@ -158,6 +160,7 @@ static void *tsdbLoopCommit(void *arg) {
   SCommitQueue *pQueue = &tsCommitQueue;
   SListNode *   pNode = NULL;
   STsdbRepo *   pRepo = NULL;
+  void *        param = NULL;
   TSDB_REQ_T    req;
 
   setThreadName("tsdbCommit");
@@ -183,19 +186,27 @@ static void *tsdbLoopCommit(void *arg) {
 
     req = ((SReq *)pNode->data)->req;
     pRepo = ((SReq *)pNode->data)->pRepo;
+    param = ((SReq *)pNode->data)->param;
 
     if (req == COMMIT_REQ) {
-      tsdbCommitData(pRepo);
+      tsdbCommitData(pRepo, true);
     } else if (req == COMPACT_REQ) {
       tsdbCompactImpl(pRepo);
-    } else if (req == COMMIT_CONFIG_REQ) {        
+    } else if (req == COMMIT_BOTH_REQ) {
+      SControlDataInfo* pCtlDataInfo = (SControlDataInfo* )param;
+      if(!pCtlDataInfo->memNull) {
+        tsdbInfo(":SDEL vgId=%d  commit mem before delete data. mem=%p imem=%p \n", REPO_ID(pRepo), pRepo->mem, pRepo->imem);
+        tsdbCommitData(pRepo, false);
+      }
+      tsdbCommitControl(pRepo, param);
+    } else if (req == COMMIT_CONFIG_REQ) {
       ASSERT(pRepo->config_changed);
       tsdbApplyRepoConfig(pRepo);
       tsem_post(&(pRepo->readyToCommit));
     } else {
       ASSERT(0);
     }
-
+    tfree(param);
     listNodeFree(pNode);
   }
 

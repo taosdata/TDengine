@@ -360,4 +360,12 @@ sql select * from (select * from where_ts) where ts<now;
 if $rows != 5 then
   return -1
 endi
+
+print ======================>td-11169
+sql drop table where_ts;
+sql create stable m1 (ts timestamp , k int) tags(a binary(15000));
+sql create table tm0 using m1 tags('abc');
+sql insert into tm0  values(now, 1);
+sql select top(k, 100), a from m1;
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

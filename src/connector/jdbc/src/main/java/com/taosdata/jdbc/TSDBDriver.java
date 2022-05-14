@@ -61,6 +61,17 @@ public class TSDBDriver extends AbstractDriver {
      */
     public static final String PROPERTY_KEY_PASSWORD = "password";
     /**
+     * Key used to retrieve the token value from the properties instance passed to 
+     * the driver.
+     * Just for Cloud Service
+     */
+    public static final String PROPERTY_KEY_TOKEN = "token";
+    /**
+     * Use SSL (true/false) to communicate with the server. The default value is false.
+     * Just for Cloud Service
+     */
+    public static final String PROPERTY_KEY_USE_SSL = "useSSL";
+    /**
      * Key for the configuration file directory of TSDB client in properties instance
      */
     public static final String PROPERTY_KEY_CONFIG_DIR = "cfgdir";
@@ -91,6 +102,16 @@ public class TSDBDriver extends AbstractDriver {
      * continue process commands in executeBatch
      */
     public static final String PROPERTY_KEY_BATCH_ERROR_IGNORE = "batchErrorIgnore";
+
+    /**
+     * message receive from server timeout. ms
+     */
+    public static final String PROPERTY_KEY_MESSAGE_WAIT_TIMEOUT = "messageWaitTimeout";
+
+    /**
+     * max message number send to server concurrently
+     */
+    public static final String PROPERTY_KEY_MAX_CONCURRENT_REQUEST = "maxConcurrentRequest";
 
     private TSDBDatabaseMetaData dbMetaData = null;
 
