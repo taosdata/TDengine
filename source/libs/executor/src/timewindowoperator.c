@@ -82,7 +82,7 @@ static void getInitialStartTimeWindow(SInterval* pInterval, int32_t precision, T
 }
 
 // get the correct time window according to the handled timestamp
-static STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts,
+STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts,
                                        SInterval* pInterval, int32_t precision, STimeWindow* win) {
   STimeWindow w = {0};
 
@@ -186,7 +186,7 @@ static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_se
   return forwardStep;
 }
 
-static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
+int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   int32_t midPos = -1;
   int32_t numOfRows;
 
@@ -249,7 +249,7 @@ static int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   return midPos;
 }
 
-static int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos,
+int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos,
                                         TSKEY ekey, __block_search_fn_t searchFn, STableQueryInfo* item,
                                         int32_t order) {
   assert(startPos >= 0 && startPos < pDataBlockInfo->rows);
@@ -703,7 +703,7 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
                               pInfo->order, false);
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &win, true);
-  doApplyFunctions(pInfo->binfo.pCtx, &win, &pInfo->twAggSup.timeWindowData, startPos, forwardStep, tsCols,
+  doApplyFunctions(pTaskInfo, pInfo->binfo.pCtx, &win, &pInfo->twAggSup.timeWindowData, startPos, forwardStep, tsCols,
                    pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
 
   STimeWindow nextWin = win;
@@ -740,7 +740,7 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
                                 pInfo->order, false);
 
     updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &nextWin, true);
-    doApplyFunctions(pInfo->binfo.pCtx, &nextWin, &pInfo->twAggSup.timeWindowData, startPos, forwardStep, tsCols,
+    doApplyFunctions(pTaskInfo, pInfo->binfo.pCtx, &nextWin, &pInfo->twAggSup.timeWindowData, startPos, forwardStep, tsCols,
                      pSDataBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
   }
 
@@ -775,7 +775,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
     //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, true);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
     STableQueryInfo* pTableQueryInfo = pInfo->pCurrent;
 
     setIntervalQueryRange(pTableQueryInfo, pBlock->info.window.skey, &pTaskInfo->window);
@@ -798,8 +798,8 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
-  finalizeMultiTupleQueryResult(pInfo->binfo.pCtx, pOperator->numOfExprs, pInfo->aggSup.pResultBuf,
-                                &pInfo->binfo.resultRowInfo, pInfo->binfo.rowCellInfoOffset);
+  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pInfo->binfo.resultRowInfo,
+                                pInfo->binfo.rowCellInfoOffset);
 
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, true);
   OPTR_SET_OPENED(pOperator);
@@ -855,7 +855,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
       }
 
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, false);
-      doApplyFunctions(pInfo->binfo.pCtx, &window, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+      doApplyFunctions(pTaskInfo, pInfo->binfo.pCtx, &window, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
                        pRowSup->numOfRows, NULL, pBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
 
       // here we start a new session window
@@ -874,7 +874,7 @@ static void doStateWindowAggImpl(SOperatorInfo* pOperator, SStateWindowOperatorI
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, false);
-  doApplyFunctions(pInfo->binfo.pCtx, &pRowSup->win, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+  doApplyFunctions(pTaskInfo, pInfo->binfo.pCtx, &pRowSup->win, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
                    pRowSup->numOfRows, NULL, pBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
 }
 
@@ -888,7 +888,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
   SOptrBasicInfo*           pBInfo = &pInfo->binfo;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
+    doBuildResultDatablock(pTaskInfo, pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       return NULL;
@@ -910,18 +910,18 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
       break;
     }
 
-    setInputDataBlock(pOperator, pBInfo->pCtx, pBlock, order, true);
+    setInputDataBlock(pOperator, pBInfo->pCtx, pBlock, order, MAIN_SCAN, true);
     doStateWindowAggImpl(pOperator, pInfo, pBlock);
   }
 
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pBInfo->resultRowInfo);
-  finalizeMultiTupleQueryResult(pBInfo->pCtx, pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
+  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
                                 pBInfo->rowCellInfoOffset);
 
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, true);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
+  doBuildResultDatablock(pTaskInfo, pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
   if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
@@ -948,7 +948,7 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     }
 
     blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
-    doBuildResultDatablock(&pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
+    doBuildResultDatablock(pTaskInfo, &pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
 
     if (pBlock->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
@@ -988,6 +988,20 @@ static void setInverFunction(SqlFunctionCtx* pCtx, int32_t num, EStreamType type
     }
   }
 }
+static void doClearWindows(SIntervalAggOperatorInfo* pInfo, int32_t numOfOutput, SSDataBlock* pBlock) {
+  SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, pInfo->primaryTsIndex);
+  TSKEY *tsCols = (TSKEY*)pColDataInfo->pData;
+  int32_t step = 0;
+  for (int32_t i = 0; i < pBlock->info.rows; i += step) {
+    SResultRowInfo dumyInfo;
+    dumyInfo.cur.pageId = -1;
+    STimeWindow win = getActiveTimeWindow(NULL, &dumyInfo, tsCols[i], &pInfo->interval,
+                                        pInfo->interval.precision, NULL);
+    step = getNumOfRowsInTimeWindow(&pBlock->info, tsCols, i,
+        win.ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+    doClearWindow(pInfo, (char*)&win.skey, sizeof(TKEY), pBlock->info.groupId, numOfOutput);
+  }
+}
 
 static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
@@ -998,7 +1012,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(&pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
+    doBuildResultDatablock(pOperator->pTaskInfo, &pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
     if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
@@ -1024,9 +1038,13 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
     //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, true);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
     if (pInfo->invertible) {
       setInverFunction(pInfo->binfo.pCtx, pOperator->numOfExprs, pBlock->info.type);
+    }
+    if (pBlock->info.type == STREAM_REPROCESS) {
+      doClearWindows(pInfo, pOperator->numOfExprs, pBlock);
+      continue;
     }
     pUpdated = hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
   }
@@ -1035,7 +1053,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
   initMultiResInfoFromArrayList(&pInfo->groupResInfo, pUpdated);
   blockDataEnsureCapacity(pInfo->binfo.pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(&pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
+  doBuildResultDatablock(pOperator->pTaskInfo, &pInfo->binfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
 
   // TODO: remove for stream
   /*ASSERT(pInfo->binfo.pRes->info.rows > 0);*/
@@ -1233,7 +1251,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
 
       // pInfo->numOfRows data belong to the current session window
       updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &window, false);
-      doApplyFunctions(pInfo->binfo.pCtx, &window, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+      doApplyFunctions(pTaskInfo, pInfo->binfo.pCtx, &window, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
                        pRowSup->numOfRows, NULL, pBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
 
       // here we start a new session window
@@ -1252,7 +1270,7 @@ static void doSessionWindowAggImpl(SOperatorInfo* pOperator, SSessionAggOperator
   }
 
   updateTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pRowSup->win, false);
-  doApplyFunctions(pInfo->binfo.pCtx, &pRowSup->win, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
+  doApplyFunctions(pTaskInfo, pInfo->binfo.pCtx, &pRowSup->win, &pInfo->twAggSup.timeWindowData, pRowSup->startRowIndex,
                    pRowSup->numOfRows, NULL, pBlock->info.rows, numOfOutput, TSDB_ORDER_ASC);
 }
 
@@ -1265,7 +1283,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   SOptrBasicInfo*          pBInfo = &pInfo->binfo;
 
   if (pOperator->status == OP_RES_TO_RETURN) {
-    doBuildResultDatablock(pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
+    doBuildResultDatablock(pOperator->pTaskInfo, pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
     if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       return NULL;
@@ -1286,19 +1304,19 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     }
 
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pBInfo->pCtx, pBlock, order, true);
+    setInputDataBlock(pOperator, pBInfo->pCtx, pBlock, order, MAIN_SCAN, true);
     doSessionWindowAggImpl(pOperator, pInfo, pBlock);
   }
 
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pBInfo->resultRowInfo);
-  finalizeMultiTupleQueryResult(pBInfo->pCtx, pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
+  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
                                 pBInfo->rowCellInfoOffset);
 
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, true);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
+  doBuildResultDatablock(pOperator->pTaskInfo, pBInfo, &pInfo->groupResInfo, pOperator->pExpr, pInfo->aggSup.pResultBuf);
   if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
@@ -1334,7 +1352,7 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
 
     //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pIntervalInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pSliceInfo->binfo.pCtx, pBlock, order, true);
+    setInputDataBlock(pOperator, pSliceInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
     //    hashAllIntervalAgg(pOperator, &pSliceInfo->binfo.resultRowInfo, pBlock, 0);
   }
 

@@ -8,6 +8,7 @@
 #include "tdatablock.h"
 #include "scalar.h"
 #include "tudf.h"
+#include "ttime.h"
 
 int32_t scalarGetOperatorParamNum(EOperatorType type) {
   if (OP_TYPE_IS_NULL == type || OP_TYPE_IS_NOT_NULL == type || OP_TYPE_IS_TRUE == type || OP_TYPE_IS_NOT_TRUE == type 
@@ -18,6 +19,19 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
 
   return 2;
 }
+
+void sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode) {
+  char *timeStr = valueNode->datum.p;
+  if (convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &valueNode->datum.i) !=
+      TSDB_CODE_SUCCESS) {
+    valueNode->datum.i = 0;
+  }
+  taosMemoryFree(timeStr);
+  
+  valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
+  valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+}
+
 
 SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows) {
   SColumnInfoData* pColumnData = taosMemoryCalloc(1, sizeof(SColumnInfoData));
@@ -92,8 +106,9 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
       }
 
       if (IS_VAR_DATA_TYPE(type)) {
-        len = varDataLen(out.columnData->pData);
-        buf = varDataVal(out.columnData->pData);
+        char* data = colDataGetVarData(out.columnData, 0);
+        len = varDataLen(data);
+        buf = varDataVal(data);
       } else {
         len = tDataTypes[type].bytes;
         buf = out.columnData->pData;
@@ -109,7 +124,7 @@ int32_t scalarGenerateSetFromList(void **data, void *pNode, uint32_t type) {
     }
     
     if (taosHashPut(pObj, buf, (size_t)len, NULL, 0)) {
-      sclError("taosHashPut failed");
+      sclError("taosHashPut to set failed");
       SCL_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
@@ -250,6 +265,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     *rowNum = param->numOfRows;
   }
 
+  param->param = ctx->param;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -534,7 +550,7 @@ EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opT
 }
 
 
-EDealRes sclRewriteOperatorForNullValue(SNode** pNode, SScalarCtx *ctx) {
+EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
   if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
@@ -542,12 +558,22 @@ EDealRes sclRewriteOperatorForNullValue(SNode** pNode, SScalarCtx *ctx) {
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
     }
+
+    if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pRight && nodesIsExprNode(node->pRight) 
+      && ((SExprNode*)node->pRight)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      sclConvertToTsValueNode(((SExprNode*)node->pRight)->resType.precision, valueNode);
+    }
   }
 
   if (node->pRight && (QUERY_NODE_VALUE == nodeType(node->pRight))) {
     SValueNode *valueNode = (SValueNode *)node->pRight;
     if (SCL_IS_NULL_VALUE_NODE(valueNode) && (node->opType != OP_TYPE_IS_NULL && node->opType != OP_TYPE_IS_NOT_NULL)) {
       return sclRewriteBasedOnOptr(pNode, ctx, node->opType);
+    }
+
+    if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pLeft && nodesIsExprNode(node->pLeft) 
+      && ((SExprNode*)node->pLeft)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
+      sclConvertToTsValueNode(((SExprNode*)node->pLeft)->resType.precision, valueNode);
     }
   }
 
@@ -671,7 +697,7 @@ EDealRes sclRewriteOperator(SNode** pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
 
   if ((!SCL_IS_CONST_NODE(node->pLeft)) || (!SCL_IS_CONST_NODE(node->pRight))) {
-    return sclRewriteOperatorForNullValue(pNode, ctx);
+    return sclRewriteNonConstOperator(pNode, ctx);
   }
 
   SScalarParam output = {.columnData = taosMemoryCalloc(1, sizeof(SColumnInfoData))};
@@ -884,7 +910,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   }
 
   int32_t code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst->param};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);

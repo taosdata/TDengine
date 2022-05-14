@@ -682,7 +682,11 @@ static int32_t mndRetrieveVgroups(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *
         colDataAppend(pColInfo, numOfRows, (const char *)&pVgroup->vnodeGid[i].dnodeId, false);
 
         char        buf1[20] = {0};
-        const char *role = syncStr(pVgroup->vnodeGid[i].role);
+        SDnodeObj *pDnodeObj = mndAcquireDnode(pMnode, pVgroup->vnodeGid[i].dnodeId);
+        ASSERT(pDnodeObj != NULL);
+        bool isOffLine = !mndIsDnodeOnline(pMnode, pDnodeObj, taosGetTimestampMs());
+        const char *role = isOffLine ? "OFFLINE" : syncStr(pVgroup->vnodeGid[i].role);
+        
         STR_WITH_MAXSIZE_TO_VARSTR(buf1, role, pShow->pMeta->pSchemas[cols].bytes);
 
         pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

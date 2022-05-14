@@ -62,6 +62,16 @@ int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
   if (pMemTable) {
     taosHashCleanup(pMemTable->pHashIdx);
+    SSkipListIterator *pIter = tSkipListCreateIter(pMemTable->pSlIdx);
+    SSkipListNode     *pNode = NULL;
+    STbData           *pTbData = NULL;
+    for (;;) {
+      if (!tSkipListIterNext(pIter)) break;
+      pNode = tSkipListIterGet(pIter);
+      pTbData = (STbData *)pNode->pData;
+      tsdbFreeTbData(pTbData);
+    }
+    tSkipListDestroyIter(pIter);
     tSkipListDestroy(pMemTable->pSlIdx);
     taosMemoryFree(pMemTable);
   }
@@ -290,7 +300,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
   return 0;
 }
 
-int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, int32_t *pAffectedRows) {
+int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkRsp *pRsp) {
   SSubmitBlkIter blkIter = {0};
   STsdbMemTable *pMemTable = pTsdb->mem;
   void          *tptr;
@@ -299,6 +309,17 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   TSKEY          keyMin;
   TSKEY          keyMax;
   SSubmitBlk    *pBlkCopy;
+
+  // check if table exists
+  SMetaReader mr = {0};
+  SMetaEntry  me = {0};
+  metaReaderInit(&mr, pTsdb->pVnode->pMeta, 0);
+  if (metaGetTableEntryByUid(&mr, pMsgIter->uid) < 0) {
+    metaReaderClear(&mr);
+    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
+    return -1;
+  }
+  metaReaderClear(&mr);
 
   // create container is nedd
   tptr = taosHashGet(pMemTable->pHashIdx, &(pMsgIter->uid), sizeof(pMsgIter->uid));
@@ -344,7 +365,8 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   if (pMemTable->keyMin > keyMin) pMemTable->keyMin = keyMin;
   if (pMemTable->keyMax < keyMax) pMemTable->keyMax = keyMax;
 
-  (*pAffectedRows) = pMsgIter->numOfRows;
+  pRsp->numOfRows = pMsgIter->numOfRows;
+  pRsp->affectedRows = pMsgIter->numOfRows;
 
   return 0;
 }

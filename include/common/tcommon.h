@@ -48,6 +48,7 @@ enum {
 typedef enum EStreamType {
   STREAM_NORMAL = 1,
   STREAM_INVERT,
+  STREAM_REPROCESS,
   STREAM_INVALID,
 } EStreamType;
 

@@ -122,7 +122,10 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
  */
 int32_t catalogGetDBVgInfo(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, SArray** pVgroupList);
 
-typedef void *__async_cb_fn_t(void* pResult, void* param, int32_t code);
+typedef struct {
+} SResultMetaInfoWrapper;
+
+typedef void (*__async_cb_fn_t)(const SResultMetaInfoWrapper* pResult, void* param, int32_t code);
 
 typedef struct {
   SCatalog* pCatalog;

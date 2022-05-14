@@ -260,7 +260,7 @@ int8_t filterGetCompFuncIdx(int32_t type, int32_t optr) {
         comparFn = 20;
       } else if (optr == OP_TYPE_LIKE) {
         comparFn = 9;
-      } else if (optr == OP_TYPE_LIKE) {
+      } else if (optr == OP_TYPE_NOT_LIKE) {
         comparFn = 27;
       } else if (optr == OP_TYPE_IN) {
         comparFn = 8;
@@ -3505,18 +3505,6 @@ int32_t fltAddValueNodeToConverList(SFltTreeStat *stat, SValueNode* pNode) {
   return TSDB_CODE_SUCCESS;
 }
 
-void fltConvertToTsValueNode(SFltTreeStat *stat, SValueNode* valueNode) {
-  char *timeStr = valueNode->datum.p;
-  if (convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, stat->precision, &valueNode->datum.i) !=
-      TSDB_CODE_SUCCESS) {
-    valueNode->datum.i = 0;
-  }
-  taosMemoryFree(timeStr);
-  
-  valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
-  valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
-}
-
 EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
   SFltTreeStat *stat = (SFltTreeStat *)pContext;
 
@@ -3565,7 +3553,7 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    fltConvertToTsValueNode(stat, valueNode);
+    sclConvertToTsValueNode(stat->precision, valueNode);
 
     return DEAL_RES_CONTINUE;
   }
@@ -3609,6 +3597,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
     }
 
     if (node->opType == OP_TYPE_NOT_IN || node->opType == OP_TYPE_NOT_LIKE || node->opType > OP_TYPE_IS_NOT_NULL || node->opType == OP_TYPE_NOT_EQUAL) {
+      stat->scalarMode = true;
+      return DEAL_RES_CONTINUE;
+    }
+
+    if (FILTER_GET_FLAG(stat->info->options, FLT_OPTION_TIMESTAMP) && node->opType >= OP_TYPE_NOT_EQUAL) {
       stat->scalarMode = true;
       return DEAL_RES_CONTINUE;
     }
@@ -3694,7 +3687,7 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
   for (int32_t i = 0; i < nodeNum; ++i) {
     SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
     
-    fltConvertToTsValueNode(pStat, valueNode);
+    sclConvertToTsValueNode(pStat->precision, valueNode);
   }
 
 _return:

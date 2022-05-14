@@ -303,6 +303,7 @@ int taos_print_row(char *str, TAOS_ROW row, TAOS_FIELD *fields, int num_fields) 
         break;
     }
   }
+  str[len] = 0;
 
   return len;
 }

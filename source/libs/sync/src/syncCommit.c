@@ -19,6 +19,7 @@
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
+#include "syncRaftCfg.h"
 
 // \* Leader i advances its commitIndex.
 // \* This is done as a separate step from handling AppendEntries responses,
@@ -101,7 +102,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           SRpcMsg rpcMsg;
           syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-          if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+          //if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+          if (pSyncNode->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
             SFsmCbMeta cbMeta;
             cbMeta.index = pEntry->index;
             cbMeta.isWeak = pEntry->isWeak;
@@ -109,6 +111,15 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             cbMeta.state = pSyncNode->state;
             cbMeta.seqNum = pEntry->seqNum;
             pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
+          }
+
+          // config change
+            if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+              SSyncCfg newSyncCfg;
+              int32_t ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
+              ASSERT(ret == 0);
+
+              syncNodeUpdateConfig(pSyncNode, &newSyncCfg);
           }
 
           rpcFreeCont(rpcMsg.pCont);

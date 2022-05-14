@@ -159,6 +159,7 @@ typedef struct SSchTask {
 
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
+  bool         needRes;
   bool         syncSchedule;
   bool         queryJob;
   bool         needFlowCtrl;
@@ -190,6 +191,7 @@ typedef struct SSchJob {
   SSchTask        *fetchTask;
   int32_t          errCode;
   SArray          *errList;    // SArray<SQueryErrorInfo>
+  SRWLatch         resLock;
   void            *resData;         //TODO free it or not
   int32_t          resNumOfRows;
   const char      *sql;

@@ -58,7 +58,7 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+  if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &connectRsp.epSet);
   }
 

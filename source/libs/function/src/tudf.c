@@ -18,6 +18,7 @@
 #include "tudf.h"
 #include "tudfInt.h"
 #include "tarray.h"
+#include "tglobal.h"
 #include "tdatablock.h"
 #include "querynodes.h"
 #include "builtinsimpl.h"
@@ -138,6 +139,10 @@ static void udfWatchUdfd(void *args) {
 }
 
 int32_t udfStartUdfd(int32_t startDnodeId) {
+  if (!tsStartUdfd) {
+    fnInfo("start udfd is disabled.")
+    return 0;
+  }
   SUdfdData *pData = &udfdGlobal;
   if (pData->startCalled) {
     fnInfo("dnode-mgmt start udfd already called");
@@ -690,6 +695,7 @@ int32_t convertDataBlockToUdfDataBlock(SSDataBlock *block, SUdfDataBlock *udfBlo
     udfCol->colMeta.scale = col->info.scale;
     udfCol->colMeta.precision = col->info.precision;
     udfCol->colData.numOfRows = udfBlock->numOfRows;
+    udfCol->hasNull = col->hasNull;
     if (IS_VAR_DATA_TYPE(udfCol->colMeta.type)) {
       udfCol->colData.varLenCol.varOffsetsLen = sizeof(int32_t) * udfBlock->numOfRows;
       udfCol->colData.varLenCol.varOffsets = taosMemoryMalloc(udfCol->colData.varLenCol.varOffsetsLen);
@@ -726,6 +732,7 @@ int32_t convertUdfColumnToDataBlock(SUdfColumn *udfCol, SSDataBlock *block) {
   col->info.bytes = meta->bytes;
   col->info.scale = meta->scale;
   col->info.type = meta->type;
+  col->hasNull = udfCol->hasNull;
   SUdfColumnData *data = &udfCol->colData;
 
   if (!IS_VAR_DATA_TYPE(meta->type)) {
@@ -924,7 +931,7 @@ void udfcUvHandleError(SClientUvConn *conn) {
   while (!QUEUE_EMPTY(&conn->taskQueue)) {
     QUEUE* h = QUEUE_HEAD(&conn->taskQueue);
     SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, connTaskQueue);
-    task->errCode = UDFC_CODE_PIPE_READ_ERR;
+    task->errCode = TSDB_CODE_UDF_PIPE_READ_ERR;
     QUEUE_REMOVE(&task->connTaskQueue);
     QUEUE_REMOVE(&task->procTaskQueue);
     uv_sem_post(&task->taskSem);
@@ -1112,7 +1119,7 @@ void cleanUpUvTasks(SUdfdProxy *udfc) {
     QUEUE_REMOVE(h);
     SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, recvTaskQueue);
     if (udfc->gUdfcState == UDFC_STATE_STOPPING) {
-      task->errCode = UDFC_CODE_STOPPING;
+      task->errCode = TSDB_CODE_UDF_STOPPING;
     }
     uv_sem_post(&task->taskSem);
   }
@@ -1122,7 +1129,7 @@ void cleanUpUvTasks(SUdfdProxy *udfc) {
     QUEUE_REMOVE(h);
     SClientUvTaskNode *task = QUEUE_DATA(h, SClientUvTaskNode, procTaskQueue);
     if (udfc->gUdfcState == UDFC_STATE_STOPPING) {
-      task->errCode = UDFC_CODE_STOPPING;
+      task->errCode = TSDB_CODE_UDF_STOPPING;
     }
     uv_sem_post(&task->taskSem);
   }
@@ -1206,7 +1213,7 @@ int32_t udfcRunUdfUvTask(SClientUdfTask *task, int8_t uvTaskType) {
 int32_t setupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   fnInfo("udfc setup udf. udfName: %s", udfName);
   if (gUdfdProxy.gUdfcState != UDFC_STATE_READY) {
-    return UDFC_CODE_INVALID_STATE;
+    return TSDB_CODE_UDF_INVALID_STATE;
   }
   SClientUdfTask *task = taosMemoryCalloc(1,sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1220,7 +1227,7 @@ int32_t setupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t errCode = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
     fnError("failed to connect to pipe. udfName: %s, pipe: %s", udfName, (&gUdfdProxy)->udfdPipeName);
-    return UDFC_CODE_CONNECT_PIPE_ERR;
+    return TSDB_CODE_UDF_PIPE_CONNECT_ERR;
   }
 
   udfcRunUdfUvTask(task, UV_TASK_REQ_RSP);
@@ -1247,7 +1254,7 @@ int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdf
   SClientUdfUvSession *session = (SClientUdfUvSession *) handle;
   if (session->udfUvPipe == NULL) {
     fnError("No pipe to udfd");
-    return UDFC_CODE_NO_PIPE;
+    return TSDB_CODE_UDF_PIPE_NO_PIPE;
   }
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
   task->errCode = 0;
@@ -1367,7 +1374,7 @@ int32_t teardownUdf(UdfcFuncHandle handle) {
   SClientUdfUvSession *session = (SClientUdfUvSession *) handle;
   if (session->udfUvPipe == NULL) {
     fnError("pipe to udfd does not exist");
-    return UDFC_CODE_NO_PIPE;
+    return TSDB_CODE_UDF_PIPE_NO_PIPE;
   }
 
   SClientUdfTask *task = taosMemoryCalloc(1, sizeof(SClientUdfTask));
@@ -1490,7 +1497,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   taosArrayDestroy(tempBlock.pDataBlock);
 
   taosMemoryFree(newState.buf);
-  return TSDB_CODE_SUCCESS;
+  return udfCode;
 }
 
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {

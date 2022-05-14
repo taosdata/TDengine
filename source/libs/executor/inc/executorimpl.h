@@ -62,11 +62,6 @@ enum {
    * 2. when all data within queried time window, it is also denoted as query_completed
    */
   TASK_COMPLETED = 0x2u,
-
-  /* when the result is not completed return to client, this status will be
-   * usually used in case of interval query with interpolation option
-   */
-  TASK_OVER = 0x4u,
 };
 
 typedef struct SResultRowCell {
@@ -288,12 +283,6 @@ typedef struct SOperatorInfo {
   SOperatorFpSet          fpSet;
 } SOperatorInfo;
 
-typedef struct {
-  int32_t      numOfTags;
-  int32_t      numOfCols;
-  SColumnInfo* colList;
-} SQueriedTableInfo;
-
 typedef enum {
   EX_SOURCE_DATA_NOT_READY = 0x1,
   EX_SOURCE_DATA_READY     = 0x2,
@@ -344,6 +333,8 @@ typedef struct SScanInfo {
 
 typedef struct STableScanInfo {
   void*           dataReader;
+  SReadHandle     readHandle;
+
   SFileBlockLoadRecorder readRecorder;
   int64_t         numOfRows;
   int64_t         elapsedTime;
@@ -358,6 +349,11 @@ typedef struct STableScanInfo {
   SSDataBlock*    pResBlock;
   SArray*         pColMatchInfo;
   int32_t         numOfOutput;
+
+  SExprInfo*      pPseudoExpr;
+  int32_t         numOfPseudoExpr;
+  SqlFunctionCtx* pPseudoCtx;
+//  int32_t*        rowCellInfoOffset;
 
   SQueryTableDataCond cond;
   int32_t         scanFlag;     // table scan flag to denote if it is a repeat/reverse/main scan
@@ -375,9 +371,18 @@ typedef struct STagScanInfo {
   STableGroupInfo *pTableGroups;
 } STagScanInfo;
 
+typedef enum EStreamScanMode {
+  STREAM_SCAN_FROM_READERHANDLE = 1,
+  STREAM_SCAN_FROM_RES,
+  STREAM_SCAN_FROM_UPDATERES,
+  STREAM_SCAN_FROM_DATAREADER,
+} EStreamScanMode;
+
 typedef struct SStreamBlockScanInfo {
   SArray*      pBlockLists;      // multiple SSDatablock.
   SSDataBlock* pRes;             // result SSDataBlock
+  SSDataBlock* pUpdateRes;       // update SSDataBlock
+  int32_t      updateResIndex;
   int32_t      blockType;        // current block type
   int32_t      validBlockIndex;  // Is current data has returned?
   SColumnInfo* pCols;            // the output column info
@@ -387,8 +392,12 @@ typedef struct SStreamBlockScanInfo {
   SArray*      pColMatchInfo;    //
   SNode*       pCondition;
   SArray*      tsArray;
-  SUpdateInfo*  pUpdateInfo;
+  SUpdateInfo* pUpdateInfo;
   int32_t      primaryTsIndex;    // primary time stamp slot id
+  void*        pDataReader;
+  EStreamScanMode scanMode;
+  SOperatorInfo* pOperatorDumy;
+  SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -627,11 +636,10 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
 int32_t initAggInfo(SOptrBasicInfo* pBasicInfo, SAggSupporter* pAggSup, SExprInfo* pExprInfo, int32_t numOfCols,
                     SSDataBlock* pResultBlock, size_t keyBufSize, const char* pkey);
 void    initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows);
-void doBuildResultDatablock(SOptrBasicInfo *pbInfo, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf);
+void doBuildResultDatablock(SExecTaskInfo *taskInfo, SOptrBasicInfo *pbInfo, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf);
 
-void    finalizeMultiTupleQueryResult(SqlFunctionCtx* pCtx, int32_t numOfOutput, SDiskbasedBuf* pBuf,
-                                      SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
-void    doApplyFunctions(SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
+void    finalizeMultiTupleQueryResult(int32_t numOfOutput, SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int32_t* rowCellInfoOffset);
+void    doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                          int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order);
 int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* pData, int16_t type, int16_t bytes,
                                 int32_t groupId, SDiskbasedBuf* pBuf, SExecTaskInfo* pTaskInfo, SAggSupporter* pAggSup);
@@ -640,7 +648,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
                                   int32_t compLen, int32_t numOfOutput, int64_t startTs, uint64_t* total,
                                   SArray* pColList);
 void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t key, STimeWindow* win);
-int32_t getTableScanOrder(SOperatorInfo* pOperator);
+int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
 void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
@@ -656,12 +664,17 @@ SSDataBlock* loadNextDataBlock(void* param);
 
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
 
+SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
+                            int32_t type);
+SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
+SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
+int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
+
 SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pResultRowInfo,
                                    char* pData, int16_t bytes, bool masterscan, uint64_t groupId,
                                    SExecTaskInfo* pTaskInfo, bool isIntervalQuery, SAggSupporter* pSup);
 
-SOperatorInfo* createTableScanOperatorInfo(void* pDataReader, SQueryTableDataCond* pCond, int32_t numOfOutput, int32_t dataLoadFlag, const uint8_t* scanInfo,
-                                           SArray* pColMatchInfo, SSDataBlock* pResBlock, SNode* pCondition, SInterval* pInterval, double sampleRatio, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo);
@@ -690,8 +703,9 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
                                        SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo,
                                        const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, SSDataBlock* pResBlock, SArray* pColList,
-                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pConditions);
+SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader, SSDataBlock* pResBlock,
+                                             SArray* pColList, SArray* pTableIdList, SExecTaskInfo* pTaskInfo,
+                                             SNode* pConditions, SOperatorInfo* pOperatorDumy, SInterval* pInterval);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                       SInterval* pInterval, STimeWindow* pWindow, SSDataBlock* pResBlock, int32_t fillType, SNodeListNode* fillVal,
@@ -711,14 +725,12 @@ SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, SExprInfo* pE
 
 #if 0
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pTsdbReadHandle, STaskRuntimeEnv* pRuntimeEnv);
-SOperatorInfo* createMultiTableTimeIntervalOperatorInfo(STaskRuntimeEnv* pRuntimeEnv, SOperatorInfo* downstream,
-                                                        SExprInfo* pExpr, int32_t numOfOutput);
 #endif
 
 int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBlock* pSrcBlock, SqlFunctionCtx* pCtx,
                            int32_t numOfOutput, SArray* pPseudoList);
 
-void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order, bool createDummyCol);
+void setInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCtx, SSDataBlock* pBlock, int32_t order, int32_t scanFlag, bool createDummyCol);
 
 void copyTsColoum(SSDataBlock* pRes, SqlFunctionCtx* pCtx, int32_t numOfOutput);
 
@@ -737,7 +749,6 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 int32_t getMaximumIdleDurationSec();
 
-void    doInvokeUdf(struct SUdfInfo* pUdfInfo, SqlFunctionCtx* pCtx, int32_t idx, int32_t type);
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model);
@@ -748,6 +759,15 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
                         int32_t length);
 void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasicInfo* pInfo, char** result,
                         int32_t* length);
+STimeWindow getActiveTimeWindow(SDiskbasedBuf* pBuf, SResultRowInfo* pResultRowInfo, int64_t ts,
+                                       SInterval* pInterval, int32_t precision, STimeWindow* win);
+int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimaryColumn, int32_t startPos,
+                                        TSKEY ekey, __block_search_fn_t searchFn, STableQueryInfo* item,
+                                        int32_t order);
+int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
+
+void doClearWindow(SIntervalAggOperatorInfo* pInfo, char* pData, int16_t bytes,
+    uint64_t groupId, int32_t numOfOutput);
 
 #ifdef __cplusplus
 }

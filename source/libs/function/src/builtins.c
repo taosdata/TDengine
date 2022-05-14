@@ -239,7 +239,7 @@ static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = 64, .type = TSDB_DATA_TYPE_BINARY };
+  pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -260,6 +260,103 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   }
 
   pFunc->node.resType = (SDataType){.bytes = 512, .type = TSDB_DATA_TYPE_BINARY};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (3 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BIGINT &&
+       ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_DOUBLE)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (3 != paraNum && 4 != paraNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type != TSDB_DATA_TYPE_BINARY ||
+      (((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_BIGINT &&
+       ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 2))->resType.type != TSDB_DATA_TYPE_DOUBLE)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (paraNum == 4 && ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of CSUM function can only be column");
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t resType;
+  if (!IS_NUMERIC_TYPE(colType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  } else {
+    if (IS_SIGNED_NUMERIC_TYPE(colType)) {
+      resType = TSDB_DATA_TYPE_BIGINT;
+    } else if (IS_UNSIGNED_NUMERIC_TYPE(colType)) {
+      resType = TSDB_DATA_TYPE_UBIGINT;
+    } else if (IS_FLOAT_TYPE(colType)) {
+      resType = TSDB_DATA_TYPE_DOUBLE;
+    } else {
+      ASSERT(0);
+    }
+  }
+
+  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of MAVG function can only be column");
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType) || !IS_INTEGER_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -678,6 +775,46 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = histogramFinalize
   },
   {
+    .name = "state_count",
+    .type = FUNCTION_TYPE_STATE_COUNT,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
+    .translateFunc = translateStateCount,
+    .getEnvFunc   = getStateFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = stateCountFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "state_duration",
+    .type = FUNCTION_TYPE_STATE_DURATION,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateStateDuration,
+    .getEnvFunc   = getStateFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = stateDurationFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "csum",
+    .type = FUNCTION_TYPE_CSUM,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateCsum,
+    .getEnvFunc   = getCsumFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = csumFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mavg",
+    .type = FUNCTION_TYPE_MAVG,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateMavg,
+    .getEnvFunc   = getMavgFuncEnv,
+    .initFunc     = mavgFunctionSetup,
+    .processFunc  = mavgFunction,
+    .finalizeFunc = NULL
+  },
+  {
     .name = "abs",
     .type = FUNCTION_TYPE_ABS,
     .classification = FUNC_MGT_SCALAR_FUNC,
@@ -978,16 +1115,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = NULL
   },
   {
-    .name = "_rowts",
-    .type = FUNCTION_TYPE_ROWTS,
-    .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC,
-    .translateFunc = translateTimePseudoColumn,
-    .getEnvFunc   = getTimePseudoFuncEnv,
-    .initFunc     = NULL,
-    .sprocessFunc = NULL,
-    .finalizeFunc = NULL
-  },
-  {
     .name = "tbname",
     .type = FUNCTION_TYPE_TBNAME,
     .classification = FUNC_MGT_PSEUDO_COLUMN_FUNC | FUNC_MGT_SCAN_PC_FUNC,
@@ -1064,7 +1191,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .translateFunc = translateSelectValue,
     .getEnvFunc   = getSelectivityFuncEnv,  // todo remove this function later.
     .initFunc     = functionSetup,
-    .sprocessFunc = NULL,
+    .processFunc  = NULL,
     .finalizeFunc = NULL
   }
 };

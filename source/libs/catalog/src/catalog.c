@@ -2705,6 +2705,57 @@ _return:
   CTG_API_LEAVE(code);  
 }
 
+typedef struct SCatalogReqObj {
+  __async_cb_fn_t userFp;
+  SResultMetaInfoWrapper *pResult;
+  void* pUserParam;
+} SCatalogReqObj;
+
+void* doExtractpayload(const SDataBuf* pMsg){}
+
+int32_t loadRemoteMetaCallback(void* param, const SDataBuf* pMsg, int32_t code) {
+  SCatalogReqObj* pRsp = param;
+
+  // do handle the result.
+  // serialize data in pMsg and set the result into pRsp->pResult
+  pRsp->pResult = doExtractpayload(pMsg);
+
+  // call user's callback function
+  pRsp->userFp(pRsp->pResult, pRsp->pUserParam, code);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t catalogGetDBVgInfo_a(CatalogParamWrapper* pCatalogWrapper, __async_cb_fn_t fp, void* param) {
+  CTG_API_ENTER();
+
+  SMsgSendInfo* pMsgSendInfo = taosMemoryCalloc(1, sizeof(SMsgSendInfo));
+  if (NULL == pMsgSendInfo) {
+    return TSDB_CODE_QRY_OUT_OF_MEMORY;
+  }
+
+  pMsgSendInfo->param = param;
+
+  SCatalogReqObj* pCatalogReq = taosMemoryCalloc(1, sizeof(SCatalogReqObj));
+  pCatalogReq->userFp = fp;
+  pCatalogReq->pUserParam = param;
+
+  // todo serialize the request message
+  pMsgSendInfo->msgInfo.pData = NULL;
+  pMsgSendInfo->msgInfo.len = 0;
+
+  // set the callback and response struct.
+  pMsgSendInfo->msgType = TDMT_VND_FETCH;
+  pMsgSendInfo->fp    = loadRemoteMetaCallback;
+  pMsgSendInfo->param = pCatalogReq;
+
+  int32_t code = asyncSendMsgToServer(pCatalogWrapper->pTransporter, pCatalogWrapper->pMgmtEps, NULL, pMsgSendInfo);
+
+  /// directly call the user function in case of failure
+  if (code != TSDB_CODE_SUCCESS) {
+    fp(NULL, param, code);
+  }
+//  CTG_API_LEAVE(code);
+}
 
 int32_t catalogUpdateDBVgInfo(SCatalog* pCtg, const char* dbFName, uint64_t dbId, SDBVgInfo* dbInfo) {
   CTG_API_ENTER();

@@ -8,7 +8,7 @@ target_include_directories(
 )
 
 target_link_libraries(scalar
-        PRIVATE os util common nodes function qcom
+        PRIVATE os util common nodes function qcom vnode
         )
 
 if(${BUILD_TEST})

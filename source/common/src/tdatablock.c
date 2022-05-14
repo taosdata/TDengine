@@ -1311,6 +1311,7 @@ int32_t tEncodeDataBlock(void** buf, const SSDataBlock* pBlock) {
     tlen += taosEncodeFixedI16(buf, pColData->info.colId);
     tlen += taosEncodeFixedI16(buf, pColData->info.type);
     tlen += taosEncodeFixedI32(buf, pColData->info.bytes);
+    tlen += taosEncodeFixedBool(buf, pColData->hasNull);
 
     if (IS_VAR_DATA_TYPE(pColData->info.type)) {
       tlen += taosEncodeBinary(buf, pColData->varmeta.offset, sizeof(int32_t) * rows);
@@ -1340,6 +1341,7 @@ void* tDecodeDataBlock(const void* buf, SSDataBlock* pBlock) {
     buf = taosDecodeFixedI16(buf, &data.info.colId);
     buf = taosDecodeFixedI16(buf, &data.info.type);
     buf = taosDecodeFixedI32(buf, &data.info.bytes);
+    buf = taosDecodeFixedBool(buf, &data.hasNull);
 
     if (IS_VAR_DATA_TYPE(data.info.type)) {
       buf = taosDecodeBinary(buf, (void**)&data.varmeta.offset, pBlock->info.rows * sizeof(int32_t));
@@ -1445,6 +1447,10 @@ void blockDebugShowData(const SArray* dataBlocks) {
       for (int32_t k = 0; k < colNum; k++) {
         SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, k);
         void*            var = POINTER_SHIFT(pColInfoData->pData, j * pColInfoData->info.bytes);
+        if (pColInfoData->hasNull) {
+          printf(" %15s |", "NULL");
+          continue;
+        }
         switch (pColInfoData->info.type) {
           case TSDB_DATA_TYPE_TIMESTAMP:
             formatTimestamp(pBuf, *(uint64_t*)var, TSDB_TIME_PRECISION_MILLI);
@@ -1461,6 +1467,9 @@ void blockDebugShowData(const SArray* dataBlocks) {
             break;
           case TSDB_DATA_TYPE_UBIGINT:
             printf(" %15lu |", *(uint64_t*)var);
+            break;
+          case TSDB_DATA_TYPE_DOUBLE:
+            printf(" %15f |", *(double*)var);
             break;
         }
       }
