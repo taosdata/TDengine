@@ -66,11 +66,7 @@ static void mndPullupTrans(SMnode *pMnode) {
 static void mndCalMqRebalance(SMnode *pMnode) {
   int32_t contLen = 0;
   void   *pReq = mndBuildTimerMsg(&contLen);
-  SRpcMsg rpcMsg = {
-      .msgType = TDMT_MND_MQ_TIMER,
-      .pCont = pReq,
-      .contLen = contLen,
-  };
+  SRpcMsg rpcMsg = {.msgType = TDMT_MND_MQ_TIMER, .pCont = pReq, .contLen = contLen};
   tmsgPutToQueue(&pMnode->msgCb, READ_QUEUE, &rpcMsg);
 }
 

@@ -51,6 +51,7 @@ extern int32_t tsVnodeShmSize;
 extern int32_t tsQnodeShmSize;
 extern int32_t tsSnodeShmSize;
 extern int32_t tsBnodeShmSize;
+extern int32_t tsNumOfShmThreads;
 
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
@@ -67,6 +68,7 @@ extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeSharedThreads;
 extern int32_t tsNumOfSnodeUniqueThreads;
+extern int64_t tsRpcQueueMemoryAllowed;
 
 // monitor
 extern bool     tsEnableMonitor;

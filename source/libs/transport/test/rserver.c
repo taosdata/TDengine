@@ -103,7 +103,7 @@ int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
