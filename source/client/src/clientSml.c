@@ -885,7 +885,7 @@ static int32_t smlParseInfluxString(const char* sql, SSmlLineInfo *elements, SSm
 
   // parse measure
   while (*sql != '\0') {
-    if(IS_SLASH_LETTER(sql)){
+    if((sql != elements->measure) && IS_SLASH_LETTER(sql)){
       MOVE_FORWARD_ONE(sql,strlen(sql) + 1);
       continue;
     }
@@ -973,6 +973,8 @@ static int32_t smlParseTelnetTags(const char* data, SArray *cols, SHashObj *dump
   const char *sql = data;
   while(*sql != '\0'){
     JUMP_SPACE(sql)
+    if(*sql == '\0') break;
+
     const char *key = sql;
     int32_t keyLen = 0;
 
@@ -1005,6 +1007,8 @@ static int32_t smlParseTelnetTags(const char* data, SArray *cols, SHashObj *dump
     while(*sql != '\0') {
       // parse value
       if (*sql == SPACE) {
+        valueLen = sql - value;
+        sql++;
         break;
       }
       if (*sql == EQUAL) {
@@ -1013,14 +1017,15 @@ static int32_t smlParseTelnetTags(const char* data, SArray *cols, SHashObj *dump
       }
       sql++;
     }
-    valueLen = sql - value;
-    sql++;
-    JUMP_SPACE(sql)
+    if(valueLen == 0){
+      valueLen = sql - value;
+    }
 
     if(valueLen == 0){
       smlBuildInvalidDataMsg(msg, "invalid value", value);
       return TSDB_CODE_SML_INVALID_DATA;
     }
+
     // add kv to SSmlKv
     SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
     if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
@@ -1354,6 +1359,7 @@ static void smlDestroySTableMeta(SSmlSTableMeta *meta){
   taosArrayDestroy(meta->tags);
   taosArrayDestroy(meta->cols);
   taosMemoryFree(meta->tableMeta);
+  taosMemoryFree(meta);
 }
 
 static void smlDestroyCols(SArray *cols) {

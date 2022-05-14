@@ -206,10 +206,16 @@ TEST(testCase, smlParseCols_Error_Test) {
     int32_t len = strlen(data[i]);
     char *sql = (char*)taosMemoryCalloc(256, 1);
     memcpy(sql, data[i], len + 1);
-    int32_t ret = smlParseCols(sql, len, NULL, false, dumplicateKey, &msgBuf);
+    SArray *cols = taosArrayInit(8, POINTER_BYTES);
+    int32_t ret = smlParseCols(sql, len, cols, false, dumplicateKey, &msgBuf);
     ASSERT_NE(ret, TSDB_CODE_SUCCESS);
     taosHashClear(dumplicateKey);
     taosMemoryFree(sql);
+    for(int j = 0; j < taosArrayGetSize(cols); j++){
+      void *kv = taosArrayGetP(cols, j);
+      taosMemoryFree(kv);
+    }
+    taosArrayDestroy(cols);
   }
   taosHashCleanup(dumplicateKey);
 }
@@ -239,7 +245,6 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
   ASSERT_EQ(kv->length, 15);
   ASSERT_EQ(strncasecmp(kv->value, "\"passit", 7), 0);
-  taosMemoryFree(kv);
 
   // nchar
   kv = (SSmlKv *)taosArrayGetP(cols, 3);
@@ -248,10 +253,12 @@ TEST(testCase, smlParseCols_tag_Test) {
   ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
   ASSERT_EQ(kv->length, 7);
   ASSERT_EQ(strncasecmp(kv->value, "4.31f64", 7), 0);
-  taosMemoryFree(kv);
 
+  for(int i = 0; i < size; i++){
+    void *tmp = taosArrayGetP(cols, i);
+    taosMemoryFree(tmp);
+  }
   taosArrayClear(cols);
-
 
   // test tag is null
   data = "t=3e";
