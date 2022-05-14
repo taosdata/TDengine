@@ -15,12 +15,12 @@
 
 #include "syncIO.h"
 #include <tdatablock.h>
+#include "os.h"
 #include "syncMessage.h"
 #include "syncUtil.h"
 #include "tglobal.h"
 #include "ttimer.h"
 #include "tutil.h"
-#include "os.h"
 
 SSyncIO *gSyncIO = NULL;
 
