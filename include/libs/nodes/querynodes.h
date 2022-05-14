@@ -345,6 +345,7 @@ bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
+bool nodesIsRegularOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);

@@ -635,6 +635,11 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
     if (OP_TYPE_IN == pOp->opType || OP_TYPE_NOT_IN == pOp->opType) {
       ((SExprNode*)pOp->pRight)->resType = ((SExprNode*)pOp->pLeft)->resType;
     }
+    if (nodesIsRegularOp(pOp)) {
+      if (QUERY_NODE_VALUE != nodeType(pOp->pRight) || !IS_STR_DATA_TYPE(((SExprNode*)(pOp->pRight))->resType.type)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pRight))->aliasName);
+      }
+    }
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   } else if (nodesIsJsonOp(pOp)) {
@@ -3842,7 +3847,7 @@ static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SS
   if (pVal->node.resType.type == TSDB_DATA_TYPE_NULL) {
     // todo
   } else {
-    tdAddColToKVRow(pBuilder, pSchema->colId, &(pVal->datum.p),
+    tdAddColToKVRow(pBuilder, pSchema->colId, nodesGetValueFromNode(pVal->datum.p),
                     IS_VAR_DATA_TYPE(pSchema->type) ? varDataTLen(pVal->datum.p) : TYPE_BYTES[pSchema->type]);
   }
 
