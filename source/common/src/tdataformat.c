@@ -19,10 +19,10 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
-struct SKVIdx {
+typedef struct SKVIdx {
   int32_t cid;
   int32_t offset;
-};
+} SKVIdx;
 
 #pragma pack(push, 1)
 typedef struct {
@@ -34,6 +34,8 @@ typedef struct {
 #define TSROW_IS_KV_ROW(r) ((r)->flags & TSROW_KV_ROW)
 #define SET_BIT1(p, i, v)  ((p)[(i) / 8] = (p)[(i) / 8] & (~(((uint8_t)1) << ((i) % 8))) | ((v) << ((i) % 8)))
 #define SET_BIT2(p, i, v)  ((p)[(i) / 4] = (p)[(i) / 4] & (~(((uint8_t)3) << ((i) % 4))) | ((v) << ((i) % 4)))
+#define GET_BIT1(p, i)     (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
+#define GET_BIT2(p, i)     (((p)[(i) / 4] >> ((i) % 4)) & ((uint8_t)3))
 
 // STSRow2
 int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow) {
@@ -81,57 +83,112 @@ int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow) {
   return 0;
 }
 
-int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t cid, const uint8_t **ppData, uint32_t *nData,
-                  int8_t *flags) {
-#if 0
-  if (cid == 0) {
-    *ppData = (uint8_t *)&pRow->ts;
-    *nData = sizeof(TSKEY);
-    *flags = 0;
-  } else {
-    uint32_t tflags = pRow->flags & 0xf;
-    *ppData = NULL;
-    *nData = 0;
+static FORCE_INLINE int kvRowCmprFn(const void *p1, const void *p2) {
+  col_id_t cid = *(col_id_t *)p1;
+  SKVIdx  *pKVIdx = (SKVIdx *)p2;
 
-    switch (tflags) {
-      case TSROW_HAS_NONE:
-        *flags = -1;
-        break;
-      case TSROW_HAS_NULL:
-        *flags = 1;
-        break;
-      case TSROW_HAS_VAL:
-        *flags = 0;
-        // find the row
-        break;
-      case TSROW_HAS_NULL | TSROW_HAS_NONE:
-        // read bit map (todo)
-        if (0) {
-          *flags = 1;
-        } else {
-          *flags = -1;
-        }
-        break;
-      case TSROW_HAS_VAL | TSROW_HAS_NONE:
-      case TSROW_HAS_VAL | TSROW_HAS_NULL:
-        // read bitmap (todo)
-        if (0) {
-          if (tflags & TSROW_HAS_NONE) {
-            *flags = -1;
-          } else {
-            *flags = 1;
-          }
-        } else {
-          // get value (todo)
-        }
-        break;
-      case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
-        break;
-      default:
-        return -1;
-    }
+  if (cid < pKVIdx->cid) {
+    return -1;
+  } else if (cid > pKVIdx->cid) {
+    return 1;
   }
-#endif
+  return 0;
+}
+
+int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
+  uint32_t  n;
+  uint8_t  *p;
+  uint8_t   v;
+  int32_t   bidx = iCol - 1;
+  STColumn *pTColumn = &pTSchema->columns[iCol];
+  STSKVRow *pTSKVRow;
+  SKVIdx   *pKVIdx;
+
+  ASSERT(pTColumn->colId != 0);
+
+  ASSERT(pRow->flags & 0xf != 0);
+  switch (pRow->flags & 0xf) {
+    case TSROW_HAS_NONE:
+      COL_VAL_SET_NONE(pColVal);
+      return 0;
+    case TSROW_HAS_NULL:
+      COL_VAL_SET_NULL(pColVal);
+      return 0;
+  }
+
+  if (TSROW_IS_KV_ROW(pRow)) {
+    ASSERT((pRow->flags & 0xf) != TSROW_HAS_VAL);
+
+    pTSKVRow = (STSKVRow *)pRow->pData;
+    pKVIdx = bsearch(&pTColumn->colId, pTSKVRow->idx, pTSKVRow->nCols, sizeof(SKVIdx), kvRowCmprFn);
+    if (pKVIdx == NULL) {
+      COL_VAL_SET_NONE(pColVal);
+    } else if (pKVIdx->offset < 0) {
+      COL_VAL_SET_NULL(pColVal);
+    } else {
+      p = pRow->pData + sizeof(STSKVRow) + sizeof(SKVIdx) * pTSKVRow->nCols + pKVIdx->offset;
+      tGetBinary(p, &p, &n);
+      COL_VAL_SET_VAL(pColVal, p, n);
+    }
+  } else {
+    // get bitmap
+    switch (pRow->flags & 0xf) {
+      p = pRow->pData;
+      case TSROW_HAS_NULL | TSROW_HAS_NONE:
+        v = GET_BIT1(p, bidx);
+        if (v == 0) {
+          COL_VAL_SET_NONE(pColVal);
+        } else {
+          COL_VAL_SET_NULL(pColVal);
+        }
+        return 0;
+      case TSROW_HAS_VAL | TSROW_HAS_NONE:
+        v = GET_BIT1(p, bidx);
+        if (v == 1) {
+          p = p + (pTSchema->numOfCols - 2) / 8 + 1;
+          break;
+        } else {
+          COL_VAL_SET_NONE(pColVal);
+          return 0;
+        }
+      case TSROW_HAS_VAL | TSROW_HAS_NULL:
+        v = GET_BIT1(p, bidx);
+        if (v == 1) {
+          p = p + (pTSchema->numOfCols - 2) / 8 + 1;
+          break;
+        } else {
+          COL_VAL_SET_NULL(pColVal);
+          return 0;
+        }
+      case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
+        v = GET_BIT2(p, bidx);
+        if (v == 0) {
+          COL_VAL_SET_NONE(pColVal);
+          return 0;
+        } else if (v == 1) {
+          COL_VAL_SET_NULL(pColVal);
+          return 0;
+        } else if (v == 2) {
+          p = p + (pTSchema->numOfCols - 2) / 4 + 1;
+          break;
+        } else {
+          ASSERT(0);
+        }
+      default:
+        break;
+    }
+
+    // get real value
+    p = p + pTColumn->offset;
+    if (IS_VAR_DATA_TYPE(pTColumn->type)) {
+      p = pTSchema->flen + *(int32_t *)p;
+      tGetBinary(p, &p, &n);
+    } else {
+      n = pTColumn->bytes;
+    }
+    COL_VAL_SET_VAL(pColVal, p, n);
+  }
+
   return 0;
 }
 
@@ -445,8 +502,8 @@ int         tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   spaceNeeded += (int)nBitmapBytes;
   // TODO: Currently, the compression of bitmap parts is affiliated to the column data parts, thus allocate 1 more
   // TYPE_BYTES as to comprise complete TYPE_BYTES. Otherwise, invalid read/write would be triggered.
-  // spaceNeeded += TYPE_BYTES[pCol->type]; // the bitmap part is append as a single part since 2022.04.03, thus remove
-  // the additional space
+  // spaceNeeded += TYPE_BYTES[pCol->type]; // the bitmap part is append as a single part since 2022.04.03, thus
+  // remove the additional space
 #endif
 
   if (pCol->spaceSize < spaceNeeded) {

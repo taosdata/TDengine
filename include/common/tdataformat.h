@@ -29,19 +29,40 @@ extern "C" {
 typedef struct SSchema       SSchema;
 typedef struct STColumn      STColumn;
 typedef struct STSchema      STSchema;
+typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
-typedef struct SKVIdx        SKVIdx;
-
-// STSRow2
-int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
-int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
-int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t cid, const uint8_t **ppData, uint32_t *nData,
-                  int8_t *flags);
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
 void    tTSchemaDestroy(STSchema *pTSchema);
+
+// SColVal
+#define COL_VAL_SET_NONE(CV) \
+  do {                       \
+    (CV)->type = COL_NONE;   \
+    (CV)->nData = 0;         \
+    (CV)->pData = NULL;      \
+  } while (0)
+
+#define COL_VAL_SET_NULL(CV) \
+  do {                       \
+    (CV)->type = COL_NULL;   \
+    (CV)->nData = 0;         \
+    (CV)->pData = NULL;      \
+  } while (0)
+
+#define COL_VAL_SET_VAL(CV, PDATA, NDATA) \
+  do {                                    \
+    (CV)->type = COL_VAL;                 \
+    (CV)->nData = (NDATA);                \
+    (CV)->pData = (PDATA);                \
+  } while (0)
+
+// STSRow2
+int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
+int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
+int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 // STSRowBuilder
 int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, SSchema *pSchema, int32_t nCols);
@@ -73,11 +94,11 @@ struct STSchema {
 #define TSROW_HAS_VAL  ((uint8_t)0x4U)
 #define TSROW_KV_ROW   ((uint8_t)0x10U)
 struct STSRow2 {
-  TSKEY          ts;
-  uint8_t        flags;
-  int32_t        sver;
-  uint32_t       nData;
-  const uint8_t *pData;
+  TSKEY    ts;
+  uint8_t  flags;
+  int32_t  sver;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 struct STSRowBuilder {
@@ -92,6 +113,13 @@ struct STSRowBuilder {
   int32_t   vlenKV;
   int32_t   vlenTP;
   STSRow2   row;
+};
+
+typedef enum { COL_VAL = 0, COL_NONE = 1, COL_NULL = 2 } EColValT;
+struct SColVal {
+  EColValT type;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 #if 1  //====================================
