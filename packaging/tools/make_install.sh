@@ -186,7 +186,7 @@ function install_bin() {
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
-    ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
+    # ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
@@ -372,15 +372,15 @@ function install_config() {
   if [ ! -f ${cfg_install_dir}/${configFile} ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/../cfg/${configFile} ] &&
-      ${csudo}cp ${script_dir}/../cfg/${configFile} ${cfg_install_dir} || :
+      ${csudo}cp ${script_dir}/../cfg/${configFile} ${cfg_install_dir}
     ${csudo}chmod 644 ${cfg_install_dir}/${configFile}
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
-      ${cfg_install_dir}/${configFile}.${verNumber} || :
+      ${cfg_install_dir}/${configFile}.${verNumber}
     ${csudo}ln -s ${cfg_install_dir}/${configFile} \
       ${install_main_dir}/cfg/${configFile}
   else
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
-      ${cfg_install_dir}/${configFile}.${verNumber} || :
+      ${cfg_install_dir}/${configFile}.${verNumber}
   fi
 }
 
@@ -475,10 +475,10 @@ function install_service_on_sysvinit() {
 
   if ((${os_type} == 1)); then
     #    ${csudo}cp -f ${script_dir}/../deb/${serverName} ${install_main_dir}/init.d
-    ${csudo}cp ${script_dir}/../deb/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName} || :
+    ${csudo}cp ${script_dir}/../deb/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   elif ((${os_type} == 2)); then
     #    ${csudo}cp -f ${script_dir}/../rpm/${serverName} ${install_main_dir}/init.d
-    ${csudo}cp ${script_dir}/../rpm/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName} || :
+    ${csudo}cp ${script_dir}/../rpm/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   fi
 
   if ((${initd_mod} == 1)); then
