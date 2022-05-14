@@ -26,7 +26,7 @@
 **下载代码并解压：**
 
 ```shell
-curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.0.tar.gz \
+curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
 && mkdir php-tdengine \
 && tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
 ```
@@ -95,7 +95,7 @@ $db = null;
 // 实例化
 $connection = new Connection($host, $port, $user, $pass, $db);
 // 连接
-$connection->connection();
+$connection->connect();
 // 获取连接参数
 $connection->getHost();
 $connection->getPort();
@@ -140,6 +140,11 @@ $resource->close();
 ```php
 // 查询
 $stmt = $connection->prepare($sql); // 支持查询和插入，参数用?占位
+// 设置表名和标签
+$stmt->setTableNameTags('表名', [
+    // 支持格式同参数绑定
+    [TDengine\TSDB_DATA_TYPE_INT, 36],
+]);
 // 绑定参数方法1
 $stmt->bindParams(
     // [字段类型, 值]
