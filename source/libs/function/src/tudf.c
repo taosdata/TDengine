@@ -1500,6 +1500,9 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 
   SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   SClientUdfUvSession *session = udfRes->session;
+  if (session == NULL) {
+    return TSDB_CODE_UDF_PIPE_NO_PIPE;
+  }
   udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
   udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
@@ -1552,6 +1555,9 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   SClientUdfUvSession *session = udfRes->session;
+  if (session == NULL) {
+    return TSDB_CODE_UDF_PIPE_NO_PIPE;
+  }
   udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
   udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
