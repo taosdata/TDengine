@@ -2138,16 +2138,6 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SArray* pColMatchIn
   blockDataUpdateTsWindow(pBlock);
 }
 
-static int32_t colIdSearchCompar(const void* p1, const void* p2) {
-  int32_t       colId = *(int32_t*)p1;
-  SColMatchInfo* pInfo = (SColMatchInfo*)p2;
-  if (colId == pInfo->targetSlotId) {
-    return 0;
-  }
-
-  return (colId < pInfo->colId) ? -1 : 1;
-}
-
 void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
   if (keep) {
     return;
