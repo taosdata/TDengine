@@ -16,7 +16,7 @@
 #ifndef _TD_DND_BNODE_INT_H_
 #define _TD_DND_BNODE_INT_H_
 
-#include "dmInt.h"
+#include "dmUtil.h"
 
 #include "bnode.h"
 
@@ -26,24 +26,25 @@ extern "C" {
 
 typedef struct SBnodeMgmt {
   SBnode       *pBnode;
-  SDnode       *pDnode;
-  SMgmtWrapper *pWrapper;  
+  SMsgCb        msgCb;
   const char   *path;
+  const char   *name;
+  int32_t       dnodeId;
   SMultiWorker  writeWorker;
   SSingleWorker monitorWorker;
 } SBnodeMgmt;
 
 // bmHandle.c
-void    bmInitMsgHandle(SMgmtWrapper *pWrapper);
-int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
+SArray *bmGetMsgHandles();
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
+int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SNodeMsg *pReq);
 
 // bmWorker.c
 int32_t bmStartWorker(SBnodeMgmt *pMgmt);
 void    bmStopWorker(SBnodeMgmt *pMgmt);
-int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t bmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t bmPutNodeMsgToWriteQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t bmPutNodeMsgToMonitorQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
 
 #ifdef __cplusplus
 }

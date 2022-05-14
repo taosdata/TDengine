@@ -138,7 +138,7 @@ static void print_line(Dwarf_Debug dbg, Dwarf_Line line, Dwarf_Addr pc) {
     dwarf_linesrc(line, &linesrc, NULL);
     dwarf_lineno(line, &lineno, NULL);
   }
-  printf("%s:%" DW_PR_DUu "\n", linesrc, lineno);
+  printf("BackTrace %08" PRId64 " %s:%" DW_PR_DUu "\n", taosGetSelfPthreadId(), linesrc, lineno);
   if (line) dwarf_dealloc(dbg, linesrc, DW_DLA_STRING);
 }
 void taosPrintBackTrace() {

@@ -285,6 +285,7 @@ int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
     return -1;
   }
 #ifdef WINDOWS
+  assert(0);
   return 0;
 #else
   return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
@@ -642,6 +643,7 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
 int taosGetLocalIp(const char *eth, char *ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
+  assert(0);
   return 0;
 #else
   int                fd;
@@ -668,6 +670,7 @@ int taosGetLocalIp(const char *eth, char *ip) {
 int taosValidIp(uint32_t ip) {
 #if defined(WINDOWS)
   // DO NOTHAING
+  assert(0);
   return 0;
 #else
   int ret = -1;
@@ -866,6 +869,7 @@ int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len
 
 void taosBlockSIGPIPE() {
 #ifdef WINDOWS
+  // assert(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -976,14 +980,12 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
 }
 
 void taosIgnSIGPIPE() {
-#ifdef WINDOWS
-#else
   signal(SIGPIPE, SIG_IGN);
-#endif
 }
 
 void taosSetMaskSIGPIPE() {
 #ifdef WINDOWS
+  // assert(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
@@ -1005,6 +1007,7 @@ int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *a
 TdEpollPtr taosCreateEpoll(int32_t size) {
   EpollFd fd = -1;
 #ifdef WINDOWS
+  assert(0);
 #else
   fd = epoll_create(size);
 #endif
@@ -1027,6 +1030,7 @@ int32_t taosCtlEpoll(TdEpollPtr pEpoll, int32_t epollOperate, TdSocketPtr pSocke
     return -1;
   }
 #ifdef WINDOWS
+  assert(0);
 #else
   code = epoll_ctl(pEpoll->fd, epollOperate, pSocket->fd, event);
 #endif
@@ -1038,6 +1042,7 @@ int32_t taosWaitEpoll(TdEpollPtr pEpoll, struct epoll_event *event, int32_t maxE
     return -1;
   }
 #ifdef WINDOWS
+  assert(0);
 #else
   code = epoll_wait(pEpoll->fd, event, maxEvents, timeout);
 #endif

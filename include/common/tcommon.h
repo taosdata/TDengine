@@ -201,18 +201,17 @@ typedef struct SExprInfo {
 } SExprInfo;
 
 typedef struct {
-  const char* key;
-  int32_t keyLen;
-  uint8_t type;
-  int16_t length;
+  const char*   key;
+  int32_t       keyLen;
+  uint8_t       type;
   union{
     const char* value;
-    int64_t  i;
-    uint64_t u;
-    double   d;
-    float    f;
+    int64_t     i;
+    uint64_t    u;
+    double      d;
+    float       f;
   };
-  int32_t valueLen;
+  int32_t       length;
 } SSmlKv;
 
 #define QUERY_ASC_FORWARD_STEP  1
