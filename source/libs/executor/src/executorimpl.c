@@ -155,9 +155,8 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 
 void operatorDummyCloseFn(void* param, int32_t numOfCols) {}
 
-static int32_t doCopyToSDataBlock(SExecTaskInfo *taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo, int32_t orderType, int32_t* rowCellOffset,
-                                  SqlFunctionCtx* pCtx);
+static int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
+                                  int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs);
 
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void setResultBufSize(STaskAttr* pQueryAttr, SResultInfo* pResultInfo);
@@ -898,6 +897,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
+      colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
       colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
       numOfRows = dest.numOfRows;
@@ -937,6 +937,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
+        colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
         colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
         numOfRows = dest.numOfRows;
@@ -2113,6 +2114,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   if (pFilterNode == NULL) {
     return;
@@ -2127,43 +2129,60 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   code = filterSetDataFromSlotId(filter, &param1);
 
   int8_t* rowRes = NULL;
+  // todo the keep seems never to be True??
   bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  SSDataBlock* px = createOneDataBlock(pBlock, false);
-  blockDataEnsureCapacity(px, pBlock->info.rows);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+  blockDataUpdateTsWindow(pBlock);
+}
 
-  // todo extract method
-  int32_t numOfRow = 0;
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
-    SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-    if (keep) {
-      colDataAssign(pDst, pSrc, pBlock->info.rows);
-      numOfRow = pBlock->info.rows;
-    } else if (NULL != rowRes) {
-      numOfRow = 0;
-      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+  if (keep) {
+    return;
+  }
+
+  if (rowRes != NULL) {
+    SSDataBlock* px = createOneDataBlock(pBlock, false);
+    blockDataEnsureCapacity(px, pBlock->info.rows);
+
+    int32_t totalRows = pBlock->info.rows;
+
+    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+      SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+
+      // For the reserved column, the value is not filled yet, so the whole column data may be NULL.
+      if (pSrc->pData == NULL) {
+        continue;
+      }
+
+      int32_t numOfRows = 0;
+      for (int32_t j = 0; j < totalRows; ++j) {
         if (rowRes[j] == 0) {
           continue;
         }
 
         if (colDataIsNull_s(pSrc, j)) {
-          colDataAppendNULL(pDst, numOfRow);
+          colDataAppendNULL(pDst, numOfRows);
         } else {
-          colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
+          colDataAppend(pDst, numOfRows, colDataGetData(pSrc, j), false);
         }
-        numOfRow += 1;
+        numOfRows += 1;
       }
-    } else {
-      numOfRow = 0;
+
+      if (pBlock->info.rows == totalRows) {
+        pBlock->info.rows = numOfRows;
+      } else {
+        ASSERT(pBlock->info.rows == numOfRows);
+      }
+
+      *pSrc = *pDst;
     }
-
-    *pSrc = *pDst;
+  } else {
+    // do nothing
+    pBlock->info.rows = 0;
   }
-
-  pBlock->info.rows = numOfRow;
-  blockDataUpdateTsWindow(pBlock);
 }
 
 void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, uint64_t groupId,
@@ -2214,7 +2233,7 @@ void setExecutionContext(int32_t numOfOutput, uint64_t groupId, SExecTaskInfo* p
  * @param result
  */
 int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
-                           int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx) {
+                           int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t numOfResult = pBlock->info.rows;  // there are already exists result rows
 
@@ -2248,13 +2267,12 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
 
     pGroupResInfo->index += 1;
 
-    for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
+    for (int32_t j = 0; j < numOfExprs; ++j) {
       int32_t slotId = pExprInfo[j].base.resSchema.slotId;
 
       pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
       if (pCtx[j].fpSet.finalize) {
-        int32_t code = TSDB_CODE_SUCCESS;
-        code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+        int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code)) {
           qError("%s build result data block error, code %s", GET_TASKID(taskInfo), tstrerror(code));
           taskInfo->code = code;
@@ -2286,9 +2304,12 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
   return 0;
 }
 
-void doBuildResultDatablock(SExecTaskInfo *taskInfo, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
-                            SDiskbasedBuf* pBuf) {
+void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf) {
   assert(pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
+
+  SExprInfo* pExprInfo = pOperator->pExpr;
+  int32_t numOfExprs = pOperator->numOfExprs;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   int32_t*        rowCellOffset = pbInfo->rowCellInfoOffset;
   SSDataBlock*    pBlock = pbInfo->pRes;
@@ -2300,7 +2321,7 @@ void doBuildResultDatablock(SExecTaskInfo *taskInfo, SOptrBasicInfo* pbInfo, SGr
   }
 
   int32_t orderType = TSDB_ORDER_ASC;
-  doCopyToSDataBlock(taskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx);
+  doCopyToSDataBlock(pTaskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx, numOfExprs);
 
   // add condition (pBlock->info.rows >= 1) just to runtime happy
   blockDataUpdateTsWindow(pBlock);
@@ -3803,7 +3824,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   }
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pTaskInfo, pInfo, &pAggInfo->groupResInfo, pOperator->pExpr, pAggInfo->aggSup.pResultBuf);
+  doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
   if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pAggInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
@@ -4963,7 +4984,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
     int32_t      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
 
-    pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, pTaskInfo);
+    SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
+    SColumn col = extractColumnFromColumnNode(pColNode);
+    pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, &col, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_JOIN == type) {
     SJoinPhysiNode* pJoinNode = (SJoinPhysiNode*)pPhyNode;
     SSDataBlock*    pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
@@ -5028,6 +5051,17 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
+SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
+  SColumn c = {0};
+  c.slotId    = pColNode->slotId;
+  c.colId     = pColNode->colId;
+  c.type      = pColNode->node.resType.type;
+  c.bytes     = pColNode->node.resType.bytes;
+  c.scale     = pColNode->node.resType.scale;
+  c.precision = pColNode->node.resType.precision;
+  return c;
+}
+
 SArray* extractColumnInfo(SNodeList* pNodeList) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColumn));
@@ -5042,15 +5076,7 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
     if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
       SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-      // todo extract method
-      SColumn c = {0};
-      c.slotId = pColNode->slotId;
-      c.colId = pColNode->colId;
-      c.type = pColNode->node.resType.type;
-      c.bytes = pColNode->node.resType.bytes;
-      c.scale = pColNode->node.resType.scale;
-      c.precision = pColNode->node.resType.precision;
-
+      SColumn c = extractColumnFromColumnNode(pColNode);
       taosArrayPush(pList, &c);
     } else if (nodeType(pNode->pExpr) == QUERY_NODE_VALUE) {
       SValueNode* pValNode = (SValueNode*)pNode->pExpr;

@@ -89,6 +89,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_REPEAT_INIT                   TAOS_DEF_ERROR_CODE(0, 0x0115)
 #define TSDB_CODE_DUP_KEY                       TAOS_DEF_ERROR_CODE(0, 0x0116)
 #define TSDB_CODE_NEED_RETRY                    TAOS_DEF_ERROR_CODE(0, 0x0117)
+#define TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE       TAOS_DEF_ERROR_CODE(0, 0x0118)
 
 #define TSDB_CODE_REF_NO_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0140)
 #define TSDB_CODE_REF_FULL                      TAOS_DEF_ERROR_CODE(0, 0x0141)

@@ -37,6 +37,7 @@ typedef int32_t TdUcs4;
     #define wcstombs WCSTOMBS_FUNC_TAOS_FORBID
     #define wcsncpy WCSNCPY_FUNC_TAOS_FORBID
     #define wchar_t WCHAR_T_TYPE_TAOS_FORBID
+    #define strcasestr STR_CASE_STR_FORBID
 #endif
 
 #ifdef WINDOWS
@@ -68,6 +69,8 @@ int32_t taosMbToWchar(TdWchar *pWchar, const char *pStr, int32_t size);
 int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size);
 int32_t taosWcharToMb(char *pStr, TdWchar wchar);
 int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size);
+
+char *taosStrCaseStr(const char *str, const char *pattern);
 
 #ifdef __cplusplus
 }
