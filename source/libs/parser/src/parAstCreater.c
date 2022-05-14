@@ -14,6 +14,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include <regex.h>
+
 #include "parAst.h"
 #include "parUtil.h"
 #include "ttime.h"
@@ -76,6 +78,19 @@ static bool checkUserName(SAstCreateContext* pCxt, SToken* pUserName) {
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
+static bool invalidPassword(const char* pPassword) {
+  regex_t regex;
+
+  if (regcomp(&regex, "[ '\"`\\]", REG_EXTENDED | REG_ICASE) != 0) {
+    return false;
+  }
+
+  /* Execute regular expression */
+  int32_t res = regexec(&regex, pPassword, 0, NULL, 0);
+  regfree(&regex);
+  return 0 == res;
+}
+
 static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken, char* pPassword) {
   if (NULL == pPasswordToken) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
@@ -86,6 +101,8 @@ static bool checkPassword(SAstCreateContext* pCxt, const SToken* pPasswordToken,
     strdequote(pPassword);
     if (strtrim(pPassword) <= 0) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_PASSWD_EMPTY);
+    } else if (invalidPassword(pPassword)) {
+      pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PASSWD);
     }
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode;

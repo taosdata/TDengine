@@ -460,8 +460,11 @@ int indexCacheSchedToMerge(IndexCache* pCache) {
   schedMsg.fp = doMergeWork;
   schedMsg.ahandle = pCache;
   schedMsg.thandle = NULL;
+  // schedMsg.thandle = taosMemoryCalloc(1, sizeof(int64_t));
+  // memcpy((char*)(schedMsg.thandle), (char*)&(pCache->index->refId), sizeof(int64_t));
   schedMsg.msg = NULL;
 
+  indexAcquireRef(pCache->index->refId);
   taosScheduleTask(indexQhandle, &schedMsg);
 
   return 0;

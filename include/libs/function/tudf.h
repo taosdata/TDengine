@@ -39,16 +39,6 @@ extern "C" {
 //======================================================================================
 //begin API to taosd and qworker
 
-typedef void *UdfcFuncHandle;
-
-/**
- * setup udf
- * @param udf, in
- * @param handle, out
- * @return error code
- */
-int32_t setupUdf(char udfName[], UdfcFuncHandle *handle);
-
 typedef struct SUdfColumnMeta {
   int16_t type;
   int32_t bytes;
@@ -95,32 +85,42 @@ typedef struct SUdfInterBuf {
   char* buf;
   int8_t numOfResult; //zero or one
 } SUdfInterBuf;
+typedef void *UdfcFuncHandle;
 
+/**
+ * setup udf
+ * @param udf, in
+ * @param funcHandle, out
+ * @return error code
+ */
+int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle);
 // output: interBuf
-int32_t callUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
+int32_t doCallUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
 // input: block, state
 // output: newState
-int32_t callUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
+int32_t doCallUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
 // input: interBuf
 // output: resultData
-int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
+int32_t doCallUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
 // input: interbuf1, interbuf2
 // output: resultBuf
-int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
+int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
-int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
+int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 /**
  * tearn down udf
  * @param handle
  * @return
  */
-int32_t teardownUdf(UdfcFuncHandle handle);
+int32_t doTeardownUdf(UdfcFuncHandle handle);
 
 bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
+
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 // end API to taosd and qworker
 //=============================================================================================================================
 // begin API to UDF writer.
