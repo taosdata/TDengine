@@ -272,7 +272,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
-void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg *newConfig);
+void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);

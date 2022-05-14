@@ -5,6 +5,7 @@
 #include "syncInt.h"
 #include "syncUtil.h"
 #include "wal.h"
+#include "os.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -26,6 +27,8 @@ void init() {
 
   code = syncInit();
   assert(code == 0);
+
+  sprintf(tsTempDir, "%s", ".");
 }
 
 void cleanup() { walCleanUp(); }
@@ -94,7 +97,7 @@ SWal* createWal(char* path, int32_t vgId) {
   return pWal;
 }
 
-int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path) {
+int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path, bool isStandBy) {
   SSyncInfo syncInfo;
   syncInfo.vgId = vgId;
   syncInfo.rpcClient = gSyncIO->clientRpc;
@@ -106,13 +109,22 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   syncInfo.pWal = pWal;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
-  pCfg->myIndex = myIndex;
-  pCfg->replicaNum = replicaNum;
 
-  for (int i = 0; i < replicaNum; ++i) {
-    pCfg->nodeInfo[i].nodePort = gPorts[i];
-    taosGetFqdn(pCfg->nodeInfo[i].nodeFqdn);
-    // snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
+  if (isStandBy) {
+    pCfg->myIndex = 0;
+    pCfg->replicaNum = 1;
+    pCfg->nodeInfo[0].nodePort = gPorts[myIndex];
+    taosGetFqdn(pCfg->nodeInfo[myIndex].nodeFqdn);
+
+  } else {
+    pCfg->myIndex = myIndex;
+    pCfg->replicaNum = replicaNum;
+
+    for (int i = 0; i < replicaNum; ++i) {
+      pCfg->nodeInfo[i].nodePort = gPorts[i];
+      taosGetFqdn(pCfg->nodeInfo[i].nodeFqdn);
+      // snprintf(pCfg->nodeInfo[i].nodeFqdn, sizeof(pCfg->nodeInfo[i].nodeFqdn), "%s", "127.0.0.1");
+    }
   }
 
   int64_t rid = syncOpen(&syncInfo);
@@ -136,7 +148,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   return rid;
 }
 
-void usage(char* exe) { printf("usage: %s replicaNum myIndex lastApplyIndex writeRecordNum \n", exe); }
+void usage(char* exe) { printf("usage: %s replicaNum myIndex lastApplyIndex writeRecordNum isStandBy \n", exe); }
 
 SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
   SRpcMsg* pMsg = (SRpcMsg*)taosMemoryMalloc(sizeof(SRpcMsg));
@@ -151,14 +163,16 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
   sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
-  if (argc != 5) {
+  if (argc != 6) {
     usage(argv[0]);
     exit(-1);
   }
+
   int32_t replicaNum = atoi(argv[1]);
   int32_t myIndex = atoi(argv[2]);
   int32_t lastApplyIndex = atoi(argv[3]);
   int32_t writeRecordNum = atoi(argv[4]);
+  bool    isStandBy = atoi(argv[5]);
   gSnapshotLastApplyIndex = lastApplyIndex;
 
   assert(replicaNum >= 1 && replicaNum <= 5);
@@ -174,9 +188,14 @@ int main(int argc, char** argv) {
   snprintf(walPath, sizeof(walPath), "%s_wal_replica%d_index%d", gDir, replicaNum, myIndex);
   SWal* pWal = createWal(walPath, gVgId);
 
-  int64_t rid = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir);
+  int64_t rid = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir, isStandBy);
   assert(rid > 0);
-  syncStart(rid);
+
+  if (isStandBy) {
+    syncStartStandBy(rid);
+  } else {
+    syncStart(rid);
+  }
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);

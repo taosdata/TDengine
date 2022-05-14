@@ -126,7 +126,7 @@ void syncStop(int64_t rid) {
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   int32_t ret = 0;
-  char *configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
+  char*   configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
   SRpcMsg rpcMsg = {0};
   rpcMsg.msgType = TDMT_VND_SYNC_CONFIG_CHANGE;
   rpcMsg.noResp = 1;
@@ -198,10 +198,9 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
     (pEpSet->numOfEps)++;
 
     sInfo("syncGetEpSet index:%d %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
-
   }
   pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
-  
+
   sInfo("syncGetEpSet pEpSet->inUse:%d ", pEpSet->inUse);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -879,7 +878,7 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   return s;
 }
 
-void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg *newConfig) {
+void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
   pSyncNode->pRaftCfg->cfg = *newConfig;
   int32_t ret = raftCfgPersist(pSyncNode->pRaftCfg);
   ASSERT(ret == 0);
@@ -1266,7 +1265,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      //if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;
@@ -1288,7 +1287,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      //if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;
