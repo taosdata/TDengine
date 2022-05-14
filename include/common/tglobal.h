@@ -69,7 +69,6 @@ extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeSharedThreads;
 extern int32_t tsNumOfSnodeUniqueThreads;
 extern int64_t tsRpcQueueMemoryAllowed;
-extern int64_t tsRpcQueueMemoryUsed;
 
 // monitor
 extern bool     tsEnableMonitor;

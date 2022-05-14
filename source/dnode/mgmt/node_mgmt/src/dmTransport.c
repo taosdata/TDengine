@@ -79,7 +79,7 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   needRelease = true;
 
   if ((msgFp = dmGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
-  if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
+  if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg), RPC_QITEM)) == NULL) goto _OVER;
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
   if (pWrapper->procType != DND_PROC_PARENT) {

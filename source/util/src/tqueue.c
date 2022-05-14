@@ -18,20 +18,21 @@
 #include "taoserror.h"
 #include "tlog.h"
 
+int64_t tsRpcQueueMemoryAllowed = 0;
+int64_t tsRpcQueueMemoryUsed = 0;
+
 typedef struct STaosQnode STaosQnode;
 
 typedef struct STaosQnode {
   STaosQnode *next;
   STaosQueue *queue;
   int32_t     size;
-  int32_t     reserved;
+  int8_t      itype;
+  int8_t      reserved[3];
   char        item[];
 } STaosQnode;
 
 typedef struct STaosQueue {
-  int64_t       memOfItems;
-  int32_t       numOfItems;
-  int32_t       threadId;
   STaosQnode   *head;
   STaosQnode   *tail;
   STaosQueue   *next;     // for queue set
@@ -40,15 +41,17 @@ typedef struct STaosQueue {
   FItem         itemFp;
   FItems        itemsFp;
   TdThreadMutex mutex;
+  int64_t       memOfItems;
+  int32_t       numOfItems;
 } STaosQueue;
 
 typedef struct STaosQset {
   STaosQueue   *head;
   STaosQueue   *current;
   TdThreadMutex mutex;
+  tsem_t        sem;
   int32_t       numOfQueues;
   int32_t       numOfItems;
-  tsem_t        sem;
 } STaosQset;
 
 typedef struct STaosQall {
@@ -120,6 +123,8 @@ bool taosQueueEmpty(STaosQueue *queue) {
 }
 
 int32_t taosQueueItemSize(STaosQueue *queue) {
+  if (queue == NULL) return 0;
+
   taosThreadMutexLock(&queue->mutex);
   int32_t numOfItems = queue->numOfItems;
   taosThreadMutexUnlock(&queue->mutex);
@@ -127,32 +132,51 @@ int32_t taosQueueItemSize(STaosQueue *queue) {
 }
 
 int64_t taosQueueMemorySize(STaosQueue *queue) {
+  if (queue == NULL) return 0;
+
   taosThreadMutexLock(&queue->mutex);
   int64_t memOfItems = queue->memOfItems;
   taosThreadMutexUnlock(&queue->mutex);
   return memOfItems;
 }
 
-void *taosAllocateQitem(int32_t size) {
+void *taosAllocateQitem(int32_t size, EQItype itype) {
   STaosQnode *pNode = taosMemoryCalloc(1, sizeof(STaosQnode) + size);
   pNode->size = size;
+  pNode->itype = itype;
 
   if (pNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return NULL;
   }
 
-  uTrace("item:%p, node:%p is allocated", pNode->item, pNode);
+  if (itype == RPC_QITEM) {
+    int64_t alloced = atomic_add_fetch_64(&tsRpcQueueMemoryUsed, size);
+    if (alloced > tsRpcQueueMemoryUsed) {
+      taosMemoryFree(pNode);
+      terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE;
+      return NULL;
+    }
+    uTrace("item:%p, node:%p is allocated, alloc:%" PRId64, pNode->item, pNode, alloced);
+  } else {
+    uTrace("item:%p, node:%p is allocated", pNode->item, pNode);
+  }
+
   return (void *)pNode->item;
 }
 
 void taosFreeQitem(void *pItem) {
   if (pItem == NULL) return;
 
-  char *temp = pItem;
-  temp -= sizeof(STaosQnode);
-  uTrace("item:%p, node:%p is freed", pItem, temp);
-  taosMemoryFree(temp);
+  STaosQnode *pNode = (STaosQnode *)((char *)pItem - sizeof(STaosQnode));
+  if (pNode->itype > 0) {
+    int64_t alloced = atomic_sub_fetch_64(&tsRpcQueueMemoryUsed, pNode->size);
+    uTrace("item:%p, node:%p is freed, alloc:%" PRId64, pItem, pNode, alloced);
+  } else {
+    uTrace("item:%p, node:%p is freed", pItem, pNode);
+  }
+
+  taosMemoryFree(pNode);
 }
 
 void taosWriteQitem(STaosQueue *queue, void *pItem) {
@@ -203,7 +227,13 @@ int32_t taosReadQitem(STaosQueue *queue, void **ppItem) {
   return code;
 }
 
-STaosQall *taosAllocateQall() { return taosMemoryCalloc(1, sizeof(STaosQall)); }
+STaosQall *taosAllocateQall() {
+  STaosQall *qall = taosMemoryCalloc(1, sizeof(STaosQall));
+  if (qall != NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+  return qall;
+}
 
 void taosFreeQall(STaosQall *qall) { taosMemoryFree(qall); }
 
@@ -457,24 +487,4 @@ void taosResetQsetThread(STaosQset *qset, void *pItem) {
     tsem_post(&qset->sem);
   }
   taosThreadMutexUnlock(&qset->mutex);
-}
-
-int32_t taosGetQueueItemsNumber(STaosQueue *queue) {
-  if (!queue) return 0;
-
-  int32_t num;
-  taosThreadMutexLock(&queue->mutex);
-  num = queue->numOfItems;
-  taosThreadMutexUnlock(&queue->mutex);
-  return num;
-}
-
-int32_t taosGetQsetItemsNumber(STaosQset *qset) {
-  if (!qset) return 0;
-
-  int32_t num = 0;
-  taosThreadMutexLock(&qset->mutex);
-  num = qset->numOfItems;
-  taosThreadMutexUnlock(&qset->mutex);
-  return num;
 }

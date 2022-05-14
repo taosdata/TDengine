@@ -61,8 +61,6 @@ int32_t tsNumOfQnodeQueryThreads = 2;
 int32_t tsNumOfQnodeFetchThreads = 2;
 int32_t tsNumOfSnodeSharedThreads = 2;
 int32_t tsNumOfSnodeUniqueThreads = 2;
-int64_t tsRpcQueueMemoryAllowed = 0;
-int64_t tsRpcQueueMemoryUsed = 0;
 
 // monitor
 bool     tsEnableMonitor = true;
