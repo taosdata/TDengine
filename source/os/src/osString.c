@@ -238,24 +238,20 @@ int32_t taosWcharToMb(char *pStr, TdWchar wchar) { return wctomb(pStr, wchar); }
 int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size) { return wcstombs(pStrs, pWchars, size); }
 
 char *taosStrCaseStr(const char *str, const char *pattern) {
-#ifdef WINDOWS
-    size_t i; 
+  size_t i; 
 
-    if (!*pattern) 
-     return (char*)str; 
+  if (!*pattern) 
+    return (char*)str; 
 
-    for (; *str; str++) { 
-     if (toupper(*str) == toupper(*pattern)) { 
-      for (i = 1;; i++) { 
-       if (!pattern[i]) 
-        return (char*)str; 
-       if (toupper(str[i]) != toupper(pattern[i])) 
-        break; 
-      } 
-     } 
+  for (; *str; str++) { 
+    if (toupper(*str) == toupper(*pattern)) { 
+    for (i = 1;; i++) { 
+      if (!pattern[i]) 
+      return (char*)str; 
+      if (toupper(str[i]) != toupper(pattern[i])) 
+      break; 
     } 
-    return NULL; 
-#else
-  return strcasestr(str, pattern);
-#endif
+    } 
+  } 
+  return NULL; 
 }
