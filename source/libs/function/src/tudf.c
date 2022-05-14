@@ -825,6 +825,11 @@ void onUdfcPipeClose(uv_handle_t *handle) {
   taosMemoryFree(conn->readBuf.buf);
   taosMemoryFree(conn);
   taosMemoryFree((uv_pipe_t *) handle);
+
+  //clear the udf handles cache
+  uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
+  taosArrayClear(gUdfdProxy.udfStubs);
+  uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
 }
 
 int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *uvTask) {
@@ -1140,7 +1145,7 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
   return code;
 }
 
-void udfClientAsyncCb(uv_async_t *async) {
+void udfcAsyncTaskCb(uv_async_t *async) {
   SUdfcProxy *udfc = async->data;
   QUEUE wq;
 
@@ -1204,7 +1209,7 @@ void constructUdfService(void *argsThread) {
   SUdfcProxy *udfc = (SUdfcProxy *)argsThread;
   uv_loop_init(&udfc->uvLoop);
 
-  uv_async_init(&udfc->uvLoop, &udfc->loopTaskAync, udfClientAsyncCb);
+  uv_async_init(&udfc->uvLoop, &udfc->loopTaskAync, udfcAsyncTaskCb);
   udfc->loopTaskAync.data = udfc;
   uv_async_init(&udfc->uvLoop, &udfc->loopStopAsync, udfStopAsyncCb);
   udfc->loopStopAsync.data = udfc;
@@ -1472,6 +1477,7 @@ int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols,
   return code;
 }
 
+//TODO: when to teardown udf. teardown udf is not called
 int32_t doTeardownUdf(UdfcFuncHandle handle) {
   fnInfo("tear down udf. udf func handle: %p", handle);
 
