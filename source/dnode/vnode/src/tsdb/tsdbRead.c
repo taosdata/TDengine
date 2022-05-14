@@ -2769,19 +2769,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   } while (moveToNextRowInMem(pCheckInfo));
 
   taosMemoryFreeClear(pSchema);  // free the STSChema
-
   assert(numOfRows <= maxRowsToRead);
-
-  // if the buffer is not full in case of descending order query, move the data in the front of the buffer
-  if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order) && numOfRows < maxRowsToRead) {
-    int32_t emptySize = maxRowsToRead - numOfRows;
-
-    for (int32_t i = 0; i < numOfCols; ++i) {
-      SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
-      memmove((char*)pColInfo->pData, (char*)pColInfo->pData + emptySize * pColInfo->info.bytes,
-              numOfRows * pColInfo->info.bytes);
-    }
-  }
 
   int64_t elapsedTime = taosGetTimestampUs() - st;
   tsdbDebug("%p build data block from cache completed, elapsed time:%" PRId64 " us, numOfRows:%d, numOfCols:%d, %s",
