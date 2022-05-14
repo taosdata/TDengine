@@ -145,9 +145,9 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
   } while (0)
 
 #define CONN_HOST_THREAD_INDEX(conn) (conn ? ((SCliConn*)conn)->hThrdIdx : -1)
-#define CONN_PERSIST_TIME(para)      (para * 1000 * 10)
-#define CONN_GET_HOST_THREAD(conn)   (conn ? ((SCliConn*)conn)->hostThrd : NULL)
-#define CONN_GET_INST_LABEL(conn)    (((STrans*)(((SCliThrdObj*)(conn)->hostThrd)->pTransInst))->label)
+#define CONN_PERSIST_TIME(para) (para * 1000 * 10)
+#define CONN_GET_HOST_THREAD(conn) (conn ? ((SCliConn*)conn)->hostThrd : NULL)
+#define CONN_GET_INST_LABEL(conn) (((STrans*)(((SCliThrdObj*)(conn)->hostThrd)->pTransInst))->label)
 #define CONN_SHOULD_RELEASE(conn, head)                                                  \
   do {                                                                                   \
     if ((head)->release == 1 && (head->msgLen) == sizeof(*head)) {                       \
@@ -223,11 +223,11 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
 #define CONN_RELEASE_BY_SERVER(conn) \
   (((conn)->status == ConnRelease || (conn)->status == ConnInPool) && T_REF_VAL_GET(conn) == 1)
 
-#define REQUEST_NO_RESP(msg)         ((msg)->noResp == 1)
-#define REQUEST_PERSIS_HANDLE(msg)   ((msg)->persistHandle == 1)
+#define REQUEST_NO_RESP(msg) ((msg)->noResp == 1)
+#define REQUEST_PERSIS_HANDLE(msg) ((msg)->persistHandle == 1)
 #define REQUEST_RELEASE_HANDLE(cmsg) ((cmsg)->type == Release)
 
-#define EPSET_GET_INUSE_IP(epSet)   ((epSet)->eps[(epSet)->inUse].fqdn)
+#define EPSET_GET_INUSE_IP(epSet) ((epSet)->eps[(epSet)->inUse].fqdn)
 #define EPSET_GET_INUSE_PORT(epSet) ((epSet)->eps[(epSet)->inUse].port)
 
 static void* cliWorkThread(void* arg);
