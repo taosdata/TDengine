@@ -34,7 +34,6 @@ extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
 
 // common
-extern int32_t tsMaxConnections;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;

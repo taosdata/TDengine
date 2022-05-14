@@ -54,7 +54,7 @@ int32_t walRegisterRead(SWalReadHandle *pRead, int64_t ver) {
   return 0;
 }
 
-static int32_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
+static int64_t walReadSeekFilePos(SWalReadHandle *pRead, int64_t fileFirstVer, int64_t ver) {
   int64_t ret = 0;
 
   TdFilePtr pIdxTFile = pRead->pReadIdxTFile;
@@ -156,7 +156,7 @@ static int32_t walReadSeekVer(SWalReadHandle *pRead, int64_t ver) {
 void walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity) { pRead->capacity = capacity; }
 
 int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead) {
-  int32_t code;
+  int64_t code;
 
   // TODO: valid ver
   if (ver > pRead->pWal->vers.commitVer) {
@@ -214,23 +214,24 @@ int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead) {
       return -1;
     }
     *ppHead = ptr;
+    pReadHead = &((*ppHead)->head);
     pRead->capacity = pReadHead->bodyLen;
   }
 
   if (pReadHead->bodyLen != taosReadFile(pRead->pReadLogTFile, pReadHead->body, pReadHead->bodyLen)) {
+    ASSERT(0);
     return -1;
   }
 
   if (pReadHead->version != ver) {
-    wError("unexpected wal log version: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version,
-           ver);
+    wError("wal fetch body error: %" PRId64 ", read request version:%" PRId64 "", pRead->pHead->head.version, ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
   }
 
   if (walValidBodyCksum(*ppHead) != 0) {
-    wError("unexpected wal log version: % " PRId64 ", since body checksum not passed", ver);
+    wError("wal fetch body error: % " PRId64 ", since body checksum not passed", ver);
     pRead->curVersion = -1;
     terrno = TSDB_CODE_WAL_FILE_CORRUPTED;
     return -1;
@@ -257,7 +258,7 @@ int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **p
 }
 
 int32_t walReadWithHandle(SWalReadHandle *pRead, int64_t ver) {
-  int code;
+  int64_t code;
   // TODO: check wal life
   if (pRead->curVersion != ver) {
     if (walReadSeekVer(pRead, ver) < 0) {

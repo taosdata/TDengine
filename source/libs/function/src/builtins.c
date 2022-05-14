@@ -339,6 +339,53 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of MAVG function can only be column");
+  }
+
+  uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_NUMERIC_TYPE(colType) || !IS_INTEGER_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of SAMPLE function can only be column");
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_INTEGER_TYPE(paraType)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  uint8_t colType = pCol->resType.type;
+  if (IS_VAR_DATA_TYPE(colType)) {
+    pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
+  } else {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[colType].bytes, .type = colType};
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateLastRow(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   // todo
   return TSDB_CODE_SUCCESS;
@@ -781,6 +828,26 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getCsumFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = csumFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "mavg",
+    .type = FUNCTION_TYPE_MAVG,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateMavg,
+    .getEnvFunc   = getMavgFuncEnv,
+    .initFunc     = mavgFunctionSetup,
+    .processFunc  = mavgFunction,
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "sample",
+    .type = FUNCTION_TYPE_SAMPLE,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateSample,
+    .getEnvFunc   = getSampleFuncEnv,
+    .initFunc     = sampleFunctionSetup,
+    .processFunc  = sampleFunction,
     .finalizeFunc = NULL
   },
   {

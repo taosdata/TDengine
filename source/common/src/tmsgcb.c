@@ -19,12 +19,16 @@
 
 static SMsgCb tsDefaultMsgCb;
 
-void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
+void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) {
+  // if (tsDefaultMsgCb.pWrapper == NULL) {
+  tsDefaultMsgCb = *pMsgCb;
+  //}
+}
 
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
   PutToQueueFp fp = pMsgCb->queueFps[qtype];
   if (fp != NULL) {
-    return (*fp)(pMsgCb->pWrapper, pReq);
+    return (*fp)(pMsgCb->pMgmt, pReq);
   } else {
     terrno = TSDB_CODE_INVALID_PTR;
     return -1;
@@ -34,7 +38,7 @@ int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
   GetQueueSizeFp fp = pMsgCb->qsizeFp;
   if (fp != NULL) {
-    return (*fp)(pMsgCb->pWrapper, vgId, qtype);
+    return (*fp)(pMsgCb->pMgmt, vgId, qtype);
   } else {
     terrno = TSDB_CODE_INVALID_PTR;
     return -1;
@@ -51,7 +55,7 @@ int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
   }
 }
 
-void tmsgSendRsp(const SRpcMsg* pRsp) {
+void tmsgSendRsp(SRpcMsg* pRsp) {
   SendRspFp fp = tsDefaultMsgCb.sendRspFp;
   if (fp != NULL) {
     return (*fp)(tsDefaultMsgCb.pWrapper, pRsp);
@@ -60,10 +64,19 @@ void tmsgSendRsp(const SRpcMsg* pRsp) {
   }
 }
 
-void tmsgSendRedirectRsp(const SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
+void tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
   SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
   if (fp != NULL) {
     (*fp)(tsDefaultMsgCb.pWrapper, pRsp, pNewEpSet);
+  } else {
+    terrno = TSDB_CODE_INVALID_PTR;
+  }
+}
+
+void tmsgSendMnodeRecv(SRpcMsg* pReq, SRpcMsg* pRsp) {
+  SendMnodeRecvFp fp = tsDefaultMsgCb.sendMnodeRecvFp;
+  if (fp != NULL) {
+    (*fp)(tsDefaultMsgCb.pWrapper, pReq, pRsp);
   } else {
     terrno = TSDB_CODE_INVALID_PTR;
   }

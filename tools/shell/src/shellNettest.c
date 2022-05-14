@@ -119,7 +119,7 @@ static void shellWorkAsServer() {
   memcpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
   rpcInit.localPort = pArgs->port;
   rpcInit.label = "CHK";
-  rpcInit.numOfThreads = tsNumOfRpcThreads;
+  rpcInit.numOfThreads = 2;
   rpcInit.cfp = (RpcCfp)shellProcessMsg;
   rpcInit.sessions = 10;
   rpcInit.connType = TAOS_CONN_SERVER;

@@ -91,7 +91,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
       return "Aggregate functions do not support nesting";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
-      return "Only support STATE_WINDOW on integer column";
+      return "Only support STATE_WINDOW on integer/bool/varchar column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_COL:
       return "Not support STATE_WINDOW on tag column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:

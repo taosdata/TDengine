@@ -457,9 +457,9 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     }
 
     if (pHeadWithCkSum->head.msgType != TDMT_VND_SUBMIT) {
-      walSkipFetchBody(pExec->pWalReader, pHeadWithCkSum);
+      ASSERT(walSkipFetchBody(pExec->pWalReader, pHeadWithCkSum) == 0);
     } else {
-      walFetchBody(pExec->pWalReader, &pHeadWithCkSum);
+      ASSERT(walFetchBody(pExec->pWalReader, &pHeadWithCkSum) == 0);
     }
 
     SWalReadHead* pHead = &pHeadWithCkSum->head;
@@ -559,6 +559,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         }
         // db subscribe
       } else if (pExec->subType == TOPIC_SUB_TYPE__DB) {
+        rsp.withSchema = 1;
         STqReadHandle* pReader = pExec->pExecReader[workerId];
         tqReadHandleSetMsg(pReader, pCont, 0);
         while (tqNextDataBlock(pReader)) {
@@ -950,6 +951,7 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
              .reader = pStreamReader,
              .meta = pTq->pVnode->pMeta,
              .pMsgCb = &pTq->pVnode->msgCb,
+             .vnode = pTq->pVnode,
       };
       pTask->exec.runners[i].inputHandle = pStreamReader;
       pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);
