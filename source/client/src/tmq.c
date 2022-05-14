@@ -185,6 +185,7 @@ typedef struct {
   int32_t        async;
   tsem_t         rspSem;
   tmq_resp_err_t rspErr;
+  SArray*        offsets;
 } SMqCommitCbParam;
 
 tmq_conf_t* tmq_conf_new() {
@@ -246,10 +247,13 @@ tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value
   if (strcmp(key, "msg.with.table.name") == 0) {
     if (strcmp(value, "true") == 0) {
       conf->withTbName = 1;
+      return TMQ_CONF_OK;
     } else if (strcmp(value, "false") == 0) {
       conf->withTbName = 0;
+      return TMQ_CONF_OK;
     } else if (strcmp(value, "none") == 0) {
       conf->withTbName = -1;
+      return TMQ_CONF_OK;
     } else {
       return TMQ_CONF_INVALID;
     }
@@ -395,6 +399,9 @@ int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
   if (!pParam->async)
     tsem_post(&pParam->rspSem);
   else {
+    if (pParam->offsets) {
+      taosArrayDestroy(pParam->offsets);
+    }
     tsem_destroy(&pParam->rspSem);
     /*if (pParam->pArray) {*/
     /*taosArrayDestroy(pParam->pArray);*/
@@ -540,10 +547,10 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   // build msg
   // send to mnode
   SMqCMCommitOffsetReq req;
-  SArray*              pArray = NULL;
+  SArray*              pOffsets = NULL;
 
   if (offsets == NULL) {
-    pArray = taosArrayInit(0, sizeof(SMqOffset));
+    pOffsets = taosArrayInit(0, sizeof(SMqOffset));
     for (int i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
       SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
       for (int j = 0; j < taosArrayGetSize(pTopic->vgs); j++) {
@@ -553,11 +560,11 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
         strcpy(offset.cgroup, tmq->groupId);
         offset.vgId = pVg->vgId;
         offset.offset = pVg->currentOffset;
-        taosArrayPush(pArray, &offset);
+        taosArrayPush(pOffsets, &offset);
       }
     }
-    req.num = pArray->size;
-    req.offsets = pArray->pData;
+    req.num = pOffsets->size;
+    req.offsets = pOffsets->pData;
   } else {
     req.num = taosArrayGetSize(&offsets->container);
     req.offsets = (SMqOffset*)offsets->container.pData;
@@ -591,6 +598,7 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
   pParam->tmq = tmq;
   tsem_init(&pParam->rspSem, 0, 0);
   pParam->async = async;
+  pParam->offsets = pOffsets;
 
   pRequest->body.requestMsg = (SDataBuf){
       .pData = buf,
@@ -613,8 +621,8 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
     tsem_destroy(&pParam->rspSem);
     taosMemoryFree(pParam);
 
-    if (pArray) {
-      taosArrayDestroy(pArray);
+    if (pOffsets) {
+      taosArrayDestroy(pOffsets);
     }
   }
 
@@ -1015,7 +1023,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   atomic_store_32(&tmq->epSkipCnt, 0);
 #endif
   int32_t      tlen = sizeof(SMqAskEpReq);
-  SMqAskEpReq* req = taosMemoryMalloc(tlen);
+  SMqAskEpReq* req = taosMemoryCalloc(1, tlen);
   if (req == NULL) {
     tscError("failed to malloc get subscribe ep buf");
     /*atomic_store_8(&tmq->epStatus, 0);*/
@@ -1025,7 +1033,7 @@ int32_t tmqAskEp(tmq_t* tmq, bool async) {
   req->epoch = htonl(tmq->epoch);
   strcpy(req->cgroup, tmq->groupId);
 
-  SMqAskEpCbParam* pParam = taosMemoryMalloc(sizeof(SMqAskEpCbParam));
+  SMqAskEpCbParam* pParam = taosMemoryCalloc(1, sizeof(SMqAskEpCbParam));
   if (pParam == NULL) {
     tscError("failed to malloc subscribe param");
     taosMemoryFree(req);
@@ -1107,7 +1115,7 @@ SMqPollReq* tmqBuildConsumeReqImpl(tmq_t* tmq, int64_t waitTime, SMqClientTopic*
     reqOffset = tmq->resetOffsetCfg;
   }
 
-  SMqPollReq* pReq = taosMemoryMalloc(sizeof(SMqPollReq));
+  SMqPollReq* pReq = taosMemoryCalloc(1, sizeof(SMqPollReq));
   if (pReq == NULL) {
     return NULL;
   }

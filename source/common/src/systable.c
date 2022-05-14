@@ -26,7 +26,7 @@ static const SSysDbTableSchema dnodesSchema[] = {
     {.name = "id", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
-    {.name = "max_vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
+    {.name = "support_vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "note", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},

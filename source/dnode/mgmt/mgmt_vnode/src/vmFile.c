@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-SVnodeObj **vmGetVnodeListFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes) {
+SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
   taosRLockLatch(&pMgmt->latch);
 
   int32_t     num = 0;
@@ -44,10 +44,10 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodesMgmt *pMgmt, int32_t *numOfVnodes) {
   return pVnodes;
 }
 
-int32_t vmGetVnodeListFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
+int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes) {
   int32_t      code = TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t      len = 0;
-  int32_t      maxLen = 30000;
+  int32_t      maxLen = 1024 * 1024;
   char        *content = taosMemoryCalloc(1, maxLen + 1);
   cJSON       *root = NULL;
   FILE        *fp = NULL;
@@ -62,6 +62,11 @@ int32_t vmGetVnodeListFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t
     dDebug("file %s not exist", file);
     code = 0;
     goto _OVER;
+  }
+
+  if (content == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
   }
 
   len = (int32_t)taosReadFile(pFile, content, maxLen);
@@ -116,20 +121,6 @@ int32_t vmGetVnodeListFromFile(SVnodesMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t
         goto _OVER;
       }
       pCfg->vgVersion = vgVersion->valueint;
-
-      cJSON *dbUid = cJSON_GetObjectItem(vnode, "dbUid");
-      if (!dbUid || dbUid->type != cJSON_String) {
-        dError("failed to read %s since dbUid not found", file);
-        goto _OVER;
-      }
-      pCfg->dbUid = atoll(dbUid->valuestring);
-
-      cJSON *db = cJSON_GetObjectItem(vnode, "db");
-      if (!db || db->type != cJSON_String) {
-        dError("failed to read %s since db not found", file);
-        goto _OVER;
-      }
-      tstrncpy(pCfg->db, db->valuestring, TSDB_DB_FNAME_LEN);
     }
 
     *ppCfgs = pCfgs;
@@ -148,9 +139,9 @@ _OVER:
   return code;
 }
 
-int32_t vmWriteVnodeListToFile(SVnodesMgmt *pMgmt) {
-  char file[PATH_MAX];
-  char realfile[PATH_MAX];
+int32_t vmWriteVnodeListToFile(SVnodeMgmt *pMgmt) {
+  char file[PATH_MAX] = {0};
+  char realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%svnodes.json.bak", pMgmt->path, TD_DIRSEP);
   snprintf(realfile, sizeof(file), "%s%svnodes.json", pMgmt->path, TD_DIRSEP);
 
@@ -165,8 +156,12 @@ int32_t vmWriteVnodeListToFile(SVnodesMgmt *pMgmt) {
   SVnodeObj **pVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
 
   int32_t len = 0;
-  int32_t maxLen = 65536;
+  int32_t maxLen = 1024 * 1024;
   char   *content = taosMemoryCalloc(1, maxLen + 1);
+  if (content == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
 
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"vnodes\": [\n");
@@ -175,9 +170,7 @@ int32_t vmWriteVnodeListToFile(SVnodesMgmt *pMgmt) {
     len += snprintf(content + len, maxLen - len, "    {\n");
     len += snprintf(content + len, maxLen - len, "      \"vgId\": %d,\n", pVnode->vgId);
     len += snprintf(content + len, maxLen - len, "      \"dropped\": %d,\n", pVnode->dropped);
-    len += snprintf(content + len, maxLen - len, "      \"vgVersion\": %d,\n", pVnode->vgVersion);
-    len += snprintf(content + len, maxLen - len, "      \"dbUid\": \"%" PRIu64 "\",\n", pVnode->dbUid);
-    len += snprintf(content + len, maxLen - len, "      \"db\": \"%s\"\n", pVnode->db);
+    len += snprintf(content + len, maxLen - len, "      \"vgVersion\": %d\n", pVnode->vgVersion);
     if (i < numOfVnodes - 1) {
       len += snprintf(content + len, maxLen - len, "    },\n");
     } else {

@@ -153,6 +153,18 @@ void sclFreeRes(SHashObj *res) {
   taosHashCleanup(res);
 }
 
+void sclFreeUdfHandles(SHashObj *udf2handle) {
+  void *pIter = taosHashIterate(udf2handle, NULL);
+  while (pIter) {
+    UdfcFuncHandle *handle = (UdfcFuncHandle *)pIter;
+    if (handle) {
+      teardownUdf(*handle);
+    }
+    pIter = taosHashIterate(udf2handle, pIter);
+  }
+  taosHashCleanup(udf2handle);
+}
+
 void sclFreeParam(SScalarParam *param) {
   if (param->columnData != NULL) {
     colDataDestroy(param->columnData);
@@ -265,6 +277,7 @@ int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t 
     *rowNum = param->numOfRows;
   }
 
+  param->param = ctx->param;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -361,18 +374,24 @@ int32_t sclExecFunction(SFunctionNode *node, SScalarCtx *ctx, SScalarParam *outp
 
   if (fmIsUserDefinedFunc(node->funcId)) {
     UdfcFuncHandle udfHandle = NULL;
-    
-    code = setupUdf(node->functionName, &udfHandle);
-    if (code != 0) {
-      sclError("fmExecFunction error. setupUdf. function name: %s, code:%d", node->functionName, code);
-      goto _return;
+    char* udfName = node->functionName;
+    if (ctx->udf2Handle) {
+      UdfcFuncHandle *pHandle = taosHashGet(ctx->udf2Handle, udfName, strlen(udfName));
+      if (pHandle) {
+        udfHandle = *pHandle;
+      }
+    }
+    if (udfHandle == NULL) {
+      code = setupUdf(udfName, &udfHandle);
+      if (code != 0) {
+        sclError("fmExecFunction error. setupUdf. function name: %s, code:%d", udfName, code);
+        goto _return;
+      }
+      if (ctx->udf2Handle) {
+        taosHashPut(ctx->udf2Handle, udfName, strlen(udfName), &udfHandle, sizeof(UdfcFuncHandle));
+      }
     }
     code = callUdfScalarFunc(udfHandle, params, paramNum, output);
-    if (code != 0) {
-      sclError("fmExecFunction error. callUdfScalarFunc. function name: %s, udf code:%d", node->functionName, code);
-      goto _return;
-    }
-    code = teardownUdf(udfHandle);
     if (code != 0) {
       sclError("fmExecFunction error. callUdfScalarFunc. function name: %s, udf code:%d", node->functionName, code);
       goto _return;
@@ -890,15 +909,20 @@ int32_t scalarCalculateConstants(SNode *pNode, SNode **pRes) {
   SScalarCtx ctx = {0};
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
-    sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
+    sclError("taosHashInit result map failed, num:%d", SCL_DEFAULT_OP_NUM);
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
-  
+  ctx.udf2Handle = taosHashInit(SCL_DEFAULT_UDF_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == ctx.udf2Handle) {
+    sclError("taosHashInit udf to handle map failed, num:%d", SCL_DEFAULT_OP_NUM);
+    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
   nodesRewriteExprPostOrder(&pNode, sclConstantsRewriter, (void *)&ctx);
   SCL_ERR_JRET(ctx.code);
   *pRes = pNode;
 
 _return:
+  sclFreeUdfHandles(ctx.udf2Handle);
   sclFreeRes(ctx.pRes);
   return code;
 }
@@ -909,15 +933,19 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   }
 
   int32_t code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst->param};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
-    sclError("taosHashInit failed, num:%d", SCL_DEFAULT_OP_NUM);
+    sclError("taosHashInit result map failed, num:%d", SCL_DEFAULT_OP_NUM);
     SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
-  
+  ctx.udf2Handle = taosHashInit(SCL_DEFAULT_UDF_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  if (NULL == ctx.udf2Handle) {
+    sclError("taosHashInit udf to handle map failed, num:%d", SCL_DEFAULT_OP_NUM);
+    SCL_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
+  }
   nodesWalkExprPostOrder(pNode, sclCalcWalker, (void *)&ctx);
   SCL_ERR_JRET(ctx.code);
 
@@ -935,6 +963,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
 
 _return:
   //nodesDestroyNode(pNode);
+  sclFreeUdfHandles(ctx.udf2Handle);
   sclFreeRes(ctx.pRes);
   return code;
 }

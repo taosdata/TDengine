@@ -21,7 +21,9 @@
 #include "tdatablock.h"
 #include "tpercentile.h"
 
-#define HISTOGRAM_MAX_BINS_NUM   100
+#define HISTOGRAM_MAX_BINS_NUM   1000
+#define MAVG_MAX_POINTS_NUM      1000
+#define SAMPLE_MAX_POINTS_NUM    1000
 
 typedef struct SSumRes {
   union {
@@ -140,6 +142,24 @@ typedef enum {
   STATE_OPER_NE,
   STATE_OPER_EQ,
 } EStateOperType;
+
+typedef struct SMavgInfo {
+  int32_t pos;
+  double  sum;
+  int32_t numOfPoints;
+  bool    pointsMeet;
+  double  points[];
+} SMavgInfo;
+
+typedef struct SSampleInfo {
+  int32_t samples;
+  int32_t totalPoints;
+  int32_t numSampled;
+  uint8_t colType;
+  int16_t colBytes;
+  char *data;
+  int64_t *timestamp;
+} SSampleInfo;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -1636,7 +1656,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
   int32_t          type = pCol->info.type;
 
   SPercentileInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  if (pCtx->currentStage == REPEAT_SCAN && pInfo->stage == 0) {
+  if (pCtx->scanFlag == REPEAT_SCAN && pInfo->stage == 0) {
     pInfo->stage += 1;
 
     // all data are null, set it completed
@@ -1644,7 +1664,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
       pResInfo->complete = true;
       return 0;
     } else {
-      pInfo->pMemBucket = tMemBucketCreate(pCtx->inputBytes, pCtx->inputType, pInfo->minval, pInfo->maxval);
+      pInfo->pMemBucket = tMemBucketCreate(pCol->info.bytes, type, pInfo->minval, pInfo->maxval);
     }
   }
 
@@ -1695,30 +1715,28 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         pInfo->numOfElems += 1;
       }
     }
+  } else {
+    // the second stage, calculate the true percentile value
+    int32_t start = pInput->startRowIndex;
+    for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
+      if (colDataIsNull_f(pCol->nullbitmap, i)) {
+        continue;
+      }
 
-    return 0;
-  }
-
-  // the second stage, calculate the true percentile value
-  int32_t start = pInput->startRowIndex;
-  for (int32_t i = start; i < pInput->numOfRows + start; ++i) {
-    if (colDataIsNull_f(pCol->nullbitmap, i)) {
-      continue;
+      char* data = colDataGetData(pCol, i);
+      notNullElems += 1;
+      tMemBucketPut(pInfo->pMemBucket, data, 1);
     }
 
-    char* data = colDataGetData(pCol, i);
-
-    notNullElems += 1;
-    tMemBucketPut(pInfo->pMemBucket, data, 1);
+    SET_VAL(pResInfo, notNullElems, 1);
   }
 
-  SET_VAL(pResInfo, notNullElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
 int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   SVariant* pVal = &pCtx->param[1].param;
-  double    v = pVal->nType == TSDB_DATA_TYPE_INT ? pVal->i : pVal->d;
+  double    v = (pVal->nType == TSDB_DATA_TYPE_BIGINT) ? pVal->i : pVal->d;
 
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
   SPercentileInfo*     ppInfo = (SPercentileInfo*)GET_ROWCELL_INTERBUF(pResInfo);
@@ -2949,3 +2967,177 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
 
   return numOfElems;
 }
+
+bool getMavgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SMavgInfo) + MAVG_MAX_POINTS_NUM * sizeof(double);
+  return true;
+}
+
+bool mavgFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  SMavgInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->pos = 0;
+  pInfo->sum = 0;
+  pInfo->numOfPoints = pCtx->param[1].param.i;
+  if (pInfo->numOfPoints < 1 || pInfo->numOfPoints > MAVG_MAX_POINTS_NUM) {
+    return false;
+  }
+  pInfo->pointsMeet = false;
+
+  return true;
+}
+
+int32_t mavgFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SMavgInfo*           pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t numOfElems = 0;
+  int32_t type = pInputCol->info.type;
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    int32_t pos = startOffset + numOfElems;
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      //colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputCol, i);
+    double v;
+    GET_TYPED_DATA(v, double, type, data);
+
+    if (!pInfo->pointsMeet && (pInfo->pos < pInfo->numOfPoints - 1)) {
+      pInfo->points[pInfo->pos] = v;
+      pInfo->sum += v;
+    } else {
+      if (!pInfo->pointsMeet && (pInfo->pos == pInfo->numOfPoints - 1)) {
+        pInfo->sum +=v;
+        pInfo->pointsMeet = true;
+      } else {
+        pInfo->sum = pInfo->sum + v - pInfo->points[pInfo->pos];
+      }
+
+      pInfo->points[pInfo->pos] = v;
+      double result = pInfo->sum / pInfo->numOfPoints;
+      colDataAppend(pOutput, pos, (char *)&result, false);
+
+      //TODO: remove this after pTsOutput is handled
+      if (pTsOutput != NULL) {
+        colDataAppendInt64(pTsOutput, pos, &tsList[i]);
+      }
+      numOfElems++;
+    }
+
+    pInfo->pos++;
+    if (pInfo->pos == pInfo->numOfPoints) {
+      pInfo->pos = 0;
+    }
+  }
+
+  return numOfElems;
+}
+
+bool getSampleFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  SValueNode* pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  int32_t numOfSamples = pVal->datum.i;
+  pEnv->calcMemSize = sizeof(SSampleInfo) + numOfSamples * (pCol->node.resType.bytes + sizeof(int64_t));
+  return true;
+}
+
+bool sampleFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  taosSeedRand(taosSafeRand());
+
+  SSampleInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->samples = pCtx->param[1].param.i;
+  pInfo->totalPoints = 0;
+  pInfo->numSampled = 0;
+  pInfo->colType = pCtx->resDataInfo.type;
+  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  if (pInfo->samples < 1 || pInfo->samples > SAMPLE_MAX_POINTS_NUM) {
+    return false;
+  }
+  pInfo->data = (char *)pInfo + sizeof(SSampleInfo);
+  pInfo->timestamp = (int64_t *)((char *)pInfo + sizeof(SSampleInfo) + pInfo->samples * pInfo->colBytes);
+
+  return true;
+}
+
+static void sampleAssignResult(SSampleInfo* pInfo, char *data, TSKEY ts, int32_t index) {
+  assignVal(pInfo->data + index * pInfo->colBytes, data, pInfo->colBytes, pInfo->colType);
+  *(pInfo->timestamp + index) = ts;
+}
+
+static void doReservoirSample(SSampleInfo* pInfo, char *data, TSKEY ts, int32_t index) {
+  pInfo->totalPoints++;
+  if (pInfo->numSampled < pInfo->samples) {
+    sampleAssignResult(pInfo, data, ts, pInfo->numSampled);
+    pInfo->numSampled++;
+  } else {
+    int32_t j = taosRand() % (pInfo->totalPoints);
+    if (j < pInfo->samples) {
+      sampleAssignResult(pInfo, data, ts, j);
+    }
+  }
+}
+
+int32_t sampleFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SSampleInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      //colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputCol, i);
+    doReservoirSample(pInfo, data, tsList[i], i);
+  }
+
+  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
+    int32_t pos = startOffset + i;
+    colDataAppend(pOutput, pos, pInfo->data + i * pInfo->colBytes, false);
+    //TODO: handle ts output
+  }
+
+  return pInfo->numSampled;
+}
+
+//int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+//  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+//  SSampleInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+//  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
+//  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+//
+//  //int32_t currentRow = pBlock->info.rows;
+//  pResInfo->numOfRes = pInfo->numSampled;
+//
+//  for (int32_t i = 0; i < pInfo->numSampled; ++i) {
+//    colDataAppend(pCol, i, pInfo->data + i * pInfo->colBytes, false);
+//    //TODO: handle ts output
+//  }
+//
+//  return pResInfo->numOfRes;
+//}
