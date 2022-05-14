@@ -70,6 +70,7 @@ for (int i = 1; i < keyLen; ++i) {      \
 
 #define BINARY_ADD_LEN 2        // "binary"   2 means " "
 #define NCHAR_ADD_LEN 3         // L"nchar"   3 means L" "
+#define CHAR_SAVE_LENGTH 8
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -259,7 +260,7 @@ static int32_t smlBuildColumnDescription(SSmlKv* field, char* buf, int32_t bufSi
   char    tname[TSDB_TABLE_NAME_LEN] = {0};
   memcpy(tname, field->key, field->keyLen);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    int32_t bytes = field->length;   // todo
+    int32_t bytes = field->length > CHAR_SAVE_LENGTH ? (2*field->length) : CHAR_SAVE_LENGTH;
     int out = snprintf(buf, bufSize,"`%s` %s(%d)",
                        tname, tDataTypes[field->type].name, bytes);
     *outBytes = out;
@@ -459,7 +460,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
 
     size_t superTableLen = 0;
-    void *superTable = taosHashGetKey(tableMetaSml, &superTableLen);    // todo escape
+    void *superTable = taosHashGetKey(tableMetaSml, &superTableLen);
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
     strcpy(pName.dbname, info->pRequest->pDb);
     memcpy(pName.tname, superTable, superTableLen);
@@ -1305,7 +1306,7 @@ static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *col
   }
   for(size_t i = 0; i < taosArrayGetSize(cols); i++){
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
-    taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);   // todo key need escape, like \=, because find by schema name later
+    taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
   }
   taosArrayPush(oneTable->cols, &kvHash);
 
