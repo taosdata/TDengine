@@ -490,7 +490,7 @@ tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableG
 
   STableCheckInfo* pCheckInfo = taosArrayGet(pTsdbReadHandle->pTableCheckInfo, 0);
 
-  pTsdbReadHandle->pSchema = metaGetTbTSchema(pVnode->pMeta, pCheckInfo->tableId, 0);
+  pTsdbReadHandle->pSchema = metaGetTbTSchema(pVnode->pMeta, pCheckInfo->tableId, 1);
   int32_t  numOfCols = taosArrayGetSize(pTsdbReadHandle->suppInfo.defaultLoadColumn);
   int16_t* ids = pTsdbReadHandle->suppInfo.defaultLoadColumn->pData;
 
@@ -1618,7 +1618,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   if (pSchema1 == NULL) {
     // pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
     // TODO: use the real schemaVersion
-    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 0);
+    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
   }
 
 #ifdef TD_DEBUG_PRINT_ROW
@@ -1637,7 +1637,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
     if (pSchema2 == NULL) {
       // pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
       // TODO: use the real schemaVersion
-      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 0);
+      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
     }
     if (isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
@@ -2755,7 +2755,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
     win->ekey = key;
     if (rv != TD_ROW_SVER(row)) {
-      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 0);
+      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 1);
       rv = TD_ROW_SVER(row);
     }
     numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, maxRowsToRead, &curRows, row, NULL, numOfCols, pCheckInfo->tableId,
@@ -3889,7 +3889,7 @@ int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const ch
 
   // NOTE: not add ref count for super table
   SArray*         res = taosArrayInit(8, sizeof(STableKeyInfo));
-  SSchemaWrapper* pTagSchema = metaGetTableSchema(pMeta, uid, 0, true);
+  SSchemaWrapper* pTagSchema = metaGetTableSchema(pMeta, uid, 1, true);
 
   // no tags and tbname condition, all child tables of this stable are involved
   if (tbnameCond == NULL && (pTagCond == NULL || len == 0)) {

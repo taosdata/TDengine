@@ -77,6 +77,7 @@ int             metaClose(SMeta* pMeta);
 int             metaBegin(SMeta* pMeta);
 int             metaCommit(SMeta* pMeta);
 int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
+int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
