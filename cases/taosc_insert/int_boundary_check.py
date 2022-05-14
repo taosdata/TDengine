@@ -44,15 +44,15 @@ class TestIntBoundary(TDCase):
         self.tdSql.error(f'insert into {dbname}.tb values (now-1h, {self.tdCom.boundary_config["INT_MAX"]+1})')
         self.tdSql.error(f'insert into {dbname}.tb values (now-1h, -{self.tdCom.boundary_config["INT_MAX"]-1})')
 
-        self.tdSql.execute(f'create table if not exists {dbname}.tb3 (ts timestamp, c1 bigint)')
+        self.tdSql.execute(f'create table if not exists {dbname}.tb3 (ts timestamp, c1 int)')
         self.tdSql.execute(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["INT_MAX"]})')
         self.tdSql.execute(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["INT_MAX"]})')
         self.tdSql.query(f'select c1 from {dbname}.tb3 where c1={self.tdCom.boundary_config["INT_MAX"]}')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], self.tdCom.boundary_config["INT_MAX"])
         self.tdSql.query(f'select c1 from {dbname}.tb3 where c1=-{self.tdCom.boundary_config["INT_MAX"]}')
         self.tdSql.checkEqual(self.tdSql.query_data[0][0], -self.tdCom.boundary_config["INT_MAX"])
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["INT_MAX"]+1})')
-        # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["INT_MAX"]+2})')
+        self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["INT_MAX"]+1})')
+        self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["INT_MAX"]+2})')
         self.tdSql.execute(f'drop database if exists {dbname}')
 
     def run(self):

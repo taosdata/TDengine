@@ -52,7 +52,6 @@ class TestFloatBoundary(TDCase):
         self.tdSql.checkEqual(abs(float(str(self.tdCom.boundary_config["FLOAT_MAX"]).replace("e+38",""))-float(str(self.tdSql.query_data[0][0]).replace("e+38",""))) < 0.01, True)
         self.tdSql.query(f'select c1 from {dbname}.tb3 where c1<0')
         self.tdSql.checkEqual(abs(float(str(self.tdCom.boundary_config["FLOAT_MAX"]).replace("e+38",""))+float(str(self.tdSql.query_data[0][0]).replace("e+38",""))) < 0.01, True)
-        # ! bug TD-15378
         # self.tdSql.error(f'insert into {dbname}.tb3 values (now, {self.tdCom.boundary_config["FLOAT_MAX"]+1})')
         # self.tdSql.error(f'insert into {dbname}.tb3 values (now, -{self.tdCom.boundary_config["FLOAT_MAX"]+1})')
         self.tdSql.execute(f'drop database if exists {dbname}')

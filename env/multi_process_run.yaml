@@ -10,8 +10,8 @@ settings:
           config_dir: /etc/taos
           config: # will write into taos.cfg
             multiProcess: 1
-            vnodeShmSize: 31457280
-            mnodeShmSize: 6291456
+            # vnodeShmSize: 31457280
+            # mnodeShmSize: 6291456
             # qnodeShmSize: 15728640
             # snodeShmSize: 15728640
             # bnodeShmSize: 15728640

@@ -15,6 +15,7 @@ from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.components import TaosD
 from taostest.util.remote import Remote
+from copy import deepcopy
 
 class TestMultiProcessRun(TDCase):
     def init(self):
@@ -24,9 +25,14 @@ class TestMultiProcessRun(TDCase):
         for env_setting in self.env_setting["settings"]:
             if env_setting["name"].lower() == "taosd":
                 self.taosd_setting = env_setting
+                self.fqdn = self.taosd_setting["fqdn"][0]
                 self.endpoint = self.taosd_setting["spec"]["config"]["firstEP"]
-                self.vnodeShmSize = self.taosd_setting["spec"]["dnodes"][0]["config"]["vnodeShmSize"]
-                self.mnodeShmSize = self.taosd_setting["spec"]["dnodes"][0]["config"]["mnodeShmSize"]
+                self.vnodeShmSize_list = self.tdCom.boundary_config["vnodeShmSize"]
+                self.vnodeShmSize_default = self.tdCom.boundary_config["vnodeShmSize_default"]
+                self.mnodeShmSize_list = self.tdCom.boundary_config["mnodeShmSize"]
+                self.mnodeShmSize_default = self.tdCom.boundary_config["mnodeShmSize_default"]
+                self.shmfile = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode/shmfile"
+                self.log_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["logDir"]
 
     def gen_tb_batch_sql(self, batch, col_type, data_type, data_length, ts=None):
         """
@@ -45,12 +51,68 @@ class TestMultiProcessRun(TDCase):
             batch_sqls += f'({base_sql}),'
         return batch_sqls[:-1]
 
-    def init_env(self):
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"mnodeShmSize": self.mnodeShmSize}, self.endpoint, True)
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"vnodeShmSize": self.vnodeShmSize}, self.endpoint, True)
+    def check_default_shmsize(self):
+        """
+        self.vnodeShmSize_default = self.tdCom.boundary_config["vnodeShmSize_default"]
+        self.mnodeShmSize_default = self.tdCom.boundary_config["mnodeShmSize_default"]
+        """
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"multiProcess": 1}, self.endpoint, True)
+        vnodeShmSize_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmsize | cut -f2 -d ":"'])
+        vnodeShmid_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmid | cut -f2 -d ":" | cut -f1 -d ","'])
+        vnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {vnodeShmid_infile} | awk \'{{print $5}}\'"])
+        self.tdSql.checkEqual(self.vnodeShmSize_default, int(vnodeShmSize_infile))
+        self.tdSql.checkEqual(self.vnodeShmSize_default, int(vnodeShmSize_ipcs))
+        mnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {self.mnodeShmSize_default} | grep -v {vnodeShmid_infile} | wc -l"])
+        self.tdSql.checkEqual(int(mnodeShmSize_ipcs) >= 1, True)
+
+    def check_shmsize_delivery(self):
+        """
+        check mnode/vnode shmfile/ipcs
+        """
+        for mnodeShmSize in self.mnodeShmSize_list:
+            for vnodeShmSize in self.vnodeShmSize_list:
+                self.taosd.update_cfg('/tmp', self.taosd_setting, {"mnodeShmSize": mnodeShmSize, "vnodeShmSize": vnodeShmSize}, self.endpoint, True)
+                vnodeShmSize_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmsize | cut -f2 -d ":"'])
+                vnodeShmid_infile = self._remote.cmd(self.fqdn, ['cat /var/lib/taos/vnode/shmfile | grep shmid | cut -f2 -d ":" | cut -f1 -d ","'])
+                vnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {vnodeShmid_infile} | awk \'{{print $5}}\'"])
+                self.tdSql.checkEqual(vnodeShmSize, int(vnodeShmSize_infile))
+                self.tdSql.checkEqual(vnodeShmSize, int(vnodeShmSize_ipcs))
+                mnodeShmSize_ipcs = self._remote.cmd(self.fqdn, [f"ipcs -m | grep {mnodeShmSize} | grep -v {vnodeShmid_infile} | wc -l"])
+                self.tdSql.checkEqual(int(mnodeShmSize_ipcs) >= 1, True)
+        self.log_generation()
+
+    def boundary_check(self):
+        """
+        self.vnodeShmSize_list = self.tdCom.boundary_config["vnodeShmSize"]
+        self.mnodeShmSize_list = self.tdCom.boundary_config["mnodeShmSize"]
+        """
+        vnodeShmSize_exceeded_list = [min(self.vnodeShmSize_list)-1, max(self.vnodeShmSize_list)+1]
+        mnodeShmSize_exceeded_list = [min(self.mnodeShmSize_list)-1, max(self.mnodeShmSize_list)+1]
+        for mnodeShmSize in mnodeShmSize_exceeded_list:
+            tmp_setting = deepcopy(self.taosd_setting)
+            vnodeShmSize = self.vnodeShmSize_default
+            self.taosd.update_cfg('/tmp', tmp_setting, {"mnodeShmSize": mnodeShmSize, "vnodeShmSize": vnodeShmSize}, self.endpoint, True)
+            taosd_process_count = self._remote.cmd(self.fqdn, [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
+            self.tdSql.checkEqual(int(taosd_process_count), 0)
+        for vnodeShmSize in vnodeShmSize_exceeded_list:
+            tmp_setting = deepcopy(self.taosd_setting)
+            mnodeShmSize = self.mnodeShmSize_default
+            self.taosd.update_cfg('/tmp', tmp_setting, {"mnodeShmSize": vnodeShmSize, "vnodeShmSize": mnodeShmSize}, self.endpoint, True)
+            taosd_process_count = self._remote.cmd(self.fqdn, [f"ps -ef | grep taosd | grep -v grep | grep -v sudo | grep -v defunct | wc -l"])
+            self.tdSql.checkEqual(int(taosd_process_count), 0)
+
+    def log_generation(self):
+        vnode_log_count = self._remote.cmd(self.fqdn, [f'ls {self.log_dir} | grep vnodelog | wc -l'])
+        mnode_log_count = self._remote.cmd(self.fqdn, [f'ls {self.log_dir} | grep mnodelog | wc -l'])
+        self.tdSql.checkEqual(int(vnode_log_count) >= 1, True)
+        self.tdSql.checkEqual(int(mnode_log_count) >= 1, True)
+
+    def process_count_check(self, check_count=1):
+        for process in ["taosd", "taosv", "taosm"]:
+            process_count = self._remote.cmd(self.fqdn, [f'ps -ef | grep {process} | grep -v grep | grep -v sudo | grep -v defunct | wc -l'])
+            self.tdSql.checkEqual(int(process_count), check_count)
 
     def multi_process_batch_insert(self, batch, col_type="col", data_type="binary", data_length=10000):
-        self.init_env()
         self.tdCom.drop_all_db()
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
@@ -60,24 +122,40 @@ class TestMultiProcessRun(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, batch)
         self.tdSql.execute(f'drop database if exists {dbname}')
 
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"mnodeShmSize": 100000, "vnodeShmSize": self.vnodeShmSize}, self.endpoint, True)
+    def multi_process_threads_batch_insert(self, threads_count, batch, col_type="col", data_type="binary", data_length=10000):
+        """
+        multi threads batch insert with multi_process mode
+        """
+        self.taosd.update_cfg('/tmp', self.taosd_setting, {"mnodeShmSize": min(self.mnodeShmSize_list), "vnodeShmSize": min(self.vnodeShmSize_list)}, self.endpoint, True)
+        self.tdSql.drop_all_db()
+        sql_list = list()
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 binary({data_length}))')
-        self.tdSql.error(f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, col_type, data_type, data_length, True)};')
-        self.tdSql.execute(f'drop database if exists {dbname}')
+        for i in range(threads_count):
+            sql = f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, col_type, data_type, data_length, True)};'
+            sql_list.append(sql)
+        tlist = self.tdSql.genMultiThreadSeq(sql_list)
+        self.tdSql.multiThreadRun(tlist)
+        # self.tdSql.query(f'select * from {dbname}.tb')
 
-        self.taosd.update_cfg('/tmp', self.taosd_setting, {"vnodeShmSize": 100000, "mnodeShmSize": self.vnodeShmSize}, self.endpoint, True)
-        self.tdSql.execute(f'create database if not exists {dbname}')
-        self.tdSql.execute(f'create table if not exists {dbname}.tb (ts timestamp, c1 binary({data_length}))')
-        self.tdSql.error(f'insert into {dbname}.tb values {self.gen_tb_batch_sql(batch, col_type, data_type, data_length, True)};')
-        self.tdSql.execute(f'drop database if exists {dbname}')
-
-
+    def kill_auto_restore(self):
+        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosm | grep -v grep | xargs kill -9'])
+        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosv | grep -v grep | xargs kill -9'])
+        self.process_count_check()
+        self._remote.cmd(self.fqdn, [f'ps -ef | grep taosd | grep -v grep | xargs kill -9'])
+        self.process_count_check(0)
 
     def run(self):
-        # self.stb_batch_insert()
-        # self.tb_batch_insert()
+        self.init_check()
+        self.check_default_shmsize()
+        self.check_shmsize_delivery()
+        self.boundary_check()
         self.multi_process_batch_insert(batch=100, data_length=10160)
+        # self.multi_process_threads_batch_insert(threads_count=3, batch=100, data_length=10160)
+        # ! bug TD-15580
+        # self.kill_auto_restore()
+
     def cleanup(self):
         pass
 
