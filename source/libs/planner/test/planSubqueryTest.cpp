@@ -25,7 +25,7 @@ TEST_F(PlanSubqeuryTest, basic) {
 
   run("SELECT * FROM (SELECT * FROM t1)");
 
-  run("SELECT LAST(c1) FROM ( SELECT * FROM t1)");
+  // run("SELECT LAST(c1) FROM ( SELECT * FROM t1)");
 }
 
 TEST_F(PlanSubqeuryTest, doubleGroupBy) {

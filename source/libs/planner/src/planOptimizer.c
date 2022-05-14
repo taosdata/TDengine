@@ -723,7 +723,10 @@ static int32_t opkGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimize, SNodeL
 
   switch (nodeType(pNode)) {
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return nodesListMakeAppend(pScanNodes, pNode);
+      if (TSDB_SUPER_TABLE != ((SScanLogicNode*)pNode)->pMeta->tableType) {
+        return nodesListMakeAppend(pScanNodes, pNode);
+      }
+      break;
     case QUERY_NODE_LOGIC_PLAN_JOIN:
       code = opkGetScanNodesImpl(nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
       if (TSDB_CODE_SUCCESS == code) {
@@ -739,6 +742,7 @@ static int32_t opkGetScanNodesImpl(SLogicNode* pNode, bool* pNotOptimize, SNodeL
 
   if (1 != LIST_LENGTH(pNode->pChildren)) {
     *pNotOptimize = true;
+    return TSDB_CODE_SUCCESS;
   }
 
   return opkGetScanNodesImpl(nodesListGetNode(pNode->pChildren, 0), pNotOptimize, pScanNodes);
