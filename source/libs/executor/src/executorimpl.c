@@ -2115,7 +2115,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 }
 
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SArray* pColMatchInfo) {
   if (pFilterNode == NULL) {
     return;
   }
@@ -2129,12 +2129,23 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   code = filterSetDataFromSlotId(filter, &param1);
 
   int8_t* rowRes = NULL;
+
   // todo the keep seems never to be True??
-  bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
+  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
   extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
   blockDataUpdateTsWindow(pBlock);
+}
+
+static int32_t colIdSearchCompar(const void* p1, const void* p2) {
+  int32_t       colId = *(int32_t*)p1;
+  SColMatchInfo* pInfo = (SColMatchInfo*)p2;
+  if (colId == pInfo->targetSlotId) {
+    return 0;
+  }
+
+  return (colId < pInfo->colId) ? -1 : 1;
 }
 
 void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
@@ -2151,11 +2162,6 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-
-      // For the reserved column, the value is not filled yet, so the whole column data may be NULL.
-      if (pSrc->pData == NULL) {
-        continue;
-      }
 
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
