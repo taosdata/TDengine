@@ -80,6 +80,12 @@ impl RawTaos {
         port: u16,
     ) -> Option<Self> {
         let ptr = unsafe { taos_connect(host, user, pass, db, port) };
+        let tmp = RawRes::from_ptr(std::ptr::null_mut());
+        if tmp.is_err() {
+            let err = tmp.unwrap_err();
+            log::debug!("connect error: {err}");
+        }
+
         if ptr.is_null() {
             None
         } else {

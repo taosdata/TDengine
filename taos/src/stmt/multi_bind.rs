@@ -55,7 +55,7 @@ impl<'a> MultiBind<'a> {
     pub(crate) fn from_primitives<T: TaosTypeOf>(nulls: &BitVec, values: &[T]) -> Self {
         Self(
             TAOS_MULTI_BIND {
-                buffer_type: dbg!(T::taos_type_of()) as _,
+                buffer_type: T::taos_type_of() as _,
                 buffer: values.as_ptr() as _,
                 buffer_length: std::mem::size_of::<T>(),
                 length: values.len() as _,

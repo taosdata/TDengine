@@ -30,17 +30,20 @@ glob = "0.3.0"
 log = "0.4.16"
 num_enum = "0.5.7"
 parquet = { version = "12.0.0", features = ["cli"] }
+pretty_env_logger = "0.4.0"
 r2d2 = "0.8.9"
 serde = { version = "1", features = ["derive"] }
 serde_json = "1.0.59"
-simple_logger = "2.1.0"
 taos = { path = "taos" }
 thread-id = "4.0.0"
 tokio = { version = "1", features = ["full"] }
 url = { version = "2", features = ["serde"] }
 
 anyhow = "1.0"
+chrono = "*"
+itertools = "0.10.3"
 linked-hash-map = "0.5.4"
+lru = "0.7.5"
 metrics = "0.18.1"
 metrics-exporter-prometheus = "0.9.0"
 palaver = "0.2.8"

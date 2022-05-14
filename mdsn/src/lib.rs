@@ -95,7 +95,7 @@ pub enum DsnError {
 }
 
 /// A simple struct to represent a server address, with host:port or socket path.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Address {
     /// Host or ip address of the server.
     pub host: Option<String>,
@@ -190,7 +190,7 @@ fn addr_parse() {
 }
 
 /// A DSN(**Data Source Name**) parser.
-#[derive(Debug, Default, PartialEq, Eq)]
+#[derive(Debug, Default, PartialEq, Eq, Clone)]
 pub struct Dsn {
     pub driver: String,
     pub protocol: Option<String>,
@@ -274,6 +274,13 @@ impl TryFrom<String> for Dsn {
     }
 }
 
+impl TryFrom<&Dsn> for Dsn {
+    type Error = DsnError;
+
+    fn try_from(value: &Dsn) -> Result<Self, Self::Error> {
+        Ok(value.clone())
+    }
+}
 impl FromStr for Dsn {
     type Err = DsnError;
 

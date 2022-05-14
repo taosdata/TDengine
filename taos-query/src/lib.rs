@@ -253,6 +253,15 @@ where
             .try_collect()
             .map_err(Into::into)
     }
+
+    fn describe(&'q self, table: &str) -> Result<Describe, Self::Error> {
+        use itertools::Itertools;
+        Ok(Describe(
+            self.query(format!("describe {table}"))?
+                .deserialize()
+                .try_collect()?,
+        ))
+    }
 }
 
 pub trait AsyncFetchable: Send
@@ -275,7 +284,7 @@ where
 
     fn summary(&self) -> (usize, usize);
 
-    fn block_stream(&self) -> Self::BlockStream;
+    fn block_stream(&mut self) -> Self::BlockStream;
 
     fn deserialize_stream<'a, T>(
         &'a mut self,
@@ -384,14 +393,15 @@ where
             .try_collect()
             .await?)
     }
-    async fn describe(&'q self, table: &str) -> Result<Vec<ColumnMeta>, Self::Error> {
+    async fn describe(&'q self, table: &str) -> Result<Describe, Self::Error> {
         use futures::stream::TryStreamExt;
-        Ok(self
-            .query(format!("describe {table}"))
-            .await?
-            .deserialize_stream()
-            .try_collect()
-            .await?)
+        Ok(Describe(
+            self.query(format!("describe {table}"))
+                .await?
+                .deserialize_stream()
+                .try_collect()
+                .await?,
+        ))
     }
 
     fn exec_sync<T: AsRef<str> + Send>(&'q self, sql: T) -> Result<usize, Self::Error> {
@@ -406,7 +416,7 @@ where
     }
 }
 
-pub trait FromDsn: Sized + Send + Sync + 'static {
+pub trait FromDsn: Sized + 'static {
     type Err: std::error::Error;
 
     /// Validate or hygienize the DSN.
@@ -443,10 +453,7 @@ impl<T: FromDsn> Default for Manager<T> {
     }
 }
 
-unsafe impl<T: FromDsn> Send for Manager<T> {}
-unsafe impl<T: FromDsn> Sync for Manager<T> {}
-
-impl<T: FromDsn> Manager<T> {
+impl<T: FromDsn + Send + Sync> Manager<T> {
     /// Build a connection manager from a DSN.
     #[inline]
     pub fn new(dsn: Dsn) -> Result<Self, DsnError> {
@@ -462,6 +469,12 @@ impl<T: FromDsn> Manager<T> {
     #[inline]
     pub fn parse(dsn: impl AsRef<str>) -> Result<Self, DsnError> {
         let dsn = Dsn::parse(dsn)?;
+        Self::new(dsn)
+    }
+
+    #[inline]
+    pub fn from_dsn(dsn: impl TryInto<Dsn, Error = DsnError>) -> Result<Self, DsnError> {
+        let dsn = dsn.try_into()?;
         Self::new(dsn)
     }
 

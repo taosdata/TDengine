@@ -85,7 +85,8 @@ impl Display for DatabaseProperties {
             };
         }
 
-        _write_if!(vgroups replica quorum days keep cache blocks minrows
+        // todo: keep now may fail
+        _write_if!(vgroups replica quorum days cache blocks minrows
                    maxrows wal fsync comp cachelast; 'str precision; update);
         Ok(())
     }

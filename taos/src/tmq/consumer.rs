@@ -23,6 +23,9 @@ pub struct Consumer {
     wait: i64,
 }
 
+unsafe impl Send for Consumer {}
+unsafe impl Sync for Consumer {}
+
 impl Consumer {
     pub(crate) fn as_raw(&self) -> *mut tmq_t {
         self.ptr

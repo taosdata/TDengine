@@ -251,6 +251,32 @@ impl Value {
             _ => panic!("expect str but only varchar/binary/json/nchar is supported"),
         }
     }
+    
+    pub fn to_sql_value(&self) -> String {
+        use Value::*;
+        match self {
+            Null => "NULL".to_string(),
+            Bool(v) => format!("{v}"),
+            TinyInt(v) => format!("{v}"),
+            SmallInt(v) => format!("{v}"),
+            Int(v) => format!("{v}"),
+            BigInt(v) => format!("{v}"),
+            Float(v) => format!("{v}"),
+            Double(v) => format!("{v}"),
+            VarChar(v) => format!("\"{}\"", v.escape_debug()),
+            Timestamp(v) => format!("{}", v.as_raw_i64()),
+            NChar(v) => format!("\"{}\"", v.escape_debug()),
+            UTinyInt(v) => format!("{v}"),
+            USmallInt(v) => format!("{v}"),
+            UInt(v) => format!("{v}"),
+            UBigInt(v) => format!("{v}"),
+            Json(v) => format!("\"{}\"", v.to_string()),
+            VarBinary(_) => todo!(),
+            Decimal(_) => todo!(),
+            Blob(_) => todo!(),
+            MediumBlob(_) => todo!(),
+        }
+    }
 }
 
 // impl<'b> crate::Valuable for BorrowedValue<'b> {

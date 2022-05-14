@@ -12,7 +12,7 @@ use parquet::{
     schema::types::Type,
 };
 
-use taos::{block::BlockStream, helpers::ColumnMeta, prelude::BlockExt};
+use taos::{block::{BlockStream, Describe}, helpers::ColumnMeta, prelude::BlockExt};
 use taosx::{TaosBlock, TaosDescribe, TaosTag};
 
 pub struct Serialize<W: ParquetWriter + 'static> {
@@ -46,7 +46,7 @@ impl<W: ParquetWriter + 'static> Serialize<W> {
         self.writer.close_row_group(row_group).unwrap();
     }
 
-    pub fn serialze_table_meta(&mut self, name: &str, describe: Vec<ColumnMeta>) {
+    pub fn serialze_table_meta(&mut self, name: &str, describe: Describe) {
         let taos_describe = TaosDescribe::new(name.to_string(), describe);
         self.serialize(taos_describe);
     }
