@@ -235,11 +235,11 @@ class TDTestCase:
         tdSql.checkData(0,3,2.652476145)
         
         # # bug for crash when query sub table
-        # tdSql.query("select udf2(c1+100) ,udf2(c6-100) ,udf2(c1*100) ,udf2(c6/100) from ct1")
-        # tdSql.checkData(0,0,378.215547010)
-        # tdSql.checkData(0,1,353.808067460)
-        # tdSql.checkData(0,2,2114.237451187)
-        # tdSql.checkData(0,3,2.125468151)
+        tdSql.query("select udf2(c1+100) ,udf2(c6-100) ,udf2(c1*100) ,udf2(c6/100) from ct1")
+        tdSql.checkData(0,0,378.215547010)
+        tdSql.checkData(0,1,353.808067460)
+        tdSql.checkData(0,2,2114.237451187)
+        tdSql.checkData(0,3,2.125468151)
 
         tdSql.query("select udf2(c1+100) ,udf2(c6-100) ,udf2(c1*100) ,udf2(c6/100) from stb1 ")
         tdSql.checkData(0,0,490.358032462)
@@ -329,14 +329,14 @@ class TDTestCase:
 
         # # bug need fix 
 
-        # tdSql.query("select udf1(num1) , csum(num1) from tb;")
-        # tdSql.checkRows(12)
-        # tdSql.query("select ceil(num1) , csum(num1) from tb;")
-        # tdSql.checkRows(12)
-        # tdSql.query("select udf1(c1) , csum(c1) from stb1;")
-        # tdSql.checkRows(25)
-        # tdSql.query("select floor(c1) , csum(c1) from stb1;")
-        # tdSql.checkRows(25)
+        tdSql.query("select udf1(num1) , csum(num1) from tb;")
+        tdSql.checkRows(9)
+        tdSql.query("select ceil(num1) , csum(num1) from tb;")
+        tdSql.checkRows(9)
+        tdSql.query("select udf1(c1) , csum(c1) from stb1;")
+        tdSql.checkRows(22)
+        tdSql.query("select floor(c1) , csum(c1) from stb1;")
+        tdSql.checkRows(22)
 
         # stable  with compute functions
         tdSql.query("select udf1(c1) , abs(c1) from stb1;")
@@ -361,8 +361,8 @@ class TDTestCase:
 
         # bug fix for crash 
         # order by udf function result 
-        # for _ in range(50):
-        #     tdSql.query("select udf2(c1) from stb1 group by 1-udf1(c1)")
+        for _ in range(50):
+            tdSql.query("select udf2(c1) from stb1 group by 1-udf1(c1)")
 
         # udf functions with filter
 
