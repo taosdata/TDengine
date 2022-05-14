@@ -463,7 +463,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_NO_PIPE,             "udf no pipe")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_LOAD_UDF_FAILURE,         "udf load failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_STATE,            "udf invalid state")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_INPUT,            "udf invalid function input")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_NO_FUNC_HANDLE,           "udf no function handle")
 //schemaless
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")
