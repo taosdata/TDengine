@@ -492,7 +492,7 @@ static int32_t parseTimeFromValueNode(SValueNode* pVal) {
   } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
     pVal->datum.i = pVal->datum.b;
     return TSDB_CODE_SUCCESS;
-  } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type)) {
+  } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
     if (TSDB_CODE_SUCCESS == taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes,
                                            pVal->node.resType.precision, tsDaylight)) {
       return TSDB_CODE_SUCCESS;
