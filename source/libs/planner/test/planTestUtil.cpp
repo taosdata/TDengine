@@ -47,6 +47,7 @@ enum DumpModule {
 };
 
 DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
+int32_t    g_skipSql = 0;
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {

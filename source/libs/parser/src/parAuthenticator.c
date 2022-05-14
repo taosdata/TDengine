@@ -65,13 +65,19 @@ static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
   return code;
 }
 
+static int32_t authDropUser(SAuthCxt* pCxt, SDropUserReq* pStmt) {
+  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->user, TSDB_DEFAULT_USER)) {
+    return TSDB_CODE_PAR_PERMISSION_DENIED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
   switch (nodeType(pStmt)) {
     case QUERY_NODE_SET_OPERATOR:
       return authSetOperator(pCxt, (SSetOperator*)pStmt);
     case QUERY_NODE_SELECT_STMT:
       return authSelect(pCxt, (SSelectStmt*)pStmt);
-    case QUERY_NODE_VNODE_MODIF_STMT:
     case QUERY_NODE_CREATE_DATABASE_STMT:
     case QUERY_NODE_DROP_DATABASE_STMT:
     case QUERY_NODE_ALTER_DATABASE_STMT:
@@ -84,7 +90,10 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_ALTER_TABLE_STMT:
     case QUERY_NODE_CREATE_USER_STMT:
     case QUERY_NODE_ALTER_USER_STMT:
-    case QUERY_NODE_DROP_USER_STMT:
+      break;
+    case QUERY_NODE_DROP_USER_STMT: {
+      return authDropUser(pCxt, (SDropUserReq*)pStmt);
+    }
     case QUERY_NODE_USE_DATABASE_STMT:
     case QUERY_NODE_CREATE_DNODE_STMT:
     case QUERY_NODE_DROP_DNODE_STMT:

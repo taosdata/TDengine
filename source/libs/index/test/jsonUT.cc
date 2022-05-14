@@ -17,12 +17,32 @@
 #include "tutil.h"
 
 static std::string dir = "/tmp/json";
+static std::string logDir = "/tmp/log";
+
+static void initLog() {
+  const char*   defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10;
+
+  tsAsyncLog = 0;
+  sDebugFlag = 143;
+  strcpy(tsLogDir, logDir.c_str());
+  taosRemoveDir(tsLogDir);
+  taosMkDir(tsLogDir);
+
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", tsLogDir);
+  }
+}
 class JsonEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
+    taosRemoveDir(logDir.c_str());
+    taosMkDir(logDir.c_str());
     taosRemoveDir(dir.c_str());
     taosMkDir(dir.c_str());
     printf("set up\n");
+
+    initLog();
     opts = indexOptsCreate();
     int ret = tIndexJsonOpen(opts, dir.c_str(), &index);
     assert(ret == 0);
