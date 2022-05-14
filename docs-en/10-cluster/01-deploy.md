@@ -31,16 +31,16 @@ Now it's time to install TDengine on all hosts without starting `taosd`, the ver
 Now each physical node (referred to as `dnode` hereinafter, it's abbreviation for "data node") of TDengine need to be configured properly. Please be noted that one dnode doesn't stand for one host, multiple TDengine nodes can be started on single host as long as they are configured properly without conflicting. More specifically each instance of the configuration file `taos.cfg` stands for a dnode. Assuming the first dnode of TDengine cluster is "h1.taosdata.com:6030", its `taos.cfg` is configured as following.
 
 ```c
-// firstEp 是每个数据节点首次启动后连接的第一个数据节点
+// firstEp is the end point to connect to when any dnode starts
 firstEp               h1.taosdata.com:6030
 
-// 必须配置为本数据节点的 FQDN，如果本机只有一个 hostname，可注释掉本项
+// must be configured to the FQDN of the host where the dnode is launched
 fqdn                  h1.taosdata.com
 
-// 配置本数据节点的端口号，缺省是 6030
+// the port used by the dnode, default is 6030
 serverPort            6030
 
-// 副本数为偶数的时候，需要配置，请参考《Arbitrator 的使用》的部分
+// only necessary when replica is configured to an even number
 #arbitrator            ha.taosdata.com:6042
 ```
 
