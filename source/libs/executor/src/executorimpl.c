@@ -2114,6 +2114,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
 void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   if (pFilterNode == NULL) {
     return;
@@ -2128,43 +2129,53 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   code = filterSetDataFromSlotId(filter, &param1);
 
   int8_t* rowRes = NULL;
+  // todo the keep seems never to be True??
   bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  SSDataBlock* px = createOneDataBlock(pBlock, false);
-  blockDataEnsureCapacity(px, pBlock->info.rows);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+  blockDataUpdateTsWindow(pBlock);
+}
 
-  // todo extract method
-  int32_t numOfRow = 0;
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
-    SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-    if (keep) {
-      colDataAssign(pDst, pSrc, pBlock->info.rows);
-      numOfRow = pBlock->info.rows;
-    } else if (NULL != rowRes) {
-      numOfRow = 0;
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+  if (keep) {
+    return;
+  }
+
+  if (rowRes != NULL) {
+    SSDataBlock* px = createOneDataBlock(pBlock, false);
+    blockDataEnsureCapacity(px, pBlock->info.rows);
+
+    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+      SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+
+      // For the reserved column, the value is not filled yet, so the whole column data may be NULL.
+      if (pSrc->pData == NULL) {
+        continue;
+      }
+
+      int32_t numOfRows = 0;
       for (int32_t j = 0; j < pBlock->info.rows; ++j) {
         if (rowRes[j] == 0) {
           continue;
         }
 
         if (colDataIsNull_s(pSrc, j)) {
-          colDataAppendNULL(pDst, numOfRow);
+          colDataAppendNULL(pDst, numOfRows);
         } else {
-          colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
+          colDataAppend(pDst, numOfRows, colDataGetData(pSrc, j), false);
         }
-        numOfRow += 1;
+        numOfRows += 1;
       }
-    } else {
-      numOfRow = 0;
+
+      pBlock->info.rows = numOfRows;
+      *pSrc = *pDst;
     }
-
-    *pSrc = *pDst;
+  } else {
+    // do nothing
+    pBlock->info.rows = 0;
   }
-
-  pBlock->info.rows = numOfRow;
-  blockDataUpdateTsWindow(pBlock);
 }
 
 void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, uint64_t groupId,
