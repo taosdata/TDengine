@@ -153,7 +153,6 @@ class TestMultiProcessRun(TDCase):
         self.process_count_check(0)
 
     def run(self):
-        self.init_check()
         self.check_default_shmsize()
         self.check_shmsize_delivery()
         self.boundary_check()
@@ -167,7 +166,12 @@ class TestMultiProcessRun(TDCase):
 
     def desc(self) -> str:
         case_description = """
-            batch_insert <jayden>: [TD-13419] : batch_insert;
+            check_default_shmsize <jayden>: [TD-15391] : check_default_shmsize;\n
+            check_shmsize_delivery <jayden>: [TD-15391] : shmsize delivery;\n
+            boundary_check <jayden>: [TD-15391] : boundary check;\n
+            multi_process_batch_insert <jayden>: [TD-15391] : multi process batch insert(single thread);\n
+            multi_process_threads_batch_insert <jayden>: [TD-15391] : multi process batch insert(multi threads);\n
+            kill_auto_restore <jayden>: [TD-15391] : kill auto restore;
         """
         return case_description
 
