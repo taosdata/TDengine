@@ -78,9 +78,9 @@ if(${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV})
 
 # bdb
-#if(${BUILD_WITH_BDB})
-    #cat("${TD_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-#endif(${BUILD_WITH_BDB})
+if(${BUILD_WITH_BDB})
+    cat("${TD_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_BDB})
 
 # sqlite
 if(${BUILD_WITH_SQLITE})
