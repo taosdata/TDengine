@@ -24,6 +24,7 @@ typedef struct STaosQnode {
   STaosQnode *next;
   STaosQueue *queue;
   int32_t     size;
+  int32_t     reserved;
   char        item[];
 } STaosQnode;
 
