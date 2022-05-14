@@ -137,7 +137,13 @@ class TestMultiProcessRun(TDCase):
             sql_list.append(sql)
         tlist = self.tdSql.genMultiThreadSeq(sql_list)
         self.tdSql.multiThreadRun(tlist)
+        #! bug
         # self.tdSql.query(f'select * from {dbname}.tb')
+        # if batch*threads_count*1024 < min(self.mnodeShmSize_list)*2:
+        #     self.tdSql.checkEqual(self.tdSql.query_row, batch*threads_count)
+        # else:
+        #     self.tdSql.checkNotEqual(self.tdSql.query_row, batch*threads_count)
+        self.tdSql.execute(f'drop database if exists {dbname}')
 
     def kill_auto_restore(self):
         self._remote.cmd(self.fqdn, [f'ps -ef | grep taosm | grep -v grep | xargs kill -9'])
