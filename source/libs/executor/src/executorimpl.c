@@ -2146,6 +2146,8 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
     SSDataBlock* px = createOneDataBlock(pBlock, false);
     blockDataEnsureCapacity(px, pBlock->info.rows);
 
+    int32_t totalRows = pBlock->info.rows;
+
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
@@ -2156,7 +2158,7 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       }
 
       int32_t numOfRows = 0;
-      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+      for (int32_t j = 0; j < totalRows; ++j) {
         if (rowRes[j] == 0) {
           continue;
         }
@@ -2169,7 +2171,12 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
         numOfRows += 1;
       }
 
-      pBlock->info.rows = numOfRows;
+      if (pBlock->info.rows == totalRows) {
+        pBlock->info.rows = numOfRows;
+      } else {
+        ASSERT(pBlock->info.rows == numOfRows);
+      }
+
       *pSrc = *pDst;
     }
   } else {
