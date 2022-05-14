@@ -19,7 +19,10 @@
 #include "indexInt.h"
 #include "indexTfile.h"
 #include "indexUtil.h"
+#include "tcoding.h"
+#include "tdataformat.h"
 #include "tdef.h"
+#include "tref.h"
 #include "tsched.h"
 
 #ifdef USE_LUCENE
@@ -27,36 +30,40 @@
 #endif
 
 #define INDEX_NUM_OF_THREADS 4
-#define INDEX_QUEUE_SIZE 200
+#define INDEX_QUEUE_SIZE     200
 
-void* indexQhandle = NULL;
-
-#define INDEX_DATA_BOOL_NULL 0x02
-#define INDEX_DATA_TINYINT_NULL 0x80
-#define INDEX_DATA_SMALLINT_NULL 0x8000
-#define INDEX_DATA_INT_NULL 0x80000000L
-#define INDEX_DATA_BIGINT_NULL 0x8000000000000000L
+#define INDEX_DATA_BOOL_NULL      0x02
+#define INDEX_DATA_TINYINT_NULL   0x80
+#define INDEX_DATA_SMALLINT_NULL  0x8000
+#define INDEX_DATA_INT_NULL       0x80000000L
+#define INDEX_DATA_BIGINT_NULL    0x8000000000000000L
 #define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
 
-#define INDEX_DATA_FLOAT_NULL 0x7FF00000            // it is an NAN
-#define INDEX_DATA_DOUBLE_NULL 0x7FFFFF0000000000L  // an NAN
-#define INDEX_DATA_NCHAR_NULL 0xFFFFFFFF
-#define INDEX_DATA_BINARY_NULL 0xFF
-#define INDEX_DATA_JSON_NULL 0xFFFFFFFF
-#define INDEX_DATA_JSON_null 0xFFFFFFFE
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000           // it is an NAN
+#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000L  // an NAN
+#define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
+#define INDEX_DATA_BINARY_NULL   0xFF
+#define INDEX_DATA_JSON_NULL     0xFFFFFFFF
+#define INDEX_DATA_JSON_null     0xFFFFFFFE
 #define INDEX_DATA_JSON_NOT_NULL 0x01
 
-#define INDEX_DATA_UTINYINT_NULL 0xFF
+#define INDEX_DATA_UTINYINT_NULL  0xFF
 #define INDEX_DATA_USMALLINT_NULL 0xFFFF
-#define INDEX_DATA_UINT_NULL 0xFFFFFFFF
-#define INDEX_DATA_UBIGINT_NULL 0xFFFFFFFFFFFFFFFFL
+#define INDEX_DATA_UINT_NULL      0xFFFFFFFF
+#define INDEX_DATA_UBIGINT_NULL   0xFFFFFFFFFFFFFFFFL
 
-#define INDEX_DATA_NULL_STR "NULL"
+#define INDEX_DATA_NULL_STR   "NULL"
 #define INDEX_DATA_NULL_STR_L "null"
+
+void*   indexQhandle = NULL;
+int32_t indexRefMgt;
+
+static void indexDestroy(void* sIdx);
 
 void indexInit() {
   // refactor later
   indexQhandle = taosInitScheduler(INDEX_QUEUE_SIZE, INDEX_NUM_OF_THREADS, "index");
+  indexRefMgt = taosOpenRef(10, indexDestroy);
 }
 void indexCleanUp() {
   // refacto later
@@ -100,7 +107,12 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   sIdx->cVersion = 1;
   sIdx->path = tstrdup(path);
   taosThreadMutexInit(&sIdx->mtx, NULL);
+
+  sIdx->refId = indexAddRef(sIdx);
+  taosAcquireRef(indexRefMgt, sIdx->refId);
+
   *index = sIdx;
+
   return 0;
 
 END:
@@ -112,8 +124,9 @@ END:
   return -1;
 }
 
-void indexClose(SIndex* sIdx) {
-  void* iter = taosHashIterate(sIdx->colObj, NULL);
+void indexDestroy(void* handle) {
+  SIndex* sIdx = handle;
+  void*   iter = taosHashIterate(sIdx->colObj, NULL);
   while (iter) {
     IndexCache** pCache = iter;
     if (*pCache) {
@@ -127,6 +140,27 @@ void indexClose(SIndex* sIdx) {
   taosMemoryFree(sIdx->path);
   taosMemoryFree(sIdx);
   return;
+}
+void indexClose(SIndex* sIdx) {
+  indexReleaseRef(sIdx->refId);
+  indexRemoveRef(sIdx->refId);
+}
+int64_t indexAddRef(void* p) {
+  // impl
+  return taosAddRef(indexRefMgt, p);
+}
+int32_t indexRemoveRef(int64_t ref) {
+  // impl later
+  return taosRemoveRef(indexRefMgt, ref);
+}
+
+void indexAcquireRef(int64_t ref) {
+  // impl
+  taosAcquireRef(indexRefMgt, ref);
+}
+void indexReleaseRef(int64_t ref) {
+  // impl
+  taosReleaseRef(indexRefMgt, ref);
 }
 
 int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
@@ -222,6 +256,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->operType = oper;
   tm->colType = colType;
 
+#if 0
   tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
   memcpy(tm->colName, colName, nColName);
   tm->nColName = nColName;
@@ -229,6 +264,22 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->colVal = (char*)taosMemoryCalloc(1, nColVal + 1);
   memcpy(tm->colVal, colVal, nColVal);
   tm->nColVal = nColVal;
+#endif
+
+#if 1
+
+  tm->colName = (char*)taosMemoryCalloc(1, nColName + 1);
+  memcpy(tm->colName, colName, nColName);
+  tm->nColName = nColName;
+
+  char*   buf = NULL;
+  int32_t len = indexConvertData((void*)colVal, INDEX_TYPE_GET_TYPE(colType), (void**)&buf);
+  assert(len != -1);
+
+  tm->colVal = buf;
+  tm->nColVal = len;
+
+#endif
 
   return tm;
 }
@@ -457,6 +508,7 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   } else {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
+  indexReleaseRef(sIdx->refId);
   return ret;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {
