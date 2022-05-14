@@ -48,7 +48,7 @@ static inline NodeMsgFp dmGetMsgFp(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
   return msgFp;
 }
 
-static inline int32_t dmBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
+static inline int32_t dmBuildNodeMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
   if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
@@ -67,10 +67,26 @@ static inline int32_t dmBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
   return 0;
 }
 
+int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
+  SRpcMsg *pRpc = &pMsg->rpcMsg;
+
+  if (InParentProc(pWrapper->proc.ptype)) {
+    dTrace("msg:%p, created and put into child queue, type:%s handle:%p user:%s code:0x%04x contLen:%d", pMsg,
+           TMSG_INFO(pRpc->msgType), pRpc->handle, pMsg->user, pRpc->code & 0XFFFF, pRpc->contLen);
+    return dmPutToProcCQueue(&pWrapper->proc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
+                             ((pRpc->msgType & 1U) && (pRpc->code == 0)) ? pRpc->handle : NULL, pRpc->refId,
+                             PROC_FUNC_REQ);
+  } else {
+    dTrace("msg:%p, created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(pRpc->msgType), pRpc->handle, pMsg->user);
+    NodeMsgFp msgFp = dmGetMsgFp(pWrapper, &pMsg->rpcMsg);
+    if (msgFp == NULL) return -1;
+    return (*msgFp)(pWrapper->pMgmt, pMsg);
+  }
+}
+
 static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t   code = -1;
   SNodeMsg *pMsg = NULL;
-  NodeMsgFp msgFp = NULL;
   uint16_t  msgType = pRpc->msgType;
   bool      needRelease = false;
   bool      isReq = msgType & 1U;
@@ -78,23 +94,14 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   if (dmMarkWrapper(pWrapper) != 0) goto _OVER;
   needRelease = true;
 
-  if ((msgFp = dmGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg), RPC_QITEM)) == NULL) goto _OVER;
-  if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
+  if (dmBuildNodeMsg(pMsg, pRpc) != 0) goto _OVER;
 
-  if (pWrapper->procType != DND_PROC_PARENT) {
-    dTrace("msg:%p, created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType), pRpc->handle, pMsg->user);
-    code = (*msgFp)(pWrapper->pMgmt, pMsg);
-  } else {
-    dTrace("msg:%p, created and put into child queue, type:%s handle:%p code:0x%04x user:%s contLen:%d", pMsg,
-           TMSG_INFO(msgType), pRpc->handle, pMsg->rpcMsg.code & 0XFFFF, pMsg->user, pRpc->contLen);
-    code = taosProcPutToChildQ(pWrapper->procObj, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
-                               (isReq && (pMsg->rpcMsg.code == 0)) ? pRpc->handle : NULL, pRpc->refId, PROC_FUNC_REQ);
-  }
+  code = dmProcessNodeMsg(pWrapper, pMsg);
 
 _OVER:
   if (code == 0) {
-    if (pWrapper->procType == DND_PROC_PARENT) {
+    if (InParentProc(pWrapper->proc.ptype)) {
       dTrace("msg:%p, freed in parent process", pMsg);
       taosFreeQitem(pMsg);
       rpcFreeCont(pRpc->pCont);
@@ -291,17 +298,15 @@ static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SR
 }
 
 static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
-  if (pWrapper->procType != DND_PROC_CHILD) {
+  if (!InChildProc(pWrapper->proc.ptype)) {
     dmSendRpcRsp(pWrapper->pDnode, pRsp);
   } else {
-    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
   }
 }
 
 static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
-  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
-  ASSERT(pRsp->pCont == NULL);
-  if (pWrapper->procType != DND_PROC_CHILD) {
+  if (!InChildProc(pWrapper->proc.ptype)) {
     SRpcMsg resp = {0};
     SMEpSet msg = {.epSet = *pNewEpSet};
     int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
@@ -314,97 +319,25 @@ static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp
     resp.refId = pRsp->refId;
     rpcSendResponse(&resp);
   } else {
-    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
   }
 }
 
 static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
-  if (pWrapper->procType != DND_PROC_CHILD) {
+  if (!InChildProc(pWrapper->proc.ptype)) {
     rpcRegisterBrokenLinkArg(pMsg);
   } else {
-    taosProcPutToParentQ(pWrapper->procObj, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_FUNC_REGIST);
+    dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_FUNC_REGIST);
   }
 }
 
 static inline void dmReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type) {
-  if (pWrapper->procType != DND_PROC_CHILD) {
+  if (!InChildProc(pWrapper->proc.ptype)) {
     rpcReleaseHandle(handle, type);
   } else {
     SRpcMsg msg = {.handle = handle, .code = type};
-    taosProcPutToParentQ(pWrapper->procObj, &msg, sizeof(SRpcMsg), NULL, 0, PROC_FUNC_RELEASE);
+    dmPutToProcPQueue(&pWrapper->proc, &msg, sizeof(SRpcMsg), NULL, 0, PROC_FUNC_RELEASE);
   }
-}
-
-static void dmConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
-                                EProcFuncType ftype) {
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
-  pRpc->pCont = pCont;
-  dTrace("msg:%p, get from child queue, handle:%p app:%p", pMsg, pRpc->handle, pRpc->ahandle);
-
-  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
-  int32_t   code = (*msgFp)(pWrapper->pMgmt, pMsg);
-
-  if (code != 0) {
-    dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-    if (pRpc->msgType & 1U) {
-      SRpcMsg rsp = {.handle = pRpc->handle, .ahandle = pRpc->ahandle, .code = terrno, .refId = pRpc->refId};
-      dmSendRsp(pWrapper, &rsp);
-    }
-
-    dTrace("msg:%p, is freed", pMsg);
-    taosFreeQitem(pMsg);
-    rpcFreeCont(pCont);
-  }
-}
-
-static void dmConsumeParentQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg, int16_t msgLen, void *pCont, int32_t contLen,
-                                 EProcFuncType ftype) {
-  int32_t code = pMsg->code & 0xFFFF;
-  pMsg->pCont = pCont;
-
-  if (ftype == PROC_FUNC_REQ) {
-    ASSERT(1);
-    dTrace("msg:%p, get from parent queue, send req:%s handle:%p code:0x%04x, app:%p", pMsg, TMSG_INFO(pMsg->msgType),
-           pMsg->handle, code, pMsg->ahandle);
-    dmSendReq(pWrapper, (SEpSet *)((char *)pMsg + sizeof(SRpcMsg)), pMsg);
-  } else if (ftype == PROC_FUNC_RSP) {
-    dTrace("msg:%p, get from parent queue, rsp handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code, pMsg->ahandle);
-    pMsg->refId = taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
-    dmSendRpcRsp(pWrapper->pDnode, pMsg);
-  } else if (ftype == PROC_FUNC_REGIST) {
-    dTrace("msg:%p, get from parent queue, regist handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code,
-           pMsg->ahandle);
-    rpcRegisterBrokenLinkArg(pMsg);
-  } else if (ftype == PROC_FUNC_RELEASE) {
-    dTrace("msg:%p, get from parent queue, release handle:%p code:0x%04x, app:%p", pMsg, pMsg->handle, code,
-           pMsg->ahandle);
-    taosProcRemoveHandle(pWrapper->procObj, pMsg->handle);
-    rpcReleaseHandle(pMsg->handle, (int8_t)pMsg->code);
-    rpcFreeCont(pCont);
-  } else {
-    dError("msg:%p, invalid ftype:%d while get from parent queue, handle:%p", pMsg, ftype, pMsg->handle);
-  }
-
-  taosMemoryFree(pMsg);
-}
-
-SProcCfg dmGenProcCfg(SMgmtWrapper *pWrapper) {
-  SProcCfg cfg = {
-      .childConsumeFp = (ProcConsumeFp)dmConsumeChildQueue,
-      .childMallocHeadFp = (ProcMallocFp)taosAllocateQitem,
-      .childFreeHeadFp = (ProcFreeFp)taosFreeQitem,
-      .childMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-      .childFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-      .parentConsumeFp = (ProcConsumeFp)dmConsumeParentQueue,
-      .parentMallocHeadFp = (ProcMallocFp)taosMemoryMalloc,
-      .parentFreeHeadFp = (ProcFreeFp)taosMemoryFree,
-      .parentMallocBodyFp = (ProcMallocFp)rpcMallocCont,
-      .parentFreeBodyFp = (ProcFreeFp)rpcFreeCont,
-      .shm = pWrapper->procShm,
-      .parent = pWrapper,
-      .name = pWrapper->name,
-  };
-  return cfg;
 }
 
 static bool rpcRfp(int32_t code) {

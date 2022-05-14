@@ -40,10 +40,10 @@ static void dmGetMonitorBasicInfo(SDnodeMgmt *pMgmt, SMonBasicInfo *pInfo) {
 
 static void dmGetMonitorDnodeInfo(SDnodeMgmt *pMgmt, SMonDnodeInfo *pInfo) {
   pInfo->uptime = (taosGetTimestampMs() - pMgmt->data.rebootTime) / (86400000.0f);
-  pInfo->has_mnode = (*pMgmt->isNodeDeployedFp)(pMgmt->pDnode, MNODE);
-  pInfo->has_qnode = (*pMgmt->isNodeDeployedFp)(pMgmt->pDnode, QNODE);
-  pInfo->has_snode = (*pMgmt->isNodeDeployedFp)(pMgmt->pDnode, SNODE);
-  pInfo->has_bnode = (*pMgmt->isNodeDeployedFp)(pMgmt->pDnode, BNODE);
+  pInfo->has_mnode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, MNODE);
+  pInfo->has_qnode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, QNODE);
+  pInfo->has_snode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, SNODE);
+  pInfo->has_bnode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, BNODE);
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
   pInfo->logdir.size = tsLogSpace.size;
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));

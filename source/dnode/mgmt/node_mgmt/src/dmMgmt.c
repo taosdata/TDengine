@@ -16,9 +16,45 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static bool dmIsNodeDeployedFp(SDnode *pDnode, EDndNodeType ntype) { return pDnode->wrappers[ntype].required; }
+static bool dmIsNodeRequired(SDnode *pDnode, EDndNodeType ntype) { return pDnode->wrappers[ntype].required; }
+
+static bool dmRequireNode(SMgmtWrapper *pWrapper) {
+  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
+  pInput->name = pWrapper->name;
+  pInput->path = pWrapper->path;
+
+  bool    required = false;
+  int32_t code = (*pWrapper->func.requiredFp)(pInput, &required);
+  if (!required) {
+    dDebug("node:%s, does not require startup", pWrapper->name);
+  }
+
+  if (pWrapper->ntype == DNODE && pWrapper->pDnode->rtype != DNODE && pWrapper->pDnode->rtype != NODE_END) {
+    required = false;
+    dDebug("node:%s, does not require startup in child process", pWrapper->name);
+  }
+
+  return required;
+}
 
 static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
+  pDnode->rtype = pOption->ntype;
+
+  if (tsMultiProcess == 0) {
+    pDnode->ptype = DND_PROC_SINGLE;
+    dInfo("dnode will run in single-process mode");
+  } else if (tsMultiProcess > 1) {
+    pDnode->ptype = DND_PROC_TEST;
+    dInfo("dnode will run in multi-process test mode");
+  } else if (pDnode->rtype == DNODE || pDnode->rtype == NODE_END) {
+    pDnode->ptype = DND_PROC_PARENT;
+    dInfo("dnode will run in parent-process mode");
+  } else {
+    pDnode->ptype = DND_PROC_CHILD;
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->rtype];
+    dInfo("dnode will run in child-process mode, node:%s", pWrapper->name);
+  }
+
   pDnode->input.dnodeId = 0;
   pDnode->input.clusterId = 0;
   pDnode->input.localEp = strdup(pOption->localEp);
@@ -33,20 +69,12 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pDnode->input.pDnode = pDnode;
   pDnode->input.processCreateNodeFp = dmProcessCreateNodeReq;
   pDnode->input.processDropNodeFp = dmProcessDropNodeReq;
-  pDnode->input.isNodeDeployedFp = dmIsNodeDeployedFp;
+  pDnode->input.isNodeRequiredFp = dmIsNodeRequired;
 
   if (pDnode->input.dataDir == NULL || pDnode->input.localEp == NULL || pDnode->input.localFqdn == NULL ||
       pDnode->input.firstEp == NULL || pDnode->input.secondEp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
-  }
-
-  pDnode->ntype = pOption->ntype;
-  if (!tsMultiProcess || pDnode->ntype == DNODE || pDnode->ntype == NODE_END) {
-    pDnode->lockfile = dmCheckRunning(pOption->dataDir);
-    if (pDnode->lockfile == NULL) {
-      return -1;
-    }
   }
 
   taosThreadMutexInit(&pDnode->mutex, NULL);
@@ -76,19 +104,6 @@ static void dmClearVars(SDnode *pDnode) {
   dDebug("dnode memory is cleared, data:%p", pDnode);
 }
 
-static bool dmRequireNode(SMgmtWrapper *pWrapper) {
-  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
-  pInput->name = pWrapper->name;
-  pInput->path = pWrapper->path;
-
-  bool    required = false;
-  int32_t code = (*pWrapper->func.requiredFp)(pInput, &required);
-  if (!required) {
-    dDebug("node:%s, does not require startup", pWrapper->name);
-  }
-  return required;
-}
-
 SDnode *dmCreate(const SDnodeOpt *pOption) {
   dInfo("start to create dnode");
   int32_t code = -1;
@@ -105,7 +120,6 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  dmSetStatus(pDnode, DND_STAT_INIT);
   pDnode->wrappers[DNODE].func = dmGetMgmtFunc();
   pDnode->wrappers[MNODE].func = mmGetMgmtFunc();
   pDnode->wrappers[VNODE].func = vmGetMgmtFunc();
@@ -117,9 +131,14 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
     pWrapper->pDnode = pDnode;
     pWrapper->name = dmNodeName(ntype);
-    pWrapper->procShm.id = -1;
-    pWrapper->nodeType = ntype;
-    pWrapper->procType = DND_PROC_SINGLE;
+    pWrapper->ntype = ntype;
+    pWrapper->proc.wrapper = pWrapper;
+    pWrapper->proc.shm.id = -1;
+    pWrapper->proc.pid = -1;
+    pWrapper->proc.ptype = pDnode->ptype;
+    if (ntype == DNODE) {
+      pWrapper->proc.ptype = DND_PROC_SINGLE;
+    }
     taosInitRWLatch(&pWrapper->latch);
 
     snprintf(path, sizeof(path), "%s%s%s", pOption->dataDir, TD_DIRSEP, pWrapper->name);
@@ -129,7 +148,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
       goto _OVER;
     }
 
-    if (ntype != DNODE && dmReadShmFile(pWrapper->path, pWrapper->name, pDnode->ntype, &pWrapper->procShm) != 0) {
+    if (ntype != DNODE && dmReadShmFile(pWrapper->path, pWrapper->name, pDnode->rtype, &pWrapper->proc.shm) != 0) {
       dError("node:%s, failed to read shm file since %s", pWrapper->name, terrstr());
       goto _OVER;
     }
@@ -146,6 +165,19 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
+  if (OnlyInSingleProc(pDnode->ptype) && InParentProc(pDnode->ptype)) {
+    pDnode->lockfile = dmCheckRunning(pOption->dataDir);
+    if (pDnode->lockfile == NULL) {
+      goto _OVER;
+    }
+
+    if (dmInitServer(pDnode) != 0) {
+      dError("failed to init transport since %s", terrstr());
+      goto _OVER;
+    }
+  }
+
+  dmReportStartup(pDnode, "dnode-transport", "initialized");
   dInfo("dnode is created, data:%p", pDnode);
   code = 0;
 
@@ -203,7 +235,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
 
   taosRLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed || (pWrapper->procType == DND_PROC_PARENT && pWrapper->required)) {
+  if (pWrapper->deployed || (InParentProc(pWrapper->proc.ptype) && pWrapper->required)) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     dTrace("node:%s, is marked, refCount:%d", pWrapper->name, refCount);
   } else {
@@ -321,7 +353,7 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
     (void)dmOpenNode(pWrapper);
     pWrapper->required = true;
     pWrapper->deployed = true;
-    pWrapper->procType = pDnode->ptype;
+    pWrapper->proc.ptype = pDnode->ptype;
   }
 
   taosThreadMutexUnlock(&pDnode->mutex);

@@ -58,7 +58,7 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
   pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
-  pMgmt->isNodeDeployedFp = pInput->isNodeDeployedFp;
+  pMgmt->isNodeRequiredFp = pInput->isNodeRequiredFp;
   taosInitRWLatch(&pMgmt->data.latch);
 
   pMgmt->data.dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);

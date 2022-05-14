@@ -26,7 +26,6 @@
 #include "tlog.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
-#include "tprocess.h"
 #include "tqueue.h"
 #include "trpc.h"
 #include "tthread.h"
@@ -83,7 +82,7 @@ typedef enum {
 
 typedef int32_t (*ProcessCreateNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
-typedef bool (*IsNodeDeployedFp)(struct SDnode *pDnode, EDndNodeType ntype);
+typedef bool (*IsNodeRequiredFp)(struct SDnode *pDnode, EDndNodeType ntype);
 
 typedef struct {
   const char         *path;
@@ -103,7 +102,7 @@ typedef struct {
   struct SDnode      *pDnode;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
-  IsNodeDeployedFp    isNodeDeployedFp;
+  IsNodeRequiredFp    isNodeRequiredFp;
 } SMgmtInputOpt;
 
 typedef struct {

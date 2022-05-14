@@ -32,7 +32,7 @@ typedef struct SDnodeMgmt {
   SSingleWorker       mgmtWorker;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
-  IsNodeDeployedFp    isNodeDeployedFp;
+  IsNodeRequiredFp    isNodeRequiredFp;
   SDnodeData          data;
 } SDnodeMgmt;
 
