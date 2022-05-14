@@ -261,6 +261,22 @@ typedef struct SSetSlotIdCxt {
   SHashObj* pRightHash;
 } SSetSlotIdCxt;
 
+static void dumpSlots(const char* pName, SHashObj* pHash) {
+  if (NULL == pHash) {
+    return;
+  }
+  planDebug("%s", pName);
+  void* pIt = taosHashIterate(pHash, NULL);
+  while (NULL != pIt) {
+    size_t len = 0;
+    char*  pKey = taosHashGetKey(pIt, &len);
+    char   name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN] = {0};
+    strncpy(name, pKey, len);
+    planDebug("\tslot name = %s", name);
+    pIt = taosHashIterate(pHash, pIt);
+  }
+}
+
 static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode) && 0 != strcmp(((SColumnNode*)pNode)->colName, "*")) {
     SSetSlotIdCxt* pCxt = (SSetSlotIdCxt*)pContext;
@@ -273,6 +289,8 @@ static EDealRes doSetSlotId(SNode* pNode, void* pContext) {
     // pIndex is definitely not NULL, otherwise it is a bug
     if (NULL == pIndex) {
       planError("doSetSlotId failed, invalid slot name %s", name);
+      dumpSlots("left datablock desc", pCxt->pLeftHash);
+      dumpSlots("right datablock desc", pCxt->pRightHash);
       pCxt->errCode = TSDB_CODE_PLAN_INTERNAL_ERROR;
       return DEAL_RES_ERROR;
     }
