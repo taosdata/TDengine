@@ -63,7 +63,7 @@ typedef struct SStmtBindInfo {
   int8_t       tbType;
   bool         tagsCached;
   void*        boundTags;  
-  char         tbName[TSDB_TABLE_FNAME_LEN];;
+  char         tbName[TSDB_TABLE_FNAME_LEN];
   char         tbFName[TSDB_TABLE_FNAME_LEN];
   char         stbFName[TSDB_TABLE_FNAME_LEN];
   SName        sname;
@@ -71,7 +71,6 @@ typedef struct SStmtBindInfo {
 
 typedef struct SStmtExecInfo {
   int32_t      affectedRows;
-  bool         emptyRes;
   SRequestObj* pRequest;
   SHashObj*    pVgHash;
   SHashObj*    pBlockHash;
@@ -87,7 +86,6 @@ typedef struct SStmtSQLInfo {
   char*             sqlStr;
   int32_t           sqlLen;
   SArray*           nodeList;
-  SQueryPlan*       pQueryPlan;
   SStmtQueryResInfo queryRes;
   bool              autoCreateTbl;
 } SStmtSQLInfo;

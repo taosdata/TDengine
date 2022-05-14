@@ -14,8 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmImp.h"
-
+#include "dmMgmt.h"
 #include "qworker.h"
 
 #define INTERNAL_USER   "_dnd"
@@ -23,21 +22,21 @@
 #define INTERNAL_SECRET "_pwd"
 
 static void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
-  taosRLockLatch(&pDnode->data.latch);
-  *pEpSet = pDnode->data.mnodeEps;
-  taosRUnLockLatch(&pDnode->data.latch);
+  taosRLockLatch(&pDnode->latch);
+  *pEpSet = pDnode->mnodeEps;
+  taosRUnLockLatch(&pDnode->latch);
 }
 
 static void dmSetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
 
-  taosWLockLatch(&pDnode->data.latch);
-  pDnode->data.mnodeEps = *pEpSet;
+  taosWLockLatch(&pDnode->latch);
+  pDnode->mnodeEps = *pEpSet;
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
 
-  taosWUnLockLatch(&pDnode->data.latch);
+  taosWUnLockLatch(&pDnode->latch);
 }
 
 static inline NodeMsgFp dmGetMsgFp(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
@@ -64,7 +63,7 @@ static inline int32_t dmBuildMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
   if ((pRpc->msgType & 1u)) {
     assert(pRpc->refId != 0);
   }
-  // assert(pRpc->handle != NULL && pRpc->refId != 0 && pMsg->rpcMsg.refId != 0);
+
   return 0;
 }
 
@@ -76,20 +75,16 @@ static void dmProcessRpcMsg(SMgmtWrapper *pWrapper, SRpcMsg *pRpc, SEpSet *pEpSe
   bool      needRelease = false;
   bool      isReq = msgType & 1U;
 
-  if (pEpSet && pEpSet->numOfEps > 0 && msgType == TDMT_MND_STATUS_RSP) {
-    dmSetMnodeEpSet(pWrapper->pDnode, pEpSet);
-  }
-
   if (dmMarkWrapper(pWrapper) != 0) goto _OVER;
-
   needRelease = true;
+
   if ((msgFp = dmGetMsgFp(pWrapper, pRpc)) == NULL) goto _OVER;
   if ((pMsg = taosAllocateQitem(sizeof(SNodeMsg))) == NULL) goto _OVER;
   if (dmBuildMsg(pMsg, pRpc) != 0) goto _OVER;
 
   if (pWrapper->procType != DND_PROC_PARENT) {
     dTrace("msg:%p, created, type:%s handle:%p user:%s", pMsg, TMSG_INFO(msgType), pRpc->handle, pMsg->user);
-    code = (*msgFp)(pWrapper, pMsg);
+    code = (*msgFp)(pWrapper->pMgmt, pMsg);
   } else {
     dTrace("msg:%p, created and put into child queue, type:%s handle:%p code:0x%04x user:%s contLen:%d", pMsg,
            TMSG_INFO(msgType), pRpc->handle, pMsg->rpcMsg.code & 0XFFFF, pMsg->user, pRpc->contLen);
@@ -133,13 +128,17 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
   tmsg_t        msgType = pMsg->msgType;
   bool          isReq = msgType & 1u;
   SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
-  SMgmtWrapper *pWrapper = pHandle->pNdWrapper;
+  SMgmtWrapper *pWrapper = NULL;
 
   switch (msgType) {
     case TDMT_DND_SERVER_STATUS:
-      dTrace("server status req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
-      dmProcessServerStatusReq(pDnode, pMsg);
-      return;
+      if (pDnode->status != DND_STAT_RUNNING) {
+        dTrace("server status req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
+        dmProcessServerStartupStatus(pDnode, pMsg);
+        return;
+      } else {
+        break;
+      }
     case TDMT_DND_NET_TEST:
       dTrace("net test req will be processed, handle:%p, app:%p", pMsg->handle, pMsg->ahandle);
       dmProcessNetTestReq(pDnode, pMsg);
@@ -171,7 +170,7 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     return;
   }
 
-  if (pWrapper == NULL) {
+  if (pHandle->defaultNtype == NODE_END) {
     dError("msg:%s not processed since no handle, handle:%p app:%p", TMSG_INFO(msgType), pMsg->handle, pMsg->ahandle);
     if (isReq) {
       SRpcMsg rspMsg = {
@@ -182,13 +181,14 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
     return;
   }
 
-  if (pHandle->pMndWrapper != NULL || pHandle->pQndWrapper != NULL) {
+  pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
+  if (pHandle->needCheckVgId) {
     SMsgHead *pHead = pMsg->pCont;
     int32_t   vgId = ntohl(pHead->vgId);
     if (vgId == QNODE_HANDLE) {
-      pWrapper = pHandle->pQndWrapper;
+      pWrapper = &pDnode->wrappers[QNODE];
     } else if (vgId == MNODE_HANDLE) {
-      pWrapper = pHandle->pMndWrapper;
+      pWrapper = &pDnode->wrappers[MNODE];
     } else {
     }
   }
@@ -203,35 +203,24 @@ static void dmProcessMsg(SDnode *pDnode, SRpcMsg *pMsg, SEpSet *pEpSet) {
 int32_t dmInitMsgHandle(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
-  for (EDndNodeType n = DNODE; n < NODE_END; ++n) {
-    SMgmtWrapper *pWrapper = &pDnode->wrappers[n];
+  for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
+    SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
+    if (pArray == NULL) return -1;
 
-    for (int32_t msgIndex = 0; msgIndex < TDMT_MAX; ++msgIndex) {
-      NodeMsgFp msgFp = pWrapper->msgFps[msgIndex];
-      int8_t    vgId = pWrapper->msgVgIds[msgIndex];
-      if (msgFp == NULL) continue;
-
-      SMsgHandle *pHandle = &pTrans->msgHandles[msgIndex];
-      if (vgId == QNODE_HANDLE) {
-        if (pHandle->pQndWrapper != NULL) {
-          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
-          return -1;
-        }
-        pHandle->pQndWrapper = pWrapper;
-      } else if (vgId == MNODE_HANDLE) {
-        if (pHandle->pMndWrapper != NULL) {
-          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
-          return -1;
-        }
-        pHandle->pMndWrapper = pWrapper;
-      } else {
-        if (pHandle->pNdWrapper != NULL) {
-          dError("msg:%s has multiple process nodes", tMsgInfo[msgIndex]);
-          return -1;
-        }
-        pHandle->pNdWrapper = pWrapper;
+    for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+      SMgmtHandle *pMgmt = taosArrayGet(pArray, i);
+      SMsgHandle  *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
+      if (pMgmt->needCheckVgId) {
+        pHandle->needCheckVgId = pMgmt->needCheckVgId;
       }
+      if (!pMgmt->needCheckVgId) {
+        pHandle->defaultNtype = ntype;
+      }
+      pWrapper->msgFps[TMSG_INDEX(pMgmt->msgType)] = pMgmt->msgFp;
     }
+
+    taosArrayDestroy(pArray);
   }
 
   return 0;
@@ -244,7 +233,7 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    if (strcmp(epSet.eps[i].fqdn, pDnode->data.localFqdn) == 0 && epSet.eps[i].port == pDnode->data.serverPort) {
+    if (strcmp(epSet.eps[i].fqdn, pDnode->input.localFqdn) == 0 && epSet.eps[i].port == pDnode->input.serverPort) {
       epSet.inUse = (i + 1) % epSet.numOfEps;
     }
 
@@ -271,26 +260,29 @@ static inline void dmSendRpcRsp(SDnode *pDnode, const SRpcMsg *pRsp) {
   }
 }
 
-void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
-  rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
+static inline void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
+  if (pDnode->status != DND_STAT_RUNNING) {
+    pRsp->code = TSDB_CODE_NODE_OFFLINE;
+    rpcFreeCont(pReq->pCont);
+    pReq->pCont = NULL;
+  } else {
+    rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
+  }
 }
 
-void dmSendToMnodeRecv(SDnode *pDnode, SRpcMsg *pReq, SRpcMsg *pRsp) {
+static inline void dmSendToMnodeRecv(SMgmtWrapper *pWrapper, SRpcMsg *pReq, SRpcMsg *pRsp) {
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(pDnode, &epSet);
-  rpcSendRecv(pDnode->trans.clientRpc, &epSet, pReq, pRsp);
+  dmGetMnodeEpSet(pWrapper->pDnode, &epSet);
+  dmSendRecv(pWrapper->pDnode, &epSet, pReq, pRsp);
 }
 
 static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
   SDnode *pDnode = pWrapper->pDnode;
-  if (pDnode->status != DND_STAT_RUNNING) {
+  if (pDnode->status != DND_STAT_RUNNING || pDnode->trans.clientRpc == NULL) {
+    rpcFreeCont(pReq->pCont);
+    pReq->pCont = NULL;
     terrno = TSDB_CODE_NODE_OFFLINE;
     dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
-    return -1;
-  }
-
-  if (pDnode->trans.clientRpc == NULL) {
-    terrno = TSDB_CODE_NODE_OFFLINE;
     return -1;
   }
 
@@ -326,17 +318,6 @@ static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp
   }
 }
 
-#if 0
-static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
-  ASSERT(pRsp->code == TSDB_CODE_RPC_REDIRECT);
-  if (pWrapper->procType != DND_PROC_CHILD) {
-    rpcSendRedirectRsp(pRsp->handle, pNewEpSet);
-  } else {
-    taosProcPutToParentQ(pWrapper->procObj, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
-  }
-}
-#endif
-
 static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   if (pWrapper->procType != DND_PROC_CHILD) {
     rpcRegisterBrokenLinkArg(pMsg);
@@ -361,7 +342,7 @@ static void dmConsumeChildQueue(SMgmtWrapper *pWrapper, SNodeMsg *pMsg, int16_t 
   dTrace("msg:%p, get from child queue, handle:%p app:%p", pMsg, pRpc->handle, pRpc->ahandle);
 
   NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pRpc->msgType)];
-  int32_t   code = (*msgFp)(pWrapper, pMsg);
+  int32_t   code = (*msgFp)(pWrapper->pMgmt, pMsg);
 
   if (code != 0) {
     dError("msg:%p, failed to process since code:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
@@ -460,11 +441,7 @@ int32_t dmInitClient(SDnode *pDnode) {
     return -1;
   }
 
-  pDnode->data.msgCb = dmGetMsgcb(&pDnode->wrappers[DNODE]);
-  tmsgSetDefaultMsgCb(&pDnode->data.msgCb);
-
   dDebug("dnode rpc client is initialized");
-
   return 0;
 }
 
@@ -515,8 +492,10 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
 
   SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
   SRpcMsg rpcRsp = {0};
+  SEpSet  epSet = {0};
   dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);
-  dmSendToMnodeRecv(pDnode, &rpcMsg, &rpcRsp);
+  dmGetMnodeEpSet(pDnode, &epSet);
+  dmSendRecv(pDnode, &epSet, &rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
     terrno = rpcRsp.code;
@@ -541,8 +520,8 @@ int32_t dmInitServer(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
 
-  strncpy(rpcInit.localFqdn, pDnode->data.localFqdn, strlen(pDnode->data.localFqdn));
-  rpcInit.localPort = pDnode->data.serverPort;
+  strncpy(rpcInit.localFqdn, pDnode->input.localFqdn, strlen(pDnode->input.localFqdn));
+  rpcInit.localPort = pDnode->input.serverPort;
   rpcInit.label = "DND";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessMsg;
@@ -573,14 +552,15 @@ void dmCleanupServer(SDnode *pDnode) {
 
 SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
   SMsgCb msgCb = {
+      .pWrapper = pWrapper,
+      .clientRpc = pWrapper->pDnode->trans.clientRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
+      .sendMnodeRecvFp = dmSendToMnodeRecv,
       .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
       .reportStartupFp = dmReportStartupByWrapper,
-      .pWrapper = pWrapper,
-      .clientRpc = pWrapper->pDnode->trans.clientRpc,
   };
   return msgCb;
 }

@@ -758,7 +758,7 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
     int32_t output = 0;
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
       char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
       return buildSyntaxErrMsg(pMsgBuf, buf, value);
     }
 
@@ -1227,16 +1227,20 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    (*pQuery)->pTableList = taosArrayInit(taosHashGetSize(context.pTableNameHashObj), sizeof(SName));
-    if (NULL == (*pQuery)->pTableList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+
     (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
     (*pQuery)->haveResultSet = false;
     (*pQuery)->msgType = TDMT_VND_SUBMIT;
     (*pQuery)->pRoot = (SNode*)context.pOutput;
   }
 
+  if (NULL == (*pQuery)->pTableList) {
+    (*pQuery)->pTableList = taosArrayInit(taosHashGetSize(context.pTableNameHashObj), sizeof(SName));
+    if (NULL == (*pQuery)->pTableList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = skipInsertInto(&context);
@@ -1668,7 +1672,11 @@ static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedD
     SSchema* pTagSchema = &pSchema[tags->boundColumns[i] - 1];  // colId starts with 1
     param.schema = pTagSchema;
     SSmlKv* kv = taosArrayGetP(cols, i);
-    KvRowAppend(msg, kv->value, kv->valueLen, &param);
+    if(IS_VAR_DATA_TYPE(kv->type)){
+      KvRowAppend(msg, kv->value, kv->length, &param);
+    }else{
+      KvRowAppend(msg, &(kv->value), kv->length, &param);
+    }
   }
 
   *row = tdGetKVRowFromBuilder(tagsBuilder);
@@ -1766,14 +1774,16 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsSchema, SArray *cols
       if (!kv || kv->length == 0) {
         MemRowAppend(&pBuf, NULL, 0, &param);
       } else {
-        int32_t colLen = pColSchema->bytes;
-        if (IS_VAR_DATA_TYPE(pColSchema->type)) {
-          colLen = kv->length;
-        } else if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+        int32_t colLen = kv->length;
+        if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
           kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
         }
 
-        MemRowAppend(&pBuf, &(kv->value), colLen, &param);
+        if(IS_VAR_DATA_TYPE(kv->type)){
+          MemRowAppend(&pBuf, kv->value, colLen, &param);
+        }else{
+          MemRowAppend(&pBuf, &(kv->value), colLen, &param);
+        }
       }
 
       if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {

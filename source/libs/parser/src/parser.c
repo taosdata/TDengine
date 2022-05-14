@@ -184,5 +184,6 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
   }
+  
   return code;
 }

@@ -1538,7 +1538,9 @@ static EDealRes checkStateExpr(SNode* pNode, void* pContext) {
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     STranslateContext* pCxt = pContext;
     SColumnNode*       pCol = (SColumnNode*)pNode;
-    if (!IS_INTEGER_TYPE(pCol->node.resType.type)) {
+
+    int32_t type = pCol->node.resType.type;
+    if (!IS_INTEGER_TYPE(type) && type != TSDB_DATA_TYPE_BOOL && !IS_VAR_DATA_TYPE(type)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE);
     }
     if (COLUMN_TYPE_TAG == pCol->colType) {
