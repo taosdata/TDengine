@@ -203,7 +203,33 @@ TEST(testCase, index_filter) {
     taosArrayDestroy(result);
     nodesDestroyNode(res);
   }
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_INT, pLeft, pRight);
+    SArray *result = taosArrayInit(4, sizeof(uint64_t));
+    doFilterTag(opNode, result);
+    EXPECT_EQ(0, taosArrayGetSize(result));
+    taosArrayDestroy(result);
+    nodesDestroyNode(res);
+  }
+  {
+    SNode *pLeft = NULL, *pRight = NULL, *opNode = NULL, *res = NULL;
+    sifMakeColumnNode(&pLeft, "test", "col", COLUMN_TYPE_TAG, TSDB_DATA_TYPE_INT);
+    sifMakeValueNode(&pRight, TSDB_DATA_TYPE_INT, &sifRightV);
+    sifMakeOpNode(&opNode, OP_TYPE_GREATER_EQUAL, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
+
+    SArray *result = taosArrayInit(4, sizeof(uint64_t));
+    doFilterTag(opNode, result);
+    EXPECT_EQ(0, taosArrayGetSize(result));
+
+    taosArrayDestroy(result);
+    nodesDestroyNode(res);
+  }
 }
+
+// add other greater/lower/equal/in compare func test
 
 TEST(testCase, index_filter_varify) {
   {

@@ -326,7 +326,7 @@ static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType q
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) return -1;
 
-  SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
+  SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg), RPC_QITEM);
   int32_t   code = 0;
 
   if (pMsg != NULL) {
@@ -397,22 +397,22 @@ int32_t vmGetQueueSize(SVnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
   if (pVnode != NULL) {
     switch (qtype) {
       case WRITE_QUEUE:
-        size = taosQueueSize(pVnode->pWriteQ);
+        size = taosQueueItemSize(pVnode->pWriteQ);
         break;
       case SYNC_QUEUE:
-        size = taosQueueSize(pVnode->pSyncQ);
+        size = taosQueueItemSize(pVnode->pSyncQ);
         break;
       case APPLY_QUEUE:
-        size = taosQueueSize(pVnode->pApplyQ);
+        size = taosQueueItemSize(pVnode->pApplyQ);
         break;
       case QUERY_QUEUE:
-        size = taosQueueSize(pVnode->pQueryQ);
+        size = taosQueueItemSize(pVnode->pQueryQ);
         break;
       case FETCH_QUEUE:
-        size = taosQueueSize(pVnode->pFetchQ);
+        size = taosQueueItemSize(pVnode->pFetchQ);
         break;
       case MERGE_QUEUE:
-        size = taosQueueSize(pVnode->pMergeQ);
+        size = taosQueueItemSize(pVnode->pMergeQ);
         break;
       default:
         break;

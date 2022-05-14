@@ -404,6 +404,19 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache) {
     indexMultiTermQueryDestroy(mq);
   }
   {
+    std::string colName("other_column");
+    std::string colVal("100");
+    SIndexTerm* term = indexTermCreate(1, ADD_VALUE, TSDB_DATA_TYPE_INT, colName.c_str(), colName.size(),
+                                       colVal.c_str(), colVal.size());
+
+    SIndexMultiTerm* terms = indexMultiTermCreate();
+    indexMultiTermAdd(terms, term);
+    for (size_t i = 0; i < 1000; i++) {
+      tIndexJsonPut(index, terms, i);
+    }
+    indexMultiTermDestroy(terms);
+  }
+  {
     std::string colName("test1");
     std::string colVal("10");
 

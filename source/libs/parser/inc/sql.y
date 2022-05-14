@@ -868,9 +868,9 @@ query_expression_body(A) ::=
   query_expression_body(B) UNION query_expression_body(D).                        { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, D); }
 
 query_primary(A) ::= query_specification(B).                                      { A = B; }
-//query_primary(A) ::=
-//  NK_LP query_expression_body(B) 
-//    order_by_clause_opt slimit_clause_opt limit_clause_opt NK_RP.                 { A = B; }
+query_primary(A) ::=
+  NK_LP query_expression_body(B) 
+    order_by_clause_opt slimit_clause_opt limit_clause_opt NK_RP.                 { A = B; }
 
 %type order_by_clause_opt                                                         { SNodeList* }
 %destructor order_by_clause_opt                                                   { nodesDestroyList($$); }
