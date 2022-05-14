@@ -398,8 +398,7 @@ static void *dmConsumParentQueue(void *param) {
       rpcFreeCont(pBody);
     } else if (ftype == PROC_FUNC_RELEASE) {
       pRsp = pHead;
-      dTrace("node:%s, release msg:%p from parent queue, code:0x%04x handle:%p", proc->name, pRsp, code,
-             pRsp->handle);
+      dTrace("node:%s, release msg:%p from parent queue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       dmRemoveProcRpcHandle(proc, pRsp->handle);
       rpcReleaseHandle(pRsp->handle, (int8_t)pRsp->code);
       rpcFreeCont(pBody);
