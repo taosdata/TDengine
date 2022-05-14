@@ -39,10 +39,36 @@ static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
 }
 static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
+  if (type == TSDB_DATA_TYPE_INT) {
+    char* v1 = (char*)a;
+    char* v2 = (char*)b;
+    for (int i = 0; i < sizeof(int32_t); i++) {
+      if (v1[i] == '0') {
+        v1[i] = 0;
+      }
+      if (v2[i] == '0') {
+        v2[i] = 0;
+      }
+    }
+    return tDoCommpare(func, QUERY_GREATER_THAN, v1, v2);
+  }
   return tDoCommpare(func, QUERY_GREATER_THAN, a, b);
 }
 static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
+  if (type == TSDB_DATA_TYPE_INT) {
+    char* v1 = (char*)a;
+    char* v2 = (char*)b;
+    for (int i = 0; i < sizeof(int32_t); i++) {
+      if (v1[i] == '0') {
+        v1[i] = 0;
+      }
+      if (v2[i] == '0') {
+        v2[i] = 0;
+      }
+    }
+    return tDoCommpare(func, QUERY_GREATER_EQUAL, v1, v2);
+  }
   return tDoCommpare(func, QUERY_GREATER_EQUAL, a, b);
 }
 
@@ -216,7 +242,7 @@ int32_t indexConvertData(void* src, int8_t type, void** dst) {
   }
   *dst = *dst - tlen;
   if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_VARBINARY &&
-      type == TSDB_DATA_TYPE_VARCHAR) {
+      type != TSDB_DATA_TYPE_VARCHAR) {
     uint8_t* p = *dst;
     for (int i = 0; i < tlen; i++) {
       if (p[i] == 0) {

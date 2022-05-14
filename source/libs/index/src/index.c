@@ -109,17 +109,15 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadMutexInit(&sIdx->mtx, NULL);
 
   sIdx->refId = indexAddRef(sIdx);
-  taosAcquireRef(indexRefMgt, sIdx->refId);
+  indexAcquireRef(sIdx->refId);
 
   *index = sIdx;
-
   return 0;
 
 END:
   if (sIdx != NULL) {
     indexClose(sIdx);
   }
-
   *index = NULL;
   return -1;
 }
