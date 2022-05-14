@@ -1098,20 +1098,29 @@ int32_t udfcStartUvTask(SClientUvTaskNode *uvTask) {
     }
     case UV_TASK_REQ_RSP: {
       uv_pipe_t *pipe = uvTask->pipe;
-      uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
-      write->data = uvTask;
-      int err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipetWrite);
-      if (err != 0) {
-        fnError("udfc event loop start req/rsp task uv_write failed. code: %s", uv_strerror(err));
+      if (pipe == NULL) {
+        code = TSDB_CODE_UDF_PIPE_NO_PIPE;
+      } else {
+        uv_write_t *write = taosMemoryMalloc(sizeof(uv_write_t));
+        write->data = uvTask;
+        int err = uv_write(write, (uv_stream_t *)pipe, &uvTask->reqBuf, 1, onUdfcPipetWrite);
+        if (err != 0) {
+          fnError("udfc event loop start req/rsp task uv_write failed. code: %s", uv_strerror(err));
+        }
+        code = err;
       }
-      code = err;
       break;
     }
     case UV_TASK_DISCONNECT: {
-      SClientUvConn *conn = uvTask->pipe->data;
-      QUEUE_INSERT_TAIL(&conn->taskQueue, &uvTask->connTaskQueue);
-      uv_close((uv_handle_t *) uvTask->pipe, onUdfcPipeClose);
-      code = 0;
+      uv_pipe_t *pipe = uvTask->pipe;
+      if (pipe == NULL) {
+        code = TSDB_CODE_UDF_PIPE_NO_PIPE;
+      } else {
+        SClientUvConn *conn = pipe->data;
+        QUEUE_INSERT_TAIL(&conn->taskQueue, &uvTask->connTaskQueue);
+        uv_close((uv_handle_t *)uvTask->pipe, onUdfcPipeClose);
+        code = 0;
+      }
       break;
     }
     default: {
