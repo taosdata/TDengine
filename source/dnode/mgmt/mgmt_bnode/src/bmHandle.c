@@ -52,9 +52,9 @@ int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (pInput->dnodeId != 0 && createReq.dnodeId != pInput->dnodeId) {
+  if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pInput->dnodeId);
+    dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pInput->pData->dnodeId);
     return -1;
   }
 

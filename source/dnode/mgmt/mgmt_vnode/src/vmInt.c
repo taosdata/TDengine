@@ -244,7 +244,7 @@ static void vmCleanup(SVnodeMgmt *pMgmt) {
   dInfo("vnode-mgmt is cleaned up");
 }
 
-static int32_t vmInit(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   dInfo("vnode-mgmt start to init");
   int32_t code = -1;
 
@@ -253,7 +253,7 @@ static int32_t vmInit(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->dnodeId;
+  pMgmt->dnodeId = pInput->pData->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)vmPutRpcMsgToWriteQueue;
   pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)vmPutRpcMsgToSyncQueue;
@@ -266,11 +266,11 @@ static int32_t vmInit(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   taosInitRWLatch(&pMgmt->latch);
 
   SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, pInput->dataDir, TSDB_FILENAME_LEN);
+  tstrncpy(dCfg.dir, pInput->pData->dataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  SDiskCfg *pDisks = pInput->disks;
-  int32_t   numOfDisks = pInput->numOfDisks;
+  SDiskCfg *pDisks = pInput->pData->disks;
+  int32_t   numOfDisks = pInput->pData->numOfDisks;
   if (numOfDisks <= 0 || pDisks == NULL) {
     pDisks = &dCfg;
     numOfDisks = 1;
@@ -333,7 +333,7 @@ _OVER:
 }
 
 static int32_t vmRequire(const SMgmtInputOpt *pInput, bool *required) {
-  *required = pInput->supportVnodes > 0;
+  *required = pInput->pData->supportVnodes > 0;
   return 0;
 }
 

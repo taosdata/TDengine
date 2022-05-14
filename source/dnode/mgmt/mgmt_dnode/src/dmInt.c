@@ -27,12 +27,12 @@ static int32_t dmStartMgmt(SDnodeMgmt *pMgmt) {
 }
 
 static void dmStopMgmt(SDnodeMgmt *pMgmt) {
-  pMgmt->data.stopped = true;
+  pMgmt->pData->stopped = true;
   dmStopMonitorThread(pMgmt);
   dmStopStatusThread(pMgmt);
 }
 
-static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   dInfo("dnode-mgmt start to init");
   SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
   if (pMgmt == NULL) {
@@ -40,18 +40,6 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
     return -1;
   }
 
-  pMgmt->data.dnodeId = 0;
-  pMgmt->data.clusterId = 0;
-  pMgmt->data.dnodeVer = 0;
-  pMgmt->data.updateTime = 0;
-  pMgmt->data.rebootTime = taosGetTimestampMs();
-  pMgmt->data.dropped = 0;
-  pMgmt->data.localEp = pInput->localEp;
-  pMgmt->data.localFqdn = pInput->localFqdn;
-  pMgmt->data.firstEp = pInput->firstEp;
-  pMgmt->data.secondEp = pInput->secondEp;
-  pMgmt->data.supportVnodes = pInput->supportVnodes;
-  pMgmt->data.serverPort = pInput->serverPort;
   pMgmt->pDnode = pInput->pDnode;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->path = pInput->path;
@@ -59,21 +47,21 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->isNodeRequiredFp = pInput->isNodeRequiredFp;
-  taosInitRWLatch(&pMgmt->data.latch);
+  taosInitRWLatch(&pMgmt->pData->latch);
 
-  pMgmt->data.dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (pMgmt->data.dnodeHash == NULL) {
+  pMgmt->pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pMgmt->pData->dnodeHash == NULL) {
     dError("failed to init dnode hash");
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
-  if (dmReadEps(pMgmt) != 0) {
+  if (dmReadEps(pMgmt->pData) != 0) {
     dError("failed to read file since %s", terrstr());
     return -1;
   }
 
-  if (pMgmt->data.dropped) {
+  if (pMgmt->pData->dropped) {
     dError("dnode will not start since its already dropped");
     return -1;
   }
@@ -82,12 +70,11 @@ static int32_t dmOpenMgmt(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) 
     return -1;
   }
 
-  if (udfStartUdfd(pMgmt->data.dnodeId) != 0) {
+  if (udfStartUdfd(pMgmt->pData->dnodeId) != 0) {
     dError("failed to start udfd");
   }
 
   pOutput->pMgmt = pMgmt;
-  pOutput->mnodeEps = pMgmt->data.mnodeEps;
   dInfo("dnode-mgmt is initialized");
   return 0;
 }
@@ -96,16 +83,16 @@ static void dmCloseMgmt(SDnodeMgmt *pMgmt) {
   dInfo("dnode-mgmt start to clean up");
   dmStopWorker(pMgmt);
 
-  taosWLockLatch(&pMgmt->data.latch);
-  if (pMgmt->data.dnodeEps != NULL) {
-    taosArrayDestroy(pMgmt->data.dnodeEps);
-    pMgmt->data.dnodeEps = NULL;
+  taosWLockLatch(&pMgmt->pData->latch);
+  if (pMgmt->pData->dnodeEps != NULL) {
+    taosArrayDestroy(pMgmt->pData->dnodeEps);
+    pMgmt->pData->dnodeEps = NULL;
   }
-  if (pMgmt->data.dnodeHash != NULL) {
-    taosHashCleanup(pMgmt->data.dnodeHash);
-    pMgmt->data.dnodeHash = NULL;
+  if (pMgmt->pData->dnodeHash != NULL) {
+    taosHashCleanup(pMgmt->pData->dnodeHash);
+    pMgmt->pData->dnodeHash = NULL;
   }
-  taosWUnLockLatch(&pMgmt->data.latch);
+  taosWUnLockLatch(&pMgmt->pData->latch);
   taosMemoryFree(pMgmt);
 
   dInfo("dnode-mgmt is cleaned up");

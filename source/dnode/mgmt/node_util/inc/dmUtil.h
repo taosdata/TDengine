@@ -85,34 +85,49 @@ typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, 
 typedef bool (*IsNodeRequiredFp)(struct SDnode *pDnode, EDndNodeType ntype);
 
 typedef struct {
+  int32_t     dnodeId;
+  int64_t     clusterId;
+  int64_t     dnodeVer;
+  int64_t     updateTime;
+  int64_t     rebootTime;
+  int32_t     unsyncedVgId;
+  ESyncState  vndState;
+  ESyncState  mndState;
+  bool        dropped;
+  bool        stopped;
+  SEpSet      mnodeEps;
+  SArray     *dnodeEps;
+  SHashObj   *dnodeHash;
+  SRWLatch    latch;
+  SMsgCb      msgCb;
+  const char *localEp;
+  const char *localFqdn;
+  const char *firstEp;
+  const char *secondEp;
+  int32_t     supportVnodes;
+  uint16_t    serverPort;
+  int32_t     numOfDisks;
+  SDiskCfg   *disks;
+  const char *dataDir;
+} SDnodeData;
+
+typedef struct {
   const char         *path;
   const char         *name;
-  SMsgCb              msgCb;
-  int32_t             dnodeId;
-  int64_t             clusterId;
-  const char         *localEp;
-  const char         *firstEp;
-  const char         *secondEp;
-  const char         *localFqdn;
-  uint16_t            serverPort;
-  int32_t             supportVnodes;
-  int32_t             numOfDisks;
-  SDiskCfg           *disks;
-  const char         *dataDir;
   struct SDnode      *pDnode;
+  SDnodeData         *pData;
+  SMsgCb              msgCb;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
   IsNodeRequiredFp    isNodeRequiredFp;
 } SMgmtInputOpt;
 
 typedef struct {
-  int32_t dnodeId;
-  void   *pMgmt;
-  SEpSet  mnodeEps;
+  void *pMgmt;
 } SMgmtOutputOpt;
 
 typedef int32_t (*NodeMsgFp)(void *pMgmt, SNodeMsg *pMsg);
-typedef int32_t (*NodeOpenFp)(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput);
+typedef int32_t (*NodeOpenFp)(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput);
 typedef void (*NodeCloseFp)(void *pMgmt);
 typedef int32_t (*NodeStartFp)(void *pMgmt);
 typedef void (*NodeStopFp)(void *pMgmt);
@@ -155,30 +170,10 @@ TdFilePtr dmCheckRunning(const char *dataDir);
 int32_t   dmReadShmFile(const char *path, const char *name, EDndNodeType runType, SShm *pShm);
 int32_t   dmWriteShmFile(const char *path, const char *name, const SShm *pShm);
 
-// common define
-typedef struct {
-  int32_t     dnodeId;
-  int64_t     clusterId;
-  int64_t     dnodeVer;
-  int64_t     updateTime;
-  int64_t     rebootTime;
-  int32_t     unsyncedVgId;
-  ESyncState  vndState;
-  ESyncState  mndState;
-  bool        dropped;
-  bool        stopped;
-  SEpSet      mnodeEps;
-  SArray     *dnodeEps;
-  SHashObj   *dnodeHash;
-  SRWLatch    latch;
-  SMsgCb      msgCb;
-  const char *localEp;
-  const char *localFqdn;
-  const char *firstEp;
-  const char *secondEp;
-  int32_t     supportVnodes;
-  uint16_t    serverPort;
-} SDnodeData;
+// dmEps.c
+int32_t dmReadEps(SDnodeData *pData);
+int32_t dmWriteEps(SDnodeData *pData);
+void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
 
 #ifdef __cplusplus
 }

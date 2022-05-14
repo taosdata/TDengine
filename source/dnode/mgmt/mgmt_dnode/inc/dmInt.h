@@ -24,6 +24,7 @@ extern "C" {
 
 typedef struct SDnodeMgmt {
   struct SDnode      *pDnode;
+  SDnodeData         *pData;
   SMsgCb              msgCb;
   const char         *path;
   const char         *name;
@@ -33,13 +34,7 @@ typedef struct SDnodeMgmt {
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
   IsNodeRequiredFp    isNodeRequiredFp;
-  SDnodeData          data;
 } SDnodeMgmt;
-
-// dmEps.c
-int32_t dmReadEps(SDnodeMgmt *pMgmt);
-int32_t dmWriteEps(SDnodeMgmt *pMgmt);
-void    dmUpdateEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
 // dmHandle.c
 SArray *dmGetMsgHandles();

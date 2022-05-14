@@ -24,7 +24,7 @@ static void *dmStatusThreadFp(void *param) {
 
   while (1) {
     taosMsleep(200);
-    if (pMgmt->data.dropped || pMgmt->data.stopped) break;
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
@@ -45,7 +45,7 @@ static void *dmMonitorThreadFp(void *param) {
 
   while (1) {
     taosMsleep(200);
-    if (pMgmt->data.dropped || pMgmt->data.stopped) break;
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;

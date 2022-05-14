@@ -81,7 +81,7 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (createReq.replica <= 1 || (createReq.dnodeId != pInput->dnodeId && pInput->dnodeId != 0)) {
+  if (createReq.replica <= 1 || (createReq.dnodeId != pInput->pData->dnodeId && pInput->pData->dnodeId != 0)) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create mnode since %s", terrstr());
     return -1;

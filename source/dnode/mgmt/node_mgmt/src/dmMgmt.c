@@ -19,12 +19,10 @@
 static bool dmIsNodeRequired(SDnode *pDnode, EDndNodeType ntype) { return pDnode->wrappers[ntype].required; }
 
 static bool dmRequireNode(SMgmtWrapper *pWrapper) {
-  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
-  pInput->name = pWrapper->name;
-  pInput->path = pWrapper->path;
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
   bool    required = false;
-  int32_t code = (*pWrapper->func.requiredFp)(pInput, &required);
+  int32_t code = (*pWrapper->func.requiredFp)(&input, &required);
   if (!required) {
     dDebug("node:%s, does not require startup", pWrapper->name);
   }
@@ -55,24 +53,24 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
     dInfo("dnode will run in child-process mode, node:%s", pWrapper->name);
   }
 
-  pDnode->input.dnodeId = 0;
-  pDnode->input.clusterId = 0;
-  pDnode->input.localEp = strdup(pOption->localEp);
-  pDnode->input.localFqdn = strdup(pOption->localFqdn);
-  pDnode->input.firstEp = strdup(pOption->firstEp);
-  pDnode->input.secondEp = strdup(pOption->secondEp);
-  pDnode->input.serverPort = pOption->serverPort;
-  pDnode->input.supportVnodes = pOption->numOfSupportVnodes;
-  pDnode->input.numOfDisks = pOption->numOfDisks;
-  pDnode->input.disks = pOption->disks;
-  pDnode->input.dataDir = strdup(pOption->dataDir);
-  pDnode->input.pDnode = pDnode;
-  pDnode->input.processCreateNodeFp = dmProcessCreateNodeReq;
-  pDnode->input.processDropNodeFp = dmProcessDropNodeReq;
-  pDnode->input.isNodeRequiredFp = dmIsNodeRequired;
+  pDnode->data.dnodeId = 0;
+  pDnode->data.clusterId = 0;
+  pDnode->data.dnodeVer = 0;
+  pDnode->data.updateTime = 0;
+  pDnode->data.rebootTime = taosGetTimestampMs();
+  pDnode->data.dropped = 0;
+  pDnode->data.localEp = strdup(pOption->localEp);
+  pDnode->data.localFqdn = strdup(pOption->localFqdn);
+  pDnode->data.firstEp = strdup(pOption->firstEp);
+  pDnode->data.secondEp = strdup(pOption->secondEp);
+  pDnode->data.serverPort = pOption->serverPort;
+  pDnode->data.supportVnodes = pOption->numOfSupportVnodes;
+  pDnode->data.numOfDisks = pOption->numOfDisks;
+  pDnode->data.disks = pOption->disks;
+  pDnode->data.dataDir = strdup(pOption->dataDir);
 
-  if (pDnode->input.dataDir == NULL || pDnode->input.localEp == NULL || pDnode->input.localFqdn == NULL ||
-      pDnode->input.firstEp == NULL || pDnode->input.secondEp == NULL) {
+  if (pDnode->data.dataDir == NULL || pDnode->data.localEp == NULL || pDnode->data.localFqdn == NULL ||
+      pDnode->data.firstEp == NULL || pDnode->data.secondEp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
@@ -92,11 +90,11 @@ static void dmClearVars(SDnode *pDnode) {
     pDnode->lockfile = NULL;
   }
 
-  taosMemoryFreeClear(pDnode->input.localEp);
-  taosMemoryFreeClear(pDnode->input.localFqdn);
-  taosMemoryFreeClear(pDnode->input.firstEp);
-  taosMemoryFreeClear(pDnode->input.secondEp);
-  taosMemoryFreeClear(pDnode->input.dataDir);
+  taosMemoryFreeClear(pDnode->data.localEp);
+  taosMemoryFreeClear(pDnode->data.localFqdn);
+  taosMemoryFreeClear(pDnode->data.firstEp);
+  taosMemoryFreeClear(pDnode->data.secondEp);
+  taosMemoryFreeClear(pDnode->data.dataDir);
 
   taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
@@ -322,7 +320,7 @@ _OVER:
   rpcFreeCont(pReq->pCont);
 }
 
-int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
     dmReleaseWrapper(pWrapper);
@@ -340,12 +338,9 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
     return -1;
   }
 
-  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
-  pInput->name = pWrapper->name;
-  pInput->path = pWrapper->path;
-  pInput->msgCb = dmGetMsgcb(pWrapper);
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
-  int32_t code = (*pWrapper->func.createFp)(pInput, pMsg);
+  int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
   if (code != 0) {
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
@@ -360,7 +355,7 @@ int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMs
   return code;
 }
 
-int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
@@ -387,4 +382,19 @@ int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg)
   }
   taosThreadMutexUnlock(&pDnode->mutex);
   return code;
+}
+
+SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
+  SMgmtInputOpt opt = {
+      .pDnode = pWrapper->pDnode,
+      .pData = &pWrapper->pDnode->data,
+      .processCreateNodeFp = dmProcessCreateNodeReq,
+      .processDropNodeFp = dmProcessDropNodeReq,
+      .isNodeRequiredFp = dmIsNodeRequired,
+      .name = pWrapper->name,
+      .path = pWrapper->path,
+  };
+
+  opt.msgCb = dmGetMsgcb(pWrapper);
+  return opt;
 }

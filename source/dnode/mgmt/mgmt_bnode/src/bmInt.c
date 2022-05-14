@@ -34,7 +34,7 @@ static void bmClose(SBnodeMgmt *pMgmt) {
   dInfo("bnode-mgmt is cleaned up");
 }
 
-int32_t bmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+int32_t bmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   dInfo("bnode-mgmt start to init");
   SBnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SBnodeMgmt));
   if (pMgmt == NULL) {
@@ -44,7 +44,7 @@ int32_t bmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->dnodeId;
+  pMgmt->dnodeId = pInput->pData->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.pMgmt = pMgmt;
 

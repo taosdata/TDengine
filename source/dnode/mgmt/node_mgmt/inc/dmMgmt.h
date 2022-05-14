@@ -128,7 +128,7 @@ typedef struct SDnode {
   SRWLatch      latch;
   SEpSet        mnodeEps;
   TdFilePtr     lockfile;
-  SMgmtInputOpt input;
+  SDnodeData    data;
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
 
@@ -140,16 +140,14 @@ void    dmCloseNode(SMgmtWrapper *pWrapper);
 SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
+SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 
 void dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void dmSetEvent(SDnode *pDnode, EDndEvent event);
 void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc);
-
-void    dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
-void    dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
-int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
-int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
+void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
+void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dmProc.c
 int32_t dmInitProc(struct SMgmtWrapper *pWrapper);
@@ -164,13 +162,13 @@ void    dmPutToProcPQueue(SProc *proc, const void *pHead, int16_t headLen, const
                           EProcFuncType ftype);
 
 // dmTransport.c
-int32_t  dmInitServer(SDnode *pDnode);
-void     dmCleanupServer(SDnode *pDnode);
-int32_t  dmInitClient(SDnode *pDnode);
-void     dmCleanupClient(SDnode *pDnode);
-SMsgCb   dmGetMsgcb(SMgmtWrapper *pWrapper);
-int32_t  dmInitMsgHandle(SDnode *pDnode);
-int32_t  dmProcessNodeMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmInitServer(SDnode *pDnode);
+void    dmCleanupServer(SDnode *pDnode);
+int32_t dmInitClient(SDnode *pDnode);
+void    dmCleanupClient(SDnode *pDnode);
+SMsgCb  dmGetMsgcb(SMgmtWrapper *pWrapper);
+int32_t dmInitMsgHandle(SDnode *pDnode);
+int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
 
 // mgmt nodes
 SMgmtFunc dmGetMgmtFunc();

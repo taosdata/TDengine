@@ -92,17 +92,14 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   }
 
   SMgmtOutputOpt output = {0};
-  SMgmtInputOpt *pInput = &pWrapper->pDnode->input;
-  pInput->name = pWrapper->name;
-  pInput->path = pWrapper->path;
-  pInput->msgCb = dmGetMsgcb(pWrapper);
+  SMgmtInputOpt  input = dmBuildMgmtInputOpt(pWrapper);
 
   if (pWrapper->ntype == DNODE || OnlyInChildProc(pWrapper->proc.ptype)) {
-    tmsgSetDefaultMsgCb(&pInput->msgCb);
+    tmsgSetDefaultMsgCb(&input.msgCb);
   }
 
   if (OnlyInSingleProc(pWrapper->proc.ptype)) {
-    if ((*pWrapper->func.openFp)(pInput, &output) != 0) {
+    if ((*pWrapper->func.openFp)(&input, &output) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
       return -1;
     }
@@ -111,7 +108,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   }
 
   if (InChildProc(pWrapper->proc.ptype)) {
-    if ((*pWrapper->func.openFp)(pInput, &output) != 0) {
+    if ((*pWrapper->func.openFp)(&input, &output) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
       return -1;
     }
@@ -138,14 +135,8 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     dDebug("node:%s, has been opened in parent process", pWrapper->name);
   }
 
-  if (output.dnodeId != 0) {
-    pInput->dnodeId = output.dnodeId;
-  }
   if (output.pMgmt != NULL) {
     pWrapper->pMgmt = output.pMgmt;
-  }
-  if (output.mnodeEps.numOfEps != 0) {
-    pWrapper->pDnode->mnodeEps = output.mnodeEps;
   }
 
   dmReportStartup(pWrapper->pDnode, pWrapper->name, "openned");
@@ -254,8 +245,8 @@ static void dmWatchNodes(SDnode *pDnode) {
   taosThreadMutexLock(&pDnode->mutex);
   for (EDndNodeType ntype = DNODE + 1; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    SProc *proc = &pWrapper->proc;
-    
+    SProc        *proc = &pWrapper->proc;
+
     if (!pWrapper->required) continue;
     if (!InParentProc(proc->ptype)) continue;
 

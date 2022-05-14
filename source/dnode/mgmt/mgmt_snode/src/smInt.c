@@ -35,7 +35,7 @@ static void smClose(SSnodeMgmt *pMgmt) {
   dInfo("snode-mgmt is cleaned up");
 }
 
-int32_t smOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
+int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   dInfo("snode-mgmt start to init");
   SSnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SSnodeMgmt));
   if (pMgmt == NULL) {
@@ -45,7 +45,7 @@ int32_t smOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->dnodeId;
+  pMgmt->dnodeId = pInput->pData->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.pMgmt = pMgmt;
 
