@@ -76,7 +76,7 @@
 ./test.sh -f tsim/tmq/basic1Of2Cons.sim
 ./test.sh -f tsim/tmq/basic2Of2Cons.sim
 ./test.sh -f tsim/tmq/basic3Of2Cons.sim
-./test.sh -f tsim/tmq/basic4Of2Cons.sim
+#./test.sh -f tsim/tmq/basic4Of2Cons.sim
 ./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ./test.sh -f tsim/tmq/topic.sim
 
