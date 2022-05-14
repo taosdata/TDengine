@@ -1,5 +1,5 @@
 IF (TD_LINUX)
-  SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/make_install.sh")
+  SET(TD_MAKE_INSTALL_SH "${TD_SOURCE_DIR}/packaging/tools/make_install.sh")
   INSTALL(CODE "MESSAGE(\"make install script: ${TD_MAKE_INSTALL_SH}\")")
   INSTALL(CODE "execute_process(COMMAND bash ${TD_MAKE_INSTALL_SH} ${TD_SOURCE_DIR} ${PROJECT_BINARY_DIR} Linux ${TD_VER_NUMBER})")
 ELSEIF (TD_WINDOWS)
