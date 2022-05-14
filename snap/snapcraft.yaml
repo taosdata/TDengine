@@ -1,6 +1,6 @@
 name: tdengine
 base: core20
-version: '2.4.0.18'
+version: '2.4.0.20'
 icon: snap/gui/t-dengine.svg
 summary: an open-source big data platform designed and optimized for IoT. 
 description: |
