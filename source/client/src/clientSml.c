@@ -439,7 +439,9 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
-      SSchemaAction schemaAction = { .action = SCHEMA_ACTION_CREATE_STABLE, .createSTable = {0}};
+      SSchemaAction schemaAction;
+      schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
+      memset(&schemaAction.createSTable, 0, sizeof(SCreateSTableActionInfo));
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
       schemaAction.createSTable.tags = sTableData->tags;
       schemaAction.createSTable.fields = sTableData->cols;
@@ -455,7 +457,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
         taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
       }
 
-      SSchemaAction schemaAction = {.alterSTable = {0}};
+      SSchemaAction schemaAction;
+      memset(&schemaAction, 0, sizeof(SSchemaAction));
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
       code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, &schemaAction, true);
       if (code != TSDB_CODE_SUCCESS) {
