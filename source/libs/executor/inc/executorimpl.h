@@ -651,7 +651,7 @@ void    getAlignQueryTimeWindow(SInterval* pInterval, int32_t precision, int64_t
 int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t *order, int32_t* scanFlag);
 
 void    doSetOperatorCompleted(SOperatorInfo* pOperator);
-void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock);
+void    doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SArray* pColMatchInfo);
 SqlFunctionCtx* createSqlFunctionCtx(SExprInfo* pExprInfo, int32_t numOfOutput, int32_t** rowCellInfoOffset);
 void    relocateColumnData(SSDataBlock* pBlock, const SArray* pColMatchInfo, SArray* pCols);
 void    initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow);

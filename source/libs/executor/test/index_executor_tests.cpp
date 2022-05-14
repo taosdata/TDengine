@@ -249,7 +249,7 @@ TEST(testCase, index_filter_varify) {
     sifMakeOpNode(&opNode, OP_TYPE_LOWER_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
 
     SIdxFltStatus st = idxGetFltStatus(opNode);
-    EXPECT_EQ(st, SFLT_COARSE_INDEX);
+    EXPECT_EQ(st, SFLT_ACCURATE_INDEX);
     nodesDestroyNode(res);
   }
   {
@@ -269,7 +269,7 @@ TEST(testCase, index_filter_varify) {
     sifMakeOpNode(&opNode, OP_TYPE_GREATER_THAN, TSDB_DATA_TYPE_DOUBLE, pLeft, pRight);
 
     SIdxFltStatus st = idxGetFltStatus(opNode);
-    EXPECT_EQ(st, SFLT_COARSE_INDEX);
+    EXPECT_EQ(st, SFLT_ACCURATE_INDEX);
     nodesDestroyNode(res);
   }
 }

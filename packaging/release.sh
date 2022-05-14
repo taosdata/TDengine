@@ -67,7 +67,6 @@ bin_files="${compile_dir}/build/bin/taosd ${compile_dir}/build/bin/taos  ${compi
 cp -rf ${bin_files} ${install_dir}/bin && chmod a+x ${install_dir}/bin/* || :
 
 cp ${compile_dir}/build/lib/libtaos.so  ${install_dir}/lib/
-cp ${compile_dir}/build/lib/libtdb.so ${install_dir}/lib/
 cp ${compile_dir}/build/lib/libavro* ${install_dir}/lib/ > /dev/null || echo -e "failed to copy avro libraries"
 cp -rf ${compile_dir}/build/lib/pkgconfig  ${install_dir}/lib/ > /dev/null || echo -e "failed to copy pkgconfig directory"
 

@@ -25,22 +25,52 @@ class PlannerEnv : public testing::Environment {
   virtual void SetUp() {
     initMetaDataEnv();
     generateMetaData();
+    initLog("/tmp/td");
   }
 
   virtual void TearDown() { destroyMetaDataEnv(); }
 
   PlannerEnv() {}
   virtual ~PlannerEnv() {}
+
+ private:
+  void initLog(const char* path) {
+    dDebugFlag = 143;
+    vDebugFlag = 0;
+    mDebugFlag = 143;
+    cDebugFlag = 0;
+    jniDebugFlag = 0;
+    tmrDebugFlag = 135;
+    uDebugFlag = 135;
+    rpcDebugFlag = 143;
+    qDebugFlag = 143;
+    wDebugFlag = 0;
+    sDebugFlag = 0;
+    tsdbDebugFlag = 0;
+    tsLogEmbedded = 1;
+    tsAsyncLog = 0;
+
+    taosRemoveDir(path);
+    taosMkDir(path);
+    tstrncpy(tsLogDir, path, PATH_MAX);
+    if (taosInitLog("taoslog", 1) != 0) {
+      std::cout << "failed to init log file" << std::endl;
+    }
+  }
 };
 
 static void parseArg(int argc, char* argv[]) {
   int                  opt = 0;
   const char*          optstring = "";
-  static struct option long_options[] = {{"dump", optional_argument, NULL, 'd'}, {0, 0, 0, 0}};
+  static struct option long_options[] = {
+      {"dump", optional_argument, NULL, 'd'}, {"skipSql", optional_argument, NULL, 's'}, {0, 0, 0, 0}};
   while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
     switch (opt) {
       case 'd':
         setDumpModule(optarg);
+        break;
+      case 's':
+        g_skipSql = 1;
         break;
       default:
         break;
