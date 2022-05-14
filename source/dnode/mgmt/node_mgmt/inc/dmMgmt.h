@@ -104,7 +104,7 @@ void dmSetEvent(SDnode *pDnode, EDndEvent event);
 void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
 void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc);
 
-void    dmProcessServerStatusReq(SDnode *pDnode, SRpcMsg *pMsg);
+void    dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
 void    dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
 int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
 int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);

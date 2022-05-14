@@ -34,6 +34,9 @@ typedef struct SUdfdData {
   uv_thread_t   thread;
   uv_barrier_t  barrier;
   uv_process_t  process;
+#ifdef WINDOWS
+  HANDLE        jobHandle;
+#endif
   int           spawnErr;
   uv_pipe_t     ctrlPipe;
   uv_async_t    stopAsync;
@@ -103,6 +106,24 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
 
   int err = uv_spawn(&pData->loop, &pData->process, &options);
   pData->process.data = (void*)pData;
+
+#ifdef WINDOWS
+  // End udfd.exe by Job.
+  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
+  pData->jobHandle = CreateJobObject(NULL, NULL);
+  bool add_job_ok = AssignProcessToJobObject(pData->jobHandle, pData->process.process_handle);
+  if (!add_job_ok) {
+    fnError("Assign udfd to job failed.");
+  } else {
+    JOBOBJECT_EXTENDED_LIMIT_INFORMATION limit_info;
+    memset(&limit_info, 0x0, sizeof(limit_info));
+    limit_info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+    bool set_auto_kill_ok = SetInformationJobObject(pData->jobHandle, JobObjectExtendedLimitInformation, &limit_info, sizeof(limit_info));
+    if (!set_auto_kill_ok) {
+      fnError("Set job auto kill udfd failed.");
+    }
+  }
+#endif
 
   if (err != 0) {
     fnError("can not spawn udfd. path: %s, error: %s", path, uv_strerror(err));
@@ -182,6 +203,9 @@ int32_t udfStopUdfd() {
   uv_barrier_destroy(&pData->barrier);
   uv_async_send(&pData->stopAsync);
   uv_thread_join(&pData->thread);
+#ifdef WINDOWS
+  if (pData->jobHandle != NULL) CloseHandle(pData->jobHandle);
+#endif
   fnInfo("dnode udfd cleaned up");
   return 0;
 }
