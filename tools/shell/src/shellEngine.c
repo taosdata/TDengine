@@ -307,7 +307,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", length, GET_DOUBLE_VAL(val));
-      if (n > MAX(25, length)) {
+      if (n > TMAX(25, length)) {
         taosFprintfFile(pFile, "%*.15e", length, GET_DOUBLE_VAL(val));
       } else {
         taosFprintfFile(pFile, "%s", buf);
@@ -488,7 +488,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       n = snprintf(buf, TSDB_MAX_BYTES_PER_ROW, "%*.9f", width, GET_DOUBLE_VAL(val));
-      if (n > MAX(25, width)) {
+      if (n > TMAX(25, width)) {
         printf("%*.15e", width, GET_DOUBLE_VAL(val));
       } else {
         printf("%s", buf);

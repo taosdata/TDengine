@@ -87,13 +87,11 @@ typedef struct {
 typedef struct SMnode {
   int32_t       selfId;
   int64_t       clusterId;
+  TdThread      thread;
+  bool          stopped;
   int8_t        replica;
   int8_t        selfIndex;
   SReplica      replicas[TSDB_MAX_REPLICA];
-  tmr_h         timer;
-  tmr_h         transTimer;
-  tmr_h         mqTimer;
-  tmr_h         telemTimer;
   char         *path;
   int64_t       checkTime;
   SSdb         *pSdb;

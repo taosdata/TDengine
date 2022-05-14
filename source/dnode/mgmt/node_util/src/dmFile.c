@@ -14,11 +14,11 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dmUtil.h"
 
 #define MAXLEN 1024
 
-int32_t dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
+int32_t dmReadFile(const char *path, const char *name, bool *pDeployed) {
   int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
   int64_t   len = 0;
   char      content[MAXLEN + 1] = {0};
@@ -26,10 +26,9 @@ int32_t dmReadFile(SMgmtWrapper *pWrapper, bool *pDeployed) {
   char      file[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
+  snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    // dDebug("file %s not exist", file);
     code = 0;
     goto _OVER;
   }
@@ -64,7 +63,7 @@ _OVER:
   return code;
 }
 
-int32_t dmWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
+int32_t dmWriteFile(const char *path, const char *name, bool deployed) {
   int32_t   code = -1;
   int32_t   len = 0;
   char      content[MAXLEN + 1] = {0};
@@ -72,8 +71,8 @@ int32_t dmWriteFile(SMgmtWrapper *pWrapper, bool deployed) {
   char      realfile[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
-  snprintf(realfile, sizeof(realfile), "%s%s%s.json", pWrapper->path, TD_DIRSEP, pWrapper->name);
+  snprintf(file, sizeof(file), "%s%s%s.json", path, TD_DIRSEP, name);
+  snprintf(realfile, sizeof(realfile), "%s%s%s.json", path, TD_DIRSEP, name);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -140,17 +139,16 @@ TdFilePtr dmCheckRunning(const char *dataDir) {
   return pFile;
 }
 
-int32_t dmReadShmFile(SMgmtWrapper *pWrapper) {
+int32_t dmReadShmFile(const char *path, const char *name, EDndNodeType runType, SShm *pShm) {
   int32_t   code = -1;
   char      content[MAXLEN + 1] = {0};
   char      file[PATH_MAX] = {0};
   cJSON    *root = NULL;
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%sshmfile", pWrapper->path, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%sshmfile", path, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
-    // dDebug("node:%s, file %s not exist", pWrapper->name, file);
     code = 0;
     goto _OVER;
   }
@@ -159,36 +157,36 @@ int32_t dmReadShmFile(SMgmtWrapper *pWrapper) {
     root = cJSON_Parse(content);
     if (root == NULL) {
       terrno = TSDB_CODE_INVALID_JSON_FORMAT;
-      dError("node:%s, failed to read %s since invalid json format", pWrapper->name, file);
+      dError("node:%s, failed to read %s since invalid json format", name, file);
       goto _OVER;
     }
 
     cJSON *shmid = cJSON_GetObjectItem(root, "shmid");
     if (shmid && shmid->type == cJSON_Number) {
-      pWrapper->procShm.id = shmid->valueint;
+      pShm->id = shmid->valueint;
     }
 
     cJSON *shmsize = cJSON_GetObjectItem(root, "shmsize");
     if (shmsize && shmsize->type == cJSON_Number) {
-      pWrapper->procShm.size = shmsize->valueint;
+      pShm->size = shmsize->valueint;
     }
   }
 
-  if (!tsMultiProcess || pWrapper->pDnode->ntype == DNODE || pWrapper->pDnode->ntype == NODE_END) {
-    if (pWrapper->procShm.id >= 0) {
-      dDebug("node:%s, shmid:%d, is closed, size:%d", pWrapper->name, pWrapper->procShm.id, pWrapper->procShm.size);
-      taosDropShm(&pWrapper->procShm);
+  if (!tsMultiProcess || runType == DNODE || runType == NODE_END) {
+    if (pShm->id >= 0) {
+      dDebug("node:%s, shmid:%d, is closed, size:%d", name, pShm->id, pShm->size);
+      taosDropShm(pShm);
     }
   } else {
-    if (taosAttachShm(&pWrapper->procShm) != 0) {
+    if (taosAttachShm(pShm) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
-      dError("shmid:%d, failed to attach shm since %s", pWrapper->procShm.id, terrstr());
+      dError("shmid:%d, failed to attach shm since %s", pShm->id, terrstr());
       goto _OVER;
     }
-    dInfo("node:%s, shmid:%d is attached, size:%d", pWrapper->name, pWrapper->procShm.id, pWrapper->procShm.size);
+    dInfo("node:%s, shmid:%d is attached, size:%d", name, pShm->id, pShm->size);
   }
 
-  dDebug("node:%s, successed to load %s", pWrapper->name, file);
+  dDebug("node:%s, successed to load %s", name, file);
   code = 0;
 
 _OVER:
@@ -198,7 +196,7 @@ _OVER:
   return code;
 }
 
-int32_t dmWriteShmFile(SMgmtWrapper *pWrapper) {
+int32_t dmWriteShmFile(const char *path, const char *name, const SShm *pShm) {
   int32_t   code = -1;
   int32_t   len = 0;
   char      content[MAXLEN + 1] = {0};
@@ -206,30 +204,30 @@ int32_t dmWriteShmFile(SMgmtWrapper *pWrapper) {
   char      realfile[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
-  snprintf(file, sizeof(file), "%s%sshmfile.bak", pWrapper->path, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%sshmfile", pWrapper->path, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%sshmfile.bak", path, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sshmfile", path, TD_DIRSEP);
 
   pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("node:%s, failed to open file:%s since %s", pWrapper->name, file, terrstr());
+    dError("node:%s, failed to open file:%s since %s", name, file, terrstr());
     goto _OVER;
   }
 
   len += snprintf(content + len, MAXLEN - len, "{\n");
-  len += snprintf(content + len, MAXLEN - len, "  \"shmid\":%d,\n", pWrapper->procShm.id);
-  len += snprintf(content + len, MAXLEN - len, "  \"shmsize\":%d\n", pWrapper->procShm.size);
+  len += snprintf(content + len, MAXLEN - len, "  \"shmid\":%d,\n", pShm->id);
+  len += snprintf(content + len, MAXLEN - len, "  \"shmsize\":%d\n", pShm->size);
   len += snprintf(content + len, MAXLEN - len, "}\n");
 
   if (taosWriteFile(pFile, content, len) != len) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("node:%s, failed to write file:%s since %s", pWrapper->name, file, terrstr());
+    dError("node:%s, failed to write file:%s since %s", name, file, terrstr());
     goto _OVER;
   }
 
   if (taosFsyncFile(pFile) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("node:%s, failed to fsync file:%s since %s", pWrapper->name, file, terrstr());
+    dError("node:%s, failed to fsync file:%s since %s", name, file, terrstr());
     goto _OVER;
   }
 
@@ -237,11 +235,11 @@ int32_t dmWriteShmFile(SMgmtWrapper *pWrapper) {
 
   if (taosRenameFile(file, realfile) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("node:%s, failed to rename %s to %s since %s", pWrapper->name, file, realfile, terrstr());
+    dError("node:%s, failed to rename %s to %s since %s", name, file, realfile, terrstr());
     return -1;
   }
 
-  dInfo("node:%s, successed to write %s", pWrapper->name, realfile);
+  dInfo("node:%s, successed to write %s", name, realfile);
   code = 0;
 
 _OVER:

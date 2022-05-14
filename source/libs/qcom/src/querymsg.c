@@ -290,6 +290,10 @@ int32_t queryCreateTableMetaFromMsg(STableMetaRsp *msg, bool isSuperTable, STabl
   pTableMeta->sversion = msg->sversion;
   pTableMeta->tversion = msg->tversion;
 
+  if (isSuperTable) {
+    qDebug("stable %s meta returned, suid:%" PRIx64, msg->stbName, pTableMeta->suid);
+  }
+
   pTableMeta->tableInfo.numOfTags = msg->numOfTags;
   pTableMeta->tableInfo.precision = msg->precision;
   pTableMeta->tableInfo.numOfColumns = msg->numOfColumns;
