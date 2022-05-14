@@ -53,28 +53,48 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
     dInfo("dnode will run in child-process mode, node:%s", pWrapper->name);
   }
 
-  pDnode->data.dnodeId = 0;
-  pDnode->data.clusterId = 0;
-  pDnode->data.dnodeVer = 0;
-  pDnode->data.updateTime = 0;
-  pDnode->data.rebootTime = taosGetTimestampMs();
-  pDnode->data.dropped = 0;
-  pDnode->data.localEp = strdup(pOption->localEp);
-  pDnode->data.localFqdn = strdup(pOption->localFqdn);
-  pDnode->data.firstEp = strdup(pOption->firstEp);
-  pDnode->data.secondEp = strdup(pOption->secondEp);
-  pDnode->data.serverPort = pOption->serverPort;
-  pDnode->data.supportVnodes = pOption->numOfSupportVnodes;
-  pDnode->data.numOfDisks = pOption->numOfDisks;
-  pDnode->data.disks = pOption->disks;
-  pDnode->data.dataDir = strdup(pOption->dataDir);
+  SDnodeData *pData = &pDnode->data;
+  pData->dnodeId = 0;
+  pData->clusterId = 0;
+  pData->dnodeVer = 0;
+  pData->updateTime = 0;
+  pData->rebootTime = taosGetTimestampMs();
+  pData->dropped = 0;
+  pData->stopped = 0;
+  pData->localEp = strdup(pOption->localEp);
+  pData->localFqdn = strdup(pOption->localFqdn);
+  pData->firstEp = strdup(pOption->firstEp);
+  pData->secondEp = strdup(pOption->secondEp);
+  pData->supportVnodes = pOption->numOfSupportVnodes;
+  pData->serverPort = pOption->serverPort;
+  pData->numOfDisks = pOption->numOfDisks;
+  pData->disks = pOption->disks;
+  pData->dataDir = strdup(pOption->dataDir);
 
-  if (pDnode->data.dataDir == NULL || pDnode->data.localEp == NULL || pDnode->data.localFqdn == NULL ||
-      pDnode->data.firstEp == NULL || pDnode->data.secondEp == NULL) {
+  if (pData->dataDir == NULL || pData->localEp == NULL || pData->localFqdn == NULL ||
+      pData->firstEp == NULL || pData->secondEp == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     return -1;
   }
 
+  pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
+  if (pData->dnodeHash == NULL) {
+    dError("failed to init dnode hash");
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  if (dmReadEps(pData) != 0) {
+    dError("failed to read file since %s", terrstr());
+    return -1;
+  }
+
+  if (pData->dropped) {
+    dError("dnode will not start since its already dropped");
+    return -1;
+  }
+
+  taosInitRWLatch(&pData->latch);
   taosThreadMutexInit(&pDnode->mutex, NULL);
   return 0;
 }
@@ -90,11 +110,23 @@ static void dmClearVars(SDnode *pDnode) {
     pDnode->lockfile = NULL;
   }
 
-  taosMemoryFreeClear(pDnode->data.localEp);
-  taosMemoryFreeClear(pDnode->data.localFqdn);
-  taosMemoryFreeClear(pDnode->data.firstEp);
-  taosMemoryFreeClear(pDnode->data.secondEp);
-  taosMemoryFreeClear(pDnode->data.dataDir);
+  SDnodeData *pData = &pDnode->data;
+  taosWLockLatch(&pData->latch);
+  if (pData->dnodeEps != NULL) {
+    taosArrayDestroy(pData->dnodeEps);
+    pData->dnodeEps = NULL;
+  }
+  if (pData->dnodeHash != NULL) {
+    taosHashCleanup(pData->dnodeHash);
+    pData->dnodeHash = NULL;
+  }
+  taosWUnLockLatch(&pData->latch);
+
+  taosMemoryFreeClear(pData->localEp);
+  taosMemoryFreeClear(pData->localFqdn);
+  taosMemoryFreeClear(pData->firstEp);
+  taosMemoryFreeClear(pData->secondEp);
+  taosMemoryFreeClear(pData->dataDir);
 
   taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
@@ -163,7 +195,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  if (OnlyInSingleProc(pDnode->ptype) && InParentProc(pDnode->ptype)) {
+  if (OnlyInSingleProc(pDnode->ptype) || InParentProc(pDnode->ptype)) {
     pDnode->lockfile = dmCheckRunning(pOption->dataDir);
     if (pDnode->lockfile == NULL) {
       goto _OVER;

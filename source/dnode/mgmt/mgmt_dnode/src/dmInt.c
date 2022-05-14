@@ -41,30 +41,13 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   pMgmt->pDnode = pInput->pDnode;
+  pMgmt->pData = pInput->pData;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
   pMgmt->isNodeRequiredFp = pInput->isNodeRequiredFp;
-  taosInitRWLatch(&pMgmt->pData->latch);
-
-  pMgmt->pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
-  if (pMgmt->pData->dnodeHash == NULL) {
-    dError("failed to init dnode hash");
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  if (dmReadEps(pMgmt->pData) != 0) {
-    dError("failed to read file since %s", terrstr());
-    return -1;
-  }
-
-  if (pMgmt->pData->dropped) {
-    dError("dnode will not start since its already dropped");
-    return -1;
-  }
 
   if (dmStartWorker(pMgmt) != 0) {
     return -1;
@@ -82,19 +65,7 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 static void dmCloseMgmt(SDnodeMgmt *pMgmt) {
   dInfo("dnode-mgmt start to clean up");
   dmStopWorker(pMgmt);
-
-  taosWLockLatch(&pMgmt->pData->latch);
-  if (pMgmt->pData->dnodeEps != NULL) {
-    taosArrayDestroy(pMgmt->pData->dnodeEps);
-    pMgmt->pData->dnodeEps = NULL;
-  }
-  if (pMgmt->pData->dnodeHash != NULL) {
-    taosHashCleanup(pMgmt->pData->dnodeHash);
-    pMgmt->pData->dnodeHash = NULL;
-  }
-  taosWUnLockLatch(&pMgmt->pData->latch);
   taosMemoryFree(pMgmt);
-
   dInfo("dnode-mgmt is cleaned up");
 }
 

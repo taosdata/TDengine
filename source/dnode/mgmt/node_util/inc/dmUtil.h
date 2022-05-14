@@ -90,9 +90,6 @@ typedef struct {
   int64_t     dnodeVer;
   int64_t     updateTime;
   int64_t     rebootTime;
-  int32_t     unsyncedVgId;
-  ESyncState  vndState;
-  ESyncState  mndState;
   bool        dropped;
   bool        stopped;
   SEpSet      mnodeEps;

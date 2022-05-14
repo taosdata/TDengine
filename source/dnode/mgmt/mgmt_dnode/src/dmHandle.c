@@ -74,19 +74,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SMonVloadInfo vinfo = {0};
   dmGetVnodeLoads(pMgmt, &vinfo);
   req.pVloads = vinfo.pVloads;
-  pMgmt->pData->unsyncedVgId = 0;
-  pMgmt->pData->vndState = TAOS_SYNC_STATE_LEADER;
-  for (int32_t i = 0; i < taosArrayGetSize(req.pVloads); ++i) {
-    SVnodeLoad *pLoad = taosArrayGet(req.pVloads, i);
-    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
-      pMgmt->pData->unsyncedVgId = pLoad->vgId;
-      pMgmt->pData->vndState = pLoad->syncState;
-    }
-  }
 
   SMonMloadInfo minfo = {0};
   dmGetMnodeLoads(pMgmt, &minfo);
-  pMgmt->pData->mndState = minfo.load.syncState;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
