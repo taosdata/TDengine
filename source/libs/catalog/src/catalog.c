@@ -2714,11 +2714,15 @@ typedef struct SCatalogReqObj {
 void* doExtractpayload(const SDataBuf* pMsg){}
 
 int32_t loadRemoteMetaCallback(void* param, const SDataBuf* pMsg, int32_t code) {
-  SCatalogReqObj* pRsp = param;
+  SCatalogReqObj* pRsp = (SCatalogReqObj*) param;
 
   // do handle the result.
   // serialize data in pMsg and set the result into pRsp->pResult
   pRsp->pResult = doExtractpayload(pMsg);
+
+  //todo
+
+
 
   // call user's callback function
   pRsp->userFp(pRsp->pResult, pRsp->pUserParam, code);
@@ -2732,8 +2736,6 @@ int32_t catalogGetDBVgInfo_a(CatalogParamWrapper* pCatalogWrapper, __async_cb_fn
   if (NULL == pMsgSendInfo) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
-
-  pMsgSendInfo->param = param;
 
   SCatalogReqObj* pCatalogReq = taosMemoryCalloc(1, sizeof(SCatalogReqObj));
   pCatalogReq->userFp = fp;
