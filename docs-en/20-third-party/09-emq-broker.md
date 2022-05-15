@@ -45,25 +45,25 @@ Since the configuration interface of EMQX differs from version to version, here 
 
 Use your browser to open the URL http://IP:18083 and log in to EMQX Dashboard. The initial installation username is `admin` and the password is: `public`.
 
-! [img](. /emqx/login-dashboard.png)
+![img](./emqx/login-dashboard.png)
 
 ### Creating Rules
 
 Select "Rule" in the "Rule Engine" on the left and click the "Create" button: !
 
-! [img](. /emqx/rule-engine.png)
+![img](./emqx/rule-engine.png)
 
 ### Edit SQL fields
 
-! [img](. /emqx/create-rule.png)
+![img](./emqx/create-rule.png)
 
 ### Add "action handler"
 
-! [img](. /emqx/add-action-handler.png)
+![img](./emqx/add-action-handler.png)
 
 ### Add "Resource"
 
-! [img](. /emqx/create-resource.png)
+![img](./emqx/create-resource.png)
 
 Select "Send Data to Web Service" and click the "New Resource" button.
 
@@ -71,7 +71,7 @@ Select "Send Data to Web Service" and click the "New Resource" button.
 
 Select "Send Data to Web Service" and fill in the request URL as the address and port of the server running taosAdapter (default is 6041). Leave the other properties at their default values.
 
-! [img](. /emqx/edit-resource.png)
+![img](./emqx/edit-resource.png)
 
 ### Edit "action"
 
@@ -164,7 +164,7 @@ Edit the resource configuration to add the key/value pairing for Authorization a
 
 Note: CLIENT_NUM in the code can be set to a smaller value at the beginning of the test to avoid hardware performance not being able to handle a more significant number of concurrent clients.
 
-! [img](. /emqx/client-num.png)
+![img](./emqx/client-num.png)
 
 ## Execute tests to simulate sending MQTT data
 
@@ -173,19 +173,19 @@ npm install mqtt mockjs --save ---registry=https://registry.npm.taobao.org
 node mock.js
 ```
 
-! [img](. /emqx/run-mock.png)
+![img](./emqx/run-mock.png)
 
 ## Verify that EMQX is receiving data
 
 Refresh the EMQX Dashboard rules engine interface to see how many records were received correctly:
 
-! [img](. /emqx/check-rule-matched.png)
+![img](./emqx/check-rule-matched.png)
 
 ## Verify that data writing to TDengine
 
 Use the TDengine CLI program to log in and query the appropriate databases and tables to verify that the data is being written to TDengine correctly:
 
-! [img](. /emqx/check-result-in-taos.png)
+![img](./emqx/check-result-in-taos.png)
 
 Please refer to the [TDengine official documentation](https://docs.taosdata.com/) for more details on how to use TDengine.
 EMQX Please refer to the [EMQ official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use EMQX.
