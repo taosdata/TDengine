@@ -1031,3 +1031,37 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId)
   }
   return 0;
 }
+
+int32_t tqProcessTaskExec2(STQ* pTq, char* msg, int32_t msgLen) {
+  SStreamTaskExecReq req = {0};
+  tDecodeSStreamTaskExecReq(msg, &req);
+  int32_t taskId = req.taskId;
+
+  SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  ASSERT(pTask);
+  ASSERT(pTask->inputType == TASK_INPUT_TYPE__DATA_BLOCK);
+
+  // enqueue
+  int32_t inputStatus = streamEnqueueDataBlk(pTask, (SStreamDataBlock*)req.data);
+  if (inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+    // TODO rsp blocked
+    return 0;
+  }
+
+  // try exec
+  int8_t execStatus = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
+  if (execStatus == TASK_STATUS__IDLE) {
+    if (streamTaskExecNew(pTask) < 0) {
+      atomic_store_8(&pTask->status, TASK_STATUS__CLOSING);
+
+      goto FAIL;
+    }
+  } else if (execStatus == TASK_STATUS__EXECUTING) {
+    return 0;
+  }
+
+  // TODO rsp success
+  return 0;
+FAIL:
+  return -1;
+}

@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "tdatablock.h"
 #include "tmsg.h"
 #include "tmsgcb.h"
@@ -29,8 +30,22 @@ extern "C" {
 typedef struct SStreamTask SStreamTask;
 
 enum {
-  STREAM_TASK_STATUS__RUNNING = 1,
-  STREAM_TASK_STATUS__STOP,
+  TASK_STATUS__IDLE = 1,
+  TASK_STATUS__EXECUTING,
+  TASK_STATUS__CLOSING,
+};
+
+enum {
+  TASK_INPUT_STATUS__NORMAL = 1,
+  TASK_INPUT_STATUS__BLOCKED,
+  TASK_INPUT_STATUS__RECOVER,
+  TASK_INPUT_STATUS__STOP,
+};
+
+enum {
+  TASK_OUTPUT_STATUS__NORMAL = 1,
+  TASK_OUTPUT_STATUS__WAIT,
+  TASK_OUTPUT_STATUS__BLOCKED,
 };
 
 enum {
@@ -38,10 +53,64 @@ enum {
   STREAM_CREATED_BY__SMA,
 };
 
+enum {
+  STREAM_INPUT__DATA_SUBMIT = 1,
+  STREAM_INPUT__DATA_BLOCK,
+  STREAM_INPUT__CHECKPOINT,
+};
+
 typedef struct {
-  int32_t nodeId;  // 0 for snode
-  SEpSet  epSet;
-} SStreamTaskEp;
+  int8_t type;
+
+  int32_t sourceVg;
+  int64_t sourceVer;
+
+  int32_t*    dataRef;
+  SSubmitReq* data;
+} SStreamDataSubmit;
+
+typedef struct {
+  int8_t type;
+
+  int32_t sourceVg;
+  int64_t sourceVer;
+
+  SArray* blocks;  // SArray<SSDataBlock*>
+} SStreamDataBlock;
+
+typedef struct {
+  int8_t type;
+} SStreamCheckpoint;
+
+static FORCE_INLINE SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
+  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosMemoryCalloc(1, sizeof(SStreamDataSubmit));
+  if (pDataSubmit == NULL) return NULL;
+  pDataSubmit->data = pReq;
+  pDataSubmit->dataRef = (int32_t*)taosMemoryMalloc(sizeof(int32_t));
+  if (pDataSubmit->data == NULL) goto FAIL;
+  *pDataSubmit->dataRef = 1;
+  return pDataSubmit;
+FAIL:
+  taosMemoryFree(pDataSubmit);
+  return NULL;
+}
+
+static FORCE_INLINE void streamDataSubmitRefInc(SStreamDataSubmit* pDataSubmit) {
+  //
+  atomic_add_fetch_32(pDataSubmit->dataRef, 1);
+}
+
+static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) {
+  int32_t ref = atomic_sub_fetch_32(pDataSubmit->dataRef, 1);
+  ASSERT(ref >= 0);
+  if (ref == 0) {
+    taosMemoryFree(pDataSubmit->data);
+    taosMemoryFree(pDataSubmit->dataRef);
+  }
+}
+
+int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
+void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
 
 typedef struct {
   void* inputHandle;
@@ -122,9 +191,15 @@ enum {
   TASK_SINK__FETCH,
 };
 
+enum {
+  TASK_INPUT_TYPE__SUMBIT_BLOCK = 1,
+  TASK_INPUT_TYPE__DATA_BLOCK,
+};
+
 struct SStreamTask {
   int64_t streamId;
   int32_t taskId;
+  int8_t  inputType;
   int8_t  status;
 
   int8_t  sourceType;
@@ -155,9 +230,11 @@ struct SStreamTask {
     STaskDispatcherShuffle shuffleDispatcher;
   };
 
-  // msg buffer
-  int32_t     memUsed;
+  int8_t inputStatus;
+  int8_t outputStatus;
+
   STaosQueue* inputQ;
+  STaosQueue* outputQ;
 
   // application storage
   void* ahandle;
@@ -199,9 +276,15 @@ typedef struct {
   SArray* res;  // SArray<SSDataBlock>
 } SStreamSinkReq;
 
-int32_t streamEnqueueData(SStreamTask* pTask, const void* input, int32_t inputType);
+int32_t streamEnqueueDataSubmit(SStreamTask* pTask, SStreamDataSubmit* input);
+int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
+int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
 
 int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, int32_t inputType, int32_t workId);
+
+int32_t streamTaskExecNew(SStreamTask* pTask);
+
+int32_t streamTaskHandleInput(SStreamTask* pTask, void* data);
 
 #ifdef __cplusplus
 }
