@@ -31,44 +31,34 @@ static __compar_fn_t indexGetCompar(int8_t type) {
 }
 static TExeCond tCompareLessThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
+
+  int32_t tlen = indexGetDataByteLen(type);
+  indexMayUnfillNumbericData(a, tlen);
+  indexMayUnfillNumbericData(b, tlen);
   return tDoCommpare(func, QUERY_LESS_THAN, a, b);
 }
 static TExeCond tCompareLessEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
+
+  int32_t tlen = indexGetDataByteLen(type);
+  indexMayUnfillNumbericData(a, tlen);
+  indexMayUnfillNumbericData(b, tlen);
   return tDoCommpare(func, QUERY_LESS_EQUAL, a, b);
 }
 static TExeCond tCompareGreaterThan(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
-  if (type == TSDB_DATA_TYPE_INT) {
-    char* v1 = (char*)a;
-    char* v2 = (char*)b;
-    for (int i = 0; i < sizeof(int32_t); i++) {
-      if (v1[i] == '0') {
-        v1[i] = 0;
-      }
-      if (v2[i] == '0') {
-        v2[i] = 0;
-      }
-    }
-    return tDoCommpare(func, QUERY_GREATER_THAN, v1, v2);
-  }
+
+  int32_t tlen = indexGetDataByteLen(type);
+  indexMayUnfillNumbericData(a, tlen);
+  indexMayUnfillNumbericData(b, tlen);
   return tDoCommpare(func, QUERY_GREATER_THAN, a, b);
 }
 static TExeCond tCompareGreaterEqual(void* a, void* b, int8_t type) {
   __compar_fn_t func = indexGetCompar(type);
-  if (type == TSDB_DATA_TYPE_INT) {
-    char* v1 = (char*)a;
-    char* v2 = (char*)b;
-    for (int i = 0; i < sizeof(int32_t); i++) {
-      if (v1[i] == '0') {
-        v1[i] = 0;
-      }
-      if (v2[i] == '0') {
-        v2[i] = 0;
-      }
-    }
-    return tDoCommpare(func, QUERY_GREATER_EQUAL, v1, v2);
-  }
+
+  int32_t tlen = indexGetDataByteLen(type);
+  indexMayUnfillNumbericData(a, tlen);
+  indexMayUnfillNumbericData(b, tlen);
   return tDoCommpare(func, QUERY_GREATER_EQUAL, a, b);
 }
 
@@ -200,9 +190,9 @@ int32_t indexConvertData(void* src, int8_t type, void** dst) {
       tlen = taosEncodeFixedU32(dst, *(uint32_t*)src);
       break;
     case TSDB_DATA_TYPE_BIGINT:
-      tlen = taosEncodeFixedI64(NULL, *(uint32_t*)src);
+      tlen = taosEncodeFixedI64(NULL, *(int64_t*)src);
       *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedI64(dst, *(uint32_t*)src);
+      tlen = taosEncodeFixedI64(dst, *(int64_t*)src);
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       tlen = taosEncodeBinary(NULL, src, sizeof(double));
@@ -210,9 +200,9 @@ int32_t indexConvertData(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(dst, src, sizeof(double));
       break;
     case TSDB_DATA_TYPE_UBIGINT:
-      tlen = taosEncodeFixedU64(NULL, *(uint32_t*)src);
+      tlen = taosEncodeFixedU64(NULL, *(uint64_t*)src);
       *dst = taosMemoryCalloc(1, tlen + 1);
-      tlen = taosEncodeFixedU64(dst, *(uint32_t*)src);
+      tlen = taosEncodeFixedU64(dst, *(uint64_t*)src);
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
@@ -241,14 +231,78 @@ int32_t indexConvertData(void* src, int8_t type, void** dst) {
       break;
   }
   *dst = *dst - tlen;
-  if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_VARBINARY &&
-      type != TSDB_DATA_TYPE_VARCHAR) {
-    uint8_t* p = *dst;
-    for (int i = 0; i < tlen; i++) {
-      if (p[i] == 0) {
-        p[i] = (uint8_t)'0';
-      }
-    }
+
+  indexMayFillNumbericData(*dst, tlen);
+
+  // if (type != TSDB_DATA_TYPE_BINARY && type != TSDB_DATA_TYPE_NCHAR && type != TSDB_DATA_TYPE_VARBINARY &&
+  //    type != TSDB_DATA_TYPE_VARCHAR) { uint8_t* p = *dst;
+  //  for (int i = 0; i < tlen; i++) {
+  //    if (p[i] == 0) {
+  //      p[i] = (uint8_t)'0';
+  //    }
+  //  }
+  //}
+  return tlen;
+}
+int32_t indexGetDataByteLen(int8_t type) {
+  int32_t tlen = -1;
+  switch (type) {
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      tlen = sizeof(int64_t);
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+    case TSDB_DATA_TYPE_UTINYINT:
+      tlen = sizeof(uint8_t);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      tlen = sizeof(uint8_t);
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      tlen = sizeof(int16_t);
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      tlen = sizeof(uint16_t);
+      break;
+    case TSDB_DATA_TYPE_INT:
+      tlen = sizeof(int32_t);
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      tlen = sizeof(uint32_t);
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      tlen = sizeof(int64_t);
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      tlen = sizeof(uint64_t);
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      tlen = sizeof(float);
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      tlen = sizeof(double);
+      break;
+    default:
+      break;
   }
   return tlen;
+}
+
+int32_t indexMayFillNumbericData(void* number, int32_t tlen) {
+  for (int i = 0; i < tlen; i++) {
+    int8_t* p = number;
+    if (p[i] == 0) {
+      p[i] = (uint8_t)'0';
+    }
+  }
+  return 0;
+}
+
+int32_t indexMayUnfillNumbericData(void* number, int32_t tlen) {
+  for (int i = 0; i < tlen; i++) {
+    int8_t* p = number;
+    if (p[i] == (uint8_t)'0') {
+      p[i] = 0;
+    }
+  }
+  return 0;
 }

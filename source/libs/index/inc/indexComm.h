@@ -39,6 +39,12 @@ _cache_range_compare indexGetCompare(RangeType ty);
 
 int32_t indexConvertData(void* src, int8_t type, void** dst);
 
+int32_t indexGetDataByteLen(int8_t type);
+
+int32_t indexMayFillNumbericData(void* number, int32_t tlen);
+
+int32_t indexMayUnfillNumbericData(void* number, int32_t tlen);
+
 #ifdef __cplusplus
 }
 #endif
