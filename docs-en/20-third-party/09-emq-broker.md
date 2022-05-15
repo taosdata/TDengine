@@ -3,7 +3,7 @@ sidebar_label: EMQ Broker
 title: EMQ Broker writing
 ---
 
-MQTT is a popular IoT data transfer protocol, [EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, without any code, only need to use "rules" in EMQ Dashboard to do simple configuration, you can write MQTT data directly to TDengine. EMQ X supports saving data to TDengine by sending to web services, and also provides native TDengine driver for direct saving in the Enterprise Edition. Please refer to the [EMQ official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use it. tdengine).
+MQTT is a popular IoT data transfer protocol, [EMQ](https://github.com/emqx/emqx) is an open-source MQTT Broker software, without any code, only need to use "rules" in EMQ Dashboard to do simple configuration. You can write MQTT data directly to TDengine. EMQ X supports saving data to TDengine by sending it to web services and provides a native TDengine driver for direct saving in the Enterprise Edition. Please refer to the [EMQ official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use it. tdengine).
 
 ## Prerequisites
 
@@ -14,9 +14,9 @@ The following preparations are required for EMQX to add TDengine data sources co
 
 ## Install and start EMQX
 
-Depending on the current operating system, users can download the installation package from the EMQX official website and execute the installation. The download address is as follows: <https://www.emqx.io/zh/downloads>. After installation, use `sudo emqx start` or `sudo systemctl start emqx` to start the EMQX service.
+Depending on the current operating system, users can download the installation package from the [EMQX official website](https://www.emqx.io/downloads) and execute the installation. After installation, use `sudo emqx start` or `sudo systemctl start emqx` to start the EMQX service.
 
-## Create the appropriate database and table structures in TDengine for receiving MQTT data
+## Create the appropriate database and table schema in TDengine for receiving MQTT data
 
 ### Take the Docker installation of TDengine as an example
 
@@ -28,26 +28,25 @@ Depending on the current operating system, users can download the installation p
 ### Create Database and Table
 
 ```sql
-    create database test;
-    use test;
-    create table:
+    CREATE DATABASE test;
+    USE test;
 
     CREATE TABLE sensor_data (ts timestamp, temperature float, humidity float, volume float, PM10 float, pm25 float, SO2 float, NO2 float, CO float, sensor_id NCHAR(255), area TINYINT, coll_time timestamp);
 ```
 
-Note: The table structure is based on the blog [(In Chinese) Data Transfer, Storage, Presentation, EMQ X + TDengine Build MQTT IoT Data Visualization Platform](https://www.taosdata.com/blog/2020/08/04/1722.html) as an example. Subsequent operations are carried out with this blog scenario as an example. Please modify it according to the actual application scenario.
+Note: The table schema is based on the blog [(In Chinese) Data Transfer, Storage, Presentation, EMQ X + TDengine Build MQTT IoT Data Visualization Platform](https://www.taosdata.com/blog/2020/08/04/1722.html) as an example. Subsequent operations are carried out with this blog scenario too. Please modify it according to your actual application scenario.
 
 ## Configuring EMQX Rules
 
-Since the configuration interface of EMQX differs from version to version, here is only v4.4.3 as an example. For other versions, please refer to the corresponding official documentation.
+Since the configuration interface of EMQX differs from version to version, here is v4.4.3 as an example. For other versions, please refer to the corresponding official documentation.
 
 ### Login EMQX Dashboard
 
-Use your browser to open the URL http://IP:18083 and log in to EMQX Dashboard. The initial installation username is `admin` and the password is: `public`.
+Use your browser to open the URL `http://IP:18083` and log in to EMQX Dashboard. The initial installation username is `admin` and the password is: `public`.
 
 ![img](./emqx/login-dashboard.png)
 
-### Creating Rules
+### Creating Rule
 
 Select "Rule" in the "Rule Engine" on the left and click the "Create" button: !
 
@@ -65,17 +64,17 @@ Select "Rule" in the "Rule Engine" on the left and click the "Create" button: !
 
 ![img](./emqx/create-resource.png)
 
-Select "Send Data to Web Service" and click the "New Resource" button.
+Select "Data to Web Service" and click the "New Resource" button.
 
 ### Edit "Resource"
 
-Select "Send Data to Web Service" and fill in the request URL as the address and port of the server running taosAdapter (default is 6041). Leave the other properties at their default values.
+Select "Data to Web Service" and fill in the request URL as the address and port of the server running taosAdapter (default is 6041). Leave the other properties at their default values.
 
 ![img](./emqx/edit-resource.png)
 
 ### Edit "action"
 
-Edit the resource configuration to add the key/value pairing for Authorization authentication. Please refer to the [ TDengine REST API documentation ](https://docs.taosdata.com/reference/rest-api/) for the documentation. Enter the rule engine replacement template in the message body.
+Edit the resource configuration to add the key/value pairing for Authorization. Please refer to the [ TDengine REST API documentation ](https://docs.taosdata.com/reference/rest-api/) for the authorization in details. Enter the rule engine replacement template in the message body.
 
 ![img](./emqx/edit-action.png)
 
@@ -162,7 +161,7 @@ Edit the resource configuration to add the key/value pairing for Authorization a
     }
 ```
 
-Note: CLIENT_NUM in the code can be set to a smaller value at the beginning of the test to avoid hardware performance not being able to handle a more significant number of concurrent clients.
+Note: `CLIENT_NUM` in the code can be set to a smaller value at the beginning of the test to avoid hardware performance be not capable to handle a more significant number of concurrent clients.
 
 ![img](./emqx/client-num.png)
 

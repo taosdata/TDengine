@@ -5,7 +5,7 @@ title: icinga2 writing
 
 import Icinga2 from "../14-reference/_icinga2.mdx"
 
-icinga2 is an open-source host, network monitoring software initially developed from the Nagios network monitoring application. Currently, icinga2 is distributed under the GNU GPL v2 license.
+icinga2 is an open-source software monitoring host and network initially developed from the Nagios network monitoring application. Currently, icinga2 is distributed under the GNU GPL v2 license.
 
 You can write the data collected by icinga2 to TDengine by simply modifying the icinga2 configuration to point to the taosAdapter server and the corresponding port, taking advantage of TDengine's efficient storage and query performance and clustering capabilities for time-series data.
 

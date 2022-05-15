@@ -5,9 +5,9 @@ title: StatsD writing
 
 import StatsD from "../14-reference/_statsd.mdx"
 
-StatsD is a simple daemon for aggregating and summarizing application metrics, which has evolved rapidly in recent years into a unified protocol for collecting application performance metrics.
+StatsD is a simple daemon for aggregating application metrics, which has evolved rapidly in recent years into a unified protocol for collecting application performance metrics.
 
-You can write StatsD data to TDengine by simply filling in the configuration file of StatsD with the domain name (or IP address) of the server running taosAdapter and the corresponding port. It can take full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
+You can write StatsD data to TDengine by simply modifying in the configuration file of StatsD with the domain name (or IP address) of the server running taosAdapter and the corresponding port. It can take full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
 ## Prerequisites
 
@@ -36,7 +36,7 @@ Using the utility software `nc` to write data for test:
 $ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 ```
 
-Use the TDengine CLI to verify that data is written to TDengine from StatsD and can read out correctly.
+Use the TDengine CLI to verify that StatsD data is written to TDengine and can read out correctly.
 
 ```
 Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
