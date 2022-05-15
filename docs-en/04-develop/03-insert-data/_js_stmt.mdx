@@ -1,12 +1,12 @@
-```js title=一次绑定一行
+```js title=Single Row Binding
 {{#include docs-examples/node/nativeexample/param_bind_example.js}}
 ```
 
-```js title=一次绑定多行
+```js title=Multiple Row Binding
 {{#include docs-examples/node/nativeexample/multi_bind_example.js:insertData}}
 ```
 
 :::info
-一次绑定一行效率不如一次绑定多行，但支持非 INSERT 语句。一次绑定多行效率更高，但仅支持 INSERT 语句。
+Multiple row binding is better in performance than single row binding, but it can only be used with `INSERT` statement while single row binding can be used for other SQL statements besides `INSERT`.
 
 :::

@@ -1,50 +1,50 @@
 ---
-sidebar_label: 支持的数据类型
-title: 支持的数据类型
-description: "TDengine 支持的数据类型: 时间戳、浮点型、JSON 类型等"
+sidebar_label: Data Types
+title: Data Types
+description: "The data types supported by TDengine include timestamp, float, JSON, etc"
 ---
 
-使用 TDengine，最重要的是时间戳。创建并插入记录、查询历史记录的时候，均需要指定时间戳。时间戳有如下规则：
+When using TDengine to store and query data, the most important part of the data is timestamp. Timestamp must be specified when creating and inserting data rows or querying data, timestamp must follow below rules:
 
-- 时间格式为 `YYYY-MM-DD HH:mm:ss.MS`，默认时间分辨率为毫秒。比如：`2017-08-12 18:25:58.128`
-- 内部函数 now 是客户端的当前时间
-- 插入记录时，如果时间戳为 now，插入数据时使用提交这条记录的客户端的当前时间
-- Epoch Time：时间戳也可以是一个长整数，表示从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始的毫秒数（相应地，如果所在 Database 的时间精度设置为“微秒”，则长整型格式的时间戳含义也就对应于从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始的微秒数；纳秒精度逻辑类似。）
-- 时间可以加减，比如 now-2h，表明查询时刻向前推 2 个小时（最近 2 小时）。数字后面的时间单位可以是 b(纳秒)、u(微秒)、a(毫秒)、s(秒)、m(分)、h(小时)、d(天)、w(周)。 比如 `select * from t1 where ts > now-2w and ts <= now-1w`，表示查询两周前整整一周的数据。在指定降采样操作（down sampling）的时间窗口（interval）时，时间单位还可以使用 n (自然月) 和 y (自然年)。
+- the format must be `YYYY-MM-DD HH:mm:ss.MS`, the default time precision is millisecond (ms), for example `2017-08-12 18:25:58.128`
+- internal function `now` can be used to get the current timestamp of the client side
+- the current timestamp of the client side is applied when `now` is used to insert data
+- Epoch Time：timestamp can also be a long integer number, which means the number of seconds, milliseconds or nanoseconds, depending on the time precision, from 1970-01-01 00:00:00.000 (UTC/GMT)
+- timestamp can be applied with add/substract operation, for example `now-2h` means 2 hours back from the time at which query is executed，the unit can be b(nanosecond), u(microsecond), a(millisecond), s(second), m(minute), h(hour), d(day), w(week.。 So `select * from t1 where ts > now-2w and ts <= now-1w` means the data between two weeks ago and one week ago. The time unit can also be n (calendar month) or y (calendar year) when specifying the time window for down sampling operation.
 
-TDengine 缺省的时间戳精度是毫秒，但通过在 `CREATE DATABASE` 时传递的 PRECISION 参数也可以支持微秒和纳秒。（从 2.1.5.0 版本开始支持纳秒精度）
+Time precision in TDengine can be set by the `PRECISION` parameter when executing `CREATE DATABASE`, like below, the default time precision is millisecond.
 
 ```sql
 CREATE DATABASE db_name PRECISION 'ns';
 ```
 
-在 TDengine 中，普通表的数据模型中可使用以下 10 种数据类型。
+In TDengine, below data types can be used when specifying a column or tag.
 
-| #   | **类型**  | **Bytes** | **说明**                                                                                                                                                                                                                                                                                                                                                                                                         |
-| --- | :-------: | --------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1   | TIMESTAMP | 8         | 时间戳。缺省精度毫秒，可支持微秒和纳秒。从格林威治时间 1970-01-01 00:00:00.000 (UTC/GMT) 开始，计时不能早于该时间。（从 2.0.18.0 版本开始，已经去除了这一时间范围限制）（从 2.1.5.0 版本开始支持纳秒精度）                                                                                                                                                                                                       |
-| 2   |    INT    | 4         | 整型，范围 [-2^31+1, 2^31-1], -2^31 用作 NULL                                                                                                                                                                                                                                                                                                                                                                    |
-| 3   |  BIGINT   | 8         | 长整型，范围 [-2^63+1, 2^63-1], -2^63 用作 NULL                                                                                                                                                                                                                                                                                                                                                                  |
-| 4   |   FLOAT   | 4         | 浮点型，有效位数 6-7，范围 [-3.4E38, 3.4E38]                                                                                                                                                                                                                                                                                                                                                                     |
-| 5   |  DOUBLE   | 8         | 双精度浮点型，有效位数 15-16，范围 [-1.7E308, 1.7E308]                                                                                                                                                                                                                                                                                                                                                           |
-| 6   |  BINARY   | 自定义    | 记录单字节字符串，建议只用于处理 ASCII 可见字符，中文等多字节字符需使用 nchar。理论上，最长可以有 16374 字节。binary 仅支持字符串输入，字符串两端需使用单引号引用。使用时须指定大小，如 binary(20) 定义了最长为 20 个单字节字符的字符串，每个字符占 1 byte 的存储空间，总共固定占用 20 bytes 的空间，此时如果用户字符串超出 20 字节将会报错。对于字符串内的单引号，可以用转义字符反斜线加单引号来表示，即 `\’`。 |
-| 7   | SMALLINT  | 2         | 短整型， 范围 [-32767, 32767], -32768 用作 NULL                                                                                                                                                                                                                                                                                                                                                                  |
-| 8   |  TINYINT  | 1         | 单字节整型，范围 [-127, 127], -128 用作 NULL                                                                                                                                                                                                                                                                                                                                                                     |
-| 9   |   BOOL    | 1         | 布尔型，{true, false}                                                                                                                                                                                                                                                                                                                                                                                            |
-| 10  |   NCHAR   | 自定义    | 记录包含多字节字符在内的字符串，如中文字符。每个 nchar 字符占用 4 bytes 的存储空间。字符串两端使用单引号引用，字符串内的单引号需用转义字符 `\’`。nchar 使用时须指定字符串大小，类型为 nchar(10) 的列表示此列的字符串最多存储 10 个 nchar 字符，会固定占用 40 bytes 的空间。如果用户字符串长度超出声明长度，将会报错。                                                                                            |
-| 11  |   JSON    |           | json 数据类型， 只有 tag 可以是 json 格式                                                                                                                                                                                                                                                                                                                                                                        |
+| #   | **类型**  | **Bytes** | **说明** |
+| --- | :-------: | --------- | ------------------------- |
+| 1   | TIMESTAMP | 8         | Default precision is millisecond, microsecond and nanosecond are also supported  |
+| 2   |    INT    | 4         | Integer, the value range is [-2^31+1, 2^31-1], while -2^31 is treated as NULL  |
+| 3   |  BIGINT   | 8         | Long integer, the value range is [-2^63+1, 2^63-1], while -2^63 is treated as NULL |
+| 4   |   FLOAT   | 4         | Floating point number, the effective number of digits is 6-7, the value range is [-3.4E38, 3.4E38]  |
+| 5   |  DOUBLE   | 8         | double precision floating point number, the effective number of digits is 15-16, the value range is [-1.7E308, 1.7E308]  |
+| 6   |  BINARY   | User Defined | Single-byte string for ASCII visible characters. Length must be specified when defining a column or tag of binary type. The string length can be up to  16374 bytes. The string value must be quoted with single quotes. The literal single quote inside the string must be preceded with back slash like `\'` |
+| 7   | SMALLINT  | 2         | Short integer, the value range is [-32767, 32767], while -32768 is treated as NULL  |
+| 8   |  TINYINT  | 1         | Single-byte integer, the value range is [-127, 127], while -128 is treated as NLLL |
+| 9   |   BOOL    | 1         | Bool, the value range is {true, false}   |
+| 10  | NCHAR     | User Defined| Multiple-Byte string that can include like Chinese characters. Each character of NCHAR type consumes 4 bytes storage. The string value should be quoted with single quotes. Literal single quote inside the string must be preceded with backslash, like `\’`. The length must be specified when defining a column or tag of NCHAR type, for example nchar(10) means it can store at most 10 characters of nchar type and will consume fixed storage of 40 bytes. Error will be reported the string value exceeds the length defined.   |
+| 11  |   JSON    |           | json type can only be used on tag, a tag of json type is excluded with any other tags of any other type |
 
 :::tip
-TDengine 对 SQL 语句中的英文字符不区分大小写，自动转化为小写执行。因此用户大小写敏感的字符串及密码，需要使用单引号将字符串引起来。
+TDengine is case insensitive and treats any characters in the sql command as lower case by default, case sensitive strings must be quoted with single quotes.
 
 :::
 
 :::note
-虽然 BINARY 类型在底层存储上支持字节型的二进制字符，但不同编程语言对二进制数据的处理方式并不保证一致，因此建议在 BINARY 类型中只存储 ASCII 可见字符，而避免存储不可见字符。多字节的数据，例如中文字符，则需要使用 NCHAR 类型进行保存。如果强行使用 BINARY 类型保存中文字符，虽然有时也能正常读写，但并不带有字符集信息，很容易出现数据乱码甚至数据损坏等情况。
+Only ASCII visible characters are suggested to be used in a column or tag of BINARY type. Multiple-byte characters must be stored in NCHAR type.
 
 :::
 
 :::note
-SQL 语句中的数值类型将依据是否存在小数点，或使用科学计数法表示，来判断数值类型是否为整型或者浮点型，因此在使用时要注意相应类型越界的情况。例如，9999999999999999999 会认为超过长整型的上边界而溢出，而 9999999999999999999.0 会被认为是有效的浮点数。
+Numeric values in SQL statements will be determined as integer or float type according to whether there is decimal point or whether scientific notation is used, so attention must be paid to avoid overflow. For example, 9999999999999999999 will be considered as overflow because it exceeds the upper limit of long integer, but 9999999999999999999.0 will be considered as a legal float number.
 
 :::
