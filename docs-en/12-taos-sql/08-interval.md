@@ -28,7 +28,7 @@ When the time length specified by `SLIDING` is same as that specified by `INTERV
 
 ## Status Window
 
-In case of using integer, bool, or string to represent the device status at a moment, the continuous rows with same status belong to same status window. Once the status changes, the status window closes. As shown in the following figure，there are two status windows according to status, [2019-04-28 14:22:07，2019-04-28 14:22:10] and [2019-04-28 14:22:11，2019-04-28 14:22:12]. Status window is not applicable to stable for now.
+In case of using integer, bool, or string to represent the device status at a moment, the continuous rows with same status belong to same status window. Once the status changes, the status window closes. As shown in the following figure，there are two status windows according to status, [2019-04-28 14:22:07，2019-04-28 14:22:10] and [2019-04-28 14:22:11，2019-04-28 14:22:12]. Status window is not applicable to STable for now.
 
 ![Status Window](/img/sql/timewindow-3.png)
 
@@ -48,7 +48,7 @@ The primary key, i.e. timestamp, is used to determine which session window the r
 
 ![Session Window](/img/sql/timewindow-2.png)
 
-If the time interval between two continuous rows are withint the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. Session window is not supported on stable for now.
+If the time interval between two continuous rows are withint the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. Session window is not supported on STable for now.
 
 ## More On Window Aggregate
 
@@ -89,7 +89,7 @@ SELECT function_list FROM stb_name
 
 1. Huge volume of interpolation output may be returned using `FILL`, so it's recommended to specify the time range when using `FILL`. The maximum interpolation values that can be returned in single query is 10,000,000.
 2. The result set is in the ascending order of timestamp in aggregate by time window aggregate.
-3. If aggregate by window is used on stable, the aggregate function is performed on all the rows matching the filter conditions. If `GROUP BY` is not used in the query, the result set will be returned in ascending order of timestamp; otherwise the result set is not exactly in the order of ascending timestamp in each group.
+3. If aggregate by window is used on STable, the aggregate function is performed on all the rows matching the filter conditions. If `GROUP BY` is not used in the query, the result set will be returned in ascending order of timestamp; otherwise the result set is not exactly in the order of ascending timestamp in each group.
    :::
 
 Aggregate by time window is also used in continuous query, please refer to [Continuous Query](/develop/continuous-query).

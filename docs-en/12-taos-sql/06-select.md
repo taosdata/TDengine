@@ -216,7 +216,7 @@ Query OK, 1 row(s) in set (0.000081s)
 
 ## \_block_dist
 
-**Description**: Get the data block distribution of a table or stable.
+**Description**: Get the data block distribution of a table or STable.
 
 ```SQL title="Syntax"
 SELECT _block_dist() FROM { tb_name | stb_name }
@@ -226,7 +226,7 @@ SELECT _block_dist() FROM { tb_name | stb_name }
 
 **Sub Query**：Sub query or nested query are not supported
 
-**Return value**: A string which includes the data block distribution of the specified table or stable, i.e. the histogram of rows stored in the data blocks of the table or stable.
+**Return value**: A string which includes the data block distribution of the specified table or STable, i.e. the histogram of rows stored in the data blocks of the table or STable.
 
 ```text title="Result"
 summary:
@@ -235,7 +235,7 @@ summary:
 
 **More explanation about above example**:
 
-- Histogram about the rows stored in the data blocks of the table or stable: the value of rows for 5%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 95%, and 99%
+- Histogram about the rows stored in the data blocks of the table or STable: the value of rows for 5%, 10%, 20%, 30%, 40%, 50%, 60%, 70%, 80%, 90%, 95%, and 99%
 - Minimum number of rows stored in a data block, i.e. Min=[392(Rows)]
 - Maximum number of rows stored in a data block, i.e. Max=[800(Rows)]
 - Average number of rows stored in a data block, i.e. Avg=[666(Rows)]
@@ -347,7 +347,7 @@ The maximum length of regular expression string is 128 bytes. Configuration para
 
 ## JOIN
 
-From version 2.2.0.0, inner join is fully supported in TDengine. More specifically, the inner join between table and table, that between stable and stable, and that between sub query and sub query are supported.
+From version 2.2.0.0, inner join is fully supported in TDengine. More specifically, the inner join between table and table, that between STable and STable, and that between sub query and sub query are supported.
 
 Only primary key, i.e. timestamp, can be used in the join operation between table and table. For example:
 
@@ -357,11 +357,11 @@ FROM temp_tb_1 t1, pressure_tb_1 t2
 WHERE t1.ts = t2.ts
 ```
 
-In the join operation between stable and stable, besides the primary key, i.e. timestamp, tags can also be used. For example:
+In the join operation between STable and STable, besides the primary key, i.e. timestamp, tags can also be used. For example:
 
 ```sql
 SELECT *
-FROM temp_stable t1, temp_stable t2
+FROM temp_STable t1, temp_STable t2
 WHERE t1.ts = t2.ts AND t1.deviceid = t2.deviceid AND t1.status=0;
 ```
 
@@ -370,7 +370,7 @@ Similary, join operation can be performed on the result set of multiple sub quer
 :::note
 Restrictions on join operation:
 
-- The number of tables or stables in single join operation can't exceed 10.
+- The number of tables or STables in single join operation can't exceed 10.
 - `FILL` is not allowed in the query statement that includes JOIN operation.
 - Arithmetic operation is not allowed on the result set of join operation.
 - `GROUP BY` is not allowed on a part of tables that participate in join operation.
@@ -394,7 +394,7 @@ SELECT ... FROM (SELECT ... FROM ...) ...;
 - Only one layer of nesting is allowed, that means no sub query is allowed in a sub query
 - The result set returned by the inner query will be used as a "virtual table" by the outer query, the "virtual table" can be renamed using `AS` keyword for easy reference in the outer query.
 - Sub query is not allowed in continuous query.
-- JOIN operation is allowed between tables/stables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
+- JOIN operation is allowed between tables/STables inside both inner and outer queries. Join operation can be performed on the result set of the inner query.
 - UNION operation is not allowed in either inner query or outer query.
 - The functionalities that can be used in the inner query is same as non-nested query.
   - `ORDER BY` inside the inner query doesn't make any sense but will slow down the query performance significantly, so please avoid such usage.

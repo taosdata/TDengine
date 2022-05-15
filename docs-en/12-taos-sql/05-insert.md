@@ -131,10 +131,10 @@ Firstly, a super table is created.
 CREATE TABLE meters(ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS(location BINARY(30), groupId INT);
 ```
 
-It can be proved that the super table has been created by `SHOW STABLES`, but no table exists by `SHOW TABLES`.
+It can be proved that the super table has been created by `SHOW STableS`, but no table exists by `SHOW TABLES`.
 
 ```
-taos> SHOW STABLES;
+taos> SHOW STableS;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  meters                         | 2020-08-06 17:50:27.831 |       4 |      2 |           0 |
@@ -156,7 +156,7 @@ The output shows the value to be inserted is invalid. But `SHOW TABLES` proves t
 DB error: invalid SQL: 'a' (invalid timestamp) (0.039494s)
 
 taos> SHOW TABLES;
-           table_name           |      created_time       | columns |          stable_name           |
+           table_name           |      created_time       | columns |          STable_name           |
 ======================================================================================================
  d1001                          | 2020-08-06 17:52:02.097 |       4 | meters                         |
 Query OK, 1 row(s) in set (0.001091s)

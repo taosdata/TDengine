@@ -4,7 +4,7 @@ description: "Continuous query is a query that's executed automatically accordin
 title: "Continuous Query"
 ---
 
-Continuous query is a query that's executed automatically according to predefined frequency to provide aggregate query capability by time window, it's actually a simplified time driven stream computing. Continuous query can be performed on a table or stable in TDengine. The result of continuous query can be pushed to client or written back to TDengine. Each query is executed on a time window, which moves forward with time. The size of time window and the forward sliding time need to be specified with parameter `INTERVAL` and `SLIDING` respectively.
+Continuous query is a query that's executed automatically according to predefined frequency to provide aggregate query capability by time window, it's actually a simplified time driven stream computing. Continuous query can be performed on a table or STable in TDengine. The result of continuous query can be pushed to client or written back to TDengine. Each query is executed on a time window, which moves forward with time. The size of time window and the forward sliding time need to be specified with parameter `INTERVAL` and `SLIDING` respectively.
 
 Continuous query in TDengine is time driven, and can be defined using TAOS SQL directly without any extra operations. With continuous query, the result can be generated according to time window to achieve down sampling of original data. Once a continuous query is defined using TAOS SQL, the query is automatically executed at the end of each time window and the result is pushed back to client or written to TDengine.
 
@@ -30,7 +30,7 @@ SLIDING: The time step for which the time window moves forward each time
 
 ## How to Use
 
-In this section the use case of meters will be used to introduce how to use continuous query. Assume the stable and sub tables have been created using below SQL statement.
+In this section the use case of meters will be used to introduce how to use continuous query. Assume the STable and sub tables have been created using below SQL statement.
 
 ```sql
 create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);

@@ -26,7 +26,7 @@ The legal character set is `[a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/]`.
 - Maximum number of tags is 128. There must be at least 1 tag. The total length of tag values should not exceed 16K bytes.
 - Maximum length of singe SQL statement is 1048576, i.e. 1 MB bytes. It can be configured in the parameter `maxSQLLength` in the client side, the applicable range is [65480, 1048576].
 - At most 4096 columns (or 1024 prior to 2.1.7.0) can be returned by `SELECT`, functions in the query statement may constitute columns. Error will be returned if the limit is exceeded.
-- Maximum numbers of databases, stables, tables are only depending on the system resources.
+- Maximum numbers of databases, STables, tables are only depending on the system resources.
 - Maximum of database name is 32 bytes, can't include "." and special characters.
 - Maximum replica number of database is 3
 - Maximum length of user name is 23 bytes
@@ -47,10 +47,10 @@ The legal character set is `[a-zA-Z0-9!?$%^&*()_–+={[}]:;@~#|<,>.?/]`.
 ## Restrictions of `ORDER BY`
 
 - Only one `order by` is allowed for normal table and sub table.
-- At most two `order by` are allowed for stable, and the second one must be `ts`.
+- At most two `order by` are allowed for STable, and the second one must be `ts`.
 - `order by tag` must be used with `group by tag` on same tag, this rule is also applicable to `tbname`.
-- `order by column` must be used with `group by column` or `top/bottom` on same column. This rule is applicable to table and stable.
-- `order by ts` is applicable to table and stable.
+- `order by column` must be used with `group by column` or `top/bottom` on same column. This rule is applicable to table and STable.
+- `order by ts` is applicable to table and STable.
 - If `order by ts` is used with `group by`, the result set is sorted using `ts` in each group.
 
 ## Restrictions of Table/Column Names
