@@ -19,25 +19,25 @@ import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.md
 import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
 
-Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors please refer to [Connectors](/reference/connector/)
+Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details, please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple programming languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors, please refer to [Connectors](/reference/connector/)
 
 ## Establish Connection
 
-There are two ways to establish connections to TDengine:
+There are two ways for a connector to establish connections to TDengine:
 
-1. Connection to taosd can be established through the REST API provided by taosAdapter component, this way is called "REST connection" hereinafter.
-2. Connection to taosd can be established through the client side driver taosc, this way is called "Native connection" hereinafter.
+1. Connection through the REST API provided by taosAdapter component, this way is called "REST connection" hereinafter.
+2. Connection through the TDengine application driver taosc, this way is called "Native connection" hereinafter.
 
 Either way, same or similar APIs are provided by connectors to access database or execute SQL statements, no obvious difference can be observed.
 
 Key differences：
 
-1. With REST connection, it's not necessary to install the client side driver taosc, it's more friendly for cross-platform with the cost of 30% performance downgrade.
-2. With native connection, full compatibility of TDengine can be utilized, like [Parameter Binding](/reference/connector/cpp#Parameter Binding-api), [Subscription](reference/connector/cpp#Subscription), etc.
+1. With REST connection, it's not necessary to install TDengine application driver taosc, it's more friendly for cross-platform with the cost of 30% performance downgrade. When taosc has an upgrade, application does not need to make changes. 
+2. With native connection, full compatibility of TDengine can be utilized, like [Parameter Binding](/reference/connector/cpp#Parameter Binding-api), [Subscription](reference/connector/cpp#Subscription), etc. But taosc has to be installed, some platforms may not be supported.
 
 ## Install Client Driver taosc
 
-If choosing to use native connection and the client program is not on the same host as TDengine server, TDengine client driver needs to be installed on the host where the client program is. If choosing to use REST connection or the client is on the same host as server side, this step can be skipped. It's better to use same version of client as the server.
+If choosing to use native connection and the application is not on the same host as TDengine server, TDengine application driver taosc needs to be installed on the host where the application is. If choosing to use REST connection or the application is on the same host as server side, this step can be skipped. It's better to use same version of taosc as the server.
 
 ### Install
 
@@ -52,7 +52,7 @@ If choosing to use native connection and the client program is not on the same h
 
 ### Verify
 
-After the above installation and configuration are done and making sure TDengine service is already started and in service, the Shell command `taos` can be launched to access TDengine.以
+After the above installation and configuration are done and making sure TDengine service is already started and in service, the TDengine command line interface `taos` can be launched to access TDengine.以
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">
