@@ -234,18 +234,14 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
 }
 
 static void vmCleanup(SVnodeMgmt *pMgmt) {
-  dInfo("vnode-mgmt start to cleanup");
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
   tfsClose(pMgmt->pTfs);
   taosMemoryFree(pMgmt);
-
-  dInfo("vnode-mgmt is cleaned up");
 }
 
 static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("vnode-mgmt start to init");
   int32_t code = -1;
 
   SVnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SVnodeMgmt));
@@ -323,7 +319,6 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 _OVER:
   if (code == 0) {
     pOutput->pMgmt = pMgmt;
-    dInfo("vnodes-mgmt is initialized");
   } else {
     dError("failed to init vnodes-mgmt since %s", terrstr());
     vmCleanup(pMgmt);
@@ -338,7 +333,6 @@ static int32_t vmRequire(const SMgmtInputOpt *pInput, bool *required) {
 }
 
 static int32_t vmStart(SVnodeMgmt *pMgmt) {
-  dDebug("vnode-mgmt start to run");
   taosRLockLatch(&pMgmt->latch);
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);

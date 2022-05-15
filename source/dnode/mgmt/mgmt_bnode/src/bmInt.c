@@ -23,7 +23,6 @@ static int32_t bmRequire(const SMgmtInputOpt *pInput, bool *required) {
 static void bmInitOption(SBnodeMgmt *pMgmt, SBnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
 
 static void bmClose(SBnodeMgmt *pMgmt) {
-  dInfo("bnode-mgmt start to cleanup");
   if (pMgmt->pBnode != NULL) {
     bmStopWorker(pMgmt);
     bndClose(pMgmt->pBnode);
@@ -31,11 +30,9 @@ static void bmClose(SBnodeMgmt *pMgmt) {
   }
 
   taosMemoryFree(pMgmt);
-  dInfo("bnode-mgmt is cleaned up");
 }
 
 int32_t bmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("bnode-mgmt start to init");
   SBnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SBnodeMgmt));
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -66,7 +63,6 @@ int32_t bmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   tmsgReportStartup("bnode-worker", "initialized");
 
   pOutput->pMgmt = pMgmt;
-  dInfo("bnode-mgmt is initialized");
   return 0;
 }
 

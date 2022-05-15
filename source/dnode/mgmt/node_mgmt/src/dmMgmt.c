@@ -54,7 +54,7 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   } else {
     pDnode->ptype = DND_PROC_CHILD;
     SMgmtWrapper *pWrapper = &pDnode->wrappers[pDnode->rtype];
-    dInfo("dnode will run in child-process mode, node:%s", pWrapper->name);
+    dInfo("dnode will run in child-process mode, node:%s", dmNodeName(pDnode->rtype));
   }
 
   SDnodeData *pData = &pDnode->data;
@@ -181,12 +181,12 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
       goto _OVER;
     }
 
+    pWrapper->required = dmRequireNode(pWrapper);
+
     if (ntype != DNODE && dmReadShmFile(pWrapper->path, pWrapper->name, pDnode->rtype, &pWrapper->proc.shm) != 0) {
       dError("node:%s, failed to read shm file since %s", pWrapper->name, terrstr());
       goto _OVER;
     }
-
-    pWrapper->required = dmRequireNode(pWrapper);
   }
 
   if (dmInitMsgHandle(pDnode) != 0) {

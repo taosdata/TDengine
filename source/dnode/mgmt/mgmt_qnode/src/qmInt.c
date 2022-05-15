@@ -23,7 +23,6 @@ static int32_t qmRequire(const SMgmtInputOpt *pInput, bool *required) {
 static void qmInitOption(SQnodeMgmt *pMgmt, SQnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
 
 static void qmClose(SQnodeMgmt *pMgmt) {
-  dInfo("qnode-mgmt start to cleanup");
   if (pMgmt->pQnode != NULL) {
     qmStopWorker(pMgmt);
     qndClose(pMgmt->pQnode);
@@ -31,11 +30,9 @@ static void qmClose(SQnodeMgmt *pMgmt) {
   }
 
   taosMemoryFree(pMgmt);
-  dInfo("qnode-mgmt is cleaned up");
 }
 
 static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("qnode-mgmt start to init");
   SQnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SQnodeMgmt));
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -75,7 +72,6 @@ static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   tmsgReportStartup("qnode-worker", "initialized");
 
   pOutput->pMgmt = pMgmt;
-  dInfo("qnode-mgmt is initialized");
   return 0;
 }
 

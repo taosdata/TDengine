@@ -107,7 +107,6 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
 }
 
 static void mmClose(SMnodeMgmt *pMgmt) {
-  dInfo("mnode-mgmt start to cleanup");
   if (pMgmt->pMnode != NULL) {
     mmStopWorker(pMgmt);
     mndClose(pMgmt->pMnode);
@@ -115,11 +114,9 @@ static void mmClose(SMnodeMgmt *pMgmt) {
   }
 
   taosMemoryFree(pMgmt);
-  dInfo("mnode-mgmt is cleaned up");
 }
 
 static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("mnode-mgmt start to init");
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
     return -1;
@@ -183,7 +180,6 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 
   pInput->pData->dnodeId = pMgmt->dnodeId;
   pOutput->pMgmt = pMgmt;
-  dInfo("mnode-mgmt is initialized");
   return 0;
 }
 

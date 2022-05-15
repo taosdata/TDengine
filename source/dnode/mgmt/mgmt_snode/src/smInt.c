@@ -24,7 +24,6 @@ static int32_t smRequire(const SMgmtInputOpt *pInput, bool *required) {
 static void smInitOption(SSnodeMgmt *pMgmt, SSnodeOpt *pOption) { pOption->msgCb = pMgmt->msgCb; }
 
 static void smClose(SSnodeMgmt *pMgmt) {
-  dInfo("snode-mgmt start to cleanup");
   if (pMgmt->pSnode != NULL) {
     smStopWorker(pMgmt);
     sndClose(pMgmt->pSnode);
@@ -32,11 +31,9 @@ static void smClose(SSnodeMgmt *pMgmt) {
   }
 
   taosMemoryFree(pMgmt);
-  dInfo("snode-mgmt is cleaned up");
 }
 
 int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("snode-mgmt start to init");
   SSnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SSnodeMgmt));
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
