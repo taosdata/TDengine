@@ -425,6 +425,10 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
   tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
   if (tEncodeSVCreateStbReq(&encoder, &req) < 0) {
+    taosMemoryFreeClear(pHead);
+    taosMemoryFreeClear(req.pRSmaParam.qmsg1);
+    taosMemoryFreeClear(req.pRSmaParam.qmsg2);
+    tEncoderClear(&encoder);
     return NULL;
   }
   tEncoderClear(&encoder);
