@@ -19,7 +19,7 @@ import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.md
 import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
 
-Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors please refer to [Connectors](https://docs.taosdata.com/reference/connector/)
+Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors please refer to [Connectors](/reference/connector/)
 
 ## Establish Connection
 

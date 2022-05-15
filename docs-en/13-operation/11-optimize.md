@@ -15,7 +15,7 @@ Please be noted that a lot of disk I/O is required for defragementation operatio
 
 ## Optimize Storage Parameters
 
-The data in different use cases may have different characteristics, such as the days to keep, number of replicas, collection interval, record size, number of collecting points, compression or not, etc. To achieve best efficiency in storage, the parameters in below table can be used, all of them can be either configured in `taos.cfg` as default configuration or in the command `create database`. For detailed definition of these parameters please refer to [Configuration Parameters](/reference/config/).
+The data in different use cases may have different characteristics, such as the days to keep, number of replicas, collection interval, record size, number of collection points, compression or not, etc. To achieve best efficiency in storage, the parameters in below table can be used, all of them can be either configured in `taos.cfg` as default configuration or in the command `create database`. For detailed definition of these parameters please refer to [Configuration Parameters](/reference/config/).
 
 | #   | Parameter | Unit | Definition                                                                     | **Value Range**                                                                                 | **Default Value** |
 | --- | --------- | ---- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------- | ----------------- |
