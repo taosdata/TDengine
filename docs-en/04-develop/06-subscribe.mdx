@@ -28,7 +28,7 @@ taos_consume
 taos_unsubscribe
 ```
 
-For more details about these API please refer to [C/C++ Connector](/reference/connector/cpp). Their usage will be introduced below using the use case of meters, in which the schema of stable and sub tables please refer to the previous section "continuous query". Full sample code can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/c/subscribe.c).
+For more details about these API please refer to [C/C++ Connector](/reference/connector/cpp). Their usage will be introduced below using the use case of meters, in which the schema of STable and sub tables please refer to the previous section "continuous query". Full sample code can be found [here](https://github.com/taosdata/TDengine/blob/master/examples/c/subscribe.c).
 
 If we want to get notification and take some actions if the current exceeds a threshold, like 10A, from some meters, there are two ways:
 
@@ -42,7 +42,7 @@ select * from D1002 where ts > {last_timestamp2} and current > 10;
 
 The above way works, but the problem is that the number of `select` statements increases with the number of meters grows. Finally the performance of both client side and server side will be unacceptable once the number of meters grows to a big enough number.
 
-A better way is to query on the stable, only one `select` is enough regardless of the number of meters, like below:
+A better way is to query on the STable, only one `select` is enough regardless of the number of meters, like below:
 
 ```sql
 select * from meters where ts > {last_timestamp} and current > 10;
@@ -155,7 +155,7 @@ Now let's see the effect of the above sample code, assuming below prerequisites 
 
 - The sample code has been downloaded to local system 示
 - TDengine has been installed and launched properly on same system
-- The database, stable, sub tables required in the sample code have been ready
+- The database, STable, sub tables required in the sample code have been ready
 
 It's ready to launch below command in the directory where the sample code resides to compile and start the program.
 

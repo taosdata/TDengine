@@ -8,7 +8,7 @@ title: JSON Type
 1. Tag of JSON type
 
    ```sql
-   create stable s1 (ts timestamp, v1 int) tags (info json);
+   create STable s1 (ts timestamp, v1 int) tags (info json);
 
    create table s1_1 using s1 tags ('{"k1": "v1"}');
    ```
@@ -78,6 +78,6 @@ title: JSON Type
 For example, below SQL statements are not supported.
 
 ```sql;
-select jtag->'key' from (select jtag from stable);
-select jtag->'key' from (select jtag from stable) where jtag->'key'>0;
+select jtag->'key' from (select jtag from STable);
+select jtag->'key' from (select jtag from STable) where jtag->'key'>0;
 ```

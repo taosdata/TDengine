@@ -5,7 +5,7 @@ title: Reserved Keywords
 
 ## Reserved Keywords
 
-There are about 200 keywords reserved by TDengine, they can't be used as the name of database, stable or table with either upper case, lower case or mixed case.
+There are about 200 keywords reserved by TDengine, they can't be used as the name of database, STable or table with either upper case, lower case or mixed case.
 
 **Keywords List**
 
@@ -47,5 +47,5 @@ There are about 200 keywords reserved by TDengine, they can't be used as the nam
 | CONFLICT    | GROUP      | NE        | SLIMIT     | VGROUPS      |
 | CONNECTION  | GT         | NONE      | SMALLINT   | VIEW         |
 | CONNECTIONS | HAVING     | NOT       | SOFFSET    | VNODES       |
-| CONNS       | ID         | NOTNULL   | STABLE     | WAL          |
-| COPY        | IF         | NOW       | STABLES    | WHERE        |
+| CONNS       | ID         | NOTNULL   | STable     | WAL          |
+| COPY        | IF         | NOW       | STableS    | WHERE        |

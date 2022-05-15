@@ -5,14 +5,14 @@ title: Super Table
 
 :::note
 
-Keyword `STABLE`, abbreviated for super table, is supported since version 2.0.15.
+Keyword `STable`, abbreviated for super table, is supported since version 2.0.15.
 
 :::
 
 ## Crate STable
 
 ```
-CREATE STABLE [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
+CREATE STable [IF NOT EXISTS] stb_name (timestamp_field_name TIMESTAMP, field1_name data_type1 [, field2_name data_type2 ...]) TAGS (tag1_name tag_type1, tag2_name tag_type2 [, tag3_name tag_type3]);
 ```
 
 The SQL statement of creating STable is similar to that of creating table, but a special column named as `TAGS` must be specified with the names and types of the tags.
@@ -29,15 +29,15 @@ The SQL statement of creating STable is similar to that of creating table, but a
 ## Drop STable
 
 ```
-DROP STABLE [IF EXISTS] stb_name;
+DROP STable [IF EXISTS] stb_name;
 ```
 
-All the sub-tables created using the deleted stable will be deleted automatically.
+All the sub-tables created using the deleted STable will be deleted automatically.
 
 ## Show All STables
 
 ```
-SHOW STABLES [LIKE tb_name_wildcard];
+SHOW STableS [LIKE tb_name_wildcard];
 ```
 
 This command can be used to display the information of all STables in the current database, including name, creation time, number of columns, number of tags, number of tables created using this STable.
@@ -45,7 +45,7 @@ This command can be used to display the information of all STables in the curren
 ## Show The Create Statement of A STable
 
 ```
-SHOW CREATE STABLE stb_name;
+SHOW CREATE STable stb_name;
 ```
 
 This command is useful in migrating data from one TDengine cluster to another one because it can be used to create an exactly same STable in the target database.
@@ -61,19 +61,19 @@ DESCRIBE stb_name;
 ### Add A Column
 
 ```
-ALTER STABLE stb_name ADD COLUMN field_name data_type;
+ALTER STable stb_name ADD COLUMN field_name data_type;
 ```
 
 ### Remove A Column
 
 ```
-ALTER STABLE stb_name DROP COLUMN field_name;
+ALTER STable stb_name DROP COLUMN field_name;
 ```
 
 ### Change Column Length
 
 ```
-ALTER STABLE stb_name MODIFY COLUMN field_name data_type(length);
+ALTER STable stb_name MODIFY COLUMN field_name data_type(length);
 ```
 
 This command can be used to change (or incerase, more specifically) the length of a column of variable length types, like BINARY or NCHAR.
@@ -83,7 +83,7 @@ This command can be used to change (or incerase, more specifically) the length o
 ### Add A Tag
 
 ```
-ALTER STABLE stb_name ADD TAG new_tag_name tag_type;
+ALTER STable stb_name ADD TAG new_tag_name tag_type;
 ```
 
 This command is used to add a new tag for a STable and specify the tag type.
@@ -91,7 +91,7 @@ This command is used to add a new tag for a STable and specify the tag type.
 ### Remove A Tag
 
 ```
-ALTER STABLE stb_name DROP TAG tag_name;
+ALTER STable stb_name DROP TAG tag_name;
 ```
 
 The tag will be removed automatically from all the sub tables crated using the super table as template once a tag is removed from a super table.
@@ -99,7 +99,7 @@ The tag will be removed automatically from all the sub tables crated using the s
 ### Change A Tag
 
 ```
-ALTER STABLE stb_name CHANGE TAG old_tag_name new_tag_name;
+ALTER STable stb_name CHANGE TAG old_tag_name new_tag_name;
 ```
 
 The tag name will be changed automatically from all the sub tables crated using the super table as template once a tag name is changed for a super table.
@@ -107,7 +107,7 @@ The tag name will be changed automatically from all the sub tables crated using 
 ### Change Tag Length
 
 ```
-ALTER STABLE stb_name MODIFY TAG tag_name data_type(length);
+ALTER STable stb_name MODIFY TAG tag_name data_type(length);
 ```
 
 This command can be used to change (or incerase, more specifically) the length of a tag of variable length types, like BINARY or NCHAR.

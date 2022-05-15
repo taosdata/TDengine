@@ -1,23 +1,23 @@
 ---
-title: 诊断及其他
+sidebar_label: Diagnose
+title: Diagnose Problems
 ---
 
-## 网络连接诊断
+## Diagnose Network Connection
 
-当出现客户端应用无法访问服务端时，需要确认客户端与服务端之间网络的各端口连通情况，以便有针对性地排除故障。
+When the client is unable to access the server, the network connection between the client side and the server side needs to be checked to find out the root cause and resolve problems.
 
-目前网络连接诊断支持在：Linux 与 Linux，Linux 与 Windows 之间进行诊断测试。
+The diagnostic for network connection can be executed between Linux and Linux or between Linux and Windows.
 
-诊断步骤：
+Diagnostic steps：
 
-1. 如拟诊断的端口范围与服务器 taosd 实例的端口范围相同，须先停掉 taosd 实例
-2. 服务端命令行输入：`taos -n server -P <port> -l <pktlen>` 以服务端身份启动对端口 port 为基准端口的监听
-3. 客户端命令行输入：`taos -n client -h <fqdn of server> -P <port> -l <pktlen>` 以客户端身份启动对指定的服务器、指定的端口发送测试包
+1. If the port range to be diagnosed are being occupied by a `taosd` server process, please firstly stop `taosd.
+2. On the server side, execute command `taos -n server -P <port> -l <pktlen>` to monitor the port range starting from the port specified by `-P` parameter with the role of "server.
+3. On the client side, execute command `taos -n client -h <fqdn of server> -P <port> -l <pktlen>` to send testing package to the specified server and port.
  
--l <pktlen\>： 测试网络包的大小（单位：字节）。最小值是 11、最大值是 64000，默认值为 1000。
-注：两端命令行中指定的测试包长度必须一致，否则测试显示失败。
+-l <pktlen\>： The size of the testing package, in bytes. The value range is [11, 64,000] and default value is 1,000. Please be noted that the package length must be same in the above 2 commands executed on server side and client side respectively.
 
-服务端运行正常的话会输出以下信息：
+Output of the server side is as below for example:
 
 ```bash
 # taos -n server -P 6000
@@ -48,7 +48,7 @@ title: 诊断及其他
 12/21 14:50:22.721261 0x7f53427ec700 UTL UDP: send:1000 bytes to 172.27.0.8 at 6011
 ```
 
-客户端运行正常会输出以下信息：
+Output of the client side is as below for example:
 
 ```bash
 # taos -n client -h 172.27.0.7 -P 6000
@@ -66,66 +66,58 @@ title: 诊断及其他
 12/21 14:50:22.721274 0x7fc95d859200 UTL successed to test UDP port:6011
 ```
 
-仔细阅读打印出来的错误信息，可以帮助管理员找到原因，以解决问题。
+The output needs to be checked carefully for the system operator to find out root cause and solve the problem.
 
-## 启动状态及 RPC 诊断
+## Startup Status and RPC Diagnostic
 
-`taos -n startup -h <fqdn of server>`
+`taos -n startup -h <fqdn of server>` can be used to check the startup status of a `taosd` process. This is a comman task for a system operator to do to determine whether `taosd` has been started successfully, especially in case of cluster.
 
-判断 taosd 服务端是否成功启动，是数据库管理员经常遇到的一种情形。特别当若干台服务器组成集群时，判断每个服务端实例是否成功启动就会是一个重要问题。除检索 taosd 服务端日志文件进行问题定位、分析外，还可以通过 `taos -n startup -h <fqdn of server>` 来诊断一个 taosd 进程的启动状态。
+`taos -n rpc -h <fqdn of server>` can be used to check whether the port of a started `taosd` can be accessed or not. If `taosd` process doesn't respond or work abnormally, this command can be used to initiate a rpc communication with the specified fqdn to determine whether it's network problem or `taosd` is abnormal.
 
-针对多台服务器组成的集群，当服务启动过程耗时较长时，可通过该命令行来诊断每台服务器的 taosd 实例的启动状态，以准确定位问题。
+## Sync and Arbitrator Diagnostic
 
-`taos -n rpc -h <fqdn of server>`
-
-该命令用来诊断已经启动的 taosd 实例的端口是否可正常访问。如果 taosd 程序异常或者失去响应，可以通过 `taos -n rpc -h <fqdn of server>` 来发起一个与指定 fqdn 的 rpc 通信，看看 taosd 是否能收到，以此来判定是网络问题还是 taosd 程序异常问题。
-
-## sync 及 arbitrator 诊断
-
-```
+```bash
 taos -n sync -P 6040 -h <fqdn of server>
 taos -n sync -P 6042 -h <fqdn of server>
 ```
 
-用来诊断 sync 端口是否工作正常，判断服务端 sync 模块是否成功工作。另外，-P 6042 用来诊断 arbitrator 是否配置正常，判断指定服务器的 arbitrator 是否能正常工作。
+The above commands can be executed on Linux Shell to check whether the port for sync works well and whether the sync module of the server side works well. Besides, `-P 6042` is used to check whether the arbitrator is configured properly and works well.
 
-## 网络速度诊断
+## Network Speed Diagnostic
 
 `taos -n speed -h <fqdn of server> -P 6030 -N 10 -l 10000000 -S TCP`
 
-从 2.2.0.0 版本开始，taos 工具新提供了一个网络速度诊断的模式，可以对一个正在运行中的 taosd 实例或者 `taos -n server` 方式模拟的一个服务端实例，以非压缩传输的方式进行网络测速。这个模式下可供调整的参数如下：
+From version 2.2.0.0, the above command can be executed on Linux Shell to test the network speed, it sends uncompressed package to a running `taosd` server process or a simulated server process started by `taos -n server` to test the network speed. Parameters can be used when testing network speed are as below:
 
--n：设为“speed”时，表示对网络速度进行诊断。
--h：所要连接的服务端的 FQDN 或 ip 地址。如果不设置这一项，会使用本机 taos.cfg 文件中 FQDN 参数的设置作为默认值。
--P：所连接服务端的网络端口。默认值为 6030。
--N：诊断过程中使用的网络包总数。最小值是 1、最大值是 10000，默认值为 100。
--l：单个网络包的大小（单位：字节）。最小值是 1024、最大值是 1024 `*` 1024 `*` 1024，默认值为 1024。
--S：网络封包的类型。可以是 TCP 或 UDP，默认值为 TCP。
+-n：When set to "speed", it means testing network speed
+-h：The FQDN or IP of the server process to be connected to; if not set, the FQDN configured in `taos.cfg` is used
+-P：The port of the server process to connect to, the default value is 6030
+-N：The number of packages that will be sent in the test, range is [1,10000], default value is 100
+-l：The size of each package in bytes, range is [1024, 1024 \* 1024 \* 1024], default value is 1024
+-S：The type of network packages to send, can be either TCP or UDP, default value is 
 
-## FQDN 解析速度诊断
+## FQDN Resolution Diagnostic
 
 `taos -n fqdn -h <fqdn of server>`
 
-从 2.2.0.0 版本开始，taos 工具新提供了一个 FQDN 解析速度的诊断模式，可以对一个目标 FQDN 地址尝试解析，并记录解析过程中所消耗的时间。这个模式下可供调整的参数如下：
+From version 2.2.0.0, the above command can be executed on Linux Shell to test the resolution speed of FQDN. It can be used to try to resolve a FQDN to an IP address and record the time spent in this process. The parameters that can be used for this purpose are as below:
 
--n：设为“fqdn”时，表示对 FQDN 解析进行诊断。
--h：所要解析的目标 FQDN 地址。如果不设置这一项，会使用本机 taos.cfg 文件中 FQDN 参数的设置作为默认值。
+-n：When set to "fqdn", it means testing the speed of resolving FQDN
+-h：The FQDN to be resolved. If not set, the `FQDN` parameter in `taos.cfg` is used by default.
 
-## 服务端日志
+## Server Log
 
-taosd 服务端日志文件标志位 debugflag 默认为 131，在 debug 时往往需要将其提升到 135 或 143 。
+The parameter `debugFlag` is used to control the log level of `taosd` server process. The default value is 131, for debug purpose it needs to be escalated to 135 or 143. 
 
-一旦设定为 135 或 143，日志文件增长很快，特别是写入、查询请求量较大时，增长速度惊人。如合并保存日志，很容易把日志内的关键信息（如配置信息、错误信息等）冲掉。为此，服务端将重要信息日志与其他日志分开存放：
+Once this parameter is set to 135 or 143, the log file grows very quickly especially when there is huge volume of data insertion and data query requests. If all the logs are stored together, some important information may be missed very easily, so on server side important information is stored at different place from other logs.一
 
-- taosinfo 存放重要信息日志, 包括：INFO/ERROR/WARNING 级别的日志信息。不记录 DEBUG、TRACE 级别的日志。
-- taosdlog 服务器端生成的日志，记录 taosinfo 中全部信息外，还根据设置的日志输出级别，记录 DEBUG（日志级别 135）、TRACE（日志级别是 143）。
+- The log at level of INFO, WARNING and ERROR is stored in `taosinfo` so that it is easy to find important information 
+- The log at level of DEBUG (135) and TRACE (143) and other information not handled by `taosinfo` are stored in `taosdlog`
 
-## 客户端日志
+## Client Log
 
-每个独立运行的客户端（一个进程）生成一个独立的客户端日志，其命名方式采用 taoslog+<序号> 的方式命名。文件标志位 debugflag 默认为 131，在 debug 时往往需要将其提升到 135 或 143 。
+An independent log file, named as "taoslog+<seq num\>" is generated for each client program, i.e. a client process. The default value of `debugfalg` is also 131 and only log at level of INFO/ERROR/WARNING is recorded, it and needs to be changed to 135 or 143 so that log at DEBUG or TRACE level can be recorded for debugging purpose.
 
-- taoslog 客户端（driver）生成的日志，默认记录客户端 INFO/ERROR/WARNING 级别日志，还根据设置的日志输出级别，记录 DEBUG（日志级别 135）、TRACE（日志级别是 143）。
+The maximum length of a single log file is controlled by parameter `numOfLogLines` and only 2 log files are kept for each `taosd` server process.
 
-其中，日志文件最大长度由 numOfLogLines 来进行配置，一个 taosd 实例最多保留两个文件。
-
-taosd 服务端日志采用异步落盘写入机制，优点是可以避免硬盘写入压力太大，对性能造成很大影响。缺点是，在极端情况下，存在少量日志行数丢失的可能。
+log file is written in async way to minimize the workload on disk, bu the penalty is that a few log lines may be lost in some extreme conditions. 

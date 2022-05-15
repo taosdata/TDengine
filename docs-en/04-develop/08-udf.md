@@ -43,7 +43,7 @@ Below function template can be used to define your own aggregate function.
 
 `void abs_max_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf)`
 
-`udfMergeFunc` is the place holder of function name, the function implemented with the above template is used to aggregate the intermediate result, only can be used in the aggregate query for stable.
+`udfMergeFunc` is the place holder of function name, the function implemented with the above template is used to aggregate the intermediate result, only can be used in the aggregate query for STable.
 
 Definitions of the parameters:
 
@@ -55,7 +55,7 @@ Definitions of the parameters:
 
 [abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c) is an user defined aggregate function to get the maximum from the absolute value of a column.
 
-The internal processing is that the data affected by the select statement will be divided into multiple row blocks and `udfNormalFunc`, i.e. `abs_max` in this case, is performed on each row block to generate the intermediate of each sub table, then `udfMergeFunc`, i.e. `abs_max_merge` in this case, is performed on the intermediate result of sub tables to aggregate to generate the final or intermediate result of stable. The intermediate result of stable is finally processed by `udfFinalizeFunc` to generate the final result, which contain either 0 or 1 row.
+The internal processing is that the data affected by the select statement will be divided into multiple row blocks and `udfNormalFunc`, i.e. `abs_max` in this case, is performed on each row block to generate the intermediate of each sub table, then `udfMergeFunc`, i.e. `abs_max_merge` in this case, is performed on the intermediate result of sub tables to aggregate to generate the final or intermediate result of STable. The intermediate result of STable is finally processed by `udfFinalizeFunc` to generate the final result, which contain either 0 or 1 row.
 
 Other typical scenarios, like covariance, can also be achieved by aggregate UDF.
 
@@ -79,7 +79,7 @@ The naming of 3 kinds of UDF, i.e. udfNormalFunc, udfMergeFunc, and udfFinalizeF
 According to the kind of UDF to implement, the functions that need to be implemented are different.
 
 - Scalar function：udfNormalFunc is required
-- Aggregate function：udfNormalFunc, udfMergeFunc (if query on stable) and udfFinalizeFunc are required
+- Aggregate function：udfNormalFunc, udfMergeFunc (if query on STable) and udfFinalizeFunc are required
 
 To be more accurate, assuming we want to implement a UDF named "foo". If the function is a scalar function, what we really need to implement is `foo`; if the function is aggregate function, we need to implement `foo`, `foo_merge`, and `foo_finalize`. For aggregate UDF, even though one of the three functions is not necessary, there must be an empty implementation.
 
@@ -164,7 +164,7 @@ SHOW FUNCTIONS;
 The function name specified when creating UDF can be used directly in SQL statements, just like builtin functions.
 
 ```sql
-SELECT X(c) FROM table/stable;
+SELECT X(c) FROM table/STable;
 ```
 
 The above SQL statement invokes function X for column c.

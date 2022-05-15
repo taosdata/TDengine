@@ -1,9 +1,8 @@
+### Configuring taosAdapter
 
-### 配置 taosAdapter
+To configure taosAdapter to receive TCollector data.
 
-配置 taosAdapter 接收 TCollector 数据的方法：
-
-- 在 taosAdapter 配置文件（默认位置 /etc/taos/taosadapter.toml）中使能配置项
+- Enable the configuration item in the taosAdapter configuration file (default location /etc/taos/taosadapter.toml)
 
 ```
 ...
@@ -18,17 +17,17 @@ password = "taosdata"
 ...
 ```
 
-其中 taosAdapter 默认写入的数据库名称为 `tcollector`，也可以修改 taosAdapter 配置文件 dbs 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。修改过配置文件 taosAdapter 需重新启动。
+The taosAdapter writes to the database with the default name `tcollector`. You can also modify the taosAdapter configuration file dbs entry to specify a different name. user and password fill in the actual TDengine configuration values. After changing the configuration file, you need to restart the taosAdapter.
 
-- 也可以使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 tcollector 数据功能，具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+- You can also enable taosAdapter to receive tcollector data by using the taosAdapter command line parameters or setting environment variables.
 
-### 配置 TCollector
+### Configuring TCollector
 
-使用 TCollector 需下载其[源代码](https://github.com/OpenTSDB/tcollector)。其配置项在其源代码中。注意：TCollector 各个版本区别较大，这里仅以当前 master 分支最新代码 (git commit: 37ae920) 为例。
+To use TCollector, you need to download its [source code](https://github.com/OpenTSDB/tcollector). Its configuration items are in its source code. Note: TCollector differs significantly from version to version, so here is an example of the latest code for the current master branch (git commit: 37ae920).
 
-修改 `collectors/etc/config.py` 和 `tcollector.py` 两个文件中相应内容。将原指向 OpenTSDB 宿主机的地址修改为 taosAdapter 被部署的服务器域名或 IP 地址，修改端口为 taosAdapter 支持 TCollector 使用的相应端口（默认为 6049）。
+Modify the contents of the `collectors/etc/config.py` and `tcollector.py` files. Change the address of the OpenTSDB host to the domain name or IP address of the server where taosAdapter is deployed, and change the port to the port that taosAdapter supports TCollector on (default is 6049).
 
-示例为源代码修改内容的 git diff 输出：
+Example of git diff output of source code changes.
 
 ```
 index e7e7a1c..ec3e23c 100644

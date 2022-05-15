@@ -21,9 +21,9 @@ A single line of text is used in OpenTSDB line protocol to represent one row of 
 <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
 ```
 
-- `metric` will be used as stable name.
+- `metric` will be used as STable name.
 - `timestamp` is the timestamp of current row of data. The time precision will be determined automatically based on the length of the timestamp. second and millisecond time precision are supported.\
-- `value` is a physical variable which must be a numeric value, the corresponding column name is "value".
+- `value` is a metric which must be a numeric value, the corresponding column name is "value".
 - The last part is tag sets separated by space, all tags will be converted to nchar type automatically.
 
 For example:
@@ -60,13 +60,13 @@ Please refer to [OpenTSDB Telnet API](http://opentsdb.net/docs/build/html/api_te
   </TabItem>
 </Tabs>
 
-2 stables will be crated automatically while each stable has 4 rows of data in the above sample code.
+2 STables will be crated automatically while each STable has 4 rows of data in the above sample code.
 
 ```cmd
 taos> use test;
 Database changed.
 
-taos> show stables;
+taos> show STables;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  meters.current                 | 2022-03-30 17:04:10.877 |       2 |      2 |           2 |
