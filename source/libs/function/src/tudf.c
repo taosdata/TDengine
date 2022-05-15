@@ -826,7 +826,7 @@ void onUdfcPipeClose(uv_handle_t *handle) {
   taosMemoryFree(conn);
   taosMemoryFree((uv_pipe_t *) handle);
 
-  //clear the udf handles cache
+  //clear the udf handles cache TODO move to other thread
   uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
   taosArrayClear(gUdfdProxy.udfStubs);
   uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
