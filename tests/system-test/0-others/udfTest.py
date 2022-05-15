@@ -363,6 +363,7 @@ class TDTestCase:
         # order by udf function result 
         for _ in range(50):
             tdSql.query("select udf2(c1) from stb1 group by 1-udf1(c1)")
+            print(tdSql.queryResult)
 
         # udf functions with filter
 
