@@ -185,8 +185,8 @@ static int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, const char *pHe
   taosThreadMutexUnlock(&queue->mutex);
   tsem_post(&queue->sem);
 
-  dTrace("node:%s, push proc msg at pos:%d ftype:%d remain:%d handle:%p ref:%" PRId64 ", head:%d %p body:%d %p",
-         queue->name, pos, ftype, queue->items, (void *)handle, handleRef, headLen, pHead, bodyLen, pBody);
+  dTrace("node:%s, push msg:%p:%d cont:%p%d handle:%p, ftype:%d pos:%d remain:%d", queue->name, pHead, headLen, pBody,
+         bodyLen, (void *)handle, ftype, pos, queue->items);
   return 0;
 }
 
@@ -315,31 +315,31 @@ static void *dmConsumChildQueue(void *param) {
   EProcFuncType ftype = PROC_FUNC_REQ;
   SNodeMsg     *pReq = NULL;
 
-  dDebug("node:%s, start to consume from child queue", proc->name);
+  dDebug("node:%s, start to consume from cqueue", proc->name);
   do {
     numOfMsgs = dmPopFromProcQueue(queue, &pHead, &headLen, &pBody, &bodyLen, &ftype);
     if (numOfMsgs == 0) {
-      dDebug("node:%s, get no msg from child queue and exit thread", proc->name);
+      dDebug("node:%s, get no msg from cueue and exit thread", proc->name);
       break;
     }
 
     if (numOfMsgs < 0) {
-      dError("node:%s, get no msg from child queue since %s", proc->name, terrstr());
+      dError("node:%s, get no msg from cqueue since %s", proc->name, terrstr());
       taosMsleep(1);
       continue;
     }
 
     if (ftype != PROC_FUNC_REQ) {
-      dFatal("node:%s, msg:%p from child queue, invalid ftype:%d", proc->name, pHead, ftype);
+      dFatal("node:%s, msg:%p from cqueue, invalid ftype:%d", proc->name, pHead, ftype);
       taosFreeQitem(pHead);
       rpcFreeCont(pBody);
     } else {
-      dTrace("node:%s, msg:%p from child queue", proc->name, pHead);
+      dTrace("node:%s, msg:%p from cueue", proc->name, pHead);
       pReq = pHead;
       pReq->rpcMsg.pCont = pBody;
       code = dmProcessNodeMsg(pWrapper, pReq);
       if (code != 0) {
-        dError("node:%s, failed to process msg:%p since %s, put into parent queue", proc->name, pReq, terrstr());
+        dError("node:%s, failed to process msg:%p since %s, put into pqueue", proc->name, pReq, terrstr());
         SRpcMsg rspMsg = {
             .handle = pReq->rpcMsg.handle,
             .ahandle = pReq->rpcMsg.ahandle,
@@ -371,16 +371,16 @@ static void *dmConsumParentQueue(void *param) {
   EProcFuncType ftype = PROC_FUNC_REQ;
   SRpcMsg      *pRsp = NULL;
 
-  dDebug("node:%s, start to consume from parent queue", proc->name);
+  dDebug("node:%s, start to consume from pqueue", proc->name);
   do {
     numOfMsgs = dmPopFromProcQueue(queue, &pHead, &headLen, &pBody, &bodyLen, &ftype);
     if (numOfMsgs == 0) {
-      dDebug("node:%s, get no msg from parent queue and exit thread", proc->name);
+      dDebug("node:%s, get no msg from pqueue and exit thread", proc->name);
       break;
     }
 
     if (numOfMsgs < 0) {
-      dError("node:%s, get no msg from parent queue since %s", proc->name, terrstr());
+      dError("node:%s, get no msg from pqueue since %s", proc->name, terrstr());
       taosMsleep(1);
       continue;
     }
@@ -388,22 +388,22 @@ static void *dmConsumParentQueue(void *param) {
     if (ftype == PROC_FUNC_RSP) {
       pRsp = pHead;
       pRsp->pCont = pBody;
-      dTrace("node:%s, rsp msg:%p from parent queue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
+      dTrace("node:%s, rsp msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       dmRemoveProcRpcHandle(proc, pRsp->handle);
       rpcSendResponse(pRsp);
     } else if (ftype == PROC_FUNC_REGIST) {
       pRsp = pHead;
-      dTrace("node:%s, regist msg:%p from parent queue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
+      dTrace("node:%s, regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       rpcRegisterBrokenLinkArg(pRsp);
       rpcFreeCont(pBody);
     } else if (ftype == PROC_FUNC_RELEASE) {
       pRsp = pHead;
-      dTrace("node:%s, release msg:%p from parent queue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
+      dTrace("node:%s, release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       dmRemoveProcRpcHandle(proc, pRsp->handle);
       rpcReleaseHandle(pRsp->handle, (int8_t)pRsp->code);
       rpcFreeCont(pBody);
     } else {
-      dFatal("node:%s, msg:%p get from parent queue, invalid ftype:%d", proc->name, pHead, ftype);
+      dFatal("node:%s, msg:%p get from pqueue, invalid ftype:%d", proc->name, pHead, ftype);
       rpcFreeCont(pBody);
     }
 
@@ -502,7 +502,7 @@ void dmPutToProcPQueue(SProc *proc, const void *pHead, int16_t headLen, const vo
                        EProcFuncType ftype) {
   int32_t retry = 0;
   while (dmPushToProcQueue(proc, proc->pqueue, pHead, headLen, pBody, bodyLen, 0, 0, ftype) != 0) {
-    dWarn("node:%s, failed to put msg:%p to parent queue since %s, retry:%d", proc->name, pHead, terrstr(), retry);
+    dWarn("node:%s, failed to put msg:%p to pqueue since %s, retry:%d", proc->name, pHead, terrstr(), retry);
     retry++;
     taosMsleep(retry);
   }

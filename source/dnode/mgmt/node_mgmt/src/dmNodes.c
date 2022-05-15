@@ -99,15 +99,17 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   }
 
   if (OnlyInSingleProc(pWrapper->proc.ptype)) {
+    dInfo("node:%s, start to open", pWrapper->name);
     if ((*pWrapper->func.openFp)(&input, &output) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
       return -1;
     }
-    dDebug("node:%s, has been opened", pWrapper->name);
+    dInfo("node:%s, has been opened", pWrapper->name);
     pWrapper->deployed = true;
   }
 
   if (InChildProc(pWrapper->proc.ptype)) {
+    dDebug("node:%s, start to open", pWrapper->name);
     if ((*pWrapper->func.openFp)(&input, &output) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
       return -1;
@@ -123,6 +125,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   }
 
   if (InParentProc(pWrapper->proc.ptype)) {
+    dDebug("node:%s, start to open", pWrapper->name);
     if (dmInitParentProc(pWrapper) != 0) {
       return -1;
     }
@@ -145,9 +148,13 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
 
 int32_t dmStartNode(SMgmtWrapper *pWrapper) {
   if (OnlyInParentProc(pWrapper->proc.ptype)) return 0;
-  if (pWrapper->func.startFp != NULL && (*pWrapper->func.startFp)(pWrapper->pMgmt) != 0) {
-    dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
-    return -1;
+  if (pWrapper->func.startFp != NULL) {
+    dDebug("node:%s, start to start", pWrapper->name);
+    if ((*pWrapper->func.startFp)(pWrapper->pMgmt) != 0) {
+      dError("node:%s, failed to start since %s", pWrapper->name, terrstr());
+      return -1;
+    }
+    dDebug("node:%s, has been started", pWrapper->name);
   }
 
   dmReportStartup(pWrapper->pDnode, pWrapper->name, "started");
@@ -156,6 +163,7 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
 
 void dmStopNode(SMgmtWrapper *pWrapper) {
   if (pWrapper->func.stopFp != NULL && pWrapper->pMgmt != NULL) {
+    dDebug("node:%s, start to stop", pWrapper->name);
     (*pWrapper->func.stopFp)(pWrapper->pMgmt);
     dDebug("node:%s, has been stopped", pWrapper->name);
   }

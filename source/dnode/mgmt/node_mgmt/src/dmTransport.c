@@ -121,13 +121,13 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     }
   }
 
+  dTrace("msg:%s is received, handle:%p app:%p", TMSG_INFO(msgType), pRpc->handle, pRpc->ahandle);
   if (dmMarkWrapper(pWrapper) != 0) {
     goto _OVER;
   } else {
     needRelease = true;
   }
 
-  dTrace("msg:%s is received, handle:%p app:%p", TMSG_INFO(msgType), pRpc->handle, pRpc->ahandle);
   pMsg = taosAllocateQitem(sizeof(SNodeMsg), RPC_QITEM);
   if (pMsg == NULL) {
     goto _OVER;
@@ -138,7 +138,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (InParentProc(pWrapper->proc.ptype)) {
-    dTrace("msg:%p, put into child queue, handle:%p", pMsg, pRpc->handle);
+    dTrace("msg:%p, put into cqueue, handle:%p ref:%" PRId64, pMsg, pRpc->handle, pRpc->refId);
     code = dmPutToProcCQueue(&pWrapper->proc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
                              (isReq && (pRpc->code == 0)) ? pRpc->handle : NULL, pRpc->refId, PROC_FUNC_REQ);
   } else {
@@ -148,7 +148,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 _OVER:
   if (code == 0) {
     if (pWrapper != NULL && InParentProc(pWrapper->proc.ptype)) {
-      dTrace("msg:%p, freed in parent process", pMsg);
+      dTrace("msg:%p, is freed after push to cqueue", pMsg);
       taosFreeQitem(pMsg);
       rpcFreeCont(pRpc->pCont);
     }

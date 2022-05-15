@@ -212,7 +212,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
   }
 
   dmReportStartup(pDnode, "dnode-transport", "initialized");
-  dInfo("dnode is created, data:%p", pDnode);
+  dInfo("dnode is created, ptr:%p", pDnode);
   code = 0;
 
 _OVER:
@@ -231,7 +231,7 @@ void dmClose(SDnode *pDnode) {
   dmCleanupClient(pDnode);
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
-  dInfo("dnode is closed, data:%p", pDnode);
+  dInfo("dnode is closed, ptr:%p", pDnode);
 }
 
 void dmSetStatus(SDnode *pDnode, EDndRunStatus status) {
@@ -254,7 +254,7 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType ntype) {
   taosRLockLatch(&pWrapper->latch);
   if (pWrapper->deployed) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is acquired, refCount:%d", pWrapper->name, refCount);
+    dTrace("node:%s, is acquired, ref:%d", pWrapper->name, refCount);
   } else {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     pRetWrapper = NULL;
@@ -270,7 +270,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   taosRLockLatch(&pWrapper->latch);
   if (pWrapper->deployed || (InParentProc(pWrapper->proc.ptype) && pWrapper->required)) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
-    dTrace("node:%s, is marked, refCount:%d", pWrapper->name, refCount);
+    dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
   } else {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
     code = -1;
@@ -286,14 +286,14 @@ void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   taosRLockLatch(&pWrapper->latch);
   int32_t refCount = atomic_sub_fetch_32(&pWrapper->refCount, 1);
   taosRUnLockLatch(&pWrapper->latch);
-  dTrace("node:%s, is released, refCount:%d", pWrapper->name, refCount);
+  dTrace("node:%s, is released, ref:%d", pWrapper->name, refCount);
 }
 
 void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
   SStartupInfo *pStartup = &pDnode->startup;
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  dInfo("step:%s, %s", pStartup->name, pStartup->desc);
+  dDebug("step:%s, %s", pStartup->name, pStartup->desc);
 }
 
 void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc) {

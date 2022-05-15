@@ -33,7 +33,6 @@ static void dmStopMgmt(SDnodeMgmt *pMgmt) {
 }
 
 static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("dnode-mgmt start to init");
   SDnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SDnodeMgmt));
   if (pMgmt == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -58,15 +57,12 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
 
   pOutput->pMgmt = pMgmt;
-  dInfo("dnode-mgmt is initialized");
   return 0;
 }
 
 static void dmCloseMgmt(SDnodeMgmt *pMgmt) {
-  dInfo("dnode-mgmt start to clean up");
   dmStopWorker(pMgmt);
   taosMemoryFree(pMgmt);
-  dInfo("dnode-mgmt is cleaned up");
 }
 
 static int32_t dmRequireMgmt(const SMgmtInputOpt *pInput, bool *required) {
