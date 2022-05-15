@@ -195,7 +195,7 @@ $stmt->close();
 
 ## tdengine-restful-connector
 
-封装了 TDEngine 的 RESTful 接口，可以使用 PHP 轻松地操作 TDEngine 的数据插入和查询了。
+封装了 TDengine 的 RESTful 接口，可以使用 PHP 轻松地操作 TDengine 的数据插入和查询了。
 
 此项目支持在 PHP >= 7.0 的项目中使用。
 
