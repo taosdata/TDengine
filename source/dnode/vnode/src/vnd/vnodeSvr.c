@@ -670,12 +670,11 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
     pRsp->code = terrno;
     goto _err;
   }
-#if 0
-  if (metaCreateSTable(pVnode->pMeta, version, &req) < 0) {
+  
+  if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
-#endif
 
   tDecoderClear(&coder);
   return 0;

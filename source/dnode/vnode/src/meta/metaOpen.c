@@ -105,6 +105,13 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
     goto _err;
   }
 
+  // open pSmaIdx
+  ret = tdbDbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx);
+  if (ret < 0) {
+    metaError("vgId:%d failed to open meta sma index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
   // open index
   if (metaOpenIdx(pMeta) < 0) {
     metaError("vgId:%d failed to open meta index since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -118,6 +125,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
+  if (pMeta->pSmaIdx) tdbDbClose(pMeta->pSmaIdx);
   if (pMeta->pTtlIdx) tdbDbClose(pMeta->pTtlIdx);
   if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
   if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
@@ -134,6 +142,7 @@ _err:
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
+    if (pMeta->pSmaIdx) tdbDbClose(pMeta->pSmaIdx);
     if (pMeta->pTtlIdx) tdbDbClose(pMeta->pTtlIdx);
     if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
     if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);

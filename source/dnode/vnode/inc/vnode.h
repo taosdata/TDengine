@@ -192,7 +192,7 @@ struct SMetaEntry {
       SSchemaWrapper schema;
     } ntbEntry;
     struct {
-      STSmaWrapper tsma;
+      STSma *tsma;
     } smaEntry;
   };
 };

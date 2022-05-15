@@ -73,6 +73,7 @@ struct SMeta {
   TDB*      pCtbIdx;
   TDB*      pTagIdx;
   TDB*      pTtlIdx;
+  TDB*      pSmaIdx;
   SMetaIdx* pIdx;
 };
 

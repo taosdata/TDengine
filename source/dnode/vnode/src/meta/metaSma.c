@@ -23,8 +23,6 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   // The table uid should exists and be super table or normal table.
   // Check other cfg value
 
-  // TODO: add atomicity
-
   SMetaEntry  me = {0};
   int         kLen = 0;
   int         vLen = 0;
@@ -55,7 +53,7 @@ int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   me.type = TSDB_TSMA_TABLE;
   me.uid = pCfg->indexUid;
   me.name = pCfg->indexName;
-  // me.smaEntry = xx;
+  me.smaEntry.tsma = pCfg;
 
   if (metaHandleSmaEntry(pMeta, &me) < 0) goto _err;
 
@@ -180,8 +178,15 @@ _err:
   return -1;
 }
 
+static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  return tdbDbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
+}
 
+static int metaUpdateSmaIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  SSmaIdxKey smaIdxKey = {.uid = pME->smaEntry.tsma->tableUid, .smaUid = pME->smaEntry.tsma->indexUid};
 
+  return tdbDbInsert(pMeta->pSmaIdx, &smaIdxKey, sizeof(smaIdxKey), NULL, 0, &pMeta->txn);
+}
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME) {
   metaWLock(pMeta);
@@ -190,7 +195,9 @@ static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME) {
   if (metaSaveSmaToDB(pMeta, pME) < 0) goto _err;
 
   // // update uid.idx
-  // if (metaUpdateUidIdx(pMeta, pME) < 0) goto _err;
+  if (metaUpdateUidIdx(pMeta, pME) < 0) goto _err;
+
+  if (metaUpdateSmaIdx(pMeta, pME) < 0) goto _err;
 
   metaULock(pMeta);
   return 0;
