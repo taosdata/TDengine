@@ -8,69 +8,69 @@ description: "taospy 是 TDengine 的官方 Python 连接器。taospy 提供了�
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-`taospy` 是 TDengine 的官方 Python 连接器。`taospy` 提供了丰富的 API， 使得 Python 应用可以很方便地使用 TDengine。`taospy` 对 TDengine 的[原生接口](/reference/connector/cpp)和 [REST 接口](/reference/rest-api)都进行了封装， 分别对应 `taospy` 包的 `taos` 模块 和 `taosrest` 模块。
-除了对原生接口和 REST 接口的封装，`taospy` 还提供了符合 [Python 数据访问规范(PEP 249)](https://peps.python.org/pep-0249/) 的编程接口。这使得 `taospy` 和很多第三方工具集成变得简单，比如 [SQLAlchemy](https://www.sqlalchemy.org/) 和 [pandas](https://pandas.pydata.org/)。
+`taospy` is the official Python connector for TDengine. `taospy` provides a rich API that makes it easy for Python applications to use TDengine. `taospy` wraps both the [native interface](/reference/connector/cpp) and [REST interface](/reference/rest-api) of TDengine, which correspond to the `taos` and `taosrest` modules of the `taospy` package, respectively.
+In addition to wrapping the native and REST interfaces, `taospy` also provides a programming interface that conforms to the [Python Data Access Specification (PEP 249)](https://peps.python.org/pep-0249/). It is easy to integrate `taospy` with many third-party tools, such as [SQLAlchemy](https://www.sqlalchemy.org/) and [pandas](https://pandas.pydata.org/).
 
-使用客户端驱动提供的原生接口直接与服务端建立的连接的方式下文中称为“原生连接”；使用 taosAdapter 提供的 REST 接口与服务端建立的连接的方式下文中称为“REST 连接”。
+The connection to the server directly using the native interface provided by the client driver is referred to hereinafter as a "native connection"; the connection to the server using the REST interface provided by taosAdapter is referred to hereinafter as a "REST connection". ".
 
-Python 连接器的源码托管在 [GitHub](https://github.com/taosdata/taos-connector-python)。
+The source code for the Python connector is hosted on [GitHub](https://github.com/taosdata/taos-connector-python).
 
-## 支持的平台
+## Supported Platforms
 
-- 原生连接[支持的平台](/reference/connector/#支持的平台)和 TDengine 客户端支持的平台一致。
-- REST 连接支持所有能运行 Python 的平台。
+- The native connection [supported platforms](/reference/connector/#supported-platforms) is the same as the one supported by the TDengine client.
+- REST connections are supported on all platforms that can run Python.
 
-## 版本选择
+## Version selection
 
-无论使用什么版本的 TDengine 都建议使用最新版本的 `taospy`。
+We recommend using the latest version of `taospy`, regardless of the version of TDengine used.
 
-## 支持的功能
+## Supported features
 
-- 原生连接支持 TDeingine 的所有核心功能， 包括： 连接管理、执行 SQL、参数绑定、订阅、无模式写入（schemaless）。
-- REST 连接支持的功能包括：连接管理、执行 SQL。 (通过执行 SQL 可以： 管理数据库、管理表和超级表、写入数据、查询数据、创建连续查询等)。
+- Native connections support all the core features of TDeingine, including connection management, SQL execution, parameter binding, subscriptions, and schemaless writing.
+- REST connections support features such as connection management and SQL execution. (SQL execution allows you to: manage databases, tables, and supertables, write data, query data, create continuous queries, etc.).
 
-## 安装
+## Installation
 
-### 准备
+### Preparation
 
-1. 安装 Python。建议使用 Python >= 3.6。如果系统上还没有 Python 可参考 [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) 安装。
-2. 安装 [pip](https://pypi.org/project/pip/)。大部分情况下 Python 的安装包都自带了 pip 工具， 如果没有请参考 [pip docuemntation](https://pip.pypa.io/en/stable/installation/) 安装。
-3. 如果使用原生连接，还需[安装客户端驱动](../#安装客户端驱动)。客户端软件包含了 TDengine 客户端动态链接库(libtaos.so 或 taos.dll) 和 TDengine CLI。
+1. Install Python. Python >= 3.6 is recommended. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it. 2.
+Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip docuemntation](https://pip.pypa.io/en/stable/installation/) to install it.
+If you use a native connection, you will also need to [install the client driver](...). /#install client driver). The client software contains the TDengine client dynamic link library (libtaos.so or taos.dll) and the TDengine CLI.
 
-### 使用 pip 安装
+### Install using pip
 
-#### 卸载旧版本
+#### Uninstalling an older version
 
-如果以前安装过旧版本的 Python 连接器, 请提前卸载。
+If you have previously installed an older version of the Python Connector, please uninstall it beforehand.
 
 ```
 pip3 uninstall taos taospy
 ```
 
 :::note
-较早的 TDengine 客户端软件包含了 Python 连接器。如果从客户端软件的安装目录安装了 Python 连接器，那么对应的 Python 包名是 `taos`。 所以上述卸载命令包含了 `taos`， 不存在也没关系。
+Earlier TDengine client software includes the Python connector. If the Python connector is installed from the client software's installation directory, the corresponding Python package name is `taos`. So the above uninstall command includes `taos`, and it doesn't matter if it doesn't exist.
 
 :::
 
-#### 安装 `taospy`
+#### to install `taospy`
 
 <Tabs>
-<TabItem label="从 PyPI 安装" value="pypi">
+<TabItem label="Install from PyPI" value="pypi">
 
-安装最新版本
+Install the latest version of
 
 ```
 pip3 install taospy
 ```
 
-也可以指定某个特定版本安装。
+You can also specify a specific version to install.
 
 ```
 pip3 install taospy==2.3.0
 ```
 
-</TabItem>
-<TabItem label="从 GitHub 安装" value="github">
+</TabItem
+<TabItem label="Install from GitHub" value="github">
 
 ```
 pip3 install git+https://github.com/taosdata/taos-connector-python.git
@@ -79,21 +79,21 @@ pip3 install git+https://github.com/taosdata/taos-connector-python.git
 </TabItem>
 </Tabs>
 
-### 安装验证
+### Installation verification
 
 <Tabs groupId="connect" default="native">
-<TabItem value="native" label="原生连接">
+<TabItem value="native" label="native connection">
 
-对于原生连接，需要验证客户端驱动和 Python 连接器本身是否都正确安装。如果能成功导入 `taos` 模块，则说明已经正确安装了客户端驱动和 Python 连接器。可在 Python 交互式 Shell 中输入：
+For native connections, you need to verify that both the client driver and the Python connector itself are installed correctly. The client driver and Python connector have been installed properly if you can successfully import the `taos` module. In the Python Interactive Shell, you can type.
 
 ```python
 import taos
 ```
 
 </TabItem>
-<TabItem  value="rest" label="REST 连接">
+<TabItem value="rest" label="REST connection">
 
-对于 REST 连接，只需验证是否能成功导入 `taosrest` 模块。可在 Python 交互式 Shell 中输入：
+For REST connections, verifying that the ``taosrest`'' module can be imported successfully can be done in the Python Interactive Shell by typing.
 
 ```python
 import taosrest
@@ -103,50 +103,50 @@ import taosrest
 </Tabs>
 
 :::tip
-如果系统上有多个版本的 Python，则可能有多个 `pip` 命令。要确保使用的 `pip` 命令路径是正确的。上面我们用 `pip3` 命令安装，排除了使用 Python 2.x 版本对应的 `pip` 的可能性。但是如果系统上有多个 Python 3.x 版本，仍需检查安装路径是否正确。最简单的验证方式是，在命令再次输入 `pip3 install taospy`, 就会打印出 `taospy` 的具体安装位置，比如在 Windows 上：
+If you have multiple versions of Python on your system, you may have various `pip` commands. Be sure to use the correct path for the `pip` command. Above, we installed the `pip3` command, which rules out the possibility of using the `pip` corresponding to Python 2.x versions. However, if you have more than one version of Python 3.x on your system, you still need to check that the installation path is correct. The easiest way to verify this is to type `pip3 install taospy` again in the command, and it will print out the exact location of `taospy`, for example, on Windows.
 
 ```
 C:\> pip3 install taospy
 Looking in indexes: https://pypi.tuna.tsinghua.edu.cn/simple
 Requirement already satisfied: taospy in c:\users\username\appdata\local\programs\python\python310\lib\site-packages (2.3.0)
-```
+ðŸ™'ðŸ™'
 
 :::
 
-## 建立连接
+## Establish connection
 
-### 连通性测试
+### Connectivity testing
 
-在用连接器建立连接之前，建议先测试本地 TDengine CLI 到 TDengine 集群的连通性。
+Before establishing a connection with the connector, we recommend testing the connectivity of the local TDengine CLI to the TDengine cluster.
 
-<Tabs>
-<TabItem value="native" label="原生连接">
+<Tabs
+<TabItem value="native" label="native connection">
 
-请确保 TDengine 集群已经启动， 且集群中机器的 FQDN （如果启动的是单机版，FQDN 默认为 hostname）在本机能够解析, 可用 ping 命令进行测试：
+Ensure that the TDengine cluster is up and that the FQDN of the machines in the cluster (the FQDN defaults to hostname if you are starting a standalone version) can be resolved locally, by testing with the ping command.
 
 ```
 ping <FQDN>
 ```
 
-然后测试用 TDengine CLI 能否正常连接集群：
+Then test if the cluster can be appropriately connected with TDengine CLI: ``` ping <FQDN>```
 
 ```
 taos -h <FQDN> -p <PORT>
 ```
 
-上面的 FQDN 可以为集群中任意一个 dnode 的 FQDN， PORT 为这个 dnode 对应的 serverPort。
+The FQDN above can be the FQDN of any dnode in the cluster, and the PORT is the serverPort corresponding to this dnode.
 
-</TabItem>
-<TabItem value="rest" label="REST 连接" groupId="connect">
+</TabItem
+<TabItem value="rest" label="REST connection" groupId="connect">
 
-对于 REST 连接， 除了确保集群已经启动，还要确保 taosAdapter 组件已经启动。可以使用如下 curl 命令测试：
+For REST connections and making sure the cluster is up, make sure the taosAdapter component is up. This can be tested using the following `curl ` command.
 
 ```
 curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 ```
 
-上面的 FQDN 为运行 taosAdapter 的机器的 FQDN， PORT 为 taosAdapter 配置的监听端口， 默认为 6041。
-如果测试成功，会输出服务器版本信息，比如：
+The FQDN above is the FQDN of the machine running taosAdapter, PORT is the port taosAdapter listening, default is 6041.
+If the test is successful, it will output the server version information, e.g.
 
 ```json
 {
@@ -161,49 +161,49 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 </TabItem>
 </Tabs>
 
-### 使用连接器建立连接
+### Using connectors to establish connections
 
-以下示例代码假设 TDengine 安装在本机， 且 FQDN 和 serverPort 都使用了默认配置。
+The following example code assumes that TDengine is installed locally and that the default configuration is used for both FQDN and serverPort.
 
-<Tabs>
-<TabItem value="native" label="原生连接" groupId="connect">
+<Tabs
+<TabItem value="native" label="native connection" groupId="connect">
 
 ```python
 {{#include docs-examples/python/connect_native_reference.py}}
 ```
 
-`connect` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
+All arguments of the ``connect`` function are optional keyword arguments. The following are the connection parameters specified.
 
-- `host` ： 要连接的节点的 FQDN。 没有默认值。如果不同提供此参数，则会连接客户端配置文件中的 firstEP。
-- `user` ：TDengine 用户名。 默认值是 root。
-- `password` ： TDengine 用户密码。 默认值是 taosdata。
-- `port` ： 要连接的数据节点的起始端口，即 serverPort 配置。默认值是 6030。只有在提供了 host 参数的时候，这个参数才生效。
-- `config` ： 客户端配置文件路径。 在 Windows 系统上默认是 `C:\TDengine\cfg`。 在 Linux 系统上默认是 `/etc/taos/`。
-- `timezone` ： 查询结果中 TIMESTAMP 类型的数据，转换为 python 的 datetime 对象时使用的时区。默认为本地时区。
+- `host` : The FQDN of the node to connect to. There is no default value. If this parameter is not provided, the firstEP in the client configuration file will be connected.
+- `user` : The TDengine user name. The default value is `root`.
+- `password` : TDengine user password. The default value is `taosdata`.
+- `port` : The starting port of the data node to connect to, i.e., the serverPort configuration. The default value is 6030, which will only take effect if the host parameter is provided.
+- `config` : The path to the client configuration file. On Windows systems, the default is `C:\TDengine\cfg`. The default is `/etc/taos/` on Linux systems.
+- `timezone` : The timezone used to convert the TIMESTAMP data in the query results to python `datetime` objects. The default is the local timezone.
 
 :::warning
-`config` 和 `timezone` 都是进程级别的配置。建议一个进程建立的所有连接都使用相同的参数值。否则可能产生无法预知的错误。
+`config` and `timezone` are both process-level configurations. we recommend that all connections made by a process use the same parameter values. Otherwise, unpredictable errors may occur.
 :::
 
 :::tip
-`connect` 函数返回 `taos.TaosConnection` 实例。 在客户端多线程的场景下，推荐每个线程申请一个独立的连接实例，而不建议多线程共享一个连接。
+The `connect` function returns a `taos.TaosConnection` instance. In client-side multi-threaded scenarios, we recommend that each thread request a separate connection instance rather than sharing a connection between multiple threads.
 
 :::
 
 </TabItem>
-<TabItem value="rest" label="REST 连接">
+<TabItem value="rest" label="REST connection">
 
 ```python
 {{#include docs-examples/python/connect_rest_examples.py:connect}}
 ```
 
-`connect` 函数的所有参数都是可选的关键字参数。下面是连接参数的具体说明：
+All arguments to the `connect` function are optional keyword arguments. The following are the connection parameters specified.
 
-- `host`： 要连接的主机。默认是 localhost。
-- `user`： TDenigne 用户名。默认是 root。
-- `password`： TDeingine 用户密码。默认是 taosdata。
-- `port`: taosAdapter REST 服务监听端口。默认是 6041.
-- `timeout`: HTTP 请求超时时间。单位为秒。默认为 `socket._GLOBAL_DEFAULT_TIMEOUT`。 一般无需配置。
+- `host`: The host to connect to. The default is localhost.
+- `user`: TDenigne user name. The default is `root`.
+- `password`: TDeingine user password. The default is `taosdata`.
+- `port`: The port on which the taosAdapter REST service listens. Default is 6041.
+- `timeout`: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
 
 :::note
 
@@ -212,89 +212,89 @@ curl -u root:taosdata http://<FQDN>:<PORT>/rest/sql -d "select server_version()"
 </TabItem>
 </Tabs>
 
-## 示例程序
+## Sample program
 
-### 基本使用
+### Basic use
 
 <Tabs default="native" groupId="connect">
-<TabItem value="native" label="原生连接">
+<TabItem value="native" label="native connection">
 
-##### TaosConnection 类的使用
+Use of the ##### TaosConnection class
 
-`TaosConnection` 类既包含对 PEP249 Connection 接口的实现(如：`cursor`方法和 `close` 方法)，也包含很多扩展功能（如： `execute`、 `query`、`schemaless_insert` 和 `subscribe` 方法。
+The `TaosConnection` class contains both an implementation of the PEP249 Connection interface (e.g., the `cursor` method and the `close` method) and many extensions (e.g., the `execute`, `query`, `schemaless_insert`, and `subscribe` methods). .
 
-```python title="execute 方法"
+```python title="execute method"
 {{#include docs-examples/python/connection_usage_native_reference.py:insert}}
 ```
 
-```python title="query 方法"
+```python title="query method"
 {{#include docs-examples/python/connection_usage_native_reference.py:query}}
 ```
 
 :::tip
-查询结果只能获取一次。比如上面的示例中 `featch_all` 和 `fetch_all_into_dict` 只能用一个。重复获取得到的结果为空列表。
+The queried results can only be fetched once. For example, only one of `featch_all` and `fetch_all_into_dict` can be used in the example above. Repeated fetches will result in an empty list.
 :::
 
-##### TaosResult 类的使用
+##### Use of TaosResult class
 
-上面 `TaosConnection` 类的使用示例中，我们已经展示了两种获取查询结果的方法： `featch_all` 和 `fetch_all_into_dict`。除此之外 `TaosResult` 还提供了按行迭代(`rows_iter`)或按数据块迭代(`blocks_iter`)结果集的方法。在查询数据量较大的场景，使用这两个方法会更高效。
+In the above example of using the `TaosConnection` class, we have shown two ways to get the result of a query: `featch_all` and `fetch_all_into_dict`. In addition, `TaosResult` also provides methods to iterate through the result set by rows (`rows_iter`) or by data blocks (`blocks_iter`). Using these two methods will be more efficient in scenarios where the query has a large amount of data.
 
-```python title="blocks_iter 方法"
+```python title="blocks_iter method"
 {{#include docs-examples/python/result_set_examples.py}}
 ```
-##### TaosCursor 类的使用
+##### Use of the TaosCursor class
 
-`TaosConnection` 类和 `TaosResult` 类已经实现了原生接口的所有功能。如果你对 PEP249 规范中的接口比较熟悉也可以使用 `TaosCursor` 类提供的方法。
+The `TaosConnection` class and the `TaosResult` class already implement all the functionality of the native interface. If you are familiar with the interfaces in the PEP249 specification, you can also use the methods provided by the `TaosCursor` class.
 
-```python title="TaosCursor 的使用"
+```python title="Use of TaosCursor"
 {{#include docs-examples/python/cursor_usage_native_reference.py}}
 ```
 
 :::note
-TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线程的场景下，这个游标实例必须保持线程独享，不能跨线程共享使用，否则会导致返回结果出现错误。
+The TaosCursor class uses native connections for write and query operations. In a client-side multi-threaded scenario, this cursor instance must remain thread exclusive and cannot be shared across threads for use, otherwise, it will result in errors in the returned results.
 
 :::
 
-</TabItem>
-<TabItem value="rest" label="REST 连接">
+</TabItem
+<TabItem value="rest" label="REST connection">
 
-#####  TaosRestCursor 类的使用
+##### Use of TaosRestCursor class
 
-`TaosRestCursor` 类是对 PEP249 Cursor 接口的实现。
+The ``TaosRestCursor`` class is an implementation of the PEP249 Cursor interface.
 
-```python title="TaosRestCursor 的使用"
+```python title="Use of TaosRestCursor"
 {{#include docs-examples/python/connect_rest_examples.py:basic}}
 ```
-- `cursor.execute` ： 用来执行任意 SQL 语句。
-- `cursor.rowcount`： 对于写入操作返回写入成功记录数。对于查询操作，返回结果集行数。
-- `cursor.description` ： 返回字段的描述信息。关于描述信息的具体格式请参考[TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html)。
+- `cursor.execute` : Used to execute arbitrary SQL statements.
+- `cursor.rowcount` : For write operations, returns the number of successful rows written. For query operations, returns the number of rows in the result set.
+- `cursor.description` : Returns the description of the field. Please refer to [TaosRestCursor](https://docs.taosdata.com/api/taospy/taosrest/cursor.html) for the specific format of the description information.
 
-##### RestClient 类的使用
+##### Use of the RestClient class
 
-`RestClient` 类是对于 [REST API](/reference/rest-api) 的直接封装。它只包含一个 `sql()` 方法用于执行任意 SQL 语句， 并返回执行结果。
+The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-api). It contains only a ``sql()` method for executing arbitrary SQL statements and returning the result.
 
-```python title="RestClient 的使用"
+```python title="Use of RestClient"
 {{#include docs-examples/python/rest_client_example.py}}
 ```
 
-对于 `sql()` 方法更详细的介绍， 请参考 [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html)。
+For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
 
 
 </TabItem>
 </Tabs>
 
-### 与 pandas 一起使用
+### Used with pandas
 
 <Tabs default="native" groupId="connect">
-<TabItem value="native" label="原生连接">
+<TabItem value="native" label="native connection">
 
 ```python
 {{#include docs-examples/python/conn_native_pandas.py}}
 ```
 
-</TabItem>
-<TabItem value="rest" label="REST 连接">
+</TabItem
+<TabItem value="rest" label="REST connection">
 
 ```python
 {{#include docs-examples/python/conn_rest_pandas.py}}
@@ -303,51 +303,50 @@ TaosCursor 类使用原生连接进行写入、查询操作。在客户端多线
 </TabItem>
 </Tabs>
 
-### 其它示例程序
+### Other sample programs
 
-| 示例程序链接                                                                                                  | 示例程序内容            |
-| ------------------------------------------------------------------------------------------------------------- | ----------------------- |
-| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py)           | 参数绑定， 一次绑定多行 |
-| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py)               | 参数绑定，一次绑定一行  |
-| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py)       | InfluxDB 行协议写入     |
-| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py)               | 使用 JSON 类型的标签    |
-| [subscribe-async.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-async.py) | 异步订阅                |
-| [subscribe-sync.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-sync.py)   | 同步订阅                |
+| Example program links | Example program content |
+| ------------------------------------------------------------------------------------------------------------- | ------------------- ---- |
+| [bind_multi.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-multi.py) | parameter binding, bind multiple rows at once |
+| [bind_row.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/bind-row.py) | bind_row.py
+| [insert_lines.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/insert-lines.py) | InfluxDB row protocol write |
+| [json_tag.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/json-tag.py) | Use JSON type tags |
+| [subscribe-async.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-async.py) | Asynchronous subscription |
+| [subscribe-sync.py](https://github.com/taosdata/taos-connector-python/blob/main/examples/subscribe-sync.py) | synchronous-subscribe |
 
-## 其它说明 
+## Other notes 
 
-### 异常处理
+### Exception handling
 
-所有数据库操作如果出现异常，都会直接抛出来。由应用程序负责异常处理。比如：
+All database operations will be thrown directly if an exception occurs. The application is responsible for exception handling. For example:
 
 ```python
 {{#include docs-examples/python/handle_exception.py}}
 ```
 
-### 关于纳秒 (nanosecond)
+### About nanoseconds
 
-由于目前 Python 对 nanosecond 支持的不完善(见下面的链接)，目前的实现方式是在 nanosecond 精度时返回整数，而不是 ms 和 us 返回的 datetime 类型，应用开发者需要自行处理，建议使用 pandas 的 to_datetime()。未来如果 Python 正式完整支持了纳秒，Python 连接器可能会修改相关接口。
+Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python Connector may modify the interface in the future if Python officially supports nanoseconds in full.
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
 
 
-## 常见问题
+## Frequently Asked Questions
 
-欢迎[提问或报告问题](https://github.com/taosdata/taos-connector-python/issues)。
+Welcome to [ask questions or report questions] (https://github.com/taosdata/taos-connector-python/issues).
 
-## 重要更新
+## Important Update
 
-| 连接器版本 | 重要更新                                                                          | 发布日期   |
+| Connector version | Important Update | Release date |
 | ---------- | --------------------------------------------------------------------------------- | ---------- |
 | 2.3.1      | 1. support TDengine REST API <br/> 2. remove support for Python version below 3.6 | 2022-04-28 |
 | 2.2.5      | support timezone option when connect                                              | 2022-04-13 |
 | 2.2.2      | support sqlalchemy dialect plugin                                                 | 2022-03-28 |
 
+[**Release Notes**] (https://github.com/taosdata/taos-connector-python/releases)
 
-[**Release Notes**](https://github.com/taosdata/taos-connector-python/releases)
-
-## API 参考
+## API Reference
 
 - [taos](https://docs.taosdata.com/api/taospy/taos/)
 - [taosrest](https://docs.taosdata.com/api/taospy/taosrest)

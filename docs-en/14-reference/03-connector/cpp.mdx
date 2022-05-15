@@ -4,39 +4,39 @@ sidebar_label: C/C++
 title: C/C++ Connector
 ---
 
-C/C++ 开发人员可以使用 TDengine 的客户端驱动，即 C/C++连接器 （以下都用 TDengine 客户端驱动表示），开发自己的应用来连接 TDengine 集群完成数据存储、查询以及其他功能。TDengine 客户端驱动的 API 类似于 MySQL 的 C API。应用程序使用时，需要包含 TDengine 头文件 _taos.h_，里面列出了提供的 API 的函数原型；应用程序还要链接到所在平台上对应的动态库。
+C/C++ developers can use TDengine's client driver, the C/C++ connector (hereafter referred to as the TDengine client driver), to develop their applications to connect to TDengine clusters for data storing, querying, and other functions. To use it, you need to include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs; the application also needs to link to the corresponding dynamic libraries on the platform where it is located.
 
 ```c
 #include <taos.h>
 ```
 
-TDengine 服务端或客户端安装后，`taos.h` 位于：
+After TDengine server or client installation, `taos.h` is located at
 
-- Linux：`/usr/local/taos/include`
-- Windows：`C:\TDengine\include`
+- Linux: `/usr/local/taos/include`
+- Windows: `C:\TDengine\include`
 
-TDengine 客户端驱动的动态库位于：
+The dynamic libraries for the TDengine client driver are located in.
 
 - Linux: `/usr/local/taos/driver/libtaos.so`
 - Windows: `C:\TDengine\taos.dll`
 
-## 支持的平台
+## Supported platforms
 
-请参考[支持的平台列表](/reference/connector#支持的平台)
+Please refer to [list of supported platforms](/reference/connector#supported platforms)
 
-## 支持的版本
+## Supported versions
 
-TDengine 客户端驱动的版本号与 TDengine 服务端的版本号是一一对应的强对应关系，建议使用与 TDengine 服务端完全相同的客户端驱动。虽然低版本的客户端驱动在前三段版本号一致（即仅第四段版本号不同）的情况下也能够与高版本的服务端相兼容，但这并非推荐用法。强烈不建议使用高版本的客户端驱动访问低版本的服务端。
+The version number of the TDengine client driver and the version number of the TDengine server require one-to-one correspondence and recommend using the same client driver as the TDengine server. Although a lower version of the client driver is compatible with a higher version of the server, if the first three version numbers are the same (i.e., only the fourth version number is different), it is not recommended. It is strongly discouraged to use a high version of the client driver to access a low version of the server.
 
-## 安装步骤
+## Installation steps
 
-TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#安装步骤)
+Please refer to the [Installation Guide](/reference/connector#installation steps) for TDengine client driver installation
 
-## 建立连接
+## Establishing a connection
 
-使用客户端驱动访问 TDengine 集群的基本过程为：建立连接、查询和写入、关闭连接、清除资源。
+The basic process of accessing a TDengine cluster using the client driver is to establish a connection, query and write, close the connection, and clear the resource.
 
-下面为建立连接的示例代码，其中省略了查询和写入部分，展示了如何建立连接、关闭连接以及清除资源。
+The following is sample code for establishing a connection, which omits the query and writing sections and shows how to establish a connection, close a connection, and clear a resource.
 
 ```c
   TAOS *taos = taos_connect("localhost:6030", "root", "taosdata", NULL, 0);
@@ -45,29 +45,29 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
     exit(1);
   }
 
-  /* put your code here for read and write */
+  /* put your code here for query and writing */
 
   taos_close(taos);
   taos_cleanup();
 ```
 
-在上面的示例代码中， `taos_connect` 建立到客户端程序所在主机的 6030 端口的连接，`taos_close`关闭当前连接，`taos_cleanup`清除客户端驱动所申请和使用的资源。
+In the above example code, `taos_connect` establishes a connection to port 6030 on the host where the client application is located, `taos_close` closes the current connection, and `taos_cleanup` clears the resources requested and used by the client driver.
 
 :::note
 
-- 如未特别说明，当 API 的返回值是整数时，_0_ 代表成功，其它是代表失败原因的错误码，当返回值是指针时， _NULL_ 表示失败。
-- 所有的错误码以及对应的原因描述在 taoserror.h 文件中。
+- If not specified, when the return value of the API is an integer, _0_ means success, the others are error codes representing the reason for failure, and when the return value is a pointer, _NULL_ means failure.
+- All error codes and their corresponding causes are described in the taoserror.h file.
 
 :::
 
-## 示例程序
+## Example program
 
-本节展示了使用客户端驱动访问 TDengine 集群的常见访问方式的示例代码。
+This section shows sample code for standard access methods to TDengine clusters using the client driver.
 
-### 同步查询示例
+### Synchronous query example
 
-<details>
-<summary>同步查询</summary>
+<details
+<summary>Synchronous query</summary>
 
 ```c
 {{#include examples/c/demo.c}}
@@ -75,10 +75,10 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
 </details>
 
-### 异步查询示例
+### Asynchronous query example
 
 <details>
-<summary>异步查询</summary>
+<summary>Asynchronous queries</summary>
 
 ```c
 {{#include examples/c/asyncdemo.c}}
@@ -86,10 +86,10 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
 </details>
 
-### 参数绑定示例
+### Parameter binding example
 
 <details>
-<summary>参数绑定</summary>
+<summary>Parameter Binding</summary>
 
 ```c
 {{#include examples/c/prepare.c}}
@@ -97,10 +97,10 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
 </details>
 
-### 无模式写入示例
+### Pattern-free writing example
 
 <details>
-<summary>无模式写入</summary>
+<summary>Mode free write</summary>
 
 ```c
 {{#include examples/c/schemaless.c}}
@@ -108,10 +108,10 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 
 </details>
 
-### 订阅和消费示例
+### Subscription and consumption example
 
 <details>
-<summary>订阅和消费</summary>
+<summary>Subscribe and consume</summary>
 
 ```c
 {{#include examples/c/subscribe.c}}
@@ -120,188 +120,190 @@ TDengine 客户端驱动的安装请参考 [安装指南](/reference/connector#�
 </details>
 
 :::info
-更多示例代码及下载请见 [github](https://github.com/taosdata/TDengine/tree/develop/examples/c)
-也可以在安装目录下的 examples/c 路径下找到。 该目录下有 makefile，在 Linux 环境下，直接执行 make 就可以编译得到执行文件。
-**提示：**在 ARM 环境下编译时，请将 makefile 中的 `-msse4.2` 去掉，这个选项只有在 x64/x86 硬件平台上才能支持。
+More example code and downloads are available at [github](https://github.com/taosdata/TDengine/tree/develop/examples/c)
+You can find it in the installation directory under the examples/c path. This directory has a makefile and can be compiled under Linux by executing make directly.
+**Hint:** When compiling in an ARM environment, please remove `-msse4.2` from the makefile. This option is only supported on x64/x86 hardware platforms.
 
 :::
 
-## API 参考
+## API reference
 
-以下分别介绍 TDengine 客户端驱动的基础 API、同步 API、异步 API、订阅 API 和无模式写入 API。
+The following describes the basic API, synchronous API, asynchronous API, subscription API, and modeless write API of TDengine client driver, respectively.
 
-### 基础 API
+### Basic API
 
-基础 API 用于完成创建数据库连接等工作，为其它 API 的执行提供运行时环境。
+The base API is used to do things like create database connections and provide a runtime environment for the execution of other APIs.
 
 - `void taos_init()`
 
-  初始化运行环境。如果应用没有主动调用该 API，那么应用在调用 `taos_connect()` 时将自动调用，故应用程序一般无需手动调用该 API。
+  Initializes the runtime environment. If the API is not actively called, the driver will automatically call the API when `taos_connect()` is called, so the program generally does not need to call it manually.
 
 - `void taos_cleanup()`
 
-  清理运行环境，应用退出前应调用此 API。
+  Clean up the runtime environment and should be called before the application exits.
 
-- `int taos_options(TSDB_OPTION option, const void * arg, ...)`
+- ` int taos_options(TSDB_OPTION option, const void * arg, ...) `
 
-  设置客户端选项，目前支持区域设置（`TSDB_OPTION_LOCALE`）、字符集设置（`TSDB_OPTION_CHARSET`）、时区设置（`TSDB_OPTION_TIMEZONE`）、配置文件路径设置（`TSDB_OPTION_CONFIGDIR`）。区域设置、字符集、时区默认为操作系统当前设置。
+  Set client options, currently supports region setting (`TSDB_OPTION_LOCALE`), character set 
+(`TSDB_OPTION_CHARSET`), time zone
+(`TSDB_OPTION_TIMEZONE`), configuration file path (`TSDB_OPTION_CONFIGDIR`) . The region setting, character set, and time zone default to the current settings of the operating system.
 
 - `char *taos_get_client_info()`
 
-  获取客户端版本信息。
+  Get client version information.
 
 - `TAOS *taos_connect(const char *host, const char *user, const char *pass, const char *db, int port)`
 
-  创建数据库连接，初始化连接上下文。其中需要用户提供的参数包含：
+  Creates a database connection and initializes the connection context. Among the parameters required from the user are
 
-  - host：TDengine 管理主节点的 FQDN
-  - user：用户名
-  - pass：密码
-  - db：数据库名字，如果用户没有提供，也可以正常连接，用户可以通过该连接创建新的数据库，如果用户提供了数据库名字，则说明该数据库用户已经创建好，缺省使用该数据库
-  - port：TDengine 管理主节点的端口号
+  - host: FQDN of any node in the TDengine cluster
+  - user: user name
+  - pass: password
+  - db: database name, if the user does not provide, it can also be connected correctly, the user can create a new database through this connection, if the user provides the database name, it means that the database user has already created, the default use of the database
+  - port: the port the tasd program is listening on
 
-  返回值为空表示失败。应用程序需要保存返回的参数，以便后续 API 调用。
+  A null return value indicates a failure. The application needs to save the returned parameters for subsequent use.
 
   :::info
-  同一进程可以根据不同的 host/port 连接多个 TDengine 集群
+  The same process can connect to multiple TDengine clusters according to different host/port
 
   :::
 
 - `char *taos_get_server_info(TAOS *taos)`
 
-  获取服务端版本信息。
+  Get server-side version information.
 
-- `int taos_select_db(TAOS *taos, const char *db)`
+- ` int taos_select_db(TAOS *taos, const char *db)`
 
-  将当前的缺省数据库设置为 `db`。
+  Set the current default database to `db`.
 
 - `void taos_close(TAOS *taos)`
 
-  关闭连接，其中`taos`是 `taos_connect()` 函数返回的指针。
+  Closes the connection, where `taos` is the handle returned by `taos_connect()`.
 
-### 同步查询 API
+### Synchronous query APIs
 
-传统的数据库操作 API，都属于同步操作。应用调用 API 后，一直处于阻塞状态，直到服务端返回结果。
+The APIs described in this subsection are all synchronous interfaces. After being called by the application, it blocks and waits for a response until it gets a return result or an error message.
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-  该 API 用来执行 SQL 语句，可以是 DQL、DML 或 DDL 语句。 其中的 `taos` 参数是通过 `taos_connect()` 获得的指针。不能通过返回值是否是 `NULL` 来判断执行结果是否失败，而是需要用 `taos_errno()` 函数解析结果集中的错误代码来进行判断。
+  Executes an SQL statement, either a DQL, DML, or DDL statement. The `taos` parameter is a handle obtained with `taos_connect()`. You can't tell if the result failed by whether the return value is `NULL`, but by parsing the error code in the result set with the `taos_errno()` function.
 
 - `int taos_result_precision(TAOS_RES *res)`
 
-  返回结果集时间戳字段的精度，`0` 代表毫秒，`1` 代表微秒，`2` 代表纳秒。
+  Returns the precision of the result set timestamp field, `0` for milliseconds, `1` for microseconds, and `2` for nanoseconds.
 
 - `TAOS_ROW taos_fetch_row(TAOS_RES *res)`
 
-  按行获取查询结果集中的数据。
+  Fetch the data in the query result set by row.
 
-- `int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)`
+- ` int taos_fetch_block(TAOS_RES *res, TAOS_ROW *rows)`
 
-  批量获取查询结果集中的数据，返回值为获取到的数据的行数。
+  Batch fetches the data in the query result set. The return value is the number of rows of the fetched data.
 
-- `int taos_num_fields(TAOS_RES *res)` 和 `int taos_field_count(TAOS_RES *res)`
+- `int taos_num_fields(TAOS_RES *res)` and `int taos_field_count(TAOS_RES *res)`
 
-  这两个 API 等价，用于获取查询结果集中的列数。
+  These two APIs are equivalent and are used to get the number of columns in the query result set.
 
 - `int* taos_fetch_lengths(TAOS_RES *res)`
 
-  获取结果集中每个字段的长度。返回值是一个数组，其长度为结果集的列数。
+  Gets the lengths of each field in the result set. The return value is an array whose length is the number of columns in the result set.
 
 - `int taos_affected_rows(TAOS_RES *res)`
 
-  获取被所执行的 SQL 语句影响的行数。
+  Get the number of rows affected by the executed SQL statement.
 
-- `TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)`
+- ` TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)`
 
-  获取查询结果集每列数据的属性（列的名称、列的数据类型、列的长度），与 `taos_num_fileds()` 配合使用，可用来解析 `taos_fetch_row()` 返回的一个元组(一行)的数据。 `TAOS_FIELD` 的结构如下：
+  Gets the properties of each column of the query result set (column name, column data type, column length), used in conjunction with `taos_num_fileds()` to parse a tuple (one row) of data returned by `taos_fetch_row()`. The structure of `TAOS_FIELD` is as follows.
 
 ```c
 typedef struct taosField {
-  char     name[65];  // column name
-  uint8_t  type;      // data type
-  int16_t  bytes;     // length, in bytes
+  char name[65]; // column name
+  uint8_t type; // data type
+  int16_t bytes; // length, in bytes
 } TAOS_FIELD;
 ```
 
 - `void taos_stop_query(TAOS_RES *res)`
 
-  停止一个查询的执行。
+  Stops the execution of the current query.
 
-- `void taos_free_result(TAOS_RES *res)`
+- ` void taos_free_result(TAOS_RES *res)`
 
-  释放查询结果集以及相关的资源。查询完成后，务必调用该 API 释放资源，否则可能导致应用内存泄露。但也需注意，释放资源后，如果再调用 `taos_consume()` 等获取查询结果的函数，将导致应用崩溃。
+  Frees the query result set and the associated resources. Be sure to call this API to free the resources after the query is completed. Otherwise, it may lead to a memory leak in the application. However, note that the application will crash if you call a function like `taos_consume()` to get the query results after freeing the resources.
 
 - `char *taos_errstr(TAOS_RES *res)`
 
-  获取最近一次 API 调用失败的原因,返回值为字符串。
+  Get the reason for the failure of the last API call. The return value is an error message identified by a string.
 
-- `int taos_errno(TAOS_RES *res)`
+- 'int taos_errno(TAOS_RES *res)`
 
-  获取最近一次 API 调用失败的原因，返回值为错误代码。
+  Get the reason for the last API call failure. The return value is the error code.
 
 :::note
-2.0 及以上版本 TDengine 推荐数据库应用的每个线程都建立一个独立的连接，或基于线程建立连接池。而不推荐在应用中将该连接 (TAOS\*) 结构体传递到不同的线程共享使用。基于 TAOS 结构体发出的查询、写入等操作具有多线程安全性，但 “USE statement” 等状态量有可能在线程之间相互干扰。此外，C 语言的连接器可以按照需求动态建立面向数据库的新连接（该过程对用户不可见），同时建议只有在程序最后退出的时候才调用 `taos_close()` 关闭连接。
+TDengine version 2.0 and above recommends that each thread of a database application create a separate connection or a connection pool based on threads. It is not recommended to pass the connection (TAOS\*) structure to different threads for shared use in the application. Queries, writes, etc., issued based on TAOS structures are multi-thread safe, but state quantities such as "USE statement" may interfere between threads. In addition, the C connector can dynamically create new database-oriented connections on demand (this procedure is not visible to the user), and it is recommended that `taos_close()` be called only at the final exit of the program to close the connection.
 
 :::
 
-### 异步查询 API
+### Asynchronous query API
 
-同步 API 之外，TDengine 还提供性能更高的异步调用 API 处理数据插入、查询操作。在软硬件环境相同的情况下，异步 API 处理数据插入的速度比同步 API 快 2 ～ 4 倍。异步 API 采用非阻塞式的调用方式，在系统真正完成某个具体数据库操作前，立即返回。调用的线程可以去处理其他工作，从而可以提升整个应用的性能。异步 API 在网络延迟严重的情况下，优点尤为突出。
+TDengine also provides a higher performance asynchronous API to handle data insertion and query operations. Given the same hardware and software environment, the asynchronous API can run data insertion 2 to 4 times faster than the synchronous API. The asynchronous API is called non-blocking and returns immediately before the system completes a specific database operation. The calling thread can go to work on other tasks, which can improve the performance of the whole application. Asynchronous APIs are particularly advantageous in the case of severe network latency.
 
-异步 API 都需要应用提供相应的回调函数，回调函数参数设置如下：前两个参数都是一致的，第三个参数依不同的 API 而定。第一个参数 param 是应用调用异步 API 时提供给系统的，用于回调时，应用能够找回具体操作的上下文，依具体实现而定。第二个参数是 SQL 操作的结果集，如果为空，比如 insert 操作，表示没有记录返回，如果不为空，比如 select 操作，表示有记录返回。
+The asynchronous APIs require the application to provide a callback function with the following parameters: the first two parameters are consistent, and the third parameter depends on the API. The first parameter, param, is provided to the system when the application calls the asynchronous API. It is used for the callback so that the application can retrieve the context of the specific operation, depending on the implementation. The second parameter is the result set of the SQL operation. If it is empty, such as insert operation, it means that there are no records returned, and if it is not empty, such as select operation, it means that there are records returned.
 
-异步 API 对于使用者的要求相对较高，用户可根据具体应用场景选择性使用。下面是两个重要的异步 API：
+The asynchronous API has relatively high user requirements, so users can use it selectively according to specific application scenarios. The following are two important asynchronous APIs.
 
 - `void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);`
 
-  异步执行 SQL 语句。
+  Execute SQL statements asynchronously.
 
-  - taos：调用 `taos_connect()` 返回的数据库连接
-  - sql：需要执行的 SQL 语句
-  - fp：用户定义的回调函数，其第三个参数 `code` 用于指示操作是否成功，`0` 表示成功，负数表示失败（调用 `taos_errstr()` 可获取失败原因）。应用在定义回调函数的时候，主要处理第二个参数 `TAOS_RES *`，该参数是查询返回的结果集
-  - param：应用提供一个用于回调的参数
+  - taos: the database connection returned by calling `taos_connect()`
+  - sql: the SQL statement to be executed
+  - fp: user-defined callback function whose third parameter `code` is used to indicate whether the operation was successful or not, `0` means success, a negative number means failure (call `taos_errstr()` to get the reason for failure). When defining the callback function, the application mainly handles the second parameter `TAOS_RES *`, which is the result set returned by the query
+  - param: the application provides a parameter for the callback
 
 - `void taos_fetch_rows_a(TAOS_RES *res, void (*fp)(void *param, TAOS_RES *, int numOfRows), void *param);`
 
-  批量获取异步查询的结果集，只能与 `taos_query_a()` 配合使用。其中：
+  Batch get the result set of an asynchronous query, which can only be used with `taos_query_a()`. The parameters are:
 
-  - res：`taos_query_a()` 回调时返回的结果集
-  - fp：回调函数。其参数 `param` 是用户可定义的传递给回调函数的参数结构体；`numOfRows` 是获取到的数据的行数（不是整个查询结果集的函数）。 在回调函数中，应用可以通过调用 `taos_fetch_row()` 前向迭代获取批量记录中每一行记录。读完一块内的所有记录后，应用需要在回调函数中继续调用 `taos_fetch_rows_a()` 获取下一批记录进行处理，直到返回的记录数 `numOfRows` 为零（结果返回完成）或记录数为负值（查询出错）。
+  - res: the result set returned by the `taos_query_a()` callback
+  - fp: callback function. Its parameter `param` is a user-definable parameter structure passed to the callback function; `numOfRows` is the number of rows of the fetched data (not a function of the entire query result set). In the callback function, the application can iterate forward to fetch each row of records in the batch by calling `taos_fetch_row()`. After reading all the rows in a block, the application needs to continue calling `taos_fetch_rows_a()` in the callback function to get the next batch of rows for processing until the number of rows returned, `numOfRows`, is zero (result return complete) or the number of rows is negative (query error).
 
-TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多线程同时打开多张表，并可以同时对每张打开的表进行查询或者插入操作。需要指出的是，**客户端应用必须确保对同一张表的操作完全串行化**，即对同一个表的插入或查询操作未完成时（未返回时），不能够执行第二个插入或查询操作。
+TDengine's asynchronous APIs all use a non-blocking call pattern. Applications can open multiple tables simultaneously using multiple threads and perform queries or inserts on each open table at the same time. It is important to note that **client applications must ensure that operations on the same table are fully serialized**. i.e., no second insert or query operation can be performed while an insert or query operation on the same table is incomplete (not returned).
 
-### 参数绑定 API
+### Parameter Binding API
 
-除了直接调用 `taos_query()` 进行查询，TDengine 也提供了支持参数绑定的 Prepare API，风格与 MySQL 类似，目前也仅支持用问号 `?` 来代表待绑定的参数。
+In addition to direct calls to `taos_query()` to perform queries, TDengine also provides a Prepare API that supports parameter binding, similar in style to MySQL, and currently only supports using a question mark `? ` to represent the parameter to be bound.
 
-从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。此时的典型操作步骤如下：
+Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved the parameter binding interface's support for data writing (INSERT) scenarios. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thus significantly improving write performance in most cases. A typical operation, in this case, is as follows.
 
-1. 调用 `taos_stmt_init()` 创建参数绑定对象；
-2. 调用 `taos_stmt_prepare()` 解析 INSERT 语句；
-3. 如果 INSERT 语句中预留了表名但没有预留 TAGS，那么调用 `taos_stmt_set_tbname()` 来设置表名；
-4. 如果 INSERT 语句中既预留了表名又预留了 TAGS（例如 INSERT 语句采取的是自动建表的方式），那么调用 `taos_stmt_set_tbname_tags()` 来设置表名和 TAGS 的值；
-5. 调用 `taos_stmt_bind_param_batch()` 以多列的方式设置 VALUES 的值，或者调用 `taos_stmt_bind_param()` 以单行的方式设置 VALUES 的值；
-6. 调用 `taos_stmt_add_batch()` 把当前绑定的参数加入批处理；
-7. 可以重复第 3 ～ 6 步，为批处理加入更多的数据行；
-8. 调用 `taos_stmt_execute()` 执行已经准备好的批处理指令；
-9. 执行完毕，调用 `taos_stmt_close()` 释放所有资源。
+1. call `taos_stmt_init()` to create the parameter binding object.
+2. call `taos_stmt_prepare()` to parse the INSERT statement. 3.
+3. call `taos_stmt_set_tbname()` to set the table name if it is reserved in the INSERT statement but not the TAGS.
+4. call `taos_stmt_set_tbname_tags()` to set the table name and TAGS values if the table name and TAGS are reserved in the INSERT statement (for example, if the INSERT statement takes an automatic table build).
+5. call `taos_stmt_bind_param_batch()` to set the value of VALUES in multiple columns, or call `taos_stmt_bind_param()` to set the value of VALUES in a single row.
+6. call `taos_stmt_add_batch()` to add the currently bound parameters to the batch.
+7. you can repeat steps 3 to 6 to add more rows of data to the batch.
+8. call `taos_stmt_execute()` to execute the prepared batch instructions.
+9. When execution is complete, call `taos_stmt_close()` to release all resources.
 
-说明：如果 `taos_stmt_execute()` 执行成功，假如不需要改变 SQL 语句的话，那么是可以复用 `taos_stmt_prepare()` 的解析结果，直接进行第 3 ～ 6 步绑定新数据的。但如果执行出错，那么并不建议继续在当前的环境上下文下继续工作，而是建议释放资源，然后从 `taos_stmt_init()` 步骤重新开始。
+Note: If `taos_stmt_execute()` succeeds, you can reuse the parsed result of `taos_stmt_prepare()` to bind new data in steps 3 to 6 if you don't need to change the SQL statement. However, if there is an execution error, it is not recommended to continue working in the current context but release the resources and start again with `taos_stmt_init()` steps.
 
-接口相关的具体函数如下（也可以参考 [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) 文件中使用对应函数的方式）：
+The specific functions related to the interface are as follows (see also the [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) file for the way to use the corresponding functions)
 
 - `TAOS_STMT* taos_stmt_init(TAOS *taos)`
 
-  创建一个 TAOS_STMT 对象用于后续调用。
+  Creates a TAOS_STMT object for subsequent calls.
 
-- `int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
+- ` int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
 
-  解析一条 SQL 语句，将解析结果和参数信息绑定到 stmt 上，如果参数 length 大于 0，将使用此参数作为 SQL 语句的长度，如等于 0，将自动判断 SQL 语句的长度。
+  Parse a SQL statement, and bind the parsed result and parameter information to stmt. If the parameter length is greater than 0, use this parameter as the length of the SQL statement. If it is equal to 0, the length of the SQL statement will be determined automatically.
 
 - `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
 
-  不如 `taos_stmt_bind_param_batch()` 效率高，但可以支持非 INSERT 类型的 SQL 语句。
-  进行参数绑定，bind 指向一个数组（代表所要绑定的一行数据），需保证此数组中的元素数量和顺序与 SQL 语句中的参数完全一致。TAOS_BIND 的使用方法与 MySQL 中的 MYSQL_BIND 类似，具体定义如下：
+  Not as efficient as `taos_stmt_bind_param_batch()`, but can support non-INSERT type SQL statements.
+  To bind parameters, bind points to an array (representing the row of data to be bound), making sure that the number and order of the elements in this array are the same as the parameters in the SQL statement. taos_bind is used similarly to MYSQL_BIND in MySQL, as defined below.
 
   ```c
   typedef struct TAOS_BIND {
@@ -317,80 +319,80 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
-  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
-  当 SQL 语句中的表名使用了 `?` 占位时，可以使用此函数绑定一个具体的表名。
+  (New in version 2.1.1.0, only supported for replacing parameter values in INSERT statements)
+  When the table name in the SQL statement uses `? ` placeholder, you can use this function to bind a specific table name.
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
 
-  （2.1.2.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
-  当 SQL 语句中的表名和 TAGS 都使用了 `?` 占位时，可以使用此函数绑定具体的表名和具体的 TAGS 取值。最典型的使用场景是使用了自动建表功能的 INSERT 语句（目前版本不支持指定具体的 TAGS 列）。TAGS 参数中的列数量需要与 SQL 语句中要求的 TAGS 数量完全一致。
+  (New in version 2.1.2.0, only supported for replacing parameter values in INSERT statements)
+  When the table name and TAGS in the SQL statement both use `? `, you can use this function to bind the specific table name and the specific TAGS value. The most typical usage scenario is an INSERT statement that uses the automatic table building function (the current version does not support specifying specific TAGS columns.) The number of columns in the TAGS parameter needs to be the same as the number of TAGS requested in the SQL statement.
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
-  （2.1.1.0 版本新增，仅支持用于替换 INSERT 语句中的参数值）
-  以多列的方式传递待绑定的数据，需要保证这里传递的数据列的顺序、列的数量与 SQL 语句中的 VALUES 参数完全一致。TAOS_MULTI_BIND 的具体定义如下：
+  (new in version 2.1.1.0, only supported for replacing parameter values in INSERT statements)
+  To pass the data to be bound in a multi-column manner, it is necessary to ensure that the order of the data columns and the number of columns given here are the same as the VALUES parameter in the SQL statement. The specific definition of TAOS_MULTI_BIND is as follows.
 
   ```c
   typedef struct TAOS_MULTI_BIND {
-    int          buffer_type;
-    void *       buffer;
-    uintptr_t    buffer_length;
-    uintptr_t *  length;
-    char *       is_null;
-    int          num;             // the number of columns
+    int buffer_type;
+    void * buffer;
+    uintptr_t buffer_length;
+    uintptr_t * length;
+    char * is_null;
+    int num; // the number of columns
   } TAOS_MULTI_BIND;
   ```
 
-- `int taos_stmt_add_batch(TAOS_STMT *stmt)`
+- ` int taos_stmt_add_batch(TAOS_STMT *stmt)`
 
-  将当前绑定的参数加入批处理中，调用此函数后，可以再次调用 `taos_stmt_bind_param()` 或 `taos_stmt_bind_param_batch()` 绑定新的参数。需要注意，此函数仅支持 INSERT/IMPORT 语句，如果是 SELECT 等其他 SQL 语句，将返回错误。
+  Adds the currently bound parameter to the batch. After calling this function, you can call `taos_stmt_bind_param()` or `taos_stmt_bind_param_batch()` again to bind a new parameter. Note that this function only supports INSERT/IMPORT statements. Other SQL statements such as SELECT will return an error.
 
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
-  执行准备好的语句。目前，一条语句只能执行一次。
+  Execute the prepared statement. Currently, a statement can only be executed once.
 
-- `TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
+- ` TAOS_RES* taos_stmt_use_result(TAOS_STMT *stmt)`
 
-  获取语句的结果集。结果集的使用方式与非参数化调用时一致，使用完成后，应对此结果集调用 `taos_free_result()` 以释放资源。
+  Gets the result set of a statement. Use the result set in the same way as in the non-parametric call. When finished, `taos_free_result()` should be called on this result set to free resources.
 
 - `int taos_stmt_close(TAOS_STMT *stmt)`
 
-  执行完毕，释放所有资源。
+  Finish execution and release all resources.
 
-- `char * taos_stmt_errstr(TAOS_STMT *stmt)`
+- ` char * taos_stmt_errstr(TAOS_STMT *stmt)`
 
-  （2.1.3.0 版本新增）
-  用于在其他 STMT API 返回错误（返回错误码或空指针）时获取错误信息。
+  (new in version 2.1.3.0)
+  Used to get error information if other STMT APIs return errors (return error codes or null pointers).
 
-### 无模式写入 API
+### Write-without-mode API
 
-除了使用 SQL 方式或者使用参数绑定 API 写入数据外，还可以使用 Schemaless 的方式完成写入。Schemaless 可以免于预先创建超级表/数据子表的数据结构，而是可以直接写入数据，TDengine 系统会根据写入的数据内容自动创建和维护所需要的表结构。Schemaless 的使用方式详见 [Schemaless 写入](/reference/schemaless/) 章节，这里介绍与之配套使用的 C/C++ API。
+In addition to writing data using the SQL method or the parameter binding API, writing can also be done using Schemaless, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of Schemaless is described in the chapter [Schemaless Writing](/reference/schemaless/), and the C/C++ API used with it is described here.
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
-  **功能说明**
-  该接口将行协议的文本数据写入到 TDengine 中。
+  **Function description**
+  This interface writes the text data of the line protocol to TDengine.
 
-  **参数说明**
-  taos: 数据库连接，通过 `taos_connect()` 函数建立的数据库连接。
-  lines：文本数据。满足解析格式要求的无模式文本字符串。
-  numLines:文本数据的行数，不能为 0 。
-  protocol: 行协议类型，用于标识文本数据格式。
-  precision：文本数据中的时间戳精度字符串。
+  **Parameter description**
+  taos: database connection, established by the `taos_connect()` function.
+  lines: text data. A pattern-free text string that meets the parsing format requirements.
+  numLines: the number of lines of text data, cannot be 0.
+  protocol: the protocol type of the lines, used to identify the text data format.
+  precision: precision string for the timestamp in the text data.
 
-  **返回值**
-  TAOS_RES 结构体，应用可以通过使用 `taos_errstr()` 获得错误信息，也可以使用 `taos_errno()` 获得错误码。
-  在某些情况下，返回的 TAOS_RES 为 `NULL`，此时仍然可以调用 `taos_errno()` 来安全地获得错误码信息。
-  返回的 TAOS_RES 需要调用方来负责释放，否则会出现内存泄漏。
+  **return value**
+  TAOS_RES structure, application can get error message by using `taos_errstr()` and also error code by using `taos_errno()`.
+  In some cases, the returned TAOS_RES is `NULL`, and it is still possible to call `taos_errno()` to safely get the error code information.
+  The returned TAOS_RES needs to be freed by the caller. Otherwise, a memory leak will occur.
 
-  **说明**
-  协议类型是枚举类型，包含以下三种格式：
+  **Description**
+  The protocol type is enumerated and contains the following three formats.
 
-  - TSDB_SML_LINE_PROTOCOL：InfluxDB 行协议（Line Protocol)
-  - TSDB_SML_TELNET_PROTOCOL: OpenTSDB Telnet 文本行协议
-  - TSDB_SML_JSON_PROTOCOL: OpenTSDB Json 协议格式
+  - TSDB_SML_LINE_PROTOCOL: InfluxDB line protocol (Line Protocol)
+  - TSDB_SML_TELNET_PROTOCOL: OpenTSDB Telnet Text Line Protocol
+  - TSDB_SML_JSON_PROTOCOL: OpenTSDB Json protocol format
 
-  时间戳分辨率的定义，定义在 taos.h 文件中，具体内容如下：
+  The timestamp resolution definitions are in the taos.h file, as follows
 
   - TSDB_SML_TIMESTAMP_NOT_CONFIGURED = 0,
   - TSDB_SML_TIMESTAMP_HOURS,
@@ -400,51 +402,51 @@ TDengine 的异步 API 均采用非阻塞调用模式。应用程序可以用多
   - TSDB_SML_TIMESTAMP_MICRO_SECONDS,
   - TSDB_SML_TIMESTAMP_NANO_SECONDS
 
-  需要注意的是，时间戳分辨率参数只在协议类型为 `SML_LINE_PROTOCOL` 的时候生效。
-  对于 OpenTSDB 的文本协议，时间戳的解析遵循其官方解析规则 — 按照时间戳包含的字符的数量来确认时间精度。
+  Note that the timestamp resolution parameter only takes effect when the protocol type is `SML_LINE_PROTOCOL`.
+  For OpenTSDB's text protocol, timestamp resolution follows its official resolution rules - time precision is confirmed by the number of characters contained in the timestamp.
 
-  **支持版本**
-  该功能接口从 2.3.0.0 版本开始支持。
+  **Supported Versions**
+  This feature interface is supported from version 2.3.0.0.
 
-### 订阅和消费 API
+### Subscription and Consumption API
 
-订阅 API 目前支持订阅一张或多张表，并通过定期轮询的方式不断获取写入表中的最新数据。
+The Subscription API currently supports subscribing to one or more tables and continuously fetching the latest data written to them by polling periodically.
 
 - `TAOS_SUB *taos_subscribe(TAOS* taos, int restart, const char* topic, const char *sql, TAOS_SUBSCRIBE_CALLBACK fp, void *param, int interval)`
 
-  该函数负责启动订阅服务，成功时返回订阅对象，失败时返回 `NULL`，其参数为：
+  This function is responsible for starting the subscription service, returning the subscription object on success and `NULL` on failure, with the following parameters.
 
-  - taos：已经建立好的数据库连接
-  - restart：如果订阅已经存在，是重新开始，还是继续之前的订阅
-  - topic：订阅的主题（即名称），此参数是订阅的唯一标识
-  - sql：订阅的查询语句，此语句只能是 `select` 语句，只应查询原始数据，只能按时间正序查询数据
-  - fp：收到查询结果时的回调函数（稍后介绍函数原型），只在异步调用时使用，同步调用时此参数应该传 `NULL`
-  - param：调用回调函数时的附加参数，系统 API 将其原样传递到回调函数，不进行任何处理
-  - interval：轮询周期，单位为毫秒。异步调用时，将根据此参数周期性的调用回调函数，为避免对系统性能造成影响，不建议将此参数设置的过小；同步调用时，如两次调用 `taos_consume()` 的间隔小于此周期，API 将会阻塞，直到时间间隔超过此周期。
+  - taos: the database connection that has been established
+  - restart: if the subscription already exists, whether to restart or continue the previous subscription
+  - topic: the topic of the subscription (i.e., the name). This parameter is the unique identifier of the subscription
+  - sql: the query statement of the subscription, this statement can only be `select` statement, only the original data should be queried, only the data can be queried in time order
+  - fp: the callback function when the query result is received (the function prototype will be introduced later), only used when called asynchronously. This parameter should be passed `NULL` when called synchronously
+  - param: additional parameter when calling the callback function, the system API will pass it to the callback function as it is, without any processing
+  - interval: polling period in milliseconds. The callback function will be called periodically according to this parameter when called asynchronously. not recommended to set this parameter too small To avoid impact on system performance when called synchronously. If the interval between two calls to `taos_consume()` is less than this period, the API will block until the interval exceeds this period.
 
-- `typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
+- ` typedef void (*TAOS_SUBSCRIBE_CALLBACK)(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code)`
 
-  异步模式下，回调函数的原型，其参数为：
+  The prototype of the callback function in asynchronous mode with the following parameters
 
-  - tsub：订阅对象
-  - res：查询结果集，注意结果集中可能没有记录
-  - param：调用 `taos_subscribe()` 时客户程序提供的附加参数
-  - code：错误码
+  - tsub: subscription object
+  - res: query result set, note that there may be no records in the result set
+  - param: additional parameters provided by the client program when calling `taos_subscribe()`
+  - code: error code
 
   :::note
-  在这个回调函数里不可以做耗时过长的处理，尤其是对于返回的结果集中数据较多的情况，否则有可能导致客户端阻塞等异常状态。如果必须进行复杂计算，则建议在另外的线程中进行处理。
+  The callback function should not take too long to process, especially if the returned result set has a lot of data. Otherwise, it may lead to an abnormal state, such as client blocking. If you must perform complex calculations, we recommend handling them in a separate thread.
 
   :::
 
 - `TAOS_RES *taos_consume(TAOS_SUB *tsub)`
 
-  同步模式下，该函数用来获取订阅的结果。 用户应用程序将其置于一个循环之中。 如两次调用 `taos_consume()` 的间隔小于订阅的轮询周期，API 将会阻塞，直到时间间隔超过此周期。如果数据库有新记录到达，该 API 将返回该最新的记录，否则返回一个没有记录的空结果集。 如果返回值为 `NULL`，说明系统出错。 异步模式下，用户程序不应调用此 API。
+  In synchronous mode, this function is used to fetch the results of a subscription. The user application places it in a loop. If the interval between two calls to `taos_consume()` is less than the polling period of the subscription, the API will block until the interval exceeds this period. If a new record arrives in the database, the API returns that latest record. Otherwise, it returns an empty result set with no records. If the return value is `NULL`, there is a system error. This API should not be called by user programs in asynchronous mode.
 
   :::note
-  在调用 `taos_consume()` 之后，用户应用应确保尽快调用 `taos_fetch_row()` 或 `taos_fetch_block()` 来处理订阅结果，否则服务端会持续缓存查询结果数据等待客户端读取，极端情况下会导致服务端内存消耗殆尽，影响服务稳定性。
+  After calling `taos_consume()`, the user application should make sure to call `taos_fetch_row()` or `taos_fetch_block()` to process the subscription results as soon as possible. Otherwise, the server-side will keep caching the query result data waiting to be read by the client, which in extreme cases will cause the server side to run out of memory and affect the stability of the service.
 
   :::
 
 - `void taos_unsubscribe(TAOS_SUB *tsub, int keepProgress)`
 
-  取消订阅。 如参数 `keepProgress` 不为 0，API 会保留订阅的进度信息，后续调用 `taos_subscribe()` 时可以基于此进度继续；否则将删除进度信息，后续只能重新开始读取数据。
+  Unsubscribe. If the parameter `keepProgress` is not 0, the API will keep the progress information of the subscription, and subsequent calls to `taos_subscribe()` will continue based on this progress; otherwise, the progress information will be deleted, and subsequent readings will have to be restarted.
