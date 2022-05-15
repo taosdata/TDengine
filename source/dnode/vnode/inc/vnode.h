@@ -191,6 +191,9 @@ struct SMetaEntry {
       int32_t        ttlDays;
       SSchemaWrapper schema;
     } ntbEntry;
+    struct {
+      STSmaWrapper tsma;
+    } smaEntry;
   };
 };
 

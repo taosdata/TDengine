@@ -35,6 +35,8 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     if (tEncodeI64(pCoder, pME->ntbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ntbEntry.ttlDays) < 0) return -1;
     if (tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
+  } else if (pME->type == TSDB_TSMA_TABLE) {
+    if (tEncodeTSmaWrapper(pCoder, &pME->smaEntry.tsma) < 0) return -1;
   } else {
     ASSERT(0);
   }

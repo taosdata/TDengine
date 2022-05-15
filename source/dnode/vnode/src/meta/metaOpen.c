@@ -21,6 +21,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
@@ -121,7 +122,7 @@ _err:
   if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
   if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
   if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
-  if (pMeta->pNameIdx) tdbDbClose(pMeta->pUidIdx);
+  if (pMeta->pUidIdx) tdbDbClose(pMeta->pUidIdx);
   if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
   if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
   if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
@@ -137,7 +138,7 @@ int metaClose(SMeta *pMeta) {
     if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
     if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
     if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
-    if (pMeta->pNameIdx) tdbDbClose(pMeta->pUidIdx);
+    if (pMeta->pUidIdx) tdbDbClose(pMeta->pUidIdx);
     if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
     if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
@@ -290,6 +291,25 @@ static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   if (pTtlIdxKey1->uid > pTtlIdxKey2->uid) {
     return 1;
   } else if (pTtlIdxKey1->uid < pTtlIdxKey2->uid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  SSmaIdxKey *pSmaIdxKey1 = (SSmaIdxKey *)pKey1;
+  SSmaIdxKey *pSmaIdxKey2 = (SSmaIdxKey *)pKey2;
+
+  if (pSmaIdxKey1->uid > pSmaIdxKey2->uid) {
+    return 1;
+  } else if (pSmaIdxKey1->uid < pSmaIdxKey2->uid) {
+    return -1;
+  }
+
+  if (pSmaIdxKey1->smaUid > pSmaIdxKey2->smaUid) {
+    return 1;
+  } else if (pSmaIdxKey1->smaUid < pSmaIdxKey2->smaUid) {
     return -1;
   }
 
