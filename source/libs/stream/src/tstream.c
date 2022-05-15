@@ -133,7 +133,144 @@ int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input) {
   return inputStatus;
 }
 
-int32_t streamTaskProcessTriggerReq(SStreamTask* pTask, SMsgCb* pMsgCb, char* msg, int32_t msgLen) {
+int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
+  void* exec = pTask->exec.runners[0].executor;
+
+  // set input
+  if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+    SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
+    ASSERT(pSubmit->type == STREAM_INPUT__DATA_SUBMIT);
+
+    qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+  } else if (pTask->inputType == STREAM_INPUT__DATA_BLOCK) {
+    SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
+    ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
+
+    SArray* blocks = pBlock->blocks;
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
+  }
+
+  // exec
+  while (1) {
+    SSDataBlock* output;
+    uint64_t     ts = 0;
+    if (qExecTask(exec, &output, &ts) < 0) {
+      ASSERT(false);
+    }
+    if (output == NULL) break;
+    taosArrayPush(pRes, &output);
+  }
+
+  // destroy
+  if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+    streamDataSubmitRefDec((SStreamDataSubmit*)data);
+  } else {
+    taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+  }
+  return 0;
+}
+
+// TODO: handle version
+int32_t streamTaskExec2(SStreamTask* pTask, SMsgCb* pMsgCb) {
+  SArray* pRes = taosArrayInit(0, sizeof(SSDataBlock));
+  if (pRes == NULL) return -1;
+  while (1) {
+    int8_t execStatus = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
+    void*  exec = pTask->exec.runners[0].executor;
+    if (execStatus == TASK_STATUS__IDLE) {
+      // first run, from qall, handle failure from last exec
+      while (1) {
+        void* data = NULL;
+        taosGetQitem(pTask->inputQAll, &data);
+        if (data == NULL) break;
+
+        streamTaskExecImpl(pTask, data, pRes);
+
+        taosFreeQitem(data);
+
+        if (taosArrayGetSize(pRes) != 0) {
+          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
+          resQ->type = STREAM_INPUT__DATA_BLOCK;
+          resQ->blocks = pRes;
+          taosWriteQitem(pTask->outputQ, resQ);
+          pRes = taosArrayInit(0, sizeof(SSDataBlock));
+          if (pRes == NULL) goto FAIL;
+        }
+      }
+      // second run, from inputQ
+      taosReadAllQitems(pTask->inputQ, pTask->inputQAll);
+      while (1) {
+        void* data = NULL;
+        taosGetQitem(pTask->inputQAll, &data);
+        if (data == NULL) break;
+
+        streamTaskExecImpl(pTask, data, pRes);
+
+        taosFreeQitem(data);
+
+        if (taosArrayGetSize(pRes) != 0) {
+          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
+          resQ->type = STREAM_INPUT__DATA_BLOCK;
+          resQ->blocks = pRes;
+          taosWriteQitem(pTask->outputQ, resQ);
+          pRes = taosArrayInit(0, sizeof(SSDataBlock));
+          if (pRes == NULL) goto FAIL;
+        }
+      }
+      // set status closing
+      atomic_store_8(&pTask->status, TASK_STATUS__CLOSING);
+      // third run, make sure all inputQ is cleared
+      taosReadAllQitems(pTask->inputQ, pTask->inputQAll);
+      while (1) {
+        void* data = NULL;
+        taosGetQitem(pTask->inputQAll, &data);
+        if (data == NULL) break;
+
+        streamTaskExecImpl(pTask, data, pRes);
+
+        taosFreeQitem(data);
+
+        if (taosArrayGetSize(pRes) != 0) {
+          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
+          resQ->type = STREAM_INPUT__DATA_BLOCK;
+          resQ->blocks = pRes;
+          taosWriteQitem(pTask->outputQ, resQ);
+          pRes = taosArrayInit(0, sizeof(SSDataBlock));
+          if (pRes == NULL) goto FAIL;
+        }
+      }
+      // set status closing
+      atomic_store_8(&pTask->status, TASK_STATUS__CLOSING);
+      // third run, make sure all inputQ is cleared
+      taosReadAllQitems(pTask->inputQ, pTask->inputQAll);
+      while (1) {
+        void* data = NULL;
+        taosGetQitem(pTask->inputQAll, &data);
+        if (data == NULL) break;
+      }
+
+      atomic_store_8(&pTask->status, TASK_STATUS__IDLE);
+      break;
+    } else if (execStatus == TASK_STATUS__CLOSING) {
+      continue;
+    } else if (execStatus == TASK_STATUS__EXECUTING) {
+      break;
+    } else {
+      ASSERT(0);
+    }
+  }
+  return 0;
+FAIL:
+  atomic_store_8(&pTask->status, TASK_STATUS__IDLE);
+  return -1;
+}
+
+int32_t streamTaskDispatchDown(SStreamTask* pTask, SMsgCb* pMsgCb) {
+  //
+  return 0;
+}
+
+int32_t streamTaskSink(SStreamTask* pTask) {
   //
   return 0;
 }
@@ -156,8 +293,8 @@ int32_t streamTaskProcessInputReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDat
   // 2.3. closing: keep trying
   while (1) {
     int8_t execStatus = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
-    void*  exec = pTask->exec.runners[0].executor;
     if (execStatus == TASK_STATUS__IDLE) {
+      void*         exec = pTask->exec.runners[0].executor;
       SArray*       pRes = taosArrayInit(0, sizeof(void*));
       const SArray* blocks = pBlock->blocks;
       qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
@@ -278,7 +415,7 @@ int32_t streamTaskProcessRecoverReq(SStreamTask* pTask, char* msg) {
   return 0;
 }
 
-int32_t streamTaskExecNew(SStreamTask* pTask) {
+int32_t streamTaskRun(SStreamTask* pTask) {
   SArray* pRes = NULL;
   if (pTask->execType == TASK_EXEC__PIPE || pTask->execType == TASK_EXEC__MERGE) {
     // TODO remove multi runner
@@ -494,11 +631,16 @@ SStreamTask* tNewSStreamTask(int64_t streamId) {
 
   pTask->inputQ = taosOpenQueue();
   pTask->outputQ = taosOpenQueue();
-  if (pTask->inputQ == NULL || pTask->outputQ == NULL) goto FAIL;
+  pTask->inputQAll = taosAllocateQall();
+  pTask->outputQAll = taosAllocateQall();
+  if (pTask->inputQ == NULL || pTask->outputQ == NULL || pTask->inputQAll == NULL || pTask->outputQAll == NULL)
+    goto FAIL;
   return pTask;
 FAIL:
   if (pTask->inputQ) taosCloseQueue(pTask->inputQ);
   if (pTask->outputQ) taosCloseQueue(pTask->outputQ);
+  if (pTask->inputQAll) taosFreeQall(pTask->inputQAll);
+  if (pTask->outputQAll) taosFreeQall(pTask->outputQAll);
   if (pTask) taosMemoryFree(pTask);
   return NULL;
 }
@@ -507,6 +649,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
   /*if (tStartEncode(pEncoder) < 0) return -1;*/
   if (tEncodeI64(pEncoder, pTask->streamId) < 0) return -1;
   if (tEncodeI32(pEncoder, pTask->taskId) < 0) return -1;
+  if (tEncodeI8(pEncoder, pTask->inputType) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->status) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->sourceType) < 0) return -1;
   if (tEncodeI8(pEncoder, pTask->execType) < 0) return -1;
@@ -552,6 +695,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
   /*if (tStartDecode(pDecoder) < 0) return -1;*/
   if (tDecodeI64(pDecoder, &pTask->streamId) < 0) return -1;
   if (tDecodeI32(pDecoder, &pTask->taskId) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pTask->inputType) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->status) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->sourceType) < 0) return -1;
   if (tDecodeI8(pDecoder, &pTask->execType) < 0) return -1;
