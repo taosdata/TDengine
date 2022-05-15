@@ -106,7 +106,7 @@ Then data in this file can be inserted by below SQL statement:
 INSERT INTO d1001 FILE '/tmp/csvfile.csv';
 ```
 
-## CreateTables Automatically and Insert Rows From File
+## Create Tables Automatically and Insert Rows From File
 
 From version 2.1.5.0, tables can be automatically created using a super table as template when inserting data from a CSV file, Like below:
 
