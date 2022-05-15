@@ -69,7 +69,7 @@ You can also specify a specific version to install.
 pip3 install taospy==2.3.0
 ```
 
-</TabItem
+</TabItem>
 <TabItem label="Install from GitHub" value="github">
 
 ```
@@ -119,7 +119,7 @@ Requirement already satisfied: taospy in c:\users\username\appdata\local\program
 
 Before establishing a connection with the connector, we recommend testing the connectivity of the local TDengine CLI to the TDengine cluster.
 
-<Tabs
+<Tabs>
 <TabItem value="native" label="native connection">
 
 Ensure that the TDengine cluster is up and that the FQDN of the machines in the cluster (the FQDN defaults to hostname if you are starting a standalone version) can be resolved locally, by testing with the ping command.
@@ -136,7 +136,7 @@ taos -h <FQDN> -p <PORT>
 
 The FQDN above can be the FQDN of any dnode in the cluster, and the PORT is the serverPort corresponding to this dnode.
 
-</TabItem
+</TabItem>
 <TabItem value="rest" label="REST connection" groupId="connect">
 
 For REST connections and making sure the cluster is up, make sure the taosAdapter component is up. This can be tested using the following `curl ` command.
@@ -165,7 +165,7 @@ If the test is successful, it will output the server version information, e.g.
 
 The following example code assumes that TDengine is installed locally and that the default configuration is used for both FQDN and serverPort.
 
-<Tabs
+<Tabs>
 <TabItem value="native" label="native connection" groupId="connect">
 
 ```python
@@ -255,7 +255,7 @@ The TaosCursor class uses native connections for write and query operations. In 
 
 :::
 
-</TabItem
+</TabItem>
 <TabItem value="rest" label="REST connection">
 
 ##### Use of TaosRestCursor class
@@ -279,8 +279,6 @@ The `RestClient` class is a direct wrapper for the [REST API](/reference/rest-ap
 
 For a more detailed description of the `sql()` method, please refer to [RestClient](https://docs.taosdata.com/api/taospy/taosrest/restclient.html).
 
-
-
 </TabItem>
 </Tabs>
 
@@ -293,7 +291,7 @@ For a more detailed description of the `sql()` method, please refer to [RestClie
 {{#include docs-examples/python/conn_native_pandas.py}}
 ```
 
-</TabItem
+</TabItem>
 <TabItem value="rest" label="REST connection">
 
 ```python
