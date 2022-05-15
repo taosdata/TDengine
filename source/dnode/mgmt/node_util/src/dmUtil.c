@@ -108,6 +108,21 @@ const char *dmProcStr(EDndProcType etype) {
   }
 }
 
+const char *dmFuncStr(EProcFuncType etype) {
+  switch (etype) {
+    case DND_FUNC_REQ:
+      return "req";
+    case DND_FUNC_RSP:
+      return "rsp";
+    case DND_FUNC_REGIST:
+      return "regist";
+    case DND_FUNC_RELEASE:
+      return "release";
+    default:
+      return "UNKNOWN";
+  }
+}
+
 void *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId) {
   SMgmtHandle handle = {
       .msgType = msgType,

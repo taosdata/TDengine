@@ -131,7 +131,7 @@ static int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, const char *pHe
     return -1;
   }
 
-  if (handle != 0 && ftype == PROC_FUNC_REQ) {
+  if (handle != 0 && ftype == DND_FUNC_REQ) {
     if (taosHashPut(proc->hash, &handle, sizeof(int64_t), &handleRef, sizeof(int64_t)) != 0) {
       taosThreadMutexUnlock(&queue->mutex);
       return -1;
@@ -185,8 +185,8 @@ static int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, const char *pHe
   taosThreadMutexUnlock(&queue->mutex);
   tsem_post(&queue->sem);
 
-  dTrace("node:%s, push msg:%p:%d cont:%p%d handle:%p, ftype:%d pos:%d remain:%d", queue->name, pHead, headLen, pBody,
-         bodyLen, (void *)handle, ftype, pos, queue->items);
+  dTrace("node:%s, push msg:%p %d cont:%p %d handle:%p, ftype:%s pos:%d remain:%d", queue->name, pHead, headLen, pBody,
+         bodyLen, (void *)handle, dmFuncStr(ftype), pos, queue->items);
   return 0;
 }
 
@@ -269,8 +269,8 @@ static int32_t dmPopFromProcQueue(SProcQueue *queue, void **ppHead, int16_t *pHe
   *pBodyLen = rawBodyLen;
   *pFuncType = (EProcFuncType)ftype;
 
-  dTrace("proc:%s, pop msg at pos:%d ftype:%d remain:%d, head:%d %p body:%d %p", queue->name, pos, ftype, queue->items,
-         rawHeadLen, pHead, rawBodyLen, pBody);
+  dTrace("node:%s, pop msg:%p %d body:%p %d, ftype:%s pos:%d remain:%d", queue->name, pHead, rawHeadLen, pBody,
+         rawBodyLen, dmFuncStr(ftype), pos, queue->items);
   return 1;
 }
 
@@ -312,7 +312,7 @@ static void *dmConsumChildQueue(void *param) {
   int32_t       bodyLen = 0;
   int32_t       numOfMsgs = 0;
   int32_t       code = 0;
-  EProcFuncType ftype = PROC_FUNC_REQ;
+  EProcFuncType ftype = DND_FUNC_REQ;
   SNodeMsg     *pReq = NULL;
 
   dDebug("node:%s, start to consume from cqueue", proc->name);
@@ -329,7 +329,7 @@ static void *dmConsumChildQueue(void *param) {
       continue;
     }
 
-    if (ftype != PROC_FUNC_REQ) {
+    if (ftype != DND_FUNC_REQ) {
       dFatal("node:%s, msg:%p from cqueue, invalid ftype:%d", proc->name, pHead, ftype);
       taosFreeQitem(pHead);
       rpcFreeCont(pBody);
@@ -347,7 +347,7 @@ static void *dmConsumChildQueue(void *param) {
             .pCont = pReq->pRsp,
             .contLen = pReq->rspLen,
         };
-        dmPutToProcPQueue(proc, &rspMsg, sizeof(SRpcMsg), rspMsg.pCont, rspMsg.contLen, PROC_FUNC_RSP);
+        dmPutToProcPQueue(proc, &rspMsg, sizeof(SRpcMsg), rspMsg.pCont, rspMsg.contLen, DND_FUNC_RSP);
         taosFreeQitem(pHead);
         rpcFreeCont(pBody);
         rpcFreeCont(rspMsg.pCont);
@@ -368,7 +368,7 @@ static void *dmConsumParentQueue(void *param) {
   int32_t       bodyLen = 0;
   int32_t       numOfMsgs = 0;
   int32_t       code = 0;
-  EProcFuncType ftype = PROC_FUNC_REQ;
+  EProcFuncType ftype = DND_FUNC_REQ;
   SRpcMsg      *pRsp = NULL;
 
   dDebug("node:%s, start to consume from pqueue", proc->name);
@@ -385,18 +385,18 @@ static void *dmConsumParentQueue(void *param) {
       continue;
     }
 
-    if (ftype == PROC_FUNC_RSP) {
+    if (ftype == DND_FUNC_RSP) {
       pRsp = pHead;
       pRsp->pCont = pBody;
       dTrace("node:%s, rsp msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       dmRemoveProcRpcHandle(proc, pRsp->handle);
       rpcSendResponse(pRsp);
-    } else if (ftype == PROC_FUNC_REGIST) {
+    } else if (ftype == DND_FUNC_REGIST) {
       pRsp = pHead;
       dTrace("node:%s, regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       rpcRegisterBrokenLinkArg(pRsp);
       rpcFreeCont(pBody);
-    } else if (ftype == PROC_FUNC_RELEASE) {
+    } else if (ftype == DND_FUNC_RELEASE) {
       pRsp = pHead;
       dTrace("node:%s, release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       dmRemoveProcRpcHandle(proc, pRsp->handle);

@@ -38,13 +38,6 @@ typedef struct SMgmtWrapper SMgmtWrapper;
 #define InChildProc(ptype)      (ptype & CHILD_PROC)
 #define InParentProc(ptype)     (ptype & PARENT_PROC)
 
-typedef enum {
-  PROC_FUNC_REQ = 1,
-  PROC_FUNC_RSP = 2,
-  PROC_FUNC_REGIST = 3,
-  PROC_FUNC_RELEASE = 4,
-} EProcFuncType;
-
 typedef struct {
   int32_t       head;
   int32_t       tail;

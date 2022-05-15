@@ -135,7 +135,6 @@ static void dmClearVars(SDnode *pDnode) {
   taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
   taosMemoryFree(pDnode);
-  dDebug("dnode memory is cleared, data:%p", pDnode);
 }
 
 SDnode *dmCreate(const SDnodeOpt *pOption) {

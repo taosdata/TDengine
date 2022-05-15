@@ -120,20 +120,20 @@ TEST_F(UtilTesProc, 01_Push_Pop_Child) {
   SProc *cproc = dmInitProc(&cfg);
   ASSERT_NE(cproc, nullptr);
 
-  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, PROC_FUNC_RSP), 0);
-  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, PROC_FUNC_REGIST), 0);
-  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, PROC_FUNC_RELEASE), 0);
-  ASSERT_NE(dmPutToProcCQueue(cproc, NULL, 12, body, 0, 0, 0, PROC_FUNC_REQ), 0);
-  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, PROC_FUNC_REQ), 0);
-  ASSERT_NE(dmPutToProcCQueue(cproc, &head, shm.size, body, 0, 0, 0, PROC_FUNC_REQ), 0);
-  ASSERT_NE(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, shm.size, 0, 0, PROC_FUNC_REQ), 0);
+  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, DND_FUNC_RSP), 0);
+  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, DND_FUNC_REGIST), 0);
+  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, DND_FUNC_RELEASE), 0);
+  ASSERT_NE(dmPutToProcCQueue(cproc, NULL, 12, body, 0, 0, 0, DND_FUNC_REQ), 0);
+  ASSERT_NE(dmPutToProcCQueue(cproc, &head, 0, body, 0, 0, 0, DND_FUNC_REQ), 0);
+  ASSERT_NE(dmPutToProcCQueue(cproc, &head, shm.size, body, 0, 0, 0, DND_FUNC_REQ), 0);
+  ASSERT_NE(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, shm.size, 0, 0, DND_FUNC_REQ), 0);
 
   for (int32_t j = 0; j < 1000; j++) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
-      ASSERT_EQ(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, i, 0, 0, PROC_FUNC_REQ), 0);
+      ASSERT_EQ(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, i, 0, 0, DND_FUNC_REQ), 0);
     }
-    ASSERT_NE(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, i, 0, 0, PROC_FUNC_REQ), 0);
+    ASSERT_NE(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, i, 0, 0, DND_FUNC_REQ), 0);
 
     cfg.isChild = true;
     cfg.name = "1235_p";
@@ -186,7 +186,7 @@ TEST_F(UtilTesProc, 02_Push_Pop_Parent) {
   for (int32_t j = 0; j < 1000; j++) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
-      dmPutToProcPQueue(pproc, &head, sizeof(STestMsg), body, i, PROC_FUNC_REQ);
+      dmPutToProcPQueue(pproc, &head, sizeof(STestMsg), body, i, DND_FUNC_REQ);
     }
 
     dmRunProc(cproc);
@@ -236,7 +236,7 @@ TEST_F(UtilTesProc, 03_Handle) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
       head.handle = (void *)((int64_t)i);
-      ASSERT_EQ(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, i, (void *)((int64_t)i), i, PROC_FUNC_REQ), 0);
+      ASSERT_EQ(dmPutToProcCQueue(cproc, &head, sizeof(STestMsg), body, i, (void *)((int64_t)i), i, DND_FUNC_REQ), 0);
     }
 
     cfg.isChild = true;

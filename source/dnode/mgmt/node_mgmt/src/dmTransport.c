@@ -138,9 +138,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (InParentProc(pWrapper->proc.ptype)) {
-    dTrace("msg:%p, put into cqueue, handle:%p ref:%" PRId64, pMsg, pRpc->handle, pRpc->refId);
+    dTrace("msg:%p, put into cqueue, handle:%p refId:%" PRId64, pMsg, pRpc->handle, pRpc->refId);
     code = dmPutToProcCQueue(&pWrapper->proc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
-                             (isReq && (pRpc->code == 0)) ? pRpc->handle : NULL, pRpc->refId, PROC_FUNC_REQ);
+                             (isReq && (pRpc->code == 0)) ? pRpc->handle : NULL, pRpc->refId, DND_FUNC_REQ);
   } else {
     code = dmProcessNodeMsg(pWrapper, pMsg);
   }
@@ -277,7 +277,7 @@ static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
   if (!InChildProc(pWrapper->proc.ptype)) {
     dmSendRpcRsp(pWrapper->pDnode, pRsp);
   } else {
-    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, DND_FUNC_RSP);
   }
 }
 
@@ -295,7 +295,7 @@ static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp
     rsp.refId = pRsp->refId;
     rpcSendResponse(&rsp);
   } else {
-    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, PROC_FUNC_RSP);
+    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, DND_FUNC_RSP);
   }
 }
 
@@ -303,7 +303,7 @@ static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg
   if (!InChildProc(pWrapper->proc.ptype)) {
     rpcRegisterBrokenLinkArg(pMsg);
   } else {
-    dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, PROC_FUNC_REGIST);
+    dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, DND_FUNC_REGIST);
   }
 }
 
@@ -312,7 +312,7 @@ static inline void dmReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t 
     rpcReleaseHandle(handle, type);
   } else {
     SRpcMsg msg = {.handle = handle, .code = type};
-    dmPutToProcPQueue(&pWrapper->proc, &msg, sizeof(SRpcMsg), NULL, 0, PROC_FUNC_RELEASE);
+    dmPutToProcPQueue(&pWrapper->proc, &msg, sizeof(SRpcMsg), NULL, 0, DND_FUNC_RELEASE);
   }
 }
 

@@ -80,6 +80,13 @@ typedef enum {
   DND_PROC_TEST,
 } EDndProcType;
 
+typedef enum {
+  DND_FUNC_REQ = 1,
+  DND_FUNC_RSP = 2,
+  DND_FUNC_REGIST = 3,
+  DND_FUNC_RELEASE = 4,
+} EProcFuncType;
+
 typedef int32_t (*ProcessCreateNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
 typedef bool (*IsNodeRequiredFp)(struct SDnode *pDnode, EDndNodeType ntype);
@@ -157,6 +164,7 @@ const char *dmNodeProcName(EDndNodeType ntype);
 const char *dmNodeName(EDndNodeType ntype);
 const char *dmEventStr(EDndEvent etype);
 const char *dmProcStr(EDndProcType ptype);
+const char *dmFuncStr(EProcFuncType etype);
 void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId);
 void        dmGetMonitorSystemInfo(SMonSysInfo *pInfo);
 
