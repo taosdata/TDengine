@@ -22,15 +22,15 @@ CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_nam
 
 :::
 
-### Create Table Using STable As Template
+### Create Subtable Using STable As Template
 
 ```
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
 ```
 
-The above command creates a sub table using the specified super table as template and the specified tab values.
+The above command creates a subtable using the specified super table as template and the specified tab values.
 
-### Create Table Using STable As Template With A Part of Tags
+### Create Subtable Using STable As Template With A Part of Tags
 
 ```
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
