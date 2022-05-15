@@ -65,7 +65,7 @@ impl Stream for BlockStream {
         // todo(3.0): remove these line to use taos_query_a in async/await impl.
         if crate::client_info().starts_with("3") {
             let block = if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
-                log::info!("fetch block: {num_of_rows}");
+                log::trace!("fetch block: {num_of_rows}");
 
                 self.append_num_of_rows(num_of_rows);
 

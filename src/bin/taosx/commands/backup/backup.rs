@@ -195,7 +195,7 @@ async fn backup_stable_tags(
         .unwrap();
     for tbname in table_list {
         let tag_buffer = fetch_stable_tag_buffer(database.clone(), tbname.clone()).await;
-        let res = taos
+        let mut res = taos
             .query(format!("select tbname{} from {}", tag_buffer, tbname).as_str())
             .await
             .unwrap();
@@ -216,7 +216,7 @@ async fn backup_data(
     let taos = TaosOptions::new().database(database).build().unwrap();
     let mut serialize = Serialize::new(file, Compression::SNAPPY, schema);
     for tbname in tbname_list {
-        let res = taos
+        let mut res = taos
             .query(format!("select * from {}", tbname).as_str())
             .await
             .unwrap();

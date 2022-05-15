@@ -39,7 +39,7 @@ impl AsyncFetchable for ResultSet {
     }
 
     #[inline]
-    fn block_stream(&self) -> Self::BlockStream {
+    fn block_stream(&mut self) -> Self::BlockStream {
         crate::block::BlockStream::from_raw(self.raw.raw(), self.summary.clone())
     }
 }
@@ -102,7 +102,7 @@ mod tests {
             .await?;
         taos.exec("insert into tb1 values(now, 1, '', 1, 'abc')")
             .await?;
-        let rs = <Taos as AsyncQueryable>::query(taos, "select * from tb1").await?;
+        let mut rs = <Taos as AsyncQueryable>::query(taos, "select * from tb1").await?;
 
         assert!(rs.fields().len() == 5);
         #[derive(Debug, serde::Deserialize)]

@@ -62,12 +62,12 @@ pub struct Database {
 #[derive(Debug, Deserialize, Serialize, Clone)]
 pub struct TaosDescribe {
     pub name: String,
-    pub describe: Vec<TaosColumnMeta>,
+    pub describe: Describe,
 }
 
 pub type TaosColumnMeta = ColumnMeta;
 impl TaosDescribe {
-    pub fn new(name: String, describe: Vec<ColumnMeta>) -> Self {
+    pub fn new(name: String, describe: Describe) -> Self {
         Self { name, describe }
     }
 }

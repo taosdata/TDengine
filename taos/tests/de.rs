@@ -192,7 +192,7 @@ async fn de_all_option(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     Ok(())
 }
 
-#[taos::test]
+#[taos::test(log_level = "trace")]
 async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     log::info!("create table");
     taos.exec_sync(
@@ -214,7 +214,7 @@ async fn de_all_option_with_json_tag_struct(taos: &Taos, _database: &str) -> any
     let mut res = taos.query("select * from stb1").await?;
     // block.rows_iter()
     let record: Vec<RecordOptionWithJsonTag> = res.deserialize_stream().try_collect().await?;
-    log::debug!("fetched record {:?}", record);
+    log::debug!("fetched records {:#?}", record);
     Ok(())
 }
 

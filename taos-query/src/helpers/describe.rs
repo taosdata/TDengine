@@ -1,4 +1,4 @@
-use std::{fmt, str::FromStr};
+use std::{fmt, ops::Deref, str::FromStr};
 
 use serde::{
     de::{self, MapAccess, SeqAccess, Visitor},
@@ -14,11 +14,36 @@ pub struct Described {
     pub ty: Ty,
     pub length: usize,
 }
+
+impl Described {
+    /// Represent the data type in sql.
+    ///
+    /// For example: "INT", "VARCHAR(100)".
+    pub fn sql_repr(&self) -> String {
+        let ty = self.ty;
+        if ty.is_var_type() {
+            format!("{} {}({})", self.field, ty, self.length)
+        } else {
+            format!("{} {}", self.field, self.ty)
+        }
+    }
+}
 #[derive(Debug, Serialize, PartialEq, Eq, Clone)]
 #[serde(tag = "note")]
 pub enum ColumnMeta {
     Column(Described),
     Tag(Described),
+}
+
+impl Deref for ColumnMeta {
+    type Target = Described;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            ColumnMeta::Column(v) => v,
+            ColumnMeta::Tag(v) => v,
+        }
+    }
 }
 
 unsafe impl Send for ColumnMeta {}
@@ -195,7 +220,7 @@ fn serde_meta() {
     let d: ColumnMeta = serde_json::from_str(&a).unwrap();
 
     assert_eq!(meta, d);
-} 
+}
 //erive(Debug, Clone, Deserialize)]
 // pub struct ColumnMeta {
 //     pub name: String,
