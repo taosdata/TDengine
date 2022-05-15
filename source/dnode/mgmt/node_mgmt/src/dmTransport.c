@@ -77,6 +77,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
   SMgmtWrapper *pWrapper = NULL;
 
+  dTrace("msg:%s is received, handle:%p app:%p cont:%p len:%d code:0x%04x refId:%" PRId64, TMSG_INFO(msgType),
+         pRpc->handle, pRpc->ahandle, pRpc->pCont, pRpc->contLen, pRpc->code, pRpc->refId);
+
   if (msgType == TDMT_DND_NET_TEST) {
     dmProcessNetTestReq(pDnode, pRpc);
     code = 0;
@@ -110,18 +113,24 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   } else {
     pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
     if (pHandle->needCheckVgId) {
-      SMsgHead *pHead = pRpc->pCont;
-      int32_t   vgId = ntohl(pHead->vgId);
-      if (vgId == QNODE_HANDLE) {
-        pWrapper = &pDnode->wrappers[QNODE];
-      } else if (vgId == MNODE_HANDLE) {
-        pWrapper = &pDnode->wrappers[MNODE];
+      if (pRpc->contLen > 0) {
+        SMsgHead *pHead = pRpc->pCont;
+        int32_t   vgId = ntohl(pHead->vgId);
+        if (vgId == QNODE_HANDLE) {
+          pWrapper = &pDnode->wrappers[QNODE];
+        } else if (vgId == MNODE_HANDLE) {
+          pWrapper = &pDnode->wrappers[MNODE];
+        } else {
+          terrno = TSDB_CODE_INVALID_MSG;
+          goto _OVER;
+        }
       } else {
+        terrno = TSDB_CODE_INVALID_MSG_LEN;
+        goto _OVER;
       }
     }
   }
 
-  dTrace("msg:%s is received, handle:%p app:%p", TMSG_INFO(msgType), pRpc->handle, pRpc->ahandle);
   if (dmMarkWrapper(pWrapper) != 0) {
     goto _OVER;
   } else {
@@ -138,7 +147,6 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (InParentProc(pWrapper->proc.ptype)) {
-    dTrace("msg:%p, put into cqueue, handle:%p refId:%" PRId64, pMsg, pRpc->handle, pRpc->refId);
     code = dmPutToProcCQueue(&pWrapper->proc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
                              (isReq && (pRpc->code == 0)) ? pRpc->handle : NULL, pRpc->refId, DND_FUNC_REQ);
   } else {

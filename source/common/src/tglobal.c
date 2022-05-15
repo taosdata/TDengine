@@ -38,7 +38,7 @@ bool    tsEnableSlaveQuery = true;
 bool    tsPrintAuth = false;
 
 // multi process
-bool    tsMultiProcess = false;
+int32_t tsMultiProcess = 0;
 int32_t tsMnodeShmSize = TSDB_MAX_WAL_SIZE * 2 + 128;
 int32_t tsVnodeShmSize = TSDB_MAX_WAL_SIZE * 10 + 128;
 int32_t tsQnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 128;
@@ -370,7 +370,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
 
-  if (cfgAddBool(pCfg, "multiProcess", tsMultiProcess, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "multiProcess", tsMultiProcess, 0, 2, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "mnodeShmSize", tsMnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "vnodeShmSize", tsVnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "qnodeShmSize", tsQnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
@@ -552,7 +552,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
   tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
-  tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->bval;
+  tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->i32;
 
   tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
   tsMnodeShmSize = cfgGetItem(pCfg, "mnodeShmSize")->i32;

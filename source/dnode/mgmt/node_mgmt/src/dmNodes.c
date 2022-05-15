@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static int32_t dmInitParentProc(SMgmtWrapper *pWrapper) {
+static int32_t dmCreateShm(SMgmtWrapper *pWrapper) {
   int32_t shmsize = tsMnodeShmSize;
   if (pWrapper->ntype == VNODE) {
     shmsize = tsVnodeShmSize;
@@ -38,16 +38,10 @@ static int32_t dmInitParentProc(SMgmtWrapper *pWrapper) {
     return -1;
   }
   dInfo("node:%s, shm:%d is created, size:%d", pWrapper->name, pWrapper->proc.shm.id, shmsize);
-
-  if (dmInitProc(pWrapper) != 0) {
-    dError("node:%s, failed to create proc since %s", pWrapper->name, terrstr());
-    return -1;
-  }
-
   return 0;
 }
 
-static int32_t dmNewNodeProc(SMgmtWrapper *pWrapper, EDndNodeType ntype) {
+static int32_t dmNewProc(SMgmtWrapper *pWrapper, EDndNodeType ntype) {
   char  tstr[8] = {0};
   char *args[6] = {0};
   snprintf(tstr, sizeof(tstr), "%d", ntype);
@@ -66,21 +60,6 @@ static int32_t dmNewNodeProc(SMgmtWrapper *pWrapper, EDndNodeType ntype) {
 
   pWrapper->proc.pid = pid;
   dInfo("node:%s, continue running in new process:%d", pWrapper->name, pid);
-  return 0;
-}
-
-static int32_t dmRunParentProc(SMgmtWrapper *pWrapper) {
-  if (pWrapper->pDnode->rtype == NODE_END) {
-    dInfo("node:%s, should be started manually in child process", pWrapper->name);
-  } else {
-    if (dmNewNodeProc(pWrapper, pWrapper->ntype) != 0) {
-      return -1;
-    }
-  }
-  if (dmRunProc(&pWrapper->proc) != 0) {
-    dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
-    return -1;
-  }
   return 0;
 }
 
@@ -108,6 +87,35 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     pWrapper->deployed = true;
   }
 
+  if (InParentProc(pWrapper->proc.ptype)) {
+    dDebug("node:%s, start to open", pWrapper->name);
+    if (dmCreateShm(pWrapper) != 0) {
+      return -1;
+    }
+    if (dmWriteShmFile(pWrapper->path, pWrapper->name, &pWrapper->proc.shm) != 0) {
+      return -1;
+    }
+
+    if (!OnlyInTestProc(pWrapper->proc.ptype)) {
+      if (dmInitProc(pWrapper) != 0) {
+        dError("node:%s, failed to init proc since %s", pWrapper->name, terrstr());
+        return -1;
+      }
+      if (pWrapper->pDnode->rtype == NODE_END) {
+        dInfo("node:%s, should be started manually in child process", pWrapper->name);
+      } else {
+        if (dmNewProc(pWrapper, pWrapper->ntype) != 0) {
+          return -1;
+        }
+      }
+      if (dmRunProc(&pWrapper->proc) != 0) {
+        dError("node:%s, failed to run proc since %s", pWrapper->name, terrstr());
+        return -1;
+      }
+    }
+    dDebug("node:%s, has been opened in parent process", pWrapper->name);
+  }
+
   if (InChildProc(pWrapper->proc.ptype)) {
     dDebug("node:%s, start to open", pWrapper->name);
     if ((*pWrapper->func.openFp)(&input, &output) != 0) {
@@ -122,20 +130,6 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     }
     dDebug("node:%s, has been opened in child process", pWrapper->name);
     pWrapper->deployed = true;
-  }
-
-  if (InParentProc(pWrapper->proc.ptype)) {
-    dDebug("node:%s, start to open", pWrapper->name);
-    if (dmInitParentProc(pWrapper) != 0) {
-      return -1;
-    }
-    if (dmWriteShmFile(pWrapper->path, pWrapper->name, &pWrapper->proc.shm) != 0) {
-      return -1;
-    }
-    if (dmRunParentProc(pWrapper) != 0) {
-      return -1;
-    }
-    dDebug("node:%s, has been opened in parent process", pWrapper->name);
   }
 
   if (output.pMgmt != NULL) {
@@ -246,7 +240,7 @@ static void dmCloseNodes(SDnode *pDnode) {
 }
 
 static void dmWatchNodes(SDnode *pDnode) {
-  if (!InParentProc(pDnode->ptype)) return;
+  if (!OnlyInParentProc(pDnode->ptype)) return;
   if (pDnode->rtype == NODE_END) return;
 
   taosThreadMutexLock(&pDnode->mutex);
@@ -255,12 +249,12 @@ static void dmWatchNodes(SDnode *pDnode) {
     SProc        *proc = &pWrapper->proc;
 
     if (!pWrapper->required) continue;
-    if (!InParentProc(proc->ptype)) continue;
+    if (!OnlyInParentProc(proc->ptype)) continue;
 
     if (proc->pid <= 0 || !taosProcExist(proc->pid)) {
       dWarn("node:%s, process:%d is killed and needs to restart", pWrapper->name, proc->pid);
       dmCloseProcRpcHandles(&pWrapper->proc);
-      dmNewNodeProc(pWrapper, ntype);
+      dmNewProc(pWrapper, ntype);
     }
   }
   taosThreadMutexUnlock(&pDnode->mutex);

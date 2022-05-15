@@ -45,7 +45,7 @@ extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 
 // multi-process
-extern bool    tsMultiProcess;
+extern int32_t tsMultiProcess;
 extern int32_t tsMnodeShmSize;
 extern int32_t tsVnodeShmSize;
 extern int32_t tsQnodeShmSize;

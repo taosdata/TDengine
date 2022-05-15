@@ -67,7 +67,7 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
     return NULL;
   }
 
-  if (InParentProc(proc->ptype) && !InChildProc(proc->ptype)) {
+  if (InParentProc(proc->ptype)) {
     if (dmInitProcMutex(queue) != 0) {
       return NULL;
     }
@@ -185,8 +185,8 @@ static int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, const char *pHe
   taosThreadMutexUnlock(&queue->mutex);
   tsem_post(&queue->sem);
 
-  dTrace("node:%s, push msg:%p %d cont:%p %d handle:%p, ftype:%s pos:%d remain:%d", queue->name, pHead, headLen, pBody,
-         bodyLen, (void *)handle, dmFuncStr(ftype), pos, queue->items);
+  dTrace("node:%s, push %s msg:%p %d cont:%p %d, pos:%d remain:%d", queue->name, dmFuncStr(ftype), pHead, headLen,
+         pBody, bodyLen, pos, queue->items);
   return 0;
 }
 
@@ -269,13 +269,15 @@ static int32_t dmPopFromProcQueue(SProcQueue *queue, void **ppHead, int16_t *pHe
   *pBodyLen = rawBodyLen;
   *pFuncType = (EProcFuncType)ftype;
 
-  dTrace("node:%s, pop msg:%p %d body:%p %d, ftype:%s pos:%d remain:%d", queue->name, pHead, rawHeadLen, pBody,
-         rawBodyLen, dmFuncStr(ftype), pos, queue->items);
+  dTrace("node:%s, pop %s msg:%p %d body:%p %d, pos:%d remain:%d", queue->name, dmFuncStr(ftype), pHead, rawHeadLen,
+         pBody, rawBodyLen, pos, queue->items);
   return 1;
 }
 
 int32_t dmInitProc(struct SMgmtWrapper *pWrapper) {
   SProc *proc = &pWrapper->proc;
+  if (proc->name != NULL) return 0;
+
   proc->wrapper = pWrapper;
   proc->name = pWrapper->name;
 
@@ -319,7 +321,7 @@ static void *dmConsumChildQueue(void *param) {
   do {
     numOfMsgs = dmPopFromProcQueue(queue, &pHead, &headLen, &pBody, &bodyLen, &ftype);
     if (numOfMsgs == 0) {
-      dDebug("node:%s, get no msg from cueue and exit thread", proc->name);
+      dDebug("node:%s, get no msg from cqueue and exit thread", proc->name);
       break;
     }
 
@@ -330,11 +332,10 @@ static void *dmConsumChildQueue(void *param) {
     }
 
     if (ftype != DND_FUNC_REQ) {
-      dFatal("node:%s, msg:%p from cqueue, invalid ftype:%d", proc->name, pHead, ftype);
+      dFatal("node:%s, get msg:%p from cqueue, invalid ftype:%d", proc->name, pHead, ftype);
       taosFreeQitem(pHead);
       rpcFreeCont(pBody);
     } else {
-      dTrace("node:%s, msg:%p from cueue", proc->name, pHead);
       pReq = pHead;
       pReq->rpcMsg.pCont = pBody;
       code = dmProcessNodeMsg(pWrapper, pReq);
@@ -388,22 +389,22 @@ static void *dmConsumParentQueue(void *param) {
     if (ftype == DND_FUNC_RSP) {
       pRsp = pHead;
       pRsp->pCont = pBody;
-      dTrace("node:%s, rsp msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
+      dTrace("node:%s, get rsp msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       dmRemoveProcRpcHandle(proc, pRsp->handle);
       rpcSendResponse(pRsp);
     } else if (ftype == DND_FUNC_REGIST) {
       pRsp = pHead;
-      dTrace("node:%s, regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
+      dTrace("node:%s, get regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       rpcRegisterBrokenLinkArg(pRsp);
       rpcFreeCont(pBody);
     } else if (ftype == DND_FUNC_RELEASE) {
       pRsp = pHead;
-      dTrace("node:%s, release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
+      dTrace("node:%s, get release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
       dmRemoveProcRpcHandle(proc, pRsp->handle);
       rpcReleaseHandle(pRsp->handle, (int8_t)pRsp->code);
       rpcFreeCont(pBody);
     } else {
-      dFatal("node:%s, msg:%p get from pqueue, invalid ftype:%d", proc->name, pHead, ftype);
+      dFatal("node:%s, get msg:%p from pqueue, invalid ftype:%d", proc->name, pHead, ftype);
       rpcFreeCont(pBody);
     }
 
@@ -441,16 +442,17 @@ int32_t dmRunProc(SProc *proc) {
 }
 
 void dmStopProc(SProc *proc) {
+  proc->stop = true;
   if (taosCheckPthreadValid(proc->pthread)) {
     dDebug("node:%s, start to join pthread:%" PRId64, proc->name, proc->pthread);
-    tsem_post(&proc->cqueue->sem);
+    tsem_post(&proc->pqueue->sem);
     taosThreadJoin(proc->pthread, NULL);
     taosThreadClear(&proc->pthread);
   }
 
   if (taosCheckPthreadValid(proc->cthread)) {
     dDebug("node:%s, start to join cthread:%" PRId64, proc->name, proc->cthread);
-    tsem_post(&proc->pqueue->sem);
+    tsem_post(&proc->cqueue->sem);
     taosThreadJoin(proc->cthread, NULL);
     taosThreadClear(&proc->cthread);
   }
@@ -458,6 +460,7 @@ void dmStopProc(SProc *proc) {
 
 void dmCleanupProc(struct SMgmtWrapper *pWrapper) {
   SProc *proc = &pWrapper->proc;
+  if (proc->name == NULL) return;
 
   dDebug("node:%s, start to clean up proc", pWrapper->name);
   dmStopProc(proc);
