@@ -40,6 +40,7 @@ enum {
   TASK_INPUT_STATUS__BLOCKED,
   TASK_INPUT_STATUS__RECOVER,
   TASK_INPUT_STATUS__STOP,
+  TASK_INPUT_STATUS__FAILED,
 };
 
 enum {
@@ -234,7 +235,9 @@ struct SStreamTask {
   int8_t outputStatus;
 
   STaosQueue* inputQ;
+  STaosQall*  inputQAll;
   STaosQueue* outputQ;
+  STaosQall*  outputQAll;
 
   // application storage
   void* ahandle;
@@ -282,7 +285,7 @@ int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
 
 int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, int32_t inputType, int32_t workId);
 
-int32_t streamTaskExecNew(SStreamTask* pTask);
+int32_t streamTaskRun(SStreamTask* pTask);
 
 int32_t streamTaskHandleInput(SStreamTask* pTask, void* data);
 
