@@ -1,27 +1,27 @@
 ---
 sidebar_label: StatsD
-title: StatsD 直接写入
+title: StatsD writing
 ---
 
 import StatsD from "../14-reference/_statsd.mdx"
 
-StatsD 是汇总和总结应用指标的一个简单的守护进程，近些年来发展迅速，已经变成了一个用于收集应用性能指标的统一的协议。
+StatsD is a simple daemon for aggregating and summarizing application metrics, which has evolved rapidly in recent years into a unified protocol for collecting application performance metrics.
 
-只需要在 StatsD 的配置文件中填写运行 taosAdapter 的服务器域名（或 IP 地址）和相应端口即可将 StatsD 的数据写入到 TDengine 中，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
+You can write StatsD data to TDengine by simply filling in the configuration file of StatsD with the domain name (or IP address) of the server running taosAdapter and the corresponding port. It can take full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
-## 前置条件
+## Prerequisites
 
-要将 StatsD 数据写入 TDengine 需要以下几方面的准备工作。
-- TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
-- StatsD 已经安装。安装 StatsD 请参考[官方文档](https://github.com/statsd/statsd)
+To write StatsD data to TDengine requires the following preparations.
+- The TDengine cluster has been deployed and is working properly
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- StatsD has been installed. To install StatsD, please refer to [official documentation](https://github.com/statsd/statsd)
 
-## 配置步骤
+## Configuration steps
 <StatsD />
 
-## 验证方法
+## Verification method
 
-运行 StatsD：
+Start StatsD:
 
 ```
 $ node stats.js config.js &
@@ -30,13 +30,13 @@ $ 20 Apr 09:54:41 - [8546] reading config file: exampleConfig.js
 20 Apr 09:54:41 - server is up INFO
 ```
 
-使用 nc 写入测试数据：
+Using the utility software `nc` to write data for test:
 
 ```
 $ echo "foo:1|c" | nc -u -w0 127.0.0.1 8125
 ```
 
-使用 TDengine CLI 验证从 StatsD 向 TDengine 写入数据并能够正确读出：
+Use the TDengine CLI to verify that data is written to TDengine from StatsD and can read out correctly.
 
 ```
 Welcome to the TDengine shell from Linux, Client Version:2.4.0.0

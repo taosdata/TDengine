@@ -1,33 +1,33 @@
 ---
 sidebar_label: Telegraf
-title: Telegraf 写入
+title: Telegraf writing
 ---
 
 import Telegraf from "../14-reference/_telegraf.mdx"
 
-Telegraf 是一款十分流行的指标采集开源软件。在数据采集和平台监控系统中，Telegraf 可以采集多种组件的运行信息，而不需要自己手写脚本定时采集，降低数据获取的难度。
+Telegraf is a viral metrics collection open-source software. In the data collection and platform monitoring system, Telegraf can collect the operation information of various components without writing their scripts to collect regularly, reducing the difficulty of data acquisition.
 
-只需要将 Telegraf 的输出配置增加指向 taosAdapter 对应的 url 并修改若干配置项即可将 Telegraf 的数据写入到 TDengine 中。将 Telegraf 的数据存在到 TDengine 中可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
+Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
-## 前置条件
+## Prerequisites
 
-要将 Telegraf 数据写入 TDengine 需要以下几方面的准备工作。
-- TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
-- Telegraf 已经安装。安装 Telegraf 请参考[官方文档](https://docs.influxdata.com/telegraf/v1.22/install/)
+To write Telegraf data to TDengine requires the following preparations.
+- The TDengine cluster is deployed and functioning properly
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- Telegraf has been installed. Please refer to the [official documentation](https://docs.influxdata.com/telegraf/v1.22/install/) for Telegraf installation.
 
-## 配置步骤
+## Configuration steps
 <Telegraf />
 
-## 验证方法
+## Verification method
 
-重启 Telegraf 服务：
+Restart Telegraf service:
 
 ```
 sudo systemctl restart telegraf
 ```
 
-使用 TDengine CLI 验证从 Telegraf 向 TDengine 写入数据并能够正确读出：
+Use TDengine CLI to verify Telegraf correctly writing data to TDengine and read out:
 
 ```
 taos> show databases;
