@@ -40,9 +40,9 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 
 - **零管理**：安装、集群几秒搞定，无任何依赖，不用分库分表，系统运行状态监测能与 Grafana 或其他运维工具无缝集成。
 
-- **零学习成本**：采用 SQL 查询语言，支持 Python, Java, C/C++, Go, Rust, Node.js 等多种编程语言,与 MySQL 相似，零学习成本。
+- **零学习成本**：采用 SQL 查询语言，支持 C/C++、Python、Java、Go、Rust、Node.js、C#、Lua（社区贡献）、PHP（社区贡献） 等多种编程语言,与 MySQL 相似，零学习成本。
 
-- **无缝集成**：不用一行代码，即可与 Telegraf, Grafana, EMQX, Prometheus, StatsD, collectd, Matlab, R 等第三方工具无缝集成。
+- **无缝集成**：不用一行代码，即可与 Telegraf、Grafana、Prometheus、EMQX、HiveMQ、StatsD、collectd、icinga、TCollector、Matlab、R 等第三方工具无缝集成。
 
 - **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
 
@@ -64,7 +64,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 </figure>
 <center>图 1. TDengine技术生态图</center>
 
-上图中，左侧是各种数据采集或消息队列，包括 OPC-UA, MQTT, Telegraf, 也包括 Kafaka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
+上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafaka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
 
 ## TDengine 总体适用场景
 

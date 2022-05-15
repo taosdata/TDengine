@@ -1,302 +1,285 @@
 ---
-sidebar_label: 整体架构
-title: 整体架构
+sidebar_label: Architecture
+title: Architecture
 ---
 
-## 集群与基本逻辑单元
+## Cluster and Primary Logic Unit
 
-TDengine 的设计是基于单个硬件、软件系统不可靠，基于任何单台计算机都无法提供足够计算能力和存储能力处理海量数据的假设进行设计的。因此 TDengine 从研发的第一天起，就按照分布式高可靠架构进行设计，是支持水平扩展的，这样任何单台或多台服务器发生硬件故障或软件错误都不影响系统的可用性和可靠性。同时，通过节点虚拟化并辅以自动化负载均衡技术，TDengine 能最高效率地利用异构集群中的计算和存储资源降低硬件投资。
+The design of TDengine is based on the assumption that any hardware or software system is not 100% reliable and that no single node can provide sufficient computing and storage resources to process massive data. Therefore, TDengine has been designed in a distributed and high-reliability architecture since day one of the development, so that hardware failure or software failure of any single even multiple servers will not affect the availability and reliability of the system. At the same time, through node virtualization and automatic load-balancing technology, TDengine can make the most efficient use of computing and storage resources in heterogeneous clusters to reduce hardware resources significantly.
 
-### 主要逻辑单元
+### Primary Logic Unit
 
-TDengine 分布式架构的逻辑结构图如下：
+Logical structure diagram of TDengine distributed architecture as following:
 
-![TDengine架构示意图](/img/architecture/structure.png)
+![TDengine architecture diagram](/img/architecture/structure.png)
+<center> Figure 1: TDengine architecture diagram </center>
 
-<center> 图 1 TDengine架构示意图  </center>
+A complete TDengine system runs on one or more physical nodes. Logically, it includes data node (dnode), TDengine application driver (TAOSC) and application (app). There are one or more data nodes in the system, which form a cluster. The application interacts with the TDengine cluster through TAOSC's API. The following is a brief introduction to each logical unit.
 
-一个完整的 TDengine 系统是运行在一到多个物理节点上的，逻辑上，它包含数据节点（dnode）、TDengine 应用驱动（taosc）以及应用（app）。系统中存在一到多个数据节点，这些数据节点组成一个集群（cluster）。应用通过 taosc 的 API 与 TDengine 集群进行互动。下面对每个逻辑单元进行简要介绍。
+**Physical node (pnode)**: A pnode is a computer that runs independently and has its own computing, storage and network capabilities. It can be a physical machine, virtual machine, or Docker container installed with OS. The physical node is identified by its configured FQDN (Fully Qualified Domain Name). TDengine relies entirely on FQDN for network communication. If you don't know about FQDN, please check [wikipedia](https://en.wikipedia.org/wiki/Fully_qualified_domain_name).
 
-**物理节点（pnode）：** pnode 是一独立运行、拥有自己的计算、存储和网络能力的计算机，可以是安装有 OS 的物理机、虚拟机或 Docker 容器。物理节点由其配置的 FQDN（Fully Qualified Domain Name）来标识。TDengine 完全依赖 FQDN 来进行网络通讯，如果不了解 FQDN，请看博文[《一篇文章说清楚 TDengine 的 FQDN》](https://www.taosdata.com/blog/2020/09/11/1824.html)。
+**Data node (dnode):** A dnode is a running instance of the TDengine server-side execution code taosd on a physical node. A working system must have at least one data node. A dnode contains zero to multiple logical virtual nodes (VNODE), zero or at most one logical management node (mnode). The unique identification of a dnode in the system is determined by the instance's End Point (EP). EP is a combination of FQDN (Fully Qualified Domain Name) of the physical node where the dnode is located and the network port number (Port) configured by the system. By configuring different ports, a physical node (a physical machine, virtual machine or container) can run multiple instances or have multiple data nodes.
 
-**数据节点（dnode）：** dnode 是 TDengine 服务器侧执行代码 taosd 在物理节点上的一个运行实例，一个工作的系统必须有至少一个数据节点。dnode 包含零到多个逻辑的虚拟节点（vnode），零或者至多一个逻辑的管理节点（mnode）。dnode 在系统中的唯一标识由实例的 End Point（EP）决定。EP 是 dnode 所在物理节点的 FQDN（Fully Qualified Domain Name）和系统所配置的网络端口号（Port）的组合。通过配置不同的端口，一个物理节点（一台物理机、虚拟机或容器）可以运行多个实例，或有多个数据节点。
+**Virtual node (vnode)**: To better support data sharding, load balancing and prevent data from overheating or skewing, data nodes are virtualized into multiple virtual nodes (vnode, V2, V3, V4, etc. in the figure). Each vnode is a relatively independent work unit, which is the basic unit of time-series data storage and has independent running threads, memory space and persistent storage path. A vnode contains a certain number of tables (data collection points). When a new table is created, the system checks whether a new vnode needs to be created. The number of vnodes that can be created on a data node depends on the hardware capacities of the physical node where the data node is located. A vnode belongs to only one DB, but a DB can have multiple vnodes. In addition to the stored time-series data, a vnode also stores the schema and tag values of the included tables. A virtual node is uniquely identified in the system by the EP of the data node and the VGroup ID to which it belongs and is created and managed by the management node.
 
-**虚拟节点（vnode）：** 为更好的支持数据分片、负载均衡，防止数据过热或倾斜，数据节点被虚拟化成多个虚拟节点（vnode，图中 V2，V3，V4 等）。每个 vnode 都是一个相对独立的工作单元，是时序数据存储的基本单元，具有独立的运行线程、内存空间与持久化存储的路径。一个 vnode 包含一定数量的表（数据采集点）。当创建一张新表时，系统会检查是否需要创建新的 vnode。一个数据节点上能创建的 vnode 的数量取决于该数据节点所在物理节点的硬件资源。一个 vnode 只属于一个 DB，但一个 DB 可以有多个 vnode。一个 vnode 除存储的时序数据外，也保存有所包含的表的 schema、标签值等。一个虚拟节点由所属的数据节点的 EP，以及所属的 VGroup ID 在系统内唯一标识，由管理节点创建并管理。
+**Management node (mnode)**: A virtual logical unit responsible for monitoring and maintaining the running status of all data nodes and load balancing among nodes (M in the figure). At the same time, the management node is also responsible for the storage and management of metadata (including users, databases, tables, static tags, etc.), so it is also called Meta Node. Multiple (up to 5) mnodes can be configured in a TDengine cluster, and they are automatically constructed into a virtual management node group (M0, M1, M2 in the figure). The master/slave mechanism is adopted for the mnode group and the data synchronization is carried out in a strongly consistent way. Any data update operation can only be executed on the master. The creation of mnode cluster is completed automatically by the system without manual intervention. There is at most one mnode on each dnode, which is uniquely identified by the EP of the data node to which it belongs. Each dnode automatically obtains the EP of the dnode where all mnodes in the whole cluster are located through internal messaging interaction.
 
-**管理节点（mnode）：** 一个虚拟的逻辑单元，负责所有数据节点运行状态的监控和维护，以及节点之间的负载均衡（图中 M）。同时，管理节点也负责元数据（包括用户、数据库、表、静态标签等）的存储和管理，因此也称为 Meta Node。TDengine 集群中可配置多个（开源版最多不超过 3 个）mnode，它们自动构建成为一个虚拟管理节点组（图中 M0，M1，M2）。mnode 间采用 master/slave 的机制进行管理，而且采取强一致方式进行数据同步，任何数据更新操作只能在 Master 上进行。mnode 集群的创建由系统自动完成，无需人工干预。每个 dnode 上至多有一个 mnode，由所属的数据节点的 EP 来唯一标识。每个 dnode 通过内部消息交互自动获取整个集群中所有 mnode 所在的 dnode 的 EP。
+**Virtual node group (VGroup)**: Vnodes on different data nodes can form a virtual node group to ensure the high availability of the system. The virtual node group is managed in a master/slave mechanism. Write operations can only be performed on the master vnode, and then replicated to slave vnodes, thus ensuring that one single replica of data is copied on multiple physical nodes. The number of virtual nodes in a vgroup equals the number of data replicas. If the number of replicas of a DB is N, the system must have at least N data nodes. The number of replicas can be specified by the parameter `“replica”` when creating DB, and the default is 1. Using the multi-replication feature of TDengine, the same high data reliability can be achieved without the need for expensive storage devices such as disk arrays. Virtual node group is created and managed by the management node, and the management node assigns a system unique ID, aka VGroup ID. If two virtual nodes have the same vnode group ID, means that they belong to the same group and the data is backed up to each other. The number of virtual nodes in a virtual node group can be dynamically changed, allowing only one, that is, no data replication. VGroup ID is never changed. Even if a virtual node group is deleted, its ID will not be reused.
 
-**虚拟节点组（VGroup）：** 不同数据节点上的 vnode 可以组成一个虚拟节点组（vgroup）来保证系统的高可靠。虚拟节点组内采取 master/slave 的方式进行管理。写操作只能在 master vnode 上进行，系统采用异步复制的方式将数据同步到 slave vnode，这样确保了一份数据在多个物理节点上有拷贝。一个 vgroup 里虚拟节点个数就是数据的副本数。如果一个 DB 的副本数为 N，系统必须有至少 N 数据节点。副本数在创建 DB 时通过参数 replica 可以指定，缺省为 1。使用 TDengine 的多副本特性，可以不再需要昂贵的磁盘阵列等存储设备，就可以获得同样的数据高可靠性。虚拟节点组由管理节点创建、管理，并且由管理节点分配一个系统唯一的 ID，VGroup ID。如果两个虚拟节点的 VGroup ID 相同，说明他们属于同一个组，数据互为备份。虚拟节点组里虚拟节点的个数是可以动态改变的，容许只有一个，也就是没有数据复制。VGroup ID 是永远不变的，即使一个虚拟节点组被删除，它的 ID 也不会被收回重复利用。
+**TAOSC**: TAOSC is the driver provided by TDengine to applications, which is responsible for dealing with the interaction between application and cluster, and provides the native interface of C/C++ language, which is embedded in JDBC, C #, Python, Go, Node.js language connection libraries. Applications interact with the whole cluster through TAOSC instead of directly connecting to data nodes in the cluster. This module is responsible for obtaining and caching metadata; forwarding requests for insertion, query, etc. to the correct data node; when returning the results to the application, TAOSC also needs to be responsible for the final level of aggregation, sorting, filtering and other operations. For JDBC, C/C++/C #/Python/Go/Node.js interfaces, this module runs on the physical node where the application is located. At the same time, in order to support the fully distributed RESTful interface, TAOSC has a running instance on each dnode of TDengine cluster.
 
-**Taosc** taosc 是 TDengine 给应用提供的驱动程序（driver），负责处理应用与集群的接口交互，提供 C/C++ 语言原生接口，内嵌于 JDBC、C#、Python、Go、Node.js 语言连接库里。应用都是通过 taosc 而不是直接连接集群中的数据节点与整个集群进行交互的。这个模块负责获取并缓存元数据；将插入、查询等请求转发到正确的数据节点；在把结果返回给应用时，还需要负责最后一级的聚合、排序、过滤等操作。对于 JDBC、C/C++、C#、Python、Go、Node.js 接口而言，这个模块是在应用所处的物理节点上运行。同时，为支持全分布式的 RESTful 接口，taosc 在 TDengine 集群的每个 dnode 上都有一运行实例。
+### Node Communication
 
-### 节点之间的通讯
+**Communication mode**: The communication among each data node of TDengine system, and among the application driver and each data node is carried out through TCP/UDP. Considering an IoT scenario, the data writing packets are generally not large, so TDengine uses UDP in addition to TCP for transmission, because UDP is more efficient and is not limited by the number of connections. TDengine implements its own timeout, retransmission, confirmation and other mechanisms to ensure reliable transmission of UDP. For packets with a data volume of less than 15K, UDP is adopted for transmission, and TCP is automatically adopted for transmission of packets with a data volume of more than 15K or query operations. At the same time, TDengine will automatically compress/decompress the data, digital sign/authenticate the data according to the configuration and data packet. For data replication among data nodes, only TCP is used for data transportation.
 
-**通讯方式：**TDengine 系统的各个数据节点之间，以及应用驱动与各数据节点之间的通讯是通过 TCP/UDP 进行的。因为考虑到物联网场景，数据写入的包一般不大，因此 TDengine 除采用 TCP 做传输之外，还采用 UDP 方式，因为 UDP 更加高效，而且不受连接数的限制。TDengine 实现了自己的超时、重传、确认等机制，以确保 UDP 的可靠传输。对于数据量不到 15K 的数据包，采取 UDP 的方式进行传输，超过 15K 的，或者是查询类的操作，自动采取 TCP 的方式进行传输。同时，TDengine 根据配置和数据包，会自动对数据进行压缩/解压缩，数字签名/认证等处理。对于数据节点之间的数据复制，只采用 TCP 方式进行数据传输。
+**FQDN configuration:** A data node has one or more FQDNs, which can be specified in the system configuration file taos.cfg with the parameter “fqdn”. If it is not specified, the system will automatically use the hostname of the computer as its FQDN. If the node is not configured with FQDN, you can directly set the configuration parameter “fqdn” of the node to its IP address. However, IP is not recommended because IP address may be changed, and once it changes, the cluster will not work properly. The EP (End Point) of a data node consists of FQDN + Port. With FQDN, it is necessary to ensure the DNS service is running, or hosts files on nodes are configured properly.
 
-**FQDN 配置：**一个数据节点有一个或多个 FQDN，可以在系统配置文件 taos.cfg 通过参数“fqdn”进行指定，如果没有指定，系统将自动获取计算机的 hostname 作为其 FQDN。如果节点没有配置 FQDN，可以直接将该节点的配置参数 fqdn 设置为它的 IP 地址。但不建议使用 IP，因为 IP 地址可变，一旦变化，将让集群无法正常工作。一个数据节点的 EP（End Point）由 FQDN + Port 组成。采用 FQDN，需要保证 DNS 服务正常工作，或者在节点以及应用所在的节点配置好 hosts 文件。另外，这个参数值的长度需要控制在 96 个字符以内。
+**Port configuration**: The external port of a data node is determined by the system configuration parameter “serverPort” in TDengine, and the port for internal communication of cluster is serverPort+5. The data replication operation among data nodes in the cluster also occupies a TCP port, which is serverPort+10. In order to support multithreading and efficient processing of UDP data, each internal and external UDP connection needs to occupy 5 consecutive ports. Therefore, the total port range of a data node will be serverPort to serverPort + 10, for a total of 11 TCP/UDP ports. To run the system, make sure that the firewall keeps these ports open. Each data node can be configured with a different serverPort.
 
-**端口配置：**一个数据节点对外的端口由 TDengine 的系统配置参数 serverPort 决定，对集群内部通讯的端口是 serverPort+5。为支持多线程高效的处理 UDP 数据，每个对内和对外的 UDP 连接，都需要占用 5 个连续的端口。
+**Cluster external connection**: TDengine cluster can accommodate one single, multiple or even thousands of data nodes. The application only needs to initiate a connection to any data node in the cluster. The network parameter required for connection is the End Point (FQDN plus configured port number) of a data node. When starting the application taos through CLI, the FQDN of the data node can be specified through the option `-h`, and the configured port number can be specified through `-p`. If the port is not configured, the system configuration parameter “serverPort” of TDengine will be adopted.
 
-- 集群内数据节点之间的数据复制操作占用一个 TCP 端口，是 serverPort+10。
-- 集群数据节点对外提供 RESTful 服务占用一个 TCP 端口，是 serverPort+11。
-- 集群内数据节点与 Arbitrator 节点之间通讯占用一个 TCP 端口，是 serverPort+12。
+**Inter-cluster communication**: Data nodes connect with each other through TCP/UDP. When a data node starts, it will obtain the EP information of the dnode where the mnode is located, and then establish a connection with the mnode in the system to exchange information. There are three steps to obtain EP information of the mnode: 
 
-因此一个数据节点总的端口范围为 serverPort 到 serverPort+12，总共 13 个 TCP/UDP 端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的 serverPort。详细的端口情况请参见 [TDengine 2.0 端口说明](/train-faq/faq#port)
+1. Check whether the mnodeEpList file exists, if it does not exist or cannot be opened normally to obtain EP information of the mnode, skip to the second step; 
+2. Check the system configuration file taos.cfg to obtain node configuration parameters “firstEp” and “secondEp” (the node specified by these two parameters can be a normal node without mnode, in this case, the node will try to redirect to the mnode node when connected). If these two configuration parameters do not exist or do not exist in taos.cfg, or are invalid, skip to the third step;
+3. Set your own EP as a mnode EP and run it independently. After obtaining the mnode EP list, the data node initiates the connection. It will successfully join the working cluster after connection. If not successful, it will try the next item in the mnode EP list. If all attempts are made, but the connection still fails, sleep for a few seconds before trying again.
 
-**集群对外连接：**TDengine 集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可，连接需要提供的网络参数是一数据节点的 End Point（FQDN 加配置的端口号）。通过命令行 CLI 启动应用 taos 时，可以通过选项-h 来指定数据节点的 FQDN，-P 来指定其配置的端口号，如果端口不配置，将采用 TDengine 的系统配置参数 serverPort。
+**The choice of MNODE**: TDengine logically has a management node, but there is no separated execution code. The server-side only has a set of execution code taosd. So which data node will be the management node? This is determined automatically by the system without any manual intervention. The principle is as follows: when a data node starts, it will check its End Point and compare it with the obtained mnode EP List. If its EP exists in it, the data node shall start the mnode module and become a mnode. If your own EP is not in the mnode EP List, the mnode module will not start. During the system operation, due to load balancing, downtime and other reasons, mnode may migrate to the new dnode, while totally transparent without manual intervention. The modification of configuration parameters is the decision made by mnode itself according to resources usage.
 
-**集群内部通讯：**各个数据节点之间通过 TCP/UDP 进行连接。一个数据节点启动时，将获取 mnode 所在的 dnode 的 EP 信息，然后与系统中的 mnode 建立起连接，交换信息。获取 mnode 的 EP 信息有三步：
+**Add new data nodes:** After the system has a data node, it has become a working system. There are two steps to add a new node into the cluster. Step1: Connect to the existing working data node using TDengine CLI, and then add the End Point of the new data node with the command "create dnode"; Step 2: In the system configuration parameter file taos.cfg of the new data node, set the “firstEp” and “secondEp” parameters to the EP of any two data nodes in the existing cluster. Please refer to the detailed user tutorial for detailed steps. In this way, the cluster will be established step by step.
 
-1. 检查 mnodeEpSet.json 文件是否存在，如果不存在或不能正常打开获得 mnode EP 信息，进入第二步；
-2. 检查系统配置文件 taos.cfg，获取节点配置参数 firstEp、secondEp（这两个参数指定的节点可以是不带 mnode 的普通节点，这样的话，节点被连接时会尝试重定向到 mnode 节点），如果不存在或者 taos.cfg 里没有这两个配置参数，或无效，进入第三步；
-3. 将自己的 EP 设为 mnode EP，并独立运行起来。
+**Redirection**: No matter about dnode or TAOSC, the connection to the mnode shall be initiated first, but the mnode is automatically created and maintained by the system, so the user does not know which dnode is running the mnode. TDengine only requires a connection to any working dnode in the system. Because any running dnode maintains the currently running mnode EP List, when receiving a connecting request from the newly started dnode or TAOSC, if it’s not a mnode by self, it will reply to the mnode EP List back. After receiving this list, TAOSC or the newly started dnode will try to establish the connection again. When the mnode EP List changes, each data node quickly obtains the latest list and notifies TAOSC through messaging interaction among nodes.
 
-获取 mnode EP 列表后，数据节点发起连接，如果连接成功，则成功加入进工作的集群，如果不成功，则尝试 mnode EP 列表中的下一个。如果都尝试了，但连接都仍然失败，则休眠几秒后，再进行尝试。
+### A Typical Data Writing Process
 
-**Mnode 的选择：**TDengine 逻辑上有管理节点，但没有单独的执行代码，服务器侧只有一套执行代码 taosd。那么哪个数据节点会是管理节点呢？这是系统自动决定的，无需任何人工干预。原则如下：一个数据节点启动时，会检查自己的 End Point，并与获取的 mnode EP List 进行比对，如果在其中，该数据节点认为自己应该启动 mnode 模块，成为 mnode。如果自己的 EP 不在 mnode EP List 里，则不启动 mnode 模块。在系统的运行过程中，由于负载均衡、宕机等原因，mnode 有可能迁移至新的 dnode，但一切都是透明的，无需人工干预，配置参数的修改，是 mnode 自己根据资源做出的决定。
+To explain the relationship between vnode, mnode, TAOSC and application and their respective roles, the following is an analysis of a typical data writing process.
 
-**新数据节点的加入：**系统有了一个数据节点后，就已经成为一个工作的系统。添加新的节点进集群时，有两个步骤，第一步：使用 TDengine CLI 连接到现有工作的数据节点，然后用命令“CREATE DNODE”将新的数据节点的 End Point 添加进去；第二步：在新的数据节点的系统配置参数文件 taos.cfg 里，将 firstEp，secondEp 参数设置为现有集群中任意两个数据节点的 EP 即可。具体添加的详细步骤请见详细的用户手册。这样就把集群一步一步的建立起来。
+![typical process of TDengine](/image/architecture/message.png)
+<center> Figure 2: Typical process of TDengine </center>
 
-**重定向：**无论是 dnode 还是 taosc，最先都是要发起与 mnode 的连接，但 mnode 是系统自动创建并维护的，因此对于用户来说，并不知道哪个 dnode 在运行 mnode。TDengine 只要求向系统中任何一个工作的 dnode 发起连接即可。因为任何一个正在运行的 dnode，都维护有目前运行的 mnode EP List。当收到一个来自新启动的 dnode 或 taosc 的连接请求，如果自己不是 mnode，则将 mnode EP List 回复给对方，taosc 或新启动的 dnode 收到这个 list，就重新尝试建立连接。当 mnode EP List 发生改变，通过节点之间的消息交互，各个数据节点就很快获取最新列表，并通知 taosc。
+1. Application initiates a request to insert data through JDBC, ODBC, or other APIs.
+2. TAOSC checks if meta data existing for the table in the cache. If so, go straight to Step 4. If not, TAOSC sends a get meta-data request to mnode.
+3. Mnode returns the meta-data of the table to TAOSC. Meta-data contains the schema of the table, and also the vgroup information to which the table belongs (the vnode ID and the End Point of the dnode where the table belongs. If the number of replicas is N, there will be N groups of End Points). If TAOSC does not receive a response from the mnode for a long time, and there are multiple mnodes, TAOSC will send a request to the next mnode.
+4. TAOSC initiates an insert request to master vnode.
+5. After vnode inserts the data, it gives a reply to TAOSC, indicating that the insertion is successful. If TAOSC doesn't get a response from vnode for a long time, TAOSC will treat this node as offline. In this case, if there are multiple replicas of the inserted database, TAOSC will issue an insert request to the next vnode in vgroup.
+6. TAOSC notifies APP that writing is successful.
 
-### 一个典型的消息流程
+For Step 2 and 3, when TAOSC starts, it does not know the End Point of mnode, so it will directly initiate a request to the configured serving End Point of the cluster. If the dnode that receives the request does not have a mnode configured, it will inform the mnode EP list in a reply message, so that TAOSC will re-issue a request to obtain meta-data to the EP of another new mnode.
 
-为解释 vnode、mnode、taosc 和应用之间的关系以及各自扮演的角色，下面对写入数据这个典型操作的流程进行剖析。
+For Step 4 and 5, without caching, TAOSC can't recognize the master in the virtual node group, so assumes that the first vnode is the master and sends a request to it. If this vnode is not the master, it will reply to the actual master as a new target where TAOSC shall send a request to. Once the reply of successful insertion is obtained, TAOSC will cache the information of master node.
 
-![TDengine典型的操作流程](/img/architecture/message.png)
+The above is the process of inserting data, and the processes of querying and computing are the same. TAOSC encapsulates and hides all these complicated processes, and it is transparent to applications.
 
-<center> 图 2 TDengine 典型的操作流程 </center>
+Through TAOSC caching mechanism, mnode needs to be accessed only when a table is accessed for the first time, so mnode will not become a system bottleneck. However, because schema and vgroup may change (such as load balancing), TAOSC will interact with mnode regularly to automatically update the cache.
 
-1. 应用通过 JDBC 或其他 API 接口发起插入数据的请求。
-2. taosc 会检查缓存，看是否保存有该表的 meta data。如果有，直接到第 4 步。如果没有，taosc 将向 mnode 发出 get meta-data 请求。
-3. mnode 将该表的 meta-data 返回给 taosc。Meta-data 包含有该表的 schema，而且还有该表所属的 vgroup 信息（vnode ID 以及所在的 dnode 的 End Point，如果副本数为 N，就有 N 组 End Point）。如果 taosc 迟迟得不到 mnode 回应，而且存在多个 mnode，taosc 将向下一个 mnode 发出请求。
-4. taosc 向 master vnode 发起插入请求。
-5. vnode 插入数据后，给 taosc 一个应答，表示插入成功。如果 taosc 迟迟得不到 vnode 的回应，taosc 会认为该节点已经离线。这种情况下，如果被插入的数据库有多个副本，taosc 将向 vgroup 里下一个 vnode 发出插入请求。
-6. taosc 通知 APP，写入成功。
+## Storage Model and Data Partitioning/Sharding
 
-对于第二和第三步，taosc 启动时，并不知道 mnode 的 End Point，因此会直接向配置的集群对外服务的 End Point 发起请求。如果接收到该请求的 dnode 并没有配置 mnode，该 dnode 会在回复的消息中告知 mnode EP 列表，这样 taosc 会重新向新的 mnode 的 EP 发出获取 meta-data 的请求。
+### Storage Model
 
-对于第四和第五步，没有缓存的情况下，taosc 无法知道虚拟节点组里谁是 master，就假设第一个 vnodeID 就是 master，向它发出请求。如果接收到请求的 vnode 并不是 master，它会在回复中告知谁是 master，这样 taosc 就向建议的 master vnode 发出请求。一旦得到插入成功的回复，taosc 会缓存 master 节点的信息。
+The data stored by TDengine include collected time-series data, metadata related to database and tables, tag data, etc. These data are specifically divided into three parts:
 
-上述是插入数据的流程，查询、计算的流程也完全一致。taosc 把这些复杂的流程全部封装屏蔽了，对于应用来说无感知也无需任何特别处理。
+- Time-series data: stored in vnode and composed of data, head and last files. The amount of data is large and query amount depends on the application scenario. Out-of-order writing is allowed, but delete operation is not supported for the time being, and update operation is only allowed when database “update” parameter is set to 1. By adopting the model with **one table for each data collection point**, the data of a given time period is continuously stored, and the writing against one single table is a simple appending operation. Multiple records can be read at one time, thus ensuring the insert and query operation of a single data collection point with the best performance.
+- Tag data: meta files stored in vnode. Four standard operations of create, read, update and delete are supported. The amount of data is not large. If there are N tables, there are N records, so all can be stored in memory. To make tag filtering efficient, TDengine supports multi-core and multi-threaded concurrent queries. As long as the computing resources are sufficient, even in face of millions of tables, the tag filtering results will return in milliseconds.
+- Metadata: stored in mnode, including system node, user, DB, Table Schema and other information. Four standard operations of create, delete, update and read are supported. The amount of these data are not large and can be stored in memory, moreover, the query amount is not large because of the client cache. Therefore, TDengine uses centralized storage management, however, there will be no performance bottleneck.
 
-通过 taosc 缓存机制，只有在第一次对一张表操作时，才需要访问 mnode，因此 mnode 不会成为系统瓶颈。但因为 schema 有可能变化，而且 vgroup 有可能发生改变（比如负载均衡发生），因此 taosc 会定时和 mnode 交互，自动更新缓存。
+Compared with the typical NoSQL storage model, TDengine stores tag data and time-series data completely separately, which has two major advantages:
 
-## 存储模型与数据分区、分片
+- Reduce the redundancy of tag data storage significantly: general NoSQL database or time-series database adopts K-V storage, in which Key includes a timestamp, a device ID and various tags. Each record carries these duplicated tags, so storage space is wasted. Moreover, if the application needs to add, modify or delete tags on historical data, it has to traverse the data and rewrite them again, which is extremely expensive to operate.
+- Aggregate data efficiently between multiple tables: when aggregating data between multiple tables, it first finds out the tables which satisfy the filtering conditions, and then find out the corresponding data blocks of these tables to greatly reduce the data sets to be scanned, thus greatly improving the aggregation efficiency. Moreover, tag data is managed and maintained in a full-memory structure, and tag data queries in tens of millions can return in milliseconds.
 
-### 存储模型
+### Data Sharding
 
-TDengine 存储的数据包括采集的时序数据以及库、表相关的元数据、标签数据等，这些数据具体分为三部分：
+For large-scale data management, to achieve scale-out, it is generally necessary to adopt the Partitioning or Sharding strategy. TDengine implements data sharding via vnode, and time-series data partitioning via one data file for a time range.
 
-- 时序数据：存放于 vnode 里，由 data、head 和 last 三个文件组成，数据量大，查询量取决于应用场景。容许乱序写入，但暂时不支持删除操作，并且仅在 update 参数设置为 1 时允许更新操作。通过采用一个采集点一张表的模型，一个时间段的数据是连续存储，对单张表的写入是简单的追加操作，一次读，可以读到多条记录，这样保证对单个采集点的插入和查询操作，性能达到最优。
-- 标签数据：存放于 vnode 里的 meta 文件，支持增删改查四个标准操作。数据量不大，有 N 张表，就有 N 条记录，因此可以全内存存储。如果标签过滤操作很多，查询将十分频繁，因此 TDengine 支持多核多线程并发查询。只要计算资源足够，即使有数千万张表，过滤结果能毫秒级返回。
-- 元数据：存放于 mnode 里，包含系统节点、用户、DB、Table Schema 等信息，支持增删改查四个标准操作。这部分数据的量不大，可以全内存保存，而且由于客户端有缓存，查询量也不大。因此目前的设计虽是集中式存储管理，但不会构成性能瓶颈。
+VNode (Virtual Data Node) is responsible for providing writing, query and computing functions for collected time-series data. To facilitate load balancing, data recovery and support heterogeneous environments, TDengine splits a data node into multiple vnodes according to its computing and storage resources. The management of these vnodes is done automatically by TDengine and is completely transparent to the application.
 
-与典型的 NoSQL 存储模型相比，TDengine 将标签数据与时序数据完全分离存储，它具有两大优势：
+For a single data collection point, regardless of the amount of data, a vnode (or vnode group, if the number of replicas is greater than 1) has enough computing resource and storage resource to process (if a 16-byte record is generated per second, the original data generated in one year will be less than 0.5 G), so TDengine stores all the data of a table (a data collection point) in one vnode instead of distributing the data to two or more dnodes. Moreover, a vnode can store data from multiple data collection points (tables), and the upper limit of the tables’ quantity for a vnode is one million. By design, all tables in a vnode belong to the same DB. On a data node, unless specially configured, the number of vnodes owned by a DB will not exceed the number of system cores.
 
-- 能够极大地降低标签数据存储的冗余度：一般的 NoSQL 数据库或时序数据库，采用的 K-V 存储，其中的 Key 包含时间戳、设备 ID、各种标签。每条记录都带有这些重复的内容，浪费存储空间。而且如果应用要在历史数据上增加、修改或删除标签，需要遍历数据，重写一遍，操作成本极其昂贵。
-- 能够实现极为高效的多表之间的聚合查询：做多表之间聚合查询时，先把符合标签过滤条件的表查找出来，然后再查找这些表相应的数据块，这样大幅减少要扫描的数据集，从而大幅提高查询效率。而且标签数据采用全内存的结构进行管理和维护，千万级别规模的标签数据查询可以在毫秒级别返回。
+When creating a DB, the system does not allocate resources immediately. However, when creating a table, the system will check if there is an allocated vnode with free tablespace. If so, the table will be created in the vacant vnode immediately. If not, the system will create a new vnode on a dnode from the cluster according to the current workload, and then a table. If there are multiple replicas of a DB, the system does not create only one vnode, but a vgroup (virtual data node group). The system has no limit on the number of vnodes, which is just limited by the computing and storage resources of physical nodes.
 
-### 数据分片
+The meta data of each table (including schema, tags, etc.) is also stored in vnode instead of centralized storage in mnode. In fact, this means sharding of meta data, which is good for efficient and parallel tag filtering operations.
 
-对于海量的数据管理，为实现水平扩展，一般都需要采取分片（Sharding）分区（Partitioning）策略。TDengine 是通过 vnode 来实现数据分片的，通过一个时间段一个数据文件来实现时序数据分区的。
+### Data Partitioning
 
-vnode（虚拟数据节点）负责为采集的时序数据提供写入、查询和计算功能。为便于负载均衡、数据恢复、支持异构环境，TDengine 将一个数据节点根据其计算和存储资源切分为多个 vnode。这些 vnode 的管理是 TDengine 自动完成的，对应用完全透明。
+In addition to vnode sharding, TDengine partitions the time-series data by time range. Each data file contains only one time range of time-series data, and the length of the time range is determined by DB's configuration parameter `“days”`. This method of partitioning by time rang is also convenient to efficiently implement the data retention policy. As long as the data file exceeds the specified number of days (system configuration parameter `“keep”`), it will be automatically deleted. Moreover, different time ranges can be stored in different paths and storage media, so as to facilitate the tiered-storage. Cold/hot data can be stored in different storage media to reduce the storage cost.
 
-对于单独一个数据采集点，无论其数据量多大，一个 vnode（或 vgroup，如果副本数大于 1）有足够的计算资源和存储资源来处理（如果每秒生成一条 16 字节的记录，一年产生的原始数据不到 0.5G），因此 TDengine 将一张表（一个数据采集点）的所有数据都存放在一个 vnode 里，而不会让同一个采集点的数据分布到两个或多个 dnode 上。而且一个 vnode 可存储多个数据采集点（表）的数据，一个 vnode 可容纳的表的数目的上限为一百万。设计上，一个 vnode 里所有的表都属于同一个 DB。一个数据节点上，除非特殊配置，一个 DB 拥有的 vnode 数目不会超过系统核的数目。
+In general, **TDengine splits big data by vnode and time range in two dimensions** to manage the data efficiently with horizontal scalability.
 
-创建 DB 时，系统并不会马上分配资源。但当创建一张表时，系统将看是否有已经分配的 vnode，且该 vnode 是否有空余的表空间，如果有，立即在该有空位的 vnode 创建表。如果没有，系统将从集群中，根据当前的负载情况，在一个 dnode 上创建一新的 vnode，然后创建表。如果 DB 有多个副本，系统不是只创建一个 vnode，而是一个 vgroup（虚拟数据节点组）。系统对 vnode 的数目没有任何限制，仅仅受限于物理节点本身的计算和存储资源。
+### Load Balancing
 
-每张表的 meta data（包含 schema，标签等）也存放于 vnode 里，而不是集中存放于 mnode，实际上这是对 Meta 数据的分片，这样便于高效并行的进行标签过滤操作。
+Each dnode regularly reports its status (including hard disk space, memory size, CPU, network, number of virtual nodes, etc.) to the mnode (virtual management node), so mnode knows the status of the entire cluster. Based on the overall status, when the mnode finds a dnode is overloaded, it will migrate one or more vnodes to other dnodes. During the process, TDengine services keep running and the data insertion, query and computing operations are not affected.
 
-### 数据分区
+If the mnode has not received the dnode status for a period of time, the dnode will be treated as offline. When offline lasts a certain period of time (configured by parameter `“offlineThreshold”`), the dnode will be forcibly removed from the cluster by mnode. If the number of replicas of vnodes on this dnode is greater than one, the system will automatically create new replicas on other dnodes to ensure the replica number. If there are other mnodes on this dnode and the number of mnodes replicas is greater than one, the system will automatically create new mnodes on other dnodes to ensure the replica number.
 
-TDengine 除 vnode 分片之外，还对时序数据按照时间段进行分区。每个数据文件只包含一个时间段的时序数据，时间段的长度由 DB 的配置参数 days 决定。这种按时间段分区的方法还便于高效实现数据的保留策略，只要数据文件超过规定的天数（系统配置参数 keep），将被自动删除。而且不同的时间段可以存放于不同的路径和存储介质，以便于大数据的冷热管理，实现多级存储。
+When new data nodes are added to the cluster, with new computing and storage resources are added, the system will automatically start the load balancing process.
 
-总的来说，**TDengine 是通过 vnode 以及时间两个维度，对大数据进行切分**，便于并行高效的管理，实现水平扩展。
+The load balancing process does not require any manual intervention, and it is transparent to the application. **Note: load balancing is controlled by parameter “balance”, which determines to turn on/off automatic load balancing.**
 
-### 负载均衡
+## Data Writing and Replication Process
 
-每个 dnode 都定时向 mnode（虚拟管理节点）报告其状态（包括硬盘空间、内存大小、CPU、网络、虚拟节点个数等），因此 mnode 了解整个集群的状态。基于整体状态，当 mnode 发现某个 dnode 负载过重，它会将 dnode 上的一个或多个 vnode 挪到其他 dnode。在挪动过程中，对外服务继续进行，数据插入、查询和计算操作都不受影响。
+If a database has N replicas, thus a virtual node group has N virtual nodes, but only one as Master and all others are slaves. When the application writes a new record to system, only the Master vnode can accept the writing request. If a slave vnode receives a writing request, the system will notifies TAOSC to redirect.
 
-如果 mnode 一段时间没有收到 dnode 的状态报告，mnode 会认为这个 dnode 已经离线。如果离线时间超过一定时长（时长由配置参数 offlineThreshold 决定），该 dnode 将被 mnode 强制剔除出集群。该 dnode 上的 vnodes 如果副本数大于 1，系统将自动在其他 dnode 上创建新的副本，以保证数据的副本数。如果该 dnode 上还有 mnode，而且 mnode 的副本数大于 1，系统也将自动在其他 dnode 上创建新的 mnode，以保证 mnode 的副本数。
+###  Master vnode Writing Process
 
-当新的数据节点被添加进集群，因为新的计算和存储被添加进来，系统也将自动启动负载均衡流程。
+Master Vnode uses a writing process as follows:
 
-负载均衡过程无需任何人工干预，应用也无需重启，将自动连接新的节点，完全透明。
+![TDengine Master Writing Process](/image/architecture/write_master.png)
+<center> Figure 3: TDengine Master writing process </center>
 
-**提示：负载均衡由参数 balance 控制，决定开启/关闭自动负载均衡。**
+1. Master vnode receives the application data insertion request, verifies, and moves to next step;
+2. If the system configuration parameter `“walLevel”` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
+3.  If there are multiple replicas, vnode will forward data packet to slave vnodes in the same virtual node group, and the forwarded packet has a version number with data;
+4. Write into memory and add the record to “skip list”;
+5. Master vnode returns a confirmation message to the application, indicating a successful writing.
+6. If any of Step 2, 3 or 4 fails, the error will directly return to the application.
 
-## 数据写入与复制流程
+### Slave vnode Writing Process
 
-如果一个数据库有 N 个副本，那一个虚拟节点组就有 N 个虚拟节点，但是只有一个是 master，其他都是 slave。当应用将新的记录写入系统时，只有 master vnode 能接受写的请求。如果 slave vnode 收到写的请求，系统将通知 taosc 需要重新定向。
+For a slave vnode, the write process as follows:
 
-### Master Vnode 写入流程
+![TDengine Slave Writing Process](/image/architecture/write_slave.png)
+<center> Figure 4: TDengine Slave Writing Process </center>
 
-Master Vnode 遵循下面的写入流程：
+1. Slave vnode receives a data insertion request forwarded by Master vnode;
+2. If the system configuration parameter `“walLevel”` is greater than 0, vnode will write the original request packet into database log file WAL. If walLevel is set to 2 and fsync is set to 0, TDengine will make WAL data written immediately to ensure that even system goes down, all data can be recovered from database log file;
+3. Write into memory and add the record to “skip list”.
 
-![TDengine Master写入流程](/img/architecture/write_master.png)
+Compared with Master vnode, slave vnode has no forwarding or reply confirmation step, means two steps less. But writing into memory and WAL is exactly the same.
 
-<center> 图 3 TDengine Master 写入流程  </center>
+### Remote Disaster Recovery and IDC Migration
 
-1. master vnode 收到应用的数据插入请求，验证 OK，进入下一步；
-2. 如果系统配置参数 walLevel 大于 0，vnode 将把该请求的原始数据包写入数据库日志文件 WAL。如果 walLevel 设置为 2，而且 fsync 设置为 0，TDengine 还将 WAL 数据立即落盘，以保证即使宕机，也能从数据库日志文件中恢复数据，避免数据的丢失；
-3. 如果有多个副本，vnode 将把数据包转发给同一虚拟节点组内的 slave vnodes，该转发包带有数据的版本号（version）；
-4. 写入内存，并将记录加入到 skip list；
-5. master vnode 返回确认信息给应用，表示写入成功；
-6. 如果第 2、3、4 步中任何一步失败，将直接返回错误给应用。
+As above Master and Slave processes discussed, TDengine adopts asynchronous replication for data synchronization. This method can greatly improve the writing performance, with no obvious impact from network delay. By configuring IDC and rack number for each physical node, it can be ensured that for a virtual node group, virtual nodes are composed of physical nodes from different IDC and different racks, thus implementing remote disaster recovery without other tools.
 
-### Slave Vnode 写入流程
+On the other hand, TDengine supports dynamic modification of the replicas number. Once the number of replicas increases, the newly added virtual nodes will immediately enter the data synchronization process. After synchronization completed, added virtual nodes can provide services. In the synchronization process, master and other synchronized virtual nodes keep serving. With this feature, TDengine can provide IDC migration without service interruption. It is only necessary to add new physical nodes to the existing IDC cluster, and then remove old physical nodes after the data synchronization is completed.
 
-对于 slave vnode，写入流程是：
+However, the asynchronous replication has a tiny time window where data can be lost. The specific scenario is as follows:
 
-![TDengine Slave 写入流程](/img/architecture/write_slave.png)
+1. Master vnode has finished its 5-step operations, confirmed the success of writing to APP, and then went down;
+2. Slave vnode receives the write request, then processing fails before writing to the log in Step 2;
+3. Slave vnode will become the new master, thus losing one record.
 
-<center> 图 4 TDengine Slave 写入流程  </center>
+In theory, for asynchronous replication, there is no guarantee to prevent data loss. However, this window is extremely small, only if mater and slave fail at the same time, and just confirm the successful write to the application before.
 
-1. slave vnode 收到 Master vnode 转发了的数据插入请求。检查 last version 是否与 master 一致，如果一致，进入下一步。如果不一致，需要进入同步状态。
-2. 如果系统配置参数 walLevel 大于 0，vnode 将把该请求的原始数据包写入数据库日志文件 WAL。如果 walLevel 设置为 2，而且 fsync 设置为 0，TDengine 还将 WAL 数据立即落盘，以保证即使宕机，也能从数据库日志文件中恢复数据，避免数据的丢失。
-3. 写入内存，更新内存中的 skip list。
+Note: Remote disaster recovery and no-downtime IDC migration are only supported by Enterprise Edition. **Hint: This function is not available yet**
 
-与 master vnode 相比，slave vnode 不存在转发环节，也不存在回复确认环节，少了两步。但写内存与 WAL 是完全一样的。
+### Master/slave Selection
 
-### 主从选择
+Vnode maintains a version number. When memory data is persisted, the version number will also be persisted. For each data update operation, whether it is time-series data or metadata, this version number will be increased by one.
 
-Vnode 会保持一个数据版本号（version），对内存数据进行持久化存储时，对该版本号也进行持久化存储。每个数据更新操作，无论是采集的时序数据还是元数据，这个版本号将增加 1。
+When a vnode starts, the roles (master, slave) are uncertain, and the data is in an unsynchronized state. It’s necessary to establish TCP connections with other nodes in the virtual node group and exchange status, including version and its own roles. Through the exchange, the system implements a master-selection process. The rules are as follows:
 
-一个 vnode 启动时，角色（master、slave）是不定的，数据是处于未同步状态，它需要与虚拟节点组内其他节点建立 TCP 连接，并互相交换 status，其中包括 version 和自己的角色。通过 status 的交换，系统进入选主流程，规则如下：
+1. If there’s only one replica, it’s always master
+2. When all replicas are online, the one with latest version is master
+3. Over half of online nodes are virtual nodes, and some virtual node is slave, it will automatically become master
+4. For 2 and 3, if multiple virtual nodes meet the requirement, the first vnode in virtual node group list will be selected as master
 
-1. 如果只有一个副本，该副本永远就是 master
-2. 所有副本都在线时，版本最高的被选为 master
-3. 在线的虚拟节点数过半，而且有虚拟节点是 slave 的话，该虚拟节点自动成为 master
-4. 对于 2 和 3，如果多个虚拟节点满足成为 master 的要求，那么虚拟节点组的节点列表里，最前面的选为 master
+### Synchronous Replication
 
-更多的关于数据复制的流程，请见[《TDengine 2.0 数据复制模块设计》](/tdinternal/replica/)。
+For scenarios with strong data consistency requirements, asynchronous data replication is not applicable, because there is a small probability of data loss. So, TDengine provides a synchronous replication mechanism for users. When creating a database, in addition to specifying the number of replicas, user also needs to specify a new parameter “quorum”. If quorum is greater than one, it means that every time the Master forwards a message to the replica, it needs to wait for “quorum-1” reply confirms before informing the application that data has been successfully written in slave. If “quorum-1” reply confirms are not received within a certain period of time, the master vnode will return an error to the application.
 
-### 同步复制
+With synchronous replication, performance of system will decrease and latency will increase. Because metadata needs strong consistent, the default for data synchronization between mnodes is synchronous replication.
 
-对于数据一致性要求更高的场景，异步数据复制无法满足要求，因为有极小的概率丢失数据，因此 TDengine 提供同步复制的机制供用户选择。在创建数据库时，除指定副本数 replica 之外，用户还需要指定新的参数 quorum。如果 quorum 大于 1，它表示每次 master 转发给副本时，需要等待 quorum-1 个回复确认，才能通知应用，数据在 slave 已经写入成功。如果在一定的时间内，得不到 quorum-1 个回复确认，master vnode 将返回错误给应用。
+## Caching and Persistence
 
-采用同步复制，系统的性能会有所下降，而且 latency 会增加。因为元数据要强一致，mnode 之间的数据同步缺省就是采用的同步复制。
+### Caching
 
-## 缓存与持久化
+TDengine adopts a time-driven cache management strategy (First-In-First-Out, FIFO), also known as a Write-driven Cache Management Mechanism. This strategy is different from the read-driven data caching mode (Least-Recent-Used, LRU), which directly put the most recently written data in the system buffer. When the buffer reaches a threshold, the earliest data are written to disk in batches. Generally speaking, for the use of IoT data, users are most concerned about the newly generated data, that is, the current status. TDengine takes full advantage of this feature to put the most recently arrived (current state) data in the buffer.
 
-### 缓存
+TDengine provides millisecond-level data collecting capability to users through query functions. Putting the recently arrived data directly in the buffer can respond to users' analysis query for the latest piece or batch of data more quickly, and provide faster database query response capability as a whole. In this sense, **TDengine can be used as a data cache by setting appropriate configuration parameters without deploying Redis or other additional cache systems**, which can effectively simplify the system architecture and reduce the operation costs. It should be noted that after the TDengine is restarted, the buffer of the system will be emptied, the previously cached data will be written to disk in batches, and the previously cached data will not be reloaded into the buffer as so in a proprietary key-value cache system.
 
-TDengine 采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Used，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心的是刚产生的数据，即当前状态。TDengine 充分利用这一特性，将最近到达的（当前状态）数据保存在缓存中。
+Each vnode has its own independent memory, and it is composed of multiple memory blocks of fixed size, and different vnodes are completely isolated. When writing data, similar to the writing of logs, data is sequentially added to memory, but each vnode maintains its own skip list for quick search. When more than one third of the memory block are used, the disk writing operation will start, and the subsequent writing operation is carried out in a new memory block. By this design, one third of the memory blocks in a vnode keep the latest data, so as to achieve the purpose of caching and quick search. The number of memory blocks of a vnode is determined by the configuration parameter “blocks”, and the size of memory blocks is determined by the configuration parameter “cache”.
 
-TDengine 通过查询函数向用户提供毫秒级的数据获取能力。直接将最近到达的数据保存在缓存中，可以更加快速地响应用户针对最近一条或一批数据的查询分析，整体上提供更快的数据库查询响应能力。从这个意义上来说，**可通过设置合适的配置参数将 TDengine 作为数据缓存来使用，而不需要再部署 Redis 或其他额外的缓存系统**，可有效地简化系统架构，降低运维的成本。需要注意的是，TDengine 重启以后系统的缓存将被清空，之前缓存的数据均会被批量写入磁盘，缓存的数据将不会像专门的 key-value 缓存系统再将之前缓存的数据重新加载到缓存中。
+### Persistent Storage
 
-每个 vnode 有自己独立的内存，而且由多个固定大小的内存块组成，不同 vnode 之间完全隔离。数据写入时，类似于日志的写法，数据被顺序追加写入内存，但每个 vnode 维护有自己的 skip list，便于迅速查找。当三分之一以上的内存块写满时，启动落盘操作，而且后续写的操作在新的内存块进行。这样，一个 vnode 里有三分之一内存块是保留有最近的数据的，以达到缓存、快速查找的目的。一个 vnode 的内存块的个数由配置参数 blocks 决定，内存块的大小由配置参数 cache 决定。
+TDengine uses a data-driven method to write the data from buffer into hard disk for persistent storage. When the cached data in vnode reaches a certain volume, TDengine will also pull up the disk-writing thread to write the cached data into persistent storage in order not to block subsequent data writing. TDengine will open a new database log file when the data is written, and delete the old database log file after written successfully to avoid unlimited log growth.
 
-### 持久化存储
+To make full use of the characteristics of time-series data, TDengine splits the data stored in persistent storage by a vnode into multiple files, each file only saves data for a fixed number of days, which is determined by the system configuration parameter `“days”`. By so, for the given start and end date of a query, you can locate the data files to open immediately without any index, thus greatly speeding up reading operations.
 
-TDengine 采用数据驱动的方式让缓存中的数据写入硬盘进行持久化存储。当 vnode 中缓存的数据达到一定规模时，为了不阻塞后续数据的写入，TDengine 也会拉起落盘线程将缓存的数据写入持久化存储。TDengine 在数据落盘时会打开新的数据库日志文件，在落盘成功后则会删除老的数据库日志文件，避免日志文件无限制地增长。
+For time-series data, there is generally a retention policy, which is determined by the system configuration parameter `“keep”`. Data files exceeding this set number of days will be automatically deleted by the system to free up storage space.
 
-为充分利用时序数据特点，TDengine 将一个 vnode 保存在持久化存储的数据切分成多个文件，每个文件只保存固定天数的数据，这个天数由系统配置参数 days 决定。切分成多个文件后，给定查询的起止日期，无需任何索引，就可以立即定位需要打开哪些数据文件，大大加快读取速度。
+Given “days” and “keep” parameters, the total number of data files in a vnode is: keep/days. The total number of data files should not be too large or too small. 10 to 100 is appropriate. Based on this principle, reasonable days can be set. In the current version, parameter “keep” can be modified, but parameter “days” cannot be modified once it is set.
 
-对于采集的数据，一般有保留时长，这个时长由系统配置参数 keep 决定。超过这个设置天数的数据文件，将被系统自动删除，释放存储空间。
+In each data file, the data of a table is stored by blocks. A table can have one or more data file blocks. In a file block, data is stored in columns, occupying a continuous storage space, thus greatly improving the reading speed. The size of file block is determined by the system parameter `“maxRows”` (the maximum number of records per block), and the default value is 4096. This value should not be too large or too small. If it is too large, the data locating in search will cost longer; if too small, the index of data block is too large, and the compression efficiency will be low with slower reading speed.
 
-给定 days 与 keep 两个参数，一个典型工作状态的 vnode 中总的数据文件数为：向上取整 `(keep/days)+1` 个。总的数据文件个数不宜过大，也不宜过小。10 到 100 以内合适。基于这个原则，可以设置合理的 days。目前的版本，参数 keep 可以修改，但对于参数 days，一旦设置后，不可修改。
+Each data file (with a .data postfix) has a corresponding index file (with a .head postfix). The index file has summary information of a data block for each table, recording the offset of each data block in the data file, start and end time of data and other information, so as to lead system quickly locate the data to be found. Each data file also has a corresponding last file (with a .last postfix), which is designed to prevent data block fragmentation when written in disk. If the number of written records from a table does not reach the system configuration parameter `“minRows”` (minimum number of records per block), it will be stored in the last file first. When write to disk next time, the newly written records will be merged with the records in last file and then written into data file.
 
-在每个数据文件里，一张表的数据是一块一块存储的。一张表可以有一到多个数据文件块。在一个文件块里，数据是列式存储的，占用的是一片连续的存储空间，这样大大提高读取速度。文件块的大小由系统参数 maxRows （每块最大记录条数）决定，缺省值为 4096。这个值不宜过大，也不宜过小。过大，定位具体时间段的数据的搜索时间会变长，影响读取速度；过小，数据块的索引太大，压缩效率偏低，也影响读取速度。
+When data is written to disk, it is decided whether to compress the data according to system configuration parameter `“comp”`. TDengine provides three compression options: no compression, one-stage compression and two-stage compression, corresponding to comp values of 0, 1 and 2 respectively. One-stage compression is carried out according to the type of data. Compression algorithms include delta-delta coding, simple 8B method, zig-zag coding, LZ4 and other algorithms. Two-stage compression is based on one-stage compression and compressed by general compression algorithm, which has higher compression ratio.
 
-每个数据文件（.data 结尾）都有一个对应的索引文件（.head 结尾），该索引文件对每张表都有一数据块的摘要信息，记录了每个数据块在数据文件中的偏移量，数据的起止时间等信息，以帮助系统迅速定位需要查找的数据。每个数据文件还有一对应的 last 文件（.last 结尾），该文件是为防止落盘时数据块碎片化而设计的。如果一张表落盘的记录条数没有达到系统配置参数 minRows（每块最小记录条数），将被先存储到 last 文件，等下次落盘时，新落盘的记录将与 last 文件的记录进行合并，再写入数据文件。
+### Tiered Storage
 
-数据写入磁盘时，根据系统配置参数 comp 决定是否压缩数据。TDengine 提供了三种压缩选项：无压缩、一阶段压缩和两阶段压缩，分别对应 comp 值为 0、1 和 2 的情况。一阶段压缩根据数据的类型进行了相应的压缩，压缩算法包括 delta-delta 编码、simple 8B 方法、zig-zag 编码、LZ4 等算法。二阶段压缩在一阶段压缩的基础上又用通用压缩算法进行了压缩，压缩率更高。
+By default, TDengine saves all data in /var/lib/taos directory, and the data files of each vnode are saved in a different directory under this directory. In order to expand the storage space, minimize the bottleneck of file reading and improve the data throughput rate, TDengine can configure the system parameter “dataDir” to allow multiple mounted hard disks to be used by system at the same time. In addition, TDengine also provides the function of tiered data storage, i.e. storage on different storage media according to the time stamps of data files. For example, the latest data is stored on SSD, the data for more than one week is stored on local hard disk, and the data for more than four weeks is stored on network storage device, thus reducing the storage cost and ensuring efficient data access. The movement of data on different storage media is automatically done by the system and completely transparent to applications. Tiered storage of data is also configured through the system parameter “dataDir”.
 
-### 多级存储
-
-说明：多级存储功能仅企业版支持，从 2.0.16.0 版本开始提供。
-
-在默认配置下，TDengine 会将所有数据保存在 /var/lib/taos 目录下，而且每个 vnode 的数据文件保存在该目录下的不同目录。为扩大存储空间，尽量减少文件读取的瓶颈，提高数据吞吐率 TDengine 可通过配置系统参数 dataDir 让多个挂载的硬盘被系统同时使用。
-
-除此之外，TDengine 也提供了数据分级存储的功能，将不同时间段的数据存储在挂载的不同介质上的目录里，从而实现不同“热度”的数据存储在不同的存储介质上，充分利用存储，节约成本。比如，最新采集的数据需要经常访问，对硬盘的读取性能要求高，那么用户可以配置将这些数据存储在 SSD 盘上。超过一定期限的数据，查询需求量没有那么高，那么可以存储在相对便宜的 HDD 盘上。
-
-多级存储支持 3 级，每级最多可配置 16 个挂载点。
-
-TDengine 多级存储配置方式如下（在配置文件/etc/taos/taos.cfg 中）：
-
+dataDir format is as follows:
 ```
-dataDir [path] <level> <primary>
+dataDir data_path [tier_level]
 ```
 
-- path: 挂载点的文件夹路径
-- level: 介质存储等级，取值为 0，1，2。  
-  0 级存储最新的数据，1 级存储次新的数据，2 级存储最老的数据，省略默认为 0。  
-  各级存储之间的数据流向：0 级存储 -> 1 级存储 -> 2 级存储。  
-  同一存储等级可挂载多个硬盘，同一存储等级上的数据文件分布在该存储等级的所有硬盘上。  
-  需要说明的是，数据在不同级别的存储介质上的移动，是由系统自动完成的，用户无需干预。
-- primary: 是否为主挂载点，0（否）或 1（是），省略默认为 1。
+Where data_path is the folder path of mount point and tier_level is the media storage-tier. The higher the media storage-tier, means the older the data file. Multiple hard disks can be mounted at the same storage-tier, and data files on the same storage-tier are distributed on all hard disks within the tier. TDengine supports up to 3 tiers of storage, so tier_level values are 0, 1, and 2. When configuring dataDir, there must be only one mount path without specifying tier_level, which is called special mount disk (path). The mount path defaults to level 0 storage media and contains special file links, which cannot be removed, otherwise it will have a devastating impact on the written data.
 
-在配置中，只允许一个主挂载点的存在（level=0，primary=1），例如采用如下的配置方式：
+Suppose a physical node with six mountable hard disks/mnt/disk1,/mnt/disk2, …,/mnt/disk6, where disk1 and disk2 need to be designated as level 0 storage media, disk3 and disk4 are level 1 storage media, and disk5 and disk6 are level 2 storage media. Disk1 is a special mount disk, you can configure it in/etc/taos/taos.cfg as follows:
 
 ```
-dataDir /mnt/data1 0 1
-dataDir /mnt/data2 0 0
-dataDir /mnt/data3 1 0
-dataDir /mnt/data4 1 0
-dataDir /mnt/data5 2 0
-dataDir /mnt/data6 2 0
+dataDir /mnt/disk1/taos
+dataDir /mnt/disk2/taos 0
+dataDir /mnt/disk3/taos 1
+dataDir /mnt/disk4/taos 1
+dataDir /mnt/disk5/taos 2
+dataDir /mnt/disk6/taos 2
 ```
 
-:::note
+Mounted disks can also be a non-local network disk, as long as the system can access it.
 
-1. 多级存储不允许跨级配置，合法的配置方案有：仅 0 级，仅 0 级+ 1 级，以及 0 级+ 1 级+ 2 级。而不允许只配置 level=0 和 level=2，而不配置 level=1。
-2. 禁止手动移除使用中的挂载盘，挂载盘目前不支持非本地的网络盘。
-3. 多级存储目前不支持删除已经挂载的硬盘的功能。
+Note: Tiered Storage is only supported in Enterprise Edition
 
-:::
+## Data Query
 
-## 数据查询
+TDengine provides a variety of query processing functions for tables and STables. In addition to common aggregation queries, TDengine also provides window queries and statistical aggregation functions for time-series data. The query processing of TDengine needs the collaboration of client, vnode and mnode.
 
-TDengine 提供了多种多样针对表和超级表的查询处理功能，除了常规的聚合查询之外，还提供针对时序数据的窗口查询、统计聚合等功能。TDengine 的查询处理需要客户端、vnode、mnode 节点协同完成。
+### Single Table Query
 
-### 单表查询
+The parsing and verification of SQL statements are completed on the client side. SQL statements are parsed and generate an Abstract Syntax Tree (AST), which is then checksummed. Then request metadata information (table metadata) for the table specified in the query from management node (mnode).
 
-SQL 语句的解析和校验工作在客户端完成。解析 SQL 语句并生成抽象语法树（Abstract Syntax Tree，AST），然后对其进行校验和检查。以及向管理节点（mnode）请求查询中指定表的元数据信息（table metadata）。
+According to the End Point information in metadata information, the query request is serialized and sent to the data node (dnode) where the table is located. After receiving the query, the dnode identifies the virtual node (vnode) pointed to and forwards the message to the query execution queue of the vnode. The query execution thread of vnode establishes the basic query execution environment, immediately returns the query request and starts executing the query at the same time.
 
-根据元数据信息中的 End Point 信息，将查询请求序列化后发送到该表所在的数据节点（dnode）。dnode 接收到查询请求后，识别出该查询请求指向的虚拟节点（vnode），将消息转发到 vnode 的查询执行队列。vnode 的查询执行线程建立基础的查询执行环境，并立即返回该查询请求，同时开始执行该查询。
+When client obtains query result, the worker thread in query execution queue of dnode will wait for the execution of vnode execution thread to complete before returning the query result to the requesting client.
 
-客户端在获取查询结果的时候，dnode 的查询执行队列中的工作线程会等待 vnode 执行线程执行完成，才能将查询结果返回到请求的客户端。
+### Aggregation by Time Axis, Downsampling, Interpolation
 
-### 按时间轴聚合、降采样、插值
+The remarkable feature that time-series data is different from ordinary data is that each record has a timestamp, so aggregating data with timestamps on the time axis is an important and distinct feature from common databases. From this point of view, it is similar to the window query of stream computing engine.
 
-时序数据有别于普通数据的显著特征是每条记录均具有时间戳，因此针对具有时间戳的数据在时间轴上进行聚合是不同于普通数据库的重要功能。从这点上来看，与流计算引擎的窗口查询有相似的地方。
+The keyword `interval` is introduced into TDengine to split fixed length time windows on time axis, and the data are aggregated based on time windows, and the data within window range are aggregated as needed. For example:
 
-在 TDengine 中引入关键词 interval 来进行时间轴上固定长度时间窗口的切分，并按照时间窗口对数据进行聚合，对窗口范围内的数据按需进行聚合。例如：
-
-```sql
-SELECT COUNT(*) FROM d1001 INTERVAL(1h);
+```mysql
+select count(*) from d1001 interval(1h);
 ```
 
-针对 d1001 设备采集的数据，按照 1 小时的时间窗口返回每小时存储的记录数量。
+For the data collected by device D1001, the number of records stored per hour is returned by a 1-hour time window.
 
-在需要连续获得查询结果的应用场景下，如果给定的时间区间存在数据缺失，会导致该区间数据结果也丢失。TDengine 提供策略针对时间轴聚合计算的结果进行插值，通过使用关键词 fill 就能够对时间轴聚合结果进行插值。例如：
+In application scenarios where query results need to be obtained continuously, if there is data missing in a given time interval, the data results in this interval will also be lost. TDengine provides a strategy to interpolate the results of timeline aggregation calculation. The results of time axis aggregation can be interpolated by using keyword Fill. For example:
 
-```sql
-SELECT COUNT(*) FROM d1001 WHERE ts >= '2017-7-14 00:00:00' AND ts < '2017-7-14 23:59:59' INTERVAL(1h) FILL(PREV);
+```mysql
+select count(*) from d1001 interval(1h) fill(prev);
 ```
 
-针对 d1001 设备采集数据统计每小时记录数，如果某一个小时不存在数据，则返回之前一个小时的统计数据。TDengine 提供前向插值（prev）、线性插值（linear）、空值填充（NULL）、特定值填充（value）。
+For the data collected by device D1001, the number of records per hour is counted. If there is no data in a certain hour, statistical data of the previous hour is returned. TDengine provides forward interpolation (prev), linear interpolation (linear), NULL value populating (NULL), and specific value populating (value).
 
-### 多表聚合查询
+### Multi-table Aggregation Query
 
-TDengine 对每个数据采集点单独建表，但在实际应用中经常需要对不同的采集点数据进行聚合。为高效的进行聚合操作，TDengine 引入超级表（STable）的概念。超级表用来代表一特定类型的数据采集点，它是包含多张表的表集合，集合里每张表的模式（schema）完全一致，但每张表都带有自己的静态标签，标签可以有多个，可以随时增加、删除和修改。应用可通过指定标签的过滤条件，对一个 STable 下的全部或部分表进行聚合或统计操作，这样大大简化应用的开发。其具体流程如下图所示：
+TDengine creates a separate table for each data collection point, but in practical applications, it is often necessary to aggregate data from different data collection points. In order to perform aggregation operations efficiently, TDengine introduces the concept of STable. STable is used to represent a specific type of data collection point. It is a table set containing multiple tables. The schema of each table in the set is the same, but each table has its own static tag. The tags can be multiple and be added, deleted and modified at any time. Applications can aggregate or statistically operate all or a subset of tables under a STABLE by specifying tag filters, thus greatly simplifying the development of applications. The process is shown in the following figure:
 
-![多表聚合查询原理图](/img/architecture/multi_tables.png)
+![Diagram of multi-table aggregation query](/image/architecture/multi_tables.png)
+<center> Figure 5: Diagram of multi-table aggregation query </center>
 
-<center> 图 5 多表聚合查询原理图  </center>
+1. Application sends a query condition to system;
+2. TAOSC sends the STable name to Meta Node(management node);
+3. Management node sends the vnode list owned by the STable back to TAOSC;
+4. TAOSC sends the computing request together with tag filters to multiple data nodes corresponding to these vnodes;
+5. Each vnode first finds out the set of tables within its own node that meet the tag filters from memory, then scans the stored time-series data, completes corresponding aggregation calculations, and returns result to TAOSC;
+6. TAOSC finally aggregates the results returned by multiple data nodes and send them back to application.
 
-1. 应用将一个查询条件发往系统；
-2. taosc 将超级表的名字发往 meta node（管理节点）；
-3. 管理节点将超级表所拥有的 vnode 列表发回 taosc；
-4. taosc 将计算的请求连同标签过滤条件发往这些 vnode 对应的多个数据节点；
-5. 每个 vnode 先在内存里查找出自己节点里符合标签过滤条件的表的集合，然后扫描存储的时序数据，完成相应的聚合计算，将结果返回给 taosc；
-6. taosc 将多个数据节点返回的结果做最后的聚合，将其返回给应用。
+Since TDengine stores tag data and time-series data separately in vnode, by filtering tag data in memory, the set of tables that need to participate in aggregation operation is first found, which greatly reduces the volume of data scanned and improves aggregation speed. At the same time, because the data is distributed in multiple vnodes/dnodes, the aggregation operation is carried out concurrently in multiple vnodes, which further improves the aggregation speed. Aggregation functions for ordinary tables and most operations are applicable to STables. The syntax is exactly the same. Please see TAOS SQL for details.
 
-由于 TDengine 在 vnode 内将标签数据与时序数据分离存储，通过在内存里过滤标签数据，先找到需要参与聚合操作的表的集合，将需要扫描的数据集大幅减少，大幅提升聚合计算速度。同时，由于数据分布在多个 vnode/dnode，聚合计算操作在多个 vnode 里并发进行，又进一步提升了聚合的速度。 对普通表的聚合函数以及绝大部分操作都适用于超级表，语法完全一样，细节请看 TAOS SQL。
+### Precomputation
 
-### 预计算
+In order to effectively improve the performance of query processing, based-on the unchangeable feature of IoT data, statistical information of data stored in data block is recorded in the head of data block, including max value, min value, and sum. We call it a precomputing unit. If the query processing involves all the data of a whole data block, the pre-calculated results are directly used, and no need to read the data block contents at all. Since the amount of pre-calculated data is much smaller than the actual size of data block stored on disk, for query processing with disk IO as bottleneck, the use of pre-calculated results can greatly reduce the pressure of reading IO and accelerate the query process. The precomputation mechanism is similar to the index BRIN (Block Range Index) of PostgreSQL.
 
-为有效提升查询处理的性能，针对物联网数据的不可更改的特点，在数据块头部记录该数据块中存储数据的统计信息：包括最大值、最小值、和。我们称之为预计算单元。如果查询处理涉及整个数据块的全部数据，直接使用预计算结果，完全不需要读取数据块的内容。由于预计算数据量远小于磁盘上存储的数据块数据的大小，对于磁盘 I/O 为瓶颈的查询处理，使用预计算结果可以极大地减小读取 I/O 压力，加速查询处理的流程。预计算机制与 Postgre SQL 的索引 BRIN（block range index）有异曲同工之妙。

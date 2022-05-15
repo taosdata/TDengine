@@ -1,53 +1,54 @@
 ---
-title: 系统连接、任务查询管理
+sidebar_label: Connections & Tasks
+title: Manage Connections and Query Tasks
 ---
 
-系统管理员可以从 CLI 查询系统的连接、正在进行的查询、流式计算，并且可以关闭连接、停止正在进行的查询和流式计算。
+System operator can use TDengine CLI to show the connections, ongoing queries, stream computing, and can close connection or stop ongoing query task or stream computing.
 
-## 显示数据库的连接
+## Show Connections
 
 ```sql
 SHOW CONNECTIONS;
 ```
 
-其结果中的一列显示 ip:port, 为连接的 IP 地址和端口号。
+One column of the output of the above SQL command is "ip:port", which is the end point of the client.
 
-## 强制关闭数据库连接
+## Close Connections Forcedly
 
 ```sql
 KILL CONNECTION <connection-id>;
 ```
 
-其中的 connection-id 是 SHOW CONNECTIONS 中显示的第一列的数字。
+In the above SQL command, `connection-id` is from the first column of the output of `SHOW CONNECTIONS`.
 
-## 显示数据查询
+## Show Ongoing Queries
 
 ```sql
 SHOW QUERIES;
 ```
 
-其中第一列显示的以冒号隔开的两个数字为 query-id，为发起该 query 应用连接的 connection-id 和查询次数。
+The first column of the output is query ID, which is composed of the corresponding connection ID and the sequence number of the current query task started on this connection, in format of "connection-id:query-no".
 
-## 强制关闭数据查询
+## Close Queries Forcedly
 
 ```sql
 KILL QUERY <query-id>;
 ```
 
-其中 query-id 是 SHOW QUERIES 中显示的 connection-id:query-no 字串，如“105:2”，拷贝粘贴即可。
+In the above SQL command, `query-id` is from the first column of the output of `SHOW QUERIES `.
 
-## 显示连续查询
+## Show Continuous Query
 
 ```sql
 SHOW STREAMS;
 ```
 
-其中第一列显示的以冒号隔开的两个数字为 stream-id, 为启动该 stream 应用连接的 connection-id 和发起 stream 的次数。
+The first column of the output is stream ID, which is composed of the connection ID and the sequence number of the current stream started on this connection, in the format of "connection-id:stream-no".
 
-## 强制关闭连续查询
+## Close Continuous Query Forcedly
 
 ```sql
 KILL STREAM <stream-id>;
 ```
 
-其中的 stream-id 是 SHOW STREAMS 中显示的 connection-id:stream-no 字串，如 103:2，拷贝粘贴即可。
+The the above SQL command, `stream-id` is from the first column of the output of `SHOW STREAMS`.

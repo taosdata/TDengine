@@ -19,7 +19,7 @@ import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.md
 import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
 
-Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors please refer to [Connectors](https://docs.taosdata.com/reference/connector/)
+Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors please refer to [Connectors](/reference/connector/)
 
 ## Establish Connection
 
@@ -37,7 +37,7 @@ Key differences：
 
 ## Install Client Driver taosc
 
-如果选择原生连接，而且应用程序不在 TDengine 同一台服务器上运行，你需要先安装客户端驱动，否则可以跳过此一步。为避免客户端驱动和服务端不兼容，请使用一致的版本。
+If choosing to use native connection and the client program is not on the same host as TDengine server, TDengine client driver needs to be installed on the host where the client program is. If choosing to use REST connection or the client is on the same host as server side, this step can be skipped. It's better to use same version of client as the server.
 
 ### Install
 

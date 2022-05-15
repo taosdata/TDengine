@@ -40,7 +40,7 @@ A JSON string is sued in OpenTSDB JSON to represent one or more rows of data, fo
 ]
 ```
 
-Similar to OpenTSDB line protocol, `metric` will be used as the stable name, `timestamp` is the timestamp to be used, `value` represents the physical variable collected, `tags` are the tag sets.
+Similar to OpenTSDB line protocol, `metric` will be used as the STable name, `timestamp` is the timestamp to be used, `value` represents the metric collected, `tags` are the tag sets.
 
 
 Please refer to [OpenTSDB HTTP API](http://opentsdb.net/docs/build/html/api_http/put.html) for more details.
@@ -77,13 +77,13 @@ Please refer to [OpenTSDB HTTP API](http://opentsdb.net/docs/build/html/api_http
   </TabItem>
 </Tabs>
 
-The above sample code will created 2 stables automatically while each stable has 2 rows of data.
+The above sample code will created 2 STables automatically while each STable has 2 rows of data.
 
 ```cmd
 taos> use test;
 Database changed.
 
-taos> show stables;
+taos> show STables;
               name              |      created_time       | columns |  tags  |   tables    |
 ============================================================================================
  meters.current                 | 2022-03-29 16:05:25.193 |       2 |      2 |           1 |

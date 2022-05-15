@@ -1,20 +1,20 @@
 ---
-title: 数据导出
+sidebar_label: Export
+title: Export Data
 ---
 
-为方便数据导出，TDengine 提供了两种导出方式，分别是按表导出和用 taosdump 导出。
+There are two ways of exporting data from a TDengine cluster, one is SQL statement in TDengine CLI, the other one is `taosdump`.
 
-## 按表导出 CSV 文件
+## Export Using SQL
 
-如果用户需要导出一个表或一个 STable 中的数据，可在 taos shell 中运行：
+If you want to export the data of a table or a STable, please execute below SQL statement in TDengine CLI.
 
 ```sql
 select * from <tb_name> >> data.csv;
 ```
 
-这样，表 tb_name 中的数据就会按照 CSV 格式导出到文件 data.csv 中。
+The data of table or STable specified by `tb_name` will be exported into a file named `data.csv` in CSV format.
 
-## 用 taosdump 导出数据
+## Export Using taosdump
 
-利用 taosdump，用户可以根据需要选择导出所有数据库、一个数据库或者数据库中的一张表，所有数据或一时间段的数据，甚至仅仅表的定义。具体使用方法，请参见：
-[TDengine 数据备份工具: taosdump](/reference/taosdump)。
+With `taosdump`, you can choose to export the data of all databases, a database, a table or a STable, you can also choose export the data within a time range, or even only export the schema definition of a table. For the details of using `taosdump` please refer to [Tool for exporting and importing data: taosdump](/reference/taosdump).
