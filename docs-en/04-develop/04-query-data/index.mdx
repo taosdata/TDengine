@@ -21,7 +21,7 @@ import CAsync from "./_c_async.mdx";
 
 ## Introduction
 
-SQL is used by TDengine as the language for query. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine CLI `taos` can also be used to execute SQL Ad-Hoc query. Here is the list of major query functionalities supported by TDengine：
+SQL is used by TDengine as the query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine CLI `taos` can also be used to execute SQL Ad-Hoc query. Here is the list of major query functionalities supported by TDengine：
 
 - Query on single column or multiple columns
 - Filter on tags or data columns：>, <, =, <\>, like
@@ -47,13 +47,15 @@ taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
 Query OK, 2 row(s) in set (0.001100s)
 ```
 
-To meet the requirements in IoT use cases, some special functions have been added in TDengine, for example `twa` (Time Weighted Average), `spared` (The difference between the maximum and the minimum), `last_row` (the last row), more and more functions will be added to better perform in IoT use cases. Furthermore, continuous query is also supported in TDengine.
+To meet the requirements in many use cases, some special functions have been added in TDengine, for example `twa` (Time Weighted Average), `spared` (The difference between the maximum and the minimum), `last_row` (the last row), more and more functions will be added to better perform in many use cases. Furthermore, continuous query is also supported in TDengine.
 
 For detailed query syntax please refer to [Select](/taos-sql/select).
 
-## Join Query
+## Aggregation among Tables
 
-In IoT use cases, there are always multiple data collection points of same kind. A new concept, called STable (abbreviated for super table), is used in TDengine to represent a kind of data collection points, and a table is used to represent a specific data collection point. Tags are used by TDengine to represent the static properties of data collection points. A specific data collection point has its own values for static properties. By specifying filter conditions on tags, join query can be performed efficiently between all the tables belonging to same STable, i.e. same kind of data collection points, can be. Aggregate functions applicable for tables can be used directly on STables, syntax is exactly same.
+In many use cases, there are always multiple kinds of data collection points. A new concept, called STable (abbreviated for super table), is used in TDengine to represent a kind of data collection points, and a table is used to represent a specific data collection point. Tags are used by TDengine to represent the static properties of data collection points. A specific data collection point has its own values for static properties. By specifying filter conditions on tags, aggregation can be performed efficiently among all the subtables created via the same STable, i.e. same kind of data collection points, can be. Aggregate functions applicable for tables can be used directly on STables, syntax is exactly same.
+
+In summary, for a STable, its subtables can be aggregated by a simple query on STable, it's kind of join operation. But tables belong to different STables could not be aggregated. 
 
 ### Example 1
 
@@ -109,7 +111,7 @@ taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s
 Query OK, 5 row(s) in set (0.001538s)
 ```
 
-Down sample also supports time offset. For example, below SQL statement can be used to get the sum of current from all meters but each time window must start at the boundary of 500 milliseconds.
+Down sampling also supports time offset. For example, below SQL statement can be used to get the sum of current from all meters but each time window must start at the boundary of 500 milliseconds.
 
 ```
 taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
@@ -123,7 +125,7 @@ taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
 Query OK, 5 row(s) in set (0.001521s)
 ```
 
-In IoT use cases, it's hard to align the timestamp of the data collected by each collection point. However, a lot of algorithms like FFT require the data to be aligned with same time interval and application programs have to handle by themselves in many systems. In TDengine, it's easy to achieve the alignment using down sampling.
+In many use cases, it's hard to align the timestamp of the data collected by each collection point. However, a lot of algorithms like FFT require the data to be aligned with same time interval and application programs have to handle by themselves in many systems. In TDengine, it's easy to achieve the alignment using down sampling.
 
 Interpolation can be performed in TDengine if there is no data in a time range.
 
