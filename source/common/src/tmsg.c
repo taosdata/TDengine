@@ -3581,7 +3581,7 @@ int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
   if (pSma->tagsFilterLen > 0) {
     if (tEncodeCStr(pCoder, pSma->tagsFilter) < 0) return -1;
   }
-  
+
   return 0;
 }
 
