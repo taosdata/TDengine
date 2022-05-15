@@ -5,7 +5,7 @@ title: Telegraf writing
 
 import Telegraf from "../14-reference/_telegraf.mdx"
 
-Telegraf is a viral metrics collection open-source software. In the data collection and platform monitoring system, Telegraf can collect the operation information of various components without writing their scripts to collect regularly, reducing the difficulty of data acquisition.
+Telegraf is a viral metrics collection open-source software. Telegraf can collect the operation information of various components without writing any scripts to collect regularly, reducing the difficulty of data acquisition.
 
 Telegraf's data can be written to TDengine by simply adding the output configuration of Telegraf to the URL corresponding to taosAdapter and modifying several configuration items. The presence of Telegraf data in TDengine can take advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
