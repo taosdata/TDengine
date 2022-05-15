@@ -56,15 +56,15 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 Users can log in to the Grafana server (username/password: admin/admin) directly through the URL http://localhost:3000 and add a datasource through `Configuration -> Data Sources` on the left side, as shown in the following figure.
 
-! ![img](/img/connections/add_datasource1.jpg)
+![img](/img/connections/add_datasource1.jpg)
 
 Click `Add data source` to enter the Add data source page, and enter TDengine in the query box to add it, as shown in the following figure.
 
-! [img](/img/connections/add_datasource2.jpg)
+![img](/img/connections/add_datasource2.jpg)
 
 Enter the datasource configuration page, and follow the default prompts to modify the corresponding configuration.
 
-! [img](/img/connections/add_datasource3.jpg)
+![img](/img/connections/add_datasource3.jpg)
 
 - Host: IP address of the server where the components of the TDengine cluster provide REST service (offered by taosd before 2.4 and by taosAdapter since 2.4) and the port number of the TDengine REST service (6041), default http://localhost:6041.
 - User: TDengine user name.
@@ -72,13 +72,13 @@ Enter the datasource configuration page, and follow the default prompts to modif
 
 Click `Save & Test` to test. Follows are a success.
 
-! [img](/img/connections/add_datasource4.jpg)
+![img](/img/connections/add_datasource4.jpg)
 
 ### Create Dashboard
 
 Go back to the main interface to create the Dashboard, click Add Query to enter the panel query page:
 
-! [img](/img/connections/create_dashboard1.jpg)
+![img](/img/connections/create_dashboard1.jpg)
 
 As shown above, select the `TDengine` data source in the `Query` and enter the corresponding SQL in the query box below for query.
 
@@ -88,7 +88,7 @@ As shown above, select the `TDengine` data source in the `Query` and enter the c
 
 Follow the default prompt to query the average system memory usage for the specified interval on the server where the current TDengine deployment is located as follows.
 
-! [img](/img/connections/create_dashboard2.jpg)
+![img](/img/connections/create_dashboard2.jpg)
 
 > For more information on how to use Grafana to create the appropriate monitoring interface and for more details on using Grafana, refer to the official Grafana [documentation](https://grafana.com/docs/).
 
