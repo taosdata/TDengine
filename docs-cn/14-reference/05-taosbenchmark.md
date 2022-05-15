@@ -2,7 +2,7 @@
 title: taosBenchmark
 sidebar_label: taosBenchmark
 toc_max_heading_level: 4
-description: "taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具"
+description: 'taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具'
 ---
 
 ## 简介
@@ -257,7 +257,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **quorum** : 多副本模式下的写确认数量，默认值为 1。
 
-- **fsync** : 当 wal 设置为 2 时，fsync 的间隔时间，单位为 ms，默认值为 3000。
+- **fsync** : 当 WAL 设置为 2 时，fsync 的间隔时间，单位为 ms，默认值为 3000。
 
 - **update** : 是否支持数据更新，默认值为 0， 可选值为 0， 1， 2。
 
@@ -361,7 +361,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 ### 查询场景配置参数
 
-查询场景下 `filetype` 必须设置为 `qeury`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+查询场景下 `filetype` 必须设置为 `query`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
 #### 执行指定查询语句的配置参数
 

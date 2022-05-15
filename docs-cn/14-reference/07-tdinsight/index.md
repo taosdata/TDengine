@@ -92,7 +92,7 @@ Install and configure TDinsight dashboard in Grafana on ubuntu 18.04/20.04 syste
 
 -P, --grafana-provisioning-dir <dir>        Grafana provisioning directory, [default: /etc/grafana/provisioning/]
 -G, --grafana-plugins-dir <dir>             Grafana plugins directory, [default: /var/lib/grafana/plugins]
--O, --grafana-org-id <number>               Grafana orgnization id. [default: 1]
+-O, --grafana-org-id <number>               Grafana organization id. [default: 1]
 
 -n, --tdengine-ds-name <string>             TDengine datasource name, no space. [default: TDengine]
 -a, --tdengine-api <url>                    TDengine REST API endpoint. [default: http://127.0.0.1:6041]
@@ -106,7 +106,7 @@ Install and configure TDinsight dashboard in Grafana on ubuntu 18.04/20.04 syste
 -E, --external-notifier <string>            Apply external notifier uid to TDinsight dashboard.
 
 Aliyun SMS as Notifier:
--s, --sms-enabled                           To enable tdengine-datasource plugin builtin aliyun sms webhook.
+-s, --sms-enabled                           To enable tdengine-datasource plugin builtin Aliyun SMS webhook.
 -N, --sms-notifier-name <string>            Provisioning notifier name.[default: TDinsight Builtin SMS]
 -U, --sms-notifier-uid <string>             Provisioning notifier uid, use lowercase notifier name by default.
 -D, --sms-notifier-is-default               Set notifier as default.
@@ -351,7 +351,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes
 
 ### TaosAdapter
 
-![taosadapter](./assets/TDinsight-8-taosadaper.png)
+![taosadapter](./assets/TDinsight-8-taosadapter.png)
 
 包含 taosAdapter 请求统计和状态详情。包括：
 
@@ -388,7 +388,7 @@ cd grafanaplugin
 根据需要在 `docker-compose.yml` 文件中修改：
 
 ```yaml
-version: "3.7"
+version: '3.7'
 
 services:
   grafana:
@@ -406,7 +406,7 @@ services:
       SMS_ACCESS_KEY_SECRET: ${SMS_ACCESS_KEY_SECRET}
       SMS_SIGN_NAME: ${SMS_SIGN_NAME}
       SMS_TEMPLATE_CODE: ${SMS_TEMPLATE_CODE}
-      SMS_TEMPLATE_PARAM: "${SMS_TEMPLATE_PARAM}"
+      SMS_TEMPLATE_PARAM: '${SMS_TEMPLATE_PARAM}'
       SMS_PHONE_NUMBERS: $SMS_PHONE_NUMBERS
       SMS_LISTEN_ADDR: ${SMS_LISTEN_ADDR}
     ports:

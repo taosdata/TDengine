@@ -12,17 +12,19 @@ TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 
 
 ## 执行
 
-要进入 TDengine CLI，您只要在 Linux 终端或Windos 终端执行 `taos` 即可。
+要进入 TDengine CLI，您只要在 Linux 终端或 Windows 终端执行 `taos` 即可。
 
 ```bash
 taos
 ```
+
 如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](/train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
 
 ```cmd
 taos>
 ```
-进入CLI后，你可执行各种SQL语句，包括插入、查询以及各种管理命令。
+
+进入 CLI 后，你可执行各种 SQL 语句，包括插入、查询以及各种管理命令。
 
 ## 执行 SQL 脚本
 
@@ -50,7 +52,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -P, --port=PORT: 指定服务端所用端口号
 - -u, --user=USER: 连接时使用的用户名
 - -p, --password=PASSWORD: 连接服务端时使用的密码
-- -?, --help: 打印出所有命令行参数 
+- -?, --help: 打印出所有命令行参数
 
 还有更多其他参数：
 
@@ -75,6 +77,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 ```bash
 taos -h h1.taos.com -s "use db; show tables;"
 ```
+
 ## TDengine CLI 小技巧
 
 - 可以使用上下光标键查看历史输入的指令

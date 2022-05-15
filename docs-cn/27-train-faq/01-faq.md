@@ -119,7 +119,7 @@ title: 常见问题及反馈
 
 **12. Windows 系统下插入的 nchar 类数据中的汉字被解析成了乱码如何解决？**
 
-    Windows 下插入 nchar 类的数据中如果有中文，请先确认系统的地区设置成了中国（在 Control Panel 里可以设置），这时 cmd 中的`taos`客户端应该已经可以正常工作了；如果是在 IDE 里开发 Java 应用，比如 Eclipse， Intellij，请确认 IDE 里的文件编码为 GBK（这是 Java 默认的编码类型），然后在生成 Connection 时，初始化客户端的配置，具体语句如下：
+    Windows 下插入 nchar 类的数据中如果有中文，请先确认系统的地区设置成了中国（在 Control Panel 里可以设置），这时 cmd 中的`taos`客户端应该已经可以正常工作了；如果是在 IDE 里开发 Java 应用，比如 Eclipse， IntelliJ，请确认 IDE 里的文件编码为 GBK（这是 Java 默认的编码类型），然后在生成 Connection 时，初始化客户端的配置，具体语句如下：
 
     ```JAVA
     Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -128,7 +128,7 @@ title: 常见问题及反馈
     Connection = DriverManager.getConnection(url, properties);
     ```
 
-**13.JDBC 报错： the excuted SQL is not a DML or a DDL？**
+**13.JDBC 报错： the executed SQL is not a DML or a DDL？**
 
     请更新至最新的 JDBC 驱动
 
@@ -192,13 +192,12 @@ title: 常见问题及反馈
     如果希望继续使用之前的内置 httpd，可以关闭 taosAdapter 编译，使用
     `cmake .. -DBUILD_HTTP=true` 使用原来内置的 httpd。
 
-
 **19. 如何查询数据占用的存储空间大小？**
 
     默认情况下，TDengine 的数据文件存储在 /var/lib/taos ，日志文件存储在 /var/log/taos 。
-    
-    若想查看所有数据文件占用的具体大小，可以执行 Shell 指令：`du -sh /var/lib/taos/vnode --exclude='wal'` 来查看。此处排除了 wal 目录，因为在持续写入的情况下，这里大小几乎是固定的，并且每当正常关闭 TDengine 让数据落盘后， wal 目录都会清空。
-    
+
+    若想查看所有数据文件占用的具体大小，可以执行 Shell 指令：`du -sh /var/lib/taos/vnode --exclude='wal'` 来查看。此处排除了 WAL 目录，因为在持续写入的情况下，这里大小几乎是固定的，并且每当正常关闭 TDengine 让数据落盘后，WAL 目录都会清空。
+
     若想查看单个数据库占用的大小，可在命令行程序 taos 内指定要查看的数据库后执行 `show vgroups;` ，通过得到的 VGroup id 去 /var/lib/taos/vnode 下查看包含的文件夹大小。
-    
+
     若仅仅想查看指定（超级）表的数据块分布及大小，可查看[_block_dist 函数](https://docs.taosdata.com/taos-sql/select/#_block_dist-%E5%87%BD%E6%95%B0)

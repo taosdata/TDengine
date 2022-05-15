@@ -220,14 +220,14 @@ curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive
 phpize && ./configure && make -j && make install
 ```
 
-**手动指定 tdengine 目录：**
+**手动指定 TDengine 目录：**
 
 ```shell
 phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
 ```
 
-> `--with-tdengine-dir=` 后跟上 tdengine 目录。
-> 适用于默认找不到的情况，或者 MacOS 系统用户。
+> `--with-tdengine-dir=` 后跟上 TDengine 目录。
+> 适用于默认找不到的情况，或者 macOS 系统用户。
 
 **Swoole 环境：**
 
@@ -239,7 +239,7 @@ phpize && ./configure --enable-swoole && make -j && make install
 
 方法一：在 `php.ini` 中加入 `extension=tdengine`
 
-方法二：运行带参数 `php -dextension=tdengine test.php
+方法二：运行带参数 `php -d extension=tdengine test.php`
 
 </TabItem>
 </Tabs>
