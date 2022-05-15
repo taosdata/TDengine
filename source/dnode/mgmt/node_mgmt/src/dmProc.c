@@ -185,7 +185,7 @@ static int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, const char *pHe
   taosThreadMutexUnlock(&queue->mutex);
   tsem_post(&queue->sem);
 
-  dTrace("node:%s, push %s msg:%p %d cont:%p %d, pos:%d remain:%d", queue->name, dmFuncStr(ftype), pHead, headLen,
+  dTrace("node:%s, push %s msg:%p:%d cont:%p:%d, pos:%d remain:%d", queue->name, dmFuncStr(ftype), pHead, headLen,
          pBody, bodyLen, pos, queue->items);
   return 0;
 }
@@ -269,8 +269,8 @@ static int32_t dmPopFromProcQueue(SProcQueue *queue, void **ppHead, int16_t *pHe
   *pBodyLen = rawBodyLen;
   *pFuncType = (EProcFuncType)ftype;
 
-  dTrace("node:%s, pop %s msg:%p %d body:%p %d, pos:%d remain:%d", queue->name, dmFuncStr(ftype), pHead, rawHeadLen,
-         pBody, rawBodyLen, pos, queue->items);
+  dTrace("node:%s, pop %s msg:%p:%d cont:%p:%d, pos:%d remain:%d", queue->name, dmFuncStr(ftype), pHead, headLen, pBody,
+         bodyLen, pos, queue->items);
   return 1;
 }
 

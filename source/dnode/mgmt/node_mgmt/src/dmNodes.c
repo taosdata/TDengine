@@ -73,7 +73,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   SMgmtOutputOpt output = {0};
   SMgmtInputOpt  input = dmBuildMgmtInputOpt(pWrapper);
 
-  if (pWrapper->ntype == DNODE || OnlyInChildProc(pWrapper->proc.ptype)) {
+  if (pWrapper->ntype == DNODE || InChildProc(pWrapper->proc.ptype)) {
     tmsgSetDefaultMsgCb(&input.msgCb);
   }
 
