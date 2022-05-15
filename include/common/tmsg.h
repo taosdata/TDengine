@@ -2574,6 +2574,14 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
   taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp);
 }
 
+typedef struct {
+  void* data;
+} SStreamDispatchReq;
+
+typedef struct {
+  int8_t status;
+} SStreamDispatchRsp;
+
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
   int64_t        suid;
