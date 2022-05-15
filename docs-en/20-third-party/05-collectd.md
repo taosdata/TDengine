@@ -1,33 +1,34 @@
 ---
 sidebar_label: collectd
-title: collectd 写入
+title: collectd writing
 ---
 
 import CollectD from "../14-reference/_collectd.mdx"
 
-collectd 是一个用来收集系统性能的守护进程。collectd 提供各种存储方式来存储不同值的机制。它会在系统运行和存储信息时周期性的统计系统的相关统计信息。利用这些信息有助于查找当前系统性能瓶颈和预测系统未来的负载等。
 
-只需要将 collectd 的配置指向运行 taosAdapter 的服务器域名（或 IP 地址）和相应端口即可将 collectd 采集的数据写入到 TDengine，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
+collectd is a daemon used to collect system performance. collectd provides various storage mechanisms to store different values. It periodically counts system-related statistics while the system is running and storing information. You can use this information to help identify current system performance bottlenecks and predict future system load.
 
-## 前置条件
+You can write the data collected by collectd to TDengine by simply pointing the configuration of collectd to the domain name (or IP address) and corresponding port of the server running taosAdapter. It can take full advantage of TDengine's efficient storage query performance and clustering capability for time-series data.
 
-要将 collectd 数据写入 TDengine，需要几方面的准备工作。
-- TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行，具体细节请参考[ taosAdapter 的使用手册](/reference/taosadapter)
-- collectd 已经安装。安装 collectd 请参考[官方文档](https://collectd.org/download.shtml)
+## Prerequisites
 
-## 配置步骤
+Writing collectd data to the TDengine requires several preparations.
+- The TDengine cluster is deployed and running properly
+- taosAdapter is installed and running, please refer to [taosAdapter's manual](/reference/taosadapter) for details
+- collectd has been installed. Please refer to the [official documentation](https://collectd.org/download.shtml) to install collectd
+
+## Configuration steps
 <CollectD />
 
-## 验证方法
+## Verification method
 
-重启 collectd 
+Restart collectd 
 
 ```
 sudo systemctl restart collectd
 ```
 
-使用 TDengine CLI 验证从 collectd 向 TDengine 写入数据并能够正确读出：
+Use the TDengine CLI to verify that data is written to TDengine from collectd and can read out correctly.
 
 ```
 taos> show databases;

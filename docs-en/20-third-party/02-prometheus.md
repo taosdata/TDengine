@@ -1,31 +1,33 @@
 ---
 sidebar_label: Prometheus
-title: Prometheus 
+title: Prometheus writing and reading
 ---
 
 import Prometheus from "../14-reference/_prometheus.mdx"
 
-Prometheus 是一款流行的开源监控告警系统。Prometheus 于2016年加入了 Cloud Native Computing Foundation （云原生云计算基金会，简称 CNCF），成为继 Kubernetes 之后的第二个托管项目，该项目拥有非常活跃的开发人员和用户社区。
+Prometheus is a widespread open-source monitoring and alerting system. Prometheus joined the Cloud Native Computing Foundation (CNCF) in 2016 as the second-hosted project after Kubernetes, which has a very active developer and user community.
 
-Prometheus 提供了 `remote_write` 和 `remote_read` 接口来利用其它数据库产品作为它的存储引擎。为了让 Prometheus 生态圈的用户能够利用 TDengine 的高效写入和查询，TDengine 也提供了对这两个接口的支持。
+Prometheus provides `remote_write` and `remote_read` interfaces to leverage other database products as its storage engine. To enable users of the Prometheus ecosystem to take advantage of TDengine's efficient writing and querying, TDengine also provides support for these two interfaces.
 
-通过适当的配置， Prometheus 的数据可以通过 `remote_write` 接口存储到 TDengine 中，也可以通过 `remote_read` 接口来查询存储在 TDengine 中的数据，充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
+Prometheus data can be stored in TDengine via the `remote_write` interface with proper configuration. Data stored in TDengine can be queried via the `remote_read` interface, taking full advantage of TDengine's efficient storage query performance and clustering capabilities for time-series data.
 
-## 前置条件
+## Prerequisites
 
-要将 Prometheus 数据写入 TDengine 需要以下几方面的准备工作。
-- TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
-- Prometheus 已经安装。安装 Prometheus 请参考[官方文档](https://prometheus.io/docs/prometheus/latest/installation/)
+To write Prometheus data to TDengine requires the following preparations.
+- The TDengine cluster is deployed and functioning properly
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- Prometheus has been installed. Please refer to the [official documentation](https://prometheus.io/docs/prometheus/latest/installation/) for installing Prometheus
 
-## 配置步骤
+## Configuration steps
+
 <Prometheus />
 
-## 验证方法
+## Verification method
 
-重启 Prometheus 后可参考以下示例验证从 Prometheus 向 TDengine 写入数据并能够正确读出。
+After restarting Prometheus, you can refer to the following example to verify that data is written from Prometheus to TDengine and can read out correctly. 
 
-### 使用 TDengine CLI 查询写入数据
+### Query and write data using TDengine CLI
+
 ```
 taos> show databases;
               name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
@@ -61,15 +63,15 @@ taos> select * from metrics limit 10;
 Query OK, 10 row(s) in set (0.011146s)
 ```
 
-### 使用 promql-cli 通过 remote_read 从 TDengine 读取数据
+### Use promql-cli to read data from TDengine via remote_read
 
-安装 promql-cli
+Install promql-cli
 
 ```
  go install github.com/nalbury/promql-cli@latest
 ```
 
-在 TDengine 和 taosAdapter 服务运行状态对 Prometheus 数据进行查询
+Query Prometheus data in the running state of TDengine and taosAdapter services
 
 ```
 ubuntu@shuduo-1804 ~ $ promql-cli --host "http://127.0.0.1:9090" "sum(up) by (job)"
@@ -78,7 +80,7 @@ prometheus    1        2022-04-20T08:05:26Z
 node          1        2022-04-20T08:05:26Z
 ```
 
-暂停 taosAdapter 服务后对 Prometheus 数据进行查询
+Stop taosAdapter service and query Prometheus data to verify
 
 ```
 ubuntu@shuduo-1804 ~ $ sudo systemctl stop taosadapter.service
