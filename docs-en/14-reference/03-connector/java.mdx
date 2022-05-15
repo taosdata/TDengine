@@ -55,11 +55,21 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 | NCHAR             | java.lang.String                  | java.lang.String                   |
 | JSON              | -                                 | java.lang.String                   |
 
-In the above example, JDBC uses the client's configuration file to establish a connection to a hostname of cluster_node1, port 6030, and a database named test. When the firstEp node fails, JDBC attempts to connect to the cluster using secondEp.
+**Note**: Only TAG supports JSON types
 
-In TDengine, as long as one node in firstEp and secondEp is valid, the connection to the cluster can be established and worked.
+## Installation steps
 
-> **Note**: The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default value of /etc/taos/taos .cfg on Linux OS, and the default value of C://TDengine/cfg/taos.cfg on Windows OS.
+### Pre-installation preparation
+
+Before using Java Connector to connect to the database, the following conditions are required.
+
+- Java 1.8 or above runtime environment and Maven 3.6 or above installed
+- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](/reference/connector#Install Client Driver)
+
+### Install the connectors
+
+<Tabs defaultValue="maven">
+<TabItem value="maven" label="install via Maven">
 
 - [sonatype](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - [mvnrepository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
