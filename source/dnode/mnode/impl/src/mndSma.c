@@ -242,26 +242,35 @@ SDbObj *mndAcquireDbBySma(SMnode *pMnode, const char *smaName) {
 }
 
 static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma, int32_t *pContLen) {
-  SName name = {0};
+  SEncoder encoder = {0};
+  int32_t  contLen = 0;
+  SName    name = {0};
   tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   SVCreateTSmaReq req = {0};
-  req.tSma.version = 0;
-  req.tSma.intervalUnit = pSma->intervalUnit;
-  req.tSma.slidingUnit = pSma->slidingUnit;
-  req.tSma.timezoneInt = pSma->timezone;
-  tstrncpy(req.tSma.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
-  req.tSma.exprLen = pSma->exprLen;
-  req.tSma.tagsFilterLen = pSma->tagsFilterLen;
-  req.tSma.indexUid = pSma->uid;
-  req.tSma.tableUid = pSma->stbUid;
-  req.tSma.interval = pSma->interval;
-  req.tSma.offset = pSma->offset;
-  req.tSma.sliding = pSma->sliding;
-  req.tSma.expr = pSma->expr;
-  req.tSma.tagsFilter = pSma->tagsFilter;
+  req.version = 0;
+  req.intervalUnit = pSma->intervalUnit;
+  req.slidingUnit = pSma->slidingUnit;
+  req.timezoneInt = pSma->timezone;
+  tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
+  req.exprLen = pSma->exprLen;
+  req.tagsFilterLen = pSma->tagsFilterLen;
+  req.indexUid = pSma->uid;
+  req.tableUid = pSma->stbUid;
+  req.interval = pSma->interval;
+  req.offset = pSma->offset;
+  req.sliding = pSma->sliding;
+  req.expr = pSma->expr;
+  req.tagsFilter = pSma->tagsFilter;
 
-  int32_t   contLen = tSerializeSVCreateTSmaReq(NULL, &req) + sizeof(SMsgHead);
+  // get length
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVCreateTSmaReq, &req, contLen, ret);
+  if (ret < 0) {
+    return NULL;
+  }
+  contLen += sizeof(SMsgHead);
+
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -272,22 +281,38 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tSerializeSVCreateTSmaReq(&pBuf, &req);
+  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
+  if (tEncodeSVCreateTSmaReq(&encoder, &req) < 0) {
+    taosMemoryFreeClear(pHead);
+    tEncoderClear(&encoder);
+    return NULL;
+  }
+
+  tEncoderClear(&encoder);
 
   *pContLen = contLen;
   return pHead;
 }
 
 static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma, int32_t *pContLen) {
+  SEncoder       encoder = {0};
+  int32_t        contLen;
   SName name = {0};
   tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   SVDropTSmaReq req = {0};
-  req.ver = 0;
   req.indexUid = pSma->uid;
   tstrncpy(req.indexName, (char *)tNameGetTableName(&name), TSDB_INDEX_NAME_LEN);
 
-  int32_t   contLen = tSerializeSVDropTSmaReq(NULL, &req) + sizeof(SMsgHead);
+  // get length
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVDropTSmaReq, &req, contLen, ret);
+  if (ret < 0) {
+    return NULL;
+  }
+
+  contLen += sizeof(SMsgHead);
+
   SMsgHead *pHead = taosMemoryMalloc(contLen);
   if (pHead == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -298,7 +323,14 @@ static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma,
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tDeserializeSVDropTSmaReq(&pBuf, &req);
+  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
+
+  if (tEncodeSVDropTSmaReq(&encoder, &req) < 0) {
+    taosMemoryFreeClear(pHead);
+    tEncoderClear(&encoder);
+    return NULL;
+  }
+  tEncoderClear(&encoder);
 
   *pContLen = contLen;
   return pHead;

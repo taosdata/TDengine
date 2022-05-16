@@ -188,7 +188,8 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     rpcFreeCont(originalRpcMsg.pCont);
 
     // if leader, send response
-    if (pMsg->info.handle != NULL && pMsg->info.ahandle != NULL) {
+    // if (pMsg->rpcMsg.handle != NULL && pMsg->rpcMsg.ahandle != NULL) {
+    if (pMsg->info.handle != NULL) {
       rsp.info = pMsg->info;
       tmsgSendRsp(&rsp);
     }
@@ -200,14 +201,24 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
 static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg  *pMsg = NULL;
+  SRpcMsg   *pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     taosGetQitem(qall, (void **)&pMsg);
 
     // todo
     SRpcMsg *pRsp = NULL;
-    (void)vnodeProcessSyncReq(pVnode->pImpl, pMsg, &pRsp);
+    int32_t  ret = vnodeProcessSyncReq(pVnode->pImpl, pMsg, &pRsp);
+    if (ret != 0) {
+      // if leader, send response
+      if (pMsg->info.handle != NULL) {
+        SRpcMsg rsp = {0};
+        rsp.code = terrno;
+        rsp.info = pMsg->info;
+        dTrace("vmProcessSyncQueue error, code:%d", terrno);
+        tmsgSendRsp(&rsp);
+      }
+    }
 
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);

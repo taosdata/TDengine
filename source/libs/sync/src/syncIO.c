@@ -15,6 +15,7 @@
 
 #include "syncIO.h"
 #include <tdatablock.h>
+#include "os.h"
 #include "syncMessage.h"
 #include "syncUtil.h"
 #include "tglobal.h"
@@ -198,6 +199,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
   {
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
+    snprintf(rpcInit.localFqdn, sizeof(rpcInit.localFqdn), "%s", "127.0.0.1");
     rpcInit.localPort = io->myAddr.eps[0].port;
     rpcInit.label = "SYNC-IO-SERVER";
     rpcInit.numOfThreads = 1;

@@ -172,7 +172,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                        .pTransporter = pTscObj->pAppInfo->pTransporter,
                        .pStmtCb = pStmtCb,
-                       .pUser = pTscObj->user};
+                       .pUser = pTscObj->user,
+                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER))};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -517,8 +518,9 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    printf("failed to connect to server, reason: %s\n\n", errorMsg);
+    fprintf(stderr,"failed to connect to server, reason: %s\n\n", errorMsg);
 
+    terrno = pRequest->code;
     destroyRequest(pRequest);
     taos_close(pTscObj);
     pTscObj = NULL;
@@ -947,8 +949,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
-  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows,
-                          convertUcs4);
+  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows, convertUcs4);
 }
 
 TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* details, int maxlen) {

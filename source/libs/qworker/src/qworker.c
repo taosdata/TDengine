@@ -807,13 +807,11 @@ int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inpu
   }
 
   if (ctx->rspCode) {
-    QW_TASK_ELOG("task already failed at phase %s, error:%x - %s", qwPhaseStr(phase), ctx->rspCode,
-                 tstrerror(ctx->rspCode));
+    QW_TASK_ELOG("task already failed at phase %s, code:%s", qwPhaseStr(phase), tstrerror(ctx->rspCode));
     QW_ERR_JRET(ctx->rspCode);
   }
 
 _return:
-
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
 
@@ -831,7 +829,11 @@ _return:
     QW_TASK_DLOG("cancel rsp send, handle:%p, code:%x - %s", cancelConnection->handle, code, tstrerror(code));
   }
 
-  QW_TASK_DLOG("end to handle event at phase %s, code:%x - %s", qwPhaseStr(phase), code, tstrerror(code));
+  if (code != TSDB_CODE_SUCCESS) {
+    QW_TASK_ELOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
+  } else {
+    QW_TASK_DLOG("end to handle event at phase %s, code:%s", qwPhaseStr(phase), tstrerror(code));
+  }
 
   QW_RET(code);
 }

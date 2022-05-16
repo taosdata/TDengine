@@ -79,6 +79,12 @@ option(
 )
 
 option(
+    BUILD_WITH_BDB
+    "If build with BDB" 
+    OFF
+)
+
+option(
     BUILD_WITH_LUCENE 
     "If build with lucene" 
     off 

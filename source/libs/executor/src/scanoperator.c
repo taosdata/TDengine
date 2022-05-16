@@ -159,6 +159,8 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
   return false;
 }
 
+static void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock);
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -238,8 +240,15 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   }
 
   relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
+
+  // currently only the tbname pseudo column
+  if (pTableScanInfo->numOfPseudoExpr > 0) {
+    addTagPseudoColumnData(pTableScanInfo, pBlock);
+  }
+
   // todo record the filter time cost
-  doFilter(pTableScanInfo->pFilterNode, pBlock);
+  doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
+
   if (pBlock->info.rows == 0) {
     pCost->filterOutBlocks += 1;
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
@@ -260,7 +269,7 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
 }
 
-static void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
+void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
   // currently only the tbname pseudo column
   if (pTableScanInfo->numOfPseudoExpr == 0) {
     return;
@@ -282,20 +291,7 @@ static void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* 
 
     // this is to handle the tbname
     if (fmIsScanPseudoColumnFunc(functionId)) {
-      struct SScalarFuncExecFuncs fpSet = {0};
-      fmGetScalarFuncExecFuncs(functionId, &fpSet);
-
-      SColumnInfoData infoData = {0};
-      infoData.info.type = TSDB_DATA_TYPE_BIGINT;
-      infoData.info.bytes = sizeof(uint64_t);
-      colInfoDataEnsureCapacity(&infoData, 0, 1);
-
-      colDataAppendInt64(&infoData, 0, &pBlock->info.uid);
-      SScalarParam srcParam = {
-          .numOfRows = pBlock->info.rows, .param = pTableScanInfo->readHandle.meta, .columnData = &infoData};
-
-      SScalarParam param = {.columnData = pColInfoData};
-      fpSet.process(&srcParam, 1, &param);
+      setTbNameColData(pTableScanInfo->readHandle.meta, pBlock, pColInfoData, functionId);
     } else {  // these are tags
       const char* p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -305,6 +301,23 @@ static void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* 
   }
 
   metaReaderClear(&mr);
+}
+
+void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId) {
+  struct SScalarFuncExecFuncs fpSet = {0};
+  fmGetScalarFuncExecFuncs(functionId, &fpSet);
+
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_BIGINT;
+  infoData.info.bytes = sizeof(uint64_t);
+  colInfoDataEnsureCapacity(&infoData, 0, 1);
+
+  colDataAppendInt64(&infoData, 0, (int64_t*) &pBlock->info.uid);
+  SScalarParam srcParam = {
+      .numOfRows = pBlock->info.rows, .param = pMeta, .columnData = &infoData};
+
+  SScalarParam param = {.columnData = pColInfoData};
+  fpSet.process(&srcParam, 1, &param);
 }
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
@@ -328,11 +341,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     // current block is filter out according to filter condition, continue load the next block
     if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
       continue;
-    }
-
-    // currently only the tbname pseudo column
-    if (pTableScanInfo->numOfPseudoExpr > 0) {
-      addTagPseudoColumnData(pTableScanInfo, pBlock);
     }
 
     return pBlock;
@@ -750,7 +758,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         return NULL;
       }
       rows = pBlockInfo->rows;
-      doFilter(pInfo->pCondition, pInfo->pRes);
+      doFilter(pInfo->pCondition, pInfo->pRes, NULL);
 
       break;
     }

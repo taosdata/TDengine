@@ -3500,7 +3500,7 @@ static YYACTIONTYPE yy_reduce(
   yymsp[-4].minor.yy172 = yylhsminor.yy172;
         break;
       case 121: /* alter_table_clause ::= full_table_name SET TAG column_name NK_EQ literal */
-{ yylhsminor.yy172 = createAlterTableSetTag(pCxt, yymsp[-5].minor.yy172, &yymsp[-2].minor.yy105, yymsp[0].minor.yy172); }
+{ yylhsminor.yy172 = createAlterTableSetTag(pCxt, yymsp[-5].minor.yy172, &yymsp[-2].minor.yy105, releaseRawExprNode(pCxt, yymsp[0].minor.yy172)); }
   yymsp[-5].minor.yy172 = yylhsminor.yy172;
         break;
       case 123: /* multi_create_clause ::= multi_create_clause create_subtable_clause */

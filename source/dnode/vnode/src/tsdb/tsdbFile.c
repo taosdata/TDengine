@@ -23,14 +23,6 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "smal",  // TSDB_FILE_SMAL
     "",      // TSDB_FILE_MAX
     "meta",  // TSDB_FILE_META
-    "tsma",  // TSDB_FILE_TSMA
-    "rsma",  // TSDB_FILE_RSMA
-};
-
-const char *TSDB_LEVEL_DNAME[] = {
-    "tsdb",
-    "rsma1",
-    "rsma2",
 };
 
 static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* dname, char *fname);
@@ -51,7 +43,7 @@ void tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t 
   pDFile->info.magic = TSDB_FILE_INIT_MAGIC;
   pDFile->info.fver = tsdbGetDFSVersion(ftype);
 
-  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, TSDB_LEVEL_DNAME[pRepo->level], fname);
+  tsdbGetFilename(REPO_ID(pRepo), fid, ver, ftype, pRepo->dir, fname);
   tfsInitFile(REPO_TFS(pRepo), &(pDFile->f), did, fname);
 }
 

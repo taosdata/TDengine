@@ -37,6 +37,8 @@ TExeCond tDoCommpare(__compar_fn_t func, int8_t comType, void* a, void* b);
 
 _cache_range_compare indexGetCompare(RangeType ty);
 
+int32_t indexConvertData(void* src, int8_t type, void** dst);
+
 #ifdef __cplusplus
 }
 #endif

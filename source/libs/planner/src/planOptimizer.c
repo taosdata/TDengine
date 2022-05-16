@@ -392,7 +392,8 @@ static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, 
 }
 
 static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
-  if (NULL == pScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_CPD)) {
+  if (NULL == pScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_CPD) ||
+      TSDB_SYSTEM_TABLE == pScan->pMeta->tableType) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -582,7 +583,7 @@ static bool cpdIsPrimaryKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
     return false;
   }
 
-  SOperatorNode* pOper = (SOperatorNode*)pJoin->pOnConditions;
+  SOperatorNode* pOper = (SOperatorNode*)pCond;
   if (OP_TYPE_EQUAL != pOper->opType) {
     return false;
   }
@@ -608,11 +609,15 @@ static int32_t cpdCheckLogicCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, 
   if (LOGIC_COND_TYPE_AND != pOnCond->condType) {
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
+  bool   hasPrimaryKeyEqualCond = false;
   SNode* pCond = NULL;
   FOREACH(pCond, pOnCond->pParameterList) {
-    if (!cpdIsPrimaryKeyEqualCond(pJoin, pCond)) {
-      return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+    if (cpdIsPrimaryKeyEqualCond(pJoin, pCond)) {
+      hasPrimaryKeyEqualCond = true;
     }
+  }
+  if (!hasPrimaryKeyEqualCond) {
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
   return TSDB_CODE_SUCCESS;
 }
