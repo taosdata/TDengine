@@ -570,27 +570,41 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   return 0;
 }
 
+static bool udfdRpcRfp(int32_t code) {
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+#define INTERNAL_USER   "_dnd"
+#define INTERNAL_CKEY   "_key"
+#define INTERNAL_SECRET "_pwd"
+
 int32_t udfdOpenClientRpc() {
-  char *pass = "taosdata";
-  char *user = "root";
-  char  secretEncrypt[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)pass, strlen(pass), secretEncrypt);
   SRpcInit rpcInit = {0};
-  rpcInit.label = (char *)"UDFD";
+  rpcInit.label = "UDFD";
   rpcInit.numOfThreads = 1;
-  rpcInit.cfp = udfdProcessRpcRsp;
+  rpcInit.cfp = (RpcCfp)udfdProcessRpcRsp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
-  rpcInit.idleTime = 30 * 1000;
-  rpcInit.parent = &global;
-
-  rpcInit.user = (char *)user;
-  rpcInit.ckey = (char *)"key";
-  rpcInit.secret = (char *)secretEncrypt;
+  rpcInit.idleTime = tsShellActivityTimer * 1000;
+  rpcInit.user = INTERNAL_USER;
+  rpcInit.ckey = INTERNAL_CKEY;
   rpcInit.spi = 1;
+  rpcInit.parent = &global;
+  rpcInit.rfp = udfdRpcRfp;
+
+  char pass[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
+  rpcInit.secret = pass;
 
   global.clientRpc = rpcOpen(&rpcInit);
-
+  if (global.clientRpc == NULL) {
+    fnError("failed to init dnode rpc client");
+    return -1;
+  }
   return 0;
 }
 
