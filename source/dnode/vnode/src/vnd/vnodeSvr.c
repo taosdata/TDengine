@@ -19,7 +19,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
 static int vnodeProcessAlterStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
-static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
@@ -82,7 +82,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       if (vnodeProcessCreateTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_TABLE:
-      if (vnodeProcessAlterTbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      if (vnodeProcessAlterTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DROP_TABLE:
       if (vnodeProcessDropTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
@@ -455,9 +455,32 @@ _exit:
   return 0;
 }
 
-static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  // TODO
-  ASSERT(0);
+static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVAlterTbReq vAlterTbReq = {0};
+  SDecoder     dc = {0};
+
+  pRsp->msgType = TDMT_VND_ALTER_TABLE_RSP;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+  pRsp->code = TSDB_CODE_SUCCESS;
+
+  tDecoderInit(&dc, pReq, len);
+
+  // decode
+  if (tDecodeSVAlterTbReq(&dc, &vAlterTbReq) < 0) {
+    pRsp->code = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    return -1;
+  }
+
+  // process
+  if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq) < 0) {
+    pRsp->code = terrno;
+    tDecoderClear(&dc);
+    return -1;
+  }
+
+  tDecoderClear(&dc);
   return 0;
 }
 
@@ -668,7 +691,7 @@ _exit:
 
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
   SVCreateTSmaReq req = {0};
-  SDecoder       coder;
+  SDecoder        coder;
 
   pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -682,7 +705,7 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
     pRsp->code = terrno;
     goto _err;
   }
-  
+
   if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     goto _err;
