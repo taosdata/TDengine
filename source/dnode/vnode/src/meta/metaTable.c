@@ -572,30 +572,45 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   tDecoderClear(&dc);
 
   /* get stbEntry*/
+  tdbDbGet(pMeta->pUidIdx, &ctbEntry.ctbEntry.suid, sizeof(tb_uid_t), &pVal, &nVal);
+  tdbDbGet(pMeta->pTbDb, &((STbDbKey){.uid = ctbEntry.ctbEntry.suid, .version = *(int64_t *)pVal}), sizeof(STbDbKey),
+           (void **)&stbEntry.pBuf, &nVal);
+  tdbFree(pVal);
+  tDecoderInit(&dc, stbEntry.pBuf, nVal);
+  metaDecodeEntry(&dc, &stbEntry);
+  tDecoderClear(&dc);
 
-  {
-    // get table entry
-    // SDecoder dc = {0};
-    // tDecoderInit(&dc, pData, nData);
-    // metaDecodeEntry(&dc, &ctbEntry);
+  SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
+  SColumn        *pColumn = NULL;
+  int32_t         iCol = 0;
+  for (;;) {
+    pColumn = NULL;
 
-    // if (ctbEntry.type != TSDB_CHILD_TABLE) {
-    //   terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
-    //   goto _err;
-    // }
+    if (iCol >= pTagSchema->nCols) break;
+    pColumn = &pTagSchema->pSchema[iCol];
 
-    // // do actual job
-    // {
-    //   // TODO
-    // }
+    if (strcmp(pColumn->name, pAlterTbReq->tagName) == 0) break;
+    iCol++;
   }
 
-  // tDecoderClear(&dc);
+  if (pColumn == NULL) {
+    terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
+    goto _err;
+  }
+
+  {
+    // TODO:
+  }
+
+  if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
+  if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbDbcClose(pTbDbc);
   tdbDbcClose(pUidIdxc);
   return 0;
 
 _err:
+  if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
+  if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbDbcClose(pTbDbc);
   tdbDbcClose(pUidIdxc);
   return -1;
