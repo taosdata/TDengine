@@ -475,6 +475,15 @@ charset CP936
 
 ## Time Parameters
 
+### precision
+
+| Attribute     | Description                                       |
+| ------------- | ------------------------------------------------- |
+| Applicable    | Server only                                       |
+| Meaning       | Time precision used for each database             |
+| Value Range   | ms: millisecond; us: microsecond ; ns: nanosecond |
+| Default Value | ms                                                |
+
 ### rpcTimer
 
 | Attribute     | Description        |

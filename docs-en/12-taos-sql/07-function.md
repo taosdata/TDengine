@@ -1,5 +1,4 @@
 ---
-sidebar_label: Functions
 title: Functions
 ---
 

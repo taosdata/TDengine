@@ -1,9 +1,8 @@
 ---
-sidebar_label: Diagnose
 title: Diagnose Problems
 ---
 
-## Diagnose Network Connection
+## Network Connection Diagnostics
 
 When the client is unable to access the server, the network connection between the client side and the server side needs to be checked to find out the root cause and resolve problems.
 

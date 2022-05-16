@@ -1,5 +1,4 @@
 ---
-sidebar_label: Import
 title: Import Data
 ---
 

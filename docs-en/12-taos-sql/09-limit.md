@@ -1,6 +1,5 @@
 ---
-sidebar_label: Limits
-title: Limits and Restrictions
+title: Limits & Restrictions
 ---
 
 ## Naming Rules
