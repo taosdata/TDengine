@@ -195,8 +195,9 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 }
 
 static void dmSendRpcRedirectRsp(const SRpcMsg *pReq) {
-  SEpSet epSet = {0};
-  dmGetMnodeEpSetGlobal(&epSet);
+  SDnode *pDnode = dmInstance();
+  SEpSet  epSet = {0};
+  dmGetMnodeEpSet(&pDnode->data, &epSet);
 
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->info.handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -279,7 +280,6 @@ static inline void dmSendRedirectRsp(const SRpcMsg *pRsp, const SEpSet *pNewEpSe
 
 static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = pMsg->info.wrapper;
-
   if (InChildProc(pWrapper->proc.ptype)) {
     dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, DND_FUNC_REGIST);
   } else {
@@ -289,22 +289,15 @@ static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) {
 
 static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
   SMgmtWrapper *pWrapper = pHandle->wrapper;
-
   if (InChildProc(pWrapper->proc.ptype)) {
-    SRpcMsg msg = {.info = *pHandle, .code = type};
+    SRpcMsg msg = {.code = type, .info = *pHandle};
     dmPutToProcPQueue(&pWrapper->proc, &msg, sizeof(SRpcMsg), NULL, 0, DND_FUNC_RELEASE);
   } else {
     rpcReleaseHandle(pHandle->handle, type);
   }
 }
 
-static bool rpcRfp(int32_t code) {
-  if (code == TSDB_CODE_RPC_REDIRECT) {
-    return true;
-  } else {
-    return false;
-  }
-}
+static bool rpcRfp(int32_t code) { return code == TSDB_CODE_RPC_REDIRECT; }
 
 int32_t dmInitClient(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
@@ -345,8 +338,7 @@ void dmCleanupClient(SDnode *pDnode) {
   }
 }
 
-static inline int32_t dmGetHideUserAuth(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret,
-                                        char *ckey) {
+static inline int32_t dmGetHideUserAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
   int32_t code = 0;
   char    pass[TSDB_PASSWORD_LEN + 1] = {0};
 
@@ -370,7 +362,7 @@ static inline int32_t dmGetHideUserAuth(SDnode *pDnode, char *user, char *spi, c
 
 static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret,
                                              char *ckey) {
-  if (dmGetHideUserAuth(pDnode, user, spi, encrypt, secret, ckey) == 0) {
+  if (dmGetHideUserAuth(user, spi, encrypt, secret, ckey) == 0) {
     dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
     return 0;
   }
@@ -410,7 +402,6 @@ int32_t dmInitServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
   SRpcInit rpcInit = {0};
-
   strncpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
   rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND";
@@ -441,16 +432,15 @@ void dmCleanupServer(SDnode *pDnode) {
   }
 }
 
-SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
-  SDnode *pDnode = dmInstance();
-  SMsgCb  msgCb = {
-       .clientRpc = dmInstance()->trans.clientRpc,
-       .sendReqFp = dmSendReq,
-       .sendRspFp = dmSendRsp,
-       .sendRedirectRspFp = dmSendRedirectRsp,
-       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
-       .releaseHandleFp = dmReleaseHandle,
-       .reportStartupFp = dmReportStartup,
+SMsgCb dmGetMsgcb(SDnode *pDnode) {
+  SMsgCb msgCb = {
+      .clientRpc = pDnode->trans.clientRpc,
+      .sendReqFp = dmSendReq,
+      .sendRspFp = dmSendRsp,
+      .sendRedirectRspFp = dmSendRedirectRsp,
+      .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
+      .releaseHandleFp = dmReleaseHandle,
+      .reportStartupFp = dmReportStartup,
   };
   return msgCb;
 }

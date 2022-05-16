@@ -132,6 +132,7 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
+    pWrapper->pDnode = pDnode;
     pWrapper->name = dmNodeName(ntype);
     pWrapper->ntype = ntype;
     pWrapper->proc.wrapper = pWrapper;

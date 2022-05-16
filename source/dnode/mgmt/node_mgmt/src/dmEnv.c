@@ -16,7 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-SDnode global = {0};
+static SDnode global = {0};
+
+SDnode *dmInstance() { return &global; }
 
 static int32_t dmCheckRepeatInit(SDnode *pDnode) {
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
@@ -49,10 +51,10 @@ static int32_t dmInitMonitor() {
 
 int32_t dmInit(int8_t rtype) {
   dInfo("start to init env");
-  if (dmCheckRepeatInit(&global) != 0) return -1;
+  if (dmCheckRepeatInit(dmInstance()) != 0) return -1;
   if (dmInitSystem() != 0) return -1;
   if (dmInitMonitor() != 0) return -1;
-  if (dmInitDnode(&global, rtype) != 0) return -1;
+  if (dmInitDnode(dmInstance(), rtype) != 0) return -1;
 
   dInfo("env is initialized");
   return 0;
@@ -69,7 +71,7 @@ static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
 void dmCleanup() {
   dDebug("start to cleanup env");
   if (dmCheckRepeatCleanup != 0) return;
-  dmCleanupDnode(&global);
+  dmCleanupDnode(dmInstance());
   monCleanup();
   syncCleanUp();
   walCleanUp();
@@ -83,17 +85,17 @@ void dmCleanup() {
 }
 
 void dmStop() {
-  SDnode *pDnode = &global;
+  SDnode *pDnode = dmInstance();
   pDnode->stop = true;
 }
 
 int32_t dmRun() {
-  SDnode *pDnode = &global;
+  SDnode *pDnode = dmInstance();
   return dmRunDnode(pDnode);
 }
 
 static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
-  SDnode *pDnode = &global;
+  SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
@@ -130,7 +132,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 }
 
 static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
-  SDnode *pDnode = &global;
+  SDnode *pDnode = dmInstance();
 
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
@@ -161,37 +163,27 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
 }
 
 static bool dmIsNodeRequired(EDndNodeType ntype) {
-  SDnode *pDnode = &global;
+  SDnode *pDnode = dmInstance();
   return pDnode->wrappers[ntype].required;
 }
 
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
-  SDnode *pDnode = dmInstance();
-
   SMgmtInputOpt opt = {
       .path = pWrapper->path,
       .name = pWrapper->name,
-      .pData = &pDnode->data,
+      .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .isNodeRequiredFp = dmIsNodeRequired,
   };
 
-  opt.msgCb = dmGetMsgcb(pWrapper);
+  opt.msgCb = dmGetMsgcb(pWrapper->pDnode);
   return opt;
 }
 
 void dmReportStartup(const char *pName, const char *pDesc) {
-  SStartupInfo *pStartup = &global.startup;
+  SStartupInfo *pStartup = &(dmInstance()->startup);
   tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   dDebug("step:%s, %s", pStartup->name, pStartup->desc);
 }
-
-SDnode *dmInstance() { return &global; }
-
-bool dmNotRunning() { return global.status != DND_STAT_RUNNING; }
-
-void *dmGetClientRpc() { return global.trans.clientRpc; }
-
-void dmGetMnodeEpSetGlobal(SEpSet *pEpSet) { dmGetMnodeEpSet(&global.data, pEpSet); }

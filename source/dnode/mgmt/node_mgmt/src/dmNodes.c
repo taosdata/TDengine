@@ -64,7 +64,7 @@ static int32_t dmNewProc(SMgmtWrapper *pWrapper, EDndNodeType ntype) {
 }
 
 int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
-  SDnode *pDnode = dmInstance();
+  SDnode *pDnode = pWrapper->pDnode;
 
   if (taosMkDir(pWrapper->path) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
