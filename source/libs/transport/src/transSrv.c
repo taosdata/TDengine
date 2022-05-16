@@ -266,6 +266,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
   transMsg.code = pHead->code;
+
   transMsg.info.ahandle = (void*)pHead->ahandle;
   transMsg.info.handle = NULL;
 
@@ -440,7 +441,7 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
 
   char*   msg = (char*)pHead;
   int32_t len = transMsgLenFromCont(pMsg->contLen);
-  tDebug("server conn %p %s is sent to %s:%d, local info: %s:%d msglen:%d", pConn, TMSG_INFO(pHead->msgType),
+  tDebug("server conn %p %s is sent to %s:%d, local info: %s:%d, msglen:%d", pConn, TMSG_INFO(pHead->msgType),
          taosInetNtoa(pConn->addr.sin_addr), ntohs(pConn->addr.sin_port), taosInetNtoa(pConn->locaddr.sin_addr),
          ntohs(pConn->locaddr.sin_port), len);
   pHead->msgLen = htonl(len);
