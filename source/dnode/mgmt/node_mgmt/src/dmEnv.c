@@ -14,22 +14,40 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmUtil.h"
+#include "dmMgmt.h"
 
-static int8_t once = DND_ENV_INIT;
+static struct {
+  int8_t        once;
+  EDndProcType  ptype;
+  EDndNodeType  rtype;
+  EDndEvent     event;
+  EDndRunStatus status;
+  SStartupInfo  startup;
+  SDnodeTrans   trans;
+  SUdfdData     udfdData;
+  TdThreadMutex mutex;
+  TdFilePtr     lockfile;
+  SDnodeData    data;
+  SMgmtWrapper  wrappers[NODE_END];
+} global;
 
-int32_t dmInit() {
-  dInfo("start to init env");
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
+static int32_t dmCheckRepeatInit() {
+  if (atomic_val_compare_exchange_8(&global.once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
     dError("env is already initialized");
     terrno = TSDB_CODE_REPEAT_INIT;
     return -1;
   }
+  return 0;
+}
 
+static int32_t dmInitSystem() {
   taosIgnSIGPIPE();
   taosBlockSIGPIPE();
   taosResolveCRC();
+  return 0;
+}
 
+static int32_t dmInitMonitor() {
   SMonCfg monCfg = {0};
   monCfg.maxLogs = tsMonitorMaxLogs;
   monCfg.port = tsMonitorPort;
@@ -39,17 +57,31 @@ int32_t dmInit() {
     dError("failed to init monitor since %s", terrstr());
     return -1;
   }
+  return 0;
+}
+
+int32_t dmInit() {
+  dInfo("start to init env");
+  if (dmCheckRepeatInit() != 0) return -1;
+  if (dmInitSystem() != 0) return -1;
+  if (dmInitMonitor() != 0) return -1;
+  // if (dmInit)
 
   dInfo("env is initialized");
   return 0;
 }
 
+static int32_t dmCheckRepeatCleanup() {
+  if (atomic_val_compare_exchange_8(&global.once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
+    dError("env is already cleaned up");
+    return -1;
+  }
+  return 0;
+}
+
 void dmCleanup() {
   dDebug("start to cleanup env");
-  if (atomic_val_compare_exchange_8(&once, DND_ENV_READY, DND_ENV_CLEANUP) != DND_ENV_READY) {
-    dError("env is already cleaned up");
-    return;
-  }
+  if (dmCheckRepeatCleanup != 0) return;
 
   monCleanup();
   syncCleanUp();
