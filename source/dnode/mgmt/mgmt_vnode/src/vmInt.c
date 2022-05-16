@@ -262,11 +262,11 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   taosInitRWLatch(&pMgmt->latch);
 
   SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, pInput->pData->dataDir, TSDB_FILENAME_LEN);
+  tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  SDiskCfg *pDisks = pInput->pData->disks;
-  int32_t   numOfDisks = pInput->pData->numOfDisks;
+  SDiskCfg *pDisks = tsDiskCfg;
+  int32_t   numOfDisks = tsDiskCfgNum;
   if (numOfDisks <= 0 || pDisks == NULL) {
     pDisks = &dCfg;
     numOfDisks = 1;
@@ -328,7 +328,7 @@ _OVER:
 }
 
 static int32_t vmRequire(const SMgmtInputOpt *pInput, bool *required) {
-  *required = pInput->pData->supportVnodes > 0;
+  *required = tsNumOfSupportVnodes > 0;
   return 0;
 }
 

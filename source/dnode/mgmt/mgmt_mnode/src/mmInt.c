@@ -20,7 +20,7 @@
 static bool mmDeployRequired(const SMgmtInputOpt *pInput) {
   if (pInput->pData->dnodeId > 0) return false;
   if (pInput->pData->clusterId > 0) return false;
-  if (strcmp(pInput->pData->localEp, pInput->pData->firstEp) != 0) return false;
+  if (strcmp(tsLocalEp, tsFirst) != 0) return false;
   return true;
 }
 
@@ -44,8 +44,8 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
   pOption->selfIndex = 0;
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
-  pReplica->port = pInput->pData->serverPort;
-  tstrncpy(pReplica->fqdn, pInput->pData->localFqdn, TSDB_FQDN_LEN);
+  pReplica->port = tsServerPort;
+  tstrncpy(pReplica->fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   pOption->deploy = true;
 
   pMgmt->selfIndex = pOption->selfIndex;

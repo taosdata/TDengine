@@ -32,6 +32,7 @@ extern char     tsLocalEp[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
+extern int32_t  tsNumOfSupportVnodes;
 
 // common
 extern int32_t tsMaxShellConns;
