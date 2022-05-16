@@ -91,6 +91,15 @@ class TDTestCase:
         return join_condition
 
     def __where_condition(self, col=None, tbname=None, query_conditon=None):
+        if col.startswith("count"):
+            col = col[6:-1]
+        elif col.startswith("max"):
+            col = col[4:-1]
+        elif col.startswith("sum"):
+            col = col[4:-1]
+        elif col.startswith("min"):
+            col = col[4:-1]
+
         if query_conditon:
             return f" where {query_conditon} is not null"
         if col in NUM_COL:
