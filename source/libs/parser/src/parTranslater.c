@@ -480,6 +480,31 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
   return res;
 }
 
+static int32_t parseTimeFromValueNode(SValueNode* pVal) {
+  if (IS_SIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
+    return TSDB_CODE_SUCCESS;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
+    pVal->datum.i = pVal->datum.u;
+    return TSDB_CODE_SUCCESS;
+  } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
+    pVal->datum.i = pVal->datum.d;
+    return TSDB_CODE_SUCCESS;
+  } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
+    pVal->datum.i = pVal->datum.b;
+    return TSDB_CODE_SUCCESS;
+  } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
+    if (TSDB_CODE_SUCCESS == taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes,
+                                           pVal->node.resType.precision, tsDaylight)) {
+      return TSDB_CODE_SUCCESS;
+    }
+    char* pEnd = NULL;
+    pVal->datum.i = strtoll(pVal->literal, &pEnd, 10);
+    return (NULL != pEnd && '\0' == *pEnd) ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+  } else {
+    return TSDB_CODE_FAILED;
+  }
+}
+
 static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SDataType targetDt) {
   uint8_t precision = (NULL != pCxt->pCurrStmt ? pCxt->pCurrStmt->precision : targetDt.precision);
   pVal->node.resType.precision = precision;
@@ -571,7 +596,7 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
-        if (taosParseTime(pVal->literal, &pVal->datum.i, targetDt.bytes, precision, tsDaylight) != TSDB_CODE_SUCCESS) {
+        if (TSDB_CODE_SUCCESS != parseTimeFromValueNode(pVal)) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
         *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -1660,10 +1685,10 @@ static int32_t createPrimaryKeyColByTable(STranslateContext* pCxt, STableNode* p
   if (NULL == pCol) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
-    setColumnInfoBySchema((SRealTableNode*)pTable, ((SRealTableNode*)pTable)->pMeta->schema, false, pCol);
-  } else {
-    // todo
+  pCol->colId = PRIMARYKEY_TIMESTAMP_COL_ID;
+  strcpy(pCol->colName, PK_TS_COL_INTERNAL_NAME);
+  if (!findAndSetColumn(pCol, pTable)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_TIMELINE_FUNC);
   }
   *pPrimaryKey = (SNode*)pCol;
   return TSDB_CODE_SUCCESS;
@@ -2924,6 +2949,8 @@ static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* p
 }
 
 static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt) {
+  SEncoder       encoder = {0};
+  int32_t        contLen = 0;
   SVDropTSmaReq dropSmaReq = {0};
   strcpy(dropSmaReq.indexName, pStmt->indexName);
 
@@ -2931,16 +2958,26 @@ static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt
   if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVDropTSmaReq, &dropSmaReq, contLen, ret);
+  if (ret < 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_VND_DROP_SMA;
-  pCxt->pCmdMsg->msgLen = tSerializeSVDropTSmaReq(NULL, &dropSmaReq);
+  pCxt->pCmdMsg->msgLen = contLen;
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   void* pBuf = pCxt->pCmdMsg->pMsg;
-  tSerializeSVDropTSmaReq(&pBuf, &dropSmaReq);
-
+  if (tEncodeSVDropTSmaReq(&encoder, &dropSmaReq) < 0) {
+    tEncoderClear(&encoder);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tEncoderClear(&encoder);
   return TSDB_CODE_SUCCESS;
 }
 

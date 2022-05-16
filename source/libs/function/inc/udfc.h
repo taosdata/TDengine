@@ -43,7 +43,7 @@ int32_t setupUdf(SUdfInfo* udf, UdfcFuncHandle* handle);
 int32_t callUdf(UdfcFuncHandle handle, int8_t step, char *state, int32_t stateSize, SSDataBlock input, char **newstate,
                 int32_t *newStateSize, SSDataBlock *output);
 
-int32_t teardownUdf(UdfcFuncHandle handle);
+int32_t doTeardownUdf(UdfcFuncHandle handle);
 
 typedef struct SUdfSetupRequest {
     char udfName[16]; //

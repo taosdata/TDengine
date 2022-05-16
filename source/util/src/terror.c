@@ -354,6 +354,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECREATED,          "Table re-created")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR,       "TDB env open error")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_SMA_INDEX_IN_META,     "No sma index in meta")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_SMA_STAT,         "Invalid sma state")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TSMA_ALREADY_EXIST,       "Tsma already exists")
 
 
 // query
@@ -463,7 +464,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_UDF_PIPE_NO_PIPE,             "udf no pipe")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_LOAD_UDF_FAILURE,         "udf load failure")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_STATE,            "udf invalid state")
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_INVALID_INPUT,            "udf invalid function input")
-
+TAOS_DEFINE_ERROR(TSDB_CODE_UDF_NO_FUNC_HANDLE,           "udf no function handle")
 //schemaless
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PROTOCOL_TYPE,    "Invalid line protocol type")
 TAOS_DEFINE_ERROR(TSDB_CODE_SML_INVALID_PRECISION_TYPE,   "Invalid timestamp precision type")

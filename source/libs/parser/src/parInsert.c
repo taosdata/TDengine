@@ -1826,6 +1826,9 @@ void smlDestroyHandle(void* pHandle) {
   if (!pHandle) return;
   SSmlExecHandle* handle = (SSmlExecHandle*)pHandle;
   destroyBlockHashmap(handle->pBlockHash);
+  tdDestroyKVRowBuilder(&handle->tagsBuilder);
+  destroyBoundColumnInfo(&handle->tags);
+  destroyCreateSubTbReq(&handle->createTblReq);
   taosMemoryFree(handle);
 }
 

@@ -194,6 +194,7 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
 
     // source
     pTask->sourceType = TASK_SOURCE__MERGE;
+    pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
     // exec
     pTask->execType = TASK_EXEC__NONE;
@@ -235,6 +236,7 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
   pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
   // source
   pTask->sourceType = TASK_SOURCE__MERGE;
+  pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
   // exec
   pTask->execType = TASK_EXEC__NONE;
@@ -309,6 +311,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         SStreamTask* pTask = tNewSStreamTask(pStream->uid);
         // source part
         pTask->sourceType = TASK_SOURCE__SCAN;
+        pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
 
         // sink part
         if (level == 0) {
@@ -372,6 +375,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
       // source part, currently only support multi source
       pTask->sourceType = TASK_SOURCE__PIPE;
+      pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
       // sink part
       pTask->sinkType = TASK_SINK__NONE;
@@ -459,6 +463,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
       // source part
       pTask->sourceType = TASK_SOURCE__MERGE;
+      pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
       // sink part
       pTask->sinkType = TASK_SINK__NONE;

@@ -159,6 +159,8 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
   return false;
 }
 
+static void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock);
+
 static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableScanInfo, SSDataBlock* pBlock,
                              uint32_t* status) {
   SExecTaskInfo*  pTaskInfo = pOperator->pTaskInfo;
@@ -238,8 +240,15 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   }
 
   relocateColumnData(pBlock, pTableScanInfo->pColMatchInfo, pCols);
+
+  // currently only the tbname pseudo column
+  if (pTableScanInfo->numOfPseudoExpr > 0) {
+    addTagPseudoColumnData(pTableScanInfo, pBlock);
+  }
+
   // todo record the filter time cost
-  doFilter(pTableScanInfo->pFilterNode, pBlock);
+  doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
+
   if (pBlock->info.rows == 0) {
     pCost->filterOutBlocks += 1;
     qDebug("%s data block filter out, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
@@ -260,7 +269,7 @@ static void prepareForDescendingScan(STableScanInfo* pTableScanInfo, SqlFunction
   pTableScanInfo->cond.order = TSDB_ORDER_DESC;
 }
 
-static void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
+void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
   // currently only the tbname pseudo column
   if (pTableScanInfo->numOfPseudoExpr == 0) {
     return;
@@ -328,11 +337,6 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
     // current block is filter out according to filter condition, continue load the next block
     if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
       continue;
-    }
-
-    // currently only the tbname pseudo column
-    if (pTableScanInfo->numOfPseudoExpr > 0) {
-      addTagPseudoColumnData(pTableScanInfo, pBlock);
     }
 
     return pBlock;
@@ -750,7 +754,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
         return NULL;
       }
       rows = pBlockInfo->rows;
-      doFilter(pInfo->pCondition, pInfo->pRes);
+      doFilter(pInfo->pCondition, pInfo->pRes, NULL);
 
       break;
     }

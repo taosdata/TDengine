@@ -35,6 +35,8 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     if (tEncodeI64(pCoder, pME->ntbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ntbEntry.ttlDays) < 0) return -1;
     if (tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
+  } else if (pME->type == TSDB_TSMA_TABLE) {
+    if (tEncodeTSma(pCoder, pME->smaEntry.tsma) < 0) return -1;
   } else {
     ASSERT(0);
   }
@@ -64,7 +66,9 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;
     if (tDecodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
-  } else {
+  } else if (pME->type == TSDB_TSMA_TABLE) {
+    if (tDecodeTSma(pCoder, pME->smaEntry.tsma) < 0) return -1;
+  }  else {
     ASSERT(0);
   }
 

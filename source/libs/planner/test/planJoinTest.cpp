@@ -23,10 +23,16 @@ class PlanJoinTest : public PlannerTestBase {};
 TEST_F(PlanJoinTest, basic) {
   useDb("root", "test");
 
-  run("select t1.c1, t2.c2 from st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+  run("SELECT t1.c1, t2.c2 FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
 
-  run("select t1.*, t2.* from st1s1 t1, st1s2 t2 where t1.ts = t2.ts");
+  run("SELECT t1.*, t2.* FROM st1s1 t1, st1s2 t2 WHERE t1.ts = t2.ts");
 
-  // run("select t1.c1, t2.c1 from st1s1 t1 join st1s2 t2 on t1.ts = t2.ts where t1.c1 > t2.c1 and t1.c2 = 'abc' and "
-  //     "t2.c2 = 'qwe'");
+  run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts");
+}
+
+TEST_F(PlanJoinTest, withWhere) {
+  useDb("root", "test");
+
+  run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts "
+      "WHERE t1.c1 > t2.c1 AND t1.c2 = 'abc' AND t2.c2 = 'qwe'");
 }

@@ -2115,7 +2115,7 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
 }
 
 static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SArray* pColMatchInfo) {
   if (pFilterNode == NULL) {
     return;
   }
@@ -2129,8 +2129,9 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   code = filterSetDataFromSlotId(filter, &param1);
 
   int8_t* rowRes = NULL;
+
   // todo the keep seems never to be True??
-  bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
+  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
   extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
@@ -2151,11 +2152,6 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
     for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
       SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-
-      // For the reserved column, the value is not filled yet, so the whole column data may be NULL.
-      if (pSrc->pData == NULL) {
-        continue;
-      }
 
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
@@ -5504,18 +5500,21 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
 
         int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
         int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;
+        int32_t rowIndex = -1;
 
         SColumnInfoData* pSrc = NULL;
         if (pJoinInfo->pLeft->info.blockId == blockId) {
           pSrc = taosArrayGet(pJoinInfo->pLeft->pDataBlock, slotId);
+          rowIndex = pJoinInfo->leftPos;
         } else {
           pSrc = taosArrayGet(pJoinInfo->pRight->pDataBlock, slotId);
+          rowIndex = pJoinInfo->rightPos;
         }
 
-        if (colDataIsNull_s(pSrc, pJoinInfo->leftPos)) {
+        if (colDataIsNull_s(pSrc, rowIndex)) {
           colDataAppendNULL(pDst, nrows);
         } else {
-          char* p = colDataGetData(pSrc, pJoinInfo->leftPos);
+          char* p = colDataGetData(pSrc, rowIndex);
           colDataAppend(pDst, nrows, p, false);
         }
       }
