@@ -18,12 +18,15 @@
 #include "function.h"
 #include "querynodes.h"
 #include "taggfunction.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tpercentile.h"
 
 #define HISTOGRAM_MAX_BINS_NUM   1000
 #define MAVG_MAX_POINTS_NUM      1000
 #define SAMPLE_MAX_POINTS_NUM    1000
+#define TAIL_MAX_POINTS_NUM      100
+#define TAIL_MAX_OFFSET          100
 
 typedef struct SSumRes {
   union {
@@ -160,6 +163,20 @@ typedef struct SSampleInfo {
   char *data;
   int64_t *timestamp;
 } SSampleInfo;
+
+typedef struct STailUnit {
+  int64_t timestamp;
+  char    data[];
+} STailUnit;
+
+typedef struct STailInfo {
+  int32_t   numOfPoints;
+  int32_t   numAdded;
+  int32_t   offset;
+  uint8_t   colType;
+  int16_t   colBytes;
+  STailUnit **pRes;
+} STailInfo;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -3141,3 +3158,86 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 //
 //  return pResInfo->numOfRes;
 //}
+
+
+bool getTailFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  int32_t numOfPoints = pVal->datum.i;
+  pEnv->calcMemSize = sizeof(STailInfo) + numOfPoints * (POINTER_BYTES + sizeof(STailUnit) + pCol->node.resType.bytes);
+  return true;
+}
+
+bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  STailInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->numAdded = 0;
+  pInfo->numOfPoints = pCtx->param[1].param.i;
+  pInfo->offset = pCtx->param[2].param.i;
+  pInfo->colType = pCtx->resDataInfo.type;
+  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  if ((pInfo->numOfPoints < 1 || pInfo->numOfPoints > TAIL_MAX_POINTS_NUM) ||
+      (pInfo->numOfPoints < 0 || pInfo->numOfPoints > TAIL_MAX_OFFSET)) {
+    return false;
+  }
+
+  pInfo->pRes = (STailUnit **)((char *)pInfo + sizeof(STailInfo));
+  char *pUnit = (char *)pInfo->pRes + pInfo->numOfPoints * POINTER_BYTES;
+
+  size_t unitSize = sizeof(STailUnit) + pInfo->colBytes;
+  for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
+    pInfo->pRes[i] = (STailUnit *)(pUnit + i * unitSize);
+  }
+
+  return true;
+}
+
+static void tailAssignResult(STailUnit* pUnit, char *data, int32_t colBytes, TSKEY ts) {
+  pUnit->timestamp = ts;
+  memcpy(pUnit->data, data, colBytes);
+}
+
+static int32_t tailCompFn(const void *p1, const void *p2, const void *param) {
+  STailUnit *d1 = *(STailUnit **)p1;
+  STailUnit *d2 = *(STailUnit **)p2;
+  return compareInt64Val(&d1->timestamp, &d2->timestamp);
+}
+
+static void doTailAdd(STailInfo* pInfo, char *data, TSKEY ts) {
+  STailUnit **pList = pInfo->pRes;
+  if (pInfo->numAdded < pInfo->numOfPoints) {
+    tailAssignResult(pList[pInfo->numAdded], data, pInfo->colBytes, ts);
+    taosheapsort((void *)pList, sizeof(STailUnit **), pInfo->numAdded + 1, NULL, tailCompFn, 0);
+  } else if (pList[0]->timestamp < ts) {
+    tailAssignResult(pList[0], data, pInfo->colBytes, ts);
+    taosheapadjust((void *)pList, sizeof(STailUnit **), 0, pInfo->numOfPoints - 1, NULL, tailCompFn, NULL, 0);
+  }
+}
+
+int32_t tailFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STailInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+      //colDataAppendNULL(pOutput, i);
+      continue;
+    }
+
+    char* data = colDataGetData(pInputCol, i);
+    doTailAdd(pInfo, data, tsList[i]);
+  }
+
+  return pInfo->numOfPoints;
+}
