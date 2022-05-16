@@ -61,6 +61,7 @@ extern int32_t tqDebugFlag;
 extern int32_t fsDebugFlag;
 extern int32_t metaDebugFlag;
 extern int32_t fnDebugFlag;
+extern int32_t smaDebugFlag;
 
 int32_t taosInitLog(const char *logName, int32_t maxFiles);
 void    taosCloseLog();

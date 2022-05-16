@@ -91,7 +91,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_AGG_FUNC_NESTING:
       return "Aggregate functions do not support nesting";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TYPE:
-      return "Only support STATE_WINDOW on integer column";
+      return "Only support STATE_WINDOW on integer/bool/varchar column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_COL:
       return "Not support STATE_WINDOW on tag column";
     case TSDB_CODE_PAR_INVALID_STATE_WIN_TABLE:
@@ -148,6 +148,12 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid number of tag columns";
     case TSDB_CODE_PAR_INVALID_INTERNAL_PK:
       return "Invalid _c0 or _rowts expression";
+    case TSDB_CODE_PAR_INVALID_TIMELINE_FUNC:
+      return "Invalid timeline function";
+    case TSDB_CODE_PAR_INVALID_PASSWD:
+      return "Invalid password";
+    case TSDB_CODE_PAR_INVALID_ALTER_TABLE:
+      return "Invalid alter table statement";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

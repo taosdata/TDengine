@@ -173,6 +173,7 @@ typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
   uint32_t             order;  // data block scanner order: asc|desc
+  uint8_t              scanFlag;  // record current running step, default: 0
   ////////////////////////////////////////////////////////////////
   int32_t          startRow;   // start row index
   int32_t          size;       // handled processed row number
@@ -183,7 +184,6 @@ typedef struct SqlFunctionCtx {
   bool             hasNull;      // null value exist in current block, TODO remove it
   bool             requireNull;  // require null in some function, TODO remove it
   int32_t          columnIndex;  // TODO remove it
-  uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
   int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
   bool             stableQuery;
@@ -309,7 +309,7 @@ void qAddUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 void qRemoveUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 
 /**
- * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
+ * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
  * @return error code
  */
 int32_t udfcOpen();

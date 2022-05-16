@@ -47,7 +47,7 @@ int vnodeBegin(SVnode *pVnode) {
   }
 
   // begin tsdb
-  if (vnodeIsRollup(pVnode)) {
+  if (pVnode->pSma) {
     if (tsdbBegin(VND_RSMA0(pVnode)) < 0) {
       vError("vgId:%d failed to begin rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;
@@ -310,8 +310,11 @@ static int vnodeEncodeState(const void *pObj, SJson *pJson) {
 static int vnodeDecodeState(const SJson *pJson, void *pObj) {
   SVState *pState = (SVState *)pObj;
 
-  if (tjsonGetNumberValue(pJson, "commit version", pState->committed) < 0) return -1;
-  if (tjsonGetNumberValue(pJson, "applied version", pState->applied) < 0) return -1;
+  int32_t code;
+  tjsonGetNumberValue(pJson, "commit version", pState->committed, code);
+  if(code < 0) return -1;
+  tjsonGetNumberValue(pJson, "applied version", pState->applied, code);
+  if(code < 0) return -1;
 
   return 0;
 }

@@ -1051,7 +1051,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions);
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("failed to execute redoActions since %s", terrstr());
+    mError("failed to execute redoActions since:%s, code:0x%x", terrstr(), terrno);
   }
   return code;
 }

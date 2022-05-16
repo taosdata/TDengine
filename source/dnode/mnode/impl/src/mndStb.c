@@ -383,9 +383,10 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.suid = pStb->uid;
   req.rollup = pStb->ast1Len > 0 ? 1 : 0;
   req.schema.nCols = pStb->numOfColumns;
-  req.schema.sver = 0;
+  req.schema.sver = pStb->version;
   req.schema.pSchema = pStb->pColumns;
   req.schemaTag.nCols = pStb->numOfTags;
+  req.schemaTag.nCols = 0;
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {
@@ -425,6 +426,10 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
   tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
   if (tEncodeSVCreateStbReq(&encoder, &req) < 0) {
+    taosMemoryFreeClear(pHead);
+    taosMemoryFreeClear(req.pRSmaParam.qmsg1);
+    taosMemoryFreeClear(req.pRSmaParam.qmsg2);
+    tEncoderClear(&encoder);
     return NULL;
   }
   tEncoderClear(&encoder);

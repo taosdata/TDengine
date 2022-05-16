@@ -78,9 +78,9 @@ if(${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV})
 
 # bdb
-#if(${BUILD_WITH_BDB})
-    #cat("${TD_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-#endif(${BUILD_WITH_BDB})
+if(${BUILD_WITH_BDB})
+    cat("${TD_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_BDB})
 
 # sqlite
 if(${BUILD_WITH_SQLITE})
@@ -365,7 +365,7 @@ if(${BUILD_ADDR2LINE})
     if(HAVE_LIBELF_H OR HAVE_LIBELF_LIBELF_H)
         target_link_libraries(libdwarf PUBLIC libelf)
     endif()
-    target_include_directories(libdwarf SYSTEM PUBLIC "libdwarf/src/lib/libdwarf" ${CMAKE_BINARY_DIR}/contrib)
+    target_include_directories(libdwarf SYSTEM PUBLIC "libdwarf/src/lib/libdwarf" ${CMAKE_CURRENT_BINARY_DIR})
     file(READ "addr2line/addr2line.c" ADDR2LINE_CONTENT)
     string(REPLACE "static int" "int" ADDR2LINE_CONTENT "${ADDR2LINE_CONTENT}")
     string(REPLACE "static void" "void" ADDR2LINE_CONTENT "${ADDR2LINE_CONTENT}")

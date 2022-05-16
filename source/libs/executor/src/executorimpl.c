@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <libs/function/function.h>
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -155,9 +154,8 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 
 void operatorDummyCloseFn(void* param, int32_t numOfCols) {}
 
-static int32_t doCopyToSDataBlock(SExecTaskInfo *taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf,
-                                  SGroupResInfo* pGroupResInfo, int32_t orderType, int32_t* rowCellOffset,
-                                  SqlFunctionCtx* pCtx);
+static int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
+                                  int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs);
 
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void setResultBufSize(STaskAttr* pQueryAttr, SResultInfo* pResultInfo);
@@ -746,7 +744,7 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
     pCtx[i].order = order;
     pCtx[i].size = pBlock->info.rows;
     pCtx[i].pSrcBlock = pBlock;
-    pCtx[i].currentStage = scanFlag;
+    pCtx[i].scanFlag  = scanFlag;
 
     SInputColumnInfoData* pInput = &pCtx[i].input;
     pInput->uid = pBlock->info.uid;
@@ -826,23 +824,22 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
   return code;
 }
 
-static void doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
+static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       pCtx[k].startTs = startTs;
-      // this can be set during create the struct
       // todo add a dummy funtion to avoid process check
       if (pCtx[k].fpSet.process != NULL) {
         int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
         if (code != TSDB_CODE_SUCCESS) {
-          qError("%s call aggregate function error happens, code : %s",
-                 GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
-          pOperator->pTaskInfo->code = code;
-          longjmp(pOperator->pTaskInfo->env, code);
+          qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
+          return code;
         }
       }
     }
   }
+
+  return TSDB_CODE_SUCCESS;
 }
 
 static void setPseudoOutputColInfo(SSDataBlock* pResult, SqlFunctionCtx* pCtx, SArray* pPseudoList) {
@@ -899,6 +896,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
 
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
+      colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
       colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
       numOfRows = dest.numOfRows;
@@ -938,6 +936,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         }
 
         int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
+        colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
         colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
 
         numOfRows = dest.numOfRows;
@@ -998,18 +997,22 @@ static bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
     return false;
   }
 
+  if (pCtx->scanFlag == REPEAT_SCAN) {
+    return fmIsRepeatScanFunc(pCtx->functionId);
+  }
+
   if (isRowEntryCompleted(pResInfo)) {
     return false;
   }
 
-  if (functionId == FUNCTION_FIRST_DST || functionId == FUNCTION_FIRST) {
-    //    return QUERY_IS_ASC_QUERY(pQueryAttr);
-  }
-
-  // denote the order type
-  if ((functionId == FUNCTION_LAST_DST || functionId == FUNCTION_LAST)) {
-    //    return pCtx->param[0].i == pQueryAttr->order.order;
-  }
+//  if (functionId == FUNCTION_FIRST_DST || functionId == FUNCTION_FIRST) {
+//    //    return QUERY_IS_ASC_QUERY(pQueryAttr);
+//  }
+//
+//  // denote the order type
+//  if ((functionId == FUNCTION_LAST_DST || functionId == FUNCTION_LAST)) {
+//    //    return pCtx->param[0].i == pQueryAttr->order.order;
+//  }
 
   // in the reverse table scan, only the following functions need to be executed
   //  if (IS_REVERSE_SCAN(pRuntimeEnv) ||
@@ -1597,9 +1600,6 @@ void doCompactSDataBlock(SSDataBlock* pBlock, int32_t numOfRows, int8_t* p) {
   }
 }
 
-static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t numOfTags, int16_t colId);
-static void         doSetTagValueInParam(void* pTable, int32_t tagColId, SVariant* tag, int16_t type, int16_t bytes);
-
 static uint32_t doFilterByBlockTimeWindow(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock) {
   SqlFunctionCtx* pCtx = pTableScanInfo->pCtx;
   uint32_t        status = BLK_DATA_NOT_LOAD;
@@ -1767,100 +1767,6 @@ int32_t loadDataBlockOnDemand(SExecTaskInfo* pTaskInfo, STableScanInfo* pTableSc
   return TSDB_CODE_SUCCESS;
 }
 
-/*
- * set tag value in SqlFunctionCtx
- * e.g.,tag information into input buffer
- */
-static void doSetTagValueInParam(void* pTable, int32_t tagColId, SVariant* tag, int16_t type, int16_t bytes) {
-  taosVariantDestroy(tag);
-
-  char* val = NULL;
-  //  if (tagColId == TSDB_TBNAME_COLUMN_INDEX) {
-  //    val = tsdbGetTableName(pTable);
-  //    assert(val != NULL);
-  //  } else {
-  //    val = tsdbGetTableTagVal(pTable, tagColId, type, bytes);
-  //  }
-
-  if (val == NULL || isNull(val, type)) {
-    tag->nType = TSDB_DATA_TYPE_NULL;
-    return;
-  }
-
-  if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    int32_t maxLen = bytes - VARSTR_HEADER_SIZE;
-    int32_t len = (varDataLen(val) > maxLen) ? maxLen : varDataLen(val);
-    taosVariantCreateFromBinary(tag, varDataVal(val), len, type);
-    // taosVariantCreateFromBinary(tag, varDataVal(val), varDataLen(val), type);
-  } else {
-    taosVariantCreateFromBinary(tag, val, bytes, type);
-  }
-}
-
-static SColumnInfo* doGetTagColumnInfoById(SColumnInfo* pTagColList, int32_t numOfTags, int16_t colId) {
-  assert(pTagColList != NULL && numOfTags > 0);
-
-  for (int32_t i = 0; i < numOfTags; ++i) {
-    if (pTagColList[i].colId == colId) {
-      return &pTagColList[i];
-    }
-  }
-
-  return NULL;
-}
-
-void setTagValue(SOperatorInfo* pOperatorInfo, void* pTable, SqlFunctionCtx* pCtx, int32_t numOfOutput) {
-  SExprInfo* pExpr = pOperatorInfo->pExpr;
-  SExprInfo* pExprInfo = &pExpr[0];
-  int32_t    functionId = getExprFunctionId(pExprInfo);
-#if 0
-  if (pQueryAttr->numOfOutput == 1 && functionId == FUNCTION_TS_COMP && pQueryAttr->stableQuery) {
-    assert(pExprInfo->base.numOfParams == 1);
-
-    //    int16_t      tagColId = (int16_t)pExprInfo->base.param[0].i;
-    int16_t      tagColId = -1;
-    SColumnInfo* pColInfo = doGetTagColumnInfoById(pQueryAttr->tagColList, pQueryAttr->numOfTags, tagColId);
-
-    doSetTagValueInParam(pTable, tagColId, &pCtx[0].tag, pColInfo->type, pColInfo->bytes);
-
-  } else {
-    // set tag value, by which the results are aggregated.
-    int32_t offset = 0;
-    memset(pRuntimeEnv->tagVal, 0, pQueryAttr->tagLen);
-
-    for (int32_t idx = 0; idx < numOfOutput; ++idx) {
-      SExprInfo* pLocalExprInfo = &pExpr[idx];
-
-      // ts_comp column required the tag value for join filter
-      if (!TSDB_COL_IS_TAG(pLocalExprInfo->base.pParam[0].pCol->flag)) {
-        continue;
-      }
-
-      // todo use tag column index to optimize performance
-      doSetTagValueInParam(pTable, pLocalExprInfo->base.pParam[0].pCol->colId, &pCtx[idx].tag,
-                           pLocalExprInfo->base.resSchema.type, pLocalExprInfo->base.resSchema.bytes);
-
-      if (IS_NUMERIC_TYPE(pLocalExprInfo->base.resSchema.type) ||
-          pLocalExprInfo->base.resSchema.type == TSDB_DATA_TYPE_BOOL ||
-          pLocalExprInfo->base.resSchema.type == TSDB_DATA_TYPE_TIMESTAMP) {
-        memcpy(pRuntimeEnv->tagVal + offset, &pCtx[idx].tag.i, pLocalExprInfo->base.resSchema.bytes);
-      } else {
-        if (pCtx[idx].tag.pz != NULL) {
-          memcpy(pRuntimeEnv->tagVal + offset, pCtx[idx].tag.pz, pCtx[idx].tag.nLen);
-        }
-      }
-
-      offset += pLocalExprInfo->base.resSchema.bytes;
-    }
-  }
-
-  // set the tsBuf start position before check each data block
-  if (pRuntimeEnv->pTsBuf != NULL) {
-    setCtxTagForJoin(pRuntimeEnv, &pCtx[0], pExprInfo, pTable);
-  }
-#endif
-}
-
 void copyToSDataBlock(SSDataBlock* pBlock, int32_t* offset, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pResBuf) {
   pBlock->info.rows = 0;
 
@@ -1944,7 +1850,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
     cleanupResultRowEntry(pEntry);
 
     pCtx[i].resultInfo = pEntry;
-    pCtx[i].currentStage = stage;
+    pCtx[i].scanFlag = stage;
 
     // set the timestamp output buffer for top/bottom/diff query
     //    int32_t fid = pCtx[i].functionId;
@@ -2110,7 +2016,8 @@ void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numO
   }
 }
 
-void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
+static void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep);
+void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SArray* pColMatchInfo) {
   if (pFilterNode == NULL) {
     return;
   }
@@ -2124,43 +2031,61 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock) {
   code = filterSetDataFromSlotId(filter, &param1);
 
   int8_t* rowRes = NULL;
-  bool    keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
+
+  // todo the keep seems never to be True??
+  bool keep = filterExecute(filter, pBlock, &rowRes, NULL, param1.numOfCols);
   filterFreeInfo(filter);
 
-  SSDataBlock* px = createOneDataBlock(pBlock, false);
-  blockDataEnsureCapacity(px, pBlock->info.rows);
+  extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
+  blockDataUpdateTsWindow(pBlock);
+}
 
-  // todo extract method
-  int32_t numOfRow = 0;
-  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
-    SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
-    if (keep) {
-      colDataAssign(pDst, pSrc, pBlock->info.rows);
-      numOfRow = pBlock->info.rows;
-    } else if (NULL != rowRes) {
-      numOfRow = 0;
-      for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
+  if (keep) {
+    return;
+  }
+
+  if (rowRes != NULL) {
+    SSDataBlock* px = createOneDataBlock(pBlock, false);
+    blockDataEnsureCapacity(px, pBlock->info.rows);
+
+    int32_t totalRows = pBlock->info.rows;
+
+    for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+      SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
+      SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
+
+      // it is a reserved column for scalar function, and no data in this column yet.
+      if (pSrc->pData == NULL) {
+        continue;
+      }
+
+      int32_t numOfRows = 0;
+      for (int32_t j = 0; j < totalRows; ++j) {
         if (rowRes[j] == 0) {
           continue;
         }
 
         if (colDataIsNull_s(pSrc, j)) {
-          colDataAppendNULL(pDst, numOfRow);
+          colDataAppendNULL(pDst, numOfRows);
         } else {
-          colDataAppend(pDst, numOfRow, colDataGetData(pSrc, j), false);
+          colDataAppend(pDst, numOfRows, colDataGetData(pSrc, j), false);
         }
-        numOfRow += 1;
+        numOfRows += 1;
       }
-    } else {
-      numOfRow = 0;
+
+      if (pBlock->info.rows == totalRows) {
+        pBlock->info.rows = numOfRows;
+      } else {
+        ASSERT(pBlock->info.rows == numOfRows);
+      }
+
+      *pSrc = *pDst;
     }
-
-    *pSrc = *pDst;
+  } else {
+    // do nothing
+    pBlock->info.rows = 0;
   }
-
-  pBlock->info.rows = numOfRow;
-  blockDataUpdateTsWindow(pBlock);
 }
 
 void doSetTableGroupOutputBuf(SAggOperatorInfo* pAggInfo, int32_t numOfOutput, uint64_t groupId,
@@ -2211,7 +2136,7 @@ void setExecutionContext(int32_t numOfOutput, uint64_t groupId, SExecTaskInfo* p
  * @param result
  */
 int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
-                           int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx) {
+                           int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t numOfResult = pBlock->info.rows;  // there are already exists result rows
 
@@ -2245,13 +2170,12 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
 
     pGroupResInfo->index += 1;
 
-    for (int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
+    for (int32_t j = 0; j < numOfExprs; ++j) {
       int32_t slotId = pExprInfo[j].base.resSchema.slotId;
 
       pCtx[j].resultInfo = getResultCell(pRow, j, rowCellOffset);
       if (pCtx[j].fpSet.finalize) {
-        int32_t code = TSDB_CODE_SUCCESS;
-        code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
+        int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code)) {
           qError("%s build result data block error, code %s", GET_TASKID(taskInfo), tstrerror(code));
           taskInfo->code = code;
@@ -2283,9 +2207,12 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
   return 0;
 }
 
-void doBuildResultDatablock(SExecTaskInfo *taskInfo, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SExprInfo* pExprInfo,
-                            SDiskbasedBuf* pBuf) {
+void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SGroupResInfo* pGroupResInfo, SDiskbasedBuf* pBuf) {
   assert(pGroupResInfo->currentGroup <= pGroupResInfo->totalGroup);
+
+  SExprInfo* pExprInfo = pOperator->pExpr;
+  int32_t numOfExprs = pOperator->numOfExprs;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
   int32_t*        rowCellOffset = pbInfo->rowCellInfoOffset;
   SSDataBlock*    pBlock = pbInfo->pRes;
@@ -2297,7 +2224,7 @@ void doBuildResultDatablock(SExecTaskInfo *taskInfo, SOptrBasicInfo* pbInfo, SGr
   }
 
   int32_t orderType = TSDB_ORDER_ASC;
-  doCopyToSDataBlock(taskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx);
+  doCopyToSDataBlock(pTaskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx, numOfExprs);
 
   // add condition (pBlock->info.rows >= 1) just to runtime happy
   blockDataUpdateTsWindow(pBlock);
@@ -3724,7 +3651,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   SAggOperatorInfo* pAggInfo = pOperator->info;
 
   SOptrBasicInfo* pInfo = &pAggInfo->binfo;
-
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   int32_t order = TSDB_ORDER_ASC;
@@ -3738,9 +3664,6 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     if (pBlock == NULL) {
       break;
     }
-    //    if (pAggInfo->current != NULL) {
-    //      setTagValue(pOperator, pAggInfo->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
-    //    }
 
     int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
     if (code != TSDB_CODE_SUCCESS) {
@@ -3750,17 +3673,19 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
     // there is an scalar expression that needs to be calculated before apply the group aggregation.
     if (pAggInfo->pScalarExprInfo != NULL) {
       code = projectApplyFunctions(pAggInfo->pScalarExprInfo, pBlock, pBlock, pAggInfo->pScalarCtx,
-                                           pAggInfo->numOfScalarExpr, NULL);
+                                   pAggInfo->numOfScalarExpr, NULL);
       if (code != TSDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        longjmp(pTaskInfo->env, pTaskInfo->code);
+        longjmp(pTaskInfo->env, code);
       }
     }
 
     // the pDataBlock are always the same one, no need to call this again
     setExecutionContext(pOperator->numOfExprs, pBlock->info.groupId, pTaskInfo, pAggInfo);
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, order, scanFlag, true);
-    doAggregateImpl(pOperator, 0, pInfo->pCtx);
+    code = doAggregateImpl(pOperator, 0, pInfo->pCtx);
+    if (code != 0) {
+      longjmp(pTaskInfo->env, code);
+    }
 
 #if 0  // test for encode/decode result info
     if(pOperator->encodeResultRow){
@@ -3802,7 +3727,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   }
 
   blockDataEnsureCapacity(pInfo->pRes, pOperator->resultInfo.capacity);
-  doBuildResultDatablock(pTaskInfo, pInfo, &pAggInfo->groupResInfo, pOperator->pExpr, pAggInfo->aggSup.pResultBuf);
+  doBuildResultDatablock(pOperator, pInfo, &pAggInfo->groupResInfo, pAggInfo->aggSup.pResultBuf);
   if (pInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pAggInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
@@ -4020,12 +3945,6 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   if (pProjectInfo->existDataBlock) {  // TODO refactor
     SSDataBlock* pBlock = pProjectInfo->existDataBlock;
     pProjectInfo->existDataBlock = NULL;
-    *newgroup = true;
-
-    // todo dynamic set tags
-    //    if (pTableQueryInfo != NULL) {
-    //      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfExprs);
-    //    }
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->pCtx, pBlock, TSDB_ORDER_ASC);
@@ -4065,13 +3984,6 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfExprs);
       }
     }
-
-    // todo set tags
-
-    //    STableQueryInfo* pTableQueryInfo = pRuntimeEnv->current;
-    //    if (pTableQueryInfo != NULL) {
-    //      setTagValue(pOperator, pTableQueryInfo->pTable, pInfo->pCtx, pOperator->numOfExprs);
-    //    }
 
     // the pDataBlock are always the same one, no need to call this again
     int32_t code = getTableScanInfo(pOperator->pDownstream[0], &order, &scanFlag);
@@ -4412,10 +4324,6 @@ void destroyBasicOperatorInfo(void* param, int32_t numOfOutput) {
   doDestroyBasicInfo(pInfo, numOfOutput);
 }
 
-void destroyMergeJoinOperator(void* param, int32_t numOfOutput) {
-  SJoinOperatorInfo* pJoinOperator = (SJoinOperatorInfo*)param;
-}
-
 void destroyAggOperatorInfo(void* param, int32_t numOfOutput) {
   SAggOperatorInfo* pInfo = (SAggOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
@@ -4469,9 +4377,9 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* p
     goto _error;
   }
 
-  pInfo->limit = *pLimit;
-  pInfo->slimit = *pSlimit;
-  pInfo->curOffset = pLimit->offset;
+  pInfo->limit      = *pLimit;
+  pInfo->slimit     = *pSlimit;
+  pInfo->curOffset  = pLimit->offset;
   pInfo->curSOffset = pSlimit->offset;
 
   pInfo->binfo.pRes = pResBlock;
@@ -4760,7 +4668,6 @@ static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
-static void    setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                   uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
@@ -4807,17 +4714,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
-
-      SArray* pColList = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
-      SSDataBlock* pResBlockDumy = createResDataBlock(pDescNode);
-
-      SQueryTableDataCond cond = {0};
-      int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
-      if (code != TSDB_CODE_SUCCESS) {
-        return NULL;
-      }
-
-      SInterval      interval = extractIntervalInfo(pTableScanNode);
       SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
@@ -4825,7 +4721,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       SArray*        pCols = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
       SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pDataReader, pResBlock, pCols, tableIdList, pTaskInfo,
-                                                              pScanPhyNode->node.pConditions, pOperatorDumy, &interval);
+                                                              pScanPhyNode->node.pConditions, pOperatorDumy);
       taosArrayDestroy(tableIdList);
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN == type) {
@@ -4973,7 +4869,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
     int32_t      tsSlotId = ((SColumnNode*)pStateNode->window.pTspk)->slotId;
 
-    pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, pTaskInfo);
+    SColumnNode* pColNode = (SColumnNode*)((STargetNode*)pStateNode->pStateKey)->pExpr;
+    SColumn col = extractColumnFromColumnNode(pColNode);
+    pOptr = createStatewindowOperatorInfo(ops[0], pExprInfo, num, pResBlock, &as, tsSlotId, &col, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_JOIN == type) {
     SJoinPhysiNode* pJoinNode = (SJoinPhysiNode*)pPhyNode;
     SSDataBlock*    pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
@@ -5038,6 +4936,17 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
   return TSDB_CODE_SUCCESS;
 }
 
+SColumn extractColumnFromColumnNode(SColumnNode* pColNode) {
+  SColumn c = {0};
+  c.slotId    = pColNode->slotId;
+  c.colId     = pColNode->colId;
+  c.type      = pColNode->node.resType.type;
+  c.bytes     = pColNode->node.resType.bytes;
+  c.scale     = pColNode->node.resType.scale;
+  c.precision = pColNode->node.resType.precision;
+  return c;
+}
+
 SArray* extractColumnInfo(SNodeList* pNodeList) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SColumn));
@@ -5052,15 +4961,7 @@ SArray* extractColumnInfo(SNodeList* pNodeList) {
     if (nodeType(pNode->pExpr) == QUERY_NODE_COLUMN) {
       SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
 
-      // todo extract method
-      SColumn c = {0};
-      c.slotId = pColNode->slotId;
-      c.colId = pColNode->colId;
-      c.type = pColNode->node.resType.type;
-      c.bytes = pColNode->node.resType.bytes;
-      c.scale = pColNode->node.resType.scale;
-      c.precision = pColNode->node.resType.precision;
-
+      SColumn c = extractColumnFromColumnNode(pColNode);
       taosArrayPush(pList, &c);
     } else if (nodeType(pNode->pExpr) == QUERY_NODE_VALUE) {
       SValueNode* pValNode = (SValueNode*)pNode->pExpr;
@@ -5434,148 +5335,4 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
-  SJoinOperatorInfo* pJoinInfo = pOperator->info;
-
-  SSDataBlock* pRes = pJoinInfo->pRes;
-  blockDataCleanup(pRes);
-  blockDataEnsureCapacity(pRes, 4096);
-
-  int32_t nrows = 0;
-
-  while (1) {
-    if (pJoinInfo->pLeft == NULL || pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
-      SOperatorInfo* ds1 = pOperator->pDownstream[0];
-      publishOperatorProfEvent(ds1, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-      pJoinInfo->pLeft = ds1->fpSet.getNextFn(ds1);
-      publishOperatorProfEvent(ds1, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
-      pJoinInfo->leftPos = 0;
-      if (pJoinInfo->pLeft == NULL) {
-        setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-        break;
-      }
-    }
-
-    if (pJoinInfo->pRight == NULL || pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
-      SOperatorInfo* ds2 = pOperator->pDownstream[1];
-      publishOperatorProfEvent(ds2, QUERY_PROF_BEFORE_OPERATOR_EXEC);
-      pJoinInfo->pRight = ds2->fpSet.getNextFn(ds2);
-      publishOperatorProfEvent(ds2, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
-      pJoinInfo->rightPos = 0;
-      if (pJoinInfo->pRight == NULL) {
-        setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
-        break;
-      }
-    }
-
-    SColumnInfoData* pLeftCol = taosArrayGet(pJoinInfo->pLeft->pDataBlock, pJoinInfo->leftCol.slotId);
-    char*            pLeftVal = colDataGetData(pLeftCol, pJoinInfo->leftPos);
-
-    SColumnInfoData* pRightCol = taosArrayGet(pJoinInfo->pRight->pDataBlock, pJoinInfo->rightCol.slotId);
-    char*            pRightVal = colDataGetData(pRightCol, pJoinInfo->rightPos);
-
-    // only the timestamp match support for ordinary table
-    ASSERT(pLeftCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
-    if (*(int64_t*)pLeftVal == *(int64_t*)pRightVal) {
-      for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
-        SColumnInfoData* pDst = taosArrayGet(pRes->pDataBlock, i);
-
-        SExprInfo* pExprInfo = &pOperator->pExpr[i];
-
-        int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
-        int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;
-
-        SColumnInfoData* pSrc = NULL;
-        if (pJoinInfo->pLeft->info.blockId == blockId) {
-          pSrc = taosArrayGet(pJoinInfo->pLeft->pDataBlock, slotId);
-        } else {
-          pSrc = taosArrayGet(pJoinInfo->pRight->pDataBlock, slotId);
-        }
-
-        if (colDataIsNull_s(pSrc, pJoinInfo->leftPos)) {
-          colDataAppendNULL(pDst, nrows);
-        } else {
-          char* p = colDataGetData(pSrc, pJoinInfo->leftPos);
-          colDataAppend(pDst, nrows, p, false);
-        }
-      }
-
-      pJoinInfo->leftPos += 1;
-      pJoinInfo->rightPos += 1;
-
-      nrows += 1;
-    } else if (*(int64_t*)pLeftVal < *(int64_t*)pRightVal) {
-      pJoinInfo->leftPos += 1;
-
-      if (pJoinInfo->leftPos >= pJoinInfo->pLeft->info.rows) {
-        continue;
-      }
-    } else if (*(int64_t*)pLeftVal > *(int64_t*)pRightVal) {
-      pJoinInfo->rightPos += 1;
-      if (pJoinInfo->rightPos >= pJoinInfo->pRight->info.rows) {
-        continue;
-      }
-    }
-
-    // the pDataBlock are always the same one, no need to call this again
-    pRes->info.rows = nrows;
-    if (pRes->info.rows >= pOperator->resultInfo.threshold) {
-      break;
-    }
-  }
-
-  return (pRes->info.rows > 0) ? pRes : NULL;
-}
-
-SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo,
-                                           int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition,
-                                           SExecTaskInfo* pTaskInfo) {
-  SJoinOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SJoinOperatorInfo));
-  SOperatorInfo*     pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-  if (pOperator == NULL || pInfo == NULL) {
-    goto _error;
-  }
-
-  initResultSizeInfo(pOperator, 4096);
-
-  pInfo->pRes = pResBlock;
-  pOperator->name = "MergeJoinOperator";
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_JOIN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExprInfo;
-  pOperator->numOfExprs = numOfCols;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
-
-  SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
-  setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
-  setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
-
-  pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doMergeJoin, NULL, NULL, destroyMergeJoinOperator, NULL, NULL, NULL);
-  int32_t code = appendDownstream(pOperator, pDownstream, numOfDownstream);
-  if (code != TSDB_CODE_SUCCESS) {
-    goto _error;
-  }
-
-  return pOperator;
-
-_error:
-  taosMemoryFree(pInfo);
-  taosMemoryFree(pOperator);
-  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
-  return NULL;
-}
-
-void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode) {
-  pColumn->slotId = pColumnNode->slotId;
-  pColumn->type = pColumnNode->node.resType.type;
-  pColumn->bytes = pColumnNode->node.resType.bytes;
-  pColumn->precision = pColumnNode->node.resType.precision;
-  pColumn->scale = pColumnNode->node.resType.scale;
 }

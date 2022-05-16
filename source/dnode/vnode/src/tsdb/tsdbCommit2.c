@@ -16,6 +16,8 @@
 #include "tsdb.h"
 
 int tsdbBegin(STsdb *pTsdb) {
+  if (!pTsdb) return 0;
+  
   STsdbMemTable *pMem;
 
   if (tsdbMemTableCreate(pTsdb, &pTsdb->mem) < 0) {

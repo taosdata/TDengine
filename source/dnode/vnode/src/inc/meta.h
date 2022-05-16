@@ -73,6 +73,7 @@ struct SMeta {
   TDB*      pCtbIdx;
   TDB*      pTagIdx;
   TDB*      pTtlIdx;
+  TDB*      pSmaIdx;
   SMetaIdx* pIdx;
 };
 
@@ -96,8 +97,10 @@ typedef struct {
 #pragma pack(push, 1)
 typedef struct {
   tb_uid_t suid;
-  int16_t  cid;
-  char     data[];
+  int32_t  cid;
+  uint8_t  isNull : 1;
+  uint8_t  type : 7;
+  uint8_t  data[];  // val + uid
 } STagIdxKey;
 #pragma pack(pop)
 
@@ -105,6 +108,11 @@ typedef struct {
   int64_t  dtime;
   tb_uid_t uid;
 } STtlIdxKey;
+
+typedef struct {
+  tb_uid_t uid;
+  int64_t  smaUid;
+} SSmaIdxKey;
 
 #if 1
 
@@ -116,7 +124,7 @@ int64_t      metaSmaCursorNext(SMSmaCursor* pSmaCur);
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);
-// int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
+int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
 int metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
 int metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
 int metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);

@@ -5,5 +5,5 @@ target_include_directories(
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 target_link_libraries(
-    mgmt_bnode dnode_interface
+    mgmt_bnode node_util
 )

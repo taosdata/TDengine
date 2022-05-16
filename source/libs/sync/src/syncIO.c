@@ -15,6 +15,7 @@
 
 #include "syncIO.h"
 #include <tdatablock.h>
+#include "os.h"
 #include "syncMessage.h"
 #include "syncUtil.h"
 #include "tglobal.h"
@@ -92,7 +93,7 @@ int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg) {
   syncRpcMsgLog2((char *)"==syncIOEqMsg==", pMsg);
 
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   STaosQueue *pMsgQ = queue;
@@ -198,6 +199,7 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
   {
     SRpcInit rpcInit;
     memset(&rpcInit, 0, sizeof(rpcInit));
+    snprintf(rpcInit.localFqdn, sizeof(rpcInit.localFqdn), "%s", "127.0.0.1");
     rpcInit.localPort = io->myAddr.eps[0].port;
     rpcInit.label = "SYNC-IO-SERVER";
     rpcInit.numOfThreads = 1;
@@ -360,7 +362,7 @@ static void syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   syncRpcMsgLog2((char *)"==syncIOProcessRequest==", pMsg);
   SSyncIO *io = pParent;
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
   taosWriteQitem(io->pMsgQ, pTemp);
 }
@@ -420,7 +422,7 @@ static void syncIOTickQ(void *param, void *tmrId) {
   SRpcMsg rpcMsg;
   syncPingReply2RpcMsg(pMsg, &rpcMsg);
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, &rpcMsg, sizeof(SRpcMsg));
   syncRpcMsgLog2((char *)"==syncIOTickQ==", &rpcMsg);
   taosWriteQitem(io->pMsgQ, pTemp);
