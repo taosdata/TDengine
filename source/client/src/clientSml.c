@@ -1007,8 +1007,6 @@ static int32_t smlParseTelnetTags(const char* data, SArray *cols, SHashObj *dump
     while(*sql != '\0') {
       // parse value
       if (*sql == SPACE) {
-        valueLen = sql - value;
-        sql++;
         break;
       }
       if (*sql == EQUAL) {
@@ -1017,9 +1015,7 @@ static int32_t smlParseTelnetTags(const char* data, SArray *cols, SHashObj *dump
       }
       sql++;
     }
-    if(valueLen == 0){
-      valueLen = sql - value;
-    }
+    valueLen = sql - value;
 
     if(valueLen == 0){
       smlBuildInvalidDataMsg(msg, "invalid value", value);
@@ -1365,7 +1361,7 @@ static void smlDestroySTableMeta(SSmlSTableMeta *meta){
 static void smlDestroyCols(SArray *cols) {
   if (!cols) return;
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {
-    void *kv = taosArrayGet(cols, i);
+    void *kv = taosArrayGetP(cols, i);
     taosMemoryFree(kv);
   }
 }
@@ -2077,12 +2073,16 @@ static int32_t smlParseTelnetLine(SSmlHandle* info, void *data) {
   if(ret != TSDB_CODE_SUCCESS){
     uError("SML:0x%"PRIx64" smlParseTelnetLine failed", info->id);
     smlDestroyTableInfo(info, tinfo);
+    smlDestroyCols(cols);
     taosArrayDestroy(cols);
     return ret;
   }
 
   if(taosArrayGetSize(tinfo->tags) <= 0 || taosArrayGetSize(tinfo->tags) > TSDB_MAX_TAGS){
     smlBuildInvalidDataMsg(&info->msgBuf, "invalidate tags length:[1,128]", NULL);
+    smlDestroyTableInfo(info, tinfo);
+    smlDestroyCols(cols);
+    taosArrayDestroy(cols);
     return TSDB_CODE_SML_INVALID_DATA;
   }
   taosHashClear(info->dumplicateKey);
