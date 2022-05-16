@@ -31,6 +31,13 @@ SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode) {
   return pSyncIndexMgr;
 }
 
+void syncIndexMgrUpdate(SSyncIndexMgr *pSyncIndexMgr, SSyncNode *pSyncNode) {
+  pSyncIndexMgr->replicas = &(pSyncNode->replicasId);
+  pSyncIndexMgr->replicaNum = pSyncNode->replicaNum;
+  pSyncIndexMgr->pSyncNode = pSyncNode;
+  syncIndexMgrClear(pSyncIndexMgr);
+}
+
 void syncIndexMgrDestroy(SSyncIndexMgr *pSyncIndexMgr) {
   if (pSyncIndexMgr != NULL) {
     taosMemoryFree(pSyncIndexMgr);
