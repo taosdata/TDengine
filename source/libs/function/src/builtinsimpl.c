@@ -3236,6 +3236,7 @@ int32_t tailFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   int32_t startOffset = pCtx->offset;
+  pInfo->numOfPoints = MIN(pInfo->numOfPoints, pInput->numOfRows);
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
 
     char* data = colDataGetData(pInputCol, i);
