@@ -39,10 +39,10 @@ int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
   return (*fp)(pMsgCb->pWrapper, epSet, pReq);
 }
 
-void tmsgSendRsp(SRpcMsg* pRsp) {
+void tmsgSendRsp(SRpcMsg* pMsg) {
   // cannot be empty, but not checked for faster detect
   SendRspFp fp = tsDefaultMsgCb.sendRspFp;
-  return (*fp)(pRsp);
+  return (*fp)(pMsg);
 }
 
 void tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet) {

@@ -38,24 +38,19 @@ typedef struct {
 
 typedef struct {
   // rpc info
-  struct {
-    void   *handle;         // rpc handle returned to app
-    int64_t refId;          // refid, used by server
-    int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
-    int32_t persistHandle;  // persist handle or not
-  };
+  void   *handle;         // rpc handle returned to app
+  int64_t refId;          // refid, used by server
+  int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
+  int32_t persistHandle;  // persist handle or not
+
   // app info
-  struct {
-    void *ahandle;  // app handle set by client
-    void *proc;     // proc handle
-    void *wrapper;  // wrapper handle
-    void *node;     // node mgmt handle
-  };
+  void *ahandle;  // app handle set by client
+  void *wrapper;  // wrapper handle
+  void *node;     // node mgmt handle
+
   // resp info
-  struct {
-    void   *rsp;
-    int32_t rspLen;
-  };
+  void   *rsp;
+  int32_t rspLen;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {

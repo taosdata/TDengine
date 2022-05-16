@@ -127,9 +127,7 @@ void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
     SRpcMsg saveRpcMsg;
     int32_t ret = syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &saveRpcMsg);
     if (ret == 1 && cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-      applyMsg.info.handle = saveRpcMsg.info.handle;
-      applyMsg.info.ahandle = saveRpcMsg.info.ahandle;
-      applyMsg.info.refId = saveRpcMsg.info.refId;
+      applyMsg.info = saveRpcMsg.info;
     } else {
       applyMsg.info.handle = NULL;
       applyMsg.info.ahandle = NULL;

@@ -34,19 +34,19 @@ int32_t mndProcessQueryMsg(SRpcMsg *pReq) {
   }
 }
 
-int32_t mndProcessFetchMsg(SRpcMsg *pReq) {
-  SMnode *pMnode = pReq->info.node;
-  mTrace("msg:%p, in fetch queue is processing", pReq);
+int32_t mndProcessFetchMsg(SRpcMsg *pMsg) {
+  SMnode *pMnode = pMsg->info.node;
+  mTrace("msg:%p, in fetch queue is processing", pMsg);
 
-  switch (pReq->msgType) {
+  switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
-      return qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pReq);
+      return qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pMsg);
     case TDMT_VND_DROP_TASK:
-      return qWorkerProcessDropMsg(pMnode, pMnode->pQuery, pReq);
+      return qWorkerProcessDropMsg(pMnode, pMnode->pQuery, pMsg);
     case TDMT_VND_QUERY_HEARTBEAT:
-      return qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pReq);
+      return qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg);
     default:
-      mError("unknown msg type:%d in fetch queue", pReq->msgType);
+      mError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }

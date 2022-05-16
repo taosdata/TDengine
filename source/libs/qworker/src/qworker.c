@@ -535,12 +535,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       SExplainExecInfo *execInfo = NULL;
       int32_t           resNum = 0;
       QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
-
-      SRpcHandleInfo connInfo = {0};
-      connInfo.handle = ctx->ctrlConnInfo.handle;
-      connInfo.refId = ctx->ctrlConnInfo.refId;
-
-      QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
+      QW_ERR_RET(qwBuildAndSendExplainRsp(&ctx->ctrlConnInfo, execInfo, resNum));
     }
 
     qwFreeTaskHandle(QW_FPARAMS(), taskHandle);
@@ -865,8 +860,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
       QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
     }
 #else
-    connInfo.handle = ctx->ctrlConnInfo.handle;
-    connInfo.refId = ctx->ctrlConnInfo.refId;
+    connInfo = ctx->ctrlConnInfo;
     readyConnection = &connInfo;
 
     QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
@@ -943,9 +937,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
 
-  atomic_store_ptr(&ctx->ctrlConnInfo.handle, qwMsg->connInfo.handle);
-  atomic_store_ptr(&ctx->ctrlConnInfo.ahandle, qwMsg->connInfo.ahandle);
-  atomic_store_64(&ctx->ctrlConnInfo.refId, qwMsg->connInfo.refId);
+  ctx->ctrlConnInfo = qwMsg->connInfo;
 
   QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
@@ -1010,8 +1002,7 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (ctx->phase == QW_PHASE_PRE_QUERY) {
-    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
-    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo = qwMsg->connInfo;
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_READY);
     needRsp = false;
     QW_TASK_DLOG_E("ready msg will not rsp now");
@@ -1244,8 +1235,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (!rsped) {
-    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
-    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo = qwMsg->connInfo;
 
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }

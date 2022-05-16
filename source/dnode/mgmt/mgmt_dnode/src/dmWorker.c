@@ -150,10 +150,8 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (isRequest) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
-        .info.handle = pMsg->info.handle,
-        .info.ahandle = pMsg->info.ahandle,
         .code = code,
-        .info.refId = pMsg->info.refId,
+        .info = pMsg->info,
         .pCont = pMsg->info.rsp,
         .contLen = pMsg->info.rspLen,
     };

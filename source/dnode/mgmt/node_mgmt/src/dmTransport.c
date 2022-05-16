@@ -57,6 +57,12 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
 
   dTrace("msg:%s is received, handle:%p cont:%p len:%d code:0x%04x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
          pRpc->info.handle, pRpc->pCont, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
+  pRpc->info.noResp = 0;
+  pRpc->info.persistHandle = 0;
+  pRpc->info.wrapper = NULL;
+  pRpc->info.node = NULL;
+  pRpc->info.rsp = NULL;
+  pRpc->info.rspLen = 0;
 
   if (pRpc->msgType == TDMT_DND_NET_TEST) {
     dmProcessNetTestReq(pDnode, pRpc);
@@ -72,12 +78,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     if (pRpc->msgType == TDMT_DND_SERVER_STATUS) {
       dmProcessServerStartupStatus(pDnode, pRpc);
     } else {
-      SRpcMsg rspMsg = {
-          .info.handle = pRpc->info.handle,
-          .code = TSDB_CODE_APP_NOT_READY,
-          .info.ahandle = pRpc->info.ahandle,
-          .info.refId = pRpc->info.refId,
-      };
+      SRpcMsg rspMsg = {.info = pRpc->info, .code = TSDB_CODE_APP_NOT_READY};
       rpcSendResponse(&rspMsg);
     }
     return;
@@ -116,6 +117,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     goto _OVER;
   } else {
     needRelease = true;
+    pRpc->info.wrapper = pWrapper;
   }
 
   pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
@@ -251,12 +253,12 @@ static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SR
   return 0;
 }
 
-static inline void dmSendRsp(const SRpcMsg *pRsp) {
-  SMgmtWrapper *pWrapper = pRsp->info.wrapper;
+static inline void dmSendRsp(const SRpcMsg *pMsg) {
+  SMgmtWrapper *pWrapper = pMsg->info.wrapper;
   if (InChildProc(pWrapper->proc.ptype)) {
-    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, DND_FUNC_RSP);
+    dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, DND_FUNC_RSP);
   } else {
-    dmSendRpcRsp(pWrapper->pDnode, pRsp);
+    dmSendRpcRsp(pWrapper->pDnode, pMsg);
   }
 }
 
