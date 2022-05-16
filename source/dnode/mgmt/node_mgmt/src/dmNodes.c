@@ -96,7 +96,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
       return -1;
     }
 
-    if (!OnlyInTestProc(pWrapper->proc.ptype)) {
+    if (OnlyInParentProc(pWrapper->proc.ptype)) {
       if (dmInitProc(pWrapper) != 0) {
         dError("node:%s, failed to init proc since %s", pWrapper->name, terrstr());
         return -1;

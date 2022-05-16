@@ -34,7 +34,7 @@ typedef struct SMgmtWrapper SMgmtWrapper;
 #define OnlyInSingleProc(ptype) (ptype == SINGLE_PROC)
 #define OnlyInChildProc(ptype)  (ptype == CHILD_PROC)
 #define OnlyInParentProc(ptype) (ptype == PARENT_PROC)
-#define OnlyInTestProc(ptype)   (ptype & TEST_PROC)
+#define OnlyInTestProc(ptype)   (ptype == TEST_PROC)
 #define InChildProc(ptype)      (ptype & CHILD_PROC)
 #define InParentProc(ptype)     (ptype & PARENT_PROC)
 
@@ -60,7 +60,7 @@ typedef struct {
   TdThread      cthread;
   SShm          shm;
   int32_t       pid;
-  int8_t        ptype;
+  EDndProcType  ptype;
   bool          stop;
 } SProc;
 
@@ -110,7 +110,7 @@ typedef struct SUdfdData {
 } SUdfdData;
 
 typedef struct SDnode {
-  int8_t        ptype;
+  EDndProcType  ptype;
   EDndNodeType  rtype;
   EDndEvent     event;
   EDndRunStatus status;
