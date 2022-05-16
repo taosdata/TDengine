@@ -19,7 +19,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
 static int vnodeProcessAlterStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
-static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
@@ -82,7 +82,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       if (vnodeProcessCreateTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_TABLE:
-      if (vnodeProcessAlterTbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      if (vnodeProcessAlterTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DROP_TABLE:
       if (vnodeProcessDropTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
@@ -198,6 +198,8 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
 }
 
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
     assert(pSyncNode != NULL);
@@ -219,67 +221,70 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
       syncTimeoutDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING) {
       SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnPingCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnPingCb(pSyncNode, pSyncMsg);
       syncPingDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
       SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
       syncPingReplyDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
       syncClientRequestDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
       syncRequestVoteDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
       SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
       syncRequestVoteReplyDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
       SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
       syncAppendEntriesDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
     } else {
       vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
+      ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
     }
 
     syncNodeRelease(pSyncNode);
   } else {
     vError("==vnodeProcessSyncReq== error syncEnv stop");
+    ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
-  return 0;
+
+  return ret;
 }
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
@@ -455,9 +460,32 @@ _exit:
   return 0;
 }
 
-static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  // TODO
-  ASSERT(0);
+static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVAlterTbReq vAlterTbReq = {0};
+  SDecoder     dc = {0};
+
+  pRsp->msgType = TDMT_VND_ALTER_TABLE_RSP;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+  pRsp->code = TSDB_CODE_SUCCESS;
+
+  tDecoderInit(&dc, pReq, len);
+
+  // decode
+  if (tDecodeSVAlterTbReq(&dc, &vAlterTbReq) < 0) {
+    pRsp->code = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    return -1;
+  }
+
+  // process
+  if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq) < 0) {
+    pRsp->code = terrno;
+    tDecoderClear(&dc);
+    return -1;
+  }
+
+  tDecoderClear(&dc);
   return 0;
 }
 
@@ -668,7 +696,7 @@ _exit:
 
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
   SVCreateTSmaReq req = {0};
-  SDecoder       coder;
+  SDecoder        coder;
 
   pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -682,7 +710,7 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
     pRsp->code = terrno;
     goto _err;
   }
-  
+
   if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     goto _err;

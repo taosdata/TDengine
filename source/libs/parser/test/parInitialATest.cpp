@@ -69,7 +69,7 @@ TEST_F(ParserInitialATest, alterDatabase) {
  *   | COMMENT 'string_value'
  * }
  */
-TEST_F(ParserInitialATest, alterTable) {
+TEST_F(ParserInitialATest, alterSTable) {
   useDb("root", "test");
 
   SMAlterStbReq expect = {0};
@@ -119,7 +119,7 @@ TEST_F(ParserInitialATest, alterTable) {
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_ALTER_TABLE_STMT);
     SMAlterStbReq req = {0};
-    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMAlterStbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+    ASSERT_EQ(tDeserializeSMAlterStbReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req), TSDB_CODE_SUCCESS);
     ASSERT_EQ(std::string(req.name), std::string(expect.name));
     ASSERT_EQ(req.alterType, expect.alterType);
     ASSERT_EQ(req.numOfFields, expect.numOfFields);
@@ -139,24 +139,24 @@ TEST_F(ParserInitialATest, alterTable) {
     }
   });
 
-  setAlterStbReqFunc("t1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
-  run("ALTER TABLE t1 TTL 10");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, nullptr, 10);
+  run("ALTER TABLE st1 TTL 10");
 
-  setAlterStbReqFunc("t1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
-  run("ALTER TABLE t1 COMMENT 'test'");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_OPTIONS, 0, nullptr, 0, 0, nullptr, "test");
+  run("ALTER TABLE st1 COMMENT 'test'");
 
-  setAlterStbReqFunc("t1", TSDB_ALTER_TABLE_ADD_COLUMN, 1, "cc1", TSDB_DATA_TYPE_BIGINT);
-  run("ALTER TABLE t1 ADD COLUMN cc1 BIGINT");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_ADD_COLUMN, 1, "cc1", TSDB_DATA_TYPE_BIGINT);
+  run("ALTER TABLE st1 ADD COLUMN cc1 BIGINT");
 
-  setAlterStbReqFunc("t1", TSDB_ALTER_TABLE_DROP_COLUMN, 1, "c1");
-  run("ALTER TABLE t1 DROP COLUMN c1");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_DROP_COLUMN, 1, "c1");
+  run("ALTER TABLE st1 DROP COLUMN c1");
 
-  setAlterStbReqFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, 1, "c1", TSDB_DATA_TYPE_VARCHAR,
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, 1, "c1", TSDB_DATA_TYPE_VARCHAR,
                      20 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE t1 MODIFY COLUMN c1 VARCHAR(20)");
+  run("ALTER TABLE st1 MODIFY COLUMN c1 VARCHAR(20)");
 
-  setAlterStbReqFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
-  run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
+  setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, 2, "c1", 0, 0, "cc1");
+  run("ALTER TABLE st1 RENAME COLUMN c1 cc1");
 
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_ADD_TAG, 1, "tag11", TSDB_DATA_TYPE_BIGINT);
   run("ALTER TABLE st1 ADD TAG tag11 BIGINT");
@@ -171,7 +171,127 @@ TEST_F(ParserInitialATest, alterTable) {
   setAlterStbReqFunc("st1", TSDB_ALTER_TABLE_UPDATE_TAG_NAME, 2, "tag1", 0, 0, "tag11");
   run("ALTER TABLE st1 RENAME TAG tag1 tag11");
 
-  // run("ALTER TABLE st1s1 SET TAG tag1=10");
+  // todo
+  // ADD {FULLTEXT | SMA} INDEX index_name (col_name [, col_name] ...) [index_option]
+}
+
+TEST_F(ParserInitialATest, alterTable) {
+  useDb("root", "test");
+
+  SVAlterTbReq expect = {0};
+
+  auto setAlterColFunc = [&](const char* pTbname, int8_t alterType, const char* pColName, int8_t dataType = 0,
+                             int32_t dataBytes = 0, const char* pNewColName = nullptr) {
+    memset(&expect, 0, sizeof(SVAlterTbReq));
+    expect.tbName = strdup(pTbname);
+    expect.action = alterType;
+    expect.colName = strdup(pColName);
+
+    switch (alterType) {
+      case TSDB_ALTER_TABLE_ADD_COLUMN:
+        expect.type = dataType;
+        expect.flags = COL_SMA_ON;
+        expect.bytes = dataBytes > 0 ? dataBytes : (dataType > 0 ? tDataTypes[dataType].bytes : 0);
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+        expect.colModBytes = dataBytes;
+        break;
+      case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+        expect.colNewName = strdup(pNewColName);
+        break;
+      default:
+        break;
+    }
+  };
+
+  auto setAlterTagFunc = [&](const char* pTbname, const char* pTagName, const uint8_t* pNewVal, uint32_t bytes) {
+    memset(&expect, 0, sizeof(SVAlterTbReq));
+    expect.tbName = strdup(pTbname);
+    expect.action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
+    expect.tagName = strdup(pTagName);
+
+    expect.isNull = (nullptr == pNewVal);
+    expect.nTagVal = bytes;
+    expect.pTagVal = pNewVal;
+  };
+
+  auto setAlterOptionsFunc = [&](const char* pTbname, int32_t ttl, const char* pComment = nullptr) {
+    memset(&expect, 0, sizeof(SVAlterTbReq));
+    expect.tbName = strdup(pTbname);
+    expect.action = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
+    if (-1 != ttl) {
+      expect.updateTTL = true;
+      expect.newTTL = ttl;
+    }
+    if (nullptr != pComment) {
+      expect.updateComment = true;
+      expect.newComment = pComment;
+    }
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_VNODE_MODIF_STMT);
+    SVnodeModifOpStmt* pStmt = (SVnodeModifOpStmt*)pQuery->pRoot;
+
+    ASSERT_EQ(pStmt->sqlNodeType, QUERY_NODE_ALTER_TABLE_STMT);
+    ASSERT_NE(pStmt->pDataBlocks, nullptr);
+    ASSERT_EQ(taosArrayGetSize(pStmt->pDataBlocks), 1);
+    SVgDataBlocks* pVgData = (SVgDataBlocks*)taosArrayGetP(pStmt->pDataBlocks, 0);
+    void*          pBuf = POINTER_SHIFT(pVgData->pData, sizeof(SMsgHead));
+    SVAlterTbReq   req = {0};
+    SDecoder       coder = {0};
+    tDecoderInit(&coder, (const uint8_t*)pBuf, pVgData->size);
+    ASSERT_EQ(tDecodeSVAlterTbReq(&coder, &req), TSDB_CODE_SUCCESS);
+
+    ASSERT_EQ(std::string(req.tbName), std::string(expect.tbName));
+    ASSERT_EQ(req.action, expect.action);
+    if (nullptr != expect.colName) {
+      ASSERT_EQ(std::string(req.colName), std::string(expect.colName));
+    }
+    ASSERT_EQ(req.type, expect.type);
+    ASSERT_EQ(req.flags, expect.flags);
+    ASSERT_EQ(req.bytes, expect.bytes);
+    ASSERT_EQ(req.colModBytes, expect.colModBytes);
+    if (nullptr != expect.colNewName) {
+      ASSERT_EQ(std::string(req.colNewName), std::string(expect.colNewName));
+    }
+    if (nullptr != expect.tagName) {
+      ASSERT_EQ(std::string(req.tagName), std::string(expect.tagName));
+    }
+    ASSERT_EQ(req.isNull, expect.isNull);
+    ASSERT_EQ(req.nTagVal, expect.nTagVal);
+    ASSERT_EQ(memcmp(req.pTagVal, expect.pTagVal, expect.nTagVal), 0);
+    ASSERT_EQ(req.updateTTL, expect.updateTTL);
+    ASSERT_EQ(req.newTTL, expect.newTTL);
+    ASSERT_EQ(req.updateComment, expect.updateComment);
+    if (nullptr != expect.newComment) {
+      ASSERT_EQ(std::string(req.newComment), std::string(expect.newComment));
+    }
+
+    tDecoderClear(&coder);
+  });
+
+  setAlterOptionsFunc("t1", 10, nullptr);
+  run("ALTER TABLE t1 TTL 10");
+
+  setAlterOptionsFunc("t1", -1, "test");
+  run("ALTER TABLE t1 COMMENT 'test'");
+
+  setAlterColFunc("t1", TSDB_ALTER_TABLE_ADD_COLUMN, "cc1", TSDB_DATA_TYPE_BIGINT);
+  run("ALTER TABLE t1 ADD COLUMN cc1 BIGINT");
+
+  setAlterColFunc("t1", TSDB_ALTER_TABLE_DROP_COLUMN, "c1");
+  run("ALTER TABLE t1 DROP COLUMN c1");
+
+  setAlterColFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, "c1", TSDB_DATA_TYPE_VARCHAR, 20 + VARSTR_HEADER_SIZE);
+  run("ALTER TABLE t1 MODIFY COLUMN c1 VARCHAR(20)");
+
+  setAlterColFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, "c1", 0, 0, "cc1");
+  run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
+
+  int64_t val = 10;
+  setAlterTagFunc("st1s1", "tag1", (const uint8_t*)&val, sizeof(val));
+  run("ALTER TABLE st1s1 SET TAG tag1=10");
 
   // todo
   // ADD {FULLTEXT | SMA} INDEX index_name (col_name [, col_name] ...) [index_option]
