@@ -19,49 +19,30 @@
 
 static SMsgCb tsDefaultMsgCb;
 
-void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) {
-  // if (tsDefaultMsgCb.pWrapper == NULL) {
-  tsDefaultMsgCb = *pMsgCb;
-  //}
-}
+void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
 
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
+  // cannot be empty, but not checked for faster detect
   PutToQueueFp fp = pMsgCb->queueFps[qtype];
-  if (fp != NULL) {
-    return (*fp)(pMsgCb->pMgmt, pReq);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
-  }
+  return (*fp)(pMsgCb->pMgmt, pReq);
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
+  // cannot be empty, but not checked for faster detect
   GetQueueSizeFp fp = pMsgCb->qsizeFp;
-  if (fp != NULL) {
-    return (*fp)(pMsgCb->pMgmt, vgId, qtype);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
-  }
+  return (*fp)(pMsgCb->pMgmt, vgId, qtype);
 }
 
 int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
+  // cannot be empty, but not checked for faster detect
   SendReqFp fp = pMsgCb->sendReqFp;
-  if (fp != NULL) {
-    return (*fp)(pMsgCb->pWrapper, epSet, pReq);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
-  }
+  return (*fp)(pMsgCb->pWrapper, epSet, pReq);
 }
 
 void tmsgSendRsp(SRpcMsg* pRsp) {
+  // cannot be empty, but not checked for faster detect
   SendRspFp fp = tsDefaultMsgCb.sendRspFp;
-  if (fp != NULL) {
-    return (*fp)(tsDefaultMsgCb.pWrapper, pRsp);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  return (*fp)(pRsp);
 }
 
 void tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet) {

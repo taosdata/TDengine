@@ -43,7 +43,7 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendQueryRsp(SRpcHandleInfo *pConn, int32_t code) {
   SQueryTableRsp rsp = {.code = code};
 
   int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
@@ -52,9 +52,7 @@ int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_QUERY_RSP,
-      .info.handle = pConn->handle,
-      .info.ahandle = pConn->ahandle,
-      .info.refId = pConn->refId,
+      .info = pConn,
       .pCont = msg,
       .contLen = contLen,
       .code = code,
@@ -65,14 +63,13 @@ int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendReadyRsp(SRpcHandleInfo *pConn, int32_t code) {
   SResReadyRsp *pRsp = (SResReadyRsp *)rpcMallocCont(sizeof(SResReadyRsp));
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_RES_READY_RSP,
-      .info.handle = pConn->handle,
-      .info.refId = pConn->refId,
+      .info = pConn,
       .info.ahandle = NULL,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
@@ -84,7 +81,7 @@ int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo, int32_t num) {
+int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execInfo, int32_t num) {
   SExplainRsp rsp = {.numOfPlans = num, .subplanInfo = execInfo};
 
   int32_t contLen = tSerializeSExplainRsp(NULL, 0, &rsp);
@@ -93,9 +90,7 @@ int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo,
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_EXPLAIN_RSP,
-      .info.handle = pConn->handle,
-      .info.ahandle = pConn->ahandle,
-      .info.refId = pConn->refId,
+      .info = pConn,
       .pCont = pRsp,
       .contLen = contLen,
       .code = 0,
@@ -106,16 +101,14 @@ int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo,
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
+int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *pStatus, int32_t code) {
   int32_t contLen = tSerializeSSchedulerHbRsp(NULL, 0, pStatus);
   void   *pRsp = rpcMallocCont(contLen);
   tSerializeSSchedulerHbRsp(pRsp, contLen, pStatus);
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_QUERY_HEARTBEAT_RSP,
-      .info.handle = pConn->handle,
-      .info.ahandle = pConn->ahandle,
-      .info.refId = pConn->refId,
+      .info = pConn,
       .pCont = pRsp,
       .contLen = contLen,
       .code = code,
@@ -126,7 +119,7 @@ int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *pStatus, int32_
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
+int32_t qwBuildAndSendFetchRsp(SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength, int32_t code) {
   if (NULL == pRsp) {
     pRsp = (SRetrieveTableRsp *)rpcMallocCont(sizeof(SRetrieveTableRsp));
     memset(pRsp, 0, sizeof(SRetrieveTableRsp));
@@ -135,9 +128,7 @@ int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int3
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_FETCH_RSP,
-      .info.handle = pConn->handle,
-      .info.ahandle = pConn->ahandle,
-      .info.refId = pConn->refId,
+      .info = pConn,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp) + dataLength,
       .code = code,
@@ -148,15 +139,13 @@ int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int3
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendCancelRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code) {
   STaskCancelRsp *pRsp = (STaskCancelRsp *)rpcMallocCont(sizeof(STaskCancelRsp));
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_CANCEL_TASK_RSP,
-      .info.handle = pConn->handle,
-      .info.ahandle = pConn->ahandle,
-      .info.refId = pConn->refId,
+      .info = pConn,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
       .code = code,
@@ -166,15 +155,13 @@ int32_t qwBuildAndSendCancelRsp(SQWConnInfo *pConn, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendDropRsp(SQWConnInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code) {
   STaskDropRsp *pRsp = (STaskDropRsp *)rpcMallocCont(sizeof(STaskDropRsp));
   pRsp->code = code;
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_DROP_TASK_RSP,
-      .info.handle = pConn->handle,
-      .info.ahandle = pConn->ahandle,
-      .info.refId = pConn->refId,
+      .info = pConn,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
       .code = code,
@@ -228,9 +215,7 @@ int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
   tSerializeSShowRsp(pBuf, bufLen, &showRsp);
 
   SRpcMsg rpcMsg = {
-      .info.handle = pMsg->info.handle,
-      .info.ahandle = pMsg->info.ahandle,
-      .info.refId = pMsg->info.refId,
+      .info = pMsg->info,
       .pCont = pBuf,
       .contLen = bufLen,
       .code = code,
@@ -246,9 +231,7 @@ int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq *pFetchRe
 
   pRsp->numOfRows = 0;
   SRpcMsg rpcMsg = {
-      .info.handle = pMsg->info.handle,
-      .info.ahandle = pMsg->info.ahandle,
-      .info.refId = pMsg->info.refId,
+      .info = pMsg->info,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
       .code = 0,
@@ -258,7 +241,7 @@ int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq *pFetchRe
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
+int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   SQueryContinueReq *req = (SQueryContinueReq *)rpcMallocCont(sizeof(SQueryContinueReq));
   if (NULL == req) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(SQueryContinueReq));
@@ -292,7 +275,7 @@ int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
+int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   STaskDropReq *req = (STaskDropReq *)rpcMallocCont(sizeof(STaskDropReq));
   if (NULL == req) {
     QW_SCH_TASK_ELOG("rpcMallocCont %d failed", (int32_t)sizeof(STaskDropReq));
@@ -320,7 +303,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SQWConnInfo *pConn) {
+int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *pConn) {
   SSchedulerHbReq req = {0};
   req.header.vgId = mgmt->nodeId;
   req.sId = sId;

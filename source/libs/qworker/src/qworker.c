@@ -536,7 +536,7 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       int32_t           resNum = 0;
       QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
 
-      SQWConnInfo connInfo = {0};
+      SRpcHandleInfo connInfo = {0};
       connInfo.handle = ctx->ctrlConnInfo.handle;
       connInfo.refId = ctx->ctrlConnInfo.refId;
 
@@ -723,8 +723,8 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
   int32_t      code = 0;
   SQWTaskCtx * ctx = NULL;
-  SQWConnInfo *dropConnection = NULL;
-  SQWConnInfo *cancelConnection = NULL;
+  SRpcHandleInfo *dropConnection = NULL;
+  SRpcHandleInfo *cancelConnection = NULL;
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
@@ -842,10 +842,10 @@ _return:
 }
 
 int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
-  int32_t      code = 0;
-  SQWTaskCtx * ctx = NULL;
-  SQWConnInfo  connInfo = {0};
-  SQWConnInfo *readyConnection = NULL;
+  int32_t         code = 0;
+  SQWTaskCtx     *ctx = NULL;
+  SRpcHandleInfo  connInfo = {0};
+  SRpcHandleInfo *readyConnection = NULL;
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 

@@ -172,12 +172,7 @@ _OVER:
           code = TSDB_CODE_NODE_REDIRECT;
         }
       }
-      SRpcMsg rspMsg = {
-          .info.handle = pRpc->info.handle,
-          .code = code,
-          .info.ahandle = pRpc->info.ahandle,
-          .info.refId = pRpc->info.refId,
-      };
+      SRpcMsg rspMsg = {.code = code, .info = pRpc->info};
       tmsgSendRsp(&rspMsg);
     }
 
@@ -282,7 +277,8 @@ static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SR
   return 0;
 }
 
-static inline void dmSendRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp) {
+static inline void dmSendRsp(const SRpcMsg *pRsp) {
+  SMgmtWrapper *pWrapper = pRsp->info.wrapper;
   if (InChildProc(pWrapper->proc.ptype)) {
     dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, DND_FUNC_RSP);
   } else {

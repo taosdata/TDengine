@@ -563,9 +563,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->policy = policy;
   pTrans->type = type;
   pTrans->createdTime = taosGetTimestampMs();
-  pTrans->rpcHandle = pReq->info.handle;
-  pTrans->rpcAHandle = pReq->info.ahandle;
-  pTrans->rpcRefId = pReq->info.refId;
+  pTrans->rpcInfo = pReq->info;
   pTrans->redoLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->undoLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->commitLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
@@ -783,9 +781,7 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
-  pNew->rpcHandle = pTrans->rpcHandle;
-  pNew->rpcAHandle = pTrans->rpcAHandle;
-  pNew->rpcRefId = pTrans->rpcRefId;
+  pNew->rpcInfo = pTrans->rpcInfo;
   pNew->rpcRsp = pTrans->rpcRsp;
   pNew->rpcRspLen = pTrans->rpcRspLen;
   pTrans->rpcRsp = NULL;
@@ -839,7 +835,7 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     }
   }
 
-  if (sendRsp && pTrans->rpcHandle != NULL) {
+  if (sendRsp && pTrans->rpcInfo.handle != NULL) {
     void *rpcCont = rpcMallocCont(pTrans->rpcRspLen);
     if (rpcCont != NULL) {
       memcpy(rpcCont, pTrans->rpcRsp, pTrans->rpcRspLen);
@@ -847,17 +843,15 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     taosMemoryFree(pTrans->rpcRsp);
 
     mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, code & 0xFFFF, pTrans->stage,
-           pTrans->rpcAHandle);
+           pTrans->rpcInfo.ahandle);
     SRpcMsg rspMsg = {
-        .info.handle = pTrans->rpcHandle,
-        .info.ahandle = pTrans->rpcAHandle,
-        .info.refId = pTrans->rpcRefId,
+        .info = pTrans->rpcInfo,
         .code = code,
         .pCont = rpcCont,
         .contLen = pTrans->rpcRspLen,
     };
     tmsgSendRsp(&rspMsg);
-    pTrans->rpcHandle = NULL;
+    pTrans->rpcInfo.handle = NULL;
     pTrans->rpcRsp = NULL;
     pTrans->rpcRspLen = 0;
   }

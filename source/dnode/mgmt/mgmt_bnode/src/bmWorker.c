@@ -17,13 +17,8 @@
 #include "bmInt.h"
 
 static void bmSendErrorRsp(SRpcMsg *pMsg, int32_t code) {
-  SRpcMsg rpcRsp = {
-      .info.handle = pMsg->info.handle,
-      .info.ahandle = pMsg->info.ahandle,
-      .code = code,
-      .info.refId = pMsg->info.refId,
-  };
-  tmsgSendRsp(&rpcRsp);
+  SRpcMsg rsp = {.code = code, .info = pMsg->info};
+  tmsgSendRsp(&rsp);
 
   dTrace("msg:%p, is freed", pMsg);
   rpcFreeCont(pMsg->pCont);
@@ -41,12 +36,12 @@ static void bmSendErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
 }
 
 static inline void bmSendRsp(SRpcMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.info.handle = pMsg->info.handle,
-                 .info.ahandle = pMsg->info.ahandle,
-                 .info.refId = pMsg->info.refId,
-                 .code = code,
-                 .pCont = pMsg->info.rsp,
-                 .contLen = pMsg->info.rspLen,};
+  SRpcMsg rsp = {
+      .code = code,
+      .info = pMsg->info,
+      .pCont = pMsg->info.rsp,
+      .contLen = pMsg->info.rspLen,
+  };
   tmsgSendRsp(&rsp);
 }
 

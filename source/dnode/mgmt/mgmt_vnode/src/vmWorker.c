@@ -21,10 +21,8 @@
 
 static inline void vmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
-      .info.handle = pMsg->info.handle,
-      .info.ahandle = pMsg->info.ahandle,
-      .info.refId = pMsg->info.refId,
       .code = code,
+      .info = pMsg->info,
       .pCont = pMsg->info.rsp,
       .contLen = pMsg->info.rspLen,
   };
@@ -124,9 +122,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
     pRpc = pMsg;
 
-    rsp.info.ahandle = pRpc->info.ahandle;
-    rsp.info.handle = pRpc->info.handle;
-    rsp.info.refId = pRpc->info.refId;
+    rsp.info = pRpc->info;
     rsp.pCont = NULL;
     rsp.contLen = 0;
 
@@ -193,9 +189,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
     // if leader, send response
     if (pMsg->info.handle != NULL && pMsg->info.ahandle != NULL) {
-      rsp.info.ahandle = pMsg->info.ahandle;
-      rsp.info.handle = pMsg->info.handle;
-      rsp.info.refId = pMsg->info.refId;
+      rsp.info = pMsg->info;
       tmsgSendRsp(&rsp);
     }
 
