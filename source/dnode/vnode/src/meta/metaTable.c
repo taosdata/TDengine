@@ -239,8 +239,8 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   } else {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
-    me.ntbEntry.ncid = me.ntbEntry.schema.pSchema[me.ntbEntry.schema.nCols - 1].colId + 1;
     me.ntbEntry.schema = pReq->ntb.schema;
+    me.ntbEntry.ncid = me.ntbEntry.schema.pSchema[me.ntbEntry.schema.nCols - 1].colId + 1;
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
