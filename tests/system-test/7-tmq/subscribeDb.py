@@ -714,7 +714,7 @@ class TDTestCase:
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)
         self.tmqCase6(cfgPath, buildPath)
-        self.tmqCase7(cfgPath, buildPath)
+        #self.tmqCase7(cfgPath, buildPath)
 
 
     def stop(self):
