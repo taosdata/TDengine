@@ -26,18 +26,18 @@ Any application programs running on any kind of platforms can access TDengine th
 There are two ways for a connector to establish connections to TDengine:
 
 1. Connection through the REST API provided by taosAdapter component, this way is called "REST connection" hereinafter.
-2. Connection through the TDengine application driver taosc, this way is called "Native connection" hereinafter.
+2. Connection through the TDengine client driver (taosc), this way is called "Native connection" hereinafter.
 
 Either way, same or similar APIs are provided by connectors to access database or execute SQL statements, no obvious difference can be observed.
 
 Key differences：
 
-1. With REST connection, it's not necessary to install TDengine application driver taosc, it's more friendly for cross-platform with the cost of 30% performance downgrade. When taosc has an upgrade, application does not need to make changes. 
+1. With REST connection, it's not necessary to install TDengine client driver (taosc), it's more friendly for cross-platform with the cost of 30% performance downgrade. When taosc has an upgrade, application does not need to make changes. 
 2. With native connection, full compatibility of TDengine can be utilized, like [Parameter Binding](/reference/connector/cpp#Parameter Binding-api), [Subscription](reference/connector/cpp#Subscription), etc. But taosc has to be installed, some platforms may not be supported.
 
 ## Install Client Driver taosc
 
-If choosing to use native connection and the application is not on the same host as TDengine server, TDengine application driver taosc needs to be installed on the host where the application is. If choosing to use REST connection or the application is on the same host as server side, this step can be skipped. It's better to use same version of taosc as the server.
+If choosing to use native connection and the application is not on the same host as TDengine server, TDengine client driver taosc needs to be installed on the host where the application is. If choosing to use REST connection or the application is on the same host as server side, this step can be skipped. It's better to use same version of taosc as the server.
 
 ### Install
 
@@ -198,7 +198,7 @@ install.packages("RJDBC")
 </TabItem>
 <TabItem label="C" value="c">
 
-If the client driver taosc is already installed, then the C connector is already available.
+If the client driver (taosc) is already installed, then the C connector is already available.
 <br/>
 
 </TabItem>
