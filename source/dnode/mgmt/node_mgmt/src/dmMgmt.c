@@ -315,7 +315,7 @@ static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) 
 
 void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("net test req is received");
-  SRpcMsg rsp = {.handle = pReq->handle, .refId = pReq->refId, .ahandle = pReq->ahandle, .code = 0};
+  SRpcMsg rsp = {.info = pReq->info, .code = 0};
   rsp.pCont = rpcMallocCont(pReq->contLen);
   if (rsp.pCont == NULL) {
     rsp.code = TSDB_CODE_OUT_OF_MEMORY;
@@ -332,7 +332,7 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pReq) {
   SServerStatusRsp statusRsp = {0};
   dmGetServerStartupStatus(pDnode, &statusRsp);
 
-  SRpcMsg rspMsg = {.handle = pReq->handle, .ahandle = pReq->ahandle, .refId = pReq->refId};
+  SRpcMsg rspMsg = {.info = pReq->info};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
     rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
@@ -354,7 +354,7 @@ _OVER:
   rpcFreeCont(pReq->pCont);
 }
 
-static int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper != NULL) {
     dmReleaseWrapper(pWrapper);
@@ -389,7 +389,7 @@ static int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeM
   return code;
 }
 
-static int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg) {
+static int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
   if (pWrapper == NULL) {
     terrno = TSDB_CODE_NODE_NOT_DEPLOYED;

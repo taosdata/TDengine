@@ -41,49 +41,47 @@ static void dmSetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
   taosWUnLockLatch(&pData->latch);
 }
 
-static inline int32_t dmBuildNodeMsg(SNodeMsg *pMsg, SRpcMsg *pRpc) {
+static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
-  if ((pRpc->msgType & 1U) && rpcGetConnInfo(pRpc->handle, &connInfo) != 0) {
+  if (IsReq(pRpc) && rpcGetConnInfo(pRpc->info.handle, &connInfo) != 0) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
-    dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->ahandle, pRpc->handle);
+    dError("failed to build msg since %s, app:%p handle:%p", terrstr(), pRpc->info.ahandle, pRpc->info.handle);
     return -1;
   }
 
-  memcpy(pMsg->user, connInfo.user, TSDB_USER_LEN);
-  pMsg->clientIp = connInfo.clientIp;
-  pMsg->clientPort = connInfo.clientPort;
-  memcpy(&pMsg->rpcMsg, pRpc, sizeof(SRpcMsg));
+  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
+  memcpy(pMsg->conn.user, connInfo.user, TSDB_USER_LEN);
+  pMsg->conn.clientIp = connInfo.clientIp;
+  pMsg->conn.clientPort = connInfo.clientPort;
   return 0;
 }
 
-int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->rpcMsg.msgType)];
+int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
+  NodeMsgFp msgFp = pWrapper->msgFps[TMSG_INDEX(pMsg->msgType)];
   if (msgFp == NULL) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     return -1;
   }
 
-  dTrace("msg:%p, will be processed, handle:%p", pMsg, pMsg->rpcMsg.handle);
+  dTrace("msg:%p, will be processed by %s, handle:%p", pMsg, pWrapper->name, pMsg->info.handle);
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
-  SNodeMsg     *pMsg = NULL;
-  tmsg_t        msgType = pRpc->msgType;
-  bool          isReq = msgType & 1u;
+  SRpcMsg      *pMsg = NULL;
   bool          needRelease = false;
-  SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(msgType)];
+  SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   SMgmtWrapper *pWrapper = NULL;
 
-  dTrace("msg:%s is received, handle:%p app:%p cont:%p len:%d code:0x%04x refId:%" PRId64, TMSG_INFO(msgType),
-         pRpc->handle, pRpc->ahandle, pRpc->pCont, pRpc->contLen, pRpc->code, pRpc->refId);
+  dTrace("msg:%s is received, handle:%p cont:%p len:%d code:0x%04x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
+         pRpc->info.handle, pRpc->pCont, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
 
-  if (msgType == TDMT_DND_NET_TEST) {
+  if (pRpc->msgType == TDMT_DND_NET_TEST) {
     dmProcessNetTestReq(pDnode, pRpc);
     return;
-  } else if (msgType == TDMT_MND_SYSTABLE_RETRIEVE_RSP || msgType == TDMT_VND_FETCH_RSP) {
+  } else if (pRpc->msgType == TDMT_MND_SYSTABLE_RETRIEVE_RSP || pRpc->msgType == TDMT_VND_FETCH_RSP) {
     code = qWorkerProcessFetchRsp(NULL, NULL, pRpc);
     pRpc->pCont = NULL;  // will be freed in qworker
     return;
@@ -91,21 +89,21 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (pDnode->status != DND_STAT_RUNNING) {
-    if (msgType == TDMT_DND_SERVER_STATUS) {
+    if (pRpc->msgType == TDMT_DND_SERVER_STATUS) {
       dmProcessServerStartupStatus(pDnode, pRpc);
     } else {
       SRpcMsg rspMsg = {
-          .handle = pRpc->handle,
+          .info.handle = pRpc->info.handle,
           .code = TSDB_CODE_APP_NOT_READY,
-          .ahandle = pRpc->ahandle,
-          .refId = pRpc->refId,
+          .info.ahandle = pRpc->info.ahandle,
+          .info.refId = pRpc->info.refId,
       };
       rpcSendResponse(&rspMsg);
     }
     return;
   }
 
-  if (isReq && pRpc->pCont == NULL) {
+  if (IsReq(pRpc) && pRpc->pCont == NULL) {
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     goto _OVER;
   }
@@ -140,7 +138,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     needRelease = true;
   }
 
-  pMsg = taosAllocateQitem(sizeof(SNodeMsg), RPC_QITEM);
+  pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) {
     goto _OVER;
   }
@@ -150,8 +148,9 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (InParentProc(pWrapper->proc.ptype)) {
-    code = dmPutToProcCQueue(&pWrapper->proc, pMsg, sizeof(SNodeMsg), pRpc->pCont, pRpc->contLen,
-                             (isReq && (pRpc->code == 0)) ? pRpc->handle : NULL, pRpc->refId, DND_FUNC_REQ);
+    code = dmPutToProcCQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pRpc->pCont, pRpc->contLen,
+                             (IsReq(pRpc) && (pRpc->code == 0)) ? pRpc->info.handle : NULL, pRpc->info.refId,
+                             DND_FUNC_REQ);
   } else {
     code = dmProcessNodeMsg(pWrapper, pMsg);
   }
@@ -167,17 +166,17 @@ _OVER:
     dError("msg:%p, failed to process since %s", pMsg, terrstr());
     if (terrno != 0) code = terrno;
 
-    if (isReq) {
+    if (IsReq(pRpc)) {
       if (code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_NODE_OFFLINE) {
-        if (msgType > TDMT_MND_MSG && msgType < TDMT_VND_MSG) {
+        if (pRpc->msgType > TDMT_MND_MSG && pRpc->msgType < TDMT_VND_MSG) {
           code = TSDB_CODE_NODE_REDIRECT;
         }
       }
       SRpcMsg rspMsg = {
-          .handle = pRpc->handle,
+          .info.handle = pRpc->info.handle,
           .code = code,
-          .ahandle = pRpc->ahandle,
-          .refId = pRpc->refId,
+          .info.ahandle = pRpc->info.ahandle,
+          .info.refId = pRpc->info.refId,
       };
       tmsgSendRsp(&rspMsg);
     }
@@ -222,7 +221,7 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pDnode, &epSet);
 
-  dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->handle, epSet.numOfEps, epSet.inUse);
+  dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->info.handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
     if (strcmp(epSet.eps[i].fqdn, pDnode->data.localFqdn) == 0 && epSet.eps[i].port == pDnode->data.serverPort) {
@@ -237,8 +236,7 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
 
   SRpcMsg rsp = {
       .code = TSDB_CODE_RPC_REDIRECT,
-      .handle = pReq->handle,
-      .refId = pReq->refId,
+      .info = pReq->info,
       .contLen = len,
   };
   rsp.pCont = rpcMallocCont(len);
@@ -276,7 +274,7 @@ static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SR
     rpcFreeCont(pReq->pCont);
     pReq->pCont = NULL;
     terrno = TSDB_CODE_NODE_OFFLINE;
-    dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->handle);
+    dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->info.handle);
     return -1;
   }
 
@@ -304,8 +302,7 @@ static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp
     tSerializeSMEpSet(rsp.pCont, len, &msg);
 
     rsp.code = TSDB_CODE_RPC_REDIRECT;
-    rsp.handle = pRsp->handle;
-    rsp.refId = pRsp->refId;
+    rsp.info = pRsp->info;
     rpcSendResponse(&rsp);
   }
 }
@@ -320,7 +317,7 @@ static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg
 
 static inline void dmReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type) {
   if (InChildProc(pWrapper->proc.ptype)) {
-    SRpcMsg msg = {.handle = handle, .code = type};
+    SRpcMsg msg = {.info.handle = handle, .code = type};
     dmPutToProcPQueue(&pWrapper->proc, &msg, sizeof(SRpcMsg), NULL, 0, DND_FUNC_RELEASE);
   } else {
     rpcReleaseHandle(handle, type);
@@ -410,7 +407,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   void   *pReq = rpcMallocCont(contLen);
   tSerializeSAuthReq(pReq, contLen, &authReq);
 
-  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .ahandle = (void *)9528};
+  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .info.ahandle = (void *)9528};
   SRpcMsg rpcRsp = {0};
   SEpSet  epSet = {0};
   dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);

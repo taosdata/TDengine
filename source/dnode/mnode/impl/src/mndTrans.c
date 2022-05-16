@@ -56,10 +56,10 @@ static bool    mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans);
 
 static void    mndTransExecute(SMnode *pMnode, STrans *pTrans);
 static void    mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans);
-static int32_t mndProcessTransReq(SNodeMsg *pReq);
-static int32_t mndProcessKillTransReq(SNodeMsg *pReq);
+static int32_t mndProcessTransReq(SRpcMsg *pReq);
+static int32_t mndProcessKillTransReq(SRpcMsg *pReq);
 
-static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextTrans(SMnode *pMnode, void *pIter);
 
 int32_t mndInitTrans(SMnode *pMnode) {
@@ -563,9 +563,9 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->policy = policy;
   pTrans->type = type;
   pTrans->createdTime = taosGetTimestampMs();
-  pTrans->rpcHandle = pReq->handle;
-  pTrans->rpcAHandle = pReq->ahandle;
-  pTrans->rpcRefId = pReq->refId;
+  pTrans->rpcHandle = pReq->info.handle;
+  pTrans->rpcAHandle = pReq->info.ahandle;
+  pTrans->rpcRefId = pReq->info.refId;
   pTrans->redoLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->undoLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->commitLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
@@ -849,9 +849,9 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, code & 0xFFFF, pTrans->stage,
            pTrans->rpcAHandle);
     SRpcMsg rspMsg = {
-        .handle = pTrans->rpcHandle,
-        .ahandle = pTrans->rpcAHandle,
-        .refId = pTrans->rpcRefId,
+        .info.handle = pTrans->rpcHandle,
+        .info.ahandle = pTrans->rpcAHandle,
+        .info.refId = pTrans->rpcRefId,
         .code = code,
         .pCont = rpcCont,
         .contLen = pTrans->rpcRspLen,
@@ -863,9 +863,9 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
   }
 }
 
-void mndTransProcessRsp(SNodeMsg *pRsp) {
-  SMnode *pMnode = pRsp->pNode;
-  int64_t signature = (int64_t)(pRsp->rpcMsg.ahandle);
+void mndTransProcessRsp(SRpcMsg *pRsp) {
+  SMnode *pMnode = pRsp->info.node;
+  int64_t signature = (int64_t)(pRsp->info.ahandle);
   int32_t transId = (int32_t)(signature >> 32);
   int32_t action = (int32_t)((signature << 32) >> 32);
 
@@ -899,13 +899,13 @@ void mndTransProcessRsp(SNodeMsg *pRsp) {
   STransAction *pAction = taosArrayGet(pArray, action);
   if (pAction != NULL) {
     pAction->msgReceived = 1;
-    pAction->errCode = pRsp->rpcMsg.code;
+    pAction->errCode = pRsp->code;
     if (pAction->errCode != 0) {
       tstrncpy(pTrans->lastError, tstrerror(pAction->errCode), TSDB_TRANS_ERROR_LEN);
     }
   }
 
-  mDebug("trans:%d, action:%d response is received, code:0x%04x, accept:0x%04x", transId, action, pRsp->rpcMsg.code,
+  mDebug("trans:%d, action:%d response is received, code:0x%04x, accept:0x%04x", transId, action, pRsp->code,
          pAction->acceptableCode);
   mndTransExecute(pMnode, pTrans);
 
@@ -983,7 +983,7 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
     signature = (signature << 32);
     signature += action;
 
-    SRpcMsg rpcMsg = {.msgType = pAction->msgType, .contLen = pAction->contLen, .ahandle = (void *)signature};
+    SRpcMsg rpcMsg = {.msgType = pAction->msgType, .contLen = pAction->contLen, .info.ahandle = (void *)signature};
     rpcMsg.pCont = rpcMallocCont(pAction->contLen);
     if (rpcMsg.pCont == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -1275,8 +1275,8 @@ static void mndTransExecute(SMnode *pMnode, STrans *pTrans) {
   mndTransSendRpcRsp(pMnode, pTrans);
 }
 
-static int32_t mndProcessTransReq(SNodeMsg *pReq) {
-  mndTransPullup(pReq->pNode);
+static int32_t mndProcessTransReq(SRpcMsg *pReq) {
+  mndTransPullup(pReq->info.node);
   return 0;
 }
 
@@ -1317,21 +1317,21 @@ int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans) {
   return 0;
 }
 
-static int32_t mndProcessKillTransReq(SNodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pNode;
+static int32_t mndProcessKillTransReq(SRpcMsg *pReq) {
+  SMnode       *pMnode = pReq->info.node;
   SKillTransReq killReq = {0};
   int32_t       code = -1;
   SUserObj     *pUser = NULL;
   STrans       *pTrans = NULL;
 
-  if (tDeserializeSKillTransReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &killReq) != 0) {
+  if (tDeserializeSKillTransReq(pReq->pCont, pReq->contLen, &killReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
 
   mInfo("trans:%d, start to kill", killReq.transId);
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     goto _OVER;
   }
@@ -1374,8 +1374,8 @@ void mndTransPullup(SMnode *pMnode) {
   sdbWriteFile(pMnode->pSdb);
 }
 
-static int32_t mndRetrieveTrans(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode *pMnode = pReq->pNode;
+static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   STrans *pTrans = NULL;

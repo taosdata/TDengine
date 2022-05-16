@@ -159,7 +159,7 @@ int32_t dmInitClient(SDnode *pDnode);
 void    dmCleanupClient(SDnode *pDnode);
 SMsgCb  dmGetMsgcb(SMgmtWrapper *pWrapper);
 int32_t dmInitMsgHandle(SDnode *pDnode);
-int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 
 // mgmt nodes
 SMgmtFunc dmGetMgmtFunc();

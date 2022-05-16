@@ -315,7 +315,7 @@ static void *dmConsumChildQueue(void *param) {
   int32_t       numOfMsgs = 0;
   int32_t       code = 0;
   EProcFuncType ftype = DND_FUNC_REQ;
-  SNodeMsg     *pReq = NULL;
+  SRpcMsg     *pReq = NULL;
 
   dDebug("node:%s, start to consume from cqueue", proc->name);
   do {
@@ -337,16 +337,14 @@ static void *dmConsumChildQueue(void *param) {
       rpcFreeCont(pBody);
     } else {
       pReq = pHead;
-      pReq->rpcMsg.pCont = pBody;
+      pReq->pCont = pBody;
       code = dmProcessNodeMsg(pWrapper, pReq);
       if (code != 0) {
         dError("node:%s, failed to process msg:%p since %s, put into pqueue", proc->name, pReq, terrstr());
         SRpcMsg rspMsg = {
-            .handle = pReq->rpcMsg.handle,
-            .ahandle = pReq->rpcMsg.ahandle,
-            .refId = pReq->rpcMsg.refId,
-            .pCont = pReq->pRsp,
-            .contLen = pReq->rspLen,
+            .info = pReq->info,
+            .pCont = pReq->info.rsp,
+            .contLen = pReq->info.rspLen,
         };
         dmPutToProcPQueue(proc, &rspMsg, sizeof(SRpcMsg), rspMsg.pCont, rspMsg.contLen, DND_FUNC_RSP);
         taosFreeQitem(pHead);
@@ -389,19 +387,19 @@ static void *dmConsumParentQueue(void *param) {
     if (ftype == DND_FUNC_RSP) {
       pRsp = pHead;
       pRsp->pCont = pBody;
-      dTrace("node:%s, get rsp msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
-      dmRemoveProcRpcHandle(proc, pRsp->handle);
+      dTrace("node:%s, get rsp msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->info.handle);
+      dmRemoveProcRpcHandle(proc, pRsp->info.handle);
       rpcSendResponse(pRsp);
     } else if (ftype == DND_FUNC_REGIST) {
       pRsp = pHead;
-      dTrace("node:%s, get regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
+      dTrace("node:%s, get regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->info.handle);
       rpcRegisterBrokenLinkArg(pRsp);
       rpcFreeCont(pBody);
     } else if (ftype == DND_FUNC_RELEASE) {
       pRsp = pHead;
-      dTrace("node:%s, get release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->handle);
-      dmRemoveProcRpcHandle(proc, pRsp->handle);
-      rpcReleaseHandle(pRsp->handle, (int8_t)pRsp->code);
+      dTrace("node:%s, get release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->info.handle);
+      dmRemoveProcRpcHandle(proc, pRsp->info.handle);
+      rpcReleaseHandle(pRsp->info.handle, (int8_t)pRsp->code);
       rpcFreeCont(pBody);
     } else {
       dFatal("node:%s, get msg:%p from pqueue, invalid ftype:%d", proc->name, pHead, ftype);
@@ -494,7 +492,7 @@ void dmCloseProcRpcHandles(SProc *proc) {
     h = taosHashIterate(proc->hash, h);
 
     dError("node:%s, the child process dies and send an offline rsp to handle:%p", proc->name, handle);
-    SRpcMsg rpcMsg = {.handle = handle, .code = TSDB_CODE_NODE_OFFLINE};
+    SRpcMsg rpcMsg = {.info.handle = handle, .code = TSDB_CODE_NODE_OFFLINE};
     rpcSendResponse(&rpcMsg);
   }
   taosHashClear(proc->hash);

@@ -280,12 +280,12 @@ TEST_F(MndTestTrans2, 02_Action) {
       STransAction *pAction = (STransAction *)taosArrayGet(pTrans->undoActions, action);
       pAction->msgSent = 1;
 
-      SNodeMsg rspMsg = {0};
-      rspMsg.pNode = pMnode;
+      SRpcMsg rspMsg = {0};
+      rspMsg.info.node = pMnode;
       int64_t signature = transId;
       signature = (signature << 32);
       signature += action;
-      rspMsg.rpcMsg.ahandle = (void *)signature;
+      rspMsg.info.ahandle = (void *)signature;
       mndTransProcessRsp(&rspMsg);
       mndReleaseTrans(pMnode, pTrans);
 
@@ -311,13 +311,13 @@ TEST_F(MndTestTrans2, 02_Action) {
       STransAction *pAction = (STransAction *)taosArrayGet(pTrans->redoActions, action);
       pAction->msgSent = 1;
 
-      SNodeMsg rspMsg = {0};
-      rspMsg.pNode = pMnode;
+      SRpcMsg rspMsg = {0};
+      rspMsg.info.node = pMnode;
       int64_t signature = transId;
       signature = (signature << 32);
       signature += action;
-      rspMsg.rpcMsg.ahandle = (void *)signature;
-      rspMsg.rpcMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
+      rspMsg.info.ahandle = (void *)signature;
+      rspMsg.code = TSDB_CODE_RPC_NETWORK_UNAVAIL;
       mndTransProcessRsp(&rspMsg);
       mndReleaseTrans(pMnode, pTrans);
 
@@ -336,12 +336,12 @@ TEST_F(MndTestTrans2, 02_Action) {
       STransAction *pAction = (STransAction *)taosArrayGet(pTrans->redoActions, action);
       pAction->msgSent = 1;
 
-      SNodeMsg rspMsg = {0};
-      rspMsg.pNode = pMnode;
+      SRpcMsg rspMsg = {0};
+      rspMsg.info.node = pMnode;
       int64_t signature = transId;
       signature = (signature << 32);
       signature += action;
-      rspMsg.rpcMsg.ahandle = (void *)signature;
+      rspMsg.info.ahandle = (void *)signature;
       mndTransProcessRsp(&rspMsg);
       mndReleaseTrans(pMnode, pTrans);
 
@@ -364,13 +364,13 @@ TEST_F(MndTestTrans2, 02_Action) {
       EXPECT_EQ(pTrans->stage, TRN_STAGE_UNDO_ACTION);
       EXPECT_EQ(pTrans->failedTimes, 1);
 
-      SNodeMsg rspMsg = {0};
-      rspMsg.pNode = pMnode;
+      SRpcMsg rspMsg = {0};
+      rspMsg.info.node = pMnode;
       int64_t signature = transId;
       signature = (signature << 32);
       signature += action;
-      rspMsg.rpcMsg.ahandle = (void *)signature;
-      rspMsg.rpcMsg.code = 0;
+      rspMsg.info.ahandle = (void *)signature;
+      rspMsg.code = 0;
       mndTransProcessRsp(&rspMsg);
       mndReleaseTrans(pMnode, pTrans);
 
@@ -389,12 +389,12 @@ TEST_F(MndTestTrans2, 02_Action) {
       STransAction *pAction = (STransAction *)taosArrayGet(pTrans->undoActions, action);
       pAction->msgSent = 1;
 
-      SNodeMsg rspMsg = {0};
-      rspMsg.pNode = pMnode;
+      SRpcMsg rspMsg = {0};
+      rspMsg.info.node = pMnode;
       int64_t signature = transId;
       signature = (signature << 32);
       signature += action;
-      rspMsg.rpcMsg.ahandle = (void *)signature;
+      rspMsg.info.ahandle = (void *)signature;
       mndTransProcessRsp(&rspMsg);
       mndReleaseTrans(pMnode, pTrans);
 

@@ -42,15 +42,15 @@ static const char *mndConsumerStatusName(int status);
 static int32_t mndConsumerActionInsert(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionDelete(SSdb *pSdb, SMqConsumerObj *pConsumer);
 static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pConsumer, SMqConsumerObj *pNewConsumer);
-static int32_t mndProcessConsumerMetaMsg(SNodeMsg *pMsg);
-static int32_t mndRetrieveConsumer(SNodeMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t mndProcessConsumerMetaMsg(SRpcMsg *pMsg);
+static int32_t mndRetrieveConsumer(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextConsumer(SMnode *pMnode, void *pIter);
 
-static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg);
-static int32_t mndProcessAskEpReq(SNodeMsg *pMsg);
-static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg);
-static int32_t mndProcessConsumerLostMsg(SNodeMsg *pMsg);
-static int32_t mndProcessConsumerRecoverMsg(SNodeMsg *pMsg);
+static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg);
+static int32_t mndProcessAskEpReq(SRpcMsg *pMsg);
+static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg);
+static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg);
+static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg);
 
 int32_t mndInitConsumer(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_CONSUMER,
@@ -86,9 +86,9 @@ void mndRebCntInc() { atomic_add_fetch_8(&mqRebLock, 1); }
 
 void mndRebCntDec() { atomic_sub_fetch_8(&mqRebLock, 1); }
 
-static int32_t mndProcessConsumerLostMsg(SNodeMsg *pMsg) {
-  SMnode             *pMnode = pMsg->pNode;
-  SMqConsumerLostMsg *pLostMsg = pMsg->rpcMsg.pCont;
+static int32_t mndProcessConsumerLostMsg(SRpcMsg *pMsg) {
+  SMnode             *pMnode = pMsg->info.node;
+  SMqConsumerLostMsg *pLostMsg = pMsg->pCont;
   SMqConsumerObj     *pConsumer = mndAcquireConsumer(pMnode, pLostMsg->consumerId);
   ASSERT(pConsumer);
 
@@ -97,7 +97,7 @@ static int32_t mndProcessConsumerLostMsg(SNodeMsg *pMsg) {
 
   mndReleaseConsumer(pMnode, pConsumer);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CONSUMER_LOST, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CONSUMER_LOST, pMsg);
   if (pTrans == NULL) goto FAIL;
   if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
@@ -110,9 +110,9 @@ FAIL:
   return -1;
 }
 
-static int32_t mndProcessConsumerRecoverMsg(SNodeMsg *pMsg) {
-  SMnode                *pMnode = pMsg->pNode;
-  SMqConsumerRecoverMsg *pRecoverMsg = pMsg->rpcMsg.pCont;
+static int32_t mndProcessConsumerRecoverMsg(SRpcMsg *pMsg) {
+  SMnode                *pMnode = pMsg->info.node;
+  SMqConsumerRecoverMsg *pRecoverMsg = pMsg->pCont;
   SMqConsumerObj        *pConsumer = mndAcquireConsumer(pMnode, pRecoverMsg->consumerId);
   ASSERT(pConsumer);
 
@@ -121,7 +121,7 @@ static int32_t mndProcessConsumerRecoverMsg(SNodeMsg *pMsg) {
 
   mndReleaseConsumer(pMnode, pConsumer);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CONSUMER_RECOVER, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CONSUMER_RECOVER, pMsg);
   if (pTrans == NULL) goto FAIL;
   if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto FAIL;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto FAIL;
@@ -147,8 +147,8 @@ static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
   return pRebSub;
 }
 
-static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
-  SMnode         *pMnode = pMsg->pNode;
+static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
+  SMnode         *pMnode = pMsg->info.node;
   SSdb           *pSdb = pMnode->pSdb;
   SMqConsumerObj *pConsumer;
   void           *pIter = NULL;
@@ -237,14 +237,14 @@ static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
   return 0;
 }
 
-static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
-  SMnode      *pMnode = pMsg->pNode;
-  SMqAskEpReq *pReq = (SMqAskEpReq *)pMsg->rpcMsg.pCont;
+static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
+  SMnode      *pMnode = pMsg->info.node;
+  SMqAskEpReq *pReq = (SMqAskEpReq *)pMsg->pCont;
   SMqAskEpRsp  rsp = {0};
   int64_t      consumerId = be64toh(pReq->consumerId);
   int32_t      epoch = ntohl(pReq->epoch);
 
-  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMsg->pNode, consumerId);
+  SMqConsumerObj *pConsumer = mndAcquireConsumer(pMsg->info.node, consumerId);
   if (pConsumer == NULL) {
     terrno = TSDB_CODE_MND_CONSUMER_NOT_EXIST;
     return -1;
@@ -366,8 +366,8 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
   mndReleaseConsumer(pMnode, pConsumer);
 
   // send rsp
-  pMsg->pRsp = buf;
-  pMsg->rspLen = tlen;
+  pMsg->info.rsp = buf;
+  pMsg->info.rspLen = tlen;
   return 0;
 FAIL:
   tDeleteSMqAskEpRsp(&rsp);
@@ -383,9 +383,9 @@ int32_t mndSetConsumerCommitLogs(SMnode *pMnode, STrans *pTrans, SMqConsumerObj 
   return 0;
 }
 
-static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
-  SMnode         *pMnode = pMsg->pNode;
-  char           *msgStr = pMsg->rpcMsg.pCont;
+static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
+  SMnode         *pMnode = pMsg->info.node;
+  char           *msgStr = pMsg->pCont;
   SCMSubscribeReq subscribe = {0};
   tDeserializeSCMSubscribeReq(msgStr, &subscribe);
   int64_t         consumerId = subscribe.consumerId;
@@ -422,7 +422,7 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
       taosArrayPush(pConsumerNew->assignedTopics, &newTopicCopy);
     }
 
-    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
+    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, pMsg);
     if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
     if (mndTransPrepare(pMnode, pTrans) != 0) goto SUBSCRIBE_OVER;
@@ -494,7 +494,7 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
-    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
+    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, pMsg);
     if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
     if (mndTransPrepare(pMnode, pTrans) != 0) goto SUBSCRIBE_OVER;
@@ -788,8 +788,8 @@ void mndReleaseConsumer(SMnode *pMnode, SMqConsumerObj *pConsumer) {
   sdbRelease(pSdb, pConsumer);
 }
 
-static int32_t mndRetrieveConsumer(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  SMnode         *pMnode = pReq->pNode;
+static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  SMnode         *pMnode = pReq->info.node;
   SSdb           *pSdb = pMnode->pSdb;
   int32_t         numOfRows = 0;
   SMqConsumerObj *pConsumer = NULL;

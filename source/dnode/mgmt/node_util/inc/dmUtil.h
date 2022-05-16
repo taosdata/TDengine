@@ -87,8 +87,8 @@ typedef enum {
   DND_FUNC_RELEASE = 4,
 } EProcFuncType;
 
-typedef int32_t (*ProcessCreateNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
-typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SNodeMsg *pMsg);
+typedef int32_t (*ProcessCreateNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg);
+typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg);
 typedef bool (*IsNodeRequiredFp)(struct SDnode *pDnode, EDndNodeType ntype);
 
 typedef struct {
@@ -130,13 +130,13 @@ typedef struct {
   void *pMgmt;
 } SMgmtOutputOpt;
 
-typedef int32_t (*NodeMsgFp)(void *pMgmt, SNodeMsg *pMsg);
+typedef int32_t (*NodeMsgFp)(void *pMgmt, SRpcMsg *pMsg);
 typedef int32_t (*NodeOpenFp)(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput);
 typedef void (*NodeCloseFp)(void *pMgmt);
 typedef int32_t (*NodeStartFp)(void *pMgmt);
 typedef void (*NodeStopFp)(void *pMgmt);
-typedef int32_t (*NodeCreateFp)(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
-typedef int32_t (*NodeDropFp)(void *pMgmt, SNodeMsg *pMsg);
+typedef int32_t (*NodeCreateFp)(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+typedef int32_t (*NodeDropFp)(void *pMgmt, SRpcMsg *pMsg);
 typedef int32_t (*NodeRequireFp)(const SMgmtInputOpt *pInput, bool *required);
 typedef SArray *(*NodeGetHandlesFp)();  // array of SMgmtHandle
 
