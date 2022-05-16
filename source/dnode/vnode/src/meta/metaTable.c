@@ -581,7 +581,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   tDecoderClear(&dc);
 
   SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
-  SColumn        *pColumn = NULL;
+  SSchema        *pColumn = NULL;
   int32_t         iCol = 0;
   for (;;) {
     pColumn = NULL;
