@@ -3177,7 +3177,11 @@ bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultInfo) {
   STailInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
   pInfo->numAdded = 0;
   pInfo->numOfPoints = pCtx->param[1].param.i;
-  pInfo->offset = pCtx->param[2].param.i;
+  if (pCtx->numOfParams == 4) {
+    pInfo->offset = pCtx->param[2].param.i;
+  } else {
+    pInfo->offset = 0;
+  }
   pInfo->colType = pCtx->resDataInfo.type;
   pInfo->colBytes = pCtx->resDataInfo.bytes;
   if ((pInfo->numOfPoints < 1 || pInfo->numOfPoints > TAIL_MAX_POINTS_NUM) ||
@@ -3236,8 +3240,12 @@ int32_t tailFunction(SqlFunctionCtx* pCtx) {
   SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
 
   int32_t startOffset = pCtx->offset;
-  pInfo->numOfPoints = MIN(pInfo->numOfPoints, pInput->numOfRows);
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
+  if (pInfo->offset >= pInput->numOfRows) {
+    return 0;
+  } else {
+    pInfo->numOfPoints = MIN(pInfo->numOfPoints, pInput->numOfRows - pInfo->offset);
+  }
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex - pInfo->offset; i += 1) {
 
     char* data = colDataGetData(pInputCol, i);
     doTailAdd(pInfo, data, tsList[i], colDataIsNull_s(pInputCol, i));

@@ -387,7 +387,8 @@ static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 }
 
 static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  if (2 != LIST_LENGTH(pFunc->pParameterList)) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != numOfParams && 3 != numOfParams) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -397,9 +398,11 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
                            "The input parameter of TAIL function can only be column");
   }
 
-  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if (!IS_INTEGER_TYPE(paraType)) {
-    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  for (int32_t i = 1; i < numOfParams; ++i) {
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+    if (!IS_INTEGER_TYPE(paraType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
   }
 
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
