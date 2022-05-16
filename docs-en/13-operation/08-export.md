@@ -1,5 +1,5 @@
 ---
-title: Export Data
+title: Data Export
 ---
 
 There are two ways of exporting data from a TDengine cluster, one is SQL statement in TDengine CLI, the other one is `taosdump`.
