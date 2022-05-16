@@ -139,9 +139,9 @@ In the design of TDengine, **a table is used to represent a specific data collec
 
 ## Subtable
 
-When creating a table for a specific data collection point, the user can use a STable as a template and specifies the tag value of the specific DCP (table). **The table created via STable is called subtable** in TDengine system. The difference between regular table and subtable is: 
+When creating a table for a specific data collection point, the user can use a STable as a template and specifies the tag value of this specific DCP to create it. **The table created by using a STable as the template is called subtable** in TDengine system. The difference between regular table and subtable is: 
 1. Subtable is a table, all SQL commands applied on a regular table can be applied on subtable.
-2. Subtable is a special table, it has static tags, and these tags can be added, deleted, and updated afterward. But regular table does not have labels.
+2. Subtable is a table with extension, it has static tags(labels), and these tags can be added, deleted, and updated afterward. But regular table does not have tags.
 3. A subtable belongs to only one STable, but a STable may have many subtables. Regular table does not belong to any STable.
 4. A regular table could not converted into a subtable, and vice versa. 
 
