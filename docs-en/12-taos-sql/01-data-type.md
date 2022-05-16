@@ -1,5 +1,4 @@
 ---
-sidebar_label: Data Types
 title: Data Types
 description: "The data types supported by TDengine include timestamp, float, JSON, etc"
 ---

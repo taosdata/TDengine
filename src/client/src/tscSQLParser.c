@@ -10248,6 +10248,9 @@ static int32_t doValidateSubquery(SSqlNode* pSqlNode, int32_t index, SSqlObj* pS
     tstrncpy(pTableMetaInfo1->aliasName, subInfo->aliasName.z, subInfo->aliasName.n + 1);
   }
 
+  if (TPARSER_HAS_TOKEN(pSqlNode->interval.interval) && pSub->order.orderColId == INT32_MIN) {
+    pSub->order.orderColId = PRIMARYKEY_TIMESTAMP_COL_INDEX;
+  }
   // NOTE: order mix up in subquery not support yet.
   pQueryInfo->order = pSub->order;
 
