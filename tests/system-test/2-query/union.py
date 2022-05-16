@@ -201,7 +201,7 @@ class TDTestCase:
                         )
                     )
 
-        return sqls
+        return filter(None, sqls)
 
     def __get_type(self, col):
         if tdSql.cursor.istype(col, "BOOL"):
