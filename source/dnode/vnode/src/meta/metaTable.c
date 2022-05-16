@@ -498,6 +498,18 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   entry.version = version;
 
+  // do actual write
+  metaWLock(pMeta);
+
+  // save to table db
+  metaSaveToTbDb(pMeta, &entry);
+
+  tdbDbcUpsert(pUidIdxc, &entry.uid, sizeof(tb_uid_t), &version, sizeof(version), 0);
+
+  metaSaveToSkmDb(pMeta, &entry);
+
+  metaULock(pMeta);
+
   tDecoderClear(&dc);
   tdbDbcClose(pTbDbc);
   tdbDbcClose(pUidIdxc);
@@ -511,8 +523,70 @@ _err:
 }
 
 static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
-  // TODO
+  SMetaEntry  entry = {0};
+  void       *pVal = NULL;
+  int         nVal = 0;
+  int         ret;
+  int         c;
+  tb_uid_t    uid;
+  int64_t     oversion;
+  const void *pData = NULL;
+  int         nData = 0;
+
+  // search name index
+  ret = tdbDbGet(pMeta->pNameIdx, pAlterTbReq->tbName, strlen(pAlterTbReq->tbName) + 1, &pVal, &nVal);
+  if (ret < 0) {
+    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  uid = *(tb_uid_t *)pVal;
+  tdbFree(pVal);
+  pVal = NULL;
+
+  // search uid index
+  TDBC *pUidIdxc = NULL;
+
+  tdbDbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  tdbDbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
+  ASSERT(c == 0);
+
+  tdbDbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
+  oversion = *(int64_t *)pData;
+
+  // search table.db
+  TDBC *pTbDbc = NULL;
+
+  tdbDbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
+  tdbDbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
+  ASSERT(c == 0);
+  tdbDbcGet(pTbDbc, NULL, NULL, &pData, &nData);
+
+  // get table entry
+  SDecoder dc = {0};
+  tDecoderInit(&dc, pData, nData);
+  metaDecodeEntry(&dc, &entry);
+
+  if (entry.type != TSDB_CHILD_TABLE) {
+    terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+    goto _err;
+  }
+
+  // do actual job
+  {
+    // TODO
+  }
+
+  tDecoderClear(&dc);
+  tdbDbcClose(pTbDbc);
+  tdbDbcClose(pUidIdxc);
   return 0;
+
+_err:
+  tDecoderClear(&dc);
+  tdbDbcClose(pTbDbc);
+  tdbDbcClose(pUidIdxc);
+  return -1;
 }
 
 static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
