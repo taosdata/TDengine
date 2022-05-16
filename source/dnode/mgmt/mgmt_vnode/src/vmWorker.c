@@ -214,7 +214,23 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
 
     // todo
     SRpcMsg *pRsp = NULL;
-    (void)vnodeProcessSyncReq(pVnode->pImpl, &pMsg->rpcMsg, &pRsp);
+    int32_t ret = vnodeProcessSyncReq(pVnode->pImpl, &pMsg->rpcMsg, &pRsp);
+    if (ret != 0) {
+      // if leader, send response
+      if (pMsg->rpcMsg.handle != NULL) {
+        SRpcMsg    rsp;
+        rsp.pCont = NULL;
+        rsp.contLen = 0;
+
+        rsp.code = terrno;
+        dTrace("vmProcessSyncQueue error, code:%d", terrno);
+        
+        rsp.ahandle = pMsg->rpcMsg.ahandle;
+        rsp.handle = pMsg->rpcMsg.handle;
+        rsp.refId = pMsg->rpcMsg.refId;
+        tmsgSendRsp(&rsp);
+      }
+    }
 
     rpcFreeCont(pMsg->rpcMsg.pCont);
     taosFreeQitem(pMsg);
