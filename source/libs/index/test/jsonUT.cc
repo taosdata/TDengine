@@ -56,6 +56,29 @@ class JsonEnv : public ::testing::Test {
   SIndexJson*     index;
 };
 
+static void WriteData(SIndexJson* index, const std::string& colName, int8_t dtype, void* data, int dlen, int tableId,
+                      int8_t operType = ADD_VALUE) {
+  SIndexTerm* term =
+      indexTermCreate(1, (SIndexOperOnColumn)operType, dtype, colName.c_str(), colName.size(), (const char*)data, dlen);
+  SIndexMultiTerm* terms = indexMultiTermCreate();
+  indexMultiTermAdd(terms, term);
+  tIndexJsonPut(index, terms, (int64_t)tableId);
+
+  indexMultiTermDestroy(terms);
+}
+static void Search(SIndexJson* index, const std::string& colNam, int8_t dtype, void* data, int dlen, int8_t filterType,
+                   SArray** result) {
+  std::string colName(colNam);
+
+  SIndexMultiTermQuery* mq = indexMultiTermQueryCreate(MUST);
+  SIndexTerm* q = indexTermCreate(1, ADD_VALUE, dtype, colName.c_str(), colName.size(), (const char*)data, dlen);
+
+  SArray* res = taosArrayInit(1, sizeof(uint64_t));
+  indexMultiTermQueryAdd(mq, q, (EIndexQueryType)filterType);
+  tIndexJsonSearch(index, mq, res);
+  indexMultiTermQueryDestroy(mq);
+  *result = res;
+}
 TEST_F(JsonEnv, testWrite) {
   {
     std::string colName("test");
@@ -329,7 +352,7 @@ TEST_F(JsonEnv, testWriteJsonNumberData) {
   }
 }
 
-TEST_F(JsonEnv, testWriteJsonTfileAndCache) {
+TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT) {
   {
     std::string colName("test1");
     int         val = 10;
@@ -483,5 +506,75 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache) {
     tIndexJsonSearch(index, mq, result);
     EXPECT_EQ(2000, taosArrayGetSize(result));
     indexMultiTermQueryDestroy(mq);
+  }
+}
+TEST_F(JsonEnv, testWriteJsonTfileAndCache_INT2) {
+  {
+    int         val = 10;
+    std::string colName("test1");
+    for (int i = 0; i < 10000; i++) {
+      val += 1;
+      WriteData(index, colName, TSDB_DATA_TYPE_INT, &val, sizeof(val), i);
+    }
+  }
+  {
+    int         val = 10;
+    std::string colName("test2xxx");
+    std::string colVal("xxxxxxxxxxxxxxx");
+    for (int i = 0; i < 100000; i++) {
+      val += 1;
+      WriteData(index, colName, TSDB_DATA_TYPE_BINARY, (void*)(colVal.c_str()), colVal.size(), i);
+    }
+  }
+  {
+    SArray*     res = NULL;
+    std::string colName("test1");
+    int         val = 9;
+    Search(index, colName, TSDB_DATA_TYPE_INT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
+    EXPECT_EQ(10000, taosArrayGetSize(res));
+  }
+  {
+    SArray*     res = NULL;
+    std::string colName("test2xxx");
+    std::string colVal("xxxxxxxxxxxxxxx");
+    Search(index, colName, TSDB_DATA_TYPE_BINARY, (void*)(colVal.c_str()), colVal.size(), QUERY_TERM, &res);
+    EXPECT_EQ(100000, taosArrayGetSize(res));
+  }
+}
+TEST_F(JsonEnv, testWriteJsonTfileAndCache_FLOAT) {
+  {
+    float       val = 10.0;
+    std::string colName("test1");
+    for (int i = 0; i < 1000; i++) {
+      WriteData(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), i);
+    }
+  }
+  {
+    float       val = 2.0;
+    std::string colName("test1");
+    for (int i = 0; i < 1000; i++) {
+      WriteData(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), i);
+    }
+  }
+  {
+    SArray*     res = NULL;
+    std::string colName("test1");
+    float       val = 1.9;
+    Search(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
+    EXPECT_EQ(2000, taosArrayGetSize(res));
+  }
+  {
+    SArray*     res = NULL;
+    std::string colName("test1");
+    float       val = 2.1;
+    Search(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
+    EXPECT_EQ(1000, taosArrayGetSize(res));
+  }
+  {
+    std::string colName("test1");
+    SArray*     res = NULL;
+    float       val = 2.1;
+    Search(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
+    EXPECT_EQ(1000, taosArrayGetSize(res));
   }
 }

@@ -306,6 +306,7 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(NULL, src, sizeof(float));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, src, sizeof(float));
+      *dst = *dst - tlen;
       break;
     case TSDB_DATA_TYPE_UINT:
       *dst = taosMemoryCalloc(1, sizeof(int64_t) + 1);
@@ -319,6 +320,7 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(NULL, src, sizeof(double));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, src, sizeof(double));
+      *dst = *dst - tlen;
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       assert(0);
