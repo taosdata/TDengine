@@ -22,6 +22,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 
 int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
 #if 0
@@ -86,10 +87,8 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     case TDMT_VND_DROP_TABLE:
       if (vnodeProcessDropTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
-    case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
-      if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
-        // TODO
-      }
+    case TDMT_VND_CREATE_SMA: {
+      if (vnodeProcessCreateTSmaReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
     } break;
     /* TSDB */
     case TDMT_VND_SUBMIT:
@@ -195,7 +194,7 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
 
   // blockDebugShowData(data);
-  tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
+  tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
 
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
@@ -305,7 +304,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
     goto _err;
   }
 
-  tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &req, &pVnode->msgCb);
+  tdProcessRSmaCreate(pVnode->pSma, pVnode->pMeta, &req, &pVnode->msgCb);
 
   tDecoderClear(&coder);
   return 0;
@@ -366,7 +365,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
       }
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
-      tsdbFetchTbUidList(pVnode->pTsdb, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
+      tdFetchTbUidList(pVnode->pSma, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
@@ -374,8 +373,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
   tDecoderClear(&decoder);
 
-  tsdbUpdateTbUidList(pVnode->pTsdb, pStore);
-  tsdbUidStoreFree(pStore);
+  tdUpdateTbUidList(pVnode->pSma, pStore);
+  tdUidStoreFree(pStore);
 
   // prepare rsp
   SEncoder encoder = {0};
@@ -661,8 +660,38 @@ _exit:
   // TODO: refactor
   if ((terrno == TSDB_CODE_SUCCESS || terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) &&
       (pRsp->code == TSDB_CODE_SUCCESS)) {
-    tsdbTriggerRSma(pVnode->pTsdb, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+    tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
   }
 
   return 0;
+}
+
+static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
+  SVCreateTSmaReq req = {0};
+  SDecoder       coder;
+
+  pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  // decode and process req
+  tDecoderInit(&coder, pReq, len);
+
+  if (tDecodeSVCreateTSmaReq(&coder, &req) < 0) {
+    pRsp->code = terrno;
+    goto _err;
+  }
+  
+  if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
+    pRsp->code = terrno;
+    goto _err;
+  }
+
+  tDecoderClear(&coder);
+  return 0;
+
+_err:
+  tDecoderClear(&coder);
+  return -1;
 }

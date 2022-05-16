@@ -18,12 +18,21 @@ target_sources(
     "src/meta/metaOpen.c"
     "src/meta/metaIdx.c"
     "src/meta/metaTable.c"
+    "src/meta/metaSma.c"
     "src/meta/metaQuery.c"
     "src/meta/metaCommit.c"
     "src/meta/metaEntry.c"
 
+    # sma
+    "src/sma/sma.c"
+    "src/sma/smaTDBImpl.c"
+    "src/sma/smaEnv.c"
+    "src/sma/smaOpen.c"
+    "src/sma/smaRollup.c"
+    "src/sma/smaTimeRange.c"
+
     # tsdb
-    "src/tsdb/tsdbTDBImpl.c"
+    # "src/tsdb/tsdbTDBImpl.c"
     "src/tsdb/tsdbCommit.c"
     "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
@@ -33,7 +42,7 @@ target_sources(
     "src/tsdb/tsdbMemTable2.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
-    "src/tsdb/tsdbSma.c"
+    # "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
 
     # tq

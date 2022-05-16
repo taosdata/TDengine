@@ -136,7 +136,7 @@ if $data35 != 3 then
 endi
 
 sql insert into t1 values(1648791223001,12,14,13,11.1);
-sleep 100
+sleep 500
 sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
