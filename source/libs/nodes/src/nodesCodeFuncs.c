@@ -584,6 +584,37 @@ static int32_t jsonToLogicProjectNode(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkExchangeLogicPlanSrcGroupId = "SrcGroupId";
+static const char* jkExchangeLogicPlanSrcPrecision = "Precision";
+
+static int32_t logicExchangeNodeToJson(const void* pObj, SJson* pJson) {
+  const SExchangeLogicNode* pNode = (const SExchangeLogicNode*)pObj;
+
+  int32_t code = logicPlanNodeToJson(pObj, pJson);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExchangeLogicPlanSrcGroupId, pNode->srcGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddIntegerToObject(pJson, jkExchangeLogicPlanSrcPrecision, pNode->precision);
+  }
+
+  return code;
+}
+
+static int32_t jsonToLogicExchangeNode(const SJson* pJson, void* pObj) {
+  SExchangeLogicNode* pNode = (SExchangeLogicNode*)pObj;
+
+  int32_t code = jsonToLogicPlanNode(pJson, pObj);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetIntValue(pJson, jkExchangeLogicPlanSrcGroupId, &pNode->srcGroupId);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetUTinyIntValue(pJson, jkExchangeLogicPlanSrcPrecision, &pNode->precision);
+  }
+
+  return code;
+}
+
 static const char* jkFillLogicPlanMode = "Mode";
 static const char* jkFillLogicPlanWStartTs = "WStartTs";
 static const char* jkFillLogicPlanValues = "Values";
@@ -2987,6 +3018,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return logicProjectNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
       break;
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+      return logicExchangeNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_FILL:
       return logicFillNodeToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN_SORT:
@@ -3083,6 +3116,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicScanNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
       return jsonToLogicProjectNode(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
+      return jsonToLogicExchangeNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_FILL:
       return jsonToLogicFillNode(pJson, pObj);
     case QUERY_NODE_LOGIC_PLAN_SORT:
