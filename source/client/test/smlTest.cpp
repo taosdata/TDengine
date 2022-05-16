@@ -207,7 +207,7 @@ TEST(testCase, smlParseCols_Error_Test) {
     char *sql = (char*)taosMemoryCalloc(256, 1);
     memcpy(sql, data[i], len + 1);
     SArray *cols = taosArrayInit(8, POINTER_BYTES);
-    int32_t ret = smlParseCols(sql, len, cols, false, dumplicateKey, &msgBuf);
+    int32_t ret = smlParseCols(sql, len, cols, NULL, false, dumplicateKey, &msgBuf);
     ASSERT_NE(ret, TSDB_CODE_SUCCESS);
     taosHashClear(dumplicateKey);
     taosMemoryFree(sql);
@@ -233,7 +233,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   const char *data =
       "cbin=\"passit helloc\",cnch=L\"iisdfsf\",cbool=false,cf64=4.31f64,cf64_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
   int32_t len = strlen(data);
-  int32_t ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
+  int32_t ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
@@ -265,7 +265,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   len = 0;
   memset(msgBuf.buf, 0, msgBuf.len);
   taosHashClear(dumplicateKey);
-  ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
+  ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 1);
@@ -298,7 +298,7 @@ TEST(testCase, smlParseCols_Test) {
   int32_t len = strlen(data);
   char *sql = (char*)taosMemoryCalloc(1024, 1);
   memcpy(sql, data, len + 1);
-  int32_t ret = smlParseCols(sql, len, cols, false, dumplicateKey, &msgBuf);
+  int32_t ret = smlParseCols(sql, len, cols, NULL, false, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
@@ -516,16 +516,18 @@ TEST(testCase, smlProcess_influx_Test) {
   int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
   ASSERT_EQ(ret, 0);
 
-//  TAOS_RES *res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
-//  ASSERT_NE(res, nullptr);
-//  int fieldNum = taos_field_count(res);
-//  ASSERT_EQ(fieldNum, 5);
-//  int rowNum = taos_affected_rows(res);
-//  ASSERT_EQ(rowNum, 2);
-//  for (int i = 0; i < rowNum; ++i) {
-//    TAOS_ROW rows = taos_fetch_row(res);
-//  }
-//  taos_free_result(res);
+  TAOS_RES *res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
+  ASSERT_NE(res, nullptr);
+  int fieldNum = taos_field_count(res);
+  //ASSERT_EQ(fieldNum, 5);
+  printf("fieldNum:%d\n", fieldNum);
+  int rowNum = taos_affected_rows(res);
+  //ASSERT_EQ(rowNum, 2);
+  printf("rowNum:%d\n", rowNum);
+  for (int i = 0; i < rowNum; ++i) {
+    TAOS_ROW rows = taos_fetch_row(res);
+  }
+  taos_free_result(res);
   destroyRequest(request);
   smlDestroyInfo(info);
 }

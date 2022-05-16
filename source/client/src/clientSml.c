@@ -1183,7 +1183,7 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, char *c
     PROCESS_SLASH(value, valueLen)
 
     //handle child table name
-    if(childTableNameLen != 0 && strncmp(key, tsSmlChildTableName, keyLen) == 0){
+    if(childTableName && childTableNameLen != 0 && strncmp(key, tsSmlChildTableName, keyLen) == 0){
       memset(childTableName, 0, TSDB_TABLE_NAME_LEN);
       strncpy(childTableName, value, (valueLen < TSDB_TABLE_NAME_LEN ? valueLen : TSDB_TABLE_NAME_LEN));
       continue;
@@ -1984,7 +1984,7 @@ static int32_t smlParseInfluxLine(SSmlHandle* info, const char* sql) {
     if(info->dataFormat) taosArrayDestroy(cols);
     return ret;
   }
-  ret = smlParseCols(elements.cols, elements.colsLen, cols, false, info->dumplicateKey, &info->msgBuf);
+  ret = smlParseCols(elements.cols, elements.colsLen, cols, NULL, false, info->dumplicateKey, &info->msgBuf);
   if(ret != TSDB_CODE_SUCCESS){
     uError("SML:0x%"PRIx64" smlParseCols parse cloums fields failed", info->id);
     smlDestroyCols(cols);
@@ -2015,7 +2015,7 @@ static int32_t smlParseInfluxLine(SSmlHandle* info, const char* sql) {
   }
 
   if(!hasTable){
-    ret = smlParseCols(elements.tags, elements.tagsLen, (*oneTable)->tags, true, info->dumplicateKey, &info->msgBuf);
+    ret = smlParseCols(elements.tags, elements.tagsLen, (*oneTable)->tags, (*oneTable)->childTableName, true, info->dumplicateKey, &info->msgBuf);
     if(ret != TSDB_CODE_SUCCESS){
       uError("SML:0x%"PRIx64" smlParseCols parse tag fields failed", info->id);
       return ret;
