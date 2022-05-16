@@ -389,7 +389,7 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
 }
 
 static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebOutputObj *pOutput) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_REBALANCE, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_REBALANCE, &pMsg->rpcMsg);
   if (pTrans == NULL) {
     return -1;
   }
@@ -458,6 +458,20 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebO
       goto REB_FAIL;
     }
   }
+  if (consumerNum) {
+    char topic[TSDB_TOPIC_FNAME_LEN];
+    char cgroup[TSDB_CGROUP_LEN];
+    mndSplitSubscribeKey(pOutput->pSub->key, topic, cgroup, true);
+    SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
+    if (pTopic) {
+      // TODO make topic complete
+      SMqTopicObj topicObj = {0};
+      memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
+      topicObj.refConsumerCnt = pTopic->refConsumerCnt - consumerNum;
+      if (mndSetTopicRedoLogs(pMnode, pTrans, &topicObj) != 0) goto REB_FAIL;
+    }
+  }
+
   // 4. TODO commit log: modification log
 
   // 5. set cb
@@ -688,6 +702,14 @@ static int32_t mndProcessSubscribeInternalRsp(SNodeMsg *pRsp) {
   return 0;
 }
 
+static int32_t mndSetDropSubRedoLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
+  SSdbRaw *pRedoRaw = mndSubActionEncode(pSub);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
   SSdbRaw *pCommitRaw = mndSubActionEncode(pSub);
   if (pCommitRaw == NULL) return -1;
@@ -712,6 +734,38 @@ int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
     }
 
     if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
+      sdbRelease(pSdb, pSub);
+      goto END;
+    }
+  }
+
+  code = 0;
+END:
+  return code;
+}
+
+int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName) {
+  int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  void            *pIter = NULL;
+  SMqSubscribeObj *pSub = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_SUBSCRIBE, pIter, (void **)&pSub);
+    if (pIter == NULL) break;
+
+    char topic[TSDB_TOPIC_FNAME_LEN];
+    char cgroup[TSDB_CGROUP_LEN];
+    mndSplitSubscribeKey(pSub->key, topic, cgroup, true);
+    if (strcmp(topic, topicName) != 0) {
+      sdbRelease(pSdb, pSub);
+      continue;
+    }
+
+    // iter all vnode to delete handle
+
+    if (mndSetDropSubRedoLogs(pMnode, pTrans, pSub) < 0) {
+      sdbRelease(pSdb, pSub);
       goto END;
     }
   }
