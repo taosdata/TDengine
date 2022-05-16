@@ -99,7 +99,7 @@ class TDTestCase:
         return join_condition
 
     def __where_condition(self, col=None, tbname=None, query_conditon=None):
-        if query_conditon:
+        if query_conditon and isinstance(query_conditon, str):
             if query_conditon.startswith("count"):
                 query_conditon = query_conditon[6:-1]
             elif query_conditon.startswith("max"):
@@ -125,14 +125,15 @@ class TDTestCase:
 
 
     def __group_condition(self, col, having = None):
-        if col.startswith("count"):
-            col = col[6:-1]
-        elif col.startswith("max"):
-            col = col[4:-1]
-        elif col.startswith("sum"):
-            col = col[4:-1]
-        elif col.startswith("min"):
-            col = col[4:-1]
+        if isinstance(col, str):
+            if col.startswith("count"):
+                col = col[6:-1]
+            elif col.startswith("max"):
+                col = col[4:-1]
+            elif col.startswith("sum"):
+                col = col[4:-1]
+            elif col.startswith("min"):
+                col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
