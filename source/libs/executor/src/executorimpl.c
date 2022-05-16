@@ -2138,16 +2138,6 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SArray* pColMatchIn
   blockDataUpdateTsWindow(pBlock);
 }
 
-static int32_t colIdSearchCompar(const void* p1, const void* p2) {
-  int32_t       colId = *(int32_t*)p1;
-  SColMatchInfo* pInfo = (SColMatchInfo*)p2;
-  if (colId == pInfo->targetSlotId) {
-    return 0;
-  }
-
-  return (colId < pInfo->colId) ? -1 : 1;
-}
-
 void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
   if (keep) {
     return;
@@ -5510,18 +5500,21 @@ static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
 
         int32_t blockId = pExprInfo->base.pParam[0].pCol->dataBlockId;
         int32_t slotId = pExprInfo->base.pParam[0].pCol->slotId;
+        int32_t rowIndex = -1;
 
         SColumnInfoData* pSrc = NULL;
         if (pJoinInfo->pLeft->info.blockId == blockId) {
           pSrc = taosArrayGet(pJoinInfo->pLeft->pDataBlock, slotId);
+          rowIndex = pJoinInfo->leftPos;
         } else {
           pSrc = taosArrayGet(pJoinInfo->pRight->pDataBlock, slotId);
+          rowIndex = pJoinInfo->rightPos;
         }
 
-        if (colDataIsNull_s(pSrc, pJoinInfo->leftPos)) {
+        if (colDataIsNull_s(pSrc, rowIndex)) {
           colDataAppendNULL(pDst, nrows);
         } else {
-          char* p = colDataGetData(pSrc, pJoinInfo->leftPos);
+          char* p = colDataGetData(pSrc, rowIndex);
           colDataAppend(pDst, nrows, p, false);
         }
       }

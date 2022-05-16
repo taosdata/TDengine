@@ -14,6 +14,7 @@
  */
 
 #include "tq.h"
+#include "tqueue.h"
 
 int32_t tqInit() {
   //
@@ -234,7 +235,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   if (msgType != TDMT_VND_SUBMIT) return 0;
 
   // make sure msgType == TDMT_VND_SUBMIT
-  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+  if (tdUpdateExpireWindow(pTq->pVnode->pSma, msg, ver) != 0) {
     return -1;
   }
 
@@ -1030,4 +1031,91 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId)
     // TODO
   }
   return 0;
+}
+
+int32_t tqProcessStreamTrigger2(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
+  void* pIter = NULL;
+  bool  failed = false;
+
+  SStreamDataSubmit* pSubmit = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  if (pSubmit == NULL) {
+    failed = true;
+  }
+  pSubmit->dataRef = taosMemoryMalloc(sizeof(int32_t));
+  if (pSubmit->dataRef == NULL) {
+    failed = true;
+  }
+
+  pSubmit->type = STREAM_DATA_TYPE_SUBMIT_BLOCK;
+  pSubmit->sourceVer = ver;
+  pSubmit->sourceVg = pTq->pVnode->config.vgId;
+  pSubmit->data = pReq;
+  *pSubmit->dataRef = 1;
+
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = (SStreamTask*)pIter;
+    if (pTask->inputType != STREAM_INPUT__DATA_SUBMIT) continue;
+
+    int8_t inputStatus = atomic_load_8(&pTask->inputStatus);
+    if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
+      if (failed) {
+        atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+        continue;
+      }
+
+      streamDataSubmitRefInc(pSubmit);
+      taosWriteQitem(pTask->inputQ, pSubmit);
+
+      int8_t execStatus = atomic_load_8(&pTask->status);
+      if (execStatus == TASK_STATUS__IDLE || execStatus == TASK_STATUS__CLOSING) {
+        // TODO dispatch task launch msg to fetch queue
+      }
+
+    } else {
+      // blocked or stopped, do nothing
+    }
+  }
+
+  if (!failed) {
+    streamDataSubmitRefDec(pSubmit);
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+int32_t tqProcessTaskExec2(STQ* pTq, char* msg, int32_t msgLen) {
+  SStreamTaskExecReq req = {0};
+  tDecodeSStreamTaskExecReq(msg, &req);
+  int32_t taskId = req.taskId;
+
+  SStreamTask* pTask = taosHashGet(pTq->pStreamTasks, &taskId, sizeof(int32_t));
+  ASSERT(pTask);
+  ASSERT(pTask->inputType == TASK_INPUT_TYPE__DATA_BLOCK);
+
+  // enqueue
+  int32_t inputStatus = streamEnqueueDataBlk(pTask, (SStreamDataBlock*)req.data);
+  if (inputStatus == TASK_INPUT_STATUS__BLOCKED) {
+    // TODO rsp blocked
+    return 0;
+  }
+
+  // try exec
+  int8_t execStatus = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
+  if (execStatus == TASK_STATUS__IDLE) {
+    if (streamTaskRun(pTask) < 0) {
+      atomic_store_8(&pTask->status, TASK_STATUS__CLOSING);
+
+      goto FAIL;
+    }
+  } else if (execStatus == TASK_STATUS__EXECUTING) {
+    return 0;
+  }
+
+  // TODO rsp success
+  return 0;
+FAIL:
+  return -1;
 }

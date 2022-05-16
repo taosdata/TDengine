@@ -47,7 +47,7 @@ int main(int argc, char *argv[]) {
 
   UdfcFuncHandle handle;
 
-  setupUdf("udf1", &handle);
+  doSetupUdf("udf1", &handle);
 
   SSDataBlock  block = {0};
   SSDataBlock *pBlock = &block;
@@ -73,12 +73,12 @@ int main(int argc, char *argv[]) {
   input.numOfRows = pBlock->info.rows;
   input.columnData = taosArrayGet(pBlock->pDataBlock, 0);
   SScalarParam output = {0};
-  callUdfScalarFunc(handle, &input, 1, &output);
+  doCallUdfScalarFunc(handle, &input, 1, &output);
 
   SColumnInfoData *col = output.columnData;
   for (int32_t i = 0; i < output.numOfRows; ++i) {
     fprintf(stderr, "%d\t%d\n", i, *(int32_t *)(col->pData + i * sizeof(int32_t)));
   }
-  teardownUdf(handle);
+  doTeardownUdf(handle);
   udfcClose();
 }
