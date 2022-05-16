@@ -136,7 +136,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.queueFps[READ_QUEUE] = (PutToQueueFp)mmPutRpcMsgToReadQueue;
   pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
   pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
-  pMgmt->msgCb.pMgmt = pMgmt;
+  pMgmt->msgCb.mgmt = pMgmt;
 
   bool deployed = false;
   if (mmReadFile(pMgmt, &deployed) != 0) {

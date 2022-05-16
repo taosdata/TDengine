@@ -43,7 +43,7 @@ int32_t bmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->msgCb = pInput->msgCb;
-  pMgmt->msgCb.pMgmt = pMgmt;
+  pMgmt->msgCb.mgmt = pMgmt;
 
   SBnodeOpt option = {0};
   bmInitOption(pMgmt, &option);

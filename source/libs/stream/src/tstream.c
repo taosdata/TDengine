@@ -111,7 +111,7 @@ static int32_t streamShuffleDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SHashOb
       ASSERT(0);
       return -1;
     }
-    tmsgSendReq(pMsgCb, pEpSet, &dispatchMsg);
+    tmsgSendReq(pEpSet, &dispatchMsg);
   }
   return 0;
 }
@@ -371,7 +371,7 @@ int32_t streamTaskProcessInputReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDat
         return -1;
       }
 
-      tmsgSendReq(pMsgCb, pEpSet, &dispatchMsg);
+      tmsgSendReq(pEpSet, &dispatchMsg);
 
     } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
       SHashObj* pShuffleRes = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);
@@ -571,7 +571,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
       return -1;
     }
 
-    tmsgSendReq(pMsgCb, pEpSet, &dispatchMsg);
+    tmsgSendReq(pEpSet, &dispatchMsg);
 
   } else if (pTask->dispatchType == TASK_DISPATCH__SHUFFLE) {
     SHashObj* pShuffleRes = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_NO_LOCK);

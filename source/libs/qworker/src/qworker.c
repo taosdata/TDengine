@@ -412,7 +412,7 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 }
 
 void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  tmsgReleaseHandle(ctx->ctrlConnInfo.handle, TAOS_CONN_SERVER);
+  tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
   ctx->ctrlConnInfo.handle = NULL;
   ctx->ctrlConnInfo.refId = -1;
 
@@ -1278,7 +1278,7 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (qwMsg->connInfo.handle == sch->hbConnInfo.handle) {
-    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
     sch->hbConnInfo.handle = NULL;
     sch->hbConnInfo.ahandle = NULL;
 
@@ -1310,7 +1310,7 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (sch->hbConnInfo.handle) {
-    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
   }
 
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
@@ -1330,7 +1330,7 @@ _return:
   qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
 
   if (code) {
-    tmsgReleaseHandle(qwMsg->connInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&qwMsg->connInfo, TAOS_CONN_SERVER);
   }
 
   QW_DLOG("hb rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
@@ -1498,7 +1498,7 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
 }
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
-  if (NULL == qWorkerMgmt || pMsgCb->pWrapper == NULL) {
+  if (NULL == qWorkerMgmt || pMsgCb->mgmt == NULL) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }

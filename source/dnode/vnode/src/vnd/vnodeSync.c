@@ -73,7 +73,7 @@ int32_t vnodeSendMsg(void *rpcHandle, const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SMsgCb *pMsgCb = rpcHandle;
   if (pMsgCb->queueFps[SYNC_QUEUE] != NULL) {
     pMsg->info.noResp = 1;
-    tmsgSendReq(rpcHandle, pEpSet, pMsg);
+    tmsgSendReq(pEpSet, pMsg);
   } else {
     vError("vnodeSendMsg queue is NULL, SYNC_QUEUE:%d", SYNC_QUEUE);
   }

@@ -625,7 +625,7 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .info = pReq->info};
 
   mInfo("dnode:%d, app:%p config:%s req send to dnode", cfgReq.dnodeId, rpcMsg.info.ahandle, cfgReq.config);
-  tmsgSendReq(&pMnode->msgCb, &epSet, &rpcMsg);
+  tmsgSendReq(&epSet, &rpcMsg);
 
   return 0;
 }

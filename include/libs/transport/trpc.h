@@ -36,7 +36,7 @@ typedef struct {
   char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
-typedef struct {
+typedef struct SRpcHandleInfo {
   // rpc info
   void   *handle;         // rpc handle returned to app
   int64_t refId;          // refid, used by server

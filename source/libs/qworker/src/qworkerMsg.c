@@ -294,7 +294,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
       .info = *pConn,
   };
 
-  tmsgRegisterBrokenLinkArg(&mgmt->msgCb, &pMsg);
+  tmsgRegisterBrokenLinkArg(&pMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -328,7 +328,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
       .info = *pConn,
   };
 
-  tmsgRegisterBrokenLinkArg(&mgmt->msgCb, &pMsg);
+  tmsgRegisterBrokenLinkArg(&pMsg);
 
   return TSDB_CODE_SUCCESS;
 }

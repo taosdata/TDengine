@@ -64,6 +64,8 @@ static int32_t dmNewProc(SMgmtWrapper *pWrapper, EDndNodeType ntype) {
 }
 
 int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
+  SDnode *pDnode = dmInstance();
+
   if (taosMkDir(pWrapper->path) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("node:%s, failed to create dir:%s since %s", pWrapper->name, pWrapper->path, terrstr());
@@ -101,7 +103,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
         dError("node:%s, failed to init proc since %s", pWrapper->name, terrstr());
         return -1;
       }
-      if (pWrapper->pDnode->rtype == NODE_END) {
+      if (pDnode->rtype == NODE_END) {
         dInfo("node:%s, should be started manually in child process", pWrapper->name);
       } else {
         if (dmNewProc(pWrapper, pWrapper->ntype) != 0) {

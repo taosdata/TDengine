@@ -194,9 +194,9 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
   return 0;
 }
 
-static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
+static void dmSendRpcRedirectRsp(const SRpcMsg *pReq) {
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(&pDnode->data, &epSet);
+  dmGetMnodeEpSetGlobal(&epSet);
 
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->info.handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -221,15 +221,8 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
   rpcSendResponse(&rsp);
 }
 
-static inline void dmSendRpcRsp(SDnode *pDnode, const SRpcMsg *pRsp) {
-  if (pRsp->code == TSDB_CODE_NODE_REDIRECT) {
-    dmSendRpcRedirectRsp(pDnode, pRsp);
-  } else {
-    rpcSendResponse(pRsp);
-  }
-}
-
-static inline void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
+static inline void dmSendRecv(SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
+  SDnode *pDnode = dmInstance();
   if (pDnode->status != DND_STAT_RUNNING) {
     pRsp->code = TSDB_CODE_NODE_OFFLINE;
     rpcFreeCont(pReq->pCont);
@@ -239,18 +232,18 @@ static inline void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRp
   }
 }
 
-static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
-  SDnode *pDnode = pWrapper->pDnode;
-  if (pDnode->status != DND_STAT_RUNNING || pDnode->trans.clientRpc == NULL) {
+static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pReq) {
+  SDnode *pDnode = dmInstance();
+  if (pDnode->status != DND_STAT_RUNNING) {
     rpcFreeCont(pReq->pCont);
     pReq->pCont = NULL;
     terrno = TSDB_CODE_NODE_OFFLINE;
     dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->info.handle);
     return -1;
+  } else {
+    rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pReq, NULL);
+    return 0;
   }
-
-  rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pReq, NULL);
-  return 0;
 }
 
 static inline void dmSendRsp(const SRpcMsg *pMsg) {
@@ -258,7 +251,11 @@ static inline void dmSendRsp(const SRpcMsg *pMsg) {
   if (InChildProc(pWrapper->proc.ptype)) {
     dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, DND_FUNC_RSP);
   } else {
-    dmSendRpcRsp(pWrapper->pDnode, pMsg);
+    if (pMsg->code == TSDB_CODE_NODE_REDIRECT) {
+      dmSendRpcRedirectRsp(pMsg);
+    } else {
+      rpcSendResponse(pMsg);
+    }
   }
 }
 
@@ -280,7 +277,9 @@ static inline void dmSendRedirectRsp(const SRpcMsg *pRsp, const SEpSet *pNewEpSe
   }
 }
 
-static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
+static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) {
+  SMgmtWrapper *pWrapper = pMsg->info.wrapper;
+
   if (InChildProc(pWrapper->proc.ptype)) {
     dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, DND_FUNC_REGIST);
   } else {
@@ -288,12 +287,14 @@ static inline void dmRegisterBrokenLinkArg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg
   }
 }
 
-static inline void dmReleaseHandle(SMgmtWrapper *pWrapper, void *handle, int8_t type) {
+static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
+  SMgmtWrapper *pWrapper = pHandle->wrapper;
+
   if (InChildProc(pWrapper->proc.ptype)) {
-    SRpcMsg msg = {.info.handle = handle, .code = type};
+    SRpcMsg msg = {.info = *pHandle, .code = type};
     dmPutToProcPQueue(&pWrapper->proc, &msg, sizeof(SRpcMsg), NULL, 0, DND_FUNC_RELEASE);
   } else {
-    rpcReleaseHandle(handle, type);
+    rpcReleaseHandle(pHandle->handle, type);
   }
 }
 
@@ -385,7 +386,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   SEpSet  epSet = {0};
   dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);
   dmGetMnodeEpSet(&pDnode->data, &epSet);
-  dmSendRecv(pDnode, &epSet, &rpcMsg, &rpcRsp);
+  dmSendRecv(&epSet, &rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
     terrno = rpcRsp.code;
@@ -441,15 +442,15 @@ void dmCleanupServer(SDnode *pDnode) {
 }
 
 SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
-  SMsgCb msgCb = {
-      .pWrapper = pWrapper,
-      .clientRpc = pWrapper->pDnode->trans.clientRpc,
-      .sendReqFp = dmSendReq,
-      .sendRspFp = dmSendRsp,
-      .sendRedirectRspFp = dmSendRedirectRsp,
-      .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
-      .releaseHandleFp = dmReleaseHandle,
-      .reportStartupFp = dmReportStartup,
+  SDnode *pDnode = dmInstance();
+  SMsgCb  msgCb = {
+       .clientRpc = dmInstance()->trans.clientRpc,
+       .sendReqFp = dmSendReq,
+       .sendRspFp = dmSendRsp,
+       .sendRedirectRspFp = dmSendRedirectRsp,
+       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
+       .releaseHandleFp = dmReleaseHandle,
+       .reportStartupFp = dmReportStartup,
   };
   return msgCb;
 }

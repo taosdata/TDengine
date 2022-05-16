@@ -22,51 +22,38 @@ static SMsgCb tsDefaultMsgCb;
 void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
 
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
-  // cannot be empty, but not checked for faster detect
   PutToQueueFp fp = pMsgCb->queueFps[qtype];
-  return (*fp)(pMsgCb->pMgmt, pReq);
+  return (*fp)(pMsgCb->mgmt, pReq);
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
-  // cannot be empty, but not checked for faster detect
   GetQueueSizeFp fp = pMsgCb->qsizeFp;
-  return (*fp)(pMsgCb->pMgmt, vgId, qtype);
+  return (*fp)(pMsgCb->mgmt, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
-  // cannot be empty, but not checked for faster detect
-  SendReqFp fp = pMsgCb->sendReqFp;
-  return (*fp)(pMsgCb->pWrapper, epSet, pReq);
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pReq) {
+  SendReqFp fp = tsDefaultMsgCb.sendReqFp;
+  return (*fp)(epSet, pReq);
 }
 
-void tmsgSendRsp(SRpcMsg* pMsg) {
-  // cannot be empty, but not checked for faster detect
+void tmsgSendRsp(const SRpcMsg* pMsg) {
   SendRspFp fp = tsDefaultMsgCb.sendRspFp;
   return (*fp)(pMsg);
 }
 
-void tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
-  // cannot be empty, but not checked for faster detect
+void tmsgSendRedirectRsp(const SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
   SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
-  (*fp)(pRsp, pNewEpSet);
+  (*fp)(pMsg, pNewEpSet);
 }
 
-void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
-  RegisterBrokenLinkArgFp fp = pMsgCb->registerBrokenLinkArgFp;
-  if (fp != NULL) {
-    (*fp)(pMsgCb->pWrapper, pMsg);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) {
+  RegisterBrokenLinkArgFp fp = tsDefaultMsgCb.registerBrokenLinkArgFp;
+  (*fp)(pMsg);
 }
 
-void tmsgReleaseHandle(void* handle, int8_t type) {
+void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) {
   ReleaseHandleFp fp = tsDefaultMsgCb.releaseHandleFp;
-  if (fp != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, handle, type);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  (*fp)(pHandle, type);
 }
 
 void tmsgReportStartup(const char* name, const char* desc) {

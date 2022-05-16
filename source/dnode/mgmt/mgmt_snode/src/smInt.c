@@ -44,7 +44,7 @@ int32_t smOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
   pMgmt->msgCb = pInput->msgCb;
-  pMgmt->msgCb.pMgmt = pMgmt;
+  pMgmt->msgCb.mgmt = pMgmt;
 
   SSnodeOpt option = {0};
   smInitOption(pMgmt, &option);

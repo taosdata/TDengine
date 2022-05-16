@@ -65,7 +65,6 @@ typedef struct {
 } SProc;
 
 typedef struct SMgmtWrapper {
-  struct SDnode *pDnode;
   SMgmtFunc      func;
   void          *pMgmt;
   const char    *name;
@@ -124,8 +123,12 @@ typedef struct SDnode {
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
 
-// dmEmv.c
-void dmReportStartup(const char *pName, const char *pDesc);
+// dmEnv.c
+SDnode *dmInstance();
+bool    dmNotRunning();
+void    dmReportStartup(const char *pName, const char *pDesc);
+void   *dmGetClientRpc();
+void    dmGetMnodeEpSetGlobal(SEpSet *pEpSet);
 
 // dmMgmt.c
 int32_t       dmInitDnode(SDnode *pDnode, EDndNodeType rtype);

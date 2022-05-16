@@ -47,7 +47,7 @@ class MndTestTrans2 : public ::testing::Test {
   static void InitMnode() {
     static SMsgCb msgCb = {0};
     msgCb.reportStartupFp = reportStartup;
-    msgCb.pWrapper = (SMgmtWrapper *)(&msgCb);  // hack
+    msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
     tmsgSetDefaultMsgCb(&msgCb);
 
     SMnodeOpt opt = {0};

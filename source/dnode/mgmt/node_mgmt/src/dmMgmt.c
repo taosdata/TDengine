@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static bool dmRequireNode(SMgmtWrapper *pWrapper) {
+static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
   bool    required = false;
@@ -25,7 +25,7 @@ static bool dmRequireNode(SMgmtWrapper *pWrapper) {
     dDebug("node:%s, does not require startup", pWrapper->name);
   }
 
-  if (pWrapper->ntype == DNODE && pWrapper->pDnode->rtype != DNODE && pWrapper->pDnode->rtype != NODE_END) {
+  if (pWrapper->ntype == DNODE && pDnode->rtype != DNODE && pDnode->rtype != NODE_END) {
     required = false;
     dDebug("node:%s, does not require startup in child process", pWrapper->name);
   }
@@ -150,7 +150,7 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
       goto _OVER;
     }
 
-    pWrapper->required = dmRequireNode(pWrapper);
+    pWrapper->required = dmRequireNode(pDnode, pWrapper);
 
     if (ntype != DNODE && dmReadShmFile(pWrapper->path, pWrapper->name, pDnode->rtype, &pWrapper->proc.shm) != 0) {
       dError("node:%s, failed to read shm file since %s", pWrapper->name, terrstr());

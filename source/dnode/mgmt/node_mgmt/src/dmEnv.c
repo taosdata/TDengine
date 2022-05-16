@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static SDnode global = {0};
+SDnode global = {0};
 
 static int32_t dmCheckRepeatInit(SDnode *pDnode) {
   if (atomic_val_compare_exchange_8(&pDnode->once, DND_ENV_INIT, DND_ENV_READY) != DND_ENV_INIT) {
@@ -166,10 +166,12 @@ static bool dmIsNodeRequired(EDndNodeType ntype) {
 }
 
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
+  SDnode *pDnode = dmInstance();
+
   SMgmtInputOpt opt = {
       .path = pWrapper->path,
       .name = pWrapper->name,
-      .pData = &pWrapper->pDnode->data,
+      .pData = &pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
       .isNodeRequiredFp = dmIsNodeRequired,
@@ -185,3 +187,11 @@ void dmReportStartup(const char *pName, const char *pDesc) {
   tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
   dDebug("step:%s, %s", pStartup->name, pStartup->desc);
 }
+
+SDnode *dmInstance() { return &global; }
+
+bool dmNotRunning() { return global.status != DND_STAT_RUNNING; }
+
+void *dmGetClientRpc() { return global.trans.clientRpc; }
+
+void dmGetMnodeEpSetGlobal(SEpSet *pEpSet) { dmGetMnodeEpSet(&global.data, pEpSet); }
