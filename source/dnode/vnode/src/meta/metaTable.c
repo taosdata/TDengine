@@ -239,6 +239,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   } else {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
+    me.ntbEntry.ncid = me.ntbEntry.schema.pSchema[me.ntbEntry.schema.nCols - 1].colId + 1;
     me.ntbEntry.schema = pReq->ntb.schema;
   }
 
@@ -372,6 +373,40 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   }
 
   return 0;
+}
+
+static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  // TODO
+  return 0;
+}
+
+static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  // TODO
+  return 0;
+}
+
+static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  switch (pReq->action) {
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      return metaAlterTableColumn(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
+      return metaUpdateTableTagVal(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      return metaUpdateTableOptions(pMeta, version, pReq);
+    default:
+      terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+      return -1;
+      break;
+  }
 }
 
 static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {

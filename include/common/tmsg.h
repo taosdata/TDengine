@@ -1766,6 +1766,7 @@ typedef struct {
   int8_t      action;
   // TSDB_ALTER_TABLE_ADD_COLUMN
   int8_t      type;
+  int8_t      flags;
   int32_t     bytes;
   const char* colAddName;
   // TSDB_ALTER_TABLE_DROP_COLUMN

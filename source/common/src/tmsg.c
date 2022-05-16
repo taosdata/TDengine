@@ -4172,6 +4172,7 @@ int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (tEncodeI8(pEncoder, pReq->type) < 0) return -1;
+      if (tEncodeI8(pEncoder, pReq->flags) < 0) return -1;
       if (tEncodeI32v(pEncoder, pReq->bytes) < 0) return -1;
       if (tEncodeCStr(pEncoder, pReq->colAddName) < 0) return -1;
       break;
@@ -4219,6 +4220,7 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (tDecodeI8(pDecoder, &pReq->type) < 0) return -1;
+      if (tDecodeI8(pDecoder, &pReq->flags) < 0) return -1;
       if (tDecodeI32v(pDecoder, &pReq->bytes) < 0) return -1;
       if (tDecodeCStr(pDecoder, &pReq->colAddName) < 0) return -1;
       break;
