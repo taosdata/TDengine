@@ -37,6 +37,15 @@ class TDTestCase:
                 (
                     f"{tbname}.{char_col}",
                     f"upper( {tbname}.{char_col} )",
+                    f"char_length( {tbname}.{char_col} )",
+                    f"concat( {tbname}.{char_col}, {tbname}.{char_col} )",
+                    f"concat_ws( '_', {tbname}.{char_col}, {tbname}.{char_col} )",
+                    f"length( {tbname}.{char_col} )",
+                    f"lower( {tbname}.{char_col} )",
+                    f"ltrim( {tbname}.{char_col} )",
+                    f"rtrim( {tbname}.{char_col} )",
+                    f"substr( {tbname}.{char_col}, 1 )",
+                    f"count( {tbname}.{char_col} )",
                 )
             )
             query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
@@ -48,9 +57,21 @@ class TDTestCase:
                 (
                     f"{tbname}.{num_col}",
                     f"ceil( {tbname}.{num_col} )",
+                    f"abs( {tbname}.{num_col} )",
+                    f"acos( {tbname}.{num_col} )",
+                    f"asin( {tbname}.{num_col} )",
+                    f"atan( {tbname}.{num_col} )",
+                    f"cos( {tbname}.{num_col} )",
+                    f"floor( {tbname}.{num_col} )",
+                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
+                    f"sin( {tbname}.{num_col} )",
+                    f"sqrt( {tbname}.{num_col} )",
+                    f"tan( {tbname}.{num_col} )",
+                    f"round( {tbname}.{num_col} )",
+                    f"max( {tbname}.{num_col} )",
                     f"sum( {tbname}.{num_col} )",
                     f"count( {tbname}.{num_col} )",
-                    f"sin( {tbname}.{num_col} )",
+                    f"min( {tbname}.{num_col} )",
                 )
             )
             query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_2}" for num_col_2 in NUM_COL )
@@ -148,90 +169,69 @@ class TDTestCase:
 
         return sqls
 
-
+    def __get_type(self, col):
+        if tdSql.cursor.istype(col, "BOOL"):
+            return "BOOL"
+        if tdSql.cursor.istype(col, "INT"):
+            return "INT"
+        if tdSql.cursor.istype(col, "BIGINT"):
+            return "BIGINT"
+        if tdSql.cursor.istype(col, "TINYINT"):
+            return "TINYINT"
+        if tdSql.cursor.istype(col, "SMALLINT"):
+            return "SMALLINT"
+        if tdSql.cursor.istype(col, "FLOAT"):
+            return "FLOAT"
+        if tdSql.cursor.istype(col, "DOUBLE"):
+            return "DOUBLE"
+        if tdSql.cursor.istype(col, "BINARY"):
+            return "BINARY"
+        if tdSql.cursor.istype(col, "NCHAR"):
+            return "NCHAR"
+        if tdSql.cursor.istype(col, "TIMESTAMP"):
+            return "TIMESTAMP"
+        if tdSql.cursor.istype(col, "JSON"):
+            return "JSON"
+        if tdSql.cursor.istype(col, "TINYINT UNSIGNED"):
+            return "TINYINT UNSIGNED"
+        if tdSql.cursor.istype(col, "SMALLINT UNSIGNED"):
+            return "SMALLINT UNSIGNED"
+        if tdSql.cursor.istype(col, "INT UNSIGNED"):
+            return "INT UNSIGNED"
+        if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
+            return "BIGINT UNSIGNED"
 
     def union_check(self):
         sqls = self.sql_list()
         for sql1 in sqls:
+            tdSql.query(sql1)
+            res1_type = self.__get_type(0)
             for sql2 in sqls:
-                select_claus1 = sql1.split("from")[0].split("select")[1]
-                select_claus2 = sql2.split("from")[0].split("select")[1]
+                tdSql.query(sql2)
+                union_type = False
+                res2_type =  self.__get_type(0)
 
-        pass
+                if res1_type in  ( "BIGINT" , "NCHAR" ):
+                    union_type = True
+                elif res2_type == res1_type:
+                    union_type = True
+                elif res1_type == "TIMESAMP" and res2_type not in ("BINARY", "NCHAR"):
+                    union_type = True
+                elif res1_type == "BINARY" and res2_type != "NCHAR":
+                    union_type = True
 
-    def __join_check(self, tblist, checkrows, join_flag=True):
-        query_conditions = self.__query_condition(tblist[0])
-        join_condition = self.__join_condition(tb_list=tblist) if join_flag else " "
-        for condition in query_conditions:
-            where_condition =  self.__where_condition(col=condition, tbname=tblist[0])
-            group_having = self.__group_condition(tbname=tblist[0], col=condition, having=f"{condition} is not null " )
-            group_no_having= self.__group_condition(tbname=tblist[0], col=condition )
-            groups = ["", group_having, group_no_having]
-            for group_condition in groups:
-                if where_condition:
-                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition} and {where_condition} {group_condition} "
+                if union_type:
+                    tdSql.query(f"{sql1} union {sql2}")
+                    tdSql.query(f"{sql1} union all {sql2}")
                 else:
-                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition}  {group_condition} "
-
-                if not join_flag :
-                    tdSql.error(sql=sql)
-                    break
-                if len(tblist) == 2:
-                    if "ct1" in tblist or "t1" in tblist:
-                        self.__join_current(sql, checkrows)
-                    elif where_condition or "not null" in group_condition:
-                        self.__join_current(sql, checkrows + 2 )
-                    elif group_condition:
-                        self.__join_current(sql, checkrows + 3 )
-                    else:
-                        self.__join_current(sql, checkrows + 5 )
-                if len(tblist) > 2 or len(tblist) < 1:
-                    tdSql.error(sql=sql)
-
-    def __join_current(self, sql, checkrows):
-        tdSql.query(sql=sql)
-        # tdSql.checkRows(checkrows)
-
-
-    def __test_current(self):
-        # sourcery skip: extract-duplicate-method, inline-immediately-returned-variable
-        tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tblist_1 = ["ct1", "ct2"]
-        self.__join_check(tblist_1, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_1} over==========")
-        tblist_2 = ["ct2", "ct4"]
-        self.__join_check(tblist_2, self.rows)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_2} over==========")
-        tblist_3 = ["t1", "ct4"]
-        self.__join_check(tblist_3, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_3} over==========")
-        tblist_4 = ["t1", "ct1"]
-        self.__join_check(tblist_4, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_4} over==========")
+                    tdSql.error(f"{sql1} union {sql2}")
 
     def __test_error(self):
-        # sourcery skip: extract-duplicate-method, move-assign-in-block
-        tdLog.printNoPrefix("==========err sql condition check , must return error==========")
-        err_list_1 = ["ct1","ct2", "ct4"]
-        err_list_2 = ["ct1","ct2", "t1"]
-        err_list_3 = ["ct1","ct4", "t1"]
-        err_list_4 = ["ct2","ct4", "t1"]
-        err_list_5 = ["ct1", "ct2","ct4", "t1"]
-        self.__join_check(err_list_1, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_1} over==========")
-        self.__join_check(err_list_2, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_2} over==========")
-        self.__join_check(err_list_3, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_3} over==========")
-        self.__join_check(err_list_4, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_4} over==========")
-        self.__join_check(err_list_5, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_5} over==========")
-        self.__join_check(["ct2", "ct4"], -1, join_flag=False)
-        tdLog.printNoPrefix("==========err sql condition check in has no join condition over==========")
 
-        tdSql.error( f"select c1, c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{INT_COL}=ct4.{INT_COL}" )
+
+        tdSql.error( "show tables union show tables" )
+        tdSql.error( "create table errtb1 union all create table errtb2" )
+        tdSql.error( "drop table ct1 union all drop table ct3" )
         tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{TS_COL}=ct4.{TS_COL}" )
         tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{TS_COL}" )
         tdSql.error( f"select ct2.c1, ct1.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
@@ -241,15 +241,10 @@ class TDTestCase:
 
         tbname = ["ct1", "ct2", "ct4", "t1"]
 
-        # for tb in tbname:
-        #     for errsql in self.__join_err_check(tb):
-        #         tdSql.error(sql=errsql)
-        #     tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
-
-
     def all_test(self):
-        self.__test_current()
-        self.__test_error()
+        # self.__test_current()
+        # self.__test_error()
+        self.union_check()
 
 
     def __create_tb(self):
