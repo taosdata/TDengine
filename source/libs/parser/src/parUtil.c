@@ -152,6 +152,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid timeline function";
     case TSDB_CODE_PAR_INVALID_PASSWD:
       return "Invalid password";
+    case TSDB_CODE_PAR_INVALID_ALTER_TABLE:
+      return "Invalid alter table statement";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

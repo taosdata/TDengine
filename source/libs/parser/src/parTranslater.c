@@ -2949,8 +2949,8 @@ static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* p
 }
 
 static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt) {
-  SEncoder       encoder = {0};
-  int32_t        contLen = 0;
+  SEncoder      encoder = {0};
+  int32_t       contLen = 0;
   SVDropTSmaReq dropSmaReq = {0};
   strcpy(dropSmaReq.indexName, pStmt->indexName);
 
@@ -2958,7 +2958,7 @@ static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt
   if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  
+
   int32_t ret = 0;
   tEncodeSize(tEncodeSVDropTSmaReq, &dropSmaReq, contLen, ret);
   if (ret < 0) {
@@ -4255,7 +4255,20 @@ static int32_t rewriteDropTable(STranslateContext* pCxt, SQuery* pQuery) {
 }
 
 static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
-  // todo
+  SAlterTableStmt* pStmt = (SAlterTableStmt*)pQuery->pRoot;
+
+  STableMeta* pTableMeta = NULL;
+  int32_t     code = getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pTableMeta);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
+    return TSDB_CODE_SUCCESS;
+  } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_STABLE);
+  }
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4296,9 +4309,7 @@ static int32_t rewriteQuery(STranslateContext* pCxt, SQuery* pQuery) {
       code = rewriteDropTable(pCxt, pQuery);
       break;
     case QUERY_NODE_ALTER_TABLE_STMT:
-      if (TSDB_ALTER_TABLE_UPDATE_TAG_VAL == ((SAlterTableStmt*)pQuery->pRoot)->alterType) {
-        code = rewriteAlterTable(pCxt, pQuery);
-      }
+      code = rewriteAlterTable(pCxt, pQuery);
       break;
     default:
       break;
