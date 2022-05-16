@@ -523,7 +523,8 @@ _err:
 }
 
 static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
-  SMetaEntry  entry = {0};
+  SMetaEntry  ctbEntry = {0};
+  SMetaEntry  stbEntry = {0};
   void       *pVal = NULL;
   int         nVal = 0;
   int         ret;
@@ -555,35 +556,46 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   oversion = *(int64_t *)pData;
 
   // search table.db
-  TDBC *pTbDbc = NULL;
+  TDBC    *pTbDbc = NULL;
+  SDecoder dc = {0};
 
+  /* get ctbEntry */
   tdbDbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
   tdbDbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
   ASSERT(c == 0);
   tdbDbcGet(pTbDbc, NULL, NULL, &pData, &nData);
 
-  // get table entry
-  SDecoder dc = {0};
-  tDecoderInit(&dc, pData, nData);
-  metaDecodeEntry(&dc, &entry);
-
-  if (entry.type != TSDB_CHILD_TABLE) {
-    terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
-    goto _err;
-  }
-
-  // do actual job
-  {
-    // TODO
-  }
-
+  ctbEntry.pBuf = taosMemoryMalloc(nData);
+  memcpy(ctbEntry.pBuf, pData, nData);
+  tDecoderInit(&dc, ctbEntry.pBuf, nData);
+  metaDecodeEntry(&dc, &ctbEntry);
   tDecoderClear(&dc);
+
+  /* get stbEntry*/
+
+  {
+    // get table entry
+    // SDecoder dc = {0};
+    // tDecoderInit(&dc, pData, nData);
+    // metaDecodeEntry(&dc, &ctbEntry);
+
+    // if (ctbEntry.type != TSDB_CHILD_TABLE) {
+    //   terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+    //   goto _err;
+    // }
+
+    // // do actual job
+    // {
+    //   // TODO
+    // }
+  }
+
+  // tDecoderClear(&dc);
   tdbDbcClose(pTbDbc);
   tdbDbcClose(pUidIdxc);
   return 0;
 
 _err:
-  tDecoderClear(&dc);
   tdbDbcClose(pTbDbc);
   tdbDbcClose(pUidIdxc);
   return -1;
