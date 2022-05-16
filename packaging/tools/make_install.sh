@@ -169,6 +169,7 @@ function install_bin() {
   ${csudo}rm -f ${bin_link_dir}/${clientName} || :
   ${csudo}rm -f ${bin_link_dir}/${serverName} || :
   ${csudo}rm -f ${bin_link_dir}/taosadapter || :
+  ${csudo}rm -f ${bin_link_dir}/udfd || :
   ${csudo}rm -f ${bin_link_dir}/taosdemo || :
   ${csudo}rm -f ${bin_link_dir}/taosdump || :
 
@@ -183,8 +184,9 @@ function install_bin() {
     [ -f ${install_main_dir}/bin/taosBenchmark ] && ${csudo}ln -sf ${install_main_dir}/bin/taosBenchmark ${install_main_dir}/bin/taosdemo || :
     [ -f ${binary_dir}/build/bin/taosdump ] && ${csudo}cp -r ${binary_dir}/build/bin/taosdump ${install_main_dir}/bin || :
     [ -f ${binary_dir}/build/bin/taosadapter ] && ${csudo}cp -r ${binary_dir}/build/bin/taosadapter ${install_main_dir}/bin || :
+    [ -f ${binary_dir}/build/bin/udfd ] && ${csudo}cp -r ${binary_dir}/build/bin/udfd ${install_main_dir}/bin || :
     ${csudo}cp -r ${binary_dir}/build/bin/${serverName} ${install_main_dir}/bin || :
-    ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
+    # ${csudo}cp -r ${binary_dir}/build/bin/tarbitrator ${install_main_dir}/bin || :
 
     ${csudo}cp -r ${script_dir}/taosd-dump-cfg.gdb ${install_main_dir}/bin || :
     ${csudo}cp -r ${script_dir}/remove.sh ${install_main_dir}/bin || :
@@ -197,6 +199,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || :
     [ -x ${install_main_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || :
     [ -x ${install_main_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || :
+    [ -x ${install_main_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd || :
     [ -x ${install_main_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${install_main_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
     [ -x ${install_main_dir}/bin/perfMonitor ] && ${csudo}ln -s ${install_main_dir}/bin/perfMonitor ${bin_link_dir}/perfMonitor || :
@@ -213,6 +216,7 @@ function install_bin() {
     [ -x ${install_main_dir}/bin/${clientName} ] || [ -x ${install_main_2_dir}/bin/${clientName} ] && ${csudo}ln -s ${install_main_dir}/bin/${clientName} ${bin_link_dir}/${clientName} || ${csudo}ln -s ${install_main_2_dir}/bin/${clientName} || :
     [ -x ${install_main_dir}/bin/${serverName} ] || [ -x ${install_main_2_dir}/bin/${serverName} ] && ${csudo}ln -s ${install_main_dir}/bin/${serverName} ${bin_link_dir}/${serverName} || ${csudo}ln -s ${install_main_2_dir}/bin/${serverName} || :
     [ -x ${install_main_dir}/bin/taosadapter ] || [ -x ${install_main_2_dir}/bin/taosadapter ] && ${csudo}ln -s ${install_main_dir}/bin/taosadapter ${bin_link_dir}/taosadapter || ${csudo}ln -s ${install_main_2_dir}/bin/taosadapter || :
+    [ -x ${install_main_dir}/bin/udfd ] || [ -x ${install_main_2_dir}/bin/udfd ] && ${csudo}ln -s ${install_main_dir}/bin/udfd ${bin_link_dir}/udfd || ${csudo}ln -s ${install_main_2_dir}/bin/udfd || :
     [ -x ${install_main_dir}/bin/taosdump ] || [ -x ${install_main_2_dir}/bin/taosdump ] && ${csudo}ln -s ${install_main_dir}/bin/taosdump ${bin_link_dir}/taosdump || ln -s ${install_main_2_dir}/bin/taosdump ${bin_link_dir}/taosdump || :
     [ -x ${install_main_dir}/bin/taosdemo ] || [ -x ${install_main_2_dir}/bin/taosdemo ] && ${csudo}ln -s ${install_main_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || ln -s ${install_main_2_dir}/bin/taosdemo ${bin_link_dir}/taosdemo || :
   fi
@@ -368,15 +372,15 @@ function install_config() {
   if [ ! -f ${cfg_install_dir}/${configFile} ]; then
     ${csudo}mkdir -p ${cfg_install_dir}
     [ -f ${script_dir}/../cfg/${configFile} ] &&
-      ${csudo}cp ${script_dir}/../cfg/${configFile} ${cfg_install_dir} || :
+      ${csudo}cp ${script_dir}/../cfg/${configFile} ${cfg_install_dir}
     ${csudo}chmod 644 ${cfg_install_dir}/${configFile}
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
-      ${cfg_install_dir}/${configFile}.${verNumber} || :
+      ${cfg_install_dir}/${configFile}.${verNumber}
     ${csudo}ln -s ${cfg_install_dir}/${configFile} \
       ${install_main_dir}/cfg/${configFile}
   else
     ${csudo}cp -f ${script_dir}/../cfg/${configFile} \
-      ${cfg_install_dir}/${configFile}.${verNumber} || :
+      ${cfg_install_dir}/${configFile}.${verNumber}
   fi
 }
 
@@ -471,10 +475,10 @@ function install_service_on_sysvinit() {
 
   if ((${os_type} == 1)); then
     #    ${csudo}cp -f ${script_dir}/../deb/${serverName} ${install_main_dir}/init.d
-    ${csudo}cp ${script_dir}/../deb/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName} || :
+    ${csudo}cp ${script_dir}/../deb/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   elif ((${os_type} == 2)); then
     #    ${csudo}cp -f ${script_dir}/../rpm/${serverName} ${install_main_dir}/init.d
-    ${csudo}cp ${script_dir}/../rpm/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName} || :
+    ${csudo}cp ${script_dir}/../rpm/${serverName} ${service_config_dir} && ${csudo}chmod a+x ${service_config_dir}/${serverName}
   fi
 
   if ((${initd_mod} == 1)); then

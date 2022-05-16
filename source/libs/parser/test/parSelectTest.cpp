@@ -187,7 +187,7 @@ TEST_F(ParserSelectTest, semanticError) {
   run("SELECT c2 FROM t1 tt1, t1 tt2 WHERE tt1.c1 = tt2.c1", TSDB_CODE_PAR_AMBIGUOUS_COLUMN, PARSER_STAGE_TRANSLATE);
 
   // TSDB_CODE_PAR_WRONG_VALUE_TYPE
-  run("SELECT timestamp '2010' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE, PARSER_STAGE_TRANSLATE);
+  run("SELECT timestamp '2010a' FROM t1", TSDB_CODE_PAR_WRONG_VALUE_TYPE, PARSER_STAGE_TRANSLATE);
 
   // TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION
   run("SELECT c2 FROM t1 tt1 join t1 tt2 on COUNT(*) > 0", TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION,
@@ -230,6 +230,22 @@ TEST_F(ParserSelectTest, semanticError) {
 
   run("SELECT distinct c2 FROM t1 WHERE c1 > 0 order by COUNT(c2)", TSDB_CODE_PAR_NOT_SELECTED_EXPRESSION,
       PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, setOperator) {
+  useDb("root", "test");
+
+  run("SELECT * FROM t1 UNION ALL SELECT * FROM t1");
+
+  run("(SELECT * FROM t1) UNION ALL (SELECT * FROM t1)");
+
+  run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+}
+
+TEST_F(ParserSelectTest, informationSchema) {
+  useDb("root", "test");
+
+  run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
 }
 
 }  // namespace ParserTest
