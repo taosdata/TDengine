@@ -2949,6 +2949,8 @@ static int32_t translateCreateIndex(STranslateContext* pCxt, SCreateIndexStmt* p
 }
 
 static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt) {
+  SEncoder       encoder = {0};
+  int32_t        contLen = 0;
   SVDropTSmaReq dropSmaReq = {0};
   strcpy(dropSmaReq.indexName, pStmt->indexName);
 
@@ -2956,16 +2958,26 @@ static int32_t translateDropIndex(STranslateContext* pCxt, SDropIndexStmt* pStmt
   if (NULL == pCxt->pCmdMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
+  
+  int32_t ret = 0;
+  tEncodeSize(tEncodeSVDropTSmaReq, &dropSmaReq, contLen, ret);
+  if (ret < 0) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
   pCxt->pCmdMsg->epSet = pCxt->pParseCxt->mgmtEpSet;
   pCxt->pCmdMsg->msgType = TDMT_VND_DROP_SMA;
-  pCxt->pCmdMsg->msgLen = tSerializeSVDropTSmaReq(NULL, &dropSmaReq);
+  pCxt->pCmdMsg->msgLen = contLen;
   pCxt->pCmdMsg->pMsg = taosMemoryMalloc(pCxt->pCmdMsg->msgLen);
   if (NULL == pCxt->pCmdMsg->pMsg) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
   void* pBuf = pCxt->pCmdMsg->pMsg;
-  tSerializeSVDropTSmaReq(&pBuf, &dropSmaReq);
-
+  if (tEncodeSVDropTSmaReq(&encoder, &dropSmaReq) < 0) {
+    tEncoderClear(&encoder);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  tEncoderClear(&encoder);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3713,7 +3725,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pStmt->tableName);
   req.ntb.schema.nCols = LIST_LENGTH(pStmt->pCols);
-  req.ntb.schema.sver = 0;
+  req.ntb.schema.sver = 1;
   req.ntb.schema.pSchema = taosMemoryCalloc(req.ntb.schema.nCols, sizeof(SSchema));
   if (NULL == req.name || NULL == req.ntb.schema.pSchema) {
     destroyCreateTbReq(&req);

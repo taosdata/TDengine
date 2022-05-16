@@ -35,6 +35,7 @@ typedef struct SSyncIndexMgr {
 } SSyncIndexMgr;
 
 SSyncIndexMgr *syncIndexMgrCreate(SSyncNode *pSyncNode);
+void           syncIndexMgrUpdate(SSyncIndexMgr *pSyncIndexMgr, SSyncNode *pSyncNode);
 void           syncIndexMgrDestroy(SSyncIndexMgr *pSyncIndexMgr);
 void           syncIndexMgrClear(SSyncIndexMgr *pSyncIndexMgr);
 void           syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, SyncIndex index);

@@ -113,34 +113,3 @@ int metaRemoveTableFromIdx(SMeta *pMeta, tb_uid_t uid) {
   // TODO
   return 0;
 }
-
-int32_t metaCreateTSma(SMeta *pMeta, SSmaCfg *pCfg) {
-  // TODO: Validate the cfg
-  // The table uid should exists and be super table or common table.
-  // Check other cfg value
-
-  // TODO: add atomicity
-
-#ifdef META_REFACT
-#else
-  if (metaSaveSmaToDB(pMeta, &pCfg->tSma) < 0) {
-    // TODO: handle error
-    return -1;
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid) {
-  // TODO: Validate the cfg
-  // TODO: add atomicity
-
-#ifdef META_REFACT
-#else
-  if (metaRemoveSmaFromDb(pMeta, indexUid) < 0) {
-    // TODO: handle error
-    return -1;
-  }
-#endif
-  return TSDB_CODE_SUCCESS;
-}

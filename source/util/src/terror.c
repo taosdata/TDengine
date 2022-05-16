@@ -322,6 +322,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_TB_NOT_EXIST,             "Table not exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_SMA_NOT_EXIST,            "SMA not exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_HASH_MISMATCH,            "Hash value mismatch")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TABLE_NOT_EXIST,          "Table does not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_TABLE_ACTION,     "Invalid table action")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_COL_ALREADY_EXISTS,       "Table column already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_TABLE_COL_NOT_EXISTS,     "Table column not exists")
+
 
 // tsdb
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_TABLE_ID,         "Invalid table ID")
@@ -354,6 +358,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TABLE_RECREATED,          "Table re-created")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TDB_ENV_OPEN_ERROR,       "TDB env open error")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_NO_SMA_INDEX_IN_META,     "No sma index in meta")
 TAOS_DEFINE_ERROR(TSDB_CODE_TDB_INVALID_SMA_STAT,         "Invalid sma state")
+TAOS_DEFINE_ERROR(TSDB_CODE_TDB_TSMA_ALREADY_EXIST,       "Tsma already exists")
 
 
 // query

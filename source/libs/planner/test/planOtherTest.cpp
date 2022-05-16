@@ -48,3 +48,9 @@ TEST_F(PlanOtherTest, explain) {
 
   run("explain analyze verbose true ratio 0.01 SELECT * FROM t1");
 }
+
+TEST_F(PlanOtherTest, show) {
+  useDb("root", "test");
+
+  run("SHOW DATABASES");
+}
