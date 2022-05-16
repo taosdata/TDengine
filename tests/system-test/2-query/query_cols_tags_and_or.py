@@ -87,7 +87,7 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(2)
         tdSql.checkEqual(self.queryLastC10(query_sql), 6) if select_elm == "*" else False
-        # ts in
+        # ts not in
         query_sql = f'select {select_elm} from {tb_name} where ts not in ("2021-01-11 12:00:00", "2021-01-13 12:00:00")'
         tdSql.query(query_sql)
         tdSql.checkRows(9)
