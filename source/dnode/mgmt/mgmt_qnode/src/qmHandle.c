@@ -18,7 +18,7 @@
 
 static void qmGetMonitorInfo(SQnodeMgmt *pMgmt, SMonQmInfo *qmInfo) {}
 
-int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SNodeMsg *pReq) {
+int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SRpcMsg *pReq) {
   SMonQmInfo qmInfo = {0};
   qmGetMonitorInfo(pMgmt, &qmInfo);
   dmGetMonitorSystemInfo(&qmInfo.sys);
@@ -37,14 +37,14 @@ int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SNodeMsg *pReq) {
   }
 
   tSerializeSMonQmInfo(pRsp, rspLen, &qmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
   tFreeSMonQmInfo(&qmInfo);
   return 0;
 }
 
-int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDCreateQnodeReq createReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -67,8 +67,8 @@ int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t qmProcessDropReq(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDDropQnodeReq dropReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {

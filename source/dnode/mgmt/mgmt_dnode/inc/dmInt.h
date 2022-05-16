@@ -39,10 +39,10 @@ typedef struct SDnodeMgmt {
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
-int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // dmMonitor.c
 void dmGetVnodeLoads(SDnodeMgmt *pMgmt, SMonVloadInfo *pInfo);
@@ -50,7 +50,7 @@ void dmGetMnodeLoads(SDnodeMgmt *pMgmt, SMonMloadInfo *pInfo);
 void dmSendMonitorReport(SDnodeMgmt *pMgmt);
 
 // dmWorker.c
-int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);

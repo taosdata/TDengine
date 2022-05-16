@@ -18,7 +18,7 @@
 
 static void bmGetMonitorInfo(SBnodeMgmt *pMgmt, SMonBmInfo *bmInfo) {}
 
-int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SNodeMsg *pReq) {
+int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SRpcMsg *pReq) {
   SMonBmInfo bmInfo = {0};
   bmGetMonitorInfo(pMgmt, &bmInfo);
   dmGetMonitorSystemInfo(&bmInfo.sys);
@@ -37,14 +37,14 @@ int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SNodeMsg *pReq) {
   }
 
   tSerializeSMonBmInfo(pRsp, rspLen, &bmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
   tFreeSMonBmInfo(&bmInfo);
   return 0;
 }
 
-int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDCreateBnodeReq createReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -67,8 +67,8 @@ int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDDropBnodeReq dropReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {

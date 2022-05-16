@@ -98,10 +98,10 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   }
 }
 
-static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  tmsg_t      msgType = pMsg->rpcMsg.msgType;
+  tmsg_t      msgType = pMsg->msgType;
   bool        isRequest = msgType & 1u;
   dTrace("msg:%p, will be processed in dnode-mgmt queue, type:%s", pMsg, TMSG_INFO(msgType));
 
@@ -150,18 +150,18 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   if (isRequest) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
-        .handle = pMsg->rpcMsg.handle,
-        .ahandle = pMsg->rpcMsg.ahandle,
+        .info.handle = pMsg->info.handle,
+        .info.ahandle = pMsg->info.ahandle,
         .code = code,
-        .refId = pMsg->rpcMsg.refId,
-        .pCont = pMsg->pRsp,
-        .contLen = pMsg->rspLen,
+        .info.refId = pMsg->info.refId,
+        .pCont = pMsg->info.rsp,
+        .contLen = pMsg->info.rspLen,
     };
     rpcSendResponse(&rsp);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
@@ -187,7 +187,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   dDebug("dnode workers are closed");
 }
 
-int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);

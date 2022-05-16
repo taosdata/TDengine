@@ -36,15 +36,15 @@ typedef struct SBnodeMgmt {
 
 // bmHandle.c
 SArray *bmGetMsgHandles();
-int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
-int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SNodeMsg *pReq);
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pReq);
+int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SRpcMsg *pReq);
+int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SRpcMsg *pReq);
 
 // bmWorker.c
 int32_t bmStartWorker(SBnodeMgmt *pMgmt);
 void    bmStopWorker(SBnodeMgmt *pMgmt);
-int32_t bmPutNodeMsgToWriteQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t bmPutNodeMsgToMonitorQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t bmPutNodeMsgToWriteQueue(SBnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t bmPutNodeMsgToMonitorQueue(SBnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

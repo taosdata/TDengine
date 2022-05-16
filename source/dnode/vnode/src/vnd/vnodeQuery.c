@@ -107,9 +107,9 @@ int vnodeGetTableMeta(SVnode *pVnode, SRpcMsg *pMsg) {
   tSerializeSTableMetaRsp(pRsp, rspLen, &metaRsp);
 
 _exit:
-  rpcMsg.handle = pMsg->handle;
-  rpcMsg.ahandle = pMsg->ahandle;
-  rpcMsg.refId = pMsg->refId;
+  rpcMsg.info.handle = pMsg->info.handle;
+  rpcMsg.info.ahandle = pMsg->info.ahandle;
+  rpcMsg.info.refId = pMsg->info.refId;
   rpcMsg.pCont = pRsp;
   rpcMsg.contLen = rspLen;
   rpcMsg.code = code;

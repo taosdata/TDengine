@@ -83,29 +83,25 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
-  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)0x9527};
+  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status msg to mnode, app:%p", rpcMsg.ahandle);
+  dTrace("send status msg to mnode, app:%p", rpcMsg.info.ahandle);
   tmsgSendMnodeRecv(&rpcMsg, &rpcRsp);
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
-int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pRsp = &pMsg->rpcMsg;
+int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dError("auth rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pRsp = &pMsg->rpcMsg;
+int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dError("grant rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg       *pReq = &pMsg->rpcMsg;
-  SDCfgDnodeReq *pCfg = pReq->pCont;
+int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dError("config req is received, but not supported yet");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
@@ -139,12 +135,12 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   taosArrayDestroy(vinfo.pVloads);
 }
 
-int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dDebug("server run status req is received");
   SServerStatusRsp statusRsp = {0};
   dmGetServerRunStatus(pMgmt, &statusRsp);
 
-  SRpcMsg rspMsg = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .refId = pMsg->rpcMsg.refId};
+  SRpcMsg rspMsg = {.info.handle = pMsg->info.handle, .info.ahandle = pMsg->info.ahandle, .info.refId = pMsg->info.refId};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
     rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
@@ -158,8 +154,8 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   }
 
   tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
-  pMsg->pRsp = pRsp;
-  pMsg->rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   return 0;
 }
 

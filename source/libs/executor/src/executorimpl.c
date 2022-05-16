@@ -2826,8 +2826,8 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
 }
 
 void qProcessFetchRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
-  assert(pMsg->ahandle != NULL);
+  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
+  assert(pMsg->info.ahandle != NULL);
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
 
