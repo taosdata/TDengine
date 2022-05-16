@@ -46,21 +46,9 @@ void tmsgSendRsp(SRpcMsg* pRsp) {
 }
 
 void tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
+  // cannot be empty, but not checked for faster detect
   SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
-  if (fp != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, pRsp, pNewEpSet);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
-}
-
-void tmsgSendMnodeRecv(SRpcMsg* pReq, SRpcMsg* pRsp) {
-  SendMnodeRecvFp fp = tsDefaultMsgCb.sendMnodeRecvFp;
-  if (fp != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, pReq, pRsp);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  (*fp)(pRsp, pNewEpSet);
 }
 
 void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {

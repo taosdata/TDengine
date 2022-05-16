@@ -307,3 +307,21 @@ static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
   taosRUnLockLatch(&pData->latch);
   return changed;
 }
+
+void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
+  taosRLockLatch(&pData->latch);
+  *pEpSet = pData->mnodeEps;
+  taosRUnLockLatch(&pData->latch);
+}
+
+void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
+  dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
+
+  taosWLockLatch(&pData->latch);
+  pData->mnodeEps = *pEpSet;
+  for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+    dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+  }
+
+  taosWUnLockLatch(&pData->latch);
+}

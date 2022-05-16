@@ -42,8 +42,7 @@ typedef int32_t (*GetQueueSizeFp)(void *pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, const SEpSet* epSet, SRpcMsg* pReq);
 typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef void (*SendRspFp)(const SRpcMsg* pRsp);
-typedef void (*SendMnodeRecvFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq, SRpcMsg* pRsp);
-typedef void (*SendRedirectRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp, const SEpSet* pNewEpSet);
+typedef void (*SendRedirectRspFp)(const SRpcMsg* pRsp, const SEpSet* pNewEpSet);
 typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg* pMsg);
 typedef void (*ReleaseHandleFp)(SMgmtWrapper* pWrapper, void* handle, int8_t type);
 typedef void (*ReportStartup)(SMgmtWrapper* pWrapper, const char* name, const char* desc);
@@ -56,7 +55,6 @@ typedef struct {
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;
   SendRspFp               sendRspFp;
-  SendMnodeRecvFp         sendMnodeRecvFp;
   SendRedirectRspFp       sendRedirectRspFp;
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;

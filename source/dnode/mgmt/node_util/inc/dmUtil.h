@@ -179,6 +179,8 @@ int32_t   dmWriteShmFile(const char *path, const char *name, const SShm *pShm);
 int32_t dmReadEps(SDnodeData *pData);
 int32_t dmWriteEps(SDnodeData *pData);
 void    dmUpdateEps(SDnodeData *pData, SArray *pDnodeEps);
+void    dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
+void    dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet);
 
 #ifdef __cplusplus
 }

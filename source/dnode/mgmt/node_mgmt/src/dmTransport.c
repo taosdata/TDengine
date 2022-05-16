@@ -21,26 +21,6 @@
 #define INTERNAL_CKEY   "_key"
 #define INTERNAL_SECRET "_pwd"
 
-static void dmGetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
-  SDnodeData *pData = &pDnode->data;
-  taosRLockLatch(&pData->latch);
-  *pEpSet = pData->mnodeEps;
-  taosRUnLockLatch(&pData->latch);
-}
-
-static void dmSetMnodeEpSet(SDnode *pDnode, SEpSet *pEpSet) {
-  dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
-  SDnodeData *pData = &pDnode->data;
-
-  taosWLockLatch(&pData->latch);
-  pData->mnodeEps = *pEpSet;
-  for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
-    dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
-  }
-
-  taosWUnLockLatch(&pData->latch);
-}
-
 static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
   if (IsReq(pRpc) && rpcGetConnInfo(pRpc->info.handle, &connInfo) != 0) {
@@ -214,7 +194,7 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
 static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
   SEpSet epSet = {0};
-  dmGetMnodeEpSet(pDnode, &epSet);
+  dmGetMnodeEpSet(&pDnode->data, &epSet);
 
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->info.handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
@@ -257,12 +237,6 @@ static inline void dmSendRecv(SDnode *pDnode, SEpSet *pEpSet, SRpcMsg *pReq, SRp
   }
 }
 
-static inline void dmSendToMnodeRecv(SMgmtWrapper *pWrapper, SRpcMsg *pReq, SRpcMsg *pRsp) {
-  SEpSet epSet = {0};
-  dmGetMnodeEpSet(pWrapper->pDnode, &epSet);
-  dmSendRecv(pWrapper->pDnode, &epSet, pReq, pRsp);
-}
-
 static inline int32_t dmSendReq(SMgmtWrapper *pWrapper, const SEpSet *pEpSet, SRpcMsg *pReq) {
   SDnode *pDnode = pWrapper->pDnode;
   if (pDnode->status != DND_STAT_RUNNING || pDnode->trans.clientRpc == NULL) {
@@ -286,7 +260,8 @@ static inline void dmSendRsp(const SRpcMsg *pRsp) {
   }
 }
 
-static inline void dmSendRedirectRsp(SMgmtWrapper *pWrapper, const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
+static inline void dmSendRedirectRsp(const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
+  SMgmtWrapper *pWrapper = pRsp->info.wrapper;
   if (InChildProc(pWrapper->proc.ptype)) {
     dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, DND_FUNC_RSP);
   } else {
@@ -407,7 +382,7 @@ static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *s
   SRpcMsg rpcRsp = {0};
   SEpSet  epSet = {0};
   dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);
-  dmGetMnodeEpSet(pDnode, &epSet);
+  dmGetMnodeEpSet(&pDnode->data, &epSet);
   dmSendRecv(pDnode, &epSet, &rpcMsg, &rpcRsp);
 
   if (rpcRsp.code != 0) {
@@ -469,7 +444,6 @@ SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
       .clientRpc = pWrapper->pDnode->trans.clientRpc,
       .sendReqFp = dmSendReq,
       .sendRspFp = dmSendRsp,
-      .sendMnodeRecvFp = dmSendToMnodeRecv,
       .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,

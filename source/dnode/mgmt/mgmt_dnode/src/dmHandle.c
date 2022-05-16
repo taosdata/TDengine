@@ -87,7 +87,10 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SRpcMsg rpcRsp = {0};
 
   dTrace("send status msg to mnode, app:%p", rpcMsg.info.ahandle);
-  tmsgSendMnodeRecv(&rpcMsg, &rpcRsp);
+
+  SEpSet epSet = {0};
+  dmGetMnodeEpSet(pMgmt->pData, &epSet);
+  rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
