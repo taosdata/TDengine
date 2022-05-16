@@ -9,7 +9,7 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug gQWDebug = {.statusEnable = true, .dumpEnable = false};
+SQWDebug gQWDebug = {.statusEnable = true, .dumpEnable = true};
 SQWorkerMgmt gQwMgmt = {
   .lock  = 0,
   .qwRef = -1, 
