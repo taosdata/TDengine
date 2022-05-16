@@ -137,7 +137,9 @@ static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
 static SSrvConn* createConn(void* hThrd);
 static void      destroyConn(SSrvConn* conn, bool clear /*clear handle or not*/);
-static int       reallocConnRefHandle(SSrvConn* conn);
+static void      destroyConnRegArg(SSrvConn* conn);
+
+static int reallocConnRefHandle(SSrvConn* conn);
 
 static void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd);
@@ -429,6 +431,8 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
     if (smsg->type == Release) {
       pHead->msgType = 0;
       pConn->status = ConnNormal;
+
+      destroyConnRegArg(pConn);
       transUnrefSrvHandle(pConn);
     } else {
       pHead->msgType = pMsg->msgType;
@@ -800,6 +804,12 @@ static void destroyConn(SSrvConn* conn, bool clear) {
     // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
   }
 }
+static void destroyConnRegArg(SSrvConn* conn) {
+  if (conn->regArg.init == 1) {
+    transFreeMsg(conn->regArg.msg.pCont);
+    conn->regArg.init = 0;
+  }
+}
 static int reallocConnRefHandle(SSrvConn* conn) {
   uvReleaseExHandle(conn->refId);
   uvRemoveExHandle(conn->refId);
@@ -827,16 +837,9 @@ static void uvDestroyConn(uv_handle_t* handle) {
   // uv_timer_stop(&conn->pTimer);
   transQueueDestroy(&conn->srvMsgs);
 
-  if (conn->regArg.init == 1) {
-    transFreeMsg(conn->regArg.msg.pCont);
-    conn->regArg.init = 0;
-  }
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
-  if (conn->regArg.init == 1) {
-    transFreeMsg(conn->regArg.msg.pCont);
-    conn->regArg.init = 0;
-  }
+  destroyConnRegArg(conn);
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
