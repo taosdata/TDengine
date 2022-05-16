@@ -116,7 +116,7 @@ class TDTestCase:
             col = col.split("min(")[1].split(")")
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __single_sql(self, select_clause, from_clause, where_condition=None, group_condition=None):
+    def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
         return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
 
@@ -241,7 +241,9 @@ class TDTestCase:
 
                 if union_type:
                     tdSql.query(f"{sql1} union {sql2}")
+                    tdSql.checkCols(1)
                     tdSql.query(f"{sql1} union all {sql2}")
+                    tdSql.checkCols(1)
                 else:
                     tdSql.error(f"{sql1} union {sql2}")
 
