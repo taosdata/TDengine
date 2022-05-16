@@ -1,20 +1,20 @@
 ---
-sidebar_label: 连续查询
-description: "连续查询是一个按照预设频率自动执行的查询功能，提供按照时间窗口的聚合查询能力，是一种简化的时间驱动流式计算。"
-title: "连续查询（Continuous Query）"
+sidebar_label: Continuous Query
+description: "Continuous query is a query that's executed automatically according to predefined frequency to provide aggregate query capability by time window, it's actually a simplified time driven stream computing."
+title: "Continuous Query"
 ---
 
-连续查询是 TDengine 定期自动执行的查询，采用滑动窗口的方式进行计算，是一种简化的时间驱动的流式计算。针对库中的表或超级表，TDengine 可提供定期自动执行的连续查询，用户可让 TDengine 推送查询的结果，也可以将结果再写回到 TDengine 中。每次执行的查询是一个时间窗口，时间窗口随着时间流动向前滑动。在定义连续查询的时候需要指定时间窗口（time window, 参数 interval）大小和每次前向增量时间（forward sliding times, 参数 sliding）。
+Continuous query is a query that's executed automatically according to predefined frequency to provide aggregate query capability by time window, it's actually a simplified time driven stream computing. Continuous query can be performed on a table or STable in TDengine. The result of continuous query can be pushed to client or written back to TDengine. Each query is executed on a time window, which moves forward with time. The size of time window and the forward sliding time need to be specified with parameter `INTERVAL` and `SLIDING` respectively.
 
-TDengine 的连续查询采用时间驱动模式，可以直接使用 TAOS SQL 进行定义，不需要额外的操作。使用连续查询，可以方便快捷地按照时间窗口生成结果，从而对原始采集数据进行降采样（down sampling）。用户通过 TAOS SQL 定义连续查询以后，TDengine 自动在最后的一个完整的时间周期末端拉起查询，并将计算获得的结果推送给用户或者写回 TDengine。
+Continuous query in TDengine is time driven, and can be defined using TAOS SQL directly without any extra operations. With continuous query, the result can be generated according to time window to achieve down sampling of original data. Once a continuous query is defined using TAOS SQL, the query is automatically executed at the end of each time window and the result is pushed back to client or written to TDengine.
 
-TDengine 提供的连续查询与普通流计算中的时间窗口计算具有以下区别：
+There are some differences between continuous query in TDengine and time window computation in stream computing：
 
-- 不同于流计算的实时反馈计算结果，连续查询只在时间窗口关闭以后才开始计算。例如时间周期是 1 天，那么当天的结果只会在 23:59:59 以后才会生成。
-- 如果有历史记录写入到已经计算完成的时间区间，连续查询并不会重新进行计算，也不会重新将结果推送给用户。对于写回 TDengine 的模式，也不会更新已经存在的计算结果。
-- 使用连续查询推送结果的模式，服务端并不缓存客户端计算状态，也不提供 Exactly-Once 的语义保证。如果用户的应用端崩溃，再次拉起的连续查询将只会从再次拉起的时间开始重新计算最近的一个完整的时间窗口。如果使用写回模式，TDengine 可确保数据写回的有效性和连续性。
+- The computation is performed and the result is returned in real time in stream computing, but the computation in continuous query is only started when a time window closes. For example, if the time window is 1 day, then the result will only be generated at 23:59:59.
+- If a historical data row is written in to a time widow for which the computation has been finished, the computation will not be performed again and the result will not be pushed to client again either. If the result has been written into TDengine, there will be no update for the result.
+- In continuous query, if the result is pushed to client, the client status is not cached on the server side and Exactly-once is not guaranteed by the server either. If the client program crashes, a new time window will be generated from the time where the continuous query is restarted. If the result is written into TDengine, the data written into TDengine can be guaranteed as valid and continuous.
 
-## 连续查询语法
+## Syntax
 
 ```sql
 [CREATE TABLE AS] SELECT select_expr [, select_expr ...]
@@ -24,40 +24,39 @@ TDengine 提供的连续查询与普通流计算中的时间窗口计算具有�
 
 ```
 
-INTERVAL: 连续查询作用的时间窗口
+INTERVAL: The time window for which continuous query is performed
 
-SLIDING: 连续查询的时间窗口向前滑动的时间间隔
+SLIDING: The time step for which the time window moves forward each time
 
-## 使用连续查询
+## How to Use
 
-下面以智能电表场景为例介绍连续查询的具体使用方法。假设我们通过下列 SQL 语句创建了超级表和子表：
+In this section the use case of meters will be used to introduce how to use continuous query. Assume the STable and sub tables have been created using below SQL statement.
 
 ```sql
 create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
 create table D1001 using meters tags ("Beijing.Chaoyang", 2);
 create table D1002 using meters tags ("Beijing.Haidian", 2);
-...
 ```
 
-可以通过下面这条 SQL 语句以一分钟为时间窗口、30 秒为前向增量统计这些电表的平均电压。
+The average voltage for each time window of one minute with 30 seconds as the length of moving forward can be retrieved using below SQL statement.
 
 ```sql
 select avg(voltage) from meters interval(1m) sliding(30s);
 ```
 
-每次执行这条语句，都会重新计算所有数据。 如果需要每隔 30 秒执行一次来增量计算最近一分钟的数据，可以把上面的语句改进成下面的样子，每次使用不同的 `startTime` 并定期执行：
+Whenever the above SQL statement is executed, all the existing data will be computed again. If the computation needs to be performed every 30 seconds automatically to compute on the data in the past one minute, the above SQL statement needs to be revised as below, in which `{startTime}` stands for the beginning timestamp in the latest time window.
 
 ```sql
 select avg(voltage) from meters where ts > {startTime} interval(1m) sliding(30s);
 ```
 
-这样做没有问题，但 TDengine 提供了更简单的方法，只要在最初的查询语句前面加上 `create table {tableName} as` 就可以了，例如：
+Another easier way for same purpose is prepend `create table {tableName} as` before the `select`.
 
 ```sql
 create table avg_vol as select avg(voltage) from meters interval(1m) sliding(30s);
 ```
 
-会自动创建一个名为 `avg_vol` 的新表，然后每隔 30 秒，TDengine 会增量执行 `as` 后面的 SQL 语句，并将查询结果写入这个表中，用户程序后续只要从 `avg_vol` 中查询数据即可。例如：
+A table named as `avg_vol` will be created automatically, then every 30 seconds the `select` statement will be executed automatically on the data in the past 1 minutes, i.e. the latest time window, and the result is written into table `avg_vol`. The client program just needs to query from table `avg_vol`. For example:
 
 ```sql
 taos> select * from avg_vol;
@@ -69,16 +68,16 @@ taos> select * from avg_vol;
  2020-07-29 13:39:00.000 |            223.0800000 |
 ```
 
-需要注意，查询时间窗口的最小值是 10 毫秒，没有时间窗口范围的上限。
+Please be noted that the minimum allowed time window is 10 milliseconds, and no upper limit.
 
-此外，TDengine 还支持用户指定连续查询的起止时间。如果不输入开始时间，连续查询将从第一条原始数据所在的时间窗口开始；如果没有输入结束时间，连续查询将永久运行；如果用户指定了结束时间，连续查询在系统时间达到指定的时间以后停止运行。比如使用下面的 SQL 创建的连续查询将运行一小时，之后会自动停止。
+Besides, it's allowed to specify the start and end time of continuous query. If the start time is not specified, the timestamp of the first original row will be considered as the start time; if the end time is not specified, the continuous will be performed infinitely, otherwise it will be terminated once the end time is reached. For example, the continuous query in below SQL statement will be started from now and terminated one hour later.
 
 ```sql
 create table avg_vol as select avg(voltage) from meters where ts > now and ts <= now + 1h interval(1m) sliding(30s);
 ```
 
-需要说明的是，上面例子中的 `now` 是指创建连续查询的时间，而不是查询执行的时间，否则，查询就无法自动停止了。另外，为了尽量避免原始数据延迟写入导致的问题，TDengine 中连续查询的计算有一定的延迟。也就是说，一个时间窗口过去后，TDengine 并不会立即计算这个窗口的数据，所以要稍等一会（一般不会超过 1 分钟）才能查到计算结果。
+`now` in above SQL statement stands for the time when the continuous query is created, not the time when the computation is actually performed. Besides, to avoid the trouble caused by the delay of original data as much as possible, the actual computation in continuous query is also started with a little delay. That means, once a time window closes, the computation is not started immediately. Normally, the result can only be available a little time later, normally within one minute, after the time window closes.
 
-## 管理连续查询
+## How to Manage
 
-用户可在控制台中通过 `show streams` 命令来查看系统中全部运行的连续查询，并可以通过 `kill stream` 命令杀掉对应的连续查询。后续版本会提供更细粒度和便捷的连续查询管理命令。
+`show streams` command can be used in TDengine CLI `taos` to show all the continuous queries in the system, and `kill stream` can be used to terminate a continuous query.

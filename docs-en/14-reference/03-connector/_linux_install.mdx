@@ -1,30 +1,34 @@
 import PkgList from "/components/PkgList";
 
-1. 下载客户端安装包
+1.  Download the TDengine client installation package
   
   <PkgList type={1} sys="Linux" />
 
-   [所有下载](https://www.taosdata.com/cn/all-downloads/)
+   [All Packages](https://www.taosdata.com/en/all-downloads/)
 
-2. 解压缩软件包
+2. Unzip
 
-   将软件包放置在当前用户可读写的任意目录下，然后执行下面的命令：`tar -xzvf TDengine-client-VERSION.tar.gz`
-   其中 VERSION 需要替换为实际版本的字符串。
-3. 执行安装脚本
+   Download the package to any directory the current user has read/write permission. Then execute `tar -xzvf TDengine-client-VERSION.tar.gz` command.
+   The VERSION should be the version of the package you just downloaded.
 
-   解压软件包之后，会在解压目录下看到以下文件(目录)：
-   - _ install_client.sh_：安装脚本，用于应用驱动程序
-   - _ taos.tar.gz_：应用驱动安装包
-   - _ driver_：TDengine 应用驱动 driver
-   - _examples_: 各种编程语言的示例程序(c/C#/go/JDBC/MATLAB/python/R)
-   运行 install_client.sh 进行安装。
-4. 配置 taos.cfg
+3. Execute the install script
 
-   编辑 taos.cfg 文件（默认路径/etc/taos/taos.cfg），将 firstEP 修改为 TDengine 服务器的 End Point，例如：`h1.tdengine.com:6030`
+   Once the package is unzipped, you will see the following files in the directory:
+   - _ install_client.sh_: install script
+   - _ taos.tar.gz_: application driver package
+   - _ driver_: TDengine application driver
+   - _examples_: some example programs of different programming languages (C/C#/go/JDBC/MATLAB/python/R)
+
+   You can run `install_client.sh`  to install it.
+
+4. Edit taos.cfg
+
+   Edit `taos.cfg` file (full path is `/etc/taos/taos.cfg` by default), modify `firstEP` with actual TDengine server's End Point, for example `h1.tdengine.com:6030`
 
 :::tip
 
-1. 如本机没有部署 TDengine 服务，仅安装了应用驱动，则 taos.cfg 中仅需配置 firstEP，无需在本机配置 FQDN。
-2. 为防止与服务器端连接时出现“Unable to resolve FQDN”错误，建议确认本机的 hosts 文件已经配置了服务器正确的 FQDN 值，或配置好了 DNS 服务。
+1. If the computer does not run the TDengine service but installs the TDengine application driver, then you need to config `firstEP` in  `taos.cfg` only, and there is no need to configure `FQDN`;
+
+2. If you encounter the "Unable to resolve FQDN" error, please make sure the FQDN in the `/etc/hosts` file of the current computer is correctly configured, or the DNS service is correctly configured.
 
 :::

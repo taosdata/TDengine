@@ -1,35 +1,35 @@
 ---
 sidebar_label: TCollector
-title: TCollector 写入
+title: TCollector writing
 ---
 
 import Tcollector from "../14-reference/_tcollector.mdx"
 
-TCollector 是 openTSDB 的一部分，它用来采集客户端日志发送给数据库。
+TCollector is part of openTSDB and collects client computer's logs to send to the database.
 
-只需要将 TCollector 的配置修改指向运行 taosAdapter 的服务器域名（或 IP 地址）和相应端口即可将 TCollector 采集的数据存在到 TDengine 中，可以充分利用 TDengine 对时序数据的高效存储查询性能和集群处理能力。
+You can write the data collected by TCollector to TDengine by simply changing the configuration of TCollector to point to the domain name (or IP address) and corresponding port of the server running taosAdapter. It can take full advantage of TDengine's efficient storage query performance and clustering capability for time-series data.
 
-## 前置条件
+## Prerequisites
 
-要将 TCollector 数据写入 TDengine 需要以下几方面的准备工作。
-- TDengine 集群已经部署并正常运行
-- taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
-- TCollector 已经安装。安装 TCollector 请参考[官方文档](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector)
+To write data to the TDengine via TCollector requires the following preparations.
+- The TDengine cluster has been deployed and is working properly
+- taosAdapter is installed and running properly. Please refer to the [taosAdapter manual](/reference/taosadapter) for details.
+- TCollector has been installed. Please refer to [official documentation](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector) for TCollector installation
 
-## 配置步骤
+## Configuration steps
 <Tcollector />
 
-## 验证方法
+## Verification method
 
-重启 taosAdapter：
+Restart taosAdapter:
 
 ```
 sudo systemctl restart taosadapter
 ```
 
-手动执行 `sudo ./tcollector.py` 
+Run `sudo ./tcollector.py`:
 
-等待数秒后使用 TDengine CLI 查询 TDengine 是否创建相应数据库并写入数据。
+Wait for a few seconds and then use the TDengine CLI to query whether the corresponding database has been created and data are written in TDengine.
 
 ```
 taos> show databases;

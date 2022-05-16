@@ -1,46 +1,47 @@
 ---
 sidebar_label: TDengine + collectd/StatsD + Grafana
-title: 使用 TDengine + collectd/StatsD + Grafana 快速搭建 IT 运维监控系统
+title: Quickly build an IT DevOps visualization system using TDengine + collectd/StatsD + Grafana
 ---
 
-## 背景介绍
+## Background
 
-TDengine 是涛思数据专为物联网、车联网、工业互联网、IT 运维等设计和优化的大数据平台。自从 2019 年 7 月开源以来，凭借创新的数据建模设计、快捷的安装方式、易用的编程接口和强大的数据写入查询性能博得了大量时序数据开发者的青睐。
+TDengine is a big data platform designed and optimized for IoT (Internet of Things), Vehicle Telematics, Industrial Internet, IT DevOps, etc. by TAOSData. Since it opened its source code in July 2019, it has won the favor of a large number of time-series data developers with its innovative data modeling design, convenient installation, easy-to-use programming interface, and powerful data writing and query performance.
 
-IT 运维监测数据通常都是对时间特性比较敏感的数据，例如：
+IT DevOps metric data usually are time sensitive, for example:
 
-- 系统资源指标：CPU、内存、IO、带宽等。
-- 软件系统指标：存活状态、连接数目、请求数目、超时数目、错误数目、响应时间、服务类型及其他与业务有关的指标。
+- System resource metrics: CPU, memory, IO, bandwidth, etc.
+- Software system metrics: health status, number of connections, number of requests, number of timeouts, number of errors, response time, service type, and other business-related metrics.
 
-当前主流的 IT 运维系统通常包含一个数据采集模块，一个数据存储模块，和一个可视化显示模块。collectd / statsD 作为老牌开源数据采集工具，具有广泛的用户群。但是 collectd / StatsD 自身功能有限，往往需要配合 Telegraf、Grafana 以及时序数据库组合搭建成为完整的监控系统。而 TDengine 新版本支持多种数据协议接入，可以直接接受 collectd 和 statsD 的数据写入，并提供 Grafana dashboard 进行图形化展示。
+The current mainstream IT DevOps visualization system usually contains a data collection module, a data persistent module, and a visual display module. collectd/StatsD, as an old-fashion open source data collection tool, has a wide user base. However, collectd/StatsD has limited functionality, and often needs to be combined with Telegraf, Grafana, and a time-series database to build a complete monitoring system.
+The new version of TDengine supports multiple data protocols and can accept data from collectd and StatsD directly, and provides Grafana dashboard for graphical display.
 
-本文介绍不需要写一行代码，通过简单修改几行配置文件，就可以快速搭建一个基于 TDengine + collectd / statsD + Grafana 的 IT 运维系统。架构如下图：
+This article introduces how to quickly build an IT DevOps visualization system based on TDengine + collectd / StatsD + Grafana without writing even a single line of code but by simply modifying a few lines of configuration files. The architecture is shown in the following figure.
 
 ![IT-DevOps-Solutions-Collectd-StatsD.png](/img/IT-DevOps-Solutions-Collectd-StatsD.png)
 
-## 安装步骤
+## Installation Steps
 
-安装 collectd， StatsD， Grafana 和 TDengine 请参考相关官方文档。
+To install collectd, StatsD, Grafana, and TDengine, please refer to the official documentation.
 
-### 安装 collectd
+### Installing collectd
 
-请参考[官方文档](https://collectd.org/documentation.shtml)。
+Please refer to the [official documentation](https://collectd.org/documentation.shtml).
 
-### 安装 StatsD
+### Installing StatsD
 
-请参考[官方文档](https://github.com/statsd/statsd)。
+Please refer to the [official documentation](https://github.com/statsd/statsd).
 
-### 安装 Grafana
+### Install Grafana
 
-请参考[官方文档](https://grafana.com/grafana/download)。
+Please refer to the [official documentation](https://grafana.com/grafana/download).
 
-### 安装 TDengine
+### Install TDengine
 
-从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
+Download the latest TDengine-server 2.4.0.x or above from the [Downloads](http://taosdata.com/cn/all-downloads/) page on the TAOSData website and install it.
 
-## 数据链路设置
+## Data Connection Setup
 
-### 复制 TDengine 插件到 grafana 插件目录
+### Copy the TDengine plugin to the grafana plugin directory
 
 ```bash
 1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
@@ -50,11 +51,11 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 5. sudo systemctl restart grafana-server.service
 ```
 
-### 配置 collectd
+### Configure collectd
 
-在 `/etc/collectd/collectd.conf` 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+Add the following to the `/etc/collectd/collectd.conf` file, where the `host` and `port` should be the actual values of the TDengine and taosAdapter configurations.
 
-```
+```text
 LoadPlugin network
 <Plugin network>
   Server "<TDengine cluster/server host>" "<port for collectd>"
@@ -63,33 +64,41 @@ LoadPlugin network
 sudo systemctl start collectd
 ```
 
-### 配置 StatsD
+### Configure StatsD
 
-在 `config.js` 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+Start StatsD after adding the following to the `config.js` file, where the `host` and `port` are the actual values of the TDengine and taosAdapter configurations.
 
+```text
+backends section add ". /backends/repeater"
+Add { host:'<TDengine server/cluster host>', port: <port for StatsD>} to the repeater section
 ```
-backends 部分添加 "./backends/repeater"
-repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for StatsD>}
-```
 
-### 导入 Dashboard
+### Importing the Dashboard
 
-使用 Web 浏览器访问运行 Grafana 的服务器的 3000 端口 host:3000 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
-点击左侧齿轮图标并选择 Plugins，应该可以找到 TDengine data source 插件图标。
+Use a web browser to access the server running Grafana on port 3000 `host:3000` to log into the Grafana interface with the initial system username and password of `admin/admin`.
+Click on the gear icon on the left and select `Plugins`, you should find the TDengine data source plugin icon.
 
-#### 导入 collectd 仪表盘
+#### Importing the collectd dashboard
 
-从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 Import，按照界面提示选择 JSON 文件导入。之后可以看到如下界面的仪表盘：
+Download the dashboard json from `https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json`, click the plus icon on the left and select Import, follow the instructions to import the JSON file. After that, you can see
+The dashboard can be seen in the following screen.
 
 ![IT-DevOps-Solutions-collectd-dashboard.png](/img/IT-DevOps-Solutions-collectd-dashboard.png)
 
-#### 导入 StatsD 仪表盘
+#### import collectd dashboard
 
-从 https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 Import，按照界面提示导入 JSON 文件。之后可以看到如下界面的仪表盘：
+Download the dashboard json file from `https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json`. Download the dashboard json file, click the plus icon on the left side and select `Import`, and follow the interface prompts to select the JSON file to import. After that, you can see
+dashboard with the following interface.
+
+![IT-DevOps-Solutions-collectd-dashboard.png](/img/IT-DevOps-Solutions-collectd-dashboard.png)
+
+#### Importing the StatsD dashboard
+
+Download the dashboard json from `https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json`. Click on the plus icon on the left and select `Import`, and follow the interface prompts to import the JSON file. You will then see the dashboard in the following screen.
 ![IT-DevOps-Solutions-statsd-dashboard.png](/img/IT-DevOps-Solutions-statsd-dashboard.png)
 
-## 总结
+## Wrap-up
 
-TDengine 作为新兴的时序大数据平台，具备极强的高性能、高可靠、易管理、易维护的优势。得力于 TDengine 2.3.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统或者适配一个已存在的系统。
+TDengine, as an emerging time-series big data platform, has the advantages of high performance, high reliability, easy management and easy maintenance. Thanks to the new schemaless protocol parsing function in TDengine version 2.4.0.0 and the powerful ecological software adaptation capability, users can build an efficient and easy-to-use IT DevOps visualization system or adapt to an existing system in just a few minutes.
 
-TDengine 强大的数据写入查询性能和其他丰富功能请参考官方文档和产品成功落地案例。
+For TDengine's powerful data writing and querying performance and other features, please refer to the official documentation and successful product implementation cases.

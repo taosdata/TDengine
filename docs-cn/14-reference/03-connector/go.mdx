@@ -136,7 +136,7 @@ import (
 )
 
 func main() {
-    var taosUri = "root:taosdata/tcp(localhost:6030)/"
+    var taosUri = "root:taosdata@tcp(localhost:6030)/"
     taos, err := sql.Open("taosSql", taosUri)
     if err != nil {
         fmt.Println("failed to connect TDengine, err:", err)
@@ -168,7 +168,7 @@ import (
 )
 
 func main() {
-    var taosUri = "root:taosdata/http(localhost:6041)/"
+    var taosUri = "root:taosdata@http(localhost:6041)/"
     taos, err := sql.Open("taosRestful", taosUri)
     if err != nil {
         fmt.Println("failed to connect TDengine, err:", err)

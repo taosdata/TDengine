@@ -1,5 +1,6 @@
 ---
-title: SQL 写入
+sidebar_label: SQL
+title: Insert Using SQL
 ---
 
 import Tabs from "@theme/Tabs";
@@ -19,52 +20,53 @@ import CsStmt from "./_cs_stmt.mdx";
 import CSQL from "./_c_sql.mdx";
 import CStmt from "./_c_stmt.mdx";
 
-## SQL 写入简介
+## Introduction
 
-应用通过连接器执行 INSERT 语句来插入数据，用户还可以通过 TAOS Shell，手动输入 INSERT 语句插入数据。
+Application program can execute `INSERT` statement through connectors to insert rows. TAOS CLI can be launched manually to insert data too.
 
-### 一次写入一条
-下面这条 INSERT 就将一条记录写入到表 d1001 中：
+### Insert Single Row
+
+Below SQL statement is used to insert one row into table "d1001".
 
 ```sql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
 ```
 
-### 一次写入多条
+### Insert Multiple Rows
 
-TDengine 支持一次写入多条记录，比如下面这条命令就将两条记录写入到表 d1001 中：
+Multiple rows can be inserted in single SQL statement. Below example inserts 2 rows into table "d1001".
 
 ```sql
 INSERT INTO d1001 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
 ```
 
-### 一次写入多表
+### Insert into Multiple Tables
 
-TDengine 也支持一次向多个表写入数据，比如下面这条命令就向 d1001 写入两条记录，向 d1002 写入一条记录：
+Data can be inserted into multiple tables in same SQL statement. Below example inserts 2 rows into table "d1001" and 1 row into table "d1002".
 
 ```sql
 INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
 ```
 
-详细的 SQL INSERT 语法规则参考 [TAOS SQL 的数据写入](/taos-sql/insert)。
+For more details about `INSERT` please refer to [INSERT](/taos-sql/insert).
 
 :::info
 
-- 要提高写入效率，需要批量写入。一批写入的记录条数越多，插入效率就越高。但一条记录不能超过 16K，一条 SQL 语句总长度不能超过 1M 。
-- TDengine 支持多线程同时写入，要进一步提高写入速度，一个客户端需要打开 20 个以上的线程同时写。但线程数达到一定数量后，无法再提高，甚至还会下降，因为线程频繁切换，带来额外开销。
+- Inserting in batch can gain better performance. Normally, the higher the batch size, the better the performance. Please be noted each single row can't exceed 16K bytes and each single SQL statement can't exceed 1M bytes.
+- Inserting with multiple threads can gain better performance too. However, depending on the system resources on the application side and the server side, with the number of inserting threads grows to a specific point, the performance may drop instead of growing. The proper number of threads need to be tested in a specific environment to find the best number.
 
 :::
 
 :::warning
 
-- 对同一张表，如果新插入记录的时间戳已经存在，默认情形下（UPDATE=0）新记录将被直接抛弃，也就是说，在一张表里，时间戳必须是唯一的。如果应用自动生成记录，很有可能生成的时间戳是一样的，这样，成功插入的记录条数会小于应用插入的记录条数。如果在创建数据库时使用了 UPDATE 1 选项，插入相同时间戳的新记录将覆盖原有记录。
-- 写入的数据的时间戳必须大于当前时间减去配置参数 keep 的时间。如果 keep 配置为 3650 天，那么无法写入比 3650 天还早的数据。写入数据的时间戳也不能大于当前时间加配置参数 days。如果 days 为 2，那么无法写入比当前时间还晚 2 天的数据。
+- If the timestamp for the row to be inserted already exists in the table, the behavior depends on the value of parameter `UPDATE`. If it's set to 0 (also the default value), the row will be discarded. If it's set to 1, the new values will override the old values for the same row.
+- The timestamp to be inserted must be newer than the timestamp of subtracting current time by the parameter `KEEP`. If `KEEP` is set to 3650 days, then the data older than 3650 days ago can't be inserted. The timestamp to be inserted can't be newer than the timestamp of current time plus parameter `DAYS`. If `DAYS` is set to 2, the data newer than 2 days later can't be inserted.
 
 :::
 
-## 示例程序
+## Examples
 
-### 普通 SQL 写入
+### Insert Using SQL
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
@@ -92,16 +94,16 @@ INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 
 
 :::note
 
-1. 无论 RESTful 方式建立连接还是本地驱动方式建立连接，以上示例代码都能正常工作。
-2. 唯一需要注意的是：由于 RESTful 接口无状态， 不能使用 `use db` 语句来切换数据库, 所以在上面示例中使用了`dbName.tbName`指定表名。
+1. With either native connection or REST connection, the above samples can work well.
+2. Please be noted that `use db` can't be used with REST connection because REST connection is stateless, so in the samples `dbName.tbName` is used to specify the table name.
 
 :::
 
-### 参数绑定写入
+### Insert with Parameter Binding
 
-TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 类似，这些 API 目前也仅支持用问号 `?` 来代表待绑定的参数。从 2.1.1.0 和 2.1.2.0 版本开始，TDengine 大幅改进了参数绑定接口对数据写入（INSERT）场景的支持。这样在通过参数绑定接口写入数据时，就避免了 SQL 语法解析的资源消耗，从而在绝大多数情况下显著提升写入性能。
+TDengine also provides Prepare API that support parameter binding. Similar to MySQL, only `?` can be used in these APIs to represent the parameters to bind. From version 2.1.1.0 and 2.1.2.0, parameter binding support for inserting data has been improved significantly to improve the insert performance by avoiding the cost of parsing SQL statements.
 
-需要注意的是，只有使用原生连接的连接器，才能使用参数绑定功能。
+Parameter binding is available only with native connection.
 
 <Tabs defaultValue="java" groupId="lang">
   <TabItem label="Java" value="java">
@@ -126,4 +128,3 @@ TDengine 也提供了支持参数绑定的 Prepare API，与 MySQL 类似，这�
     <CStmt />
   </TabItem>
 </Tabs>
-
