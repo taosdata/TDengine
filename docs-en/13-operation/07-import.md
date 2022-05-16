@@ -1,5 +1,5 @@
 ---
-title: Import Data
+title: Data Import
 ---
 
 There are multiple ways of importing data provided byTDengine: import with script, import from data file, import using `taosdump`.

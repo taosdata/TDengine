@@ -1,5 +1,5 @@
 ---
-title: Diagnose Problems
+title: Problem Diagnostics
 ---
 
 ## Network Connection Diagnostics

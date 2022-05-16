@@ -1,5 +1,5 @@
 ---
-title: Optimize Performance
+title: Performance Optimization
 ---
 
 After a TDengine cluster has been running for long enough time, because of updating data, deleting tables and deleting expired data, there may be fragments in data files and query performance may be impacted. To resolve the problem of fragments, from version 2.1.3.0 a new SQL command `COMPACT` can be used to defragment the data files.
