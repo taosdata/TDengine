@@ -45,7 +45,7 @@ typedef void (*SendRspFp)(const SRpcMsg* pRsp);
 typedef void (*SendRedirectRspFp)(const SRpcMsg* pRsp, const SEpSet* pNewEpSet);
 typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg* pMsg);
 typedef void (*ReleaseHandleFp)(SMgmtWrapper* pWrapper, void* handle, int8_t type);
-typedef void (*ReportStartup)(SMgmtWrapper* pWrapper, const char* name, const char* desc);
+typedef void (*ReportStartup)(const char* name, const char* desc);
 
 typedef struct {
   SMgmtWrapper*           pWrapper;

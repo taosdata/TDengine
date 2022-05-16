@@ -16,8 +16,6 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static bool dmIsNodeRequired(SDnode *pDnode, EDndNodeType ntype) { return pDnode->wrappers[ntype].required; }
-
 static bool dmRequireNode(SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
@@ -39,8 +37,8 @@ static bool dmRequireNode(SMgmtWrapper *pWrapper) {
   return required;
 }
 
-static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
-  pDnode->rtype = pOption->ntype;
+static int32_t dmInitVars(SDnode *pDnode, EDndNodeType rtype) {
+  pDnode->rtype = rtype;
 
   if (tsMultiProcess == 0) {
     pDnode->ptype = DND_PROC_SINGLE;
@@ -65,21 +63,6 @@ static int32_t dmInitVars(SDnode *pDnode, const SDnodeOpt *pOption) {
   pData->rebootTime = taosGetTimestampMs();
   pData->dropped = 0;
   pData->stopped = 0;
-  pData->localEp = strdup(pOption->localEp);
-  pData->localFqdn = strdup(pOption->localFqdn);
-  pData->firstEp = strdup(pOption->firstEp);
-  pData->secondEp = strdup(pOption->secondEp);
-  pData->supportVnodes = pOption->numOfSupportVnodes;
-  pData->serverPort = pOption->serverPort;
-  pData->numOfDisks = pOption->numOfDisks;
-  pData->disks = pOption->disks;
-  pData->dataDir = strdup(pOption->dataDir);
-
-  if (pData->dataDir == NULL || pData->localEp == NULL || pData->localFqdn == NULL || pData->firstEp == NULL ||
-      pData->secondEp == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
 
   pData->dnodeHash = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
   if (pData->dnodeHash == NULL) {
@@ -126,30 +109,17 @@ static void dmClearVars(SDnode *pDnode) {
   }
   taosWUnLockLatch(&pData->latch);
 
-  taosMemoryFreeClear(pData->localEp);
-  taosMemoryFreeClear(pData->localFqdn);
-  taosMemoryFreeClear(pData->firstEp);
-  taosMemoryFreeClear(pData->secondEp);
-  taosMemoryFreeClear(pData->dataDir);
-
   taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
   taosMemoryFree(pDnode);
 }
 
-SDnode *dmCreate(const SDnodeOpt *pOption) {
+int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
   dInfo("start to create dnode");
   int32_t code = -1;
   char    path[PATH_MAX + 100] = {0};
-  SDnode *pDnode = NULL;
 
-  pDnode = taosMemoryCalloc(1, sizeof(SDnode));
-  if (pDnode == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-
-  if (dmInitVars(pDnode, pOption) != 0) {
+  if (dmInitVars(pDnode, rtype) != 0) {
     goto _OVER;
   }
 
@@ -162,7 +132,6 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    pWrapper->pDnode = pDnode;
     pWrapper->name = dmNodeName(ntype);
     pWrapper->ntype = ntype;
     pWrapper->proc.wrapper = pWrapper;
@@ -174,7 +143,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     }
     taosInitRWLatch(&pWrapper->latch);
 
-    snprintf(path, sizeof(path), "%s%s%s", pOption->dataDir, TD_DIRSEP, pWrapper->name);
+    snprintf(path, sizeof(path), "%s%s%s", tsDataDir, TD_DIRSEP, pWrapper->name);
     pWrapper->path = strdup(path);
     if (pWrapper->path == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -195,7 +164,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
   }
 
   if (OnlyInSingleProc(pDnode->ptype) || InParentProc(pDnode->ptype)) {
-    pDnode->lockfile = dmCheckRunning(pOption->dataDir);
+    pDnode->lockfile = dmCheckRunning(tsDataDir);
     if (pDnode->lockfile == NULL) {
       goto _OVER;
     }
@@ -210,7 +179,7 @@ SDnode *dmCreate(const SDnodeOpt *pOption) {
     goto _OVER;
   }
 
-  dmReportStartup(pDnode, "dnode-transport", "initialized");
+  dmReportStartup("dnode-transport", "initialized");
   dInfo("dnode is created, ptr:%p", pDnode);
   code = 0;
 
@@ -221,10 +190,10 @@ _OVER:
     dError("failed to create dnode since %s", terrstr());
   }
 
-  return pDnode;
+  return code;
 }
 
-void dmClose(SDnode *pDnode) {
+void dmCleanupDnode(SDnode *pDnode) {
   if (pDnode == NULL) return;
 
   dmCleanupClient(pDnode);
@@ -237,12 +206,6 @@ void dmSetStatus(SDnode *pDnode, EDndRunStatus status) {
   if (pDnode->status != status) {
     dDebug("dnode status set from %s to %s", dmStatStr(pDnode->status), dmStatStr(status));
     pDnode->status = status;
-  }
-}
-
-void dmSetEvent(SDnode *pDnode, EDndEvent event) {
-  if (event == DND_EVENT_STOP) {
-    pDnode->event = event;
   }
 }
 
@@ -288,17 +251,6 @@ void dmReleaseWrapper(SMgmtWrapper *pWrapper) {
   dTrace("node:%s, is released, ref:%d", pWrapper->name, refCount);
 }
 
-void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc) {
-  SStartupInfo *pStartup = &pDnode->startup;
-  tstrncpy(pStartup->name, pName, TSDB_STEP_NAME_LEN);
-  tstrncpy(pStartup->desc, pDesc, TSDB_STEP_DESC_LEN);
-  dDebug("step:%s, %s", pStartup->name, pStartup->desc);
-}
-
-void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc) {
-  dmReportStartup(pWrapper->pDnode, pName, pDesc);
-}
-
 static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) {
   SDnodeMgmt *pMgmt = pDnode->wrappers[DNODE].pMgmt;
   pStatus->details[0] = 0;
@@ -315,7 +267,7 @@ static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) 
 
 void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
   dDebug("net test req is received");
-  SRpcMsg rsp = {.info = pReq->info, .code = 0};
+  SRpcMsg rsp = {.code = 0, .info = pReq->info};
   rsp.pCont = rpcMallocCont(pReq->contLen);
   if (rsp.pCont == NULL) {
     rsp.code = TSDB_CODE_OUT_OF_MEMORY;
@@ -352,83 +304,4 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pReq) {
 _OVER:
   rpcSendResponse(&rspMsg);
   rpcFreeCont(pReq->pCont);
-}
-
-static int32_t dmProcessCreateNodeReq(SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg) {
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
-  if (pWrapper != NULL) {
-    dmReleaseWrapper(pWrapper);
-    terrno = TSDB_CODE_NODE_ALREADY_DEPLOYED;
-    dError("failed to create node since %s", terrstr());
-    return -1;
-  }
-
-  taosThreadMutexLock(&pDnode->mutex);
-  pWrapper = &pDnode->wrappers[ntype];
-
-  if (taosMkDir(pWrapper->path) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
-    return -1;
-  }
-
-  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
-
-  int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
-  if (code != 0) {
-    dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
-  } else {
-    dDebug("node:%s, has been created", pWrapper->name);
-    (void)dmOpenNode(pWrapper);
-    pWrapper->required = true;
-    pWrapper->deployed = true;
-    pWrapper->proc.ptype = pDnode->ptype;
-  }
-
-  taosThreadMutexUnlock(&pDnode->mutex);
-  return code;
-}
-
-static int32_t dmProcessDropNodeReq(SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg) {
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, ntype);
-  if (pWrapper == NULL) {
-    terrno = TSDB_CODE_NODE_NOT_DEPLOYED;
-    dError("failed to drop node since %s", terrstr());
-    return -1;
-  }
-
-  taosThreadMutexLock(&pDnode->mutex);
-
-  int32_t code = (*pWrapper->func.dropFp)(pWrapper->pMgmt, pMsg);
-  if (code != 0) {
-    dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
-  } else {
-    dDebug("node:%s, has been dropped", pWrapper->name);
-    pWrapper->required = false;
-    pWrapper->deployed = false;
-  }
-
-  dmReleaseWrapper(pWrapper);
-
-  if (code == 0) {
-    dmCloseNode(pWrapper);
-    taosRemoveDir(pWrapper->path);
-  }
-  taosThreadMutexUnlock(&pDnode->mutex);
-  return code;
-}
-
-SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
-  SMgmtInputOpt opt = {
-      .pDnode = pWrapper->pDnode,
-      .pData = &pWrapper->pDnode->data,
-      .processCreateNodeFp = dmProcessCreateNodeReq,
-      .processDropNodeFp = dmProcessDropNodeReq,
-      .isNodeRequiredFp = dmIsNodeRequired,
-      .name = pWrapper->name,
-      .path = pWrapper->path,
-  };
-
-  opt.msgCb = dmGetMsgcb(pWrapper);
-  return opt;
 }

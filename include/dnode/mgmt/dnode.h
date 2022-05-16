@@ -40,6 +40,11 @@ void dmCleanup();
  */
 int32_t dmRun();
 
+/**
+ * @brief Stop dnode.
+ */
+void dmStop();
+
 #ifdef __cplusplus
 }
 #endif

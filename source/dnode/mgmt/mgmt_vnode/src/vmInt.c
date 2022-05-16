@@ -247,9 +247,9 @@ static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   SVnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SVnodeMgmt));
   if (pMgmt == NULL) goto _OVER;
 
+  pMgmt->pData = pInput->pData;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->pData->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)vmPutRpcMsgToWriteQueue;
   pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)vmPutRpcMsgToSyncQueue;

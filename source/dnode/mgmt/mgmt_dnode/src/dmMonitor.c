@@ -16,19 +16,18 @@
 #define _DEFAULT_SOURCE
 #include "dmInt.h"
 
-#define dmSendLocalRecv(pMgmt, mtype, func, pInfo)                       \
-  if (!tsMultiProcess) {                                                 \
-    SRpcMsg rsp = {0};                                                   \
-    SRpcMsg req = {.msgType = mtype};                                    \
-    SEpSet  epset = {.inUse = 0, .numOfEps = 1};                         \
-    tstrncpy(epset.eps[0].fqdn, pMgmt->pData->localFqdn, TSDB_FQDN_LEN); \
-    epset.eps[0].port = pMgmt->pData->serverPort;                        \
-                                                                         \
-    rpcSendRecv(pMgmt->msgCb.clientRpc, &epset, &req, &rsp);             \
-    if (rsp.code == 0 && rsp.contLen > 0) {                              \
-      func(rsp.pCont, rsp.contLen, pInfo);                               \
-    }                                                                    \
-    rpcFreeCont(rsp.pCont);                                              \
+#define dmSendLocalRecv(pMgmt, mtype, func, pInfo)           \
+  if (!tsMultiProcess) {                                     \
+    SRpcMsg rsp = {0};                                       \
+    SRpcMsg req = {.msgType = mtype};                        \
+    SEpSet  epset = {.inUse = 0, .numOfEps = 1};             \
+    tstrncpy(epset.eps[0].fqdn, tsLocalFqdn, TSDB_FQDN_LEN); \
+    epset.eps[0].port = tsServerPort;                        \
+    rpcSendRecv(pMgmt->msgCb.clientRpc, &epset, &req, &rsp); \
+    if (rsp.code == 0 && rsp.contLen > 0) {                  \
+      func(rsp.pCont, rsp.contLen, pInfo);                   \
+    }                                                        \
+    rpcFreeCont(rsp.pCont);                                  \
   }
 
 static void dmGetMonitorBasicInfo(SDnodeMgmt *pMgmt, SMonBasicInfo *pInfo) {
@@ -40,10 +39,10 @@ static void dmGetMonitorBasicInfo(SDnodeMgmt *pMgmt, SMonBasicInfo *pInfo) {
 
 static void dmGetMonitorDnodeInfo(SDnodeMgmt *pMgmt, SMonDnodeInfo *pInfo) {
   pInfo->uptime = (taosGetTimestampMs() - pMgmt->pData->rebootTime) / (86400000.0f);
-  pInfo->has_mnode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, MNODE);
-  pInfo->has_qnode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, QNODE);
-  pInfo->has_snode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, SNODE);
-  pInfo->has_bnode = (*pMgmt->isNodeRequiredFp)(pMgmt->pDnode, BNODE);
+  pInfo->has_mnode = (*pMgmt->isNodeRequiredFp)(MNODE);
+  pInfo->has_qnode = (*pMgmt->isNodeRequiredFp)(QNODE);
+  pInfo->has_snode = (*pMgmt->isNodeRequiredFp)(SNODE);
+  pInfo->has_bnode = (*pMgmt->isNodeRequiredFp)(BNODE);
   tstrncpy(pInfo->logdir.name, tsLogDir, sizeof(pInfo->logdir.name));
   pInfo->logdir.size = tsLogSpace.size;
   tstrncpy(pInfo->tempdir.name, tsTempDir, sizeof(pInfo->tempdir.name));

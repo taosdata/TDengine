@@ -70,7 +70,7 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
     pReplica->id = pCreate->replicas[i].id;
     pReplica->port = pCreate->replicas[i].port;
     memcpy(pReplica->fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    if (pReplica->id == pMgmt->dnodeId) {
+    if (pReplica->id == pMgmt->pData->dnodeId) {
       pOption->selfIndex = i;
     }
   }
@@ -128,9 +128,9 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return -1;
   }
 
+  pMgmt->pData = pInput->pData;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->pData->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)mmPutRpcMsgToQueryQueue;
   pMgmt->msgCb.queueFps[READ_QUEUE] = (PutToQueueFp)mmPutRpcMsgToReadQueue;
@@ -148,7 +148,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   SMnodeOpt option = {0};
   if (!deployed) {
     dInfo("mnode start to deploy");
-    pMgmt->dnodeId = 1;
+    pMgmt->pData->dnodeId = 1;
     mmBuildOptionForDeploy(pMgmt, pInput, &option);
   } else {
     dInfo("mnode start to open");
@@ -178,7 +178,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     }
   }
 
-  pInput->pData->dnodeId = pMgmt->dnodeId;
+  pInput->pData->dnodeId = pMgmt->pData->dnodeId;
   pOutput->pMgmt = pMgmt;
   return 0;
 }

@@ -65,29 +65,29 @@ typedef struct {
 } SProc;
 
 typedef struct SMgmtWrapper {
-  SDnode      *pDnode;
-  SMgmtFunc    func;
-  void        *pMgmt;
-  const char  *name;
-  char        *path;
-  int32_t      refCount;
-  SRWLatch     latch;
-  EDndNodeType ntype;
-  bool         deployed;
-  bool         required;
-  SProc        proc;
-  NodeMsgFp    msgFps[TDMT_MAX];
+  struct SDnode *pDnode;
+  SMgmtFunc      func;
+  void          *pMgmt;
+  const char    *name;
+  char          *path;
+  int32_t        refCount;
+  SRWLatch       latch;
+  EDndNodeType   ntype;
+  bool           deployed;
+  bool           required;
+  SProc          proc;
+  NodeMsgFp      msgFps[TDMT_MAX];
 } SMgmtWrapper;
 
 typedef struct {
   EDndNodeType defaultNtype;
   bool         needCheckVgId;
-} SMsgHandle;
+} SDnodeHandle;
 
 typedef struct {
-  void      *serverRpc;
-  void      *clientRpc;
-  SMsgHandle msgHandles[TDMT_MAX];
+  void        *serverRpc;
+  void        *clientRpc;
+  SDnodeHandle msgHandles[TDMT_MAX];
 } SDnodeTrans;
 
 typedef struct {
@@ -110,9 +110,10 @@ typedef struct SUdfdData {
 } SUdfdData;
 
 typedef struct SDnode {
+  int8_t        once;
+  bool          stop;
   EDndProcType  ptype;
   EDndNodeType  rtype;
-  EDndEvent     event;
   EDndRunStatus status;
   SStartupInfo  startup;
   SDnodeTrans   trans;
@@ -123,22 +124,25 @@ typedef struct SDnode {
   SMgmtWrapper  wrappers[NODE_END];
 } SDnode;
 
-// dmExec.c
-int32_t dmOpenNode(SMgmtWrapper *pWrapper);
-void    dmCloseNode(SMgmtWrapper *pWrapper);
+// dmEmv.c
+void dmReportStartup(const char *pName, const char *pDesc);
 
-// dmObj.c
+// dmMgmt.c
+int32_t       dmInitDnode(SDnode *pDnode, EDndNodeType rtype);
+void          dmCleanupDnode(SDnode *pDnode);
 SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 
 void dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
-void dmSetEvent(SDnode *pDnode, EDndEvent event);
-void dmReportStartup(SDnode *pDnode, const char *pName, const char *pDesc);
-void dmReportStartupByWrapper(SMgmtWrapper *pWrapper, const char *pName, const char *pDesc);
 void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
 void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
+
+// dmNodes.c
+int32_t dmOpenNode(SMgmtWrapper *pWrapper);
+void    dmCloseNode(SMgmtWrapper *pWrapper);
+int32_t dmRunDnode(SDnode *pDnode);
 
 // dmProc.c
 int32_t dmInitProc(struct SMgmtWrapper *pWrapper);

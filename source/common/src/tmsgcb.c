@@ -71,9 +71,5 @@ void tmsgReleaseHandle(void* handle, int8_t type) {
 
 void tmsgReportStartup(const char* name, const char* desc) {
   ReportStartup fp = tsDefaultMsgCb.reportStartupFp;
-  if (fp != NULL && tsDefaultMsgCb.pWrapper != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, name, desc);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  (*fp)(name, desc);
 }

@@ -25,11 +25,11 @@ extern "C" {
 #endif
 
 typedef struct SSnodeMgmt {
+  SDnodeData   *pData;
   SSnode       *pSnode;
   SMsgCb        msgCb;
   const char   *path;
   const char   *name;
-  int32_t       dnodeId;
   SRWLatch      latch;
   int8_t        uniqueWorkerInUse;
   SArray       *uniqueWorkers;  // SArray<SMultiWorker*>

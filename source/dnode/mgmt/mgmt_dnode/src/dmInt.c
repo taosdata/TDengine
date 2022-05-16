@@ -39,7 +39,6 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return -1;
   }
 
-  pMgmt->pDnode = pInput->pDnode;
   pMgmt->pData = pInput->pData;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->path = pInput->path;

@@ -26,10 +26,10 @@ extern "C" {
 #endif
 
 typedef struct SVnodeMgmt {
+  SDnodeData   *pData;
   SMsgCb        msgCb;
   const char   *path;
   const char   *name;
-  int32_t       dnodeId;
   SQWorkerPool  queryPool;
   SQWorkerPool  fetchPool;
   SWWorkerPool  syncPool;

@@ -24,11 +24,11 @@ extern "C" {
 #endif
 
 typedef struct SMnodeMgmt {
+  SDnodeData   *pData;
   SMnode       *pMnode;
   SMsgCb        msgCb;
   const char   *path;
   const char   *name;
-  int32_t       dnodeId;
   SSingleWorker queryWorker;
   SSingleWorker readWorker;
   SSingleWorker writeWorker;

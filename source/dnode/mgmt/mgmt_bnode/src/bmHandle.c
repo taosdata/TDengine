@@ -76,7 +76,7 @@ int32_t bmProcessDropReq(SBnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (pMgmt->dnodeId != 0 && dropReq.dnodeId != pMgmt->dnodeId) {
+  if (pMgmt->pData->dnodeId != 0 && dropReq.dnodeId != pMgmt->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop bnode since %s", terrstr());
     return -1;

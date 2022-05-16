@@ -52,7 +52,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   int32_t       code = -1;
   SRpcMsg      *pMsg = NULL;
   bool          needRelease = false;
-  SMsgHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
+  SDnodeHandle   *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   SMgmtWrapper *pWrapper = NULL;
 
   dTrace("msg:%s is received, handle:%p cont:%p len:%d code:0x%04x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
@@ -178,7 +178,7 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
       SMgmtHandle *pMgmt = taosArrayGet(pArray, i);
-      SMsgHandle  *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
+      SDnodeHandle  *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
       if (pMgmt->needCheckVgId) {
         pHandle->needCheckVgId = pMgmt->needCheckVgId;
       }
@@ -201,7 +201,7 @@ static void dmSendRpcRedirectRsp(SDnode *pDnode, const SRpcMsg *pReq) {
   dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->info.handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    if (strcmp(epSet.eps[i].fqdn, pDnode->data.localFqdn) == 0 && epSet.eps[i].port == pDnode->data.serverPort) {
+    if (strcmp(epSet.eps[i].fqdn, tsLocalFqdn) == 0 && epSet.eps[i].port == tsServerPort) {
       epSet.inUse = (i + 1) % epSet.numOfEps;
     }
 
@@ -410,8 +410,8 @@ int32_t dmInitServer(SDnode *pDnode) {
 
   SRpcInit rpcInit = {0};
 
-  strncpy(rpcInit.localFqdn, pDnode->data.localFqdn, strlen(pDnode->data.localFqdn));
-  rpcInit.localPort = pDnode->data.serverPort;
+  strncpy(rpcInit.localFqdn, tsLocalFqdn, strlen(tsLocalFqdn));
+  rpcInit.localPort = tsServerPort;
   rpcInit.label = "DND";
   rpcInit.numOfThreads = tsNumOfRpcThreads;
   rpcInit.cfp = (RpcCfp)dmProcessRpcMsg;
@@ -449,7 +449,7 @@ SMsgCb dmGetMsgcb(SMgmtWrapper *pWrapper) {
       .sendRedirectRspFp = dmSendRedirectRsp,
       .registerBrokenLinkArgFp = dmRegisterBrokenLinkArg,
       .releaseHandleFp = dmReleaseHandle,
-      .reportStartupFp = dmReportStartupByWrapper,
+      .reportStartupFp = dmReportStartup,
   };
   return msgCb;
 }

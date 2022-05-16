@@ -116,28 +116,28 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = dmProcessGrantRsp(pMgmt, pMsg);
       break;
     case TDMT_DND_CREATE_MNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, MNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(MNODE, pMsg);
       break;
     case TDMT_DND_DROP_MNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, MNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(MNODE, pMsg);
       break;
     case TDMT_DND_CREATE_QNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, QNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(QNODE, pMsg);
       break;
     case TDMT_DND_DROP_QNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, QNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(QNODE, pMsg);
       break;
     case TDMT_DND_CREATE_SNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, SNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(SNODE, pMsg);
       break;
     case TDMT_DND_DROP_SNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, SNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;
     case TDMT_DND_CREATE_BNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, BNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(BNODE, pMsg);
       break;
     case TDMT_DND_DROP_BNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, BNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(BNODE, pMsg);
       break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);

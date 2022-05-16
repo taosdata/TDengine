@@ -39,9 +39,9 @@ static int32_t qmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return -1;
   }
 
+  pMgmt->pData = pInput->pData;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->pData->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qmPutRpcMsgToQueryQueue;
   pMgmt->msgCb.queueFps[FETCH_QUEUE] = (PutToQueueFp)qmPutRpcMsgToFetchQueue;

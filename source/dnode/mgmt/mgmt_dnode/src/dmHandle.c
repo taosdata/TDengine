@@ -59,8 +59,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   req.rebootTime = pMgmt->pData->rebootTime;
   req.updateTime = pMgmt->pData->updateTime;
   req.numOfCores = tsNumOfCores;
-  req.numOfSupportVnodes = pMgmt->pData->supportVnodes;
-  tstrncpy(req.dnodeEp, pMgmt->pData->localEp, TSDB_EP_LEN);
+  req.numOfSupportVnodes = tsNumOfSupportVnodes;
+  tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;

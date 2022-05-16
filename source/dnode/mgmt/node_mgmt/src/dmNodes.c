@@ -136,7 +136,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     pWrapper->pMgmt = output.pMgmt;
   }
 
-  dmReportStartup(pWrapper->pDnode, pWrapper->name, "openned");
+  dmReportStartup(pWrapper->name, "openned");
   return 0;
 }
 
@@ -151,7 +151,7 @@ int32_t dmStartNode(SMgmtWrapper *pWrapper) {
     dDebug("node:%s, has been started", pWrapper->name);
   }
 
-  dmReportStartup(pWrapper->pDnode, pWrapper->name, "started");
+  dmReportStartup(pWrapper->name, "started");
   return 0;
 }
 
@@ -221,7 +221,7 @@ static int32_t dmStartNodes(SDnode *pDnode) {
   }
 
   dInfo("TDengine initialized successfully");
-  dmReportStartup(pDnode, "TDengine", "initialized successfully");
+  dmReportStartup("TDengine", "initialized successfully");
   return 0;
 }
 
@@ -260,7 +260,7 @@ static void dmWatchNodes(SDnode *pDnode) {
   taosThreadMutexUnlock(&pDnode->mutex);
 }
 
-int32_t dmRun(SDnode *pDnode) {
+int32_t dnRunDnode(SDnode *pDnode) {
   if (dmOpenNodes(pDnode) != 0) {
     dError("failed to open nodes since %s", terrstr());
     return -1;
@@ -272,7 +272,7 @@ int32_t dmRun(SDnode *pDnode) {
   }
 
   while (1) {
-    if (pDnode->event & DND_EVENT_STOP) {
+    if (!pDnode->stop) {
       dInfo("dnode is about to stop");
       dmSetStatus(pDnode, DND_STAT_STOPPED);
       dmStopNodes(pDnode);

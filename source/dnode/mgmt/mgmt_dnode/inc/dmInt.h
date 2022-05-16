@@ -23,7 +23,6 @@ extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  struct SDnode      *pDnode;
   SDnodeData         *pData;
   SMsgCb              msgCb;
   const char         *path;
