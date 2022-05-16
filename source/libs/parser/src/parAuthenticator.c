@@ -14,6 +14,7 @@
  */
 
 #include "catalog.h"
+#include "cmdnodes.h"
 #include "parInt.h"
 
 typedef struct SAuthCxt {
@@ -65,8 +66,8 @@ static int32_t authSetOperator(SAuthCxt* pCxt, SSetOperator* pSetOper) {
   return code;
 }
 
-static int32_t authDropUser(SAuthCxt* pCxt, SDropUserReq* pStmt) {
-  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->user, TSDB_DEFAULT_USER)) {
+static int32_t authDropUser(SAuthCxt* pCxt, SDropUserStmt* pStmt) {
+  if (!pCxt->pParseCxt->isSuperUser || 0 == strcmp(pStmt->useName, TSDB_DEFAULT_USER)) {
     return TSDB_CODE_PAR_PERMISSION_DENIED;
   }
   return TSDB_CODE_SUCCESS;
@@ -92,7 +93,7 @@ static int32_t authQuery(SAuthCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_ALTER_USER_STMT:
       break;
     case QUERY_NODE_DROP_USER_STMT: {
-      return authDropUser(pCxt, (SDropUserReq*)pStmt);
+      return authDropUser(pCxt, (SDropUserStmt*)pStmt);
     }
     case QUERY_NODE_USE_DATABASE_STMT:
     case QUERY_NODE_CREATE_DNODE_STMT:
