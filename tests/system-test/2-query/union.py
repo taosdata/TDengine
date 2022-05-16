@@ -108,11 +108,11 @@ class TDTestCase:
     def __group_condition(self, col, having = None):
         if col.startswith("count"):
             col = col.split("count(")[1].split(")")
-        if col.startswith("max"):
+        elif col.startswith("max"):
             col = col.split("max(")[1].split(")")
-        if col.startswith("sum"):
+        elif col.startswith("sum"):
             col = col.split("sum(")[1].split(")")
-        if col.startswith("min"):
+        elif col.startswith("min"):
             col = col.split("min(")[1].split(")")
         return f" group by {col} having {having}" if having else f" group by {col} "
 
@@ -161,6 +161,11 @@ class TDTestCase:
                             self.__single_sql(select_claus, join_tb, where_claus, having_claus),
                             self.__single_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
                             self.__single_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
+                            self.__single_sql(select_claus, join_tb, where_claus),
+                            self.__single_sql(select_claus, join_tb, having_claus),
+                            self.__single_sql(select_claus, join_tb, group_claus),
+                            self.__single_sql(select_claus, join_tb),
+
                         )
                     )
         __no_join_tblist = self.__tb_liast
@@ -174,6 +179,10 @@ class TDTestCase:
                         (
                             self.__single_sql(select_claus, join_tb, where_claus, group_claus),
                             self.__single_sql(select_claus, join_tb, where_claus, having_claus),
+                            self.__single_sql(select_claus, join_tb, where_claus),
+                            self.__single_sql(select_claus, join_tb, group_claus),
+                            self.__single_sql(select_claus, join_tb, having_claus),
+                            self.__single_sql(select_claus, join_tb),
                         )
                     )
 
