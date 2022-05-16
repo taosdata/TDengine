@@ -1,6 +1,6 @@
 ---
 sidebar_label: HiveMQ Broker
-title: HiveMQ Broker 写入
+title: HiveMQ Broker writing
 ---
 
-[HiveMQ](https://www.hivemq.com/) 是一个提供免费个人版和企业版的 MQTT 代理，主要用于企业和新兴的机器到机器 M2M 通讯和内部传输，满足可伸缩性、易管理和安全特性。HiveMQ 提供了开源的插件开发包。可以通过 HiveMQ extension - TDengine 保存数据到 TDengine。详细使用方法请参考 [HiveMQ extension - TDengine 说明文档](https://github.com/huskar-t/hivemq-tdengine-extension/blob/b62a26ecc164a310104df57691691b237e091c89/README.md)。
+[HiveMQ](https://www.hivemq.com/) is an MQTT broker that provides community and enterprise editions. HiveMQ is mainly for enterprise emerging machine-to-machine M2M communication and internal transport, meeting scalability, ease of management, and security features. HiveMQ provides an open-source plug-in development kit. MQTT data can be saved to TDengine via TDengine extension for HiveMQ. Please refer to the [HiveMQ extension - TDengine documentation](https://github.com/huskar-t/hivemq-tdengine-extension/blob/b62a26ecc164a310104df57691691b237e091c89/README_EN.md) for details on how to use it.

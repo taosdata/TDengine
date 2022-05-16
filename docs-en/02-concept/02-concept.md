@@ -1,176 +1,170 @@
 ---
-title: 数据模型和基本概念
+title: Concepts
 ---
 
-## 物联网典型场景
+In order to explain the basic concepts and show sample code easily, the entire TDengine document takes smart meters as a typical time series data scenario. Assuming that each smart meter collects three metrics of current, voltage, and phase, there are multiple smart meters, and each meter has static attributes like location and group ID, the collected data shall be similar to the following table:
 
-在典型的物联网、车联网、运维监测场景中，往往有多种不同类型的数据采集设备或采集点，采集一个到多个不同的物理量。而同一种采集设备类型，往往又有多个具体的采集设备分布在不同的地点。采集的物理量都带有时间标签，而且数据量随时间不断增长，但每个数据采集设备或采集点还有自身的静态属性。对于同一类设备，其采集的数据以及静态属性都是很规则的。以智能电表为例，假设每个智能电表采集电流、电压、相位三个量，其采集的数据类似如下的表格：
-
+<div className="center-table">
 <table>
 <thead><tr>
-    <th >设备ID</th>
-    <th >时间戳</th>
-    <th  colspan="3">采集量</th>
-    <th  colspan="2">标签</th>
+    <th>Device ID</th>
+    <th>Time Stamp</th>
+    <th colSpan="3">Collected Metrics</th>
+    <th colSpan="2">Tags</th>
     </tr>
 <tr>
-<th >Device ID</th>
-<th >Time Stamp</th>
-<th >current</th>
-<th >voltage</th>
-<th >phase</th>
-<th >location</th>
-<th >groupId</th>
+<th>Device ID</th>
+<th>Time Stamp</th>
+<th>current</th>
+<th>voltage</th>
+<th>phase</th>
+<th>location</th>
+<th>groupId</th>
 </tr>
 </thead>
 <tbody>
 <tr>
-<td >d1001</td>
-<td >1538548685000</td>
-<td >10.3</td>
-<td >219</td>
-<td >0.31</td>
-<td >Beijing.Chaoyang</td>
-<td >2</td>
+<td>d1001</td>
+<td>1538548685000</td>
+<td>10.3</td>
+<td>219</td>
+<td>0.31</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1002</td>
-<td >1538548684000</td>
-<td >10.2</td>
-<td >220</td>
-<td >0.23</td>
-<td >Beijing.Chaoyang</td>
-<td >3</td>
+<td>d1002</td>
+<td>1538548684000</td>
+<td>10.2</td>
+<td>220</td>
+<td>0.23</td>
+<td>Beijing.Chaoyang</td>
+<td>3</td>
 </tr>
 <tr>
-<td >d1003</td>
-<td >1538548686500</td>
-<td >11.5</td>
-<td >221</td>
-<td >0.35</td>
-<td >Beijing.Haidian</td>
-<td >3</td>
+<td>d1003</td>
+<td>1538548686500</td>
+<td>11.5</td>
+<td>221</td>
+<td>0.35</td>
+<td>Beijing.Haidian</td>
+<td>3</td>
 </tr>
 <tr>
-<td >d1004</td>
-<td >1538548685500</td>
-<td >13.4</td>
-<td >223</td>
-<td >0.29</td>
-<td >Beijing.Haidian</td>
-<td >2</td>
+<td>d1004</td>
+<td>1538548685500</td>
+<td>13.4</td>
+<td>223</td>
+<td>0.29</td>
+<td>Beijing.Haidian</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1001</td>
-<td >1538548695000</td>
-<td >12.6</td>
-<td >218</td>
-<td >0.33</td>
-<td >Beijing.Chaoyang</td>
-<td >2</td>
+<td>d1001</td>
+<td>1538548695000</td>
+<td>12.6</td>
+<td>218</td>
+<td>0.33</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1004</td>
-<td >1538548696600</td>
-<td >11.8</td>
-<td >221</td>
-<td >0.28</td>
-<td >Beijing.Haidian</td>
-<td >2</td>
+<td>d1004</td>
+<td>1538548696600</td>
+<td>11.8</td>
+<td>221</td>
+<td>0.28</td>
+<td>Beijing.Haidian</td>
+<td>2</td>
 </tr>
 <tr>
-<td >d1002</td>
-<td >1538548696650</td>
-<td >10.3</td>
-<td >218</td>
-<td >0.25</td>
-<td >Beijing.Chaoyang</td>
-<td >3</td>
+<td>d1002</td>
+<td>1538548696650</td>
+<td>10.3</td>
+<td>218</td>
+<td>0.25</td>
+<td>Beijing.Chaoyang</td>
+<td>3</td>
 </tr>
 <tr>
-<td >d1001</td>
-<td >1538548696800</td>
-<td >12.3</td>
-<td >221</td>
-<td >0.31</td>
-<td >Beijing.Chaoyang</td>
-<td >2</td>
+<td>d1001</td>
+<td>1538548696800</td>
+<td>12.3</td>
+<td>221</td>
+<td>0.31</td>
+<td>Beijing.Chaoyang</td>
+<td>2</td>
 </tr>
 </tbody>
 </table>
+<a href="#model_table1">Table 1: Smart meter example data</a>
+</div>
 
-<center> <a href="#model_table1">表 1：智能电表数据示例</a></center>
+Each row contains the device ID, timestamp, collected metrics (current, voltage, phase as above), and static tags (Location and groupId in Table 1) associated with the devices. Each smart meter generates a row (data point) in a pre-defined timer or triggered by an external event. It is a sequence of data points like a stream.
 
-每一条记录都有设备 ID，时间戳，采集的物理量（如上图中的电流、电压、相位），还有与每个设备相关的静态标签（如上述表 1 中的位置 location 和分组 groupId）。每个设备是受外界的触发，或按照设定的周期采集数据。采集的数据点是时序的，是一个数据流。
+## Metric
 
-## 数据特征
+Metric refers to the physical quantity collected by sensors, equipment or other types of data collection devices, such as current, voltage, temperature, pressure, GPS position, etc., which changes with time, and the data type can be integer, float, Boolean, or strings. As time goes by, the amount of collected metric data stored increases.
 
-除时序特征外，仔细研究发现，物联网、车联网、运维监测类数据及其应用还具有很多其他明显的特征。
+## Label/Tag
 
-1. 数据是结构化的；
-2. 数据极少有更新或删除操作；
-3. 无需传统数据库的事务处理；
-4. 相对互联网应用，写多读少；
-5. 流量平稳，根据设备数量和采集频次，可以预测出来；
-6. 用户关注的是一段时间的趋势，而不是某一特点时间点的值；
-7. 数据是有保留期限的；
-8. 数据的查询分析一定是基于时间段和地理区域的；
-9. 系统需要各种实时计算和统计操作，包括降采样、插值等特种操作；
-10. 数据量巨大，一天采集的数据就可以超过 100 亿条。
+Label/Tag refers to the static properties of sensors, devices or other types of data collection devices, which do not change with time, such as device model, color, fixed location of the device, etc. The data type can be any type. Although static, TDengine allows users to add, delete or update tag values. Unlike the collected metric data, the amount of tag data stored does not change over time.
 
-充分利用上述特征，TDengine 采取了一特殊的优化的存储和计算设计来处理时序数据，能将系统处理能力显著提高。
+## Data Collection Point
 
-## 采集量(Metric)
+Data Collection Point(DCP) refers to hardware or software that collects metrics based on preset time periods or triggered by events. A data collection point can collect one or multiple metrics, but these metrics are collected at the same time and have the same time stamp. For some complex equipments, there are often multiple data collection points, and the sampling rate of each collection point may be different, and fully independent. For example, for a car, there is a data collection point to collect GPS position metrics, a data collection point to collect engine status metrics, and a data collection point to collect the environment metrics inside the car, so a car has three data collection points.
 
-采集量是指传感器、设备或其他类型采集点采集的物理量，比如电流、电压、温度、压力、GPS位置等，是随时间变化的，数据类型可以是整型、浮点型、布尔型，也可是字符串。随着时间的推移，存储的采集量的数据量越来越大。
+## Table
 
-## 标签(Label/Tag)
+Since time-series data is most likely to be structured data, TDengine adopts the traditional relational database model to process them with a short learning curve. You need to create a database, create tables, then insert data points and execute queries to explore the data. 
 
-标签是指传感器、设备或其他类型采集点的静态属性，不是随时间变化的，比如设备型号、颜色、设备的所在地等，数据类型可以是任何类型。虽然是静态的，但TDengine容许用户修改、删除或增加标签值。与采集量不一样的是，随时间的推移，存储的标签的数据量不会有什么变化。
+To make full use of time-series data characteristics, TDengine adopts a strategy "**One Table for One Data Collection Point**". TDengine requires the user to create a table for each data collection point (DCP) to store collected time-series data. For example, if there are over 10 million smart meters, it means 10 million tables shall be created. For the table above, 4 tables shall be created for devices D1001, D1002, D1003, and D1004 to store the data collected. This design has several benefits:
 
-## 数据采集点(Data Colletion Point)
+1. Since the metric data from different DCP is fully independent, the data source of each DCP is unique, and a table has only one writer. In this way, data points can be written in a lock-free manner, and the writing speed can be greatly improved.
+2. For a DCP, the metric data generated by DCP is ordered by timestamp, so the write operation can be implemented by simple appending, which further greatly improves the data writing speed.
+3. The metric data from a DCP is continuously stored in block by block. If you read data for a period of time, it can greatly reduce random read operations and improve read and query performance by orders of magnitude.
+4. Inside a data block for a DCP, columnar storage is used, and different compression algorithms are used for different data types. Because the change of the metrics from a DCP is not big in a time range, the compression rate is higher.
 
-数据采集点是指按照预设时间周期或受事件触发采集物理量的硬件或软件。一个数据采集点可以采集一个或多个物理量，**但这些物理量都是同一时刻采集的，具有相同的时间戳**。对于复杂的设备，往往有多个数据采集点，每个采集点采集的周期都可能不一样，而且完全独立，不同步。比如对于一台汽车，有数据采集点专门采集GPS位置，有数据采集点专门采集发动机状态，有数据采集点专门采集车内的环境，这样一台汽车就有三个数据采集点。
+If the metric data of multiple DPCs are traditionally written into a single table, due to the uncontrollable network delay, the timing of the data from different DCPs arriving at the server cannot be guaranteed, the writing operation must be protected by locks, and the metric data from one DCP cannot be guaranteed to be continuously stored together. **One table for one data collection point can ensure the best performance of insert and query of a single data collection point to the greatest extent.**
 
-## 关系型数据库模型
+TDengine suggests using DCP ID as the table name (like D1001 in the above table). Each DCP may collect one or multiple metrics (like the current, voltage, phase as above). Each metric has a corresponding column in the table. The data type for a column can be int, float, string and others. In addition, the first column in the table must be a timestamp. TDengine uses the time stamp as the index, and won’t build the index on any metrics stored. Column wise storage is used.
 
-因为采集的数据一般是结构化数据，同时为降低学习门槛，TDengine 采用传统的关系型数据库模型管理数据。用户需要先创建库，然后创建表，之后才能插入或查询数据。TDengine 采用的是结构化存储，而不是 NoSQL 的 key-value 存储。
+## Super Table (STable)
 
-与通用数据库相比，TDengine通过一个数据采集点一张表，来大幅提高单个数据采集点的插入和查询速度。同时TDengine引入了超级表的概念，让每个表都带有标签，解决多个数据采集点之间的聚合分析问题。
+The design of one table for one data collection point will require a huge number of tables, which is difficult to manage. Furthermore, applications often need to take aggregation operations among DCPs, thus aggregation operations will become complicated. To support aggregation over multiple tables efficiently, the STable(Super Table) concept is introduced by TDengine.
 
-## 一个数据采集点一张表
+STable is an set for a type of data collection point. A STable contains a set of data collection points (tables) that have the same schema or data structure, but with different static attributes(tags). To describe a STable, in addition to defining the table structure of the metrics, it is also necessary to define the schema of its tags. The data type of tags can be int, float, string, and there can be multiple tags, which can be added, deleted, or modified afterward. If the whole system has N different types of data collection points, N STables need to be established.
 
-为充分利用其数据的时序性和其他数据特点，TDengine 要求**对每个数据采集点单独建表**（比如有一千万个智能电表，就需创建一千万张表，上述表格中的 d1001，d1002，d1003，d1004 都需单独建表），用来存储这个采集点所采集的时序数据。这种设计有几大优点：
+In the design of TDengine, **a table is used to represent a specific data collection point, and STable is used to represent a set of data collection points of the same type**. 
 
-1. 由于不同采集设备产生数据的过程完全独立，每个设备的数据源是唯一的，一张表也就只有一个写入者，这样就可采用无锁方式来写，写入速度就能大幅提升。
-2. 对于一个数据采集点而言，其产生的数据是按照时间排序的，因此写的操作可用追加的方式实现，进一步大幅提高数据写入速度。
-3. 一个数据采集点的数据是以块为单位连续存储的。如果读取一个时间段的数据，它能大幅减少随机读取操作，成数量级的提升读取和查询速度。
-4. 一个数据块内部，采用列式存储，对于不同数据类型，采用不同压缩算法，而且由于一个数据采集点的采集量的变化是缓慢的，压缩率更高。
+## Subtable
 
-如果采用传统的方式，将多个设备的数据写入一张表，由于网络延时不可控，不同设备的数据到达服务器的时序是无法保证的，写入操作是要有锁保护的，而且一个设备的数据是难以保证连续存储在一起的。**采用一个数据采集点一张表的方式，能最大程度的保证单个数据采集点的插入和查询的性能是最优的。**
+When creating a table for a specific data collection point, the user can use a STable as a template and specifies the tag value of this specific DCP to create it. **The table created by using a STable as the template is called subtable** in TDengine system. The difference between regular table and subtable is: 
+1. Subtable is a table, all SQL commands applied on a regular table can be applied on subtable.
+2. Subtable is a table with extension, it has static tags(labels), and these tags can be added, deleted, and updated afterward. But regular table does not have tags.
+3. A subtable belongs to only one STable, but a STable may have many subtables. Regular table does not belong to any STable.
+4. A regular table could not converted into a subtable, and vice versa. 
 
-TDengine 建议用数据采集点的名字（如上表中的 D1001）来做表名。每个数据采集点可能同时采集多个物理量（如上表中的 curent，voltage，phase），每个物理量对应一张表中的一列，数据类型可以是整型、浮点型、字符串等。除此之外，表的第一列必须是时间戳，即数据类型为 timestamp。对采集的数据，TDengine 将自动按照时间戳建立索引，但对采集的物理量不建任何索引。数据用列式存储方式保存。
+The relationship between a STable and the subtables created based on this STable is as follows:
 
-对于复杂的设备，比如汽车，它有多个数据采集点，那么就需要为一台汽车建立多张表。
+1. A STable contains multiple subtables with the same metric schema but with different tag values.
+2. The schema of metrics or labels cannot be adjusted through subtables, and it can only be changed via STable. Changes to the schema of a STable takes effect immediately for all belonged subtables.
+3. STable defines only one template and does not store any data or label information by itself. Therefore, data cannot be written to a STable, only to subtables.
 
-## 超级表：同一类型数据采集点的集合
+Query can be executed on both table(subtable) and STable. For a query on a STable, TDengine will treat the data in all its subtables as a whole data set for processing. TDengine will first find out the subtables that meet the tag filter conditions, then scan the time-series data of these subtables to perform aggregation operation, which can greatly reduce the data sets to be scanned, thus greatly improving the performance of data aggregation across multiple DCPs.
 
-由于一个数据采集点一张表，导致表的数量巨增，难以管理，而且应用经常需要做采集点之间的聚合操作，聚合的操作也变得复杂起来。为解决这个问题，TDengine 引入超级表（Super Table，简称为 STable）的概念。
+In TDengine system, it is recommend to use a substable instead of a regular table for a DCP. 
 
-超级表是指某一特定类型的数据采集点的集合。同一类型的数据采集点，其表的结构是完全一样的，但每个表（数据采集点）的静态属性（标签）是不一样的。描述一个超级表（某一特定类型的数据采集点的集合），除需要定义采集量的表结构之外，还需要定义其标签的 schema，标签的数据类型可以是整数、浮点数、字符串，标签可以有多个，可以事后增加、删除或修改。如果整个系统有 N 个不同类型的数据采集点，就需要建立 N 个超级表。
+## Database
 
-在 TDengine 的设计里，**表用来代表一个具体的数据采集点，超级表用来代表一组相同类型的数据采集点集合**。当为某个具体数据采集点创建表时，用户使用超级表的定义做模板，同时指定该具体采集点（表）的标签值。与传统的关系型数据库相比，表（一个数据采集点）是带有静态标签的，而且这些标签可以事后增加、删除、修改。超级表与与基于超级表建立的子表之间的关系表现在：
+A database is a collection of tables. TDengine allows a running instance to have multiple databases, and each database can be configured with different storage policies. Different types of DCPs often have different data characteristics, including the frequency of data collection, data retention time, the number of replications, the size of data blocks, whether data is allowed to be updated, and so on. In order for TDengine to work with maximum efficiency in various scenarios, TDengine recommends that STables with different data characteristics be created in different databases.
 
-1. 一张超级表包含有多张子表，这些子表具有相同的采集量 schema，但带有不同的标签值。
-2. 不能通过子表调整数据或标签的模式，对于超级表的数据模式修改立即对所有的子表生效。
-3. 超级表只定义一个模板，自身不存储任何数据或标签信息。因此，不能向一个超级表写入数据，只能将数据写入子表中。
-
-针对超级表的查询，TDengine将把所有子表中的数据视为一个整体数据集进行处理，会先把满足标签过滤条件的表从超级表中找出来，然后再扫描这些表的时序数据，进行聚合操作，这样需要扫描的数据集会大幅减少，从而显著提高查询的性能。本质上，TDengine通过对超级表查询的支持，实现了多个同类数据采集点的高效聚合。
+In a database, there can be one or more STables, but a STable belongs to only one database. All tables owned by a STable are stored in only one database.
 
 ## FQDN & End Point
 
-FQDN (fully qualified domain name, 完全限定域名)是 Internet 上特定计算机或主机的完整域名。FQDN由两部分组成:主机名和域名。例如，假设邮件服务器的FQDN可能是mail.tdengine.com。主机名是mail，主机位于域名tdengine.com中。DNS(Domain Name System)，负责将FQDN翻译成IP，是互联网应用的寻址方式。对于没有DNS的系统，可以通过配置hosts文件来解决。
+FQDN (Fully Qualified Domain Name) is the full domain name of a specific computer or host on the Internet. FQDN consists of two parts: hostname and domain name. For example, the FQDN of a mail server might be mail.tdengine.com. The hostname is mail, and the host is located in the domain name tdengine.com. DNS (Domain Name System) is responsible for translating FQDN into IP. For systems without DNS, it can be solved by configuring the hosts file.
 
-TDengine集群的每个节点是由End Point来唯一标识的，End Point是由 FQDN 外加 Port 组成，比如 h1.tdengine.com:6030。这样当IP发生变化的时候，我们依然可以使用 FQDN 来动态找到节点，不需要更改集群的任何配置。而且采用 FQDN，便于内网和外网对同一个集群的统一访问。
+Each node of a TDengine cluster is uniquely identified by an End Point, which consists of an FQDN and a Port, such as h1.tdengine.com:6030. In this way, when the IP changes, we can still use the FQDN to dynamically find the node without changing any configuration of the cluster. In addition, FQDN is used to facilitate unified access to the same cluster from the Intranet and the Internet.
 
-TDengine 不建议采用直接的IP地址访问集群，不利于管理。不了解 FQDN 概念，请看博文[《一篇文章说清楚 TDengine 的 FQDN》](https://www.taosdata.com/blog/2020/09/11/1824.html)。
+TDengine does not recommend using IP address to access the cluster, which is not good for cluster management.

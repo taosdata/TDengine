@@ -1,85 +1,85 @@
 ---
-title: TDengine 命令行(CLI)
+title: TDengine Command Line (CLI)
 sidebar_label: TDengine CLI
-description: TDengine CLI 的使用说明和技巧
+description: Instructions and tips for using the TDengine CLI
 ---
 
-TDengine 命令行程序（以下简称 TDengine CLI）是用户操作 TDengine 实例并与之交互的最简洁最常用的方式。
+The TDengine command-line application (hereafter referred to as TDengine CLI) is the cleanest and most common way for users to manipulate and interact with TDengine instances.
 
-## 安装
+## Installation
 
-如果在 TDengine 服务器端执行，无需任何安装，已经自动安装好。如果要在非 TDengine 服务器端运行，需要安装 TDengine 客户端驱动，具体安装，请参考 [连接器](/reference/connector/)。
+If executed on the TDengine server-side, there is no need for additional installation as it is already installed automatically. To run on the non-TDengine server-side, the TDengine client driver needs to be installed. For details, please refer to [connector](/reference/connector/).
 
-## 执行
+## Execution
 
-要进入 TDengine CLI，您只要在 Linux 终端或Windos 终端执行 `taos` 即可。
+To access the TDengine CLI, you can execute `taos` from a Linux terminal or Windows terminal.
 
 ```bash
 taos
 ```
-如果连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印错误消息出来（请参考 [FAQ](/train-faq/faq) 来解决终端连接服务端失败的问题）。TDengine CLI 的提示符号如下：
+TDengine will display a welcome message and version information if the connection to the service is successful. If it fails, TDengine will print an error message (see [FAQ](/train-faq/faq) to solve the problem of terminal connection failure to the server.) The TDengine CLI prompt symbols are as follows:
 
 ```cmd
 taos>
 ```
-进入CLI后，你可执行各种SQL语句，包括插入、查询以及各种管理命令。
+After entering the CLI, you can execute various SQL statements, including inserts, queries, and administrative commands.
 
-## 执行 SQL 脚本
+## Execute SQL scripts
 
-在 TDengine CLI 里可以通过 `source` 命令来运行 SQL 命令脚本。
+Run SQL command scripts in the TDengine CLI via the `source` command.
 
 ```sql
 taos> source <filename>;
 ```
 
-## 在线修改显示字符宽度
+## Modify display character width online
 
-可以在 TDengine CLI 里使用如下命令调整字符显示宽度
+Users can adjust the character display width in TDengine CLI with the following command:
 
 ```sql
 taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 ```
 
-如显示的内容后面以...结尾时，表示该内容已被截断，可通过本命令修改显示字符宽度以显示完整的内容。
+If the displayed content is followed by `...` you can use this command to change the display width to display the full content.
 
-## 命令行参数
+## Command Line Parameters
 
-您可通过配置命令行参数来改变 TDengine CLI 的行为。以下为常用的几个命令行参数：
+You can change the behavior of TDengine CLI by configuring command-line parameters. The following command-line arguments are commonly used.
 
-- -h, --host=HOST: 要连接的 TDengine 服务端所在服务器的 FQDN, 默认为连接本地服务
-- -P, --port=PORT: 指定服务端所用端口号
-- -u, --user=USER: 连接时使用的用户名
-- -p, --password=PASSWORD: 连接服务端时使用的密码
-- -?, --help: 打印出所有命令行参数 
+-h, --host=HOST: FQDN of the server where the TDengine server is to be connected. Default is to connect to the local service
+-P, --port=PORT: Specify the port number to be used by the server
+-u, --user=USER: the user name to use when connecting
+-p, --password=PASSWORD: the password to use when connecting to the server
+--?, --help: print out all command-line arguments 
 
-还有更多其他参数：
+And many more parameters.
 
-- -c, --config-dir: 指定配置文件目录，默认为 `/etc/taos`，该目录下的配置文件默认名称为 taos.cfg
-- -C, --dump-config: 打印 -c 指定的目录中 taos.cfg 的配置参数
-- -d, --database=DATABASE: 指定连接到服务端时使用的数据库
-- -D, --directory=DIRECTORY: 导入指定路径中的 SQL 脚本文件
-- -f, --file=FILE: 以非交互模式执行 SQL 脚本文件
-- -k, --check=CHECK: 指定要检查的表
-- -l, --pktlen=PKTLEN: 网络测试时使用的测试包大小
-- -n, --netrole=NETROLE: 网络连接测试时的测试范围，默认为 startup, 可选值为 client, server, rpc, startup, sync, speed, fqdn
-- -r, --raw-time: 将时间输出出 uint64_t
-- -s, --commands=COMMAND: 以非交互模式执行的 SQL 命令
-- -S, --pkttype=PKTTYPE: 指定网络测试所用的包类型，默认为 TCP。只有 netrole 为 speed 时既可以指定为 TCP 也可以指定为 UDP
-- -T, --thread=THREADNUM: 以多线程模式导入数据时的线程数
-- -s, --commands: 在不进入终端的情况下运行 TDengine 命令
-- -z, --timezone=TIMEZONE: 指定时区，默认为本地
-- -V, --version: 打印出当前版本号
+-c, --config-dir: Specify the configuration file directory. The default is `/etc/taos`, and the default name of the configuration file in this directory is taos.cfg
+-C, --dump-config: Print the configuration parameters of taos.cfg in the directory specified by -c
+-d, --database=DATABASE: Specify the database to use when connecting to the server
+-D, --directory=DIRECTORY: Import the SQL script file in the specified path
+-f, --file=FILE: Execute the SQL script file in non-interactive mode
+-k, --check=CHECK: Specify the table to be checked
+-l, --pktlen=PKTLEN: Test package size to be used for network testing
+-n, --netrole=NETROLE: test scope for network connection test, default is `startup`, The value can be `client`, `server`, `rpc`, `startup`, `sync`, `speed`, or `fqdn`.
+-r, --raw-time: output the time to uint64_t
+-s, --commands=COMMAND: execute SQL commands in non-interactive mode
+-S, --pkttype=PKTTYPE: Specify the packet type used for network testing. The default is TCP. only `netrole` can be specified as either TCP or UDP when speed is specified
+-T, --thread=THREADNUM: The number of threads to import data in multi-threaded mode
+-s, --commands: Run TDengine commands without entering the terminal
+-z, --timezone=TIMEZONE: Specify time zone. Default is local
+-V, --version: Print out the current version number
 
-示例：
+Example.
 
 ```bash
 taos -h h1.taos.com -s "use db; show tables;"
 ```
-## TDengine CLI 小技巧
+## TDengine CLI tips
 
-- 可以使用上下光标键查看历史输入的指令
-- 修改用户密码：在 shell 中使用 `alter user` 命令，缺省密码为 taosdata
-- ctrl+c 中止正在进行中的查询
-- 执行 `RESET QUERY CACHE` 可清除本地缓存的表 schema
-- 批量执行 SQL 语句。可以将一系列的 shell 命令（以英文 ; 结尾，每个 SQL 语句为一行）按行存放在文件里，在 shell 里执行命令 `source <file-name>` 自动执行该文件里所有的 SQL 语句
-- 输入 q 回车，退出 taos shell
+- You can use the up and down cursor keys to see the history of commands entered
+- Change user password: use `alter user` command in TDengine CLI. The default password is `taosdata`.
+- ctrl+c to stop a query in progress
+- Execute `RESET QUERY CACHE` to clear the local cache of the table schema
+- Execute SQL statements in batches. You can store a series of shell commands (ending with ;, one line for each SQL statement) in a file and execute the command `source <file-name>` in the shell to execute all SQL statements in that file automatically
+- Enter `q` to exit taos shell

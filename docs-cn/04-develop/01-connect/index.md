@@ -13,18 +13,19 @@ import ConnPythonNative from "./_connect_python.mdx";
 import ConnCSNative from "./_connect_cs.mdx";
 import ConnC from "./_connect_c.mdx";
 import ConnR from "./_connect_r.mdx";
+import ConnPHP from "./_connect_php.mdx";
 import InstallOnWindows from "../../14-reference/03-connector/_linux_install.mdx";
 import InstallOnLinux from "../../14-reference/03-connector/_windows_install.mdx";
 import VerifyLinux from "../../14-reference/03-connector/_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/_verify_windows.mdx";
 
-TDengine 提供 REST API，容许在任何平台的任何应用程序通过它访问 TDengine 运行实例，详细介绍请看 [REST API](/reference/rest-api/)。除 REST API 之外，TDengine 还提供多种编程语言的连接器方便用户开发应用程序，其中包括 C/C++、Java、Python、Go、Node.js、C# 等。 本节介绍如何使用连接器建立与 TDengine 的连接，给出连接器安装、连接的简单说明。关于各连接器的详细功能说明，请查看[连接器](https://docs.taosdata.com/reference/connector/)
+TDengine 提供了丰富的应用程序开发接口，为了便于用户快速开发自己的应用，TDengine 支持了多种编程语言的连接器，其中官方连接器包括支持 C/C++、Java、Python、Go、Node.js、C#、Rust、Lua（社区贡献）和 PHP （社区贡献）的连接器。这些连接器支持使用原生接口（taosc）和 REST 接口（部分语言暂不支持）连接 TDengine 集群。社区开发者也贡献了多个非官方连接器，例如 ADO.NET 连接器、Lua 连接器和 PHP 连接器。
 
 ## 连接器建立连接的方式
 
 连接器建立连接的方式，TDengine 提供两种:
 
-1. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称"REST 连接“
+1. 通过 taosAdapter 组件提供的 REST API 建立与 taosd 的连接，这种连接方式下文中简称“REST 连接”
 2. 通过客户端驱动程序 taosc 直接与服务端程序 taosd 建立连接，这种连接方式下文中简称“原生连接”。
 
 无论使用何种方式建立连接，连接器都提供了相同或相似的 API 操作数据库，都可以执行 SQL 语句，只是初始化连接的方式稍有不同，用户在使用上不会感到什么差别。
@@ -201,6 +202,46 @@ install.packages("RJDBC")
 <br/>
 
 </TabItem>
+<TabItem label="PHP" value="php">
+
+**下载代码并解压：**
+
+```shell
+curl -L -o php-tdengine.tar.gz https://github.com/Yurunsoft/php-tdengine/archive/refs/tags/v1.0.2.tar.gz \
+&& mkdir php-tdengine \
+&& tar -xzf php-tdengine.tar.gz -C php-tdengine --strip-components=1
+```
+
+> 版本 `v1.0.0` 可替换为任意更新的版本，可在 Release 中查看最新版本。
+
+**非 Swoole 环境：**
+
+```shell
+phpize && ./configure && make -j && make install
+```
+
+**手动指定 tdengine 目录：**
+
+```shell
+phpize && ./configure --with-tdengine-dir=/usr/local/Cellar/tdengine/2.4.0.0 && make -j && make install
+```
+
+> `--with-tdengine-dir=` 后跟上 tdengine 目录。
+> 适用于默认找不到的情况，或者 MacOS 系统用户。
+
+**Swoole 环境：**
+
+```shell
+phpize && ./configure --enable-swoole && make -j && make install
+```
+
+**启用扩展：**
+
+方法一：在 `php.ini` 中加入 `extension=tdengine`
+
+方法二：运行带参数 `php -dextension=tdengine test.php
+
+</TabItem>
 </Tabs>
 
 ## 建立连接
@@ -231,6 +272,9 @@ install.packages("RJDBC")
   </TabItem>
   <TabItem label="C" value="c">
     <ConnC />
+  </TabItem>
+  <TabItem label="PHP" value="php">
+    <ConnPHP />
   </TabItem>
 </Tabs>
 

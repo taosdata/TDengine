@@ -36,7 +36,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### 安装 TDengine
 
-从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.4.0.x 或以上版本安装。
 
 ## 数据链路设置
 
@@ -52,7 +52,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### 配置 collectd
 
-在 `/etc/collectd/collectd.conf` 文件中增加如下内容，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+在 `/etc/collectd/collectd.conf` 文件中增加如下内容，其中 `host` 和 `port` 请填写 TDengine 和 taosAdapter 配置的实际值：
 
 ```
 LoadPlugin network
@@ -65,7 +65,7 @@ sudo systemctl start collectd
 
 ### 配置 StatsD
 
-在 `config.js` 文件中增加如下内容后启动 StatsD，其中 host 和 port 请填写 TDengine 和 taosAdapter 配置的实际值：
+在 `config.js` 文件中增加如下内容后启动 StatsD，其中 `host` 和 `port` 请填写 TDengine 和 taosAdapter 配置的实际值：
 
 ```
 backends 部分添加 "./backends/repeater"
@@ -74,22 +74,22 @@ repeater 部分添加 { host:'<TDengine server/cluster host>', port: <port for S
 
 ### 导入 Dashboard
 
-使用 Web 浏览器访问运行 Grafana 的服务器的 3000 端口 host:3000 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
-点击左侧齿轮图标并选择 Plugins，应该可以找到 TDengine data source 插件图标。
+使用 Web 浏览器访问运行 Grafana 的服务器的 3000 端口 `host:3000` 登录 Grafana 界面，系统初始用户名密码为 `admin/admin`。
+点击左侧齿轮图标并选择 `Plugins`，应该可以找到 TDengine data source 插件图标。
 
 #### 导入 collectd 仪表盘
 
-从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 Import，按照界面提示选择 JSON 文件导入。之后可以看到如下界面的仪表盘：
+从 https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 `Import`，按照界面提示选择 JSON 文件导入。之后可以看到如下界面的仪表盘：
 
 ![IT-DevOps-Solutions-collectd-dashboard.png](/img/IT-DevOps-Solutions-collectd-dashboard.png)
 
 #### 导入 StatsD 仪表盘
 
-从 https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json 下载 dashboard json 文件，点击左侧加号图标并选择 Import，按照界面提示导入 JSON 文件。之后可以看到如下界面的仪表盘：
+从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json` 下载 dashboard json 文件，点击左侧加号图标并选择 `Import`，按照界面提示导入 JSON 文件。之后可以看到如下界面的仪表盘：
 ![IT-DevOps-Solutions-statsd-dashboard.png](/img/IT-DevOps-Solutions-statsd-dashboard.png)
 
 ## 总结
 
-TDengine 作为新兴的时序大数据平台，具备极强的高性能、高可靠、易管理、易维护的优势。得力于 TDengine 2.3.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统或者适配一个已存在的系统。
+TDengine 作为新兴的时序大数据平台，具备极强的高性能、高可靠、易管理、易维护的优势。得力于 TDengine 2.4.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统或者适配一个已存在的系统。
 
 TDengine 强大的数据写入查询性能和其他丰富功能请参考官方文档和产品成功落地案例。

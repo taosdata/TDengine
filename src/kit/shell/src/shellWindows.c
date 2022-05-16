@@ -1,5 +1,5 @@
 /*******************************************************************
-*           Copyright (c) 2017 by TAOS Technologies, Inc.
+*           Copyright (c) 2022 by TAOS Technologies, Inc.
 *                     All rights reserved.
 *
 *  This file is proprietary and confidential to TAOS Technologies.
@@ -22,7 +22,7 @@
 extern char configDir[];
 
 char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
-                             "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+                             "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 
 void printVersion() {
   printf("version: %s\n", version);

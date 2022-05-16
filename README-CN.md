@@ -126,7 +126,7 @@ sudo yum install zlib-devel xz-devel snappy-devel jansson jansson-devel pkgconfi
 
 注意：由于 snappy 缺乏 pkg-config 支持
 （参考 [链接](https://github.com/google/snappy/pull/86)），会导致
- cmake 提示无法发现 libsnappy，实际上工作正常。
+cmake 提示无法发现 libsnappy，实际上工作正常。
 
 ## 获取源码
 
@@ -229,13 +229,17 @@ cmake .. && cmake --build .
 
 # 安装
 
-生成完成后，安装 TDengine（下文给出的指令以 Linux 为例，如果是在 Windows 下，那么对应的指令会是 `nmake install`）：
+## Linux 系统
+
+生成完成后，安装 TDengine：
 
 ```bash
 sudo make install
 ```
 
 用户可以在[文件目录结构](https://www.taosdata.com/cn/documentation/administrator#directories)中了解更多在操作系统中生成的目录或文件。
+从 2.0 版本开始, 从源代码安装也会为 TDengine 配置服务管理。
+用户也可以选择[从安装包中安装](https://www.taosdata.com/en/getting-started/#Install-from-Package)。
 
 安装成功后，在终端中启动 TDengine 服务：
 
@@ -250,6 +254,40 @@ taos
 ```
 
 如果 TDengine Shell 连接服务成功，将会打印出欢迎消息和版本信息。如果失败，则会打印出错误消息。
+
+## Windows 系统
+
+生成完成后，安装 TDengine：
+
+```cmd
+nmake install
+```
+
+## macOS 系统
+
+生成完成后，安装 TDengine：
+
+```bash
+sudo make install
+```
+
+安装成功后，如果想以服务形式启动，先配置 `.plist` 文件，在终端中执行：
+
+```bash
+sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
+```
+
+在终端中启动 TDengine 服务：
+
+```bash
+sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
+```
+
+在终端中停止 TDengine 服务：
+
+```bash
+sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
+```
 
 ## 快速运行
 
@@ -271,7 +309,7 @@ taos
 
 在 TDengine 终端中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。
 
-```bash
+```sql
 CREATE DATABASE demo;
 USE demo;
 CREATE TABLE t (ts TIMESTAMP, speed INT);
@@ -325,8 +363,8 @@ TDengine 的测试框架和所有测试例全部开源。
 
 # 加入技术交流群
 
-TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小T为好友，即可入群。
+TDengine 官方社群「物联网大数据群」对外开放，欢迎您加入讨论。搜索微信号 "tdengine"，加小 T 为好友，即可入群。
 
-# [谁在使用TDengine](https://github.com/taosdata/TDengine/issues/2432)
+# [谁在使用 TDengine](https://github.com/taosdata/TDengine/issues/2432)
 
 欢迎所有 TDengine 用户及贡献者在 [这里](https://github.com/taosdata/TDengine/issues/2432) 分享您在当前工作中开发/使用 TDengine 的故事。
