@@ -1041,18 +1041,6 @@ static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   destroyCreateSubTbReq(&pCxt->createTblReq);
 }
 
-static void destroyDataBlock(STableDataBlocks* pDataBlock) {
-  if (pDataBlock == NULL) {
-    return;
-  }
-
-  taosMemoryFreeClear(pDataBlock->pData);
-  if (!pDataBlock->cloned) {
-    destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  }
-  taosMemoryFreeClear(pDataBlock);
-}
-
 static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyInsertParseContextForTable(pCxt);
   taosHashCleanup(pCxt->pVgroupsHashObj);
@@ -1301,6 +1289,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 
   CHECK_CODE(buildOutput(&insertCtx));
 
+  destroyInsertParseContext(&insertCtx);
   return TSDB_CODE_SUCCESS;
 }
 
