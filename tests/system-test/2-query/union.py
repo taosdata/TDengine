@@ -142,30 +142,32 @@ class TDTestCase:
         __join_tblist = self.__join_tblist
         for join_tblist in __join_tblist:
             for join_tb in join_tblist:
-                select_claus = self.__query_condition(join_tb)
-                group_claus = self.__group_condition(tbname=join_tb, col=select_claus)
-                where_claus = self.__where_condition(query_conditon=select_claus)
-                having_claus = self.__group_condition(tbname=join_tb, col=select_claus, having=f"{select_claus} is not null")
-                sqls.extend(
-                    (
-                        self.__single_sql(select_claus, join_tb, where_claus, group_claus),
-                        self.__single_sql(select_claus, join_tb, where_claus, having_claus),
-                        self.__single_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
-                        self.__single_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
+                select_claus_list = self.__query_condition(join_tb)
+                for select_claus in select_claus_list:
+                    group_claus = self.__group_condition(tbname=join_tb, col=select_claus)
+                    where_claus = self.__where_condition(query_conditon=select_claus)
+                    having_claus = self.__group_condition(tbname=join_tb, col=select_claus, having=f"{select_claus} is not null")
+                    sqls.extend(
+                        (
+                            self.__single_sql(select_claus, join_tb, where_claus, group_claus),
+                            self.__single_sql(select_claus, join_tb, where_claus, having_claus),
+                            self.__single_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
+                            self.__single_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
+                        )
                     )
-                )
         __no_join_tblist = self.__tb_liast
         for tb in __no_join_tblist:
-                select_claus = self.__query_condition(tb)
-                group_claus = self.__group_condition(tbname=tb, col=select_claus)
-                where_claus = self.__where_condition(query_conditon=select_claus)
-                having_claus = self.__group_condition(tbname=tb, col=select_claus, having=f"{select_claus} is not null")
-                sqls.extend(
-                    (
-                        self.__single_sql(select_claus, join_tb, where_claus, group_claus),
-                        self.__single_sql(select_claus, join_tb, where_claus, having_claus),
+                select_claus_list = self.__query_condition(tb)
+                for select_claus in select_claus_list:
+                    group_claus = self.__group_condition(tbname=tb, col=select_claus)
+                    where_claus = self.__where_condition(query_conditon=select_claus)
+                    having_claus = self.__group_condition(tbname=tb, col=select_claus, having=f"{select_claus} is not null")
+                    sqls.extend(
+                        (
+                            self.__single_sql(select_claus, join_tb, where_claus, group_claus),
+                            self.__single_sql(select_claus, join_tb, where_claus, having_claus),
+                        )
                     )
-                )
 
         return sqls
 
