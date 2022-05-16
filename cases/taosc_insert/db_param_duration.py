@@ -11,39 +11,78 @@
 
 # -*- coding: utf-8 -*-
 
+import json
+import re
 from taostest import TDCase, T
 from taostest.util.common import TDCom
+from taostest.util.remote import Remote
+
 
 class TestDuration(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
+        self._remote: Remote = Remote(self.logger)
+        for env_setting in self.env_setting["settings"]:
+            if env_setting["name"].lower() == "taosd":
+                self.taosd_setting = env_setting
+                self.fqdn = self.taosd_setting["fqdn"][0]
+                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
 
     def duration_check(self):
         """
         duration check
         """
-        test_param = "duration"
+        test_param = "days"
+        test_param_bak = "duration"
         # default
         default_value = 14400
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'create database if not exists {dbname}')
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-        self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], default_value)
+        self.tdSql.query(f'show {dbname}.vgroups')
+        db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
+        file = open(f"{self.vnode_dir}/vnode.json")
+        data = json.load(file)
+        # print(data['config']['daysPerFile'])
+        self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
-        param_value_list = [60, 5256000]
+        # without unit
+        param_value_list = [1, 3650,'60m','5256000m','1h','87600h','1d','3650d']
         for param_value in param_value_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
-            self.tdSql.execute(f'create database if not exists {dbname} days {param_value}')
+            self.tdSql.execute(f'create database if not exists {dbname}  {test_param} {param_value}')
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
-            self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            if param_value == 1 or param_value == 3650: # days
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], param_value*60*24)
+            elif param_value == '60m' or param_value == '5256000m': # minutes
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)))
+            elif param_value == '1h' or param_value =='87600h': # hours
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60)
+            elif param_value == '1d' or param_value == '3650d':
+                self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60 *24)
+            self.tdSql.query(f'show {dbname}.vgroups')
+            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
+            file = open(f"{self.vnode_dir}/vnode.json")
+            data = json.load(file)
+            print(data['config']['daysPerFile'])
+            self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
-
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} -1')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 3651')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 59m')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 5256001m')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 0h')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} 87601h')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} "0d"')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} "3651d"')
+        
     def run(self) -> bool:
         self.duration_check()
 
@@ -53,11 +92,12 @@ class TestDuration(TDCase):
     def desc(self) -> str:
         case_description = """
             duration check <jayden>: [TD-14991] : duration check;
+            duration check <jiacy> : [TD-15381] : duration check for taosd;
             """
         return case_description
 
     def author(self) -> str:
-        return "Jayden"
+        return "Jayden,Jiacy"
 
     def tags(self):
         return T.Write.TaoscSql.Database.Create, T.Write.TaoscSql.Database.Alter
