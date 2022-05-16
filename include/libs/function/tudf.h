@@ -122,7 +122,7 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 
-int32_t teardownUdfs();
+int32_t cleanUpUdfs();
 // end API to taosd and qworker
 //=============================================================================================================================
 // begin API to UDF writer.
