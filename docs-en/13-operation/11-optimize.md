@@ -1,5 +1,4 @@
 ---
-sidebar_label: Optimize
 title: Optimize Performance
 ---
 

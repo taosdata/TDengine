@@ -1,9 +1,6 @@
 ---
-sidebar_label: Keywords 
-title: Reserved Keywords
+title: Keywords
 ---
-
-## Reserved Keywords
 
 There are about 200 keywords reserved by TDengine, they can't be used as the name of database, STable or table with either upper case, lower case or mixed case.
 

@@ -1,5 +1,4 @@
 ---
-sidebar_label: Monitor
 title: Monitor TDengine
 ---
 

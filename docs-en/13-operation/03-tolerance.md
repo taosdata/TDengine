@@ -1,6 +1,6 @@
 ---
-sidebar_label: Tolerance
-title: Fault Tolerance and Disaster Recovery
+sidebar_label: Fault Tolerance
+title: Fault Tolerance & Disaster Recovery
 ---
 
 ## Fault Tolerance

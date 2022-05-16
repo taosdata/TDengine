@@ -1,5 +1,4 @@
 ---
-sidebar_label: JSON
 title: JSON Type
 ---
 

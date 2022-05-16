@@ -1,5 +1,4 @@
 ---
-sidebar_label: Export
 title: Export Data
 ---
 
