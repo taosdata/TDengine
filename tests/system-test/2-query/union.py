@@ -137,7 +137,7 @@ class TDTestCase:
         return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
-        if "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
             return
         return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
 
