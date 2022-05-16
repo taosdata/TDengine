@@ -76,7 +76,7 @@
 ./test.sh -f tsim/tmq/basic1Of2Cons.sim
 ./test.sh -f tsim/tmq/basic2Of2Cons.sim
 ./test.sh -f tsim/tmq/basic3Of2Cons.sim
-#./test.sh -f tsim/tmq/basic4Of2Cons.sim
+./test.sh -f tsim/tmq/basic4Of2Cons.sim
 ./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
 ./test.sh -f tsim/tmq/topic.sim
 
@@ -86,7 +86,7 @@
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-./test.sh -f tsim/stable/show.sim
+#./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
 
