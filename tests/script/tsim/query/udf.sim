@@ -7,7 +7,7 @@ system sh/cfg.sh -n dnode1 -c udf -v 1
 
 print ========= start dnode1 as LEADER
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
+sleep 1000
 sql connect
 
 print ======== step1 udf 
