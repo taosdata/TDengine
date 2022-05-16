@@ -131,6 +131,75 @@ _err:
   return -1;
 }
 
+int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
+  SMetaEntry  oStbEntry = {0};
+  SMetaEntry  nStbEntry = {0};
+  TDBC       *pUidIdxc = NULL;
+  TDBC       *pTbDbc = NULL;
+  const void *pData;
+  int         nData;
+  int64_t     oversion;
+  SDecoder    dc = {0};
+  int32_t     ret;
+  int32_t     c;
+
+  tdbDbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
+  if (ret < 0 || c) {
+    ASSERT(0);
+    return -1;
+  }
+
+  ret = tdbDbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
+  if (ret < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  oversion = *(int64_t *)pData;
+
+  tdbDbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
+  ret = tdbDbcMoveTo(pTbDbc, &((STbDbKey){.uid = pReq->suid, .version = oversion}), sizeof(STbDbKey), &c);
+  ASSERT(ret == 0 && c == 0);
+
+  ret = tdbDbcGet(pTbDbc, NULL, NULL, &pData, &nData);
+  ASSERT(ret == 0);
+
+  tDecoderInit(&dc, pData, nData);
+  metaDecodeEntry(&dc, &oStbEntry);
+
+  nStbEntry.version = version;
+  nStbEntry.type = TSDB_SUPER_TABLE;
+  nStbEntry.uid = pReq->suid;
+  nStbEntry.name = pReq->name;
+  nStbEntry.stbEntry.schema = pReq->schema;
+  nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
+
+  metaWLock(pMeta);
+  // compare two entry
+  if (oStbEntry.stbEntry.schema.sver != pReq->schema.sver) {
+    if (oStbEntry.stbEntry.schema.nCols != pReq->schema.nCols) {
+      metaSaveToSkmDb(pMeta, &nStbEntry);
+    }
+  }
+
+  // if (oStbEntry.stbEntry.schemaTag.sver != pReq->schemaTag.sver) {
+  //   // change tag schema
+  // }
+
+  // update table.db
+  metaSaveToTbDb(pMeta, &nStbEntry);
+
+  // update uid index
+  tdbDbcUpsert(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &version, sizeof(version), 0);
+
+  metaULock(pMeta);
+  tDecoderClear(&dc);
+  tdbDbcClose(pTbDbc);
+  tdbDbcClose(pUidIdxc);
+  return 0;
+}
+
 int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   SMetaEntry  me = {0};
   SMetaReader mr = {0};
