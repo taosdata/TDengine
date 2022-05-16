@@ -240,6 +240,7 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
     me.ntbEntry.schema = pReq->ntb.schema;
+    me.ntbEntry.ncid = me.ntbEntry.schema.pSchema[me.ntbEntry.schema.nCols - 1].colId + 1;
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -372,6 +373,170 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   }
 
   return 0;
+}
+
+static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  void           *pVal = NULL;
+  int             nVal = 0;
+  const void     *pData = NULL;
+  int             nData = 0;
+  int             ret = 0;
+  tb_uid_t        uid;
+  int64_t         oversion;
+  SSchema        *pColumn = NULL;
+  SMetaEntry      entry = {0};
+  SSchemaWrapper *pSchema;
+  int             c;
+
+  // search name index
+  ret = tdbDbGet(pMeta->pNameIdx, pAlterTbReq->tbName, strlen(pAlterTbReq->tbName) + 1, &pVal, &nVal);
+  if (ret < 0) {
+    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+    return -1;
+  }
+
+  uid = *(tb_uid_t *)pVal;
+  tdbFree(pVal);
+  pVal = NULL;
+
+  // search uid index
+  TDBC *pUidIdxc = NULL;
+
+  tdbDbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
+  tdbDbcMoveTo(pUidIdxc, &uid, sizeof(uid), &c);
+  ASSERT(c == 0);
+
+  tdbDbcGet(pUidIdxc, NULL, NULL, &pData, &nData);
+  oversion = *(int64_t *)pData;
+
+  // search table.db
+  TDBC *pTbDbc = NULL;
+
+  tdbDbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
+  tdbDbcMoveTo(pTbDbc, &((STbDbKey){.uid = uid, .version = oversion}), sizeof(STbDbKey), &c);
+  ASSERT(c == 0);
+  tdbDbcGet(pTbDbc, NULL, NULL, &pData, &nData);
+
+  // get table entry
+  SDecoder dc = {0};
+  tDecoderInit(&dc, pData, nData);
+  metaDecodeEntry(&dc, &entry);
+
+  if (entry.type != TSDB_NORMAL_TABLE) {
+    terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+    goto _err;
+  }
+
+  // search the column to add/drop/update
+  pSchema = &entry.ntbEntry.schema;
+  int32_t iCol = 0;
+  for (;;) {
+    pColumn = NULL;
+
+    if (iCol >= pSchema->nCols) break;
+    pColumn = &pSchema->pSchema[iCol];
+
+    if (strcmp(pColumn->name, pAlterTbReq->colName) == 0) break;
+    iCol++;
+  }
+
+  entry.version = version;
+  int tlen;
+  switch (pAlterTbReq->action) {
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+      if (pColumn) {
+        terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
+        goto _err;
+      }
+      pSchema->sver++;
+      pSchema->nCols++;
+      pSchema->pSchema =
+          taosMemoryRealloc(entry.ntbEntry.schema.pSchema, sizeof(SSchema) * entry.ntbEntry.schema.nCols);
+      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].bytes = pAlterTbReq->bytes;
+      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].type = pAlterTbReq->type;
+      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].flags = pAlterTbReq->flags;
+      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].colId = entry.ntbEntry.ncid++;
+      strcpy(pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].name, pAlterTbReq->colName);
+      break;
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+      if (pColumn == NULL) {
+        terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
+        goto _err;
+      }
+      if (pColumn->colId == 0) {
+        terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+        goto _err;
+      }
+      pSchema->sver++;
+      pSchema->nCols--;
+      tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
+      if (tlen) {
+        memmove(pColumn, pColumn + 1, tlen);
+      }
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      if (pColumn == NULL) {
+        terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
+        goto _err;
+      }
+      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes <= pAlterTbReq->bytes) {
+        terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+        goto _err;
+      }
+      pSchema->sver++;
+      pColumn->bytes = pAlterTbReq->bytes;
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      if (pColumn == NULL) {
+        terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
+        goto _err;
+      }
+      pSchema->sver++;
+      strcpy(pColumn->name, pAlterTbReq->colNewName);
+      break;
+  }
+
+  entry.version = version;
+
+  tDecoderClear(&dc);
+  tdbDbcClose(pTbDbc);
+  tdbDbcClose(pUidIdxc);
+  return 0;
+
+_err:
+  tDecoderClear(&dc);
+  tdbDbcClose(pTbDbc);
+  tdbDbcClose(pUidIdxc);
+  return -1;
+}
+
+static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  // TODO
+  return 0;
+}
+
+static int metaUpdateTableOptions(SMeta *pMeta, int64_t version, SVAlterTbReq *pAlterTbReq) {
+  // TODO
+  ASSERT(0);
+  return 0;
+}
+
+int metaAlterTable(SMeta *pMeta, int64_t version, SVAlterTbReq *pReq) {
+  switch (pReq->action) {
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      return metaAlterTableColumn(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
+      return metaUpdateTableTagVal(pMeta, version, pReq);
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      return metaUpdateTableOptions(pMeta, version, pReq);
+    default:
+      terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
+      return -1;
+      break;
+  }
 }
 
 static int metaSaveToTbDb(SMeta *pMeta, const SMetaEntry *pME) {
