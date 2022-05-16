@@ -773,7 +773,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
 
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
     STableQueryInfo* pTableQueryInfo = pInfo->pCurrent;
@@ -1062,8 +1061,6 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
     // The timewindows that overlaps the timestamps of the input pBlock need to be recalculated and return to the
     // caller. Note that all the time window are not close till now.
-
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
     if (pInfo->invertible) {
@@ -1377,7 +1374,6 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
 
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pIntervalInfo->pCtx, pOperator->numOfExprs);
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pSliceInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
     //    hashAllIntervalAgg(pOperator, &pSliceInfo->binfo.resultRowInfo, pBlock, 0);
