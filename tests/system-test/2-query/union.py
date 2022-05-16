@@ -86,7 +86,7 @@ class TDTestCase:
         join_condition = table_reference
         join = "inner join" if INNER else "join"
         for i in range(len(tb_list[1:])):
-            join_condition += f"{join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
+            join_condition += f" {join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
 
         return join_condition
 
