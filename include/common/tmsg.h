@@ -1764,18 +1764,15 @@ int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 typedef struct {
   const char* tbName;
   int8_t      action;
+  const char* colName;
   // TSDB_ALTER_TABLE_ADD_COLUMN
-  int8_t      type;
-  int8_t      flags;
-  int32_t     bytes;
-  const char* colAddName;
+  int8_t  type;
+  int8_t  flags;
+  int32_t bytes;
   // TSDB_ALTER_TABLE_DROP_COLUMN
-  const char* colDropName;
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
-  const char* colModName;
-  int32_t     colModBytes;
+  int32_t colModBytes;
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
-  const char* colOldName;
   const char* colNewName;
   // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
   const char*    tagName;
