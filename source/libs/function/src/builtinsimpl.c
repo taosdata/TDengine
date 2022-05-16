@@ -2745,7 +2745,7 @@ bool getHLLFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   return true;
 }
 
-static uint8_t hllCountNum(void* data, int32_t bytes, int32_t *buk) {
+static uint8_t hllCountNum(char *data, int32_t bytes, int32_t *buk) {
   uint64_t hash = MurmurHash3_64(data, bytes);
   int32_t index = hash & HLL_BUCKET_MASK;
   hash >>= HLL_BUCKET_BITS;

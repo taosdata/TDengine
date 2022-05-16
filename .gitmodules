@@ -13,6 +13,6 @@
 [submodule "examples/rust"]
 	path = examples/rust
 	url = https://github.com/songtianyi/tdengine-rust-bindings.git
-[submodule "tools/taos-tools"]
-	path = tools/taos-tools
-	url = https://github.com/taosdata/taos-tools
+#[submodule "tools/taos-tools"]
+    #path = tools/taos-tools
+    #url = https://github.com/taosdata/taos-tools
