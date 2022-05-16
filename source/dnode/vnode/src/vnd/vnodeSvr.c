@@ -711,15 +711,22 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
     goto _err;
   }
 
-  if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
+  // record current timezone of server side
+  req.timezoneInt = tsTimezone;
+
+  if (tdProcessTSmaCreate(pVnode->pSma, version, (const char *)&req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
 
   tDecoderClear(&coder);
+  vDebug("vgId:%d success to create tsma %s:%" PRIi64 " for table %" PRIi64, TD_VID(pVnode), req.indexName,
+         req.indexUid, req.tableUid);
   return 0;
 
 _err:
   tDecoderClear(&coder);
+  vError("vgId:%d failed to create tsma %s:%" PRIi64 " for table %" PRIi64 " since %s", TD_VID(pVnode), req.indexName,
+         req.indexUid, req.tableUid, terrstr(terrno));
   return -1;
 }

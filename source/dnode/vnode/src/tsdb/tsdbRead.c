@@ -2760,7 +2760,7 @@ static int32_t getAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
     taosArrayPush(list, &info);
   }
 
-  metaCloseCtbCurosr(pCur);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 

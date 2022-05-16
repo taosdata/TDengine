@@ -2255,20 +2255,22 @@ static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
   if (pSW) {
     if (pSW->tSma) {
-      for (uint32_t i = 0; i < pSW->number; ++i) {
-        tdDestroyTSma(pSW->tSma + i);
+      if (deepCopy) {
+        for (uint32_t i = 0; i < pSW->number; ++i) {
+          tdDestroyTSma(pSW->tSma + i);
+        }
       }
       taosMemoryFreeClear(pSW->tSma);
     }
   }
 }
 
-static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW) {
-  tdDestroyTSmaWrapper(pSW);
-  taosMemoryFree(pSW);
+static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+  tdDestroyTSmaWrapper(pSW, deepCopy);
+  taosMemoryFreeClear(pSW);
   return NULL;
 }
 
