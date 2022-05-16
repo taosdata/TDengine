@@ -258,8 +258,8 @@ static int32_t taosProcQueuePop(SProcQueue *pQueue, void **ppHead, int16_t *pHea
   int16_t headLen = CEIL8(rawHeadLen);
   int32_t bodyLen = CEIL8(rawBodyLen);
 
-  void *pHead = (*mallocHeadFp)(headLen);
-  void *pBody = (*mallocBodyFp)(bodyLen);
+  void *pHead = (*mallocHeadFp)(headLen, RPC_QITEM);
+  void *pBody = (*mallocBodyFp)(bodyLen, RPC_QITEM);
   if (pHead == NULL || pBody == NULL) {
     taosThreadMutexUnlock(&pQueue->mutex);
     tsem_post(&pQueue->sem);

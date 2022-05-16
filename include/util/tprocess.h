@@ -17,6 +17,7 @@
 #define _TD_UTIL_PROCESS_H_
 
 #include "os.h"
+#include "tqueue.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -25,7 +26,7 @@ extern "C" {
 typedef enum { PROC_FUNC_REQ = 1, PROC_FUNC_RSP, PROC_FUNC_REGIST, PROC_FUNC_RELEASE } EProcFuncType;
 
 typedef struct SProcObj SProcObj;
-typedef void *(*ProcMallocFp)(int32_t contLen);
+typedef void *(*ProcMallocFp)(int32_t contLen, EQItype itype);
 typedef void *(*ProcFreeFp)(void *pCont);
 typedef void (*ProcConsumeFp)(void *parent, void *pHead, int16_t headLen, void *pBody, int32_t bodyLen,
                               EProcFuncType ftype);

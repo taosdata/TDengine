@@ -13,35 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_VNODE_TSDB_SMA_H_
-#define _TD_VNODE_TSDB_SMA_H_
+#include "sma.h"
 
-#include "tsdb.h"
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+// TODO: Who is responsible for resource allocate and release?
+int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg) {
+  int32_t code = TSDB_CODE_SUCCESS;
 
-// typedef int32_t (*__tb_ddl_fn_t)(void *ahandle, void **result, void *p1, void *p2);
-
-// struct STbDdlH {
-//   void         *ahandle;
-//   void         *result;
-//   __tb_ddl_fn_t fp;
-// };
-
-static FORCE_INLINE int32_t tsdbUidStoreInit(STbUidStore **pStore) {
-  ASSERT(*pStore == NULL);
-  *pStore = taosMemoryCalloc(1, sizeof(STbUidStore));
-  if (*pStore == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return TSDB_CODE_FAILED;
+  if ((code = tdProcessTSmaInsertImpl(pSma, indexUid, msg)) < 0) {
+    smaWarn("vgId:%d insert tsma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
   }
-  return TSDB_CODE_SUCCESS;
+  // TODO: destroy SSDataBlocks(msg)
+  return code;
 }
 
-#ifdef __cplusplus
-}
-#endif
 
-#endif /*_TD_VNODE_TSDB_SMA_H_*/

@@ -9,7 +9,6 @@
 #include "tdef.h"
 #include "tlog.h"
 #include "tmsg.h"
-#include "tstrbuild.h"
 #include "ttime.h"
 #include "ttypes.h"
 #include "tcommon.h"
@@ -25,6 +24,35 @@
 #define QUOTE '"'
 #define SLASH '\\'
 #define tsMaxSQLStringLen (1024*1024)
+
+#define JUMP_SPACE(sql) while (*sql != '\0'){if(*sql == SPACE) sql++;else break;}
+// comma ,
+#define IS_SLASH_COMMA(sql) (*(sql) == COMMA && *((sql) - 1) == SLASH)
+#define IS_COMMA(sql) (*(sql) == COMMA && *((sql) - 1) != SLASH)
+// space
+#define IS_SLASH_SPACE(sql) (*(sql) == SPACE && *((sql) - 1) == SLASH)
+#define IS_SPACE(sql) (*(sql) == SPACE && *((sql) - 1) != SLASH)
+// equal =
+#define IS_SLASH_EQUAL(sql) (*(sql) == EQUAL && *((sql) - 1) == SLASH)
+#define IS_EQUAL(sql) (*(sql) == EQUAL && *((sql) - 1) != SLASH)
+// quote "
+#define IS_SLASH_QUOTE(sql) (*(sql) == QUOTE && *((sql) - 1) == SLASH)
+#define IS_QUOTE(sql) (*(sql) == QUOTE && *((sql) - 1) != SLASH)
+// SLASH
+#define IS_SLASH_SLASH(sql) (*(sql) == SLASH && *((sql) - 1) == SLASH)
+
+#define IS_SLASH_LETTER(sql) (IS_SLASH_COMMA(sql) || IS_SLASH_SPACE(sql) || IS_SLASH_EQUAL(sql) || IS_SLASH_QUOTE(sql) || IS_SLASH_SLASH(sql))
+
+#define MOVE_FORWARD_ONE(sql,len) (memmove((void*)((sql) - 1), (sql), len))
+
+#define PROCESS_SLASH(key,keyLen)       \
+for (int i = 1; i < keyLen; ++i) {      \
+  if(IS_SLASH_LETTER(key+i)){           \
+    MOVE_FORWARD_ONE(key+i, keyLen-i);  \
+    i--;                                \
+    keyLen--;                           \
+  }                                     \
+}
 
 #define OTD_MAX_FIELDS_NUM      2
 #define OTD_JSON_SUB_FIELDS_NUM 2
@@ -42,6 +70,7 @@
 
 #define BINARY_ADD_LEN 2        // "binary"   2 means " "
 #define NCHAR_ADD_LEN 3         // L"nchar"   3 means L" "
+#define CHAR_SAVE_LENGTH 8
 //=================================================================================================
 typedef TSDB_SML_PROTOCOL_TYPE SMLProtocolType;
 
@@ -231,7 +260,7 @@ static int32_t smlBuildColumnDescription(SSmlKv* field, char* buf, int32_t bufSi
   char    tname[TSDB_TABLE_NAME_LEN] = {0};
   memcpy(tname, field->key, field->keyLen);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
-    int32_t bytes = field->length;   // todo
+    int32_t bytes = field->length > CHAR_SAVE_LENGTH ? (2*field->length) : CHAR_SAVE_LENGTH;
     int out = snprintf(buf, bufSize,"`%s` %s(%d)",
                        tname, tDataTypes[field->type].name, bytes);
     *outBytes = out;
@@ -431,7 +460,7 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     SEpSet ep = getEpSet_s(&info->taos->pAppInfo->mgmtEp);
 
     size_t superTableLen = 0;
-    void *superTable = taosHashGetKey(tableMetaSml, &superTableLen);    // todo escape
+    void *superTable = taosHashGetKey(tableMetaSml, &superTableLen);
     SName pName = {TSDB_TABLE_NAME_T, info->taos->acctId, {0}, {0}};
     strcpy(pName.dbname, info->pRequest->pDb);
     memcpy(pName.tname, superTable, superTableLen);
@@ -439,7 +468,9 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
     code = catalogGetSTableMeta(info->pCatalog, info->taos->pAppInfo->pTransporter, &ep, &pName, &pTableMeta);
 
     if (code == TSDB_CODE_PAR_TABLE_NOT_EXIST || code == TSDB_CODE_MND_INVALID_STB) {
-      SSchemaAction schemaAction = { .action = SCHEMA_ACTION_CREATE_STABLE, .createSTable = {0}};
+      SSchemaAction schemaAction;
+      schemaAction.action = SCHEMA_ACTION_CREATE_STABLE;
+      memset(&schemaAction.createSTable, 0, sizeof(SCreateSTableActionInfo));
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
       schemaAction.createSTable.tags = sTableData->tags;
       schemaAction.createSTable.fields = sTableData->cols;
@@ -455,7 +486,8 @@ static int32_t smlModifyDBSchemas(SSmlHandle* info) {
         taosHashPut(hashTmp, pTableMeta->schema[i].name, strlen(pTableMeta->schema[i].name), &i, SHORT_BYTES);
       }
 
-      SSchemaAction schemaAction = {.alterSTable = {0}};
+      SSchemaAction schemaAction;
+      memset(&schemaAction, 0, sizeof(SSchemaAction));
       memcpy(schemaAction.createSTable.sTableName, superTable, superTableLen);
       code = smlProcessSchemaAction(info, pTableMeta->schema, hashTmp, sTableData->tags, &schemaAction, true);
       if (code != TSDB_CODE_SUCCESS) {
@@ -757,7 +789,7 @@ static int64_t smlParseInfluxTime(SSmlHandle* info, const char* data, int32_t le
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp precision", NULL);
     return -1;
   }
-  if(!data){
+  if(len == 0){
     return smlGetTimeNow(tsType);
   }
 
@@ -847,66 +879,56 @@ static bool smlParseValue(SSmlKv *pVal, SSmlMsgBuf *msg) {
 
 static int32_t smlParseInfluxString(const char* sql, SSmlLineInfo *elements, SSmlMsgBuf *msg){
   if(!sql) return TSDB_CODE_SML_INVALID_DATA;
-  while (*sql != '\0') {           // jump the space at the begining
-    if(*sql != SPACE) {
-      elements->measure = sql;
-      break;
-    }
-    sql++;
-  }
-  if (!elements->measure || *sql == COMMA) {
-    smlBuildInvalidDataMsg(msg, "invalid data", sql);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
+  JUMP_SPACE(sql)
+  if(*sql == COMMA) return TSDB_CODE_SML_INVALID_DATA;
+  elements->measure = sql;
 
-  // parse measure and tag
+  // parse measure
   while (*sql != '\0') {
-    if (elements->measureLen == 0 && *sql == COMMA && *(sql - 1) != SLASH) {  // find the first comma
-      elements->measureLen = sql - elements->measure;
-      sql++;
-      elements->tags = sql;
+    if((sql != elements->measure) && IS_SLASH_LETTER(sql)){
+      MOVE_FORWARD_ONE(sql,strlen(sql) + 1);
       continue;
     }
-
-    if (*sql == SPACE && *(sql - 1) != SLASH) {   // find the first space
-      if (elements->measureLen == 0) {
-        elements->measureLen = sql - elements->measure;
-        elements->tags = sql;
-      }
-      elements->tagsLen = sql - elements->tags;
-      elements->measureTagsLen = sql - elements->measure;
+    if(IS_COMMA(sql)){
       break;
     }
 
+    if(IS_SPACE(sql)){
+      break;
+    }
     sql++;
   }
-  if(elements->tagsLen == 0){     // measure, cols1=a         measure cols1=a
-    elements->measureTagsLen = elements->measureLen;
-  }
+  elements->measureLen = sql - elements->measure;
   if(elements->measureLen == 0) {
-    smlBuildInvalidDataMsg(msg, "invalid measure", elements->measure);
+    smlBuildInvalidDataMsg(msg, "measure is empty", NULL);
     return TSDB_CODE_SML_INVALID_DATA;
   }
+
+  // parse tag
+  if(*sql == SPACE){
+    elements->tagsLen = 0;
+  }else{
+    if(*sql == COMMA) sql++;
+    elements->tags = sql;
+    while (*sql != '\0') {
+      if(IS_SPACE(sql)){
+        break;
+      }
+      sql++;
+    }
+    elements->tagsLen = sql - elements->tags;
+  }
+  elements->measureTagsLen = sql - elements->measure;
 
   // parse cols
-  while (*sql != '\0') {
-    if(*sql != SPACE) {
-      elements->cols = sql;
-      break;
-    }
-    sql++;
-  }
-  if(!elements->cols) {
-    smlBuildInvalidDataMsg(msg, "invalid columns", elements->cols);
-    return TSDB_CODE_SML_INVALID_DATA;
-  }
-
+  JUMP_SPACE(sql)
+  elements->cols = sql;
   bool isInQuote = false;
   while (*sql != '\0') {
-    if(*sql == QUOTE && *(sql - 1) != SLASH){
+    if(IS_QUOTE(sql)){
       isInQuote = !isInQuote;
     }
-    if(!isInQuote && *sql == SPACE && *(sql - 1) != SLASH) {
+    if(!isInQuote && IS_SPACE(sql)){
       break;
     }
     sql++;
@@ -916,20 +938,21 @@ static int32_t smlParseInfluxString(const char* sql, SSmlLineInfo *elements, SSm
     return TSDB_CODE_SML_INVALID_DATA;
   }
   elements->colsLen = sql - elements->cols;
+  if(elements->colsLen == 0) {
+    smlBuildInvalidDataMsg(msg, "cols is empty", NULL);
+    return TSDB_CODE_SML_INVALID_DATA;
+  }
 
-  // parse ts,ts can be empty
+  // parse timestamp
+  JUMP_SPACE(sql)
+  elements->timestamp = sql;
   while (*sql != '\0') {
-    if(*sql != SPACE && elements->timestamp == NULL) {
-      elements->timestamp = sql;
-    }
-    if(*sql == SPACE && elements->timestamp != NULL){
+    if(*sql == SPACE){
       break;
     }
     sql++;
   }
-  if(elements->timestamp){
-    elements->timestampLen = sql - elements->timestamp;
-  }
+  elements->timestampLen = sql - elements->timestamp;
 
   return TSDB_CODE_SUCCESS;
 }
@@ -946,38 +969,58 @@ static void smlParseTelnetElement(const char **sql, const char **data, int32_t *
   }
 }
 
-static int32_t smlParseTelnetTags(const char* data, int32_t len, SArray *cols, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
-  for(int i = 0; i < len; i++){
-    // parse key
-    const char *key = data + i;
+static int32_t smlParseTelnetTags(const char* data, SArray *cols, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
+  const char *sql = data;
+  while(*sql != '\0'){
+    JUMP_SPACE(sql)
+    if(*sql == '\0') break;
+
+    const char *key = sql;
     int32_t keyLen = 0;
-    while(i < len){
-      if(data[i] == EQUAL){
-        keyLen = data + i - key;
+
+    // parse key
+    while(*sql != '\0'){
+      if(*sql == SPACE) {
+        smlBuildInvalidDataMsg(msg, "invalid data", sql);
+        return TSDB_CODE_SML_INVALID_DATA;
+      }
+      if(*sql == EQUAL) {
+        keyLen = sql - key;
+        sql++;
         break;
       }
-      i++;
+      sql++;
     }
+
     if(keyLen == 0 || keyLen >= TSDB_COL_NAME_LEN){
       smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
       return TSDB_CODE_SML_INVALID_DATA;
     }
-
     if(smlCheckDuplicateKey(key, keyLen, dumplicateKey)){
       smlBuildInvalidDataMsg(msg, "dumplicate key", key);
       return TSDB_CODE_TSC_DUP_TAG_NAMES;
     }
 
     // parse value
-    i++;
-    const char *value = data + i;
-    while(i < len){
-      if(data[i] == SPACE){
+    const char *value = sql;
+    int32_t valueLen = 0;
+    while(*sql != '\0') {
+      // parse value
+      if (*sql == SPACE) {
+        valueLen = sql - value;
+        sql++;
         break;
       }
-      i++;
+      if (*sql == EQUAL) {
+        smlBuildInvalidDataMsg(msg, "invalid data", sql);
+        return TSDB_CODE_SML_INVALID_DATA;
+      }
+      sql++;
     }
-    int32_t valueLen = data + i - value;
+    if(valueLen == 0){
+      valueLen = sql - value;
+    }
+
     if(valueLen == 0){
       smlBuildInvalidDataMsg(msg, "invalid value", value);
       return TSDB_CODE_SML_INVALID_DATA;
@@ -990,13 +1033,14 @@ static int32_t smlParseTelnetTags(const char* data, int32_t len, SArray *cols, S
     kv->keyLen = keyLen;
     kv->value = value;
     kv->length = valueLen;
-    kv->type = TSDB_DATA_TYPE_NCHAR;    //todo
+    kv->type = TSDB_DATA_TYPE_NCHAR;
 
     if(cols) taosArrayPush(cols, &kv);
   }
 
   return TSDB_CODE_SUCCESS;
 }
+
 // format: <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
 static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTableInfo *tinfo, SArray *cols){
   if(!sql) return TSDB_CODE_SML_INVALID_DATA;
@@ -1045,10 +1089,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
   }
 
   // parse tags
-  while(*sql == SPACE){
-    sql++;
-  }
-  ret = smlParseTelnetTags(sql, strlen(sql), tinfo->tags, info->dumplicateKey, &info->msgBuf);
+  ret = smlParseTelnetTags(sql, tinfo->tags, info->dumplicateKey, &info->msgBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid data", sql);
     return TSDB_CODE_SML_INVALID_DATA;
@@ -1070,49 +1111,67 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool is
     return TSDB_CODE_SUCCESS;
   }
 
-  for(int i = 0; i < len; i++){
-    // parse key
-    const char *key = data + i;
+  const char *sql = data;
+  while(sql < data + len){
+    const char *key = sql;
     int32_t keyLen = 0;
-    while(i < len){
-      if(data[i] == EQUAL && i > 0 && data[i-1] != SLASH){
-        keyLen = data + i - key;
+
+    while(sql < data + len){
+      // parse key
+      if(IS_COMMA(sql)) {
+        smlBuildInvalidDataMsg(msg, "invalid data", sql);
+        return TSDB_CODE_SML_INVALID_DATA;
+      }
+      if(IS_EQUAL(sql)) {
+        keyLen = sql - key;
+        sql++;
         break;
       }
-      i++;
+      sql++;
     }
+
     if(keyLen == 0 || keyLen >= TSDB_COL_NAME_LEN){
       smlBuildInvalidDataMsg(msg, "invalid key or key is too long than 64", key);
       return TSDB_CODE_SML_INVALID_DATA;
     }
-
     if(smlCheckDuplicateKey(key, keyLen, dumplicateKey)){
       smlBuildInvalidDataMsg(msg, "dumplicate key", key);
       return TSDB_CODE_TSC_DUP_TAG_NAMES;
     }
 
     // parse value
-    i++;
-    const char *value = data + i;
+    const char *value = sql;
+    int32_t valueLen = 0;
     bool isInQuote = false;
-    while(i < len){
-      if(!isTag && data[i] == QUOTE && data[i-1] != SLASH){
+    while(sql < data + len) {
+      // parse value
+      if(!isTag && IS_QUOTE(sql)){
         isInQuote = !isInQuote;
+        sql++;
+        continue;
       }
-      if(!isInQuote && data[i] == COMMA && i > 0 && data[i-1] != SLASH){
+      if (!isInQuote && IS_COMMA(sql)) {
         break;
       }
-      i++;
+      if (!isInQuote && IS_EQUAL(sql)) {
+        smlBuildInvalidDataMsg(msg, "invalid data", sql);
+        return TSDB_CODE_SML_INVALID_DATA;
+      }
+      sql++;
     }
-    if(!isTag && isInQuote){
+    valueLen = sql - value;
+    sql++;
+
+    if(isInQuote){
       smlBuildInvalidDataMsg(msg, "only one quote", value);
       return TSDB_CODE_SML_INVALID_DATA;
     }
-    int32_t valueLen = data + i - value;
     if(valueLen == 0){
       smlBuildInvalidDataMsg(msg, "invalid value", value);
       return TSDB_CODE_SML_INVALID_DATA;
     }
+    PROCESS_SLASH(key, keyLen)
+    PROCESS_SLASH(value, valueLen)
 
     // add kv to SSmlKv
     SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
@@ -1134,49 +1193,6 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, bool is
 
   return TSDB_CODE_SUCCESS;
 }
-
-//static int32_t parseSmlCols(const char* data, SArray *cols){
-//  while(*data != '\0'){
-//    if(*data == EQUAL) return TSDB_CODE_SML_INVALID_DATA;
-//    const char *key = data;
-//    int32_t keyLen = 0;
-//    while(*data != '\0'){
-//      if(*data == EQUAL && *(data-1) != SLASH){
-//        keyLen = data - key;
-//        data ++;
-//        break;
-//      }
-//      data++;
-//    }
-//    if(keyLen == 0){
-//      return TSDB_CODE_SML_INVALID_DATA;
-//    }
-//
-//    if(*data == COMMA) return TSDB_CODE_SML_INVALID_DATA;
-//    const char *value = data;
-//    int32_t valueLen = 0;
-//    while(*data != '\0'){
-//      if(*data == COMMA && *(data-1) != SLASH){
-//        valueLen = data - value;
-//        data ++;
-//        break;
-//      }
-//      data++;
-//    }
-//    if(valueLen == 0){
-//      return TSDB_CODE_SML_INVALID_DATA;
-//    }
-//
-//    TAOS_SML_KV *kv = taosMemoryCalloc(sizeof(TAOS_SML_KV), 1);
-//    kv->key = key;
-//    kv->keyLen = keyLen;
-//    kv->value = value;
-//    kv->valueLen = valueLen;
-//    kv->type = TSDB_DATA_TYPE_NCHAR;
-//    if(cols) taosArrayPush(cols, &kv);
-//  }
-//  return TSDB_CODE_SUCCESS;
-//}
 
 static bool smlUpdateMeta(SHashObj *metaHash, SArray *metaArray, SArray *cols, SSmlMsgBuf *msg){
   for (int i = 0; i < taosArrayGetSize(cols); ++i) {  //jump timestamp
@@ -1295,7 +1311,7 @@ static int32_t smlDealCols(SSmlTableInfo* oneTable, bool dataFormat, SArray *col
   }
   for(size_t i = 0; i < taosArrayGetSize(cols); i++){
     SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
-    taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);   // todo key need escape, like \=, because find by schema name later
+    taosHashPut(kvHash, kv->key, kv->keyLen, &kv, POINTER_BYTES);
   }
   taosArrayPush(oneTable->cols, &kvHash);
 
@@ -1343,6 +1359,7 @@ static void smlDestroySTableMeta(SSmlSTableMeta *meta){
   taosArrayDestroy(meta->tags);
   taosArrayDestroy(meta->cols);
   taosMemoryFree(meta->tableMeta);
+  taosMemoryFree(meta);
 }
 
 static void smlDestroyCols(SArray *cols) {

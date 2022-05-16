@@ -22,7 +22,7 @@ static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateTtlIdx(SMeta *pMeta, const SMetaEntry *pME);
 static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME);
 static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME);
-static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pME);
+static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry);
 
 int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   SMetaEntry  me = {0};
@@ -389,8 +389,73 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbDbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
 }
 
-static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  // TODO
+static int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int8_t type, tb_uid_t uid,
+                               STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
+  int32_t nTagData = 0;
+
+  if (pTagData) {
+    if (IS_VAR_DATA_TYPE(type)) {
+      nTagData = varDataTLen(pTagData);
+    } else {
+      nTagData = tDataTypes[type].bytes;
+    }
+  }
+  *nTagIdxKey = sizeof(STagIdxKey) + nTagData + sizeof(tb_uid_t);
+
+  *ppTagIdxKey = (STagIdxKey *)taosMemoryMalloc(*nTagIdxKey);
+  if (*ppTagIdxKey == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  (*ppTagIdxKey)->suid = suid;
+  (*ppTagIdxKey)->cid = cid;
+  (*ppTagIdxKey)->isNull = (pTagData == NULL) ? 1 : 0;
+  (*ppTagIdxKey)->type = type;
+  if (nTagData) memcpy((*ppTagIdxKey)->data, pTagData, nTagData);
+  *(tb_uid_t *)((*ppTagIdxKey)->data + nTagData) = uid;
+
+  return 0;
+}
+
+static void metaDestroyTagIdxKey(STagIdxKey *pTagIdxKey) {
+  if (pTagIdxKey) taosMemoryFree(pTagIdxKey);
+}
+
+static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
+  void          *pData = NULL;
+  int            nData = 0;
+  STbDbKey       tbDbKey = {0};
+  SMetaEntry     stbEntry = {0};
+  STagIdxKey    *pTagIdxKey = NULL;
+  int32_t        nTagIdxKey;
+  const SSchema *pTagColumn;       // = &stbEntry.stbEntry.schema.pSchema[0];
+  const void    *pTagData = NULL;  //
+  SDecoder       dc = {0};
+
+  // get super table
+  tdbDbGet(pMeta->pUidIdx, &pCtbEntry->ctbEntry.suid, sizeof(tb_uid_t), &pData, &nData);
+  tbDbKey.uid = pCtbEntry->ctbEntry.suid;
+  tbDbKey.version = *(int64_t *)pData;
+  tdbDbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pData, &nData);
+
+  tDecoderInit(&dc, pData, nData);
+  metaDecodeEntry(&dc, &stbEntry);
+
+  pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
+  pTagData = tdGetKVRowValOfCol((const SKVRow)pCtbEntry->ctbEntry.pTags, pTagColumn->colId);
+
+  // update tag index
+  if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, pTagColumn->type, pCtbEntry->uid,
+                          &pTagIdxKey, &nTagIdxKey) < 0) {
+    return -1;
+  }
+  tdbDbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
+  metaDestroyTagIdxKey(pTagIdxKey);
+
+  tDecoderClear(&dc);
+  tdbFree(pData);
+
   return 0;
 }
 

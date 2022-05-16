@@ -215,15 +215,9 @@ function install_lib() {
     ${csudo} ln -s ${install_main_dir}/lib/libtaos.* ${lib_link_dir}/libtaos.so.1
     ${csudo} ln -s ${lib_link_dir}/libtaos.so.1 ${lib_link_dir}/libtaos.so
 
-    ${csudo} ln -s ${install_main_dir}/lib/libtdb.* ${lib_link_dir}/libtdb.so.1
-    ${csudo} ln -s ${lib_link_dir}/libtdb.so.1 ${lib_link_dir}/libtdb.so
-
     if [[ -d ${lib64_link_dir} && ! -e ${lib64_link_dir}/libtaos.so ]]; then
       ${csudo} ln -s ${install_main_dir}/lib/libtaos.* ${lib64_link_dir}/libtaos.so.1     || :
       ${csudo} ln -s ${lib64_link_dir}/libtaos.so.1 ${lib64_link_dir}/libtaos.so          || :
-      
-      ${csudo} ln -s ${install_main_dir}/lib/libtdb.* ${lib64_link_dir}/libtdb.so.1       || :
-      ${csudo} ln -s ${lib64_link_dir}/libtdb.so.1 ${lib64_link_dir}/libtdb.so            || :
     fi
 
     ${csudo} ldconfig

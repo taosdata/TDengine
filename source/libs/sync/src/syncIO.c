@@ -92,7 +92,7 @@ int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg) {
   syncRpcMsgLog2((char *)"==syncIOEqMsg==", pMsg);
 
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   STaosQueue *pMsgQ = queue;
@@ -360,7 +360,7 @@ static void syncIOProcessRequest(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   syncRpcMsgLog2((char *)"==syncIOProcessRequest==", pMsg);
   SSyncIO *io = pParent;
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
   taosWriteQitem(io->pMsgQ, pTemp);
 }
@@ -420,7 +420,7 @@ static void syncIOTickQ(void *param, void *tmrId) {
   SRpcMsg rpcMsg;
   syncPingReply2RpcMsg(pMsg, &rpcMsg);
   SRpcMsg *pTemp;
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, &rpcMsg, sizeof(SRpcMsg));
   syncRpcMsgLog2((char *)"==syncIOTickQ==", &rpcMsg);
   taosWriteQitem(io->pMsgQ, pTemp);

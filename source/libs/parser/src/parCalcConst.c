@@ -262,9 +262,9 @@ static int32_t calcConstQuery(SCalcConstContext* pCxt, SNode* pStmt, bool subque
       break;
     case QUERY_NODE_SET_OPERATOR: {
       SSetOperator* pSetOp = (SSetOperator*)pStmt;
-      code = calcConstQuery(pCxt, pSetOp->pLeft, subquery);
+      code = calcConstQuery(pCxt, pSetOp->pLeft, false);
       if (TSDB_CODE_SUCCESS == code) {
-        code = calcConstQuery(pCxt, pSetOp->pRight, subquery);
+        code = calcConstQuery(pCxt, pSetOp->pRight, false);
       }
       break;
     }
