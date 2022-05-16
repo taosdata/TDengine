@@ -120,6 +120,11 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             ASSERT(ret == 0);
 
             syncNodeUpdateConfig(pSyncNode, &newSyncCfg);
+            if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+              syncNodeBecomeLeader(pSyncNode);
+            } else {
+              syncNodeBecomeFollower(pSyncNode);
+            }
           }
 
           rpcFreeCont(rpcMsg.pCont);

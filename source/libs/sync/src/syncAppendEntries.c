@@ -342,6 +342,11 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 ASSERT(ret == 0);
 
                 syncNodeUpdateConfig(ths, &newSyncCfg);
+                if (ths->state == TAOS_SYNC_STATE_LEADER) {
+                  syncNodeBecomeLeader(ths);
+                } else {
+                  syncNodeBecomeFollower(ths);
+                }
               }
 
               rpcFreeCont(rpcMsg.pCont);

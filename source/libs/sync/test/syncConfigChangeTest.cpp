@@ -220,7 +220,7 @@ int main(int argc, char** argv) {
   assert(pSyncNode != NULL);
 
   if (isConfigChange) {
-    configChange(rid, replicaNum, myIndex);
+    configChange(rid, 3, myIndex);
   }
 
   //---------------------------

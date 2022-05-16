@@ -905,6 +905,11 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
   for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i]);
   }
+
+  syncIndexMgrUpdate(pSyncNode->pNextIndex, pSyncNode);
+  syncIndexMgrUpdate(pSyncNode->pMatchIndex, pSyncNode);
+
+  syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
 }
 
 SSyncNode* syncNodeAcquire(int64_t rid) {
