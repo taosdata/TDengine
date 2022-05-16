@@ -96,13 +96,13 @@ static FORCE_INLINE int kvRowCmprFn(const void *p1, const void *p2) {
 }
 
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  uint32_t  n;
-  uint8_t  *p;
-  uint8_t   v;
-  int32_t   bidx = iCol - 1;
-  STColumn *pTColumn = &pTSchema->columns[iCol];
-  STSKVRow *pTSKVRow;
-  SKVIdx   *pKVIdx;
+  uint32_t       n;
+  const uint8_t *p;
+  uint8_t        v;
+  int32_t        bidx = iCol - 1;
+  STColumn      *pTColumn = &pTSchema->columns[iCol];
+  STSKVRow      *pTSKVRow;
+  SKVIdx        *pKVIdx;
 
   ASSERT(pTColumn->colId != 0);
 
@@ -132,8 +132,8 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
     }
   } else {
     // get bitmap
+    p = pRow->pData;
     switch (pRow->flags & 0xf) {
-      p = pRow->pData;
       case TSROW_HAS_NULL | TSROW_HAS_NONE:
         v = GET_BIT1(p, bidx);
         if (v == 0) {
@@ -181,8 +181,7 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
     // get real value
     p = p + pTColumn->offset;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      p = pTSchema->flen + *(int32_t *)p;
-      tGetBinary(p, &p, &n);
+      tGetBinary(p + pTSchema->flen + *(int32_t *)p, &p, &n);
     } else {
       n = pTColumn->bytes;
     }

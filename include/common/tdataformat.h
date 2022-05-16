@@ -94,11 +94,11 @@ struct STSchema {
 #define TSROW_HAS_VAL  ((uint8_t)0x4U)
 #define TSROW_KV_ROW   ((uint8_t)0x10U)
 struct STSRow2 {
-  TSKEY    ts;
-  uint8_t  flags;
-  int32_t  sver;
-  uint32_t nData;
-  uint8_t *pData;
+  TSKEY          ts;
+  uint8_t        flags;
+  int32_t        sver;
+  uint32_t       nData;
+  const uint8_t *pData;
 };
 
 struct STSRowBuilder {
@@ -117,9 +117,9 @@ struct STSRowBuilder {
 
 typedef enum { COL_VAL = 0, COL_NONE = 1, COL_NULL = 2 } EColValT;
 struct SColVal {
-  EColValT type;
-  uint32_t nData;
-  uint8_t *pData;
+  EColValT       type;
+  uint32_t       nData;
+  const uint8_t *pData;
 };
 
 #if 1  //====================================
