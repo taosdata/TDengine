@@ -30,7 +30,10 @@ class TDTestCase:
     #
     # --------------- main frame -------------------
     #
-    
+    clientCfgDict = {'queryproxy': '1'}
+    clientCfgDict["queryproxy"] = '2'
+    updatecfgDict = {'clientCfg': {}}
+    updatecfgDict["clientCfg"]  = clientCfgDict
     def caseDescription(self):
         '''
         limit and offset keyword function test cases;
@@ -75,8 +78,13 @@ class TDTestCase:
         # self.test_case2()
         # tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
-        # test case
-        self.test_case3()
+        # # test case
+        # self.test_case3()
+        # tdLog.debug(" LIMIT test_case3 ............ [OK]")
+
+
+        # test qnode
+        self.test_case4()
         tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
 
@@ -199,15 +207,9 @@ class TDTestCase:
         os.system("%s -f %s -y " %(taosBenchbin,jsonFile))
        
         return
-    def taosBenchCreate(self,host,dropdb,dbname,stbname,vgroups,threadNumbers,count):
+    def taosBenchCreate(self,host,dropdb,dbname,stbname,vgroups,processNumbers,count):
         
         # count=50000
-        buildPath = self.getBuildPath()
-        if (buildPath == ""):
-            tdLog.exit("taosd not found!")
-        else:
-            tdLog.info("taosd found in %s" % buildPath)
-        taosBenchbin = buildPath+ "/build/bin/taosBenchmark"
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         tsql=self.newcur(host,config)
@@ -222,8 +224,7 @@ class TDTestCase:
         tsql.execute("use %s" %dbname)
     
         threads = []
-        # threadNumbers=2
-        for i in range(threadNumbers):
+        for i in range(processNumbers):
             jsonfile="1-insert/Vgroups%d%d.json"%(vgroups,i)
             os.system("cp -f 1-insert/manyVgroups.json   %s"%(jsonfile))
             os.system("sed -i 's/\"name\": \"db\",/\"name\": \"%s\",/g' %s"%(dbname,jsonfile))
@@ -247,29 +248,8 @@ class TDTestCase:
     # test case1 base 
     def test_case1(self):
         tdLog.debug("-----create database and tables test------- ")
-        tdSql.execute("drop database if exists db1")
-        tdSql.execute("drop database if exists db4")
-        tdSql.execute("drop database if exists db6")
-        tdSql.execute("drop database if exists db8")
-        tdSql.execute("drop database if exists db12")
-        tdSql.execute("drop database if exists db16")
 
         #create database and tables;
-
-        # tdSql.execute("create database db11 vgroups 1")
-        # # self.create_tables("db1", "stb1", 30*10000)
-        # tdSql.execute("use db1")
-        # tdSql.execute("create stable stb1(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)")
-
-        # tdSql.execute("create database db12 vgroups 1")
-        # # self.create_tables("db1", "stb1", 30*10000)
-        # tdSql.execute("use db1")
-
-        # t1 = threading.Thread(target=self.new_create_tables("db1", "stb1", 15*10000), args=(1,))
-        # t2 = threading.Thread(target=self.new_create_tables("db1", "stb1", 15*10000), args=(2,))
-        # t1 = mp.Process(target=self.new_create_tables, args=("db1", "stb1", 0,count/2,))
-        # t2 = mp.Process(target=self.new_create_tables, args=("db1", "stb1", count/2,count,))
-
         count=50000
         vgroups=1
         threads = []
@@ -356,6 +336,49 @@ class TDTestCase:
 
         return 
 
+    def test_case4(self):
+        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 2, 1*10)
+        tdSql.execute("use db1;")
+        tdSql.query("show dnodes;")
+        dnodeId=tdSql.getData(0,0)
+        print(dnodeId)
+        tdSql.execute("create qnode on dnode %s"%dnodeId)
+        tdSql.query("select max(c1) from stb10;")
+        maxQnode=tdSql.getData(0,0)
+        tdSql.query("select min(c1) from stb11;")
+        minQnode=tdSql.getData(0,0)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        unionQnode=tdSql.queryResult
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        unionallQnode=tdSql.queryResult
+
+        # tdSql.query("show qnodes;")
+        # qnodeId=tdSql.getData(0,0)
+        tdSql.execute("drop qnode on dnode %s"%dnodeId)
+        tdSql.execute("reset query cache")
+        tdSql.query("select max(c1) from stb10;")
+        tdSql.checkData(0, 0, "%s"%maxQnode)
+        tdSql.query("select min(c1) from stb11;")     
+        tdSql.checkData(0, 0, "%s"%minQnode)
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union select c0,c1 from stb11_1 where c0>2000;")
+        unionVnode=tdSql.queryResult
+        assert unionQnode == unionVnode
+        tdSql.query("select c0,c1 from stb11_1 where (c0>1000) union all  select c0,c1 from stb11_1 where c0>2000;")
+        unionallVnode=tdSql.queryResult
+        assert unionallQnode == unionallVnode
+
+
+        # tdSql.execute("create qnode on dnode %s"%dnodeId)
+
+
+        # self.taosBenchCreate("test209","no","db2", "stb2", 1, 8, 1*10000)
+
+        # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
+
+        # self.taosBenchCreate("db1", "stb1", 4, 5, 100*10000)
+        # self.taosBenchCreate("db1", "stb1", 1, 5, 100*10000)
+
+        return 
 #
 # add case with filename
 #
