@@ -235,11 +235,17 @@ TEST_F(ParserSelectTest, semanticError) {
 TEST_F(ParserSelectTest, setOperator) {
   useDb("root", "test");
 
-  // run("SELECT * FROM t1 UNION ALL SELECT * FROM t1");
+  run("SELECT * FROM t1 UNION ALL SELECT * FROM t1");
 
-  // run("(SELECT * FROM t1) UNION ALL (SELECT * FROM t1)");
+  run("(SELECT * FROM t1) UNION ALL (SELECT * FROM t1)");
 
   run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+}
+
+TEST_F(ParserSelectTest, informationSchema) {
+  useDb("root", "test");
+
+  run("SELECT * FROM information_schema.user_databases WHERE name = 'information_schema'");
 }
 
 }  // namespace ParserTest

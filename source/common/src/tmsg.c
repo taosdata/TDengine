@@ -4163,3 +4163,113 @@ void tFreeSSubmitRsp(SSubmitRsp *pRsp) {
 
   taosMemoryFree(pRsp);
 }
+
+int32_t tEncodeSVAlterTbReq(SEncoder *pEncoder, const SVAlterTbReq *pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+
+  if (tEncodeCStr(pEncoder, pReq->tbName) < 0) return -1;
+  if (tEncodeI8(pEncoder, pReq->action) < 0) return -1;
+  switch (pReq->action) {
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+      if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
+      if (tEncodeI8(pEncoder, pReq->type) < 0) return -1;
+      if (tEncodeI8(pEncoder, pReq->flags) < 0) return -1;
+      if (tEncodeI32v(pEncoder, pReq->bytes) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+      if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
+      if (tEncodeI32v(pEncoder, pReq->colModBytes) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      if (tEncodeCStr(pEncoder, pReq->colName) < 0) return -1;
+      if (tEncodeCStr(pEncoder, pReq->colNewName) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
+      if (tEncodeCStr(pEncoder, pReq->tagName) < 0) return -1;
+      if (tEncodeI8(pEncoder, pReq->isNull) < 0) return -1;
+      if (!pReq->isNull) {
+        if (tEncodeBinary(pEncoder, pReq->pTagVal, pReq->nTagVal) < 0) return -1;
+      }
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      if (tEncodeI8(pEncoder, pReq->updateTTL) < 0) return -1;
+      if (pReq->updateTTL) {
+        if (tEncodeI32v(pEncoder, pReq->newTTL) < 0) return -1;
+      }
+      if (tEncodeI8(pEncoder, pReq->updateComment) < 0) return -1;
+      if (pReq->updateComment) {
+        if (tEncodeCStr(pEncoder, pReq->newComment) < 0) return -1;
+      }
+      break;
+    default:
+      break;
+  }
+
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+
+  if (tDecodeCStr(pDecoder, &pReq->tbName) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pReq->action) < 0) return -1;
+  switch (pReq->action) {
+    case TSDB_ALTER_TABLE_ADD_COLUMN:
+      if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
+      if (tDecodeI8(pDecoder, &pReq->type) < 0) return -1;
+      if (tDecodeI8(pDecoder, &pReq->flags) < 0) return -1;
+      if (tDecodeI32v(pDecoder, &pReq->bytes) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_DROP_COLUMN:
+      if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
+      if (tDecodeI32v(pDecoder, &pReq->colModBytes) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
+      if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
+      if (tDecodeCStr(pDecoder, &pReq->colNewName) < 0) return -1;
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_TAG_VAL:
+      if (tDecodeCStr(pDecoder, &pReq->tagName) < 0) return -1;
+      if (tDecodeI8(pDecoder, &pReq->isNull) < 0) return -1;
+      if (!pReq->isNull) {
+        if (tDecodeBinary(pDecoder, &pReq->pTagVal, &pReq->nTagVal) < 0) return -1;
+      }
+      break;
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      if (tDecodeI8(pDecoder, &pReq->updateTTL) < 0) return -1;
+      if (pReq->updateTTL) {
+        if (tDecodeI32v(pDecoder, &pReq->newTTL) < 0) return -1;
+      }
+      if (tDecodeI8(pDecoder, &pReq->updateComment) < 0) return -1;
+      if (pReq->updateComment) {
+        if (tDecodeCStr(pDecoder, &pReq->newComment) < 0) return -1;
+      }
+      break;
+    default:
+      break;
+  }
+
+  tEndDecode(pDecoder);
+  return 0;
+}
+
+int32_t tEncodeSVAlterTbRsp(SEncoder *pEncoder, const SVAlterTbRsp *pRsp) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI32(pEncoder, pRsp->code) < 0) return -1;
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeSVAlterTbRsp(SDecoder *pDecoder, SVAlterTbRsp *pRsp) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pRsp->code) < 0) return -1;
+  tEndDecode(pDecoder);
+  return 0;
+}

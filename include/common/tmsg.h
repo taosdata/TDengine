@@ -1670,6 +1670,7 @@ typedef struct SVDropStbReq {
 int32_t tEncodeSVDropStbReq(SEncoder* pCoder, const SVDropStbReq* pReq);
 int32_t tDecodeSVDropStbReq(SDecoder* pCoder, SVDropStbReq* pReq);
 
+// TDMT_VND_CREATE_TABLE ==============
 #define TD_CREATE_IF_NOT_EXISTS 0x1
 typedef struct SVCreateTbReq {
   int32_t     flags;
@@ -1758,6 +1759,43 @@ typedef struct {
 
 int32_t tEncodeSVDropTbBatchRsp(SEncoder* pCoder, const SVDropTbBatchRsp* pRsp);
 int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
+
+// TDMT_VND_ALTER_TABLE =====================
+typedef struct {
+  const char* tbName;
+  int8_t      action;
+  const char* colName;
+  // TSDB_ALTER_TABLE_ADD_COLUMN
+  int8_t  type;
+  int8_t  flags;
+  int32_t bytes;
+  // TSDB_ALTER_TABLE_DROP_COLUMN
+  // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
+  int32_t colModBytes;
+  // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
+  const char* colNewName;
+  // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
+  const char*    tagName;
+  int8_t         isNull;
+  uint32_t       nTagVal;
+  const uint8_t* pTagVal;
+  // TSDB_ALTER_TABLE_UPDATE_OPTIONS
+  int8_t      updateTTL;
+  int32_t     newTTL;
+  int8_t      updateComment;
+  const char* newComment;
+} SVAlterTbReq;
+
+int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
+int32_t tDecodeSVAlterTbReq(SDecoder* pDecoder, SVAlterTbReq* pReq);
+
+typedef struct {
+  int32_t code;
+} SVAlterTbRsp;
+
+int32_t tEncodeSVAlterTbRsp(SEncoder* pEncoder, const SVAlterTbRsp* pRsp);
+int32_t tDecodeSVAlterTbRsp(SDecoder* pDecoder, SVAlterTbRsp* pRsp);
+// ======================
 
 typedef struct {
   SMsgHead head;

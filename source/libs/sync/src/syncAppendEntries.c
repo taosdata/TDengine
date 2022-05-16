@@ -15,11 +15,11 @@
 
 #include "syncAppendEntries.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
 #include "syncVoteMgr.h"
-#include "syncRaftCfg.h"
 
 // TLA+ Spec
 // HandleAppendEntriesRequest(i, j, m) ==
@@ -200,7 +200,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
             SSyncRaftEntry* pRollBackEntry = logStoreGetEntry(ths->pLogStore, index);
             assert(pRollBackEntry != NULL);
 
-            //if (pRollBackEntry->msgType != TDMT_VND_SYNC_NOOP) {
+            // if (pRollBackEntry->msgType != TDMT_VND_SYNC_NOOP) {
             if (syncUtilUserRollback(pRollBackEntry->msgType)) {
               SRpcMsg rpcMsg;
               syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
@@ -229,7 +229,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         SRpcMsg rpcMsg;
         syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
         if (ths->pFsm != NULL) {
-          //if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+          // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
           if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
             SFsmCbMeta cbMeta;
             cbMeta.index = pAppendEntry->index;
@@ -261,7 +261,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       SRpcMsg rpcMsg;
       syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
       if (ths->pFsm != NULL) {
-        //if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+        // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
         if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
           SFsmCbMeta cbMeta;
           cbMeta.index = pAppendEntry->index;
@@ -324,7 +324,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               SRpcMsg rpcMsg;
               syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-              //if (ths->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+              // if (ths->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
               if (ths->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
                 SFsmCbMeta cbMeta;
                 cbMeta.index = pEntry->index;
@@ -338,10 +338,15 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               // config change
               if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
                 SSyncCfg newSyncCfg;
-                int32_t ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
+                int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
                 ASSERT(ret == 0);
 
                 syncNodeUpdateConfig(ths, &newSyncCfg);
+                if (ths->state == TAOS_SYNC_STATE_LEADER) {
+                  syncNodeBecomeLeader(ths);
+                } else {
+                  syncNodeBecomeFollower(ths);
+                }
               }
 
               rpcFreeCont(rpcMsg.pCont);

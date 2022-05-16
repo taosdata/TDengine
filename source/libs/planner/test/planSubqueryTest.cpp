@@ -25,11 +25,9 @@ TEST_F(PlanSubqeuryTest, basic) {
 
   if (0 == g_skipSql) {
     run("SELECT * FROM (SELECT * FROM t1)");
-
-    run("SELECT LAST(c1) FROM (SELECT * FROM t1)");
   }
 
-  run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+  run("SELECT LAST(c1) FROM (SELECT * FROM t1)");
 }
 
 TEST_F(PlanSubqeuryTest, doubleGroupBy) {
@@ -38,4 +36,12 @@ TEST_F(PlanSubqeuryTest, doubleGroupBy) {
   run("SELECT COUNT(*) FROM ("
       "SELECT c1 + c3 a, c1 + COUNT(*) b FROM t1 WHERE c2 = 'abc' GROUP BY c1, c3) "
       "WHERE a > 100 GROUP BY b");
+}
+
+TEST_F(PlanSubqeuryTest, withSetOperator) {
+  useDb("root", "test");
+
+  run("SELECT c1 FROM (SELECT c1 FROM t1 UNION ALL SELECT c1 FROM t1)");
+
+  run("SELECT c1 FROM (SELECT c1 FROM t1 UNION SELECT c1 FROM t1)");
 }
