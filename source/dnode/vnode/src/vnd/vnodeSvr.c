@@ -16,12 +16,13 @@
 #include "vnd.h"
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
-static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessAlterStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
-static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
+static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 
 int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
 #if 0
@@ -72,7 +73,7 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       if (vnodeProcessCreateStbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_STB:
-      if (vnodeProcessAlterStbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      if (vnodeProcessAlterStbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DROP_STB:
       if (vnodeProcessDropStbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
@@ -81,15 +82,13 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
       if (vnodeProcessCreateTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_ALTER_TABLE:
-      if (vnodeProcessAlterTbReq(pVnode, pReq, len, pRsp) < 0) goto _err;
+      if (vnodeProcessAlterTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
     case TDMT_VND_DROP_TABLE:
       if (vnodeProcessDropTbReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
       break;
-    case TDMT_VND_CREATE_SMA: {  // timeRangeSMA
-      if (tsdbCreateTSma(pVnode->pTsdb, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead))) < 0) {
-        // TODO
-      }
+    case TDMT_VND_CREATE_SMA: {
+      if (vnodeProcessCreateTSmaReq(pVnode, version, pReq, len, pRsp) < 0) goto _err;
     } break;
     /* TSDB */
     case TDMT_VND_SUBMIT:
@@ -142,9 +141,9 @@ _err:
 int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
   vTrace("message in vnode query queue is processing");
 #if 0
-  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode};
+  SReadHandle handle = {.reader = pVnode->pTsdb, .meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
 #endif
-  SReadHandle handle = {.meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode};
+  SReadHandle handle = {.meta = pVnode->pMeta, .config = &pVnode->config, .vnode = pVnode, .pMsgCb = &pVnode->msgCb};
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
       return qWorkerProcessQueryMsg(&handle, pVnode->pQuery, pMsg);
@@ -195,11 +194,12 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
   // TODO
 
   // blockDebugShowData(data);
-  tsdbInsertTSmaData(((SVnode *)pVnode)->pTsdb, smaId, (const char *)data);
+  tdProcessTSmaInsert(((SVnode *)pVnode)->pSma, smaId, (const char *)data);
 }
 
-// sync integration
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
+  int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
     assert(pSyncNode != NULL);
@@ -221,72 +221,75 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
       SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
       syncTimeoutDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING) {
       SyncPing *pSyncMsg = syncPingFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnPingCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnPingCb(pSyncNode, pSyncMsg);
       syncPingDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
       SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
       syncPingReplyDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
       SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
       syncClientRequestDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
       SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
       syncRequestVoteDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
       SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
       syncRequestVoteReplyDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
       SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
       syncAppendEntriesDestroy(pSyncMsg);
 
     } else if (pRpcMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
       SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pRpcMsg);
       assert(pSyncMsg != NULL);
 
-      syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
+      ret = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
       syncAppendEntriesReplyDestroy(pSyncMsg);
 
     } else {
       vError("==vnodeProcessSyncReq== error msg type:%d", pRpcMsg->msgType);
+      ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
     }
 
     syncNodeRelease(pSyncNode);
   } else {
     vError("==vnodeProcessSyncReq== error syncEnv stop");
+    ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
-  return 0;
+
+  return ret;
 }
 
 static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
   SVCreateStbReq req = {0};
-  SCoder         coder;
+  SDecoder       coder;
 
   pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -294,7 +297,7 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
   pRsp->contLen = 0;
 
   // decode and process req
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
+  tDecoderInit(&coder, pReq, len);
 
   if (tDecodeSVCreateStbReq(&coder, &req) < 0) {
     pRsp->code = terrno;
@@ -306,18 +309,18 @@ static int vnodeProcessCreateStbReq(SVnode *pVnode, int64_t version, void *pReq,
     goto _err;
   }
 
-  tsdbRegisterRSma(pVnode->pTsdb, pVnode->pMeta, &req);
+  tdProcessRSmaCreate(pVnode->pSma, pVnode->pMeta, &req, &pVnode->msgCb);
 
-  tCoderClear(&coder);
+  tDecoderClear(&coder);
   return 0;
 
 _err:
-  tCoderClear(&coder);
+  tDecoderClear(&coder);
   return -1;
 }
 
 static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
-  SCoder             coder = {0};
+  SDecoder           decoder = {0};
   int                rcode = 0;
   SVCreateTbBatchReq req = {0};
   SVCreateTbReq     *pCreateReq;
@@ -332,8 +335,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   pRsp->contLen = 0;
 
   // decode
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
-  if (tDecodeSVCreateTbBatchReq(&coder, &req) < 0) {
+  tDecoderInit(&decoder, pReq, len);
+  if (tDecodeSVCreateTbBatchReq(&decoder, &req) < 0) {
     rcode = -1;
     terrno = TSDB_CODE_INVALID_MSG;
     goto _exit;
@@ -367,19 +370,20 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
       }
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
-      tsdbFetchTbUidList(pVnode->pTsdb, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
+      tdFetchTbUidList(pVnode->pSma, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
   }
 
-  tCoderClear(&coder);
+  tDecoderClear(&decoder);
 
-  tsdbUpdateTbUidList(pVnode->pTsdb, pStore);
-  tsdbUidStoreFree(pStore);
+  tdUpdateTbUidList(pVnode->pSma, pStore);
+  tdUidStoreFree(pStore);
 
   // prepare rsp
-  int32_t ret = 0;
+  SEncoder encoder = {0};
+  int32_t  ret = 0;
   tEncodeSize(tEncodeSVCreateTbBatchRsp, &rsp, pRsp->contLen, ret);
   pRsp->pCont = rpcMallocCont(pRsp->contLen);
   if (pRsp->pCont == NULL) {
@@ -387,44 +391,58 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     rcode = -1;
     goto _exit;
   }
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pRsp->pCont, pRsp->contLen, TD_ENCODER);
-  tEncodeSVCreateTbBatchRsp(&coder, &rsp);
+  tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
+  tEncodeSVCreateTbBatchRsp(&encoder, &rsp);
+  tEncoderClear(&encoder);
 
 _exit:
-  taosArrayClear(rsp.pArray);
-  tCoderClear(&coder);
+  taosArrayDestroy(rsp.pArray);
+  tDecoderClear(&decoder);
+  tEncoderClear(&encoder);
   return rcode;
 }
 
-static int vnodeProcessAlterStbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  // ASSERT(0);
-#if 0
-  SVCreateTbReq vAlterTbReq = {0};
-  vTrace("vgId:%d, process alter stb req", TD_VID(pVnode));
-  tDeserializeSVCreateTbReq(pReq, &vAlterTbReq);
-  // TODO: to encapsule a free API
-  taosMemoryFree(vAlterTbReq.stbCfg.pSchema);
-  taosMemoryFree(vAlterTbReq.stbCfg.pTagSchema);
-  if (vAlterTbReq.stbCfg.pRSmaParam) {
-    taosMemoryFree(vAlterTbReq.stbCfg.pRSmaParam);
+static int vnodeProcessAlterStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVCreateStbReq req = {0};
+  SDecoder       dc = {0};
+
+  pRsp->msgType = TDMT_VND_ALTER_STB_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  tDecoderInit(&dc, pReq, len);
+
+  // decode req
+  if (tDecodeSVCreateStbReq(&dc, &req) < 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    return -1;
   }
-  taosMemoryFree(vAlterTbReq.name);
-#endif
+
+  if (metaAlterSTable(pVnode->pMeta, version, &req) < 0) {
+    pRsp->code = terrno;
+    tDecoderClear(&dc);
+    return -1;
+  }
+
+  tDecoderClear(&dc);
+
   return 0;
 }
 
 static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVDropStbReq req = {0};
   int          rcode = TSDB_CODE_SUCCESS;
-  SCoder       coder = {0};
+  SDecoder     decoder = {0};
 
   pRsp->msgType = TDMT_VND_CREATE_STB_RSP;
   pRsp->pCont = NULL;
   pRsp->contLen = 0;
 
   // decode request
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
-  if (tDecodeSVDropStbReq(&coder, &req) < 0) {
+  tDecoderInit(&decoder, pReq, len);
+  if (tDecodeSVDropStbReq(&decoder, &req) < 0) {
     rcode = TSDB_CODE_INVALID_MSG;
     goto _exit;
   }
@@ -438,20 +456,44 @@ static int vnodeProcessDropStbReq(SVnode *pVnode, int64_t version, void *pReq, i
   // return rsp
 _exit:
   pRsp->code = rcode;
-  tCoderClear(&coder);
+  tDecoderClear(&decoder);
   return 0;
 }
 
-static int vnodeProcessAlterTbReq(SVnode *pVnode, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  // TODO
-  ASSERT(0);
+static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
+  SVAlterTbReq vAlterTbReq = {0};
+  SDecoder     dc = {0};
+
+  pRsp->msgType = TDMT_VND_ALTER_TABLE_RSP;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+  pRsp->code = TSDB_CODE_SUCCESS;
+
+  tDecoderInit(&dc, pReq, len);
+
+  // decode
+  if (tDecodeSVAlterTbReq(&dc, &vAlterTbReq) < 0) {
+    pRsp->code = TSDB_CODE_INVALID_MSG;
+    tDecoderClear(&dc);
+    return -1;
+  }
+
+  // process
+  if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq) < 0) {
+    pRsp->code = terrno;
+    tDecoderClear(&dc);
+    return -1;
+  }
+
+  tDecoderClear(&dc);
   return 0;
 }
 
 static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVDropTbBatchReq req = {0};
   SVDropTbBatchRsp rsp = {0};
-  SCoder           coder = {0};
+  SDecoder         decoder = {0};
+  SEncoder         encoder = {0};
   int              ret;
 
   pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
@@ -460,8 +502,8 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   pRsp->code = TSDB_CODE_SUCCESS;
 
   // decode req
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pReq, len, TD_DECODER);
-  ret = tDecodeSVDropTbBatchReq(&coder, &req);
+  tDecoderInit(&decoder, pReq, len);
+  ret = tDecodeSVDropTbBatchReq(&decoder, &req);
   if (ret < 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     pRsp->code = terrno;
@@ -469,7 +511,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   }
 
   // process req
-  rsp.pArray = taosArrayInit(sizeof(SVDropTbRsp), req.nReqs);
+  rsp.pArray = taosArrayInit(req.nReqs, sizeof(SVDropTbRsp));
   for (int iReq = 0; iReq < req.nReqs; iReq++) {
     SVDropTbReq *pDropTbReq = req.pReqs + iReq;
     SVDropTbRsp  dropTbRsp = {0};
@@ -490,21 +532,82 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   }
 
 _exit:
-  tCoderClear(&coder);
-  // encode rsp (TODO)
+  tDecoderClear(&decoder);
+  tEncodeSize(tEncodeSVDropTbBatchRsp, &rsp, pRsp->contLen, ret);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  tEncoderInit(&encoder, pRsp->pCont, pRsp->contLen);
+  tEncodeSVDropTbBatchRsp(&encoder, &rsp);
+  tEncoderClear(&encoder);
+  return 0;
+}
+
+static int vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, SSubmitMsgIter *msgIter, const char *tags) {
+  SSubmitBlkIter blkIter = {0};
+  STSchema      *pSchema = NULL;
+  tb_uid_t       suid = 0;
+  STSRow        *row = NULL;
+
+  tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
+  if (blkIter.row == NULL) return 0;
+  if (!pSchema || (suid != msgIter->suid)) {
+    if (pSchema) {
+      taosMemoryFreeClear(pSchema);
+    }
+    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, 1);  // TODO: use the real schema
+    if (pSchema) {
+      suid = msgIter->suid;
+    }
+  }
+  if (!pSchema) {
+    printf("%s:%d no valid schema\n", tags, __LINE__);
+    return -1;
+  }
+  char __tags[128] = {0};
+  snprintf(__tags, 128, "%s: uid %" PRIi64 " ", tags, msgIter->uid);
+  while ((row = tGetSubmitBlkNext(&blkIter))) {
+    tdSRowPrint(row, pSchema, __tags);
+  }
+
+  taosMemoryFreeClear(pSchema);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char *tags) {
+  ASSERT(pMsg != NULL);
+  SSubmitMsgIter msgIter = {0};
+  SMeta         *pMeta = pVnode->pMeta;
+  SSubmitBlk    *pBlock = NULL;
+
+  if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
+  while (true) {
+    if (tGetSubmitMsgNext(&msgIter, &pBlock) < 0) return -1;
+    if (pBlock == NULL) break;
+
+    vnodeDebugPrintSingleSubmitMsg(pMeta, pBlock, &msgIter, tags);
+  }
+
   return 0;
 }
 
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
+  SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
   SSubmitBlk    *pBlock;
   SSubmitRsp     rsp = {0};
   SVCreateTbReq  createTbReq = {0};
-  SCoder         coder = {0};
+  SDecoder       decoder = {0};
   int32_t        nRows;
+  int32_t        tsize, ret;
+  SEncoder       encoder = {0};
+  terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
+
+#ifdef TD_DEBUG_PRINT_ROW
+  vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
+#endif
 
   // handle the request
   if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
@@ -512,26 +615,40 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
     goto _exit;
   }
 
-  for (;;) {
+  submitRsp.pArray = taosArrayInit(pSubmitReq->numOfBlocks, sizeof(SSubmitBlkRsp));
+  if (!submitRsp.pArray) {
+    pRsp->code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _exit;
+  }
+
+  for (int i = 0;;) {
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
 
+    SSubmitBlkRsp submitBlkRsp = {0};
+
     // create table for auto create table mode
     if (msgIter.schemaLen > 0) {
-      tCoderInit(&coder, TD_LITTLE_ENDIAN, pBlock->data, msgIter.schemaLen, TD_DECODER);
-      if (tDecodeSVCreateTbReq(&coder, &createTbReq) < 0) {
+      submitBlkRsp.hashMeta = 1;
+
+      tDecoderInit(&decoder, pBlock->data, msgIter.schemaLen);
+      if (tDecodeSVCreateTbReq(&decoder, &createTbReq) < 0) {
         pRsp->code = TSDB_CODE_INVALID_MSG;
-        tCoderClear(&coder);
+        tDecoderClear(&decoder);
         goto _exit;
       }
 
       if (metaCreateTable(pVnode->pMeta, version, &createTbReq) < 0) {
         if (terrno != TSDB_CODE_TDB_TABLE_ALREADY_EXIST) {
-          pRsp->code = terrno;
-          tCoderClear(&coder);
+          submitBlkRsp.code = terrno;
+          tDecoderClear(&decoder);
           goto _exit;
         }
       }
+
+      submitBlkRsp.uid = createTbReq.uid;
+      submitBlkRsp.tblFName = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
+      sprintf(submitBlkRsp.tblFName, "%s.%s", pVnode->config.dbname, createTbReq.name);
 
       msgIter.uid = createTbReq.uid;
       if (createTbReq.type == TSDB_CHILD_TABLE) {
@@ -540,24 +657,69 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
         msgIter.suid = 0;
       }
 
-      tCoderClear(&coder);
+      vnodeDebugPrintSingleSubmitMsg(pVnode->pMeta, pBlock, &msgIter, "real uid");
+      tDecoderClear(&decoder);
     }
 
-    if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &nRows) < 0) {
-      pRsp->code = terrno;
-      goto _exit;
+    if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &submitBlkRsp) < 0) {
+      submitBlkRsp.code = terrno;
     }
 
-    rsp.numOfRows += nRows;
+    submitRsp.numOfRows += submitBlkRsp.numOfRows;
+    submitRsp.affectedRows += submitBlkRsp.affectedRows;
+    taosArrayPush(submitRsp.pArray, &submitBlkRsp);
   }
 
 _exit:
-  // encode the response (TODO)
-  pRsp->pCont = rpcMallocCont(sizeof(SSubmitRsp));
-  memcpy(pRsp->pCont, &rsp, sizeof(rsp));
-  pRsp->contLen = sizeof(SSubmitRsp);
+  tEncodeSize(tEncodeSSubmitRsp, &submitRsp, tsize, ret);
+  pRsp->pCont = rpcMallocCont(tsize);
+  pRsp->contLen = tsize;
+  tEncoderInit(&encoder, pRsp->pCont, tsize);
+  tEncodeSSubmitRsp(&encoder, &submitRsp);
+  tEncoderClear(&encoder);
 
-  tsdbTriggerRSma(pVnode->pTsdb, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+  for (int32_t i = 0; i < taosArrayGetSize(submitRsp.pArray); i++) {
+    taosMemoryFree(((SSubmitBlkRsp *)taosArrayGet(submitRsp.pArray, i))[0].tblFName);
+  }
+
+  taosArrayDestroy(submitRsp.pArray);
+
+  // TODO: the partial success scenario and the error case
+  // TODO: refactor
+  if ((terrno == TSDB_CODE_SUCCESS || terrno == TSDB_CODE_TDB_TABLE_ALREADY_EXIST) &&
+      (pRsp->code == TSDB_CODE_SUCCESS)) {
+    tdProcessRSmaSubmit(pVnode->pSma, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+  }
 
   return 0;
+}
+
+static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
+  SVCreateTSmaReq req = {0};
+  SDecoder        coder;
+
+  pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
+  pRsp->code = TSDB_CODE_SUCCESS;
+  pRsp->pCont = NULL;
+  pRsp->contLen = 0;
+
+  // decode and process req
+  tDecoderInit(&coder, pReq, len);
+
+  if (tDecodeSVCreateTSmaReq(&coder, &req) < 0) {
+    pRsp->code = terrno;
+    goto _err;
+  }
+
+  if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
+    pRsp->code = terrno;
+    goto _err;
+  }
+
+  tDecoderClear(&coder);
+  return 0;
+
+_err:
+  tDecoderClear(&coder);
+  return -1;
 }

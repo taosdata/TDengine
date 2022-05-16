@@ -1013,11 +1013,11 @@ static int32_t tsdbSetTSmaDataFile(STSmaWriteH *pSmaH, int64_t indexUid, int32_t
  * @return int32_t
  */
 static int32_t tsdbGetTSmaDays(STsdb *pTsdb, int64_t interval, int32_t storageLevel) {
-  STsdbCfg *pCfg = REPO_CFG(pTsdb);
-  int32_t   daysPerFile = pCfg->days;
+  STsdbKeepCfg *pCfg = REPO_KEEP_CFG(pTsdb);
+  int32_t       daysPerFile = pCfg->days;
 
   if (storageLevel == SMA_STORAGE_LEVEL_TSDB) {
-    int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerDay[pCfg->precision]);
+    int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerMin[pCfg->precision]);
     daysPerFile = days > SMA_STORAGE_TSDB_DAYS ? days : SMA_STORAGE_TSDB_DAYS;
   }
 
@@ -1698,7 +1698,7 @@ int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg) {
  * @param pReq
  * @return int32_t
  */
-int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq) {
+int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq, SMsgCb *pMsgCb) {
   if (!pReq->rollup) {
     tsdbDebug("vgId:%d return directly since no rollup for stable %s %" PRIi64, REPO_ID(pTsdb), pReq->name, pReq->suid);
     return TSDB_CODE_SUCCESS;
@@ -1742,6 +1742,7 @@ int32_t tsdbRegisterRSma(STsdb *pTsdb, SMeta *pMeta, SVCreateStbReq *pReq) {
   SReadHandle handle = {
       .reader = pReadHandle,
       .meta = pMeta,
+      .pMsgCb = pMsgCb,
   };
 
   if (param->qmsg1) {
@@ -1942,7 +1943,6 @@ static FORCE_INLINE int32_t tsdbUpdateTbUidListImpl(STsdb *pTsdb, tb_uid_t *suid
 
 int32_t tsdbUpdateTbUidList(STsdb *pTsdb, STbUidStore *pStore) {
   if (!pStore || (taosArrayGetSize(pStore->tbUids) == 0)) {
-    tsdbDebug("vgId:%d no need to update tbUids since empty uidStore", REPO_ID(pTsdb));
     return TSDB_CODE_SUCCESS;
   }
 
@@ -2084,7 +2084,7 @@ static int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     // TODO: use the proper schema instead of 0, and cache STSchema in cache
-    STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, suid, 0);
+    STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, suid, 1);
     if (!pTSchema) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       return TSDB_CODE_FAILED;

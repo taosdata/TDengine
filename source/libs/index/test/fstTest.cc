@@ -272,9 +272,8 @@ void checkFstCheckIterator1() {
 
   std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
 
-  fw->Put("Hello world", 1);
-  fw->Put("Hello worle", 2);
-  fw->Put("hello worlf", 4);
+  fw->Put("test1&^D&10", 1);
+  fw->Put("test2&^D&10", 2);
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
@@ -645,11 +644,11 @@ int main(int argc, char* argv[]) {
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
   checkFstCheckIterator1();
-  checkFstCheckIterator2();
-  checkFstCheckIteratorPrefix();
-  checkFstCheckIteratorRange1();
-  checkFstCheckIteratorRange2();
-  checkFstCheckIteratorRange3();
+  // checkFstCheckIterator2();
+  // checkFstCheckIteratorPrefix();
+  // checkFstCheckIteratorRange1();
+  // checkFstCheckIteratorRange2();
+  // checkFstCheckIteratorRange3();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

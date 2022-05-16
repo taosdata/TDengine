@@ -39,24 +39,6 @@ extern "C" {
 //======================================================================================
 //begin API to taosd and qworker
 
-enum {
-  UDFC_CODE_STOPPING = -1,
-  UDFC_CODE_PIPE_READ_ERR = -2,
-  UDFC_CODE_CONNECT_PIPE_ERR = -3,
-  UDFC_CODE_LOAD_UDF_FAILURE = -4,
-  UDFC_CODE_INVALID_STATE = -5
-};
-
-typedef void *UdfcFuncHandle;
-
-/**
- * setup udf
- * @param udf, in
- * @param handle, out
- * @return error code
- */
-int32_t setupUdf(char udfName[], UdfcFuncHandle *handle);
-
 typedef struct SUdfColumnMeta {
   int16_t type;
   int32_t bytes;
@@ -88,6 +70,7 @@ typedef struct SUdfColumnData {
 
 typedef struct SUdfColumn {
   SUdfColumnMeta colMeta;
+  bool           hasNull;
   SUdfColumnData colData;
 } SUdfColumn;
 
@@ -102,32 +85,44 @@ typedef struct SUdfInterBuf {
   char* buf;
   int8_t numOfResult; //zero or one
 } SUdfInterBuf;
+typedef void *UdfcFuncHandle;
 
+/**
+ * setup udf
+ * @param udf, in
+ * @param funcHandle, out
+ * @return error code
+ */
+int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle);
 // output: interBuf
-int32_t callUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
+int32_t doCallUdfAggInit(UdfcFuncHandle handle, SUdfInterBuf *interBuf);
 // input: block, state
 // output: newState
-int32_t callUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
+int32_t doCallUdfAggProcess(UdfcFuncHandle handle, SSDataBlock *block, SUdfInterBuf *state, SUdfInterBuf *newState);
 // input: interBuf
 // output: resultData
-int32_t callUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
+int32_t doCallUdfAggFinalize(UdfcFuncHandle handle, SUdfInterBuf *interBuf, SUdfInterBuf *resultData);
 // input: interbuf1, interbuf2
 // output: resultBuf
-int32_t callUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
+int32_t doCallUdfAggMerge(UdfcFuncHandle handle, SUdfInterBuf *interBuf1, SUdfInterBuf *interBuf2, SUdfInterBuf *resultBuf);
 // input: block
 // output: resultData
-int32_t callUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
+int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
 /**
  * tearn down udf
  * @param handle
  * @return
  */
-int32_t teardownUdf(UdfcFuncHandle handle);
+int32_t doTeardownUdf(UdfcFuncHandle handle);
 
 bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
+
+int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output);
+
+int32_t cleanUpUdfs();
 // end API to taosd and qworker
 //=============================================================================================================================
 // begin API to UDF writer.
@@ -139,6 +134,44 @@ typedef int32_t (*TUdfDestroyFunc)();
 //TODO: add API to check function arguments type, number etc.
 
 #define UDF_MEMORY_EXP_GROWTH 1.5
+
+#define udfColDataIsNull_var(pColumn, row) ((pColumn->colData.varLenCol.varOffsets)[row] == -1)
+#define udfColDataIsNull_f(pColumn, row) ((BMCharPos(pColumn->colData.fixLenCol.nullBitmap, row) & (1u << (7u - BitPos(row)))) == (1u << (7u - BitPos(row))))
+#define udfColDataSetNull_f(pColumn, row)                                                \
+  do {                                                                                   \
+    BMCharPos(pColumn->colData.fixLenCol.nullBitmap, row) |= (1u << (7u - BitPos(row))); \
+  } while (0)
+
+#define udfColDataSetNotNull_f(pColumn, r_)                                               \
+  do {                                                                                    \
+    BMCharPos(pColumn->colData.fixLenCol.nullBitmap, r_) &= ~(1u << (7u - BitPos(r_)));   \
+  } while (0)
+#define udfColDataSetNull_var(pColumn, row)  ((pColumn->colData.varLenCol.varOffsets)[row] = -1)
+
+
+static FORCE_INLINE char* udfColDataGetData(const SUdfColumn* pColumn, int32_t row) {
+  if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
+    return pColumn->colData.varLenCol.payload + pColumn->colData.varLenCol.varOffsets[row];
+  } else {
+    return pColumn->colData.fixLenCol.data + pColumn->colMeta.bytes * row;
+  }
+}
+
+static FORCE_INLINE bool udfColDataIsNull(const SUdfColumn* pColumn, int32_t row) {
+  if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
+    if (pColumn->colMeta.type == TSDB_DATA_TYPE_JSON) {
+      if (udfColDataIsNull_var(pColumn, row)) {
+        return true;
+      }
+      char* data = udfColDataGetData(pColumn, row);
+      return (*data == TSDB_DATA_TYPE_NULL);
+    } else {
+      return udfColDataIsNull_var(pColumn, row);
+    }
+  } else {
+    return udfColDataIsNull_f(pColumn, row);
+  }
+}
 
 static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn* pColumn, int32_t newCapacity) {
   SUdfColumnMeta *meta = &pColumn->colMeta;
@@ -186,17 +219,23 @@ static FORCE_INLINE int32_t udfColEnsureCapacity(SUdfColumn* pColumn, int32_t ne
   return TSDB_CODE_SUCCESS;
 }
 
-static FORCE_INLINE int32_t udfColSetRow(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull) {
+static FORCE_INLINE void udfColDataSetNull(SUdfColumn* pColumn, int32_t row) {
+  udfColEnsureCapacity(pColumn, row+1);
+  if (IS_VAR_DATA_TYPE(pColumn->colMeta.type)) {
+    udfColDataSetNull_var(pColumn, row);
+  } else {
+    udfColDataSetNull_f(pColumn, row);
+  }
+  pColumn->hasNull = true;
+}
+
+static FORCE_INLINE int32_t udfColDataSet(SUdfColumn* pColumn, uint32_t currentRow, const char* pData, bool isNull) {
   SUdfColumnMeta *meta = &pColumn->colMeta;
   SUdfColumnData *data = &pColumn->colData;
   udfColEnsureCapacity(pColumn, currentRow+1);
   bool isVarCol = IS_VAR_DATA_TYPE(meta->type);
   if (isNull) {
-    if (isVarCol) {
-      data->varLenCol.varOffsets[currentRow] = -1;
-    } else {
-      colDataSetNull_f(data->fixLenCol.nullBitmap, currentRow);
-    }
+      udfColDataSetNull(pColumn, currentRow);
   } else {
     if (!isVarCol) {
       colDataSetNotNull_f(data->fixLenCol.nullBitmap, currentRow);

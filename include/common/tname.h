@@ -16,6 +16,7 @@
 #ifndef _TD_COMMON_NAME_H_
 #define _TD_COMMON_NAME_H_
 
+#include "tarray.h"
 #include "tdef.h"
 
 #ifdef __cplusplus
@@ -62,9 +63,21 @@ int32_t tNameSetAcctId(SName* dst, int32_t acctId);
 
 bool tNameDBNameEqual(SName* left, SName* right);
 
+typedef struct {
+  // input
+  SArray*     tags;           // element is SSmlKv
+  const char* sTableName;     // super table name
+  uint8_t     sTableNameLen;  // the length of super table name
+
+  // output
+  char*    childTableName;  // must have size of TSDB_TABLE_NAME_LEN;
+  uint64_t uid;             // child table uid, may be useful
+} RandTableName;
+
+void buildChildTableName(RandTableName* rName);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  /*_TD_COMMON_NAME_H_*/
+#endif /*_TD_COMMON_NAME_H_*/

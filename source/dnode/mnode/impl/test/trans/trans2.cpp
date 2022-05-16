@@ -58,7 +58,7 @@ class MndTestTrans2 : public ::testing::Test {
     strcpy(opt.replicas[0].fqdn, "localhost");
     opt.msgCb = msgCb;
 
-    tsTransPullupMs = 1000;
+    tsTransPullupInterval = 1;
 
     const char *mnodepath = "/tmp/mnode_test_trans";
     taosRemoveDir(mnodepath);

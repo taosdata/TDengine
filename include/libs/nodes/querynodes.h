@@ -232,8 +232,9 @@ typedef struct SSelectStmt {
   char        stmtName[TSDB_TABLE_NAME_LEN];
   uint8_t     precision;
   bool        isEmptyResult;
-  bool        hasAggFuncs;
   bool        isTimeOrderQuery;
+  bool        hasAggFuncs;
+  bool        hasRepeatScanFuncs;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -294,6 +295,38 @@ typedef struct SExplainStmt {
   SNode*           pQuery;
 } SExplainStmt;
 
+typedef struct SCmdMsgInfo {
+  int16_t msgType;
+  SEpSet  epSet;
+  void*   pMsg;
+  int32_t msgLen;
+  void*   pExtension;  // todo remove it soon
+} SCmdMsgInfo;
+
+typedef enum EQueryExecMode {
+  QUERY_EXEC_MODE_LOCAL = 1,
+  QUERY_EXEC_MODE_RPC,
+  QUERY_EXEC_MODE_SCHEDULE,
+  QUERY_EXEC_MODE_EMPTY_RESULT
+} EQueryExecMode;
+
+typedef struct SQuery {
+  ENodeType      type;
+  EQueryExecMode execMode;
+  bool           haveResultSet;
+  SNode*         pRoot;
+  int32_t        numOfResCols;
+  SSchema*       pResSchema;
+  int8_t         precision;
+  SCmdMsgInfo*   pCmdMsg;
+  int32_t        msgType;
+  SArray*        pDbList;
+  SArray*        pTableList;
+  bool           showRewrite;
+  int32_t        placeholderNum;
+  SArray*        pPlaceholderValues;
+} SQuery;
+
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
 void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewriter rewriter, void* pContext);
 
@@ -312,6 +345,7 @@ bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
+bool nodesIsRegularOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);

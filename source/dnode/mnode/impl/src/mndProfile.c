@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndStb.h"
 #include "mndUser.h"
+#include "mndDnode.h"
 #include "tglobal.h"
 #include "version.h"
 
@@ -227,6 +228,7 @@ static int32_t mndProcessConnectReq(SNodeMsg *pReq) {
   connectRsp.clusterId = pMnode->clusterId;
   connectRsp.connId = pConn->id;
   connectRsp.connType = connReq.connType;
+  connectRsp.dnodeNum = mndGetDnodeSize(pMnode);
 
   snprintf(connectRsp.sVersion, sizeof(connectRsp.sVersion), "ver:%s\nbuild:%s\ngitinfo:%s", version, buildinfo,
            gitinfo);

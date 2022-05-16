@@ -37,11 +37,12 @@ typedef enum {
   QUEUE_MAX,
 } EQueueType;
 
-typedef int32_t (*PutToQueueFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
-typedef int32_t (*GetQueueSizeFp)(SMgmtWrapper* pWrapper, int32_t vgId, EQueueType qtype);
+typedef int32_t (*PutToQueueFp)(void *pMgmt, SRpcMsg* pReq);
+typedef int32_t (*GetQueueSizeFp)(void *pMgmt, int32_t vgId, EQueueType qtype);
 typedef int32_t (*SendReqFp)(SMgmtWrapper* pWrapper, const SEpSet* epSet, SRpcMsg* pReq);
 typedef int32_t (*SendMnodeReqFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq);
 typedef void (*SendRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp);
+typedef void (*SendMnodeRecvFp)(SMgmtWrapper* pWrapper, SRpcMsg* pReq, SRpcMsg* pRsp);
 typedef void (*SendRedirectRspFp)(SMgmtWrapper* pWrapper, const SRpcMsg* pRsp, const SEpSet* pNewEpSet);
 typedef void (*RegisterBrokenLinkArgFp)(SMgmtWrapper* pWrapper, SRpcMsg* pMsg);
 typedef void (*ReleaseHandleFp)(SMgmtWrapper* pWrapper, void* handle, int8_t type);
@@ -49,10 +50,13 @@ typedef void (*ReportStartup)(SMgmtWrapper* pWrapper, const char* name, const ch
 
 typedef struct {
   SMgmtWrapper*           pWrapper;
+  void*                   pMgmt;
+  void*                   clientRpc;
   PutToQueueFp            queueFps[QUEUE_MAX];
   GetQueueSizeFp          qsizeFp;
   SendReqFp               sendReqFp;
   SendRspFp               sendRspFp;
+  SendMnodeRecvFp         sendMnodeRecvFp;
   SendRedirectRspFp       sendRedirectRspFp;
   RegisterBrokenLinkArgFp registerBrokenLinkArgFp;
   ReleaseHandleFp         releaseHandleFp;
@@ -63,8 +67,9 @@ void    tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb);
 int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq);
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype);
 int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq);
-void    tmsgSendRsp(const SRpcMsg* pRsp);
-void    tmsgSendRedirectRsp(const SRpcMsg* pRsp, const SEpSet* pNewEpSet);
+void    tmsgSendRsp(SRpcMsg* pRsp);
+void    tmsgSendMnodeRecv(SRpcMsg* pReq, SRpcMsg* pRsp);
+void    tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet);
 void    tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg);
 void    tmsgReleaseHandle(void* handle, int8_t type);
 void    tmsgReportStartup(const char* name, const char* desc);

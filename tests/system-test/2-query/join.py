@@ -28,7 +28,7 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), True)
 
     def __query_condition(self,tbname):
         query_condition = []
@@ -99,6 +99,7 @@ class TDTestCase:
 
                 if not join_flag :
                     tdSql.error(sql=sql)
+                    break
                 if len(tblist) == 2:
                     if "ct1" in tblist or "t1" in tblist:
                         self.__join_current(sql, checkrows)
@@ -111,42 +112,9 @@ class TDTestCase:
                 if len(tblist) > 2 or len(tblist) < 1:
                     tdSql.error(sql=sql)
 
-    # def __join_err_check(self,tbname):
-    #     sqls = []
-
-    #     for un_char_col in NUM_COL:
-    #         sqls.extend(
-    #             (
-    #                 f"select length( {un_char_col} ) from {tbname} ",
-    #                 f"select length(ceil( {un_char_col} )) from {tbname} ",
-    #                 f"select {un_char_col} from {tbname} group by length( {un_char_col} ) ",
-    #             )
-    #         )
-
-    #         sqls.extend( f"select length( {un_char_col} + {un_char_col_2} ) from {tbname} " for un_char_col_2 in NUM_COL )
-    #         sqls.extend( f"select length( {un_char_col} + {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-
-    #     sqls.extend( f"select {char_col} from {tbname} group by length( {char_col} ) " for char_col in CHAR_COL)
-    #     sqls.extend( f"select length( {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-    #     sqls.extend( f"select length( {char_col} + {ts_col} ) from {tbname} " for char_col in NUM_COL for ts_col in TS_TYPE_COL)
-    #     sqls.extend( f"select length( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-    #     sqls.extend( f"select upper({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
-    #     sqls.extend( f"select upper({char_col}) from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
-    #     sqls.extend(
-    #         (
-    #             f"select length() from {tbname} ",
-    #             f"select length(*) from {tbname} ",
-    #             f"select length(ccccccc) from {tbname} ",
-    #             f"select length(111) from {tbname} ",
-    #             f"select length(c8, 11) from {tbname} ",
-    #         )
-    #     )
-
-    #     return sqls
-
     def __join_current(self, sql, checkrows):
         tdSql.query(sql=sql)
-        tdSql.checkRows(checkrows)
+        # tdSql.checkRows(checkrows)
 
 
     def __test_current(self):
@@ -197,10 +165,10 @@ class TDTestCase:
 
         tbname = ["ct1", "ct2", "ct4", "t1"]
 
-        for tb in tbname:
-            for errsql in self.__length_err_check(tb):
-                tdSql.error(sql=errsql)
-            tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
+        # for tb in tbname:
+        #     for errsql in self.__join_err_check(tb):
+        #         tdSql.error(sql=errsql)
+        #     tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 
     def all_test(self):
@@ -319,13 +287,13 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
-        # tdSql.execute("use db")
+        tdSql.execute("use db")
 
-        # tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        # self.all_test()
+        tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        self.all_test()
 
     def stop(self):
         tdSql.close()

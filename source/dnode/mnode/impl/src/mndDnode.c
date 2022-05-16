@@ -335,7 +335,6 @@ static int32_t mndProcessStatusReq(SNodeMsg *pReq) {
       }
       bool roleChanged = false;
       for (int32_t vg = 0; vg < pVgroup->replica; ++vg) {
-        // sync integration
         if (pVgroup->vnodeGid[vg].dnodeId == statusReq.dnodeId) {
           if (pVgroup->vnodeGid[vg].role != pVload->syncState) {
             roleChanged = true;

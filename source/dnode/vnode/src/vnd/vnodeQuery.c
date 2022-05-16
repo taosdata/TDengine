@@ -119,13 +119,12 @@ _exit:
   taosMemoryFree(metaRsp.pSchemas);
   metaReaderClear(&mer2);
   metaReaderClear(&mer1);
-  return code;
+  return TSDB_CODE_SUCCESS;
 }
 
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad) {
   pLoad->vgId = TD_VID(pVnode);
-  // pLoad->syncState = TAOS_SYNC_STATE_LEADER;
-  pLoad->syncState = syncGetMyRole(pVnode->sync);  // sync integration
+  pLoad->syncState = syncGetMyRole(pVnode->sync);
   pLoad->numOfTables = metaGetTbNum(pVnode->pMeta);
   pLoad->numOfTimeSeries = 400;
   pLoad->totalStorage = 300;

@@ -25,20 +25,18 @@ extern "C" {
 
 typedef struct SPlanContext {
   uint64_t queryId;
-  int32_t acctId;
-  SEpSet mgmtEpSet;
-  SNode* pAstRoot;
-  bool topicQuery;
-  bool streamQuery;
-  bool rSmaQuery;
-  bool showRewrite;
-  int8_t triggerType;
-  int64_t watermark;
-  int32_t placeholderNum;
-  void* pTransporter;
-  struct SCatalog* pCatalog;
-  char* pMsg;
-  int32_t msgLen;
+  int32_t  acctId;
+  SEpSet   mgmtEpSet;
+  SNode*   pAstRoot;
+  bool     topicQuery;
+  bool     streamQuery;
+  bool     rSmaQuery;
+  bool     showRewrite;
+  int8_t   triggerType;
+  int64_t  watermark;
+  int32_t  placeholderNum;
+  char*    pMsg;
+  int32_t  msgLen;
 } SPlanContext;
 
 // Create the physical plan for the query, according to the AST.
@@ -47,16 +45,17 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
 // Set datasource of this subplan, multiple calls may be made to a subplan.
 // @pSubplan subplan to be schedule
 // @groupId id of a group of datasource subplans of this @pSubplan
-// @pSource one execution location of this group of datasource subplans 
+// @pSource one execution location of this group of datasource subplans
 int32_t qSetSubplanExecutionNode(SSubplan* pSubplan, int32_t groupId, SDownstreamSourceNode* pSource);
 
-int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId);
+int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId,
+                       bool* pEmptyResult);
 
 // Convert to subplan to string for the scheduler to send to the executor
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen);
 int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan);
 
-char* qQueryPlanToString(const SQueryPlan* pPlan);
+char*       qQueryPlanToString(const SQueryPlan* pPlan);
 SQueryPlan* qStringToQueryPlan(const char* pStr);
 
 void qDestroyQueryPlan(SQueryPlan* pPlan);

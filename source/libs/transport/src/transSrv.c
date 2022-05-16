@@ -35,7 +35,6 @@ typedef struct SSrvConn {
   uv_timer_t pTimer;
 
   queue       queue;
-  int         persist;  // persist connection or not
   SConnBuffer readBuf;  // read buf,
   int         inType;
   void*       pTransInst;  // rpc init
@@ -67,6 +66,7 @@ typedef struct SSrvMsg {
 
 typedef struct SWorkThrdObj {
   TdThread      thread;
+  uv_connect_t  connect_req;
   uv_pipe_t*    pipe;
   uv_os_fd_t    fd;
   uv_loop_t*    loop;
@@ -87,8 +87,10 @@ typedef struct SServerObj {
   // work thread info
   int            workerIdx;
   int            numOfThreads;
+  int            numOfWorkerReady;
   SWorkThrdObj** pThreadObj;
 
+  uv_pipe_t   pipeListen;
   uv_pipe_t** pipe;
   uint32_t    ip;
   uint32_t    port;
@@ -135,6 +137,9 @@ static void destroySmsg(SSrvMsg* smsg);
 // check whether already read complete packet
 static SSrvConn* createConn(void* hThrd);
 static void      destroyConn(SSrvConn* conn, bool clear /*clear handle or not*/);
+static void      destroyConnRegArg(SSrvConn* conn);
+
+static int reallocConnRefHandle(SSrvConn* conn);
 
 static void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd);
@@ -161,7 +166,7 @@ static void* transWorkerThread(void* arg);
 static void* transAcceptThread(void* arg);
 
 // add handle loop
-static bool addHandleToWorkloop(void* arg);
+static bool addHandleToWorkloop(SWorkThrdObj* pThrd, char* pipeName);
 static bool addHandleToAcceptloop(void* arg);
 
 #define CONN_SHOULD_RELEASE(conn, head)                                     \
@@ -177,6 +182,7 @@ static bool addHandleToAcceptloop(void* arg);
       srvMsg->msg = tmsg;                                                   \
       srvMsg->type = Release;                                               \
       srvMsg->pConn = conn;                                                 \
+      reallocConnRefHandle(conn);                                           \
       if (!transQueuePush(&conn->srvMsgs, srvMsg)) {                        \
         return;                                                             \
       }                                                                     \
@@ -357,10 +363,14 @@ void uvOnSendCb(uv_write_t* req, int status) {
     tTrace("server conn %p data already was written on stream", conn);
     if (!transQueueEmpty(&conn->srvMsgs)) {
       SSrvMsg* msg = transQueuePop(&conn->srvMsgs);
-      if (msg->type == Release && conn->status != ConnNormal) {
-        conn->status = ConnNormal;
-        transUnrefSrvHandle(conn);
-      }
+      // if (msg->type == Release && conn->status != ConnNormal) {
+      //  conn->status = ConnNormal;
+      //  transUnrefSrvHandle(conn);
+      //  reallocConnRefHandle(conn);
+      //  destroySmsg(msg);
+      //  transQueueClear(&conn->srvMsgs);
+      //  return;
+      //}
       destroySmsg(msg);
       // send second data, just use for push
       if (!transQueueEmpty(&conn->srvMsgs)) {
@@ -418,8 +428,17 @@ static void uvPrepareSendData(SSrvMsg* smsg, uv_buf_t* wb) {
   if (pConn->status == ConnNormal) {
     pHead->msgType = pConn->inType + 1;
   } else {
-    pHead->msgType = smsg->type == Release ? 0 : pMsg->msgType;
+    if (smsg->type == Release) {
+      pHead->msgType = 0;
+      pConn->status = ConnNormal;
+
+      destroyConnRegArg(pConn);
+      transUnrefSrvHandle(pConn);
+    } else {
+      pHead->msgType = pMsg->msgType;
+    }
   }
+
   pHead->release = smsg->type == Release ? 1 : 0;
   pHead->code = htonl(pMsg->code);
 
@@ -514,7 +533,7 @@ void uvWorkerAsyncCb(uv_async_t* handle) {
       int64_t    refId = transMsg.refId;
       SExHandle* exh2 = uvAcquireExHandle(refId);
       if (exh2 == NULL || exh1 != exh2) {
-        tTrace("server handle %p except msg, ignore it", exh1);
+        tTrace("server handle except msg %p, ignore it", exh1);
         uvReleaseExHandle(refId);
         destroySmsg(msg);
         continue;
@@ -577,6 +596,13 @@ void uvOnAcceptCb(uv_stream_t* stream, int status) {
   uv_tcp_init(pObj->loop, cli);
 
   if (uv_accept(stream, (uv_stream_t*)cli) == 0) {
+    if (pObj->numOfWorkerReady < pObj->numOfThreads) {
+      tError("worker-threads are not ready for all, need %d instead of %d.", pObj->numOfThreads,
+             pObj->numOfWorkerReady);
+      uv_close((uv_handle_t*)cli, NULL);
+      return;
+    }
+
     uv_write_t* wr = (uv_write_t*)taosMemoryMalloc(sizeof(uv_write_t));
     wr->data = cli;
     uv_buf_t buf = uv_buf_init((char*)notify, strlen(notify));
@@ -672,15 +698,21 @@ void* transAcceptThread(void* arg) {
 
   return NULL;
 }
-static bool addHandleToWorkloop(void* arg) {
-  SWorkThrdObj* pThrd = arg;
+void uvOnPipeConnectionCb(uv_connect_t* connect, int status) {
+  if (status != 0) {
+    return;
+  }
+  SWorkThrdObj* pThrd = container_of(connect, SWorkThrdObj, connect_req);
+  uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+}
+static bool addHandleToWorkloop(SWorkThrdObj* pThrd, char* pipeName) {
   pThrd->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   if (0 != uv_loop_init(pThrd->loop)) {
     return false;
   }
 
   uv_pipe_init(pThrd->loop, pThrd->pipe, 1);
-  uv_pipe_open(pThrd->pipe, pThrd->fd);
+  // int r = uv_pipe_open(pThrd->pipe, pThrd->fd);
 
   pThrd->pipe->data = pThrd;
 
@@ -691,7 +723,8 @@ static bool addHandleToWorkloop(void* arg) {
   QUEUE_INIT(&pThrd->conn);
 
   pThrd->asyncPool = transCreateAsyncPool(pThrd->loop, 5, pThrd, uvWorkerAsyncCb);
-  uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
+  uv_pipe_connect(&pThrd->connect_req, pThrd->pipe, pipeName, uvOnPipeConnectionCb);
+  // uv_read_start((uv_stream_t*)pThrd->pipe, uvAllocConnBufferCb, uvOnConnectionCb);
   return true;
 }
 
@@ -771,6 +804,25 @@ static void destroyConn(SSrvConn* conn, bool clear) {
     // uv_shutdown(req, (uv_stream_t*)conn->pTcp, uvShutDownCb);
   }
 }
+static void destroyConnRegArg(SSrvConn* conn) {
+  if (conn->regArg.init == 1) {
+    transFreeMsg(conn->regArg.msg.pCont);
+    conn->regArg.init = 0;
+  }
+}
+static int reallocConnRefHandle(SSrvConn* conn) {
+  uvReleaseExHandle(conn->refId);
+  uvRemoveExHandle(conn->refId);
+  // avoid app continue to send msg on invalid handle
+  SExHandle* exh = taosMemoryMalloc(sizeof(SExHandle));
+  exh->handle = conn;
+  exh->pThrd = conn->hostThrd;
+  exh->refId = uvAddExHandle(exh);
+  uvAcquireExHandle(exh->refId);
+  conn->refId = exh->refId;
+
+  return 0;
+}
 static void uvDestroyConn(uv_handle_t* handle) {
   SSrvConn* conn = handle->data;
   if (conn == NULL) {
@@ -785,16 +837,9 @@ static void uvDestroyConn(uv_handle_t* handle) {
   // uv_timer_stop(&conn->pTimer);
   transQueueDestroy(&conn->srvMsgs);
 
-  if (conn->regArg.init == 1) {
-    transFreeMsg(conn->regArg.msg.pCont);
-    conn->regArg.init = 0;
-  }
   QUEUE_REMOVE(&conn->queue);
   taosMemoryFree(conn->pTcp);
-  if (conn->regArg.init == 1) {
-    transFreeMsg(conn->regArg.msg.pCont);
-    conn->regArg.init = 0;
-  }
+  destroyConnRegArg(conn);
   taosMemoryFree(conn);
 
   if (thrd->quit && QUEUE_IS_EMPTY(&thrd->conn)) {
@@ -802,12 +847,32 @@ static void uvDestroyConn(uv_handle_t* handle) {
     uv_walk(thrd->loop, uvWalkCb, NULL);
   }
 }
+static void uvPipeListenCb(uv_stream_t* handle, int status) {
+  ASSERT(status == 0);
+
+  SServerObj* srv = container_of(handle, SServerObj, pipeListen);
+  uv_pipe_t*  pipe = &(srv->pipe[srv->numOfWorkerReady][0]);
+  ASSERT(0 == uv_pipe_init(srv->loop, pipe, 1));
+  ASSERT(0 == uv_accept((uv_stream_t*)&srv->pipeListen, (uv_stream_t*)pipe));
+
+  ASSERT(1 == uv_is_readable((uv_stream_t*)pipe));
+  ASSERT(1 == uv_is_writable((uv_stream_t*)pipe));
+  ASSERT(0 == uv_is_closing((uv_handle_t*)pipe));
+
+  srv->numOfWorkerReady++;
+
+  // ASSERT(0 == uv_listen((uv_stream_t*)&ctx.send.tcp, 512, uvOnAcceptCb));
+
+  // r = uv_read_start((uv_stream_t*)&ctx.channel, alloc_cb, read_cb);
+  // ASSERT(r == 0);
+}
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle) {
   SServerObj* srv = taosMemoryCalloc(1, sizeof(SServerObj));
   srv->loop = (uv_loop_t*)taosMemoryMalloc(sizeof(uv_loop_t));
   srv->numOfThreads = numOfThreads;
   srv->workerIdx = 0;
+  srv->numOfWorkerReady = 0;
   srv->pThreadObj = (SWorkThrdObj**)taosMemoryCalloc(srv->numOfThreads, sizeof(SWorkThrdObj*));
   srv->pipe = (uv_pipe_t**)taosMemoryCalloc(srv->numOfThreads, sizeof(uv_pipe_t*));
   srv->ip = ip;
@@ -817,6 +882,18 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   taosThreadOnce(&transModuleInit, uvInitEnv);
   transSrvInst++;
 
+  assert(0 == uv_pipe_init(srv->loop, &srv->pipeListen, 0));
+#ifdef WINDOWS
+  char pipeName[64];
+  snprintf(pipeName, sizeof(pipeName), "\\\\?\\pipe\\trans.rpc.%p-%lu", taosSafeRand(), GetCurrentProcessId());
+#else
+  char pipeName[PATH_MAX] = {0};
+  snprintf(pipeName, sizeof(pipeName), "%s%spipe.trans.rpc.%08X-%lu", tsTempDir, TD_DIRSEP, taosSafeRand(),
+           taosGetSelfPthreadId());
+#endif
+  assert(0 == uv_pipe_bind(&srv->pipeListen, pipeName));
+  assert(0 == uv_listen((uv_stream_t*)&srv->pipeListen, SOMAXCONN, uvPipeListenCb));
+
   for (int i = 0; i < srv->numOfThreads; i++) {
     SWorkThrdObj* thrd = (SWorkThrdObj*)taosMemoryCalloc(1, sizeof(SWorkThrdObj));
     thrd->pTransInst = shandle;
@@ -825,18 +902,9 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     thrd->pTransInst = shandle;
 
     srv->pipe[i] = (uv_pipe_t*)taosMemoryCalloc(2, sizeof(uv_pipe_t));
-
-    uv_os_sock_t fds[2];
-    if (uv_socketpair(SOCK_STREAM, 0, fds, UV_NONBLOCK_PIPE, UV_NONBLOCK_PIPE) != 0) {
-      goto End;
-    }
-    uv_pipe_init(srv->loop, &(srv->pipe[i][0]), 1);
-    uv_pipe_open(&(srv->pipe[i][0]), fds[1]);  // init write
-
-    thrd->fd = fds[0];
     thrd->pipe = &(srv->pipe[i][1]);  // init read
 
-    if (false == addHandleToWorkloop(thrd)) {
+    if (false == addHandleToWorkloop(thrd, pipeName)) {
       goto End;
     }
     int err = taosThreadCreate(&(thrd->thread), NULL, transWorkerThread, (void*)(thrd));
@@ -850,7 +918,8 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
     }
   }
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
-    tError("failed to bind, reason: %s", terrstr());
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    tError("invalid ip/port, reason: %s", terrstr());
     goto End;
   }
   if (false == addHandleToAcceptloop(srv)) {
@@ -920,6 +989,7 @@ void uvHandleQuit(SSrvMsg* msg, SWorkThrdObj* thrd) {
 void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd) {
   SSrvConn* conn = msg->pConn;
   if (conn->status == ConnAcquire) {
+    reallocConnRefHandle(conn);
     if (!transQueuePush(&conn->srvMsgs, msg)) {
       return;
     }
@@ -1069,7 +1139,7 @@ void transSendResponse(const STransMsg* msg) {
   SSrvMsg* srvMsg = taosMemoryCalloc(1, sizeof(SSrvMsg));
   srvMsg->msg = tmsg;
   srvMsg->type = Normal;
-  tTrace("server conn %p start to send resp (1/2)", exh->handle);
+  tDebug("server conn %p start to send resp (1/2)", exh->handle);
   transSendAsync(pThrd->asyncPool, &srvMsg->q);
   uvReleaseExHandle(refId);
   return;

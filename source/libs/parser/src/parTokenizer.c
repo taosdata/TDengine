@@ -85,6 +85,7 @@ static SKeyword keywordTable[] = {
     {"FSYNC",         TK_FSYNC},
     {"FUNCTION",      TK_FUNCTION},
     {"FUNCTIONS",     TK_FUNCTIONS},
+    {"GRANT",         TK_GRANT},
     {"GRANTS",        TK_GRANTS},
     {"GROUP",         TK_GROUP},
     {"HAVING",        TK_HAVING},
@@ -147,9 +148,12 @@ static SKeyword keywordTable[] = {
     {"QUERIES",       TK_QUERIES},
     {"QUERY",         TK_QUERY},
     {"RATIO",         TK_RATIO},
+    {"READ",          TK_READ},
+    {"RENAME",        TK_RENAME},
     {"REPLICA",       TK_REPLICA},
     {"RESET",         TK_RESET},
     {"RETENTIONS",    TK_RETENTIONS},
+    {"REVOKE",        TK_REVOKE},
     {"ROLLUP",        TK_ROLLUP},
     {"SCHEMA",        TK_SCHEMA},
     {"SCORES",        TK_SCORES},
@@ -182,9 +186,12 @@ static SKeyword keywordTable[] = {
     {"TIMESTAMP",     TK_TIMESTAMP},
     {"TIMEZONE",      TK_TIMEZONE},
     {"TINYINT",       TK_TINYINT},
+    {"TO",            TK_TO},
     {"TODAY",         TK_TODAY},
     {"TOPIC",         TK_TOPIC},
     {"TOPICS",        TK_TOPICS},
+    {"TRANSACTION",   TK_TRANSACTION},
+    {"TRANSACTIONS",  TK_TRANSACTIONS},
     {"TRIGGER",       TK_TRIGGER},
     {"TSERIES",       TK_TSERIES},
     {"TTL",           TK_TTL},
@@ -206,6 +213,8 @@ static SKeyword keywordTable[] = {
     {"WHERE",         TK_WHERE},
     {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
     {"WITH",          TK_WITH},
+    {"WRITE",         TK_WRITE},
+    {"_C0",           TK_ROWTS},
     {"_QENDTS",       TK_QENDTS},
     {"_QSTARTTS",     TK_QSTARTTS},
     {"_ROWTS",        TK_ROWTS},
@@ -471,7 +480,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
-        if (z[i] == '\\') {  // ignore the escaped character that follows this backslash
+        if (delim != '`' && z[i] == '\\') {  // ignore the escaped character that follows this backslash
           i++;
           continue;
         }
@@ -582,6 +591,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       if (seg == 4) {  // ip address
         *tokenId = TK_NK_IPTOKEN;
         return i;
+      } else if (seg > 2) {
+        break;
       }
 
       if ((z[i] == 'e' || z[i] == 'E') &&

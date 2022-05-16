@@ -47,6 +47,7 @@ enum DumpModule {
 };
 
 DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
+int32_t    g_skipSql = 0;
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
@@ -198,7 +199,7 @@ class PlannerTestBaseImpl {
     cxt.pMsg = stmtEnv_.msgBuf_.data();
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
 
-    DO_WITH_THROW(qParseQuerySql, &cxt, pQuery);
+    DO_WITH_THROW(qParseSql, &cxt, pQuery);
     res_.ast_ = toString((*pQuery)->pRoot);
   }
 

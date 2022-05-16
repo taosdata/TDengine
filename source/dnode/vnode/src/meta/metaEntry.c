@@ -15,7 +15,7 @@
 
 #include "meta.h"
 
-int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
+int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI64(pCoder, pME->version) < 0) return -1;
@@ -34,7 +34,10 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tEncodeI64(pCoder, pME->ntbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ntbEntry.ttlDays) < 0) return -1;
+    if (tEncodeI32v(pCoder, pME->ntbEntry.ncid) < 0) return -1;
     if (tEncodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
+  } else if (pME->type == TSDB_TSMA_TABLE) {
+    if (tEncodeTSma(pCoder, pME->smaEntry.tsma) < 0) return -1;
   } else {
     ASSERT(0);
   }
@@ -43,8 +46,8 @@ int metaEncodeEntry(SCoder *pCoder, const SMetaEntry *pME) {
   return 0;
 }
 
-int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
-  uint64_t len;
+int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
+  uint32_t len;
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pME->version) < 0) return -1;
@@ -63,7 +66,10 @@ int metaDecodeEntry(SCoder *pCoder, SMetaEntry *pME) {
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;
+    if (tDecodeI32v(pCoder, &pME->ntbEntry.ncid) < 0) return -1;
     if (tDecodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
+  } else if (pME->type == TSDB_TSMA_TABLE) {
+    if (tDecodeTSma(pCoder, pME->smaEntry.tsma) < 0) return -1;
   } else {
     ASSERT(0);
   }

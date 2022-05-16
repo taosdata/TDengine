@@ -17,8 +17,8 @@
 #define _TD_COMMON_GLOBAL_H_
 
 #include "tarray.h"
-#include "tdef.h"
 #include "tconfig.h"
+#include "tdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -34,7 +34,6 @@ extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
 
 // common
-extern int32_t tsMaxConnections;
 extern int32_t tsMaxShellConns;
 extern int32_t tsShellActivityTimer;
 extern int32_t tsCompressMsgSize;
@@ -43,7 +42,7 @@ extern int32_t tsMaxNumOfDistinctResults;
 extern int32_t tsCompatibleModel;
 extern bool    tsEnableSlaveQuery;
 extern bool    tsPrintAuth;
-extern int64_t tsTickPerDay[3];
+extern int64_t tsTickPerMin[3];
 
 // multi-process
 extern bool    tsMultiProcess;
@@ -52,6 +51,7 @@ extern int32_t tsVnodeShmSize;
 extern int32_t tsQnodeShmSize;
 extern int32_t tsSnodeShmSize;
 extern int32_t tsBnodeShmSize;
+extern int32_t tsNumOfShmThreads;
 
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
@@ -68,6 +68,7 @@ extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeSharedThreads;
 extern int32_t tsNumOfSnodeUniqueThreads;
+extern int64_t tsRpcQueueMemoryAllowed;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -121,15 +122,19 @@ extern char     tsCompressor[];
 extern int32_t  tsDiskCfgNum;
 extern SDiskCfg tsDiskCfg[];
 
-// internal 
-extern int32_t tsTransPullupMs;
-extern int32_t tsMaRebalanceMs;
+// udf
+extern bool tsStartUdfd;
+
+// internal
+extern int32_t tsTransPullupInterval;
+extern int32_t tsMqRebalanceInterval;
 
 #define NEEDTO_COMPRESSS_MSG(size) (tsCompressMsgSize != -1 && (size) > tsCompressMsgSize)
 
-int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd, const char *envFile,
-                      char *apolloUrl, SArray *pArgs, bool tsc);
-int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosCreateLog(const char *logname, int32_t logFileNum, const char *cfgDir, const char **envCmd,
+                      const char *envFile, char *apolloUrl, SArray *pArgs, bool tsc);
+int32_t taosInitCfg(const char *cfgDir, const char **envCmd, const char *envFile, char *apolloUrl, SArray *pArgs,
+                    bool tsc);
 void    taosCleanupCfg();
 void    taosCfgDynamicOptions(const char *option, const char *value);
 void    taosAddDataDir(int32_t index, char *v1, int32_t level, int32_t primary);

@@ -318,6 +318,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->updateTime = pNew->updateTime;
   pOld->version = pNew->version;
   pOld->nextColId = pNew->nextColId;
+  pOld->ttl = pNew->ttl;
   pOld->numOfColumns = pNew->numOfColumns;
   pOld->numOfTags = pNew->numOfTags;
   memcpy(pOld->pColumns, pNew->pColumns, pOld->numOfColumns * sizeof(SSchema));
@@ -369,7 +370,7 @@ static FORCE_INLINE int schemaExColIdCompare(const void *colId, const void *pSch
 }
 
 static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb, int32_t *pContLen) {
-  SCoder         coder = {0};
+  SEncoder       encoder = {0};
   int32_t        contLen;
   SName          name = {0};
   SVCreateStbReq req = {0};
@@ -382,9 +383,10 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.suid = pStb->uid;
   req.rollup = pStb->ast1Len > 0 ? 1 : 0;
   req.schema.nCols = pStb->numOfColumns;
-  req.schema.sver = 0;
+  req.schema.sver = pStb->version;
   req.schema.pSchema = pStb->pColumns;
   req.schemaTag.nCols = pStb->numOfTags;
+  req.schemaTag.nCols = 0;
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {
@@ -422,11 +424,15 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   pHead->vgId = htonl(pVgroup->vgId);
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, contLen - sizeof(SMsgHead), TD_ENCODER);
-  if (tEncodeSVCreateStbReq(&coder, &req) < 0) {
+  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
+  if (tEncodeSVCreateStbReq(&encoder, &req) < 0) {
+    taosMemoryFreeClear(pHead);
+    taosMemoryFreeClear(req.pRSmaParam.qmsg1);
+    taosMemoryFreeClear(req.pRSmaParam.qmsg2);
+    tEncoderClear(&encoder);
     return NULL;
   }
-  tCoderClear(&coder);
+  tEncoderClear(&encoder);
 
   *pContLen = contLen;
   taosMemoryFreeClear(req.pRSmaParam.qmsg1);
@@ -440,7 +446,7 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
   int32_t      contLen = 0;
   int32_t      ret = 0;
   SMsgHead    *pHead = NULL;
-  SCoder       coder = {0};
+  SEncoder     encoder = {0};
 
   tNameFromString(&name, pStb->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
@@ -462,9 +468,9 @@ static void *mndBuildVDropStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pStb,
 
   void *pBuf = POINTER_SHIFT(pHead, sizeof(SMsgHead));
 
-  tCoderInit(&coder, TD_LITTLE_ENDIAN, pBuf, contLen - sizeof(SMsgHead), TD_ENCODER);
-  tEncodeSVDropStbReq(&coder, &req);
-  tCoderClear(&coder);
+  tEncoderInit(&encoder, pBuf, contLen - sizeof(SMsgHead));
+  tEncodeSVDropStbReq(&encoder, &req);
+  tEncoderClear(&encoder);
 
   *pContLen = contLen;
   return pHead;
@@ -832,6 +838,8 @@ static int32_t mndProcessVCreateStbRsp(SNodeMsg *pRsp) {
 }
 
 static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
+  if (pAlter->commentLen != 0 || pAlter->ttl != 0) return 0;
+
   if (pAlter->numOfFields < 1 || pAlter->numOfFields != (int32_t)taosArrayGetSize(pAlter->pFields)) {
     terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
     return -1;
@@ -839,15 +847,6 @@ static int32_t mndCheckAlterStbReq(SMAlterStbReq *pAlter) {
 
   for (int32_t i = 0; i < pAlter->numOfFields; ++i) {
     SField *pField = taosArrayGet(pAlter->pFields, i);
-
-    if (pField->type <= 0) {
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return -1;
-    }
-    if (pField->bytes <= 0) {
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
-      return -1;
-    }
     if (pField->name[0] == 0) {
       terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
       return -1;
@@ -890,6 +889,27 @@ static int32_t mndAllocStbSchemas(const SStbObj *pOld, SStbObj *pNew) {
   return 0;
 }
 
+static int32_t mndUpdateStbCommentAndTTL(const SStbObj *pOld, SStbObj *pNew, char *pComment, int32_t commentLen,
+                                         int32_t ttl) {
+  if (commentLen > 0) {
+    pNew->commentLen = commentLen;
+    pNew->comment = taosMemoryCalloc(1, commentLen);
+    if (pNew->comment == NULL) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
+    memcpy(pNew->comment, pComment, commentLen);
+  }
+  if (ttl >= 0) {
+    pNew->ttl = ttl;
+  }
+
+  if (mndAllocStbSchemas(pOld, pNew) != 0) {
+    return -1;
+  }
+  return 0;
+}
+
 static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *pFields, int32_t ntags) {
   if (pOld->numOfTags + ntags > TSDB_MAX_TAGS) {
     terrno = TSDB_CODE_MND_TOO_MANY_TAGS;
@@ -908,12 +928,12 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
 
   for (int32_t i = 0; i < ntags; i++) {
     SField *pField = taosArrayGet(pFields, i);
-    if (mndFindSuperTableColumnIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       return -1;
     }
 
-    if (mndFindSuperTableTagIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableTagIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
       return -1;
     }
@@ -1034,12 +1054,12 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
 
   for (int32_t i = 0; i < ncols; i++) {
     SField *pField = taosArrayGet(pFields, i);
-    if (mndFindSuperTableColumnIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableColumnIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_COLUMN_ALREADY_EXIST;
       return -1;
     }
 
-    if (mndFindSuperTableTagIndex(pOld, pField->name) > 0) {
+    if (mndFindSuperTableTagIndex(pOld, pField->name) >= 0) {
       terrno = TSDB_CODE_MND_TAG_ALREADY_EXIST;
       return -1;
     }
@@ -1193,32 +1213,39 @@ static int32_t mndAlterStb(SMnode *pMnode, SNodeMsg *pReq, const SMAlterStbReq *
 
   int32_t code = -1;
   STrans *pTrans = NULL;
-  SField *pField0 = taosArrayGet(pAlter->pFields, 0);
+  SField *pField0 = NULL;
 
   switch (pAlter->alterType) {
     case TSDB_ALTER_TABLE_ADD_TAG:
       code = mndAddSuperTableTag(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
       break;
     case TSDB_ALTER_TABLE_DROP_TAG:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndDropSuperTableTag(pOld, &stbObj, pField0->name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_NAME:
       code = mndAlterStbTagName(pOld, &stbObj, pAlter->pFields);
       break;
     case TSDB_ALTER_TABLE_UPDATE_TAG_BYTES:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndAlterStbTagBytes(pOld, &stbObj, pField0);
       break;
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       code = mndAddSuperTableColumn(pOld, &stbObj, pAlter->pFields, pAlter->numOfFields);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndDropSuperTableColumn(pOld, &stbObj, pField0->name);
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
+      pField0 = taosArrayGet(pAlter->pFields, 0);
       code = mndAlterStbColumnBytes(pOld, &stbObj, pField0);
       break;
+    case TSDB_ALTER_TABLE_UPDATE_OPTIONS:
+      code = mndUpdateStbCommentAndTTL(pOld, &stbObj, pAlter->comment, pAlter->commentLen, pAlter->ttl);
+      break;
     default:
-      terrno = TSDB_CODE_MND_INVALID_STB_OPTION;
+      terrno = TSDB_CODE_OPS_NOT_SUPPORT;
       break;
   }
 
@@ -1706,7 +1733,7 @@ static int32_t mndRetrieveStb(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlo
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pStb->updateTime, false);  // number of tables
 
-    char *p = taosMemoryMalloc(pStb->commentLen + VARSTR_HEADER_SIZE);  // check malloc failures
+    char *p = taosMemoryCalloc(1, pStb->commentLen + 1 + VARSTR_HEADER_SIZE);  // check malloc failures
     if (p != NULL) {
       if (pStb->commentLen != 0) {
         STR_TO_VARSTR(p, pStb->comment);

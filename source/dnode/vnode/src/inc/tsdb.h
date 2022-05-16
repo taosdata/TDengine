@@ -60,29 +60,21 @@ typedef struct {
   TSKEY minKey;
 } SRtn;
 
-struct SSmaEnvs {
-  int16_t  nTSma;
-  int16_t  nRSma;
-  SSmaEnv *pTSmaEnv;
-  SSmaEnv *pRSmaEnv;
-};
-
+#define TSDB_DATA_DIR_LEN 6
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
-  bool           repoLocked;
-  int8_t         level;  // retention level
   TdThreadMutex  mutex;
+  char           dir[TSDB_DATA_DIR_LEN];
+  bool           repoLocked;
+  STsdbKeepCfg   keepCfg;
   STsdbMemTable *mem;
   STsdbMemTable *imem;
   SRtn           rtn;
   STsdbFS       *fs;
-  SSmaEnvs       smaEnvs;
 };
 
 #if 1  // ======================================
-
-typedef struct SSmaStat SSmaStat;
 
 struct STable {
   uint64_t  tid;
@@ -94,11 +86,6 @@ struct STable {
 #define TABLE_UID(t) (t)->uid
 
 int     tsdbPrepareCommit(STsdb *pTsdb);
-int32_t tsdbInitSma(STsdb *pTsdb);
-int32_t tsdbDropTSma(STsdb *pTsdb, char *pMsg);
-int32_t tsdbDropTSmaData(STsdb *pTsdb, int64_t indexUid);
-int32_t tsdbInsertRSmaData(STsdb *pTsdb, char *msg);
-void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 typedef enum {
   TSDB_FILE_HEAD = 0,  // .head
   TSDB_FILE_DATA,      // .data
@@ -107,8 +94,6 @@ typedef enum {
   TSDB_FILE_SMAL,      // .smal(Block-wise SMA)
   TSDB_FILE_MAX,       //
   TSDB_FILE_META,      // meta
-  TSDB_FILE_TSMA,      // v2t100.${sma_index_name}, Time-range-wise SMA
-  TSDB_FILE_RSMA,      // v2r100.${sma_index_name}, Time-range-wise Rollup SMA
 } E_TSDB_FILE_T;
 
 typedef struct {
@@ -185,15 +170,11 @@ struct STsdbFS {
 
 #define REPO_ID(r)        TD_VID((r)->pVnode)
 #define REPO_CFG(r)       (&(r)->pVnode->config.tsdbCfg)
-#define REPO_LEVEL(r)     ((r)->level)
+#define REPO_KEEP_CFG(r)  (&(r)->keepCfg)
 #define REPO_FS(r)        ((r)->fs)
 #define REPO_META(r)      ((r)->pVnode->pMeta)
 #define REPO_TFS(r)       ((r)->pVnode->pTfs)
 #define IS_REPO_LOCKED(r) ((r)->repoLocked)
-#define REPO_TSMA_NUM(r)  ((r)->smaEnvs.nTSma)
-#define REPO_RSMA_NUM(r)  ((r)->smaEnvs.nRSma)
-#define REPO_TSMA_ENV(r)  ((r)->smaEnvs.pTSmaEnv)
-#define REPO_RSMA_ENV(r)  ((r)->smaEnvs.pRSmaEnv)
 
 int tsdbLockRepo(STsdb *pTsdb);
 int tsdbUnlockRepo(STsdb *pTsdb);
@@ -516,9 +497,9 @@ void tsdbGetRtnSnap(STsdb *pRepo, SRtn *pRtn);
 
 static FORCE_INLINE int TSDB_KEY_FID(TSKEY key, int32_t days, int8_t precision) {
   if (key < 0) {
-    return (int)((key + 1) / tsTickPerDay[precision] / days - 1);
+    return (int)((key + 1) / tsTickPerMin[precision] / days - 1);
   } else {
-    return (int)((key / tsTickPerDay[precision] / days));
+    return (int)((key / tsTickPerMin[precision] / days));
   }
 }
 
@@ -768,8 +749,8 @@ static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
 }
 
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey) {
-  *minKey = fid * days * tsTickPerDay[precision];
-  *maxKey = *minKey + days * tsTickPerDay[precision] - 1;
+  *minKey = fid * days * tsTickPerMin[precision];
+  *maxKey = *minKey + days * tsTickPerMin[precision] - 1;
 }
 
 static FORCE_INLINE bool tsdbFSetIsOk(SDFileSet *pSet) {
@@ -793,25 +774,6 @@ typedef struct {
 } SFSHeader;
 
 // ================== TSDB File System Meta
-
-/**
- * @brief Directory structure of .tsma data files.
- *
- *  /vnode2/tsdb $ tree tsma/
- *   tsma/
- *   ├── v2f100.index_name_1
- *   ├── v2f101.index_name_1
- *   ├── v2f102.index_name_1
- *   ├── v2f1900.index_name_3
- *   ├── v2f1901.index_name_3
- *   ├── v2f1902.index_name_3
- *   ├── v2f200.index_name_2
- *   ├── v2f201.index_name_2
- *   └── v2f202.index_name_2
- *
- *   0 directories, 9 files
- */
-
 #define FS_CURRENT_STATUS(pfs) ((pfs)->cstatus)
 #define FS_NEW_STATUS(pfs)     ((pfs)->nstatus)
 #define FS_IN_TXN(pfs)         (pfs)->intxn
@@ -830,7 +792,7 @@ typedef struct {
 #define TSDB_FS_ITER_FORWARD  TSDB_ORDER_ASC
 #define TSDB_FS_ITER_BACKWARD TSDB_ORDER_DESC
 
-STsdbFS *tsdbNewFS(const STsdbCfg *pCfg);
+STsdbFS *tsdbNewFS(const STsdbKeepCfg *pCfg);
 void    *tsdbFreeFS(STsdbFS *pfs);
 int      tsdbOpenFS(STsdb *pRepo);
 void     tsdbCloseFS(STsdb *pRepo);
@@ -871,43 +833,6 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
     return -1;
   }
   return 0;
-}
-
-typedef struct SSmaKey SSmaKey;
-
-struct SSmaKey {
-  TSKEY   skey;
-  int64_t groupId;
-};
-
-typedef struct SDBFile SDBFile;
-
-struct SDBFile {
-  int32_t fid;
-  TDB    *pDB;
-  char   *path;
-};
-
-int32_t tsdbOpenDBEnv(TENV **ppEnv, const char *path);
-int32_t tsdbCloseDBEnv(TENV *pEnv);
-int32_t tsdbOpenDBF(TENV *pEnv, SDBFile *pDBF);
-int32_t tsdbCloseDBF(SDBFile *pDBF);
-int32_t tsdbSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, int32_t valLen, TXN *txn);
-void   *tsdbGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_t *valLen);
-
-void  tsdbDestroySmaEnv(SSmaEnv *pSmaEnv);
-void *tsdbFreeSmaEnv(SSmaEnv *pSmaEnv);
-#if 0
-int32_t tsdbGetTSmaStatus(STsdb *pTsdb, STSma *param, void *result);
-int32_t tsdbRemoveTSmaData(STsdb *pTsdb, STSma *param, STimeWindow *pWin);
-#endif
-
-// internal func
-static FORCE_INLINE int32_t tsdbEncodeTSmaKey(int64_t groupId, TSKEY tsKey, void **pData) {
-  int32_t len = 0;
-  len += taosEncodeFixedI64(pData, tsKey);
-  len += taosEncodeFixedI64(pData, groupId);
-  return len;
 }
 
 #endif

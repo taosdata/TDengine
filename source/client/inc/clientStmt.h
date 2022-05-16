@@ -55,13 +55,17 @@ typedef struct SStmtQueryResInfo {
 
 typedef struct SStmtBindInfo {
   bool         needParse;
+  bool         inExecCache;
   uint64_t     tbUid;
   uint64_t     tbSuid;
   int32_t      sBindRowNum;
   int32_t      sBindLastIdx;
   int8_t       tbType;
+  bool         tagsCached;
   void*        boundTags;  
-  char*        tbName;
+  char         tbName[TSDB_TABLE_FNAME_LEN];
+  char         tbFName[TSDB_TABLE_FNAME_LEN];
+  char         stbFName[TSDB_TABLE_FNAME_LEN];
   SName        sname;
 } SStmtBindInfo;
 
@@ -70,20 +74,20 @@ typedef struct SStmtExecInfo {
   SRequestObj* pRequest;
   SHashObj*    pVgHash;
   SHashObj*    pBlockHash;
+  bool         autoCreateTbl;
 } SStmtExecInfo;
 
 typedef struct SStmtSQLInfo {
   STMT_TYPE         type;
   STMT_STATUS       status;
-  bool              autoCreate;
   uint64_t          runTimes;
   SHashObj*         pTableCache;   //SHash<SStmtTableCache>
   SQuery*           pQuery;
   char*             sqlStr;
   int32_t           sqlLen;
   SArray*           nodeList;
-  SQueryPlan*       pQueryPlan;
   SStmtQueryResInfo queryRes;
+  bool              autoCreateTbl;
 } SStmtSQLInfo;
 
 typedef struct STscStmt {

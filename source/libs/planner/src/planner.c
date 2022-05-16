@@ -16,9 +16,10 @@
 #include "planner.h"
 
 #include "planInt.h"
+#include "scalar.h"
 
 typedef struct SCollectPlaceholderValuesCxt {
-  int32_t    errCode;
+  int32_t errCode;
   SArray* pValues;
 } SCollectPlaceholderValuesCxt;
 
@@ -144,9 +145,10 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       if (NULL == pVal->datum.p) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
-      
+
       int32_t output = 0;
-      if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes, &output)) {
+      if (!taosMbsToUcs4(pParam->buffer, inputSize, (TdUcs4*)varDataVal(pVal->datum.p), pVal->node.resType.bytes,
+                         &output)) {
         return errno;
       }
       varDataSetLen(pVal->datum.p, output);
@@ -181,8 +183,8 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
 }
 
 static EDealRes updatePlanQueryId(SNode* pNode, void* pContext) {
-  int64_t queryId = *(uint64_t *)pContext;
-  
+  int64_t queryId = *(uint64_t*)pContext;
+
   if (QUERY_NODE_PHYSICAL_PLAN == nodeType(pNode)) {
     SQueryPlan* planNode = (SQueryPlan*)pNode;
     planNode->queryId = queryId;
@@ -194,10 +196,130 @@ static EDealRes updatePlanQueryId(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId) {
+static int32_t calcConstNode(SNode** pNode) {
+  if (NULL == *pNode) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode*  pNew = NULL;
+  int32_t code = scalarCalculateConstants(*pNode, &pNew);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pNode = pNew;
+  }
+  return code;
+}
+
+static int32_t calcConstList(SNodeList* pList) {
+  SNode* pNode = NULL;
+  FOREACH(pNode, pList) {
+    SNode*  pNew = NULL;
+    int32_t code = scalarCalculateConstants(pNode, &pNew);
+    if (TSDB_CODE_SUCCESS == code) {
+      REPLACE_NODE(pNew);
+    } else {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static bool isEmptyResultCond(SNode** pCond) {
+  if (NULL == *pCond || QUERY_NODE_VALUE != nodeType(*pCond)) {
+    return false;
+  }
+  if (((SValueNode*)*pCond)->datum.b) {
+    nodesDestroyNode(*pCond);
+    *pCond = NULL;
+    return false;
+  }
+  return true;
+}
+
+static int32_t calcConstSpecificPhysiNode(SPhysiNode* pPhyNode) {
+  switch (nodeType(pPhyNode)) {
+    case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
+    case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
+    case QUERY_NODE_PHYSICAL_PLAN_FILL:
+      return TSDB_CODE_SUCCESS;
+    case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
+      return calcConstList(((SProjectPhysiNode*)pPhyNode)->pProjections);
+    case QUERY_NODE_PHYSICAL_PLAN_JOIN:
+      return calcConstNode(&(((SJoinPhysiNode*)pPhyNode)->pOnConditions));
+    case QUERY_NODE_PHYSICAL_PLAN_AGG:
+      return calcConstList(((SAggPhysiNode*)pPhyNode)->pExprs);
+    case QUERY_NODE_PHYSICAL_PLAN_SORT:
+      return calcConstList(((SSortPhysiNode*)pPhyNode)->pExprs);
+    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
+      return calcConstList(((SWinodwPhysiNode*)pPhyNode)->pExprs);
+    case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
+      return calcConstList(((SPartitionPhysiNode*)pPhyNode)->pExprs);
+    default:
+      break;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t calcConstSubplan(SPhysiNode* pPhyNode, bool* pEmptyResult) {
+  int32_t code = calcConstNode(&pPhyNode->pConditions);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = calcConstSpecificPhysiNode(pPhyNode);
+  }
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
+  }
+
+  *pEmptyResult = isEmptyResultCond(&pPhyNode->pConditions);
+  if (*pEmptyResult) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  *pEmptyResult = true;
+
+  bool   subEmptyResult = false;
+  SNode* pChild = NULL;
+  FOREACH(pChild, pPhyNode->pChildren) {
+    code = calcConstSubplan((SPhysiNode*)pChild, &subEmptyResult);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (!subEmptyResult) {
+      *pEmptyResult = false;
+    }
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t calcConstPhysiPlan(SQueryPlan* pPlan, bool* pEmptyResult) {
+  *pEmptyResult = true;
+
+  bool           subEmptyResult = false;
+  SNodeListNode* pNode = nodesListGetNode(pPlan->pSubplans, 0);
+  SNode*         pSubplan = NULL;
+  FOREACH(pSubplan, pNode->pNodeList) {
+    int32_t code = calcConstSubplan(((SSubplan*)pSubplan)->pNode, pEmptyResult);
+    if (TSDB_CODE_SUCCESS != code) {
+      return code;
+    }
+    if (!subEmptyResult) {
+      *pEmptyResult = false;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId,
+                       bool* pEmptyResult) {
   int32_t size = taosArrayGetSize(pPlan->pPlaceholderValues);
   int32_t code = 0;
-  
+
   if (colIdx < 0) {
     for (int32_t i = 0; i < size; ++i) {
       code = setValueByBindParam((SValueNode*)taosArrayGetP(pPlan->pPlaceholderValues, i), pParams + i);
@@ -214,9 +336,10 @@ int32_t qStmtBindParam(SQueryPlan* pPlan, TAOS_MULTI_BIND* pParams, int32_t colI
 
   if (colIdx < 0 || ((colIdx + 1) == size)) {
     nodesWalkPhysiPlan((SNode*)pPlan, updatePlanQueryId, &queryId);
+    code = calcConstPhysiPlan(pPlan, pEmptyResult);
   }
-  
-  return TSDB_CODE_SUCCESS;
+
+  return code;
 }
 
 int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {

@@ -28,6 +28,8 @@ TEST_F(PlanOptimizeTest, optimizeScanData) {
   run("SELECT COUNT(c1) FROM t1");
 
   run("SELECT COUNT(CAST(c1 AS BIGINT)) FROM t1");
+
+  run("SELECT PERCENTILE(c1, 40), COUNT(*) FROM t1");
 }
 
 TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
@@ -37,4 +39,6 @@ TEST_F(PlanOptimizeTest, orderByPrimaryKey) {
   run("SELECT * FROM t1 ORDER BY ts DESC");
   run("SELECT c1 FROM t1 ORDER BY ts");
   run("SELECT c1 FROM t1 ORDER BY ts DESC");
+
+  run("SELECT COUNT(*) FROM t1 INTERVAL(10S) ORDER BY _WSTARTTS DESC");
 }

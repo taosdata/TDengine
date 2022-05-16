@@ -83,12 +83,12 @@ END:
 }
 
 int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet* pEpSet, tmsg_t type, int32_t nodeId) {
-  SCoder encoder;
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, NULL, 0, TD_ENCODER);
+  SEncoder encoder;
+  tEncoderInit(&encoder, NULL, 0);
   tEncodeSStreamTask(&encoder, pTask);
   int32_t size = encoder.pos;
   int32_t tlen = sizeof(SMsgHead) + size;
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
   void* buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -96,9 +96,9 @@ int32_t mndPersistTaskDeployReq(STrans* pTrans, SStreamTask* pTask, const SEpSet
   }
   ((SMsgHead*)buf)->vgId = htonl(nodeId);
   void* abuf = POINTER_SHIFT(buf, sizeof(SMsgHead));
-  tCoderInit(&encoder, TD_LITTLE_ENDIAN, abuf, size, TD_ENCODER);
+  tEncoderInit(&encoder, abuf, size);
   tEncodeSStreamTask(&encoder, pTask);
-  tCoderClear(&encoder);
+  tEncoderClear(&encoder);
 
   STransAction action = {0};
   memcpy(&action.epSet, pEpSet, sizeof(SEpSet));
@@ -194,6 +194,7 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
 
     // source
     pTask->sourceType = TASK_SOURCE__MERGE;
+    pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
     // exec
     pTask->execType = TASK_EXEC__NONE;
@@ -204,6 +205,7 @@ int32_t mndAddShuffledSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* p
       pTask->smaSink.smaId = pStream->smaId;
     } else {
       pTask->sinkType = TASK_SINK__TABLE;
+      pTask->tbSink.stbUid = pStream->targetStbUid;
       pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
       ASSERT(pTask->tbSink.pSchemaWrapper);
     }
@@ -234,6 +236,7 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
   pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
   // source
   pTask->sourceType = TASK_SOURCE__MERGE;
+  pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
   // exec
   pTask->execType = TASK_EXEC__NONE;
@@ -244,9 +247,10 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
     pTask->smaSink.smaId = pStream->smaId;
   } else {
     pTask->sinkType = TASK_SINK__TABLE;
+    pTask->tbSink.stbUid = pStream->targetStbUid;
     pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
   }
-  //
+
   // dispatch
   pTask->dispatchType = TASK_DISPATCH__NONE;
 
@@ -307,6 +311,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         SStreamTask* pTask = tNewSStreamTask(pStream->uid);
         // source part
         pTask->sourceType = TASK_SOURCE__SCAN;
+        pTask->inputType = TASK_INPUT_TYPE__SUMBIT_BLOCK;
 
         // sink part
         if (level == 0) {
@@ -319,6 +324,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
               pTask->smaSink.smaId = pStream->smaId;
             } else {
               pTask->sinkType = TASK_SINK__TABLE;
+              pTask->tbSink.stbUid = pStream->targetStbUid;
               pTask->tbSink.pSchemaWrapper = tCloneSSchemaWrapper(&pStream->outputSchema);
             }
 #endif
@@ -369,6 +375,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
       // source part, currently only support multi source
       pTask->sourceType = TASK_SOURCE__PIPE;
+      pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
       // sink part
       pTask->sinkType = TASK_SINK__NONE;
@@ -456,6 +463,7 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
 
       // source part
       pTask->sourceType = TASK_SOURCE__MERGE;
+      pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
 
       // sink part
       pTask->sinkType = TASK_SINK__NONE;

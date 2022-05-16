@@ -25,6 +25,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   pReadHandle->ver = -1;
   pReadHandle->pColIdList = NULL;
   pReadHandle->sver = -1;
+  pReadHandle->cachedSchemaUid = -1;
   pReadHandle->pSchema = NULL;
   pReadHandle->pSchemaWrapper = NULL;
   pReadHandle->tbIdHash = NULL;
@@ -84,19 +85,20 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
   return false;
 }
 
-int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid, int32_t* pNumOfRows,
-                            int16_t* pNumOfCols) {
+int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
+                            int32_t* pNumOfRows, int16_t* pNumOfCols) {
   /*int32_t         sversion = pHandle->pBlock->sversion;*/
   // TODO set to real sversion
   *pUid = 0;
 
-  int32_t sversion = 0;
-  if (pHandle->sver != sversion) {
+  int32_t sversion = 1;
+  if (pHandle->sver != sversion || pHandle->cachedSchemaUid != pHandle->msgIter.suid) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
 
     // this interface use suid instead of uid
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.suid, sversion, true);
     pHandle->sver = sversion;
+    pHandle->cachedSchemaUid = pHandle->msgIter.suid;
   }
 
   STSchema*       pTschema = pHandle->pSchema;

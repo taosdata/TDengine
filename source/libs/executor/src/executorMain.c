@@ -21,13 +21,14 @@
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tudf.h"
 
-#include "thash.h"
-#include "executorimpl.h"
 #include "executor.h"
+#include "executorimpl.h"
+#include "query.h"
+#include "thash.h"
 #include "tlosertree.h"
 #include "ttypes.h"
-#include "query.h"
 
 typedef struct STaskMgmt {
   TdThreadMutex lock;
@@ -35,21 +36,6 @@ typedef struct STaskMgmt {
   int32_t         vgId;
   bool            closed;
 } STaskMgmt;
-
-static void taskMgmtKillTaskFn(void* handle, void* param1) {
-  void** fp = (void**)handle;
-  qKillTask(*fp);
-}
-
-static void freeqinfoFn(void *qhandle) {
-  void** handle = qhandle;
-  if (handle == NULL || *handle == NULL) {
-    return;
-  }
-
-  qKillTask(*handle);
-  qDestroyTask(*handle);
-}
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
     qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model) {
@@ -171,6 +157,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
   pTaskInfo->totalRows += current;
 
+  cleanUpUdfs();
   qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
          GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0, el/1000.0);
 
@@ -217,7 +204,7 @@ int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
     return TSDB_CODE_QRY_INVALID_QHANDLE;
   }
 
-  return isTaskKilled(pTaskInfo) || Q_STATUS_EQUAL(pTaskInfo->status, TASK_OVER);
+  return isTaskKilled(pTaskInfo);
 }
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {

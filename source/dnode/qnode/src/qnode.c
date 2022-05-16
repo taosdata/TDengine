@@ -26,10 +26,6 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
     return NULL;
   }
 
-  if (udfcOpen() != 0) {
-    qError("qnode can not open udfc");
-  }
-
   if (qWorkerInit(NODE_TYPE_QNODE, pQnode->qndId, NULL, (void **)&pQnode->pQuery, &pOption->msgCb)) {
     taosMemoryFreeClear(pQnode);
     return NULL;
@@ -41,9 +37,6 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
 
 void qndClose(SQnode *pQnode) {
   qWorkerDestroy((void **)&pQnode->pQuery);
-
-  udfcClose();
-
   taosMemoryFree(pQnode);
 }
 
@@ -51,7 +44,7 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   qTrace("message in qnode query queue is processing");
-  SReadHandle handle = {0};
+  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY: {

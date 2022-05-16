@@ -22,6 +22,7 @@ extern "C" {
 
 #include "query.h"
 #include "tcommon.h"
+#include "tmsgcb.h"
 
 typedef void* qTaskInfo_t;
 typedef void* DataSinkHandle;
@@ -29,11 +30,12 @@ struct SRpcMsg;
 struct SSubplan;
 
 typedef struct SReadHandle {
-  void* reader;
-  void* meta;
-  void* config;
-  void* vnode;
-  void* mnd;
+  void*   reader;
+  void*   meta;
+  void*   config;
+  void*   vnode;
+  void*   mnd;
+  SMsgCb* pMsgCb;
 } SReadHandle;
 
 #define STREAM_DATA_TYPE_SUBMIT_BLOCK 0x1
@@ -164,15 +166,6 @@ int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t 
  * @return
  */
 int32_t qUpdateQueriedTableIdList(qTaskInfo_t tinfo, int64_t uid, int32_t type);
-
-/**
- * release the query handle and decrease the reference count in cache
- * @param pMgmt
- * @param pQInfo
- * @param freeHandle
- * @return
- */
-void** qReleaseTask(void* pMgmt, void* pQInfo, bool freeHandle);
 
 void qProcessFetchRsp(void* parent, struct SRpcMsg* pMsg, struct SEpSet* pEpSet);
 

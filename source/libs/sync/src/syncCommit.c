@@ -16,6 +16,7 @@
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -65,6 +66,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         newCommitIndex = index;
         sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
                newCommitIndex, pSyncNode->commitIndex);
+
+        syncEntryDestory(pEntry);
         break;
       } else {
         sTrace(
@@ -72,6 +75,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             "pSyncNode->pRaftStore->currentTerm:%lu",
             pEntry->term, pSyncNode->pRaftStore->currentTerm);
       }
+
+      syncEntryDestory(pEntry);
     }
   }
 
@@ -97,7 +102,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           SRpcMsg rpcMsg;
           syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-          if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+          // if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+          if (pSyncNode->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
             SFsmCbMeta cbMeta;
             cbMeta.index = pEntry->index;
             cbMeta.isWeak = pEntry->isWeak;
@@ -105,6 +111,20 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             cbMeta.state = pSyncNode->state;
             cbMeta.seqNum = pEntry->seqNum;
             pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
+          }
+
+          // config change
+          if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+            SSyncCfg newSyncCfg;
+            int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
+            ASSERT(ret == 0);
+
+            syncNodeUpdateConfig(pSyncNode, &newSyncCfg);
+            if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+              syncNodeBecomeLeader(pSyncNode);
+            } else {
+              syncNodeBecomeFollower(pSyncNode);
+            }
           }
 
           rpcFreeCont(rpcMsg.pCont);

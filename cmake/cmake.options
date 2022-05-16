@@ -49,6 +49,12 @@ IF(${TD_WINDOWS})
 ENDIF ()
 
 option(
+    BUILD_ADDR2LINE
+    "If build addr2line"
+    OFF
+    )
+
+option(
     BUILD_TEST 
     "If build unit tests using googletest" 
     ON
@@ -69,6 +75,12 @@ option(
 option(
     BUILD_WITH_SQLITE
     "If build with sqlite" 
+    OFF
+)
+
+option(
+    BUILD_WITH_BDB
+    "If build with BDB" 
     OFF
 )
 

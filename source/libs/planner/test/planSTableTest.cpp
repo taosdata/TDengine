@@ -19,10 +19,16 @@ using namespace std;
 
 class PlanSuperTableTest : public PlannerTestBase {};
 
-TEST_F(PlanSuperTableTest, tbname) {
+TEST_F(PlanSuperTableTest, pseudoCol) {
   useDb("root", "test");
 
-  run("select tbname from st1");
+  run("SELECT TBNAME FROM st1");
 
-  run("select tbname, tag1, tag2 from st1");
+  run("SELECT TBNAME, tag1, tag2 FROM st1");
+}
+
+TEST_F(PlanSuperTableTest, orderBy) {
+  useDb("root", "test");
+
+  run("SELECT -1*c1, c1 FROM st1 ORDER BY -1*c1");
 }

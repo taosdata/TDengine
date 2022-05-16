@@ -129,7 +129,21 @@ static void taosGetProcIOnfos() {
 
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 #ifdef WINDOWS
+  FILETIME pre_idleTime = {0};
+  FILETIME pre_kernelTime = {0};
+  FILETIME pre_userTime = {0};
+  FILETIME idleTime;
+  FILETIME kernelTime;
+  FILETIME userTime;
+  bool res = GetSystemTimes(&idleTime, &kernelTime, &userTime);
+  if (res) {
+    cpuInfo->idle = CompareFileTime(&pre_idleTime, &idleTime);
+    cpuInfo->system = CompareFileTime(&pre_kernelTime, &kernelTime);
+    cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
+    cpuInfo->nice = 0;
+  }
 #elif defined(_TD_DARWIN_64)
+  assert(0);
 #else
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -155,7 +169,18 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 #ifdef WINDOWS
+  FILETIME pre_krnlTm = {0};
+  FILETIME pre_usrTm = {0};
+	FILETIME creatTm, exitTm, krnlTm, usrTm;
+
+	if (GetThreadTimes(GetCurrentThread(), &creatTm, &exitTm, &krnlTm, &usrTm)) {
+    cpuInfo->stime = CompareFileTime(&pre_krnlTm, &krnlTm);
+    cpuInfo->utime = CompareFileTime(&pre_usrTm, &usrTm);
+    cpuInfo->cutime = 0;
+    cpuInfo->cstime = 0;
+	}
 #elif defined(_TD_DARWIN_64)
+  assert(0);
 #else
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
@@ -219,6 +244,7 @@ void taosGetSystemInfo() {
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
 #ifdef WINDOWS
+  // assert(0);
 #elif defined(_TD_DARWIN_64)
   const char *filepath = "/usr/local/taos/email";
 
@@ -250,6 +276,7 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 #ifdef WINDOWS
+  assert(0);
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -305,6 +332,7 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 #ifdef WINDOWS
+  assert(0);
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -716,9 +744,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 #ifdef WINDOWS
   GUID guid;
   CoCreateGuid(&guid);
-
-  sprintf(uid, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3, guid.Data4[0],
-          guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
+  memcpy(uid, &guid, uidlen);
 
   return 0;
 #elif defined(_TD_DARWIN_64)
@@ -750,6 +776,7 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 
 char *taosGetCmdlineByPID(int pid) {
 #ifdef WINDOWS
+  assert(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
@@ -869,11 +896,15 @@ SysNameInfo taosGetSysNameInfo() {
   SysNameInfo info = {0};
   DWORD dwVersion = GetVersion();
 
-  tstrncpy(info.sysname, getenv("OS"), sizeof(info.sysname));
-  tstrncpy(info.nodename, getenv("COMPUTERNAME"), sizeof(info.nodename));
+  char *tmp = NULL;
+  tmp = getenv("OS");
+  if (tmp != NULL) tstrncpy(info.sysname, tmp, sizeof(info.sysname));
+  tmp = getenv("COMPUTERNAME");
+  if (tmp != NULL) tstrncpy(info.nodename, tmp, sizeof(info.nodename));
   sprintf_s(info.release, sizeof(info.release), "%d", dwVersion & 0x0F);
   sprintf_s(info.version, sizeof(info.release), "%d", (dwVersion >> 8) & 0x0F);
-  tstrncpy(info.machine, getenv("PROCESSOR_ARCHITECTURE"), sizeof(info.machine));
+  tmp = getenv("PROCESSOR_ARCHITECTURE");
+  if (tmp != NULL) tstrncpy(info.machine, tmp, sizeof(info.machine));
 
   return info;
 #elif defined(_TD_DARWIN_64)

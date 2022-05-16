@@ -82,7 +82,10 @@ FstSlice fstSliceCreate(uint8_t* data, uint64_t len) {
   str->ref = 1;
   str->len = len;
   str->data = taosMemoryMalloc(len * sizeof(uint8_t));
-  memcpy(str->data, data, len);
+
+  if (data != NULL) {
+    memcpy(str->data, data, len);
+  }
 
   FstSlice s = {.str = str, .start = 0, .end = len - 1};
   return s;

@@ -15,44 +15,34 @@
 
 #include "tsdb.h"
 
-static int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir, int8_t level);
+static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg);
 
-int tsdbOpen(SVnode *pVnode, int8_t type) {
-  switch (type) {
-    case TSDB_TYPE_TSDB:
-      return tsdbOpenImpl(pVnode, type, &VND_TSDB(pVnode), VNODE_TSDB_DIR, TSDB_RETENTION_L0);
-    case TSDB_TYPE_TSMA:
-      ASSERT(0);
-      break;
-    case TSDB_TYPE_RSMA_L0:
-      return tsdbOpenImpl(pVnode, type, &VND_RSMA0(pVnode), VNODE_TSDB_DIR, TSDB_RETENTION_L0);
-    case TSDB_TYPE_RSMA_L1:
-      return tsdbOpenImpl(pVnode, type, &VND_RSMA1(pVnode), VNODE_RSMA1_DIR, TSDB_RETENTION_L1);
-    case TSDB_TYPE_RSMA_L2:
-      return tsdbOpenImpl(pVnode, type, &VND_RSMA2(pVnode), VNODE_RSMA2_DIR, TSDB_RETENTION_L2);
-    default:
-      ASSERT(0);
-      break;
-  }
+
+// implementation
+
+static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg) {
+  pKeepCfg->precision = pCfg->precision;
+  pKeepCfg->days = pCfg->days;
+  pKeepCfg->keep0 = pCfg->keep0;
+  pKeepCfg->keep1 = pCfg->keep1;
+  pKeepCfg->keep2 = pCfg->keep2;
   return 0;
 }
 
 /**
- * @brief 
- * 
- * @param pVnode 
- * @param type 
- * @param ppTsdb 
- * @param dir 
- * @param level retention level
- * @return int 
+ * @brief
+ *
+ * @param pVnode
+ * @param ppTsdb
+ * @param dir
+ * @return int
  */
-int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir, int8_t level) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + 3;
+  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + TSDB_DATA_DIR_LEN + 3;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
@@ -61,14 +51,19 @@ int tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir, i
     return -1;
   }
 
+  ASSERT(strlen(dir) < TSDB_DATA_DIR_LEN);
+  memcpy(pTsdb->dir, dir, strlen(dir));
   pTsdb->path = (char *)&pTsdb[1];
-  sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
-          dir);
+  sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP, dir);
   pTsdb->pVnode = pVnode;
-  pTsdb->level = level;
   pTsdb->repoLocked = false;
   taosThreadMutexInit(&pTsdb->mutex, NULL);
-  pTsdb->fs = tsdbNewFS(REPO_CFG(pTsdb));
+  if (!pKeepCfg) {
+    tsdbSetKeepCfg(&pTsdb->keepCfg, &pVnode->config.tsdbCfg);
+  } else {
+    memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
+  }
+  pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
 
   // create dir (TODO: use tfsMkdir)
   taosMkDir(pTsdb->path);
@@ -88,12 +83,13 @@ _err:
   return -1;
 }
 
-int tsdbClose(STsdb *pTsdb) {
-  if (pTsdb) {
+int tsdbClose(STsdb **pTsdb) {
+  if (*pTsdb) {
     // TODO: destroy mem/imem
-    tsdbCloseFS(pTsdb);
-    tsdbFreeFS(pTsdb->fs);
-    taosMemoryFree(pTsdb);
+    taosThreadMutexDestroy(&(*pTsdb)->mutex);
+    tsdbCloseFS(*pTsdb);
+    tsdbFreeFS((*pTsdb)->fs);
+    taosMemoryFreeClear(*pTsdb);
   }
   return 0;
 }

@@ -126,7 +126,7 @@ enum {
 
 enum {
   MAIN_SCAN     = 0x0u,
-  REVERSE_SCAN  = 0x1u,
+  REVERSE_SCAN  = 0x1u,  // todo remove it
   REPEAT_SCAN   = 0x2u,  //repeat scan belongs to the master scan
   MERGE_STAGE   = 0x20u,
 };
@@ -173,6 +173,7 @@ typedef struct SqlFunctionCtx {
   SInputColumnInfoData input;
   SResultDataInfo      resDataInfo;
   uint32_t             order;  // data block scanner order: asc|desc
+  uint8_t              scanFlag;  // record current running step, default: 0
   ////////////////////////////////////////////////////////////////
   int32_t          startRow;   // start row index
   int32_t          size;       // handled processed row number
@@ -183,7 +184,6 @@ typedef struct SqlFunctionCtx {
   bool             hasNull;      // null value exist in current block, TODO remove it
   bool             requireNull;  // require null in some function, TODO remove it
   int32_t          columnIndex;  // TODO remove it
-  uint8_t          currentStage;  // record current running step, default: 0
   bool             isAggSet;
   int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
   bool             stableQuery;
@@ -222,13 +222,6 @@ enum {
 typedef struct tExprNode {
   int32_t nodeType;
   union {
-    struct {
-      int32_t           optr;   // binary operator
-      void             *info;   // support filter operation on this expression only available for leaf node
-      struct tExprNode *pLeft;  // left child pointer
-      struct tExprNode *pRight; // right child pointer
-    } _node;
-
     SSchema            *pSchema;// column node
     struct SVariant    *pVal;   // value node
 
@@ -237,12 +230,6 @@ typedef struct tExprNode {
       int32_t           functionId;
       int32_t           num;
       struct SFunctionNode    *pFunctNode;
-      // Note that the attribute of pChild is not the parameter of function, it is the columns that involved in the
-      // calculation instead.
-      // E.g., Cov(col1, col2), the column information, w.r.t. the col1 and col2, is kept in pChild nodes.
-      //  The concat function, concat(col1, col2), is a binary scalar
-      //  operator and is kept in the attribute of _node.
-      struct tExprNode **pChild;
     } _function;
 
     struct {
@@ -271,19 +258,16 @@ typedef struct SAggFunctionInfo {
 } SAggFunctionInfo;
 
 struct SScalarParam {
-  SColumnInfoData   *columnData;
-  SHashObj          *pHashFilter;
-  int32_t            numOfRows;
+  SColumnInfoData *columnData;
+  SHashObj        *pHashFilter;
+  void            *param;  // other parameter, such as meta handle from vnode, to extract table name/tag value
+  int32_t          numOfRows;
 };
 
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
                           bool isSuperTable);
 
 bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
-
-tExprNode* exprTreeFromBinary(const void* data, size_t size);
-
-tExprNode* exprdup(tExprNode* pTree);
 
 void resetResultRowEntryResult(SqlFunctionCtx* pCtx, int32_t num);
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
@@ -325,7 +309,7 @@ void qAddUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 void qRemoveUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 
 /**
- * create udfd proxy, called once in process that call setupUdf/callUdfxxx/teardownUdf
+ * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf
  * @return error code
  */
 int32_t udfcOpen();
@@ -336,6 +320,17 @@ int32_t udfcOpen();
  */
 int32_t udfcClose();
 
+/**
+ * start udfd that serves udf function invocation under dnode startDnodeId
+ * @param startDnodeId
+ * @return
+ */
+int32_t udfStartUdfd(int32_t startDnodeId);
+/**
+ * stop udfd
+ * @return
+ */
+int32_t udfStopUdfd();
 #ifdef __cplusplus
 }
 #endif

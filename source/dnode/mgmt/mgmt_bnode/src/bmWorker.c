@@ -18,7 +18,11 @@
 
 static void bmSendErrorRsp(SNodeMsg *pMsg, int32_t code) {
   SRpcMsg rpcRsp = {
-      .handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .code = code, .refId = pMsg->rpcMsg.refId};
+      .handle = pMsg->rpcMsg.handle,
+      .ahandle = pMsg->rpcMsg.ahandle,
+      .code = code,
+      .refId = pMsg->rpcMsg.refId,
+  };
   tmsgSendRsp(&rpcRsp);
 
   dTrace("msg:%p, is freed", pMsg);
@@ -54,7 +58,7 @@ static void bmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   int32_t  code = -1;
 
   if (pMsg->rpcMsg.msgType == TDMT_MON_BM_INFO) {
-    code = bmProcessGetMonBmInfoReq(pMgmt->pWrapper, pMsg);
+    code = bmProcessGetMonBmInfoReq(pMgmt, pMsg);
   } else {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
@@ -102,8 +106,7 @@ static void bmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
   taosArrayDestroy(pArray);
 }
 
-int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SBnodeMgmt *  pMgmt = pWrapper->pMgmt;
+int32_t bmPutNodeMsgToWriteQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SMultiWorker *pWorker = &pMgmt->writeWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -111,8 +114,7 @@ int32_t bmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t bmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SBnodeMgmt *   pMgmt = pWrapper->pMgmt;
+int32_t bmPutNodeMsgToMonitorQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -121,19 +123,27 @@ int32_t bmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
 }
 
 int32_t bmStartWorker(SBnodeMgmt *pMgmt) {
-  SMultiWorkerCfg cfg = {.max = 1, .name = "bnode-write", .fp = (FItems)bmProcessWriteQueue, .param = pMgmt};
+  SMultiWorkerCfg cfg = {
+      .max = 1,
+      .name = "bnode-write",
+      .fp = (FItems)bmProcessWriteQueue,
+      .param = pMgmt,
+  };
   if (tMultiWorkerInit(&pMgmt->writeWorker, &cfg) != 0) {
     dError("failed to start bnode-write worker since %s", terrstr());
     return -1;
   }
 
-  if (tsMultiProcess) {
-    SSingleWorkerCfg mCfg = {
-        .min = 1, .max = 1, .name = "bnode-monitor", .fp = (FItem)bmProcessMonitorQueue, .param = pMgmt};
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-      dError("failed to start bnode-monitor worker since %s", terrstr());
-      return -1;
-    }
+  SSingleWorkerCfg mCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "bnode-monitor",
+      .fp = (FItem)bmProcessMonitorQueue,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+    dError("failed to start bnode-monitor worker since %s", terrstr());
+    return -1;
   }
 
   dDebug("bnode workers are initialized");

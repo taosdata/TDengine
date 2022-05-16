@@ -19,32 +19,61 @@ int32_t udf2_destroy() {
 
 int32_t udf2_start(SUdfInterBuf *buf) {
   *(int64_t*)(buf->buf) = 0;
-  buf->bufLen = sizeof(int64_t);
+  buf->bufLen = sizeof(double);
   buf->numOfResult = 0;
   return 0;
 }
 
 int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInterBuf) {
-  int64_t sumSquares = *(int64_t*)interBuf->buf;
+  double sumSquares = *(double*)interBuf->buf;
+  int8_t numOutput = 0;
+  for (int32_t i = 0; i < block->numOfCols; ++i) {
+    SUdfColumn* col = block->udfCols[i];
+    if (!(col->colMeta.type == TSDB_DATA_TYPE_INT || 
+          col->colMeta.type == TSDB_DATA_TYPE_DOUBLE)) {
+      return TSDB_CODE_UDF_INVALID_INPUT;
+    }
+  }
   for (int32_t i = 0; i < block->numOfCols; ++i) {
     for (int32_t j = 0; j < block->numOfRows; ++j) {
       SUdfColumn* col = block->udfCols[i];
-      //TODO: check the bitmap for null value
-      int32_t* rows = (int32_t*)col->colData.fixLenCol.data;
-      sumSquares += rows[j] * rows[j];
+      if (udfColDataIsNull(col, j)) {
+        continue;
+      }
+      switch (col->colMeta.type) {
+        case TSDB_DATA_TYPE_INT: {
+          char* cell = udfColDataGetData(col, j);
+          int32_t num = *(int32_t*)cell;
+          sumSquares += (double)num * num;
+          break;
+        }
+        case TSDB_DATA_TYPE_DOUBLE: {
+          char* cell = udfColDataGetData(col, j);
+          double num = *(double*)cell;
+          sumSquares += num * num;
+          break;
+        }
+        default: 
+          break;
+      }
+      numOutput = 1;
     }
   }
 
-  *(int64_t*)(newInterBuf->buf) = sumSquares;
-  newInterBuf->bufLen = sizeof(int64_t);
-  //TODO: if all null value, numOfResult = 0;
-  newInterBuf->numOfResult = 1;
+  if (numOutput == 1) {
+    *(double*)(newInterBuf->buf) = sumSquares;
+    newInterBuf->bufLen = sizeof(double);
+  }
+  newInterBuf->numOfResult = numOutput;
   return 0;
 }
 
 int32_t udf2_finish(SUdfInterBuf* buf, SUdfInterBuf *resultData) {
-  //TODO: check numOfResults;
-  int64_t sumSquares = *(int64_t*)(buf->buf);
+  if (buf->numOfResult == 0) {
+    resultData->numOfResult = 0;
+    return 0;
+  }
+  double sumSquares = *(double*)(buf->buf);
   *(double*)(resultData->buf) = sqrt(sumSquares);
   resultData->bufLen = sizeof(double);
   resultData->numOfResult = 1;

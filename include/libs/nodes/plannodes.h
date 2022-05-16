@@ -193,7 +193,6 @@ typedef struct SScanPhysiNode {
 } SScanPhysiNode;
 
 typedef SScanPhysiNode STagScanPhysiNode;
-typedef SScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct SSystemTableScanPhysiNode {
   SScanPhysiNode scan;
@@ -217,6 +216,7 @@ typedef struct STableScanPhysiNode {
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
+typedef STableScanPhysiNode SStreamScanPhysiNode;
 
 typedef struct SProjectPhysiNode {
   SPhysiNode node;
@@ -273,6 +273,8 @@ typedef struct SIntervalPhysiNode {
   int8_t           intervalUnit;
   int8_t           slidingUnit;
 } SIntervalPhysiNode;
+
+typedef SIntervalPhysiNode SStreamIntervalPhysiNode;
 
 typedef struct SFillPhysiNode {
   SPhysiNode  node;

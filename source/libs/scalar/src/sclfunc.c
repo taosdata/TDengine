@@ -1,10 +1,11 @@
 #include "function.h"
 #include "scalar.h"
-#include "tdatablock.h"
-#include "ttime.h"
 #include "sclInt.h"
 #include "sclvector.h"
+#include "tdatablock.h"
 #include "tjson.h"
+#include "ttime.h"
+#include "vnode.h"
 
 typedef float (*_float_fn)(float);
 typedef double (*_double_fn)(double);
@@ -432,7 +433,7 @@ int32_t concatFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
     if (pInput[i].numOfRows == 1) {
       inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * factor * (numOfRows - numOfNulls);
     } else {
-      inputLen += pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE;
+      inputLen += (pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE) * factor;
     }
   }
 
@@ -510,7 +511,7 @@ int32_t concatWsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
     } else if (pInput[i].numOfRows == 1) {
       inputLen += (pInputData[i]->varmeta.length - VARSTR_HEADER_SIZE) * (numOfRows - numOfNulls) * factor;
     } else {
-      inputLen += pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE;
+      inputLen += (pInputData[i]->varmeta.length - (numOfRows - numOfNulls) * VARSTR_HEADER_SIZE) * factor;
     }
   }
 
@@ -709,10 +710,6 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
-  if (IS_VAR_DATA_TYPE(outputType)) {
-    outputLen += VARSTR_HEADER_SIZE;
-  }
-
   char *outputBuf = taosMemoryCalloc(outputLen * pInput[0].numOfRows, 1);
   char *output = outputBuf;
 
@@ -826,7 +823,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
           varDataSetLen(output, len);
         }
         //for constant conversion, need to set proper length of pOutput description
-        if (len < outputLen - VARSTR_HEADER_SIZE) {
+        if (len < outputLen) {
           pOutput->columnData->info.bytes = len;
         }
         break;
@@ -1516,6 +1513,21 @@ int32_t winEndTsFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *p
 
 int32_t qTbnameFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   ASSERT(inputNum == 1);
-  colDataAppend(pOutput->columnData, pOutput->numOfRows, colDataGetData(pInput->columnData, 0), false);
+
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pInput->param, 0);
+
+  uint64_t uid = *(uint64_t *)colDataGetData(pInput->columnData, 0);
+  metaGetTableEntryByUid(&mr, uid);
+
+  char str[TSDB_TABLE_FNAME_LEN + VARSTR_HEADER_SIZE] = {0};
+  STR_TO_VARSTR(str, mr.me.name);
+  metaReaderClear(&mr);
+
+  for(int32_t i = 0; i < pInput->numOfRows; ++i) {
+    colDataAppend(pOutput->columnData, pOutput->numOfRows + i, str, false);
+  }
+
+  pOutput->numOfRows += pInput->numOfRows;
   return TSDB_CODE_SUCCESS;
 }

@@ -332,7 +332,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
   shellInitArgs(argc, argv);
   shell.info.clientVersion =
       "Welcome to the TDengine shell from %s, Client Version:%s\n"
-      "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+      "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
   shell.info.promptHeader = "taos> ";
   shell.info.promptContinue = "   -> ";
   shell.info.promptSize = 6;

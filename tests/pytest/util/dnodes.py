@@ -30,17 +30,12 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "minTablesPerVnode": "4",
-            "maxTablesPerVnode": "1000",
-            "tableIncStepPerVnode": "10000",
-            "maxVgroupsPerDb": "1000",
-            "sdbDebugFlag": "143",
-            "rpcDebugFlag": "135",
+            "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "135",
-            "udebugFlag": "135",
-            "jnidebugFlag": "135",
-            "qdebugFlag": "135",
+            "cDebugFlag": "143",
+            "udebugFlag": "143",
+            "jnidebugFlag": "143",
+            "qdebugFlag": "143",
             "telemetryReporting": "0",
         }
 
@@ -115,36 +110,29 @@ class TDDnode:
         self.testCluster = False
         self.valgrind = 0
         self.cfgDict = {
-            "numOfLogLines": "100000000",
-            "mnodeEqualVnodeNum": "0",
             "walLevel": "2",
             "fsync": "1000",
-            "statusInterval": "1",
-            "numOfMnodes": "3",
-            "numOfThreadsPerCore": "2.0",
             "monitor": "0",
-            "maxVnodeConnections": "30000",
-            "maxMgmtConnections": "30000",
-            "maxMeterConnections": "30000",
             "maxShellConns": "30000",
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "anyIp": "0",
-            "telemetryReporting": "0",
-            "dDebugFlag": "135",
-            "tsdbDebugFlag": "135",
-            "mDebugFlag": "135",
-            "sdbDebugFlag": "135",
-            "rpcDebugFlag": "135",
+            "mDebugFlag": "143",
+            "dDebugFlag": "143",
+            "vDebugFlag": "143",
+            "tqDebugFlag": "143",
+            "cDebugFlag": "143",
+            "jniDebugFlag": "143",
+            "qDebugFlag": "143",
+            "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "135",
-            "httpDebugFlag": "135",
-            "monitorDebugFlag": "135",
-            "udebugFlag": "135",
-            "jnidebugFlag": "135",
-            "qdebugFlag": "135",
-            "maxSQLLength": "1048576"
+            "uDebugFlag": "143",
+            "sDebugFlag": "135",
+            "wDebugFlag": "143",
+            "qdebugFlag": "143",
+            "numOfLogLines": "100000000",
+            "statusInterval": "1",
+            "telemetryReporting": "0"
         }
 
     def init(self, path):
@@ -460,8 +448,7 @@ class TDDnodes:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
-        binPath = os.path.dirname(os.path.realpath(__file__))
-        binPath = binPath + "/../../../debug/"
+        binPath = self.dnodes[0].getPath() + "/../../../"
         tdLog.debug("binPath %s" % (binPath))
         binPath = os.path.realpath(binPath)
         tdLog.debug("binPath real path %s" % (binPath))
