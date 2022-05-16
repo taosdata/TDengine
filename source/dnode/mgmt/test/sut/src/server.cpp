@@ -16,35 +16,29 @@
 #include "sut.h"
 
 void* serverLoop(void* param) {
-  SDnode* pDnode = (SDnode*)param;
-  dmRun(pDnode);
+  dmRun();
   return NULL;
 }
 
-SDnodeOpt TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  SDnodeOpt option = {0};
-  option.numOfSupportVnodes = 16;
-  option.serverPort = port;
-  strcpy(option.dataDir, path);
-  snprintf(option.localEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
-  snprintf(option.localFqdn, TSDB_FQDN_LEN, "%s", fqdn);
-  snprintf(option.firstEp, TSDB_EP_LEN, "%s", firstEp);
-  return option;
+void TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
+  tsNumOfSupportVnodes = 16;
+  tsServerPort = port;
+  strcpy(tsDataDir, path);
+  snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
+  snprintf(tsLocalFqdn, TSDB_FQDN_LEN, "%s", fqdn);
+  snprintf(tsFirst, TSDB_EP_LEN, "%s", firstEp);
+  taosMkDir(path);
 }
 
 bool TestServer::DoStart() {
-  SDnodeOpt option = BuildOption(path, fqdn, port, firstEp);
-  taosMkDir(path);
-
-  pDnode = dmCreate(&option);
-  if (pDnode == NULL) {
+  if (dmInit(0) != 0) {
     return false;
   }
 
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
-  taosThreadCreate(&threadId, &thAttr, serverLoop, pDnode);
+  taosThreadCreate(&threadId, &thAttr, serverLoop, NULL);
   taosThreadAttrDestroy(&thAttr);
   taosMsleep(2100);
   return true;
@@ -68,11 +62,7 @@ bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const 
 }
 
 void TestServer::Stop() {
-  dmSetEvent(pDnode, DND_EVENT_STOP);
+  dmStop();
   taosThreadJoin(threadId, NULL);
-
-  if (pDnode != NULL) {
-    dmClose(pDnode);
-    pDnode = NULL;
-  }
+  dmCleanup();
 }

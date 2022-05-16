@@ -24,15 +24,14 @@ class TestServer {
   bool DoStart();
 
  private:
-  SDnodeOpt BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
+  void BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp);
 
  private:
-  SDnode*    pDnode;
-  TdThread   threadId;
-  char       path[PATH_MAX];
-  char       fqdn[TSDB_FQDN_LEN];
-  char       firstEp[TSDB_EP_LEN];
-  uint16_t   port;
+  TdThread threadId;
+  char     path[PATH_MAX];
+  char     fqdn[TSDB_FQDN_LEN];
+  char     firstEp[TSDB_EP_LEN];
+  uint16_t port;
 };
 
 #endif /* _TD_TEST_SERVER_H_ */

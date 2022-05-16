@@ -260,7 +260,7 @@ static void dmWatchNodes(SDnode *pDnode) {
   taosThreadMutexUnlock(&pDnode->mutex);
 }
 
-int32_t dnRunDnode(SDnode *pDnode) {
+int32_t dmRunDnode(SDnode *pDnode) {
   if (dmOpenNodes(pDnode) != 0) {
     dError("failed to open nodes since %s", terrstr());
     return -1;

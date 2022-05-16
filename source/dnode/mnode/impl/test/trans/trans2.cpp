@@ -15,7 +15,7 @@
 #include "mndUser.h"
 #include "tcache.h"
 
-void reportStartup(SMgmtWrapper *pWrapper, const char *name, const char *desc) {}
+void reportStartup(const char *name, const char *desc) {}
 
 class MndTestTrans2 : public ::testing::Test {
  protected:

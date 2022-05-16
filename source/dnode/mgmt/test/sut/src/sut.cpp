@@ -40,7 +40,7 @@ void Testbase::InitLog(const char* path) {
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-  dmInit();
+  dmInit(0);
 
   char fqdn[] = "localhost";
   char firstEp[TSDB_EP_LEN] = {0};
