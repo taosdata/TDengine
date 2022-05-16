@@ -465,7 +465,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pTbData = (STbData *)pNode->pData;
 
     pCommitIter = pCommith->iters + i;
-    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);  // TODO: schema version
+    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 1);  // TODO: schema version
 
     if (pTSchema) {
       pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
@@ -912,7 +912,7 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
   while (bidx < nBlocks) {
     if (!pTSchema && !tsdbCommitIsSameFile(pCommith, bidx)) {
       // Set commit table
-      pTSchema = metaGetTbTSchema(REPO_META(pTsdb), pIdx->uid, 0);  // TODO: schema version
+      pTSchema = metaGetTbTSchema(REPO_META(pTsdb), pIdx->uid, 1);  // TODO: schema version
       if (!pTSchema) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
