@@ -101,6 +101,11 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
         // TODO: handle error
       }
       break;
+    case TDMT_VND_MQ_VG_DELETE:
+      if (tqProcessVgDeleteReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+        // TODO: handle error
+      }
+      break;
     case TDMT_VND_TASK_DEPLOY: {
       if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
@@ -656,7 +661,7 @@ _exit:
 
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp) {
   SVCreateTSmaReq req = {0};
-  SDecoder       coder;
+  SDecoder        coder;
 
   pRsp->msgType = TDMT_VND_CREATE_SMA_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -670,7 +675,7 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
     pRsp->code = terrno;
     goto _err;
   }
-  
+
   if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
     pRsp->code = terrno;
     goto _err;

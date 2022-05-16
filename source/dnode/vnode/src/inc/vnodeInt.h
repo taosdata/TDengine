@@ -96,7 +96,7 @@ int32_t         metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
 // tsdb
-int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg *pKeepCfg);
+int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
 int          tsdbClose(STsdb** pTsdb);
 int          tsdbBegin(STsdb* pTsdb);
 int          tsdbCommit(STsdb* pTsdb);
@@ -114,6 +114,7 @@ void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
@@ -181,7 +182,7 @@ typedef enum {
   TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
 } ETsdbType;
 
-struct STsdbKeepCfg{
+struct STsdbKeepCfg {
   int8_t  precision;  // precision always be used with below keep cfgs
   int32_t days;
   int32_t keep0;

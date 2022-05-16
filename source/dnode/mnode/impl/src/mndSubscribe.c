@@ -763,6 +763,25 @@ int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topicName)
     }
 
     // iter all vnode to delete handle
+    ASSERT(taosHashGetSize(pSub->consumerHash) == 0);
+    int32_t sz = taosArrayGetSize(pSub->unassignedVgs);
+    for (int32_t i = 0; i < sz; i++) {
+      SMqVgEp       *pVgEp = taosArrayGetP(pSub->unassignedVgs, i);
+      SMqVDeleteReq *pReq = taosMemoryCalloc(1, sizeof(SMqVDeleteReq));
+      pReq->head.vgId = htonl(pVgEp->vgId);
+      pReq->vgId = pVgEp->vgId;
+      pReq->consumerId = -1;
+      memcpy(pReq->subKey, pSub->key, TSDB_SUBSCRIBE_KEY_LEN);
+      STransAction action = {0};
+      action.epSet = pVgEp->epSet;
+      action.pCont = pReq;
+      action.contLen = sizeof(SMqVDeleteReq);
+      action.msgType = TDMT_VND_MQ_VG_DELETE;
+      if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+        taosMemoryFree(pReq);
+        return -1;
+      }
+    }
 
     if (mndSetDropSubRedoLogs(pMnode, pTrans, pSub) < 0) {
       sdbRelease(pSdb, pSub);

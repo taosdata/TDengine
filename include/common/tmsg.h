@@ -2060,6 +2060,18 @@ enum {
 };
 
 typedef struct {
+  SMsgHead head;
+  int64_t  leftForVer;
+  int32_t  vgId;
+  int64_t  consumerId;
+  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} SMqVDeleteReq;
+
+typedef struct {
+  int8_t reserved;
+} SMqVDeleteRsp;
+
+typedef struct {
   int64_t leftForVer;
   int32_t vgId;
   int64_t oldConsumerId;

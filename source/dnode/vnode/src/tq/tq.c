@@ -861,6 +861,11 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 }
 #endif
 
+int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen) {
+  SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
+  return taosHashRemove(pTq->execs, pReq->subKey, strlen(pReq->subKey));
+}
+
 // TODO: persist meta into tdb
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
   SMqRebVgReq req = {0};
