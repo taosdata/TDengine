@@ -465,7 +465,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache) {
     SIndexMultiTerm* terms = indexMultiTermCreate();
     indexMultiTermAdd(terms, term);
     for (size_t i = 0; i < 1000; i++) {
-      tIndexJsonPut(index, terms, i);
+      tIndexJsonPut(index, terms, i + 1000);
     }
     indexMultiTermDestroy(terms);
   }

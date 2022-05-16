@@ -308,18 +308,16 @@ TEST_F(UtilEnv, 01Except) {
   ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 1), 100);
 }
 TEST_F(UtilEnv, testFill) {
-  for (int i = 0; i < 10000; i++) {
-    char  buf[10] = {0};
-    void *pBuf = (void *)buf;
-    int   val = i;
-    int   v;
-    taosEncodeFixedI32((void **)(&pBuf), val);
-    // memcpy(buf, &val, sizeof(int));
-    indexMayFillNumbericData((void *)buf, sizeof(val));
-    indexMayUnfillNumbericData((void *)buf, sizeof(val));
-
-    taosDecodeFixedI32(buf, &v);
-    ASSERT_EQ(val, v);
+  for (int i = 0; i < 10000000; i++) {
+    int64_t val = i;
+    char    buf[65] = {0};
+    indexInt2str(val, buf, 1);
+    EXPECT_EQ(val, taosStr2int64(buf));
   }
-  assert(0);
+  for (int i = 0; i < 10000000; i++) {
+    int64_t val = 0 - i;
+    char    buf[65] = {0};
+    indexInt2str(val, buf, -1);
+    EXPECT_EQ(val, taosStr2int64(buf));
+  }
 }
