@@ -884,7 +884,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
-    .finalizeFunc = NULL
+    .finalizeFunc = tailFinalize
   },
   {
     .name = "abs",
