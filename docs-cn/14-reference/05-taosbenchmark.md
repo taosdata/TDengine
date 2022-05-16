@@ -257,7 +257,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **quorum** : 多副本模式下的写确认数量，默认值为 1。
 
-- **fsync** : 当 WAL 设置为 2 时，fsync 的间隔时间，单位为 ms，默认值为 3000。
+- **fsync** : 当 wal 设置为 2 时，fsync 的间隔时间，单位为 ms，默认值为 3000。
 
 - **update** : 是否支持数据更新，默认值为 0， 可选值为 0， 1， 2。
 
