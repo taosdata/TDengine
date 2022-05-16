@@ -1661,7 +1661,8 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   return udfCallCode == 0 ? numOfResults : udfCallCode;
 }
 
-int32_t teardownUdfs() {
+int32_t cleanUpUdfs() {
+  fnInfo("clean up udf unused function handles");
   uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
   int32_t i = 0;
   SArray* udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
