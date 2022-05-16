@@ -107,13 +107,13 @@ class TDTestCase:
 
     def __group_condition(self, col, having = None):
         if col.startswith("count"):
-            col = col.split("count(")[1].split(")")
+            col = col[6:-1]
         elif col.startswith("max"):
-            col = col.split("max(")[1].split(")")
+            col = col[4:-1]
         elif col.startswith("sum"):
-            col = col.split("sum(")[1].split(")")
+            col = col[4:-1]
         elif col.startswith("min"):
-            col = col.split("min(")[1].split(")")
+            col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
