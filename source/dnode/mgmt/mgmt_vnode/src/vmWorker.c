@@ -192,7 +192,8 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     rpcFreeCont(originalRpcMsg.pCont);
 
     // if leader, send response
-    if (pMsg->rpcMsg.handle != NULL && pMsg->rpcMsg.ahandle != NULL) {
+    //if (pMsg->rpcMsg.handle != NULL && pMsg->rpcMsg.ahandle != NULL) {
+    if (pMsg->rpcMsg.handle != NULL) {
       rsp.ahandle = pMsg->rpcMsg.ahandle;
       rsp.handle = pMsg->rpcMsg.handle;
       rsp.refId = pMsg->rpcMsg.refId;
