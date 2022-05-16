@@ -76,14 +76,14 @@ class TDTestCase:
                     f"min( {tbname}.{num_col} )",
                 )
             )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_2}" for num_col_2 in NUM_COL )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{char_col} " for char_col in CHAR_COL )
+            # query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_2}" for num_col_2 in NUM_COL )
+            # query_condition.extend( f"{tbname}.{num_col} + {tbname}.{char_col} " for char_col in CHAR_COL )
 
         query_condition.extend(
             (
                 # ''' "test1234!@#$%^&*():'><?/.,][}{" ''',
                 ''' "test12" ''',
-                1010
+                # 1010
             )
         )
 
@@ -276,18 +276,13 @@ class TDTestCase:
         tdSql.error( "show tables union show tables" )
         tdSql.error( "create table errtb1 union all create table errtb2" )
         tdSql.error( "drop table ct1 union all drop table ct3" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{TS_COL}=ct4.{TS_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{TS_COL}" )
-        tdSql.error( f"select ct2.c1, ct1.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and c1 is not null " )
-        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct1.c1 is not null " )
-
-
-        tbname = ["ct1", "ct2", "ct4", "t1"]
+        tdSql.error( "select c1 from ct1 union all drop table ct3" )
+        tdSql.error( "select c1 from ct1 union all '' " )
+        tdSql.error( " '' union all select c1 from ct1 " )
+        tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
 
     def all_test(self):
-        # self.__test_current()
-        # self.__test_error()
+        self.__test_error()
         self.union_check()
 
 
