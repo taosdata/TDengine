@@ -4372,9 +4372,9 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* p
     goto _error;
   }
 
-  pInfo->limit = *pLimit;
-  pInfo->slimit = *pSlimit;
-  pInfo->curOffset = pLimit->offset;
+  pInfo->limit      = *pLimit;
+  pInfo->slimit     = *pSlimit;
+  pInfo->curOffset  = pLimit->offset;
   pInfo->curSOffset = pSlimit->offset;
 
   pInfo->binfo.pRes = pResBlock;
