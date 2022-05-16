@@ -22,18 +22,6 @@ class TDTestCase:
         tdSql.init(conn.cursor(), logSql)
 
     def insertData(self, tb_name):
-        # insert_sql_list = [f'insert into {tb_name} values ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1)',
-        #                    f'insert into {tb_name} values ("2021-01-05 12:00:00", 2, 2, 1, 3, 1.1, 1.1, "binary", "nchar", true, 2)',
-        #                    f'insert into {tb_name} values ("2021-01-07 12:00:00", 1, 3, 1, 2, 1.1, 1.1, "binary", "nchar", true, 3)',
-        #                    f'insert into {tb_name} values ("2021-01-09 12:00:00", 1, 2, 4, 3, 1.1, 1.1, "binary", "nchar", true, 4)',
-        #                    f'insert into {tb_name} values ("2021-01-11 12:00:00", 1, 2, 5, 5, 1.1, 1.1, "binary", "nchar", true, 5)',
-        #                    f'insert into {tb_name} values ("2021-01-13 12:00:00", 1, 2, 1, 3, 6.6, 1.1, "binary", "nchar", true, 6)',
-        #                    f'insert into {tb_name} values ("2021-01-15 12:00:00", 1, 2, 1, 3, 1.1, 7.7, "binary", "nchar", true, 7)',
-        #                    f'insert into {tb_name} values ("2021-01-17 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary8", "nchar", true, 8)',
-        #                    f'insert into {tb_name} values ("2021-01-19 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary", "nchar9", true, 9)',
-        #                    f'insert into {tb_name} values ("2021-01-21 12:00:00", 1, 2, 1, 3, 1.1, 1.1, "binary", "nchar", false, 10)',
-        #                    f'insert into {tb_name} values ("2021-01-23 12:00:00", 1, 3, 1, 3, 1.1, 1.1, Null, Null, false, 11)'
-        #                    ]
         insert_sql_list = [f'insert into {tb_name} values ("2021-01-01 12:00:00", 1, 1, 1, 3, 1.1, 1.1, "binary", "nchar", true, 1, 2, 3, 4)',
                            f'insert into {tb_name} values ("2021-01-05 12:00:00", 2, 2, 1, 3, 1.1, 1.1, "binary", "nchar", true, 2, 3, 4, 5)',
                            f'insert into {tb_name} values ("2021-01-07 12:00:00", 1, 3, 1, 2, 1.1, 1.1, "binary", "nchar", true, 3, 4, 5, 6)',
@@ -54,7 +42,6 @@ class TDTestCase:
         tb_name = tdCom.getLongName(8, "letters")
         tdSql.execute(
             f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 tinyint unsigned, c11 smallint unsigned, c12 int unsigned, c13 bigint unsigned)")
-            # f"CREATE TABLE {tb_name} (ts timestamp, c1 tinyint, c2 smallint, c3 int, c4 bigint, c5 float, c6 double, c7 binary(100), c8 nchar(200), c9 bool, c10 int)")
         self.insertData(tb_name)
         return tb_name
 
@@ -95,6 +82,31 @@ class TDTestCase:
 
     def queryTsCol(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm
+        # ts in
+        query_sql = f'select {select_elm} from {tb_name} where ts in ("2021-01-11 12:00:00", "2021-01-13 12:00:00")'
+        tdSql.query(query_sql)
+        tdSql.checkRows(2)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 6) if select_elm == "*" else False
+        # ts not in
+        query_sql = f'select {select_elm} from {tb_name} where ts not in ("2021-01-11 12:00:00", "2021-01-13 12:00:00")'
+        tdSql.query(query_sql)
+        tdSql.checkRows(9)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        # ts not null
+        query_sql = f'select {select_elm} from {tb_name} where ts is not Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(11)
+        tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
+        # ts null
+        query_sql = f'select {select_elm} from {tb_name} where ts is Null'
+        tdSql.query(query_sql)
+        tdSql.checkRows(0)
+        # not support like not like match nmatch
+        tdSql.error(f'select {select_elm} from {tb_name} where ts like ("2021-01-11 12:00:00%")')
+        tdSql.error(f'select {select_elm} from {tb_name} where ts not like ("2021-01-11 12:00:0_")')
+        tdSql.error(f'select {select_elm} from {tb_name} where ts match "2021-01-11 12:00:00%"')
+        tdSql.error(f'select {select_elm} from {tb_name} where ts nmatch "2021-01-11 12:00:00%"')
+
         # ts and ts
         query_sql = f'select {select_elm} from {tb_name} where ts > "2021-01-11 12:00:00" or ts < "2021-01-13 12:00:00"'
         tdSql.query(query_sql)
@@ -1422,9 +1434,9 @@ class TDTestCase:
         tdSql.query(query_sql)
         tdSql.checkRows(11)
         tdSql.checkEqual(self.queryLastC10(query_sql), 11) if select_elm == "*" else False
-        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2) or c9 match "binary[28]" or c9 nmatch "binary"'
+        query_sql = f'select c1,c2,c3,c4,c5,c6,c7,c8,c9,c10,c11,c12,c13 from {tb_name} where c9 > "binary" and c9 >= "binary8" or c9 < "binary9" and c9 <= "binary" and c9 != 2 and c9 <> 2 and c9 = 4 or c9 is not null and c9 between 2 and 4 and c9 not between 1 and 2 and c9 in (2,4) and c9 not in (1,2)'
         tdSql.query(query_sql)
-        tdSql.checkRows(11)
+        tdSql.checkRows(9)
 
     def queryFullColType(self, tb_name, check_elm=None):
         select_elm = "*" if check_elm is None else check_elm

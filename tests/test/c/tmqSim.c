@@ -37,9 +37,10 @@ typedef struct {
   TdThread thread;
   int32_t  consumerId;
 
-  int32_t  autoCommitIntervalMs;  // 1000 ms  
-  char     autoCommit[8];         // true, false
-  char     autoOffsetRest[16];    // none, earliest, latest
+  int32_t  ifManualCommit;
+  //int32_t  autoCommitIntervalMs;  // 1000 ms  
+  //char     autoCommit[8];         // true, false
+  //char     autoOffsetRest[16];    // none, earliest, latest
 
   int32_t ifCheckData;
   int64_t expectMsgCnt;
@@ -136,9 +137,9 @@ void saveConfigToLogFile() {
 
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
     taosFprintfFile(g_fp, "# consumer %d info:\n", g_stConfInfo.stThreads[i].consumerId);
-	taosFprintfFile(g_fp, "  auto commit:              %s\n", g_stConfInfo.stThreads[i].autoCommit);
-	taosFprintfFile(g_fp, "  auto commit interval ms:  %d\n", g_stConfInfo.stThreads[i].autoCommitIntervalMs);
-	taosFprintfFile(g_fp, "  auto offset rest:         %s\n", g_stConfInfo.stThreads[i].autoOffsetRest);
+	//taosFprintfFile(g_fp, "  auto commit:              %s\n", g_stConfInfo.stThreads[i].autoCommit);
+	//taosFprintfFile(g_fp, "  auto commit interval ms:  %d\n", g_stConfInfo.stThreads[i].autoCommitIntervalMs);
+	//taosFprintfFile(g_fp, "  auto offset rest:         %s\n", g_stConfInfo.stThreads[i].autoOffsetRest);
     taosFprintfFile(g_fp, "  Topics: ");
     for (int j = 0; j < g_stConfInfo.stThreads[i].numOfTopic; j++) {
       taosFprintfFile(g_fp, "%s, ", g_stConfInfo.stThreads[i].topics[j]);
@@ -232,13 +233,18 @@ static int32_t msg_process(TAOS_RES* msg, int64_t msgIndex, int32_t threadLable)
 
   while (1) {
     TAOS_ROW row = taos_fetch_row(msg);
-    if (row == NULL) break;
-    if (0 != g_stConfInfo.showRowFlag) {
-      TAOS_FIELD* fields = taos_fetch_fields(msg);
-      int32_t     numOfFields = taos_field_count(msg);
-      taos_print_row(buf, row, fields, numOfFields);
+
+	if (row == NULL) break;
+
+	TAOS_FIELD* fields = taos_fetch_fields(msg);
+    int32_t     numOfFields = taos_field_count(msg);
+	
+    taos_print_row(buf, row, fields, numOfFields);
+	
+    if (0 != g_stConfInfo.showRowFlag) {  
       taosFprintfFile(g_fp, "rows[%d]: %s\n", totalRows, buf);
     }
+	
     totalRows++;
   }
 
@@ -316,6 +322,8 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
   sprintf(sqlStr, "insert into %s.consumeresult values (now, %d, %" PRId64 ", %" PRId64 ", %d)", g_stConfInfo.cdbName,
           pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt, pInfo->checkresult);
 
+  taosFprintfFile(g_fp, "== save result sql: %s \n", sqlStr);
+  
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
     pError("error in save consumeinfo, reason:%s\n", taos_errstr(pRes));
@@ -384,8 +392,12 @@ void* consumeThreadFunc(void* param) {
 
   loop_consume(pInfo);
 
-  tmq_commit(pInfo->tmq, NULL, 0);
-
+  if (pInfo->ifManualCommit) {
+    taosFprintfFile(g_fp, "tmq_commit() manual commit when consume end.\n");
+  	pPrint("tmq_commit() manual commit when consume end.\n");
+    tmq_commit(pInfo->tmq, NULL, 0);
+  }
+  
   err = tmq_unsubscribe(pInfo->tmq);
   if (err) {
     pError("tmq_unsubscribe() fail, reason: %s\n", tmq_err2str(err));
@@ -470,9 +482,9 @@ int32_t getConsumeInfo() {
     int32_t* lengths = taos_fetch_lengths(pRes);
 
     // set default value
-    g_stConfInfo.stThreads[numOfThread].autoCommitIntervalMs = 5000;
-    memcpy(g_stConfInfo.stThreads[numOfThread].autoCommit, "true", strlen("true"));
-    memcpy(g_stConfInfo.stThreads[numOfThread].autoOffsetRest, "earlieast", strlen("earlieast"));  
+    //g_stConfInfo.stThreads[numOfThread].autoCommitIntervalMs = 5000;
+    //memcpy(g_stConfInfo.stThreads[numOfThread].autoCommit, "true", strlen("true"));
+    //memcpy(g_stConfInfo.stThreads[numOfThread].autoOffsetRest, "earlieast", strlen("earlieast"));  
 
     for (int i = 0; i < num_fields; ++i) {
       if (row[i] == NULL || 0 == i) {
@@ -489,12 +501,8 @@ int32_t getConsumeInfo() {
         g_stConfInfo.stThreads[numOfThread].expectMsgCnt = *((int64_t*)row[i]);
       } else if ((5 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
         g_stConfInfo.stThreads[numOfThread].ifCheckData = *((int32_t*)row[i]);
-      } else if ((6 == i) && (fields[i].type == TSDB_DATA_TYPE_BINARY)) {		
-        memcpy(g_stConfInfo.stThreads[numOfThread].autoCommit, row[i], lengths[i]);
-      } else if ((7 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
-        g_stConfInfo.stThreads[numOfThread].autoCommitIntervalMs = *((int32_t*)row[i]);
-      } else if ((8 == i) && (fields[i].type == TSDB_DATA_TYPE_BINARY)) {
-        memcpy(g_stConfInfo.stThreads[numOfThread].autoOffsetRest, row[i], lengths[i]);
+      } else if ((6 == i) && (fields[i].type == TSDB_DATA_TYPE_INT)) {
+        g_stConfInfo.stThreads[numOfThread].ifManualCommit = *((int32_t*)row[i]);
       }
     }
     numOfThread++;

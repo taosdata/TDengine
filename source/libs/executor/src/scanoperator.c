@@ -291,20 +291,7 @@ void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock)
 
     // this is to handle the tbname
     if (fmIsScanPseudoColumnFunc(functionId)) {
-      struct SScalarFuncExecFuncs fpSet = {0};
-      fmGetScalarFuncExecFuncs(functionId, &fpSet);
-
-      SColumnInfoData infoData = {0};
-      infoData.info.type = TSDB_DATA_TYPE_BIGINT;
-      infoData.info.bytes = sizeof(uint64_t);
-      colInfoDataEnsureCapacity(&infoData, 0, 1);
-
-      colDataAppendInt64(&infoData, 0, &pBlock->info.uid);
-      SScalarParam srcParam = {
-          .numOfRows = pBlock->info.rows, .param = pTableScanInfo->readHandle.meta, .columnData = &infoData};
-
-      SScalarParam param = {.columnData = pColInfoData};
-      fpSet.process(&srcParam, 1, &param);
+      setTbNameColData(pTableScanInfo->readHandle.meta, pBlock, pColInfoData, functionId);
     } else {  // these are tags
       const char* p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -314,6 +301,23 @@ void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock)
   }
 
   metaReaderClear(&mr);
+}
+
+void setTbNameColData(void* pMeta, const SSDataBlock* pBlock, SColumnInfoData* pColInfoData, int32_t functionId) {
+  struct SScalarFuncExecFuncs fpSet = {0};
+  fmGetScalarFuncExecFuncs(functionId, &fpSet);
+
+  SColumnInfoData infoData = {0};
+  infoData.info.type = TSDB_DATA_TYPE_BIGINT;
+  infoData.info.bytes = sizeof(uint64_t);
+  colInfoDataEnsureCapacity(&infoData, 0, 1);
+
+  colDataAppendInt64(&infoData, 0, (int64_t*) &pBlock->info.uid);
+  SScalarParam srcParam = {
+      .numOfRows = pBlock->info.rows, .param = pMeta, .columnData = &infoData};
+
+  SScalarParam param = {.columnData = pColInfoData};
+  fpSet.process(&srcParam, 1, &param);
 }
 
 static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {

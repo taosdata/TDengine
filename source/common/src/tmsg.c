@@ -4217,7 +4217,6 @@ int32_t tDecodeSVAlterTbReq(SDecoder *pDecoder, SVAlterTbReq *pReq) {
 
   if (tDecodeCStr(pDecoder, &pReq->tbName) < 0) return -1;
   if (tDecodeI8(pDecoder, &pReq->action) < 0) return -1;
-  if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;
   switch (pReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (tDecodeCStr(pDecoder, &pReq->colName) < 0) return -1;

@@ -2055,6 +2055,11 @@ void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowR
       SColumnInfoData* pDst = taosArrayGet(px->pDataBlock, i);
       SColumnInfoData* pSrc = taosArrayGet(pBlock->pDataBlock, i);
 
+      // it is a reserved column for scalar function, and no data in this column yet.
+      if (pSrc->pData == NULL) {
+        continue;
+      }
+
       int32_t numOfRows = 0;
       for (int32_t j = 0; j < totalRows; ++j) {
         if (rowRes[j] == 0) {
@@ -4372,9 +4377,9 @@ SOperatorInfo* createProjectOperatorInfo(SOperatorInfo* downstream, SExprInfo* p
     goto _error;
   }
 
-  pInfo->limit = *pLimit;
-  pInfo->slimit = *pSlimit;
-  pInfo->curOffset = pLimit->offset;
+  pInfo->limit      = *pLimit;
+  pInfo->slimit     = *pSlimit;
+  pInfo->curOffset  = pLimit->offset;
   pInfo->curSOffset = pSlimit->offset;
 
   pInfo->binfo.pRes = pResBlock;
