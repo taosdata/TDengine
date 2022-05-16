@@ -1,6 +1,6 @@
 ---
 title: "taosAdapter"
-description: "taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine"
+description: "taosAdapter is a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications. It provides an easy-to-use and efficient way to ingest data directly from data collection agent software such as Telegraf, StatsD, collectd, etc. It also provides an InfluxDB/OpenTSDB compatible data ingestion interface, allowing InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine."
 sidebar_label: "taosAdapter"
 ---
 
@@ -10,46 +10,46 @@ import StatsD from "./_statsd.mdx"
 import Icinga2 from "./_icinga2.mdx"
 import Tcollector from "./_tcollector.mdx"
 
-taosAdapter 是一个 TDengine 的配套工具，是 TDengine 集群和应用程序之间的桥梁和适配器。它提供了一种易于使用和高效的方式来直接从数据收集代理软件（如 Telegraf、StatsD、collectd 等）摄取数据。它还提供了 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。
+taosAdapter is a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications. It provides an easy-to-use and efficient way to ingest data directly from data collection agent software such as Telegraf, StatsD, collectd, etc. It also provides an InfluxDB/OpenTSDB compatible data ingestion interface that allows InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine.
 
-taosAdapter 提供以下功能：
+taosAdapter provides the following features.
 
-- RESTful 接口
-- 兼容 InfluxDB v1 写接口
-- 兼容 OpenTSDB JSON 和 telnet 格式写入
-- 无缝连接到 Telegraf
-- 无缝连接到 collectd
-- 无缝连接到 StatsD
-- 支持 Prometheus remote_read 和 remote_write
+- RESTful interface
+- InfluxDB v1 compliant write interface
+- OpenTSDB JSON and telnet format writes compatible
+- Seamless connection to Telegraf
+- Seamless connection to collectd
+- Seamless connection to StatsD
+- Supports Prometheus remote_read and remote_write
 
-## taosAdapter 架构图
+## taosAdapter architecture diagram
 
 ![taosAdapter Architecture](taosAdapter-architecture.png)
 
-## taosAdapter 部署方法
+## taosAdapter Deployment Method
 
-### 安装 taosAdapter
+### Install taosAdapter
 
-taosAdapter 从 TDengine v2.4.0.0 版本开始成为 TDengine 服务端软件 的一部分，如果您使用 TDengine server 您不需要任何额外的步骤来安装 taosAdapter。您可以从[涛思数据官方网站](https://taosdata.com/cn/all-downloads/)下载 TDengine server（taosAdapter 包含在 v2.4.0.0 及以上版本）安装包。如果需要将 taosAdapter 分离部署在 TDengine server 之外的服务器上，则应该在该服务器上安装完整的 TDengine 来安装 taosAdapter。如果您需要使用源代码编译生成 taosAdapter，您可以参考[构建 taosAdapter](https://github.com/taosdata/taosadapter/blob/develop/BUILD-CN.md)文档。
+taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [Taos Data official website](https://taosdata. com/cn/all-downloads/) to download the TDengine server (taosAdapter is included in v2.4.0.0 and above) installation package. If you need to deploy taosAdapter separately on a server other than the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to generate taosAdapter using source code compilation, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD-CN.md) documentation.
 
 ### start/stop taosAdapter
 
-在 Linux 系统上 taosAdapter 服务默认由 systemd 管理。使用命令 `systemctl start taosadapter` 可以启动 taosAdapter 服务。使用命令 `systemctl stop taosadapter` 可以停止 taosAdapter 服务。
+On Linux systems, the taosAdapter service is managed by systemd by default. You can use the command `systemctl start taosadapter` to start the taosAdapter service and use the command `systemctl stop taosadapter` to stop the taosAdapter service.
 
-### 移除 taosAdapter
+### Remove taosAdapter
 
-使用命令 rmtaos 可以移除包括 taosAdapter 在内的 TDengine server 软件。
+Use the command `rmtaos` to remove the TDengine server software, including taosAdapter.
 
-### 升级 taosAdapter
+### Upgrade taosAdapter
 
-taosAdapter 和 TDengine server 需要使用相同版本。请通过升级 TDengine server 来升级 taosAdapter。
-与 taosd 分离部署的 taosAdapter 必须通过升级其所在服务器的 TDengine server 才能得到升级。
+taosAdapter and TDengine server need to use the same version. Please upgrade the taosAdapter by upgrading the TDengine server.
+You need to upgrade the taosAdapter deployed separately from taosd by upgrading the TDengine server of the deployed server.
 
-## taosAdapter 参数列表
+## taosAdapter parameter list
 
-taosAdapter 支持通过命令行参数、环境变量和配置文件来进行配置。默认配置文件是 /etc/taos/taosadapter.toml。
+taosAdapter supports configuration via command-line arguments, environment variables and configuration files. The default configuration file is /etc/taos/taosadapter.toml.
 
-命令行参数优先于环境变量优先于配置文件，命令行用法是 arg=val，如 taosadapter -p=30000 --debug=true，详细列表如下：
+Command-line arguments take precedence over environment variables over configuration files. The command line usage is arg=val, e.g., taosadapter -p=30000 --debug=true. The detailed list is as follows:
 
 ```shell
 Usage of taosAdapter:
@@ -133,8 +133,8 @@ Usage of taosAdapter:
       --version                                      Print the version and exit
 ```
 
-备注：
-使用浏览器进行接口调用请根据实际情况设置如下跨源资源共享（CORS）参数：
+Note:
+Please set the following Cross-Origin Resource Sharing (CORS) parameters according to the actual situation when using a browser for interface calls.
 
 ```text
 AllowAllOrigins
@@ -145,39 +145,39 @@ AllowCredentials
 AllowWebSockets
 ```
 
-如果不通过浏览器进行接口调用无需关心这几项配置。
+You do not need to care about these configurations if you do not make interface calls through the browser.
 
-关于 CORS 协议细节请参考：[https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) 或 [https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS)。
+For details on the CORS protocol, please refer to: [https://www.w3.org/wiki/CORS_Enabled](https://www.w3.org/wiki/CORS_Enabled) or [https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS](https://developer.mozilla.org/zh-CN/docs/Web/HTTP/CORS).
 
-示例配置文件参见 [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/develop/example/config/taosadapter.toml)。
+See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/blob/develop/example/config/taosadapter.toml) for sample configuration files.
 
-## 功能列表
+## Feature List
 
-- 与 RESTful 接口兼容
+- Compatible with RESTful interfaces
   [https://www.taosdata.com/cn/documentation/connector#restful](https://www.taosdata.com/cn/documentation/connector#restful)
-- 兼容 InfluxDB v1 写接口
-  [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
-- 兼容 OpenTSDB JSON 和 telnet 格式写入
+- Compatible with InfluxDB v1 write interface
+  [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/ api/influxdb-1x/write/)
+- Compatible with OpenTSDB JSON and telnet format writes
   - <http://opentsdb.net/docs/build/html/api_http/put.html>
   - <http://opentsdb.net/docs/build/html/api_telnet/put.html>
-- 与 collectd 无缝连接
-  collectd 是一个系统统计收集守护程序，请访问 [https://collectd.org/](https://collectd.org/) 了解更多信息。
+- Seamless connection to collectd
+  collectd is a system statistics collection daemon, please visit [https://collectd.org/](https://collectd.org/) for more information.
 - Seamless connection with StatsD
-  StatsD 是一个简单而强大的统计信息汇总的守护程序。请访问 [https://github.com/statsd/statsd](https://github.com/statsd/statsd) 了解更多信息。
-- 与 icinga2 的无缝连接
-  icinga2 是一个收集检查结果指标和性能数据的软件。请访问 [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) 了解更多信息。
-- 与 tcollector 无缝连接
-  TCollector 是一个客户端进程，从本地收集器收集数据，并将数据推送到 OpenTSDB。请访问 [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) 了解更多信息。
-- 无缝连接 node_exporter
-  node_export 是一个机器指标的导出器。请访问 [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) 了解更多信息。
-- 支持 Prometheus remote_read 和 remote_write
-  remote_read 和 remote_write 是 Prometheus 数据读写分离的集群方案。请访问[https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) 了解更多信息。
+  StatsD is a simple yet powerful daemon for aggregating statistical information. Please visit [https://github.com/statsd/statsd](https://github.com/statsd/statsd) for more information.
+- Seamless connection with icinga2
+  icinga2 is a software that collects inspection result metrics and performance data. Please visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14- features/#opentsdb-writer) for more information.
+- Seamless connection to tcollector
+  TCollector is a client process that collects data from a local collector and pushes the data to OpenTSDB. Please visit [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) for more information.
+- Seamless connection to node_exporter
+  node_export is an exporter for machine metrics. Please visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
+- Support for Prometheus remote_read and remote_write
+  remote_read and remote_write are clustering solutions for Prometheus data read and write separation. Please visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote- read-meets-streaming/#remote-apis) for more information.
 
-## 接口
+## Interfaces
 
-### TDengine RESTful 接口
+### TDengine RESTful interface
 
-您可以使用任何支持 http 协议的客户端通过访问 RESTful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入数据到 TDengine 或从 TDengine 中查询数据。细节请参考[官方文档](/reference/connector#restful)。支持如下 EndPoint ：
+You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>`. See the [official documentation](/reference/connector#restful) for details. The following EndPoint is supported.
 
 ```text
 /rest/sql
@@ -187,24 +187,24 @@ AllowWebSockets
 
 ### InfluxDB
 
-您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 InfluxDB 兼容格式的数据到 TDengine。EndPoint 如下：
+You can use any client that supports the http protocol to access the Restful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /influxdb/v1/write
 ```
 
-支持 InfluxDB 查询参数如下：
+Support InfluxDB query parameters as follows.
 
-- `db` 指定 TDengine 使用的数据库名
-- `precision` TDengine 使用的时间精度
-- `u` TDengine 用户名
-- `p` TDengine 密码
+- `db` Specifies the database name used by TDengine
+- `precision` The time precision used by TDengine
+- `u` TDengine user name
+- `p` TDengine password
 
-注意： 目前不支持 InfluxDB 的 token 验证方式只支持 Basic 验证和查询参数验证。
+Note: InfluxDB token verification is not supported at present. Only Basic verification and query parameter validation are supported.
 
 ### OpenTSDB
 
-您可以使用任何支持 http 协议的客户端访问 Restful 接口地址 `http://<fqdn>:6041/<APIEndPoint>` 来写入 OpenTSDB 兼容格式的数据到 TDengine。EndPoint 如下：
+You can use any client that supports the http protocol to access the Restful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine.
 
 ```text
 /opentsdb/v1/put/json/:db
@@ -229,110 +229,110 @@ AllowWebSockets
 
 ### node_exporter
 
-Prometheus 使用的由\*NIX 内核暴露的硬件和操作系统指标的输出器
+Exporter of hardware and OS metrics exposed by the \*NIX kernel used by Prometheus
 
-- 启用 taosAdapter 的配置 node_exporter.enable
-- 设置 node_exporter 的相关配置
-- 重新启动 taosAdapter
+- Enable the taosAdapter configuration node_exporter.enable
+- Set the configuration of the node_exporter
+- Restart taosAdapter
 
 ### prometheus
 
 <Prometheus />
 
-## 内存使用优化方法
+## Memory usage optimization methods
 
-taosAdapter 将监测自身运行过程中内存使用率并通过两个阈值进行调节。有效值范围为 -1 到 100 的整数，单位为系统物理内存的百分比。
+taosAdapter will monitor its memory usage during operation and adjust it with two thresholds. Valid values range from -1 to 100 integers in percent of the system's physical memory.
 
 - pauseQueryMemoryThreshold
 - pauseAllMemoryThreshold
 
-当超过 pauseQueryMemoryThreshold 阈值时时停止处理查询请求。
+Stops processing query requests when the pauseQueryMemoryThreshold threshold is exceeded.
 
-http 返回内容：
+http response content.
 
 - code 503
 - body "query memory exceeds threshold"
 
-当超过 pauseAllMemoryThreshold 阈值时停止处理所有写入和查询请求。
+Stops processing all write and query requests when the pauseAllMemoryThreshold threshold is exceeded.
 
-http 返回内容：
+http response: code 503
 
 - code 503
 - body "memory exceeds threshold"
 
-当内存回落到阈值之下时恢复对应功能。
+Resume the corresponding function when the memory falls back below the threshold.
 
-状态检查接口 `http://<fqdn>:6041/-/ping`
+Status check interface `http://<fqdn>:6041/-/ping`
 
-- 正常返回 `code 200`
-- 无参数 如果内存超过 pauseAllMemoryThreshold 将返回 `code 503`
-- 请求参数 `action=query` 如果内存超过 pauseQueryMemoryThreshold 或 pauseAllMemoryThreshold 将返回 `code 503`
+- Normal returns `code 200`
+- No parameter If memory exceeds pauseAllMemoryThreshold returns `code 503`
+- Request parameter `action=query` returns `code 503` if memory exceeds pauseQueryMemoryThreshold or pauseAllMemoryThreshold
 
-对应配置参数
+Corresponding configuration parameter
 
-```text
-  monitor.collectDuration              监测间隔                                    环境变量 "TAOS_MONITOR_COLLECT_DURATION" (默认值 3s)
-  monitor.incgroup                     是否是cgroup中运行(容器中运行设置为 true)      环境变量 "TAOS_MONITOR_INCGROUP"
-  monitor.pauseAllMemoryThreshold      不再进行插入和查询的内存阈值                   环境变量 "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (默认值 80)
-  monitor.pauseQueryMemoryThreshold    不再进行查询的内存阈值                        环境变量 "TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD" (默认值 70)
+``text
+  monitor.collectDuration monitoring interval environment variable "TAOS_MONITOR_COLLECT_DURATION" (default value 3s)
+  monitor.incgroup whether to run in cgroup (set to true for running in container) environment variable "TAOS_MONITOR_INCGROUP"
+  monitor.pauseAllMemoryThreshold memory threshold for no more inserts and queries environment variable "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (default 80)
+  monitor.pauseQueryMemoryThreshold memory threshold for no more queries Environment variable "TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD" (default 70)
 ```
 
-您可以根据具体项目应用场景和运营策略进行相应调整，并建议使用运营监控软件及时进行系统内存状态监控。负载均衡器也可以通过这个接口检查 taosAdapter 运行状态。
+You can adjust it according to the specific project application scenario and operation strategy, and it is recommended to use operation monitoring software for timely system memory status monitoring. The load balancer can also check the taosAdapter running status through this interface.
 
-## taosAdapter 监控指标
+## taosAdapter Monitoring Metrics
 
-taosAdapter 采集 http 相关指标、cpu 百分比和内存百分比。
+taosAdapter collects http-related metrics, CPU percentage, and memory percentage.
 
-### http 接口
+### http interface
 
-提供符合 [OpenMetrics](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md) 接口：
+Provides an interface conforming to [OpenMetrics](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md).
 
 ```text
 http://<fqdn>:6041/metrics
 ```
 
-### 写入 TDengine
+### Write to TDengine
 
-taosAdapter 支持将 http 监控、cpu 百分比和内存百分比写入 TDengine。
+taosAdapter supports writing http monitoring, CPU percentage, and memory percentage to TDengine.
 
-有关配置参数
+For configuration parameters
 
-| **配置项**              | **描述**                                                  | **默认值** |
+| **Configuration items** | **Description** | **Default values** |
 | ----------------------- | --------------------------------------------------------- | ---------- |
-| monitor.collectDuration | cpu 和内存采集间隔                                        | 3s         |
-| monitor.identity        | 当前 taosadapter 的标识符如果不设置将使用 'hostname:port' |            |
-| monitor.incgroup        | 是否是 cgroup 中运行(容器中运行设置为 true)               | false      |
-| monitor.writeToTD       | 是否写入到 TDengine                                       | true       |
-| monitor.user            | TDengine 连接用户名                                       | root       |
-| monitor.password        | TDengine 连接密码                                         | taosdata   |
-| monitor.writeInterval   | 写入 TDengine 间隔                                        | 30s        |
+| monitor.collectDuration | CPU and memory collection interval | 3s |
+| monitor.identity | The current taosadapter identifier will be used if not set to 'hostname:port' | |
+| monitor.incgroup | whether it is running in a cgroup (set to true for running in a container) | false |
+| monitor.writeToTD | Whether to write to TDengine | true |
+| monitor.user | TDengine connection username | root |
+| monitor.password | TDengine connection password | taosdata |
+| monitor.writeInterval | Write to TDengine interval | 30s |
 
-## 结果返回条数限制
+## Limit the number of results returned
 
-taosAdapter 通过参数 `restfulRowLimit` 来控制结果的返回条数，-1 代表无限制，默认无限制。
+taosAdapter controls the number of results returned by the parameter `restfulRowLimit`, -1 means no limit, default is no limit.
 
-该参数控制以下接口返回
+This parameter controls the number of results returned by the following interfaces:
 
 - `http://<fqdn>:6041/rest/sql`
 - `http://<fqdn>:6041/rest/sqlt`
 - `http://<fqdn>:6041/rest/sqlutc`
-- `http://<fqdn>:6041/prometheus/v1/remote_read/:db`
+- ` http://<fqdn>:6041/prometheus/v1/remote_read/:db`
 
-## 故障解决
+## Troubleshooting
 
-您可以通过命令 `systemctl status taosadapter` 来检查 taosAdapter 运行状态。
+You can check the taosAdapter running status with the` systemctl status taosadapter` command.
 
-您也可以通过设置 --logLevel 参数或者环境变量 TAOS_ADAPTER_LOG_LEVEL 来调节 taosAdapter 日志输出详细程度。有效值包括： panic、fatal、error、warn、warning、info、debug 以及 trace。
+You can also adjust the level of the taosAdapter log output by setting the --logLevel parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values are: panic, fatal, error, warn, warning, info, debug and trace.
 
-## 如何从旧版本 TDengine 迁移到 taosAdapter
+## How to migrate from older TDengine versions to taosAdapter
 
-在 TDengine server 2.2.x.x 或更早期版本中，taosd 进程包含一个内嵌的 http 服务。如前面所述，taosAdapter 是一个使用 systemd 管理的独立软件，拥有自己的进程。并且两者有一些配置参数和行为是不同的，请见下表：
+In TDengine server 2.2.x.x or earlier, the taosd process contains an embedded http service. As mentioned earlier, taosAdapter is a standalone software managed using systemd and has its process. And there are some configuration parameters and behaviors that are different between the two. See the following table.
 
-| **#** | **embedded httpd**  | **taosAdapter**                      | **comment**                                                                                                                                |
-| ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 1     | httpEnableRecordSql | --logLevel=debug                     |                                                                                                                                            |
-| 2     | httpMaxThreads      | n/a                                  | taosAdapter 自动管理线程池，无需此参数                                                                                                     |
-| 3     | telegrafUseFieldNum | 请参考 taosAdapter telegraf 配置方法 |                                                                                                                                            |
-| 4     | restfulRowLimit     | restfulRowLimit                      | 内嵌 httpd 默认输出 10240 行数据，最大允许值为 102400。taosAdapter 也提供 restfulRowLimit 但是默认不做限制。您可以根据实际场景需求进行配置 |
-| 5     | httpDebugFlag       | 不适用                               | httpdDebugFlag 对 taosAdapter 不起作用                                                                                                     |
-| 6     | httpDBNameMandatory | 不适用                               | taosAdapter 要求 URL 中必须指定数据库名                                                                                                    |
+| **#** | **embedded httpd** | **taosAdapter** | **comment** |
+| ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------ ------------------------------------------------------------------------ |
+| 1 | httpEnableRecordSql | --logLevel=debug | |
+| 2 | httpMaxThreads | n/a | taosAdapter Automatically manages thread pools without this parameter |
+| 3 | telegrafUseFieldNum | See the taosAdapter telegraf configuration method | |
+| 4 | restfulRowLimit | restfulRowLimit | Embedded httpd outputs 10240 rows of data by default, the maximum allowed is 102400. taosAdapter also provides restfulRowLimit but it is not limited by default. You can configure it according to the actual scenario.
+| 5 | httpDebugFlag | Not applicable | httpdDebugFlag does not work for taosAdapter |
+| 6 | httpDBNameMandatory | N/A | taosAdapter requires the database name to be specified in the URL |

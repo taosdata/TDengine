@@ -361,7 +361,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 ### 查询场景配置参数
 
-查询场景下 `filetype` 必须设置为 `qeury`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
+查询场景下 `filetype` 必须设置为 `query`，该参数及其它通用参数详见[通用配置参数](#通用配置参数)
 
 #### 执行指定查询语句的配置参数
 
@@ -400,7 +400,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **threads** : 执行 SQL 的线程数，默认为 1。
 
-- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0。
+- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
 
 - **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
 
@@ -420,7 +420,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 
 - **threads** : 执行 SQL 的线程数，默认为 1。
 
-- **interva** : 执行订阅的时间间隔，单位为秒，默认为 0。
+- **interval** : 执行订阅的时间间隔，单位为秒，默认为 0。
 
 - **restart** : "yes" 表示开始新的订阅，"no" 表示继续之前的订阅，默认值为 "no"。
 
