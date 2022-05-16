@@ -518,8 +518,9 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    printf("failed to connect to server, reason: %s\n\n", errorMsg);
+    fprintf(stderr,"failed to connect to server, reason: %s\n\n", errorMsg);
 
+    terrno = pRequest->code;
     destroyRequest(pRequest);
     taos_close(pTscObj);
     pTscObj = NULL;
