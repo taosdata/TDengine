@@ -261,10 +261,10 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
 
   if (sptr != NULL) {
     // select ... where col >> n op m ...;
-    match = regex_match(sptr + 2, "^\\s*[0-9]{1,}\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.*;\\s*$", REG_EXTENDED | REG_ICASE);
+    match = regex_match(sptr + 2, "^\\s*.{1,}\\s*[\\>|\\<|\\<=|\\>=|=|!=]\\s*.{1,};\\s*$", REG_EXTENDED | REG_ICASE);
     if (match == 0) {
       // select col >> n from ...;
-      match = regex_match(sptr + 2, "^\\s*[0-9]{1,}\\s*.*;\\s*$", REG_EXTENDED | REG_ICASE);
+      match = regex_match(sptr + 2, "^\\s*.{1,}\\s{1,}.{1,};\\s*$", REG_EXTENDED | REG_ICASE);
       if (match == 0) {
         cptr = tstrstr(command, ";", true);
         if (cptr != NULL) {

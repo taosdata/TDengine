@@ -5266,10 +5266,6 @@ static int32_t validateSQLExprItemOperatorExpr(SSqlCmd* pCmd, tSqlExpr* pExpr, S
                pExpr->tokenId == TK_MATCH || pExpr->tokenId == TK_NMATCH ||
                pExpr->tokenId == TK_CONTAINS || pExpr->tokenId == TK_IN) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "unsupported filtering operations");
-    } else if (pExpr->tokenId == TK_LSHIFT || pExpr->tokenId == TK_RSHIFT) {
-      if (rightType != SQLEXPR_TYPE_VALUE) {
-        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "non numeric right operand");
-      }
     }
   } else {
     *type = SQLEXPR_TYPE_SCALAR;
