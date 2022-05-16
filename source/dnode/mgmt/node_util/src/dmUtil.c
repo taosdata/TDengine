@@ -80,19 +80,6 @@ const char *dmNodeName(EDndNodeType ntype) {
   }
 }
 
-const char *dmEventStr(EDndEvent ev) {
-  switch (ev) {
-    case DND_EVENT_START:
-      return "start";
-    case DND_EVENT_STOP:
-      return "stop";
-    case DND_EVENT_CHILD:
-      return "child";
-    default:
-      return "UNKNOWN";
-  }
-}
-
 const char *dmProcStr(EDndProcType etype) {
   switch (etype) {
     case DND_PROC_SINGLE:

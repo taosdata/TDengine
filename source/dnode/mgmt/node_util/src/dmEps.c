@@ -54,7 +54,7 @@ int32_t dmReadEps(SDnodeData *pData) {
     goto _OVER;
   }
 
-  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", pData->dataDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     code = 0;
@@ -158,14 +158,14 @@ _OVER:
   if (taosArrayGetSize(pData->dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(pData->firstEp, &dnodeEp.ep);
+    taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
     taosArrayPush(pData->dnodeEps, &dnodeEp);
   }
 
   dmResetEps(pData, pData->dnodeEps);
 
-  if (dmIsEpChanged(pData, pData->dnodeId, pData->localEp)) {
-    dError("localEp %s different with %s and need reconfigured", pData->localEp, file);
+  if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
+    dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
     return -1;
   }
 
@@ -177,8 +177,8 @@ int32_t dmWriteEps(SDnodeData *pData) {
   char file[PATH_MAX] = {0};
   char realfile[PATH_MAX] = {0};
 
-  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", pData->dataDir, TD_DIRSEP, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", pData->dataDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {

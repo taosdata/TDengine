@@ -87,38 +87,28 @@ typedef enum {
   DND_FUNC_RELEASE = 4,
 } EProcFuncType;
 
-typedef int32_t (*ProcessCreateNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg);
-typedef int32_t (*ProcessDropNodeFp)(struct SDnode *pDnode, EDndNodeType ntype, SRpcMsg *pMsg);
-typedef bool (*IsNodeRequiredFp)(struct SDnode *pDnode, EDndNodeType ntype);
+typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
+typedef bool (*IsNodeRequiredFp)(EDndNodeType ntype);
 
 typedef struct {
-  int32_t     dnodeId;
-  int64_t     clusterId;
-  int64_t     dnodeVer;
-  int64_t     updateTime;
-  int64_t     rebootTime;
-  bool        dropped;
-  bool        stopped;
-  SEpSet      mnodeEps;
-  SArray     *dnodeEps;
-  SHashObj   *dnodeHash;
-  SRWLatch    latch;
-  SMsgCb      msgCb;
-  const char *localEp;
-  const char *localFqdn;
-  const char *firstEp;
-  const char *secondEp;
-  int32_t     supportVnodes;
-  uint16_t    serverPort;
-  int32_t     numOfDisks;
-  SDiskCfg   *disks;
-  const char *dataDir;
+  int32_t   dnodeId;
+  int64_t   clusterId;
+  int64_t   dnodeVer;
+  int64_t   updateTime;
+  int64_t   rebootTime;
+  bool      dropped;
+  bool      stopped;
+  SEpSet    mnodeEps;
+  SArray   *dnodeEps;
+  SHashObj *dnodeHash;
+  SRWLatch  latch;
+  SMsgCb    msgCb;
 } SDnodeData;
 
 typedef struct {
   const char         *path;
   const char         *name;
-  struct SDnode      *pDnode;
   SDnodeData         *pData;
   SMsgCb              msgCb;
   ProcessCreateNodeFp processCreateNodeFp;
@@ -162,7 +152,6 @@ const char *dmStatStr(EDndRunStatus stype);
 const char *dmNodeLogName(EDndNodeType ntype);
 const char *dmNodeProcName(EDndNodeType ntype);
 const char *dmNodeName(EDndNodeType ntype);
-const char *dmEventStr(EDndEvent etype);
 const char *dmProcStr(EDndProcType ptype);
 const char *dmFuncStr(EProcFuncType etype);
 void       *dmSetMgmtHandle(SArray *pArray, tmsg_t msgType, void *nodeMsgFp, bool needCheckVgId);
