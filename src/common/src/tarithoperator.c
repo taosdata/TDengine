@@ -667,98 +667,266 @@ void vectorBitnot(void *left, int32_t len1, int32_t _left_type, void *right, int
 void vectorLshift(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
-  // the right operand is a number
-  if (len2 != 1) {
-    return;
-  }
-
-  char *output = (char *) out;
+  char *output = (char *)out;
   _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorBigintValue_fn_t getVectorBigintValueFnLeft = getVectorBigintValueFn(_left_type);
+  _arithmetic_getVectorBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(_right_type);
 
-  for (; i < (len1) && i >= 0; i += step) {
-    if (isNull(getVectorValueAddrFnLeft(left,i), _left_type)) {
+  if ((len1) == (len2)) {
+    for (; i < (len2) && i >= 0; i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, i), _left_type) || isNull(getVectorValueAddrFnRight(right, i), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = TSDB_DATA_BOOL_NULL;
+          output += sizeof(bool);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = TSDB_DATA_INT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+        }
+        continue;
+      }
+
       switch (_left_type) {
       case TSDB_DATA_TYPE_BOOL:
-        *(bool *) output = TSDB_DATA_BOOL_NULL;
+        *(bool *)output = 0;
         output += sizeof(bool);
         break;
       case TSDB_DATA_TYPE_TINYINT:
-        *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+        *(int8_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int8_t);
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+        *(int16_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int16_t);
         break;
       case TSDB_DATA_TYPE_INT:
-        *(int32_t *) output = TSDB_DATA_INT_NULL;
+        *(int32_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int32_t);
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+        *(int64_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int64_t);
         break;
 
       case TSDB_DATA_TYPE_UTINYINT:
-        *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+        *(uint8_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int8_t);
         break;
       case TSDB_DATA_TYPE_USMALLINT:
-        *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+        *(uint16_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int16_t);
         break;
       case TSDB_DATA_TYPE_UINT:
-        *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+        *(uint32_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int32_t);
         break;
       case TSDB_DATA_TYPE_UBIGINT:
-        *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+        *(uint64_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, i);
         output += sizeof(int64_t);
         break;
       }
-
-      continue;
     }
+  } else if ((len1) == 1) {
+    for (; i >= 0 && i < (len2); i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, 0), _left_type) || isNull(getVectorValueAddrFnRight(right, i), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = TSDB_DATA_BOOL_NULL;
+          output += sizeof(bool);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = TSDB_DATA_INT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
 
-    switch (_left_type) {
-    case TSDB_DATA_TYPE_BOOL:
-      *(bool *)output = 0;
-      output += sizeof(bool);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      *(int8_t *) output = *((int8_t *) left + i) << *(int8_t *) right;
-      output += sizeof(int8_t);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      *(int16_t *) output = *((int16_t *) left + i) << *(int16_t *) right;
-      output += sizeof(int16_t);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      *(int32_t *) output = *((int32_t *) left + i) << *(int32_t *) right;
-      output += sizeof(int32_t);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      *(int64_t *) output = *((int64_t *) left + i) << *(int64_t *) right;
-      output += sizeof(int64_t);
-      break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+        }
+        continue;
+      }
 
-    case TSDB_DATA_TYPE_UTINYINT:
-      *(uint8_t *) output = *((uint8_t *) left + i) << *(uint8_t *) right;
-      output += sizeof(int8_t);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      *(uint16_t *) output = *((uint16_t *) left + i) << *(uint16_t *) right;
-      output += sizeof(int16_t);
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      *(uint32_t *) output = *((uint32_t *) left + i) << *(uint32_t *) right;
-      output += sizeof(int32_t);
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      *(uint64_t *) output = *((uint64_t *) left + i) << *(uint64_t *) right;
-      output += sizeof(int64_t);
-      break;
+      switch (_left_type) {
+      case TSDB_DATA_TYPE_BOOL:
+        *(bool *)output = 0;
+        output += sizeof(bool);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        *(int8_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        *(int16_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        *(int32_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        *(int64_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int64_t);
+        break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+        *(uint8_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        *(uint16_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        *(uint32_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        *(uint64_t *) output = getVectorBigintValueFnLeft(left, 0) << getVectorBigintValueFnRight(right, i);
+        output += sizeof(int64_t);
+        break;
+      }
+    }
+  } else if ((len2) == 1) {
+    for (; i >= 0 && i < (len1); i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, i), _left_type) || isNull(getVectorValueAddrFnRight(right, 0), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = TSDB_DATA_BOOL_NULL;
+          output += sizeof(bool);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = TSDB_DATA_INT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+        }
+        continue;
+      }
+
+      switch (_left_type) {
+      case TSDB_DATA_TYPE_BOOL:
+        *(bool *)output = 0;
+        output += sizeof(bool);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        *(int8_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        *(int16_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        *(int32_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        *(int64_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int64_t);
+        break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+        *(uint8_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        *(uint16_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        *(uint32_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        *(uint64_t *) output = getVectorBigintValueFnLeft(left, i) << getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int64_t);
+        break;
+      }
     }
   }
 }
@@ -766,98 +934,266 @@ void vectorLshift(void *left, int32_t len1, int32_t _left_type, void *right, int
 void vectorRshift(void *left, int32_t len1, int32_t _left_type, void *right, int32_t len2, int32_t _right_type, void *out, int32_t _ord) {
   int32_t i = ((_ord) == TSDB_ORDER_ASC) ? 0 : MAX(len1, len2) - 1;
   int32_t step = ((_ord) == TSDB_ORDER_ASC) ? 1 : -1;
-
-  // the right operand is a number
-  if (len2 != 1) {
-    return;
-  }
-
-  char *output = (char *) out;
+  char *output = (char *)out;
   _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnLeft = getVectorValueAddrFn(_left_type);
+  _arithmetic_getVectorValueAddr_fn_t getVectorValueAddrFnRight = getVectorValueAddrFn(_right_type);
+  _arithmetic_getVectorBigintValue_fn_t getVectorBigintValueFnLeft = getVectorBigintValueFn(_left_type);
+  _arithmetic_getVectorBigintValue_fn_t getVectorBigintValueFnRight = getVectorBigintValueFn(_right_type);
 
-  for (; i < (len1) && i >= 0; i += step) {
-    if (isNull(getVectorValueAddrFnLeft(left,i), _left_type)) {
+  if ((len1) == (len2)) {
+    for (; i < (len2) && i >= 0; i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, i), _left_type) || isNull(getVectorValueAddrFnRight(right, i), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = TSDB_DATA_BOOL_NULL;
+          output += sizeof(bool);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = TSDB_DATA_INT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+        }
+        continue;
+      }
+
       switch (_left_type) {
       case TSDB_DATA_TYPE_BOOL:
-        *(bool *) output = TSDB_DATA_BOOL_NULL;
+        *(bool *)output = 0;
         output += sizeof(bool);
         break;
       case TSDB_DATA_TYPE_TINYINT:
-        *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+        *(int8_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int8_t);
         break;
       case TSDB_DATA_TYPE_SMALLINT:
-        *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+        *(int16_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int16_t);
         break;
       case TSDB_DATA_TYPE_INT:
-        *(int32_t *) output = TSDB_DATA_INT_NULL;
+        *(int32_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int32_t);
         break;
       case TSDB_DATA_TYPE_BIGINT:
-        *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+        *(int64_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int64_t);
         break;
 
       case TSDB_DATA_TYPE_UTINYINT:
-        *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+        *(uint8_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int8_t);
         break;
       case TSDB_DATA_TYPE_USMALLINT:
-        *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+        *(uint16_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int16_t);
         break;
       case TSDB_DATA_TYPE_UINT:
-        *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+        *(uint32_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int32_t);
         break;
       case TSDB_DATA_TYPE_UBIGINT:
-        *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+        *(uint64_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, i);
         output += sizeof(int64_t);
         break;
       }
-
-      continue;
     }
+  } else if ((len1) == 1) {
+    for (; i >= 0 && i < (len2); i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, 0), _left_type) || isNull(getVectorValueAddrFnRight(right, i), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = TSDB_DATA_BOOL_NULL;
+          output += sizeof(bool);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = TSDB_DATA_INT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
 
-    switch (_left_type) {
-    case TSDB_DATA_TYPE_BOOL:
-      *(bool *)output = 0;
-      output += sizeof(bool);
-      break;
-    case TSDB_DATA_TYPE_TINYINT:
-      *(int8_t *) output = *((int8_t *) left + i) >> *(int8_t *) right;
-      output += sizeof(int8_t);
-      break;
-    case TSDB_DATA_TYPE_SMALLINT:
-      *(int16_t *) output = *((int16_t *) left + i) >> *(int16_t *) right;
-      output += sizeof(int16_t);
-      break;
-    case TSDB_DATA_TYPE_INT:
-      *(int32_t *) output = *((int32_t *) left + i) >> *(int32_t *) right;
-      output += sizeof(int32_t);
-      break;
-    case TSDB_DATA_TYPE_BIGINT:
-      *(int64_t *) output = *((int64_t *) left + i) >> *(int64_t *) right;
-      output += sizeof(int64_t);
-      break;
+        case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+        }
+        continue;
+      }
 
-    case TSDB_DATA_TYPE_UTINYINT:
-      *(uint8_t *) output = *((uint8_t *) left + i) >> *(uint8_t *) right;
-      output += sizeof(int8_t);
-      break;
-    case TSDB_DATA_TYPE_USMALLINT:
-      *(uint16_t *) output = *((uint16_t *) left + i) >> *(uint16_t *) right;
-      output += sizeof(int16_t);
-      break;
-    case TSDB_DATA_TYPE_UINT:
-      *(uint32_t *) output = *((uint32_t *) left + i) >> *(uint32_t *) right;
-      output += sizeof(int32_t);
-      break;
-    case TSDB_DATA_TYPE_UBIGINT:
-      *(uint64_t *) output = *((uint64_t *) left + i) >> *(uint64_t *) right;
-      output += sizeof(int64_t);
-      break;
+      switch (_left_type) {
+      case TSDB_DATA_TYPE_BOOL:
+        *(bool *)output = 0;
+        output += sizeof(bool);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        *(int8_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        *(int16_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        *(int32_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        *(int64_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int64_t);
+        break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+        *(uint8_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        *(uint16_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        *(uint32_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        *(uint64_t *) output = getVectorBigintValueFnLeft(left, 0) >> getVectorBigintValueFnRight(right, i);
+        output += sizeof(int64_t);
+        break;
+      }
+    }
+  } else if ((len2) == 1) {
+    for (; i >= 0 && i < (len1); i += step) {
+      if (isNull(getVectorValueAddrFnLeft(left, i), _left_type) || isNull(getVectorValueAddrFnRight(right, 0), _right_type)) {
+        switch (_left_type) {
+        case TSDB_DATA_TYPE_BOOL:
+          *(bool *) output = TSDB_DATA_BOOL_NULL;
+          output += sizeof(bool);
+          break;
+        case TSDB_DATA_TYPE_TINYINT:
+          *(int8_t *) output = TSDB_DATA_TINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_SMALLINT:
+          *(int16_t *) output = TSDB_DATA_SMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_INT:
+          *(int32_t *) output = TSDB_DATA_INT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_BIGINT:
+          *(int64_t *) output = TSDB_DATA_BIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+
+        case TSDB_DATA_TYPE_UTINYINT:
+          *(uint8_t *) output = TSDB_DATA_UTINYINT_NULL;
+          output += sizeof(int8_t);
+          break;
+        case TSDB_DATA_TYPE_USMALLINT:
+          *(uint16_t *) output = TSDB_DATA_USMALLINT_NULL;
+          output += sizeof(int16_t);
+          break;
+        case TSDB_DATA_TYPE_UINT:
+          *(uint32_t *) output = TSDB_DATA_UINT_NULL;
+          output += sizeof(int32_t);
+          break;
+        case TSDB_DATA_TYPE_UBIGINT:
+          *(uint64_t *) output = TSDB_DATA_UBIGINT_NULL;
+          output += sizeof(int64_t);
+          break;
+        }
+        continue;
+      }
+
+      switch (_left_type) {
+      case TSDB_DATA_TYPE_BOOL:
+        *(bool *)output = 0;
+        output += sizeof(bool);
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        *(int8_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        *(int16_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_INT:
+        *(int32_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        *(int64_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int64_t);
+        break;
+
+      case TSDB_DATA_TYPE_UTINYINT:
+        *(uint8_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int8_t);
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        *(uint16_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int16_t);
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        *(uint32_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int32_t);
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        *(uint64_t *) output = getVectorBigintValueFnLeft(left, i) >> getVectorBigintValueFnRight(right, 0);
+        output += sizeof(int64_t);
+        break;
+      }
     }
   }
 }
