@@ -47,7 +47,7 @@ int vnodeBegin(SVnode *pVnode) {
   }
 
   // begin tsdb
-  if (vnodeIsRollup(pVnode)) {
+  if (pVnode->pSma) {
     if (tsdbBegin(VND_RSMA0(pVnode)) < 0) {
       vError("vgId:%d failed to begin rsma0 since %s", TD_VID(pVnode), tstrerror(terrno));
       return -1;

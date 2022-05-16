@@ -172,7 +172,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                        .pTransporter = pTscObj->pAppInfo->pTransporter,
                        .pStmtCb = pStmtCb,
-                       .pUser = pTscObj->user};
+                       .pUser = pTscObj->user,
+                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER))};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -947,8 +948,7 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
-  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows,
-                          convertUcs4);
+  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows, convertUcs4);
 }
 
 TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* details, int maxlen) {

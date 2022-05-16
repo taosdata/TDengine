@@ -3562,39 +3562,92 @@ int tDecodeSVCreateTbBatchRsp(SDecoder *pCoder, SVCreateTbBatchRsp *pRsp) {
   return 0;
 }
 
-int32_t tSerializeSVCreateTSmaReq(void **buf, SVCreateTSmaReq *pReq) {
-  int32_t tlen = 0;
-
-  tlen += taosEncodeFixedI64(buf, pReq->ver);
-  tlen += tEncodeTSma(buf, &pReq->tSma);
-
-  return tlen;
-}
-
-void *tDeserializeSVCreateTSmaReq(void *buf, SVCreateTSmaReq *pReq) {
-  buf = taosDecodeFixedI64(buf, &(pReq->ver));
-
-  if ((buf = tDecodeTSma(buf, &pReq->tSma)) == NULL) {
-    tdDestroyTSma(&pReq->tSma);
+int32_t tEncodeTSma(SEncoder *pCoder, const STSma *pSma) {
+  if (tEncodeI8(pCoder, pSma->version) < 0) return -1;
+  if (tEncodeI8(pCoder, pSma->intervalUnit) < 0) return -1;
+  if (tEncodeI8(pCoder, pSma->slidingUnit) < 0) return -1;
+  if (tEncodeI8(pCoder, pSma->timezoneInt) < 0) return -1;
+  if (tEncodeCStr(pCoder, pSma->indexName) < 0) return -1;
+  if (tEncodeI32(pCoder, pSma->exprLen) < 0) return -1;
+  if (tEncodeI32(pCoder, pSma->tagsFilterLen) < 0) return -1;
+  if (tEncodeI64(pCoder, pSma->indexUid) < 0) return -1;
+  if (tEncodeI64(pCoder, pSma->tableUid) < 0) return -1;
+  if (tEncodeI64(pCoder, pSma->interval) < 0) return -1;
+  if (tEncodeI64(pCoder, pSma->offset) < 0) return -1;
+  if (tEncodeI64(pCoder, pSma->sliding) < 0) return -1;
+  if (pSma->exprLen > 0) {
+    if (tEncodeCStr(pCoder, pSma->expr) < 0) return -1;
   }
-  return buf;
+  if (pSma->tagsFilterLen > 0) {
+    if (tEncodeCStr(pCoder, pSma->tagsFilter) < 0) return -1;
+  }
+
+  return 0;
 }
 
-int32_t tSerializeSVDropTSmaReq(void **buf, SVDropTSmaReq *pReq) {
-  int32_t tlen = 0;
+int32_t tDecodeTSma(SDecoder *pCoder, STSma *pSma) {
+  if (tDecodeI8(pCoder, &pSma->version) < 0) return -1;
+  if (tDecodeI8(pCoder, &pSma->intervalUnit) < 0) return -1;
+  if (tDecodeI8(pCoder, &pSma->slidingUnit) < 0) return -1;
+  if (tDecodeI8(pCoder, &pSma->timezoneInt) < 0) return -1;
+  if (tDecodeCStrTo(pCoder, pSma->indexName) < 0) return -1;
+  if (tDecodeI32(pCoder, &pSma->exprLen) < 0) return -1;
+  if (tDecodeI32(pCoder, &pSma->tagsFilterLen) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSma->indexUid) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSma->tableUid) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSma->interval) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSma->offset) < 0) return -1;
+  if (tDecodeI64(pCoder, &pSma->sliding) < 0) return -1;
+  if (pSma->exprLen > 0) {
+    if (tDecodeCStr(pCoder, &pSma->expr) < 0) return -1;
+  } else {
+    pSma->expr = NULL;
+  }
+  if (pSma->tagsFilterLen > 0) {
+    if (tDecodeCStr(pCoder, &pSma->tagsFilter) < 0) return -1;
+  } else {
+    pSma->tagsFilter = NULL;
+  }
 
-  tlen += taosEncodeFixedI64(buf, pReq->ver);
-  tlen += taosEncodeFixedI64(buf, pReq->indexUid);
-  tlen += taosEncodeString(buf, pReq->indexName);
-
-  return tlen;
+  return 0;
 }
-void *tDeserializeSVDropTSmaReq(void *buf, SVDropTSmaReq *pReq) {
-  buf = taosDecodeFixedI64(buf, &(pReq->ver));
-  buf = taosDecodeFixedI64(buf, &(pReq->indexUid));
-  buf = taosDecodeStringTo(buf, pReq->indexName);
 
-  return buf;
+int32_t tEncodeSVCreateTSmaReq(SEncoder *pCoder, const SVCreateTSmaReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  tEncodeTSma(pCoder, pReq);
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVCreateTSmaReq(SDecoder *pCoder, SVCreateTSmaReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  tDecodeTSma(pCoder, pReq);
+
+  tEndDecode(pCoder);
+  return 0;
+}
+
+int32_t tEncodeSVDropTSmaReq(SEncoder *pCoder, const SVDropTSmaReq *pReq) {
+  if (tStartEncode(pCoder) < 0) return -1;
+
+  if (tEncodeI64(pCoder, pReq->indexUid) < 0) return -1;
+  if (tEncodeCStr(pCoder, pReq->indexName) < 0) return -1;
+
+  tEndEncode(pCoder);
+  return 0;
+}
+
+int32_t tDecodeSVDropTSmaReq(SDecoder *pCoder, SVDropTSmaReq *pReq) {
+  if (tStartDecode(pCoder) < 0) return -1;
+
+  if (tDecodeI64(pCoder, &pReq->indexUid) < 0) return -1;
+  if (tDecodeCStrTo(pCoder, pReq->indexName) < 0) return -1;
+
+  tEndDecode(pCoder);
+  return 0;
 }
 
 int32_t tSerializeSCMCreateStreamReq(void *buf, int32_t bufLen, const SCMCreateStreamReq *pReq) {

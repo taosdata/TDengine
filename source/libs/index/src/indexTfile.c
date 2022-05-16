@@ -469,13 +469,19 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
   while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
     FstSlice* s = &rt->data;
 
-    char* ch = (char*)fstSliceData(s, NULL);
-    if (0 != strncmp(ch, p, skip)) {
+    int32_t sz = 0;
+    char*   ch = (char*)fstSliceData(s, &sz);
+    char*   tmp = taosMemoryCalloc(1, sz + 1);
+    memcpy(tmp, ch, sz);
+
+    if (0 != strncmp(tmp, p, skip)) {
       swsResultDestroy(rt);
+      taosMemoryFree(tmp);
       break;
     }
 
-    TExeCond cond = cmpFn(ch + skip, tem->colVal, tem->colType);
+    TExeCond cond = cmpFn(tmp + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
+
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
@@ -483,6 +489,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
       swsResultDestroy(rt);
       break;
     }
+    taosMemoryFree(tmp);
     swsResultDestroy(rt);
   }
   streamWithStateDestroy(st);

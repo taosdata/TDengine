@@ -1112,6 +1112,19 @@ bool nodesIsJsonOp(const SOperatorNode* pOp) {
   return false;
 }
 
+bool nodesIsRegularOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      return true;
+    default:
+      break;
+  }
+  return false;
+}
+
 bool nodesIsTimeorderQuery(const SNode* pQuery) { return false; }
 
 bool nodesIsTimelineQuery(const SNode* pQuery) { return false; }
