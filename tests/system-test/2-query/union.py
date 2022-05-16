@@ -105,8 +105,8 @@ class TDTestCase:
         return ""
 
 
-    def __group_condition(self, tbname, col, having = None):
-        return f" group by {tbname}.{col} having {having}" if having else f" group by {tbname}.{col} "
+    def __group_condition(self, col, having = None):
+        return f" group by {col} having {having}" if having else f" group by {col} "
 
     def __single_sql(self, select_clause, from_clause, where_condition=None, group_condition=None):
         return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
