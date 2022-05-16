@@ -26,6 +26,7 @@
 static void setJoinColumnInfo(SColumnInfo* pColumn, const SColumnNode* pColumnNode);
 static SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator);
 static void destroyMergeJoinOperator(void* param, int32_t numOfOutput);
+static void extractTimeCondition(SJoinOperatorInfo *Info, SLogicConditionNode* pLogicConditionNode);
 
 SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t numOfDownstream, SExprInfo* pExprInfo,
                                            int32_t numOfCols, SSDataBlock* pResBlock, SNode* pOnCondition,
@@ -38,22 +39,22 @@ SOperatorInfo* createMergeJoinOperatorInfo(SOperatorInfo** pDownstream, int32_t 
 
   initResultSizeInfo(pOperator, 4096);
 
-  pInfo->pRes = pResBlock;
-  pOperator->name = "MergeJoinOperator";
+  pInfo->pRes           = pResBlock;
+  pOperator->name       = "MergeJoinOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_JOIN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->pExpr = pExprInfo;
+  pOperator->blocking   = false;
+  pOperator->status     = OP_NOT_OPENED;
+  pOperator->pExpr      = pExprInfo;
   pOperator->numOfExprs = numOfCols;
-  pOperator->info = pInfo;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->info       = pInfo;
+  pOperator->pTaskInfo  = pTaskInfo;
 
   if (nodeType(pOnCondition) == QUERY_NODE_OPERATOR) {
     SOperatorNode* pNode = (SOperatorNode*)pOnCondition;
     setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pNode->pLeft);
     setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pNode->pRight);
   } else if (nodeType(pOnCondition) == QUERY_NODE_LOGIC_CONDITION) {
-    ASSERT(0);
+    extractTimeCondition(pInfo, (SLogicConditionNode*) pOnCondition);
   }
 
   pOperator->fpSet =
@@ -181,4 +182,18 @@ SSDataBlock* doMergeJoin(struct SOperatorInfo* pOperator) {
   }
 
   return (pRes->info.rows > 0) ? pRes : NULL;
+}
+
+static void extractTimeCondition(SJoinOperatorInfo *pInfo, SLogicConditionNode* pLogicConditionNode) {
+  int32_t len = LIST_LENGTH(pLogicConditionNode->pParameterList);
+
+  for(int32_t i = 0; i < len; ++i) {
+    SNode* pNode = nodesListGetNode(pLogicConditionNode->pParameterList, i);
+    if (nodeType(pNode) == QUERY_NODE_OPERATOR) {
+      SOperatorNode* pn1 = (SOperatorNode*)pNode;
+      setJoinColumnInfo(&pInfo->leftCol, (SColumnNode*)pn1->pLeft);
+      setJoinColumnInfo(&pInfo->rightCol, (SColumnNode*)pn1->pRight);
+      break;
+    }
+  }
 }
