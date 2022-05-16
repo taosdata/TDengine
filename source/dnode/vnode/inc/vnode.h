@@ -189,6 +189,7 @@ struct SMetaEntry {
     struct {
       int64_t        ctime;
       int32_t        ttlDays;
+      int32_t        ncid;  // next column id
       SSchemaWrapper schema;
     } ntbEntry;
     struct {

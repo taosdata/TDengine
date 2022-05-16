@@ -2034,11 +2034,9 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           lastKeyAppend = key;
 
           if (rv1 != TD_ROW_SVER(row1)) {
-            //            pSchema1 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row1));
             rv1 = TD_ROW_SVER(row1);
           }
           if (row2 && rv2 != TD_ROW_SVER(row2)) {
-            //            pSchema2 = tsdbGetTableSchemaByVersion(pTable, memRowVersion(row2));
             rv2 = TD_ROW_SVER(row2);
           }
 
