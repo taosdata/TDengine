@@ -2516,7 +2516,7 @@ bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo
   pInfo->min = MAX_TS_KEY;
   pInfo->max = 0;
 
-  if (pCtx->numOfParams == 3) {
+  if (pCtx->numOfParams == 2) {
     pInfo->timeUnit = pCtx->param[1].param.i;
   } else {
     pInfo->timeUnit = 1;
@@ -2540,7 +2540,6 @@ int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
   }
 
   if (pInput->colDataAggIsSet) {
-
     if (pInfo->min == MAX_TS_KEY) {
       pInfo->min = GET_INT64_VAL(&pAgg->min);
       pInfo->max = GET_INT64_VAL(&pAgg->max);
