@@ -47,7 +47,10 @@ int main(int argc, char *argv[]) {
 
   UdfcFuncHandle handle;
 
-  doSetupUdf("udf1", &handle);
+  if (doSetupUdf("udf1", &handle) != 0) {
+    fnError("setup udf failure");
+    return -1;
+  }
 
   SSDataBlock  block = {0};
   SSDataBlock *pBlock = &block;
