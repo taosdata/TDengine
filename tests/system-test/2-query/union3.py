@@ -39,7 +39,6 @@ class TDTestCase:
                     f"length( {tbname}.{char_col} )",
                     f"lower( {tbname}.{char_col} )",
                     f"ltrim( {tbname}.{char_col} )",
-
                 )
             )
 
@@ -50,7 +49,6 @@ class TDTestCase:
                     f"atan( {tbname}.{num_col} )",
                     f"cos( {tbname}.{num_col} )",
                     f"sum( {tbname}.{num_col} )",
-
                 )
             )
             query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_2}" for num_col_2 in NUM_COL )
@@ -183,8 +181,8 @@ class TDTestCase:
                         )
                     )
 
-        return filter(None, sqls)
-        # return list(filter(None, sqls))
+        # return filter(None, sqls)
+        return list(filter(None, sqls))
 
     def __get_type(self, col):
         if tdSql.cursor.istype(col, "BOOL"):
@@ -220,11 +218,11 @@ class TDTestCase:
 
     def union_check(self):
         sqls = self.sql_list()
-        for sql1 in sqls:
-            tdSql.query(sql1)
+        for i in range(len(sqls)):
+            tdSql.query(sqls[i])
             res1_type = self.__get_type(0)
-            for sql2 in sqls:
-                tdSql.query(sql2)
+            for j in range(sqls[i:]):
+                tdSql.query(sqls[j])
                 union_type = False
                 res2_type =  self.__get_type(0)
 
@@ -238,12 +236,14 @@ class TDTestCase:
                     union_type = True
 
                 if union_type:
-                    tdSql.query(f"{sql1} union {sql2}")
+                    tdSql.query(f"{sqls[i]} union {sqls[j]}")
+                    tdSql.query(f"{sqls[j]} union {sqls[i]}")
                     tdSql.checkCols(1)
-                    tdSql.query(f"{sql1} union all {sql2}")
+                    tdSql.query(f"{sqls[i]} union all {sqls[j]}")
+                    tdSql.query(f"{sqls[j]} union all {sqls[i]}")
                     tdSql.checkCols(1)
                 else:
-                    tdSql.error(f"{sql1} union {sql2}")
+                    tdSql.error(f"{sqls[i]} union {sqls[j]}")
 
     def __test_error(self):
 

@@ -39,12 +39,8 @@ class TDTestCase:
                     f"substr( {tbname}.{char_col}, 1 )",
                     f"count( {tbname}.{char_col} )",
                     f"cast( {tbname}.{char_col} as nchar(3) )",
-                    f"cast( {tbname}.{char_col} as nchar(8) )",
                 )
             )
-            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
 
         for num_col in NUM_COL:
             query_condition.extend(
@@ -54,13 +50,8 @@ class TDTestCase:
                     f"log( {tbname}.{num_col},  {tbname}.{num_col})",
                     f"sin( {tbname}.{num_col} )",
                     f"sqrt( {tbname}.{num_col} )",
-                    f"tan( {tbname}.{num_col} )",
-                    f"round( {tbname}.{num_col} )",
-                    f"count( {tbname}.{num_col} )",
-                    f"min( {tbname}.{num_col} )",
                 )
             )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{char_col} " for char_col in CHAR_COL )
 
         query_condition.extend(
             (
@@ -190,8 +181,8 @@ class TDTestCase:
                         )
                     )
 
-        return filter(None, sqls)
-        # return list(filter(None, sqls))
+        # return filter(None, sqls)
+        return list(filter(None, sqls))
 
     def __get_type(self, col):
         if tdSql.cursor.istype(col, "BOOL"):
@@ -227,11 +218,11 @@ class TDTestCase:
 
     def union_check(self):
         sqls = self.sql_list()
-        for sql1 in sqls:
-            tdSql.query(sql1)
+        for i in range(len(sqls)):
+            tdSql.query(sqls[i])
             res1_type = self.__get_type(0)
-            for sql2 in sqls:
-                tdSql.query(sql2)
+            for j in range(sqls[i:]):
+                tdSql.query(sqls[j])
                 union_type = False
                 res2_type =  self.__get_type(0)
 
@@ -245,12 +236,14 @@ class TDTestCase:
                     union_type = True
 
                 if union_type:
-                    tdSql.query(f"{sql1} union {sql2}")
+                    tdSql.query(f"{sqls[i]} union {sqls[j]}")
+                    tdSql.query(f"{sqls[j]} union {sqls[i]}")
                     tdSql.checkCols(1)
-                    tdSql.query(f"{sql1} union all {sql2}")
+                    tdSql.query(f"{sqls[i]} union all {sqls[j]}")
+                    tdSql.query(f"{sqls[j]} union all {sqls[i]}")
                     tdSql.checkCols(1)
                 else:
-                    tdSql.error(f"{sql1} union {sql2}")
+                    tdSql.error(f"{sqls[i]} union {sqls[j]}")
 
     def __test_error(self):
 

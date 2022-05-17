@@ -35,26 +35,27 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{char_col}",
-                    f"upper( {tbname}.{char_col} )",
-                    f"char_length( {tbname}.{char_col} )",
-                    f"concat( {tbname}.{char_col}, {tbname}.{char_col} )",
+                    f"cast( {tbname}.{char_col} as nchar(8) )",
                 )
             )
+            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
+            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
+            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
 
         for num_col in NUM_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{num_col}",
-                    f"ceil( {tbname}.{num_col} )",
-                    f"abs( {tbname}.{num_col} )",
-                    f"acos( {tbname}.{num_col} )",
-                    f"max( {tbname}.{num_col} )",
+                    f"tan( {tbname}.{num_col} )",
+                    f"round( {tbname}.{num_col} )",
+                    f"count( {tbname}.{num_col} )",
+                    f"min( {tbname}.{num_col} )",
                 )
             )
+            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{char_col} " for char_col in CHAR_COL )
 
         query_condition.extend(
             (
+                ''' "test12" ''',
                 # 1010,
             )
         )
@@ -243,7 +244,6 @@ class TDTestCase:
                     tdSql.checkCols(1)
                 else:
                     tdSql.error(f"{sqls[i]} union {sqls[j]}")
-
 
     def __test_error(self):
 
