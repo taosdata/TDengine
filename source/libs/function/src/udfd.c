@@ -226,7 +226,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scalarProcFunc(&input, &output);
-
+      freeUdfDataDataBlock(&input);
       convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
       freeUdfColumn(&output);
       break;
@@ -246,6 +246,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
                              .bufLen= udf->bufSize,
                              .numOfResult = 0};
       code = udf->aggProcFunc(&input, &call->interBuf, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
+      freeUdfDataDataBlock(&input);
       subRsp->resultBuf = outBuf;
 
       break;
@@ -255,6 +257,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
                              .bufLen= udf->bufSize,
                              .numOfResult = 0};
       code = udf->aggFinishFunc(&call->interBuf, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
       subRsp->resultBuf = outBuf;
       break;
     }
@@ -273,6 +276,30 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   void *buf = bufBegin;
   encodeUdfResponse(&buf, rsp);
   uvUdf->output = uv_buf_init(bufBegin, len);
+
+  switch (call->callType) {
+    case TSDB_UDF_CALL_SCALA_PROC: {
+      tDeleteSSDataBlock(&call->block);
+      tDeleteSSDataBlock(&subRsp->resultData);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_INIT: {
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_PROC: {
+      tDeleteSSDataBlock(&call->block);
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_FIN: {
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    default:
+      break;
+
+  }
 
   taosMemoryFree(uvUdf->input.base);
   return;
@@ -348,9 +375,8 @@ void udfdProcessRequest(uv_work_t *req) {
 void udfdOnWrite(uv_write_t *req, int status) {
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
-    // TODO:log error and process it.
+    fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
   }
-  fnDebug("send response. length:%zu, status: %s", work->output.len, uv_err_name(status));
   taosMemoryFree(work->output.base);
   taosMemoryFree(work);
   taosMemoryFree(req);
@@ -549,6 +575,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     taosCloseFile(&file);
     strncpy(udf->path, path, strlen(path));
+    tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);
     msgInfo->code = 0;
   }
@@ -800,15 +827,26 @@ static int32_t udfdUvInit() {
   return 0;
 }
 
+static void udfdCloseWalkCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
+}
+
 static int32_t udfdRun() {
   global.udfsHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   uv_mutex_init(&global.udfsMutex);
 
-  fnInfo("start the udfd");
-  int code = uv_run(global.loop, UV_RUN_DEFAULT);
-  fnInfo("udfd stopped. result: %s, code: %d", uv_err_name(code), code);
-  int codeClose = uv_loop_close(global.loop);
-  fnDebug("uv loop close. result: %s", uv_err_name(codeClose));
+  fnInfo("start udfd event loop");
+  uv_run(global.loop, UV_RUN_DEFAULT);
+  fnInfo("udfd event loop stopped.");
+
+  uv_loop_close(global.loop);
+
+  uv_walk(global.loop, udfdCloseWalkCb, NULL);
+  uv_run(global.loop, UV_RUN_DEFAULT);
+  uv_loop_close(global.loop);
+
   uv_mutex_destroy(&global.udfsMutex);
   taosHashCleanup(global.udfsHash);
   return 0;
