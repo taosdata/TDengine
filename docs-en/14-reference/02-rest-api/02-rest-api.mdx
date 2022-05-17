@@ -2,9 +2,9 @@
 title: REST API
 ---
 
-To support the development of various types of platforms, TDengine provides an API that conforms to the REST design standard, namely REST API. To minimize the learning cost, different from the design methods of other database REST APIs, TDengine directly requests the SQL statement contained in the BODY through HTTP POST to operate the database and only requires a URL.
+To support the development of various types of platforms, TDengine provides an API that conforms to the REST principle, namely REST API. To minimize the learning cost, different from the other database REST APIs, TDengine directly requests the SQL command contained in the request BODY through HTTP POST to operate the database and only requires a URL.
 
-Note: One difference from the native connector is that the RESTful interface is stateless, so the `USE db_name` command has no effect. All references to table names and supertable names need to specify the database name prefix. (Since version 2.2.0.0, it is supported to specify db_name in RESTful URL. If the database name prefix is not specified in the SQL statement, the db_name specified in the URL will be used. Since version 2.4.0.0, RESTful is provided by taosAdapter by default. And it requires that the db_name must be specified in the URL.)
+Note: One difference from the native connector is that the REST interface is stateless, so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name prefix. (Since version 2.2.0.0, it is supported to specify db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used. Since version 2.4.0.0, REST service is provided by taosAdapter by default. And it requires that the `db_name` must be specified in the URL.)
 
 ## Installation
 
@@ -303,5 +303,4 @@ Only some configuration parameters related to the RESTful interface are listed b
 
 :::note 
 If you are using the REST API provided by taosd, you should write the above configuration in taosd's configuration file taos.cfg. If you use the REST API of taosAdapter, you need to refer to taosAdapter [corresponding configuration method](/reference/taosadapter/).
-
 :::

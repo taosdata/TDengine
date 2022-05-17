@@ -275,7 +275,7 @@ Note that Rust asynchronous functions and an asynchronous runtime are required.
 - `.create_database(database: &str)`: Executes the `CREATE DATABASE` statement.
 - `.use_database(database: &str)`: Executes the `USE` statement.
 
-In addition, this structure is also the entry point for [Parameter Binding](#Parameter Binding Interface) and [Row Protocol Interface](#Row Protocol Interface). Please refer to the specific API descriptions for usage.
+In addition, this structure is also the entry point for [Parameter Binding](#Parameter Binding Interface) and [Line Protocol Interface](#Line Protocol Interface). Please refer to the specific API descriptions for usage.
 
 ### Parameter Binding Interface
 
@@ -325,7 +325,7 @@ stmt.execute()? ;
 //stmt.execute()? ;
 ```
 
-### Row protocol interface
+### Line protocol interface
 
 The line protocol interface supports multiple modes and different precision and requires the introduction of constants in the schemaless module to set.
 
@@ -334,7 +334,7 @@ use libtaos::*;
 use libtaos::schemaless::*;
 ```
 
-- InfluxDB row protocol
+- InfluxDB line protocol
 
     ```rust
     let lines = [

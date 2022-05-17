@@ -52,7 +52,7 @@ If choosing to use native connection and the application is not on the same host
 
 ### Verify
 
-After the above installation and configuration are done and making sure TDengine service is already started and in service, the TDengine command line interface `taos` can be launched to access TDengine.以
+After the above installation and configuration are done and making sure TDengine service is already started and in service, the TDengine command-line interface `taos` can be launched to access TDengine.
 
 <Tabs defaultValue="linux" groupId="os">
   <TabItem value="linux" label="Linux">

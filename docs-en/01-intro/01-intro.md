@@ -12,14 +12,14 @@ This section introduces the major features, competitive advantages, suited scena
 The major features are listed below:
 
 1. Besides [using SQL to insert](/develop/insert-data/sql-writing)，supports [Schemaless writing](/reference/schemaless/)，and supports [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) and other protocols.
-2. Support seamless integration with third-party data collection agent like [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [Tcollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker). Without a line of code, those agents can write data points into TDengine just by configuration. 
+2. Support seamless integration with third-party data collection agent like [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQX](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker). Without a line of code, those agents can write data points into TDengine just by configuration. 
 3. Support [all kinds of queries](/query-data), including aggregation, nested query, downsampling, interpolation, etc.
 4. Support [user defined functions](/develop/udf)
 5. Support [caching](/develop/cache). TDengine always save the last data point in cache, so Redis is not needed in some scenarios.
 6. Support [continuous query](/develop/continuous-query).
 7. Support [data subscription](/develop/subscribe)，and the filter condition can be specified.
 8. Support [cluster](/cluster/), so it can gain more processing power by adding more nodes. The high availability is supported by replication. 
-9. Provide interactive [command line intrerface](/reference/taos-shell) for management, maintainence and ad-hoc query.
+9. Provide interactive [command-line intrerface](/reference/taos-shell) for management, maintainence and ad-hoc query.
 10. Provide many ways to [import](/operation/import), [export](/operation/export) data.
 11. Provide [monitoring](/operation/monitor) on TDengine running instances.
 12. Provide [connectors](/reference/connector/) for [C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node) and other programming languages.
@@ -58,7 +58,7 @@ In the time-series data processing platform, TDengine stands in a role like this
 
 <center>Figure 1. TDengine Technical Ecosystem</center>
 
-On the left side, there are data collection agents like OPC-UA, MQTT, Telegraf and Kafka. On the right side, visualization/BI tools, HMI, Python/R, IoT App can be connected. TDengine itself provides interactive command line interface and web interface for management and maintainence.
+On the left side, there are data collection agents like OPC-UA, MQTT, Telegraf and Kafka. On the right side, visualization/BI tools, HMI, Python/R, IoT App can be connected. TDengine itself provides interactive command-line interface and web interface for management and maintainence.
 
 ## Suited Scenarios for TDengine
 

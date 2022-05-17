@@ -34,7 +34,7 @@ Please refer to the [official documentation](https://grafana.com/grafana/downloa
 
 ### TDengine
 
-Download the latest TDengine-server 2.4.0.x or above from the [Downloads](http://taosdata.com/cn/all-downloads/) page on the Taos Data website and install it.
+Download the latest TDengine-server 2.4.0.x or above from the [Downloads](http://taosdata.com/cn/all-downloads/) page on the TAOSData website and install it.
 
 ## Data Connection Setup
 
