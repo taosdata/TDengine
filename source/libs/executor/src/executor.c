@@ -158,6 +158,8 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
       taosArrayPush(qa, id);
     }
 
+    metaReaderClear(&mr);
+
     qDebug(" %d qualified child tables added into stream scanner", (int32_t) taosArrayGetSize(qa));
     int32_t code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, qa);
     if (code != TSDB_CODE_SUCCESS) {
