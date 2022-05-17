@@ -7,10 +7,10 @@ settings:
         firstEP: vm85:6030
       dnodes:
         - endpoint: vm85:6030
-          config_dir: /data/var/3.0/dnode1/config
+          config_dir: /data/var/3.0/dnode1/
           config: # will write into taos.cfg
-            dataDir: /data/var/3.0/dnode1/data
-            logDir: /data/var/3.0/dnode1/log
+            dataDir: /data/var/3.0/dnode1/
+            logDir: /data/var/3.0/dnode1/
             debugFlag: 135
   - name: taospy
     fqdn: [vm85]
