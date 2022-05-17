@@ -149,9 +149,9 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   SRpcMsg rpcMsg = {.msgType = pInfo->msgType,
                     .pCont = pMsg,
                     .contLen = pInfo->msgInfo.len,
-                    .ahandle = (void*)pInfo,
-                    .handle = pInfo->msgInfo.handle,
-                    .persistHandle = persistHandle,
+                    .info.ahandle = (void*)pInfo,
+                    .info.handle = pInfo->msgInfo.handle,
+                    .info.persistHandle = persistHandle,
                     .code = 0};
   assert(pInfo->fp != NULL);
 

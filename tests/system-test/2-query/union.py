@@ -35,53 +35,26 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{char_col}",
-                    f"upper( {tbname}.{char_col} )",
-                    f"char_length( {tbname}.{char_col} )",
-                    f"concat( {tbname}.{char_col}, {tbname}.{char_col} )",
-                    f"concat_ws( '_', {tbname}.{char_col}, {tbname}.{char_col} )",
-                    f"length( {tbname}.{char_col} )",
-                    f"lower( {tbname}.{char_col} )",
-                    f"ltrim( {tbname}.{char_col} )",
                     f"rtrim( {tbname}.{char_col} )",
                     f"substr( {tbname}.{char_col}, 1 )",
                     f"count( {tbname}.{char_col} )",
                     f"cast( {tbname}.{char_col} as nchar(3) )",
-                    f"cast( {tbname}.{char_col} as nchar(8) )",
                 )
             )
-            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
 
         for num_col in NUM_COL:
             query_condition.extend(
                 (
                     f"{tbname}.{num_col}",
-                    f"ceil( {tbname}.{num_col} )",
-                    f"abs( {tbname}.{num_col} )",
-                    f"acos( {tbname}.{num_col} )",
-                    f"asin( {tbname}.{num_col} )",
-                    f"atan( {tbname}.{num_col} )",
-                    f"cos( {tbname}.{num_col} )",
                     f"floor( {tbname}.{num_col} )",
                     f"log( {tbname}.{num_col},  {tbname}.{num_col})",
                     f"sin( {tbname}.{num_col} )",
                     f"sqrt( {tbname}.{num_col} )",
-                    f"tan( {tbname}.{num_col} )",
-                    f"round( {tbname}.{num_col} )",
-                    f"max( {tbname}.{num_col} )",
-                    f"sum( {tbname}.{num_col} )",
-                    f"count( {tbname}.{num_col} )",
-                    f"min( {tbname}.{num_col} )",
                 )
             )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_2}" for num_col_2 in NUM_COL )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{char_col} " for char_col in CHAR_COL )
 
         query_condition.extend(
             (
-                ''' "test1234!@#$%^&*():'><?/.,][}{" ''',
                 ''' "test12" ''',
                 # 1010,
             )
@@ -208,8 +181,8 @@ class TDTestCase:
                         )
                     )
 
-        return filter(None, sqls)
-        # return list(filter(None, sqls))
+        # return filter(None, sqls)
+        return list(filter(None, sqls))
 
     def __get_type(self, col):
         if tdSql.cursor.istype(col, "BOOL"):
@@ -245,33 +218,54 @@ class TDTestCase:
 
     def union_check(self):
         sqls = self.sql_list()
-        for sql1 in sqls:
-            tdSql.query(sql1)
+        for i in range(len(sqls)):
+            tdSql.query(sqls[i])
             res1_type = self.__get_type(0)
-            for sql2 in sqls:
-                tdSql.query(sql2)
-                union_type = False
+            for j in range(len(sqls[i:])):
+                tdSql.query(sqls[j+i])
+                order_union_type = False
+                rev_order_type = False
+                all_union_type = False
                 res2_type =  self.__get_type(0)
 
-                if res1_type in  ( "BIGINT" , "NCHAR" ):
-                    union_type = True
-                elif res2_type == res1_type:
-                    union_type = True
+                if res2_type == res1_type:
+                    all_union_type = True
+                elif res1_type in ( "BIGINT" , "NCHAR" ) and res2_type in ("BIGINT" , "NCHAR"):
+                    all_union_type = True
+                elif res1_type in ("BIGINT", "NCHAR"):
+                    order_union_type = True
+                elif res2_type in ("BIGINT", "NCHAR"):
+                    rev_order_type = True
                 elif res1_type == "TIMESAMP" and res2_type not in ("BINARY", "NCHAR"):
-                    union_type = True
+                    order_union_type = True
+                elif res2_type == "TIMESAMP" and res1_type not in ("BINARY", "NCHAR"):
+                    rev_order_type = True
                 elif res1_type == "BINARY" and res2_type != "NCHAR":
-                    union_type = True
+                    order_union_type = True
+                elif res2_type == "BINARY" and res1_type != "NCHAR":
+                    rev_order_type = True
 
-                if union_type:
-                    tdSql.query(f"{sql1} union {sql2}")
+                if all_union_type:
+                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
+                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
                     tdSql.checkCols(1)
-                    tdSql.query(f"{sql1} union all {sql2}")
+                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
+                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
+                    tdSql.checkCols(1)
+                elif order_union_type:
+                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
+                    tdSql.checkCols(1)
+                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
+                    tdSql.checkCols(1)
+                elif rev_order_type:
+                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
+                    tdSql.checkCols(1)
+                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
                     tdSql.checkCols(1)
                 else:
-                    tdSql.error(f"{sql1} union {sql2}")
+                    tdSql.error(f"{sqls[i]} union {sqls[j+i]}")
 
     def __test_error(self):
-
 
         tdSql.error( "show tables union show tables" )
         tdSql.error( "create table errtb1 union all create table errtb2" )

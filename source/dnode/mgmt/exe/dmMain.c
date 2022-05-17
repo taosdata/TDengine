@@ -36,16 +36,10 @@ static struct {
   char         apolloUrl[PATH_MAX];
   const char **envCmd;
   SArray      *pArgs;  // SConfigPair
-  SDnode      *pDnode;
   EDndNodeType ntype;
 } global = {0};
 
-static void dmStopDnode(int signum, void *info, void *ctx) {
-  SDnode *pDnode = atomic_val_compare_exchange_ptr(&global.pDnode, 0, global.pDnode);
-  if (pDnode != NULL) {
-    dmSetEvent(pDnode, DND_EVENT_STOP);
-  }
-}
+static void dmStopDnode(int signum, void *info, void *ctx) { dmStop(); }
 
 static void dmSetSignalHandle() {
   taosSetSignal(SIGTERM, dmStopDnode);
@@ -69,8 +63,8 @@ static void dmSetSignalHandle() {
 static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
   int32_t cmdEnvIndex = 0;
   if (argc < 2) return 0;
-  global.envCmd = taosMemoryMalloc((argc-1)*sizeof(char*));
-  memset(global.envCmd, 0, (argc-1)*sizeof(char*));
+  global.envCmd = taosMemoryMalloc((argc - 1) * sizeof(char *));
+  memset(global.envCmd, 0, (argc - 1) * sizeof(char *));
   for (int32_t i = 1; i < argc; ++i) {
     if (strcmp(argv[i], "-c") == 0) {
       if (i < argc - 1) {
@@ -102,7 +96,8 @@ static int32_t dmParseArgs(int32_t argc, char const *argv[]) {
     } else if (strcmp(argv[i], "-e") == 0) {
       global.envCmd[cmdEnvIndex] = argv[++i];
       cmdEnvIndex++;
-    } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 || strcmp(argv[i], "-?")) {
+    } else if (strcmp(argv[i], "-h") == 0 || strcmp(argv[i], "--help") == 0 || strcmp(argv[i], "--usage") == 0 ||
+               strcmp(argv[i], "-?")) {
       global.printHelp = true;
     } else {
     }
@@ -144,23 +139,6 @@ static void dmDumpCfg() {
   cfgDumpCfg(pCfg, 0, true);
 }
 
-static SDnodeOpt dmGetOpt() {
-  SConfig  *pCfg = taosGetCfg();
-  SDnodeOpt option = {0};
-
-  option.numOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
-  tstrncpy(option.dataDir, tsDataDir, sizeof(option.dataDir));
-  tstrncpy(option.firstEp, tsFirst, sizeof(option.firstEp));
-  tstrncpy(option.secondEp, tsSecond, sizeof(option.firstEp));
-  option.serverPort = tsServerPort;
-  tstrncpy(option.localFqdn, tsLocalFqdn, sizeof(option.localFqdn));
-  snprintf(option.localEp, sizeof(option.localEp), "%s:%u", option.localFqdn, option.serverPort);
-  option.disks = tsDiskCfg;
-  option.numOfDisks = tsDiskCfgNum;
-  option.ntype = global.ntype;
-  return option;
-}
-
 static int32_t dmInitLog() {
   char logName[12] = {0};
   snprintf(logName, sizeof(logName), "%slog", dmNodeLogName(global.ntype));
@@ -173,34 +151,6 @@ static void dmSetProcInfo(int32_t argc, char **argv) {
     const char *name = dmNodeProcName(global.ntype);
     taosSetProcName(argc, argv, name);
   }
-}
-
-static int32_t dmRunDnode() {
-  if (dmInit() != 0) {
-    dError("failed to init environment since %s", terrstr());
-    return -1;
-  }
-
-  SDnodeOpt option = dmGetOpt();
-  SDnode   *pDnode = dmCreate(&option);
-  if (pDnode == NULL) {
-    dError("failed to to create dnode since %s", terrstr());
-    return -1;
-  } else {
-    global.pDnode = pDnode;
-    dmSetSignalHandle();
-  }
-
-  dInfo("start the service");
-  int32_t code = dmRun(pDnode);
-  dInfo("start shutting down the service");
-
-  global.pDnode = NULL;
-  dmClose(pDnode);
-  dmCleanup();
-  taosCloseLog();
-  taosCleanupCfg();
-  return code;
 }
 
 static void taosCleanupArgs() {
@@ -259,5 +209,17 @@ int main(int argc, char const *argv[]) {
 
   dmSetProcInfo(argc, (char **)argv);
   taosCleanupArgs();
-  return dmRunDnode();
+
+  if (dmInit(global.ntype) != 0) {
+    dError("failed to init dnode since %s", terrstr());
+    return -1;
+  }
+
+  dInfo("start to run dnode");
+  dmSetSignalHandle();
+  int32_t code = dmRun();
+  dInfo("shutting down the service");
+
+  dmCleanup();
+  return code;
 }

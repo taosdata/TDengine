@@ -658,12 +658,18 @@ static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool inverti
     //  p->info.type = STREAM_INVERT;
     //  taosArrayClear(pInfo->tsArray);
     //  return p;
-    SSDataBlock* p = createOneDataBlock(pInfo->pRes, false);
-    taosArraySet(p->pDataBlock, 0, pInfo->tsArray);
-    p->info.rows = size;
-    p->info.type = STREAM_REPROCESS;
+    SSDataBlock* pDataBlock = createOneDataBlock(pInfo->pRes, false);
+    SColumnInfoData* pCol = (SColumnInfoData*) taosArrayGet(pDataBlock->pDataBlock, 0);
+    ASSERT(pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+    colInfoDataEnsureCapacity(pCol, 0, size);
+    for (int32_t i = 0; i < size; i++) {
+      TSKEY* pTs = (TSKEY*)taosArrayGet(pInfo->tsArray, i);
+      colDataAppend(pCol, i, (char*)pTs, false);
+    }
+    pDataBlock->info.rows = size;
+    pDataBlock->info.type = STREAM_REPROCESS;
     taosArrayClear(pInfo->tsArray);
-    return p;
+    return pDataBlock;
   }
   return NULL;
 }

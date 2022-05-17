@@ -322,8 +322,11 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
   sprintf(sqlStr, "insert into %s.consumeresult values (now, %d, %" PRId64 ", %" PRId64 ", %d)", g_stConfInfo.cdbName,
           pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt, pInfo->checkresult);
 
-  taosFprintfFile(g_fp, "== save result sql: %s \n", sqlStr);
-  
+  time_t	tTime = taosGetTimestampSec();
+  struct tm tm = *taosLocalTime(&tTime, NULL);
+  taosFprintfFile(g_fp, "# save result:	%d-%02d-%02d %02d:%02d:%02d, sql: %s\n", tm.tm_year + 1900, tm.tm_mon + 1,
+						  tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, sqlStr);
+
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
     pError("error in save consumeinfo, reason:%s\n", taos_errstr(pRes));

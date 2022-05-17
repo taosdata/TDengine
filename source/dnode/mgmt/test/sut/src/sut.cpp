@@ -41,15 +41,17 @@ void Testbase::InitLog(const char* path) {
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-  dmInit();
-
-  char fqdn[] = "localhost";
-  char firstEp[TSDB_EP_LEN] = {0};
-  snprintf(firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
-
+  tsServerPort = port;
+  strcpy(tsLocalFqdn, "localhost");
+  snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+  strcpy(tsFirst, tsLocalEp);
+  strcpy(tsDataDir, path);
+  taosRemoveDir(path);
+  taosMkDir(path);
   InitLog("/tmp/td");
-  server.Start(path, fqdn, port, firstEp);
-  client.Init("root", "taosdata", fqdn, port);
+
+  server.Start();
+  client.Init("root", "taosdata");
   showRsp = NULL;
 }
 
@@ -65,13 +67,12 @@ void Testbase::Cleanup() {
 }
 
 void Testbase::Restart() {
-  server.Restart();
+  // server.Restart();
   client.Restart();
 }
 
 void Testbase::ServerStop() { server.Stop(); }
-
-void Testbase::ServerStart() { server.DoStart(); }
+void Testbase::ServerStart() { server.Start(); }
 void Testbase::ClientRestart() { client.Restart(); }
 
 SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {

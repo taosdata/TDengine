@@ -13,7 +13,7 @@
 
 class DndTestSnode : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_snode", 9113); }
+  static void SetUpTestSuite() { test.Init("/tmp/dsnodeTest", 9113); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
