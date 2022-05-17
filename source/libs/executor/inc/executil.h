@@ -139,7 +139,7 @@ typedef struct {
   int32_t colId;
 } SStddevInterResult;
 
-void    initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, bool sortGroupResult);
+void    initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
 void    initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
