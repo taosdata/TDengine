@@ -502,9 +502,9 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
     SMqRebInputObj rebInput = {0};
 
     SMqRebOutputObj rebOutput = {0};
-    rebOutput.newConsumers = taosArrayInit(0, sizeof(void *));
-    rebOutput.removedConsumers = taosArrayInit(0, sizeof(void *));
-    rebOutput.touchedConsumers = taosArrayInit(0, sizeof(void *));
+    rebOutput.newConsumers = taosArrayInit(0, sizeof(int64_t));
+    rebOutput.removedConsumers = taosArrayInit(0, sizeof(int64_t));
+    rebOutput.touchedConsumers = taosArrayInit(0, sizeof(int64_t));
     rebOutput.rebVgs = taosArrayInit(0, sizeof(SMqRebOutputVg));
 
     SMqRebInfo      *pRebInfo = (SMqRebInfo *)pIter;
@@ -547,6 +547,16 @@ static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
     if (mndPersistRebResult(pMnode, pMsg, &rebOutput) < 0) {
       mError("persist rebalance output error, possibly vnode splitted or dropped");
     }
+    taosArrayDestroy(pRebInfo->lostConsumers);
+    taosArrayDestroy(pRebInfo->newConsumers);
+    taosArrayDestroy(pRebInfo->removedConsumers);
+
+    taosArrayDestroy(rebOutput.newConsumers);
+    taosArrayDestroy(rebOutput.touchedConsumers);
+    taosArrayDestroy(rebOutput.removedConsumers);
+    taosArrayDestroy(rebOutput.rebVgs);
+    tDeleteSubscribeObj(rebOutput.pSub);
+    taosMemoryFree(rebOutput.pSub);
   }
 
   // reset flag
