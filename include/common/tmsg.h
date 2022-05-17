@@ -2098,6 +2098,18 @@ enum {
 };
 
 typedef struct {
+  SMsgHead head;
+  int64_t  leftForVer;
+  int32_t  vgId;
+  int64_t  consumerId;
+  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} SMqVDeleteReq;
+
+typedef struct {
+  int8_t reserved;
+} SMqVDeleteRsp;
+
+typedef struct {
   int64_t leftForVer;
   int32_t vgId;
   int64_t oldConsumerId;
@@ -2532,11 +2544,15 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
 }
 
 typedef struct {
-  void* data;
+  int64_t streamId;
+  int32_t taskId;
+  int32_t sourceVg;
+  int64_t sourceVer;
+  SArray* data;  // SArray<SSDataBlock>
 } SStreamDispatchReq;
 
 typedef struct {
-  int8_t status;
+  int8_t inputStatus;
 } SStreamDispatchRsp;
 
 #define TD_AUTO_CREATE_TABLE 0x1
