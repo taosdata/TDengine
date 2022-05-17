@@ -30,6 +30,7 @@ char     tsLocalEp[TSDB_EP_LEN] = {0};  // Local End Point, hostname:port
 uint16_t tsServerPort = 6030;
 int32_t  tsVersion = 30000000;
 int32_t  tsStatusInterval = 1;  // second
+int32_t  tsNumOfSupportVnodes = 256;
 
 // common
 int32_t tsMaxShellConns = 50000;
@@ -38,7 +39,7 @@ bool    tsEnableSlaveQuery = true;
 bool    tsPrintAuth = false;
 
 // multi process
-bool    tsMultiProcess = false;
+int32_t tsMultiProcess = 0;
 int32_t tsMnodeShmSize = TSDB_MAX_WAL_SIZE * 2 + 128;
 int32_t tsVnodeShmSize = TSDB_MAX_WAL_SIZE * 10 + 128;
 int32_t tsQnodeShmSize = TSDB_MAX_WAL_SIZE * 4 + 128;
@@ -362,7 +363,7 @@ static int32_t taosAddSystemCfg(SConfig *pCfg) {
 static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddDir(pCfg, "dataDir", tsDataDir, 0) != 0) return -1;
   if (cfgAddFloat(pCfg, "minimalDataDirGB", 2.0f, 0.001f, 10000000, 0) != 0) return -1;
-  if (cfgAddInt32(pCfg, "supportVnodes", 256, 0, 4096, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "supportVnodes", tsNumOfSupportVnodes, 0, 4096, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "maxShellConns", tsMaxShellConns, 10, 50000000, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "statusInterval", tsStatusInterval, 1, 30, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "minSlidingTime", tsMinSlidingTime, 10, 1000000, 0) != 0) return -1;
@@ -378,7 +379,7 @@ static int32_t taosAddServerCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "slaveQuery", tsEnableSlaveQuery, 0) != 0) return -1;
   if (cfgAddBool(pCfg, "deadLockKillQuery", tsDeadLockKillQuery, 0) != 0) return -1;
 
-  if (cfgAddBool(pCfg, "multiProcess", tsMultiProcess, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "multiProcess", tsMultiProcess, 0, 2, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "mnodeShmSize", tsMnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "vnodeShmSize", tsVnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "qnodeShmSize", tsQnodeShmSize, TSDB_MAX_WAL_SIZE + 128, INT32_MAX, 0) != 0) return -1;
@@ -552,6 +553,7 @@ static void taosSetSystemCfg(SConfig *pCfg) {
 
 static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsDataSpace.reserved = cfgGetItem(pCfg, "minimalDataDirGB")->fval;
+  tsNumOfSupportVnodes = cfgGetItem(pCfg, "supportVnodes")->i32;
   tsMaxShellConns = cfgGetItem(pCfg, "maxShellConns")->i32;
   tsStatusInterval = cfgGetItem(pCfg, "statusInterval")->i32;
   tsMinSlidingTime = cfgGetItem(pCfg, "minSlidingTime")->i32;
@@ -565,7 +567,7 @@ static int32_t taosSetServerCfg(SConfig *pCfg) {
   tsRetrieveBlockingModel = cfgGetItem(pCfg, "retrieveBlockingModel")->bval;
   tsPrintAuth = cfgGetItem(pCfg, "printAuth")->bval;
   tsEnableSlaveQuery = cfgGetItem(pCfg, "slaveQuery")->bval;
-  tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->bval;
+  tsDeadLockKillQuery = cfgGetItem(pCfg, "deadLockKillQuery")->i32;
 
   tsMultiProcess = cfgGetItem(pCfg, "multiProcess")->bval;
   tsMnodeShmSize = cfgGetItem(pCfg, "mnodeShmSize")->i32;

@@ -17,7 +17,7 @@
 #include "mndAuth.h"
 #include "mndUser.h"
 
-static int32_t mndProcessAuthReq(SNodeMsg *pReq);
+static int32_t mndProcessAuthReq(SRpcMsg *pReq);
 
 int32_t mndInitAuth(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_AUTH, mndProcessAuthReq);
@@ -45,9 +45,9 @@ static int32_t mndRetriveAuth(SMnode *pMnode, SAuthRsp *pRsp) {
   return 0;
 }
 
-static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
+static int32_t mndProcessAuthReq(SRpcMsg *pReq) {
   SAuthReq authReq = {0};
-  if (tDeserializeSAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) {
+  if (tDeserializeSAuthReq(pReq->pCont, pReq->contLen, &authReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -55,8 +55,8 @@ static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
   SAuthReq authRsp = {0};
   memcpy(authRsp.user, authReq.user, TSDB_USER_LEN);
 
-  int32_t code = mndRetriveAuth(pReq->pNode, &authRsp);
-  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->user, authRsp.spi, authRsp.encrypt,
+  int32_t code = mndRetriveAuth(pReq->info.node, &authRsp);
+  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->conn.user, authRsp.spi, authRsp.encrypt,
          authRsp.user);
 
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authRsp);
@@ -68,8 +68,8 @@ static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
 
   tSerializeSAuthReq(pRsp, contLen, &authRsp);
 
-  pReq->pRsp = pRsp;
-  pReq->rspLen = contLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
   return code;
 }
 

@@ -46,12 +46,12 @@ INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 # target_link_libraries(encodeTest os util gtest gtest_main)
 
 # queueTest
-add_executable(procTest "procTest.cpp")
-target_link_libraries(procTest os util transport sut gtest_main)   
-add_test(
-    NAME procTest
-    COMMAND procTest
-)
+# add_executable(procTest "procTest.cpp")
+# target_link_libraries(procTest os util transport sut gtest_main)   
+# add_test(
+#     NAME procTest
+#     COMMAND procTest
+# )
 
 # cfgTest
 add_executable(cfgTest "cfgTest.cpp")

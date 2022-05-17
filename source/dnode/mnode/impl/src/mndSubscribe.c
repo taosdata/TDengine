@@ -41,10 +41,10 @@ static int32_t  mndSubActionInsert(SSdb *pSdb, SMqSubscribeObj *);
 static int32_t  mndSubActionDelete(SSdb *pSdb, SMqSubscribeObj *);
 static int32_t  mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubscribeObj *pNewSub);
 
-static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg);
-static int32_t mndProcessSubscribeInternalRsp(SNodeMsg *pMsg);
+static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg);
+static int32_t mndProcessSubscribeInternalRsp(SRpcMsg *pMsg);
 
-static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void    mndCancelGetNextSubscribe(SMnode *pMnode, void *pIter);
 
 static int32_t mndSetSubRedoLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
@@ -389,8 +389,8 @@ static int32_t mndDoRebalance(SMnode *pMnode, const SMqRebInputObj *pInput, SMqR
   return 0;
 }
 
-static int32_t mndPersistRebResult(SMnode *pMnode, SNodeMsg *pMsg, const SMqRebOutputObj *pOutput) {
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_REBALANCE, &pMsg->rpcMsg);
+static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOutputObj *pOutput) {
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_REBALANCE, pMsg);
   if (pTrans == NULL) {
     return -1;
   }
@@ -489,9 +489,9 @@ REB_FAIL:
   return -1;
 }
 
-static int32_t mndProcessRebalanceReq(SNodeMsg *pMsg) {
-  SMnode            *pMnode = pMsg->pNode;
-  SMqDoRebalanceMsg *pReq = pMsg->rpcMsg.pCont;
+static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
+  SMnode            *pMnode = pMsg->info.node;
+  SMqDoRebalanceMsg *pReq = pMsg->pCont;
   void              *pIter = NULL;
 
   mInfo("mq rebalance start");
@@ -708,7 +708,7 @@ void mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub) {
   sdbRelease(pSdb, pSub);
 }
 
-static int32_t mndProcessSubscribeInternalRsp(SNodeMsg *pRsp) {
+static int32_t mndProcessSubscribeInternalRsp(SRpcMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
@@ -805,8 +805,8 @@ END:
   return code;
 }
 
-static int32_t mndRetrieveSubscribe(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  SMnode          *pMnode = pReq->pNode;
+static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  SMnode          *pMnode = pReq->info.node;
   SSdb            *pSdb = pMnode->pSdb;
   int32_t          numOfRows = 0;
   SMqSubscribeObj *pSub = NULL;

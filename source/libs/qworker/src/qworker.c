@@ -412,7 +412,7 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 }
 
 void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  tmsgReleaseHandle(ctx->ctrlConnInfo.handle, TAOS_CONN_SERVER);
+  tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
   ctx->ctrlConnInfo.handle = NULL;
   ctx->ctrlConnInfo.refId = -1;
 
@@ -536,10 +536,8 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       int32_t           resNum = 0;
       QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
 
-      SQWConnInfo connInfo = {0};
-      connInfo.handle = ctx->ctrlConnInfo.handle;
-      connInfo.refId = ctx->ctrlConnInfo.refId;
-
+      SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
+      connInfo.ahandle = NULL;
       QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
     }
 
@@ -723,8 +721,8 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
   int32_t      code = 0;
   SQWTaskCtx * ctx = NULL;
-  SQWConnInfo *dropConnection = NULL;
-  SQWConnInfo *cancelConnection = NULL;
+  SRpcHandleInfo *dropConnection = NULL;
+  SRpcHandleInfo *cancelConnection = NULL;
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
@@ -844,10 +842,10 @@ _return:
 }
 
 int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
-  int32_t      code = 0;
-  SQWTaskCtx * ctx = NULL;
-  SQWConnInfo  connInfo = {0};
-  SQWConnInfo *readyConnection = NULL;
+  int32_t         code = 0;
+  SQWTaskCtx     *ctx = NULL;
+  SRpcHandleInfo  connInfo = {0};
+  SRpcHandleInfo *readyConnection = NULL;
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
@@ -867,8 +865,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
       QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
     }
 #else
-    connInfo.handle = ctx->ctrlConnInfo.handle;
-    connInfo.refId = ctx->ctrlConnInfo.refId;
+    connInfo = ctx->ctrlConnInfo;
     readyConnection = &connInfo;
 
     QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
@@ -945,9 +942,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
 
-  atomic_store_ptr(&ctx->ctrlConnInfo.handle, qwMsg->connInfo.handle);
-  atomic_store_ptr(&ctx->ctrlConnInfo.ahandle, qwMsg->connInfo.ahandle);
-  atomic_store_64(&ctx->ctrlConnInfo.refId, qwMsg->connInfo.refId);
+  ctx->ctrlConnInfo = qwMsg->connInfo;
 
   QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
 
@@ -1012,8 +1007,7 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (ctx->phase == QW_PHASE_PRE_QUERY) {
-    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
-    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo = qwMsg->connInfo;
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_READY);
     needRsp = false;
     QW_TASK_DLOG_E("ready msg will not rsp now");
@@ -1246,8 +1240,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (!rsped) {
-    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
-    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo = qwMsg->connInfo;
 
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }
@@ -1288,7 +1281,7 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (qwMsg->connInfo.handle == sch->hbConnInfo.handle) {
-    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
     sch->hbConnInfo.handle = NULL;
     sch->hbConnInfo.ahandle = NULL;
 
@@ -1320,7 +1313,8 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (sch->hbConnInfo.handle) {
-    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
+    sch->hbConnInfo.handle = NULL;
   }
 
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
@@ -1340,7 +1334,8 @@ _return:
   qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
 
   if (code) {
-    tmsgReleaseHandle(qwMsg->connInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&qwMsg->connInfo, TAOS_CONN_SERVER);
+    qwMsg->connInfo.handle = NULL;
   }
 
   QW_DLOG("hb rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
@@ -1508,7 +1503,7 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
 }
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
-  if (NULL == qWorkerMgmt || pMsgCb->pWrapper == NULL) {
+  if (NULL == qWorkerMgmt || pMsgCb->mgmt == NULL) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
