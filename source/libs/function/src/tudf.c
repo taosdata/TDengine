@@ -312,6 +312,7 @@ typedef struct SUdfcFuncStub {
   char udfName[TSDB_FUNC_NAME_LEN];
   UdfcFuncHandle handle;
   int32_t refCount;
+  int64_t lastRefTime;
 } SUdfcFuncStub;
 
 typedef struct SUdfcProxy {
@@ -1446,6 +1447,7 @@ int32_t accquireUdfFuncHandle(char* udfName, UdfcFuncHandle* pHandle) {
     uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
     *pHandle = foundStub->handle;
     ++foundStub->refCount;
+    foundStub->lastRefTime = taosGetTimestampUs();
     return 0;
   }
   *pHandle = NULL;
@@ -1455,6 +1457,7 @@ int32_t accquireUdfFuncHandle(char* udfName, UdfcFuncHandle* pHandle) {
     strcpy(stub.udfName, udfName);
     stub.handle = *pHandle;
     ++stub.refCount;
+    stub.lastRefTime = taosGetTimestampUs();
     taosArrayPush(gUdfdProxy.udfStubs, &stub);
     taosArraySort(gUdfdProxy.udfStubs, compareUdfcFuncSub);
   } else {
@@ -1662,7 +1665,8 @@ int32_t cleanUpUdfs() {
       fnInfo("tear down udf. udf name: %s, handle: %p", stub->udfName, stub->handle);
       doTeardownUdf(stub->handle);
     } else {
-      fnInfo("udf still in use. udf name: %s, ref count: %d, handle: %p", stub->udfName, stub->refCount, stub->handle);
+      fnInfo("udf still in use. udf name: %s, ref count: %d, last ref time: %"PRId64", handle: %p",
+             stub->udfName, stub->refCount, stub->lastRefTime, stub->handle);
       taosArrayPush(udfStubs, stub);
     }
     ++i;
