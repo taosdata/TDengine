@@ -85,7 +85,7 @@ SPage *tdbPCacheFetch(SPCache *pCache, const SPgid *pPgid, TXN *pTxn) {
 
   pPage = tdbPCacheFetchImpl(pCache, pPgid, pTxn);
   if (pPage) {
-    TDB_REF_PAGE(pPage);
+    tdbRefPage(pPage);
   }
 
   tdbPCacheUnlock(pCache);
@@ -98,7 +98,7 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
 
   ASSERT(pTxn);
 
-  nRef = TDB_UNREF_PAGE(pPage);
+  nRef = tdbUnrefPage(pPage);
   ASSERT(nRef >= 0);
 
   if (nRef == 0) {
@@ -106,7 +106,7 @@ void tdbPCacheRelease(SPCache *pCache, SPage *pPage, TXN *pTxn) {
 
     // test the nRef again to make sure
     // it is safe th handle the page
-    nRef = TDB_GET_PAGE_REF(pPage);
+    nRef = tdbGetPageRef(pPage);
     if (nRef == 0) {
       if (pPage->isLocal) {
         tdbPCacheUnpinPage(pCache, pPage);
@@ -179,7 +179,8 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
     // init the page fields
     pPage->isAnchor = 0;
     pPage->isLocal = 0;
-    TDB_INIT_PAGE_REF(pPage);
+    pPage->nRef = 0;
+    pPage->id = -1;
   }
 
   // 5. Page here are just created from a free list
@@ -213,7 +214,9 @@ static SPage *tdbPCacheFetchImpl(SPCache *pCache, const SPgid *pPgid, TXN *pTxn)
 }
 
 static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
-  if (!PAGE_IS_PINNED(pPage)) {
+  if (pPage->pLruNext != NULL) {
+    ASSERT(tdbGetPageRef(pPage) == 0);
+
     pPage->pLruPrev->pLruNext = pPage->pLruNext;
     pPage->pLruNext->pLruPrev = pPage->pLruPrev;
     pPage->pLruNext = NULL;
@@ -229,7 +232,7 @@ static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
 
   ASSERT(pPage->isLocal);
   ASSERT(!pPage->isDirty);
-  ASSERT(TDB_GET_PAGE_REF(pPage) == 0);
+  ASSERT(tdbGetPageRef(pPage) == 0);
 
   ASSERT(pPage->pLruNext == NULL);
 
@@ -292,7 +295,7 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
     // pPage->pgid = 0;
     pPage->isAnchor = 0;
     pPage->isLocal = 1;
-    TDB_INIT_PAGE_REF(pPage);
+    pPage->nRef = 0;
     pPage->pHashNext = NULL;
     pPage->pLruNext = NULL;
     pPage->pLruPrev = NULL;

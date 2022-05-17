@@ -149,7 +149,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   if (pPage->isDirty) return 0;
 
   // ref page one more time so the page will not be release
-  TDB_REF_PAGE(pPage);
+  tdbRefPage(pPage);
 
   // Set page as dirty
   pPage->isDirty = 1;

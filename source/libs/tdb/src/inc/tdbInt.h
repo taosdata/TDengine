@@ -174,25 +174,21 @@ void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 
 // tdbPCache.c ====================================
-#define TDB_PCACHE_PAGE \
-  u8      isAnchor;     \
-  u8      isLocal;      \
-  u8      isDirty;      \
-  i32     nRef;         \
-  i32     id;           \
-  SPage  *pFreeNext;    \
-  SPage  *pHashNext;    \
-  SPage  *pLruNext;     \
-  SPage  *pLruPrev;     \
-  SPage  *pDirtyNext;   \
-  SPager *pPager;       \
-  SPgid   pgid;
+#define TDB_PCACHE_PAGE    \
+  u8           isAnchor;   \
+  u8           isLocal;    \
+  u8           isDirty;    \
+  volatile i32 nRef;       \
+  i32          id;         \
+  SPage       *pFreeNext;  \
+  SPage       *pHashNext;  \
+  SPage       *pLruNext;   \
+  SPage       *pLruPrev;   \
+  SPage       *pDirtyNext; \
+  SPager      *pPager;     \
+  SPgid        pgid;
 
 // For page ref
-#define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
-#define TDB_REF_PAGE(pPage)      atomic_add_fetch_32(&((pPage)->nRef), 1)
-#define TDB_UNREF_PAGE(pPage)    atomic_sub_fetch_32(&((pPage)->nRef), 1)
-#define TDB_GET_PAGE_REF(pPage)  atomic_load_32(&((pPage)->nRef))
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
@@ -258,6 +254,20 @@ struct SPage {
   // Fields used by SPCache
   TDB_PCACHE_PAGE
 };
+
+static inline i32 tdbRefPage(SPage *pPage) {
+  i32 nRef = atomic_add_fetch_32(&((pPage)->nRef), 1);
+  tdbInfo("ref page %d, nRef %d", pPage->id, nRef);
+  return nRef;
+}
+
+static inline i32 tdbUnrefPage(SPage *pPage) {
+  i32 nRef = atomic_sub_fetch_32(&((pPage)->nRef), 1);
+  tdbInfo("unref page %d, nRef %d", pPage->id, nRef);
+  return nRef;
+}
+
+#define tdbGetPageRef(pPage) atomic_load_32(&((pPage)->nRef))
 
 // For page lock
 #define P_LOCK_SUCC 0
