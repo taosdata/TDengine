@@ -360,7 +360,7 @@ class TDTestCase:
         # wait db ready
         while 1:
             tdSql.query("show databases")
-            if tdSql.getRows() == 4: 
+            if tdSql.getRows() == 5: 
                 print (tdSql.getData(0,0), tdSql.getData(1,0),tdSql.getData(2,0),)           
                 break
             else:
