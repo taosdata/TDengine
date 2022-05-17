@@ -330,11 +330,9 @@ static int tdbPCacheOpenImpl(SPCache *pCache) {
 }
 
 static int tdbPCacheCloseImpl(SPCache *pCache) {
-  SPage *pPage;
-
   for (i32 iPage = 0; iPage < pCache->nPages; iPage++) {
     if (pCache->aPage[iPage]) {
-      tdbPageDestroy(pPage, tdbDefaultFree, NULL);
+      tdbPageDestroy(pCache->aPage[iPage], tdbDefaultFree, NULL);
       pCache->aPage[iPage] = NULL;
     }
   }
