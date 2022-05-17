@@ -100,7 +100,7 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   SRpcMsg *pReq = pMsg;
 
   SDDropMnodeReq dropReq = {0};
@@ -109,14 +109,18 @@ int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  if (pMgmt->pData->dnodeId != 0 && dropReq.dnodeId != pMgmt->pData->dnodeId) {
+  if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop mnode since %s", terrstr());
     return -1;
   }
 
   bool deployed = false;
-  if (mmWriteFile(pMgmt, NULL, deployed) != 0) {
+
+  SMnodeMgmt mgmt = {0};
+  mgmt.path = pInput->path;
+  mgmt.name = pInput->name;
+  if (mmWriteFile(&mgmt, NULL, deployed) != 0) {
     dError("failed to write mnode file since %s", terrstr());
     return -1;
   }

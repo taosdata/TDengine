@@ -106,22 +106,23 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
     return -1;
   }
 
-  taosThreadMutexLock(&pDnode->mutex);
   pWrapper = &pDnode->wrappers[ntype];
-
   if (taosMkDir(pWrapper->path) != 0) {
+    dmReleaseWrapper(pWrapper);
     terrno = TAOS_SYSTEM_ERROR(errno);
     dError("failed to create dir:%s since %s", pWrapper->path, terrstr());
     return -1;
   }
 
+  taosThreadMutexLock(&pDnode->mutex);
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
+  dInfo("node:%s, start to create", pWrapper->name);
   int32_t code = (*pWrapper->func.createFp)(&input, pMsg);
   if (code != 0) {
     dError("node:%s, failed to create since %s", pWrapper->name, terrstr());
   } else {
-    dDebug("node:%s, has been created", pWrapper->name);
+    dInfo("node:%s, has been created", pWrapper->name);
     (void)dmOpenNode(pWrapper);
     pWrapper->required = true;
     pWrapper->deployed = true;
@@ -143,12 +144,14 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   }
 
   taosThreadMutexLock(&pDnode->mutex);
+  SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
 
-  int32_t code = (*pWrapper->func.dropFp)(pWrapper->pMgmt, pMsg);
+  dInfo("node:%s, start to drop", pWrapper->name);
+  int32_t code = (*pWrapper->func.dropFp)(&input, pMsg);
   if (code != 0) {
     dError("node:%s, failed to drop since %s", pWrapper->name, terrstr());
   } else {
-    dDebug("node:%s, has been dropped", pWrapper->name);
+    dInfo("node:%s, has been dropped", pWrapper->name);
     pWrapper->required = false;
     pWrapper->deployed = false;
   }

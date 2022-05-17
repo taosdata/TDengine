@@ -126,7 +126,7 @@ typedef void (*NodeCloseFp)(void *pMgmt);
 typedef int32_t (*NodeStartFp)(void *pMgmt);
 typedef void (*NodeStopFp)(void *pMgmt);
 typedef int32_t (*NodeCreateFp)(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
-typedef int32_t (*NodeDropFp)(void *pMgmt, SRpcMsg *pMsg);
+typedef int32_t (*NodeDropFp)(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 typedef int32_t (*NodeRequireFp)(const SMgmtInputOpt *pInput, bool *required);
 typedef SArray *(*NodeGetHandlesFp)();  // array of SMgmtHandle
 

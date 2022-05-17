@@ -40,7 +40,7 @@ typedef struct SSnodeMgmt {
 // smHandle.c
 SArray *smGetMsgHandles();
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
-int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pReq);
 
 // smWorker.c
