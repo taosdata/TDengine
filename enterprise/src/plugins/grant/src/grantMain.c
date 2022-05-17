@@ -48,12 +48,12 @@ extern SGrantObj grantObj;
 static char   *grantSecondsToString(uint32_t seconds);
 static void    grantCheckGrantInfo(void *, void *);
 static void    grantSendMsgToMgmt(void *, void *);
-static int32_t grantProcessMsgInMgmt(SNodeMsg *pMsg);
+static int32_t grantProcessMsgInMgmt(SRpcMsg *pMsg);
 static void    grantProcessRspInDnode(SRpcMsg *rpcMsg);
 #if 0
 // static int32_t grantGetMetaData(STableMetaMsg *pMeta, SShowObj *pShow, void *pConn);
 #endif
-static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
+static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows);
 static void    mndCancelGetNextGrant(SMnode *pMnode, void *pIter);
 
 static void *grantCheckTimer = NULL;
@@ -80,7 +80,7 @@ SGrantStatus grantStatus = {
   GRANT_CPU_LIMITS
 };
 
-static int32_t mndProcessGetGrant(SNodeMsg *pReq) {
+static int32_t mndProcessGetGrant(SRpcMsg *pReq) {
   return 0;
 }
 int32_t mndInitGrant(SMnode *pMnode) {
@@ -539,9 +539,9 @@ static void grantSendMsgToMgmt(void *p1, void *p2) {
   // dnodeSendMsgToDnode(&epSet, &rpcMsg);
 }
 
-static int32_t grantProcessMsgInMgmt(SNodeMsg *pMsg)
+static int32_t grantProcessMsgInMgmt(SRpcMsg *pMsg)
 {  
-  SGrantMsg  *pGrant = pMsg->rpcMsg.pCont;
+  SGrantMsg  *pGrant = pMsg->pCont;
 
 #ifndef GRANT_MIRROR_VERSION 
   grantStatus.officialVersion = htonl(pGrant->officialVersion);
@@ -644,7 +644,7 @@ static void grantCheckGrantInfo(void *p1, void *p2) {
   }
 }
 
-static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
+static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
   printf("%s(%d) %s rows=%d\n", __FILE__, __LINE__,__func__,rows);
   int32_t numOfRows = 0;
   char *  pWrite;
