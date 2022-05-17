@@ -31,7 +31,7 @@ if $data[0][4] != ready then
   goto check_dnode_ready
 endi
 
-#sql connect
+sql connect
 sql create dnode $hostname port 7200
 sql create dnode $hostname port 7300
 sql create dnode $hostname port 7400
@@ -83,7 +83,7 @@ print $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $dat
 if $rows != 3 then
   return -1
 endi
-if $data(db)[19] != ready then
+if $data(db)[19] != nostrict then
   goto check_db_ready
 endi
 
@@ -93,49 +93,48 @@ $loop_cnt = 0
 check_vg_ready:
 $loop_cnt = $loop_cnt + 1
 sleep 200
-if $loop_cnt == 10 then
+if $loop_cnt == 40 then
   print ====> vgroups not ready!
 	return -1
 endi
 sql show vgroups
 print ===> rows: $rows
-print $data(2)[0] $data(2)[1] $data(2)[2] $data(2)[3] $data(2)[4] $data(2)[5] $data(2)[6] $data(2)[7] $data(2)[8] $data(2)[9] $data(2)[10] $data(2)[11] $data(2)[12] $data(2)[13]
 print $data[0][0] $data[0][1] $data[0][2] $data[0][3] $data[0][4] $data[0][5] $data[0][6] $data[0][7] $data[0][8] $data[0][9] $data[10][6] $data[0][11] $data[0][12] $data[0][13]
 if $rows != $vgroups then
   return -1
 endi
 if $data[0][4] == LEADER then
-   if $data[0][6] != FLLOWER then
+   if $data[0][6] != FOLLOWER  then
      goto check_vg_ready
    endi
-   if $data[0][8] != FLLOWER then
+   if $data[0][8] != FOLLOWER then
      goto check_vg_ready
    endi
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][3] 
-  goto vg_ready
-endi
-if $data[0][6] == LEADER then
-   if $data[0][4] != FLLOWER then
+   goto vg_ready
+elif $data[0][6] == LEADER then
+   if $data[0][4] != FOLLOWER then
      goto check_vg_ready
    endi
-   if $data[0][8] != FLLOWER then
+   if $data[0][8] != FOLLOWER then
      goto check_vg_ready
    endi    
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][5] 
-  goto vg_ready
-endi
-if $data[0][8] == LEADER then
-   if $data[0][4] != FLLOWER then
+   goto vg_ready
+elif $data[0][8] == LEADER then
+   if $data[0][4] != FOLLOWER then
      goto check_vg_ready
    endi
-   if $data[0][6] != FLLOWER then
+   if $data[0][6] != FOLLOWER then
      goto check_vg_ready
    endi    
    print ---- vgroup $data[0][0] leader locate on dnode $data[0][7] 
-  goto vg_ready
+   goto vg_ready
+else
+   goto check_vg_ready
 endi
-vg_ready:
 
+vg_ready:
 print ====>  create stable/child table
 sql create table stb (ts timestamp, c1 int, c2 float, c3 binary(10)) tags (t1 int)
 
@@ -185,7 +184,7 @@ print ====>  create a normal table for interaction between main and back threads
 sql create table interaction (ts timestamp, flag binary(10), childrows int, stbrows int)
 
 print ====> start to run_back to insert data
-run_back tsim/tmq/insertDataByRunBack.sim
+run_back tsim/sync/insertDataByRunBack.sim
 
 
 print ====> waiting insert thread starting insert data
@@ -239,34 +238,34 @@ if $rows != $vgroups then
   return -1
 endi
 if $data[0][4] == LEADER then
-   if $data[0][6] != FLLOWER then
+   if $data[0][6] != FOLLOWER then
      goto check_vg_ready_2
    endi
-   if $data[0][8] != FLLOWER then
+   if $data[0][8] != FOLLOWER then
      goto check_vg_ready_2
    endi
    print ---- vgroup $data[0][0] leader switch to dnode $data[0][3] 
   goto vg_ready_2
-endi
-if $data[0][6] == LEADER then
-   if $data[0][4] != FLLOWER then
+elif $data[0][6] == LEADER then
+   if $data[0][4] != FOLLOWER then
      goto check_vg_ready_2
    endi
-   if $data[0][8] != FLLOWER then
+   if $data[0][8] != FOLLOWER then
      goto check_vg_ready_2
    endi    
    print ---- vgroup $data[0][0] leader switch to dnode $data[0][5] 
   goto vg_ready_2
-endi
-if $data[0][8] == LEADER then
-   if $data[0][4] != FLLOWER then
+elif $data[0][8] == LEADER then
+   if $data[0][4] != FOLLOWER then
      goto check_vg_ready_2
    endi
-   if $data[0][6] != FLLOWER then
+   if $data[0][6] != FOLLOWER then
      goto check_vg_ready_2
    endi    
    print ---- vgroup $data[0][0] leader switch to dnode $data[0][7] 
   goto vg_ready_2
+else 
+  goto check_vg_ready_2
 endi
 vg_ready_2:
 
@@ -344,28 +343,28 @@ if $rows != $vgroups then
   return -1
 endi
 if $data[0][4] == LEADER then
-   if $data[0][6] != FLLOWER then
+   if $data[0][6] != FOLLOWER then
      goto check_vg_ready_1
    endi
-   if $data[0][8] != FLLOWER then
+   if $data[0][8] != FOLLOWER then
      goto check_vg_ready_1
    endi    
   goto vg_ready_1
 endi
 if $data[0][6] == LEADER then
-   if $data[0][4] != FLLOWER then
+   if $data[0][4] != FOLLOWER then
      goto check_vg_ready_1
    endi
-   if $data[0][8] != FLLOWER then
+   if $data[0][8] != FOLLOWER then
      goto check_vg_ready_1
    endi    
   goto vg_ready_1
 endi
 if $data[0][8] == LEADER then
-   if $data[0][4] != FLLOWER then
+   if $data[0][4] != FOLLOWER then
      goto check_vg_ready_1
    endi
-   if $data[0][6] != FLLOWER then
+   if $data[0][6] != FOLLOWER then
      goto check_vg_ready_1
    endi    
   goto vg_ready_1
@@ -420,7 +419,6 @@ elif $data[0][6] == LEADER then
     goto check_vg_ready_3
   endi
   print ---- vgroup $data[0][0] leader locating dnode $data[0][7]
-endi
 elif $data[0][8] == LEADER then
   if $data[0][4] == LEADER then
     goto check_vg_ready_3
