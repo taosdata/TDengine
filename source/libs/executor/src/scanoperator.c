@@ -102,7 +102,7 @@ static void getNextTimeWindow(SInterval* pInterval, STimeWindow* tw, int32_t ord
   tw->ekey -= 1;
 }
 
-static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo) {
+static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo, int32_t order) {
   STimeWindow w = {0};
 
   // 0 by default, which means it is not a interval operator of the upstream operator.
@@ -110,13 +110,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
     return false;
   }
 
-  // todo handle the time range case
-  TSKEY sk = INT64_MIN;
-  TSKEY ek = INT64_MAX;
-  //  TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-  //  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-
-  if (true) {
+  if (order == TSDB_ORDER_ASC) {
     getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, &w);
     assert(w.ekey >= pBlockInfo->window.skey);
 
@@ -124,8 +118,8 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       return true;
     }
 
-    while (1) {  // todo handle the desc order scan case
-      getNextTimeWindow(pInterval, &w, TSDB_ORDER_ASC);
+    while (1) {
+      getNextTimeWindow(pInterval, &w, order);
       if (w.skey > pBlockInfo->window.ekey) {
         break;
       }
@@ -136,24 +130,24 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       }
     }
   } else {
-    //    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
-    //    assert(w.skey <= pBlockInfo->window.ekey);
-    //
-    //    if (w.skey > pBlockInfo->window.skey) {
-    //      return true;
-    //    }
-    //
-    //    while(1) {
-    //      getNextTimeWindow(pQueryAttr, &w);
-    //      if (w.ekey < pBlockInfo->window.skey) {
-    //        break;
-    //      }
-    //
-    //      assert(w.skey < pBlockInfo->window.skey);
-    //      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
-    //        return true;
-    //      }
-    //    }
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.ekey, &w);
+    assert(w.skey <= pBlockInfo->window.ekey);
+
+    if (w.skey > pBlockInfo->window.skey) {
+      return true;
+    }
+
+    while(1) {
+      getNextTimeWindow(pInterval, &w, order);
+      if (w.ekey < pBlockInfo->window.skey) {
+        break;
+      }
+
+      assert(w.skey < pBlockInfo->window.skey);
+      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+        return true;
+      }
+    }
   }
 
   return false;
@@ -172,7 +166,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   pCost->totalRows += pBlock->info.rows;
 
   *status = pInfo->dataBlockLoadFlag;
-  if (pTableScanInfo->pFilterNode != NULL || overlapWithTimeWindow(&pTableScanInfo->interval, &pBlock->info)) {
+  if (pTableScanInfo->pFilterNode != NULL ||
+      overlapWithTimeWindow(&pTableScanInfo->interval, &pBlock->info, pTableScanInfo->cond.order)) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
@@ -188,6 +183,13 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->skipBlocks += 1;
+
+    // clear all data in pBlock that are set when handing the previous block
+    for(int32_t i = 0; i < pBlockInfo->numOfCols; ++i) {
+      SColumnInfoData* pcol = taosArrayGet(pBlock->pDataBlock, i);
+      pcol->pData = NULL;
+    }
+
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
@@ -466,6 +468,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
+//  pInfo->scanInfo = (SScanInfo){.numOfAsc = 0, .numOfDesc = 1}; // for debug purpose
 
   pInfo->readHandle        = *readHandle;
   pInfo->interval          = extractIntervalInfo(pTableScanNode);

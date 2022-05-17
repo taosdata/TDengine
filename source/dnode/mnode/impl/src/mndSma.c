@@ -530,6 +530,7 @@ static int32_t mndProcessMCreateSmaReq(SNodeMsg *pReq) {
   pStream = mndAcquireStream(pMnode, createReq.name);
   if (pStream != NULL) {
     mError("sma:%s, failed to create since stream:%s already exist", createReq.name, createReq.name);
+    terrno = TSDB_CODE_MND_STREAM_ALREADY_EXIST;
     goto _OVER;
   }
 
@@ -565,7 +566,7 @@ static int32_t mndProcessMCreateSmaReq(SNodeMsg *pReq) {
 
 _OVER:
   if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
-    mError("sma:%s, failed to create since %s", createReq.name, terrstr());
+    mError("sma:%s, failed to create since %s", createReq.name, terrstr(terrno));
   }
 
   mndReleaseStb(pMnode, pStb);
