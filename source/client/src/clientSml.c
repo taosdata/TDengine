@@ -166,7 +166,7 @@ typedef struct {
 
   SMLProtocolType   protocol;
   int8_t            precision;
-  bool              dataFormat;     // true means that the name, number and order of keys in each line are the same(only for influx protocol)
+  bool              dataFormat;     // true means that the name and order of keys in each line are the same(only for influx protocol)
 
   SHashObj          *childTables;
   SHashObj          *superTables;
@@ -1422,7 +1422,7 @@ static void smlDestroyInfo(SSmlHandle* info){
   taosMemoryFreeClear(info);
 }
 
-static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocolType protocol, int8_t precision, bool dataFormat){
+static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocolType protocol, int8_t precision){
   int32_t code = TSDB_CODE_SUCCESS;
   SSmlHandle* info = (SSmlHandle*)taosMemoryCalloc(1, sizeof(SSmlHandle));
   if (NULL == info) {
@@ -1454,7 +1454,11 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
 
   info->precision   = precision;
   info->protocol    = protocol;
-  info->dataFormat  = dataFormat;
+  if(protocol == TSDB_SML_LINE_PROTOCOL){
+    info->dataFormat = tsSmlDataFormat;
+  }else{
+    info->dataFormat = true;
+  }
   info->pRequest    = request;
   info->msgBuf.buf  = info->pRequest->msgBuf;
   info->msgBuf.len  = ERROR_MSG_BUF_DEFAULT_SIZE;
@@ -2335,7 +2339,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     return NULL;
   }
 
-  SSmlHandle* info = smlBuildSmlInfo(taos, request, (SMLProtocolType)protocol, precision, true);
+  SSmlHandle* info = smlBuildSmlInfo(taos, request, (SMLProtocolType)protocol, precision);
   if(!info){
     return (TAOS_RES*)request;
   }
