@@ -1447,8 +1447,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   }
 
   char *status = "ready";
-  char  b[24] = {0};
-  STR_WITH_SIZE_TO_VARSTR(b, status, strlen(status));
+  char  statusB[24] = {0};
+  STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
   if (sysDb) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
@@ -1458,7 +1458,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 20) {
-        colDataAppend(pColInfo, rows, b, false);
+        colDataAppend(pColInfo, rows, statusB, false);
       } else {
         colDataAppendNULL(pColInfo, rows);
       }
@@ -1481,9 +1481,10 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *src = pDb->cfg.strict ? "strict" : "nostrict";
-    STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
+    char        strict[24] = {0};
+    STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)b, false);
+    colDataAppend(pColInfo, rows, (const char *)strict, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.daysPerFile, false);
@@ -1554,7 +1555,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    colDataAppend(pColInfo, rows, (const char *)b, false);
+    colDataAppend(pColInfo, rows, (const char *)statusB, false);
   }
 }
 
