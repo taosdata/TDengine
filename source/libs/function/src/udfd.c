@@ -104,8 +104,8 @@ typedef struct SUdfdRpcSendRecvInfo {
 } SUdfdRpcSendRecvInfo;
 
 void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->ahandle;
-  ASSERT(pMsg->ahandle != NULL);
+  SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->info.ahandle;
+  ASSERT(pMsg->info.ahandle != NULL);
 
   if (pEpSet) {
     if (!isEpsetEqual(&global.mgmtEp.epSet, pEpSet)) {
@@ -181,7 +181,7 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   rpcMsg.pCont = pReq;
   rpcMsg.contLen = contLen;
   rpcMsg.msgType = TDMT_MND_RETRIEVE_FUNC;
-  rpcMsg.ahandle = msgInfo;
+  rpcMsg.info.ahandle = msgInfo;
   rpcSendRequest(clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
 
   uv_sem_wait(&msgInfo->resultSem);
@@ -214,7 +214,7 @@ int32_t udfdConnectToMnode() {
   rpcMsg.msgType = TDMT_MND_CONNECT;
   rpcMsg.pCont = pReq;
   rpcMsg.contLen = contLen;
-  rpcMsg.ahandle = msgInfo;
+  rpcMsg.info.ahandle = msgInfo;
   rpcSendRequest(global.clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
 
   uv_sem_wait(&msgInfo->resultSem);

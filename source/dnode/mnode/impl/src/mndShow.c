@@ -24,7 +24,7 @@ static void      mndFreeShowObj(SShowObj *pShow);
 static SShowObj *mndAcquireShowObj(SMnode *pMnode, int64_t showId);
 static void      mndReleaseShowObj(SShowObj *pShow, bool forceRemove);
 static bool      mndCheckRetrieveFinished(SShowObj *pShow);
-static int32_t   mndProcessRetrieveSysTableReq(SNodeMsg *pReq);
+static int32_t   mndProcessRetrieveSysTableReq(SRpcMsg *pReq);
 
 int32_t mndInitShow(SMnode *pMnode) {
   SShowMgmt *pMgmt = &pMnode->showMgmt;
@@ -175,8 +175,8 @@ static void mndReleaseShowObj(SShowObj *pShow, bool forceRemove) {
   taosCacheRelease(pMgmt->cache, (void **)(&pShow), forceRemove);
 }
 
-static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
-  SMnode    *pMnode = pReq->pNode;
+static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
   SShowMgmt *pMgmt = &pMnode->showMgmt;
   SShowObj  *pShow = NULL;
   int32_t    rowsToRead = SHOW_STEP_SIZE;
@@ -184,7 +184,7 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
   int32_t    rowsRead = 0;
 
   SRetrieveTableReq retrieveReq = {0};
-  if (tDeserializeSRetrieveTableReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &retrieveReq) != 0) {
+  if (tDeserializeSRetrieveTableReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -300,8 +300,8 @@ static int32_t mndProcessRetrieveSysTableReq(SNodeMsg *pReq) {
 
   pRsp->numOfRows = htonl(rowsRead);
   pRsp->precision = TSDB_TIME_PRECISION_MILLI;  // millisecond time precision
-  pReq->pRsp = pRsp;
-  pReq->rspLen = size;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = size;
 
   if (rowsRead == 0 || rowsRead < rowsToRead) {
     pRsp->completed = 1;
