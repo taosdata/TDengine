@@ -815,7 +815,6 @@ class TDTestCase:
         query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) interval(8d)'
         res = tdSql.query(query_sql, True)
         tdSql.checkRows(3)
-        print(res)
         tdSql.checkEqual(int(res[0][1]), 15)
         tdSql.checkEqual(int(res[0][2]), 1)
         tdSql.checkEqual(int(res[0][3]), 50)
