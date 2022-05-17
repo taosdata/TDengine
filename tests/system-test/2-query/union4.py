@@ -35,23 +35,23 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"rtrim( {tbname}.{char_col} )",
-                    f"substr( {tbname}.{char_col}, 1 )",
-                    f"count( {tbname}.{char_col} )",
-                    f"cast( {tbname}.{char_col} as nchar(3) )",
+                    f"cast( {tbname}.{char_col} as nchar(8) )",
                 )
             )
+            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
+            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
+            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
 
         for num_col in NUM_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{num_col}",
-                    f"floor( {tbname}.{num_col} )",
-                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
-                    f"sin( {tbname}.{num_col} )",
-                    f"sqrt( {tbname}.{num_col} )",
+                    f"tan( {tbname}.{num_col} )",
+                    f"round( {tbname}.{num_col} )",
+                    f"count( {tbname}.{num_col} )",
+                    f"min( {tbname}.{num_col} )",
                 )
             )
+            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{char_col} " for char_col in CHAR_COL )
 
         query_condition.extend(
             (

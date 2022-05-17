@@ -35,27 +35,27 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"rtrim( {tbname}.{char_col} )",
-                    f"substr( {tbname}.{char_col}, 1 )",
-                    f"count( {tbname}.{char_col} )",
-                    f"cast( {tbname}.{char_col} as nchar(3) )",
+                    f"concat_ws( '_', {tbname}.{char_col}, {tbname}.{char_col} )",
+                    f"length( {tbname}.{char_col} )",
+                    f"lower( {tbname}.{char_col} )",
+                    f"ltrim( {tbname}.{char_col} )",
                 )
             )
 
         for num_col in NUM_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{num_col}",
-                    f"floor( {tbname}.{num_col} )",
-                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
-                    f"sin( {tbname}.{num_col} )",
-                    f"sqrt( {tbname}.{num_col} )",
+                    f"asin( {tbname}.{num_col} )",
+                    f"atan( {tbname}.{num_col} )",
+                    f"cos( {tbname}.{num_col} )",
+                    f"sum( {tbname}.{num_col} )",
                 )
             )
+            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_2}" for num_col_2 in NUM_COL )
 
         query_condition.extend(
             (
-                ''' "test12" ''',
+                ''' "test1234!@#$%^&*():'><?/.,][}{" ''',
                 # 1010,
             )
         )
