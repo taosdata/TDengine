@@ -222,23 +222,43 @@ class TDTestCase:
             res1_type = self.__get_type(0)
             for j in range(len(sqls[i:])):
                 tdSql.query(sqls[j+i])
-                union_type = False
+                order_union_type = False
+                rev_order_type = False
+                all_union_type = False
                 res2_type =  self.__get_type(0)
 
-                if res1_type in  ( "BIGINT" , "NCHAR" ):
-                    union_type = True
-                elif res2_type == res1_type:
-                    union_type = True
+                if res2_type == res1_type:
+                    all_union_type = True
+                elif res1_type in ( "BIGINT" , "NCHAR" ) and res2_type in ("BIGINT" , "NCHAR"):
+                    all_union_type = True
+                elif res1_type in ("BIGINT", "NCHAR"):
+                    order_union_type = True
+                elif res2_type in ("BIGINT", "NCHAR"):
+                    rev_order_type = True
                 elif res1_type == "TIMESAMP" and res2_type not in ("BINARY", "NCHAR"):
-                    union_type = True
+                    order_union_type = True
+                elif res2_type == "TIMESAMP" and res1_type not in ("BINARY", "NCHAR"):
+                    rev_order_type = True
                 elif res1_type == "BINARY" and res2_type != "NCHAR":
-                    union_type = True
+                    order_union_type = True
+                elif res2_type == "BINARY" and res1_type != "NCHAR":
+                    rev_order_type = True
 
-                if union_type:
+                if all_union_type:
                     tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
                     tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
                     tdSql.checkCols(1)
                     tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
+                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
+                    tdSql.checkCols(1)
+                elif order_union_type:
+                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
+                    tdSql.checkCols(1)
+                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
+                    tdSql.checkCols(1)
+                elif rev_order_type:
+                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
+                    tdSql.checkCols(1)
                     tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
                     tdSql.checkCols(1)
                 else:
