@@ -70,7 +70,7 @@ typedef uint16_t tmsg_t;
 #define TSDB_IE_TYPE_DNODE_EXT   6
 #define TSDB_IE_TYPE_DNODE_STATE 7
 
-enum { CONN_TYPE__QUERY = 1, CONN_TYPE__TMQ, CONN_TYPE__MAX };
+enum { CONN_TYPE__QUERY = 1, CONN_TYPE__TMQ, CONN_TYPE__UDFD, CONN_TYPE__MAX };
 
 enum {
   HEARTBEAT_KEY_USER_AUTHINFO = 1,
@@ -2098,6 +2098,18 @@ enum {
 };
 
 typedef struct {
+  SMsgHead head;
+  int64_t  leftForVer;
+  int32_t  vgId;
+  int64_t  consumerId;
+  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} SMqVDeleteReq;
+
+typedef struct {
+  int8_t reserved;
+} SMqVDeleteRsp;
+
+typedef struct {
   int64_t leftForVer;
   int32_t vgId;
   int64_t oldConsumerId;
@@ -2255,20 +2267,22 @@ static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
   if (pSW) {
     if (pSW->tSma) {
-      for (uint32_t i = 0; i < pSW->number; ++i) {
-        tdDestroyTSma(pSW->tSma + i);
+      if (deepCopy) {
+        for (uint32_t i = 0; i < pSW->number; ++i) {
+          tdDestroyTSma(pSW->tSma + i);
+        }
       }
       taosMemoryFreeClear(pSW->tSma);
     }
   }
 }
 
-static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW) {
-  tdDestroyTSmaWrapper(pSW);
-  taosMemoryFree(pSW);
+static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+  tdDestroyTSmaWrapper(pSW, deepCopy);
+  taosMemoryFreeClear(pSW);
   return NULL;
 }
 
@@ -2532,11 +2546,15 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
 }
 
 typedef struct {
-  void* data;
+  int64_t streamId;
+  int32_t taskId;
+  int32_t sourceVg;
+  int64_t sourceVer;
+  SArray* data;  // SArray<SSDataBlock>
 } SStreamDispatchReq;
 
 typedef struct {
-  int8_t status;
+  int8_t inputStatus;
 } SStreamDispatchRsp;
 
 #define TD_AUTO_CREATE_TABLE 0x1

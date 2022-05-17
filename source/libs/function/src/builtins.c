@@ -263,6 +263,21 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateHLL(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of HYPERLOGLOG function can only be column");
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_UBIGINT].bytes, .type = TSDB_DATA_TYPE_UBIGINT};
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (3 != LIST_LENGTH(pFunc->pParameterList)) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
@@ -374,6 +389,35 @@ static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
   if (!IS_INTEGER_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  uint8_t colType = pCol->resType.type;
+  if (IS_VAR_DATA_TYPE(colType)) {
+    pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
+  } else {
+    pFunc->node.resType = (SDataType){.bytes = tDataTypes[colType].bytes, .type = colType};
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t numOfParams = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != numOfParams && 3 != numOfParams) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of TAIL function can only be column");
+  }
+
+  for (int32_t i = 1; i < numOfParams; ++i) {
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, i))->resType.type;
+    if (!IS_INTEGER_TYPE(paraType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
   }
 
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
@@ -801,6 +845,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = histogramFinalize
   },
   {
+    .name = "hyperloglog",
+    .type = FUNCTION_TYPE_HYPERLOGLOG,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .translateFunc = translateHLL,
+    .getEnvFunc   = getHLLFuncEnv,
+    .initFunc     = functionSetup,
+    .processFunc  = hllFunction,
+    .finalizeFunc = hllFinalize
+  },
+  {
     .name = "state_count",
     .type = FUNCTION_TYPE_STATE_COUNT,
     .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC,
@@ -849,6 +903,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = sampleFunctionSetup,
     .processFunc  = sampleFunction,
     .finalizeFunc = NULL
+  },
+  {
+    .name = "tail",
+    .type = FUNCTION_TYPE_TAIL,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateTail,
+    .getEnvFunc   = getTailFuncEnv,
+    .initFunc     = tailFunctionSetup,
+    .processFunc  = tailFunction,
+    .finalizeFunc = tailFinalize
   },
   {
     .name = "abs",

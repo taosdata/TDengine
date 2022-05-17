@@ -35,7 +35,7 @@ void* streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput) {
   return (void*)buf;
 }
 
-static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   SStreamTaskExecReq req = {
       .streamId = pTask->streamId,
       .data = data,
@@ -107,7 +107,7 @@ static int32_t streamShuffleDispatch(SStreamTask* pTask, SMsgCb* pMsgCb, SHashOb
     SArray* pData = *(SArray**)pIter;
     SRpcMsg dispatchMsg = {0};
     SEpSet* pEpSet;
-    if (streamBuildDispatchMsg(pTask, pData, &dispatchMsg, &pEpSet) < 0) {
+    if (streamBuildExecMsg(pTask, pData, &dispatchMsg, &pEpSet) < 0) {
       ASSERT(0);
       return -1;
     }
@@ -133,7 +133,7 @@ int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input) {
   return inputStatus;
 }
 
-int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
+static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) {
   void* exec = pTask->exec.runners[0].executor;
 
   // set input
@@ -265,87 +265,42 @@ FAIL:
   return -1;
 }
 
-int32_t streamTaskDispatchDown(SStreamTask* pTask, SMsgCb* pMsgCb) {
-  //
-  return 0;
-}
-
-int32_t streamTaskSink(SStreamTask* pTask) {
-  //
-  return 0;
-}
-
-int32_t streamTaskProcessInputReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDataBlock* pBlock, SRpcMsg* pRsp) {
-  // 1. handle input
-  // 1.1 enqueue
-  taosWriteQitem(pTask->inputQ, pBlock);
-  // 1.2 calc back pressure
-  // 1.3 rsp by input status
-  int8_t              inputStatus = atomic_load_8(&pTask->inputStatus);
-  SStreamDispatchRsp* pCont = rpcMallocCont(sizeof(SStreamDispatchRsp));
-  pCont->status = inputStatus;
-  pRsp->pCont = pCont;
-  pRsp->contLen = sizeof(SStreamDispatchRsp);
-  tmsgSendRsp(pRsp);
-  // 2. try exec
-  // 2.1. idle: exec
-  // 2.2. executing: return
-  // 2.3. closing: keep trying
+int32_t streamTaskSink(SStreamTask* pTask, SMsgCb* pMsgCb) {
+  bool firstRun = 1;
   while (1) {
-    int8_t execStatus = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
-    if (execStatus == TASK_STATUS__IDLE) {
-      void*         exec = pTask->exec.runners[0].executor;
-      SArray*       pRes = taosArrayInit(0, sizeof(void*));
-      const SArray* blocks = pBlock->blocks;
-      qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
-      while (1) {
-        SSDataBlock* output;
-        uint64_t     ts = 0;
-        if (qExecTask(exec, &output, &ts) < 0) {
-          ASSERT(false);
-        }
-        if (output == NULL) break;
-        taosArrayPush(pRes, &output);
-      }
-      // TODO: wrap destroy block
-      taosArrayDestroyP(pBlock->blocks, (FDelete)blockDataDestroy);
-
-      if (taosArrayGetSize(pRes) != 0) {
-        SArray** resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
-        *resQ = pRes;
-        taosWriteQitem(pTask->outputQ, resQ);
-      }
-
-    } else if (execStatus == TASK_STATUS__CLOSING) {
-      continue;
-    } else if (execStatus == TASK_STATUS__EXECUTING)
-      break;
-    else {
-      ASSERT(0);
+    SStreamDataBlock* pBlock = NULL;
+    if (!firstRun) {
+      taosReadAllQitems(pTask->outputQ, pTask->outputQAll);
     }
-  }
-  // 3. handle output
-  // 3.1 check and set status
-  // 3.2 dispatch / sink
-  STaosQall* qall = taosAllocateQall();
-  taosReadAllQitems(pTask->outputQ, qall);
-  SArray** ppRes = NULL;
-  while (1) {
-    taosGetQitem(qall, (void**)&ppRes);
-    if (ppRes == NULL) break;
+    taosGetQitem(pTask->outputQAll, (void**)&pBlock);
+    if (pBlock == NULL) {
+      if (firstRun) {
+        firstRun = 0;
+        continue;
+      } else {
+        break;
+      }
+    }
 
-    SArray* pRes = *ppRes;
+    SArray* pRes = pBlock->blocks;
+
+    // sink
     if (pTask->sinkType == TASK_SINK__TABLE) {
-      pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, pBlock->sourceVer, pRes);
+      // blockDebugShowData(pRes);
+      pTask->tbSink.tbSinkFunc(pTask, pTask->tbSink.vnode, 0, pRes);
     } else if (pTask->sinkType == TASK_SINK__SMA) {
       pTask->smaSink.smaSink(pTask->ahandle, pTask->smaSink.smaId, pRes);
+      //
+    } else if (pTask->sinkType == TASK_SINK__FETCH) {
+      //
     } else {
+      ASSERT(pTask->sinkType == TASK_SINK__NONE);
     }
 
     // dispatch
     if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
       SRpcMsg dispatchMsg = {0};
-      if (streamBuildDispatchMsg(pTask, pRes, &dispatchMsg, NULL) < 0) {
+      if (streamBuildExecMsg(pTask, pRes, &dispatchMsg, NULL) < 0) {
         ASSERT(0);
         return -1;
       }
@@ -366,7 +321,7 @@ int32_t streamTaskProcessInputReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDat
     } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
       SRpcMsg dispatchMsg = {0};
       SEpSet* pEpSet = NULL;
-      if (streamBuildDispatchMsg(pTask, pRes, &dispatchMsg, &pEpSet) < 0) {
+      if (streamBuildExecMsg(pTask, pRes, &dispatchMsg, &pEpSet) < 0) {
         ASSERT(0);
         return -1;
       }
@@ -401,75 +356,58 @@ int32_t streamTaskProcessInputReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDat
       ASSERT(pTask->dispatchType == TASK_DISPATCH__NONE);
     }
   }
-  //
   return 0;
 }
 
-int32_t streamTaskProcessDispatchRsp(SStreamTask* pTask, char* msg, int32_t msgLen) {
-  //
+int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+  SStreamDataBlock* pBlock = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+  int8_t            status;
+
+  // 1.1 update status
+  // TODO cal backpressure
+  if (pBlock == NULL) {
+    atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+    status = TASK_INPUT_STATUS__FAILED;
+  } else {
+    status = atomic_load_8(&pTask->inputStatus);
+  }
+
+  // 1.2 enqueue
+  pBlock->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
+  pBlock->sourceVg = pReq->sourceVg;
+  pBlock->sourceVer = pReq->sourceVer;
+  taosWriteQitem(pTask->inputQ, pBlock);
+
+  // 1.3 rsp by input status
+  SStreamDispatchRsp* pCont = rpcMallocCont(sizeof(SStreamDispatchRsp));
+  pCont->inputStatus = status;
+  pRsp->pCont = pCont;
+  pRsp->contLen = sizeof(SStreamDispatchRsp);
+  tmsgSendRsp(pRsp);
+
+  return 0;
+}
+
+int32_t streamTaskProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pRsp) {
+  // 1. handle input
+  streamTaskEnqueue(pTask, pReq, pRsp);
+
+  // 2. try exec
+  // 2.1. idle: exec
+  // 2.2. executing: return
+  // 2.3. closing: keep trying
+  streamTaskExec2(pTask, pMsgCb);
+
+  // 3. handle output
+  // 3.1 check and set status
+  // 3.2 dispatch / sink
+  streamTaskSink(pTask, pMsgCb);
+
   return 0;
 }
 
 int32_t streamTaskProcessRecoverReq(SStreamTask* pTask, char* msg) {
   //
-  return 0;
-}
-
-int32_t streamTaskRun(SStreamTask* pTask) {
-  SArray* pRes = NULL;
-  if (pTask->execType == TASK_EXEC__PIPE || pTask->execType == TASK_EXEC__MERGE) {
-    // TODO remove multi runner
-    void* exec = pTask->exec.runners[0].executor;
-
-    int8_t status = atomic_val_compare_exchange_8(&pTask->status, TASK_STATUS__IDLE, TASK_STATUS__EXECUTING);
-    if (status == TASK_STATUS__IDLE) {
-      pRes = taosArrayInit(0, sizeof(void*));
-      if (pRes == NULL) {
-        return -1;
-      }
-
-      void* input = NULL;
-      taosWriteQitem(pTask->inputQ, &input);
-      if (input == NULL) return 0;
-
-      // TODO: fix type
-      if (pTask->sourceType == TASK_SOURCE__SCAN) {
-        SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)input;
-        qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK);
-        while (1) {
-          SSDataBlock* output;
-          uint64_t     ts = 0;
-          if (qExecTask(exec, &output, &ts) < 0) {
-            ASSERT(false);
-          }
-          if (output == NULL) break;
-          taosArrayPush(pRes, &output);
-        }
-        streamDataSubmitRefDec(pSubmit);
-      } else {
-        SStreamDataBlock* pStreamBlock = (SStreamDataBlock*)input;
-        const SArray*     blocks = pStreamBlock->blocks;
-        qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
-        while (1) {
-          SSDataBlock* output;
-          uint64_t     ts = 0;
-          if (qExecTask(exec, &output, &ts) < 0) {
-            ASSERT(false);
-          }
-          if (output == NULL) break;
-          taosArrayPush(pRes, &output);
-        }
-        // TODO: wrap destroy block
-        taosArrayDestroyP(pStreamBlock->blocks, (FDelete)blockDataDestroy);
-      }
-
-      if (taosArrayGetSize(pRes) != 0) {
-        SArray** resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
-        *resQ = pRes;
-        taosWriteQitem(pTask->outputQ, resQ);
-      }
-    }
-  }
   return 0;
 }
 
@@ -545,7 +483,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
 
   if (pTask->dispatchType == TASK_DISPATCH__INPLACE) {
     SRpcMsg dispatchMsg = {0};
-    if (streamBuildDispatchMsg(pTask, pRes, &dispatchMsg, NULL) < 0) {
+    if (streamBuildExecMsg(pTask, pRes, &dispatchMsg, NULL) < 0) {
       ASSERT(0);
       return -1;
     }
@@ -566,7 +504,7 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
   } else if (pTask->dispatchType == TASK_DISPATCH__FIXED) {
     SRpcMsg dispatchMsg = {0};
     SEpSet* pEpSet = NULL;
-    if (streamBuildDispatchMsg(pTask, pRes, &dispatchMsg, &pEpSet) < 0) {
+    if (streamBuildExecMsg(pTask, pRes, &dispatchMsg, &pEpSet) < 0) {
       ASSERT(0);
       return -1;
     }

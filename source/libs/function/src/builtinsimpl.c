@@ -18,12 +18,21 @@
 #include "function.h"
 #include "querynodes.h"
 #include "taggfunction.h"
+#include "tcompare.h"
 #include "tdatablock.h"
 #include "tpercentile.h"
 
 #define HISTOGRAM_MAX_BINS_NUM   1000
 #define MAVG_MAX_POINTS_NUM      1000
 #define SAMPLE_MAX_POINTS_NUM    1000
+#define TAIL_MAX_POINTS_NUM      100
+#define TAIL_MAX_OFFSET          100
+
+#define HLL_BUCKET_BITS 14 // The bits of the bucket
+#define HLL_DATA_BITS (64-HLL_BUCKET_BITS)
+#define HLL_BUCKETS (1<<HLL_BUCKET_BITS)
+#define HLL_BUCKET_MASK (HLL_BUCKETS-1)
+#define HLL_ALPHA_INF 0.721347520444481703680 // constant for 0.5/ln(2)
 
 typedef struct SSumRes {
   union {
@@ -126,6 +135,11 @@ typedef enum {
   LOG_BIN
 } EHistoBinType;
 
+typedef struct SHLLFuncInfo {
+  uint64_t result;
+  uint8_t buckets[HLL_BUCKETS];
+} SHLLInfo;
+
 typedef struct SStateInfo {
   union {
     int64_t count;
@@ -160,6 +174,21 @@ typedef struct SSampleInfo {
   char *data;
   int64_t *timestamp;
 } SSampleInfo;
+
+typedef struct STailItem {
+  int64_t timestamp;
+  bool    isNull;
+  char    data[];
+} STailItem;
+
+typedef struct STailInfo {
+  int32_t   numOfPoints;
+  int32_t   numAdded;
+  int32_t   offset;
+  uint8_t   colType;
+  int16_t   colBytes;
+  STailItem **pItems;
+} STailInfo;
 
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
@@ -2711,6 +2740,140 @@ int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+bool getHLLFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SHLLInfo);
+  return true;
+}
+
+static uint8_t hllCountNum(void* data, int32_t bytes, int32_t *buk) {
+  uint64_t hash = MurmurHash3_64(data, bytes);
+  int32_t index = hash & HLL_BUCKET_MASK;
+  hash >>= HLL_BUCKET_BITS;
+  hash |= ((uint64_t)1 << HLL_DATA_BITS);
+  uint64_t bit = 1;
+  uint8_t count = 1;
+  while((hash & bit) == 0) {
+    count++;
+    bit <<= 1;
+  }
+  *buk = index;
+  return count;
+}
+
+static void hllBucketHisto(uint8_t *buckets, int32_t* bucketHisto) {
+  uint64_t *word = (uint64_t*) buckets;
+  uint8_t *bytes;
+
+  for (int32_t j = 0; j < HLL_BUCKETS>>3; j++) {
+    if (*word == 0) {
+      bucketHisto[0] += 8;
+    } else {
+      bytes = (uint8_t*) word;
+      bucketHisto[bytes[0]]++;
+      bucketHisto[bytes[1]]++;
+      bucketHisto[bytes[2]]++;
+      bucketHisto[bytes[3]]++;
+      bucketHisto[bytes[4]]++;
+      bucketHisto[bytes[5]]++;
+      bucketHisto[bytes[6]]++;
+      bucketHisto[bytes[7]]++;
+    }
+    word++;
+  }
+}
+static double hllTau(double x) {
+  if (x == 0. || x == 1.) return 0.;
+  double zPrime;
+  double y = 1.0;
+  double z = 1 - x;
+  do {
+    x = sqrt(x);
+    zPrime = z;
+    y *= 0.5;
+    z -= pow(1 - x, 2)*y;
+  } while(zPrime != z);
+  return z / 3;
+}
+
+static double hllSigma(double x) {
+  if (x == 1.0) return INFINITY;
+  double zPrime;
+  double y = 1;
+  double z = x;
+  do {
+    x *= x;
+    zPrime = z;
+    z += x * y;
+    y += y;
+  } while(zPrime != z);
+  return z;
+}
+
+// estimate the cardinality, the algorithm refer this paper: "New cardinality estimation algorithms for HyperLogLog sketches"
+static uint64_t hllCountCnt(uint8_t *buckets) {
+  double m = HLL_BUCKETS;
+  int32_t buckethisto[64] = {0};
+  hllBucketHisto(buckets,buckethisto);
+
+  double z = m * hllTau((m-buckethisto[HLL_DATA_BITS+1])/(double)m);
+  for (int j = HLL_DATA_BITS; j >= 1; --j) {
+    z += buckethisto[j];
+    z *= 0.5;
+  }
+  z += m * hllSigma(buckethisto[0]/(double)m);
+  double E = (double)llroundl(HLL_ALPHA_INF*m*m/z);
+
+  return (uint64_t) E;
+}
+
+
+int32_t hllFunction(SqlFunctionCtx *pCtx) {
+  SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnInfoData*      pCol = pInput->pData[0];
+
+  int32_t type  = pCol->info.type;
+  int32_t bytes = pCol->info.bytes;
+
+  int32_t start = pInput->startRowIndex;
+  int32_t numOfRows = pInput->numOfRows;
+
+  int32_t numOfElems = 0;
+  for (int32_t i = start; i < numOfRows + start; ++i) {
+    if (pCol->hasNull && colDataIsNull_s(pCol, i)) {
+      continue;
+    }
+
+    numOfElems++;
+
+    char* data = colDataGetData(pCol, i);
+    if (IS_VAR_DATA_TYPE(type)) {
+      bytes = varDataLen(data);
+      data = varDataVal(data);
+    }
+
+    int32_t index = 0;
+    uint8_t count = hllCountNum(data, bytes, &index);
+    uint8_t oldcount = pInfo->buckets[index];
+    if (count > oldcount) {
+      pInfo->buckets[index] = count;
+    }
+
+  }
+
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SHLLInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  pInfo->result = hllCountCnt(pInfo->buckets);
+
+  return functionFinalize(pCtx, pBlock);
+}
+
 bool getStateFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SStateInfo);
   return true;
@@ -3107,7 +3270,7 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 
   int32_t startOffset = pCtx->offset;
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
-    if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
+    if (colDataIsNull_s(pInputCol, i)) {
       //colDataAppendNULL(pOutput, i);
       continue;
     }
@@ -3141,3 +3304,132 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx) {
 //
 //  return pResInfo->numOfRes;
 //}
+
+
+bool getTailFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  SColumnNode* pCol = (SColumnNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  SValueNode*  pVal = (SValueNode*)nodesListGetNode(pFunc->pParameterList, 1);
+  int32_t numOfPoints = pVal->datum.i;
+  pEnv->calcMemSize = sizeof(STailInfo) + numOfPoints * (POINTER_BYTES + sizeof(STailItem) + pCol->node.resType.bytes);
+  return true;
+}
+
+bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo *pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  STailInfo *pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->numAdded = 0;
+  pInfo->numOfPoints = pCtx->param[1].param.i;
+  if (pCtx->numOfParams == 4) {
+    pInfo->offset = pCtx->param[2].param.i;
+  } else {
+    pInfo->offset = 0;
+  }
+  pInfo->colType = pCtx->resDataInfo.type;
+  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  if ((pInfo->numOfPoints < 1 || pInfo->numOfPoints > TAIL_MAX_POINTS_NUM) ||
+      (pInfo->numOfPoints < 0 || pInfo->numOfPoints > TAIL_MAX_OFFSET)) {
+    return false;
+  }
+
+  pInfo->pItems = (STailItem **)((char *)pInfo + sizeof(STailInfo));
+  char *pItem = (char *)pInfo->pItems + pInfo->numOfPoints * POINTER_BYTES;
+
+  size_t unitSize = sizeof(STailItem) + pInfo->colBytes;
+  for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
+    pInfo->pItems[i] = (STailItem *)(pItem + i * unitSize);
+    pInfo->pItems[i]->isNull = false;
+  }
+
+  return true;
+}
+
+static void tailAssignResult(STailItem* pItem, char *data, int32_t colBytes, TSKEY ts, bool isNull) {
+  pItem->timestamp = ts;
+  if (isNull) {
+    pItem->isNull = true;
+  } else {
+    memcpy(pItem->data, data, colBytes);
+  }
+}
+
+static int32_t tailCompFn(const void *p1, const void *p2, const void *param) {
+  STailItem *d1 = *(STailItem **)p1;
+  STailItem *d2 = *(STailItem **)p2;
+  return compareInt64Val(&d1->timestamp, &d2->timestamp);
+}
+
+static void doTailAdd(STailInfo* pInfo, char *data, TSKEY ts, bool isNull) {
+  STailItem **pList = pInfo->pItems;
+  if (pInfo->numAdded < pInfo->numOfPoints) {
+    tailAssignResult(pList[pInfo->numAdded], data, pInfo->colBytes, ts, isNull);
+    taosheapsort((void *)pList, sizeof(STailItem **), pInfo->numAdded + 1, NULL, tailCompFn, 0);
+    pInfo->numAdded++;
+  } else if (pList[0]->timestamp < ts) {
+    tailAssignResult(pList[0], data, pInfo->colBytes, ts, isNull);
+    taosheapadjust((void *)pList, sizeof(STailItem **), 0, pInfo->numOfPoints - 1, NULL, tailCompFn, NULL, 0);
+  }
+}
+
+int32_t tailFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  STailInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t startOffset = pCtx->offset;
+  if (pInfo->offset >= pInput->numOfRows) {
+    return 0;
+  } else {
+    pInfo->numOfPoints = TMIN(pInfo->numOfPoints, pInput->numOfRows - pInfo->offset);
+  }
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex - pInfo->offset; i += 1) {
+
+    char* data = colDataGetData(pInputCol, i);
+    doTailAdd(pInfo, data, tsList[i], colDataIsNull_s(pInputCol, i));
+  }
+
+  taosqsort(pInfo->pItems, pInfo->numOfPoints, POINTER_BYTES, NULL, tailCompFn);
+
+  for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
+    int32_t pos = startOffset + i;
+    STailItem *pItem = pInfo->pItems[i];
+    if (pItem->isNull) {
+      colDataAppendNULL(pOutput, pos);
+    } else {
+      colDataAppend(pOutput, pos, pItem->data, false);
+    }
+  }
+
+  return pInfo->numOfPoints;
+}
+
+int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(pCtx);
+  STailInfo*                pInfo = GET_ROWCELL_INTERBUF(pEntryInfo);
+  pEntryInfo->complete = true;
+
+  int32_t type = pCtx->input.pData[0]->info.type;
+  int32_t slotId = pCtx->pExpr->base.resSchema.slotId;
+
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  // todo assign the tag value and the corresponding row data
+  int32_t currentRow = pBlock->info.rows;
+  for (int32_t i = 0; i < pEntryInfo->numOfRes; ++i) {
+    STailItem *pItem = pInfo->pItems[i];
+    colDataAppend(pCol, currentRow, pItem->data, false);
+
+    //setSelectivityValue(pCtx, pBlock, &pInfo->pItems[i].tuplePos, currentRow);
+    currentRow += 1;
+  }
+
+  return pEntryInfo->numOfRes;
+}

@@ -399,6 +399,9 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
 
   int32_t newTopicNum = taosArrayGetSize(newSub);
   // check topic existance
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
+  if (pTrans == NULL) goto SUBSCRIBE_OVER;
+
   for (int32_t i = 0; i < newTopicNum; i++) {
     char        *topic = taosArrayGetP(newSub, i);
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
@@ -406,7 +409,14 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
       goto SUBSCRIBE_OVER;
     }
-    // TODO lock topic to prevent drop
+
+    // ref topic to prevent drop
+    // TODO make topic complete
+    SMqTopicObj topicObj = {0};
+    memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
+    topicObj.refConsumerCnt = pTopic->refConsumerCnt + 1;
+    if (mndSetTopicRedoLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
+
     mndReleaseTopic(pMnode, pTopic);
   }
 
@@ -422,8 +432,6 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       taosArrayPush(pConsumerNew->assignedTopics, &newTopicCopy);
     }
 
-    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, pMsg);
-    if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
     if (mndTransPrepare(pMnode, pTrans) != 0) goto SUBSCRIBE_OVER;
 
@@ -494,8 +502,6 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
-    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, pMsg);
-    if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
     if (mndTransPrepare(pMnode, pTrans) != 0) goto SUBSCRIBE_OVER;
   }
@@ -503,6 +509,8 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 SUBSCRIBE_OVER:
+  mndTransDrop(pTrans);
+
   if (pConsumerOld) {
     /*taosRUnLockLatch(&pConsumerOld->lock);*/
     mndReleaseConsumer(pMnode, pConsumerOld);

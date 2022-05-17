@@ -18,8 +18,10 @@
 #include "mndDb.h"
 #include "mndDnode.h"
 #include "mndMnode.h"
+#include "mndOffset.h"
 #include "mndShow.h"
 #include "mndStb.h"
+#include "mndSubscribe.h"
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
@@ -106,6 +108,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   taosEncodeSSchemaWrapper(&aswBuf, &pTopic->schema);
   SDB_SET_INT32(pRaw, dataPos, schemaLen, TOPIC_ENCODE_OVER);
   SDB_SET_BINARY(pRaw, dataPos, swBuf, schemaLen, TOPIC_ENCODE_OVER);
+  SDB_SET_INT32(pRaw, dataPos, pTopic->refConsumerCnt, TOPIC_ENCODE_OVER);
 
   SDB_SET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_ENCODE_OVER);
   SDB_SET_DATALEN(pRaw, dataPos, TOPIC_ENCODE_OVER);
@@ -190,6 +193,8 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     goto TOPIC_DECODE_OVER;
   }
 
+  SDB_GET_INT32(pRaw, dataPos, &pTopic->refConsumerCnt, TOPIC_DECODE_OVER);
+
   SDB_GET_RESERVE(pRaw, dataPos, MND_TOPIC_RESERVE_SIZE, TOPIC_DECODE_OVER);
 
   terrno = TSDB_CODE_SUCCESS;
@@ -220,11 +225,13 @@ static int32_t mndTopicActionUpdate(SSdb *pSdb, SMqTopicObj *pOldTopic, SMqTopic
   atomic_exchange_64(&pOldTopic->updateTime, pNewTopic->updateTime);
   atomic_exchange_32(&pOldTopic->version, pNewTopic->version);
 
-  taosWLockLatch(&pOldTopic->lock);
+  atomic_store_32(&pOldTopic->refConsumerCnt, pNewTopic->refConsumerCnt);
+
+  /*taosWLockLatch(&pOldTopic->lock);*/
 
   // TODO handle update
 
-  taosWUnLockLatch(&pOldTopic->lock);
+  /*taosWUnLockLatch(&pOldTopic->lock);*/
   return 0;
 }
 
@@ -292,6 +299,7 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
   topicObj.version = 1;
   topicObj.sql = strdup(pCreate->sql);
   topicObj.sqlLen = strlen(pCreate->sql) + 1;
+  topicObj.refConsumerCnt = 0;
 
   if (pCreate->ast && pCreate->ast[0]) {
     topicObj.ast = strdup(pCreate->ast);
@@ -436,15 +444,7 @@ CREATE_TOPIC_OVER:
   return code;
 }
 
-static int32_t mndDropTopic(SMnode *pMnode, SRpcMsg *pReq, SMqTopicObj *pTopic) {
-  // TODO: cannot drop when subscribed
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, pReq);
-  if (pTrans == NULL) {
-    mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
-    return -1;
-  }
-  mDebug("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
-
+static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTopicObj *pTopic) {
   SSdbRaw *pRedoRaw = mndTopicActionEncode(pTopic);
   if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
     mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
@@ -464,31 +464,42 @@ static int32_t mndDropTopic(SMnode *pMnode, SRpcMsg *pReq, SMqTopicObj *pTopic) 
 }
 
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
-  SMnode        *pMnode = pReq->info.node;
+  SMnode        *pMnode = pReq->pNode;
+  SSdb          *pSdb = pMnode->pSdb;
   SMDropTopicReq dropReq = {0};
 
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
+    }
+  }
+
+  if (pTopic->refConsumerCnt != 0) {
+    terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
+    mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
 
-  mDebug("topic:%s, start to drop", dropReq.name);
-
-  SMqTopicObj *pTopic = mndAcquireTopic(pMnode, dropReq.name);
-  if (pTopic == NULL) {
-    if (dropReq.igNotExists) {
-      mDebug("topic:%s, not exist, ignore not exist is set", dropReq.name);
-      return 0;
-    } else {
-      terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
-      mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
-      return -1;
-    }
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, &pReq->rpcMsg);
+  if (pTrans == NULL) {
+    mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
+    return -1;
   }
-  // TODO: check ref
 
-  int32_t code = mndDropTopic(pMnode, pReq, pTopic);
-  // TODO: iterate and drop related subscriptions and offsets
+  mDebug("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
+
+#if 1
+  if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+#endif
+
+  if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  int32_t code = mndDropTopic(pMnode, pTrans, pReq, pTopic);
   mndReleaseTopic(pMnode, pTopic);
 
   if (code != 0) {
@@ -575,6 +586,15 @@ static int32_t mndRetrieveTopic(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBl
 
   pShow->numOfRows += numOfRows;
   return numOfRows;
+}
+
+int32_t mndSetTopicRedoLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic) {
+  SSdbRaw *pRedoRaw = mndTopicActionEncode(pTopic);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY) != 0) return -1;
+
+  return 0;
 }
 
 static int32_t mndSetDropTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic) {

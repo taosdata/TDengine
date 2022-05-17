@@ -6,12 +6,14 @@
 #include <vector>
 #include "index.h"
 #include "indexCache.h"
+#include "indexComm.h"
 #include "indexFst.h"
 #include "indexFstCountingWriter.h"
 #include "indexFstUtil.h"
 #include "indexInt.h"
 #include "indexTfile.h"
 #include "indexUtil.h"
+#include "tcoding.h"
 #include "tglobal.h"
 #include "tskiplist.h"
 #include "tutil.h"
@@ -304,4 +306,18 @@ TEST_F(UtilEnv, 01Except) {
   ASSERT_EQ(taosArrayGetSize(total), 2);
   ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 0), 1);
   ASSERT_EQ(*(uint64_t *)taosArrayGet(total, 1), 100);
+}
+TEST_F(UtilEnv, testFill) {
+  for (int i = 0; i < 10000000; i++) {
+    int64_t val = i;
+    char    buf[65] = {0};
+    indexInt2str(val, buf, 1);
+    EXPECT_EQ(val, taosStr2int64(buf));
+  }
+  for (int i = 0; i < 10000000; i++) {
+    int64_t val = 0 - i;
+    char    buf[65] = {0};
+    indexInt2str(val, buf, -1);
+    EXPECT_EQ(val, taosStr2int64(buf));
+  }
 }

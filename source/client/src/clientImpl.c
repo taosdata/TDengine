@@ -233,8 +233,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
-                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                      .placeholderNum = pQuery->placeholderNum};
+                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
   SEpSet       mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
   SCatalog*    pCatalog = NULL;
   int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
@@ -518,7 +517,7 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    fprintf(stderr,"failed to connect to server, reason: %s\n\n", errorMsg);
+    fprintf(stderr, "failed to connect to server, reason: %s\n\n", errorMsg);
 
     terrno = pRequest->code;
     destroyRequest(pRequest);
@@ -949,7 +948,8 @@ int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableR
 
   // TODO handle the compressed case
   pResultInfo->totalRows += pResultInfo->numOfRows;
-  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows, convertUcs4);
+  return setResultDataPtr(pResultInfo, pResultInfo->fields, pResultInfo->numOfCols, pResultInfo->numOfRows,
+                          convertUcs4);
 }
 
 TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* details, int maxlen) {

@@ -3707,7 +3707,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   finalizeMultiTupleQueryResult(pOperator->numOfExprs, pAggInfo->aggSup.pResultBuf, &pAggInfo->binfo.resultRowInfo,
                                 pAggInfo->binfo.rowCellInfoOffset);
 
-  initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, false);
+  initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
   OPTR_SET_OPENED(pOperator);
   return TSDB_CODE_SUCCESS;
 }

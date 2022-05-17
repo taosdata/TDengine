@@ -30,6 +30,7 @@ void Testbase::InitLog(const char* path) {
   tsdbDebugFlag = 0;
   tsLogEmbedded = 1;
   tsAsyncLog = 0;
+  tsRpcQueueMemoryAllowed = 1024 * 1024 * 64;
 
   taosRemoveDir(path);
   taosMkDir(path);
@@ -83,7 +84,7 @@ SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
   return client.SendReq(&rpcMsg);
 }
 
-int32_t Testbase::SendShowReq(int8_t showType, const char *tb, const char* db) {
+int32_t Testbase::SendShowReq(int8_t showType, const char* tb, const char* db) {
   if (showRsp != NULL) {
     rpcFreeCont(showRsp);
     showRsp = NULL;
