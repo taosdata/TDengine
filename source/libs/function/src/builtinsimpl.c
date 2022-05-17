@@ -287,6 +287,7 @@ static FORCE_INLINE int32_t getNumofElem(SqlFunctionCtx* pCtx) {
   }
   return numOfElem;
 }
+
 /*
  * count function does need the finalize, if data is missing, the default value, which is 0, is used
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
@@ -781,16 +782,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-          //        for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          //          SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          //          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-          //            __ctx->tag.i = key;
-          //            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
-          //          }
-          //
-          //          __ctx->fpSet.process(__ctx);
-          //        }
-
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -803,15 +794,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-          //          for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          //            SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          //            if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-          //              __ctx->tag.i = key;
-          //              __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
-          //            }
-          //
-          //            __ctx->fpSet.process(__ctx);
-          //          }
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -823,7 +805,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -1703,7 +1684,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         char* data = colDataGetData(pCol, i);
 
         double v = 0;
-        GET_TYPED_DATA(v, double, pCtx->inputType, data);
+        GET_TYPED_DATA(v, double, type, data);
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
         }
