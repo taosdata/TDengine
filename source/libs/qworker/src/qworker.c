@@ -1311,6 +1311,7 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
 
   if (sch->hbConnInfo.handle) {
     tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
+    sch->hbConnInfo.handle = NULL;
   }
 
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
@@ -1331,6 +1332,7 @@ _return:
 
   if (code) {
     tmsgReleaseHandle(&qwMsg->connInfo, TAOS_CONN_SERVER);
+    qwMsg->connInfo.handle = NULL;
   }
 
   QW_DLOG("hb rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
