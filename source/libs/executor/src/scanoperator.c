@@ -710,14 +710,14 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
     blockDataCleanup(pInfo->pRes);
 
-    while (tqNextDataBlock(pInfo->readerHandle)) {
+    while (tqNextDataBlock(pInfo->streamBlockReader)) {
       SArray*  pCols = NULL;
       uint64_t groupId = 0;
       uint64_t uid = 0;
       int32_t  numOfRows = 0;
       int16_t  outputCol = 0;
 
-      int32_t code = tqRetrieveDataBlock(&pCols, pInfo->readerHandle, &groupId, &uid, &numOfRows, &outputCol);
+      int32_t code = tqRetrieveDataBlock(&pCols, pInfo->streamBlockReader, &groupId, &uid, &numOfRows, &outputCol);
 
       if (code != TSDB_CODE_SUCCESS || numOfRows == 0) {
         pTaskInfo->code = code;
@@ -791,9 +791,10 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   }
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader,
-    SSDataBlock* pResBlock, SArray* pColList, SArray* pTableIdList,
-    SExecTaskInfo* pTaskInfo, SNode* pCondition, SOperatorInfo* pOperatorDumy ) {
+SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader, SReadHandle* pHandle,
+                                            uint64_t uid, SSDataBlock* pResBlock, SArray* pColList,
+                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pCondition,
+                                            SOperatorInfo* pOperatorDumy) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -829,37 +830,32 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
 
   pInfo->tsArray = taosArrayInit(4, sizeof(TSKEY));
   if (pInfo->tsArray == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    goto _error;
   }
 
   pInfo->primaryTsIndex = 0;                           // TODO(liuyao) get it from physical plan
   pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, 10000); // TODO(liuyao) get watermark from physical plan
   if (pInfo->pUpdateInfo == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    goto _error;
   }
 
-  pInfo->readerHandle = streamReadHandle;
-  pInfo->pRes = pResBlock;
-  pInfo->pCondition = pCondition;
-  pInfo->pDataReader = pDataReader;
-  pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-  pInfo->pOperatorDumy = pOperatorDumy;
-  pInfo->interval = pSTInfo->interval;
+  pInfo->readHandle     = *pHandle;
+  pInfo->tableUid       = uid;
+  pInfo->streamBlockReader = streamReadHandle;
+  pInfo->pRes           = pResBlock;
+  pInfo->pCondition     = pCondition;
+  pInfo->pDataReader    = pDataReader;
+  pInfo->scanMode       = STREAM_SCAN_FROM_READERHANDLE;
+  pInfo->pOperatorDumy  = pOperatorDumy;
+  pInfo->interval       = pSTInfo->interval;
 
-  pOperator->name = "StreamBlockScanOperator";
+  pOperator->name       = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  pOperator->blocking   = false;
+  pOperator->status     = OP_NOT_OPENED;
+  pOperator->info       = pInfo;
   pOperator->numOfExprs = pResBlock->info.numOfCols;
-  pOperator->fpSet._openFn = operatorDummyOpenFn;
-  pOperator->fpSet.getNextFn = doStreamBlockScan;
-  pOperator->fpSet.closeFn = operatorDummyCloseFn;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->pTaskInfo  = pTaskInfo;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doStreamBlockScan, NULL, NULL, operatorDummyCloseFn, NULL, NULL, NULL);

@@ -135,16 +135,18 @@ FAIL:
 }
 
 static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
-  SMqRebInfo *pRebSub = taosHashGet(pHash, key, strlen(key) + 1);
-  if (pRebSub == NULL) {
-    pRebSub = tNewSMqRebSubscribe(key);
-    if (pRebSub == NULL) {
+  SMqRebInfo *pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
+  if (pRebInfo == NULL) {
+    pRebInfo = tNewSMqRebSubscribe(key);
+    if (pRebInfo == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    taosHashPut(pHash, key, strlen(key) + 1, pRebSub, sizeof(SMqRebInfo));
+    taosHashPut(pHash, key, strlen(key) + 1, pRebInfo, sizeof(SMqRebInfo));
+    taosMemoryFree(pRebInfo);
+    pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
   }
-  return pRebSub;
+  return pRebInfo;
 }
 
 static int32_t mndProcessMqTimerMsg(SRpcMsg *pMsg) {
@@ -305,8 +307,10 @@ static int32_t mndProcessAskEpReq(SRpcMsg *pMsg) {
       ASSERT(pTopic);
       taosRLockLatch(&pTopic->lock);
       topicEp.schema.nCols = pTopic->schema.nCols;
-      topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));
-      memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
+      if (topicEp.schema.nCols) {
+        topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));
+        memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
+      }
       taosRUnLockLatch(&pTopic->lock);
       mndReleaseTopic(pMnode, pTopic);
 
@@ -517,6 +521,7 @@ SUBSCRIBE_OVER:
   }
   if (pConsumerNew) {
     tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
   // TODO: replace with destroy subscribe msg
   if (subscribe.topicNames) taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);
