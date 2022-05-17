@@ -2533,7 +2533,7 @@ int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
       }
     }
   } else {  // computing based on the true data block
-    if (0 == pCtx->size) {
+    if (0 == pInput->numOfRows) {
       if (pCtx->order == TSDB_ORDER_DESC) {
         if (pCtx->end.key != INT64_MIN) {
           pInfo->min = pCtx->end.key;
@@ -2552,7 +2552,7 @@ int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
     TSKEY* ptsList = (int64_t*)colDataGetData(pCol, start);
     if (pCtx->order == TSDB_ORDER_DESC) {
       if (pCtx->start.key == INT64_MIN) {
-        pInfo->max = (pInfo->max < ptsList[pCtx->size - 1]) ? ptsList[pCtx->size - 1] : pInfo->max;
+        pInfo->max = (pInfo->max < ptsList[start + pInput->numOfRows - 1]) ? ptsList[start + pInput->numOfRows - 1] : pInfo->max;
       } else {
         pInfo->max = pCtx->start.key + 1;
       }
@@ -2572,7 +2572,7 @@ int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
       if (pCtx->end.key != INT64_MIN) {
         pInfo->max = pCtx->end.key + 1;
       } else {
-        pInfo->max = ptsList[pCtx->size - 1];
+        pInfo->max = ptsList[start + pInput->numOfRows - 1];
       }
     }
   }
