@@ -430,8 +430,6 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
   pFillInfo->end = endKey;
   if (!FILL_IS_ASC_FILL(pFillInfo)) {
     pFillInfo->end = taosTimeTruncate(endKey, &pFillInfo->interval, pFillInfo->precision);
-    if (numOfRows > 0)
-      pFillInfo->currentKey = pFillInfo->end;    
   }
 
   pFillInfo->index     = 0;
@@ -449,6 +447,27 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
       SFillTagColInfo* pTag = &pFillInfo->pTags[pCol->tagIndex];
       assert (pTag->col.colId == pCol->col.colId);
       memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??
+    }
+  }
+
+  // check currentKey validate
+  if (!FILL_IS_ASC_FILL(pFillInfo)) {
+    int64_t* tsList = (int64_t*) pFillInfo->pData[0];
+    int32_t numOfRows = taosNumOfRemainRows(pFillInfo);
+    int64_t numOfRes = -1;
+    if (numOfRows > 0) {
+      TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
+      numOfRes = taosTimeCountInterval(
+        lastKey,
+        pFillInfo->currentKey,
+        pFillInfo->interval.sliding,
+        pFillInfo->interval.slidingUnit,
+        pFillInfo->precision);
+      numOfRes += 1;
+      if(numOfRes < numOfRows) {
+        // reset current Key
+        pFillInfo->currentKey = tsList[0];
+      }
     }
   }
 }
