@@ -58,4 +58,5 @@ python3 ./test.py -f 2-query/nestedQuery.py
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
+python3 ./test.py -f 7-tmq/subscribeDb1.py
 
