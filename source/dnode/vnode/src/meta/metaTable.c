@@ -599,9 +599,40 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     goto _err;
   }
 
-  {
-    // TODO:
+  if (iCol == 0) {
+    // TODO : need to update tag index
   }
+
+  ctbEntry.version = version;
+  SKVRowBuilder kvrb = {0};
+  const SKVRow  pOldTag = (const SKVRow)ctbEntry.ctbEntry.pTags;
+  SKVRow        pNewTag = NULL;
+
+  tdInitKVRowBuilder(&kvrb);
+  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+    SSchema *pCol = &pTagSchema->pSchema[i];
+    if (iCol == i) {
+      tdAddColToKVRow(&kvrb, pCol->colId, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+    } else {
+      void *p = tdGetKVRowValOfCol(pOldTag, pCol->colId);
+      if (p) {
+        if (IS_VAR_DATA_TYPE(pCol->type)) {
+          tdAddColToKVRow(&kvrb, pCol->colId, p, varDataTLen(p));
+        } else {
+          tdAddColToKVRow(&kvrb, pCol->colId, p, pCol->bytes);
+        }
+      }
+    }
+  }
+
+  ctbEntry.ctbEntry.pTags = tdGetKVRowFromBuilder(&kvrb);
+  tdDestroyKVRowBuilder(&kvrb);
+
+  // save to table.db
+  metaSaveToTbDb(pMeta, &ctbEntry);
+
+  // save to uid.idx
+  tdbDbUpsert(pMeta->pUidIdx, &ctbEntry.uid, sizeof(tb_uid_t), &version, sizeof(version), &pMeta->txn);
 
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
