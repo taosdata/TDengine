@@ -196,6 +196,8 @@ static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
     }
   }
 
+  tDecoderClear(&decoder);
+
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("mq-commit-offset-trans:%d, failed to prepare since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
