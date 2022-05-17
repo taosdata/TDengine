@@ -8,7 +8,7 @@
  * @copyright Copyright (c) 2022
  *
  */
-
+#if 0
 #include <gtest/gtest.h>
 #include "tlog.h"
 #include "tprocess.h"
@@ -260,3 +260,5 @@ TEST_F(UtilTesProc, 03_Handle) {
   dmCleanupProc(cproc);
   taosDropShm(&shm);
 }
+
+#endif
