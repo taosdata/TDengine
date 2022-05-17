@@ -26,7 +26,7 @@
 #define MAVG_MAX_POINTS_NUM      1000
 #define SAMPLE_MAX_POINTS_NUM    1000
 #define TAIL_MAX_POINTS_NUM      100
-#define TAIL_MAX_OFFSET          10
+#define TAIL_MAX_OFFSET          100
 
 #define HLL_BUCKET_BITS 14 // The bits of the bucket
 #define HLL_DATA_BITS (64-HLL_BUCKET_BITS)
@@ -2849,8 +2849,8 @@ int32_t hllFunction(SqlFunctionCtx *pCtx) {
 
     char* data = colDataGetData(pCol, i);
     if (IS_VAR_DATA_TYPE(type)) {
+      bytes = varDataLen(data);
       data = varDataVal(data);
-      bytes -= VARSTR_HEADER_SIZE;
     }
 
     int32_t index = 0;
