@@ -451,6 +451,27 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
       memcpy(pTag->tagVal, pColData->pData, pCol->col.bytes);  // TODO not memcpy??
     }
   }
+
+  // check currentKey validate
+  if (!FILL_IS_ASC_FILL(pFillInfo)) {
+    int64_t* tsList = (int64_t*) pFillInfo->pData[0];
+    int32_t numOfRows = taosNumOfRemainRows(pFillInfo);
+    int64_t numOfRes = -1;
+    if (numOfRows > 0) {
+      TSKEY lastKey = tsList[pFillInfo->numOfRows - 1];
+      numOfRes = taosTimeCountInterval(
+        lastKey,
+        pFillInfo->currentKey,
+        pFillInfo->interval.sliding,
+        pFillInfo->interval.slidingUnit,
+        pFillInfo->precision);
+      numOfRes += 1;
+      if(numOfRes < numOfRows) {
+        // reset current Key
+        pFillInfo->currentKey = tsList[0];
+      }
+    }
+  }
 }
 
 bool taosFillHasMoreResults(SFillInfo* pFillInfo) {
