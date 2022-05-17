@@ -22,7 +22,7 @@ The dynamic libraries for the TDengine client driver are located in.
 
 ## Supported platforms
 
-Please refer to [list of supported platforms](/reference/connector#supported platforms)
+Please refer to [list of supported platforms](/reference/connector#supported-platforms)
 
 ## Supported versions
 
@@ -30,7 +30,7 @@ The version number of the TDengine client driver and the version number of the T
 
 ## Installation steps
 
-Please refer to the [Installation Guide](/reference/connector#installation steps) for TDengine client driver installation
+Please refer to the [Installation Steps](/reference/connector#installation-steps) for TDengine client driver installation
 
 ## Establishing a connection
 
@@ -319,17 +319,17 @@ The specific functions related to the interface are as follows (see also the [pr
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
-  (New in version 2.1.1.0, only supported for replacing parameter values in INSERT statements)
+  (Available in 2.1.1.0 and later versions, only supported for replacing parameter values in INSERT statements)
   When the table name in the SQL command uses `? ` placeholder, you can use this function to bind a specific table name.
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
 
-  (New in version 2.1.2.0, only supported for replacing parameter values in INSERT statements)
+  (Available in 2.1.2.0 and later versions, only supported for replacing parameter values in INSERT statements)
   When the table name and TAGS in the SQL command both use `? `, you can use this function to bind the specific table name and the specific TAGS value. The most typical usage scenario is an INSERT statement that uses the automatic table building function (the current version does not support specifying specific TAGS columns.) The number of columns in the TAGS parameter needs to be the same as the number of TAGS requested in the SQL command.
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
-  (new in version 2.1.1.0, only supported for replacing parameter values in INSERT statements)
+  (Available in 2.1.1.0 and later versions, only supported for replacing parameter values in INSERT statements)
   To pass the data to be bound in a multi-column manner, it is necessary to ensure that the order of the data columns and the number of columns given here are the same as the VALUES parameter in the SQL statement. The specific definition of TAOS_MULTI_BIND is as follows.
 
   ```c
@@ -361,10 +361,10 @@ The specific functions related to the interface are as follows (see also the [pr
 
 - ` char * taos_stmt_errstr(TAOS_STMT *stmt)`
 
-  (new in version 2.1.3.0)
+  (Available in 2.1.3.0 and later versions)
   Used to get error information if other STMT APIs return errors (return error codes or null pointers).
 
-### Write-without-mode API
+### Schemaless Writing API
 
 In addition to writing data using the SQL method or the parameter binding API, writing can also be done using schemaless writing, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of schemaless writing is described in the chapter [Schemaless Writing](/reference/schemaless/), and the C/C++ API used with it is described here.
 
@@ -419,7 +419,7 @@ The Subscription API currently supports subscribing to one or more tables and co
   - taos: the database connection that has been established
   - restart: if the subscription already exists, whether to restart or continue the previous subscription
   - topic: the topic of the subscription (i.e., the name). This parameter is the unique identifier of the subscription
-  - sql: the query statement of the subscription, this statement can only be `select` statement, only the original data should be queried, only the data can be queried in time order
+  - sql: the query statement of the subscription, this statement can only be _select_ statement, only the original data should be queried, only the data can be queried in time order
   - fp: the callback function when the query result is received (the function prototype will be introduced later), only used when called asynchronously. This parameter should be passed `NULL` when called synchronously
   - param: additional parameter when calling the callback function, the system API will pass it to the callback function as it is, without any processing
   - interval: polling period in milliseconds. The callback function will be called periodically according to this parameter when called asynchronously. not recommended to set this parameter too small To avoid impact on system performance when called synchronously. If the interval between two calls to `taos_consume()` is less than this period, the API will block until the interval exceeds this period.
