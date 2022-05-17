@@ -26,13 +26,13 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
 
 int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
 #if 0
-  SNodeMsg *pMsg;
+  SRpcMsg *pMsg;
   SRpcMsg  *pRpc;
 
   *version = pVnode->state.processed;
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
-    pMsg = *(SNodeMsg **)taosArrayGet(pMsgs, i);
-    pRpc = &pMsg->rpcMsg;
+    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
+    pRpc = pMsg;
 
     // set request version
     if (walWrite(pVnode->pWal, pVnode->state.processed++, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {

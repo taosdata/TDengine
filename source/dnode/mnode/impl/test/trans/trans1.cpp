@@ -17,7 +17,7 @@ class MndTestTrans1 : public ::testing::Test {
     test.Init("/tmp/mnode_test_trans1", 9013);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9013";
-    server2.Start("/tmp/mnode_test_trans2", fqdn, 9020, firstEp);
+    // server2.Start("/tmp/mnode_test_trans2", fqdn, 9020, firstEp);
   }
 
   static void TearDownTestSuite() {
@@ -220,7 +220,7 @@ TEST_F(MndTestTrans1, 03_Create_Qnode2_Crash) {
 
   uInfo("======== kill and restart server") KillThenRestartServer();
 
-  uInfo("======== server2 start") server2.DoStart();
+  uInfo("======== server2 start") server2.Start();
 
   uInfo("======== server2 started")
 
