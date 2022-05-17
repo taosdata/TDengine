@@ -54,8 +54,8 @@ static TSKEY getStartTsKey(STimeWindow* win, const TSKEY* tsCols, int32_t rows, 
   if (tsCols == NULL) {
     ts = ascQuery ? win->skey : win->ekey;
   } else {
-    int32_t offset = ascQuery ? 0 : rows - 1;
-    ts = tsCols[offset];
+//    int32_t offset = ascQuery ? 0 : rows - 1;
+    ts = tsCols[0];
   }
 
   return ts;
@@ -172,14 +172,22 @@ static FORCE_INLINE int32_t getForwardStepsInBlock(int32_t numOfRows, __block_se
       }
     }
   } else {
-    int32_t end = searchFn((char*)pData, pos + 1, ekey, order);
+    int32_t end = searchFn((char*)&pData[pos], numOfRows - pos, ekey, order);
     if (end >= 0) {
-      forwardStep = pos - end;
+      forwardStep = end;
 
-      if (pData[end] == ekey) {
+      if (pData[end + pos] == ekey) {
         forwardStep += 1;
       }
     }
+//    int32_t end = searchFn((char*)pData, pos + 1, ekey, order);
+//    if (end >= 0) {
+//      forwardStep = pos - end;
+//
+//      if (pData[end] == ekey) {
+//        forwardStep += 1;
+//      }
+//    }
   }
 
   assert(forwardStep >= 0);
@@ -203,17 +211,25 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order) {
   if (order == TSDB_ORDER_DESC) {
     // find the first position which is smaller than the key
     while (1) {
-      if (key >= keyList[lastPos]) return lastPos;
-      if (key == keyList[firstPos]) return firstPos;
-      if (key < keyList[firstPos]) return firstPos - 1;
+      if (key >= keyList[firstPos]) return firstPos;
+      if (key == keyList[lastPos]) return lastPos;
+
+      if (key < keyList[lastPos]) {
+        lastPos += 1;
+        if (lastPos >= num) {
+          return -1;
+        } else {
+          return lastPos;
+        }
+      }
 
       numOfRows = lastPos - firstPos + 1;
       midPos = (numOfRows >> 1) + firstPos;
 
       if (key < keyList[midPos]) {
-        lastPos = midPos - 1;
-      } else if (key > keyList[midPos]) {
         firstPos = midPos + 1;
+      } else if (key > keyList[midPos]) {
+        lastPos = midPos - 1;
       } else {
         break;
       }
@@ -273,12 +289,12 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
     if (ekey > pDataBlockInfo->window.skey && pPrimaryColumn) {
       num = getForwardStepsInBlock(pDataBlockInfo->rows, searchFn, ekey, startPos, order, pPrimaryColumn);
       if (item != NULL) {
-        item->lastKey = pPrimaryColumn[startPos - (num - 1)] + step;
+        item->lastKey = pPrimaryColumn[startPos + (num - 1)] + step;
       }
     } else {
-      num = startPos + 1;
+      num = pDataBlockInfo->rows - startPos;
       if (item != NULL) {
-        item->lastKey = pDataBlockInfo->window.skey + step;
+        item->lastKey = pDataBlockInfo->window.ekey + step;
       }
     }
   }
@@ -470,20 +486,17 @@ static int32_t getNextQualifiedWindow(SInterval* pInterval, STimeWindow* pNext, 
     return -1;
   }
 
-  TSKEY   startKey = ascQuery ? pNext->skey : pNext->ekey;
+  TSKEY   skey = ascQuery ? pNext->skey : pNext->ekey;
   int32_t startPos = 0;
 
   // tumbling time window query, a special case of sliding time window query
   if (pInterval->sliding == pInterval->interval && prevPosition != -1) {
-    int32_t factor = GET_FORWARD_DIRECTION_FACTOR(order);
-    startPos = prevPosition + factor;
+    startPos = prevPosition + 1;
   } else {
-    if (startKey <= pDataBlockInfo->window.skey && ascQuery) {
+    if ((skey <= pDataBlockInfo->window.skey && ascQuery) || (skey >= pDataBlockInfo->window.ekey && !ascQuery)) {
       startPos = 0;
-    } else if (startKey >= pDataBlockInfo->window.ekey && !ascQuery) {
-      startPos = pDataBlockInfo->rows - 1;
     } else {
-      startPos = binarySearchForKey((char*)primaryKeys, pDataBlockInfo->rows, startKey, order);
+      startPos = binarySearchForKey((char*)primaryKeys, pDataBlockInfo->rows, skey, order);
     }
   }
 
@@ -608,7 +621,7 @@ static void saveDataBlockLastRow(char** pRow, SArray* pDataBlock, int32_t rowInd
 }
 
 static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pResultRowInfo, SSDataBlock* pSDataBlock,
-                               int32_t tableGroupId) {
+                               uint64_t tableGroupId) {
   SIntervalAggOperatorInfo* pInfo = (SIntervalAggOperatorInfo*)pOperatorInfo->info;
 
   SExecTaskInfo* pTaskInfo = pOperatorInfo->pTaskInfo;
@@ -620,7 +633,7 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
   }
 
   int32_t step = 1;
-  bool    ascScan = true;
+  bool    ascScan = (pInfo->order == TSDB_ORDER_ASC);
 
   //  int32_t prevIndex = pResultRowInfo->curPos;
 
@@ -630,7 +643,7 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
     tsCols = (int64_t*)pColDataInfo->pData;
   }
 
-  int32_t startPos = ascScan ? 0 : (pSDataBlock->info.rows - 1);
+  int32_t startPos = 0;
   TSKEY   ts = getStartTsKey(&pSDataBlock->info.window, tsCols, pSDataBlock->info.rows, ascScan);
 
   STimeWindow win = getActiveTimeWindow(pInfo->aggSup.pResultBuf, pResultRowInfo, ts, &pInfo->interval,
@@ -654,9 +667,10 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
   }
 
   int32_t forwardStep = 0;
-  TSKEY   ekey = win.ekey;
+  TSKEY   ekey = ascScan? win.ekey:win.skey;
   forwardStep =
-      getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+      getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->order);
+  ASSERT(forwardStep > 0);
 
   // prev time window not interpolation yet.
   //  int32_t curIndex = pResultRowInfo->curPos;
@@ -731,9 +745,9 @@ static SArray* hashIntervalAgg(SOperatorInfo* pOperatorInfo, SResultRowInfo* pRe
       taosArrayPush(pUpdated, &pos);
     }
 
-    ekey = nextWin.ekey;  // reviseWindowEkey(pQueryAttr, &nextWin);
+    ekey = ascScan? nextWin.ekey:nextWin.skey;
     forwardStep =
-        getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, TSDB_ORDER_ASC);
+        getNumOfRowsInTimeWindow(&pSDataBlock->info, tsCols, startPos, ekey, binarySearchForKey, NULL, pInfo->order);
 
     // window start(end) key interpolation
     doWindowBorderInterpolation(pOperatorInfo, pSDataBlock, pInfo->binfo.pCtx, pResult, &nextWin, startPos, forwardStep,
@@ -761,7 +775,8 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   SExecTaskInfo*            pTaskInfo = pOperator->pTaskInfo;
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
 
-  int32_t        order = TSDB_ORDER_ASC;
+  int32_t scanFlag = MAIN_SCAN;
+
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -773,8 +788,10 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
       break;
     }
 
+    getTableScanInfo(pOperator, &pInfo->order, &scanFlag);
+
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, pInfo->order, scanFlag, true);
     STableQueryInfo* pTableQueryInfo = pInfo->pCurrent;
 
     setIntervalQueryRange(pTableQueryInfo, pBlock->info.window.skey, &pTaskInfo->window);
@@ -800,7 +817,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pInfo->binfo.resultRowInfo,
                                 pInfo->binfo.rowCellInfoOffset);
 
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, true);
+  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->order);
   OPTR_SET_OPENED(pOperator);
   return TSDB_CODE_SUCCESS;
 }
@@ -945,7 +962,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
   finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
                                 pBInfo->rowCellInfoOffset);
 
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, true);
+  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
   if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
@@ -1070,6 +1087,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       doClearWindows(pInfo, pOperator->numOfExprs, pBlock);
       continue;
     }
+    pInfo->order = TSDB_ORDER_ASC;
     pUpdated = hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
   }
 
@@ -1119,7 +1137,6 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
   pInfo->order = TSDB_ORDER_ASC;
   pInfo->interval = *pInterval;
-  //  pInfo->execModel      = OPTR_EXEC_MODEL_STREAM;
   pInfo->execModel = pTaskInfo->execModel;
   pInfo->win = pTaskInfo->window;
   pInfo->twAggSup = *pTwAggSupp;
@@ -1338,7 +1355,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
                                 pBInfo->rowCellInfoOffset);
 
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, true);
+  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
   if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
