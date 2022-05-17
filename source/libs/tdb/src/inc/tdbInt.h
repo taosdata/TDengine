@@ -18,9 +18,22 @@
 
 #include "tdb.h"
 
+#include "tlog.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// clang-format off
+extern int32_t tdbDebugFlag;
+
+#define tdbFatal(...) do { if (tdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define tdbError(...) do { if (tdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define tdbWarn(...)  do { if (tdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define tdbInfo(...)  do { if (tdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define tdbDebug(...) do { if (tdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", DEBUG_DEBUG, tdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tdbTrace(...) do { if (tdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", DEBUG_TRACE, tdbDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
 
 typedef int8_t   i8;
 typedef int16_t  i16;
@@ -166,7 +179,7 @@ int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
   u8      isLocal;      \
   u8      isDirty;      \
   i32     nRef;         \
-  SPage  *pCacheNext;   \
+  i32     id;           \
   SPage  *pFreeNext;    \
   SPage  *pHashNext;    \
   SPage  *pLruNext;     \
