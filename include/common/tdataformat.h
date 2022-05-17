@@ -100,7 +100,7 @@ struct STSRowBuilder {
   STSRow2   row;
 };
 
-typedef enum { COL_VAL_NONE = 0, COL_VAL_NULL = 1, COL_VAL_Data = 2 } EColValT;
+typedef enum { COL_VAL_NONE = 0, COL_VAL_NULL = 1, COL_VAL_DATA = 2 } EColValT;
 struct SColVal {
   EColValT type;
   uint32_t nData;

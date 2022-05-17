@@ -39,6 +39,8 @@ typedef struct {
 #define GET_BIT1(p, i)     (((p)[(i) / 8] >> ((i) % 8)) & ((uint8_t)1))
 #define GET_BIT2(p, i)     (((p)[(i) / 4] >> ((i) % 4)) & ((uint8_t)3))
 
+static FORCE_INLINE int tSKVIdxCmprFn(const void *p1, const void *p2);
+
 // STSRow2
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
   int32_t n = 0;
@@ -107,18 +109,6 @@ void tTSRowFree(STSRow2 *pRow) {
   if (pRow) taosMemoryFree(pRow);
 }
 
-static FORCE_INLINE int kvRowCmprFn(const void *p1, const void *p2) {
-  col_id_t cid = *(col_id_t *)p1;
-  SKVIdx  *pKVIdx = (SKVIdx *)p2;
-
-  if (cid < pKVIdx->cid) {
-    return -1;
-  } else if (cid > pKVIdx->cid) {
-    return 1;
-  }
-  return 0;
-}
-
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
   uint32_t       n;
   const uint8_t *p;
@@ -128,15 +118,16 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
   STSKVRow      *pTSKVRow;
   SKVIdx        *pKVIdx;
 
+  ASSERT(iCol != 0);
   ASSERT(pTColumn->colId != 0);
 
   ASSERT(pRow->flags & 0xf != 0);
   switch (pRow->flags & 0xf) {
     case TSROW_HAS_NONE:
-      // COL_VAL_SET_NONE(pColVal);
+      *pColVal = ColValNONE;
       return 0;
     case TSROW_HAS_NULL:
-      // COL_VAL_SET_NULL(pColVal);
+      *pColVal = ColValNULL;
       return 0;
   }
 
@@ -144,15 +135,16 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
     ASSERT((pRow->flags & 0xf) != TSROW_HAS_VAL);
 
     pTSKVRow = (STSKVRow *)pRow->pData;
-    pKVIdx = bsearch(&pTColumn->colId, pTSKVRow->idx, pTSKVRow->nCols, sizeof(SKVIdx), kvRowCmprFn);
+    pKVIdx =
+        bsearch(&((SKVIdx){.cid = pTColumn->colId}), pTSKVRow->idx, pTSKVRow->nCols, sizeof(SKVIdx), tSKVIdxCmprFn);
     if (pKVIdx == NULL) {
-      // COL_VAL_SET_NONE(pColVal);
+      *pColVal = ColValNONE;
     } else if (pKVIdx->offset < 0) {
-      // COL_VAL_SET_NULL(pColVal);
+      *pColVal = ColValNULL;
     } else {
       p = pRow->pData + sizeof(STSKVRow) + sizeof(SKVIdx) * pTSKVRow->nCols + pKVIdx->offset;
-      // tGetBinary(p, &p, &n); (todo)
-      // COL_VAL_SET_VAL(pColVal, p, n);
+      pColVal->type = COL_VAL_DATA;
+      tGetBinary(p, &pColVal->pData, &pColVal->nData);
     }
   } else {
     // get bitmap
@@ -161,39 +153,39 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
       case TSROW_HAS_NULL | TSROW_HAS_NONE:
         v = GET_BIT1(p, bidx);
         if (v == 0) {
-          // COL_VAL_SET_NONE(pColVal);
+          *pColVal = ColValNONE;
         } else {
-          // COL_VAL_SET_NULL(pColVal);
+          *pColVal = ColValNULL;
         }
         return 0;
       case TSROW_HAS_VAL | TSROW_HAS_NONE:
         v = GET_BIT1(p, bidx);
         if (v == 1) {
-          p = p + (pTSchema->numOfCols - 2) / 8 + 1;
+          p = p + BIT1_SIZE(pTSchema->numOfCols - 1);
           break;
         } else {
-          // COL_VAL_SET_NONE(pColVal);
+          *pColVal = ColValNONE;
           return 0;
         }
       case TSROW_HAS_VAL | TSROW_HAS_NULL:
         v = GET_BIT1(p, bidx);
         if (v == 1) {
-          p = p + (pTSchema->numOfCols - 2) / 8 + 1;
+          p = p + BIT1_SIZE(pTSchema->numOfCols - 1);
           break;
         } else {
-          // COL_VAL_SET_NULL(pColVal);
+          *pColVal = ColValNULL;
           return 0;
         }
       case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
         v = GET_BIT2(p, bidx);
         if (v == 0) {
-          // COL_VAL_SET_NONE(pColVal);
+          *pColVal = ColValNONE;
           return 0;
         } else if (v == 1) {
-          // COL_VAL_SET_NULL(pColVal);
+          *pColVal = ColValNULL;
           return 0;
         } else if (v == 2) {
-          p = p + (pTSchema->numOfCols - 2) / 4 + 1;
+          p = p + BIT2_SIZE(pTSchema->numOfCols - 1);
           break;
         } else {
           ASSERT(0);
@@ -204,12 +196,13 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
 
     // get real value
     p = p + pTColumn->offset;
+    pColVal->type = COL_VAL_DATA;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      // tGetBinary(p + pTSchema->flen + *(int32_t *)p, &p, &n); (todo)
+      tGetBinary(p + pTSchema->flen + *(int32_t *)p, &pColVal->pData, &pColVal->nData);
     } else {
-      n = pTColumn->bytes;
+      pColVal->pData = p;
+      pColVal->nData = pTColumn->bytes;
     }
-    // COL_VAL_SET_VAL(pColVal, p, n);
   }
 
   return 0;
