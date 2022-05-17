@@ -18,35 +18,35 @@
 #include "mndMnode.h"
 #include "qworker.h"
 
-int32_t mndProcessQueryMsg(SNodeMsg *pReq) {
-  SMnode     *pMnode = pReq->pNode;
+int32_t mndProcessQueryMsg(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
   SReadHandle handle = {.mnd = pMnode, .pMsgCb = &pMnode->msgCb};
 
   mTrace("msg:%p, in query queue is processing", pReq);
-  switch (pReq->rpcMsg.msgType) {
+  switch (pReq->msgType) {
     case TDMT_VND_QUERY:
-      return qWorkerProcessQueryMsg(&handle, pMnode->pQuery, &pReq->rpcMsg);
+      return qWorkerProcessQueryMsg(&handle, pMnode->pQuery, pReq);
     case TDMT_VND_QUERY_CONTINUE:
-      return qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, &pReq->rpcMsg);
+      return qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, pReq);
     default:
-      mError("unknown msg type:%d in query queue", pReq->rpcMsg.msgType);
+      mError("unknown msg type:%d in query queue", pReq->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }
 
-int32_t mndProcessFetchMsg(SNodeMsg *pReq) {
-  SMnode *pMnode = pReq->pNode;
-  mTrace("msg:%p, in fetch queue is processing", pReq);
+int32_t mndProcessFetchMsg(SRpcMsg *pMsg) {
+  SMnode *pMnode = pMsg->info.node;
+  mTrace("msg:%p, in fetch queue is processing", pMsg);
 
-  switch (pReq->rpcMsg.msgType) {
+  switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
-      return qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, &pReq->rpcMsg);
+      return qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pMsg);
     case TDMT_VND_DROP_TASK:
-      return qWorkerProcessDropMsg(pMnode, pMnode->pQuery, &pReq->rpcMsg);
+      return qWorkerProcessDropMsg(pMnode, pMnode->pQuery, pMsg);
     case TDMT_VND_QUERY_HEARTBEAT:
-      return qWorkerProcessHbMsg(pMnode, pMnode->pQuery, &pReq->rpcMsg);
+      return qWorkerProcessHbMsg(pMnode, pMnode->pQuery, pMsg);
     default:
-      mError("unknown msg type:%d in fetch queue", pReq->rpcMsg.msgType);
+      mError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;
   }
 }

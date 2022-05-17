@@ -14,16 +14,16 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "dmInt.h"
+#include "dmUtil.h"
 
-static void dmPrintEps(SDnodeMgmt *pMgmt);
-static bool dmIsEpChanged(SDnodeMgmt *pMgmt, int32_t dnodeId, const char *ep);
-static void dmResetEps(SDnodeMgmt *pMgmt, SArray *dnodeEps);
+static void dmPrintEps(SDnodeData *pData);
+static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep);
+static void dmResetEps(SDnodeData *pData, SArray *dnodeEps);
 
-static void dmGetDnodeEp(SDnodeMgmt *pMgmt, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
-  taosRLockLatch(&pMgmt->data.latch);
+static void dmGetDnodeEp(SDnodeData *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
+  taosRLockLatch(&pData->latch);
 
-  SDnodeEp *pDnodeEp = taosHashGet(pMgmt->data.dnodeHash, &dnodeId, sizeof(int32_t));
+  SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
     if (pPort != NULL) {
       *pPort = pDnodeEp->ep.port;
@@ -36,10 +36,10 @@ static void dmGetDnodeEp(SDnodeMgmt *pMgmt, int32_t dnodeId, char *pEp, char *pF
     }
   }
 
-  taosRUnLockLatch(&pMgmt->data.latch);
+  taosRUnLockLatch(&pData->latch);
 }
 
-int32_t dmReadEps(SDnodeMgmt *pMgmt) {
+int32_t dmReadEps(SDnodeData *pData) {
   int32_t   code = TSDB_CODE_INVALID_JSON_FORMAT;
   int32_t   len = 0;
   int32_t   maxLen = 256 * 1024;
@@ -48,13 +48,13 @@ int32_t dmReadEps(SDnodeMgmt *pMgmt) {
   char      file[PATH_MAX] = {0};
   TdFilePtr pFile = NULL;
 
-  pMgmt->data.dnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
-  if (pMgmt->data.dnodeEps == NULL) {
+  pData->dnodeEps = taosArrayInit(1, sizeof(SDnodeEp));
+  if (pData->dnodeEps == NULL) {
     dError("failed to calloc dnodeEp array since %s", strerror(errno));
     goto _OVER;
   }
 
-  snprintf(file, sizeof(file), "%s%sdnode.json", pMgmt->path, TD_DIRSEP);
+  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
   pFile = taosOpenFile(file, TD_FILE_READ);
   if (pFile == NULL) {
     code = 0;
@@ -79,21 +79,21 @@ int32_t dmReadEps(SDnodeMgmt *pMgmt) {
     dError("failed to read %s since dnodeId not found", file);
     goto _OVER;
   }
-  pMgmt->data.dnodeId = dnodeId->valueint;
+  pData->dnodeId = dnodeId->valueint;
 
   cJSON *clusterId = cJSON_GetObjectItem(root, "clusterId");
   if (!clusterId || clusterId->type != cJSON_String) {
     dError("failed to read %s since clusterId not found", file);
     goto _OVER;
   }
-  pMgmt->data.clusterId = atoll(clusterId->valuestring);
+  pData->clusterId = atoll(clusterId->valuestring);
 
   cJSON *dropped = cJSON_GetObjectItem(root, "dropped");
   if (!dropped || dropped->type != cJSON_Number) {
     dError("failed to read %s since dropped not found", file);
     goto _OVER;
   }
-  pMgmt->data.dropped = dropped->valueint;
+  pData->dropped = dropped->valueint;
 
   cJSON *dnodes = cJSON_GetObjectItem(root, "dnodes");
   if (!dnodes || dnodes->type != cJSON_Array) {
@@ -143,29 +143,29 @@ int32_t dmReadEps(SDnodeMgmt *pMgmt) {
     }
     dnodeEp.isMnode = isMnode->valueint;
 
-    taosArrayPush(pMgmt->data.dnodeEps, &dnodeEp);
+    taosArrayPush(pData->dnodeEps, &dnodeEp);
   }
 
   code = 0;
   dDebug("succcessed to read file %s", file);
-  dmPrintEps(pMgmt);
+  dmPrintEps(pData);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);
   if (root != NULL) cJSON_Delete(root);
   if (pFile != NULL) taosCloseFile(&pFile);
 
-  if (taosArrayGetSize(pMgmt->data.dnodeEps) == 0) {
+  if (taosArrayGetSize(pData->dnodeEps) == 0) {
     SDnodeEp dnodeEp = {0};
     dnodeEp.isMnode = 1;
-    taosGetFqdnPortFromEp(pMgmt->data.firstEp, &dnodeEp.ep);
-    taosArrayPush(pMgmt->data.dnodeEps, &dnodeEp);
+    taosGetFqdnPortFromEp(tsFirst, &dnodeEp.ep);
+    taosArrayPush(pData->dnodeEps, &dnodeEp);
   }
 
-  dmResetEps(pMgmt, pMgmt->data.dnodeEps);
+  dmResetEps(pData, pData->dnodeEps);
 
-  if (dmIsEpChanged(pMgmt, pMgmt->data.dnodeId, pMgmt->data.localEp)) {
-    dError("localEp %s different with %s and need reconfigured", pMgmt->data.localEp, file);
+  if (dmIsEpChanged(pData, pData->dnodeId, tsLocalEp)) {
+    dError("localEp %s different with %s and need reconfigured", tsLocalEp, file);
     return -1;
   }
 
@@ -173,11 +173,12 @@ _OVER:
   return code;
 }
 
-int32_t dmWriteEps(SDnodeMgmt *pMgmt) {
+int32_t dmWriteEps(SDnodeData *pData) {
   char file[PATH_MAX] = {0};
   char realfile[PATH_MAX] = {0};
-  snprintf(file, sizeof(file), "%s%sdnode.json.bak", pMgmt->path, TD_DIRSEP);
-  snprintf(realfile, sizeof(realfile), "%s%sdnode.json", pMgmt->path, TD_DIRSEP);
+
+  snprintf(file, sizeof(file), "%s%sdnode%sdnode.json.bak", tsDataDir, TD_DIRSEP, TD_DIRSEP);
+  snprintf(realfile, sizeof(realfile), "%s%sdnode%sdnode.json", tsDataDir, TD_DIRSEP, TD_DIRSEP);
 
   TdFilePtr pFile = taosOpenFile(file, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -191,14 +192,14 @@ int32_t dmWriteEps(SDnodeMgmt *pMgmt) {
   char   *content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pMgmt->data.dnodeId);
-  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pMgmt->data.clusterId);
-  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pMgmt->data.dropped);
+  len += snprintf(content + len, maxLen - len, "  \"dnodeId\": %d,\n", pData->dnodeId);
+  len += snprintf(content + len, maxLen - len, "  \"clusterId\": \"%" PRId64 "\",\n", pData->clusterId);
+  len += snprintf(content + len, maxLen - len, "  \"dropped\": %d,\n", pData->dropped);
   len += snprintf(content + len, maxLen - len, "  \"dnodes\": [{\n");
 
-  int32_t numOfEps = (int32_t)taosArrayGetSize(pMgmt->data.dnodeEps);
+  int32_t numOfEps = (int32_t)taosArrayGetSize(pData->dnodeEps);
   for (int32_t i = 0; i < numOfEps; ++i) {
-    SDnodeEp *pDnodeEp = taosArrayGet(pMgmt->data.dnodeEps, i);
+    SDnodeEp *pDnodeEp = taosArrayGet(pData->dnodeEps, i);
     len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pDnodeEp->id);
     len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pDnodeEp->ep.fqdn);
     len += snprintf(content + len, maxLen - len, "    \"port\": %u,\n", pDnodeEp->ep.port);
@@ -222,41 +223,41 @@ int32_t dmWriteEps(SDnodeMgmt *pMgmt) {
     return -1;
   }
 
-  pMgmt->data.updateTime = taosGetTimestampMs();
+  pData->updateTime = taosGetTimestampMs();
   dDebug("successed to write %s", realfile);
   return 0;
 }
 
-void dmUpdateEps(SDnodeMgmt *pMgmt, SArray *eps) {
+void dmUpdateEps(SDnodeData *pData, SArray *eps) {
   int32_t numOfEps = taosArrayGetSize(eps);
   if (numOfEps <= 0) return;
 
-  taosWLockLatch(&pMgmt->data.latch);
+  taosWLockLatch(&pData->latch);
 
-  int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pMgmt->data.dnodeEps);
+  int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pData->dnodeEps);
   if (numOfEps != numOfEpsOld) {
-    dmResetEps(pMgmt, eps);
-    dmWriteEps(pMgmt);
+    dmResetEps(pData, eps);
+    dmWriteEps(pData);
   } else {
     int32_t size = numOfEps * sizeof(SDnodeEp);
-    if (memcmp(pMgmt->data.dnodeEps->pData, eps->pData, size) != 0) {
-      dmResetEps(pMgmt, eps);
-      dmWriteEps(pMgmt);
+    if (memcmp(pData->dnodeEps->pData, eps->pData, size) != 0) {
+      dmResetEps(pData, eps);
+      dmWriteEps(pData);
     }
   }
 
-  taosWUnLockLatch(&pMgmt->data.latch);
+  taosWUnLockLatch(&pData->latch);
 }
 
-static void dmResetEps(SDnodeMgmt *pMgmt, SArray *dnodeEps) {
-  if (pMgmt->data.dnodeEps != dnodeEps) {
-    SArray *tmp = pMgmt->data.dnodeEps;
-    pMgmt->data.dnodeEps = taosArrayDup(dnodeEps);
+static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
+  if (pData->dnodeEps != dnodeEps) {
+    SArray *tmp = pData->dnodeEps;
+    pData->dnodeEps = taosArrayDup(dnodeEps);
     taosArrayDestroy(tmp);
   }
 
-  pMgmt->data.mnodeEps.inUse = 0;
-  pMgmt->data.mnodeEps.numOfEps = 0;
+  pData->mnodeEps.inUse = 0;
+  pData->mnodeEps.numOfEps = 0;
 
   int32_t mIndex = 0;
   int32_t numOfEps = (int32_t)taosArrayGetSize(dnodeEps);
@@ -265,35 +266,35 @@ static void dmResetEps(SDnodeMgmt *pMgmt, SArray *dnodeEps) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
     if (!pDnodeEp->isMnode) continue;
     if (mIndex >= TSDB_MAX_REPLICA) continue;
-    pMgmt->data.mnodeEps.numOfEps++;
+    pData->mnodeEps.numOfEps++;
 
-    pMgmt->data.mnodeEps.eps[mIndex] = pDnodeEp->ep;
+    pData->mnodeEps.eps[mIndex] = pDnodeEp->ep;
     mIndex++;
   }
 
   for (int32_t i = 0; i < numOfEps; i++) {
     SDnodeEp *pDnodeEp = taosArrayGet(dnodeEps, i);
-    taosHashPut(pMgmt->data.dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
+    taosHashPut(pData->dnodeHash, &pDnodeEp->id, sizeof(int32_t), pDnodeEp, sizeof(SDnodeEp));
   }
 
-  dmPrintEps(pMgmt);
+  dmPrintEps(pData);
 }
 
-static void dmPrintEps(SDnodeMgmt *pMgmt) {
-  int32_t numOfEps = (int32_t)taosArrayGetSize(pMgmt->data.dnodeEps);
+static void dmPrintEps(SDnodeData *pData) {
+  int32_t numOfEps = (int32_t)taosArrayGetSize(pData->dnodeEps);
   dDebug("print dnode ep list, num:%d", numOfEps);
   for (int32_t i = 0; i < numOfEps; i++) {
-    SDnodeEp *pEp = taosArrayGet(pMgmt->data.dnodeEps, i);
-    dDebug("dnode:%d, fqdn:%s port:%u isMnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
+    SDnodeEp *pEp = taosArrayGet(pData->dnodeEps, i);
+    dDebug("dnode:%d, fqdn:%s port:%u is_mnode:%d", pEp->id, pEp->ep.fqdn, pEp->ep.port, pEp->isMnode);
   }
 }
 
-static bool dmIsEpChanged(SDnodeMgmt *pMgmt, int32_t dnodeId, const char *ep) {
+static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
   bool changed = false;
   if (dnodeId == 0) return changed;
-  taosRLockLatch(&pMgmt->data.latch);
+  taosRLockLatch(&pData->latch);
 
-  SDnodeEp *pDnodeEp = taosHashGet(pMgmt->data.dnodeHash, &dnodeId, sizeof(int32_t));
+  SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
     char epstr[TSDB_EP_LEN + 1] = {0};
     snprintf(epstr, TSDB_EP_LEN, "%s:%u", pDnodeEp->ep.fqdn, pDnodeEp->ep.port);
@@ -303,6 +304,24 @@ static bool dmIsEpChanged(SDnodeMgmt *pMgmt, int32_t dnodeId, const char *ep) {
     }
   }
 
-  taosRUnLockLatch(&pMgmt->data.latch);
+  taosRUnLockLatch(&pData->latch);
   return changed;
+}
+
+void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
+  taosRLockLatch(&pData->latch);
+  *pEpSet = pData->mnodeEps;
+  taosRUnLockLatch(&pData->latch);
+}
+
+void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
+  dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
+
+  taosWLockLatch(&pData->latch);
+  pData->mnodeEps = *pEpSet;
+  for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+    dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+  }
+
+  taosWUnLockLatch(&pData->latch);
 }

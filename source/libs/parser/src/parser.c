@@ -41,7 +41,7 @@ static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
   }
 
   if (TSDB_CODE_SUCCESS == code && (*pQuery)->placeholderNum > 0) {
-    // TSWAP((*pQuery)->pContainPlaceholderRoot, (*pQuery)->pRoot);
+    TSWAP((*pQuery)->pPrepareRoot, (*pQuery)->pRoot);
     return TSDB_CODE_SUCCESS;
   }
 
@@ -137,6 +137,36 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   return TSDB_CODE_SUCCESS;
 }
 
+static EDealRes rewriteQueryExprAliasImpl(SNode* pNode, void* pContext) {
+  if (nodesIsExprNode(pNode) && QUERY_NODE_COLUMN != nodeType(pNode) && '\0' == ((SExprNode*)pNode)->userAlias[0]) {
+    strcpy(((SExprNode*)pNode)->userAlias, ((SExprNode*)pNode)->aliasName);
+    sprintf(((SExprNode*)pNode)->aliasName, "#%d", *(int32_t*)pContext);
+    ++(*(int32_t*)pContext);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static void rewriteQueryExprAlias(SNode* pRoot, int32_t* pNo) {
+  switch (nodeType(pRoot)) {
+    case QUERY_NODE_SELECT_STMT:
+      nodesWalkSelectStmt((SSelectStmt*)pRoot, SQL_CLAUSE_FROM, rewriteQueryExprAliasImpl, pNo);
+      break;
+    case QUERY_NODE_SET_OPERATOR: {
+      SSetOperator* pSetOper = (SSetOperator*)pRoot;
+      rewriteQueryExprAlias(pSetOper->pLeft, pNo);
+      rewriteQueryExprAlias(pSetOper->pRight, pNo);
+      break;
+    }
+    default:
+      break;
+  }
+}
+
+static void rewriteExprAlias(SNode* pRoot) {
+  int32_t no = 1;
+  rewriteQueryExprAlias(pRoot, &no);
+}
+
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
   if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
@@ -169,6 +199,15 @@ int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx
     code = setValueByBindParam((SValueNode*)taosArrayGetP(pQuery->pPlaceholderValues, colIdx), pParams);
   }
 
+  if (TSDB_CODE_SUCCESS == code && (colIdx < 0 || colIdx + 1 == pQuery->placeholderNum)) {
+    pQuery->pRoot = nodesCloneNode(pQuery->pPrepareRoot);
+    if (NULL == pQuery->pRoot) {
+      code = TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    rewriteExprAlias(pQuery->pRoot);
+  }
   return code;
 }
 

@@ -184,6 +184,7 @@ typedef struct {
   tmq_t*         tmq;
   int8_t         async;
   int8_t         automatic;
+  int8_t         freeOffsets;
   tmq_commit_cb* userCb;
   tsem_t         rspSem;
   tmq_resp_err_t rspErr;
@@ -328,7 +329,7 @@ int32_t tmqCommitCb(void* param, const SDataBuf* pMsg, int32_t code) {
       pParam->userCb(pParam->tmq, pParam->rspErr, (tmq_topic_vgroup_list_t*)pParam->offsets, pParam->userParam);
     }
 
-    if (pParam->offsets) {
+    if (pParam->freeOffsets) {
       taosArrayDestroy(pParam->offsets);
     }
 
@@ -346,8 +347,11 @@ int32_t tmqCommitInner(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8_
   void*                buf = NULL;
   SMqCommitCbParam*    pParam = NULL;
   SMsgSendInfo*        sendInfo = NULL;
+  int8_t               freeOffsets;
+  int32_t              code = -1;
 
   if (offsets == NULL) {
+    freeOffsets = 1;
     pOffsets = taosArrayInit(0, sizeof(SMqOffset));
     for (int32_t i = 0; i < taosArrayGetSize(tmq->clientTopics); i++) {
       SMqClientTopic* pTopic = taosArrayGet(tmq->clientTopics, i);
@@ -362,25 +366,28 @@ int32_t tmqCommitInner(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8_
       }
     }
   } else {
+    freeOffsets = 0;
     pOffsets = (SArray*)&offsets->container;
   }
 
   req.num = (int32_t)pOffsets->size;
   req.offsets = pOffsets->pData;
 
-  int32_t code;
-  int32_t tlen = 0;
-  tEncodeSize(tEncodeSMqCMCommitOffsetReq, &req, tlen, code);
+  SEncoder encoder;
+
+  tEncoderInit(&encoder, NULL, 0);
+  code = tEncodeSMqCMCommitOffsetReq(&encoder, &req);
   if (code < 0) {
     goto END;
   }
-  code = -1;
-
+  int32_t tlen = encoder.pos;
   buf = taosMemoryMalloc(tlen);
   if (buf == NULL) {
+    tEncoderClear(&encoder);
     goto END;
   }
-  SEncoder encoder;
+  tEncoderClear(&encoder);
+
   tEncoderInit(&encoder, buf, tlen);
   tEncodeSMqCMCommitOffsetReq(&encoder, &req);
   tEncoderClear(&encoder);
@@ -393,6 +400,7 @@ int32_t tmqCommitInner(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8_
   pParam->automatic = automatic;
   pParam->async = async;
   pParam->offsets = pOffsets;
+  pParam->freeOffsets = freeOffsets;
   pParam->userCb = userCb;
   pParam->userParam = userParam;
   if (!async) tsem_init(&pParam->rspSem, 0, 0);
@@ -429,8 +437,8 @@ int32_t tmqCommitInner(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, int8_
   code = 0;
 END:
   if (buf) taosMemoryFree(buf);
-  if (pParam) taosMemoryFree(pParam);
-  if (sendInfo) taosMemoryFree(sendInfo);
+  /*if (pParam) taosMemoryFree(pParam);*/
+  /*if (sendInfo) taosMemoryFree(sendInfo);*/
 
   if (code != 0 && async) {
     if (automatic) {
@@ -440,7 +448,7 @@ END:
     }
   }
 
-  if (offsets == NULL) {
+  if (!async && freeOffsets) {
     taosArrayDestroy(pOffsets);
   }
   return code;

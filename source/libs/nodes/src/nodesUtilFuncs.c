@@ -21,156 +21,147 @@
 #include "taoserror.h"
 #include "thash.h"
 
-static SNode* makeNode(ENodeType type, size_t size) {
-  SNode* p = taosMemoryCalloc(1, size);
-  if (NULL == p) {
-    return NULL;
-  }
-  setNodeType(p, type);
-  return p;
-}
-
-SNodeptr nodesMakeNode(ENodeType type) {
+int32_t nodesNodeSize(ENodeType type) {
   switch (type) {
     case QUERY_NODE_COLUMN:
-      return makeNode(type, sizeof(SColumnNode));
+      return sizeof(SColumnNode);
     case QUERY_NODE_VALUE:
-      return makeNode(type, sizeof(SValueNode));
+      return sizeof(SValueNode);
     case QUERY_NODE_OPERATOR:
-      return makeNode(type, sizeof(SOperatorNode));
+      return sizeof(SOperatorNode);
     case QUERY_NODE_LOGIC_CONDITION:
-      return makeNode(type, sizeof(SLogicConditionNode));
+      return sizeof(SLogicConditionNode);
     case QUERY_NODE_FUNCTION:
-      return makeNode(type, sizeof(SFunctionNode));
+      return sizeof(SFunctionNode);
     case QUERY_NODE_REAL_TABLE:
-      return makeNode(type, sizeof(SRealTableNode));
+      return sizeof(SRealTableNode);
     case QUERY_NODE_TEMP_TABLE:
-      return makeNode(type, sizeof(STempTableNode));
+      return sizeof(STempTableNode);
     case QUERY_NODE_JOIN_TABLE:
-      return makeNode(type, sizeof(SJoinTableNode));
+      return sizeof(SJoinTableNode);
     case QUERY_NODE_GROUPING_SET:
-      return makeNode(type, sizeof(SGroupingSetNode));
+      return sizeof(SGroupingSetNode);
     case QUERY_NODE_ORDER_BY_EXPR:
-      return makeNode(type, sizeof(SOrderByExprNode));
+      return sizeof(SOrderByExprNode);
     case QUERY_NODE_LIMIT:
-      return makeNode(type, sizeof(SLimitNode));
+      return sizeof(SLimitNode);
     case QUERY_NODE_STATE_WINDOW:
-      return makeNode(type, sizeof(SStateWindowNode));
+      return sizeof(SStateWindowNode);
     case QUERY_NODE_SESSION_WINDOW:
-      return makeNode(type, sizeof(SSessionWindowNode));
+      return sizeof(SSessionWindowNode);
     case QUERY_NODE_INTERVAL_WINDOW:
-      return makeNode(type, sizeof(SIntervalWindowNode));
+      return sizeof(SIntervalWindowNode);
     case QUERY_NODE_NODE_LIST:
-      return makeNode(type, sizeof(SNodeListNode));
+      return sizeof(SNodeListNode);
     case QUERY_NODE_FILL:
-      return makeNode(type, sizeof(SFillNode));
+      return sizeof(SFillNode);
     case QUERY_NODE_RAW_EXPR:
-      return makeNode(type, sizeof(SRawExprNode));
+      return sizeof(SRawExprNode);
     case QUERY_NODE_TARGET:
-      return makeNode(type, sizeof(STargetNode));
+      return sizeof(STargetNode);
     case QUERY_NODE_DATABLOCK_DESC:
-      return makeNode(type, sizeof(SDataBlockDescNode));
+      return sizeof(SDataBlockDescNode);
     case QUERY_NODE_SLOT_DESC:
-      return makeNode(type, sizeof(SSlotDescNode));
+      return sizeof(SSlotDescNode);
     case QUERY_NODE_COLUMN_DEF:
-      return makeNode(type, sizeof(SColumnDefNode));
+      return sizeof(SColumnDefNode);
     case QUERY_NODE_DOWNSTREAM_SOURCE:
-      return makeNode(type, sizeof(SDownstreamSourceNode));
+      return sizeof(SDownstreamSourceNode);
     case QUERY_NODE_DATABASE_OPTIONS:
-      return makeNode(type, sizeof(SDatabaseOptions));
+      return sizeof(SDatabaseOptions);
     case QUERY_NODE_TABLE_OPTIONS:
-      return makeNode(type, sizeof(STableOptions));
+      return sizeof(STableOptions);
     case QUERY_NODE_INDEX_OPTIONS:
-      return makeNode(type, sizeof(SIndexOptions));
+      return sizeof(SIndexOptions);
     case QUERY_NODE_EXPLAIN_OPTIONS:
-      return makeNode(type, sizeof(SExplainOptions));
+      return sizeof(SExplainOptions);
     case QUERY_NODE_STREAM_OPTIONS:
-      return makeNode(type, sizeof(SStreamOptions));
+      return sizeof(SStreamOptions);
     case QUERY_NODE_TOPIC_OPTIONS:
-      return makeNode(type, sizeof(STopicOptions));
+      return sizeof(STopicOptions);
     case QUERY_NODE_SET_OPERATOR:
-      return makeNode(type, sizeof(SSetOperator));
+      return sizeof(SSetOperator);
     case QUERY_NODE_SELECT_STMT:
-      return makeNode(type, sizeof(SSelectStmt));
+      return sizeof(SSelectStmt);
     case QUERY_NODE_VNODE_MODIF_STMT:
-      return makeNode(type, sizeof(SVnodeModifOpStmt));
+      return sizeof(SVnodeModifOpStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
-      return makeNode(type, sizeof(SCreateDatabaseStmt));
+      return sizeof(SCreateDatabaseStmt);
     case QUERY_NODE_DROP_DATABASE_STMT:
-      return makeNode(type, sizeof(SDropDatabaseStmt));
+      return sizeof(SDropDatabaseStmt);
     case QUERY_NODE_ALTER_DATABASE_STMT:
-      return makeNode(type, sizeof(SAlterDatabaseStmt));
+      return sizeof(SAlterDatabaseStmt);
     case QUERY_NODE_CREATE_TABLE_STMT:
-      return makeNode(type, sizeof(SCreateTableStmt));
+      return sizeof(SCreateTableStmt);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
-      return makeNode(type, sizeof(SCreateSubTableClause));
+      return sizeof(SCreateSubTableClause);
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      return makeNode(type, sizeof(SCreateMultiTableStmt));
+      return sizeof(SCreateMultiTableStmt);
     case QUERY_NODE_DROP_TABLE_CLAUSE:
-      return makeNode(type, sizeof(SDropTableClause));
+      return sizeof(SDropTableClause);
     case QUERY_NODE_DROP_TABLE_STMT:
-      return makeNode(type, sizeof(SDropTableStmt));
+      return sizeof(SDropTableStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
-      return makeNode(type, sizeof(SDropSuperTableStmt));
+      return sizeof(SDropSuperTableStmt);
     case QUERY_NODE_ALTER_TABLE_STMT:
-      return makeNode(type, sizeof(SAlterTableStmt));
+      return sizeof(SAlterTableStmt);
     case QUERY_NODE_CREATE_USER_STMT:
-      return makeNode(type, sizeof(SCreateUserStmt));
+      return sizeof(SCreateUserStmt);
     case QUERY_NODE_ALTER_USER_STMT:
-      return makeNode(type, sizeof(SAlterUserStmt));
+      return sizeof(SAlterUserStmt);
     case QUERY_NODE_DROP_USER_STMT:
-      return makeNode(type, sizeof(SDropUserStmt));
+      return sizeof(SDropUserStmt);
     case QUERY_NODE_USE_DATABASE_STMT:
-      return makeNode(type, sizeof(SUseDatabaseStmt));
+      return sizeof(SUseDatabaseStmt);
     case QUERY_NODE_CREATE_DNODE_STMT:
-      return makeNode(type, sizeof(SCreateDnodeStmt));
+      return sizeof(SCreateDnodeStmt);
     case QUERY_NODE_DROP_DNODE_STMT:
-      return makeNode(type, sizeof(SDropDnodeStmt));
+      return sizeof(SDropDnodeStmt);
     case QUERY_NODE_ALTER_DNODE_STMT:
-      return makeNode(type, sizeof(SAlterDnodeStmt));
+      return sizeof(SAlterDnodeStmt);
     case QUERY_NODE_CREATE_INDEX_STMT:
-      return makeNode(type, sizeof(SCreateIndexStmt));
+      return sizeof(SCreateIndexStmt);
     case QUERY_NODE_DROP_INDEX_STMT:
-      return makeNode(type, sizeof(SDropIndexStmt));
+      return sizeof(SDropIndexStmt);
     case QUERY_NODE_CREATE_QNODE_STMT:
     case QUERY_NODE_CREATE_BNODE_STMT:
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
-      return makeNode(type, sizeof(SCreateComponentNodeStmt));
+      return sizeof(SCreateComponentNodeStmt);
     case QUERY_NODE_DROP_QNODE_STMT:
     case QUERY_NODE_DROP_BNODE_STMT:
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
-      return makeNode(type, sizeof(SDropComponentNodeStmt));
+      return sizeof(SDropComponentNodeStmt);
     case QUERY_NODE_CREATE_TOPIC_STMT:
-      return makeNode(type, sizeof(SCreateTopicStmt));
+      return sizeof(SCreateTopicStmt);
     case QUERY_NODE_DROP_TOPIC_STMT:
-      return makeNode(type, sizeof(SDropTopicStmt));
+      return sizeof(SDropTopicStmt);
     case QUERY_NODE_EXPLAIN_STMT:
-      return makeNode(type, sizeof(SExplainStmt));
+      return sizeof(SExplainStmt);
     case QUERY_NODE_DESCRIBE_STMT:
-      return makeNode(type, sizeof(SDescribeStmt));
+      return sizeof(SDescribeStmt);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
-      return makeNode(type, sizeof(SNode));
+      return sizeof(SNode);
     case QUERY_NODE_COMPACT_STMT:
       break;
     case QUERY_NODE_CREATE_FUNCTION_STMT:
-      return makeNode(type, sizeof(SCreateFunctionStmt));
+      return sizeof(SCreateFunctionStmt);
     case QUERY_NODE_DROP_FUNCTION_STMT:
-      return makeNode(type, sizeof(SDropFunctionStmt));
+      return sizeof(SDropFunctionStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
-      return makeNode(type, sizeof(SCreateStreamStmt));
+      return sizeof(SCreateStreamStmt);
     case QUERY_NODE_DROP_STREAM_STMT:
-      return makeNode(type, sizeof(SDropStreamStmt));
+      return sizeof(SDropStreamStmt);
     case QUERY_NODE_MERGE_VGROUP_STMT:
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
     case QUERY_NODE_SPLIT_VGROUP_STMT:
     case QUERY_NODE_SYNCDB_STMT:
       break;
     case QUERY_NODE_GRANT_STMT:
-      return makeNode(type, sizeof(SGrantStmt));
+      return sizeof(SGrantStmt);
     case QUERY_NODE_REVOKE_STMT:
-      return makeNode(type, sizeof(SRevokeStmt));
+      return sizeof(SRevokeStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
@@ -201,80 +192,89 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
-      return makeNode(type, sizeof(SShowStmt));
+      return sizeof(SShowStmt);
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_QUERY_STMT:
     case QUERY_NODE_KILL_TRANSACTION_STMT:
-      return makeNode(type, sizeof(SKillStmt));
+      return sizeof(SKillStmt);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return makeNode(type, sizeof(SScanLogicNode));
+      return sizeof(SScanLogicNode);
     case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return makeNode(type, sizeof(SJoinLogicNode));
+      return sizeof(SJoinLogicNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
-      return makeNode(type, sizeof(SAggLogicNode));
+      return sizeof(SAggLogicNode);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return makeNode(type, sizeof(SProjectLogicNode));
+      return sizeof(SProjectLogicNode);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
-      return makeNode(type, sizeof(SVnodeModifLogicNode));
+      return sizeof(SVnodeModifLogicNode);
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
-      return makeNode(type, sizeof(SExchangeLogicNode));
+      return sizeof(SExchangeLogicNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
-      return makeNode(type, sizeof(SWindowLogicNode));
+      return sizeof(SWindowLogicNode);
     case QUERY_NODE_LOGIC_PLAN_FILL:
-      return makeNode(type, sizeof(SFillLogicNode));
+      return sizeof(SFillLogicNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
-      return makeNode(type, sizeof(SSortLogicNode));
+      return sizeof(SSortLogicNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      return makeNode(type, sizeof(SPartitionLogicNode));
+      return sizeof(SPartitionLogicNode);
     case QUERY_NODE_LOGIC_SUBPLAN:
-      return makeNode(type, sizeof(SLogicSubplan));
+      return sizeof(SLogicSubplan);
     case QUERY_NODE_LOGIC_PLAN:
-      return makeNode(type, sizeof(SQueryLogicPlan));
+      return sizeof(SQueryLogicPlan);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-      return makeNode(type, sizeof(STagScanPhysiNode));
+      return sizeof(STagScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-      return makeNode(type, sizeof(STableScanPhysiNode));
+      return sizeof(STableScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
-      return makeNode(type, sizeof(STableSeqScanPhysiNode));
+      return sizeof(STableSeqScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return makeNode(type, sizeof(SStreamScanPhysiNode));
+      return sizeof(SStreamScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      return makeNode(type, sizeof(SSystemTableScanPhysiNode));
+      return sizeof(SSystemTableScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
-      return makeNode(type, sizeof(SProjectPhysiNode));
+      return sizeof(SProjectPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
-      return makeNode(type, sizeof(SJoinPhysiNode));
+      return sizeof(SJoinPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
-      return makeNode(type, sizeof(SAggPhysiNode));
+      return sizeof(SAggPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
-      return makeNode(type, sizeof(SExchangePhysiNode));
+      return sizeof(SExchangePhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
-      return makeNode(type, sizeof(SSortPhysiNode));
+      return sizeof(SSortPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
-      return makeNode(type, sizeof(SIntervalPhysiNode));
+      return sizeof(SIntervalPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
-      return makeNode(type, sizeof(SStreamIntervalPhysiNode));
+      return sizeof(SStreamIntervalPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
-      return makeNode(type, sizeof(SFillPhysiNode));
+      return sizeof(SFillPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
-      return makeNode(type, sizeof(SSessionWinodwPhysiNode));
+      return sizeof(SSessionWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
-      return makeNode(type, sizeof(SStateWinodwPhysiNode));
+      return sizeof(SStateWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
-      return makeNode(type, sizeof(SPartitionPhysiNode));
+      return sizeof(SPartitionPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      return makeNode(type, sizeof(SDataDispatcherNode));
+      return sizeof(SDataDispatcherNode);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
-      return makeNode(type, sizeof(SDataInserterNode));
+      return sizeof(SDataInserterNode);
     case QUERY_NODE_PHYSICAL_SUBPLAN:
-      return makeNode(type, sizeof(SSubplan));
+      return sizeof(SSubplan);
     case QUERY_NODE_PHYSICAL_PLAN:
-      return makeNode(type, sizeof(SQueryPlan));
+      return sizeof(SQueryPlan);
     default:
       break;
   }
   nodesError("nodesMakeNode unknown node = %s", nodesNodeName(type));
-  return NULL;
+  return 0;
+}
+
+SNodeptr nodesMakeNode(ENodeType type) {
+  SNode* p = taosMemoryCalloc(1, nodesNodeSize(type));
+  if (NULL == p) {
+    return NULL;
+  }
+  setNodeType(p, type);
+  return p;
 }
 
 static void destroyVgDataBlockArray(SArray* pArray) {
