@@ -240,6 +240,7 @@ typedef struct SNodeList {
 
 #define SNodeptr void*
 
+int32_t  nodesNodeSize(ENodeType type);
 SNodeptr nodesMakeNode(ENodeType type);
 void     nodesDestroyNode(SNodeptr pNode);
 
