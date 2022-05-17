@@ -112,8 +112,6 @@ class PlannerTestBaseImpl {
     reset();
     try {
       doParseSql(sql, &stmtEnv_.pQuery_, true);
-
-      dump(g_dumpModule);
     } catch (...) {
       dump(DUMP_MODULE_ALL);
       throw;
@@ -123,6 +121,15 @@ class PlannerTestBaseImpl {
   void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx) {
     try {
       doBindParams(stmtEnv_.pQuery_, pParams, colIdx);
+    } catch (...) {
+      dump(DUMP_MODULE_ALL);
+      throw;
+    }
+  }
+
+  void exec() {
+    try {
+      doParseBoundSql(stmtEnv_.pQuery_);
 
       SPlanContext cxt = {0};
       setPlanContext(stmtEnv_.pQuery_, &cxt);
@@ -140,17 +147,6 @@ class PlannerTestBaseImpl {
 
       SQueryPlan* pPlan = nullptr;
       doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
-
-      dump(g_dumpModule);
-    } catch (...) {
-      dump(DUMP_MODULE_ALL);
-      throw;
-    }
-  }
-
-  void exec() {
-    try {
-      doParseBoundSql(stmtEnv_.pQuery_);
 
       dump(g_dumpModule);
     } catch (...) {
@@ -208,11 +204,17 @@ class PlannerTestBaseImpl {
     cout << "==========================================sql : [" << stmtEnv_.sql_ << "]" << endl;
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
-      cout << "syntax tree : " << endl;
-      cout << res_.ast_ << endl;
-
-      cout << "bound syntax tree : " << endl;
-      cout << res_.boundAst_ << endl;
+      if (res_.prepareAst_.empty()) {
+        cout << "syntax tree : " << endl;
+        cout << res_.ast_ << endl;
+      } else {
+        cout << "prepare syntax tree : " << endl;
+        cout << res_.prepareAst_ << endl;
+        cout << "bound syntax tree : " << endl;
+        cout << res_.boundAst_ << endl;
+        cout << "syntax tree : " << endl;
+        cout << res_.ast_ << endl;
+      }
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_LOGIC == module) {
@@ -262,7 +264,7 @@ class PlannerTestBaseImpl {
 
     DO_WITH_THROW(qParseSql, &cxt, pQuery);
     if (prepare) {
-      res_.prepareAst_ = toString((*pQuery)->pRoot);
+      res_.prepareAst_ = toString((*pQuery)->pPrepareRoot);
     } else {
       res_.ast_ = toString((*pQuery)->pRoot);
     }
