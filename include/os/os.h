@@ -58,9 +58,6 @@ extern "C" {
 #else
 #include <winsock.h>
 #endif
-
-#define __typeof(a) auto
-
 #endif
 
 #include <errno.h>

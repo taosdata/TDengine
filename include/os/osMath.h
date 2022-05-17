@@ -23,11 +23,13 @@ extern "C" {
 #define TPOW2(x) ((x) * (x))
 #define TABS(x) ((x) > 0 ? (x) : -(x))
 
-#define TSWAP(a, b)             \
-  do {                          \
-    __typeof(a) __tmp = (a); \
-    (a) = (b);               \
-    (b) = __tmp;                \
+#define TSWAP(a, b)                              \
+  do {                                           \
+    char *__tmp = taosMemoryMalloc(sizeof(a));   \
+    memcpy(__tmp, &(a), sizeof(a));              \
+    memcpy(&(a), &(b), sizeof(a));               \
+    memcpy(&(b), __tmp, sizeof(a));              \
+    taosMemoryFree(__tmp);                       \
   } while (0)
 
 #ifdef WINDOWS

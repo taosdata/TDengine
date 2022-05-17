@@ -28,9 +28,9 @@ struct SPCache {
   SPage       lru;
 };
 
-static inline int tdbPCachePageHash(const SPgid *pPgid) {
-  u32 *t = (u32 *)((pPgid)->fileid);
-  return t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + (pPgid)->pgno;
+static inline uint32_t tdbPCachePageHash(const SPgid *pPgid) {
+  uint32_t *t = (uint32_t *)((pPgid)->fileid);
+  return (uint32_t)(t[0] + t[1] + t[2] + t[3] + t[4] + t[5] + (pPgid)->pgno);
 }
 #define PAGE_IS_PINNED(pPage) ((pPage)->pLruNext == NULL)
 

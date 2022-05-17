@@ -183,8 +183,12 @@ int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal
   if (NULL == p) {
     return TSDB_CODE_FAILED;
   }
-
+#ifdef WINDOWS
+  sscanf(p,"%lld",pVal);
+#else
+  // sscanf(p,"%ld",pVal);
   *pVal = strtol(p, NULL, 10);
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -214,8 +218,12 @@ int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pV
   if (NULL == p) {
     return TSDB_CODE_FAILED;
   }
-
+#ifdef WINDOWS
+  sscanf(p,"%llu",pVal);
+#else
+  // sscanf(p,"%ld",pVal);
   *pVal = strtoul(p, NULL, 10);
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
