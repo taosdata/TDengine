@@ -55,5 +55,8 @@ python3 ./test.py -f 2-query/arcsin.py
 python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
+python3 ./test.py -f 2-query/nestedQuery.py
 
 python3 ./test.py -f 7-tmq/basic5.py
+python3 ./test.py -f 7-tmq/subscribeDb.py
+

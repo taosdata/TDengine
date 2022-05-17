@@ -70,15 +70,15 @@ static bool    tdSetAndOpenTSmaFile(STSmaReadH *pReadH, TSKEY *queryKey);
 static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyLen, void *pData, int32_t dataLen,
                                     TXN *txn);
 // expired window
-static int32_t  tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version);
+
+
 static int32_t  tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t indexUid, int64_t winSKey,
                                      int64_t version);
 static int32_t tdResetExpiredWindow(SSma *pSma, SSmaStat *pStat, int64_t indexUid, TSKEY skey);
 static int32_t tdDropTSmaDataImpl(SSma *pSma, int64_t indexUid);
 
 // read data
-// TODO: This is the basic params, and should wrap the params to a queryHandle.
-static int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult);
+
 
 // implementation
 
@@ -713,7 +713,7 @@ static int32_t tdDropTSmaDataImpl(SSma *pSma, int64_t indexUid) {
  * @param nMaxResult The query invoker should control the nMaxResult need to return to avoid OOM.
  * @return int32_t
  */
-static int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult) {
+int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult) {
   SSmaEnv  *pEnv = atomic_load_ptr(&SMA_TSMA_ENV(pSma));
   SSmaStat *pStat = NULL;
 
@@ -834,35 +834,15 @@ static int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKE
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t tdProcessTSmaCreate(SSma *pSma, char *pMsg) {
-  #if 0
-  SSmaCfg vCreateSmaReq = {0};
-  if (!tDeserializeSVCreateTSmaReq(pMsg, &vCreateSmaReq)) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    smaWarn("vgId:%d tsma create msg received but deserialize failed since %s", SMA_VID(pSma), terrstr(terrno));
-    return -1;
-  }
+int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg) {
+  SSmaCfg *pCfg = (SSmaCfg *)pMsg;
 
-  smaDebug("vgId:%d tsma create msg %s:%" PRIi64 " for table %" PRIi64 " received", SMA_VID(pSma),
-            vCreateSmaReq.tSma.indexName, vCreateSmaReq.tSma.indexUid, vCreateSmaReq.tSma.tableUid);
-
-  // record current timezone of server side
-  vCreateSmaReq.tSma.timezoneInt = tsTimezone;
-
-  if (metaCreateTSma(SMA_META(pSma), &vCreateSmaReq) < 0) {
-    // TODO: handle error
-    smaWarn("vgId:%d tsma %s:%" PRIi64 " create failed for table %" PRIi64 " since %s", SMA_VID(pSma),
-             vCreateSmaReq.tSma.indexName, vCreateSmaReq.tSma.indexUid, vCreateSmaReq.tSma.tableUid, terrstr(terrno));
-    tdDestroyTSma(&vCreateSmaReq.tSma);
+  if (metaCreateTSma(SMA_META(pSma), version, pCfg) < 0) {
     return -1;
   }
 
   tdTSmaAdd(pSma, 1);
-
-  tdDestroyTSma(&vCreateSmaReq.tSma);
-  // TODO: return directly or go on follow steps?
-#endif
-  return TSDB_CODE_SUCCESS;
+  return 0;
 }
 
 int32_t tdDropTSma(SSma *pSma, char *pMsg) {
@@ -930,7 +910,7 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
     }
 
     // cache smaMeta
-    STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid, true);
+    STSma *pTSma = metaGetSmaInfoByIndex(SMA_META(pSma), indexUid);
     if (!pTSma) {
       terrno = TSDB_CODE_TDB_NO_SMA_INDEX_IN_META;
       taosHashCleanup(pItem->expiredWindows);
@@ -1031,25 +1011,25 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version)
 
     SSubmitBlkIter blkIter = {0};
     if (tInitSubmitBlkIter(&msgIter, pBlock, &blkIter) < 0) {
-      pSW = tdFreeTSmaWrapper(pSW);
+      pSW = tdFreeTSmaWrapper(pSW, false);
       break;
     }
 
     while (true) {
       STSRow *row = tGetSubmitBlkNext(&blkIter);
       if (!row) {
-        tdFreeTSmaWrapper(pSW);
+        pSW = tdFreeTSmaWrapper(pSW, false);
         break;
       }
-      if (!pSW || (pTSma->tableUid != pBlock->suid)) {
+      if (!pSW || (pTSma->tableUid != msgIter.suid)) {
         if (pSW) {
-          pSW = tdFreeTSmaWrapper(pSW);
+          pSW = tdFreeTSmaWrapper(pSW, false);
         }
-        if (!(pSW = metaGetSmaInfoByTable(SMA_META(pSma), pBlock->suid))) {
+        if (!(pSW = metaGetSmaInfoByTable(SMA_META(pSma), msgIter.suid, false))) {
           break;
         }
         if ((pSW->number) <= 0 || !pSW->tSma) {
-          pSW = tdFreeTSmaWrapper(pSW);
+          pSW = tdFreeTSmaWrapper(pSW, false);
           break;
         }
 
@@ -1068,6 +1048,7 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version)
       if (lastWinSKey != winSKey) {
         lastWinSKey = winSKey;
         if (tdSetExpiredWindow(pSma, pItemsHash, pTSma->indexUid, winSKey, version) < 0) {
+          pSW = tdFreeTSmaWrapper(pSW, false);
           tdUnRefSmaStat(pSma, pStat);
           return TSDB_CODE_FAILED;
         }
@@ -1082,22 +1063,4 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version)
 
   return TSDB_CODE_SUCCESS;
 }
-
-
-int32_t tdUpdateExpireWindow(SSma *pSma, SSubmitReq *pMsg, int64_t version) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if ((code = tdUpdateExpiredWindowImpl(pSma, pMsg, version)) < 0) {
-    smaWarn("vgId:%d update expired sma window failed since %s", SMA_VID(pSma), tstrerror(terrno));
-  }
-  return code;
-}
-
-int32_t tdGetTSmaData(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult) {
-  int32_t code = TSDB_CODE_SUCCESS;
-  if ((code = tdGetTSmaDataImpl(pSma, pData, indexUid, querySKey, nMaxResult)) < 0) {
-    smaWarn("vgId:%d get tSma data failed since %s", SMA_VID(pSma), tstrerror(terrno));
-  }
-  return code;
-}
-
 

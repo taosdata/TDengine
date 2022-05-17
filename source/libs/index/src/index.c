@@ -109,17 +109,15 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadMutexInit(&sIdx->mtx, NULL);
 
   sIdx->refId = indexAddRef(sIdx);
-  taosAcquireRef(indexRefMgt, sIdx->refId);
+  indexAcquireRef(sIdx->refId);
 
   *index = sIdx;
-
   return 0;
 
 END:
   if (sIdx != NULL) {
     indexClose(sIdx);
   }
-
   *index = NULL;
   return -1;
 }
@@ -273,7 +271,7 @@ SIndexTerm* indexTermCreate(int64_t suid, SIndexOperOnColumn oper, uint8_t colTy
   tm->nColName = nColName;
 
   char*   buf = NULL;
-  int32_t len = indexConvertData((void*)colVal, INDEX_TYPE_GET_TYPE(colType), (void**)&buf);
+  int32_t len = indexConvertDataToStr((void*)colVal, INDEX_TYPE_GET_TYPE(colType), (void**)&buf);
   assert(len != -1);
 
   tm->colVal = buf;
