@@ -16,27 +16,18 @@ import re
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
+from taostest.util.get_json import get_json
 class TestKeep(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
-        for env_setting in self.env_setting["settings"]:
-            if env_setting["name"].lower() == "taosd":
-                self.taosd_setting = env_setting
-                self.fqdn = self.taosd_setting["fqdn"][0]
-                
-
-    def get_vnode_json(self,db_vnode_kv_dict):
-        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"vnode/vnode{db_vnode_kv_dict[0][0]}"
-        self._remote.get(self.fqdn,f'{self.vnode_dir}/vnode.json',f'{self.run_log_dir}/vnode.json')
-        file = open(f'{self.run_log_dir}/vnode.json')
-        return file
 
     def keep_check(self):
         """
         keep check
         """
         test_param = "keep"
+        get_data = get_json(self.logger, self.run_log_dir,self.env_setting)
         # default
         default_value = "5256000,5256000,5256000"
 
@@ -48,7 +39,7 @@ class TestKeep(TDCase):
 
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(self.get_vnode_json(db_vnode_kv_dict))
+        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
         self.tdSql.execute(f'drop database {dbname}')
         # boundary
@@ -71,7 +62,7 @@ class TestKeep(TDCase):
                 self.tdSql.checkEqual(db_field_kv_dict[test_param], f'{param*60},{param*60},{param*60}')
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            data = json.load(self.get_vnode_json(db_vnode_kv_dict))
+            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
             self.tdSql.execute(f'drop database {dbname}')
         
@@ -93,7 +84,7 @@ class TestKeep(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000,52561440,52562880")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(self.get_vnode_json(db_vnode_kv_dict))
+        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2(default) > keep1 >= keep0 >= days
@@ -104,7 +95,7 @@ class TestKeep(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "52560000,52561440,52561440")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(self.get_vnode_json(db_vnode_kv_dict))
+        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
         self.tdSql.execute(f'drop database {dbname}')
         # keep2 = keep1 = keep0 = days
@@ -115,7 +106,7 @@ class TestKeep(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], "14400,14400,14400")
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        data = json.load(self.get_vnode_json(db_vnode_kv_dict))
+        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         self.tdSql.checkEqual(db_field_kv_dict[test_param],f"{data['config']['keep0']},{data['config']['keep1']},{data['config']['keep2']}")
         self.tdSql.execute(f'drop database {dbname}')
         # error
