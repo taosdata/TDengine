@@ -70,8 +70,9 @@ static int32_t dmCheckRepeatCleanup(SDnode *pDnode) {
 
 void dmCleanup() {
   dDebug("start to cleanup env");
-  if (dmCheckRepeatCleanup != 0) return;
-  dmCleanupDnode(dmInstance());
+  SDnode *pDnode = dmInstance();
+  if (dmCheckRepeatCleanup(pDnode) != 0) return;
+  dmCleanupDnode(pDnode);
   monCleanup();
   syncCleanUp();
   walCleanUp();

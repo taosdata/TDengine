@@ -392,12 +392,13 @@ static void *dmConsumParentQueue(void *param) {
       rpcSendResponse(pRsp);
     } else if (ftype == DND_FUNC_REGIST) {
       pRsp = pHead;
+      pRsp->pCont = pBody;
       dTrace("node:%s, get regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code,
              pRsp->info.handle);
       rpcRegisterBrokenLinkArg(pRsp);
-      rpcFreeCont(pBody);
     } else if (ftype == DND_FUNC_RELEASE) {
       pRsp = pHead;
+      pRsp->pCont = NULL;
       dTrace("node:%s, get release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code,
              pRsp->info.handle);
       dmRemoveProcRpcHandle(proc, pRsp->info.handle);

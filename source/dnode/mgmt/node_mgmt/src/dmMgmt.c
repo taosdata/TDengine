@@ -25,9 +25,18 @@ static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
     dDebug("node:%s, does not require startup", pWrapper->name);
   }
 
-  if (pWrapper->ntype == DNODE && pDnode->rtype != DNODE && pDnode->rtype != NODE_END) {
-    required = false;
-    dDebug("node:%s, does not require startup in child process", pWrapper->name);
+  if (pWrapper->ntype == DNODE) {
+    if (pDnode->rtype != DNODE && pDnode->rtype != NODE_END) {
+      required = false;
+      dDebug("node:%s, does not require startup in child process", pWrapper->name);
+    }
+  } else {
+    if (OnlyInChildProc(pWrapper)) {
+      if (pWrapper->ntype != pDnode->rtype) {
+        dDebug("node:%s, does not require startup in child process", pWrapper->name);
+        required = false;
+      }
+    }
   }
 
   if (required) {
@@ -111,7 +120,6 @@ static void dmClearVars(SDnode *pDnode) {
 
   taosThreadMutexDestroy(&pDnode->mutex);
   memset(&pDnode->mutex, 0, sizeof(pDnode->mutex));
-  taosMemoryFree(pDnode);
 }
 
 int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
