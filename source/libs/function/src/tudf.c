@@ -1287,7 +1287,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   task->type = UDF_TASK_SETUP;
 
   SUdfSetupRequest *req = &task->_setup.req;
-  memcpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
+  strncpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
 
   int32_t errCode = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
