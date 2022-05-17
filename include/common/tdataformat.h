@@ -32,6 +32,8 @@ typedef struct STSchema      STSchema;
 typedef struct SColVal       SColVal;
 typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
+typedef struct STagVal       STagVal;
+typedef struct STag          STag;
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
@@ -55,6 +57,13 @@ void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
 void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
 int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, uint32_t nData);
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
+
+// STag
+int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag);
+void    tTagFree(STag *pTag);
+void    tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, int32_t *nData);
+int32_t tEncodeTag(SEncoder *pEncoder, STag *pTag);
+int32_t tDecodeTag(SDecoder *pDecoder, const STag **ppTag);
 
 // STRUCT =================
 struct STColumn {
@@ -107,7 +116,14 @@ struct SColVal {
   uint8_t *pData;
 };
 
-#if 1  //====================================
+struct STagVal {
+  int16_t  cid;
+  int8_t   type;
+  uint32_t nData;
+  uint8_t *pData;
+};
+
+#if 1  //================================================================================================================================================
 // Imported since 3.0 and use bitmap to demonstrate None/Null/Norm, while use Null/Norm below 3.0 without of bitmap.
 #define TD_SUPPORT_BITMAP
 #define TD_SUPPORT_READ2

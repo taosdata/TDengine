@@ -31,6 +31,19 @@ typedef struct {
 } STSKVRow;
 #pragma pack(pop)
 
+typedef struct STagIdx {
+  int16_t  cid;
+  uint16_t offset;
+} STagIdx;
+
+#pragma pack(push, 1)
+struct STag {
+  uint16_t len;
+  uint16_t nTag;
+  STagIdx  idx[];
+};
+#pragma pack(pop)
+
 #define TSROW_IS_KV_ROW(r) ((r)->flags & TSROW_KV_ROW)
 #define BIT1_SIZE(n)       (((n)-1) / 8 + 1)
 #define BIT2_SIZE(n)       (((n)-1) / 4 + 1)
@@ -508,7 +521,96 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
   return 0;
 }
 
-#if 1  // ====================
+static FORCE_INLINE int tTagIdxCmprFn(const void *p1, const void *p2) {
+  STagIdx *pTagIdx1 = (STagIdx *)p1;
+  STagIdx *pTagIdx2 = (STagIdx *)p2;
+  if (pTagIdx1->cid < pTagIdx1->cid) {
+    return -1;
+  } else if (pTagIdx1->cid > pTagIdx1->cid) {
+    return 1;
+  }
+  return 0;
+}
+int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag) {
+  STagVal *pTagVal;
+  uint8_t *p;
+  int32_t  n;
+  uint16_t tsize = sizeof(STag) + sizeof(STagIdx) * nTag;
+
+  for (int16_t iTag = 0; iTag < nTag; iTag++) {
+    pTagVal = &pTagVals[iTag];
+
+    if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+      tsize += tPutBinary(NULL, pTagVal->pData, pTagVal->nData);
+    } else {
+      ASSERT(pTagVal->nData == TYPE_BYTES[pTagVal->type]);
+      tsize += pTagVal->nData;
+    }
+  }
+
+  (*ppTag) = (STag *)taosMemoryMalloc(tsize);
+  if (*ppTag == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  p = (uint8_t *)&((*ppTag)->idx[nTag]);
+  n = 0;
+
+  (*ppTag)->len = tsize;
+  (*ppTag)->nTag = nTag;
+  for (int16_t iTag = 0; iTag < nTag; iTag++) {
+    pTagVal = &pTagVals[iTag];
+
+    (*ppTag)->idx[iTag].cid = pTagVal->cid;
+    (*ppTag)->idx[iTag].offset = n;
+
+    if (IS_VAR_DATA_TYPE(pTagVal->type)) {
+      n += tPutBinary(p + n, pTagVal->pData, pTagVal->nData);
+    } else {
+      memcpy(p + n, pTagVal->pData, pTagVal->nData);
+      n += pTagVal->nData;
+    }
+  }
+
+  qsort((*ppTag)->idx, (*ppTag)->nTag, sizeof(STagIdx), tTagIdxCmprFn);
+  return 0;
+}
+
+void tTagFree(STag *pTag) {
+  if (pTag) taosMemoryFree(pTag);
+}
+
+void tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, int32_t *nData) {
+  STagIdx *pTagIdx = bsearch(&((STagIdx){.cid = cid}), pTag->idx, pTag->nTag, sizeof(STagIdx), tTagIdxCmprFn);
+  if (pTagIdx == NULL) {
+    *ppData = NULL;
+    *nData = 0;
+  } else {
+    uint8_t *p = (uint8_t *)&pTag->idx[pTag->nTag] + pTagIdx->offset;
+    if (IS_VAR_DATA_TYPE(type)) {
+      tGetBinary(p, ppData, nData);
+    } else {
+      *ppData = p;
+      *nData = TYPE_BYTES[type];
+    }
+  }
+}
+
+int32_t tEncodeTag(SEncoder *pEncoder, STag *pTag) {
+  // return tEncodeBinary(pEncoder, (uint8_t *)pTag, pTag->len);
+  ASSERT(0);
+  return 0;
+}
+
+int32_t tDecodeTag(SDecoder *pDecoder, const STag **ppTag) {
+  // uint32_t n;
+  // return tDecodeBinary(pDecoder, (const uint8_t **)ppTag, &n);
+  ASSERT(0);
+  return 0;
+}
+
+#if 1  // ===================================================================================================================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
 int         tdAllocMemForCol(SDataCol *pCol, int maxPoints) {
   int spaceNeeded = pCol->bytes * maxPoints;
