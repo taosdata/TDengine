@@ -79,7 +79,7 @@ SSdbRaw *mndTopicActionEncode(SMqTopicObj *pTopic) {
   }
   int32_t schemaLen = 0;
   if (pTopic->schema.nCols) {
-    taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
+    schemaLen = taosEncodeSSchemaWrapper(NULL, &pTopic->schema);
   }
   int32_t size =
       sizeof(SMqTopicObj) + physicalPlanLen + pTopic->sqlLen + pTopic->astLen + schemaLen + MND_TOPIC_RESERVE_SIZE;
