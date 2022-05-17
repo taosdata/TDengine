@@ -616,9 +616,8 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 }
 
 void udfdOnNewConnection(uv_stream_t *server, int status) {
-  fnDebug("new connection");
   if (status < 0) {
-    // TODO
+    fnError("udfd new connection error. code: %s", uv_strerror(status));
     return;
   }
 
