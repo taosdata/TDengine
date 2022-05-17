@@ -1469,7 +1469,7 @@ static SSmlHandle* smlBuildSmlInfo(TAOS* taos, SRequestObj* request, SMLProtocol
   info->pVgHash     = taosHashInit(16, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
   info->dumplicateKey = taosHashInit(32, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_NO_LOCK);
-  if(!dataFormat){
+  if(!info->dataFormat){
     info->colsContainer = taosArrayInit(32, POINTER_BYTES);
     if(NULL == info->colsContainer){
       uError("SML:0x%"PRIx64" create info failed", info->id);
