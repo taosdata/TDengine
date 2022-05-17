@@ -497,7 +497,7 @@ TEST(testCase, smlProcess_influx_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
@@ -618,7 +618,7 @@ TEST(testCase, smlParseLine_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
@@ -667,7 +667,7 @@ TEST(testCase, smlProcess_telnet_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
@@ -721,7 +721,7 @@ TEST(testCase, smlProcess_json1_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql =
@@ -790,7 +790,7 @@ TEST(testCase, smlProcess_json2_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
   const char *sql =
      "{\n"
@@ -834,7 +834,7 @@ TEST(testCase, smlProcess_json3_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
   const char *sql =
      "{\n"
@@ -906,7 +906,7 @@ TEST(testCase, smlProcess_json4_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
   const char *sql = "{\n"
      "    \"metric\": \"meter_current2\",\n"
@@ -968,7 +968,7 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   int32_t ret = 0;
@@ -1017,7 +1017,7 @@ TEST(testCase, smlParseTelnetLine_diff_type_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[2] = {
@@ -1044,7 +1044,7 @@ TEST(testCase, smlParseTelnetLine_json_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   int32_t ret = 0;
@@ -1112,7 +1112,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[2] = {
@@ -1157,7 +1157,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[2] = {
