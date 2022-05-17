@@ -81,8 +81,8 @@ int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
     syncUtilMsgHtoN(pMsg->pCont);
   }
 
-  pMsg->handle = NULL;
-  pMsg->noResp = 1;
+  pMsg->info.handle = NULL;
+  pMsg->info.noResp = 1;
   rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
   return ret;
 }

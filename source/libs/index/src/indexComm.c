@@ -305,7 +305,7 @@ int32_t indexConvertData(void* src, int8_t type, void** dst) {
       TASSERT(0);
       break;
   }
-  *dst = *dst - tlen;
+  *dst = (char*)*dst - tlen;
   // indexMayFillNumbericData(*dst, tlen);
   return tlen;
 }
@@ -368,14 +368,14 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(NULL, src, strlen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, src, strlen(src));
-      *dst = *dst - tlen;
+      *dst = (char*)*dst - tlen;
       break;
     }
     case TSDB_DATA_TYPE_VARBINARY:
       tlen = taosEncodeBinary(NULL, src, strlen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, src, strlen(src));
-      *dst = *dst - tlen;
+      *dst = (char*)*dst - tlen;
       break;
     default:
       TASSERT(0);

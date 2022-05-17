@@ -72,7 +72,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
     return -1;
   }
 
-  ret = tdbGnrtFileID(pPager->dbFileName, pPager->fid, false);
+  ret = tdbGnrtFileID(pPager->fd, pPager->fid, false);
   if (ret < 0) {
     return -1;
   }
@@ -149,7 +149,7 @@ int tdbPagerWrite(SPager *pPager, SPage *pPage) {
   if (pPage->isDirty) return 0;
 
   // ref page one more time so the page will not be release
-  TDB_REF_PAGE(pPage);
+  tdbRefPage(pPage);
 
   // Set page as dirty
   pPage->isDirty = 1;

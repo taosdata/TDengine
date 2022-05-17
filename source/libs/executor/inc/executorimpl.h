@@ -388,13 +388,15 @@ typedef struct SStreamBlockScanInfo {
   SColumnInfo* pCols;            // the output column info
   uint64_t     numOfRows;        // total scanned rows
   uint64_t     numOfExec;        // execution times
-  void*        readerHandle;     // stream block reader handle
+  void*        streamBlockReader;// stream block reader handle
   SArray*      pColMatchInfo;    //
   SNode*       pCondition;
   SArray*      tsArray;
   SUpdateInfo* pUpdateInfo;
   int32_t      primaryTsIndex;    // primary time stamp slot id
   void*        pDataReader;
+  SReadHandle  readHandle;
+  uint64_t     tableUid;         // queried super table uid
   EStreamScanMode scanMode;
   SOperatorInfo* pOperatorDumy;
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
@@ -706,9 +708,10 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
                                        SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo,
                                        const STableGroupInfo* pTableGroupInfo);
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
-SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader, SSDataBlock* pResBlock,
-                                             SArray* pColList, SArray* pTableIdList, SExecTaskInfo* pTaskInfo,
-                                             SNode* pConditions, SOperatorInfo* pOperatorDumy);
+SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader, SReadHandle* pHandle,
+                                            uint64_t uid, SSDataBlock* pResBlock, SArray* pColList,
+                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pCondition,
+                                            SOperatorInfo* pOperatorDumy);
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
                                       SInterval* pInterval, STimeWindow* pWindow, SSDataBlock* pResBlock, int32_t fillType, SNodeListNode* fillVal,

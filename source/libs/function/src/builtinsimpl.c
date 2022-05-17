@@ -112,6 +112,13 @@ typedef struct SSpreadInfo {
   double max;
 } SSpreadInfo;
 
+typedef struct SElapsedInfo {
+  double  result;
+  TSKEY   min;
+  TSKEY   max;
+  int64_t timeUnit;
+} SElapsedInfo;
+
 typedef struct SHistoFuncBin {
   double lower;
   double upper;
@@ -2494,6 +2501,116 @@ int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return functionFinalize(pCtx, pBlock);
 }
 
+bool getElapsedFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SElapsedInfo);
+  return true;
+}
+
+bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->result = 0;
+  pInfo->min = MAX_TS_KEY;
+  pInfo->max = 0;
+
+  if (pCtx->numOfParams == 3) {
+    pInfo->timeUnit = pCtx->param[1].param.i;
+  } else {
+    pInfo->timeUnit = 1;
+  }
+
+  return true;
+}
+
+int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
+  int32_t numOfElems = 0;
+
+  // Only the pre-computing information loaded and actual data does not loaded
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
+
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  numOfElems = pInput->numOfRows; //since this is the primary timestamp, no need to exclude NULL values
+  if (numOfElems == 0) {
+    goto _elapsed_over;
+  }
+
+  if (pInput->colDataAggIsSet) {
+
+    if (pInfo->min == MAX_TS_KEY) {
+      pInfo->min = GET_INT64_VAL(&pAgg->min);
+      pInfo->max = GET_INT64_VAL(&pAgg->max);
+    } else {
+      if (pCtx->order == TSDB_ORDER_ASC) {
+        pInfo->max = GET_INT64_VAL(&pAgg->max);
+      } else {
+        pInfo->min = GET_INT64_VAL(&pAgg->min);
+      }
+    }
+  } else {  // computing based on the true data block
+    if (0 == pCtx->size) {
+      if (pCtx->order == TSDB_ORDER_DESC) {
+        if (pCtx->end.key != INT64_MIN) {
+          pInfo->min = pCtx->end.key;
+        }
+      } else {
+        if (pCtx->end.key != INT64_MIN) {
+          pInfo->max = pCtx->end.key + 1;
+        }
+      }
+      goto _elapsed_over;
+    }
+
+    SColumnInfoData* pCol = pInput->pData[0];
+
+    int32_t start     = pInput->startRowIndex;
+    TSKEY* ptsList = (int64_t*)colDataGetData(pCol, start);
+    if (pCtx->order == TSDB_ORDER_DESC) {
+      if (pCtx->start.key == INT64_MIN) {
+        pInfo->max = (pInfo->max < ptsList[pCtx->size - 1]) ? ptsList[pCtx->size - 1] : pInfo->max;
+      } else {
+        pInfo->max = pCtx->start.key + 1;
+      }
+
+      if (pCtx->end.key != INT64_MIN) {
+        pInfo->min = pCtx->end.key;
+      } else {
+        pInfo->min = ptsList[0];
+      }
+    } else {
+      if (pCtx->start.key == INT64_MIN) {
+        pInfo->min = (pInfo->min > ptsList[0]) ? ptsList[0] : pInfo->min;
+      } else {
+        pInfo->min = pCtx->start.key;
+      }
+
+      if (pCtx->end.key != INT64_MIN) {
+        pInfo->max = pCtx->end.key + 1;
+      } else {
+        pInfo->max = ptsList[pCtx->size - 1];
+      }
+    }
+  }
+
+_elapsed_over:
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  double result = (double)pInfo->max - (double)pInfo->min;
+  result = (result >= 0) ? result : -result;
+  pInfo->result = result / pInfo->timeUnit;
+  return functionFinalize(pCtx, pBlock);
+}
+
 bool getHistogramFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SHistoFuncInfo) + HISTOGRAM_MAX_BINS_NUM * sizeof(SHistoFuncBin);
   return true;
@@ -3388,7 +3505,7 @@ int32_t tailFunction(SqlFunctionCtx* pCtx) {
   if (pInfo->offset >= pInput->numOfRows) {
     return 0;
   } else {
-    pInfo->numOfPoints = MIN(pInfo->numOfPoints, pInput->numOfRows - pInfo->offset);
+    pInfo->numOfPoints = TMIN(pInfo->numOfPoints, pInput->numOfRows - pInfo->offset);
   }
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex - pInfo->offset; i += 1) {
 
