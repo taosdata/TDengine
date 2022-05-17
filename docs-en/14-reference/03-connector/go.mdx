@@ -15,9 +15,9 @@ import GoOpenTSDBTelnet from "../../04-develop/03-insert-data/_go_opts_telnet.md
 import GoOpenTSDBJson from "../../04-develop/03-insert-data/_go_opts_json.mdx"
 import GoQuery from "../../04-develop/04-query-data/_go.mdx"
 
-`driver-go` is the official Go language connector for TDengine, which implements the interface to the Go language [ database/sql ](https://golang.org/pkg/database/sql/) package. Go developers can use it to develop applications that access TDengine cluster data.
+`driver-go` is the official Go language connector for TDengine, which implements the interface to the Go language [database/sql](https://golang.org/pkg/database/sql/) package. Go developers can use it to develop applications that access TDengine cluster data.
 
-`driver-go` provides two ways to establish connections. One is **native connection**, which connects to TDengine runtime instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless interface, and parameter binding interface. The other is the **REST connection**, which connects to TDengine runtime instances via the REST interface provided by taosAdapter. The set of features implemented by the REST connection differs slightly from the native connection.
+`driver-go` provides two ways to establish connections. One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The other is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The set of features implemented by the REST connection differs slightly from the native connection.
 
 This article describes how to install `driver-go` and connect to TDengine clusters and perform basic operations such as data query and data writing through `driver-go`.
 
@@ -36,7 +36,7 @@ Please refer to [version support list](/reference/connector#version support)
 
 ### Native connections
 
-A "native connection" is established by the connector directly to the TDengine runtime instance via the TDengine client driver (taosc). The supported functional features are
+A "native connection" is established by the connector directly to the TDengine instance via the TDengine client driver (taosc). The supported functional features are:
 
 * Normal queries
 * Continuous queries
@@ -46,7 +46,7 @@ A "native connection" is established by the connector directly to the TDengine r
 
 ### REST connection
 
-A "REST connection" is a connection between a connector and a TDengine runtime instance via the REST API provided by the taosAdapter component. The following features are supported.
+A "REST connection" is a connection between the application and the TDengine instance via the REST API provided by the taosAdapter component. The following features are supported:
 
 * General queries
 * Continuous queries
@@ -75,7 +75,7 @@ Configure the environment variables and check the command.
   go mod init taos-demo
   ``` text
 
-2. Introduce taosSql: ``text
+2. Introduce taosSql
 
   ```go
   import (
@@ -101,7 +101,7 @@ Configure the environment variables and check the command.
 
 ### Data source name (DSN)
 
-Data source names have a standard format, e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php), but no type prefix (square brackets indicate optionally): the
+Data source names have a standard format, e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php), but no type prefix (square brackets indicate optionally):
 
 ``` text
 [username[:password]@][protocol[(address)]]/[dbname][?param1=value1&... &paramN=valueN]
@@ -112,7 +112,8 @@ DSN in full form.
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
-### Connecting using connectors
+
+### Connecting via connector
 
 <Tabs defaultValue="native">
 <TabItem value="native" label="native connection">
@@ -121,7 +122,7 @@ _taosSql_ implements Go's `database/sql/driver` interface via cgo. You can use t
 
 Use `taosSql` as `driverName` and use a correct [DSN](#DSN) as `dataSourceName`, DSN supports the following parameters.
 
-* configPath specifies the taos.cfg directory
+* configPath specifies the `taos.cfg` directory
 
 Example.
 
@@ -210,7 +211,7 @@ func main() {
 
 ## Usage limitations
 
-Since the REST interface is stateless, the `use db` syntax will not work. You need to put the db name into the SQL statement, e.g. `create table if not exists tb1 (ts timestamp, a int)` to `create table if not exists test.tb1 (ts timestamp, a int)` otherwise it will report the error `[0x217] Database not specified or available`.
+Since the REST interface is stateless, the `use db` syntax will not work. You need to put the db name into the SQL command, e.g. `create table if not exists tb1 (ts timestamp, a int)` to `create table if not exists test.tb1 (ts timestamp, a int)` otherwise it will report the error `[0x217] Database not specified or available`.
 
 You can also put the db name in the DSN by changing `root:taosdata@http(localhost:6041)/` to `root:taosdata@http(localhost:6041)/test`. This method is supported by taosAdapter in TDengine 2.4.0.5. is supported since TDengine 2.4.0.5. Executing the `create database` statement when the specified db does not exist will not report an error while executing other queries or writing against that db will report an error.
 
@@ -268,27 +269,27 @@ func main() {
 
 1. Cannot find the package `github.com/taosdata/driver-go/v2/taosRestful`
 
-  Change the reference to `github.com/taosdata/driver-go/v2` in the require block in `go.mod` to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
+  Change the `github.com/taosdata/driver-go/v2` line in the require block of the `go.mod` file to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
 
-2. stmt (parameter binding) related interface in database/sql crashes
+2. bind interface in database/sql crashes
 
   REST does not support parameter binding related interface. It is recommended to use `db.Exec` and `db.Query`.
 
 3. error `[0x217] Database not specified or available` after executing other statements with `use db` statement
 
-  The execution of SQL statements in the REST interface is not contextual, so using `use db` statement will not work, see the usage restrictions section above.
+  The execution of SQL command in the REST interface is not contextual, so using `use db` statement will not work, see the usage restrictions section above.
 
-4. use taosSql without error use taosRestful with error `[0x217] Database not specified or available`
+4. use `taosSql` without error but use `taosRestful` with error `[0x217] Database not specified or available`
 
   Because the REST interface is stateless, using the `use db` statement will not take effect. See the usage restrictions section above.
 
 5. Upgrade `github.com/taosdata/driver-go/v2/taosRestful`
 
-  Change the reference to `github.com/taosdata/driver-go/v2` in the `go.mod` file to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
+  Change the `github.com/taosdata/driver-go/v2` line in the `go.mod` file to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
 
 6. `readBufferSize` parameter has no significant effect after being increased
 
-  If you increase `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is more petite, modifying this parameter will not improve significantly. If you increase the parameter too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value according to the actual situation to achieve the best query result.
+  If you increase `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value according to the actual situation to achieve the best query result.
 
 7. `disableCompression` parameter is set to `false` when the query efficiency is reduced
 
