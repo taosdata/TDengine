@@ -430,8 +430,6 @@ void taosFillSetStartInfo(SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey)
   pFillInfo->end = endKey;
   if (!FILL_IS_ASC_FILL(pFillInfo)) {
     pFillInfo->end = taosTimeTruncate(endKey, &pFillInfo->interval, pFillInfo->precision);
-    if (numOfRows > 0)
-      pFillInfo->currentKey = pFillInfo->end;
   }
 
   pFillInfo->index     = 0;
