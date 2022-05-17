@@ -420,7 +420,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   // get table entry
   SDecoder dc = {0};
   tDecoderInit(&dc, pData, nData);
-  metaDecodeEntry(&dc, &entry);
+  ret = metaDecodeEntry(&dc, &entry);
+  ASSERT(ret == 0);
 
   if (entry.type != TSDB_NORMAL_TABLE) {
     terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
@@ -468,11 +469,11 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         goto _err;
       }
       pSchema->sver++;
-      pSchema->nCols--;
       tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
       if (tlen) {
         memmove(pColumn, pColumn + 1, tlen);
       }
+      pSchema->nCols--;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES:
       if (pColumn == NULL) {
