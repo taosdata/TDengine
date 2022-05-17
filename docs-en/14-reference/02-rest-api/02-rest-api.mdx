@@ -2,28 +2,28 @@
 title: REST API
 ---
 
-TDengine provides an API that conforms to REST design standards to support development on various platforms, i.e., the REST API. To minimize learning costs, and unlike other databases' REST API design approaches, TDengine operates on databases directly through HTTP POST requests for SQL statements contained in the BODY, requiring only a URL. See the [video tutorial](https://www.taosdata.com/blog/2020/11/11/1965.html) to use the REST connector.
+To support the development of various types of platforms, TDengine provides an API that conforms to the REST design standard, namely REST API. To minimize the learning cost, different from the design methods of other database REST APIs, TDengine directly requests the SQL statement contained in the BODY through HTTP POST to operate the database and only requires a URL.
 
-Note: One difference from the native connector is that the RESTful interface is stateless, so the `USE db_name` directive has no effect. All references to table names and super table names need to be specified with a database name prefix. (Starting with version 2.2.0.0, RESTful supports specifying db_name in the RESTful URL, so if the database name prefix is not specified in the SQL statement, the db_name specified in the URL will be used. (db_name.)
+Note: One difference from the native connector is that the RESTful interface is stateless, so the `USE db_name` command has no effect. All references to table names and supertable names need to specify the database name prefix. (Since version 2.2.0.0, it is supported to specify db_name in RESTful URL. If the database name prefix is not specified in the SQL statement, the db_name specified in the URL will be used. Since version 2.4.0.0, RESTful is provided by taosAdapter by default. And it requires that the db_name must be specified in the URL.)
 
 ## Installation
 
-The RESTful interface does not rely on any TDengine libraries, so the client does not need to install any TDengine libraries. The client's development language supports the HTTP protocol.
+The REST interface does not rely on any TDengine native library, so the client application does not need to install any TDengine libraries. The client application's development language supports the HTTP protocol is enough.
 
 ## Verification
 
-If the TDengine server side is already installed, it can be verified as follows:
+If the TDengine server is already installed, it can be verified as follows:
 
-The following is an Ubuntu environment using the curl tool (to confirm that it is installed) to verify that the RESTful interface is working.
+The following is an Ubuntu environment using the `curl` tool (to confirm that it is installed) to verify that the REST interface is working.
 
-The following example lists all databases, replacing h1.taosdata.com and 6041 (the default) with the actual running TDengine service FQDN and port number.
+The following example lists all databases, replacing `h1.taosdata.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
 
 ```html
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;'
 h1.taosdata.com:6041/rest/sql
 ```
 
-The following return value results indicate that the validation passed.
+The following return value results indicate that the verification passed.
 
 ```json
 {
@@ -78,13 +78,13 @@ The following return value results indicate that the validation passed.
 http://<fqdn>:<port>/rest/sql/[db_name]
 ```
 
-Parameter Description.
+Parameter Description:
 
 - fqnd: FQDN or IP address of any host in the cluster
 - port: httpPort configuration item in the configuration file, default is 6041
-- db_name: Optional parameter that specifies the default database name for the executed SQL statement. (supported since version 2.2.0.0)
+- db_name: Optional parameter that specifies the default database name for the executed SQL command. (supported since version 2.2.0.0)
 
-For example, http://h1.taos.com:6041/rest/sql/test is a URL to h1.taos.com:6041 and sets the default database name to test.
+For example, `http://h1.taos.com:6041/rest/sql/test` is a URL to `h1.taos.com:6041` and sets the default database name to `test`.
 
 TDengine supports both Basic authentication and custom authentication mechanisms, and subsequent versions will provide a standard secure digital signature mechanism for authentication.
 
@@ -100,9 +100,9 @@ TDengine supports both Basic authentication and custom authentication mechanisms
   Authorization: Basic <TOKEN>
   ```
 
-The HTTP request's BODY is a complete SQL statement, and the data table in the SQL statement should be provided with a database prefix, e.g., \<db_name>. \<tb_name>. If the table name does not have a database prefix and the database name is not specified in the URL, the system will return an error because the HTTP module is a simple forwarder and has no concept of the current DB.
+The HTTP request's BODY is a complete SQL command, and the data table in the SQL statement should be provided with a database prefix, e.g., `\<db_name>.\<tb_name>`. If the table name does not have a database prefix and the database name is not specified in the URL, the system will response an error because the HTTP module is a simple forwarder and has no awareness of the current DB.
 
-Use curl to initiate an HTTP Request with a custom authentication method, with the following syntax.
+Use `curl` to initiate an HTTP request with a custom authentication method, with the following syntax.
 
 ```bash
 curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
@@ -114,11 +114,11 @@ Or
 curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 ```
 
-where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.g. `root:taosdata` is encoded as `cm9vdDp0YW9zZGF0YQ==`
+where `TOKEN` is the string after Base64 encoding of `{username}:{password}`, e.g. `root:taosdata` is encoded as `cm9vdDp0YW9zZGF0YQ==`.
 
 ## HTTP Return Format
 
-The return value is in JSON format, as follows:
+The return result is in JSON format, as follows:
 
 ```json
 {
@@ -133,10 +133,10 @@ The return value is in JSON format, as follows:
 }
 ```
 
-Description.
+Description:
 
 - status: tell if the operation result is success or failure.
-- head: the definition of the table, or just one column "affected_rows" if no result set is returned. (As of version 2.0.17.0, it is recommended not to rely on the head return value to determine the data column type but rather use column_meta. In future versions, the head item may be removed from the return value.)
+- head: the definition of the table, or just one column "affected_rows" if no result set is returned. (As of version 2.0.17.0, it is recommended not to rely on the head return value to determine the data column type but rather use column_meta. In later versions, the head item may be removed from the return value.)
 - column_meta: this item is added to the return value to indicate the data type of each column in the data with version 2.0.17.0 and later versions. Each column is described by three values: column name, column type, and type length. For example, `["current",6,4]` means that the column name is "current", the column type is 6, which is the float type, and the type length is 4, which is the float type with 4 bytes. If the column type is binary or nchar, the type length indicates the maximum length of content stored in the column, not the length of the specific data in this return value. When the column type is nchar, the type length indicates the number of Unicode characters that can be saved, not bytes.
 - data: The exact data returned, presented row by row, or just [[affected_rows]] if no result set is returned. The order of the data columns in each row of data is the same as that of the data columns described in column_meta.
 - rows: Indicates how many rows of data there are.
@@ -302,6 +302,6 @@ Only some configuration parameters related to the RESTful interface are listed b
 - httpDbNameMandatory: users must specify the default database name in the RESTful URL. The default is 0, which turns off this check. If set to 1, users must put a default database name in every RESTful URL. Otherwise, it will return an execution error and reject this SQL statement, regardless of whether the SQL statement executed at this time requires a specified database.
 
 :::note 
-If you are using the REST API provided by taosd, you should write the above configuration in taosd's configuration file taos.cfg. If you use the REST API of taosAdaper, you need to refer to taosAdaper [corresponding configuration method](/reference/taosadapter/).
+If you are using the REST API provided by taosd, you should write the above configuration in taosd's configuration file taos.cfg. If you use the REST API of taosAdapter, you need to refer to taosAdapter [corresponding configuration method](/reference/taosadapter/).
 
 :::
