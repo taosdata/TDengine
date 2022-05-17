@@ -4246,7 +4246,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  int32_t numOfRows = 10;
+  int32_t numOfRows = 1024;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
   initResultSizeInfo(pOperator, numOfRows);
