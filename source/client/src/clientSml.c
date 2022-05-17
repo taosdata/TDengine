@@ -663,12 +663,12 @@ static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg){
 static bool smlParseBool(SSmlKv *kvVal) {
   const char *pVal = kvVal->value;
   int32_t len = kvVal->length;
-  if ((len == 1) && pVal[0] == 't') {
+  if ((len == 1) && (pVal[0] == 't' || pVal[0] == 'T')) {
     kvVal->i = true;
     return true;
   }
 
-  if ((len == 1) && pVal[0] == 'f') {
+  if ((len == 1) && (pVal[0] == 'f' || pVal[0] == 'F')) {
     kvVal->i = false;
     return true;
   }
@@ -2344,7 +2344,7 @@ TAOS_RES* taos_schemaless_insert(TAOS* taos, char* lines[], int numLines, int pr
     goto end;
   }
 
-  if(protocol == TSDB_SML_LINE_PROTOCOL && (precision < TSDB_SML_TIMESTAMP_HOURS || precision > TSDB_SML_TIMESTAMP_NANO_SECONDS)){
+  if(protocol == TSDB_SML_LINE_PROTOCOL && (precision < TSDB_SML_TIMESTAMP_NOT_CONFIGURED || precision > TSDB_SML_TIMESTAMP_NANO_SECONDS)){
     request->code = TSDB_CODE_SML_INVALID_PRECISION_TYPE;
     smlBuildInvalidDataMsg(&info->msgBuf, "precision invalidate for line protocol", NULL);
     goto end;
