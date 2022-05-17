@@ -62,13 +62,15 @@ void    tTSchemaDestroy(STSchema *pTSchema);
 // STSRow2
 int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
 int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
+int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
+int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
 
 // STSRowBuilder
 int32_t tTSRowBuilderInit(STSRowBuilder *pBuilder, int32_t sver, SSchema *pSchema, int32_t nCols);
 void    tTSRowBuilderClear(STSRowBuilder *pBuilder);
 void    tTSRowBuilderReset(STSRowBuilder *pBuilder);
-int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pData, uint32_t nData);
+int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, uint32_t nData);
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 
 // STRUCT =================

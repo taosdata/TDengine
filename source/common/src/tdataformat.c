@@ -127,7 +127,7 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
       COL_VAL_SET_NULL(pColVal);
     } else {
       p = pRow->pData + sizeof(STSKVRow) + sizeof(SKVIdx) * pTSKVRow->nCols + pKVIdx->offset;
-      tGetBinary(p, &p, &n);
+      // tGetBinary(p, &p, &n); (todo)
       COL_VAL_SET_VAL(pColVal, p, n);
     }
   } else {
@@ -181,7 +181,7 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
     // get real value
     p = p + pTColumn->offset;
     if (IS_VAR_DATA_TYPE(pTColumn->type)) {
-      tGetBinary(p + pTSchema->flen + *(int32_t *)p, &p, &n);
+      // tGetBinary(p + pTSchema->flen + *(int32_t *)p, &p, &n); (todo)
     } else {
       n = pTColumn->bytes;
     }
@@ -283,7 +283,7 @@ void tTSRowBuilderReset(STSRowBuilder *pBuilder) {
   pBuilder->row.flags = 0;
 }
 
-int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, const uint8_t *pData, uint32_t nData) {
+int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, uint32_t nData) {
   STColumn *pTColumn = &pBuilder->pTSchema->columns[pBuilder->iCol];
   uint8_t  *p;
   int32_t   iCol;
