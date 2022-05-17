@@ -10,7 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## Quick Install
 
-The full package of TDengine includes server(taosd), taosAdapter for connecting with third-party systems and providing RESTful interface, client driver(taosc), command line program(CLI, taos) and some tools. For current version, the server taosd and taosAdapter can only be installed and run on Linux systems, and will support Windows, macOS and other systems in the future. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to the RESTful interface, TDengine also provides connectors for a number of programming languages. In versions before 2.4, there is no taosAdapter, and the RESTfule interface is provided by the built-in http service of taosd.
+The full package of TDengine includes server(taosd), taosAdapter for connecting with third-party systems and providing RESTful interface, client driver(taosc), command-line program(CLI, taos) and some tools. For current version, the server taosd and taosAdapter can only be installed and run on Linux systems, and will support Windows, macOS and other systems in the future. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to the RESTful interface, TDengine also provides connectors for a number of programming languages. In versions before 2.4, there is no taosAdapter, and the RESTfule interface is provided by the built-in http service of taosd.
 
 TDengine supports X64/ARM64/MIPS64/Alpha64 hardware platforms, and will support ARM32, RISC-V and other CPU architectures in the future.
 
@@ -71,7 +71,7 @@ Check if taosd is running：
 systemctl status taosd
 ```
 
-If everything is fine，you can run TDengine command line interface `taos` to access TDengine and play around it.
+If everything is fine，you can run TDengine command-line interface `taos` to access TDengine and play around it.
 
 :::info
 
@@ -132,7 +132,7 @@ This command will create a super table "meters" under database "test". Unde "met
 
 This command will insert 100 million rows into database quickly. Depends on the hardware configuration, it only takes a dozen seconds for a regular PC server.            
 
-taosBenchmark provides you command line options and confuguration file to customize the scenarios, like number of tables, number of rows per table, number of columns and more. Please execute `taosBenchmark --help` to list them. For details on running taosBenchmark, please check [reference for taosBenchmark](/reference/taosbenchmark)
+taosBenchmark provides you command-line options and confuguration file to customize the scenarios, like number of tables, number of rows per table, number of columns and more. Please execute `taosBenchmark --help` to list them. For details on running taosBenchmark, please check [reference for taosBenchmark](/reference/taosbenchmark)
 
 ## Experience query speed
            

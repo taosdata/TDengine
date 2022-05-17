@@ -21,9 +21,9 @@ There are two ways to install taosBenchmark:
 
 ### Configuration and running methods
 
-taosBenchmark supports two configuration methods: [command line arguments](# command line arguments detailed) and [JSON configuration file](# configuration file arguments detailed). These two methods are mutually exclusive, and with only one command line parameter, users can use `-f <json file>` to specify a configuration file when using a configuration file. When running taosBenchmark with command-line arguments and controlling its behavior, users should use other parameters for configuration rather than `-f` parameter. In addition, taosBenchmark offers a special way of running without parameters.
+taosBenchmark supports two configuration methods: [Command-line arguments](#Command-line arguments in detailed) and [JSON configuration file](#Configuration file arguments in detailed). These two methods are mutually exclusive, and with only one command-line parameter, users can use `-f <json file>` to specify a configuration file when using a configuration file. When running taosBenchmark with command-line arguments and controlling its behavior, users should use other parameters for configuration rather than `-f` parameter. In addition, taosBenchmark offers a special way of running without parameters.
 
-taosBenchmark supports complete performance testing of TDengine. taosBenchmark supports the TDengine functions in three categories: write, query, and subscribe. These three functions are mutually exclusive, and users can select only one of them each time taosBenchmark runs. It is important to note that the type of functionality to be tested is not configurable when using the command line configuration method, which can only test writing performance. To test the query and subscription performance of the TDengine, you must use the configuration file method and specify the function type to test via the parameter `filetype` in the configuration file.
+taosBenchmark supports complete performance testing of TDengine. taosBenchmark supports the TDengine functions in three categories: write, query, and subscribe. These three functions are mutually exclusive, and users can select only one of them each time taosBenchmark runs. It is important to note that the type of functionality to be tested is not configurable when using the command-line configuration method, which can only test writing performance. To test the query and subscription performance of the TDengine, you must use the configuration file method and specify the function type to test via the parameter `filetype` in the configuration file.
 
 **Make sure that the TDengine cluster is running correctly before running taosBenchmark. **
 
@@ -37,9 +37,9 @@ taosBenchmark
 
 When run without parameters, taosBenchmark connects to the TDengine cluster specified in `/etc/taos` by default and creates a database named test in TDengine, a super table named `meters` under the test database, and 10,000 tables under the super table with 10,000 records written to each table. Note that if there is already a test database, this table is not used. Note that if there is already a test database, this command will delete it first and create a new test database.
 
-### Run with command line configuration parameters
+### Run with command-line configuration parameters
 
-The `-f <json file>` argument cannot be used when running taosBenchmark with command-line parameters and controlling its behavior. Users must specify all configuration parameters from the command line. The following is an example of testing taosBenchmark writing performance using the command line approach.
+The `-f <json file>` argument cannot be used when running taosBenchmark with command-line parameters and controlling its behavior. Users must specify all configuration parameters from the command-line. The following is an example of testing taosBenchmark writing performance using the command-line approach.
 
 ```bash
 taosBenchmark -I stmt -n 200 -t 100
@@ -51,7 +51,7 @@ The above command, `taosBenchmark` will create a database named `test`, create a
 
 A sample configuration file is provided in the taosBenchmark installation package under `<install_directory>/examples/taosbenchmark-json`.
 
-Use the following command line to run taosBenchmark and control its behavior via a configuration file.
+Use the following command-line to run taosBenchmark and control its behavior via a configuration file.
 
 ```bash
 taosBenchmark -f <json file>
@@ -81,7 +81,7 @@ taosBenchmark -f <json file>
 
 </details>
 
-#### 订阅场景 JSON 配置文件示例
+#### Subscription JSON configuration example
 
 <details>
 <summary>subscribe.json</summary>
@@ -92,10 +92,10 @@ taosBenchmark -f <json file>
 
 </details>
 
-## Command Line Parameters Explained
+## Command-line argument in detailed
 
 - **-f/--file <json file\>** :
-  specify the configuration file to use. This file includes All parameters. And users should not use this parameter with other parameters on the command line. There is no default value.
+  specify the configuration file to use. This file includes All parameters. And users should not use this parameter with other parameters on the command-line. There is no default value.
 
 - **-c/--config-dir <dir\>** :
   specify the directory where the TDengine cluster configuration file. the default path is `/etc/taos`.
@@ -204,7 +204,7 @@ taosBenchmark -A INT,DOUBLE,NCHAR,BINARY\(16\)
 - **-? /--help** :
   Show help information and exit. Users should not use it with other parameters.
 
-## Configuration file parameters in detail
+## Configuration file parameters in detailed
 
 ### General configuration parameters
 
