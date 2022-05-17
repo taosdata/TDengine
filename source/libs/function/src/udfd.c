@@ -809,7 +809,6 @@ static int32_t udfdRun() {
   fnInfo("udfd stopped. result: %s, code: %d", uv_err_name(code), code);
   int codeClose = uv_loop_close(global.loop);
   fnDebug("uv loop close. result: %s", uv_err_name(codeClose));
-  removeListeningPipe();
   uv_mutex_destroy(&global.udfsMutex);
   taosHashCleanup(global.udfsHash);
   return 0;
@@ -859,6 +858,7 @@ int main(int argc, char *argv[]) {
 
   udfdRun();
 
-  udfdCloseClientRpc();
+  removeListeningPipe();
 
+  udfdCloseClientRpc();
 }
