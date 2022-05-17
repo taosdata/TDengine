@@ -529,6 +529,18 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyNode(pStmt->pTbNamePattern);
       break;
     }
+    case QUERY_NODE_QUERY: {
+      SQuery* pQuery = (SQuery*)pNode;
+      nodesDestroyNode(pQuery->pRoot);
+      taosMemoryFreeClear(pQuery->pResSchema);
+      if (NULL != pQuery->pCmdMsg) {
+        taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
+        taosMemoryFreeClear(pQuery->pCmdMsg);
+      }
+      taosArrayDestroy(pQuery->pDbList);
+      taosArrayDestroy(pQuery->pTableList);
+      break;
+    }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
       SScanLogicNode* pLogicNode = (SScanLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);

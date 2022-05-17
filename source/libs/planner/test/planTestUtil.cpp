@@ -108,6 +108,57 @@ class PlannerTestBaseImpl {
     }
   }
 
+  void prepare(const string& sql) {
+    reset();
+    try {
+      doParseSql(sql, &stmtEnv_.pQuery_, true);
+
+      dump(g_dumpModule);
+    } catch (...) {
+      dump(DUMP_MODULE_ALL);
+      throw;
+    }
+  }
+
+  void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx) {
+    try {
+      doBindParams(stmtEnv_.pQuery_, pParams, colIdx);
+
+      SPlanContext cxt = {0};
+      setPlanContext(stmtEnv_.pQuery_, &cxt);
+
+      SLogicNode* pLogicNode = nullptr;
+      doCreateLogicPlan(&cxt, &pLogicNode);
+
+      doOptimizeLogicPlan(&cxt, pLogicNode);
+
+      SLogicSubplan* pLogicSubplan = nullptr;
+      doSplitLogicPlan(&cxt, pLogicNode, &pLogicSubplan);
+
+      SQueryLogicPlan* pLogicPlan = nullptr;
+      doScaleOutLogicPlan(&cxt, pLogicSubplan, &pLogicPlan);
+
+      SQueryPlan* pPlan = nullptr;
+      doCreatePhysiPlan(&cxt, pLogicPlan, &pPlan);
+
+      dump(g_dumpModule);
+    } catch (...) {
+      dump(DUMP_MODULE_ALL);
+      throw;
+    }
+  }
+
+  void exec() {
+    try {
+      doParseBoundSql(stmtEnv_.pQuery_);
+
+      dump(g_dumpModule);
+    } catch (...) {
+      dump(DUMP_MODULE_ALL);
+      throw;
+    }
+  }
+
  private:
   struct caseEnv {
     string acctId_;
@@ -117,10 +168,15 @@ class PlannerTestBaseImpl {
   struct stmtEnv {
     string            sql_;
     array<char, 1024> msgBuf_;
+    SQuery*           pQuery_;
+
+    ~stmtEnv() { qDestroyQuery(pQuery_); }
   };
 
   struct stmtRes {
     string         ast_;
+    string         prepareAst_;
+    string         boundAst_;
     string         rawLogicPlan_;
     string         optimizedLogicPlan_;
     string         splitLogicPlan_;
@@ -132,8 +188,10 @@ class PlannerTestBaseImpl {
   void reset() {
     stmtEnv_.sql_.clear();
     stmtEnv_.msgBuf_.fill(0);
+    qDestroyQuery(stmtEnv_.pQuery_);
 
     res_.ast_.clear();
+    res_.boundAst_.clear();
     res_.rawLogicPlan_.clear();
     res_.optimizedLogicPlan_.clear();
     res_.splitLogicPlan_.clear();
@@ -152,6 +210,9 @@ class PlannerTestBaseImpl {
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       cout << "syntax tree : " << endl;
       cout << res_.ast_ << endl;
+
+      cout << "bound syntax tree : " << endl;
+      cout << res_.boundAst_ << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_LOGIC == module) {
@@ -187,7 +248,7 @@ class PlannerTestBaseImpl {
     }
   }
 
-  void doParseSql(const string& sql, SQuery** pQuery) {
+  void doParseSql(const string& sql, SQuery** pQuery, bool prepare = false) {
     stmtEnv_.sql_ = sql;
     transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
 
@@ -200,7 +261,31 @@ class PlannerTestBaseImpl {
     cxt.msgLen = stmtEnv_.msgBuf_.max_size();
 
     DO_WITH_THROW(qParseSql, &cxt, pQuery);
-    res_.ast_ = toString((*pQuery)->pRoot);
+    if (prepare) {
+      res_.prepareAst_ = toString((*pQuery)->pRoot);
+    } else {
+      res_.ast_ = toString((*pQuery)->pRoot);
+    }
+  }
+
+  void doBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
+    DO_WITH_THROW(qStmtBindParams, pQuery, pParams, colIdx);
+    if (colIdx < 0 || pQuery->placeholderNum == colIdx + 1) {
+      res_.boundAst_ = toString(pQuery->pRoot);
+    }
+  }
+
+  void doParseBoundSql(SQuery* pQuery) {
+    SParseContext cxt = {0};
+    cxt.acctId = atoi(caseEnv_.acctId_.c_str());
+    cxt.db = caseEnv_.db_.c_str();
+    cxt.pSql = stmtEnv_.sql_.c_str();
+    cxt.sqlLen = stmtEnv_.sql_.length();
+    cxt.pMsg = stmtEnv_.msgBuf_.data();
+    cxt.msgLen = stmtEnv_.msgBuf_.max_size();
+
+    DO_WITH_THROW(qStmtParseQuerySql, &cxt, pQuery);
+    res_.ast_ = toString(pQuery->pRoot);
   }
 
   void doCreateLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode) {
@@ -275,3 +360,11 @@ PlannerTestBase::~PlannerTestBase() {}
 void PlannerTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
 
 void PlannerTestBase::run(const std::string& sql) { return impl_->run(sql); }
+
+void PlannerTestBase::prepare(const std::string& sql) { return impl_->prepare(sql); }
+
+void PlannerTestBase::bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx) {
+  return impl_->bindParams(pParams, colIdx);
+}
+
+void PlannerTestBase::exec() { return impl_->exec(); }

@@ -39,10 +39,16 @@ static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = authenticate(pCxt, *pQuery);
   }
-  if (TSDB_CODE_SUCCESS == code && 0 == (*pQuery)->placeholderNum) {
+
+  if (TSDB_CODE_SUCCESS == code && (*pQuery)->placeholderNum > 0) {
+    // TSWAP((*pQuery)->pContainPlaceholderRoot, (*pQuery)->pRoot);
+    return TSDB_CODE_SUCCESS;
+  }
+
+  if (TSDB_CODE_SUCCESS == code) {
     code = translate(pCxt, *pQuery);
   }
-  if (TSDB_CODE_SUCCESS == code && 0 == (*pQuery)->placeholderNum) {
+  if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, *pQuery);
   }
   return code;
@@ -142,26 +148,13 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   return code;
 }
 
-void qDestroyQuery(SQuery* pQueryNode) {
-  if (NULL == pQueryNode) {
-    return;
-  }
-  nodesDestroyNode(pQueryNode->pRoot);
-  taosMemoryFreeClear(pQueryNode->pResSchema);
-  if (NULL != pQueryNode->pCmdMsg) {
-    taosMemoryFreeClear(pQueryNode->pCmdMsg->pMsg);
-    taosMemoryFreeClear(pQueryNode->pCmdMsg);
-  }
-  taosArrayDestroy(pQueryNode->pDbList);
-  taosArrayDestroy(pQueryNode->pTableList);
-  taosMemoryFreeClear(pQueryNode);
-}
+void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   return extractResultSchema(pRoot, numOfCols, pSchema);
 }
 
-int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId) {
+int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {
   int32_t code = TSDB_CODE_SUCCESS;
 
   if (colIdx < 0) {
@@ -184,6 +177,6 @@ int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery) {
   if (TSDB_CODE_SUCCESS == code) {
     code = calculateConstant(pCxt, pQuery);
   }
-  
+
   return code;
 }
