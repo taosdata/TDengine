@@ -24,7 +24,6 @@ extern "C" {
 
 typedef struct SMetaIdx    SMetaIdx;
 typedef struct SMetaDB     SMetaDB;
-typedef struct SMSmaCursor SMSmaCursor;
 
 // metaDebug ==================
 // clang-format off
@@ -114,22 +113,12 @@ typedef struct {
   int64_t  smaUid;
 } SSmaIdxKey;
 
-#if 1
-
-SMSmaCursor* metaOpenSmaCursor(SMeta* pMeta, tb_uid_t uid);
-void         metaCloseSmaCursor(SMSmaCursor* pSmaCur);
-int64_t      metaSmaCursorNext(SMSmaCursor* pSmaCur);
-
 #ifndef META_REFACT
 // SMetaDB
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);
 int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
 int metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
-int metaSaveSmaToDB(SMeta* pMeta, STSma* pTbCfg);
-int metaRemoveSmaFromDb(SMeta* pMeta, int64_t indexUid);
-#endif
-
 #endif
 
 #ifdef __cplusplus
