@@ -42,7 +42,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + 3;
+  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + 3;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
