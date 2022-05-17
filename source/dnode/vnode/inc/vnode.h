@@ -196,6 +196,8 @@ struct SMetaEntry {
       STSma *tsma;
     } smaEntry;
   };
+
+  uint8_t *pBuf;
 };
 
 struct SMetaReader {
