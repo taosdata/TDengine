@@ -16,11 +16,11 @@
 
 typedef struct STestMsg {
   uint16_t msgType;
-  void    *pCont;
+  void *   pCont;
   int      contLen;
   int32_t  code;
-  void    *handle;         // rpc handle returned to app
-  void    *ahandle;        // app handle set by client
+  void *   handle;         // rpc handle returned to app
+  void *   ahandle;        // app handle set by client
   int      noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int      persistHandle;  // persist handle or not
 } STestMsg;
@@ -37,7 +37,7 @@ class UtilTesProc : public ::testing::Test {
     head.msgType = 2;
     head.noResp = 3;
     head.persistHandle = 4;
-
+    tsRpcQueueMemoryAllowed = 1024 * 1024 * 64;
     taosRemoveDir("/tmp/td");
     taosMkDir("/tmp/td");
     tstrncpy(tsLogDir, "/tmp/td", PATH_MAX);
@@ -64,18 +64,18 @@ TEST_F(UtilTesProc, 00_Init_Cleanup) {
 
   shm.size = 1023;
   SProcCfg  cfg = {(ProcConsumeFp)NULL,
-                   (ProcMallocFp)taosAllocateQitem,
-                   (ProcFreeFp)taosFreeQitem,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryMalloc,
-                   (ProcConsumeFp)NULL,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryMalloc,
-                   shm,
-                   &shm,
-                   "1234"};
+                  (ProcMallocFp)taosAllocateQitem,
+                  (ProcFreeFp)taosFreeQitem,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryMalloc,
+                  (ProcConsumeFp)NULL,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryMalloc,
+                  shm,
+                  &shm,
+                  "1234"};
   SProcObj *proc = taosProcInit(&cfg);
   ASSERT_EQ(proc, nullptr);
 
@@ -105,18 +105,18 @@ TEST_F(UtilTesProc, 01_Push_Pop_Child) {
   shm.size = 3000;
   ASSERT_EQ(taosCreateShm(&shm, 1235, shm.size), 0);
   SProcCfg  cfg = {(ProcConsumeFp)ConsumeChild1,
-                   (ProcMallocFp)taosAllocateQitem,
-                   (ProcFreeFp)taosFreeQitem,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   (ProcConsumeFp)NULL,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   shm,
-                   (void *)((int64_t)1235),
-                   "1235_c"};
+                  (ProcMallocFp)taosAllocateQitem,
+                  (ProcFreeFp)taosFreeQitem,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  (ProcConsumeFp)NULL,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  shm,
+                  (void *)((int64_t)1235),
+                  "1235_c"};
   SProcObj *cproc = taosProcInit(&cfg);
   ASSERT_NE(cproc, nullptr);
 
@@ -163,18 +163,18 @@ TEST_F(UtilTesProc, 02_Push_Pop_Parent) {
   shm.size = 3000;
   ASSERT_EQ(taosCreateShm(&shm, 1236, shm.size), 0);
   SProcCfg  cfg = {(ProcConsumeFp)NULL,
-                   (ProcMallocFp)taosAllocateQitem,
-                   (ProcFreeFp)taosFreeQitem,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   (ProcConsumeFp)ConsumeParent1,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   shm,
-                   (void *)((int64_t)1236),
-                   "1236_c"};
+                  (ProcMallocFp)taosAllocateQitem,
+                  (ProcFreeFp)taosFreeQitem,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  (ProcConsumeFp)ConsumeParent1,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  shm,
+                  (void *)((int64_t)1236),
+                  "1236_c"};
   SProcObj *cproc = taosProcInit(&cfg);
   ASSERT_NE(cproc, nullptr);
 
@@ -217,18 +217,18 @@ TEST_F(UtilTesProc, 03_Handle) {
   shm.size = 3000;
   ASSERT_EQ(taosCreateShm(&shm, 1237, shm.size), 0);
   SProcCfg  cfg = {(ProcConsumeFp)ConsumeChild3,
-                   (ProcMallocFp)taosAllocateQitem,
-                   (ProcFreeFp)taosFreeQitem,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   (ProcConsumeFp)NULL,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   (ProcMallocFp)taosMemoryMalloc,
-                   (ProcFreeFp)taosMemoryFree,
-                   shm,
-                   (void *)((int64_t)1235),
-                   "1237_p"};
+                  (ProcMallocFp)taosAllocateQitem,
+                  (ProcFreeFp)taosFreeQitem,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  (ProcConsumeFp)NULL,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  (ProcMallocFp)taosMemoryMalloc,
+                  (ProcFreeFp)taosMemoryFree,
+                  shm,
+                  (void *)((int64_t)1235),
+                  "1237_p"};
   SProcObj *cproc = taosProcInit(&cfg);
   ASSERT_NE(cproc, nullptr);
 
@@ -236,7 +236,8 @@ TEST_F(UtilTesProc, 03_Handle) {
     int32_t i = 0;
     for (i = 0; i < 20; ++i) {
       head.handle = (void *)((int64_t)i);
-      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, (void *)((int64_t)i), i, PROC_FUNC_REQ), 0);
+      ASSERT_EQ(taosProcPutToChildQ(cproc, &head, sizeof(STestMsg), body, i, (void *)((int64_t)i), i, PROC_FUNC_REQ),
+                0);
     }
 
     cfg.isChild = true;
@@ -247,7 +248,7 @@ TEST_F(UtilTesProc, 03_Handle) {
     taosProcCleanup(pproc);
 
     int64_t ref = 0;
-    
+
     ref = taosProcRemoveHandle(cproc, (void *)((int64_t)3));
     EXPECT_EQ(ref, 3);
     ref = taosProcRemoveHandle(cproc, (void *)((int64_t)5));

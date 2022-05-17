@@ -325,6 +325,7 @@ typedef struct SQuery {
   bool           showRewrite;
   int32_t        placeholderNum;
   SArray*        pPlaceholderValues;
+  SNode*         pContainPlaceholderRoot;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
