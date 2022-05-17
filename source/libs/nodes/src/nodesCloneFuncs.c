@@ -74,11 +74,13 @@ static void dataTypeCopy(const SDataType* pSrc, SDataType* pDst) {}
 
 static SNode* exprNodeCopy(const SExprNode* pSrc, SExprNode* pDst) {
   dataTypeCopy(&pSrc->resType, &pDst->resType);
+  pDst->pAssociation = NULL;
   return (SNode*)pDst;
 }
 
 static SNode* columnNodeCopy(const SColumnNode* pSrc, SColumnNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, exprNodeCopy);
+  pDst->pProjectRef = NULL;
   return (SNode*)pDst;
 }
 
@@ -227,6 +229,7 @@ static SNode* logicNodeCopy(const SLogicNode* pSrc, SLogicNode* pDst) {
   CLONE_NODE_LIST_FIELD(pTargets);
   CLONE_NODE_FIELD(pConditions);
   CLONE_NODE_LIST_FIELD(pChildren);
+  pDst->pParent = NULL;
   return (SNode*)pDst;
 }
 
@@ -261,6 +264,8 @@ static SNode* logicProjectCopy(const SProjectLogicNode* pSrc, SProjectLogicNode*
 
 static SNode* logicVnodeModifCopy(const SVnodeModifLogicNode* pSrc, SVnodeModifLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
+  pDst->pDataBlocks = NULL;
+  pDst->pVgDataBlocks = NULL;
   return (SNode*)pDst;
 }
 
@@ -297,6 +302,9 @@ static SNode* logicPartitionCopy(const SPartitionLogicNode* pSrc, SPartitionLogi
 
 static SNode* logicSubplanCopy(const SLogicSubplan* pSrc, SLogicSubplan* pDst) {
   CLONE_NODE_FIELD(pNode);
+  pDst->pChildren = NULL;
+  pDst->pParents = NULL;
+  pDst->pVgroupList = NULL;
   return (SNode*)pDst;
 }
 
