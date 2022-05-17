@@ -11,16 +11,14 @@ TDengine provides a rich set of APIs (application development interface). To fac
 Currently, TDengine's native interface connectors can support platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha hardware platforms and Linux/Win64/Win32 development environments. The comparison matrix is as follows.
 
 | **CPU** | **OS** | **JDBC** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
-| -------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
-| | **X86 64bit** | **Linux** | ● | ● | ● | ● | ● | ● | ● | ●
-| **X86 64bit** | **Win64** | ● | ● | ● | ● | ● | ● | ● | ●
-| **X86 64bit** | **Win32** | ● | ● ● | ○ | ○ | ●
-| **X86 32bit** | **Win32** | ○ | ○ | ○ | ○ | ○ | ●
-| **ARM64** | **Linux** | ● | ● ● | ○ | ○ | ●
-| **ARM32** | **Linux** | ● ● ● ● ● ● | ○ | ○ | ●
-| **MIPS Longcore** | **Linux** | ○ | ○ | ○ | ○ | ○ | ○ | ○
-| **Alpha Shenwei** | **Linux** | ○ | ○ ○ | -- | -- | --- | --- | ○ |
-| **X86 Haiguang** | **Linux** | ○ | ○ | ○ | -- | -- | --- | ○ |
+| ------- | ------ | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
+| **X86 64bit** | **Linux** | ● | ● | ● | ● | ● | ● | ● |
+| **X86 64bit** | **Win64** | ● | ● | ● | ● | ● | ● | ● |
+| **X86 64bit** | **Win32** | ● | ● | ● | ● | ○ | ○ | ● |
+| **X86 32bit** | **Win32** | ○ | ○ | ○ | ○ | ○ | ○ | ● |
+| **ARM64** | **Linux** | ● | ● | ● | ● | ○ | ○ | ● |
+| **ARM32** | **Linux** | ● | ● | ● | ● | ○ | ○ | ● |
+| **MIPS** | **Linux** | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 
 Where ● means the official test verification passed, ○ means the unofficial test verification passed, -- means no assurance.
 
@@ -46,12 +44,12 @@ Comparing the connector support for TDengine functional features as follows.
 
 | **Functional Features** | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
 | -------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | Support | Support | Support | Support |
-| **Regular Query** | Support | Support | Support | Support | Support | Support | Support | Support |
-| **Continous Query** | Support | Support | Support | Support | Support | Support | Support | Support | Support |
-| **Parameter Binding** | Support | Support | Support | Support | Support | Support | Support |
-| **Subscription** | Support | Support | Support | Support | Support | Support | Support | Not Supported |
-| **Schemaless** | Support | Support | Support | Support | Support | Support | Support |
+| **Connection Management** | Support | Support | Support | Support | Support | Support |
+| **Regular Query** | Support | Support | Support | Support | Support | Support |
+| **Continous Query** | Support | Support | Support | Support | Support | Support |
+| **Parameter Binding** | Support | Support | Support | Support | Support | Support |
+| **Subscription** | Support | Support | Support | Support | Support | | Not Supported |
+| **Schemaless** | Support | Support | Support | Support | Support | Support |
 | **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported |
 
 :::info
@@ -62,13 +60,13 @@ The different database framework specifications for various programming language
 
 | **Functional Features** | **Java** | **Python** | **Go** | **C# (not supported yet)** | **Node.js** | **Rust** |
 | ------------------------------ | -------- | ---------- | -------- | ------------------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | N/A | Support | Support | Support |
-| **Regular Query** | Support | Support | N/A | Support | Support | Support |
-| **Continous Query ** | Support | Support | N/A | Support | Support | Support |
+| **Connection Management** | Support | Support | Support | N/A | Support | Support |
+| **Regular Query** | Support | Support | Support | N/A | Support | Support |
+| **Continous Query ** | Support | Support | Support | N/A | Support | Support |
 | **Parameter Binding** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
 | **Subscription** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
 | **Schemaless** | Not supported | Not Supported | Not Supported | N/A | Not Supported | Not supported |
-| **Bulk Pulling (based on WebSocket) **| Support | Not Supported | N/A | Not Supported | Not Supported |
+| **Bulk Pulling (based on WebSocket) **| Support | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
 | **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported |
 
 :::warning
