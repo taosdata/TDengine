@@ -89,11 +89,13 @@ STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaGetTbNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
-void            metaCloseCtbCurosr(SMCtbCursor* pCtbCur);
+void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
-SArray*         metaGetSmaTbUids(SMeta* pMeta, bool isDup);
-void*           metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid, bool isDecode);
-STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid);
+STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
+STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
+SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
+SArray*         metaGetSmaTbUids(SMeta* pMeta);
+
 int32_t         metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
@@ -127,7 +129,7 @@ int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 
 int32_t tdUpdateExpireWindow(SSma* pSma, SSubmitReq* pMsg, int64_t version);
-int32_t tdProcessTSmaCreate(SSma* pSma, char* pMsg);
+int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
 int32_t tdProcessRSmaCreate(SSma* pSma, SMeta* pMeta, SVCreateStbReq* pReq, SMsgCb* pMsgCb);
