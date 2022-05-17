@@ -27,16 +27,15 @@ extern "C" {
 
 typedef struct SMgmtWrapper SMgmtWrapper;
 
-#define SINGLE_PROC             0
-#define CHILD_PROC              1
-#define PARENT_PROC             2
-#define TEST_PROC               3
-#define OnlyInSingleProc(ptype) (ptype == SINGLE_PROC)
-#define OnlyInChildProc(ptype)  (ptype == CHILD_PROC)
-#define OnlyInParentProc(ptype) (ptype == PARENT_PROC)
-#define OnlyInTestProc(ptype)   (ptype == TEST_PROC)
-#define InChildProc(ptype)      (ptype & CHILD_PROC)
-#define InParentProc(ptype)     (ptype & PARENT_PROC)
+#define SINGLE_PROC               0
+#define CHILD_PROC                1
+#define PARENT_PROC               2
+#define TEST_PROC                 3
+#define OnlyInSingleProc(wrapper) ((wrapper)->proc.ptype == SINGLE_PROC)
+#define OnlyInChildProc(wrapper)  ((wrapper)->proc.ptype == CHILD_PROC)
+#define OnlyInParentProc(wrapper) ((wrapper)->proc.ptype == PARENT_PROC)
+#define InChildProc(wrapper)      ((wrapper)->proc.ptype & CHILD_PROC)
+#define InParentProc(wrapper)     ((wrapper)->proc.ptype & PARENT_PROC)
 
 typedef struct {
   int32_t       head;

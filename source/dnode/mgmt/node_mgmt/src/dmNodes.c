@@ -75,11 +75,11 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   SMgmtOutputOpt output = {0};
   SMgmtInputOpt  input = dmBuildMgmtInputOpt(pWrapper);
 
-  if (pWrapper->ntype == DNODE || InChildProc(pWrapper->proc.ptype)) {
+  if (pWrapper->ntype == DNODE || InChildProc(pWrapper)) {
     tmsgSetDefaultMsgCb(&input.msgCb);
   }
 
-  if (OnlyInSingleProc(pWrapper->proc.ptype)) {
+  if (OnlyInSingleProc(pWrapper)) {
     dInfo("node:%s, start to open", pWrapper->name);
     if ((*pWrapper->func.openFp)(&input, &output) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
@@ -89,7 +89,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     pWrapper->deployed = true;
   }
 
-  if (InParentProc(pWrapper->proc.ptype)) {
+  if (InParentProc(pWrapper)) {
     dDebug("node:%s, start to open", pWrapper->name);
     if (dmCreateShm(pWrapper) != 0) {
       return -1;
@@ -98,7 +98,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
       return -1;
     }
 
-    if (OnlyInParentProc(pWrapper->proc.ptype)) {
+    if (OnlyInParentProc(pWrapper)) {
       if (dmInitProc(pWrapper) != 0) {
         dError("node:%s, failed to init proc since %s", pWrapper->name, terrstr());
         return -1;
@@ -118,7 +118,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
     dDebug("node:%s, has been opened in parent process", pWrapper->name);
   }
 
-  if (InChildProc(pWrapper->proc.ptype)) {
+  if (InChildProc(pWrapper)) {
     dDebug("node:%s, start to open", pWrapper->name);
     if ((*pWrapper->func.openFp)(&input, &output) != 0) {
       dError("node:%s, failed to open since %s", pWrapper->name, terrstr());
@@ -143,7 +143,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
 }
 
 int32_t dmStartNode(SMgmtWrapper *pWrapper) {
-  if (OnlyInParentProc(pWrapper->proc.ptype)) return 0;
+  if (OnlyInParentProc(pWrapper)) return 0;
   if (pWrapper->func.startFp != NULL) {
     dDebug("node:%s, start to start", pWrapper->name);
     if ((*pWrapper->func.startFp)(pWrapper->pMgmt) != 0) {
@@ -173,7 +173,7 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
     taosMsleep(10);
   }
 
-  if (OnlyInParentProc(pWrapper->proc.ptype)) {
+  if (OnlyInParentProc(pWrapper)) {
     int32_t pid = pWrapper->proc.pid;
     if (pid > 0 && taosProcExist(pid)) {
       dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pid);
@@ -191,7 +191,7 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
   }
   taosWUnLockLatch(&pWrapper->latch);
 
-  if (!OnlyInSingleProc(pWrapper->proc.ptype)) {
+  if (!OnlyInSingleProc(pWrapper)) {
     dmCleanupProc(pWrapper);
   }
 
@@ -242,7 +242,7 @@ static void dmCloseNodes(SDnode *pDnode) {
 }
 
 static void dmWatchNodes(SDnode *pDnode) {
-  if (!OnlyInParentProc(pDnode->ptype)) return;
+  if (pDnode->ptype != PARENT_PROC) return;
   if (pDnode->rtype == NODE_END) return;
 
   taosThreadMutexLock(&pDnode->mutex);
@@ -251,7 +251,7 @@ static void dmWatchNodes(SDnode *pDnode) {
     SProc        *proc = &pWrapper->proc;
 
     if (!pWrapper->required) continue;
-    if (!OnlyInParentProc(proc->ptype)) continue;
+    if (!OnlyInParentProc(pWrapper)) continue;
 
     if (proc->pid <= 0 || !taosProcExist(proc->pid)) {
       dWarn("node:%s, process:%d is killed and needs to restart", pWrapper->name, proc->pid);
@@ -274,7 +274,7 @@ int32_t dmRunDnode(SDnode *pDnode) {
   }
 
   while (1) {
-    if (!pDnode->stop) {
+    if (pDnode->stop) {
       dInfo("dnode is about to stop");
       dmSetStatus(pDnode, DND_STAT_STOPPED);
       dmStopNodes(pDnode);

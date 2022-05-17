@@ -495,6 +495,7 @@ int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
 
 int32_t qWorkerProcessFetchRsp(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   qProcessFetchRsp(NULL, pMsg, NULL);
+  pMsg->pCont = NULL;
   return TSDB_CODE_SUCCESS;
 }
 

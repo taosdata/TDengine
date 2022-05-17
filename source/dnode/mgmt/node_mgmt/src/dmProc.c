@@ -67,7 +67,7 @@ static SProcQueue *dmInitProcQueue(SProc *proc, char *ptr, int32_t size) {
     return NULL;
   }
 
-  if (InParentProc(proc->ptype)) {
+  if (proc->ptype & DND_PROC_PARENT) {
     if (dmInitProcMutex(queue) != 0) {
       return NULL;
     }
@@ -315,7 +315,7 @@ static void *dmConsumChildQueue(void *param) {
   int32_t       numOfMsgs = 0;
   int32_t       code = 0;
   EProcFuncType ftype = DND_FUNC_REQ;
-  SRpcMsg     *pReq = NULL;
+  SRpcMsg      *pReq = NULL;
 
   dDebug("node:%s, start to consume from cqueue", proc->name);
   do {
@@ -392,12 +392,14 @@ static void *dmConsumParentQueue(void *param) {
       rpcSendResponse(pRsp);
     } else if (ftype == DND_FUNC_REGIST) {
       pRsp = pHead;
-      dTrace("node:%s, get regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->info.handle);
+      dTrace("node:%s, get regist msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code,
+             pRsp->info.handle);
       rpcRegisterBrokenLinkArg(pRsp);
       rpcFreeCont(pBody);
     } else if (ftype == DND_FUNC_RELEASE) {
       pRsp = pHead;
-      dTrace("node:%s, get release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code, pRsp->info.handle);
+      dTrace("node:%s, get release msg:%p from pqueue, code:0x%04x handle:%p", proc->name, pRsp, code,
+             pRsp->info.handle);
       dmRemoveProcRpcHandle(proc, pRsp->info.handle);
       rpcReleaseHandle(pRsp->info.handle, (int8_t)pRsp->code);
       rpcFreeCont(pBody);
@@ -417,7 +419,7 @@ int32_t dmRunProc(SProc *proc) {
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
 
-  if (InParentProc(proc->ptype)) {
+  if (proc->ptype & DND_PROC_PARENT) {
     if (taosThreadCreate(&proc->pthread, &thAttr, dmConsumParentQueue, proc) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       dError("node:%s, failed to create pthread since %s", proc->name, terrstr());
@@ -426,7 +428,7 @@ int32_t dmRunProc(SProc *proc) {
     dDebug("node:%s, thread:%" PRId64 " is created to consume pqueue", proc->name, proc->pthread);
   }
 
-  if (InChildProc(proc->ptype)) {
+  if (proc->ptype & DND_PROC_CHILD) {
     if (taosThreadCreate(&proc->cthread, &thAttr, dmConsumChildQueue, proc) != 0) {
       terrno = TAOS_SYSTEM_ERROR(errno);
       dError("node:%s, failed to create cthread since %s", proc->name, terrstr());

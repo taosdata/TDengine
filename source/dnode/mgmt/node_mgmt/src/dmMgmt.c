@@ -164,7 +164,7 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
     goto _OVER;
   }
 
-  if (OnlyInSingleProc(pDnode->ptype) || InParentProc(pDnode->ptype)) {
+  if (pDnode->ptype == SINGLE_PROC || (pDnode->ptype & PARENT_PROC)) {
     pDnode->lockfile = dmCheckRunning(tsDataDir);
     if (pDnode->lockfile == NULL) {
       goto _OVER;
@@ -231,7 +231,7 @@ int32_t dmMarkWrapper(SMgmtWrapper *pWrapper) {
   int32_t code = 0;
 
   taosRLockLatch(&pWrapper->latch);
-  if (pWrapper->deployed || (InParentProc(pWrapper->proc.ptype) && pWrapper->required)) {
+  if (pWrapper->deployed || (InParentProc(pWrapper) && pWrapper->required)) {
     int32_t refCount = atomic_add_fetch_32(&pWrapper->refCount, 1);
     dTrace("node:%s, is marked, ref:%d", pWrapper->name, refCount);
   } else {
@@ -276,7 +276,6 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
     rsp.contLen = pReq->contLen;
   }
   rpcSendResponse(&rsp);
-  rpcFreeCont(pReq->pCont);
 }
 
 void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pReq) {
@@ -304,5 +303,4 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pReq) {
 
 _OVER:
   rpcSendResponse(&rspMsg);
-  rpcFreeCont(pReq->pCont);
 }
