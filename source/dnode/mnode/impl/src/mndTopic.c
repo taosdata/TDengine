@@ -464,22 +464,24 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
 }
 
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
-  SMnode        *pMnode = pReq->pNode;
+  SMnode        *pMnode = pReq->info.node;
   SSdb          *pSdb = pMnode->pSdb;
   SMDropTopicReq dropReq = {0};
 
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
-    }
+    return -1;
   }
 
+  SMqTopicObj *pTopic = mndAcquireTopic(pMnode, dropReq.name);
   if (pTopic->refConsumerCnt != 0) {
+    mndReleaseTopic(pMnode, pTopic);
     terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
     return -1;
   }
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_TOPIC, pReq);
   if (pTrans == NULL) {
     mError("topic:%s, failed to drop since %s", pTopic->name, terrstr());
     return -1;
