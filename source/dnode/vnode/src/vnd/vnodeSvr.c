@@ -101,6 +101,11 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
         // TODO: handle error
       }
       break;
+    case TDMT_VND_MQ_VG_DELETE:
+      if (tqProcessVgDeleteReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
+        // TODO: handle error
+      }
+      break;
     case TDMT_VND_TASK_DEPLOY: {
       if (tqProcessTaskDeploy(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
@@ -199,7 +204,7 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
 
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
-  
+
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
     assert(pSyncNode != NULL);
@@ -462,7 +467,11 @@ _exit:
 
 static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVAlterTbReq vAlterTbReq = {0};
+  SVAlterTbRsp vAlterTbRsp = {0};
   SDecoder     dc = {0};
+  int          rcode = 0;
+  int          ret;
+  SEncoder     ec = {0};
 
   pRsp->msgType = TDMT_VND_ALTER_TABLE_RSP;
   pRsp->pCont = NULL;
@@ -473,19 +482,27 @@ static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, i
 
   // decode
   if (tDecodeSVAlterTbReq(&dc, &vAlterTbReq) < 0) {
-    pRsp->code = TSDB_CODE_INVALID_MSG;
+    vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&dc);
-    return -1;
+    rcode = -1;
+    goto _exit;
   }
 
   // process
   if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq) < 0) {
-    pRsp->code = terrno;
+    vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&dc);
-    return -1;
+    rcode = -1;
+    goto _exit;
   }
-
   tDecoderClear(&dc);
+
+_exit:
+  tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
+  tEncodeSVAlterTbRsp(&ec, &vAlterTbRsp);
+  tEncoderClear(&ec);
   return 0;
 }
 

@@ -116,6 +116,7 @@ void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
