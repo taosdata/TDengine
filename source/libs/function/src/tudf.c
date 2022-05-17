@@ -795,7 +795,6 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
   }
   output->info.hasVarCol = hasVarCol;
 
-  //TODO: free the array output->pDataBlock
   output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < numOfCols; ++i) {
     taosArrayPush(output->pDataBlock, (input + i)->columnData);
@@ -809,8 +808,12 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
     return -1;
   }
   output->numOfRows = input->info.rows;
-  //TODO: memory
-  output->columnData = taosArrayGet(input->pDataBlock, 0);
+
+  output->columnData = taosMemoryMalloc(sizeof(SColumnInfoData));
+  memcpy(output->columnData,
+         taosArrayGet(input->pDataBlock, 0),
+         sizeof(SColumnInfoData));
+
   return 0;
 }
 
@@ -1427,7 +1430,10 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
   int32_t err = callUdf(handle, callType, &inputBlock, NULL, NULL, &resultBlock, NULL);
   if (err == 0) {
     convertDataBlockToScalarParm(&resultBlock, output);
+    taosArrayDestroy(resultBlock.pDataBlock);
   }
+
+  taosArrayDestroy(inputBlock.pDataBlock);
   return err;
 }
 
@@ -1508,15 +1514,14 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
 
   udfcRunUdfUvTask(task, UV_TASK_REQ_RSP);
 
-  SUdfTeardownResponse *rsp = &task->_teardown.rsp;
   int32_t err = task->errCode;
 
   udfcRunUdfUvTask(task, UV_TASK_DISCONNECT);
 
+  fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
+
   taosMemoryFree(task->session);
   taosMemoryFree(task);
-
-  fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
 
   return err;
 }

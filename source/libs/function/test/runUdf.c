@@ -77,11 +77,15 @@ int main(int argc, char *argv[]) {
   input.columnData = taosArrayGet(pBlock->pDataBlock, 0);
   SScalarParam output = {0};
   doCallUdfScalarFunc(handle, &input, 1, &output);
-
+  taosArrayDestroy(pBlock->pDataBlock);
   SColumnInfoData *col = output.columnData;
   for (int32_t i = 0; i < output.numOfRows; ++i) {
     fprintf(stderr, "%d\t%d\n", i, *(int32_t *)(col->pData + i * sizeof(int32_t)));
   }
+
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+
   doTeardownUdf(handle);
   udfcClose();
 }
