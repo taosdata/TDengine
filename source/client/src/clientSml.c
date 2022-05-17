@@ -598,19 +598,25 @@ static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg){
     kvVal->type = TSDB_DATA_TYPE_FLOAT;
     kvVal->f = (float)result;
   }else if ((left == 1 && *endptr == 'i') || (left == 3 && strncasecmp(endptr, "i64", left) == 0)){
-    if(smlDoubleToInt64OverFlow(result)){
-      smlBuildInvalidDataMsg(msg, "big int is too large, out of precision", pVal);
-      return false;
+    if(result >= (double)INT64_MAX){
+      kvVal->i = INT64_MAX;
+    }else if(result <= (double)INT64_MIN){
+      kvVal->i = INT64_MIN;
+    }else{
+      kvVal->i = result;
     }
     kvVal->type = TSDB_DATA_TYPE_BIGINT;
-    kvVal->i = (int64_t)result;
   }else if ((left == 3 && strncasecmp(endptr, "u64", left) == 0)){
-    if(result >= (double)UINT64_MAX || result < 0){
+    if(result < 0){
       smlBuildInvalidDataMsg(msg, "unsigned big int is too large, out of precision", pVal);
       return false;
     }
+    if(result >= (double)UINT64_MAX){
+      kvVal->u = UINT64_MAX;
+    }else{
+      kvVal->u = result;
+    }
     kvVal->type = TSDB_DATA_TYPE_UBIGINT;
-    kvVal->u = result;
   }else if (left == 3 && strncasecmp(endptr, "i32", left) == 0){
     if(!IS_VALID_INT(result)){
       smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal);
@@ -1694,11 +1700,13 @@ static int32_t smlConvertJSONNumber(SSmlKv *pVal, char* typeStr, cJSON *value) {
       strcasecmp(typeStr, "bigint") == 0) {
     pVal->type = TSDB_DATA_TYPE_BIGINT;
     pVal->length = (int16_t)tDataTypes[pVal->type].bytes;
-    if(smlDoubleToInt64OverFlow(value->valuedouble)){
-      uError("OTD:JSON value(%f) cannot fit in type(big int)", value->valuedouble);
-      return TSDB_CODE_TSC_VALUE_OUT_OF_RANGE;
+    if(value->valuedouble >= (double)INT64_MAX){
+      pVal->i = INT64_MAX;
+    }else if(value->valuedouble <= (double)INT64_MIN){
+      pVal->i = INT64_MIN;
+    }else{
+      pVal->i = value->valuedouble;
     }
-    pVal->i = value->valuedouble;
     return TSDB_CODE_SUCCESS;
   }
   //float
