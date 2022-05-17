@@ -110,13 +110,13 @@ void tTSRowFree(STSRow2 *pRow) {
 }
 
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal) {
-  uint32_t       n;
-  const uint8_t *p;
-  uint8_t        v;
-  int32_t        bidx = iCol - 1;
-  STColumn      *pTColumn = &pTSchema->columns[iCol];
-  STSKVRow      *pTSKVRow;
-  SKVIdx        *pKVIdx;
+  uint32_t  n;
+  uint8_t  *p;
+  uint8_t   v;
+  int32_t   bidx = iCol - 1;
+  STColumn *pTColumn = &pTSchema->columns[iCol];
+  STSKVRow *pTSKVRow;
+  SKVIdx   *pKVIdx;
 
   ASSERT(iCol != 0);
   ASSERT(pTColumn->colId != 0);
