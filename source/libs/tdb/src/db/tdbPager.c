@@ -72,7 +72,7 @@ int tdbPagerOpen(SPCache *pCache, const char *fileName, SPager **ppPager) {
     return -1;
   }
 
-  ret = tdbGnrtFileID(pPager->dbFileName, pPager->fid, false);
+  ret = tdbGnrtFileID(pPager->fd, pPager->fid, false);
   if (ret < 0) {
     return -1;
   }

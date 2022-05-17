@@ -3055,7 +3055,8 @@ static bool loadDataBlockFromTableSeq(STsdbReadHandle* pTsdbReadHandle) {
 bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)pHandle;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTsdbReadHandle->pColumns); ++i) {
+  size_t numOfCols = taosArrayGetSize(pTsdbReadHandle->pColumns);
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
     colInfoDataCleanup(pColInfo, pTsdbReadHandle->outputCapacity);
   }

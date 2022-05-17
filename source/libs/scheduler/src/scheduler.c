@@ -1148,6 +1148,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       if (NULL == msg) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
+      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
     case TDMT_VND_SUBMIT_RSP: {

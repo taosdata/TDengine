@@ -314,7 +314,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   //  }
 
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
-  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, false);
+  initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
 
   while(1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);

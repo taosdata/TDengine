@@ -386,7 +386,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.schema.sver = pStb->version;
   req.schema.pSchema = pStb->pColumns;
   req.schemaTag.nCols = pStb->numOfTags;
-  req.schemaTag.nCols = 0;
+  req.schemaTag.sver = 1;
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {

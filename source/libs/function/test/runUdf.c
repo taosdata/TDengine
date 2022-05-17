@@ -34,20 +34,13 @@ static int32_t initLog() {
   return taosCreateLog(logName, 1, configDir, NULL, NULL, NULL, NULL, 0);
 }
 
-int main(int argc, char *argv[]) {
-  parseArgs(argc, argv);
-  initLog();
-  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
-    fnError("failed to start since read config error");
-    return -1;
-  }
-
-  udfcOpen();
-  uv_sleep(1000);
-
+int scalarFuncTest() {
   UdfcFuncHandle handle;
 
-  doSetupUdf("udf1", &handle);
+  if (doSetupUdf("udf1", &handle) != 0) {
+    fnError("setup udf failure");
+    return -1;
+  }
 
   SSDataBlock  block = {0};
   SSDataBlock *pBlock = &block;
@@ -74,11 +67,78 @@ int main(int argc, char *argv[]) {
   input.columnData = taosArrayGet(pBlock->pDataBlock, 0);
   SScalarParam output = {0};
   doCallUdfScalarFunc(handle, &input, 1, &output);
-
+  taosArrayDestroy(pBlock->pDataBlock);
   SColumnInfoData *col = output.columnData;
   for (int32_t i = 0; i < output.numOfRows; ++i) {
     fprintf(stderr, "%d\t%d\n", i, *(int32_t *)(col->pData + i * sizeof(int32_t)));
   }
+
+  colDataDestroy(output.columnData);
+  taosMemoryFree(output.columnData);
+
   doTeardownUdf(handle);
+
+  return 0;
+}
+
+int aggregateFuncTest() {
+  UdfcFuncHandle handle;
+
+  if (doSetupUdf("udf2", &handle) != 0) {
+    fnError("setup udf failure");
+    return -1;
+  }
+
+  SSDataBlock  block = {0};
+  SSDataBlock *pBlock = &block;
+  pBlock->pDataBlock = taosArrayInit(1, sizeof(SColumnInfoData));
+  pBlock->info.numOfCols = 1;
+  pBlock->info.rows = 4;
+  char data[16] = {0};
+  char bitmap[4] = {0};
+  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    SColumnInfoData colInfo = {0};
+    colInfo.info.type = TSDB_DATA_TYPE_INT;
+    colInfo.info.bytes = sizeof(int32_t);
+    colInfo.info.colId = 1;
+    colInfo.pData = data;
+    colInfo.nullbitmap = bitmap;
+    for (int32_t j = 0; j < pBlock->info.rows; ++j) {
+      colDataAppendInt32(&colInfo, j, &j);
+    }
+    taosArrayPush(pBlock->pDataBlock, &colInfo);
+  }
+
+  SUdfInterBuf buf = {0};
+  SUdfInterBuf newBuf = {0};
+  SUdfInterBuf resultBuf = {0};
+  doCallUdfAggInit(handle, &buf);
+  doCallUdfAggProcess(handle, pBlock, &buf, &newBuf);
+  taosArrayDestroy(pBlock->pDataBlock);
+
+  doCallUdfAggFinalize(handle, &newBuf, &resultBuf);
+  fprintf(stderr, "agg result: %f\n", *(double*)resultBuf.buf);
+
+  freeUdfInterBuf(&buf);
+  freeUdfInterBuf(&newBuf);
+  freeUdfInterBuf(&resultBuf);
+  doTeardownUdf(handle);
+
+  return 0;
+}
+
+int main(int argc, char *argv[]) {
+  parseArgs(argc, argv);
+  initLog();
+  if (taosInitCfg(configDir, NULL, NULL, NULL, NULL, 0) != 0) {
+    fnError("failed to start since read config error");
+    return -1;
+  }
+
+  udfcOpen();
+  uv_sleep(1000);
+
+  scalarFuncTest();
+  aggregateFuncTest();
   udfcClose();
 }

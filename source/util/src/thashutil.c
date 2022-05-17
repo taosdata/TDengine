@@ -30,7 +30,7 @@
     (h) ^= (h) >> 13;  \
     (h) *= 0xc2b2ae35; \
     (h) ^= (h) >> 16; } while (0)
-  
+
 uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   const uint8_t *data = (const uint8_t *)key;
   const int32_t nblocks = len >> 2u;
@@ -78,18 +78,54 @@ uint32_t MurmurHash3_32(const char *key, uint32_t len) {
   return h1;
 }
 
+uint64_t MurmurHash3_64(const char *key, uint32_t len) {
+  const uint64_t m = 0x87c37b91114253d5;
+  const int r = 47;
+  uint32_t seed = 0x12345678;
+  uint64_t h = seed ^ (len * m);
+  const uint8_t *data = (const uint8_t *)key;
+  const uint8_t *end = data + (len-(len&7));
+
+  while(data != end) {
+    uint64_t k = *((uint64_t*)data);
+
+    k *= m;
+    k ^= k >> r;
+    k *= m;
+    h ^= k;
+    h *= m;
+    data += 8;
+  }
+
+  switch(len & 7) {
+    case 7: h ^= (uint64_t)data[6] << 48; /* fall-thru */
+    case 6: h ^= (uint64_t)data[5] << 40; /* fall-thru */
+    case 5: h ^= (uint64_t)data[4] << 32; /* fall-thru */
+    case 4: h ^= (uint64_t)data[3] << 24; /* fall-thru */
+    case 3: h ^= (uint64_t)data[2] << 16; /* fall-thru */
+    case 2: h ^= (uint64_t)data[1] << 8; /* fall-thru */
+    case 1: h ^= (uint64_t)data[0];
+      h *= m; /* fall-thru */
+  };
+
+  h ^= h >> r;
+  h *= m;
+  h ^= h >> r;
+  return h;
+}
+
 uint32_t taosIntHash_32(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint32_t *)key; }
 uint32_t taosIntHash_16(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint16_t *)key; }
 uint32_t taosIntHash_8(const char *key, uint32_t UNUSED_PARAM(len)) { return *(uint8_t *)key; }
 uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
-  float f = GET_FLOAT_VAL(key); 
+  float f = GET_FLOAT_VAL(key);
   if (isnan(f)) {
     return 0x7fc00000;
   }
-   
+
   if (FLT_EQUAL(f, 0.0)) {
     return 0;
-  } 
+  }
   if (fabs(f) < FLT_MAX/BASE - DLT) {
    int32_t t = (int32_t)(round(BASE * (f + DLT)));
    return (uint32_t)t;
@@ -98,27 +134,27 @@ uint32_t taosFloatHash(const char *key, uint32_t UNUSED_PARAM(len)) {
   }
 }
 uint32_t taosDoubleHash(const char *key, uint32_t UNUSED_PARAM(len)) {
-  double f = GET_DOUBLE_VAL(key);  
+  double f = GET_DOUBLE_VAL(key);
   if (isnan(f)) {
     return 0x7fc00000;
   }
 
   if (FLT_EQUAL(f, 0.0)) {
     return 0;
-  } 
+  }
   if (fabs(f) < DBL_MAX/BASE - DLT) {
    int32_t t = (int32_t)(round(BASE * (f + DLT)));
    return (uint32_t)t;
   } else {
    return 0x7fc00000;
-  } 
+  }
 }
 uint32_t taosIntHash_64(const char *key, uint32_t UNUSED_PARAM(len)) {
   uint64_t val = *(uint64_t *)key;
 
   uint64_t hash = val >> 16U;
   hash += (val & 0xFFFFU);
-  
+
   return (uint32_t)hash;
 }
 
@@ -127,39 +163,39 @@ _hash_fn_t taosGetDefaultHashFunction(int32_t type) {
   switch(type) {
     case TSDB_DATA_TYPE_TIMESTAMP:
     case TSDB_DATA_TYPE_UBIGINT:
-    case TSDB_DATA_TYPE_BIGINT:   
+    case TSDB_DATA_TYPE_BIGINT:
       fn = taosIntHash_64;
       break;
-    case TSDB_DATA_TYPE_BINARY:   
+    case TSDB_DATA_TYPE_BINARY:
       fn = MurmurHash3_32;
       break;
-    case TSDB_DATA_TYPE_NCHAR:    
+    case TSDB_DATA_TYPE_NCHAR:
       fn = MurmurHash3_32;
       break;
     case TSDB_DATA_TYPE_UINT:
-    case TSDB_DATA_TYPE_INT:      
-      fn = taosIntHash_32; 
+    case TSDB_DATA_TYPE_INT:
+      fn = taosIntHash_32;
       break;
-    case TSDB_DATA_TYPE_SMALLINT: 
-    case TSDB_DATA_TYPE_USMALLINT:  
-      fn = taosIntHash_16; 
+    case TSDB_DATA_TYPE_SMALLINT:
+    case TSDB_DATA_TYPE_USMALLINT:
+      fn = taosIntHash_16;
       break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_UTINYINT:
-    case TSDB_DATA_TYPE_TINYINT:  
-      fn = taosIntHash_8; 
+    case TSDB_DATA_TYPE_TINYINT:
+      fn = taosIntHash_8;
       break;
-    case TSDB_DATA_TYPE_FLOAT:    
-      fn = taosFloatHash; 
-      break;                             
-    case TSDB_DATA_TYPE_DOUBLE:   
-      fn = taosDoubleHash; 
-      break;                             
-    default: 
+    case TSDB_DATA_TYPE_FLOAT:
+      fn = taosFloatHash;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      fn = taosDoubleHash;
+      break;
+    default:
       fn = taosIntHash_32;
       break;
   }
-  
+
   return fn;
 }
 
