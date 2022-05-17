@@ -17,9 +17,9 @@ import CSQuery from "../../04-develop/04-query-data/_cs.mdx"
 import CSAsyncQuery from "../../04-develop/04-query-data/_cs_async.mdx"
 
 
-TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
+`TDengine.Connector` is a C# language connector provided by TDengine that allows C# developers to develop C# applications that access TDengine cluster data.
 
-The `TDengine.Connector` connector supports connection to TDengine runtime instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless data writing, bind interface data writing, etc. The `TDengine.Connector` currently does not provide a REST connection. REST connection is not yet available. Users can write their RESTful APIs by referring to the [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) documentation.
+The `TDengine.Connector` connector supports connect to TDengine instances via the TDengine client driver (taosc), providing data writing, querying, subscription, schemaless writing, bind interface, etc. The `TDengine.Connector` currently does not provide a REST connection interface. Developers can write their RESTful application by referring to the [RESTful APIs](https://docs.taosdata.com//reference/restful-api/) documentation.
 
 This article describes how to install `TDengine.Connector` in a Linux or Windows environment and connect to TDengine clusters via `TDengine.Connector` to perform basic operations such as data writing and querying.
 
@@ -35,11 +35,11 @@ Please refer to [version support list](/reference/connector#version support)
 
 ## Supported features
 
-1. connection management
-2. general query
-3. continuous query
-4. parameter binding
-5. subscription function
+1. Connection Mmanagement
+2. General Query
+3. Continuous Query
+4. Parameter Binding
+5. Subscription
 6. Schemaless
 
 ## Installation Steps
@@ -50,7 +50,7 @@ Please refer to [version support list](/reference/connector#version support)
 * [Nuget Client](https://docs.microsoft.com/en-us/nuget/install-nuget-client-tools) (optional installation)
 * Install TDengine client driver, please refer to [Install client driver](/reference/connector#Install client driver) for details
 
-### Install using dotnet CLI
+### Install via dotnet CLI
 
 <Tabs defaultValue="CLI">
 <TabItem value="CLI" label="Get C# driver using dotnet CLI">
@@ -179,7 +179,7 @@ namespace TDengineExample
 
 1. "Unable to establish connection", "Unable to resolve FQDN"
 
-  Usually, because the FQDN configuration is incorrect, you can refer to [How to understand TDengine's FQDN thoroughly](https://www.taosdata.com/blog/2021/07/29/2741.html) to solve it. 2.
+  Usually, it cause by the FQDN configuration is incorrect, you can refer to [How to understand TDengine's FQDN (Chinese)](https://www.taosdata.com/blog/2021/07/29/2741.html) to solve it. 2.
 
 Unhandled exception. System.DllNotFoundException: Unable to load DLL 'taos' or one of its dependencies: The specified module cannot be found.
 
