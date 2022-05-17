@@ -12,6 +12,7 @@
 # -*- coding: utf-8 -*-
 
 import json
+import random
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
@@ -26,11 +27,28 @@ class TestMinrows(TDCase):
                 self.taosd_setting = env_setting
                 self.fqdn = self.taosd_setting["fqdn"][0]
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+    
+    def generate_random_str(randomlength):
+        """
+        生成一个指定长度的随机字符串
+        """
+        random_str = ''
+        base_str = 'ABCDEFGHIGKLMNOPQRSTUVWXYZabcdefghigklmnopqrstuvwxyz0123456789'
+        length = len(base_str) - 1
+        for i in range(randomlength):
+            random_str += base_str[random.randint(0, length)]
+        return random_str
+    def get_vnode_json(self,db_vnode_kv_dict):
+        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"vnode/vnode{db_vnode_kv_dict[0][0]}"
+        self._remote.get(self.fqdn,f'{self.vnode_dir}/vnode.json',f'{self.run_log_dir}/vnode.json')
+        file = open(f'{self.run_log_dir}/vnode.json')
+        return file
     def minrows_check(self):
         """
         minrows check
         """
         test_param = "minrows"
+        
         # default
         default_value = 100
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -40,11 +58,7 @@ class TestMinrows(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        # print(db_vnode_kv_dict)
-        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-        file = open(f"{self.vnode_dir}/vnode.json")
-        data = json.load(file)
-        # print(data)
+        data = json.load(self.get_vnode_json(db_vnode_kv_dict))
         self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['minRows']))
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
@@ -57,12 +71,17 @@ class TestMinrows(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            print(db_vnode_kv_dict)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
-            print(data)
+            data = json.load(self.get_vnode_json(db_vnode_kv_dict))
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['minRows']))
+            # start_time = 1641657600000
+            # self.tdSql.execute(f'''create table {dbname}.ntb (ts timestamp,c0 binary(1024),c1 binary(1024),c2 binary(1024),c3 binary(1024),c4 binary(1024),
+            #                         c5 binary(1024),c6 binary(1024),c7 binary(1024),c8 binary(1024),c9 binary(1024))''')
+            # for i in range(99):
+            #     insert_time = start_time+i
+            #     ran_str = self.generate_random_str(1024)
+            #     self.tdSql.execute(f'''insert into {dbname}.ntb values({insert_time},{ran_str},{ran_str},{ran_str},{ran_str},{ran_str},
+            #     {ran_str},{ran_str},{ran_str},{ran_str},{ran_str})''')
+            # bug TD-15465(cancelled): do not test with unusual exiting
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')

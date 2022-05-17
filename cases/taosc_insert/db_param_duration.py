@@ -27,6 +27,12 @@ class TestDuration(TDCase):
                 self.taosd_setting = env_setting
                 self.fqdn = self.taosd_setting["fqdn"][0]
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
+    
+    def get_vnode_json(self,db_vnode_kv_dict):
+        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"vnode/vnode{db_vnode_kv_dict[0][0]}"
+        self._remote.get(self.fqdn,f'{self.vnode_dir}/vnode.json',f'{self.run_log_dir}/vnode.json')
+        file = open(f'{self.run_log_dir}/vnode.json')
+        return file
 
     def duration_check(self):
         """
@@ -43,9 +49,7 @@ class TestDuration(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], default_value)
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-        file = open(f"{self.vnode_dir}/vnode.json")
-        data = json.load(file)
+        data = json.load(self.get_vnode_json(db_vnode_kv_dict))
         # print(data['config']['daysPerFile'])
         self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
         self.tdSql.execute(f'drop database {dbname}')
@@ -67,10 +71,8 @@ class TestDuration(TDCase):
                 self.tdSql.checkEqual(db_field_kv_dict[test_param_bak], int(re.sub('\D','',param_value)) * 60 *24)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
-            print(data['config']['daysPerFile'])
+            data = json.load(self.get_vnode_json(db_vnode_kv_dict))
+            # print(data['config']['daysPerFile'])
             self.tdSql.checkEqual(db_field_kv_dict[test_param_bak],int(data['config']['daysPerFile']))
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")

@@ -25,7 +25,11 @@ class TestComp(TDCase):
                 self.taosd_setting = env_setting
                 self.fqdn = self.taosd_setting["fqdn"][0]
                 self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
-
+    def get_vnode_json(self,db_vnode_kv_dict):
+        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"vnode/vnode{db_vnode_kv_dict[0][0]}"
+        self._remote.get(self.fqdn,f'{self.vnode_dir}/vnode.json',f'{self.run_log_dir}/vnode.json')
+        file = open(f'{self.run_log_dir}/vnode.json')
+        return file
     def comp_check(self):
         """
         comp check
@@ -41,9 +45,7 @@ class TestComp(TDCase):
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         # print(db_vnode_kv_dict)
-        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-        file = open(f"{self.vnode_dir}/vnode.json")
-        data = json.load(file)
+        data = json.load(self.get_vnode_json(db_vnode_kv_dict))
         # print(data)
         self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['compression']))
         self.tdSql.execute(f'drop database {dbname}')
@@ -59,9 +61,7 @@ class TestComp(TDCase):
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
             # print(db_vnode_kv_dict)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
+            data = json.load(self.get_vnode_json(db_vnode_kv_dict))
             # print(data)
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['compression']))
             self.tdSql.execute(f'drop database {dbname}')
