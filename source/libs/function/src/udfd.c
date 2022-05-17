@@ -96,10 +96,14 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf);
 
 int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   strcpy(udf->name, udfName);
+  int32_t err = 0;
+  err = udfdFillUdfInfoFromMNode(global.clientRpc, udf->name, udf);
+  if (err != 0) {
+    fnError("can not retrieve udf from mnode. udf name %s", udfName);
+    return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
+  }
 
-  udfdFillUdfInfoFromMNode(global.clientRpc, udf->name, udf);
-  //strcpy(udf->path, "/home/slzhou/TDengine/debug/build/lib/libudf1.so");
-  int err = uv_dlopen(udf->path, &udf->lib);
+  err = uv_dlopen(udf->path, &udf->lib);
   if (err != 0) {
     fnError("can not load library %s. error: %s", udf->path, uv_strerror(err));
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
@@ -142,7 +146,7 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
 
 void udfdProcessSetupRequest(SUvUdfWork* uvUdf, SUdfRequest* request) {
     // TODO: tracable id from client. connect, setup, call, teardown
-    fnInfo("%" PRId64 " setup request. udf name: %s", request->seqNum, request->setup.udfName);
+    fnInfo( "setup request. seq num: %" PRId64 ", udf name: %s", request->seqNum, request->setup.udfName);
     SUdfSetupRequest *setup = &request->setup;
     int32_t code = TSDB_CODE_SUCCESS;
     SUdf *udf = NULL;
@@ -222,7 +226,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scalarProcFunc(&input, &output);
-
+      freeUdfDataDataBlock(&input);
       convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
       freeUdfColumn(&output);
       break;
@@ -242,6 +246,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
                              .bufLen= udf->bufSize,
                              .numOfResult = 0};
       code = udf->aggProcFunc(&input, &call->interBuf, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
+      freeUdfDataDataBlock(&input);
       subRsp->resultBuf = outBuf;
 
       break;
@@ -251,6 +257,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
                              .bufLen= udf->bufSize,
                              .numOfResult = 0};
       code = udf->aggFinishFunc(&call->interBuf, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
       subRsp->resultBuf = outBuf;
       break;
     }
@@ -270,13 +277,37 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   encodeUdfResponse(&buf, rsp);
   uvUdf->output = uv_buf_init(bufBegin, len);
 
+  switch (call->callType) {
+    case TSDB_UDF_CALL_SCALA_PROC: {
+      tDeleteSSDataBlock(&call->block);
+      tDeleteSSDataBlock(&subRsp->resultData);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_INIT: {
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_PROC: {
+      tDeleteSSDataBlock(&call->block);
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_FIN: {
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    default:
+      break;
+
+  }
+
   taosMemoryFree(uvUdf->input.base);
   return;
 }
 
 void udfdProcessTeardownRequest(SUvUdfWork* uvUdf, SUdfRequest* request) {
   SUdfTeardownRequest *teardown = &request->teardown;
-  fnInfo("teardown. %" PRId64 "handle:%" PRIx64, request->seqNum, teardown->udfHandle);
+  fnInfo("teardown. seq number: %" PRId64 ", handle:%" PRIx64, request->seqNum, teardown->udfHandle);
   SUdfcFuncHandle *handle = (SUdfcFuncHandle *)(teardown->udfHandle);
   SUdf *udf = handle->udf;
   bool  unloadUdf = false;
@@ -344,9 +375,8 @@ void udfdProcessRequest(uv_work_t *req) {
 void udfdOnWrite(uv_write_t *req, int status) {
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
-    // TODO:log error and process it.
+    fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
   }
-  fnDebug("send response. length:%zu, status: %s", work->output.len, uv_err_name(status));
   taosMemoryFree(work->output.base);
   taosMemoryFree(work);
   taosMemoryFree(req);
@@ -545,6 +575,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     taosCloseFile(&file);
     strncpy(udf->path, path, strlen(path));
+    tFreeSFuncInfo(pFuncInfo);
     taosArrayDestroy(retrieveRsp.pFuncInfos);
     msgInfo->code = 0;
   }
@@ -796,21 +827,26 @@ static int32_t udfdUvInit() {
   return 0;
 }
 
+static void udfdCloseWalkCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
+}
+
 static int32_t udfdRun() {
   global.udfsHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   uv_mutex_init(&global.udfsMutex);
 
-  if (udfdUvInit() != 0) {
-    fnError("uv init failure");
-    return -2;
-  }
+  fnInfo("start udfd event loop");
+  uv_run(global.loop, UV_RUN_DEFAULT);
+  fnInfo("udfd event loop stopped.");
 
-  fnInfo("start the udfd");
-  int code = uv_run(global.loop, UV_RUN_DEFAULT);
-  fnInfo("udfd stopped. result: %s, code: %d", uv_err_name(code), code);
-  int codeClose = uv_loop_close(global.loop);
-  fnDebug("uv loop close. result: %s", uv_err_name(codeClose));
-  removeListeningPipe();
+  uv_loop_close(global.loop);
+
+  uv_walk(global.loop, udfdCloseWalkCb, NULL);
+  uv_run(global.loop, UV_RUN_DEFAULT);
+  uv_loop_close(global.loop);
+
   uv_mutex_destroy(&global.udfsMutex);
   taosHashCleanup(global.udfsHash);
   return 0;
@@ -853,8 +889,14 @@ int main(int argc, char *argv[]) {
     return -4;
   }
 
+  if (udfdUvInit() != 0) {
+    fnError("uv init failure");
+    return -5;
+  }
+
   udfdRun();
 
-  udfdCloseClientRpc();
+  removeListeningPipe();
 
+  udfdCloseClientRpc();
 }

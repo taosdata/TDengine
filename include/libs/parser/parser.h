@@ -62,7 +62,7 @@ int32_t     qRebuildStmtDataBlock(void** pDst, void* pSrc, uint64_t uid, int32_t
 void        qDestroyStmtDataBlock(void* pBlock);
 STableMeta* qGetTableMetaInDataBlock(void* pDataBlock);
 
-int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx, uint64_t queryId);
+int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx);
 int32_t qStmtParseQuerySql(SParseContext* pCxt, SQuery* pQuery);
 int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen);
 int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, int32_t msgBufLen, int32_t colIdx,
@@ -77,8 +77,8 @@ int32_t qCreateSName(SName* pName, const char* pTableName, int32_t acctId, char*
 
 void*   smlInitHandle(SQuery* pQuery);
 void    smlDestroyHandle(void* pHandle);
-int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format,
-                    STableMeta* pTableMeta, char* tableName, char* msgBuf, int16_t msgBufLen);
+int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols, bool format, STableMeta* pTableMeta,
+                    char* tableName, char* msgBuf, int16_t msgBufLen);
 int32_t smlBuildOutput(void* handle, SHashObj* pVgHash);
 
 #ifdef __cplusplus

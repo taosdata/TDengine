@@ -33,11 +33,11 @@ typedef struct STaosQnode {
 } STaosQnode;
 
 typedef struct STaosQueue {
-  STaosQnode   *head;
-  STaosQnode   *tail;
-  STaosQueue   *next;     // for queue set
-  STaosQset    *qset;     // for queue set
-  void         *ahandle;  // for queue set
+  STaosQnode *  head;
+  STaosQnode *  tail;
+  STaosQueue *  next;     // for queue set
+  STaosQset *   qset;     // for queue set
+  void *        ahandle;  // for queue set
   FItem         itemFp;
   FItems        itemsFp;
   TdThreadMutex mutex;
@@ -46,8 +46,8 @@ typedef struct STaosQueue {
 } STaosQueue;
 
 typedef struct STaosQset {
-  STaosQueue   *head;
-  STaosQueue   *current;
+  STaosQueue *  head;
+  STaosQueue *  current;
   TdThreadMutex mutex;
   tsem_t        sem;
   int32_t       numOfQueues;
@@ -85,7 +85,7 @@ void taosSetQueueFp(STaosQueue *queue, FItem itemFp, FItems itemsFp) {
 void taosCloseQueue(STaosQueue *queue) {
   if (queue == NULL) return;
   STaosQnode *pTemp;
-  STaosQset  *qset;
+  STaosQset * qset;
 
   taosThreadMutexLock(&queue->mutex);
   STaosQnode *pNode = queue->head;
@@ -152,7 +152,7 @@ void *taosAllocateQitem(int32_t size, EQItype itype) {
 
   if (itype == RPC_QITEM) {
     int64_t alloced = atomic_add_fetch_64(&tsRpcQueueMemoryUsed, size);
-    if (alloced > tsRpcQueueMemoryUsed) {
+    if (alloced > tsRpcQueueMemoryAllowed) {
       taosMemoryFree(pNode);
       terrno = TSDB_CODE_OUT_OF_RPC_MEMORY_QUEUE;
       return NULL;
