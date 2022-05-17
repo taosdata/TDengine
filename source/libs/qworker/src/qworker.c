@@ -535,7 +535,10 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       SExplainExecInfo *execInfo = NULL;
       int32_t           resNum = 0;
       QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
-      QW_ERR_RET(qwBuildAndSendExplainRsp(&ctx->ctrlConnInfo, execInfo, resNum));
+
+      SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
+      connInfo.ahandle = NULL;
+      QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
     }
 
     qwFreeTaskHandle(QW_FPARAMS(), taskHandle);

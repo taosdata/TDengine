@@ -74,7 +74,7 @@ int32_t qwBuildAndSendReadyRsp(SRpcHandleInfo *pConn, int32_t code) {
       .code = code,
       .info = *pConn,
   };
-  rpcRsp.info.ahandle = NULL,
+  rpcRsp.info.ahandle = NULL;
 
   tmsgSendRsp(&rpcRsp);
 
@@ -95,6 +95,7 @@ int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execIn
       .code = 0,
       .info = *pConn,
   };
+  rpcRsp.info.ahandle = NULL;
 
   tmsgSendRsp(&rpcRsp);
 
