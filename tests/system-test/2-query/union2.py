@@ -35,36 +35,38 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"rtrim( {tbname}.{char_col} )",
-                    f"substr( {tbname}.{char_col}, 1 )",
-                    f"count( {tbname}.{char_col} )",
-                    f"cast( {tbname}.{char_col} as nchar(3) )",
-                    f"cast( {tbname}.{char_col} as nchar(8) )",
+                    f"{tbname}.{char_col}",
+                    f"upper( {tbname}.{char_col} )",
+                    f"char_length( {tbname}.{char_col} )",
+                    f"concat( {tbname}.{char_col}, {tbname}.{char_col} )",
+                    f"concat_ws( '_', {tbname}.{char_col}, {tbname}.{char_col} )",
+                    f"length( {tbname}.{char_col} )",
+                    f"lower( {tbname}.{char_col} )",
+                    f"ltrim( {tbname}.{char_col} )",
+
                 )
             )
-            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
 
         for num_col in NUM_COL:
             query_condition.extend(
                 (
                     f"{tbname}.{num_col}",
-                    f"floor( {tbname}.{num_col} )",
-                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
-                    f"sin( {tbname}.{num_col} )",
-                    f"sqrt( {tbname}.{num_col} )",
-                    f"tan( {tbname}.{num_col} )",
-                    f"round( {tbname}.{num_col} )",
-                    f"count( {tbname}.{num_col} )",
-                    f"min( {tbname}.{num_col} )",
+                    f"ceil( {tbname}.{num_col} )",
+                    f"abs( {tbname}.{num_col} )",
+                    f"acos( {tbname}.{num_col} )",
+                    f"asin( {tbname}.{num_col} )",
+                    f"atan( {tbname}.{num_col} )",
+                    f"cos( {tbname}.{num_col} )",
+                    f"max( {tbname}.{num_col} )",
+                    f"sum( {tbname}.{num_col} )",
+
                 )
             )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{char_col} " for char_col in CHAR_COL )
+            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_2}" for num_col_2 in NUM_COL )
 
         query_condition.extend(
             (
-                ''' "test12" ''',
+                ''' "test1234!@#$%^&*():'><?/.,][}{" ''',
                 # 1010,
             )
         )
