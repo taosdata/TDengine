@@ -69,11 +69,11 @@ void processShellMsg() {
       memset(&rpcMsg, 0, sizeof(rpcMsg));
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
-      rpcMsg.handle = pRpcMsg->handle;
+      rpcMsg.info = pRpcMsg->info;
       rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
-      void *handle = pRpcMsg->handle;
+      void *handle = pRpcMsg->info.handle;
       taosFreeQitem(pRpcMsg);
 
       {
@@ -81,7 +81,7 @@ void processShellMsg() {
         SRpcMsg nRpcMsg = {0};
         nRpcMsg.pCont = rpcMallocCont(msgSize);
         nRpcMsg.contLen = msgSize;
-        nRpcMsg.handle = handle;
+        nRpcMsg.info.handle = handle;
         nRpcMsg.code = TSDB_CODE_CTG_NOT_READY;
         rpcSendResponse(&nRpcMsg);
       }

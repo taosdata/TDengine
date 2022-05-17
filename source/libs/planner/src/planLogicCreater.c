@@ -985,6 +985,8 @@ static int32_t getMsgType(ENodeType sqlType) {
       return TDMT_VND_CREATE_TABLE;
     case QUERY_NODE_DROP_TABLE_STMT:
       return TDMT_VND_DROP_TABLE;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      return TDMT_VND_ALTER_TABLE;
     default:
       break;
   }

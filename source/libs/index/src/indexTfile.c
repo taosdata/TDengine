@@ -410,8 +410,9 @@ static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTempResult* 
 
     ret = tfileReaderLoadTableIds((TFileReader*)reader, offset, tr->total);
     cost = taosGetTimestampUs() - et;
-    indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, time cost: %" PRIu64 "us", tem->suid,
-              tem->colName, tem->colVal, cost);
+    indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, offset: %" PRIu64
+              ", size: %d, time cost: %" PRIu64 "us",
+              tem->suid, tem->colName, tem->colVal, offset, (int)taosArrayGetSize(tr->total), cost);
   }
   fstSliceDestroy(&key);
   return 0;
@@ -941,7 +942,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   // TODO(yihao): opt later
   WriterCtx* ctx = reader->ctx;
   // add block cache
-  char    block[1024] = {0};
+  char    block[4096] = {0};
   int32_t nread = ctx->readFrom(ctx, block, sizeof(block), offset);
   assert(nread >= sizeof(uint32_t));
 

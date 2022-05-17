@@ -27,6 +27,7 @@ $tstart     = 1640966400000  # 2022-01-01 00:00:00.000
 
 $pullDelay    = 5
 $ifcheckdata  = 1
+$ifmanualcommit = 1
 $showMsg      = 1
 $showRow      = 0
 
@@ -53,10 +54,19 @@ sql create topic topic_ntb_function as select ts, abs(c1), sin(c2) from ntb0
 #  return -1
 #endi
 
+#'group.id:cgrp1,enable.auto.commit:false,auto.commit.interval.ms:6000,auto.offset.reset:earliest'
 $keyList = ' . group.id:cgrp1
+$keyList = $keyList . ,
+$keyList = $keyList . enable.auto.commit:false
+#$keyList = $keyList . ,
+#$keyList = $keyList . auto.commit.interval.ms:6000
+#$keyList = $keyList . ,
+#$keyList = $keyList . auto.offset.reset:earliest
 $keyList = $keyList . '
+print ========== key list:  $keyList
 
 $cdb_index = 0
+
 #=============================== start consume =============================#
 
 print ================ test consume from stb
@@ -74,7 +84,7 @@ sleep 500
 sql use $cdbName
 
 print == create consume info table and consume result table for stb
-sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
 
 sql show tables
@@ -102,10 +112,10 @@ endi
 $consumerId    = 0
 $totalMsgOfStb = $ctbNum * $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfStb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from stb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -w $cdbName -s start
@@ -177,7 +187,7 @@ sleep 500
 sql use $cdbName
 
 print == create consume info table and consume result table for ctb
-sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
 
 sql show tables
@@ -205,9 +215,9 @@ endi
 $consumerId    = 0
 $totalMsgOfCtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfCtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ctb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start
@@ -279,7 +289,7 @@ sleep 500
 sql use $cdbName
 
 print == create consume info table and consume result table for ntb
-sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int, ifmanualcommit int)
 sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
 
 sql show tables
@@ -307,9 +317,9 @@ endi
 $consumerId    = 0
 $totalMsgOfNtb = $rowsPerCtb
 $expectmsgcnt  = $totalMsgOfNtb
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 $consumerId    = 1
-sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata )
+sql insert into consumeinfo values (now , $consumerId , $topicList , $keyList , $expectmsgcnt , $ifcheckdata , $ifmanualcommit )
 
 print == start consumer to pull msgs from ntb
 print == tsim/tmq/consume.sh -d $dbName -y $pullDelay -g $showMsg -r $showRow -s start

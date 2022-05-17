@@ -83,21 +83,24 @@ int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* p
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
 int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
+int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
 int             metaGetTbNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
-void            metaCloseCtbCurosr(SMCtbCursor* pCtbCur);
+void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);
 tb_uid_t        metaCtbCursorNext(SMCtbCursor* pCtbCur);
-SArray*         metaGetSmaTbUids(SMeta* pMeta, bool isDup);
-void*           metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid, bool isDecode);
-STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid);
+STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
+STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
+SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
+SArray*         metaGetSmaTbUids(SMeta* pMeta);
+
 int32_t         metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
 // tsdb
-int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg *pKeepCfg);
+int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
 int          tsdbClose(STsdb** pTsdb);
 int          tsdbBegin(STsdb* pTsdb);
 int          tsdbCommit(STsdb* pTsdb);
@@ -115,6 +118,7 @@ void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
+int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
@@ -125,7 +129,7 @@ int32_t smaOpen(SVnode* pVnode);
 int32_t smaClose(SSma* pSma);
 
 int32_t tdUpdateExpireWindow(SSma* pSma, SSubmitReq* pMsg, int64_t version);
-int32_t tdProcessTSmaCreate(SSma* pSma, char* pMsg);
+int32_t tdProcessTSmaCreate(SSma* pSma, int64_t version, const char* msg);
 int32_t tdProcessTSmaInsert(SSma* pSma, int64_t indexUid, const char* msg);
 
 int32_t tdProcessRSmaCreate(SSma* pSma, SMeta* pMeta, SVCreateStbReq* pReq, SMsgCb* pMsgCb);
@@ -182,7 +186,7 @@ typedef enum {
   TSDB_TYPE_RSMA_L2 = 4,  // RSMA Level 2
 } ETsdbType;
 
-struct STsdbKeepCfg{
+struct STsdbKeepCfg {
   int8_t  precision;  // precision always be used with below keep cfgs
   int32_t days;
   int32_t keep0;

@@ -559,6 +559,8 @@ SNode* setProjectionAlias(SAstCreateContext* pCxt, SNode* pNode, const SToken* p
   int32_t len = TMIN(sizeof(((SExprNode*)pNode)->aliasName) - 1, pAlias->n);
   strncpy(((SExprNode*)pNode)->aliasName, pAlias->z, len);
   ((SExprNode*)pNode)->aliasName[len] = '\0';
+  strncpy(((SExprNode*)pNode)->userAlias, pAlias->z, len);
+  ((SExprNode*)pNode)->userAlias[len] = '\0';
   return pNode;
 }
 

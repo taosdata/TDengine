@@ -85,10 +85,19 @@ bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t spreadFunction(SqlFunctionCtx* pCtx);
 int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool getElapsedFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t elapsedFunction(SqlFunctionCtx* pCtx);
+int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t histogramFunction(SqlFunctionCtx* pCtx);
 int32_t histogramFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool getHLLFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+int32_t hllFunction(SqlFunctionCtx* pCtx);
+int32_t hllFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getStateFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool stateFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
@@ -105,7 +114,12 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx);
 bool getSampleFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool sampleFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t sampleFunction(SqlFunctionCtx* pCtx);
-int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+//int32_t sampleFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool getTailFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t tailFunction(SqlFunctionCtx* pCtx);
+int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 

@@ -443,7 +443,7 @@ static int32_t tdExecuteRSma(SSma *pSma, const void *pMsg, int32_t inputType, tb
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
     // TODO: use the proper schema instead of 0, and cache STSchema in cache
-    STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, 0);
+    STSchema *pTSchema = metaGetTbTSchema(SMA_META(pSma), suid, 1);
     if (!pTSchema) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;
       return TSDB_CODE_FAILED;
