@@ -76,6 +76,11 @@ int32_t  tsTelemInterval = 86400;
 char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
 
+// schemaless
+char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
+                                                     //If set to empty system will generate table name using MD5 hash.
+bool tsSmlDataFormat = true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+
 // query
 int32_t tsQueryPolicy = 1;
 
@@ -319,6 +324,8 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "compressColData", tsCompressColData, -1, 100000000, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
+  if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
+  if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 4;
   tsNumOfTaskQueueThreads = TRANGE(tsNumOfTaskQueueThreads, 1, 2);
@@ -512,6 +519,9 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
     uError("failed to create tempDir:%s since %s", tsTempDir, terrstr());
     return -1;
   }
+
+  tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
+  tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
   tsCompressMsgSize = cfgGetItem(pCfg, "compressMsgSize")->i32;
