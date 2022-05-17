@@ -223,7 +223,7 @@ static void tdbPCachePinPage(SPCache *pCache, SPage *pPage) {
 
     pCache->nRecyclable--;
 
-    tdbDebug("pin page %d", pPage->id);
+    tdbTrace("pin page %d", pPage->id);
   }
 }
 
@@ -243,7 +243,7 @@ static void tdbPCacheUnpinPage(SPCache *pCache, SPage *pPage) {
 
   pCache->nRecyclable++;
 
-  tdbDebug("unpin page %d", pPage->id);
+  tdbTrace("unpin page %d", pPage->id);
 }
 
 static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
@@ -258,7 +258,7 @@ static void tdbPCacheRemovePageFromHash(SPCache *pCache, SPage *pPage) {
 
   pCache->nPage--;
 
-  tdbDebug("remove page %d to hash", pPage->id);
+  tdbTrace("remove page %d to hash", pPage->id);
 }
 
 static void tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage) {
@@ -271,7 +271,7 @@ static void tdbPCacheAddPageToHash(SPCache *pCache, SPage *pPage) {
 
   pCache->nPage++;
 
-  tdbDebug("add page %d to hash", pPage->id);
+  tdbTrace("add page %d to hash", pPage->id);
 }
 
 static int tdbPCacheOpenImpl(SPCache *pCache) {
