@@ -124,6 +124,7 @@ static int32_t dmProcessCreateNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   } else {
     dInfo("node:%s, has been created", pWrapper->name);
     (void)dmOpenNode(pWrapper);
+    (void)dmStartNode(pWrapper);
     pWrapper->required = true;
     pWrapper->deployed = true;
     pWrapper->proc.ptype = pDnode->ptype;
@@ -159,6 +160,7 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   dmReleaseWrapper(pWrapper);
 
   if (code == 0) {
+    dmStopNode(pWrapper);
     dmCloseNode(pWrapper);
     taosRemoveDir(pWrapper->path);
   }

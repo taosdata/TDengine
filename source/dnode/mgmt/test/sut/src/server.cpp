@@ -16,25 +16,13 @@
 #include "sut.h"
 
 void* serverLoop(void* param) {
+  dmInit(0);
   dmRun();
+  dmCleanup();
   return NULL;
 }
 
-void TestServer::BuildOption(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  tsNumOfSupportVnodes = 16;
-  tsServerPort = port;
-  strcpy(tsDataDir, path);
-  snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
-  snprintf(tsLocalFqdn, TSDB_FQDN_LEN, "%s", fqdn);
-  snprintf(tsFirst, TSDB_EP_LEN, "%s", firstEp);
-  taosMkDir(path);
-}
-
-bool TestServer::DoStart() {
-  if (dmInit(0) != 0) {
-    return false;
-  }
-
+bool TestServer::Start() {
   TdThreadAttr thAttr;
   taosThreadAttrInit(&thAttr);
   taosThreadAttrSetDetachState(&thAttr, PTHREAD_CREATE_JOINABLE);
@@ -44,25 +32,7 @@ bool TestServer::DoStart() {
   return true;
 }
 
-void TestServer::Restart() {
-  uInfo("start all server");
-  Stop();
-  DoStart();
-  uInfo("all server is running");
-}
-
-bool TestServer::Start(const char* path, const char* fqdn, uint16_t port, const char* firstEp) {
-  strcpy(this->path, path);
-  strcpy(this->fqdn, fqdn);
-  this->port = port;
-  strcpy(this->firstEp, firstEp);
-
-  taosRemoveDir(path);
-  return DoStart();
-}
-
 void TestServer::Stop() {
   dmStop();
   taosThreadJoin(threadId, NULL);
-  dmCleanup();
 }

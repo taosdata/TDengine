@@ -16,6 +16,13 @@
 #include "tcache.h"
 
 void reportStartup(const char *name, const char *desc) {}
+void sendRsp(const SRpcMsg *pMsg) { rpcFreeCont(pMsg->pCont); }
+
+int32_t sendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  // rpcFreeCont(pMsg->pCont);
+  terrno = TSDB_CODE_INVALID_PTR;
+  return -1;
+}
 
 class MndTestTrans2 : public ::testing::Test {
  protected:
@@ -47,6 +54,8 @@ class MndTestTrans2 : public ::testing::Test {
   static void InitMnode() {
     static SMsgCb msgCb = {0};
     msgCb.reportStartupFp = reportStartup;
+    msgCb.sendReqFp = sendReq;
+    msgCb.sendRspFp = sendRsp;
     msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
     tmsgSetDefaultMsgCb(&msgCb);
 

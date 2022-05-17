@@ -122,6 +122,7 @@ static void mndCleanupTimer(SMnode *pMnode) {
   pMnode->stopped = true;
   if (taosCheckPthreadValid(pMnode->thread)) {
     taosThreadJoin(pMnode->thread, NULL);
+    memset(&pMnode->thread, 0, sizeof(pMnode->thread));
   }
 }
 

@@ -141,6 +141,8 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dmNodes.c
 int32_t dmOpenNode(SMgmtWrapper *pWrapper);
+int32_t dmStartNode(SMgmtWrapper *pWrapper);
+void    dmStopNode(SMgmtWrapper *pWrapper);
 void    dmCloseNode(SMgmtWrapper *pWrapper);
 int32_t dmRunDnode(SDnode *pDnode);
 
