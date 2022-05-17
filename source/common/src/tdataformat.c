@@ -38,49 +38,46 @@ typedef struct {
 #define GET_BIT2(p, i)     (((p)[(i) / 4] >> ((i) % 4)) & ((uint8_t)3))
 
 // STSRow2
-int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow) {
-  if (tEncodeI64(pEncoder, pRow->ts) < 0) return -1;
-  if (tEncodeU8(pEncoder, pRow->flags) < 0) return -1;
-  if (tEncodeI32v(pEncoder, pRow->sver) < 0) return -1;
+int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow) {
+  int32_t n = 0;
 
-  ASSERT(pRow->flags & 0xf != 0);
+  n += tPutI64(p ? p + n : p, pRow->ts);
+  n += tPutI8(p ? p + n : p, pRow->flags);
+  n += tPutI32v(p ? p + n : p, pRow->sver);
+
+  ASSERT(pRow->flags & 0xf);
 
   switch (pRow->flags & 0xf) {
     case TSROW_HAS_NONE:
     case TSROW_HAS_NULL:
-      return 0;
-    case TSROW_HAS_VAL:
-      ASSERT(!TSROW_IS_KV_ROW(pRow));
+      break;
     default:
-      ASSERT(pRow->nData && pRow->pData);
-      if (tEncodeBinary(pEncoder, pRow->pData, pRow->nData)) return -1;
+      n += tPutBinary(p ? p + n : p, pRow->pData, pRow->nData);
       break;
   }
 
-  return 0;
+  return n;
 }
 
-int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow) {
-  if (tDecodeI64(pDecoder, &pRow->ts) < 0) return -1;
-  if (tDecodeU8(pDecoder, &pRow->flags) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pRow->sver) < 0) return -1;
+int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow) {
+  int32_t n = 0;
+  uint8_t flags;
 
-  ASSERT(pRow->flags & 0xf != 0);
+  n += tGetI64(p + n, pRow ? &pRow->ts : NULL);
+  n += tGetI8(p + n, pRow ? &pRow->flags : &flags);
+  n += tGetI32v(p + n, pRow ? &pRow->sver : NULL);
 
-  switch (pRow->flags & 0xf) {
+  if (pRow) flags = pRow->flags;
+  switch (flags & 0xf) {
     case TSROW_HAS_NONE:
     case TSROW_HAS_NULL:
-      pRow->nData = 0;
-      pRow->pData = NULL;
-      return 0;
-    case TSROW_HAS_VAL:
-      ASSERT(!TSROW_IS_KV_ROW(pRow));
+      break;
     default:
-      if (tDecodeBinary(pDecoder, &pRow->pData, &pRow->nData)) return -1;
+      n += tGetBinary(p + n, pRow ? &pRow->pData : NULL, pRow ? &pRow->nData : NULL);
       break;
   }
 
-  return 0;
+  return n;
 }
 
 static FORCE_INLINE int kvRowCmprFn(const void *p1, const void *p2) {
@@ -109,10 +106,10 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
   ASSERT(pRow->flags & 0xf != 0);
   switch (pRow->flags & 0xf) {
     case TSROW_HAS_NONE:
-      COL_VAL_SET_NONE(pColVal);
+      // COL_VAL_SET_NONE(pColVal);
       return 0;
     case TSROW_HAS_NULL:
-      COL_VAL_SET_NULL(pColVal);
+      // COL_VAL_SET_NULL(pColVal);
       return 0;
   }
 
@@ -122,13 +119,13 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
     pTSKVRow = (STSKVRow *)pRow->pData;
     pKVIdx = bsearch(&pTColumn->colId, pTSKVRow->idx, pTSKVRow->nCols, sizeof(SKVIdx), kvRowCmprFn);
     if (pKVIdx == NULL) {
-      COL_VAL_SET_NONE(pColVal);
+      // COL_VAL_SET_NONE(pColVal);
     } else if (pKVIdx->offset < 0) {
-      COL_VAL_SET_NULL(pColVal);
+      // COL_VAL_SET_NULL(pColVal);
     } else {
       p = pRow->pData + sizeof(STSKVRow) + sizeof(SKVIdx) * pTSKVRow->nCols + pKVIdx->offset;
       // tGetBinary(p, &p, &n); (todo)
-      COL_VAL_SET_VAL(pColVal, p, n);
+      // COL_VAL_SET_VAL(pColVal, p, n);
     }
   } else {
     // get bitmap
@@ -137,9 +134,9 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
       case TSROW_HAS_NULL | TSROW_HAS_NONE:
         v = GET_BIT1(p, bidx);
         if (v == 0) {
-          COL_VAL_SET_NONE(pColVal);
+          // COL_VAL_SET_NONE(pColVal);
         } else {
-          COL_VAL_SET_NULL(pColVal);
+          // COL_VAL_SET_NULL(pColVal);
         }
         return 0;
       case TSROW_HAS_VAL | TSROW_HAS_NONE:
@@ -148,7 +145,7 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
           p = p + (pTSchema->numOfCols - 2) / 8 + 1;
           break;
         } else {
-          COL_VAL_SET_NONE(pColVal);
+          // COL_VAL_SET_NONE(pColVal);
           return 0;
         }
       case TSROW_HAS_VAL | TSROW_HAS_NULL:
@@ -157,16 +154,16 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
           p = p + (pTSchema->numOfCols - 2) / 8 + 1;
           break;
         } else {
-          COL_VAL_SET_NULL(pColVal);
+          // COL_VAL_SET_NULL(pColVal);
           return 0;
         }
       case TSROW_HAS_VAL | TSROW_HAS_NULL | TSROW_HAS_NONE:
         v = GET_BIT2(p, bidx);
         if (v == 0) {
-          COL_VAL_SET_NONE(pColVal);
+          // COL_VAL_SET_NONE(pColVal);
           return 0;
         } else if (v == 1) {
-          COL_VAL_SET_NULL(pColVal);
+          // COL_VAL_SET_NULL(pColVal);
           return 0;
         } else if (v == 2) {
           p = p + (pTSchema->numOfCols - 2) / 4 + 1;
@@ -185,7 +182,7 @@ int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal
     } else {
       n = pTColumn->bytes;
     }
-    COL_VAL_SET_VAL(pColVal, p, n);
+    // COL_VAL_SET_VAL(pColVal, p, n);
   }
 
   return 0;

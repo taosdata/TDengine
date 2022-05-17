@@ -38,30 +38,11 @@ int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema *
 void    tTSchemaDestroy(STSchema *pTSchema);
 
 // SColVal
-#define COL_VAL_SET_NONE(CV) \
-  do {                       \
-    (CV)->type = COL_NONE;   \
-    (CV)->nData = 0;         \
-    (CV)->pData = NULL;      \
-  } while (0)
-
-#define COL_VAL_SET_NULL(CV) \
-  do {                       \
-    (CV)->type = COL_NULL;   \
-    (CV)->nData = 0;         \
-    (CV)->pData = NULL;      \
-  } while (0)
-
-#define COL_VAL_SET_VAL(CV, PDATA, NDATA) \
-  do {                                    \
-    (CV)->type = COL_VAL;                 \
-    (CV)->nData = (NDATA);                \
-    (CV)->pData = (PDATA);                \
-  } while (0)
+#define ColValNONE               ((SColVal){.type = COL_VAL_NONE, .nData = 0, .pData = NULL})
+#define ColValNULL               ((SColVal){.type = COL_VAL_NULL, .nData = 0, .pData = NULL})
+#define ColValDATA(nData, pData) ((SColVal){.type = COL_VAL_DATA, .nData = (nData), .pData = (pData)})
 
 // STSRow2
-int32_t tEncodeTSRow(SEncoder *pEncoder, const STSRow2 *pRow);
-int32_t tDecodeTSRow(SDecoder *pDecoder, STSRow2 *pRow);
 int32_t tPutTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tGetTSRow(uint8_t *p, STSRow2 *pRow);
 int32_t tTSRowGet(const STSRow2 *pRow, STSchema *pTSchema, int32_t iCol, SColVal *pColVal);
@@ -96,11 +77,11 @@ struct STSchema {
 #define TSROW_HAS_VAL  ((uint8_t)0x4U)
 #define TSROW_KV_ROW   ((uint8_t)0x10U)
 struct STSRow2 {
-  TSKEY          ts;
-  uint8_t        flags;
-  int32_t        sver;
-  uint32_t       nData;
-  const uint8_t *pData;
+  TSKEY    ts;
+  uint8_t  flags;
+  int32_t  sver;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 struct STSRowBuilder {
@@ -117,11 +98,11 @@ struct STSRowBuilder {
   STSRow2   row;
 };
 
-typedef enum { COL_VAL = 0, COL_NONE = 1, COL_NULL = 2 } EColValT;
+typedef enum { COL_VAL_NONE = 0, COL_VAL_NULL = 1, COL_VAL_Data = 2 } EColValT;
 struct SColVal {
-  EColValT       type;
-  uint32_t       nData;
-  const uint8_t *pData;
+  EColValT type;
+  uint32_t nData;
+  uint8_t *pData;
 };
 
 #if 1  //====================================

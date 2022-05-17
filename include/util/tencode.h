@@ -630,7 +630,7 @@ static FORCE_INLINE int32_t tPutBinary(uint8_t* p, uint8_t* pData, uint32_t nDat
   return n;
 }
 
-static FORCE_INLINE int32_t tGetBinary(uint8_t* p, const uint8_t** ppData, uint32_t* nData) {
+static FORCE_INLINE int32_t tGetBinary(uint8_t* p, uint8_t** ppData, uint32_t* nData) {
   int32_t  n = 0;
   uint32_t nt;
 
