@@ -836,7 +836,7 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
   fnDebug("udfc get uv task result. task: %p, uvTask: %p", task, uvTask);
   if (uvTask->type == UV_TASK_REQ_RSP) {
     if (uvTask->rspBuf.base != NULL) {
-      SUdfResponse rsp;
+      SUdfResponse rsp = {0};
       void* buf = decodeUdfResponse(uvTask->rspBuf.base, &rsp);
       assert(uvTask->rspBuf.len == POINTER_DISTANCE(buf, uvTask->rspBuf.base));
       task->errCode = rsp.code;
@@ -1569,6 +1569,7 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
   }
   udfRes->interResNum = buf.numOfResult;
   memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+  freeUdfInterBuf(&buf);
   return true;
 }
 
@@ -1626,7 +1627,7 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   blockDataDestroy(inputBlock);
   taosArrayDestroy(tempBlock.pDataBlock);
 
-  taosMemoryFree(newState.buf);
+  freeUdfInterBuf(&newState);
   return udfCode;
 }
 
@@ -1654,6 +1655,8 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
     udfRes->finalResNum = resultBuf.numOfResult;
     GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
   }
+
+  freeUdfInterBuf(&resultBuf);
 
   int32_t numOfResults = functionFinalizeWithResultBuf(pCtx, pBlock, udfRes->finalResBuf);
   releaseUdfFuncHandle(pCtx->udfName);
