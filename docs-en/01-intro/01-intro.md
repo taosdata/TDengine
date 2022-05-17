@@ -3,9 +3,13 @@ title: Introduction
 toc_max_heading_level: 2
 ---
 
-## TDengine Major Features
+TDengine is a high-performance, scalable time-series database with SQL support. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/continuous-query), [data subscription](/develop/subscribe)  and other functionalities to reduce the complexity and cost of development and operation.
 
-TDengine is a high-performance, scalable time-series database with SQL support. Its code, including its cluster feature is open source under GNU AGPL v3.0. Besides the database engine, it provides [caching](/develop/cache), [stream processing](/develop/continuous-query), [data subscription](/develop/subscribe)  and other functionalities to reduce the complexity and cost of development and operation. The major features are listed below:
+This section introduces the major features, competitive advantages, suited scenarios and benchmarks to help you get a high level picture for TDengine.
+
+## Major Features
+
+The major features are listed below:
 
 1. Besides [using SQL to insert](/develop/insert-data/sql-writing)，supports [Schemaless writing](/reference/schemaless/)，and supports [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) and other protocols.
 2. Support seamless integration with third-party data collection agent like [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [Tcollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker). Without a line of code, those agents can write data points into TDengine just by configuration. 
@@ -25,7 +29,7 @@ TDengine is a high-performance, scalable time-series database with SQL support. 
 
 For more detailed features, please read through the whole document. 
 
-## TDenginge Highlights
+## Competitive Advantages
 
 TDengine makes full use of [the characteristics of time series data](https://tdengine.com/2019/07/09/86.html), such as structured, no transaction, rarely delete or update, etc., and builds its own innovative storage engine and computing engine to differentiate itself from other TSDBs with the following advantages.
 
@@ -101,7 +105,7 @@ From the perspective of data sources, designers can analyze the applicability of
 | Minimize learning and maintenance costs |                    |                      | √                   | In addition to being easily configurable, standard SQL support and the Taos shell for ad hoc queries makes maintenance simpler, allows reuse and reduces learning costs.|
 | Abundant talent supply               | √                  |                      |                     | Given the above, and given the extensive training and professional services provided by TDengine, it is easy to migrate from existing solutions or create a new and lasting solution based on TDengine.|
 
-## Benchmark comparision between TDengine and other databases
+## Comparision with other databases
 
 - [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/2022/02/23/4975.html)
 - [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/2022/02/24/5120.html)

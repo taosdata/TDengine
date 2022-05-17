@@ -1,40 +1,34 @@
 ---
-title: 支持平台列表
-description: "TDengine 服务端、客户端和连接器支持的平台列表"
+title: List of supported platforms
+description: "List of platforms supported by TDengine server, client, and connector"
 ---
 
-## TDengine 服务端支持的平台列表
+## List of supported platforms for TDengine server
 
-|              | **CentOS 7/8** | **Ubuntu 16/18/20** | **Other Linux** | **统信 UOS** | **银河/中标麒麟** | **凝思 V60/V80** | **华为 EulerOS** |
-| ------------ | -------------- | ------------------- | --------------- | ------------ | ----------------- | ---------------- | ---------------- |
-| X64          | ●              | ●                   |                 | ○            | ●                 | ●                | ●                |
-| 龙芯 MIPS64  |                |                     | ●               |              |                   |                  |                  |
-| 鲲鹏 ARM64   |                | ○                   | ○               |              | ●                 |                  |                  |
-| 申威 Alpha64 |                |                     | ○               | ●            |                   |                  |                  |
-| 飞腾 ARM64   |                | ○ 优麒麟            |                 |              |                   |                  |                  |
-| 海光 X64     | ●              | ●                   | ●               | ○            | ●                 | ●                |                  |
-| 瑞芯微 ARM64 |                |                     | ○               |              |                   |                  |                  |
-| 全志 ARM64   |                |                     | ○               |              |                   |                  |                  |
-| 炬力 ARM64   |                |                     | ○               |              |                   |                  |                  |
-| 华为云 ARM64 |                |                     |                 |              |                   |                  | ●                |
+|              | **CentOS 7/8** | **Ubuntu 16/18/20** | **Other Linux** |
+| ------------ | -------------- | ------------------- | --------------- |
+| X64          | ●              | ●                   |                 |
+| MIPS64       |                |                     | ●               |
+| ARM64        |                | ○                   | ○               |
+| Alpha64      |                |                     | ○               |
 
-注： ● 表示经过官方测试验证， ○ 表示非官方测试验证。
+Note: ● means officially tested and verified, ○ means unofficially tested and verified.
 
-## TDengine 客户端和连接器支持的平台列表
+## List of supported platforms for TDengine clients and connectors
 
-目前 TDengine 的连接器可支持的平台广泛，目前包括：X64/X86/ARM64/ARM32/MIPS/Alpha 等硬件平台，以及 Linux/Win64/Win32 等开发环境。
+TDengine's connector can support a wide range of platforms, including X64/X86/ARM64/ARM32/MIPS/Alpha hardware platforms and Linux/Win64/Win32 development environments.
 
-对照矩阵如下：
+The comparison matrix is as follows.
 
-| **CPU**     | **X64 64bit** |           |           | **X86 32bit** | **ARM64** | **ARM32** | **MIPS 龙芯** | **Alpha 申威** | **X64 海光** |
-| ----------- | ------------- | --------- | --------- | ------------- | --------- | --------- | ------------- | -------------- | ------------ |
-| **OS**      | **Linux**     | **Win64** | **Win32** | **Win32**     | **Linux** | **Linux** | **Linux**     | **Linux**      | **Linux**    |
-| **C/C++**   | ●             | ●         | ●         | ○             | ●         | ●         | ●             | ●              | ●            |
-| **JDBC**    | ●             | ●         | ●         | ○             | ●         | ●         | ●             | ●              | ●            |
-| **Python**  | ●             | ●         | ●         | ○             | ●         | ●         | ●             | --             | ●            |
-| **Go**      | ●             | ●         | ●         | ○             | ●         | ●         | ○             | --             | --           |
-| **NodeJs**  | ●             | ●         | ○         | ○             | ●         | ●         | ○             | --             | --           |
-| **C#**      | ●             | ●         | ○         | ○             | ○         | ○         | ○             | --             | --           |
-| **RESTful** | ●             | ●         | ●         | ●             | ●         | ●         | ●             | ●              | ●            |
+| **CPU**     | **X64 64bit** |           |           | **X86 32bit** | **ARM64** | **ARM32** | **MIPS**  | **Alpha** |
+| ----------- | ------------- | --------- | --------- | ------------- | --------- | --------- | --------- | --------- |
+| **OS**      | **Linux**     | **Win64** | **Win32** | **Win32**     | **Linux** | **Linux** | **Linux** | **Linux** |
+| **C/C++**   | ●             | ●         | ●         | ○             | ●         | ●         | ●         | ●         |
+| **JDBC**    | ●             | ●         | ●         | ○             | ●         | ●         | ●         | ●         |
+| **Python**  | ●             | ●         | ●         | ○             | ●         | ●         | ●         | --        |
+| **Go**      | ●             | ●         | ●         | ○             | ●         | ●         | ○         | --        |
+| **NodeJs**  | ●             | ●         | ○         | ○             | ●         | ●         | ○         | --        |
+| **C#**      | ●             | ●         | ○         | ○             | ○         | ○         | ○         | --        |
+| **RESTful** | ●             | ●         | ●         | ●             | ●         | ●         | ●         | ●         |
 
-注：● 表示官方测试验证通过，○ 表示非官方测试验证通过，-- 表示未经验证。
+Note: ● means the official test is verified, ○ means the unofficial test is verified, -- means not verified.

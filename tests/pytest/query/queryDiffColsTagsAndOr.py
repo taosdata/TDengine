@@ -815,15 +815,15 @@ class TDTestCase:
         query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >1 or c2 = 2 and c7 like "binar_" and c4 in (3, 5)) where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) interval(8d)'
         res = tdSql.query(query_sql, True)
         tdSql.checkRows(3)
-        tdSql.checkEqual(int(res[0][1]), 17)
+        tdSql.checkEqual(int(res[0][1]), 15)
         tdSql.checkEqual(int(res[0][2]), 1)
-        tdSql.checkEqual(int(res[0][3]), 38)
-        tdSql.checkEqual(int(res[1][1]), 10)
-        tdSql.checkEqual(int(res[1][2]), 2)
-        tdSql.checkEqual(int(res[1][3]), 17)
-        tdSql.checkEqual(int(res[2][1]), 8)
+        tdSql.checkEqual(int(res[0][3]), 50)
+        tdSql.checkEqual(int(res[1][1]), 15)
+        tdSql.checkEqual(int(res[1][2]), 3)
+        tdSql.checkEqual(int(res[1][3]), 15)
+        tdSql.checkEqual(int(res[2][1]), 5)
         tdSql.checkEqual(int(res[2][2]), 1)
-        tdSql.checkEqual(int(res[2][3]), 15)
+        tdSql.checkEqual(int(res[2][3]), 5)
 
         ## select count avg sum from (condition_A and condition_B and and line and in and ts and  condition_tag_A and  condition_tag_B and between) where condition_C orr condition_D or condition_tag_C or condition_tag_D or like and in interval
         query_sql = f'select count(*), avg(c6), sum(c3) from (select * from {tb_name} where c1 >= 1 and c2 = 2 and c7 like "binar_" and c4 in (3, 5) and ts > "2021-01-11 12:00:00" and t1 < 2 and t1 > 0 and c6 between 0 and 7) where c1 != 2 or c3 = 1 or t1=2 or t1=3 or c8 like "ncha_" and c9 in (true) interval(8d)'
