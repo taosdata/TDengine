@@ -46,13 +46,13 @@ Comparing the connector support for TDengine functional features as follows.
 
 | **Functional Features** | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
 | -------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | Support | Support | Support | Support
-| Support | Support | Support | Support | Support | Support | Support | Support | Support
-| Support | Support | Support | Support | Support | Support | Support | Support | Support
-| **Parameter Binding** | Support | Support | Support | Support | Support | Support | Support
-| Support | Support | Support | Support | Support | Support | Support | Not Supported
-| **Schemaless** | Support | Support | Support | Support | Support | Support | Support
-| **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported
+| **Connection Management** | Support | Support | Support | Support | Support | Support | Support |
+| **Regular Query** | Support | Support | Support | Support | Support | Support | Support | Support |
+| **Continous Query** | Support | Support | Support | Support | Support | Support | Support | Support | Support |
+| **Parameter Binding** | Support | Support | Support | Support | Support | Support | Support |
+| **Subscription** | Support | Support | Support | Support | Support | Support | Support | Not Supported |
+| **Schemaless** | Support | Support | Support | Support | Support | Support | Support |
+| **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported |
 
 :::info
 The different database framework specifications for various programming languages do not mean that all C/C++ interfaces need a wrapper.
@@ -62,14 +62,14 @@ The different database framework specifications for various programming language
 
 | **Functional Features** | **Java** | **Python** | **Go** | **C# (not supported yet)** | **Node.js** | **Rust** |
 | ------------------------------ | -------- | ---------- | -------- | ------------------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | N/A | Support | Support | Support
-| Support | Support | N/A | Support | Support | Support
-| Support | Support | N/A | Support | Support | Support
-| Support | N/A | Support | N/A | Support | N/A
-| | N/A | Support | N/A | Support | N/A
-| **Schemaless** | Not supported | N/A | Not supported | Not supported | N/A
-| N/A | Not Supported | Not Supported | N/A
-| **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported
+| **Connection Management** | Support | Support | Support | N/A | Support | Support | Support |
+| **Regular Query** | Support | Support | N/A | Support | Support | Support |
+| **Continous Query ** | Support | Support | N/A | Support | Support | Support |
+| **Parameter Binding** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
+| **Subscription** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
+| **Schemaless** | Not supported | Not Supported | Not Supported | N/A | Not Supported | Not supported |
+| **Bulk Pulling (based on WebSocket) **| Support | Not Supported | N/A | Not Supported | Not Supported |
+| **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported |
 
 :::warning
 
