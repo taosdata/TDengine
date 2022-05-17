@@ -4,7 +4,9 @@ title: REST API
 
 To support the development of various types of platforms, TDengine provides an API that conforms to the REST principle, namely REST API. To minimize the learning cost, different from the other database REST APIs, TDengine directly requests the SQL command contained in the request BODY through HTTP POST to operate the database and only requires a URL.
 
-Note: One difference from the native connector is that the REST interface is stateless, so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name prefix. (Since version 2.2.0.0, it is supported to specify db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used. Since version 2.4.0.0, REST service is provided by taosAdapter by default. And it requires that the `db_name` must be specified in the URL.)
+:::note 
+One difference from the native connector is that the REST interface is stateless, so the `USE db_name` command has no effect. All references to table names and super table names need to specify the database name prefix. (Since version 2.2.0.0, it is supported to specify db_name in RESTful URL. If the database name prefix is not specified in the SQL command, the `db_name` specified in the URL will be used. Since version 2.4.0.0, REST service is provided by taosAdapter by default. And it requires that the `db_name` must be specified in the URL.)
+:::
 
 ## Installation
 
@@ -19,8 +21,7 @@ The following is an Ubuntu environment using the `curl` tool (to confirm that it
 The following example lists all databases, replacing `h1.taosdata.com` and `6041` (the default port) with the actual running TDengine service FQDN and port number.
 
 ```html
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;'
-h1.taosdata.com:6041/rest/sql
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taosdata.com:6041/rest/sql
 ```
 
 The following return value results indicate that the verification passed.
@@ -100,7 +101,7 @@ TDengine supports both Basic authentication and custom authentication mechanisms
   Authorization: Basic <TOKEN>
   ```
 
-The HTTP request's BODY is a complete SQL command, and the data table in the SQL statement should be provided with a database prefix, e.g., `\<db_name>.\<tb_name>`. If the table name does not have a database prefix and the database name is not specified in the URL, the system will response an error because the HTTP module is a simple forwarder and has no awareness of the current DB.
+The HTTP request's BODY is a complete SQL command, and the data table in the SQL statement should be provided with a database prefix, e.g., `db_name.tb_name`. If the table name does not have a database prefix and the database name is not specified in the URL, the system will response an error because the HTTP module is a simple forwarder and has no awareness of the current DB.
 
 Use `curl` to initiate an HTTP request with a custom authentication method, with the following syntax.
 
@@ -236,7 +237,7 @@ Response body:
 
 ### Unix timestamps for result sets
 
-When the HTTP request URL uses `sqlt`, the timestamp of the returned result set will be in Unix timestamp format, for example:
+When the HTTP request URL uses `/rest/sqlt`, the returned result set's timestamp value will be in Unix timestamp format, for example:
 
 ```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
@@ -264,7 +265,7 @@ Response body:
 
 ### UTC format for the result set
 
-When the HTTP request URL uses `sqlutc`, the timestamp of the returned result set will be expressed as a UTC format, for example:
+When the HTTP request URL uses `/rest/sqlutc`, the timestamp of the returned result set will be expressed as a UTC format, for example:
 
 ```bash
   curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
@@ -298,7 +299,7 @@ Only some configuration parameters related to the RESTful interface are listed b
 - httpMaxThreads: the number of threads to start, default is 2 (the default value is rounded down to half of the CPU cores with version 2.0.17.0 and later versions).
 - restfulRowLimit: the maximum number of result sets (in JSON format) to return. The default value is 10240.
 - httpEnableCompress: whether to support compression, the default is not supported. Currently, TDengine only supports the gzip compression format.
-- httpDebugFlag: logging switch, default 131. 131: error and alarm messages only, 135: debug messages, 143: very detailed debug messages, default 131.
+- httpDebugFlag: logging switch, default is 131. 131: error and alarm messages only, 135: debug messages, 143: very detailed debug messages.
 - httpDbNameMandatory: users must specify the default database name in the RESTful URL. The default is 0, which turns off this check. If set to 1, users must put a default database name in every RESTful URL. Otherwise, it will return an execution error and reject this SQL statement, regardless of whether the SQL statement executed at this time requires a specified database.
 
 :::note 
