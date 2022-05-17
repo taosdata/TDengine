@@ -3446,7 +3446,7 @@ static int32_t extractQueryResultSchema(const SNodeList* pProjections, int32_t* 
     (*pSchema)[index].type = pExpr->resType.type;
     (*pSchema)[index].bytes = pExpr->resType.bytes;
     (*pSchema)[index].colId = index + 1;
-    strcpy((*pSchema)[index].name, pExpr->aliasName);
+    strcpy((*pSchema)[index].name, pExpr->userAlias);
     index += 1;
   }
 

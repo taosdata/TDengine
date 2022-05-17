@@ -20,7 +20,96 @@ using namespace std;
 
 class PlanStmtTest : public PlannerTestBase {
  public:
-  void buildParam(TAOS_MULTI_BIND* pBindParams, int32_t index, void* pVal, int32_t type, int32_t bytes = 0) {
+  TAOS_MULTI_BIND* createBindParams(int32_t nParams) {
+    return (TAOS_MULTI_BIND*)taosMemoryCalloc(nParams, sizeof(TAOS_MULTI_BIND));
+  }
+
+  TAOS_MULTI_BIND* buildIntegerParam(TAOS_MULTI_BIND* pBindParams, int32_t index, int64_t val, int32_t type) {
+    TAOS_MULTI_BIND* pBindParam = initParam(pBindParams, index, type, 0);
+
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+        *((bool*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        *((int8_t*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        *((int16_t*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_INT:
+        *((int32_t*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        *((int64_t*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+        *((int64_t*)pBindParam->buffer) = val;
+        break;
+      default:
+        break;
+    }
+
+    return pBindParam;
+  }
+
+  TAOS_MULTI_BIND* buildUIntegerParam(TAOS_MULTI_BIND* pBindParams, int32_t index, uint64_t val, int32_t type) {
+    TAOS_MULTI_BIND* pBindParam = initParam(pBindParams, index, type, 0);
+
+    switch (type) {
+      case TSDB_DATA_TYPE_UTINYINT:
+        *((uint8_t*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        *((uint16_t*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        *((uint32_t*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        *((uint64_t*)pBindParam->buffer) = val;
+        break;
+      default:
+        break;
+    }
+    return pBindParam;
+  }
+
+  TAOS_MULTI_BIND* buildDoubleParam(TAOS_MULTI_BIND* pBindParams, int32_t index, double val, int32_t type) {
+    TAOS_MULTI_BIND* pBindParam = initParam(pBindParams, index, type, 0);
+
+    switch (type) {
+      case TSDB_DATA_TYPE_FLOAT:
+        *((float*)pBindParam->buffer) = val;
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
+        *((double*)pBindParam->buffer) = val;
+        break;
+      default:
+        break;
+    }
+    return pBindParam;
+  }
+
+  TAOS_MULTI_BIND* buildStringParam(TAOS_MULTI_BIND* pBindParams, int32_t index, const char* pVal, int32_t type,
+                                    int32_t bytes) {
+    TAOS_MULTI_BIND* pBindParam = initParam(pBindParams, index, type, bytes);
+
+    switch (type) {
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_VARBINARY:
+        strncpy((char*)pBindParam->buffer, pVal, bytes);
+        break;
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_NCHAR:
+      default:
+        break;
+    }
+    return pBindParam;
+  }
+
+ private:
+  TAOS_MULTI_BIND* initParam(TAOS_MULTI_BIND* pBindParams, int32_t index, int32_t type, int32_t bytes) {
     TAOS_MULTI_BIND* pBindParam = pBindParams + index;
     pBindParam->buffer_type = type;
     pBindParam->num = 1;
@@ -30,39 +119,48 @@ class PlanStmtTest : public PlannerTestBase {
     pBindParam->is_null = (char*)taosMemoryCalloc(1, sizeof(char));
     *(pBindParam->length) = bytes > 0 ? bytes : tDataTypes[type].bytes;
     *(pBindParam->is_null) = 0;
-
-    switch (type) {
-      case TSDB_DATA_TYPE_BOOL:
-        *((bool*)pBindParam->buffer) = *(bool*)pVal;
-        break;
-      case TSDB_DATA_TYPE_TINYINT:
-        *((int8_t*)pBindParam->buffer) = *(int64_t*)pVal;
-        break;
-      case TSDB_DATA_TYPE_SMALLINT:
-      case TSDB_DATA_TYPE_INT:
-      case TSDB_DATA_TYPE_BIGINT:
-      case TSDB_DATA_TYPE_FLOAT:
-      case TSDB_DATA_TYPE_DOUBLE:
-      case TSDB_DATA_TYPE_VARCHAR:
-      case TSDB_DATA_TYPE_TIMESTAMP:
-      case TSDB_DATA_TYPE_NCHAR:
-      case TSDB_DATA_TYPE_UTINYINT:
-      case TSDB_DATA_TYPE_USMALLINT:
-      case TSDB_DATA_TYPE_UINT:
-      case TSDB_DATA_TYPE_UBIGINT:
-      case TSDB_DATA_TYPE_JSON:
-      case TSDB_DATA_TYPE_VARBINARY:
-      case TSDB_DATA_TYPE_DECIMAL:
-      case TSDB_DATA_TYPE_BLOB:
-      case TSDB_DATA_TYPE_MEDIUMBLOB:
-      default:
-        break;
-    }
+    return pBindParam;
   }
 };
 
-TEST_F(PlanStmtTest, stmt) {
+TEST_F(PlanStmtTest, basic) {
   useDb("root", "test");
 
   prepare("SELECT * FROM t1 WHERE c1 = ?");
+  bindParams(buildIntegerParam(createBindParams(1), 0, 10, TSDB_DATA_TYPE_INT), 0);
+  exec();
+
+  {
+    prepare("SELECT * FROM t1 WHERE c1 = ? AND c2 = ?");
+    TAOS_MULTI_BIND* pBindParams = createBindParams(2);
+    buildIntegerParam(pBindParams, 0, 10, TSDB_DATA_TYPE_INT);
+    buildStringParam(pBindParams, 1, "abc", TSDB_DATA_TYPE_VARCHAR, strlen("abc"));
+    bindParams(pBindParams, -1);
+    exec();
+    taosMemoryFreeClear(pBindParams);
+  }
+
+  {
+    prepare("SELECT MAX(?), MAX(?) FROM t1");
+    TAOS_MULTI_BIND* pBindParams = createBindParams(2);
+    buildIntegerParam(pBindParams, 0, 10, TSDB_DATA_TYPE_TINYINT);
+    buildIntegerParam(pBindParams, 1, 20, TSDB_DATA_TYPE_INT);
+    bindParams(pBindParams, -1);
+    exec();
+    taosMemoryFreeClear(pBindParams);
+  }
 }
+
+TEST_F(PlanStmtTest, multiExec) {
+  useDb("root", "test");
+
+  prepare("SELECT * FROM t1 WHERE c1 = ?");
+  bindParams(buildIntegerParam(createBindParams(1), 0, 10, TSDB_DATA_TYPE_INT), 0);
+  exec();
+  bindParams(buildIntegerParam(createBindParams(1), 0, 20, TSDB_DATA_TYPE_INT), 0);
+  exec();
+  bindParams(buildIntegerParam(createBindParams(1), 0, 30, TSDB_DATA_TYPE_INT), 0);
+  exec();
+}
+
+TEST_F(PlanStmtTest, allDataType) { useDb("root", "test"); }
