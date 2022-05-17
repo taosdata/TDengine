@@ -221,8 +221,8 @@ class TDTestCase:
         for i in range(len(sqls)):
             tdSql.query(sqls[i])
             res1_type = self.__get_type(0)
-            for j in range(sqls[i:]):
-                tdSql.query(sqls[j])
+            for j in range(len(sqls[i:])):
+                tdSql.query(sqls[j+i])
                 union_type = False
                 res2_type =  self.__get_type(0)
 
@@ -236,17 +236,16 @@ class TDTestCase:
                     union_type = True
 
                 if union_type:
-                    tdSql.query(f"{sqls[i]} union {sqls[j]}")
-                    tdSql.query(f"{sqls[j]} union {sqls[i]}")
+                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
+                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
                     tdSql.checkCols(1)
-                    tdSql.query(f"{sqls[i]} union all {sqls[j]}")
-                    tdSql.query(f"{sqls[j]} union all {sqls[i]}")
+                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
+                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
                     tdSql.checkCols(1)
                 else:
-                    tdSql.error(f"{sqls[i]} union {sqls[j]}")
+                    tdSql.error(f"{sqls[i]} union {sqls[j+i]}")
 
     def __test_error(self):
-
 
         tdSql.error( "show tables union show tables" )
         tdSql.error( "create table errtb1 union all create table errtb2" )
