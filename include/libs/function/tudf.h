@@ -87,6 +87,7 @@ typedef struct SUdfInterBuf {
 } SUdfInterBuf;
 typedef void *UdfcFuncHandle;
 
+//low level APIs
 /**
  * setup udf
  * @param udf, in
@@ -115,6 +116,9 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
  */
 int32_t doTeardownUdf(UdfcFuncHandle handle);
 
+void freeUdfInterBuf(SUdfInterBuf *buf);
+
+//high level APIs
 bool udfAggGetEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResultCellInfo);
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx);
