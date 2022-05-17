@@ -251,7 +251,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
         topicList    = topicName1
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
@@ -410,7 +410,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
         topicList    = topicName1
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
@@ -487,7 +487,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
         topicList    = topicName1
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
@@ -659,7 +659,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
         topicList    = topicName1 + ',' + topicName2
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
@@ -708,13 +708,13 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
-        #self.tmqCase1(cfgPath, buildPath)
-        #self.tmqCase2(cfgPath, buildPath) 
-        #self.tmqCase3(cfgPath, buildPath)
+        self.tmqCase1(cfgPath, buildPath)
+        self.tmqCase2(cfgPath, buildPath) 
+        self.tmqCase3(cfgPath, buildPath)
         self.tmqCase4(cfgPath, buildPath)
-        #self.tmqCase5(cfgPath, buildPath)
+        self.tmqCase5(cfgPath, buildPath)
         self.tmqCase6(cfgPath, buildPath)
-        #self.tmqCase7(cfgPath, buildPath)
+        self.tmqCase7(cfgPath, buildPath)
 
 
     def stop(self):
