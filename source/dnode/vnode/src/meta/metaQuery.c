@@ -394,11 +394,6 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
     goto _err;
   }
 
-  SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
-  if (pCur == NULL) {
-    goto _err;
-  }
-
   SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
   int64_t smaId;
@@ -442,12 +437,10 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
 
   metaReaderClear(&mr);
   taosArrayDestroy(pSmaIds);
-  metaCloseSmaCursor(pCur);
   return pSW;
 _err:
   metaReaderClear(&mr);
   taosArrayDestroy(pSmaIds);
-  metaCloseSmaCursor(pCur);
   tdFreeTSmaWrapper(pSW, deepCopy);
   return NULL;
 }
