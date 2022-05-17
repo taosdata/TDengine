@@ -19,8 +19,7 @@ RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安�
 下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 fqdn 和端口号：
 
 ```html
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;'
-h1.taosdata.com:6041/rest/sql
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taosdata.com:6041/rest/sql
 ```
 
 返回值结果如下表示验证通过：
