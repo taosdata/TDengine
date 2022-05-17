@@ -3243,7 +3243,7 @@ int32_t tailFunction(SqlFunctionCtx* pCtx) {
   if (pInfo->offset >= pInput->numOfRows) {
     return 0;
   } else {
-    pInfo->numOfPoints = MIN(pInfo->numOfPoints, pInput->numOfRows - pInfo->offset);
+    pInfo->numOfPoints = TMIN(pInfo->numOfPoints, pInput->numOfRows - pInfo->offset);
   }
   for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex - pInfo->offset; i += 1) {
 
