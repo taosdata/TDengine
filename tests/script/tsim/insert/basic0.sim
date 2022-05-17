@@ -253,16 +253,15 @@ endi
 
 # The order of data from different sub tables in the super table is random, 
 # so this detection may fail randomly
-print $data01 $data02 $data03
-# if $data01 != 10 then 
-#   return -1
-# endi
-# if $data02 != 2.00000 then 
-#   return -1
-# endi
-# if $data03 != 3.000000000 then 
-#   return -1
-# endi
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
 
 #print =============== select count(column) from supter table
 #sql select count(ts), count(c1), count(c2), count(c3) from stb
@@ -511,15 +510,15 @@ if $rows != 9 then
 endi
 # The order of data from different sub tables in the super table is random, 
 # so this detection may fail randomly
-#if $data01 != 10 then 
-#  return -1
-#endi
-#if $data02 != 2.00000 then 
-#  return -1
-#endi
-#if $data03 != 3.000000000 then 
-#  return -1
-#endi
+if $data01 != 10 then 
+  return -1
+endi
+if $data02 != 2.00000 then 
+  return -1
+endi
+if $data03 != 3.000000000 then 
+  return -1
+endi
 
 #print =============== select count(column) from supter table
 #sql select count(ts), count(c1), count(c2), count(c3) from stb

@@ -1135,7 +1135,6 @@ int32_t colInfoDataEnsureCapacity(SColumnInfoData* pColumn, size_t existRows, ui
 
     assert(pColumn->info.bytes);
     tmp = taosMemoryRealloc(pColumn->pData, numOfRows * pColumn->info.bytes);
-    memset(tmp, 0, numOfRows * pColumn->info.bytes);
     if (tmp == NULL) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
