@@ -135,16 +135,18 @@ FAIL:
 }
 
 static SMqRebInfo *mndGetOrCreateRebSub(SHashObj *pHash, const char *key) {
-  SMqRebInfo *pRebSub = taosHashGet(pHash, key, strlen(key) + 1);
-  if (pRebSub == NULL) {
-    pRebSub = tNewSMqRebSubscribe(key);
-    if (pRebSub == NULL) {
+  SMqRebInfo *pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
+  if (pRebInfo == NULL) {
+    pRebInfo = tNewSMqRebSubscribe(key);
+    if (pRebInfo == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return NULL;
     }
-    taosHashPut(pHash, key, strlen(key) + 1, pRebSub, sizeof(SMqRebInfo));
+    taosHashPut(pHash, key, strlen(key) + 1, pRebInfo, sizeof(SMqRebInfo));
+    taosMemoryFree(pRebInfo);
+    pRebInfo = taosHashGet(pHash, key, strlen(key) + 1);
   }
-  return pRebSub;
+  return pRebInfo;
 }
 
 static int32_t mndProcessMqTimerMsg(SNodeMsg *pMsg) {
@@ -305,8 +307,10 @@ static int32_t mndProcessAskEpReq(SNodeMsg *pMsg) {
       ASSERT(pTopic);
       taosRLockLatch(&pTopic->lock);
       topicEp.schema.nCols = pTopic->schema.nCols;
-      topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));
-      memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
+      if (topicEp.schema.nCols) {
+        topicEp.schema.pSchema = taosMemoryCalloc(topicEp.schema.nCols, sizeof(SSchema));
+        memcpy(topicEp.schema.pSchema, pTopic->schema.pSchema, topicEp.schema.nCols * sizeof(SSchema));
+      }
       taosRUnLockLatch(&pTopic->lock);
       mndReleaseTopic(pMnode, pTopic);
 
@@ -399,6 +403,9 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
 
   int32_t newTopicNum = taosArrayGetSize(newSub);
   // check topic existance
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
+  if (pTrans == NULL) goto SUBSCRIBE_OVER;
+
   for (int32_t i = 0; i < newTopicNum; i++) {
     char        *topic = taosArrayGetP(newSub, i);
     SMqTopicObj *pTopic = mndAcquireTopic(pMnode, topic);
@@ -406,7 +413,14 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
       terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
       goto SUBSCRIBE_OVER;
     }
-    // TODO lock topic to prevent drop
+
+    // ref topic to prevent drop
+    // TODO make topic complete
+    SMqTopicObj topicObj = {0};
+    memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
+    topicObj.refConsumerCnt = pTopic->refConsumerCnt + 1;
+    if (mndSetTopicRedoLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
+
     mndReleaseTopic(pMnode, pTopic);
   }
 
@@ -422,8 +436,6 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
       taosArrayPush(pConsumerNew->assignedTopics, &newTopicCopy);
     }
 
-    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
-    if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
     if (mndTransPrepare(pMnode, pTrans) != 0) goto SUBSCRIBE_OVER;
 
@@ -494,8 +506,6 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
       goto SUBSCRIBE_OVER;
     }
 
-    STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_SUBSCRIBE, &pMsg->rpcMsg);
-    if (pTrans == NULL) goto SUBSCRIBE_OVER;
     if (mndSetConsumerCommitLogs(pMnode, pTrans, pConsumerNew) != 0) goto SUBSCRIBE_OVER;
     if (mndTransPrepare(pMnode, pTrans) != 0) goto SUBSCRIBE_OVER;
   }
@@ -503,12 +513,15 @@ static int32_t mndProcessSubscribeReq(SNodeMsg *pMsg) {
   code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
 
 SUBSCRIBE_OVER:
+  mndTransDrop(pTrans);
+
   if (pConsumerOld) {
     /*taosRUnLockLatch(&pConsumerOld->lock);*/
     mndReleaseConsumer(pMnode, pConsumerOld);
   }
   if (pConsumerNew) {
     tDeleteSMqConsumerObj(pConsumerNew);
+    taosMemoryFree(pConsumerNew);
   }
   // TODO: replace with destroy subscribe msg
   if (subscribe.topicNames) taosArrayDestroyP(subscribe.topicNames, (FDelete)taosMemoryFree);

@@ -20,35 +20,49 @@ using namespace std;
 
 class PlanStmtTest : public PlannerTestBase {
  public:
-  void prepare(const string& sql) {
-    run(sql);
-    // todo calloc pBindParams_
-  }
+  void buildParam(TAOS_MULTI_BIND* pBindParams, int32_t index, void* pVal, int32_t type, int32_t bytes = 0) {
+    TAOS_MULTI_BIND* pBindParam = pBindParams + index;
+    pBindParam->buffer_type = type;
+    pBindParam->num = 1;
+    pBindParam->buffer_length = bytes > 0 ? bytes : tDataTypes[type].bytes;
+    pBindParam->buffer = taosMemoryCalloc(1, pBindParam->buffer_length);
+    pBindParam->length = (int32_t*)taosMemoryCalloc(1, sizeof(int32_t));
+    pBindParam->is_null = (char*)taosMemoryCalloc(1, sizeof(char));
+    *(pBindParam->length) = bytes > 0 ? bytes : tDataTypes[type].bytes;
+    *(pBindParam->is_null) = 0;
 
-  void bindParam(int32_t val) {
-    TAOS_MULTI_BIND* pBind = pBindParams_ + paramNo_++;
-    pBind->buffer_type = TSDB_DATA_TYPE_INT;
-    pBind->num = 1;
-    pBind->buffer_length = sizeof(int32_t);
-    pBind->buffer = taosMemoryCalloc(1, pBind->buffer_length);
-    pBind->length = (int32_t*)taosMemoryCalloc(1, sizeof(int32_t));
-    pBind->is_null = (char*)taosMemoryCalloc(1, sizeof(char));
-    *((int32_t*)pBind->buffer) = val;
-    *(pBind->length) = sizeof(int32_t);
-    *(pBind->is_null) = 0;
+    switch (type) {
+      case TSDB_DATA_TYPE_BOOL:
+        *((bool*)pBindParam->buffer) = *(bool*)pVal;
+        break;
+      case TSDB_DATA_TYPE_TINYINT:
+        *((int8_t*)pBindParam->buffer) = *(int64_t*)pVal;
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+      case TSDB_DATA_TYPE_INT:
+      case TSDB_DATA_TYPE_BIGINT:
+      case TSDB_DATA_TYPE_FLOAT:
+      case TSDB_DATA_TYPE_DOUBLE:
+      case TSDB_DATA_TYPE_VARCHAR:
+      case TSDB_DATA_TYPE_TIMESTAMP:
+      case TSDB_DATA_TYPE_NCHAR:
+      case TSDB_DATA_TYPE_UTINYINT:
+      case TSDB_DATA_TYPE_USMALLINT:
+      case TSDB_DATA_TYPE_UINT:
+      case TSDB_DATA_TYPE_UBIGINT:
+      case TSDB_DATA_TYPE_JSON:
+      case TSDB_DATA_TYPE_VARBINARY:
+      case TSDB_DATA_TYPE_DECIMAL:
+      case TSDB_DATA_TYPE_BLOB:
+      case TSDB_DATA_TYPE_MEDIUMBLOB:
+      default:
+        break;
+    }
   }
-
-  void exec() {
-    // todo
-  }
-
- private:
-  TAOS_MULTI_BIND* pBindParams_;
-  int32_t          paramNo_;
 };
 
 TEST_F(PlanStmtTest, stmt) {
   useDb("root", "test");
 
-  // run("select * from t1 where c1 = ?");
+  prepare("SELECT * FROM t1 WHERE c1 = ?");
 }

@@ -69,6 +69,11 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeI32v(pCoder, &pME->ntbEntry.ncid) < 0) return -1;
     if (tDecodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
   } else if (pME->type == TSDB_TSMA_TABLE) {
+    pME->smaEntry.tsma = taosMemoryCalloc(1, sizeof(STSma));
+    if(!pME->smaEntry.tsma) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return -1;
+    }
     if (tDecodeTSma(pCoder, pME->smaEntry.tsma) < 0) return -1;
   } else {
     ASSERT(0);

@@ -125,6 +125,10 @@ extern SDiskCfg tsDiskCfg[];
 // udf
 extern bool tsStartUdfd;
 
+// schemaless
+extern char tsSmlChildTableName[];
+extern bool tsSmlDataFormat;
+
 // internal
 extern int32_t tsTransPullupInterval;
 extern int32_t tsMqRebalanceInterval;

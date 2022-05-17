@@ -251,7 +251,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
         topicList    = topicName1
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
@@ -410,7 +410,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
         topicList    = topicName1
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
@@ -487,7 +487,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
         topicList    = topicName1
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
@@ -617,7 +617,7 @@ class TDTestCase:
         tdLog.info("step 1: create database, stb, ctb and insert data")
         # create and start thread
         parameterDict = {'cfg':        '',       \
-                         'dbName':     'db60',    \
+                         'dbName':     'db70',    \
                          'vgroups':    4,        \
                          'stbName':    'stb',    \
                          'ctbNum':     10,       \
@@ -634,7 +634,7 @@ class TDTestCase:
         prepareEnvThread.start()
 
         parameterDict2 = {'cfg':        '',       \
-                         'dbName':     'db61',    \
+                         'dbName':     'db71',    \
                          'vgroups':    4,        \
                          'stbName':    'stb2',    \
                          'ctbNum':     10,       \
@@ -659,7 +659,7 @@ class TDTestCase:
         expectrowcnt = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"] +  parameterDict2["rowsPerTbl"] * parameterDict2["ctbNum"]
         topicList    = topicName1 + ',' + topicName2
         ifcheckdata  = 0
-        ifManualCommit = 0
+        ifManualCommit = 1
         keyList      = 'group.id:cgrp1,\
                         enable.auto.commit:false,\
                         auto.commit.interval.ms:6000,\
