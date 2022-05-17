@@ -22,7 +22,7 @@ class MndTestSnode : public ::testing::Test {
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9016";
 
-    server2.Start("/tmp/mnode_test_snode2", fqdn, 9017, firstEp);
+    // server2.Start("/tmp/mnode_test_snode2", fqdn, 9017, firstEp);
     taosMsleep(300);
   }
 
@@ -198,7 +198,7 @@ TEST_F(MndTestSnode, 03_Create_Snode_Rollback) {
 
   {
     // server start, wait until the rollback finished
-    server2.DoStart();
+    server2.Start();
     taosMsleep(1000);
 
     int32_t retry = 0;
@@ -268,7 +268,7 @@ TEST_F(MndTestSnode, 04_Drop_Snode_Rollback) {
 
   {
     // server start, wait until the rollback finished
-    server2.DoStart();
+    server2.Start();
     taosMsleep(1000);
 
     int32_t retry = 0;

@@ -23,7 +23,7 @@ extern "C" {
 #endif
 
 typedef struct SDnodeMgmt {
-  struct SDnode      *pDnode;
+  SDnodeData         *pData;
   SMsgCb              msgCb;
   const char         *path;
   const char         *name;
@@ -32,22 +32,16 @@ typedef struct SDnodeMgmt {
   SSingleWorker       mgmtWorker;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
-  IsNodeDeployedFp    isNodeDeployedFp;
-  SDnodeData          data;
+  IsNodeRequiredFp    isNodeRequiredFp;
 } SDnodeMgmt;
-
-// dmEps.c
-int32_t dmReadEps(SDnodeMgmt *pMgmt);
-int32_t dmWriteEps(SDnodeMgmt *pMgmt);
-void    dmUpdateEps(SDnodeMgmt *pMgmt, SArray *pDnodeEps);
 
 // dmHandle.c
 SArray *dmGetMsgHandles();
 void    dmSendStatusReq(SDnodeMgmt *pMgmt);
-int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // dmMonitor.c
 void dmGetVnodeLoads(SDnodeMgmt *pMgmt, SMonVloadInfo *pInfo);
@@ -55,7 +49,7 @@ void dmGetMnodeLoads(SDnodeMgmt *pMgmt, SMonMloadInfo *pInfo);
 void dmSendMonitorReport(SDnodeMgmt *pMgmt);
 
 // dmWorker.c
-int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmStartStatusThread(SDnodeMgmt *pMgmt);
 void    dmStopStatusThread(SDnodeMgmt *pMgmt);
 int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt);

@@ -72,8 +72,8 @@ int32_t vnodeSendMsg(void *rpcHandle, const SEpSet *pEpSet, SRpcMsg *pMsg) {
   int32_t ret = 0;
   SMsgCb *pMsgCb = rpcHandle;
   if (pMsgCb->queueFps[SYNC_QUEUE] != NULL) {
-    pMsg->noResp = 1;
-    tmsgSendReq(rpcHandle, pEpSet, pMsg);
+    pMsg->info.noResp = 1;
+    tmsgSendReq(pEpSet, pMsg);
   } else {
     vError("vnodeSendMsg queue is NULL, SYNC_QUEUE:%d", SYNC_QUEUE);
   }
@@ -127,12 +127,10 @@ void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
     SRpcMsg saveRpcMsg;
     int32_t ret = syncGetAndDelRespRpc(pVnode->sync, cbMeta.seqNum, &saveRpcMsg);
     if (ret == 1 && cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-      applyMsg.handle = saveRpcMsg.handle;
-      applyMsg.ahandle = saveRpcMsg.ahandle;
-      applyMsg.refId = saveRpcMsg.refId;
+      applyMsg.info = saveRpcMsg.info;
     } else {
-      applyMsg.handle = NULL;
-      applyMsg.ahandle = NULL;
+      applyMsg.info.handle = NULL;
+      applyMsg.info.ahandle = NULL;
     }
 
     // put to applyQ

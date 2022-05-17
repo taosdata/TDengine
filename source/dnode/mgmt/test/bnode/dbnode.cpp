@@ -14,11 +14,10 @@
 class DndTestBnode : public ::testing::Test {
  protected:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dnode_test_bnode", 9112);
+    test.Init("/tmp/dbnodeTest", 9112);
     taosMsleep(1100);
   }
   static void TearDownTestSuite() { test.Cleanup(); }
-
   static Testbase test;
 
  public:
@@ -68,7 +67,7 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_ALREADY_DEPLOYED);
   }
 
-  test.Restart();
+  // test.Restart();
 
   {
     SDCreateBnodeReq createReq = {0};
@@ -84,7 +83,6 @@ TEST_F(DndTestBnode, 01_Create_Bnode) {
 }
 
 TEST_F(DndTestBnode, 02_Drop_Bnode) {
-#if 0  
   {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 2;
@@ -97,7 +95,7 @@ TEST_F(DndTestBnode, 02_Drop_Bnode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
   }
-#endif
+
   {
     SDDropBnodeReq dropReq = {0};
     dropReq.dnodeId = 1;
@@ -124,7 +122,7 @@ TEST_F(DndTestBnode, 02_Drop_Bnode) {
     ASSERT_EQ(pRsp->code, TSDB_CODE_NODE_NOT_DEPLOYED);
   }
 
-  test.Restart();
+  // test.Restart();
 
   {
     SDDropBnodeReq dropReq = {0};

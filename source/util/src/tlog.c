@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "tlog.h"
+#include "os.h"
 #include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
@@ -90,6 +90,7 @@ int32_t qDebugFlag = 131;
 int32_t wDebugFlag = 135;
 int32_t sDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
+int32_t tdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;

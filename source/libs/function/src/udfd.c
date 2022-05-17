@@ -86,17 +86,148 @@ typedef struct SUdf {
   TUdfDestroyFunc       destroyFunc;
 } SUdf;
 
-// TODO: low priority: change name onxxx to xxxCb, and udfc or udfd as prefix
 // TODO: add private udf structure.
 typedef struct SUdfcFuncHandle {
   SUdf *udf;
 } SUdfcFuncHandle;
 
-int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf);
+typedef enum EUdfdRpcReqRspType {
+  UDFD_RPC_MNODE_CONNECT = 0,
+  UDFD_RPC_RETRIVE_FUNC,
+} EUdfdRpcReqRspType;
+
+typedef struct SUdfdRpcSendRecvInfo {
+  EUdfdRpcReqRspType rpcType;
+  int32_t code;
+  void* param;
+  uv_sem_t resultSem;
+} SUdfdRpcSendRecvInfo;
+
+void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->info.ahandle;
+  ASSERT(pMsg->info.ahandle != NULL);
+
+  if (pEpSet) {
+    if (!isEpsetEqual(&global.mgmtEp.epSet, pEpSet)) {
+      updateEpSet_s(&global.mgmtEp, pEpSet);
+    }
+  }
+
+  if (pMsg->code != TSDB_CODE_SUCCESS) {
+    fnError("udfd rpc error. code: %s", tstrerror(pMsg->code));
+    msgInfo->code = pMsg->code;
+    goto _return;
+  }
+
+  if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
+    SConnectRsp connectRsp = {0};
+    tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
+    if (connectRsp.epSet.numOfEps == 0) {
+      msgInfo->code = TSDB_CODE_MND_APP_ERROR;
+      goto _return;
+    }
+
+    if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&global.mgmtEp.epSet, &connectRsp.epSet)) {
+      updateEpSet_s(&global.mgmtEp, &connectRsp.epSet);
+    }
+    msgInfo->code = 0;
+  } else if (msgInfo->rpcType == UDFD_RPC_RETRIVE_FUNC) {
+    SRetrieveFuncRsp retrieveRsp = {0};
+    tDeserializeSRetrieveFuncRsp(pMsg->pCont, pMsg->contLen, &retrieveRsp);
+
+    SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
+    SUdf* udf = msgInfo->param;
+    udf->funcType = pFuncInfo->funcType;
+    udf->scriptType = pFuncInfo->scriptType;
+    udf->outputType = pFuncInfo->funcType;
+    udf->outputLen = pFuncInfo->outputLen;
+    udf->bufSize = pFuncInfo->bufSize;
+
+    char path[PATH_MAX] = {0};
+    snprintf(path, sizeof(path), "%s/lib%s.so", "/tmp", pFuncInfo->name);
+    TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+    // TODO check for failure of flush to disk
+    taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
+    taosCloseFile(&file);
+    strncpy(udf->path, path, strlen(path));
+    tFreeSFuncInfo(pFuncInfo);
+    taosArrayDestroy(retrieveRsp.pFuncInfos);
+    msgInfo->code = 0;
+  }
+
+_return:
+  rpcFreeCont(pMsg->pCont);
+  uv_sem_post(&msgInfo->resultSem);
+  return;
+}
+
+int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
+  SRetrieveFuncReq retrieveReq = {0};
+  retrieveReq.numOfFuncs = 1;
+  retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
+  taosArrayPush(retrieveReq.pFuncNames, udfName);
+
+  int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
+  void   *pReq = rpcMallocCont(contLen);
+  tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
+  taosArrayDestroy(retrieveReq.pFuncNames);
+
+  SUdfdRpcSendRecvInfo* msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
+  msgInfo->rpcType = UDFD_RPC_RETRIVE_FUNC;
+  msgInfo->param = udf;
+  uv_sem_init(&msgInfo->resultSem, 0);
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = contLen;
+  rpcMsg.msgType = TDMT_MND_RETRIEVE_FUNC;
+  rpcMsg.info.ahandle = msgInfo;
+  rpcSendRequest(clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
+
+  uv_sem_wait(&msgInfo->resultSem);
+  uv_sem_destroy(&msgInfo->resultSem);
+  int32_t code = msgInfo->code;
+  taosMemoryFree(msgInfo);
+  return code;
+}
+
+int32_t udfdConnectToMnode() {
+  SConnectReq connReq = {0};
+  connReq.connType = CONN_TYPE__UDFD;
+  tstrncpy(connReq.app, "udfd",sizeof(connReq.app));
+  tstrncpy(connReq.user, TSDB_DEFAULT_USER, sizeof(connReq.user));
+  char pass[TSDB_PASSWORD_LEN + 1] = {0};
+  taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
+  tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
+  connReq.pid = htonl(taosGetPId());
+  connReq.startTime = htobe64(taosGetTimestampMs());
+
+  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
+  void*   pReq = rpcMallocCont(contLen);
+  tSerializeSConnectReq(pReq, contLen, &connReq);
+
+  SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
+  msgInfo->rpcType = UDFD_RPC_MNODE_CONNECT;
+  uv_sem_init(&msgInfo->resultSem, 0);
+
+  SRpcMsg rpcMsg = {0};
+  rpcMsg.msgType = TDMT_MND_CONNECT;
+  rpcMsg.pCont = pReq;
+  rpcMsg.contLen = contLen;
+  rpcMsg.info.ahandle = msgInfo;
+  rpcSendRequest(global.clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
+
+  uv_sem_wait(&msgInfo->resultSem);
+  int32_t code = msgInfo->code;
+  uv_sem_destroy(&msgInfo->resultSem);
+  taosMemoryFree(msgInfo);
+  return code;
+}
 
 int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
   strcpy(udf->name, udfName);
   int32_t err = 0;
+
   err = udfdFillUdfInfoFromMNode(global.clientRpc, udf->name, udf);
   if (err != 0) {
     fnError("can not retrieve udf from mnode. udf name %s", udfName);
@@ -226,7 +357,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
       code = udf->scalarProcFunc(&input, &output);
-
+      freeUdfDataDataBlock(&input);
       convertUdfColumnToDataBlock(&output, &response.callRsp.resultData);
       freeUdfColumn(&output);
       break;
@@ -246,6 +377,8 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
                              .bufLen= udf->bufSize,
                              .numOfResult = 0};
       code = udf->aggProcFunc(&input, &call->interBuf, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
+      freeUdfDataDataBlock(&input);
       subRsp->resultBuf = outBuf;
 
       break;
@@ -255,6 +388,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
                              .bufLen= udf->bufSize,
                              .numOfResult = 0};
       code = udf->aggFinishFunc(&call->interBuf, &outBuf);
+      freeUdfInterBuf(&call->interBuf);
       subRsp->resultBuf = outBuf;
       break;
     }
@@ -273,6 +407,30 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   void *buf = bufBegin;
   encodeUdfResponse(&buf, rsp);
   uvUdf->output = uv_buf_init(bufBegin, len);
+
+  switch (call->callType) {
+    case TSDB_UDF_CALL_SCALA_PROC: {
+      tDeleteSSDataBlock(&call->block);
+      tDeleteSSDataBlock(&subRsp->resultData);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_INIT: {
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_PROC: {
+      tDeleteSSDataBlock(&call->block);
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    case TSDB_UDF_CALL_AGG_FIN: {
+      freeUdfInterBuf(&subRsp->resultBuf);
+      break;
+    }
+    default:
+      break;
+
+  }
 
   taosMemoryFree(uvUdf->input.base);
   return;
@@ -348,9 +506,8 @@ void udfdProcessRequest(uv_work_t *req) {
 void udfdOnWrite(uv_write_t *req, int status) {
   SUvUdfWork *work = (SUvUdfWork *)req->data;
   if (status < 0) {
-    // TODO:log error and process it.
+    fnError("udfd send response error, length: %zu code: %s", work->output.len, uv_err_name(status));
   }
-  fnDebug("send response. length:%zu, status: %s", work->output.len, uv_err_name(status));
   taosMemoryFree(work->output.base);
   taosMemoryFree(work);
   taosMemoryFree(req);
@@ -459,9 +616,8 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
 }
 
 void udfdOnNewConnection(uv_stream_t *server, int status) {
-  fnDebug("new connection");
   if (status < 0) {
-    // TODO
+    fnError("udfd new connection error. code: %s", uv_strerror(status));
     return;
   }
 
@@ -487,139 +643,6 @@ void udfdIntrSignalHandler(uv_signal_t *handle, int signum) {
   uv_fs_unlink(global.loop, &req, global.listenPipeName, NULL);
   uv_signal_stop(handle);
   uv_stop(global.loop);
-}
-
-typedef enum EUdfdRpcReqRspType {
-  UDFD_RPC_MNODE_CONNECT = 0,
-  UDFD_RPC_RETRIVE_FUNC,
-} EUdfdRpcReqRspType;
-
-typedef struct SUdfdRpcSendRecvInfo {
-  EUdfdRpcReqRspType rpcType;
-  int32_t code;
-  void* param;
-  uv_sem_t resultSem;
-} SUdfdRpcSendRecvInfo;
-
-
-void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SUdfdRpcSendRecvInfo *msgInfo = (SUdfdRpcSendRecvInfo *)pMsg->ahandle;
-  ASSERT(pMsg->ahandle != NULL);
-
-  if (pEpSet) {
-    if (!isEpsetEqual(&global.mgmtEp.epSet, pEpSet)) {
-      updateEpSet_s(&global.mgmtEp, pEpSet);
-    }
-  }
-
-  if (pMsg->code != TSDB_CODE_SUCCESS) {
-    fnError("udfd rpc error. code: %s", tstrerror(pMsg->code));
-    msgInfo->code = pMsg->code;
-    goto _return;
-  }
-
-  if (msgInfo->rpcType == UDFD_RPC_MNODE_CONNECT) {
-    SConnectRsp connectRsp = {0};
-    tDeserializeSConnectRsp(pMsg->pCont, pMsg->contLen, &connectRsp);
-    if (connectRsp.epSet.numOfEps == 0) {
-      msgInfo->code = TSDB_CODE_MND_APP_ERROR;
-      goto _return;
-    }
-
-    if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&global.mgmtEp.epSet, &connectRsp.epSet)) {
-      updateEpSet_s(&global.mgmtEp, &connectRsp.epSet);
-    }
-    msgInfo->code = 0;
-  } else if (msgInfo->rpcType == UDFD_RPC_RETRIVE_FUNC) {
-    SRetrieveFuncRsp retrieveRsp = {0};
-    tDeserializeSRetrieveFuncRsp(pMsg->pCont, pMsg->contLen, &retrieveRsp);
-
-    SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
-    SUdf* udf = msgInfo->param;
-    udf->funcType = pFuncInfo->funcType;
-    udf->scriptType = pFuncInfo->scriptType;
-    udf->outputType = pFuncInfo->funcType;
-    udf->outputLen = pFuncInfo->outputLen;
-    udf->bufSize = pFuncInfo->bufSize;
-
-    char path[PATH_MAX] = {0};
-    snprintf(path, sizeof(path), "%s/lib%s.so", "/tmp", pFuncInfo->name);
-    TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
-    // TODO check for failure of flush to disk
-    taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
-    taosCloseFile(&file);
-    strncpy(udf->path, path, strlen(path));
-    taosArrayDestroy(retrieveRsp.pFuncInfos);
-    msgInfo->code = 0;
-  }
-
-_return:
-  rpcFreeCont(pMsg->pCont);
-  uv_sem_post(&msgInfo->resultSem);
-  return;
-}
-
-int32_t udfdConnectToMNode() {
-  SConnectReq connReq = {0};
-  connReq.connType = CONN_TYPE__UDFD;
-  tstrncpy(connReq.app, "udfd",sizeof(connReq.app));
-  tstrncpy(connReq.user, TSDB_DEFAULT_USER, sizeof(connReq.user));
-  char pass[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
-  tstrncpy(connReq.passwd, pass, sizeof(connReq.passwd));
-  connReq.pid = htonl(taosGetPId());
-  connReq.startTime = htobe64(taosGetTimestampMs());
-
-  int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
-  void*   pReq = rpcMallocCont(contLen);
-  tSerializeSConnectReq(pReq, contLen, &connReq);
-
-  SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
-  msgInfo->rpcType = UDFD_RPC_MNODE_CONNECT;
-  uv_sem_init(&msgInfo->resultSem, 0);
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.msgType = TDMT_MND_CONNECT;
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = contLen;
-  rpcMsg.ahandle = msgInfo;
-  rpcSendRequest(global.clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
-
-  uv_sem_wait(&msgInfo->resultSem);
-  int32_t code = msgInfo->code;
-  uv_sem_destroy(&msgInfo->resultSem);
-  taosMemoryFree(msgInfo);
-  return code;
-}
-
-int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
-  SRetrieveFuncReq retrieveReq = {0};
-  retrieveReq.numOfFuncs = 1;
-  retrieveReq.pFuncNames = taosArrayInit(1, TSDB_FUNC_NAME_LEN);
-  taosArrayPush(retrieveReq.pFuncNames, udfName);
-
-  int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
-  void   *pReq = rpcMallocCont(contLen);
-  tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
-  taosArrayDestroy(retrieveReq.pFuncNames);
-
-  SUdfdRpcSendRecvInfo* msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
-  msgInfo->rpcType = UDFD_RPC_RETRIVE_FUNC;
-  msgInfo->param = udf;
-  uv_sem_init(&msgInfo->resultSem, 0);
-
-  SRpcMsg rpcMsg = {0};
-  rpcMsg.pCont = pReq;
-  rpcMsg.contLen = contLen;
-  rpcMsg.msgType = TDMT_MND_RETRIEVE_FUNC;
-  rpcMsg.ahandle = msgInfo;
-  rpcSendRequest(clientRpc, &global.mgmtEp.epSet, &rpcMsg, NULL);
-
-  uv_sem_wait(&msgInfo->resultSem);
-  uv_sem_destroy(&msgInfo->resultSem);
-  int32_t code = msgInfo->code;
-  taosMemoryFree(msgInfo);
-  return code;
 }
 
 static bool udfdRpcRfp(int32_t code) {
@@ -800,15 +823,26 @@ static int32_t udfdUvInit() {
   return 0;
 }
 
+static void udfdCloseWalkCb(uv_handle_t* handle, void* arg) {
+  if (!uv_is_closing(handle)) {
+    uv_close(handle, NULL);
+  }
+}
+
 static int32_t udfdRun() {
   global.udfsHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   uv_mutex_init(&global.udfsMutex);
 
-  fnInfo("start the udfd");
-  int code = uv_run(global.loop, UV_RUN_DEFAULT);
-  fnInfo("udfd stopped. result: %s, code: %d", uv_err_name(code), code);
-  int codeClose = uv_loop_close(global.loop);
-  fnDebug("uv loop close. result: %s", uv_err_name(codeClose));
+  fnInfo("start udfd event loop");
+  uv_run(global.loop, UV_RUN_DEFAULT);
+  fnInfo("udfd event loop stopped.");
+
+  uv_loop_close(global.loop);
+
+  uv_walk(global.loop, udfdCloseWalkCb, NULL);
+  uv_run(global.loop, UV_RUN_DEFAULT);
+  uv_loop_close(global.loop);
+
   uv_mutex_destroy(&global.udfsMutex);
   taosHashCleanup(global.udfsHash);
   return 0;
@@ -846,7 +880,18 @@ int main(int argc, char *argv[]) {
     return -3;
   }
 
-  if (udfdConnectToMNode() != 0) {
+  int32_t retryMnodeTimes = 0;
+  int32_t code = 0;
+  while (retryMnodeTimes++ < TSDB_MAX_REPLICA) {
+    uv_sleep(500 * ( 1 << retryMnodeTimes));
+    code = udfdConnectToMnode();
+    if (code == 0) {
+      break;
+    }
+    fnError("can not connect to mnode, code: %s. retry", tstrerror(code));
+  }
+
+  if (code != 0) {
     fnError("failed to start since can not connect to mnode");
     return -4;
   }

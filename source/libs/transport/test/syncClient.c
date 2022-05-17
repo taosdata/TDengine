@@ -32,7 +32,7 @@ typedef struct {
   void *    pRpc;
 } SInfo;
 static void processResponse(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  SInfo *pInfo = (SInfo *)pMsg->ahandle;
+  SInfo *pInfo = (SInfo *)pMsg->info.ahandle;
   tDebug("thread:%d, response is received, type:%d contLen:%d code:0x%x", pInfo->index, pMsg->msgType, pMsg->contLen,
          pMsg->code);
 
@@ -61,7 +61,7 @@ static void *sendRequest(void *param) {
     pInfo->num++;
     rpcMsg.pCont = rpcMallocCont(pInfo->msgSize);
     rpcMsg.contLen = pInfo->msgSize;
-    rpcMsg.ahandle = pInfo;
+    rpcMsg.info.ahandle = pInfo;
     rpcMsg.msgType = 1;
     // tDebug("thread:%d, send request, contLen:%d num:%d", pInfo->index, pInfo->msgSize, pInfo->num);
     int64_t start = taosGetTimestampUs();

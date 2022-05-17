@@ -18,7 +18,7 @@
 
 static void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
 
-int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SNodeMsg *pReq) {
+int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pReq) {
   SMonSmInfo smInfo = {0};
   smGetMonitorInfo(pMgmt, &smInfo);
   dmGetMonitorSystemInfo(&smInfo.sys);
@@ -37,14 +37,14 @@ int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SNodeMsg *pReq) {
   }
 
   tSerializeSMonSmInfo(pRsp, rspLen, &smInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
   tFreeSMonSmInfo(&smInfo);
   return 0;
 }
 
-int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDCreateSnodeReq createReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -52,7 +52,7 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (pInput->dnodeId != 0 && createReq.dnodeId != pInput->dnodeId) {
+  if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to create snode since %s", terrstr());
     return -1;
@@ -67,8 +67,8 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDDropSnodeReq dropReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -76,14 +76,14 @@ int32_t smProcessDropReq(SSnodeMgmt *pMgmt, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (pMgmt->dnodeId != 0 && dropReq.dnodeId != pMgmt->dnodeId) {
+  if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop snode since %s", terrstr());
     return -1;
   }
 
   bool deployed = false;
-  if (dmWriteFile(pMgmt->path, pMgmt->name, deployed) != 0) {
+  if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write snode file since %s", terrstr());
     return -1;
   }

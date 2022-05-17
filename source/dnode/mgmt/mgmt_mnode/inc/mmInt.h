@@ -24,11 +24,11 @@ extern "C" {
 #endif
 
 typedef struct SMnodeMgmt {
+  SDnodeData   *pData;
   SMnode       *pMnode;
   SMsgCb        msgCb;
   const char   *path;
   const char   *name;
-  int32_t       dnodeId;
   SSingleWorker queryWorker;
   SSingleWorker readWorker;
   SSingleWorker writeWorker;
@@ -48,20 +48,20 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();
-int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SNodeMsg *pMsg);
-int32_t mmProcessDropReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SNodeMsg *pReq);
-int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SNodeMsg *pReq);
+int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq);
+int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq);
 
 // mmWorker.c
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
-int32_t mmPutNodeMsgToWriteQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmPutNodeMsgToSyncQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmPutNodeMsgToQueryQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmPutNodeMsgToMonitorQueue(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
+int32_t mmPutNodeMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutRpcMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc);
 int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc);
 int32_t mmPutRpcMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc);
