@@ -164,7 +164,7 @@ query the average, maximum, minimum of all rows with groupId=10:
 taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
-query the average, maximum, minimum for table d10 in 10 seconds time internal：
+query the average, maximum, minimum for table d10 in 10 seconds time interval：
 
 ```sql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);
