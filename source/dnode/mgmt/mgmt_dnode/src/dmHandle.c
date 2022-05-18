@@ -117,7 +117,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   SMonMloadInfo    minfo = {0};
   dmGetMnodeLoads(pMgmt, &minfo);
   if (minfo.isMnode && minfo.load.syncState != TAOS_SYNC_STATE_LEADER &&
-      minfo.load.syncState != TAOS_SYNC_STATE_CANDIDATE) {
+      minfo.load.syncState != TAOS_SYNC_STATE_FOLLOWER) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
     snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
     return;

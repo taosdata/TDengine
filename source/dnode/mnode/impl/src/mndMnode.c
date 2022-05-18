@@ -181,7 +181,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
     return -1;
   }
 
-  pObj->role = TAOS_SYNC_STATE_FOLLOWER;
+  pObj->role = TAOS_SYNC_STATE_CANDIDATE;
   return 0;
 }
 
