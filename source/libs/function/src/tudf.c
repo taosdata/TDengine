@@ -1528,7 +1528,15 @@ int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols,
   if (code != 0) {
     return code;
   }
+  SUdfcUvSession *session = handle;
   code = doCallUdfScalarFunc(handle, input, numOfCols, output);
+  if (session->outputType != output->columnData->info.type
+      || session->outputLen != output->columnData->info.bytes) {
+    fnError("udfc scalar function calculate error, session type: %d(%d), output type: %d(%d)",
+            session->outputType, session->outputLen,
+            output->columnData->info.type, output->columnData->info.bytes);
+    code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+  }
   releaseUdfFuncHandle(udfName);
   return code;
 }
