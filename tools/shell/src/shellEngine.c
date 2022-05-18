@@ -985,6 +985,7 @@ int32_t shellExecute() {
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);
     taosThreadJoin(shell.pid, NULL);
+    taosThreadClear(&shell.pid);
   }
 
   return 0;

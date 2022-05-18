@@ -578,3 +578,40 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_FLOAT) {
     EXPECT_EQ(1000, taosArrayGetSize(res));
   }
 }
+TEST_F(JsonEnv, testWriteJsonTfileAndCache_DOUBLE) {
+  {
+    double      val = 10.0;
+    std::string colName("test1");
+    for (int i = 0; i < 1000; i++) {
+      WriteData(index, colName, TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), i);
+    }
+  }
+  {
+    double      val = 2.0;
+    std::string colName("test1");
+    for (int i = 0; i < 1000; i++) {
+      WriteData(index, colName, TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), i + 1000);
+    }
+  }
+  {
+    SArray*     res = NULL;
+    std::string colName("test1");
+    double      val = 1.9;
+    Search(index, colName, TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
+    EXPECT_EQ(2000, taosArrayGetSize(res));
+  }
+  {
+    SArray*     res = NULL;
+    std::string colName("test1");
+    double      val = 2.1;
+    Search(index, colName, TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
+    EXPECT_EQ(1000, taosArrayGetSize(res));
+  }
+  {
+    std::string colName("test1");
+    SArray*     res = NULL;
+    double      val = 2.1;
+    Search(index, colName, TSDB_DATA_TYPE_DOUBLE, &val, sizeof(val), QUERY_GREATER_EQUAL, &res);
+    EXPECT_EQ(1000, taosArrayGetSize(res));
+  }
+}

@@ -151,12 +151,10 @@ int32_t dmInitProc(struct SMgmtWrapper *pWrapper);
 void    dmCleanupProc(struct SMgmtWrapper *pWrapper);
 int32_t dmRunProc(SProc *proc);
 void    dmStopProc(SProc *proc);
-int64_t dmRemoveProcRpcHandle(SProc *proc, void *handle);
+void    dmRemoveProcRpcHandle(SProc *proc, void *handle);
 void    dmCloseProcRpcHandles(SProc *proc);
-int32_t dmPutToProcCQueue(SProc *proc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                          void *handle, int64_t handleRef, EProcFuncType ftype);
-void    dmPutToProcPQueue(SProc *proc, const void *pHead, int16_t headLen, const void *pBody, int32_t bodyLen,
-                          EProcFuncType ftype);
+int32_t dmPutToProcCQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype);
+void    dmPutToProcPQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype);
 
 // dmTransport.c
 int32_t dmInitServer(SDnode *pDnode);
