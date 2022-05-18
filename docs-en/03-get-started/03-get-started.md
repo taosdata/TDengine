@@ -1,6 +1,6 @@
 ---
 title: Get Started
-description: "Install TDengine from Docker image, apt-get or package, and run TAOS CLI and taosBenchmark to experience the features"
+description: 'Install TDengine from Docker image, apt-get or package, and run TAOS CLI and taosBenchmark to experience the features'
 ---
 
 import Tabs from "@theme/Tabs";
@@ -10,13 +10,13 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## Quick Install
 
-The full package of TDengine includes server(taosd), taosAdapter for connecting with third-party systems and providing RESTful interface, client driver(taosc), command line program(CLI, taos) and some tools. For current version, the server taosd and taosAdapter can only be installed and run on Linux systems, and will support Windows, macOS and other systems in the future. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to the RESTful interface, TDengine also provides connectors for a number of programming languages. In versions before 2.4, there is no taosAdapter, and the RESTfule interface is provided by the built-in http service of taosd.
+The full package of TDengine includes the server(taosd), taosAdapter for connecting with third-party systems and providing a RESTful interface, client driver(taosc), command-line program(CLI, taos) and some tools. For the current version, the server taosd and taosAdapter can only be installed and run on Linux systems. In the future taosd and taosAdapter will also be supported on Windows, macOS and other systems. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to the [RESTful interface](/reference/taosadapter), TDengine also provides connectors for a number of programming languages. In versions before 2.4, there is no taosAdapter, and the RESTful interface is provided by the built-in HTTP service of taosd.
 
 TDengine supports X64/ARM64/MIPS64/Alpha64 hardware platforms, and will support ARM32, RISC-V and other CPU architectures in the future.
 
 <Tabs defaultValue="apt-get">
 <TabItem value="docker" label="Docker">
-If docker is already installed on your computer, execute the following command:           
+If docker is already installed on your computer, execute the following command:
 
 ```shell
 docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
@@ -31,7 +31,7 @@ docker ps
 Enter into container and execute bash
 
 ```shell
-docker exec -it <containrid> bash
+docker exec -it <container name> bash
 ```
 
 Then you can execute the Linux commands and access TDengine.
@@ -52,7 +52,7 @@ Starting from 2.4.0.10，besides taosd，TDengine docker image includes: taos，
 </TabItem>
 <TabItem value="src" label="Source Code">
 
-If you like to check the source code, build the package by youself or contribute to the project, please check [TDengine GitHub Repository](https://github.com/taosdata/TDengine) 
+If you like to check the source code, build the package by yourself or contribute to the project, please check [TDengine GitHub Repository](https://github.com/taosdata/TDengine)
 
 </TabItem>
 </Tabs>
@@ -71,13 +71,13 @@ Check if taosd is running：
 systemctl status taosd
 ```
 
-If everything is fine，you can run TDengine command line interface `taos` to access TDengine and play around it.
+If everything is fine, you can run TDengine command-line interface `taos` to access TDengine and test it out yourself.
 
 :::info
 
 - systemctl requires _root_ privileges，if you are not _root_ ，please add sudo before the command.
-- To get feedback and keep polishing the prodcut, TDengine is colleting some basic usage information, but you can turn it off by setting telemetryReporting to 0 in configuration file taos.cfg. 
-- TDengine uses FQDN (usually hostname）as the ID for a node. To make system work, you need to configure the FQDN for the server running taosd, and configure the DNS service or hosts file on the the machine where the application or TDengine CLI runs to ensure that the FQDN can be resolved.     
+- To get feedback and keep improving the product, TDengine is collecting some basic usage information, but you can turn it off by setting telemetryReporting to 0 in configuration file taos.cfg. 
+- TDengine uses FQDN (usually hostname）as the ID for a node. To make the system work, you need to configure the FQDN for the server running taosd, and configure the DNS service or hosts file on the the machine where the application or TDengine CLI runs to ensure that the FQDN can be resolved.     
 - `systemctl stop taosd` won't stop the server right away, it will wait until all the data in memory are flushed to disk. It may takes time depending on the cache size.
 
 TDengine supports the installation on system which runs [`systemd`](https://en.wikipedia.org/wiki/Systemd) for process management，use `which systemctl` to check if the system has `systemd` installed:
@@ -91,8 +91,8 @@ If the system does not have `systemd`，you can start TDengine manually by execu
 :::note
 
 ## Command Line Interface
-           
-To manage the TDengine running instance，or execute ad-hoc queries, TDengine provides a Command Line Interface(hereinafter referred to as TDengine CLI) taos. To enter into the interactive CLI，execute `taos` on a Linux terminal where TDengine is installed.
+
+To manage the TDengine running instance，or execute ad-hoc queries, TDengine provides a Command Line Interface (hereinafter referred to as TDengine CLI) taos. To enter into the interactive CLI，execute `taos` on a Linux terminal where TDengine is installed.
 
 ```bash
 taos
@@ -104,7 +104,7 @@ If it connects to the TDengine server successfully, it will print out the versio
 taos>
 ```
 
-Inside TDengine CLI，you can execute SQL commands to create/drop database/table, and run queries. The SQL command must be eneded with a semicolon. For example: 
+Inside TDengine CLI，you can execute SQL commands to create/drop database/table, and run queries. The SQL command must be ended with a semicolon. For example:
 
 ```sql
 create database demo;
@@ -119,24 +119,26 @@ select * from t;
  2019-07-15 01:00:00.000 |          20 |
 Query OK, 2 row(s) in set (0.003128s)
 ```
-Besides executing SQL commands, system administrator can check running status, add/drop user accounts and manage the running instances. TAOS CLI with client driver can be installed and run on either Linux or windows machine. For more details on CLI, please [check here](../reference/taos-shell/).
+
+Besides executing SQL commands, system administrators can check running status, add/drop user accounts and manage the running instances. TAOS CLI with client driver can be installed and run on either Linux or Windows machines. For more details on CLI, please [check here](../reference/taos-shell/).
 
 ## Experience the blazing fast speed
 
-After TDengine server is running，execute `taosBenchmark`(named as taosdemo before) from a Linux terminal：
+After TDengine server is running，execute `taosBenchmark` (previously named taosdemo) from a Linux terminal：
 
 ```bash
 taosBenchmark
 ```
-This command will create a super table "meters" under database "test". Unde "meters", 10000 tables are created with name from "d0" to "d9999". Each table has 10000 rows and each row has four columns (ts, current, voltage, phase). Time stamp is starting from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999". Each table has tags "location" and "groupId". groupId is set 1 to 10 randomly, and location is set to "beijing" or "shanghai".
 
-This command will insert 100 million rows into database quickly. Depends on the hardware configuration, it only takes a dozen seconds for a regular PC server.            
+This command will create a super table "meters" under database "test". Under "meters", 10000 tables are created with names from "d0" to "d9999". Each table has 10000 rows and each row has four columns (ts, current, voltage, phase). Time stamp is starting from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999". Each table has tags "location" and "groupId". groupId is set 1 to 10 randomly, and location is set to "beijing" or "shanghai".
 
-taosBenchmark provides you command line options and confuguration file to customize the scenarios, like number of tables, number of rows per table, number of columns and more. Please execute `taosBenchmark --help` to list them. For details on running taosBenchmark, please check [reference for taosBenchmark](/reference/taosbenchmark)
+This command will insert 100 million rows into the database quickly. Time to insert depends on the hardware configuration, it only takes a dozen seconds for a regular PC server.            
+
+taosBenchmark provides command-line options and a configuration file to customize the scenarios, like number of tables, number of rows per table, number of columns and more. Please execute `taosBenchmark --help` to list them. For details on running taosBenchmark, please check [reference for taosBenchmark](/reference/taosbenchmark)
 
 ## Experience query speed
            
-After using taosBenchmark to insert a number of rows data, you can execute queries from TDengine CLI to experience the lightning query speed.
+After using taosBenchmark to insert a number of rows data, you can execute queries from TDengine CLI to experience the lightning fast query speed.
 
 query the total number of rows under super table "meters"：
 
@@ -162,7 +164,7 @@ query the average, maximum, minimum of all rows with groupId=10:
 taos> select avg(current), max(voltage), min(phase) from test.meters where groupId=10;
 ```
 
-query the average, maximum, minimum for table d10 in 10 seconds time interal：
+query the average, maximum, minimum for table d10 in 10 seconds time interval：
 
 ```sql
 taos> select avg(current), max(voltage), min(phase) from test.d10 interval(10s);

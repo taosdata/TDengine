@@ -13,7 +13,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 TDengine的主要功能如下：
 
 1. 高速数据写入，除 [SQL 写入](/develop/insert-data/sql-writing)外，还支持 [Schemaless 写入](/reference/schemaless/)，支持 [InfluxDB LINE 协议](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json)等协议写入；
-2. 第三方数据采集工具 [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [Tcollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker) 等都可以进行配置后，不用任何代码，即可将数据写入；
+2. 第三方数据采集工具 [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker) 等都可以进行配置后，不用任何代码，即可将数据写入；
 3. 支持[各种查询](/query-data),包括聚合查询、嵌套查询、降采样查询、插值等
 4. 支持[用户自定义函数](/develop/udf)
 5. 支持[缓存](/develop/cache)，将每张表的最后一条记录缓存起来，这样无需 Redis
@@ -68,7 +68,7 @@ TDengine的主要功能如下：
 </figure>
 <center>图 1. TDengine技术生态图</center>
 
-上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafaka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
+上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
 
 ## TDengine 总体适用场景
 

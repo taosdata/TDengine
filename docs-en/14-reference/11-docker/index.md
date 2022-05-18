@@ -3,7 +3,7 @@ title: Deploying TDengine with Docker
 Description: "This chapter focuses on starting the TDengine service in a container and accessing it."
 ---
 
-This chapter describes how to start the TDengine service in a container and access it. Users can control the behavior of the service in the container by using environment variables on the docker run command line or in the docker-compose file.
+This chapter describes how to start the TDengine service in a container and access it. Users can control the behavior of the service in the container by using environment variables on the docker run command-line or in the docker-compose file.
 
 ## Starting TDengine
 
@@ -251,7 +251,7 @@ COPY --from=builder /usr/src/app/app /usr/bin/
 CMD ["app"]
 ```
 
-目前我们已经有了 `main.go`, `go.mod`, `go.sum`, `app.dockerfile`， 现在可以构建出这个应用程序并在 `td-net` 网络上启动它
+Now that we have `main.go`, `go.mod`, `go.sum`, `app.dockerfile`, we can build the application and start it on the `td-net` network.
 
 ```shell
 $ docker build -t app -f app.dockerfile
@@ -276,9 +276,9 @@ password:             taosdata
 2022-01-18 01:43:51.029 +0000 UTC 3
 ```
 
-## 用 docker-compose 启动 TDengine 集群
+## Start the TDengine cluster with docker-compose
 
-1. 如下 docker-compose 文件启动一个 2 副本、2 管理节点、2 数据节点以及 1 个 arbitrator 的 TDengine 集群。
+1. The following docker-compose file starts a TDengine cluster with two replicas, two management nodes, two data nodes, and one arbitrator.
 
    ```docker
    version: "3"
@@ -316,14 +316,14 @@ password:             taosdata
    ```
 
   :::note
-   - `VERSION` 环境变量被用来设置 tdengine image tag
-   - 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
-   - `TAOS_REPLICA` 用来设置缺省的数据库副本数量，其取值范围为[1,3]
-     在双副本环境下，推荐使用 arbitrator, 用 TAOS_ARBITRATOR 来设置
+- The `VERSION` environment variable is used to set the tdengine image tag
+    - `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
+    - `TAOS_REPLICA` is used to set the default number of database replicas. Its value range is [1,3]
+      We recommend setting with `TAOS_ARBITRATOR` to use arbitrator in a two-nodes environment.
   :::
 
 
-2. 启动集群
+2. Start the cluster
 
    ```shell
    $ VERSION=2.4.0.0 docker-compose up -d
@@ -337,7 +337,7 @@ password:             taosdata
    Creating test_td-2_1       ... done
    ```
 
-3. 查看节点状态
+3. Check the status of each node
 
    ```shell
    $ docker-compose ps
@@ -348,7 +348,7 @@ password:             taosdata
    test_td-2_1         /usr/bin/entrypoint.sh taosd     Up      6030/tcp, 6031/tcp, 6032/tcp, 6033/tcp, 6034/tcp, 6035/tcp, 6036/tcp, 6037/tcp, 6038/tcp, 6039/tcp, 6040/tcp, 6041/tcp, 6042/tcp
    ```
 
-4. 用 taos shell 查看 dnodes
+4. Show dnodes via TDengine CLI
 
    ```shell
    $ docker-compose exec td-1 taos -s "show dnodes"
@@ -367,19 +367,19 @@ password:             taosdata
 
 ## taosAdapter
 
-1. taosAdapter 在 TDengine 容器中默认是启动的。如果想要禁用它，在启动时指定环境变量 `TAOS_DISABLE_ADAPTER=true`
+1. taosAdapter is enabled by default in the TDengine container. If you want to disable it, specify the environment variable `TAOS_DISABLE_ADAPTER=true` at startup
 
-2. 同时为了部署灵活起见，可以在独立的容器中启动 taosAdapter
+2. At the same time, for flexible deployment, taosAdapter can be started in a separate container
 
-   ```docker
-   services:
-     # ...
-     adapter:
-       image: tdengine/tdengine:$VERSION
-       command: taosadapter
-   ```
+    ```docker
+    services:
+      # ...
+      adapter:
+        image: tdengine/tdengine:$VERSION
+        command: taosadapter
+    ````
 
-   如果要部署多个 taosAdapter 来提高吞吐量并提供高可用性，推荐配置方式为使用 nginx 等反向代理来提供统一的访问入口。具体配置方法请参考 nginx 的官方文档。如下是示例：
+    Suppose you want to deploy multiple taosAdapters to improve throughput and provide high availability. In that case, the recommended configuration method uses a reverse proxy such as Nginx to offer a unified access entry. For specific configuration methods, please refer to the official documentation of Nginx. Here is an example:
 
    ```docker
    ersion: "3"
@@ -459,11 +459,11 @@ password:             taosdata
      taoslog-td2:
    ```
 
-## 使用 docker swarm 部署
+## Deploy with docker swarm
 
-如果要想将基于容器的 TDengine 集群部署在多台主机上，可以使用 docker swarm。首先要在这些主机上建立 docke swarm 集群，请参考 docker 官方文档。
+If you want to deploy a container-based TDengine cluster on multiple hosts, you can use docker swarm. First, to establish a docker swarm cluster on these hosts, please refer to the official docker documentation.
 
-docker-compose 文件可以参考上节。下面是使用 docker swarm 启动 TDengine 的命令：
+The docker-compose file can refer to the previous section. Here is the command to start TDengine with docker swarm:
 
 ```shell
 $ VERSION=2.4.0 docker stack deploy -c docker-compose.yml taos
@@ -476,7 +476,7 @@ Creating service taos_adapter
 Creating service taos_nginx
 ```
 
-查看和管理
+Checking status:
 
 ```shell
 $ docker stack ps taos
@@ -498,9 +498,9 @@ d8qr52envqzu        taos_nginx          replicated          1/1                 
 9pzw7u02ichv        taos_td-2           replicated          1/1                 tdengine/tdengine:2.4.0
 ```
 
-从上面的输出可以看到有两个 dnode， 和两个 taosAdapter，以及一个 nginx 反向代理服务。
+From the above output, you can see two dnodes, two taosAdapters, and one Nginx reverse proxy service.
 
-接下来，我们可以减少 taosAdapter 服务的数量
+Next, we can reduce the number of taosAdapter services.
 
 ```shell
 $ docker service scale taos_adapter=1

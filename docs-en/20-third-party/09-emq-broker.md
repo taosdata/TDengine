@@ -1,9 +1,9 @@
 ---
-sidebar_label: EMQ Broker
-title: EMQ Broker writing
+sidebar_label: EMQX Broker
+title: EMQX Broker writing
 ---
 
-MQTT is a popular IoT data transfer protocol, [EMQ](https://github.com/emqx/emqx) is an open-source MQTT Broker software, without any code, only need to use "rules" in EMQ Dashboard to do simple configuration. You can write MQTT data directly to TDengine. EMQ X supports saving data to TDengine by sending it to web services and provides a native TDengine driver for direct saving in the Enterprise Edition. Please refer to the [EMQ official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use it. tdengine).
+MQTT is a popular IoT data transfer protocol, [EMQX](https://github.com/emqx/emqx) is an open-source MQTT Broker software, without any code, only need to use "rules" in EMQX Dashboard to do simple configuration. You can write MQTT data directly to TDengine. EMQX supports saving data to TDengine by sending it to web services and provides a native TDengine driver for direct saving in the Enterprise Edition. Please refer to the [EMQX official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use it. tdengine).
 
 ## Prerequisites
 
@@ -34,7 +34,7 @@ Depending on the current operating system, users can download the installation p
     CREATE TABLE sensor_data (ts timestamp, temperature float, humidity float, volume float, PM10 float, pm25 float, SO2 float, NO2 float, CO float, sensor_id NCHAR(255), area TINYINT, coll_time timestamp);
 ```
 
-Note: The table schema is based on the blog [(In Chinese) Data Transfer, Storage, Presentation, EMQ X + TDengine Build MQTT IoT Data Visualization Platform](https://www.taosdata.com/blog/2020/08/04/1722.html) as an example. Subsequent operations are carried out with this blog scenario too. Please modify it according to your actual application scenario.
+Note: The table schema is based on the blog [(In Chinese) Data Transfer, Storage, Presentation, EMQX + TDengine Build MQTT IoT Data Visualization Platform](https://www.taosdata.com/blog/2020/08/04/1722.html) as an example. Subsequent operations are carried out with this blog scenario too. Please modify it according to your actual application scenario.
 
 ## Configuring EMQX Rules
 
@@ -187,4 +187,4 @@ Use the TDengine CLI program to log in and query the appropriate databases and t
 ![img](./emqx/check-result-in-taos.png)
 
 Please refer to the [TDengine official documentation](https://docs.taosdata.com/) for more details on how to use TDengine.
-EMQX Please refer to the [EMQ official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use EMQX.
+EMQX Please refer to the [EMQX official documentation](https://www.emqx.io/docs/en/v4.4/rule/rule-engine.html) for details on how to use EMQX.
