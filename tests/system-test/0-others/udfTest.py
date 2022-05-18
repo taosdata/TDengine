@@ -1,3 +1,4 @@
+from distutils.log import error
 import taos
 import sys
 import time
@@ -468,10 +469,102 @@ class TDTestCase:
         tdSql.checkData(0,0,169.661427555)
         tdSql.checkData(0,1,169.661427555)
 
+    def try_query_sql(self):
+        sql_lists = [ 
+        "select num1 , udf1(num1) ,num2 ,udf1(num2),num3 ,udf1(num3),num4 ,udf1(num4) from tb" ,
+        "select c1 , udf1(c1) ,c2 ,udf1(c2), c3 ,udf1(c3), c4 ,udf1(c4) from stb1 order by c1" ,
+        "select udf2(num1) ,udf2(num2), udf2(num3) from tb" ,
+        "select udf2(num1)+100 ,udf2(num2)-100, udf2(num3)*100 ,udf2(num3)/100 from tb" ,
+        "select udf2(c1) ,udf2(c6) from stb1 " ,
+        "select udf2(c1)+100 ,udf2(c6)-100 ,udf2(c1)*100 ,udf2(c6)/100 from stb1 " ,
+        "select udf2(c1+100) ,udf2(c6-100) ,udf2(c1*100) ,udf2(c6/100) from ct1" ,
+        "select udf2(c1+100) ,udf2(c6-100) ,udf2(c1*100) ,udf2(c6/100) from stb1 " ,
+        "select udf1(num1) , max(num1) from tb;" ,
+        "select floor(num1) , max(num1) from tb;" ,
+        "select udf1(num1) , min(num1) from tb;" ,
+        "select ceil(num1) , min(num1) from tb;" ,
+        "select udf1(num1) , top(num1,1) from tb;" ,
+        "select udf1(num1) , bottom(num1,1) from tb;" ,
+        "select udf1(c1) , max(c1) from stb1;" ,
+        "select abs(c1) , max(c1) from stb1;" ,
+        "select udf1(c1) , min(c1) from stb1;" ,
+        "select floor(c1) , min(c1) from stb1;" ,
+        "select udf1(c1) , top(c1 ,1) from stb1;" ,
+        "select abs(c1) , top(c1 ,1) from stb1;" ,
+        "select udf1(c1) , bottom(c1,1) from stb1;" ,
+        "select ceil(c1) , bottom(c1,1) from stb1;" ,
+        "select udf1(num1) , abs(num1) from tb;" ,
+        "select floor(num1) , abs(num1) from tb;" ,
+        "select udf1(num1) , csum(num1) from tb;" ,
+        "select ceil(num1) , csum(num1) from tb;" ,
+        "select udf1(c1) , csum(c1) from stb1;" ,
+        "select floor(c1) , csum(c1) from stb1;" ,
+        "select udf1(c1) , abs(c1) from stb1;" ,
+        "select abs(c1) , ceil(c1) from stb1;" ,
+        "select abs(udf1(c1)) , abs(ceil(c1)) from stb1 order by ts;" ,
+        "select abs(udf1(c1)) , abs(ceil(c1)) from ct1 order by ts;" ,
+        "select udf2(c1) from stb1 group by 1-udf1(c1)" ,
+        
+        "select abs(udf1(c1)) , abs(ceil(c1)) from stb1 where c1 is null  order by ts;" ,
+        "select c1 ,udf1(c1) , c6 ,udf1(c6) from stb1 where c1 > 8  order by ts" ,
+        "select sub1.c1, sub2.c2 from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
+        "select udf1(sub1.c1), udf1(sub2.c2) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
+        "select sub1.c1 , udf1(sub1.c1), sub2.c2 ,udf1(sub2.c2) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
+        "select udf2(sub1.c1), udf2(sub2.c2) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
+        "select udf1(c1) from ct1 group by c1" ,
+        "select udf1(c1) from stb1 group by c1" ,
+        "select c1,c2, udf1(c1,c2) from ct1 group by c1,c2" ,
+        "select c1,c2, udf1(c1,c2) from stb1 group by c1,c2" ,
+        "select udf2(c1) from ct1 group by c1" ,
+        "select udf2(c1) from stb1 group by c1" ,
+        "select c1,c2, udf2(c1,c6) from ct1 group by c1,c2" ,
+        "select c1,c2, udf2(c1,c6) from stb1 group by c1,c2" ,
+        "select udf2(c1) from stb1 group by udf1(c1)" ,
+        "select udf2(c1) from stb1 group by floor(c1)" ,
+        "select udf2(c1) from stb1 group by floor(c1) order by udf2(c1)" ,
+        "select num1,num2,num3,udf1(num1,num2,num3) from tb" ,
+        "select c1,c6,udf1(c1,c6) from stb1 order by ts" ,
+        "select abs(udf1(c1,c6,c1,c6)) , abs(ceil(c1)) from stb1 where c1 is not null  order by ts;" ,
+        "select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
+        "drop function udf1 " ,
+        "drop function udf2 " ,
+        "select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
+        "select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null" ,
+        "select count(*) from stb1" ,
+        "select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null"]
+
+        tdSql.execute("use db")
+        for sql in sql_lists:
+            try:
+                tdSql.execute(sql)
+            except:
+                pass
+
+
 
     def unexpected_create(self):
+
+        tdLog.info(" create function with out bufsize ")
+        tdSql.query("drop function udf1 ")
+        tdSql.query("drop function udf2 ")
+
+        # create function without buffer
+        tdSql.execute("create function udf1 as '/tmp/udf/libudf1.so' outputtype int")
+        tdSql.execute("create aggregate function udf2 as '/tmp/udf/libudf2.so' outputtype double")
+        # self.try_query_sql()
+
+        # create function without aggregate 
+
+        tdLog.info(" create function with out aggregate ")
+        tdSql.query("drop function udf1 ")
+        tdSql.query("drop function udf2 ")
+
+        # create function without buffer
+        tdSql.execute("create  aggregate function udf1 as '/tmp/udf/libudf1.so' outputtype int bufSize 8 ")
+        tdSql.execute("create  function udf2 as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        # self.try_query_sql()
         
-        tdSql.query("select udf2(sub1.c1 ,sub1.c2), udf2(sub2.c2 ,sub2.c1) from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
+        
 
     def loop_kill_udfd(self):
 
@@ -507,7 +600,21 @@ class TDTestCase:
             # start_udfd = "nohup " + udfdPath +'-c' +cfgPath +" > /dev/null 2>&1 &"
             # tdLog.info("start udfd : %s " % start_udfd)
 
-    
+    def test_function_name(self):
+        tdSql.execute(" drop function udf1 ")
+        tdSql.execute(" drop function udf2 ")
+        tdSql.error("create function max as '/tmp/udf/libudf1.so' outputtype int bufSize 8")
+        tdSql.error("create aggregate function sum as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create function max as '/tmp/udf/libudf1.so' outputtype int bufSize 8")
+        tdSql.error("create aggregate function sum as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create aggregate function tbname as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create aggregate function function as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create aggregate function stable as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create aggregate function union as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create aggregate function 123 as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create aggregate function 123db as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+        tdSql.error("create aggregate function mnode as '/tmp/udf/libudf2.so' outputtype double bufSize 8")
+
     def restart_taosd_query_udf(self):
 
         for i in range(5):
@@ -534,7 +641,9 @@ class TDTestCase:
         self.create_udf_function()
         self.basic_udf_query()
         self.loop_kill_udfd()
-        # self.restart_taosd_query_udf()
+        self.restart_taosd_query_udf()
+        # self.unexpected_create()
+        # self.test_function_name()
 
     def stop(self):
         tdSql.close()
