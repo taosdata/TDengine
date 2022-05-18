@@ -600,10 +600,11 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 }
 
 int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity) {
-  pBlock->info.rows = *(int32_t*)buf;
+  pBlock->info.rows = *(int32_t*) buf;
+  pBlock->info.groupId = *(uint64_t*) (buf + sizeof(int32_t));
 
   int32_t     numOfCols = pBlock->info.numOfCols;
-  const char* pStart = buf + sizeof(uint32_t);
+  const char* pStart = buf + sizeof(uint32_t) + sizeof(uint64_t);
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
@@ -669,7 +670,7 @@ size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
   return sizeof(int32_t) + sizeof(uint64_t) + pBlock->info.numOfCols * sizeof(int32_t);
 }
 
-double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
+double  blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
   ASSERT(pBlock != NULL);
   double rowSize = 0;
 
@@ -1224,7 +1225,27 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData) {
 }
 
 size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
-  return (int32_t)((pageSize - blockDataGetSerialMetaSize(pBlock)) / blockDataGetSerialRowSize(pBlock));
+  int32_t payloadSize = pageSize - blockDataGetSerialMetaSize(pBlock);
+
+  int32_t rowSize = pBlock->info.rowSize;
+
+  int32_t nRows = payloadSize / rowSize;
+
+  // the true value must be less than the value of nRows
+  int32_t additional = 0;
+  for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+    SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    if (IS_VAR_DATA_TYPE(pCol->info.type)) {
+      additional += nRows * sizeof(int32_t);
+    } else {
+      additional += BitmapLen(nRows);
+    }
+  }
+
+  int32_t newRows = (payloadSize - additional) / rowSize;
+  ASSERT(newRows <= nRows && newRows > 1);
+
+  return newRows;
 }
 
 void colDataDestroy(SColumnInfoData* pColData) {
