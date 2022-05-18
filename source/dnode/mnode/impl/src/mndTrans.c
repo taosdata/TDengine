@@ -842,13 +842,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     }
     taosMemoryFree(pTrans->rpcRsp);
 
-    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, code & 0xFFFF, pTrans->stage,
-           pTrans->rpcInfo.ahandle);
+    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, code, pTrans->stage, pTrans->rpcInfo.ahandle);
     SRpcMsg rspMsg = {
-        .info = pTrans->rpcInfo,
         .code = code,
         .pCont = rpcCont,
         .contLen = pTrans->rpcRspLen,
+        .info = pTrans->rpcInfo,
     };
     tmsgSendRsp(&rspMsg);
     pTrans->rpcInfo.handle = NULL;
@@ -986,7 +985,8 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
     memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
     if (tmsgSendReq(&pAction->epSet, &rpcMsg) == 0) {
-      mDebug("trans:%d, action:%d is sent", pTrans->id, action);
+      mDebug("trans:%d, action:%d is sent to %s:%u", pTrans->id, action, pAction->epSet.eps[pAction->epSet.inUse].fqdn,
+             pAction->epSet.eps[pAction->epSet.inUse].port);
       pAction->msgSent = 1;
       pAction->msgReceived = 0;
       pAction->errCode = 0;

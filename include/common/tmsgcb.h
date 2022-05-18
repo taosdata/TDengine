@@ -60,9 +60,9 @@ typedef struct {
   ReportStartup           reportStartupFp;
 } SMsgCb;
 
-void    tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb);
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pMsg);
-int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype);
+void    tmsgSetDefault(const SMsgCb* msgcb);
+int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg);
+int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype);
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg);
 void    tmsgSendRsp(SRpcMsg* pMsg);
 void    tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet);

@@ -1063,7 +1063,7 @@ bool tdSTpRowGetVal(STSRow *pRow, col_id_t colId, col_type_t colType, int32_t fl
 
 int32_t tdGetColDataOfRow(SCellVal *pVal, SDataCol *pCol, int32_t row, int8_t bitmapMode) {
   if (isAllRowsNone(pCol)) {
-    pVal->valType = TD_VTYPE_NULL;
+    pVal->valType = TD_VTYPE_NONE;
 #ifdef TD_SUPPORT_READ2
     pVal->val = (void *)getNullValue(pCol->type);
 #else

@@ -248,6 +248,7 @@ typedef struct SSetOperator {
   SNode*           pRight;
   SNodeList*       pOrderByList;  // SOrderByExprNode
   SNode*           pLimit;
+  char             stmtName[TSDB_TABLE_NAME_LEN];
 } SSetOperator;
 
 typedef enum ESqlClause {
