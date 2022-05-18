@@ -32,6 +32,9 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
+  /*if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {*/
+  /*ASSERT(0);*/
+  /*}*/
 
 #if 0
   pTq->tqMeta = tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer,
