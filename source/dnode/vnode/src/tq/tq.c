@@ -101,6 +101,21 @@ static void tdSRowDemo() {
   taosMemoryFree(pTSChema);
 }
 
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList) {
+  void*    pIter = NULL;
+  STqExec* pExec = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->execs, pIter);
+    if (pIter == NULL) break;
+    pExec = (STqExec*)pIter;
+    for (int32_t i = 0; i < 5; i++) {
+      int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, true);
+      ASSERT(code == 0);
+    }
+  }
+  return 0;
+}
+
 int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
   if (msgType != TDMT_VND_SUBMIT) return 0;
   void*       pIter = NULL;

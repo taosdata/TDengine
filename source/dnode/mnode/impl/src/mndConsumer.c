@@ -627,21 +627,26 @@ static int32_t mndConsumerActionUpdate(SSdb *pSdb, SMqConsumerObj *pOldConsumer,
   if (pNewConsumer->updateType == CONSUMER_UPDATE__MODIFY) {
     ASSERT(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
     ASSERT(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);
-    SArray *tmp = pOldConsumer->rebNewTopics;
-    pOldConsumer->rebNewTopics = pNewConsumer->rebNewTopics;
-    pNewConsumer->rebNewTopics = tmp;
 
-    tmp = pOldConsumer->rebRemovedTopics;
-    pOldConsumer->rebRemovedTopics = pNewConsumer->rebRemovedTopics;
-    pNewConsumer->rebRemovedTopics = tmp;
+    if (taosArrayGetSize(pNewConsumer->rebNewTopics) == 0 && taosArrayGetSize(pNewConsumer->rebRemovedTopics) == 0) {
+      pOldConsumer->status = MQ_CONSUMER_STATUS__READY;
+    } else {
+      SArray *tmp = pOldConsumer->rebNewTopics;
+      pOldConsumer->rebNewTopics = pNewConsumer->rebNewTopics;
+      pNewConsumer->rebNewTopics = tmp;
 
-    tmp = pOldConsumer->assignedTopics;
-    pOldConsumer->assignedTopics = pNewConsumer->assignedTopics;
-    pNewConsumer->assignedTopics = tmp;
+      tmp = pOldConsumer->rebRemovedTopics;
+      pOldConsumer->rebRemovedTopics = pNewConsumer->rebRemovedTopics;
+      pNewConsumer->rebRemovedTopics = tmp;
 
-    pOldConsumer->subscribeTime = pNewConsumer->upTime;
+      tmp = pOldConsumer->assignedTopics;
+      pOldConsumer->assignedTopics = pNewConsumer->assignedTopics;
+      pNewConsumer->assignedTopics = tmp;
 
-    pOldConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
+      pOldConsumer->subscribeTime = pNewConsumer->upTime;
+
+      pOldConsumer->status = MQ_CONSUMER_STATUS__MODIFY;
+    }
   } else if (pNewConsumer->updateType == CONSUMER_UPDATE__LOST) {
     ASSERT(taosArrayGetSize(pOldConsumer->rebNewTopics) == 0);
     ASSERT(taosArrayGetSize(pOldConsumer->rebRemovedTopics) == 0);
