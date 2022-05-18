@@ -177,29 +177,7 @@ if $data70 != 1 then
   return -1
 endi
 
-sql select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w)
-print ===> select count(tbcol), sum(tbcol), max(tbcol), min(tbcol), count(*) from ct3 interval(1n, 1w)
-print ===> rows: $rows
-print ===> rows0: $data00 $data01 $data02 $data03 $data04
-print ===> rows1: $data10 $data11 $data12 $data13 $data14
-print ===> rows2: $data20 $data21 $data22 $data23 $data24
-print ===> rows3: $data30 $data31 $data32 $data33 $data34
-if $rows != 4 then
-  return -1
-endi
-if $data00 != @21-12-08 00:00:00.000@ then
-  return -1
-endi
-if $data31 != 1 then
-  return -1
-endi
-if $data34 != $data31 then
-  return -1
-endi
-if $data02 != 2678400000 then
-  return -1
-endi
-
+sql_error select _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w)
 sql_error select  _wstartts, count(tbcol), _wduration, _wstartts, count(*) from ct3 interval(1n, 1w) sliding(2w)
 sql_error select _wstartts, count(tbcol), _wduration, _wstartts, count(*)  from ct3 interval(1n, 1w) sliding(4w)
 

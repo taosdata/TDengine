@@ -439,6 +439,8 @@ end_:
 //  ((double)time * factors[fromPrecision][toPrecision]);
 //}
 
+
+// !!!!notice: double lose precison if time is too large, for example: 1626006833631000000*1.0 = double = 1626006833631000064
 int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char toUnit) {
   assert(fromPrecision == TSDB_TIME_PRECISION_MILLI || fromPrecision == TSDB_TIME_PRECISION_MICRO ||
          fromPrecision == TSDB_TIME_PRECISION_NANO);
@@ -446,29 +448,29 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
   double tmp = time;
   switch (toUnit) {
     case 's':{
-      tmp *= (NANOSECOND_PER_SEC/factors[fromPrecision]);     // the result of division is an integer
-      time *= (NANOSECOND_PER_SEC/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_SEC/factors[fromPrecision]);     // the result of division is an integer
+      time /= (NANOSECOND_PER_SEC/factors[fromPrecision]);
       break;
     }
     case 'm':
-      tmp *= (NANOSECOND_PER_MINUTE/factors[fromPrecision]);  // the result of division is an integer
-      time *= (NANOSECOND_PER_MINUTE/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_MINUTE/factors[fromPrecision]);  // the result of division is an integer
+      time /= (NANOSECOND_PER_MINUTE/factors[fromPrecision]);
       break;
     case 'h':
-      tmp *= (NANOSECOND_PER_HOUR/factors[fromPrecision]);    // the result of division is an integer
-      time *= (NANOSECOND_PER_HOUR/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_HOUR/factors[fromPrecision]);    // the result of division is an integer
+      time /= (NANOSECOND_PER_HOUR/factors[fromPrecision]);
       break;
     case 'd':
-      tmp *= (NANOSECOND_PER_DAY/factors[fromPrecision]);     // the result of division is an integer
-      time *= (NANOSECOND_PER_DAY/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_DAY/factors[fromPrecision]);     // the result of division is an integer
+      time /= (NANOSECOND_PER_DAY/factors[fromPrecision]);
       break;
     case 'w':
-      tmp *= (NANOSECOND_PER_WEEK/factors[fromPrecision]);    // the result of division is an integer
-      time *= (NANOSECOND_PER_WEEK/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_WEEK/factors[fromPrecision]);    // the result of division is an integer
+      time /= (NANOSECOND_PER_WEEK/factors[fromPrecision]);
       break;
     case 'a':
-      tmp *= (NANOSECOND_PER_MSEC/factors[fromPrecision]);    // the result of division is an integer
-      time *= (NANOSECOND_PER_MSEC/factors[fromPrecision]);
+      tmp /= (NANOSECOND_PER_MSEC/factors[fromPrecision]);    // the result of division is an integer
+      time /= (NANOSECOND_PER_MSEC/factors[fromPrecision]);
       break;
     case 'u':
       // the result of (NANOSECOND_PER_USEC/(double)factors[fromPrecision]) maybe a double
