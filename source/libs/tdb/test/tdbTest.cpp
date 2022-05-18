@@ -131,7 +131,7 @@ TEST(tdb_test, simple_insert1) {
 
   // Create a database
   compFunc = tKeyCmpr;
-  ret = tdbDbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -152,7 +152,7 @@ TEST(tdb_test, simple_insert1) {
     for (int iData = 1; iData <= nData; iData++) {
       sprintf(key, "key%d", iData);
       sprintf(val, "value%d", iData);
-      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      ret = tdbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
       GTEST_ASSERT_EQ(ret, 0);
 
       // if pool is full, commit the transaction and start a new one
@@ -181,7 +181,7 @@ TEST(tdb_test, simple_insert1) {
         sprintf(key, "key%d", i);
         sprintf(val, "value%d", i);
 
-        ret = tdbDbGet(pDb, key, strlen(key), &pVal, &vLen);
+        ret = tdbGet(pDb, key, strlen(key), &pVal, &vLen);
         ASSERT(ret == 0);
         GTEST_ASSERT_EQ(ret, 0);
 
@@ -224,11 +224,11 @@ TEST(tdb_test, simple_insert1) {
     }
   }
 
-  ret = tdbDbDrop(pDb);
+  ret = tdbDrop(pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Close a database
-  tdbDbClose(pDb);
+  tdbClose(pDb);
 
   // Close Env
   ret = tdbEnvClose(pEnv);
@@ -251,7 +251,7 @@ TEST(tdb_test, simple_insert2) {
 
   // Create a database
   compFunc = tDefaultKeyCmpr;
-  ret = tdbDbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  ret = tdbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   {
@@ -271,7 +271,7 @@ TEST(tdb_test, simple_insert2) {
     for (int iData = 1; iData <= nData; iData++) {
       sprintf(key, "key%d", iData);
       sprintf(val, "value%d", iData);
-      ret = tdbDbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+      ret = tdbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
       GTEST_ASSERT_EQ(ret, 0);
     }
 
@@ -311,11 +311,11 @@ TEST(tdb_test, simple_insert2) {
   tdbCommit(pEnv, &txn);
   tdbTxnClose(&txn);
 
-  ret = tdbDbDrop(pDb);
+  ret = tdbDrop(pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Close a database
-  tdbDbClose(pDb);
+  tdbClose(pDb);
 
   // Close Env
   ret = tdbEnvClose(pEnv);
@@ -346,7 +346,7 @@ TEST(tdb_test, simple_delete1) {
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
-  ret = tdbDbOpen("db.db", -1, -1, tKeyCmpr, pEnv, &pDb);
+  ret = tdbOpen("db.db", -1, -1, tKeyCmpr, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   tdbTxnOpen(&txn, 0, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
@@ -356,7 +356,7 @@ TEST(tdb_test, simple_delete1) {
   for (int iData = 0; iData < nKV; iData++) {
     sprintf(key, "key%d", iData);
     sprintf(data, "data%d", iData);
-    ret = tdbDbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    ret = tdbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
 
@@ -365,7 +365,7 @@ TEST(tdb_test, simple_delete1) {
     sprintf(key, "key%d", iData);
     sprintf(data, "data%d", iData);
 
-    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    ret = tdbGet(pDb, key, strlen(key), &pData, &nData);
     GTEST_ASSERT_EQ(ret, 0);
     GTEST_ASSERT_EQ(memcmp(data, pData, nData), 0);
   }
@@ -374,7 +374,7 @@ TEST(tdb_test, simple_delete1) {
   for (int iData = nKV - 1; iData > 30; iData--) {
     sprintf(key, "key%d", iData);
 
-    ret = tdbDbDelete(pDb, key, strlen(key), &txn);
+    ret = tdbDelete(pDb, key, strlen(key), &txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
 
@@ -382,7 +382,7 @@ TEST(tdb_test, simple_delete1) {
   for (int iData = 0; iData < nKV; iData++) {
     sprintf(key, "key%d", iData);
 
-    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    ret = tdbGet(pDb, key, strlen(key), &pData, &nData);
     if (iData <= 30) {
       GTEST_ASSERT_EQ(ret, 0);
     } else {
@@ -413,7 +413,7 @@ TEST(tdb_test, simple_delete1) {
 
   closePool(pPool);
 
-  tdbDbClose(pDb);
+  tdbClose(pDb);
   tdbEnvClose(pEnv);
 }
 
@@ -435,7 +435,7 @@ TEST(tdb_test, simple_upsert1) {
   GTEST_ASSERT_EQ(ret, 0);
 
   // open database
-  ret = tdbDbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
+  ret = tdbOpen("db.db", -1, -1, NULL, pEnv, &pDb);
   GTEST_ASSERT_EQ(ret, 0);
 
   pPool = openPool();
@@ -446,7 +446,7 @@ TEST(tdb_test, simple_upsert1) {
   for (int iData = 0; iData < nData; iData++) {
     sprintf(key, "key%d", iData);
     sprintf(data, "data%d", iData);
-    ret = tdbDbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    ret = tdbInsert(pDb, key, strlen(key), data, strlen(data), &txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
 
@@ -454,7 +454,7 @@ TEST(tdb_test, simple_upsert1) {
   for (int iData = 0; iData < nData; iData++) {
     sprintf(key, "key%d", iData);
     sprintf(data, "data%d", iData);
-    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    ret = tdbGet(pDb, key, strlen(key), &pData, &nData);
     GTEST_ASSERT_EQ(ret, 0);
     GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
   }
@@ -463,7 +463,7 @@ TEST(tdb_test, simple_upsert1) {
   for (int iData = 0; iData < nData; iData++) {
     sprintf(key, "key%d", iData);
     sprintf(data, "data%d-u", iData);
-    ret = tdbDbUpsert(pDb, key, strlen(key), data, strlen(data), &txn);
+    ret = tdbUpsert(pDb, key, strlen(key), data, strlen(data), &txn);
     GTEST_ASSERT_EQ(ret, 0);
   }
 
@@ -473,11 +473,11 @@ TEST(tdb_test, simple_upsert1) {
   for (int iData = 0; iData < nData; iData++) {
     sprintf(key, "key%d", iData);
     sprintf(data, "data%d-u", iData);
-    ret = tdbDbGet(pDb, key, strlen(key), &pData, &nData);
+    ret = tdbGet(pDb, key, strlen(key), &pData, &nData);
     GTEST_ASSERT_EQ(ret, 0);
     GTEST_ASSERT_EQ(memcmp(pData, data, nData), 0);
   }
 
-  tdbDbClose(pDb);
+  tdbClose(pDb);
   tdbEnvClose(pEnv);
 }

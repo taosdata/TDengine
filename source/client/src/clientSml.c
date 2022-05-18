@@ -714,25 +714,31 @@ static bool smlIsNchar(const char *pVal, uint16_t len) {
 
 static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   char *endPtr = NULL;
-  double ts = (double)strtoll(value, &endPtr, 10);
+  int64_t tsInt64 = strtoll(value, &endPtr, 10);
   if(value + len != endPtr){
     return -1;
   }
+  double ts = tsInt64;
   switch (type) {
     case TSDB_TIME_PRECISION_HOURS:
       ts *= (3600 * 1e9);
+      tsInt64 *= (3600 * 1e9);
       break;
     case TSDB_TIME_PRECISION_MINUTES:
       ts *= (60 * 1e9);
+      tsInt64 *= (60 * 1e9);
       break;
     case TSDB_TIME_PRECISION_SECONDS:
       ts *= (1e9);
+      tsInt64 *= (1e9);
       break;
     case TSDB_TIME_PRECISION_MILLI:
       ts *= (1e6);
+      tsInt64 *= (1e6);
       break;
     case TSDB_TIME_PRECISION_MICRO:
       ts *= (1e3);
+      tsInt64 *= (1e3);
       break;
     case TSDB_TIME_PRECISION_NANO:
       break;
@@ -743,7 +749,7 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
     return -1;
   }
 
-  return (int64_t)ts;
+  return tsInt64;
 }
 
 static int64_t smlGetTimeNow(int8_t precision) {
