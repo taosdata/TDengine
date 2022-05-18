@@ -36,14 +36,14 @@ static SSdbRow *mndDbActionDecode(SSdbRaw *pRaw);
 static int32_t  mndDbActionInsert(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionDelete(SSdb *pSdb, SDbObj *pDb);
 static int32_t  mndDbActionUpdate(SSdb *pSdb, SDbObj *pOld, SDbObj *pNew);
-static int32_t  mndProcessCreateDbReq(SNodeMsg *pReq);
-static int32_t  mndProcessAlterDbReq(SNodeMsg *pReq);
-static int32_t  mndProcessDropDbReq(SNodeMsg *pReq);
-static int32_t  mndProcessUseDbReq(SNodeMsg *pReq);
-static int32_t  mndProcessCompactDbReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
+static int32_t  mndProcessCreateDbReq(SRpcMsg *pReq);
+static int32_t  mndProcessAlterDbReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropDbReq(SRpcMsg *pReq);
+static int32_t  mndProcessUseDbReq(SRpcMsg *pReq);
+static int32_t  mndProcessCompactDbReq(SRpcMsg *pReq);
+static int32_t  mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity);
 static void     mndCancelGetNextDb(SMnode *pMnode, void *pIter);
-static int32_t  mndProcessGetDbCfgReq(SNodeMsg *pReq);
+static int32_t  mndProcessGetDbCfgReq(SRpcMsg *pReq);
 
 int32_t mndInitDb(SMnode *pMnode) {
   SSdbTable table = {
@@ -398,11 +398,14 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return -1;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
-  if (pCfg->replications > mndGetDnodeSize(pMnode)) return -1;
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
   if (pCfg->hashMethod != 1) return -1;
+  if (pCfg->replications > mndGetDnodeSize(pMnode)) {
+    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return -1;
+  }
 
   terrno = 0;
   return TSDB_CODE_SUCCESS;
@@ -508,7 +511,7 @@ static int32_t mndSetCreateDbUndoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
   return 0;
 }
 
-static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
+static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate, SUserObj *pUser) {
   SDbObj dbObj = {0};
   memcpy(dbObj.name, pCreate->db, TSDB_DB_FNAME_LEN);
   memcpy(dbObj.acct, pUser->acct, TSDB_USER_LEN);
@@ -563,7 +566,7 @@ static int32_t mndCreateDb(SMnode *pMnode, SNodeMsg *pReq, SCreateDbReq *pCreate
   }
 
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_DB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create db:%s", pTrans->id, pCreate->db);
@@ -584,14 +587,14 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessCreateDbReq(SNodeMsg *pReq) {
-  SMnode      *pMnode = pReq->pNode;
+static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
+  SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
   SDbObj      *pDb = NULL;
   SUserObj    *pUser = NULL;
   SCreateDbReq createReq = {0};
 
-  if (tDeserializeSCreateDbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDbReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -612,7 +615,7 @@ static int32_t mndProcessCreateDbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     goto _OVER;
   }
@@ -794,9 +797,9 @@ static int32_t mndSetAlterDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
   return 0;
 }
 
-static int32_t mndAlterDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
+static int32_t mndAlterDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pOld, SDbObj *pNew) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_ALTER_DB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_ALTER_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to alter db:%s", pTrans->id, pOld->name);
@@ -814,15 +817,15 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessAlterDbReq(SNodeMsg *pReq) {
-  SMnode     *pMnode = pReq->pNode;
+static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
+  SMnode     *pMnode = pReq->info.node;
   int32_t     code = -1;
   SDbObj     *pDb = NULL;
   SUserObj   *pUser = NULL;
   SAlterDbReq alterReq = {0};
   SDbObj      dbObj = {0};
 
-  if (tDeserializeSAlterDbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &alterReq) != 0) {
+  if (tDeserializeSAlterDbReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -835,7 +838,7 @@ static int32_t mndProcessAlterDbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     goto _OVER;
   }
@@ -873,14 +876,14 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
-  SMnode   *pMnode = pReq->pNode;
+static int32_t mndProcessGetDbCfgReq(SRpcMsg *pReq) {
+  SMnode   *pMnode = pReq->info.node;
   int32_t   code = -1;
   SDbObj   *pDb = NULL;
   SDbCfgReq cfgReq = {0};
   SDbCfgRsp cfgRsp = {0};
 
-  if (tDeserializeSDbCfgReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &cfgReq) != 0) {
+  if (tDeserializeSDbCfgReq(pReq->pCont, pReq->contLen, &cfgReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -922,8 +925,8 @@ static int32_t mndProcessGetDbCfgReq(SNodeMsg *pReq) {
 
   tSerializeSDbCfgRsp(pRsp, contLen, &cfgRsp);
 
-  pReq->pRsp = pRsp;
-  pReq->rspLen = contLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
 
   code = 0;
 
@@ -1055,9 +1058,9 @@ static int32_t mndBuildDropDbRsp(SDbObj *pDb, int32_t *pRspLen, void **ppRsp, bo
   return 0;
 }
 
-static int32_t mndDropDb(SMnode *pMnode, SNodeMsg *pReq, SDbObj *pDb) {
+static int32_t mndDropDb(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_DB, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_DB, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop db:%s", pTrans->id, pDb->name);
@@ -1095,14 +1098,14 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessDropDbReq(SNodeMsg *pReq) {
-  SMnode    *pMnode = pReq->pNode;
+static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
+  SMnode    *pMnode = pReq->info.node;
   int32_t    code = -1;
   SDbObj    *pDb = NULL;
   SUserObj  *pUser = NULL;
   SDropDbReq dropReq = {0};
 
-  if (tDeserializeSDropDbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+  if (tDeserializeSDropDbReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -1112,7 +1115,7 @@ static int32_t mndProcessDropDbReq(SNodeMsg *pReq) {
   pDb = mndAcquireDb(pMnode, dropReq.db);
   if (pDb == NULL) {
     if (dropReq.ignoreNotExists) {
-      code = mndBuildDropDbRsp(pDb, &pReq->rspLen, &pReq->pRsp, true);
+      code = mndBuildDropDbRsp(pDb, &pReq->info.rspLen, &pReq->info.rsp, true);
       goto _OVER;
     } else {
       terrno = TSDB_CODE_MND_DB_NOT_EXIST;
@@ -1120,7 +1123,7 @@ static int32_t mndProcessDropDbReq(SNodeMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     goto _OVER;
   }
@@ -1231,15 +1234,15 @@ int32_t mndExtractDbInfo(SMnode *pMnode, SDbObj *pDb, SUseDbRsp *pRsp, const SUs
   return 0;
 }
 
-static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
-  SMnode   *pMnode = pReq->pNode;
+static int32_t mndProcessUseDbReq(SRpcMsg *pReq) {
+  SMnode   *pMnode = pReq->info.node;
   int32_t   code = -1;
   SDbObj   *pDb = NULL;
   SUserObj *pUser = NULL;
   SUseDbReq usedbReq = {0};
   SUseDbRsp usedbRsp = {0};
 
-  if (tDeserializeSUseDbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &usedbReq) != 0) {
+  if (tDeserializeSUseDbReq(pReq->pCont, pReq->contLen, &usedbReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -1275,7 +1278,7 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
 
       mError("db:%s, failed to process use db req since %s", usedbReq.db, terrstr());
     } else {
-      pUser = mndAcquireUser(pMnode, pReq->user);
+      pUser = mndAcquireUser(pMnode, pReq->conn.user);
       if (pUser == NULL) {
         goto _OVER;
       }
@@ -1302,8 +1305,8 @@ static int32_t mndProcessUseDbReq(SNodeMsg *pReq) {
 
   tSerializeSUseDbRsp(pRsp, contLen, &usedbRsp);
 
-  pReq->pRsp = pRsp;
-  pReq->rspLen = contLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
 
 _OVER:
   if (code != 0) {
@@ -1385,14 +1388,14 @@ int32_t mndValidateDbInfo(SMnode *pMnode, SDbVgVersion *pDbs, int32_t numOfDbs, 
   return 0;
 }
 
-static int32_t mndProcessCompactDbReq(SNodeMsg *pReq) {
-  SMnode       *pMnode = pReq->pNode;
+static int32_t mndProcessCompactDbReq(SRpcMsg *pReq) {
+  SMnode       *pMnode = pReq->info.node;
   int32_t       code = -1;
   SDbObj       *pDb = NULL;
   SUserObj     *pUser = NULL;
   SCompactDbReq compactReq = {0};
 
-  if (tDeserializeSCompactDbReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &compactReq) != 0) {
+  if (tDeserializeSCompactDbReq(pReq->pCont, pReq->contLen, &compactReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -1404,7 +1407,7 @@ static int32_t mndProcessCompactDbReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     goto _OVER;
   }
@@ -1447,8 +1450,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   }
 
   char *status = "ready";
-  char  b[24] = {0};
-  STR_WITH_SIZE_TO_VARSTR(b, status, strlen(status));
+  char  statusB[24] = {0};
+  STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
   if (sysDb) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
@@ -1458,7 +1461,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 20) {
-        colDataAppend(pColInfo, rows, b, false);
+        colDataAppend(pColInfo, rows, statusB, false);
       } else {
         colDataAppendNULL(pColInfo, rows);
       }
@@ -1481,9 +1484,10 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *src = pDb->cfg.strict ? "strict" : "nostrict";
-    STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
+    char        strict[24] = {0};
+    STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)b, false);
+    colDataAppend(pColInfo, rows, (const char *)strict, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.daysPerFile, false);
@@ -1554,7 +1558,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    colDataAppend(pColInfo, rows, (const char *)b, false);
+    colDataAppend(pColInfo, rows, (const char *)statusB, false);
   }
 }
 
@@ -1587,8 +1591,8 @@ static bool mndGetTablesOfDbFp(SMnode *pMnode, void *pObj, void *p1, void *p2, v
   return true;
 }
 
-static int32_t mndRetrieveDbs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
-  SMnode *pMnode = pReq->pNode;
+static int32_t mndRetrieveDbs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rowsCapacity) {
+  SMnode *pMnode = pReq->info.node;
   SSdb   *pSdb = pMnode->pSdb;
   int32_t numOfRows = 0;
   SDbObj *pDb = NULL;

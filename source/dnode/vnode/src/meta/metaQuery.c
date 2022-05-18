@@ -35,7 +35,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   STbDbKey tbDbKey = {.version = version, .uid = uid};
 
   // query table.db
-  if (tdbDbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _err;
   }
@@ -58,7 +58,7 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   int64_t version;
 
   // query uid.idx
-  if (tdbDbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
@@ -72,7 +72,7 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
   tb_uid_t uid;
 
   // query name.idx
-  if (tdbDbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
@@ -159,7 +159,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   pKey = &skmDbKey;
   kLen = sizeof(skmDbKey);
   metaRLock(pMeta);
-  ret = tdbDbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
+  ret = tdbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
   metaULock(pMeta);
   if (ret < 0) {
     return NULL;
@@ -394,11 +394,6 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
     goto _err;
   }
 
-  SMSmaCursor *pCur = metaOpenSmaCursor(pMeta, uid);
-  if (pCur == NULL) {
-    goto _err;
-  }
-
   SMetaReader mr = {0};
   metaReaderInit(&mr, pMeta, 0);
   int64_t smaId;
@@ -418,7 +413,7 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
           terrno = TSDB_CODE_OUT_OF_MEMORY;
           goto _err;
         }
-        memcpy((void*)pTSma->expr, mr.me.smaEntry.tsma->expr, pTSma->exprLen);
+        memcpy((void *)pTSma->expr, mr.me.smaEntry.tsma->expr, pTSma->exprLen);
       }
       if (pTSma->tagsFilterLen > 0) {
         if (!(pTSma->tagsFilter = taosMemoryCalloc(1, pTSma->tagsFilterLen))) {
@@ -426,14 +421,14 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
           goto _err;
         }
       }
-      memcpy((void*)pTSma->tagsFilter, mr.me.smaEntry.tsma->tagsFilter, pTSma->tagsFilterLen);
+      memcpy((void *)pTSma->tagsFilter, mr.me.smaEntry.tsma->tagsFilter, pTSma->tagsFilterLen);
     } else {
       pTSma->exprLen = 0;
       pTSma->expr = NULL;
       pTSma->tagsFilterLen = 0;
       pTSma->tagsFilter = NULL;
     }
-    
+
     ++smaIdx;
   }
 
@@ -442,12 +437,10 @@ STSmaWrapper *metaGetSmaInfoByTable(SMeta *pMeta, tb_uid_t uid, bool deepCopy) {
 
   metaReaderClear(&mr);
   taosArrayDestroy(pSmaIds);
-  metaCloseSmaCursor(pCur);
   return pSW;
 _err:
   metaReaderClear(&mr);
   taosArrayDestroy(pSmaIds);
-  metaCloseSmaCursor(pCur);
   tdFreeTSmaWrapper(pSW, deepCopy);
   return NULL;
 }

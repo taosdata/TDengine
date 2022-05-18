@@ -553,7 +553,7 @@ TEST_F(JsonEnv, testWriteJsonTfileAndCache_FLOAT) {
     float       val = 2.0;
     std::string colName("test1");
     for (int i = 0; i < 1000; i++) {
-      WriteData(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), i);
+      WriteData(index, colName, TSDB_DATA_TYPE_FLOAT, &val, sizeof(val), i + 1000);
     }
   }
   {

@@ -602,8 +602,6 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                       int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
-    pCtx[k].startTs = pWin->skey;
-
     // keep it temporarily
     bool    hasAgg = pCtx[k].input.colDataAggIsSet;
     int32_t numOfRows = pCtx[k].input.numOfRows;
@@ -619,8 +617,8 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
 
     // not a whole block involved in query processing, statistics data can not be used
     // NOTE: the original value of isSet have been changed here
-    if (pCtx[k].isAggSet && forwardStep < numOfTotal) {
-      pCtx[k].isAggSet = false;
+    if (pCtx[k].input.colDataAggIsSet && forwardStep < numOfTotal) {
+      pCtx[k].input.colDataAggIsSet = false;
     }
 
     if (fmIsWindowPseudoColumnFunc(pCtx[k].functionId)) {
@@ -680,7 +678,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SqlFunctionCtx* pC
                                     int32_t order) {
   for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
-    pCtx[i].size = pBlock->info.rows;
+    pCtx[i].input.numOfRows = pBlock->info.rows;
     setBlockStatisInfo(&pCtx[i], &pOperator->pExpr[i], pBlock);
   }
 }
@@ -742,7 +740,8 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 
   for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
-    pCtx[i].size = pBlock->info.rows;
+    pCtx[i].input.numOfRows = pBlock->info.rows;
+
     pCtx[i].pSrcBlock = pBlock;
     pCtx[i].scanFlag  = scanFlag;
 
@@ -827,7 +826,6 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
-      pCtx[k].startTs = startTs;
       // todo add a dummy funtion to avoid process check
       if (pCtx[k].fpSet.process != NULL) {
         int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
@@ -2715,8 +2713,8 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
 }
 
 void qProcessFetchRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
-  assert(pMsg->ahandle != NULL);
+  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
+  assert(pMsg->info.ahandle != NULL);
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
 
@@ -3330,7 +3328,7 @@ static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char** buf, int3
 static void doMergeResultImpl(SSortedMergeOperatorInfo* pInfo, SqlFunctionCtx* pCtx, int32_t numOfExpr,
                               int32_t rowIndex) {
   for (int32_t j = 0; j < numOfExpr; ++j) {  // TODO set row index
-    pCtx[j].startRow = rowIndex;
+//    pCtx[j].startRow = rowIndex;
   }
 
   for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -3381,7 +3379,7 @@ static void doMergeImpl(SOperatorInfo* pOperator, int32_t numOfExpr, SSDataBlock
 
   SqlFunctionCtx* pCtx = pInfo->binfo.pCtx;
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    pCtx[i].size = 1;
+//    pCtx[i].size = 1;
   }
 
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -4248,7 +4246,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  int32_t numOfRows = 10;
+  int32_t numOfRows = 1024;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
   initResultSizeInfo(pOperator, numOfRows);

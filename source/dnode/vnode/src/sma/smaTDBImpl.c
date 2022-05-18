@@ -55,17 +55,18 @@ static inline int tdSmaKeyCmpr(const void *arg1, int len1, const void *arg2, int
 }
 
 static int32_t smaOpenDBDb(TDB **ppDB, TENV *pEnv, const char *pFName) {
-  int           ret;
   tdb_cmpr_fn_t compFunc;
 
   // Create a database
   compFunc = tdSmaKeyCmpr;
-  ret = tdbDbOpen(pFName, -1, -1, compFunc, pEnv, ppDB);
+  if (tdbOpen(pFName, -1, -1, compFunc, pEnv, ppDB) < 0) {
+    return -1;
+  }
 
   return 0;
 }
 
-static int32_t smaCloseDBDb(TDB *pDB) { return tdbDbClose(pDB); }
+static int32_t smaCloseDBDb(TDB *pDB) { return tdbClose(pDB); }
 
 int32_t smaOpenDBF(TENV *pEnv, SDBFile *pDBF) {
   // TEnv is shared by a group of SDBFile
@@ -76,7 +77,7 @@ int32_t smaOpenDBF(TENV *pEnv, SDBFile *pDBF) {
 
   // Open DBF
   if (smaOpenDBDb(&(pDBF->pDB), pEnv, pDBF->path) < 0) {
-    terrno = TSDB_CODE_TDB_INIT_FAILED;
+    smaError("failed to open DBF: %s", pDBF->path);
     smaCloseDBDb(pDBF->pDB);
     return -1;
   }
@@ -97,9 +98,10 @@ int32_t smaCloseDBF(SDBFile *pDBF) {
 int32_t smaSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, int32_t valLen, TXN *txn) {
   int32_t ret;
 
-  ret = tdbDbInsert(pDBF->pDB, pKey, keyLen, pVal, valLen, txn);
+  printf("save tsma data into %s, keyLen:%d valLen:%d txn:%p\n", pDBF->path, keyLen, valLen, txn);
+  ret = tdbUpsert(pDBF->pDB, pKey, keyLen, pVal, valLen, txn);
   if (ret < 0) {
-    smaError("failed to create insert sma data into db, ret = %d", ret);
+    smaError("failed to upsert tsma data into db, ret = %d", ret);
     return -1;
   }
 
@@ -110,10 +112,10 @@ void *smaGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_
   void *pVal = NULL;
   int   ret;
 
-  ret = tdbDbGet(pDBF->pDB, pKey, keyLen, &pVal, valLen);
+  ret = tdbGet(pDBF->pDB, pKey, keyLen, &pVal, valLen);
 
   if (ret < 0) {
-    smaError("failed to get sma data from db, ret = %d", ret);
+    smaError("failed to get tsma data from db, ret = %d", ret);
     return NULL;
   }
 

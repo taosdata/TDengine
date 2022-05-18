@@ -22,10 +22,10 @@ class MndTestDnode : public ::testing::Test {
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9023";
 
-    server2.Start("/tmp/dnode_test_dnode2", fqdn, 9024, firstEp);
-    server3.Start("/tmp/dnode_test_dnode3", fqdn, 9025, firstEp);
-    server4.Start("/tmp/dnode_test_dnode4", fqdn, 9026, firstEp);
-    server5.Start("/tmp/dnode_test_dnode5", fqdn, 9027, firstEp);
+    // server2.Start("/tmp/dnode_test_dnode2", fqdn, 9024, firstEp);
+    // server3.Start("/tmp/dnode_test_dnode3", fqdn, 9025, firstEp);
+    // server4.Start("/tmp/dnode_test_dnode4", fqdn, 9026, firstEp);
+    // server5.Start("/tmp/dnode_test_dnode5", fqdn, 9027, firstEp);
     taosMsleep(300);
   }
 
@@ -205,7 +205,7 @@ TEST_F(MndTestDnode, 04_Drop_Dnode) {
 
   taosMsleep(2000);
   server2.Stop();
-  server2.DoStart();
+  server2.Start();
 }
 
 TEST_F(MndTestDnode, 05_Create_Drop_Restart_Dnode) {

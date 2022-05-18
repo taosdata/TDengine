@@ -372,13 +372,13 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, 
     }
 
     if (level == TSDB_RETENTION_L0) {
-      tsdbDebug("%p rsma level %d is selected to query", pReadHandle, TSDB_RETENTION_L0);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L0);
       return VND_RSMA0(pVnode);
     } else if (level == TSDB_RETENTION_L1) {
-      tsdbDebug("%p rsma level %d is selected to query", pReadHandle, TSDB_RETENTION_L1);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L1);
       return VND_RSMA1(pVnode);
     } else {
-      tsdbDebug("%p rsma level %d is selected to query", pReadHandle, TSDB_RETENTION_L2);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L2);
       return VND_RSMA2(pVnode);
     }
   }

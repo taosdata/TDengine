@@ -32,7 +32,7 @@
 static int32_t mndOffsetActionInsert(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionDelete(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOffset, SMqOffsetObj *pNewOffset);
-static int32_t mndProcessCommitOffsetReq(SNodeMsg *pReq);
+static int32_t mndProcessCommitOffsetReq(SRpcMsg *pReq);
 
 int32_t mndInitOffset(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_OFFSET,
@@ -160,18 +160,18 @@ int32_t mndCreateOffsets(STrans *pTrans, const char *cgroup, const char *topicNa
   return 0;
 }
 
-static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
+static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
   char key[TSDB_PARTITION_KEY_LEN];
 
-  SMnode              *pMnode = pMsg->pNode;
-  char                *msgStr = pMsg->rpcMsg.pCont;
+  SMnode              *pMnode = pMsg->info.node;
+  char                *msgStr = pMsg->pCont;
   SMqCMCommitOffsetReq commitOffsetReq;
   SDecoder             decoder;
-  tDecoderInit(&decoder, msgStr, pMsg->rpcMsg.contLen);
+  tDecoderInit(&decoder, msgStr, pMsg->contLen);
 
   tDecodeSMqCMCommitOffsetReq(&decoder, &commitOffsetReq);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_COMMIT_OFFSET, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_COMMIT_OFFSET, pMsg);
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
@@ -195,6 +195,8 @@ static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
       mndReleaseOffset(pMnode, pOffsetObj);
     }
   }
+
+  tDecoderClear(&decoder);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("mq-commit-offset-trans:%d, failed to prepare since %s", pTrans->id, terrstr());

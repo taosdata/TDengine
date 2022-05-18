@@ -309,6 +309,7 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   TSKEY          keyMin;
   TSKEY          keyMax;
   SSubmitBlk    *pBlkCopy;
+  int64_t        sverNew;
 
   // check if table exists
   SMetaReader mr = {0};
@@ -318,6 +319,12 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
     metaReaderClear(&mr);
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
+  }
+  if (mr.me.type == TSDB_NORMAL_TABLE) {
+    sverNew = mr.me.ntbEntry.schema.sver;
+  } else {
+    metaGetTableEntryByUid(&mr, mr.me.ctbEntry.suid);
+    sverNew = mr.me.stbEntry.schema.sver;
   }
   metaReaderClear(&mr);
 
@@ -367,6 +374,7 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
 
   pRsp->numOfRows = pMsgIter->numOfRows;
   pRsp->affectedRows = pMsgIter->numOfRows;
+  pRsp->sver = sverNew;
 
   return 0;
 }

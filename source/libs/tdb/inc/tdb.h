@@ -37,14 +37,14 @@ int tdbBegin(TENV *pEnv, TXN *pTxn);
 int tdbCommit(TENV *pEnv, TXN *pTxn);
 
 // TDB
-int tdbDbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TENV *pEnv, TDB **ppDb);
-int tdbDbClose(TDB *pDb);
-int tdbDbDrop(TDB *pDb);
-int tdbDbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);
-int tdbDbDelete(TDB *pDb, const void *pKey, int kLen, TXN *pTxn);
-int tdbDbUpsert(TDB *pDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
-int tdbDbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
-int tdbDbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+int tdbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TENV *pEnv, TDB **ppDb);
+int tdbClose(TDB *pDb);
+int tdbDrop(TDB *pDb);
+int tdbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);
+int tdbDelete(TDB *pDb, const void *pKey, int kLen, TXN *pTxn);
+int tdbUpsert(TDB *pDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
+int tdbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
+int tdbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
 
 // TDBC
 int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn);

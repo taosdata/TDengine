@@ -14,6 +14,7 @@
  */
 
 #include "builtins.h"
+#include "querynodes.h"
 #include "builtinsimpl.h"
 #include "scalar.h"
 #include "taoserror.h"
@@ -201,15 +202,32 @@ static int32_t translateTbnameColumn(SFunctionNode* pFunc, char* pErrBuf, int32_
 }
 
 static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (2 != paraNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, 1);
+  if (nodeType(pParamNode) != QUERY_NODE_VALUE) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SValueNode* pValue = (SValueNode*) pParamNode;
+  if (pValue->node.resType.type != TSDB_DATA_TYPE_BIGINT) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  if (pValue->datum.i < 1 || pValue->datum.i > 100) {
+    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
   return TSDB_CODE_SUCCESS;
 }
 
 static int32_t translateBottom(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
-  pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
-  return TSDB_CODE_SUCCESS;
+  return translateTop(pFunc, pErrBuf, len);
 }
 
 static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
@@ -219,6 +237,27 @@ static int32_t translateSpread(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(paraType) && TSDB_DATA_TYPE_TIMESTAMP != paraType) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  int32_t paraNum = LIST_LENGTH(pFunc->pParameterList);
+  if (1 != paraNum && 2 != paraNum) {
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The input parameter of ELAPSED function can only be column");
+  }
+
+  uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  if (TSDB_DATA_TYPE_TIMESTAMP != paraType) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -793,6 +832,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = spreadFunctionSetup,
     .processFunc  = spreadFunction,
     .finalizeFunc = spreadFinalize
+  },
+  {
+    .name = "elapsed",
+    .type = FUNCTION_TYPE_ELAPSED,
+    .classification = FUNC_MGT_AGG_FUNC,
+    .dataRequiredFunc = statisDataRequired,
+    .translateFunc = translateElapsed,
+    .getEnvFunc   = getElapsedFuncEnv,
+    .initFunc     = elapsedFunctionSetup,
+    .processFunc  = elapsedFunction,
+    .finalizeFunc = elapsedFinalize
   },
   {
     .name = "last_row",

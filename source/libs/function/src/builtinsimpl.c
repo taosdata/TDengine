@@ -112,6 +112,13 @@ typedef struct SSpreadInfo {
   double max;
 } SSpreadInfo;
 
+typedef struct SElapsedInfo {
+  double  result;
+  TSKEY   min;
+  TSKEY   max;
+  int64_t timeUnit;
+} SElapsedInfo;
+
 typedef struct SHistoFuncBin {
   double lower;
   double upper;
@@ -316,6 +323,7 @@ static FORCE_INLINE int32_t getNumofElem(SqlFunctionCtx* pCtx) {
   }
   return numOfElem;
 }
+
 /*
  * count function does need the finalize, if data is missing, the default value, which is 0, is used
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
@@ -810,16 +818,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-          //        for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          //          SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          //          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-          //            __ctx->tag.i = key;
-          //            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
-          //          }
-          //
-          //          __ctx->fpSet.process(__ctx);
-          //        }
-
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -832,15 +830,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-          //          for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          //            SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          //            if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-          //              __ctx->tag.i = key;
-          //              __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
-          //            }
-          //
-          //            __ctx->fpSet.process(__ctx);
-          //          }
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -852,7 +841,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -1732,7 +1720,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         char* data = colDataGetData(pCol, i);
 
         double v = 0;
-        GET_TYPED_DATA(v, double, pCtx->inputType, data);
+        GET_TYPED_DATA(v, double, type, data);
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
         }
@@ -2491,6 +2479,116 @@ int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (pInfo->hasResult == true) {
     SET_DOUBLE_VAL(&pInfo->result, pInfo->max - pInfo->min);
   }
+  return functionFinalize(pCtx, pBlock);
+}
+
+bool getElapsedFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SElapsedInfo);
+  return true;
+}
+
+bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
+  if (!functionSetup(pCtx, pResultInfo)) {
+    return false;
+  }
+
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(pResultInfo);
+  pInfo->result = 0;
+  pInfo->min = MAX_TS_KEY;
+  pInfo->max = 0;
+
+  if (pCtx->numOfParams == 3) {
+    pInfo->timeUnit = pCtx->param[1].param.i;
+  } else {
+    pInfo->timeUnit = 1;
+  }
+
+  return true;
+}
+
+int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
+  int32_t numOfElems = 0;
+
+  // Only the pre-computing information loaded and actual data does not loaded
+  SInputColumnInfoData* pInput = &pCtx->input;
+  SColumnDataAgg *pAgg = pInput->pColumnDataAgg[0];
+
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+
+  numOfElems = pInput->numOfRows; //since this is the primary timestamp, no need to exclude NULL values
+  if (numOfElems == 0) {
+    goto _elapsed_over;
+  }
+
+  if (pInput->colDataAggIsSet) {
+
+    if (pInfo->min == MAX_TS_KEY) {
+      pInfo->min = GET_INT64_VAL(&pAgg->min);
+      pInfo->max = GET_INT64_VAL(&pAgg->max);
+    } else {
+      if (pCtx->order == TSDB_ORDER_ASC) {
+        pInfo->max = GET_INT64_VAL(&pAgg->max);
+      } else {
+        pInfo->min = GET_INT64_VAL(&pAgg->min);
+      }
+    }
+  } else {  // computing based on the true data block
+    if (0 == pInput->numOfRows) {
+      if (pCtx->order == TSDB_ORDER_DESC) {
+        if (pCtx->end.key != INT64_MIN) {
+          pInfo->min = pCtx->end.key;
+        }
+      } else {
+        if (pCtx->end.key != INT64_MIN) {
+          pInfo->max = pCtx->end.key + 1;
+        }
+      }
+      goto _elapsed_over;
+    }
+
+    SColumnInfoData* pCol = pInput->pData[0];
+
+    int32_t start     = pInput->startRowIndex;
+    TSKEY* ptsList = (int64_t*)colDataGetData(pCol, start);
+    if (pCtx->order == TSDB_ORDER_DESC) {
+      if (pCtx->start.key == INT64_MIN) {
+        pInfo->max = (pInfo->max < ptsList[start + pInput->numOfRows - 1]) ? ptsList[start + pInput->numOfRows - 1] : pInfo->max;
+      } else {
+        pInfo->max = pCtx->start.key + 1;
+      }
+
+      if (pCtx->end.key != INT64_MIN) {
+        pInfo->min = pCtx->end.key;
+      } else {
+        pInfo->min = ptsList[0];
+      }
+    } else {
+      if (pCtx->start.key == INT64_MIN) {
+        pInfo->min = (pInfo->min > ptsList[0]) ? ptsList[0] : pInfo->min;
+      } else {
+        pInfo->min = pCtx->start.key;
+      }
+
+      if (pCtx->end.key != INT64_MIN) {
+        pInfo->max = pCtx->end.key + 1;
+      } else {
+        pInfo->max = ptsList[start + pInput->numOfRows - 1];
+      }
+    }
+  }
+
+_elapsed_over:
+  // data in the check operation are all null, not output
+  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SElapsedInfo* pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  double result = (double)pInfo->max - (double)pInfo->min;
+  result = (result >= 0) ? result : -result;
+  pInfo->result = result / pInfo->timeUnit;
   return functionFinalize(pCtx, pBlock);
 }
 

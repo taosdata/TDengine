@@ -122,6 +122,7 @@ static void mndCleanupTimer(SMnode *pMnode) {
   pMnode->stopped = true;
   if (taosCheckPthreadValid(pMnode->thread)) {
     taosThreadJoin(pMnode->thread, NULL);
+    memset(&pMnode->thread, 0, sizeof(pMnode->thread));
   }
 }
 
@@ -339,28 +340,25 @@ int32_t mndStart(SMnode *pMnode) { return mndInitTimer(pMnode); }
 
 void mndStop(SMnode *pMnode) { return mndCleanupTimer(pMnode); }
 
-int32_t mndProcessMsg(SNodeMsg *pMsg) {
-  SMnode  *pMnode = pMsg->pNode;
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
-  tmsg_t   msgType = pMsg->rpcMsg.msgType;
-  void    *ahandle = pMsg->rpcMsg.ahandle;
-  bool     isReq = (pRpc->msgType & 1U);
+int32_t mndProcessMsg(SRpcMsg *pMsg) {
+  SMnode *pMnode = pMsg->info.node;
+  void   *ahandle = pMsg->info.ahandle;
 
-  mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(msgType), ahandle);
+  mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
 
-  if (isReq && !mndIsMaster(pMnode)) {
+  if (IsReq(pMsg) && !mndIsMaster(pMnode)) {
     terrno = TSDB_CODE_APP_NOT_READY;
     mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     return -1;
   }
 
-  if (isReq && (pRpc->contLen == 0 || pRpc->pCont == NULL)) {
+  if (IsReq(pMsg) && (pMsg->contLen == 0 || pMsg->pCont == NULL)) {
     terrno = TSDB_CODE_INVALID_MSG_LEN;
     mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
     return -1;
   }
 
-  MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(msgType)];
+  MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   if (fp == NULL) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
     mError("msg:%p, failed to process since no msg handle, app:%p", pMsg, ahandle);
