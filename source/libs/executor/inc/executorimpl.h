@@ -217,6 +217,13 @@ typedef struct SExecTaskInfo {
   int64_t          owner;  // if it is in execution
   int32_t          code;
   uint64_t         totalRows;            // total number of rows
+  struct {
+    char          *tablename;
+    char          *dbname;
+    int32_t        sversion;
+    int32_t        tversion;
+  } schemaVer;
+
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   char*            sql;                  // query sql string
   jmp_buf          env;                  // jump to this position when error happens.
@@ -670,7 +677,8 @@ SSDataBlock* loadNextDataBlock(void* param);
 void setResultRowInitCtx(SResultRow* pResult, SqlFunctionCtx* pCtx, int32_t numOfOutput, int32_t* rowCellInfoOffset);
 
 SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNodeList, int32_t* numOfOutputCols,
-                            int32_t type);
+                            SExecTaskInfo* pTaskInfo, int32_t type);
+
 SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* numOfExprs);
 SSDataBlock* createResDataBlock(SDataBlockDescNode* pNode);
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode);
