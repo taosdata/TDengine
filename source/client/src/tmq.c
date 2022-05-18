@@ -830,10 +830,12 @@ tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
   }
 
   // init hb timer
-  tmq->hbTimer = taosTmrStart(tmqAssignDelayedHbTask, 1000, tmq, tmqMgmt.timer);
+  if (tmq->hbTimer == NULL) {
+    tmq->hbTimer = taosTmrStart(tmqAssignDelayedHbTask, 1000, tmq, tmqMgmt.timer);
+  }
 
   // init auto commit timer
-  if (tmq->autoCommit) {
+  if (tmq->autoCommit && tmq->commitTimer == NULL) {
     tmq->commitTimer = taosTmrStart(tmqAssignDelayedCommitTask, tmq->autoCommitInterval, tmq, tmqMgmt.timer);
   }
 
@@ -1456,9 +1458,18 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t wait_time) {
 
 tmq_resp_err_t tmq_consumer_close(tmq_t* tmq) {
   if (tmq->status == TMQ_CONSUMER_STATUS__READY) {
-    tmq_list_t*    lst = tmq_list_new();
-    tmq_resp_err_t rsp = tmq_subscribe(tmq, lst);
+    tmq_resp_err_t rsp = tmq_commit_sync(tmq, NULL);
+    if (rsp == TMQ_RESP_ERR__SUCCESS) {
+      // TODO: free resources
+      return TMQ_RESP_ERR__SUCCESS;
+    } else {
+      return TMQ_RESP_ERR__FAIL;
+    }
+
+    tmq_list_t* lst = tmq_list_new();
+    rsp = tmq_subscribe(tmq, lst);
     tmq_list_destroy(lst);
+
     if (rsp == TMQ_RESP_ERR__SUCCESS) {
       // TODO: free resources
       return TMQ_RESP_ERR__SUCCESS;
