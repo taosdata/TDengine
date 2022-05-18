@@ -645,7 +645,6 @@ static void grantCheckGrantInfo(void *p1, void *p2) {
 }
 
 static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) {
-  printf("%s(%d) %s rows=%d\n", __FILE__, __LINE__,__func__,rows);
   int32_t numOfRows = 0;
   char *  pWrite;
   int32_t cols = 0;

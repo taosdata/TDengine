@@ -225,7 +225,7 @@ bool opProcessPutDetailMetric(HttpContext *pContext, cJSON *metric, char *db) {
   // order by tag name
   cJSON * orderedTags[12] = {0};
   int32_t orderTagsLen = 0;
-  tagsSize = MIN(tagsSize, 12);
+  tagsSize = TMIN(tagsSize, 12);
   for (int32_t t1 = 0; t1 < tagsSize; ++t1) {
     cJSON *tag = cJSON_GetArrayItem(tags, t1);
     orderedTags[orderTagsLen++] = tag;
