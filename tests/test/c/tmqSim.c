@@ -537,6 +537,7 @@ int main(int32_t argc, char* argv[]) {
 
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
     taosThreadJoin(g_stConfInfo.stThreads[i].thread, NULL);
+    taosThreadClear(&g_stConfInfo.stThreads[i].thread);
   }
 
   // printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);

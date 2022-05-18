@@ -75,6 +75,7 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
     taosThreadJoin(pMgmt->statusThread, NULL);
+    taosThreadClear(&pMgmt->statusThread);
   }
 }
 
@@ -95,6 +96,7 @@ int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
     taosThreadJoin(pMgmt->monitorThread, NULL);
+    taosThreadClear(&pMgmt->monitorThread);
   }
 }
 

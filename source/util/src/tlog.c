@@ -145,6 +145,7 @@ void taosCloseLog() {
     taosStopLog();
     if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
       taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+      taosThreadClear(&tsLogObj.logHandle->asyncThread);
     }
     tsLogInited = 0;
 
