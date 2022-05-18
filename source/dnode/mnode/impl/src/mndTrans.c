@@ -986,7 +986,8 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
     memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
     if (tmsgSendReq(&pAction->epSet, &rpcMsg) == 0) {
-      mDebug("trans:%d, action:%d is sent", pTrans->id, action);
+      mDebug("trans:%d, action:%d is sent to %s:%u", pTrans->id, action, pAction->epSet.eps[pAction->epSet.inUse].fqdn,
+             pAction->epSet.eps[pAction->epSet.inUse].port);
       pAction->msgSent = 1;
       pAction->msgReceived = 0;
       pAction->errCode = 0;
