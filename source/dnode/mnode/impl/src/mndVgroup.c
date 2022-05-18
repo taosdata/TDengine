@@ -416,7 +416,7 @@ static int32_t mndGetAvailableDnode(SMnode *pMnode, SVgObj *pVgroup, SArray *pAr
     if (pVgroup->replica == 1) {
       pVgid->role = TAOS_SYNC_STATE_LEADER;
     } else {
-      pVgid->role = TAOS_SYNC_STATE_CANDIDATE;
+      pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
     }
 
     mInfo("db:%s, vgId:%d, vn:%d dnode:%d is alloced", pVgroup->dbName, pVgroup->vgId, v, pVgid->dnodeId);
@@ -514,7 +514,7 @@ int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray) {
 
     SVnodeGid *pVgid = &pVgroup->vnodeGid[maxPos];
     pVgid->dnodeId = pDnode->id;
-    pVgid->role = TAOS_SYNC_STATE_CANDIDATE;
+    pVgid->role = TAOS_SYNC_STATE_FOLLOWER;
     pDnode->numOfVnodes++;
 
     mInfo("db:%s, vgId:%d, vn:%d dnode:%d is added", pVgroup->dbName, pVgroup->vgId, maxPos, pVgid->dnodeId);

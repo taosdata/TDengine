@@ -489,7 +489,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
         tstrncpy(desc.status, "ready", sizeof(desc.status));
         pClusterInfo->vgroups_alive++;
       }
-      if (pVgid->role == TAOS_SYNC_STATE_LEADER || pVgid->role == TAOS_SYNC_STATE_FOLLOWER) {
+      if (pVgid->role != TAOS_SYNC_STATE_ERROR) {
         pClusterInfo->vnodes_alive++;
       }
       pClusterInfo->vnodes_total++;
