@@ -96,6 +96,17 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
                         qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model);
 
 /**
+ * The queried super/ordinary table schema and tag version
+ * tversion will always be 0 if the table is a ordinary table.
+ *
+ * @param tinfo
+ * @param sversion
+ * @param tversion
+ * @return
+ */
+int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, int32_t* sversion, int32_t* tversion);
+
+/**
  * The main task execution function, including query on both table and multiple tables,
  * which are decided according to the tag or table name query conditions
  *

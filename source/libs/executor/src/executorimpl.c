@@ -13,6 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "executorimpl.h"
+#include "vnode.h"
 #include "filter.h"
 #include "function.h"
 #include "functionMgt.h"
@@ -4632,8 +4634,8 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
   pTaskInfo->cost.created = taosGetTimestampMs();
-  pTaskInfo->id.queryId = queryId;
-  pTaskInfo->execModel = model;
+  pTaskInfo->id.queryId   = queryId;
+  pTaskInfo->execModel    = model;
 
   char* p = taosMemoryCalloc(1, 128);
   snprintf(p, 128, "TID:0x%" PRIx64 " QID:0x%" PRIx64, taskId, queryId);
@@ -4652,6 +4654,7 @@ static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
 static SArray* extractPartitionColInfo(SNodeList* pNodeList);
+static void    extractTableSchemaVersion(SReadHandle *pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
                                   uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
@@ -4666,6 +4669,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
         return NULL;
       }
 
+      extractTableSchemaVersion(pHandle, pTableScanNode->scan.uid, pTaskInfo);
       SOperatorInfo* pOperator = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
       STableScanInfo* pScanInfo = pOperator->info;
@@ -4725,6 +4729,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       return pOperator;
     } else if (QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN == type) {
       STagScanPhysiNode* pScanPhyNode = (STagScanPhysiNode*)pPhyNode;
+      extractTableSchemaVersion(pHandle, pScanPhyNode->uid, pTaskInfo);
 
       SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
 
@@ -4991,6 +4996,24 @@ SArray* extractPartitionColInfo(SNodeList* pNodeList) {
   return pList;
 }
 
+void extractTableSchemaVersion(SReadHandle *pHandle, uint64_t uid, SExecTaskInfo* pTaskInfo) {
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pHandle->meta, 0);
+  metaGetTableEntryByUid(&mr, uid);
+
+  if (mr.me.type == TSDB_SUPER_TABLE) {
+    pTaskInfo->schemaVer.sversion = mr.me.stbEntry.schema.sver;
+    pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.sver;
+  } else if (mr.me.type == TSDB_CHILD_TABLE) {
+    tb_uid_t suid = mr.me.ctbEntry.suid;
+    metaGetTableEntryByUid(&mr, suid);
+    pTaskInfo->schemaVer.sversion = mr.me.stbEntry.schema.sver;
+    pTaskInfo->schemaVer.tversion = mr.me.stbEntry.schemaTag.sver;
+  } else {
+    pTaskInfo->schemaVer.sversion = mr.me.ntbEntry.schema.sver;
+  }
+}
+
 SArray* createSortInfo(SNodeList* pNodeList) {
   size_t  numOfCols = LIST_LENGTH(pNodeList);
   SArray* pList = taosArrayInit(numOfCols, sizeof(SBlockOrderInfo));
@@ -5131,11 +5154,6 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
       createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &(*pTaskInfo)->tableqinfoGroupInfo);
   if (NULL == (*pTaskInfo)->pRoot) {
     code = terrno;
-    goto _complete;
-  }
-
-  if ((*pTaskInfo)->pRoot == NULL) {
-    code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
   }
 
