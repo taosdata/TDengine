@@ -213,8 +213,9 @@ int32_t sdbGetRawBinary(SSdbRaw *pRaw, int32_t dataPos, char *pVal, int32_t valL
     terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
     return -1;
   }
-
-  memcpy(pVal, pRaw->pData + dataPos, valLen);
+  if (pVal != NULL) {
+    memcpy(pVal, pRaw->pData + dataPos, valLen);
+  }
   return 0;
 }
 

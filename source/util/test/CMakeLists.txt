@@ -33,25 +33,25 @@ ENDIF()
 
 INCLUDE_DIRECTORIES(${TD_SOURCE_DIR}/src/util/inc)
 
-# freelistTest
-add_executable(freelistTest "")
-target_sources(freelistTest
-    PRIVATE
-    "freelistTest.cpp"
-)
-target_link_libraries(freelistTest os util gtest gtest_main)
+# # freelistTest
+# add_executable(freelistTest "")
+# target_sources(freelistTest
+#     PRIVATE
+#     "freelistTest.cpp"
+# )
+# target_link_libraries(freelistTest os util gtest gtest_main)
 
 # # encodeTest
 # add_executable(encodeTest "encodeTest.cpp")
 # target_link_libraries(encodeTest os util gtest gtest_main)
 
 # queueTest
-add_executable(procTest "procTest.cpp")
-target_link_libraries(procTest os util transport sut gtest_main)   
-add_test(
-    NAME procTest
-    COMMAND procTest
-)
+# add_executable(procTest "procTest.cpp")
+# target_link_libraries(procTest os util transport sut gtest_main)   
+# add_test(
+#     NAME procTest
+#     COMMAND procTest
+# )
 
 # cfgTest
 add_executable(cfgTest "cfgTest.cpp")

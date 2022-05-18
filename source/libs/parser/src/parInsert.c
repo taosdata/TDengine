@@ -1041,22 +1041,11 @@ static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   destroyCreateSubTbReq(&pCxt->createTblReq);
 }
 
-static void destroyDataBlock(STableDataBlocks* pDataBlock) {
-  if (pDataBlock == NULL) {
-    return;
-  }
-
-  taosMemoryFreeClear(pDataBlock->pData);
-  if (!pDataBlock->cloned) {
-    destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  }
-  taosMemoryFreeClear(pDataBlock);
-}
-
 static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyInsertParseContextForTable(pCxt);
   taosHashCleanup(pCxt->pVgroupsHashObj);
   taosHashCleanup(pCxt->pSubTableHashObj);
+  taosHashCleanup(pCxt->pTableNameHashObj);
 
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
@@ -1301,6 +1290,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 
   CHECK_CODE(buildOutput(&insertCtx));
 
+  destroyBlockArrayList(insertCtx.pVgDataBlocks);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1580,15 +1570,24 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD** fields
 
 // schemaless logic start
 
-typedef struct SmlExecHandle {
-  SHashObj* pBlockHash;
-
+typedef struct SmlExecTableHandle {
   SParsedDataColInfo tags;          // each table
   SKVRowBuilder      tagsBuilder;   // each table
   SVCreateTbReq      createTblReq;  // each table
+} SmlExecTableHandle;
 
-  SQuery* pQuery;
+typedef struct SmlExecHandle {
+  SHashObj*           pBlockHash;
+  SmlExecTableHandle  tableExecHandle;
+  SQuery              *pQuery;
 } SSmlExecHandle;
+
+static void smlDestroyTableHandle(void* pHandle) {
+  SmlExecTableHandle* handle = (SmlExecTableHandle*)pHandle;
+  tdDestroyKVRowBuilder(&handle->tagsBuilder);
+  destroyBoundColumnInfo(&handle->tags);
+  destroyCreateSubTbReq(&handle->createTblReq);
+}
 
 static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
   col_id_t nCols = pColList->numOfCols;
@@ -1692,25 +1691,26 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsSchema, SArray *cols
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
+  smlDestroyTableHandle(&smlHandle->tableExecHandle);   // free for each table
   SSchema*        pTagsSchema = getTableTagSchema(pTableMeta);
-  setBoundColumnInfo(&smlHandle->tags, pTagsSchema, getNumOfTags(pTableMeta));
-  int ret = smlBoundColumnData(tags, &smlHandle->tags, pTagsSchema);
+  setBoundColumnInfo(&smlHandle->tableExecHandle.tags, pTagsSchema, getNumOfTags(pTableMeta));
+  int ret = smlBoundColumnData(tags, &smlHandle->tableExecHandle.tags, pTagsSchema);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "bound tags error");
     return ret;
   }
   SKVRow row = NULL;
-  ret = smlBuildTagRow(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &row, &pBuf);
+  ret = smlBuildTagRow(tags, &smlHandle->tableExecHandle.tagsBuilder, &smlHandle->tableExecHandle.tags, pTagsSchema, &row, &pBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
-  buildCreateTbReq(&smlHandle->createTblReq, tableName, row, pTableMeta->suid);
+  buildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, row, pTableMeta->suid);
 
   STableDataBlocks* pDataBlock = NULL;
   ret = getDataBlockFromList(smlHandle->pBlockHash, &pTableMeta->uid, sizeof(pTableMeta->uid),
                              TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk), getTableInfo(pTableMeta).rowSize,
-                             pTableMeta, &pDataBlock, NULL, &smlHandle->createTblReq);
+                             pTableMeta, &pDataBlock, NULL, &smlHandle->tableExecHandle.createTblReq);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "create data block error");
     return ret;
@@ -1826,6 +1826,7 @@ void smlDestroyHandle(void* pHandle) {
   if (!pHandle) return;
   SSmlExecHandle* handle = (SSmlExecHandle*)pHandle;
   destroyBlockHashmap(handle->pBlockHash);
+  smlDestroyTableHandle(&handle->tableExecHandle);
   taosMemoryFree(handle);
 }
 

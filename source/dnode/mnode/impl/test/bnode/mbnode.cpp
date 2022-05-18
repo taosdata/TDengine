@@ -22,7 +22,7 @@ class MndTestBnode : public ::testing::Test {
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9018";
 
-    server2.Start("/tmp/mnode_test_bnode2", fqdn, 9019, firstEp);
+    server2.Start("/tmp/mnode_test_bnode2", 9019);
     taosMsleep(300);
   }
 

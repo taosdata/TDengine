@@ -14,6 +14,7 @@
  */
 
 #include "tq.h"
+#include "tqueue.h"
 
 int32_t tqInit() {
   //
@@ -98,6 +99,21 @@ static void tdSRowDemo() {
   tdSRowPrint(row, pTSChema, __func__);
 
   taosMemoryFree(pTSChema);
+}
+
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList) {
+  void*    pIter = NULL;
+  STqExec* pExec = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->execs, pIter);
+    if (pIter == NULL) break;
+    pExec = (STqExec*)pIter;
+    for (int32_t i = 0; i < 5; i++) {
+      int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, true);
+      ASSERT(code == 0);
+    }
+  }
+  return 0;
 }
 
 int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
@@ -234,7 +250,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
   if (msgType != TDMT_VND_SUBMIT) return 0;
 
   // make sure msgType == TDMT_VND_SUBMIT
-  if (tsdbUpdateSmaWindow(pTq->pVnode->pTsdb, msg, ver) != 0) {
+  if (tdUpdateExpireWindow(pTq->pVnode->pSma, msg, ver) != 0) {
     return -1;
   }
 
@@ -612,6 +628,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
     fetchOffset++;
   }
 
+  taosMemoryFree(pHeadWithCkSum);
   ASSERT(taosArrayGetSize(rsp.blockData) == rsp.blockNum);
   ASSERT(taosArrayGetSize(rsp.blockDataLen) == rsp.blockNum);
 
@@ -860,6 +877,14 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
 }
 #endif
 
+int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen) {
+  SMqVDeleteReq* pReq = (SMqVDeleteReq*)msg;
+
+  int32_t code = taosHashRemove(pTq->execs, pReq->subKey, strlen(pReq->subKey));
+  ASSERT(code == 0);
+  return 0;
+}
+
 // TODO: persist meta into tdb
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
   SMqRebVgReq req = {0};
@@ -1029,5 +1054,63 @@ int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId)
   if (streamExecTask(pTask, &pTq->pVnode->msgCb, req.data, STREAM_DATA_TYPE_SSDATA_BLOCK, workerId) < 0) {
     // TODO
   }
+  return 0;
+}
+
+int32_t tqProcessStreamTrigger2(STQ* pTq, SSubmitReq* pReq, int64_t ver) {
+  void* pIter = NULL;
+  bool  failed = false;
+
+  SStreamDataSubmit* pSubmit = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  if (pSubmit == NULL) {
+    failed = true;
+  }
+  pSubmit->dataRef = taosMemoryMalloc(sizeof(int32_t));
+  if (pSubmit->dataRef == NULL) {
+    failed = true;
+  }
+
+  pSubmit->type = STREAM_DATA_TYPE_SUBMIT_BLOCK;
+  pSubmit->sourceVer = ver;
+  pSubmit->sourceVg = pTq->pVnode->config.vgId;
+  pSubmit->data = pReq;
+  *pSubmit->dataRef = 1;
+
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = (SStreamTask*)pIter;
+    if (pTask->inputType != STREAM_INPUT__DATA_SUBMIT) continue;
+
+    int8_t inputStatus = atomic_load_8(&pTask->inputStatus);
+    if (inputStatus == TASK_INPUT_STATUS__NORMAL) {
+      if (failed) {
+        atomic_store_8(&pTask->inputStatus, TASK_INPUT_STATUS__FAILED);
+        continue;
+      }
+
+      streamDataSubmitRefInc(pSubmit);
+      taosWriteQitem(pTask->inputQ, pSubmit);
+
+      int8_t execStatus = atomic_load_8(&pTask->status);
+      if (execStatus == TASK_STATUS__IDLE || execStatus == TASK_STATUS__CLOSING) {
+        // TODO dispatch task launch msg to fetch queue
+      }
+
+    } else {
+      // blocked or stopped, do nothing
+    }
+  }
+
+  if (!failed) {
+    streamDataSubmitRefDec(pSubmit);
+    return 0;
+  } else {
+    return -1;
+  }
+}
+
+int32_t tqProcessTaskExec2(STQ* pTq, char* msg, int32_t msgLen) {
+  //
   return 0;
 }

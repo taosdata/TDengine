@@ -78,9 +78,9 @@ if(${BUILD_WITH_UV})
 endif(${BUILD_WITH_UV})
 
 # bdb
-#if(${BUILD_WITH_BDB})
-    #cat("${TD_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
-#endif(${BUILD_WITH_BDB})
+if(${BUILD_WITH_BDB})
+    cat("${TD_SUPPORT_DIR}/bdb_CMakeLists.txt.in" ${CONTRIB_TMP_FILE})
+endif(${BUILD_WITH_BDB})
 
 # sqlite
 if(${BUILD_WITH_SQLITE})
@@ -226,10 +226,10 @@ endif(${BUILD_WITH_NURAFT})
 if(${BUILD_PTHREAD})
     set(CMAKE_BUILD_TYPE release)
     add_definitions(-DPTW32_STATIC_LIB)
-    add_subdirectory(pthread)
+    add_subdirectory(pthread EXCLUDE_FROM_ALL)
     set_target_properties(libpthreadVC3 PROPERTIES OUTPUT_NAME pthread)
-    add_library(pthread STATIC IMPORTED GLOBAL)
-    SET_PROPERTY(TARGET pthread PROPERTY IMPORTED_LOCATION ${LIBRARY_OUTPUT_PATH}/pthread.lib)
+    add_library(pthread INTERFACE)
+    target_link_libraries(pthread INTERFACE libpthreadVC3)
 endif()
 
 # iconv

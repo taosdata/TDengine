@@ -509,7 +509,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
 
 bool shellIsLimitQuery(const char *sql) {
   //todo refactor
-  if (strcasestr(sql, " limit ") != NULL) {
+  if (taosStrCaseStr(sql, " limit ") != NULL) {
     return true;
   }
 
@@ -604,6 +604,7 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
     case TSDB_DATA_TYPE_DOUBLE:
       return TMAX(25, width);
 
+    case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_BINARY:
       if (field->bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
@@ -984,6 +985,7 @@ int32_t shellExecute() {
   while (1) {
     taosThreadCreate(&shell.pid, NULL, shellThreadLoop, shell.conn);
     taosThreadJoin(shell.pid, NULL);
+    taosThreadClear(&shell.pid);
   }
 
   return 0;

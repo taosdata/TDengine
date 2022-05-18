@@ -959,7 +959,7 @@ TEST(seqTest, normalCase) {
   stubSetGetDataBlock();
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1001,7 +1001,7 @@ TEST(seqTest, cancelFirst) {
   stubSetRpcSendResponse();
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1050,7 +1050,7 @@ TEST(seqTest, randCase) {
   taosSeedRand(taosGetTimestampSec());
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1124,7 +1124,7 @@ TEST(seqTest, multithreadRand) {
   taosSeedRand(taosGetTimestampSec());
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1188,7 +1188,7 @@ TEST(rcTest, shortExecshortDelay) {
   qwtTestQuitThreadNum = 0;
 
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1272,7 +1272,7 @@ TEST(rcTest, longExecshortDelay) {
   qwtTestQuitThreadNum = 0;
 
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1358,7 +1358,7 @@ TEST(rcTest, shortExeclongDelay) {
   qwtTestQuitThreadNum = 0;
 
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1442,7 +1442,7 @@ TEST(rcTest, dropTest) {
   taosSeedRand(taosGetTimestampSec());
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);

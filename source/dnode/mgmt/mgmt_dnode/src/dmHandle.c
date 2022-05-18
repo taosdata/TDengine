@@ -17,30 +17,30 @@
 #include "dmInt.h"
 
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
-  if (pMgmt->data.dnodeId == 0 || pMgmt->data.clusterId == 0) {
+  if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
     dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
-    taosWLockLatch(&pMgmt->data.latch);
-    pMgmt->data.dnodeId = pCfg->dnodeId;
-    pMgmt->data.clusterId = pCfg->clusterId;
-    dmWriteEps(pMgmt);
-    taosWUnLockLatch(&pMgmt->data.latch);
+    taosWLockLatch(&pMgmt->pData->latch);
+    pMgmt->pData->dnodeId = pCfg->dnodeId;
+    pMgmt->pData->clusterId = pCfg->clusterId;
+    dmWriteEps(pMgmt->pData);
+    taosWUnLockLatch(&pMgmt->pData->latch);
   }
 }
 
 static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
   if (pRsp->code != 0) {
-    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->data.dropped && pMgmt->data.dnodeId > 0) {
-      dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->data.dnodeId);
-      pMgmt->data.dropped = 1;
-      dmWriteEps(pMgmt);
+    if (pRsp->code == TSDB_CODE_MND_DNODE_NOT_EXIST && !pMgmt->pData->dropped && pMgmt->pData->dnodeId > 0) {
+      dInfo("dnode:%d, set to dropped since not exist in mnode", pMgmt->pData->dnodeId);
+      pMgmt->pData->dropped = 1;
+      dmWriteEps(pMgmt->pData);
     }
   } else {
     SStatusRsp statusRsp = {0};
     if (pRsp->pCont != NULL && pRsp->contLen > 0 &&
         tDeserializeSStatusRsp(pRsp->pCont, pRsp->contLen, &statusRsp) == 0) {
-      pMgmt->data.dnodeVer = statusRsp.dnodeVer;
+      pMgmt->pData->dnodeVer = statusRsp.dnodeVer;
       dmUpdateDnodeCfg(pMgmt, &statusRsp.dnodeCfg);
-      dmUpdateEps(pMgmt, statusRsp.pDnodeEps);
+      dmUpdateEps(pMgmt->pData, statusRsp.pDnodeEps);
     }
     rpcFreeCont(pRsp->pCont);
     tFreeSStatusRsp(&statusRsp);
@@ -50,17 +50,17 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SStatusReq req = {0};
 
-  taosRLockLatch(&pMgmt->data.latch);
+  taosRLockLatch(&pMgmt->pData->latch);
   req.sver = tsVersion;
-  req.dnodeVer = pMgmt->data.dnodeVer;
-  req.dnodeId = pMgmt->data.dnodeId;
-  req.clusterId = pMgmt->data.clusterId;
+  req.dnodeVer = pMgmt->pData->dnodeVer;
+  req.dnodeId = pMgmt->pData->dnodeId;
+  req.clusterId = pMgmt->pData->clusterId;
   if (req.clusterId == 0) req.dnodeId = 0;
-  req.rebootTime = pMgmt->data.rebootTime;
-  req.updateTime = pMgmt->data.updateTime;
+  req.rebootTime = pMgmt->pData->rebootTime;
+  req.updateTime = pMgmt->pData->updateTime;
   req.numOfCores = tsNumOfCores;
-  req.numOfSupportVnodes = pMgmt->data.supportVnodes;
-  tstrncpy(req.dnodeEp, pMgmt->data.localEp, TSDB_EP_LEN);
+  req.numOfSupportVnodes = tsNumOfSupportVnodes;
+  tstrncpy(req.dnodeEp, tsLocalEp, TSDB_EP_LEN);
 
   req.clusterCfg.statusInterval = tsStatusInterval;
   req.clusterCfg.checkTime = 0;
@@ -69,53 +69,42 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  taosRUnLockLatch(&pMgmt->data.latch);
+  taosRUnLockLatch(&pMgmt->pData->latch);
 
   SMonVloadInfo vinfo = {0};
   dmGetVnodeLoads(pMgmt, &vinfo);
   req.pVloads = vinfo.pVloads;
-  pMgmt->data.unsyncedVgId = 0;
-  pMgmt->data.vndState = TAOS_SYNC_STATE_LEADER;
-  for (int32_t i = 0; i < taosArrayGetSize(req.pVloads); ++i) {
-    SVnodeLoad *pLoad = taosArrayGet(req.pVloads, i);
-    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
-      pMgmt->data.unsyncedVgId = pLoad->vgId;
-      pMgmt->data.vndState = pLoad->syncState;
-    }
-  }
 
   SMonMloadInfo minfo = {0};
   dmGetMnodeLoads(pMgmt, &minfo);
-  pMgmt->data.mndState = minfo.load.syncState;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
   tSerializeSStatusReq(pHead, contLen, &req);
   tFreeSStatusReq(&req);
 
-  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .ahandle = (void *)0x9527};
+  SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send req:%s to mnode, app:%p", TMSG_INFO(rpcMsg.msgType), rpcMsg.ahandle);
-  tmsgSendMnodeRecv(&rpcMsg, &rpcRsp);
+  dTrace("send status msg to mnode, app:%p", rpcMsg.info.ahandle);
+
+  SEpSet epSet = {0};
+  dmGetMnodeEpSet(pMgmt->pData, &epSet);
+  rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
   dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
-int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pRsp = &pMsg->rpcMsg;
+int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dError("auth rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg *pRsp = &pMsg->rpcMsg;
+int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dError("grant rsp is received, but not supported yet");
   return 0;
 }
 
-int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg       *pReq = &pMsg->rpcMsg;
-  SDCfgDnodeReq *pCfg = pReq->pCont;
+int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dError("config req is received, but not supported yet");
   return TSDB_CODE_OPS_NOT_SUPPORT;
 }
@@ -149,12 +138,12 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   taosArrayDestroy(vinfo.pVloads);
 }
 
-int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   dDebug("server run status req is received");
   SServerStatusRsp statusRsp = {0};
   dmGetServerRunStatus(pMgmt, &statusRsp);
 
-  SRpcMsg rspMsg = {.handle = pMsg->rpcMsg.handle, .ahandle = pMsg->rpcMsg.ahandle, .refId = pMsg->rpcMsg.refId};
+  SRpcMsg rspMsg = {.info = pMsg->info};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
     rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
@@ -168,8 +157,8 @@ int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   }
 
   tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
-  pMsg->pRsp = pRsp;
-  pMsg->rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   return 0;
 }
 

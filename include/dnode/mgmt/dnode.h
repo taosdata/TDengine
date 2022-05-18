@@ -22,66 +22,28 @@
 extern "C" {
 #endif
 
-/* ------------------------ TYPES EXPOSED ---------------- */
-typedef struct SDnode SDnode;
-
 /**
- * @brief Initialize the environment
+ * @brief Initialize the dnode
  *
+ * @param rtype for internal debug usage, default is 0
  * @return int32_t 0 for success and -1 for failure
  */
-int32_t dmInit();
+int32_t dmInit(int8_t rtype);
 
 /**
- * @brief Clear the environment
+ * @brief Cleanup the dnode
  */
 void dmCleanup();
 
-/* ------------------------ SDnode ----------------------- */
-typedef struct {
-  int32_t   numOfSupportVnodes;
-  uint16_t  serverPort;
-  char      dataDir[PATH_MAX];
-  char      localEp[TSDB_EP_LEN];
-  char      localFqdn[TSDB_FQDN_LEN];
-  char      firstEp[TSDB_EP_LEN];
-  char      secondEp[TSDB_EP_LEN];
-  SDiskCfg *disks;
-  int32_t   numOfDisks;
-  int8_t    ntype;
-} SDnodeOpt;
-
-typedef enum { DND_EVENT_START = 0, DND_EVENT_STOP = 1, DND_EVENT_CHILD = 2 } EDndEvent;
+/**
+ * @brief Run dnode.
+ */
+int32_t dmRun();
 
 /**
- * @brief Initialize and start the dnode.
- *
- * @param pOption Option of the dnode.
- * @return SDnode* The dnode object.
+ * @brief Stop dnode.
  */
-SDnode *dmCreate(const SDnodeOpt *pOption);
-
-/**
- * @brief Stop and cleanup the dnode.
- *
- * @param pDnode The dnode object to close.
- */
-void dmClose(SDnode *pDnode);
-
-/**
- * @brief Run dnode until specific event is receive.
- *
- * @param pDnode The dnode object to run.
- */
-int32_t dmRun(SDnode *pDnode);
-
-/**
- * @brief Handle event in the dnode.
- *
- * @param pDnode The dnode object to close.
- * @param event The event to handle.
- */
-void dmSetEvent(SDnode *pDnode, EDndEvent event);
+void dmStop();
 
 #ifdef __cplusplus
 }

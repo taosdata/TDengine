@@ -14,6 +14,7 @@
  */
 
 #include "executor.h"
+#include <vnode.h>
 #include "executorimpl.h"
 #include "planner.h"
 #include "tdatablock.h"
@@ -46,7 +47,7 @@ static int32_t doSetStreamBlock(SOperatorInfo* pOperator, void* input, size_t nu
     }
 
     if (type == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-      if (tqReadHandleSetMsg(pInfo->readerHandle, input, 0) < 0) {
+      if (tqReadHandleSetMsg(pInfo->streamBlockReader, input, 0) < 0) {
         qError("submit msg messed up when initing stream block, %s" PRIx64, id);
         return TSDB_CODE_QRY_APP_ERROR;
       }
@@ -125,10 +126,10 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   return pTaskInfo;
 }
 
-int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd) {
+int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
-  // traverse to the streamscan node to add this table id
+  // traverse to the stream scanner node to add this table id
   SOperatorInfo* pInfo = pTaskInfo->pRoot;
   while (pInfo->operatorType != QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
     pInfo = pInfo->pDownstream[0];
@@ -136,7 +137,31 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
 
   SStreamBlockScanInfo* pScanInfo = pInfo->info;
   if (isAdd) {
-    int32_t code = tqReadHandleAddTbUidList(pScanInfo->readerHandle, tableIdList);
+    SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
+
+    SMetaReader mr = {0};
+    metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
+    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+      int64_t* id = (int64_t*)taosArrayGet(tableIdList, i);
+
+      int32_t code = metaGetTableEntryByUid(&mr, *id);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
+        continue;
+      }
+
+      ASSERT(mr.me.type == TSDB_CHILD_TABLE);
+      if (mr.me.ctbEntry.suid != pScanInfo->tableUid) {
+        continue;
+      }
+
+      taosArrayPush(qa, id);
+    }
+
+    metaReaderClear(&mr);
+
+    qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
+    int32_t code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, qa);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
     }

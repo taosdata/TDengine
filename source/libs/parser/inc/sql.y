@@ -241,7 +241,7 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::= 
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_name(C) NK_EQ literal(D).                     { A = createAlterTableSetTag(pCxt, B, &C, D); }
+  full_table_name(B) SET TAG column_name(C) NK_EQ literal(D).                     { A = createAlterTableSetTag(pCxt, B, &C, releaseRawExprNode(pCxt, D)); }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
@@ -868,9 +868,9 @@ query_expression_body(A) ::=
   query_expression_body(B) UNION query_expression_body(D).                        { A = createSetOperator(pCxt, SET_OP_TYPE_UNION, B, D); }
 
 query_primary(A) ::= query_specification(B).                                      { A = B; }
-//query_primary(A) ::=
-//  NK_LP query_expression_body(B) 
-//    order_by_clause_opt slimit_clause_opt limit_clause_opt NK_RP.                 { A = B; }
+query_primary(A) ::=
+  NK_LP query_expression_body(B) 
+    order_by_clause_opt slimit_clause_opt limit_clause_opt NK_RP.                 { A = B; }
 
 %type order_by_clause_opt                                                         { SNodeList* }
 %destructor order_by_clause_opt                                                   { nodesDestroyList($$); }

@@ -420,7 +420,6 @@ elif $data[0][6] == LEADER then
     goto check_vg_ready_3
   endi
   print ---- vgroup $data[0][0] leader locating dnode $data[0][7]
-endi
 elif $data[0][8] == LEADER then
   if $data[0][4] == LEADER then
     goto check_vg_ready_3

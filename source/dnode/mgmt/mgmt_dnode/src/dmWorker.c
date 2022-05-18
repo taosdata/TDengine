@@ -24,7 +24,7 @@ static void *dmStatusThreadFp(void *param) {
 
   while (1) {
     taosMsleep(200);
-    if (pMgmt->data.dropped || pMgmt->data.stopped) break;
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
@@ -45,7 +45,7 @@ static void *dmMonitorThreadFp(void *param) {
 
   while (1) {
     taosMsleep(200);
-    if (pMgmt->data.dropped || pMgmt->data.stopped) break;
+    if (pMgmt->pData->dropped || pMgmt->pData->stopped) break;
 
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
@@ -75,6 +75,7 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
     taosThreadJoin(pMgmt->statusThread, NULL);
+    taosThreadClear(&pMgmt->statusThread);
   }
 }
 
@@ -95,13 +96,14 @@ int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
     taosThreadJoin(pMgmt->monitorThread, NULL);
+    taosThreadClear(&pMgmt->monitorThread);
   }
 }
 
-static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  tmsg_t      msgType = pMsg->rpcMsg.msgType;
+  tmsg_t      msgType = pMsg->msgType;
   bool        isRequest = msgType & 1u;
   dTrace("msg:%p, will be processed in dnode-mgmt queue, type:%s", pMsg, TMSG_INFO(msgType));
 
@@ -116,28 +118,28 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
       code = dmProcessGrantRsp(pMgmt, pMsg);
       break;
     case TDMT_DND_CREATE_MNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, MNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(MNODE, pMsg);
       break;
     case TDMT_DND_DROP_MNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, MNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(MNODE, pMsg);
       break;
     case TDMT_DND_CREATE_QNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, QNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(QNODE, pMsg);
       break;
     case TDMT_DND_DROP_QNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, QNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(QNODE, pMsg);
       break;
     case TDMT_DND_CREATE_SNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, SNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(SNODE, pMsg);
       break;
     case TDMT_DND_DROP_SNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, SNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(SNODE, pMsg);
       break;
     case TDMT_DND_CREATE_BNODE:
-      code = (*pMgmt->processCreateNodeFp)(pMgmt->pDnode, BNODE, pMsg);
+      code = (*pMgmt->processCreateNodeFp)(BNODE, pMsg);
       break;
     case TDMT_DND_DROP_BNODE:
-      code = (*pMgmt->processDropNodeFp)(pMgmt->pDnode, BNODE, pMsg);
+      code = (*pMgmt->processDropNodeFp)(BNODE, pMsg);
       break;
     case TDMT_DND_SERVER_STATUS:
       code = dmProcessServerRunStatus(pMgmt, pMsg);
@@ -150,18 +152,16 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
   if (isRequest) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
-        .handle = pMsg->rpcMsg.handle,
-        .ahandle = pMsg->rpcMsg.ahandle,
         .code = code,
-        .refId = pMsg->rpcMsg.refId,
-        .pCont = pMsg->pRsp,
-        .contLen = pMsg->rspLen,
+        .info = pMsg->info,
+        .pCont = pMsg->info.rsp,
+        .contLen = pMsg->info.rspLen,
     };
     rpcSendResponse(&rsp);
   }
 
   dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
@@ -187,7 +187,7 @@ void dmStopWorker(SDnodeMgmt *pMgmt) {
   dDebug("dnode workers are closed");
 }
 
-int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->mgmtWorker;
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);

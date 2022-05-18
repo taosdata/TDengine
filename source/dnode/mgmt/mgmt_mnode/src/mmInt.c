@@ -18,9 +18,9 @@
 #include "wal.h"
 
 static bool mmDeployRequired(const SMgmtInputOpt *pInput) {
-  if (pInput->dnodeId > 0) return false;
-  if (pInput->clusterId > 0) return false;
-  if (strcmp(pInput->localEp, pInput->firstEp) != 0) return false;
+  if (pInput->pData->dnodeId > 0) return false;
+  if (pInput->pData->clusterId > 0) return false;
+  if (strcmp(tsLocalEp, tsFirst) != 0) return false;
   return true;
 }
 
@@ -44,8 +44,8 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
   pOption->selfIndex = 0;
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
-  pReplica->port = pInput->serverPort;
-  tstrncpy(pReplica->fqdn, pInput->localFqdn, TSDB_FQDN_LEN);
+  pReplica->port = tsServerPort;
+  tstrncpy(pReplica->fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
   pOption->deploy = true;
 
   pMgmt->selfIndex = pOption->selfIndex;
@@ -70,7 +70,7 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
     pReplica->id = pCreate->replicas[i].id;
     pReplica->port = pCreate->replicas[i].port;
     memcpy(pReplica->fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    if (pReplica->id == pMgmt->dnodeId) {
+    if (pReplica->id == pMgmt->pData->dnodeId) {
       pOption->selfIndex = i;
     }
   }
@@ -107,7 +107,6 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
 }
 
 static void mmClose(SMnodeMgmt *pMgmt) {
-  dInfo("mnode-mgmt start to cleanup");
   if (pMgmt->pMnode != NULL) {
     mmStopWorker(pMgmt);
     mndClose(pMgmt->pMnode);
@@ -115,11 +114,9 @@ static void mmClose(SMnodeMgmt *pMgmt) {
   }
 
   taosMemoryFree(pMgmt);
-  dInfo("mnode-mgmt is cleaned up");
 }
 
-static int32_t mmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("mnode-mgmt start to init");
+static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
     return -1;
@@ -131,15 +128,15 @@ static int32_t mmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     return -1;
   }
 
+  pMgmt->pData = pInput->pData;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)mmPutRpcMsgToQueryQueue;
   pMgmt->msgCb.queueFps[READ_QUEUE] = (PutToQueueFp)mmPutRpcMsgToReadQueue;
   pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
   pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
-  pMgmt->msgCb.pMgmt = pMgmt;
+  pMgmt->msgCb.mgmt = pMgmt;
 
   bool deployed = false;
   if (mmReadFile(pMgmt, &deployed) != 0) {
@@ -151,7 +148,7 @@ static int32_t mmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   SMnodeOpt option = {0};
   if (!deployed) {
     dInfo("mnode start to deploy");
-    pMgmt->dnodeId = 1;
+    pMgmt->pData->dnodeId = 1;
     mmBuildOptionForDeploy(pMgmt, pInput, &option);
   } else {
     dInfo("mnode start to open");
@@ -181,9 +178,8 @@ static int32_t mmOpen(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
     }
   }
 
-  pOutput->dnodeId = pMgmt->dnodeId;
+  pInput->pData->dnodeId = pMgmt->pData->dnodeId;
   pOutput->pMgmt = pMgmt;
-  dInfo("mnode-mgmt is initialized");
   return 0;
 }
 

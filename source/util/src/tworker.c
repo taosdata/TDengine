@@ -57,6 +57,7 @@ void tQWorkerCleanup(SQWorkerPool *pool) {
     if (worker == NULL) continue;
     if (taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
+      taosThreadClear(&worker->thread);
     }
   }
 
@@ -179,6 +180,7 @@ void tWWorkerCleanup(SWWorkerPool *pool) {
     SWWorker *worker = pool->workers + i;
     if (taosCheckPthreadValid(worker->thread)) {
       taosThreadJoin(worker->thread, NULL);
+      taosThreadClear(&worker->thread);
       taosFreeQall(worker->qall);
       taosCloseQset(worker->qset);
     }

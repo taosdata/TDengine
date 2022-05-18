@@ -189,9 +189,15 @@ struct SMetaEntry {
     struct {
       int64_t        ctime;
       int32_t        ttlDays;
+      int32_t        ncid;  // next column id
       SSchemaWrapper schema;
     } ntbEntry;
+    struct {
+      STSma *tsma;
+    } smaEntry;
   };
+
+  uint8_t *pBuf;
 };
 
 struct SMetaReader {
@@ -204,7 +210,7 @@ struct SMetaReader {
 };
 
 struct SMTbCursor {
-  TDBC       *pDbc;
+  TBC        *pDbc;
   void       *pKey;
   void       *pVal;
   int         kLen;

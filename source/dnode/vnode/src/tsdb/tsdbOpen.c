@@ -15,100 +15,17 @@
 
 #include "tsdb.h"
 
-#define TSDB_OPEN_RSMA_IMPL(v, l)                                                                \
-  do {                                                                                           \
-    SRetention *r = VND_RETENTIONS(v)[0];                                                        \
-    if (RETENTION_VALID(r)) {                                                                    \
-      return tsdbOpenImpl((v), type, &VND_RSMA##l(v), VNODE_RSMA##l##_DIR, TSDB_RETENTION_L##l); \
-    }                                                                                            \
-  } while (0)
+static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg);
 
-#define TSDB_SET_KEEP_CFG(l)                                                                      \
-  do {                                                                                            \
-    SRetention *r = &pCfg->retentions[l];                                                         \
-    pKeepCfg->keep2 = convertTimeFromPrecisionToUnit(r->keep, pCfg->precision, TIME_UNIT_MINUTE); \
-    pKeepCfg->keep0 = pKeepCfg->keep2;                                                            \
-    pKeepCfg->keep1 = pKeepCfg->keep2;                                                            \
-    pKeepCfg->days = tsdbEvalDays(r, pCfg->precision);                                            \
-  } while (0)
 
-#define RETENTION_DAYS_SPLIT_RATIO 10
-#define RETENTION_DAYS_SPLIT_MIN   1
-#define RETENTION_DAYS_SPLIT_MAX   30
+// implementation
 
-static int32_t tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int8_t type);
-static int32_t tsdbEvalDays(SRetention *r, int8_t precision);
-static int32_t tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir, int8_t level);
-
-int tsdbOpen(SVnode *pVnode, int8_t type) {
-  switch (type) {
-    case TSDB_TYPE_TSDB:
-      return tsdbOpenImpl(pVnode, type, &VND_TSDB(pVnode), VNODE_TSDB_DIR, TSDB_RETENTION_L0);
-    case TSDB_TYPE_TSMA:
-      ASSERT(0);
-      break;
-    case TSDB_TYPE_RSMA_L0:
-      TSDB_OPEN_RSMA_IMPL(pVnode, 0);
-      break;
-    case TSDB_TYPE_RSMA_L1:
-      TSDB_OPEN_RSMA_IMPL(pVnode, 1);
-      break;
-    case TSDB_TYPE_RSMA_L2:
-      TSDB_OPEN_RSMA_IMPL(pVnode, 2);
-      break;
-    default:
-      ASSERT(0);
-      break;
-  }
-  return 0;
-}
-
-static int32_t tsdbEvalDays(SRetention *r, int8_t precision) {
-  int32_t keepDays = convertTimeFromPrecisionToUnit(r->keep, precision, TIME_UNIT_DAY);
-  int32_t freqDays = convertTimeFromPrecisionToUnit(r->freq, precision, TIME_UNIT_DAY);
-
-  int32_t days = keepDays / RETENTION_DAYS_SPLIT_RATIO;
-  if (days <= RETENTION_DAYS_SPLIT_MIN) {
-    days = RETENTION_DAYS_SPLIT_MIN;
-    if (days < freqDays) {
-      days = freqDays + 1;
-    }
-  } else {
-    if (days > RETENTION_DAYS_SPLIT_MAX) {
-      days = RETENTION_DAYS_SPLIT_MAX;
-    }
-    if (days < freqDays) {
-      days = freqDays + 1;
-    }
-  }
-  return days * 1440;
-}
-
-static int32_t tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int8_t type) {
+static int tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg) {
   pKeepCfg->precision = pCfg->precision;
-  switch (type) {
-    case TSDB_TYPE_TSDB:
-      pKeepCfg->days = pCfg->days;
-      pKeepCfg->keep0 = pCfg->keep0;
-      pKeepCfg->keep1 = pCfg->keep1;
-      pKeepCfg->keep2 = pCfg->keep2;
-      break;
-    case TSDB_TYPE_TSMA:
-      ASSERT(0);
-      break;
-    case TSDB_TYPE_RSMA_L0:
-      TSDB_SET_KEEP_CFG(0);
-      break;
-    case TSDB_TYPE_RSMA_L1:
-      TSDB_SET_KEEP_CFG(1);
-      break;
-    case TSDB_TYPE_RSMA_L2:
-      TSDB_SET_KEEP_CFG(2);
-      break;
-    default:
-      ASSERT(0);
-      break;
-  }
+  pKeepCfg->days = pCfg->days;
+  pKeepCfg->keep0 = pCfg->keep0;
+  pKeepCfg->keep1 = pCfg->keep1;
+  pKeepCfg->keep2 = pCfg->keep2;
   return 0;
 }
 
@@ -116,13 +33,11 @@ static int32_t tsdbSetKeepCfg(STsdbKeepCfg *pKeepCfg, STsdbCfg *pCfg, int8_t typ
  * @brief
  *
  * @param pVnode
- * @param type
  * @param ppTsdb
  * @param dir
- * @param level retention level
  * @return int
  */
-int32_t tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *dir, int8_t level) {
+int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKeepCfg) {
   STsdb *pTsdb = NULL;
   int    slen = 0;
 
@@ -136,13 +51,18 @@ int32_t tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *di
     return -1;
   }
 
+  ASSERT(strlen(dir) < TSDB_DATA_DIR_LEN);
+  memcpy(pTsdb->dir, dir, strlen(dir));
   pTsdb->path = (char *)&pTsdb[1];
   sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP, dir);
   pTsdb->pVnode = pVnode;
-  pTsdb->level = level;
   pTsdb->repoLocked = false;
   taosThreadMutexInit(&pTsdb->mutex, NULL);
-  tsdbSetKeepCfg(REPO_KEEP_CFG(pTsdb), REPO_CFG(pTsdb), type);
+  if (!pKeepCfg) {
+    tsdbSetKeepCfg(&pTsdb->keepCfg, &pVnode->config.tsdbCfg);
+  } else {
+    memcpy(&pTsdb->keepCfg, pKeepCfg, sizeof(STsdbKeepCfg));
+  }
   pTsdb->fs = tsdbNewFS(REPO_KEEP_CFG(pTsdb));
 
   // create dir (TODO: use tfsMkdir)
@@ -153,7 +73,8 @@ int32_t tsdbOpenImpl(SVnode *pVnode, int8_t type, STsdb **ppTsdb, const char *di
     goto _err;
   }
 
-  tsdbDebug("vgId:%d tsdb is opened for %s", TD_VID(pVnode), pTsdb->path);
+  tsdbDebug("vgId:%d tsdb is opened for %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
+            pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
 
   *ppTsdb = pTsdb;
   return 0;
@@ -163,12 +84,13 @@ _err:
   return -1;
 }
 
-int tsdbClose(STsdb *pTsdb) {
-  if (pTsdb) {
+int tsdbClose(STsdb **pTsdb) {
+  if (*pTsdb) {
     // TODO: destroy mem/imem
-    tsdbCloseFS(pTsdb);
-    tsdbFreeFS(pTsdb->fs);
-    taosMemoryFree(pTsdb);
+    taosThreadMutexDestroy(&(*pTsdb)->mutex);
+    tsdbCloseFS(*pTsdb);
+    tsdbFreeFS((*pTsdb)->fs);
+    taosMemoryFreeClear(*pTsdb);
   }
   return 0;
 }

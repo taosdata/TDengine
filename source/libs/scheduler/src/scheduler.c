@@ -256,6 +256,7 @@ int32_t schValidateTaskReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t m
       return TSDB_CODE_SUCCESS;
     case TDMT_VND_CREATE_TABLE_RSP:
     case TDMT_VND_DROP_TABLE_RSP:
+    case TDMT_VND_ALTER_TABLE_RSP:
     case TDMT_VND_SUBMIT_RSP:
       break;
     default:
@@ -1131,6 +1132,25 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
+    case TDMT_VND_ALTER_TABLE_RSP: {
+      SVAlterTbRsp rsp = {0};
+      if (msg) {
+        SDecoder coder = {0};
+        tDecoderInit(&coder, msg, msgSize);
+        code = tDecodeSVAlterTbRsp(&coder, &rsp);
+        tDecoderClear(&coder);
+        SCH_ERR_JRET(code);
+        SCH_ERR_JRET(rsp.code);
+      }
+
+      SCH_ERR_JRET(rspCode);
+
+      if (NULL == msg) {
+        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
+      }
+      SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
+      break;
+    }
     case TDMT_VND_SUBMIT_RSP: {
       SCH_ERR_JRET(rspCode);
 
@@ -1391,6 +1411,10 @@ int32_t schHandleDropTableCallback(void *param, const SDataBuf *pMsg, int32_t co
   return schHandleCallback(param, pMsg, TDMT_VND_DROP_TABLE_RSP, code);
 }
 
+int32_t schHandleAlterTableCallback(void *param, const SDataBuf *pMsg, int32_t code) {
+  return schHandleCallback(param, pMsg, TDMT_VND_ALTER_TABLE_RSP, code);
+}
+
 int32_t schHandleQueryCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   return schHandleCallback(param, pMsg, TDMT_VND_QUERY_RSP, code);
 }
@@ -1414,24 +1438,24 @@ int32_t schHandleDropCallback(void *param, const SDataBuf *pMsg, int32_t code) {
 }
 
 int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
+  SSchedulerHbRsp rsp = {0};
+  SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
+
   if (code) {
     qError("hb rsp error:%s", tstrerror(code));
-    SCH_ERR_RET(code);
+    SCH_ERR_JRET(code);
   }
 
-  SSchedulerHbRsp rsp = {0};
   if (tDeserializeSSchedulerHbRsp(pMsg->pData, pMsg->len, &rsp)) {
     qError("invalid hb rsp msg, size:%d", pMsg->len);
-    SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
+    SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
   }
-
-  SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
 
   SSchTrans trans = {0};
   trans.transInst = pParam->transport;
   trans.transHandle = pMsg->handle;
 
-  SCH_ERR_RET(schUpdateHbConnection(&rsp.epId, &trans));
+  SCH_ERR_JRET(schUpdateHbConnection(&rsp.epId, &trans));
 
   int32_t taskNum = (int32_t)taosArrayGetSize(rsp.taskStatus);
   qDebug("%d task status in hb rsp, nodeId:%d, fqdn:%s, port:%d", taskNum, rsp.epId.nodeId, rsp.epId.ep.fqdn,
@@ -1459,6 +1483,7 @@ int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
 _return:
 
   tFreeSSchedulerHbRsp(&rsp);
+  taosMemoryFree(param);
 
   SCH_RET(code);
 }
@@ -1489,6 +1514,9 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
       break;
     case TDMT_VND_DROP_TABLE:
       *fp = schHandleDropTableCallback;
+      break;
+    case TDMT_VND_ALTER_TABLE:
+      *fp = schHandleAlterTableCallback;
       break;
     case TDMT_VND_SUBMIT:
       *fp = schHandleSubmitCallback;
@@ -2010,6 +2038,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
   switch (msgType) {
     case TDMT_VND_CREATE_TABLE:
     case TDMT_VND_DROP_TABLE:
+    case TDMT_VND_ALTER_TABLE:
     case TDMT_VND_SUBMIT: {
       msgSize = pTask->msgLen;
       msg = taosMemoryCalloc(1, msgSize);

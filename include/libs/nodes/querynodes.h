@@ -48,6 +48,7 @@ typedef struct SExprNode {
   ENodeType type;
   SDataType resType;
   char      aliasName[TSDB_COL_NAME_LEN];
+  char      userAlias[TSDB_COL_NAME_LEN];
   SArray*   pAssociation;
 } SExprNode;
 
@@ -325,6 +326,7 @@ typedef struct SQuery {
   bool           showRewrite;
   int32_t        placeholderNum;
   SArray*        pPlaceholderValues;
+  SNode*         pPrepareRoot;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
@@ -345,6 +347,7 @@ bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
+bool nodesIsRegularOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);

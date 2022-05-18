@@ -21,6 +21,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 static int uidIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
 
 static int32_t metaInitLock(SMeta *pMeta) { return taosThreadRwlockInit(&pMeta->lock, NULL); }
 static int32_t metaDestroyLock(SMeta *pMeta) { return taosThreadRwlockDestroy(&pMeta->lock); }
@@ -49,58 +50,65 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   taosMkDir(pMeta->path);
 
   // open env
-  ret = tdbEnvOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv);
+  ret = tdbOpen(pMeta->path, pVnode->config.szPage, pVnode->config.szCache, &pMeta->pEnv);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta env since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTbDb
-  ret = tdbDbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
+  ret = tdbTbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pSkmDb
-  ret = tdbDbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb);
+  ret = tdbTbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta schema db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pUidIdx
-  ret = tdbDbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
+  ret = tdbTbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pNameIdx
-  ret = tdbDbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx);
+  ret = tdbTbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta name index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pCtbIdx
-  ret = tdbDbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
+  ret = tdbTbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTagIdx
-  ret = tdbDbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx);
+  ret = tdbTbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTtlIdx
-  ret = tdbDbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx);
+  ret = tdbTbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
+    goto _err;
+  }
+
+  // open pSmaIdx
+  ret = tdbTbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx);
+  if (ret < 0) {
+    metaError("vgId:%d failed to open meta sma index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
@@ -117,14 +125,15 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
-  if (pMeta->pTtlIdx) tdbDbClose(pMeta->pTtlIdx);
-  if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
-  if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
-  if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
-  if (pMeta->pNameIdx) tdbDbClose(pMeta->pUidIdx);
-  if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
-  if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
-  if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
+  if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
+  if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
+  if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
+  if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+  if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
+  if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
+  if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
+  if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
+  if (pMeta->pEnv) tdbClose(pMeta->pEnv);
   metaDestroyLock(pMeta);
   taosMemoryFree(pMeta);
   return -1;
@@ -133,14 +142,15 @@ _err:
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
-    if (pMeta->pTtlIdx) tdbDbClose(pMeta->pTtlIdx);
-    if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
-    if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
-    if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
-    if (pMeta->pNameIdx) tdbDbClose(pMeta->pUidIdx);
-    if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
-    if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
-    if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
+    if (pMeta->pSmaIdx) tdbTbClose(pMeta->pSmaIdx);
+    if (pMeta->pTtlIdx) tdbTbClose(pMeta->pTtlIdx);
+    if (pMeta->pTagIdx) tdbTbClose(pMeta->pTagIdx);
+    if (pMeta->pCtbIdx) tdbTbClose(pMeta->pCtbIdx);
+    if (pMeta->pNameIdx) tdbTbClose(pMeta->pNameIdx);
+    if (pMeta->pUidIdx) tdbTbClose(pMeta->pUidIdx);
+    if (pMeta->pSkmDb) tdbTbClose(pMeta->pSkmDb);
+    if (pMeta->pTbDb) tdbTbClose(pMeta->pTbDb);
+    if (pMeta->pEnv) tdbClose(pMeta->pEnv);
     metaDestroyLock(pMeta);
     taosMemoryFree(pMeta);
   }
@@ -227,8 +237,7 @@ static int ctbIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
 static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
   STagIdxKey *pTagIdxKey1 = (STagIdxKey *)pKey1;
   STagIdxKey *pTagIdxKey2 = (STagIdxKey *)pKey2;
-  int8_t     *p1, *p2;
-  int8_t      type;
+  tb_uid_t    uid1, uid2;
   int         c;
 
   // compare suid
@@ -245,31 +254,34 @@ static int tagIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
     return -1;
   }
 
-  // compare value
-  p1 = pTagIdxKey1->data;
-  p2 = pTagIdxKey2->data;
-  ASSERT(p1[0] == p2[0]);
-  type = p1[0];
+  ASSERT(pTagIdxKey1->type == pTagIdxKey2->type);
 
-  p1++;
-  p2++;
+  // check NULL, NULL is always the smallest
+  if (pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
+    return -1;
+  } else if (!pTagIdxKey1->isNull && pTagIdxKey2->isNull) {
+    return 1;
+  } else if (!pTagIdxKey1->isNull && !pTagIdxKey2->isNull) {
+    // all not NULL, compr tag vals
+    c = doCompare(pTagIdxKey1->data, pTagIdxKey2->data, pTagIdxKey1->type, 0);
+    if (c) return c;
 
-  c = doCompare(p1, p2, type, 0);
-  if (c) return c;
-
-  if (IS_VAR_DATA_TYPE(type)) {
-    p1 = p1 + varDataTLen(p1);
-    p2 = p2 + varDataTLen(p2);
-  } else {
-    p1 = p1 + tDataTypes[type].bytes;
-    p2 = p2 + tDataTypes[type].bytes;
+    if (IS_VAR_DATA_TYPE(pTagIdxKey1->type)) {
+      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + varDataTLen(pTagIdxKey1->data));
+      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + varDataTLen(pTagIdxKey2->data));
+    } else {
+      uid1 = *(tb_uid_t *)(pTagIdxKey1->data + tDataTypes[pTagIdxKey1->type].bytes);
+      uid2 = *(tb_uid_t *)(pTagIdxKey2->data + tDataTypes[pTagIdxKey2->type].bytes);
+    }
   }
 
-  // compare suid
-  if (*(tb_uid_t *)p1 > *(tb_uid_t *)p2) {
-    return 1;
-  } else if (*(tb_uid_t *)p1 < *(tb_uid_t *)p2) {
+  // compare uid
+  if (uid1 < uid2) {
     return -1;
+  } else if (uid1 > uid2) {
+    return 1;
+  } else {
+    return 0;
   }
 
   return 0;
@@ -288,6 +300,25 @@ static int ttlIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kL
   if (pTtlIdxKey1->uid > pTtlIdxKey2->uid) {
     return 1;
   } else if (pTtlIdxKey1->uid < pTtlIdxKey2->uid) {
+    return -1;
+  }
+
+  return 0;
+}
+
+static int smaIdxKeyCmpr(const void *pKey1, int kLen1, const void *pKey2, int kLen2) {
+  SSmaIdxKey *pSmaIdxKey1 = (SSmaIdxKey *)pKey1;
+  SSmaIdxKey *pSmaIdxKey2 = (SSmaIdxKey *)pKey2;
+
+  if (pSmaIdxKey1->uid > pSmaIdxKey2->uid) {
+    return 1;
+  } else if (pSmaIdxKey1->uid < pSmaIdxKey2->uid) {
+    return -1;
+  }
+
+  if (pSmaIdxKey1->smaUid > pSmaIdxKey2->smaUid) {
+    return 1;
+  } else if (pSmaIdxKey1->smaUid < pSmaIdxKey2->smaUid) {
     return -1;
   }
 

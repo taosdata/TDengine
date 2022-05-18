@@ -398,6 +398,10 @@ static int32_t sifExecOper(SOperatorNode *node, SIFCtx *ctx, SIFParam *output) {
     output->status = SFLT_ACCURATE_INDEX;
   }
 
+  if (ctx->noExec) {
+    SIF_RET(code);
+  }
+
   return operFn(&params[0], nParam > 1 ? &params[1] : NULL, output);
 _return:
   taosMemoryFree(params);

@@ -14,8 +14,8 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "os.h"
 #include "tlog.h"
+#include "os.h"
 #include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
@@ -90,10 +90,12 @@ int32_t qDebugFlag = 131;
 int32_t wDebugFlag = 135;
 int32_t sDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
+int32_t tdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
 int32_t fnDebugFlag = 135;
+int32_t smaDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -143,6 +145,7 @@ void taosCloseLog() {
     taosStopLog();
     if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
       taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+      taosThreadClear(&tsLogObj.logHandle->asyncThread);
     }
     tsLogInited = 0;
 
@@ -755,6 +758,7 @@ void taosSetAllDebugFlag(int32_t flag) {
   tqDebugFlag = flag;
   fsDebugFlag = flag;
   fnDebugFlag = flag;
+  smaDebugFlag = flag;
 
   uInfo("all debug flag are set to %d", flag);
 }

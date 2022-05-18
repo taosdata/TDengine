@@ -80,19 +80,6 @@ const char *dmNodeName(EDndNodeType ntype) {
   }
 }
 
-const char *dmEventStr(EDndEvent ev) {
-  switch (ev) {
-    case DND_EVENT_START:
-      return "start";
-    case DND_EVENT_STOP:
-      return "stop";
-    case DND_EVENT_CHILD:
-      return "child";
-    default:
-      return "UNKNOWN";
-  }
-}
-
 const char *dmProcStr(EDndProcType etype) {
   switch (etype) {
     case DND_PROC_SINGLE:
@@ -103,6 +90,21 @@ const char *dmProcStr(EDndProcType etype) {
       return "child";
     case DND_PROC_TEST:
       return "test";
+    default:
+      return "UNKNOWN";
+  }
+}
+
+const char *dmFuncStr(EProcFuncType etype) {
+  switch (etype) {
+    case DND_FUNC_REQ:
+      return "req";
+    case DND_FUNC_RSP:
+      return "rsp";
+    case DND_FUNC_REGIST:
+      return "regist";
+    case DND_FUNC_RELEASE:
+      return "release";
     default:
       return "UNKNOWN";
   }

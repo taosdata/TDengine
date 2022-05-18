@@ -32,6 +32,7 @@ extern char     tsLocalEp[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
+extern int32_t  tsNumOfSupportVnodes;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -45,12 +46,13 @@ extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 
 // multi-process
-extern bool    tsMultiProcess;
+extern int32_t tsMultiProcess;
 extern int32_t tsMnodeShmSize;
 extern int32_t tsVnodeShmSize;
 extern int32_t tsQnodeShmSize;
 extern int32_t tsSnodeShmSize;
 extern int32_t tsBnodeShmSize;
+extern int32_t tsNumOfShmThreads;
 
 // queue & threads
 extern int32_t tsNumOfRpcThreads;
@@ -67,6 +69,7 @@ extern int32_t tsNumOfQnodeQueryThreads;
 extern int32_t tsNumOfQnodeFetchThreads;
 extern int32_t tsNumOfSnodeSharedThreads;
 extern int32_t tsNumOfSnodeUniqueThreads;
+extern int64_t tsRpcQueueMemoryAllowed;
 
 // monitor
 extern bool     tsEnableMonitor;
@@ -122,6 +125,10 @@ extern SDiskCfg tsDiskCfg[];
 
 // udf
 extern bool tsStartUdfd;
+
+// schemaless
+extern char tsSmlChildTableName[];
+extern bool tsSmlDataFormat;
 
 // internal
 extern int32_t tsTransPullupInterval;

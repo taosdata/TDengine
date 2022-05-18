@@ -88,9 +88,9 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   uint32_t capacity = pDispatcher->pManager->cfg.maxDataBlockNumPerQuery;
-  if (taosQueueSize(pDispatcher->pDataBlocks) > capacity) {
+  if (taosQueueItemSize(pDispatcher->pDataBlocks) > capacity) {
     qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
-           taosQueueSize(pDispatcher->pDataBlocks));
+           taosQueueItemSize(pDispatcher->pDataBlocks));
     return false;
   }
 
@@ -106,7 +106,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 
 static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
   taosThreadMutexLock(&pDispatcher->mutex);
-  int32_t blockNums = taosQueueSize(pDispatcher->pDataBlocks);
+  int32_t blockNums = taosQueueItemSize(pDispatcher->pDataBlocks);
   int32_t status =
       (0 == blockNums ? DS_BUF_EMPTY
                       : (blockNums < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
@@ -124,7 +124,7 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf));
+  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM);
   if (NULL == pBuf || !allocBuf(pDispatcher, pInput, pBuf)) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }

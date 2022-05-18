@@ -19,92 +19,44 @@
 
 static SMsgCb tsDefaultMsgCb;
 
-void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) {
-  // if (tsDefaultMsgCb.pWrapper == NULL) {
-  tsDefaultMsgCb = *pMsgCb;
-  //}
-}
+void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
 
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
+int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pMsg) {
   PutToQueueFp fp = pMsgCb->queueFps[qtype];
-  if (fp != NULL) {
-    return (*fp)(pMsgCb->pMgmt, pReq);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
-  }
+  return (*fp)(pMsgCb->mgmt, pMsg);
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
   GetQueueSizeFp fp = pMsgCb->qsizeFp;
-  if (fp != NULL) {
-    return (*fp)(pMsgCb->pMgmt, vgId, qtype);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
-  }
+  return (*fp)(pMsgCb->mgmt, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
-  SendReqFp fp = pMsgCb->sendReqFp;
-  if (fp != NULL) {
-    return (*fp)(pMsgCb->pWrapper, epSet, pReq);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-    return -1;
-  }
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
+  SendReqFp fp = tsDefaultMsgCb.sendReqFp;
+  return (*fp)(epSet, pMsg);
 }
 
-void tmsgSendRsp(SRpcMsg* pRsp) {
+void tmsgSendRsp(SRpcMsg* pMsg) {
   SendRspFp fp = tsDefaultMsgCb.sendRspFp;
-  if (fp != NULL) {
-    return (*fp)(tsDefaultMsgCb.pWrapper, pRsp);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  return (*fp)(pMsg);
 }
 
-void tmsgSendRedirectRsp(SRpcMsg* pRsp, const SEpSet* pNewEpSet) {
+void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
   SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
-  if (fp != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, pRsp, pNewEpSet);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  (*fp)(pMsg, pNewEpSet);
 }
 
-void tmsgSendMnodeRecv(SRpcMsg* pReq, SRpcMsg* pRsp) {
-  SendMnodeRecvFp fp = tsDefaultMsgCb.sendMnodeRecvFp;
-  if (fp != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, pReq, pRsp);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) {
+  RegisterBrokenLinkArgFp fp = tsDefaultMsgCb.registerBrokenLinkArgFp;
+  (*fp)(pMsg);
 }
 
-void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
-  RegisterBrokenLinkArgFp fp = pMsgCb->registerBrokenLinkArgFp;
-  if (fp != NULL) {
-    (*fp)(pMsgCb->pWrapper, pMsg);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
-}
-
-void tmsgReleaseHandle(void* handle, int8_t type) {
+void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) {
   ReleaseHandleFp fp = tsDefaultMsgCb.releaseHandleFp;
-  if (fp != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, handle, type);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  (*fp)(pHandle, type);
 }
 
 void tmsgReportStartup(const char* name, const char* desc) {
   ReportStartup fp = tsDefaultMsgCb.reportStartupFp;
-  if (fp != NULL && tsDefaultMsgCb.pWrapper != NULL) {
-    (*fp)(tsDefaultMsgCb.pWrapper, name, desc);
-  } else {
-    terrno = TSDB_CODE_INVALID_PTR;
-  }
+  (*fp)(name, desc);
 }

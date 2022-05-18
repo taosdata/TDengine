@@ -172,7 +172,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                        .pTransporter = pTscObj->pAppInfo->pTransporter,
                        .pStmtCb = pStmtCb,
-                       .pUser = pTscObj->user};
+                       .pUser = pTscObj->user,
+                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER))};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -232,8 +233,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
-                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                      .placeholderNum = pQuery->placeholderNum};
+                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
   SEpSet       mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
   SCatalog*    pCatalog = NULL;
   int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
@@ -517,8 +517,9 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    printf("failed to connect to server, reason: %s\n\n", errorMsg);
+    fprintf(stderr, "failed to connect to server, reason: %s\n\n", errorMsg);
 
+    terrno = pRequest->code;
     destroyRequest(pRequest);
     taos_close(pTscObj);
     pTscObj = NULL;
@@ -583,8 +584,8 @@ bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
-  assert(pMsg->ahandle != NULL);
+  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
+  assert(pMsg->info.ahandle != NULL);
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -615,7 +616,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
 
-  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->handle};
+  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle};
 
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
@@ -956,7 +957,7 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   void*              clientRpc = NULL;
   SServerStatusRsp   statusRsp = {0};
   SEpSet             epSet = {.inUse = 0, .numOfEps = 1};
-  SRpcMsg            rpcMsg = {.ahandle = (void*)0x9526, .msgType = TDMT_DND_SERVER_STATUS};
+  SRpcMsg            rpcMsg = {.info.ahandle = (void*)0x9526, .msgType = TDMT_DND_SERVER_STATUS};
   SRpcMsg            rpcRsp = {0};
   SRpcInit           rpcInit = {0};
   char               pass[TSDB_PASSWORD_LEN + 1] = {0};

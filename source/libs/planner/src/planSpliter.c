@@ -303,7 +303,7 @@ static SLogicNode* unMatchByNode(SLogicNode* pNode) {
   }
   SNode* pChild;
   FOREACH(pChild, pNode->pChildren) {
-    SLogicNode* pSplitNode = uaMatchByNode((SLogicNode*)pChild);
+    SLogicNode* pSplitNode = unMatchByNode((SLogicNode*)pChild);
     if (NULL != pSplitNode) {
       return pSplitNode;
     }
@@ -318,7 +318,7 @@ static int32_t unCreateExchangeNode(SSplitContext* pCxt, SLogicSubplan* pSubplan
   }
   pExchange->srcGroupId = pCxt->groupId;
   // pExchange->precision = pScan->pMeta->tableInfo.precision;
-  pExchange->node.pTargets = nodesCloneList(pAgg->node.pTargets);
+  pExchange->node.pTargets = nodesCloneList(pAgg->pGroupKeys);
   if (NULL == pExchange->node.pTargets) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
