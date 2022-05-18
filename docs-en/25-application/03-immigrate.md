@@ -99,7 +99,7 @@ This chapter describes the differences between OpenTSDB and TDengine at the syst
 TDengine currently only supports Grafana for visual kanban rendering, so if your application uses front-end kanban boards other than Grafana (e.g., [TSDash](https://github.com/facebook/tsdash), [Status Wolf](https://github) .com/box/StatusWolf), etc.). You cannot directly migrate those front-end kanbans to TDengine, and the front-end kanban will need to be ported to Grafana to work correctly.
 
 TDengine version 2.3.0.x only supports collectd and StatsD as data collection aggregation software but will provide more data collection aggregation software in the future. If you use other data aggregators on the collection side, your application needs to be ported to these two data aggregation systems to write data correctly.
-In addition to the two data aggregator software protocols mentioned above, TDengine also supports writing data directly via InfluxDB's row protocol and OpenTSDB's data writing protocol, JSON format. You can rewrite the logic on the data push side to write data using the row protocols supported by TDengine.
+In addition to the two data aggregator software protocols mentioned above, TDengine also supports writing data directly via InfluxDB's line protocol and OpenTSDB's data writing protocol, JSON format. You can rewrite the logic on the data push side to write data using the line protocols supported by TDengine.
 
 In addition, if your application uses the following features of OpenTSDB, you need to understand the following considerations before migrating your application to TDengine.
 

@@ -4,7 +4,9 @@ title: REST API
 
 为支持各种不同类型平台的开发，TDengine 提供符合 REST 设计标准的 API，即 REST API。为最大程度降低学习成本，不同于其他数据库 REST API 的设计方法，TDengine 直接通过 HTTP POST 请求 BODY 中包含的 SQL 语句来操作数据库，仅需要一个 URL。REST 连接器的使用参见[视频教程](https://www.taosdata.com/blog/2020/11/11/1965.html)。
 
-注意：与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。（从 2.2.0.0 版本开始，支持在 RESTful url 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 url 中指定的这个 db_name。从 2.4.0.0 版本开始，RESTful 默认由 taosAdapter 提供，要求必须在 url 中指定 db_name。）
+:::note
+与原生连接器的一个区别是，RESTful 接口是无状态的，因此 `USE db_name` 指令没有效果，所有对表名、超级表名的引用都需要指定数据库名前缀。从 2.2.0.0 版本开始，支持在 RESTful URL 中指定 db_name，这时如果 SQL 语句中没有指定数据库名前缀的话，会使用 URL 中指定的这个 db_name。从 2.4.0.0 版本开始，RESTful 默认由 taosAdapter 提供，要求必须在 URL 中指定 db_name。
+:::
 
 ## 安装
 
@@ -16,11 +18,10 @@ RESTful 接口不依赖于任何 TDengine 的库，因此客户端不需要安�
 
 下面以 Ubuntu 环境中使用 curl 工具（确认已经安装）来验证 RESTful 接口的正常。
 
-下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 fqdn 和端口号：
+下面示例是列出所有的数据库，请把 h1.taosdata.com 和 6041（缺省值）替换为实际运行的 TDengine 服务 FQDN 和端口号：
 
 ```html
-curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;'
-h1.taosdata.com:6041/rest/sql
+curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' h1.taosdata.com:6041/rest/sql
 ```
 
 返回值结果如下表示验证通过：
@@ -84,7 +85,7 @@ http://<fqdn>:<port>/rest/sql/[db_name]
 - port: 配置文件中 httpPort 配置项，缺省为 6041
 - db_name: 可选参数，指定本次所执行的 SQL 语句的默认数据库库名。（从 2.2.0.0 版本开始支持）
 
-例如：http://h1.taos.com:6041/rest/sql/test 是指向地址为 h1.taos.com:6041 的 url，并将默认使用的数据库库名设置为 test。
+例如：`http://h1.taos.com:6041/rest/sql/test` 是指向地址为 `h1.taos.com:6041` 的 URL，并将默认使用的数据库库名设置为 `test`。
 
 HTTP 请求的 Header 里需带有身份认证信息，TDengine 支持 Basic 认证与自定义认证两种机制，后续版本将提供标准安全的数字签名机制来做身份验证。
 
@@ -100,9 +101,9 @@ HTTP 请求的 Header 里需带有身份认证信息，TDengine 支持 Basic 认
   Authorization: Basic <TOKEN>
   ```
 
-HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据表应提供数据库前缀，例如 \<db_name>.\<tb_name>。如果表名不带数据库前缀，又没有在 url 中指定数据库名的话，系统会返回错误。因为 HTTP 模块只是一个简单的转发，没有当前 DB 的概念。
+HTTP 请求的 BODY 里就是一个完整的 SQL 语句，SQL 语句中的数据表应提供数据库前缀，例如 db_name.tb_name。如果表名不带数据库前缀，又没有在 URL 中指定数据库名的话，系统会返回错误。因为 HTTP 模块只是一个简单的转发，没有当前 DB 的概念。
 
-使用 curl 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
+使用 `curl` 通过自定义身份认证方式来发起一个 HTTP Request，语法如下：
 
 ```bash
 curl -H 'Authorization: Basic <TOKEN>' -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
@@ -136,7 +137,7 @@ curl -u username:password -d '<SQL>' <ip>:<PORT>/rest/sql/[db_name]
 说明：
 
 - status: 告知操作结果是成功还是失败。
-- head: 表的定义，如果不返回结果集，则仅有一列 “affected_rows”。（从 2.0.17.0 版本开始，建议不要依赖 head 返回值来判断数据列类型，而推荐使用 column_meta。在未来版本中，有可能会从返回值中去掉 head 这一项。）
+- head: 表的定义，如果不返回结果集，则仅有一列 “affected_rows”。（从 2.0.17.0 版本开始，建议不要依赖 head 返回值来判断数据列类型，而推荐使用 column_meta。在后续版本中，有可能会从返回值中去掉 head 这一项。）
 - column_meta: 从 2.0.17.0 版本开始，返回值中增加这一项来说明 data 里每一列的数据类型。具体每个列会用三个值来说明，分别为：列名、列类型、类型长度。例如`["current",6,4]`表示列名为“current”；列类型为 6，也即 float 类型；类型长度为 4，也即对应 4 个字节表示的 float。如果列类型为 binary 或 nchar，则类型长度表示该列最多可以保存的内容长度，而不是本次返回值中的具体数据长度。当列类型是 nchar 的时候，其类型长度表示可以保存的 unicode 字符数量，而不是 bytes。
 - data: 具体返回的数据，一行一行的呈现，如果不返回结果集，那么就仅有 [[affected_rows]]。data 中每一行的数据列顺序，与 column_meta 中描述数据列的顺序完全一致。
 - rows: 表明总共多少行数据。
@@ -162,7 +163,7 @@ HTTP 请求中需要带有授权码 `<TOKEN>`，用于身份识别。授权码�
 curl http://<fqnd>:<port>/rest/login/<username>/<password>
 ```
 
-其中，`fqdn` 是 TDengine 数据库的 fqdn 或 ip 地址，port 是 TDengine 服务的端口号，`username` 为数据库用户名，`password` 为数据库密码，返回值为 `JSON` 格式，各字段含义如下：
+其中，`fqdn` 是 TDengine 数据库的 FQDN 或 IP 地址，`port` 是 TDengine 服务的端口号，`username` 为数据库用户名，`password` 为数据库密码，返回值为 JSON 格式，各字段含义如下：
 
 - status：请求结果的标志位
 
@@ -236,13 +237,13 @@ curl http://192.168.0.1:6041/rest/login/root/taosdata
 
 ### 结果集采用 Unix 时间戳
 
-HTTP 请求 URL 采用 `sqlt` 时，返回结果集的时间戳将采用 Unix 时间戳格式表示，例如
+HTTP 请求 URL 采用 `/rest/sqlt` 时，返回结果集的时间戳将采用 Unix 时间戳格式表示，例如
 
 ```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001' 192.168.0.1:6041/rest/sqlt
 ```
 
-返回值：
+返回结果：
 
 ```json
 {
@@ -264,7 +265,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.d1001
 
 ### 结果集采用 UTC 时间字符串
 
-HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC 时间字符串表示，例如
+HTTP 请求 URL 采用 `/rest/sqlutc` 时，返回结果集的时间戳将采用 UTC 时间字符串表示，例如
 
 ```bash
   curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'select * from demo.t1' 192.168.0.1:6041/rest/sqlutc
@@ -298,10 +299,9 @@ HTTP 请求 URL 采用 `sqlutc` 时，返回结果集的时间戳将采用 UTC �
 - httpMaxThreads: 启动的线程数量，默认为 2（2.0.17.0 版本开始，默认值改为 CPU 核数的一半向下取整）。
 - restfulRowLimit: 返回结果集（JSON 格式）的最大条数，默认值为 10240。
 - httpEnableCompress: 是否支持压缩，默认不支持，目前 TDengine 仅支持 gzip 压缩格式。
-- httpDebugFlag: 日志开关，默认 131。131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息，默认 131。
-- httpDbNameMandatory: 是否必须在 RESTful url 中指定默认的数据库名。默认为 0，即关闭此检查。如果设置为 1，那么每个 RESTful url 中都必须设置一个默认数据库名，否则无论此时执行的 SQL 语句是否需要指定数据库，都会返回一个执行错误，拒绝执行此 SQL 语句。
+- httpDebugFlag: 日志开关，默认 131。131：仅错误和报警信息，135：调试信息，143：非常详细的调试信息。
+- httpDbNameMandatory: 是否必须在 RESTful URL 中指定默认的数据库名。默认为 0，即关闭此检查。如果设置为 1，那么每个 RESTful URL 中都必须设置一个默认数据库名，否则无论此时执行的 SQL 语句是否需要指定数据库，都会返回一个执行错误，拒绝执行此 SQL 语句。
 
-:::note 
-如果使用 taosd 提供的 REST API, 那么以上配置需要写在 taosd 的配置文件 taos.cfg 中。如果使用 taosAdaper 提供的 REST API, 那么需要参考 taosAdaper [对应的配置方法](/reference/taosadapter/)。
-
+:::note
+如果使用 taosd 提供的 REST API, 那么以上配置需要写在 taosd 的配置文件 taos.cfg 中。如果使用 taosAdapter 提供的 REST API, 那么需要参考 taosAdapter [对应的配置方法](/reference/taosadapter/)。
 :::

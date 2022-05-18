@@ -8,7 +8,7 @@ import Prometheus from "./_prometheus.mdx"
 import CollectD from "./_collectd.mdx"
 import StatsD from "./_statsd.mdx"
 import Icinga2 from "./_icinga2.mdx"
-import Tcollector from "./_tcollector.mdx"
+import TCollector from "./_tcollector.mdx"
 
 taosAdapter is a TDengine companion tool that acts as a bridge and adapter between TDengine clusters and applications. It provides an easy-to-use and efficient way to ingest data directly from data collection agent software such as Telegraf, StatsD, collectd, etc. It also provides an InfluxDB/OpenTSDB compatible data ingestion interface that allows InfluxDB/OpenTSDB applications to be seamlessly ported to TDengine.
 
@@ -30,26 +30,26 @@ taosAdapter provides the following features.
 
 ### Install taosAdapter
 
-taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [Taos Data official website](https://taosdata. com/cn/all-downloads/) to download the TDengine server (taosAdapter is included in v2.4.0.0 and above) installation package. If you need to deploy taosAdapter separately on a server other than the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to generate taosAdapter using source code compilation, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD-CN.md) documentation.
+taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TAOSData official website](https://taosdata.com/en/all-downloads/) to download the TDengine server installation package (taosAdapter is included in v2.4.0.0 and later version). If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD.md) documentation.
 
 ### start/stop taosAdapter
 
-On Linux systems, the taosAdapter service is managed by systemd by default. You can use the command `systemctl start taosadapter` to start the taosAdapter service and use the command `systemctl stop taosadapter` to stop the taosAdapter service.
+On Linux systems, the taosAdapter service is managed by `systemd` by default. You can use the command `systemctl start taosadapter` to start the taosAdapter service and use the command `systemctl stop taosadapter` to stop the taosAdapter service.
 
 ### Remove taosAdapter
 
-Use the command `rmtaos` to remove the TDengine server software, including taosAdapter.
+Use the command `rmtaos` to remove the TDengine server software if you use tar.gz package or use package management command like rpm or apt to remove the TDengine server, including taosAdapter.
 
 ### Upgrade taosAdapter
 
 taosAdapter and TDengine server need to use the same version. Please upgrade the taosAdapter by upgrading the TDengine server.
-You need to upgrade the taosAdapter deployed separately from taosd by upgrading the TDengine server of the deployed server.
+You need to upgrade the taosAdapter deployed separately from TDengine server by upgrading the TDengine server on the deployed server.
 
 ## taosAdapter parameter list
 
-taosAdapter supports configuration via command-line arguments, environment variables and configuration files. The default configuration file is /etc/taos/taosadapter.toml.
+taosAdapter is configurable via command-line arguments, environment variables and configuration files. The default configuration file is /etc/taos/taosadapter.toml on Linux.
 
-Command-line arguments take precedence over environment variables over configuration files. The command line usage is arg=val, e.g., taosadapter -p=30000 --debug=true. The detailed list is as follows:
+Command-line arguments take precedence over environment variables over configuration files. The command-line usage is arg=val, e.g., taosadapter -p=30000 --debug=true. The detailed list is as follows:
 
 ```shell
 Usage of taosAdapter:
@@ -156,7 +156,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 - Compatible with RESTful interfaces
   [https://www.taosdata.com/cn/documentation/connector#restful](https://www.taosdata.com/cn/documentation/connector#restful)
 - Compatible with InfluxDB v1 write interface
-  [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/ api/influxdb-1x/write/)
+  [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writes
   - <http://opentsdb.net/docs/build/html/api_http/put.html>
   - <http://opentsdb.net/docs/build/html/api_telnet/put.html>
@@ -165,19 +165,19 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 - Seamless connection with StatsD
   StatsD is a simple yet powerful daemon for aggregating statistical information. Please visit [https://github.com/statsd/statsd](https://github.com/statsd/statsd) for more information.
 - Seamless connection with icinga2
-  icinga2 is a software that collects inspection result metrics and performance data. Please visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14- features/#opentsdb-writer) for more information.
-- Seamless connection to tcollector
+  icinga2 is a software that collects inspection result metrics and performance data. Please visit [https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer](https://icinga.com/docs/icinga-2/latest/doc/14-features/#opentsdb-writer) for more information.
+- Seamless connection to TCollector
   TCollector is a client process that collects data from a local collector and pushes the data to OpenTSDB. Please visit [http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html) for more information.
 - Seamless connection to node_exporter
   node_export is an exporter for machine metrics. Please visit [https://github.com/prometheus/node_exporter](https://github.com/prometheus/node_exporter) for more information.
 - Support for Prometheus remote_read and remote_write
-  remote_read and remote_write are clustering solutions for Prometheus data read and write separation. Please visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote- read-meets-streaming/#remote-apis) for more information.
+  remote_read and remote_write are interfaces for Prometheus data read and write from/to other data storage solution. Please visit [https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis](https://prometheus.io/blog/2019/10/10/remote-read-meets-streaming/#remote-apis) for more information.
 
 ## Interfaces
 
 ### TDengine RESTful interface
 
-You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>`. See the [official documentation](/reference/connector#restful) for details. The following EndPoint is supported.
+You can use any client that supports the http protocol to write data to or query data from TDengine by accessing the REST interface address `http://<fqdn>:6041/<APIEndPoint>`. See the [official documentation](/reference/connector#restful) for details. The following EndPoint is supported.
 
 ```text
 /rest/sql
@@ -200,7 +200,7 @@ Support InfluxDB query parameters as follows.
 - `u` TDengine user name
 - `p` TDengine password
 
-Note: InfluxDB token verification is not supported at present. Only Basic verification and query parameter validation are supported.
+Note: InfluxDB token authorization is not supported at present. Only Basic authorization and query parameter validation are supported.
 
 ### OpenTSDB
 
@@ -225,17 +225,17 @@ You can use any client that supports the http protocol to access the Restful int
 
 ### TCollector
 
-<Tcollector />
+<TCollector />
 
 ### node_exporter
 
-Exporter of hardware and OS metrics exposed by the \*NIX kernel used by Prometheus
+node_export is an exporter of hardware and OS metrics exposed by the \*NIX kernel used by Prometheus
 
-- Enable the taosAdapter configuration node_exporter.enable
+- Enable the taosAdapter configuration `node_exporter.enable`
 - Set the configuration of the node_exporter
 - Restart taosAdapter
 
-### prometheus
+### Prometheus
 
 <Prometheus />
 
@@ -246,16 +246,16 @@ taosAdapter will monitor its memory usage during operation and adjust it with tw
 - pauseQueryMemoryThreshold
 - pauseAllMemoryThreshold
 
-Stops processing query requests when the pauseQueryMemoryThreshold threshold is exceeded.
+Stops processing query requests when the `pauseQueryMemoryThreshold` threshold is exceeded.
 
-http response content.
+HTTP response content.
 
 - code 503
 - body "query memory exceeds threshold"
 
-Stops processing all write and query requests when the pauseAllMemoryThreshold threshold is exceeded.
+Stops processing all write and query requests when the `pauseAllMemoryThreshold` threshold is exceeded.
 
-http response: code 503
+HTTP response: code 503
 
 - code 503
 - body "memory exceeds threshold"
@@ -266,24 +266,24 @@ Status check interface `http://<fqdn>:6041/-/ping`
 
 - Normal returns `code 200`
 - No parameter If memory exceeds pauseAllMemoryThreshold returns `code 503`
-- Request parameter `action=query` returns `code 503` if memory exceeds pauseQueryMemoryThreshold or pauseAllMemoryThreshold
+- Request parameter `action=query` returns `code 503` if memory exceeds `pauseQueryMemoryThreshold` or `pauseAllMemoryThreshold`
 
 Corresponding configuration parameter
 
 ``text
-  monitor.collectDuration monitoring interval environment variable "TAOS_MONITOR_COLLECT_DURATION" (default value 3s)
-  monitor.incgroup whether to run in cgroup (set to true for running in container) environment variable "TAOS_MONITOR_INCGROUP"
-  monitor.pauseAllMemoryThreshold memory threshold for no more inserts and queries environment variable "TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD" (default 80)
-  monitor.pauseQueryMemoryThreshold memory threshold for no more queries Environment variable "TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD" (default 70)
+  monitor.collectDuration monitoring interval environment variable `TAOS_MONITOR_COLLECT_DURATION` (default value 3s)
+  monitor.incgroup whether to run in cgroup (set to true for running in container) environment variable `TAOS_MONITOR_INCGROUP`
+  monitor.pauseAllMemoryThreshold memory threshold for no more inserts and queries environment variable `TAOS_MONITOR_PAUSE_ALL_MEMORY_THRESHOLD` (default 80)
+  monitor.pauseQueryMemoryThreshold memory threshold for no more queries Environment variable `TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD` (default 70)
 ```
 
-You can adjust it according to the specific project application scenario and operation strategy, and it is recommended to use operation monitoring software for timely system memory status monitoring. The load balancer can also check the taosAdapter running status through this interface.
+You can adjust it according to the specific application scenario and operation strategy, and it is recommended to use operation monitoring software to monitor system memory status timely. The load balancer can also check the taosAdapter running status through this interface.
 
 ## taosAdapter Monitoring Metrics
 
-taosAdapter collects http-related metrics, CPU percentage, and memory percentage.
+taosAdapter collects HTTP-related metrics, CPU percentage, and memory percentage.
 
-### http interface
+### HTTP interface
 
 Provides an interface conforming to [OpenMetrics](https://github.com/OpenObservability/OpenMetrics/blob/main/specification/OpenMetrics.md).
 
@@ -293,14 +293,14 @@ http://<fqdn>:6041/metrics
 
 ### Write to TDengine
 
-taosAdapter supports writing http monitoring, CPU percentage, and memory percentage to TDengine.
+taosAdapter supports writing the metrics of HTTP monitoring, CPU percentage, and memory percentage to TDengine.
 
 For configuration parameters
 
 | **Configuration items** | **Description** | **Default values** |
 | ----------------------- | --------------------------------------------------------- | ---------- |
 | monitor.collectDuration | CPU and memory collection interval | 3s |
-| monitor.identity | The current taosadapter identifier will be used if not set to 'hostname:port' | |
+| monitor.identity | The current taosadapter identifier will be used if not set to `hostname:port` | |
 | monitor.incgroup | whether it is running in a cgroup (set to true for running in a container) | false |
 | monitor.writeToTD | Whether to write to TDengine | true |
 | monitor.user | TDengine connection username | root |
@@ -320,13 +320,13 @@ This parameter controls the number of results returned by the following interfac
 
 ## Troubleshooting
 
-You can check the taosAdapter running status with the` systemctl status taosadapter` command.
+You can check the taosAdapter running status with the `systemctl status taosadapter` command.
 
-You can also adjust the level of the taosAdapter log output by setting the --logLevel parameter or the environment variable TAOS_ADAPTER_LOG_LEVEL. Valid values are: panic, fatal, error, warn, warning, info, debug and trace.
+You can also adjust the level of the taosAdapter log output by setting the `--logLevel` parameter or the environment variable `TAOS_ADAPTER_LOG_LEVEL`. Valid values are: panic, fatal, error, warn, warning, info, debug and trace.
 
 ## How to migrate from older TDengine versions to taosAdapter
 
-In TDengine server 2.2.x.x or earlier, the taosd process contains an embedded http service. As mentioned earlier, taosAdapter is a standalone software managed using systemd and has its process. And there are some configuration parameters and behaviors that are different between the two. See the following table.
+In TDengine server 2.2.x.x or earlier, the TDengine server process (taosd) contains an embedded HTTP service. As mentioned earlier, taosAdapter is a standalone software managed using `systemd` and has its process ID. And there are some configuration parameters and behaviors that are different between the two. See the following table for details.
 
 | **#** | **embedded httpd** | **taosAdapter** | **comment** |
 | ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------ ------------------------------------------------------------------------ |

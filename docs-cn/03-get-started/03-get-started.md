@@ -1,6 +1,6 @@
 ---
 title: 立即开始
-description: "从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序TAOS CLI和工具 taosdemo 快速体验 TDengine 功能"
+description: '从 Docker，安装包或使用 apt-get 快速安装 TDengine, 通过命令行程序TAOS CLI和工具 taosdemo 快速体验 TDengine 功能'
 ---
 
 import Tabs from "@theme/Tabs";
@@ -10,7 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## 安装
 
-TDengine 完整的软件包包括服务端(taosd)、用于与第三方系统对接并提供RESTful接口的taosAdapter、应用驱动(taosc)、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端taosd、taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除 RESTful接口外，还提供一些列编程语言的连接器。2.4 之前的版本中，无 taosAdapter，RESTfule 接口均由 taosd 内置的 http 服务提供。
+TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端 taosd 和 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除 [RESTful 接口](/reference/taosadapter)外，还提供一些列编程语言的连接器。2.4 之前的版本中，无 taosAdapter，RESTful 接口均由 taosd 内置的 HTTP 服务提供。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 
@@ -31,7 +31,7 @@ docker ps
 进入该容器并执行 bash
 
 ```shell
-docker exec -it <containrid> bash
+docker exec -it <container name> bash
 ```
 
 然后就可以执行相关的 Linux 命令操作和访问 TDengine
@@ -106,7 +106,7 @@ taos
 taos>
 ```
 
-在 TDengine CLI中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的 SQL 语句需要以分号结束来运行。示例：
+在 TDengine CLI 中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的 SQL 语句需要以分号结束来运行。示例：
 
 ```sql
 create database demo;
@@ -122,7 +122,7 @@ select * from t;
 Query OK, 2 row(s) in set (0.003128s)
 ```
 
-除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TAOS CLI 连同应用驱动也可以独立安装在 Linux 或 windows 机器上运行，更多细节请参考 [这里](../reference/taos-shell/)
+除执行 SQL 语句外，系统管理员还可以从 TDengine CLI 进行检查系统运行状态、添加删除用户账号等操作。TAOS CLI 连同应用驱动也可以独立安装在 Linux 或 Windows 机器上运行，更多细节请参考 [这里](../reference/taos-shell/)
 
 ## 使用 taosBenchmark 体验写入速度
 

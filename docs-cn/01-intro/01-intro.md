@@ -4,13 +4,17 @@ title: 产品简介
 toc_max_heading_level: 2
 ---
 
-## TDengine 主要功能
+TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供[缓存](/develop/cache/)、[数据订阅](/develop/subscribe)、[流式计算](/develop/continuous-query)等大数据平台所需要的系列功能，最大程度减少研发和运维的复杂度。
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供[缓存](/develop/cache/)、[数据订阅](/develop/subscribe)、[流式计算](/develop/continuous-query)等大数据平台所需要的系列功能，最大程度减少研发和运维的复杂度。主要功能如下：
+本章节介绍TDengine的主要功能、竞争优势、适用场景、与其他数据库的对比测试等等，让大家对TDengine有个整体的了解。
+
+## 主要功能
+
+TDengine的主要功能如下：
 
 1. 高速数据写入，除 [SQL 写入](/develop/insert-data/sql-writing)外，还支持 [Schemaless 写入](/reference/schemaless/)，支持 [InfluxDB LINE 协议](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json)等协议写入；
-2. 第三方数据采集工具 [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [Tcollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker) 等都可以进行配置后，不用任何代码，即可将数据写入；
-3. 支持[各种查询](/query-data),包括聚合查询、嵌套查询、降采样查询、插值等
+2. 第三方数据采集工具 [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker) 等都可以进行配置后，不用任何代码，即可将数据写入；
+3. 支持[各种查询](/develop/query-data),包括聚合查询、嵌套查询、降采样查询、插值等
 4. 支持[用户自定义函数](/develop/udf)
 5. 支持[缓存](/develop/cache)，将每张表的最后一条记录缓存起来，这样无需 Redis
 6. 支持[连续查询](/develop/continuous-query)(Continuous Query)
@@ -26,7 +30,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 
 更多细小的功能，请阅读整个文档。
 
-## TDengine 主要亮点
+## 竞争优势
 
 由于 TDengine 充分利用了[时序数据特点](https://www.taosdata.com/blog/2019/07/09/105.html)，比如结构化、无需事务、很少删除或更新、写多读少等等，设计了全新的针对时序数据的存储引擎和计算引擎，因此与其他时序数据库相比，TDengine 有以下特点：
 
@@ -53,7 +57,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 3. 因为其 All In One 的特性，系统复杂度降低，能降研发成本
 4. 因为运维维护简单，运营维护成本能大幅降低
 
-## TDengine 技术生态
+## 技术生态
 
 在整个时序大数据平台中，TDengine 在其中扮演的角色如下：
 
@@ -64,7 +68,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 </figure>
 <center>图 1. TDengine技术生态图</center>
 
-上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafaka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
+上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
 
 ## TDengine 总体适用场景
 
@@ -111,7 +115,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核
 | 要求运维学习成本可控   |        |          | √        | 同上。                                                                                                                |
 | 要求市场有大量人才储备 | √      |          |          | TDengine 作为新一代产品，目前人才市场里面有经验的人员还有限。但是学习成本低，我们作为厂家也提供运维的培训和辅助服务。 |
 
-## TDengine 与其他数据库的对比测试
+## 与其他数据库的对比测试
 
 - [用 InfluxDB 开源的性能测试工具对比 InfluxDB 和 TDengine](https://www.taosdata.com/blog/2020/01/13/1105.html)
 - [TDengine 与 OpenTSDB 对比测试](https://www.taosdata.com/blog/2019/08/21/621.html)

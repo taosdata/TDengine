@@ -2,7 +2,7 @@
 title: taosBenchmark
 sidebar_label: taosBenchmark
 toc_max_heading_level: 4
-description: "taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具"
+description: 'taosBenchmark (曾用名 taosdemo ) 是一个用于测试 TDengine 产品性能的工具'
 ---
 
 ## 简介

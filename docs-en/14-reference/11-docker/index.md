@@ -1,65 +1,65 @@
 ---
-title: 用 Docker 部署 TDengine
-description: "本章主要介绍如何在容器中启动 TDengine 服务并访问它"
+title: Deploying TDengine with Docker
+Description: "This chapter focuses on starting the TDengine service in a container and accessing it."
 ---
 
-本章主要介绍如何在容器中启动 TDengine 服务并访问它。可以在 docker run 命令行中或者 docker-compose 文件中使用环境变量来控制容器中服务的行为。
+This chapter describes how to start the TDengine service in a container and access it. Users can control the behavior of the service in the container by using environment variables on the docker run command-line or in the docker-compose file.
 
-## 启动 TDengine
+## Starting TDengine
 
-TDengine 镜像启动时默认激活 HTTP 服务，使用下列命令
+The TDengine image starts with the HTTP service activated by default, using the following command:
 
 ```shell
 docker run -d --name tdengine -p 6041:6041 tdengine/tdengine
 ```
 
-以上命令启动了一个名为“tdengine”的容器，并把其中的 HTTP 服务的端 6041 映射到了主机端口 6041。使用如下命令可以验证该容器中提供的 HTTP 服务是否可用：
+The above command starts a container named "tdengine" and maps the HTTP service end 6041 to the host port 6041. You can verify that the HTTP service provided in this container is available using the following command.
 
 ```shell
 curl -u root:taosdata -d "show databases" localhost:6041/rest/sql
 ```
 
-使用如下命令可以在该容器中执行 TDengine 的客户端 taos 对 TDengine 进行访问：
+The TDengine client taos can be executed in this container to access TDengine using the following command.
 
 ```shell
 $ docker exec -it tdengine taos
 
 Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
+Copyright (c) 2020 by TAOS Data, Inc.
 
 taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- log                            | 2022-01-17 13:57:22.270 |          10 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
+              name | created_time | ntables | vgroups | replica | quorum | days | keep | cache(MB) | blocks | minrows | maxrows | wallevel | fsync | comp | cachelast | precision | update | status | status precision | update | status |
+================================================================================================================================== ================================================================================================================================== ================
+ log | 2022-01-17 13:57:22.270 | 10 | 1 | 1 | 1 | 10 | 30 | 1 | 3 | 100 | 4096 | 1 | 3000 | 2 | 0 | us | 0 | ready |
 Query OK, 1 row(s) in set (0.002843s)
 ```
 
-因为运行在容器中的 TDengine 服务端使用容器的 hostname 建立连接，使用 taos shell 或者各种连接器（例如 JDBC-JNI）从容器外访问容器内的 TDengine 比较复杂，所以上述方式是访问容器中 TDengine 服务的最简单的方法，适用于一些简单场景。如果在一些复杂场景下想要从容器化使用 taos shell 或者各种连接器访问容器中的 TDengine 服务，请参考下一节。
+The TDengine server running in the container uses the container's hostname to establish a connection. Using TDengine CLI or various connectors (such as JDBC-JNI) to access the TDengine inside the container from outside the container is more complicated. So the above is the simplest way to access the TDengine service in the container and is suitable for some simple scenarios. Please refer to the next section if you want to access the TDengine service in the container from containerized using TDengine CLI or various connectors in some complex scenarios.
 
-## 在 host 网络上启动 TDengine
+## Start TDengine on the host network
 
 ```shell
 docker run -d --name tdengine --network host tdengine/tdengine
 ```
 
-上面的命令在 host 网络上启动 TDengine，并使用主机的 FQDN 建立连接而不是使用容器的 hostname 。这种方式和在主机上使用 `systemctl` 启动 TDengine 效果相同。在主机已安装 TDengine 客户端情况下，可以直接使用下面的命令访问它。
+The above command starts TDengine on the host network and uses the host's FQDN to establish a connection instead of the container's hostname. It works too, like using `systemctl` to start TDengine on the host. If the TDengine client is already installed on the host, you can access it directly with the following command.
 
 ```shell
 $ taos
 
 Welcome to the TDengine shell from Linux, Client Version:2.4.0.0
-Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
+Copyright (c) 2020 by TAOS Data, Inc.
 
 taos> show dnodes;
-   id   |           end_point            | vnodes | cores  |   status   | role  |       create_time       |      offline reason      |
-======================================================================================================================================
-      1 | myhost:6030           |      1 |      8 | ready      | any   | 2022-01-17 22:10:32.619 |                          |
+   id | end_point | vnodes | cores | status | role | create_time | offline reason |
+================================================================================================================================== ====
+      1 | myhost:6030 | 1 | 8 | ready | any | 2022-01-17 22:10:32.619 | |
 Query OK, 1 row(s) in set (0.003233s)
 ```
 
-## 以指定的 hostname 和 port 启动 TDengine
+## Start TDengine with the specified hostname and port
 
-利用 `TAOS_FQDN` 环境变量或者 `taos.cfg` 中的 `fqdn` 配置项可以使 TDengine 在指定的 hostname 上建立连接。这种方式可以为部署提供更大的灵活性。
+The `TAOS_FQDN` environment variable or the `fqdn` configuration item in `taos.cfg` allows TDengine to establish a connection at the specified hostname. This approach provides greater flexibility for deployment.
 
 ```shell
 docker run -d \
@@ -70,35 +70,35 @@ docker run -d \
    tdengine/tdengine
 ```
 
-上面的命令在容器中启动一个 TDengine 服务，其所监听的 hostname 为 tdengine ，并将容器的 6030 到 6049 端口段映射到主机的 6030 到 6049 端口段 （tcp 和 udp 都需要映射)。如果主机上该端口段已经被占用，可以修改上述命令指定一个主机上空闲的端口段。如果 `rpcForceTcp` 被设置为 `1` ，可以只映射 tcp 协议。
+The above command starts a TDengine service in the container, which listens to the hostname tdengine, and maps the container's port segment 6030 to 6049 to the host's port segment 6030 to 6049 (both TCP and UDP ports need to be mapped). If the port segment is already occupied on the host, you can modify the above command to specify a free port segment on the host. If `rpcForceTcp` is set to `1`, you can map only the TCP protocol.
 
-接下来，要确保 "tdengine" 这个 hostname 在 `/etc/hosts` 中可解析。
+Next, ensure the hostname "tdengine" is resolvable in `/etc/hosts`.
 
 ```shell
 echo 127.0.0.1 tdengine |sudo tee -a /etc/hosts
 ```
 
-最后，可以从 taos shell 或者任意连接器以 "tdengine" 为服务端地址访问 TDengine 服务。
+Finally, the TDengine service can be accessed from the taos shell or any connector with "tdengine" as the server address.
 
 ```shell
 taos -h tdengine -P 6030
 ```
 
-如果 `TAOS_FQDN` 被设置为与所在主机名相同，则效果与 “在 host 网络上启动 TDengine” 相同。
+If set `TAOS_FQDN` to the same hostname, the effect is the same as "Start TDengine on host network".
 
-## 在指定网络上启动 TDengine
+## Start TDengine on the specified network
 
-也可以在指定的特定网络上启动 TDengine。下面是详细步骤：
+You can also start TDengine on a specific network.
 
-1. 首先，创建一个 docker 网络，命名为 td-net
+1. First, create a docker network named `td-net`
 
    ```shell
    docker network create td-net
-   ```
+   ``` Create td-net
 
-2. 启动 TDengine
+2. Start TDengine
 
-   以下命令在 td-net 网络上启动 TDengine 服务
+   Start the TDengine service on the `td-net` network with the following command:
 
    ```shell
    docker run -d --name tdengine --network td-net \
@@ -106,17 +106,17 @@ taos -h tdengine -P 6030
       tdengine/tdengine
    ```
 
-3. 在同一网络上的另一容器中启动 TDengine 客户端
+3. Start the TDengine client in another container on the same network
 
    ```shell
    docker run --rm -it --network td-net -e TAOS_FIRST_EP=tdengine tdengine/tdengine taos
    # or
-   #docker run --rm -it --network td-net -e tdengine/tdengine taos -h tdengine
+   # docker run --rm -it --network td-net -e tdengine/tdengine taos -h tdengine
    ```
 
-## 在容器中启动客户端应用
+## Launching a client application in a container
 
-如果想在容器中启动自己的应用的话，需要将相应的对 TDengine 的依赖也要加入到镜像中，例如：
+If you want to start your application in a container, you need to add the corresponding dependencies on TDengine to the image as well, e.g.
 
 ```docker
 FROM ubuntu:20.04
@@ -133,7 +133,7 @@ RUN wget -c https://www.taosdata.com/assets-download/TDengine-client-${TDENGINE_
 #CMD ["app"]
 ```
 
-以下是一个 go 应用程序的示例：
+Here is an example GO program:
 
 ```go
 /*
@@ -218,7 +218,7 @@ func checkErr(err error, prompt string) {
 }
 ```
 
-如下是完整版本的 dockerfile
+Here is the full Dockerfile:
 
 ```docker
 FROM golang:1.17.6-buster as builder
@@ -251,7 +251,7 @@ COPY --from=builder /usr/src/app/app /usr/bin/
 CMD ["app"]
 ```
 
-目前我们已经有了 `main.go`, `go.mod`, `go.sum`, `app.dockerfile`， 现在可以构建出这个应用程序并在 `td-net` 网络上启动它
+Now that we have `main.go`, `go.mod`, `go.sum`, `app.dockerfile`, we can build the application and start it on the `td-net` network.
 
 ```shell
 $ docker build -t app -f app.dockerfile
@@ -276,9 +276,9 @@ password:             taosdata
 2022-01-18 01:43:51.029 +0000 UTC 3
 ```
 
-## 用 docker-compose 启动 TDengine 集群
+## Start the TDengine cluster with docker-compose
 
-1. 如下 docker-compose 文件启动一个 2 副本、2 管理节点、2 数据节点以及 1 个 arbitrator 的 TDengine 集群。
+1. The following docker-compose file starts a TDengine cluster with two replicas, two management nodes, two data nodes, and one arbitrator.
 
    ```docker
    version: "3"
@@ -316,14 +316,14 @@ password:             taosdata
    ```
 
   :::note
-   - `VERSION` 环境变量被用来设置 tdengine image tag
-   - 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
-   - `TAOS_REPLICA` 用来设置缺省的数据库副本数量，其取值范围为[1,3]
-     在双副本环境下，推荐使用 arbitrator, 用 TAOS_ARBITRATOR 来设置
+- The `VERSION` environment variable is used to set the tdengine image tag
+    - `TAOS_FIRST_EP` must be set on the newly created instance so that it can join the TDengine cluster; if there is a high availability requirement, `TAOS_SECOND_EP` needs to be used at the same time
+    - `TAOS_REPLICA` is used to set the default number of database replicas. Its value range is [1,3]
+      We recommend setting with `TAOS_ARBITRATOR` to use arbitrator in a two-nodes environment.
   :::
 
 
-2. 启动集群
+2. Start the cluster
 
    ```shell
    $ VERSION=2.4.0.0 docker-compose up -d
@@ -337,7 +337,7 @@ password:             taosdata
    Creating test_td-2_1       ... done
    ```
 
-3. 查看节点状态
+3. Check the status of each node
 
    ```shell
    $ docker-compose ps
@@ -348,7 +348,7 @@ password:             taosdata
    test_td-2_1         /usr/bin/entrypoint.sh taosd     Up      6030/tcp, 6031/tcp, 6032/tcp, 6033/tcp, 6034/tcp, 6035/tcp, 6036/tcp, 6037/tcp, 6038/tcp, 6039/tcp, 6040/tcp, 6041/tcp, 6042/tcp
    ```
 
-4. 用 taos shell 查看 dnodes
+4. Show dnodes via TDengine CLI
 
    ```shell
    $ docker-compose exec td-1 taos -s "show dnodes"
@@ -367,19 +367,19 @@ password:             taosdata
 
 ## taosAdapter
 
-1. taosAdapter 在 TDengine 容器中默认是启动的。如果想要禁用它，在启动时指定环境变量 `TAOS_DISABLE_ADAPTER=true`
+1. taosAdapter is enabled by default in the TDengine container. If you want to disable it, specify the environment variable `TAOS_DISABLE_ADAPTER=true` at startup
 
-2. 同时为了部署灵活起见，可以在独立的容器中启动 taosAdapter
+2. At the same time, for flexible deployment, taosAdapter can be started in a separate container
 
-   ```docker
-   services:
-     # ...
-     adapter:
-       image: tdengine/tdengine:$VERSION
-       command: taosadapter
-   ```
+    ```docker
+    services:
+      # ...
+      adapter:
+        image: tdengine/tdengine:$VERSION
+        command: taosadapter
+    ````
 
-   如果要部署多个 taosAdapter 来提高吞吐量并提供高可用性，推荐配置方式为使用 nginx 等反向代理来提供统一的访问入口。具体配置方法请参考 nginx 的官方文档。如下是示例：
+    Suppose you want to deploy multiple taosAdapters to improve throughput and provide high availability. In that case, the recommended configuration method uses a reverse proxy such as Nginx to offer a unified access entry. For specific configuration methods, please refer to the official documentation of Nginx. Here is an example:
 
    ```docker
    ersion: "3"
@@ -459,11 +459,11 @@ password:             taosdata
      taoslog-td2:
    ```
 
-## 使用 docker swarm 部署
+## Deploy with docker swarm
 
-如果要想将基于容器的 TDengine 集群部署在多台主机上，可以使用 docker swarm。首先要在这些主机上建立 docke swarm 集群，请参考 docker 官方文档。
+If you want to deploy a container-based TDengine cluster on multiple hosts, you can use docker swarm. First, to establish a docker swarm cluster on these hosts, please refer to the official docker documentation.
 
-docker-compose 文件可以参考上节。下面是使用 docker swarm 启动 TDengine 的命令：
+The docker-compose file can refer to the previous section. Here is the command to start TDengine with docker swarm:
 
 ```shell
 $ VERSION=2.4.0 docker stack deploy -c docker-compose.yml taos
@@ -476,7 +476,7 @@ Creating service taos_adapter
 Creating service taos_nginx
 ```
 
-查看和管理
+Checking status:
 
 ```shell
 $ docker stack ps taos
@@ -498,9 +498,9 @@ d8qr52envqzu        taos_nginx          replicated          1/1                 
 9pzw7u02ichv        taos_td-2           replicated          1/1                 tdengine/tdengine:2.4.0
 ```
 
-从上面的输出可以看到有两个 dnode， 和两个 taosAdapter，以及一个 nginx 反向代理服务。
+From the above output, you can see two dnodes, two taosAdapters, and one Nginx reverse proxy service.
 
-接下来，我们可以减少 taosAdapter 服务的数量
+Next, we can reduce the number of taosAdapter services.
 
 ```shell
 $ docker service scale taos_adapter=1

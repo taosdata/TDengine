@@ -350,7 +350,7 @@ charset CP936
 | ------------- | ------------------------------------------------------------ |
 | Applicable    | Server Only                                                  |
 | Meaning       | WAL level                                                    |
-| Value Range   | 1: wal enabled without fsync <br/> 2: wal enabled with fsync |
+| Value Range   | 0: wal disabled <br/> 1: wal enabled without fsync <br/> 2: wal enabled with fsync |
 | Default Value | 1                                                            |
 
 ### fsync

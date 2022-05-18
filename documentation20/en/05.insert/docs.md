@@ -1,6 +1,6 @@
 # Efficient Data Writing
 
-TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, collectd, StatsD, EMQ MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
+TDengine supports multiple ways to write data, including SQL, Prometheus, Telegraf, collectd, StatsD, EMQX MQTT Broker, HiveMQ Broker, CSV file, etc. Kafka, OPC and other interfaces will be provided in the future. Data can be inserted in one single record or in batches, data from one or multiple data collection points can be inserted at the same time. TDengine supports multi-thread insertion, out-of-order data insertion, and also historical data insertion.
 
 ## <a class="anchor" id="sql"></a> Data Writing via SQL
 
@@ -303,9 +303,9 @@ TCollector is a client-side process that gathers data from local collectors and 
 
 Please find taosAdapter configuration and usage from `taosadapter --help` output.
 
-## <a class="anchor" id="emq"></a> Data Writing via EMQ Broker
+## <a class="anchor" id="emq"></a> Data Writing via EMQX Broker
 
-[EMQ](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQ Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQX supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQ official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
+[EMQX](https://github.com/emqx/emqx) is an open source MQTT Broker software, with no need of coding, only to use "rules" in EMQX Dashboard for simple configuration, and MQTT data can be directly written into TDengine. EMQX supports storing data to the TDengine by sending it to a Web service, and also provides a native TDengine driver on Enterprise Edition for direct data store. Please refer to [EMQX official documents](https://docs.emqx.io/broker/latest/cn/rule/rule-example.html#%E4%BF%9D%E5%AD%98%E6%95%B0%E6%8D%AE%E5%88%B0-tdengine) for more details.
 
 ## <a class="anchor" id="hivemq"></a> Data Writing via HiveMQ Broker
 
