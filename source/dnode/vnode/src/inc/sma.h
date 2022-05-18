@@ -46,7 +46,7 @@ struct SSmaEnv {
   TXN            txn;
   void          *pPool;  // SPoolMem
   SDiskID        did;
-  TENV          *dbEnv;  // TODO: If it's better to put it in smaIndex level?
+  TDB           *dbEnv;  // TODO: If it's better to put it in smaIndex level?
   char          *path;   // relative path
   SSmaStat      *pStat;
 };
@@ -93,16 +93,16 @@ typedef struct SDBFile SDBFile;
 
 struct SDBFile {
   int32_t fid;
-  TDB    *pDB;
+  TTB    *pDB;
   char   *path;
 };
 
 int32_t tdSmaBeginCommit(SSmaEnv *pEnv);
 int32_t tdSmaEndCommit(SSmaEnv *pEnv);
 
-int32_t smaOpenDBEnv(TENV **ppEnv, const char *path);
-int32_t smaCloseDBEnv(TENV *pEnv);
-int32_t smaOpenDBF(TENV *pEnv, SDBFile *pDBF);
+int32_t smaOpenDBEnv(TDB **ppEnv, const char *path);
+int32_t smaCloseDBEnv(TDB *pEnv);
+int32_t smaOpenDBF(TDB *pEnv, SDBFile *pDBF);
 int32_t smaCloseDBF(SDBFile *pDBF);
 int32_t smaSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, int32_t valLen, TXN *txn);
 void   *smaGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_t *valLen);
