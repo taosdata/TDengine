@@ -31,7 +31,7 @@ sql show databases
 print ==> rows: $rows
 print ==> $data(db)[0] $data(db)[1] $data(db)[2] $data(db)[3] $data(db)[4] $data(db)[5] $data(db)[6] $data(db)[7] $data(db)[8] $data(db)[9] $data(db)[10] $data(db)[11] $data(db)[12]
 print     $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $data(db)[18] $data(db)[19] $data(db)[20]
-if $data(db)[19] != nostrict then
+if $data(db)[19] != ready then
   sleep 100
   $loop_cnt = $loop_cnt + 1
   goto check_db_ready  
