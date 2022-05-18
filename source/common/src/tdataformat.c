@@ -597,17 +597,12 @@ void tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, int32_t *nD
   }
 }
 
-int32_t tEncodeTag(SEncoder *pEncoder, STag *pTag) {
-  // return tEncodeBinary(pEncoder, (uint8_t *)pTag, pTag->len);
-  ASSERT(0);
-  return 0;
+int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
+  return tEncodeBinary(pEncoder, (const uint8_t *)pTag, pTag->len);
 }
 
 int32_t tDecodeTag(SDecoder *pDecoder, const STag **ppTag) {
-  // uint32_t n;
-  // return tDecodeBinary(pDecoder, (const uint8_t **)ppTag, &n);
-  ASSERT(0);
-  return 0;
+  return tDecodeBinary(pDecoder, (const uint8_t **)ppTag, NULL);
 }
 
 #if 1  // ===================================================================================================================

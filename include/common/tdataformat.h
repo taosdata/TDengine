@@ -62,7 +62,7 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag);
 void    tTagFree(STag *pTag);
 void    tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, int32_t *nData);
-int32_t tEncodeTag(SEncoder *pEncoder, STag *pTag);
+int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, const STag **ppTag);
 
 // STRUCT =================
