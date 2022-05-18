@@ -215,10 +215,12 @@ def pre_test_win(){
     }
     bat '''
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+        git branch
         git log -5
     '''
     bat '''
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+        git branch
         git log -5
     '''
     bat '''
@@ -233,9 +235,13 @@ def pre_test_build_win() {
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
         mkdir debug
         cd debug
+        time /t
         call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
         set CL=/MP8
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> cmake"
+        time /t
         cmake .. -G "NMake Makefiles JOM" || exit 7
+        echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
         jom -j 6 || exit 8
         time /t
     '''
