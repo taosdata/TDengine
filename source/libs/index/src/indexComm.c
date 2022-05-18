@@ -361,7 +361,7 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
-      *dst = *dst - tlen;
+      *dst = (char*) * dst - tlen;
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY
