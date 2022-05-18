@@ -57,56 +57,56 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   }
 
   // open pTbDb
-  ret = tdbDbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
+  ret = tdbOpen("table.db", sizeof(STbDbKey), -1, tbDbKeyCmpr, pMeta->pEnv, &pMeta->pTbDb);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta table db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pSkmDb
-  ret = tdbDbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb);
+  ret = tdbOpen("schema.db", sizeof(SSkmDbKey), -1, skmDbKeyCmpr, pMeta->pEnv, &pMeta->pSkmDb);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta schema db since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pUidIdx
-  ret = tdbDbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
+  ret = tdbOpen("uid.idx", sizeof(tb_uid_t), sizeof(int64_t), uidIdxKeyCmpr, pMeta->pEnv, &pMeta->pUidIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta uid idx since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pNameIdx
-  ret = tdbDbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx);
+  ret = tdbOpen("name.idx", -1, sizeof(tb_uid_t), NULL, pMeta->pEnv, &pMeta->pNameIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta name index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pCtbIdx
-  ret = tdbDbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
+  ret = tdbOpen("ctb.idx", sizeof(SCtbIdxKey), 0, ctbIdxKeyCmpr, pMeta->pEnv, &pMeta->pCtbIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta child table index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTagIdx
-  ret = tdbDbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx);
+  ret = tdbOpen("tag.idx", -1, 0, tagIdxKeyCmpr, pMeta->pEnv, &pMeta->pTagIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta tag index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pTtlIdx
-  ret = tdbDbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx);
+  ret = tdbOpen("ttl.idx", sizeof(STtlIdxKey), 0, ttlIdxKeyCmpr, pMeta->pEnv, &pMeta->pTtlIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta ttl index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
   }
 
   // open pSmaIdx
-  ret = tdbDbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx);
+  ret = tdbOpen("sma.idx", sizeof(SSmaIdxKey), 0, smaIdxKeyCmpr, pMeta->pEnv, &pMeta->pSmaIdx);
   if (ret < 0) {
     metaError("vgId:%d failed to open meta sma index since %s", TD_VID(pVnode), tstrerror(terrno));
     goto _err;
@@ -125,14 +125,14 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
 
 _err:
   if (pMeta->pIdx) metaCloseIdx(pMeta);
-  if (pMeta->pSmaIdx) tdbDbClose(pMeta->pSmaIdx);
-  if (pMeta->pTtlIdx) tdbDbClose(pMeta->pTtlIdx);
-  if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
-  if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
-  if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
-  if (pMeta->pUidIdx) tdbDbClose(pMeta->pUidIdx);
-  if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
-  if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
+  if (pMeta->pSmaIdx) tdbClose(pMeta->pSmaIdx);
+  if (pMeta->pTtlIdx) tdbClose(pMeta->pTtlIdx);
+  if (pMeta->pTagIdx) tdbClose(pMeta->pTagIdx);
+  if (pMeta->pCtbIdx) tdbClose(pMeta->pCtbIdx);
+  if (pMeta->pNameIdx) tdbClose(pMeta->pNameIdx);
+  if (pMeta->pUidIdx) tdbClose(pMeta->pUidIdx);
+  if (pMeta->pSkmDb) tdbClose(pMeta->pSkmDb);
+  if (pMeta->pTbDb) tdbClose(pMeta->pTbDb);
   if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
   metaDestroyLock(pMeta);
   taosMemoryFree(pMeta);
@@ -142,14 +142,14 @@ _err:
 int metaClose(SMeta *pMeta) {
   if (pMeta) {
     if (pMeta->pIdx) metaCloseIdx(pMeta);
-    if (pMeta->pSmaIdx) tdbDbClose(pMeta->pSmaIdx);
-    if (pMeta->pTtlIdx) tdbDbClose(pMeta->pTtlIdx);
-    if (pMeta->pTagIdx) tdbDbClose(pMeta->pTagIdx);
-    if (pMeta->pCtbIdx) tdbDbClose(pMeta->pCtbIdx);
-    if (pMeta->pNameIdx) tdbDbClose(pMeta->pNameIdx);
-    if (pMeta->pUidIdx) tdbDbClose(pMeta->pUidIdx);
-    if (pMeta->pSkmDb) tdbDbClose(pMeta->pSkmDb);
-    if (pMeta->pTbDb) tdbDbClose(pMeta->pTbDb);
+    if (pMeta->pSmaIdx) tdbClose(pMeta->pSmaIdx);
+    if (pMeta->pTtlIdx) tdbClose(pMeta->pTtlIdx);
+    if (pMeta->pTagIdx) tdbClose(pMeta->pTagIdx);
+    if (pMeta->pCtbIdx) tdbClose(pMeta->pCtbIdx);
+    if (pMeta->pNameIdx) tdbClose(pMeta->pNameIdx);
+    if (pMeta->pUidIdx) tdbClose(pMeta->pUidIdx);
+    if (pMeta->pSkmDb) tdbClose(pMeta->pSkmDb);
+    if (pMeta->pTbDb) tdbClose(pMeta->pTbDb);
     if (pMeta->pEnv) tdbEnvClose(pMeta->pEnv);
     metaDestroyLock(pMeta);
     taosMemoryFree(pMeta);
