@@ -51,7 +51,7 @@ TDengine makes full use of [the characteristics of time series data](https://tde
 
 With TDengine, the total cost of ownership of time-seriess data platform can be greatly reduced. Because 1: with its superior performance, the computing and storage resources are reduced significantly; 2：with SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly; 3: with its simple architecture and zero management, the operation and maintainence costs are reduced. 
 
-## TDengine Technical Ecosystem
+## Technical Ecosystem
 In the time-series data processing platform, TDengine stands in a role like this diagram below:
 
 ![TDengine Technical Ecosystem ](eco_system.png)
@@ -60,7 +60,7 @@ In the time-series data processing platform, TDengine stands in a role like this
 
 On the left side, there are data collection agents like OPC-UA, MQTT, Telegraf and Kafka. On the right side, visualization/BI tools, HMI, Python/R, and IoT Apps can be connected. TDengine itself provides interactive command-line interface and web interface for management and maintainence.
 
-## Suited Scenarios for TDengine
+## Suited Scenarios
 
 As a high-performance, scalable and SQL supported time-series database, TDengine's typical application scenarios include but are not limited to IoT, Industrial Internet, Connected Vehicles, IT operation and maintenance, energy, financial markets and other fields. TDengine is a purpose-built database optimized for the characteristics of time series data, it cannot be used to process data from web crawlers, social media, e-commerce, ERP, CRM, etc. This section makes a more detailed analysis of the applicable scenarios.
 
