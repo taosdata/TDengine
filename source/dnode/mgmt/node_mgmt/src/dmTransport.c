@@ -128,9 +128,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
   if (InParentProc(pWrapper)) {
-    code = dmPutToProcCQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pRpc->pCont, pRpc->contLen,
-                             (IsReq(pRpc) && (pRpc->code == 0)) ? pRpc->info.handle : NULL, pRpc->info.refId,
-                             DND_FUNC_REQ);
+    code = dmPutToProcCQueue(&pWrapper->proc, pMsg, DND_FUNC_REQ);
   } else {
     code = dmProcessNodeMsg(pWrapper, pMsg);
   }
@@ -255,23 +253,23 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pReq) {
   }
 }
 
-static inline void dmSendRsp(const SRpcMsg *pMsg) {
+static inline void dmSendRsp(SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = pMsg->info.wrapper;
-  if (InChildProc(pWrapper)) {
-    dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, DND_FUNC_RSP);
+  if (pMsg->code == TSDB_CODE_NODE_REDIRECT) {
+    dmSendRpcRedirectRsp(pMsg);
   } else {
-    if (pMsg->code == TSDB_CODE_NODE_REDIRECT) {
-      dmSendRpcRedirectRsp(pMsg);
+    if (InChildProc(pWrapper)) {
+      dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
     } else {
       rpcSendResponse(pMsg);
     }
   }
 }
 
-static inline void dmSendRedirectRsp(const SRpcMsg *pRsp, const SEpSet *pNewEpSet) {
-  SMgmtWrapper *pWrapper = pRsp->info.wrapper;
+static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
+  SMgmtWrapper *pWrapper = pMsg->info.wrapper;
   if (InChildProc(pWrapper)) {
-    dmPutToProcPQueue(&pWrapper->proc, pRsp, sizeof(SRpcMsg), pRsp->pCont, pRsp->contLen, DND_FUNC_RSP);
+    dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
   } else {
     SRpcMsg rsp = {0};
     SMEpSet msg = {.epSet = *pNewEpSet};
@@ -281,7 +279,7 @@ static inline void dmSendRedirectRsp(const SRpcMsg *pRsp, const SEpSet *pNewEpSe
     tSerializeSMEpSet(rsp.pCont, len, &msg);
 
     rsp.code = TSDB_CODE_RPC_REDIRECT;
-    rsp.info = pRsp->info;
+    rsp.info = pMsg->info;
     rpcSendResponse(&rsp);
   }
 }
@@ -289,7 +287,7 @@ static inline void dmSendRedirectRsp(const SRpcMsg *pRsp, const SEpSet *pNewEpSe
 static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = pMsg->info.wrapper;
   if (InChildProc(pWrapper)) {
-    dmPutToProcPQueue(&pWrapper->proc, pMsg, sizeof(SRpcMsg), pMsg->pCont, pMsg->contLen, DND_FUNC_REGIST);
+    dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_REGIST);
   } else {
     rpcRegisterBrokenLinkArg(pMsg);
   }
@@ -299,7 +297,7 @@ static inline void dmReleaseHandle(SRpcHandleInfo *pHandle, int8_t type) {
   SMgmtWrapper *pWrapper = pHandle->wrapper;
   if (InChildProc(pWrapper)) {
     SRpcMsg msg = {.code = type, .info = *pHandle};
-    dmPutToProcPQueue(&pWrapper->proc, &msg, sizeof(SRpcMsg), NULL, 0, DND_FUNC_RELEASE);
+    dmPutToProcPQueue(&pWrapper->proc, &msg, DND_FUNC_RELEASE);
   } else {
     rpcReleaseHandle(pHandle->handle, type);
   }

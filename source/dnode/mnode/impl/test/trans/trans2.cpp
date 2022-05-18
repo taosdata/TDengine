@@ -16,10 +16,9 @@
 #include "tcache.h"
 
 void reportStartup(const char *name, const char *desc) {}
-void sendRsp(const SRpcMsg *pMsg) { rpcFreeCont(pMsg->pCont); }
+void sendRsp(SRpcMsg *pMsg) { rpcFreeCont(pMsg->pCont); }
 
 int32_t sendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  // rpcFreeCont(pMsg->pCont);
   terrno = TSDB_CODE_INVALID_PTR;
   return -1;
 }
