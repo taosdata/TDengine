@@ -31,13 +31,13 @@ typedef struct STBC TBC;
 typedef struct STxn TXN;
 
 // TDB
-int tdbOpen(const char *rootDir, int szPage, int pages, TDB **ppDb);
+int tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb);
 int tdbClose(TDB *pDb);
 int tdbBegin(TDB *pDb, TXN *pTxn);
 int tdbCommit(TDB *pDb, TXN *pTxn);
 
 // TTB
-int tdbTbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb);
+int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb);
 int tdbTbClose(TTB *pTb);
 int tdbTbDrop(TTB *pTb);
 int tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);

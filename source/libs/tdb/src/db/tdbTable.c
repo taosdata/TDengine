@@ -24,7 +24,7 @@ struct STBC {
   SBTC btc;
 };
 
-int tdbTbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb) {
+int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb) {
   TTB    *pTb;
   SPager *pPager;
   int     ret;
@@ -42,9 +42,9 @@ int tdbTbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn
   // pTb->pEnv
   pTb->pEnv = pEnv;
 
-  pPager = tdbEnvGetPager(pEnv, fname);
+  pPager = tdbEnvGetPager(pEnv, tbname);
   if (pPager == NULL) {
-    snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->rootDir, fname);
+    snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->rootDir, tbname);
     ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
     if (ret < 0) {
       return -1;

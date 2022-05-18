@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-int tdbOpen(const char *rootDir, int szPage, int pages, TDB **ppDb) {
+int tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -25,7 +25,7 @@ int tdbOpen(const char *rootDir, int szPage, int pages, TDB **ppDb) {
 
   *ppDb = NULL;
 
-  dsize = strlen(rootDir);
+  dsize = strlen(dbname);
   zsize = sizeof(*pDb) + dsize * 2 + strlen(TDB_JOURNAL_NAME) + 3;
 
   pPtr = (uint8_t *)tdbOsCalloc(1, zsize);
@@ -37,12 +37,12 @@ int tdbOpen(const char *rootDir, int szPage, int pages, TDB **ppDb) {
   pPtr += sizeof(*pDb);
   // pDb->rootDir
   pDb->rootDir = pPtr;
-  memcpy(pDb->rootDir, rootDir, dsize);
+  memcpy(pDb->rootDir, dbname, dsize);
   pDb->rootDir[dsize] = '\0';
   pPtr = pPtr + dsize + 1;
   // pDb->jfname
   pDb->jfname = pPtr;
-  memcpy(pDb->jfname, rootDir, dsize);
+  memcpy(pDb->jfname, dbname, dsize);
   pDb->jfname[dsize] = '/';
   memcpy(pDb->jfname + dsize + 1, TDB_JOURNAL_NAME, strlen(TDB_JOURNAL_NAME));
   pDb->jfname[dsize + 1 + strlen(TDB_JOURNAL_NAME)] = '\0';
@@ -62,7 +62,7 @@ int tdbOpen(const char *rootDir, int szPage, int pages, TDB **ppDb) {
   }
   memset(pDb->pgrHash, 0, tsize);
 
-  mkdir(rootDir, 0755);
+  mkdir(dbname, 0755);
 
   *ppDb = pDb;
   return 0;
