@@ -38,7 +38,7 @@ for details. The documentation from our website can also be downloaded locally f
 
 # Building
 
-At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
+At the moment, TDengine server only supports running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
@@ -169,9 +169,20 @@ You can modify the file ~/.gitconfig to use ssh protocol instead of https for be
 
 ### On Linux platform
 
+You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
+
 ```bash
-mkdir debug && cd debug
-cmake .. && cmake --build .
+./build.sh
+```
+
+It equals to execute following commands:
+
+```bash
+git submodule update --init --recursive
+mkdir debug
+cd debug
+cmake .. -DBUILD_TOOLS=true
+make
 ```
 
 Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language version 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.

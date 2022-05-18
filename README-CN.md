@@ -154,12 +154,23 @@ git submodule update --init --recursive
 
 ### Linux 系统
 
+可以运行代码仓库中的 `build.sh` 脚本编译出 TDengine 和 taosTools（包含 taosBenchmark 和 taosdump）。
+
 ```bash
-mkdir debug && cd debug
-cmake .. && cmake --build .
+./build.sh
 ```
 
-您可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
+这个脚本等价于执行如下命令：
+
+```bash
+git submodule update --init --recursive
+mkdir debug
+cd debug
+cmake .. -DBUILD_TOOLS=true
+make
+```
+
+您也可以选择使用 jemalloc 作为内存分配器，替代默认的 glibc：
 
 ```bash
 apt install autoconf
