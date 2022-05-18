@@ -361,6 +361,17 @@ _return:
   return code;
 }
 
+void freeRequestRes(SRequestObj* pRequest, void* res) {
+  if (NULL == res) {
+    return;
+  }
+  
+  if (TDMT_VND_SUBMIT == pRequest->type) {
+    tFreeSSubmitRsp((SSubmitRsp*)res);
+  } else if (TDMT_VND_QUERY == pRequest->type) {
+
+  }
+}
 
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res) {
   void* pRes = NULL;
