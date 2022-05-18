@@ -197,8 +197,7 @@ static int32_t mndProcessConnectReq(SRpcMsg *pReq) {
     goto CONN_OVER;
   }
   if (0 != strncmp(connReq.passwd, pUser->pass, TSDB_PASSWORD_LEN - 1)) {
-    mError("user:%s, failed to auth while acquire user, input:%s saved:%s", pReq->conn.user, connReq.passwd,
-           pUser->pass);
+    mError("user:%s, failed to auth while acquire user, input:%s", pReq->conn.user, connReq.passwd);
     code = TSDB_CODE_RPC_AUTH_FAILURE;
     goto CONN_OVER;
   }
