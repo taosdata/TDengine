@@ -15,10 +15,10 @@
 
 #include <vnode.h>
 #include "dataSinkMgt.h"
-#include "texception.h"
 #include "os.h"
 #include "tarray.h"
 #include "tcache.h"
+#include "texception.h"
 #include "tglobal.h"
 #include "tmsg.h"
 #include "tudf.h"
@@ -32,15 +32,15 @@
 
 typedef struct STaskMgmt {
   TdThreadMutex lock;
-  SCacheObj      *qinfoPool;      // query handle pool
-  int32_t         vgId;
-  bool            closed;
+  SCacheObj    *qinfoPool;  // query handle pool
+  int32_t       vgId;
+  bool          closed;
 } STaskMgmt;
 
-int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
-    qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model) {
+int32_t qCreateExecTask(SReadHandle *readHandle, int32_t vgId, uint64_t taskId, SSubplan *pSubplan,
+                        qTaskInfo_t *pTaskInfo, DataSinkHandle *handle, EOPTR_EXEC_MODEL model) {
   assert(readHandle != NULL && pSubplan != NULL);
-  SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
+  SExecTaskInfo **pTask = (SExecTaskInfo **)pTaskInfo;
 
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, model);
   if (code != TSDB_CODE_SUCCESS) {
@@ -56,46 +56,46 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
     code = dsCreateDataSinker(pSubplan->pDataSink, handle);
   }
 
-  _error:
+_error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
 }
 
 #ifdef TEST_IMPL
 // wait moment
-int waitMoment(SQInfo* pQInfo){
-  if(pQInfo->sql) {
-    int ms = 0;
-    char* pcnt = strstr(pQInfo->sql, " count(*)");
-    if(pcnt) return 0;
-    
-    char* pos = strstr(pQInfo->sql, " t_");
-    if(pos){
+int waitMoment(SQInfo *pQInfo) {
+  if (pQInfo->sql) {
+    int   ms = 0;
+    char *pcnt = strstr(pQInfo->sql, " count(*)");
+    if (pcnt) return 0;
+
+    char *pos = strstr(pQInfo->sql, " t_");
+    if (pos) {
       pos += 3;
       ms = atoi(pos);
-      while(*pos >= '0' && *pos <= '9'){
-        pos ++;
+      while (*pos >= '0' && *pos <= '9') {
+        pos++;
       }
       char unit_char = *pos;
-      if(unit_char == 'h'){
-        ms *= 3600*1000;
-      } else if(unit_char == 'm'){
-        ms *= 60*1000;
-      } else if(unit_char == 's'){
+      if (unit_char == 'h') {
+        ms *= 3600 * 1000;
+      } else if (unit_char == 'm') {
+        ms *= 60 * 1000;
+      } else if (unit_char == 's') {
         ms *= 1000;
       }
     }
-    if(ms == 0) return 0;
+    if (ms == 0) return 0;
     printf("test wait sleep %dms. sql=%s ...\n", ms, pQInfo->sql);
-    
-    if(ms < 1000) {
+
+    if (ms < 1000) {
       taosMsleep(ms);
     } else {
       int used_ms = 0;
-      while(used_ms < ms) {
+      while (used_ms < ms) {
         taosMsleep(1000);
         used_ms += 1000;
-        if(isTaskKilled(pQInfo)){
+        if (isTaskKilled(pQInfo)) {
           printf("test check query is canceled, sleep break.%s\n", pQInfo->sql);
           break;
         }
@@ -106,15 +106,14 @@ int waitMoment(SQInfo* pQInfo){
 }
 #endif
 
-int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
+int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock **pRes, uint64_t *useconds) {
+  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)tinfo;
   int64_t        threadId = taosGetSelfPthreadId();
 
   *pRes = NULL;
   int64_t curOwner = 0;
   if ((curOwner = atomic_val_compare_exchange_64(&pTaskInfo->owner, 0, threadId)) != 0) {
-    qError("%s-%p execTask is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo,
-           (void*)curOwner);
+    qError("%s-%p execTask is now executed by thread:%p", GET_TASKID(pTaskInfo), pTaskInfo, (void *)curOwner);
     pTaskInfo->code = TSDB_CODE_QRY_IN_EXEC;
     return pTaskInfo->code;
   }
@@ -133,12 +132,11 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   if (ret != TSDB_CODE_SUCCESS) {
     publishQueryAbortEvent(pTaskInfo, ret);
     pTaskInfo->code = ret;
-    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo),
-           tstrerror(pTaskInfo->code));
+    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
     return pTaskInfo->code;
   }
 
-  qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));
+  /*qDebug("%s execTask is launched", GET_TASKID(pTaskInfo));*/
 
   publishOperatorProfEvent(pTaskInfo->pRoot, QUERY_PROF_BEFORE_OPERATOR_EXEC);
 
@@ -154,12 +152,12 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
-  int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
+  int32_t current = (*pRes != NULL) ? (*pRes)->info.rows : 0;
   pTaskInfo->totalRows += current;
 
   cleanUpUdfs();
-  qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
-         GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0, el/1000.0);
+  /*qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",*/
+  /*GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0, el/1000.0);*/
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;
@@ -208,18 +206,17 @@ int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
 }
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
-  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) qTaskHandle;
-  qDebug("%s execTask completed, numOfRows:%"PRId64, GET_TASKID(pTaskInfo), pTaskInfo->totalRows);
+  SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)qTaskHandle;
+  qDebug("%s execTask completed, numOfRows:%" PRId64, GET_TASKID(pTaskInfo), pTaskInfo->totalRows);
 
-  queryCostStatis(pTaskInfo);   // print the query cost summary
+  queryCostStatis(pTaskInfo);  // print the query cost summary
   doDestroyTask(pTaskInfo);
 }
 
 int32_t qGetExplainExecInfo(qTaskInfo_t tinfo, int32_t *resNum, SExplainExecInfo **pRes) {
   SExecTaskInfo *pTaskInfo = (SExecTaskInfo *)tinfo;
-  int32_t capacity = 0;
+  int32_t        capacity = 0;
 
-  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);  
+  return getOperatorExplainExecInfo(pTaskInfo->pRoot, pRes, &capacity, resNum);
 }
-
 
