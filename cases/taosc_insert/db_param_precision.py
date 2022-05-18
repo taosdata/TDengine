@@ -67,9 +67,9 @@ class TestComp(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param],precision_data)
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} s')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} m')
-        self.tdSql.error(f'create database if not exists {dbname} {test_param} 1')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} "s"')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} "m"')
+        self.tdSql.error(f'create database if not exists {dbname} {test_param} "1"')
     def check_presicion_data(self):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'drop database if exists {dbname}')
@@ -80,8 +80,32 @@ class TestComp(TDCase):
         self.tdSql.query("select * from ntb")
         self.tdSql.checkData(0,0,'2022-01-01 00:00:00.000')
         #TD-15674
-        # self.tdSql.error('insert into ntb values(1640966400000,1)')
+        # self.tdSql.error('insert into ntb values(1640966400000000,1)')
+        # self.tdSql.error('insert into ntb values(1640966400000000000,1)')
         
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.execute(f'drop database if exists {dbname}')
+        self.tdSql.execute(f'create database if not exists {dbname} precision "us"')
+        self.tdSql.execute(f'use {dbname}')
+        self.tdSql.execute('create table ntb (ts timestamp,c0 int)')
+        self.tdSql.execute('insert into ntb values(1640966400000000,1)')
+        self.tdSql.query("select * from ntb")
+        self.tdSql.checkData(0,0,'2022-01-01 00:00:00.000')
+        #TD-15674
+        # self.tdSql.error('insert into ntb values(1640966400000,1)')
+        # self.tdSql.error('insert into ntb values(1640966400000000000,1)')
+
+        dbname = self.tdCom.get_long_name(length=10, mode="letters")
+        self.tdSql.execute(f'drop database if exists {dbname}')
+        self.tdSql.execute(f'create database if not exists {dbname} precision "ns"')
+        self.tdSql.execute(f'use {dbname}')
+        self.tdSql.execute('create table ntb (ts timestamp,c0 int)')
+        self.tdSql.execute('insert into ntb values(1640966400000000001,1)')
+        self.tdSql.query("select * from ntb")
+        self.tdSql.checkData(0,0,1640966400000000001)
+        #TD-15674
+        # self.tdSql.error('insert into ntb values(1640966400000,1)')
+        # self.tdSql.error('insert into ntb values(1640966400000000,1)')
     def run(self) -> bool:
         self.precision_check()
         self.check_presicion_data()
