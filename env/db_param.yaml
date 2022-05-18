@@ -1,16 +1,16 @@
 settings:
   - name: taosd
-    fqdn: [vm85]
+    fqdn: [vm83]
     spec:
       version: 3.0.0.0  # 默认最新版
       config: # common config for all dnodes
-        firstEP: vm85:6030
+        firstEP: vm83:6030
       dnodes:
-        - endpoint: vm85:6030
-          config_dir: /data/var/3.0/dnode1/config
+        - endpoint: vm83:6030
+          config_dir: /data/var/3.0/dnode1/
           config: # will write into taos.cfg
-            dataDir: /data/var/3.0/dnode1/data
-            logDir: /data/var/3.0/dnode1/log
+            dataDir: /data/var/3.0/dnode1/
+            logDir: /data/var/3.0/dnode1/
             debugFlag: 135
   - name: taospy
     fqdn: [vm85]

@@ -15,22 +15,18 @@ import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
-
+from taostest.util.get_json import get_json
 class TestMaxrows(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
         self._remote: Remote = Remote(self.logger)
-        for env_setting in self.env_setting["settings"]:
-            if env_setting["name"].lower() == "taosd":
-                self.taosd_setting = env_setting
-                self.fqdn = self.taosd_setting["fqdn"][0]
-                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
 
     def maxrows_check(self):
         """
         maxrows check
         """
         test_param = "maxrows"
+        get_data = get_json(self.logger, self.run_log_dir,self.env_setting)
         # default
         default_value = 4096
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -40,11 +36,7 @@ class TestMaxrows(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-        # print(db_vnode_kv_dict)
-        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-        file = open(f"{self.vnode_dir}/vnode.json")
-        data = json.load(file)
-        # print(data)
+        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['maxRows']))
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
@@ -57,11 +49,7 @@ class TestMaxrows(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            # print(db_vnode_kv_dict)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
-            # print(data)
+            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['maxRows']))
             self.tdSql.execute(f'drop database {dbname}')
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
