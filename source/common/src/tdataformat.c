@@ -581,7 +581,52 @@ void tTagFree(STag *pTag) {
   if (pTag) taosMemoryFree(pTag);
 }
 
-void tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, int32_t *nData) {
+int32_t tTagSet(STag *pTag, SSchema *pSchema, int32_t nCols, int iCol, uint8_t *pData, uint32_t nData, STag **ppTag) {
+  STagVal *pTagVals;
+  int16_t  nTags = 0;
+  SSchema *pColumn;
+  uint8_t *p;
+  uint32_t n;
+
+  pTagVals = (STagVal *)taosMemoryMalloc(sizeof(*pTagVals) * nCols);
+  if (pTagVals == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return -1;
+  }
+
+  for (int32_t i = 0; i < nCols; i++) {
+    pColumn = &pSchema[i];
+
+    if (i == iCol) {
+      p = pData;
+      n = nData;
+    } else {
+      tTagGet(pTag, pColumn->colId, pColumn->type, &p, &n);
+    }
+
+    if (p == NULL) continue;
+
+    ASSERT(IS_VAR_DATA_TYPE(pColumn->type) || n == pColumn->bytes);
+
+    pTagVals[nTags].cid = pColumn->colId;
+    pTagVals[nTags].type = pColumn->type;
+    pTagVals[nTags].nData = n;
+    pTagVals[nTags].pData = p;
+
+    nTags++;
+  }
+
+  // create new tag
+  if (tTagNew(pTagVals, nTags, ppTag) < 0) {
+    taosMemoryFree(pTagVals);
+    return -1;
+  }
+
+  taosMemoryFree(pTagVals);
+  return 0;
+}
+
+void tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, uint32_t *nData) {
   STagIdx *pTagIdx = bsearch(&((STagIdx){.cid = cid}), pTag->idx, pTag->nTag, sizeof(STagIdx), tTagIdxCmprFn);
   if (pTagIdx == NULL) {
     *ppData = NULL;
