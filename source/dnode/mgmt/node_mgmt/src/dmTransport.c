@@ -43,8 +43,8 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
     return -1;
   }
 
+  dTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   pMsg->info.wrapper = pWrapper;
-  dTrace("msg:%p, will be processed by %s, handle:%p", pMsg, pWrapper->name, pMsg->info.handle);
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
@@ -56,8 +56,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   SMgmtWrapper *pWrapper = NULL;
 
-  dTrace("msg:%s is received, handle:%p cont:%p len:%d code:0x%04x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
-         pRpc->info.handle, pRpc->pCont, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
+  dTrace("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
+         pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
   pRpc->info.noResp = 0;
   pRpc->info.persistHandle = 0;
   pRpc->info.wrapper = NULL;
@@ -344,66 +344,6 @@ void dmCleanupClient(SDnode *pDnode) {
   }
 }
 
-static inline int32_t dmGetHideUserAuth(char *user, char *spi, char *encrypt, char *secret, char *ckey) {
-  int32_t code = 0;
-  char    pass[TSDB_PASSWORD_LEN + 1] = {0};
-
-  if (strcmp(user, INTERNAL_USER) == 0) {
-    taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
-  } else if (strcmp(user, TSDB_NETTEST_USER) == 0) {
-    taosEncryptPass_c((uint8_t *)(TSDB_NETTEST_USER), strlen(TSDB_NETTEST_USER), pass);
-  } else {
-    code = -1;
-  }
-
-  if (code == 0) {
-    memcpy(secret, pass, TSDB_PASSWORD_LEN);
-    *spi = 1;
-    *encrypt = 0;
-    *ckey = 0;
-  }
-
-  return code;
-}
-
-static inline int32_t dmRetrieveUserAuthInfo(SDnode *pDnode, char *user, char *spi, char *encrypt, char *secret,
-                                             char *ckey) {
-  if (dmGetHideUserAuth(user, spi, encrypt, secret, ckey) == 0) {
-    dTrace("user:%s, get auth from mnode, spi:%d encrypt:%d", user, *spi, *encrypt);
-    return 0;
-  }
-
-  SAuthReq authReq = {0};
-  tstrncpy(authReq.user, user, TSDB_USER_LEN);
-  int32_t contLen = tSerializeSAuthReq(NULL, 0, &authReq);
-  void   *pReq = rpcMallocCont(contLen);
-  tSerializeSAuthReq(pReq, contLen, &authReq);
-
-  SRpcMsg rpcMsg = {.pCont = pReq, .contLen = contLen, .msgType = TDMT_MND_AUTH, .info.ahandle = (void *)9528};
-  SRpcMsg rpcRsp = {0};
-  SEpSet  epSet = {0};
-  dTrace("user:%s, send user auth req to other mnodes, spi:%d encrypt:%d", user, authReq.spi, authReq.encrypt);
-  dmGetMnodeEpSet(&pDnode->data, &epSet);
-  dmSendRecv(&epSet, &rpcMsg, &rpcRsp);
-
-  if (rpcRsp.code != 0) {
-    terrno = rpcRsp.code;
-    dError("user:%s, failed to get user auth from other mnodes since %s", user, terrstr());
-  } else {
-    SAuthRsp authRsp = {0};
-    tDeserializeSAuthReq(rpcRsp.pCont, rpcRsp.contLen, &authRsp);
-    memcpy(secret, authRsp.secret, TSDB_PASSWORD_LEN);
-    memcpy(ckey, authRsp.ckey, TSDB_PASSWORD_LEN);
-    *spi = authRsp.spi;
-    *encrypt = authRsp.encrypt;
-    dTrace("user:%s, success to get user auth from other mnodes, spi:%d encrypt:%d", user, authRsp.spi,
-           authRsp.encrypt);
-  }
-
-  rpcFreeCont(rpcRsp.pCont);
-  return rpcRsp.code;
-}
-
 int32_t dmInitServer(SDnode *pDnode) {
   SDnodeTrans *pTrans = &pDnode->trans;
 
@@ -416,7 +356,6 @@ int32_t dmInitServer(SDnode *pDnode) {
   rpcInit.sessions = tsMaxShellConns;
   rpcInit.connType = TAOS_CONN_SERVER;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.afp = (RpcAfp)dmRetrieveUserAuthInfo;
   rpcInit.parent = pDnode;
 
   pTrans->serverRpc = rpcOpen(&rpcInit);

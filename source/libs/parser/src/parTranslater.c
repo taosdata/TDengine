@@ -766,6 +766,20 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
       pCxt->pCurrStmt->hasRepeatScanFuncs = true;
     }
   }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsScanPseudoColumnFunc(pFunc->funcId)) {
+    if (0 == LIST_LENGTH(pFunc->pParameterList)) {
+      if (QUERY_NODE_REAL_TABLE != nodeType(pCxt->pCurrStmt->pFromTable)) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_TBNAME);
+      }
+    } else {
+      SValueNode* pVal = nodesListGetNode(pFunc->pParameterList, 0);
+      STableNode* pTable = NULL;
+      pCxt->errCode = findTable(pCxt, pVal->literal, &pTable);
+      if (TSDB_CODE_SUCCESS == pCxt->errCode && (NULL == pTable || QUERY_NODE_REAL_TABLE != nodeType(pTable))) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_TBNAME);
+      }
+    }
+  }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
@@ -1758,12 +1772,13 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   return code;
 }
 
-static SNode* createSetOperProject(SNode* pNode) {
+static SNode* createSetOperProject(const char* pTableAlias, SNode* pNode) {
   SColumnNode* pCol = nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
     return NULL;
   }
   pCol->node.resType = ((SExprNode*)pNode)->resType;
+  strcpy(pCol->tableAlias, pTableAlias);
   strcpy(pCol->colName, ((SExprNode*)pNode)->aliasName);
   strcpy(pCol->node.aliasName, pCol->colName);
   return (SNode*)pCol;
@@ -1817,7 +1832,8 @@ static int32_t translateSetOperatorImpl(STranslateContext* pCxt, SSetOperator* p
     }
     strcpy(pRightExpr->aliasName, pLeftExpr->aliasName);
     pRightExpr->aliasName[strlen(pLeftExpr->aliasName)] = '\0';
-    if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList, createSetOperProject(pLeft))) {
+    if (TSDB_CODE_SUCCESS != nodesListMakeStrictAppend(&pSetOperator->pProjectionList,
+                                                       createSetOperProject(pSetOperator->stmtName, pLeft))) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }

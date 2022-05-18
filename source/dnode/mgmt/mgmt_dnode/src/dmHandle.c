@@ -86,7 +86,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status msg to mnode, app:%p", rpcMsg.info.ahandle);
+  dTrace("send status msg to mnode");
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
@@ -116,8 +116,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
   dmGetMnodeLoads(pMgmt, &minfo);
-  if (minfo.isMnode && minfo.load.syncState != TAOS_SYNC_STATE_LEADER &&
-      minfo.load.syncState != TAOS_SYNC_STATE_CANDIDATE) {
+  if (minfo.isMnode && minfo.load.syncState == TAOS_SYNC_STATE_ERROR) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
     snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
     return;
@@ -127,7 +126,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   dmGetVnodeLoads(pMgmt, &vinfo);
   for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
     SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
-    if (pLoad->syncState != TAOS_SYNC_STATE_LEADER && pLoad->syncState != TAOS_SYNC_STATE_FOLLOWER) {
+    if (pLoad->syncState == TAOS_SYNC_STATE_ERROR) {
       pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
       snprintf(pStatus->details, sizeof(pStatus->details), "vnode:%d sync state is %s", pLoad->vgId,
                syncStr(pLoad->syncState));
