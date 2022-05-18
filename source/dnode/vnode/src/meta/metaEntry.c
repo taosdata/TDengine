@@ -56,8 +56,8 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
   if (tDecodeCStr(pCoder, &pME->name) < 0) return -1;
 
   if (pME->type == TSDB_SUPER_TABLE) {
-    if (tDecodeSSchemaWrapper(pCoder, &pME->stbEntry.schema) < 0) return -1;
-    if (tDecodeSSchemaWrapper(pCoder, &pME->stbEntry.schemaTag) < 0) return -1;
+    if (tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schema) < 0) return -1;
+    if (tDecodeSSchemaWrapperEx(pCoder, &pME->stbEntry.schemaTag) < 0) return -1;
   } else if (pME->type == TSDB_CHILD_TABLE) {
     if (tDecodeI64(pCoder, &pME->ctbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ctbEntry.ttlDays) < 0) return -1;
@@ -67,9 +67,9 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;
     if (tDecodeI32v(pCoder, &pME->ntbEntry.ncid) < 0) return -1;
-    if (tDecodeSSchemaWrapper(pCoder, &pME->ntbEntry.schema) < 0) return -1;
+    if (tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schema) < 0) return -1;
   } else if (pME->type == TSDB_TSMA_TABLE) {
-    pME->smaEntry.tsma = taosMemoryCalloc(1, sizeof(STSma));
+    pME->smaEntry.tsma = tDecoderMalloc(pCoder, sizeof(STSma));
     if(!pME->smaEntry.tsma) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;

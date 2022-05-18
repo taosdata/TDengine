@@ -70,7 +70,7 @@ struct SSmaStatItem {
    * N.B. only applicable to tsma
    */
   int8_t    state;           // ETsdbSmaStat
-  SHashObj *expiredWindows;  // key: skey of time window, value: N/A
+  SHashObj *expiredWindows;  // key: skey of time window, value: version
   STSma    *pTSma;           // cache schema
 };
 

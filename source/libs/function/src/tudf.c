@@ -1605,7 +1605,12 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
     return false;
   }
   udfRes->interResNum = buf.numOfResult;
-  memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+  if (buf.bufLen <= session->bufSize) {
+    memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+  } else {
+    fnError("udfc inter buf size %d is greater than function bufSize %d", buf.bufLen, session->bufSize);
+    return false;
+  }
   freeUdfInterBuf(&buf);
   return true;
 }
@@ -1655,7 +1660,12 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
     newState.numOfResult = 0;
   } else {
     udfRes->interResNum = newState.numOfResult;
-    memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+    if (newState.bufLen <= session->bufSize) {
+      memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+    } else {
+      fnError("udfc inter buf size %d is greater than function bufSize %d", newState.bufLen, session->bufSize);
+      udfCode = TSDB_CODE_UDF_INVALID_BUFSIZE;
+    }
   }
   if (newState.numOfResult == 1 || state.numOfResult == 1) {
     GET_RES_INFO(pCtx)->numOfRes = 1;
@@ -1688,9 +1698,15 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
     fnError("udfAggFinalize error. doCallUdfAggFinalize step. udf code:%d", udfCallCode);
     GET_RES_INFO(pCtx)->numOfRes = 0;
   } else {
-    memcpy(udfRes->finalResBuf, resultBuf.buf, session->outputLen);
-    udfRes->finalResNum = resultBuf.numOfResult;
-    GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
+    if (resultBuf.bufLen <= session->outputLen) {
+      memcpy(udfRes->finalResBuf, resultBuf.buf, session->outputLen);
+      udfRes->finalResNum = resultBuf.numOfResult;
+      GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
+    } else {
+      fnError("udfc inter buf size %d is greater than function output size %d", resultBuf.bufLen, session->outputLen);
+      GET_RES_INFO(pCtx)->numOfRes = 0;
+      udfCallCode = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+    }
   }
 
   freeUdfInterBuf(&resultBuf);
