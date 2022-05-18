@@ -58,6 +58,7 @@ static int32_t dmNewProc(SMgmtWrapper *pWrapper, EDndNodeType ntype) {
     return -1;
   }
 
+  taosIgnSignal(SIGCHLD);
   pWrapper->proc.pid = pid;
   dInfo("node:%s, continue running in new process:%d", pWrapper->name, pid);
   return 0;
@@ -254,7 +255,7 @@ static void dmWatchNodes(SDnode *pDnode) {
     if (!OnlyInParentProc(pWrapper)) continue;
 
     if (proc->pid <= 0 || !taosProcExist(proc->pid)) {
-      dWarn("node:%s, process:%d is killed and needs to restart", pWrapper->name, proc->pid);
+      dError("node:%s, process:%d is killed and needs to restart", pWrapper->name, proc->pid);
       dmCloseProcRpcHandles(&pWrapper->proc);
       dmNewProc(pWrapper, ntype);
     }
