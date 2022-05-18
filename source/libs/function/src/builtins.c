@@ -875,7 +875,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = lastFinalize
   },
   {
     .name = "diff",
