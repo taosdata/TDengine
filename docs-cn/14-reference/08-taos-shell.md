@@ -60,7 +60,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -C, --dump-config: 打印 -c 指定的目录中 `taos.cfg` 的配置参数
 - -d, --database=DATABASE: 指定连接到服务端时使用的数据库
 - -D, --directory=DIRECTORY: 导入指定路径中的 SQL 脚本文件
-- -f, --file=FILE: 以非交互模式执行 SQL 脚本文件
+- -f, --file=FILE: 以非交互模式执行 SQL 脚本文件。文件中一个 SQL 语句只能占一行
 - -k, --check=CHECK: 指定要检查的表
 - -l, --pktlen=PKTLEN: 网络测试时使用的测试包大小
 - -n, --netrole=NETROLE: 网络连接测试时的测试范围，默认为 `startup`, 可选值为 `client`、`server`、`rpc`、`startup`、`sync`、`speed` 和 `fqdn` 之一
