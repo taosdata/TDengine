@@ -668,6 +668,7 @@ static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool inverti
     }
     pDataBlock->info.rows = size;
     pDataBlock->info.type = STREAM_REPROCESS;
+    blockDataUpdateTsWindow(pDataBlock);
     taosArrayClear(pInfo->tsArray);
     return pDataBlock;
   }
@@ -768,6 +769,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
       rows = pBlockInfo->rows;
       doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+      blockDataUpdateTsWindow(pInfo->pRes);
 
       break;
     }
