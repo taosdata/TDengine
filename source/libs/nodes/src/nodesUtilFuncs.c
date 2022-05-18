@@ -21,152 +21,154 @@
 #include "taoserror.h"
 #include "thash.h"
 
-static SNode* makeNode(ENodeType type, size_t size) {
-  SNode* p = taosMemoryCalloc(1, size);
-  if (NULL == p) {
-    return NULL;
-  }
-  setNodeType(p, type);
-  return p;
-}
-
-SNodeptr nodesMakeNode(ENodeType type) {
+int32_t nodesNodeSize(ENodeType type) {
   switch (type) {
     case QUERY_NODE_COLUMN:
-      return makeNode(type, sizeof(SColumnNode));
+      return sizeof(SColumnNode);
     case QUERY_NODE_VALUE:
-      return makeNode(type, sizeof(SValueNode));
+      return sizeof(SValueNode);
     case QUERY_NODE_OPERATOR:
-      return makeNode(type, sizeof(SOperatorNode));
+      return sizeof(SOperatorNode);
     case QUERY_NODE_LOGIC_CONDITION:
-      return makeNode(type, sizeof(SLogicConditionNode));
+      return sizeof(SLogicConditionNode);
     case QUERY_NODE_FUNCTION:
-      return makeNode(type, sizeof(SFunctionNode));
+      return sizeof(SFunctionNode);
     case QUERY_NODE_REAL_TABLE:
-      return makeNode(type, sizeof(SRealTableNode));
+      return sizeof(SRealTableNode);
     case QUERY_NODE_TEMP_TABLE:
-      return makeNode(type, sizeof(STempTableNode));
+      return sizeof(STempTableNode);
     case QUERY_NODE_JOIN_TABLE:
-      return makeNode(type, sizeof(SJoinTableNode));
+      return sizeof(SJoinTableNode);
     case QUERY_NODE_GROUPING_SET:
-      return makeNode(type, sizeof(SGroupingSetNode));
+      return sizeof(SGroupingSetNode);
     case QUERY_NODE_ORDER_BY_EXPR:
-      return makeNode(type, sizeof(SOrderByExprNode));
+      return sizeof(SOrderByExprNode);
     case QUERY_NODE_LIMIT:
-      return makeNode(type, sizeof(SLimitNode));
+      return sizeof(SLimitNode);
     case QUERY_NODE_STATE_WINDOW:
-      return makeNode(type, sizeof(SStateWindowNode));
+      return sizeof(SStateWindowNode);
     case QUERY_NODE_SESSION_WINDOW:
-      return makeNode(type, sizeof(SSessionWindowNode));
+      return sizeof(SSessionWindowNode);
     case QUERY_NODE_INTERVAL_WINDOW:
-      return makeNode(type, sizeof(SIntervalWindowNode));
+      return sizeof(SIntervalWindowNode);
     case QUERY_NODE_NODE_LIST:
-      return makeNode(type, sizeof(SNodeListNode));
+      return sizeof(SNodeListNode);
     case QUERY_NODE_FILL:
-      return makeNode(type, sizeof(SFillNode));
+      return sizeof(SFillNode);
     case QUERY_NODE_RAW_EXPR:
-      return makeNode(type, sizeof(SRawExprNode));
+      return sizeof(SRawExprNode);
     case QUERY_NODE_TARGET:
-      return makeNode(type, sizeof(STargetNode));
+      return sizeof(STargetNode);
     case QUERY_NODE_DATABLOCK_DESC:
-      return makeNode(type, sizeof(SDataBlockDescNode));
+      return sizeof(SDataBlockDescNode);
     case QUERY_NODE_SLOT_DESC:
-      return makeNode(type, sizeof(SSlotDescNode));
+      return sizeof(SSlotDescNode);
     case QUERY_NODE_COLUMN_DEF:
-      return makeNode(type, sizeof(SColumnDefNode));
+      return sizeof(SColumnDefNode);
     case QUERY_NODE_DOWNSTREAM_SOURCE:
-      return makeNode(type, sizeof(SDownstreamSourceNode));
+      return sizeof(SDownstreamSourceNode);
     case QUERY_NODE_DATABASE_OPTIONS:
-      return makeNode(type, sizeof(SDatabaseOptions));
+      return sizeof(SDatabaseOptions);
     case QUERY_NODE_TABLE_OPTIONS:
-      return makeNode(type, sizeof(STableOptions));
+      return sizeof(STableOptions);
     case QUERY_NODE_INDEX_OPTIONS:
-      return makeNode(type, sizeof(SIndexOptions));
+      return sizeof(SIndexOptions);
     case QUERY_NODE_EXPLAIN_OPTIONS:
-      return makeNode(type, sizeof(SExplainOptions));
+      return sizeof(SExplainOptions);
     case QUERY_NODE_STREAM_OPTIONS:
-      return makeNode(type, sizeof(SStreamOptions));
+      return sizeof(SStreamOptions);
+    case QUERY_NODE_TOPIC_OPTIONS:
+      return sizeof(STopicOptions);
     case QUERY_NODE_SET_OPERATOR:
-      return makeNode(type, sizeof(SSetOperator));
+      return sizeof(SSetOperator);
     case QUERY_NODE_SELECT_STMT:
-      return makeNode(type, sizeof(SSelectStmt));
+      return sizeof(SSelectStmt);
     case QUERY_NODE_VNODE_MODIF_STMT:
-      return makeNode(type, sizeof(SVnodeModifOpStmt));
+      return sizeof(SVnodeModifOpStmt);
     case QUERY_NODE_CREATE_DATABASE_STMT:
-      return makeNode(type, sizeof(SCreateDatabaseStmt));
+      return sizeof(SCreateDatabaseStmt);
     case QUERY_NODE_DROP_DATABASE_STMT:
-      return makeNode(type, sizeof(SDropDatabaseStmt));    
+      return sizeof(SDropDatabaseStmt);
     case QUERY_NODE_ALTER_DATABASE_STMT:
-      return makeNode(type, sizeof(SAlterDatabaseStmt));
+      return sizeof(SAlterDatabaseStmt);
     case QUERY_NODE_CREATE_TABLE_STMT:
-      return makeNode(type, sizeof(SCreateTableStmt));
+      return sizeof(SCreateTableStmt);
     case QUERY_NODE_CREATE_SUBTABLE_CLAUSE:
-      return makeNode(type, sizeof(SCreateSubTableClause));
+      return sizeof(SCreateSubTableClause);
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
-      return makeNode(type, sizeof(SCreateMultiTableStmt));
+      return sizeof(SCreateMultiTableStmt);
     case QUERY_NODE_DROP_TABLE_CLAUSE:
-      return makeNode(type, sizeof(SDropTableClause));
+      return sizeof(SDropTableClause);
     case QUERY_NODE_DROP_TABLE_STMT:
-      return makeNode(type, sizeof(SDropTableStmt));
+      return sizeof(SDropTableStmt);
     case QUERY_NODE_DROP_SUPER_TABLE_STMT:
-      return makeNode(type, sizeof(SDropSuperTableStmt));
+      return sizeof(SDropSuperTableStmt);
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      return sizeof(SAlterTableStmt);
     case QUERY_NODE_CREATE_USER_STMT:
-      return makeNode(type, sizeof(SCreateUserStmt));
+      return sizeof(SCreateUserStmt);
     case QUERY_NODE_ALTER_USER_STMT:
-      return makeNode(type, sizeof(SAlterUserStmt));
+      return sizeof(SAlterUserStmt);
     case QUERY_NODE_DROP_USER_STMT:
-      return makeNode(type, sizeof(SDropUserStmt));
+      return sizeof(SDropUserStmt);
     case QUERY_NODE_USE_DATABASE_STMT:
-      return makeNode(type, sizeof(SUseDatabaseStmt));
+      return sizeof(SUseDatabaseStmt);
     case QUERY_NODE_CREATE_DNODE_STMT:
-      return makeNode(type, sizeof(SCreateDnodeStmt));
+      return sizeof(SCreateDnodeStmt);
     case QUERY_NODE_DROP_DNODE_STMT:
-      return makeNode(type, sizeof(SDropDnodeStmt));
+      return sizeof(SDropDnodeStmt);
     case QUERY_NODE_ALTER_DNODE_STMT:
-      return makeNode(type, sizeof(SAlterDnodeStmt));
+      return sizeof(SAlterDnodeStmt);
     case QUERY_NODE_CREATE_INDEX_STMT:
-      return makeNode(type, sizeof(SCreateIndexStmt));
+      return sizeof(SCreateIndexStmt);
     case QUERY_NODE_DROP_INDEX_STMT:
-      return makeNode(type, sizeof(SDropIndexStmt));
+      return sizeof(SDropIndexStmt);
     case QUERY_NODE_CREATE_QNODE_STMT:
     case QUERY_NODE_CREATE_BNODE_STMT:
     case QUERY_NODE_CREATE_SNODE_STMT:
     case QUERY_NODE_CREATE_MNODE_STMT:
-      return makeNode(type, sizeof(SCreateComponentNodeStmt));
+      return sizeof(SCreateComponentNodeStmt);
     case QUERY_NODE_DROP_QNODE_STMT:
     case QUERY_NODE_DROP_BNODE_STMT:
     case QUERY_NODE_DROP_SNODE_STMT:
     case QUERY_NODE_DROP_MNODE_STMT:
-      return makeNode(type, sizeof(SDropComponentNodeStmt));
+      return sizeof(SDropComponentNodeStmt);
     case QUERY_NODE_CREATE_TOPIC_STMT:
-      return makeNode(type, sizeof(SCreateTopicStmt));
+      return sizeof(SCreateTopicStmt);
     case QUERY_NODE_DROP_TOPIC_STMT:
-      return makeNode(type, sizeof(SDropTopicStmt));
+      return sizeof(SDropTopicStmt);
     case QUERY_NODE_EXPLAIN_STMT:
-      return makeNode(type, sizeof(SExplainStmt));
+      return sizeof(SExplainStmt);
     case QUERY_NODE_DESCRIBE_STMT:
-      return makeNode(type, sizeof(SDescribeStmt));
+      return sizeof(SDescribeStmt);
     case QUERY_NODE_RESET_QUERY_CACHE_STMT:
-      return makeNode(type, sizeof(SNode));
+      return sizeof(SNode);
     case QUERY_NODE_COMPACT_STMT:
-    case QUERY_NODE_CREATE_FUNCTION_STMT:
-    case QUERY_NODE_DROP_FUNCTION_STMT:
       break;
+    case QUERY_NODE_CREATE_FUNCTION_STMT:
+      return sizeof(SCreateFunctionStmt);
+    case QUERY_NODE_DROP_FUNCTION_STMT:
+      return sizeof(SDropFunctionStmt);
     case QUERY_NODE_CREATE_STREAM_STMT:
-      return makeNode(type, sizeof(SCreateStreamStmt));
+      return sizeof(SCreateStreamStmt);
     case QUERY_NODE_DROP_STREAM_STMT:
-      return makeNode(type, sizeof(SDropStreamStmt));
+      return sizeof(SDropStreamStmt);
     case QUERY_NODE_MERGE_VGROUP_STMT:
     case QUERY_NODE_REDISTRIBUTE_VGROUP_STMT:
     case QUERY_NODE_SPLIT_VGROUP_STMT:
     case QUERY_NODE_SYNCDB_STMT:
       break;
+    case QUERY_NODE_GRANT_STMT:
+      return sizeof(SGrantStmt);
+    case QUERY_NODE_REVOKE_STMT:
+      return sizeof(SRevokeStmt);
     case QUERY_NODE_SHOW_DNODES_STMT:
     case QUERY_NODE_SHOW_MNODES_STMT:
     case QUERY_NODE_SHOW_MODULES_STMT:
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
+    case QUERY_NODE_SHOW_CLUSTER_STMT:
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
@@ -179,7 +181,6 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_TOPICS_STMT:
     case QUERY_NODE_SHOW_CONSUMERS_STMT:
     case QUERY_NODE_SHOW_SUBSCRIBES_STMT:
-    case QUERY_NODE_SHOW_TRANS_STMT:
     case QUERY_NODE_SHOW_SMAS_STMT:
     case QUERY_NODE_SHOW_CONFIGS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
@@ -190,73 +191,90 @@ SNodeptr nodesMakeNode(ENodeType type) {
     case QUERY_NODE_SHOW_CREATE_DATABASE_STMT:
     case QUERY_NODE_SHOW_CREATE_TABLE_STMT:
     case QUERY_NODE_SHOW_CREATE_STABLE_STMT:
-      return makeNode(type, sizeof(SShowStmt));
+    case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
+      return sizeof(SShowStmt);
     case QUERY_NODE_KILL_CONNECTION_STMT:
     case QUERY_NODE_KILL_QUERY_STMT:
-      return makeNode(type, sizeof(SKillStmt));
+    case QUERY_NODE_KILL_TRANSACTION_STMT:
+      return sizeof(SKillStmt);
     case QUERY_NODE_LOGIC_PLAN_SCAN:
-      return makeNode(type, sizeof(SScanLogicNode));
+      return sizeof(SScanLogicNode);
     case QUERY_NODE_LOGIC_PLAN_JOIN:
-      return makeNode(type, sizeof(SJoinLogicNode));
+      return sizeof(SJoinLogicNode);
     case QUERY_NODE_LOGIC_PLAN_AGG:
-      return makeNode(type, sizeof(SAggLogicNode));
+      return sizeof(SAggLogicNode);
     case QUERY_NODE_LOGIC_PLAN_PROJECT:
-      return makeNode(type, sizeof(SProjectLogicNode));
+      return sizeof(SProjectLogicNode);
     case QUERY_NODE_LOGIC_PLAN_VNODE_MODIF:
-      return makeNode(type, sizeof(SVnodeModifLogicNode));
+      return sizeof(SVnodeModifLogicNode);
     case QUERY_NODE_LOGIC_PLAN_EXCHANGE:
-      return makeNode(type, sizeof(SExchangeLogicNode));
+      return sizeof(SExchangeLogicNode);
     case QUERY_NODE_LOGIC_PLAN_WINDOW:
-      return makeNode(type, sizeof(SWindowLogicNode));
+      return sizeof(SWindowLogicNode);
+    case QUERY_NODE_LOGIC_PLAN_FILL:
+      return sizeof(SFillLogicNode);
     case QUERY_NODE_LOGIC_PLAN_SORT:
-      return makeNode(type, sizeof(SSortLogicNode));
+      return sizeof(SSortLogicNode);
     case QUERY_NODE_LOGIC_PLAN_PARTITION:
-      return makeNode(type, sizeof(SPartitionLogicNode));
+      return sizeof(SPartitionLogicNode);
     case QUERY_NODE_LOGIC_SUBPLAN:
-      return makeNode(type, sizeof(SLogicSubplan));
+      return sizeof(SLogicSubplan);
     case QUERY_NODE_LOGIC_PLAN:
-      return makeNode(type, sizeof(SQueryLogicPlan));
+      return sizeof(SQueryLogicPlan);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
-      return makeNode(type, sizeof(STagScanPhysiNode));
+      return sizeof(STagScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
-      return makeNode(type, sizeof(STableScanPhysiNode));
+      return sizeof(STableScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SEQ_SCAN:
-      return makeNode(type, sizeof(STableSeqScanPhysiNode));
+      return sizeof(STableSeqScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN:
-      return makeNode(type, sizeof(SStreamScanPhysiNode));
+      return sizeof(SStreamScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN:
-      return makeNode(type, sizeof(SSystemTableScanPhysiNode));
+      return sizeof(SSystemTableScanPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_PROJECT:
-      return makeNode(type, sizeof(SProjectPhysiNode));
+      return sizeof(SProjectPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_JOIN:
-      return makeNode(type, sizeof(SJoinPhysiNode));
+      return sizeof(SJoinPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_AGG:
-      return makeNode(type, sizeof(SAggPhysiNode));
+      return sizeof(SAggPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_EXCHANGE:
-      return makeNode(type, sizeof(SExchangePhysiNode));
+      return sizeof(SExchangePhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SORT:
-      return makeNode(type, sizeof(SSortPhysiNode));
+      return sizeof(SSortPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
-      return makeNode(type, sizeof(SIntervalPhysiNode));
+      return sizeof(SIntervalPhysiNode);
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+      return sizeof(SStreamIntervalPhysiNode);
+    case QUERY_NODE_PHYSICAL_PLAN_FILL:
+      return sizeof(SFillPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
-      return makeNode(type, sizeof(SSessionWinodwPhysiNode));
+      return sizeof(SSessionWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
-      return makeNode(type, sizeof(SStateWinodwPhysiNode));
+      return sizeof(SStateWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
-      return makeNode(type, sizeof(SPartitionPhysiNode));
+      return sizeof(SPartitionPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
-      return makeNode(type, sizeof(SDataDispatcherNode));
+      return sizeof(SDataDispatcherNode);
     case QUERY_NODE_PHYSICAL_PLAN_INSERT:
-      return makeNode(type, sizeof(SDataInserterNode));
+      return sizeof(SDataInserterNode);
     case QUERY_NODE_PHYSICAL_SUBPLAN:
-      return makeNode(type, sizeof(SSubplan));
+      return sizeof(SSubplan);
     case QUERY_NODE_PHYSICAL_PLAN:
-      return makeNode(type, sizeof(SQueryPlan));
+      return sizeof(SQueryPlan);
     default:
       break;
   }
   nodesError("nodesMakeNode unknown node = %s", nodesNodeName(type));
-  return NULL;
+  return 0;
+}
+
+SNodeptr nodesMakeNode(ENodeType type) {
+  SNode* p = taosMemoryCalloc(1, nodesNodeSize(type));
+  if (NULL == p) {
+    return NULL;
+  }
+  setNodeType(p, type);
+  return p;
 }
 
 static void destroyVgDataBlockArray(SArray* pArray) {
@@ -293,9 +311,7 @@ static void destroyScanPhysiNode(SScanPhysiNode* pNode) {
   nodesDestroyList(pNode->pScanCols);
 }
 
-static void destroyDataSinkNode(SDataSinkNode* pNode) {
-  nodesDestroyNode(pNode->pInputDataBlockDesc);
-}
+static void destroyDataSinkNode(SDataSinkNode* pNode) { nodesDestroyNode(pNode->pInputDataBlockDesc); }
 
 void nodesDestroyNode(SNodeptr pNode) {
   if (NULL == pNode) {
@@ -303,7 +319,7 @@ void nodesDestroyNode(SNodeptr pNode) {
   }
 
   switch (nodeType(pNode)) {
-    case QUERY_NODE_COLUMN: // pProjectRef is weak reference, no need to release
+    case QUERY_NODE_COLUMN:  // pProjectRef is weak reference, no need to release
       break;
     case QUERY_NODE_VALUE: {
       SValueNode* pValue = (SValueNode*)pNode;
@@ -347,7 +363,7 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_ORDER_BY_EXPR:
       nodesDestroyNode(((SOrderByExprNode*)pNode)->pExpr);
       break;
-    case QUERY_NODE_LIMIT: // no pointer field
+    case QUERY_NODE_LIMIT:  // no pointer field
       break;
     case QUERY_NODE_STATE_WINDOW:
       nodesDestroyNode(((SStateWindowNode*)pNode)->pExpr);
@@ -370,9 +386,12 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_NODE_LIST:
       nodesDestroyList(((SNodeListNode*)pNode)->pNodeList);
       break;
-    case QUERY_NODE_FILL:
-      nodesDestroyNode(((SFillNode*)pNode)->pValues);
+    case QUERY_NODE_FILL: {
+      SFillNode* pFill = (SFillNode*)pNode;
+      nodesDestroyNode(pFill->pValues);
+      nodesDestroyNode(pFill->pWStartTs);
       break;
+    }
     case QUERY_NODE_RAW_EXPR:
       nodesDestroyNode(((SRawExprNode*)pNode)->pNode);
       break;
@@ -382,25 +401,29 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_DATABLOCK_DESC:
       nodesDestroyList(((SDataBlockDescNode*)pNode)->pSlots);
       break;
-    case QUERY_NODE_SLOT_DESC:         // no pointer field
-    case QUERY_NODE_COLUMN_DEF:        // no pointer field
-    case QUERY_NODE_DOWNSTREAM_SOURCE: // no pointer field
+    case QUERY_NODE_SLOT_DESC:          // no pointer field
+    case QUERY_NODE_COLUMN_DEF:         // no pointer field
+    case QUERY_NODE_DOWNSTREAM_SOURCE:  // no pointer field
       break;
-    case QUERY_NODE_DATABASE_OPTIONS:
-      nodesDestroyList(((SDatabaseOptions*)pNode)->pRetentions);
+    case QUERY_NODE_DATABASE_OPTIONS: {
+      SDatabaseOptions* pOptions = (SDatabaseOptions*)pNode;
+      nodesDestroyNode(pOptions->pDaysPerFile);
+      nodesDestroyList(pOptions->pKeep);
+      nodesDestroyList(pOptions->pRetentions);
       break;
+    }
     case QUERY_NODE_TABLE_OPTIONS: {
-      STableOptions* pStmt = (STableOptions*)pNode;
-      nodesDestroyList(pStmt->pSma);
-      nodesDestroyList(pStmt->pFuncs);
+      STableOptions* pOptions = (STableOptions*)pNode;
+      nodesDestroyList(pOptions->pSma);
+      nodesDestroyList(pOptions->pRollupFuncs);
       break;
     }
     case QUERY_NODE_INDEX_OPTIONS: {
-      SIndexOptions* pStmt = (SIndexOptions*)pNode;
-      nodesDestroyList(pStmt->pFuncs);
-      nodesDestroyNode(pStmt->pInterval);
-      nodesDestroyNode(pStmt->pOffset);
-      nodesDestroyNode(pStmt->pSliding);
+      SIndexOptions* pOptions = (SIndexOptions*)pNode;
+      nodesDestroyList(pOptions->pFuncs);
+      nodesDestroyNode(pOptions->pInterval);
+      nodesDestroyNode(pOptions->pOffset);
+      nodesDestroyNode(pOptions->pSliding);
       break;
     }
     case QUERY_NODE_SET_OPERATOR: {
@@ -431,7 +454,7 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_CREATE_DATABASE_STMT:
       nodesDestroyNode(((SCreateDatabaseStmt*)pNode)->pOptions);
       break;
-    case QUERY_NODE_DROP_DATABASE_STMT: // no pointer field
+    case QUERY_NODE_DROP_DATABASE_STMT:  // no pointer field
       break;
     case QUERY_NODE_ALTER_DATABASE_STMT:
       nodesDestroyNode(((SAlterDatabaseStmt*)pNode)->pOptions);
@@ -452,12 +475,12 @@ void nodesDestroyNode(SNodeptr pNode) {
     case QUERY_NODE_CREATE_MULTI_TABLE_STMT:
       nodesDestroyList(((SCreateMultiTableStmt*)pNode)->pSubTables);
       break;
-    case QUERY_NODE_DROP_TABLE_CLAUSE: // no pointer field
+    case QUERY_NODE_DROP_TABLE_CLAUSE:  // no pointer field
       break;
     case QUERY_NODE_DROP_TABLE_STMT:
       nodesDestroyNode(((SDropTableStmt*)pNode)->pTables);
       break;
-    case QUERY_NODE_DROP_SUPER_TABLE_STMT: // no pointer field
+    case QUERY_NODE_DROP_SUPER_TABLE_STMT:  // no pointer field
       break;
     case QUERY_NODE_ALTER_TABLE_STMT: {
       SAlterTableStmt* pStmt = (SAlterTableStmt*)pNode;
@@ -465,13 +488,13 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyNode(pStmt->pVal);
       break;
     }
-    case QUERY_NODE_CREATE_USER_STMT:  // no pointer field
-    case QUERY_NODE_ALTER_USER_STMT:   // no pointer field
-    case QUERY_NODE_DROP_USER_STMT:    // no pointer field
-    case QUERY_NODE_USE_DATABASE_STMT: // no pointer field
-    case QUERY_NODE_CREATE_DNODE_STMT: // no pointer field
-    case QUERY_NODE_DROP_DNODE_STMT:   // no pointer field
-    case QUERY_NODE_ALTER_DNODE_STMT:  // no pointer field
+    case QUERY_NODE_CREATE_USER_STMT:   // no pointer field
+    case QUERY_NODE_ALTER_USER_STMT:    // no pointer field
+    case QUERY_NODE_DROP_USER_STMT:     // no pointer field
+    case QUERY_NODE_USE_DATABASE_STMT:  // no pointer field
+    case QUERY_NODE_CREATE_DNODE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_DNODE_STMT:    // no pointer field
+    case QUERY_NODE_ALTER_DNODE_STMT:   // no pointer field
       break;
     case QUERY_NODE_CREATE_INDEX_STMT: {
       SCreateIndexStmt* pStmt = (SCreateIndexStmt*)pNode;
@@ -479,15 +502,15 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyList(pStmt->pCols);
       break;
     }
-    case QUERY_NODE_DROP_INDEX_STMT:   // no pointer field
-    case QUERY_NODE_CREATE_QNODE_STMT: // no pointer field
-    case QUERY_NODE_DROP_QNODE_STMT:   // no pointer field
+    case QUERY_NODE_DROP_INDEX_STMT:    // no pointer field
+    case QUERY_NODE_CREATE_QNODE_STMT:  // no pointer field
+    case QUERY_NODE_DROP_QNODE_STMT:    // no pointer field
       break;
     case QUERY_NODE_CREATE_TOPIC_STMT:
       nodesDestroyNode(((SCreateTopicStmt*)pNode)->pQuery);
       break;
-    case QUERY_NODE_DROP_TOPIC_STMT:  // no pointer field
-    case QUERY_NODE_ALTER_LOCAL_STMT: // no pointer field
+    case QUERY_NODE_DROP_TOPIC_STMT:   // no pointer field
+    case QUERY_NODE_ALTER_LOCAL_STMT:  // no pointer field
       break;
     case QUERY_NODE_SHOW_DATABASES_STMT:
     case QUERY_NODE_SHOW_TABLES_STMT:
@@ -504,6 +527,18 @@ void nodesDestroyNode(SNodeptr pNode) {
       SShowStmt* pStmt = (SShowStmt*)pNode;
       nodesDestroyNode(pStmt->pDbName);
       nodesDestroyNode(pStmt->pTbNamePattern);
+      break;
+    }
+    case QUERY_NODE_QUERY: {
+      SQuery* pQuery = (SQuery*)pNode;
+      nodesDestroyNode(pQuery->pRoot);
+      taosMemoryFreeClear(pQuery->pResSchema);
+      if (NULL != pQuery->pCmdMsg) {
+        taosMemoryFreeClear(pQuery->pCmdMsg->pMsg);
+        taosMemoryFreeClear(pQuery->pCmdMsg);
+      }
+      taosArrayDestroy(pQuery->pDbList);
+      taosArrayDestroy(pQuery->pTableList);
       break;
     }
     case QUERY_NODE_LOGIC_PLAN_SCAN: {
@@ -547,7 +582,6 @@ void nodesDestroyNode(SNodeptr pNode) {
       SWindowLogicNode* pLogicNode = (SWindowLogicNode*)pNode;
       destroyLogicNode((SLogicNode*)pLogicNode);
       nodesDestroyList(pLogicNode->pFuncs);
-      nodesDestroyNode(pLogicNode->pFill);
       nodesDestroyNode(pLogicNode->pTspk);
       break;
     }
@@ -623,12 +657,10 @@ void nodesDestroyNode(SNodeptr pNode) {
       nodesDestroyNode(pPhyNode->pSortKeys);
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL: {
-      SIntervalPhysiNode* pPhyNode = (SIntervalPhysiNode*)pNode;
-      destroyWinodwPhysiNode((SWinodwPhysiNode*)pPhyNode);
-      nodesDestroyNode(pPhyNode->pFill);
+    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
+      destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
-    }
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
@@ -653,7 +685,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       SQueryPlan* pPlan = (SQueryPlan*)pNode;
       if (NULL != pPlan->pSubplans) {
         // only need to destroy the top-level subplans, because they will recurse to all the subplans below
-        bool first = true;
+        bool   first = true;
         SNode* pElement = NULL;
         FOREACH(pElement, pPlan->pSubplans) {
           if (first) {
@@ -861,24 +893,21 @@ void nodesClearList(SNodeList* pList) {
   taosMemoryFreeClear(pList);
 }
 
-void* nodesGetValueFromNode(SValueNode *pNode) {
+void* nodesGetValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL:
-      return (void*)&pNode->datum.b;
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP:
-      return (void*)&pNode->datum.i;
     case TSDB_DATA_TYPE_UTINYINT:
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT:
-      return (void*)&pNode->datum.u;
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE:
-      return (void*)&pNode->datum.d;
+      return (void*)&pNode->typeData;
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
@@ -890,10 +919,72 @@ void* nodesGetValueFromNode(SValueNode *pNode) {
   return NULL;
 }
 
-char* nodesGetStrValueFromNode(SValueNode *pNode) {
+int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value) {
+  switch (pNode->node.resType.type) {
+    case TSDB_DATA_TYPE_BOOL:
+      pNode->datum.b = *(bool*)value;
+      *(bool*)&pNode->typeData = pNode->datum.b;
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      pNode->datum.i = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      pNode->datum.i = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_INT:
+      pNode->datum.i = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      pNode->datum.i = *(int64_t*)value;
+      *(int64_t*)&pNode->typeData = pNode->datum.i;
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      pNode->datum.u = *(int8_t*)value;
+      *(int8_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      pNode->datum.u = *(int16_t*)value;
+      *(int16_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      pNode->datum.u = *(int32_t*)value;
+      *(int32_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      pNode->datum.u = *(uint64_t*)value;
+      *(uint64_t*)&pNode->typeData = pNode->datum.u;
+      break;
+    case TSDB_DATA_TYPE_FLOAT:
+      pNode->datum.d = *(float*)value;
+      *(float*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      pNode->datum.d = *(double*)value;
+      *(double*)&pNode->typeData = pNode->datum.d;
+      break;
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_VARBINARY:
+      pNode->datum.p = (char*)value;
+      break;
+    default:
+      return TSDB_CODE_QRY_APP_ERROR;
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+char* nodesGetStrValueFromNode(SValueNode* pNode) {
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_BOOL: {
-      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      void* buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {
         return NULL;
       }
@@ -906,7 +997,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      void* buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {
         return NULL;
       }
@@ -918,7 +1009,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_USMALLINT:
     case TSDB_DATA_TYPE_UINT:
     case TSDB_DATA_TYPE_UBIGINT: {
-      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      void* buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {
         return NULL;
       }
@@ -928,7 +1019,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
     }
     case TSDB_DATA_TYPE_FLOAT:
     case TSDB_DATA_TYPE_DOUBLE: {
-      void *buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
+      void* buf = taosMemoryMalloc(MAX_NUM_STR_SIZE);
       if (NULL == buf) {
         return NULL;
       }
@@ -940,7 +1031,7 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY: {
       int32_t bufSize = varDataLen(pNode->datum.p) + 2 + 1;
-      void *buf = taosMemoryMalloc(bufSize);
+      void*   buf = taosMemoryMalloc(bufSize);
       if (NULL == buf) {
         return NULL;
       }
@@ -957,7 +1048,8 @@ char* nodesGetStrValueFromNode(SValueNode *pNode) {
 
 bool nodesIsExprNode(const SNode* pNode) {
   ENodeType type = nodeType(pNode);
-  return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type || QUERY_NODE_FUNCTION == type);
+  return (QUERY_NODE_COLUMN == type || QUERY_NODE_VALUE == type || QUERY_NODE_OPERATOR == type ||
+          QUERY_NODE_FUNCTION == type);
 }
 
 bool nodesIsUnaryOp(const SOperatorNode* pOp) {
@@ -1032,23 +1124,33 @@ bool nodesIsJsonOp(const SOperatorNode* pOp) {
   return false;
 }
 
-bool nodesIsTimeorderQuery(const SNode* pQuery) {
+bool nodesIsRegularOp(const SOperatorNode* pOp) {
+  switch (pOp->opType) {
+    case OP_TYPE_LIKE:
+    case OP_TYPE_NOT_LIKE:
+    case OP_TYPE_MATCH:
+    case OP_TYPE_NMATCH:
+      return true;
+    default:
+      break;
+  }
   return false;
 }
 
-bool nodesIsTimelineQuery(const SNode* pQuery) {
-  return false;
-}
+bool nodesIsTimeorderQuery(const SNode* pQuery) { return false; }
+
+bool nodesIsTimelineQuery(const SNode* pQuery) { return false; }
 
 typedef struct SCollectColumnsCxt {
-  int32_t errCode;
-  const char* pTableAlias;
-  SNodeList* pCols;
-  SHashObj* pColHash;
+  int32_t         errCode;
+  const char*     pTableAlias;
+  ECollectColType collectType;
+  SNodeList*      pCols;
+  SHashObj*       pColHash;
 } SCollectColumnsCxt;
 
 static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pNode) {
-  char name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
+  char    name[TSDB_TABLE_NAME_LEN + TSDB_COL_NAME_LEN];
   int32_t len = 0;
   if ('\0' == pCol->tableAlias[0]) {
     len = sprintf(name, "%s", pCol->colName);
@@ -1057,57 +1159,66 @@ static EDealRes doCollect(SCollectColumnsCxt* pCxt, SColumnNode* pCol, SNode* pN
   if (NULL == taosHashGet(pCxt->pColHash, name, len)) {
     pCxt->errCode = taosHashPut(pCxt->pColHash, name, len, NULL, 0);
     if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-      pCxt->errCode = nodesListAppend(pCxt->pCols, pNode);
+      pCxt->errCode = nodesListStrictAppend(pCxt->pCols, nodesCloneNode(pNode));
     }
     return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
   }
   return DEAL_RES_CONTINUE;
 }
 
+static bool isCollectType(ECollectColType collectType, EColumnType colType) {
+  return COLLECT_COL_TYPE_ALL == collectType
+             ? true
+             : (COLLECT_COL_TYPE_TAG == collectType ? COLUMN_TYPE_TAG == colType : COLUMN_TYPE_TAG != colType);
+}
+
 static EDealRes collectColumns(SNode* pNode, void* pContext) {
   SCollectColumnsCxt* pCxt = (SCollectColumnsCxt*)pContext;
   if (QUERY_NODE_COLUMN == nodeType(pNode)) {
     SColumnNode* pCol = (SColumnNode*)pNode;
-    if (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias)) {
+    if (isCollectType(pCxt->collectType, pCol->colType) &&
+        (NULL == pCxt->pTableAlias || 0 == strcmp(pCxt->pTableAlias, pCol->tableAlias))) {
       return doCollect(pCxt, pCol, pNode);
     }
   }
   return DEAL_RES_CONTINUE;
 }
 
-int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, SNodeList** pCols) {
+int32_t nodesCollectColumns(SSelectStmt* pSelect, ESqlClause clause, const char* pTableAlias, ECollectColType type,
+                            SNodeList** pCols) {
   if (NULL == pSelect || NULL == pCols) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectColumnsCxt cxt = {
-    .errCode = TSDB_CODE_SUCCESS,
-    .pTableAlias = pTableAlias,
-    .pCols = nodesMakeList(),
-    .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)
-  };
+      .errCode = TSDB_CODE_SUCCESS,
+      .pTableAlias = pTableAlias,
+      .collectType = type,
+      .pCols = (NULL == *pCols ? nodesMakeList() : *pCols),
+      .pColHash = taosHashInit(128, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK)};
   if (NULL == cxt.pCols || NULL == cxt.pColHash) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-
+  *pCols = NULL;
   nodesWalkSelectStmt(pSelect, clause, collectColumns, &cxt);
   taosHashCleanup(cxt.pColHash);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
-    nodesClearList(cxt.pCols);
+    nodesDestroyList(cxt.pCols);
     return cxt.errCode;
   }
-  if (0 == LIST_LENGTH(cxt.pCols)) {
-    nodesClearList(cxt.pCols);
-    cxt.pCols = NULL;
+  if (LIST_LENGTH(cxt.pCols) > 0) {
+    *pCols = cxt.pCols;
+  } else {
+    nodesDestroyList(cxt.pCols);
   }
-  *pCols = cxt.pCols;
+
   return TSDB_CODE_SUCCESS;
 }
 
 typedef struct SCollectFuncsCxt {
-  int32_t errCode;
+  int32_t         errCode;
   FFuncClassifier classifier;
-  SNodeList* pFuncs;
+  SNodeList*      pFuncs;
 } SCollectFuncsCxt;
 
 static EDealRes collectFuncs(SNode* pNode, void* pContext) {
@@ -1119,20 +1230,18 @@ static EDealRes collectFuncs(SNode* pNode, void* pContext) {
   return DEAL_RES_CONTINUE;
 }
 
-int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNodeList** pFuncs) {
+int32_t nodesCollectFuncs(SSelectStmt* pSelect, ESqlClause clause, FFuncClassifier classifier, SNodeList** pFuncs) {
   if (NULL == pSelect || NULL == pFuncs) {
-    return TSDB_CODE_SUCCESS;
+    return TSDB_CODE_FAILED;
   }
 
   SCollectFuncsCxt cxt = {
-    .errCode = TSDB_CODE_SUCCESS,
-    .classifier = classifier,
-    .pFuncs = nodesMakeList()
-  };
+      .errCode = TSDB_CODE_SUCCESS, .classifier = classifier, .pFuncs = (NULL == *pFuncs ? nodesMakeList() : *pFuncs)};
   if (NULL == cxt.pFuncs) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectFuncs, &cxt);
+  *pFuncs = NULL;
+  nodesWalkSelectStmt(pSelect, clause, collectFuncs, &cxt);
   if (TSDB_CODE_SUCCESS != cxt.errCode) {
     nodesDestroyList(cxt.pFuncs);
     return cxt.errCode;
@@ -1141,14 +1250,52 @@ int32_t nodesCollectFuncs(SSelectStmt* pSelect, FFuncClassifier classifier, SNod
     *pFuncs = cxt.pFuncs;
   } else {
     nodesDestroyList(cxt.pFuncs);
-    *pFuncs = NULL;
   }
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
+typedef struct SCollectSpecialNodesCxt {
+  int32_t    errCode;
+  ENodeType  type;
+  SNodeList* pNodes;
+} SCollectSpecialNodesCxt;
 
-char *getFillModeString(EFillMode mode) {
+static EDealRes collectSpecialNodes(SNode* pNode, void* pContext) {
+  SCollectSpecialNodesCxt* pCxt = (SCollectSpecialNodesCxt*)pContext;
+  if (pCxt->type == nodeType(pNode)) {
+    pCxt->errCode = nodesListStrictAppend(pCxt->pNodes, nodesCloneNode(pNode));
+    return (TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_IGNORE_CHILD : DEAL_RES_ERROR);
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+int32_t nodesCollectSpecialNodes(SSelectStmt* pSelect, ESqlClause clause, ENodeType type, SNodeList** pNodes) {
+  if (NULL == pSelect || NULL == pNodes) {
+    return TSDB_CODE_FAILED;
+  }
+
+  SCollectSpecialNodesCxt cxt = {
+      .errCode = TSDB_CODE_SUCCESS, .type = type, .pNodes = (NULL == *pNodes ? nodesMakeList() : *pNodes)};
+  if (NULL == cxt.pNodes) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *pNodes = NULL;
+  nodesWalkSelectStmt(pSelect, SQL_CLAUSE_GROUP_BY, collectSpecialNodes, &cxt);
+  if (TSDB_CODE_SUCCESS != cxt.errCode) {
+    nodesDestroyList(cxt.pNodes);
+    return cxt.errCode;
+  }
+  if (LIST_LENGTH(cxt.pNodes) > 0) {
+    *pNodes = cxt.pNodes;
+  } else {
+    nodesDestroyList(cxt.pNodes);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+char* getFillModeString(EFillMode mode) {
   switch (mode) {
     case FILL_MODE_NONE:
       return "none";
@@ -1167,12 +1314,12 @@ char *getFillModeString(EFillMode mode) {
   }
 }
 
-char *nodesGetNameFromColumnNode(SNode *pNode) {
+char* nodesGetNameFromColumnNode(SNode* pNode) {
   if (NULL == pNode || QUERY_NODE_COLUMN != pNode->type) {
     return "NULL";
   }
-  
-  return ((SColumnNode *)pNode)->colName;
+
+  return ((SColumnNode*)pNode)->colName;
 }
 
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
@@ -1180,14 +1327,14 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
     return 0;
   }
 
-  SNode* pNode = NULL;
+  SNode*  pNode = NULL;
   int32_t num = 0;
   FOREACH(pNode, pSlots) {
     if (QUERY_NODE_SLOT_DESC != pNode->type) {
       continue;
     }
 
-    SSlotDescNode *descNode = (SSlotDescNode *)pNode;
+    SSlotDescNode* descNode = (SSlotDescNode*)pNode;
     if (descNode->output) {
       ++num;
     }
@@ -1196,13 +1343,12 @@ int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots) {
   return num;
 }
 
-
 void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
   pVal->nType = pNode->node.resType.type;
   pVal->nLen = pNode->node.resType.bytes;
   switch (pNode->node.resType.type) {
     case TSDB_DATA_TYPE_NULL:
-        break;
+      break;
     case TSDB_DATA_TYPE_BOOL:
       pVal->i = pNode->datum.b;
       break;
@@ -1226,7 +1372,9 @@ void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
     case TSDB_DATA_TYPE_NCHAR:
     case TSDB_DATA_TYPE_VARCHAR:
     case TSDB_DATA_TYPE_VARBINARY:
-      pVal->pz = pNode->datum.p;
+      pVal->pz = taosMemoryMalloc(pVal->nLen + VARSTR_HEADER_SIZE + 1);
+      memcpy(pVal->pz, pNode->datum.p, pVal->nLen + VARSTR_HEADER_SIZE);
+      pVal->pz[pVal->nLen + VARSTR_HEADER_SIZE] = 0;
       break;
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_DECIMAL:
@@ -1236,6 +1384,3 @@ void valueNodeToVariant(const SValueNode* pNode, SVariant* pVal) {
       break;
   }
 }
-
-
-

@@ -36,7 +36,7 @@ void *addRef(void *param) {
 
   for (int i=0; i < pSpace->steps; ++i) {
     printf("a");
-    id = random() % pSpace->refNum; 
+    id = taosRand() % pSpace->refNum; 
     if (pSpace->rid[id] <= 0) {
       pSpace->p[id] = taosMemoryMalloc(128);
       pSpace->rid[id] = taosAddRef(pSpace->rsetId, pSpace->p[id]);
@@ -53,7 +53,7 @@ void *removeRef(void *param) {
 
   for (int i=0; i < pSpace->steps; ++i) {
     printf("d");
-    id = random() % pSpace->refNum; 
+    id = taosRand() % pSpace->refNum; 
     if (pSpace->rid[id] > 0) {
       code = taosRemoveRef(pSpace->rsetId, pSpace->rid[id]);
       if (code == 0) pSpace->rid[id] = 0;
@@ -72,7 +72,7 @@ void *acquireRelease(void *param) {
   for (int i=0; i < pSpace->steps; ++i) {
     printf("a");
     
-    id = random() % pSpace->refNum; 
+    id = taosRand() % pSpace->refNum; 
     void *p = taosAcquireRef(pSpace->rsetId, (int64_t) pSpace->p[id]);
     if (p) {
       taosUsleep(id % 5 + 1);

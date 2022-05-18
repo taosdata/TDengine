@@ -20,17 +20,39 @@
 extern "C" {
 #endif
 
-#define nodesFatal(...)  qFatal("NODES: " __VA_ARGS__)
-#define nodesError(...)  qError("NODES: " __VA_ARGS__)
-#define nodesWarn(...)   qWarn("NODES: " __VA_ARGS__)
-#define nodesInfo(...)   qInfo("NODES: " __VA_ARGS__)
-#define nodesDebug(...)  qDebug("NODES: " __VA_ARGS__)
-#define nodesTrace(...)  qTrace("NODES: " __VA_ARGS__)
+#define nodesFatal(...) qFatal("NODES: " __VA_ARGS__)
+#define nodesError(...) qError("NODES: " __VA_ARGS__)
+#define nodesWarn(...)  qWarn("NODES: " __VA_ARGS__)
+#define nodesInfo(...)  qInfo("NODES: " __VA_ARGS__)
+#define nodesDebug(...) qDebug("NODES: " __VA_ARGS__)
+#define nodesTrace(...) qTrace("NODES: " __VA_ARGS__)
 
-#define NODES_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
-#define NODES_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
-#define NODES_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+#define NODES_ERR_RET(c)              \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+      return _code;                   \
+    }                                 \
+  } while (0)
 
+#define NODES_RET(c)                  \
+  do {                                \
+    int32_t _code = c;                \
+    if (_code != TSDB_CODE_SUCCESS) { \
+      terrno = _code;                 \
+    }                                 \
+    return _code;                     \
+  } while (0)
+
+#define NODES_ERR_JRET(c)            \
+  do {                               \
+    code = c;                        \
+    if (code != TSDB_CODE_SUCCESS) { \
+      terrno = code;                 \
+      goto _return;                  \
+    }                                \
+  } while (0)
 
 #ifdef __cplusplus
 }

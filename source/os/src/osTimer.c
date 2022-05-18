@@ -17,7 +17,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
 #include <Mmsystem.h>
 #include <Windows.h>
 #include <stdint.h>
@@ -143,7 +143,7 @@ static void *        taosProcessAlarmSignal(void *tharg) {
 #endif
 
 int taosInitTimer(void (*callback)(int), int ms) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   DWORD_PTR param = *((int64_t *)&callback);
 
   timerId = timeSetEvent(ms, 1, (LPTIMECALLBACK)taosWinOnTimer, param, TIME_PERIODIC);
@@ -190,7 +190,7 @@ int taosInitTimer(void (*callback)(int), int ms) {
 }
 
 void taosUninitTimer() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   timeKillEvent(timerId);
 #elif defined(_TD_DARWIN_64)
   int r = 0;

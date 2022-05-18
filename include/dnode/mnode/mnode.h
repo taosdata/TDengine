@@ -88,7 +88,7 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndProcessMsg(SNodeMsg *pMsg);
+int32_t mndProcessMsg(SRpcMsg *pMsg);
 
 /**
  * @brief Generate machine code

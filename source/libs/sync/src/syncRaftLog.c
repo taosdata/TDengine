@@ -50,44 +50,81 @@ int32_t logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry) {
 
   SyncIndex lastIndex = logStoreLastIndex(pLogStore);
   assert(pEntry->index == lastIndex + 1);
-  uint32_t len;
-  char*    serialized = syncEntrySerialize(pEntry, &len);
-  assert(serialized != NULL);
 
-  int code = 0;
-  /*
-    code = walWrite(pWal, pEntry->index, pEntry->entryType, serialized, len);
-    assert(code == 0);
-  */
-  assert(walWrite(pWal, pEntry->index, pEntry->entryType, serialized, len) == 0);
+  int          code = 0;
+  SSyncLogMeta syncMeta;
+  syncMeta.isWeek = pEntry->isWeak;
+  syncMeta.seqNum = pEntry->seqNum;
+  syncMeta.term = pEntry->term;
+  code = walWriteWithSyncInfo(pWal, pEntry->index, pEntry->originalRpcType, syncMeta, pEntry->data, pEntry->dataLen);
+  if (code != 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     linuxErr = errno;
+    const char* linuxErrMsg = strerror(errno);
+    sError("walWriteWithSyncInfo error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
+           linuxErrMsg);
+    ASSERT(0);
+  }
+  // assert(code == 0);
 
   walFsync(pWal, true);
-  taosMemoryFree(serialized);
   return code;
 }
 
 SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  SSyncRaftEntry*    pEntry = NULL;
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
     SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    assert(walReadWithHandle(pWalHandle, index) == 0);
-    pEntry = syncEntryDeserialize(pWalHandle->pHead->head.body, pWalHandle->pHead->head.len);
+    int32_t         code = walReadWithHandle(pWalHandle, index);
+    if (code != 0) {
+      int32_t     err = terrno;
+      const char* errStr = tstrerror(err);
+      int32_t     linuxErr = errno;
+      const char* linuxErrMsg = strerror(errno);
+      sError("walReadWithHandle error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
+             linuxErrMsg);
+      ASSERT(0);
+    }
+    // assert(walReadWithHandle(pWalHandle, index) == 0);
+
+    SSyncRaftEntry* pEntry = syncEntryBuild(pWalHandle->pHead->head.bodyLen);
     assert(pEntry != NULL);
+
+    pEntry->msgType = TDMT_VND_SYNC_CLIENT_REQUEST;
+    pEntry->originalRpcType = pWalHandle->pHead->head.msgType;
+    pEntry->seqNum = pWalHandle->pHead->head.syncMeta.seqNum;
+    pEntry->isWeak = pWalHandle->pHead->head.syncMeta.isWeek;
+    pEntry->term = pWalHandle->pHead->head.syncMeta.term;
+    pEntry->index = index;
+    assert(pEntry->dataLen == pWalHandle->pHead->head.bodyLen);
+    memcpy(pEntry->data, pWalHandle->pHead->head.body, pWalHandle->pHead->head.bodyLen);
 
     // need to hold, do not new every time!!
     walCloseReadHandle(pWalHandle);
-  }
+    return pEntry;
 
-  return pEntry;
+  } else {
+    return NULL;
+  }
 }
 
 int32_t logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  assert(walRollback(pWal, fromIndex) == 0);
+  // assert(walRollback(pWal, fromIndex) == 0);
+  int32_t code = walRollback(pWal, fromIndex);
+  if (code != 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     linuxErr = errno;
+    const char* linuxErrMsg = strerror(errno);
+    sError("walRollback error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr,
+           linuxErrMsg);
+    ASSERT(0);
+  }
   return 0;  // to avoid compiler error
 }
 
@@ -111,7 +148,16 @@ SyncTerm logStoreLastTerm(SSyncLogStore* pLogStore) {
 int32_t logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index) {
   SSyncLogStoreData* pData = pLogStore->data;
   SWal*              pWal = pData->pWal;
-  assert(walCommit(pWal, index) == 0);
+  // assert(walCommit(pWal, index) == 0);
+  int32_t code = walCommit(pWal, index);
+  if (code != 0) {
+    int32_t     err = terrno;
+    const char* errStr = tstrerror(err);
+    int32_t     linuxErr = errno;
+    const char* linuxErrMsg = strerror(errno);
+    sError("walCommit error, err:%d %X, msg:%s, linuxErr:%d, linuxErrMsg:%s", err, err, errStr, linuxErr, linuxErrMsg);
+    ASSERT(0);
+  }
   return 0;  // to avoid compiler error
 }
 
@@ -207,20 +253,20 @@ void logStorePrint(SSyncLogStore* pLogStore) {
 
 void logStorePrint2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
-  printf("logStorePrint | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
+  printf("logStorePrint2 | len:%lu | %s | %s \n", strlen(serialized), s, serialized);
   fflush(NULL);
   taosMemoryFree(serialized);
 }
 
 void logStoreLog(SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
-  sTrace("logStorePrint | len:%lu | %s", strlen(serialized), serialized);
+  sTraceLong("logStoreLog | len:%lu | %s", strlen(serialized), serialized);
   taosMemoryFree(serialized);
 }
 
 void logStoreLog2(char* s, SSyncLogStore* pLogStore) {
   char* serialized = logStore2Str(pLogStore);
-  sTrace("logStorePrint | len:%lu | %s | %s", strlen(serialized), s, serialized);
+  sTraceLong("logStoreLog2 | len:%lu | %s | %s", strlen(serialized), s, serialized);
   taosMemoryFree(serialized);
 }
 

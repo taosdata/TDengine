@@ -35,7 +35,7 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
 
   int32_t ret = 0;
   for (int i = 0; i < pSyncNode->peersNum; ++i) {
-    SyncRequestVote* pMsg = syncRequestVoteBuild();
+    SyncRequestVote* pMsg = syncRequestVoteBuild(pSyncNode->vgId);
     pMsg->srcId = pSyncNode->myRaftId;
     pMsg->destId = pSyncNode->peersId[i];
     pMsg->term = pSyncNode->pRaftStore->currentTerm;

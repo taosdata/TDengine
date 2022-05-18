@@ -4,6 +4,7 @@
 #include "syncInt.h"
 #include "syncMessage.h"
 #include "syncUtil.h"
+#include "tdatablock.h"
 
 void logTest() {
   sTrace("--- sync log test: trace");
@@ -38,7 +39,7 @@ int main() {
     destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
     destId.vgId = 100;
 
-    SyncPingReply* pSyncMsg = syncPingReplyBuild2(&srcId, &destId, "syncIOClientTest");
+    SyncPingReply* pSyncMsg = syncPingReplyBuild2(&srcId, &destId, 1000, "syncIOClientTest");
     SRpcMsg        rpcMsg;
     syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
 

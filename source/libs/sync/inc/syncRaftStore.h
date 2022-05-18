@@ -28,7 +28,7 @@ extern "C" {
 #include "taosdef.h"
 
 #define RAFT_STORE_BLOCK_SIZE 512
-#define RAFT_STORE_PATH_LEN 128
+#define RAFT_STORE_PATH_LEN (TSDB_FILENAME_LEN * 2)
 
 typedef struct SRaftStore {
   SyncTerm  currentTerm;

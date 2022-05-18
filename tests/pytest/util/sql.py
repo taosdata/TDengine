@@ -16,6 +16,7 @@ import os
 import time
 import datetime
 import inspect
+import traceback
 import psutil
 import shutil
 import pandas as pd
@@ -60,6 +61,7 @@ class TDSql:
         self.cursor.execute(s)
         s = 'use db'
         self.cursor.execute(s)
+        time.sleep(2)	
 
     def error(self, sql):
         expectErrNotOccured = True
@@ -87,6 +89,7 @@ class TDSql:
             caller = inspect.getframeinfo(inspect.stack()[1][0])
             args = (caller.filename, caller.lineno, sql, repr(e))
             tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
+            traceback.print_exc()
             raise Exception(repr(e))
         if row_tag:
             return self.queryResult
@@ -146,6 +149,9 @@ class TDSql:
             tdLog.notice("%s(%d) failed: sql:%s, %s" % args)
             raise Exception(repr(e))
         return (self.queryRows, timeout)
+
+    def getRows(self):
+        return self.queryRows
 
     def checkRows(self, expectRows):
         if self.queryRows == expectRows:

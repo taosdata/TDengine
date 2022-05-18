@@ -135,7 +135,7 @@ static FORCE_INLINE void taosHashEntryRUnlock(const SHashObj *pHashObj, SHashEnt
 }
 
 static FORCE_INLINE int32_t taosHashCapacity(int32_t length) {
-  int32_t len = MIN(length, HASH_MAX_CAPACITY);
+  int32_t len = (length < HASH_MAX_CAPACITY ? length : HASH_MAX_CAPACITY);
 
   int32_t i = 4;
   while (i < len) i = (i << 1u);
@@ -310,6 +310,7 @@ int32_t taosHashGetSize(const SHashObj *pHashObj) {
 
 int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const void *data, size_t size) {
   if (pHashObj == NULL || key == NULL || keyLen == 0) {
+    terrno = TSDB_CODE_INVALID_PTR;
     return -1;
   }
 
@@ -378,6 +379,8 @@ int32_t taosHashPut(SHashObj *pHashObj, const void *key, size_t keyLen, const vo
       }
 
       doUpdateHashNode(pHashObj, pe, prev, pNode, pNewNode);
+    } else {
+      terrno = TSDB_CODE_DUP_KEY;
     }
 
     taosHashEntryWUnlock(pHashObj, pe);

@@ -72,8 +72,6 @@ extern "C" {
 #define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
 #define WAL_MAGIC        0xFAFBFCFDULL
 
-#define WAL_CUR_FAILED 1
-
 #pragma pack(push, 1)
 typedef enum {
   TAOS_WAL_NOLOG = 0,
@@ -92,7 +90,7 @@ typedef struct SWalReadHead {
   int8_t  headVer;
   int8_t  reserved;
   int16_t msgType;
-  int32_t len;
+  int32_t bodyLen;
   int64_t ingestTs;  // not implemented
   int64_t version;
 
@@ -192,7 +190,13 @@ int32_t walEndSnapshot(SWal *);
 SWalReadHandle *walOpenReadHandle(SWal *);
 void            walCloseReadHandle(SWalReadHandle *);
 int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
-int32_t         walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
+
+// only for tq usage
+// int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
+void    walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity);
+int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead);
+int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead);
+int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead);
 
 // deprecated
 #if 0
@@ -204,6 +208,7 @@ int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readN
 int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
+int64_t walGetCommittedVer(SWal *);
 
 #ifdef __cplusplus
 }

@@ -8,123 +8,255 @@ def skipbuild=0
 def win_stop=0
 
 def abortPreviousBuilds() {
-  def currentJobName = env.JOB_NAME
-  def currentBuildNumber = env.BUILD_NUMBER.toInteger()
-  def jobs = Jenkins.instance.getItemByFullName(currentJobName)
-  def builds = jobs.getBuilds()
+    def currentJobName = env.JOB_NAME
+    def currentBuildNumber = env.BUILD_NUMBER.toInteger()
+    def jobs = Jenkins.instance.getItemByFullName(currentJobName)
+    def builds = jobs.getBuilds()
 
-  for (build in builds) {
-    if (!build.isBuilding()) {
-      continue;
+    for (build in builds) {
+        if (!build.isBuilding()) {
+            continue;
+        }
+
+        if (currentBuildNumber == build.getNumber().toInteger()) {
+            continue;
+        }
+
+        build.doKill()    //doTerm(),doKill(),doTerm()
     }
-
-    if (currentBuildNumber == build.getNumber().toInteger()) {
-      continue;
-    }
-
-    build.doKill()    //doTerm(),doKill(),doTerm()
-  }
 }
 //  abort previous build
 abortPreviousBuilds()
 def abort_previous(){
-  def buildNumber = env.BUILD_NUMBER as int
-  if (buildNumber > 1) milestone(buildNumber - 1)
-  milestone(buildNumber)
+    def buildNumber = env.BUILD_NUMBER as int
+    if (buildNumber > 1) milestone(buildNumber - 1)
+    milestone(buildNumber)
 }
 def pre_test(){
-    sh'hostname'
     sh '''
-    date
-    sudo rmtaos || echo "taosd has not installed"
+        hostname
+        date
     '''
     sh '''
-    killall -9 taosd ||echo "no taosd running"
-    killall -9 gdb || echo "no gdb running"
-    killall -9 python3.8 || echo "no python program running"
-    cd ${WKC}
+        cd ${WK}
+        git reset --hard
+        git fetch || git fetch
+        cd ${WKC}
+        git reset --hard
+        git fetch || git fetch
     '''
     script {
-      if (env.CHANGE_TARGET == 'master') {
-        sh '''
-        cd ${WKC}
-        git checkout master
-        '''
+        if (env.CHANGE_TARGET == 'master') {
+            sh '''
+                cd ${WK}
+                git checkout master
+                cd ${WKC}
+                git checkout master
+            '''
+        } else if(env.CHANGE_TARGET == '2.0') {
+            sh '''
+                cd ${WK}
+                git checkout 2.0
+                cd ${WKC}
+                git checkout 2.0
+            '''
+        } else if(env.CHANGE_TARGET == '3.0') {
+            sh '''
+                cd ${WK}
+                git checkout 3.0
+                cd ${WKC}
+                git checkout 3.0
+            '''
+        } else {
+            sh '''
+                cd ${WK}
+                git checkout develop
+                cd ${WKC}
+                git checkout develop
+            '''
         }
-      else if(env.CHANGE_TARGET == '2.0'){
-        sh '''
-        cd ${WKC}
-        git checkout 2.0
-        '''
-      }
-      else if(env.CHANGE_TARGET == '3.0'){
-        sh '''
-        cd ${WKC}
-        git checkout 3.0
-        [ -d contrib/bdb ] && cd contrib/bdb && git clean -fxd && cd ../..
-        '''
-      }
-      else{
-        sh '''
-        cd ${WKC}
-        git checkout develop
-        '''
-      }
     }
-    sh'''
-    cd ${WKC}
-    git pull >/dev/null
-    git fetch origin +refs/pull/${CHANGE_ID}/merge
-    git checkout -qf FETCH_HEAD
-    git submodule update --init --recursive
+    if (env.CHANGE_URL =~ /\/TDengine\//) {
+        sh '''
+            cd ${WKC}
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD
+            git log -5
+            cd ${WK}
+            git pull >/dev/null
+            git log -5
+        '''
+    } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+        sh '''
+            cd ${WK}
+            git pull >/dev/null
+            git fetch origin +refs/pull/${CHANGE_ID}/merge
+            git checkout -qf FETCH_HEAD
+            git log -5
+            cd ${WKC}
+            git pull >/dev/null
+            git log -5
+        '''
+    } else {
+        sh '''
+            echo "unmatched reposiotry ${CHANGE_URL}"
+        '''
+    }
+    sh '''
+        cd ${WKC}
+        git submodule update --init --recursive
     '''
-    sh'''
-    cd ${WKC}
-    export TZ=Asia/Harbin
-    date
-    rm -rf debug
-    mkdir debug
-    cd debug
-    cmake .. > /dev/null
-    make -j4> /dev/null
+    sh '''
+        cd ${WKPY}
+        git reset --hard
+        git pull
+    '''
+    return 1
+}
+def pre_test_win(){
+    bat '''
+        hostname
+        date /t
+        time /t
+        taskkill /f /t /im python.exe
+        taskkill /f /t /im bash.exe
+        rd /s /Q C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
+        exit 0
+    '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+        git reset --hard
+        git fetch || git fetch
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+        git reset --hard
+        git fetch || git fetch
+        git checkout -f
+    '''
+    script {
+        if (env.CHANGE_TARGET == 'master') {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout master
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git checkout master
+            '''
+        } else if(env.CHANGE_TARGET == '2.0') {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout 2.0
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git checkout 2.0
+            '''
+        } else if(env.CHANGE_TARGET == '3.0') {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout 3.0
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git checkout 3.0
+            '''
+        } else {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git checkout develop
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git checkout develop
+            '''
+        }
+    }
+    script {
+        if (env.CHANGE_URL =~ /\/TDengine\//) {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git pull
+                git log -5
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git pull
+                git fetch origin +refs/pull/${CHANGE_ID}/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+            '''
+        } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git pull
+                git fetch origin +refs/pull/${CHANGE_ID}/merge
+                git checkout -qf FETCH_HEAD
+                git log -5
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git pull
+                git log -5
+            '''
+        } else {
+            sh '''
+                echo "unmatched reposiotry ${CHANGE_URL}"
+            '''
+        }
+    }
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+        git submodule update --init --recursive
+    '''
+}
+def pre_test_build_win() {
+    bat '''
+        echo "building ..."
+        time /t
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+        mkdir debug
+        cd debug
+        call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
+        set CL=/MP8
+        cmake .. -G "NMake Makefiles JOM"
+        jom -j 4 || exit 8
+        time /t
     '''
     return 1
 }
 
 pipeline {
-  agent none
-  options { skipDefaultCheckout() } 
-  environment{
-      WK = '/var/lib/jenkins/workspace/TDinternal'
-      WKC= '/var/lib/jenkins/workspace/TDengine'
-  }
-  stages {
-      stage('pre_build'){
-          agent{label " slave3_0 || slave15 || slave16 || slave17 "}
-          options { skipDefaultCheckout() } 
-          when {
-              changeRequest()
-          }
-          steps {
-            script{
-              abort_previous()
-              abortPreviousBuilds()
+    agent none
+    options { skipDefaultCheckout() } 
+    environment{
+        WKDIR = '/var/lib/jenkins/workspace'
+        WK = '/var/lib/jenkins/workspace/TDinternal'
+        WKC = '/var/lib/jenkins/workspace/TDinternal/community'
+        WKPY = '/var/lib/jenkins/workspace/taos-connector-python'
+    }
+    stages {
+        stage('run test') {
+            parallel {
+                stage('linux test') {
+                    agent{label " slave3_0 || slave15 || slave16 || slave17 "}
+                    options { skipDefaultCheckout() } 
+                    when {
+                        changeRequest()
+                    }
+                    steps {
+                        timeout(time: 40, unit: 'MINUTES'){
+                            pre_test()
+                            script {
+                                sh '''
+                                    cd ${WKC}/tests/parallel_test
+                                    date
+                                    time ./container_build.sh -w ${WKDIR} -t 8 -e
+                                    rm -f /tmp/cases.task
+                                    ./collect_cases.sh -e
+                                '''
+                                sh '''
+                                    cd ${WKC}/tests/parallel_test
+                                    export DEFAULT_RETRY_TIME=2
+                                    date
+                                    timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME} -l ${WKDIR}/log -o 480
+                                '''
+                            }
+                        }
+                    }
+                }
             }
-            timeout(time: 45, unit: 'MINUTES'){
-              pre_test()
-              sh'''
-              cd ${WKC}/tests
-              ./test-all.sh b1fq
-              '''
-              sh'''
-              cd ${WKC}/debug
-              ctest
-              '''
-            }
-          }
-      }
-  }
-  post {  
+        }
+    }
+    post {  
         success {
             emailext (
                 subject: "PR-result: Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' SUCCESS",

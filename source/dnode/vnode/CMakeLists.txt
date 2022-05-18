@@ -5,37 +5,44 @@ target_sources(
     PRIVATE
     # vnode
     "src/vnd/vnodeOpen.c"
-    "src/vnd/vnodeArenaMAImpl.c"
-    "src/vnd/vnodeBufferPool.c"
-    # "src/vnd/vnodeBufferPool2.c"
+    "src/vnd/vnodeBufPool.c"
     "src/vnd/vnodeCfg.c"
     "src/vnd/vnodeCommit.c"
-    "src/vnd/vnodeInt.c"
     "src/vnd/vnodeQuery.c"
     "src/vnd/vnodeStateMgr.c"
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
+    "src/vnd/vnodeSync.c"
 
     # meta
     "src/meta/metaOpen.c"
     "src/meta/metaIdx.c"
     "src/meta/metaTable.c"
-    "src/meta/metaTDBImpl.c"
-    # "src/meta/metaBDBImpl.c"
+    "src/meta/metaSma.c"
+    "src/meta/metaQuery.c"
+    "src/meta/metaCommit.c"
+    "src/meta/metaEntry.c"
+
+    # sma
+    "src/sma/sma.c"
+    "src/sma/smaTDBImpl.c"
+    "src/sma/smaEnv.c"
+    "src/sma/smaOpen.c"
+    "src/sma/smaRollup.c"
+    "src/sma/smaTimeRange.c"
 
     # tsdb
-    "src/tsdb/tsdbTDBImpl.c"
+    # "src/tsdb/tsdbTDBImpl.c"
     "src/tsdb/tsdbCommit.c"
-    "src/tsdb/tsdbCompact.c"
+    "src/tsdb/tsdbCommit2.c"
     "src/tsdb/tsdbFile.c"
     "src/tsdb/tsdbFS.c"
-    "src/tsdb/tsdbMain.c"
+    "src/tsdb/tsdbOpen.c"
     "src/tsdb/tsdbMemTable.c"
-    "src/tsdb/tsdbOptions.c"
+    "src/tsdb/tsdbMemTable2.c"
     "src/tsdb/tsdbRead.c"
     "src/tsdb/tsdbReadImpl.c"
-    "src/tsdb/tsdbScan.c"
-    "src/tsdb/tsdbSma.c"
+    # "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
 
     # tq
@@ -70,6 +77,7 @@ target_link_libraries(
     PUBLIC transport
     PUBLIC stream
 )
+target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
 
 if(${BUILD_TEST})
     add_subdirectory(test)

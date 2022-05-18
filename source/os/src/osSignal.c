@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
 
 /*
  * windows implementation
@@ -46,6 +46,8 @@ void taosDflSignal(int32_t signum) {
   if (signum == SIGUSR1 || signum == SIGHUP) return;
   signal(signum, SIG_DFL);
 }
+
+void taosKillChildOnParentStopped() { }
 
 #else
 

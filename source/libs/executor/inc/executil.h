@@ -15,8 +15,9 @@
 #ifndef TDENGINE_QUERYUTIL_H
 #define TDENGINE_QUERYUTIL_H
 
-#include "tcommon.h"
+#include <libs/function/function.h>
 #include "tbuffer.h"
+#include "tcommon.h"
 #include "tpagedbuf.h"
 
 #define SET_RES_WINDOW_KEY(_k, _ori, _len, _uid)     \
@@ -40,8 +41,6 @@
 
 #define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.str)
 
-#define curTimeWindowIndex(_winres)        ((_winres)->curIndex)
-
 typedef struct SGroupResInfo {
   int32_t totalGroup;
   int32_t currentGroup;
@@ -58,9 +57,9 @@ typedef struct SResultRow {
   bool          endInterp;   // the time window end timestamp has done the interpolation already.
   bool          closed;      // this result status: closed or opened
   uint32_t      numOfRows;   // number of rows of current time window
-  struct SResultRowEntryInfo* pEntryInfo;  // For each result column, there is a resultInfo
   STimeWindow   win;
-  char         *key;               // start key of current result row
+  struct SResultRowEntryInfo pEntryInfo[];  // For each result column, there is a resultInfo
+//  char         *key;         // start key of current result row
 } SResultRow;
 
 typedef struct SResultRowPosition {
@@ -68,11 +67,16 @@ typedef struct SResultRowPosition {
   int32_t offset;
 } SResultRowPosition;
 
+typedef struct SResKeyPos {
+  SResultRowPosition pos;
+  uint64_t  groupId;
+  char      key[];
+} SResKeyPos;
+
 typedef struct SResultRowInfo {
-  SResultRowPosition *pPosition;
+  SResultRowPosition *pPosition;  // todo remove this
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
-//  int32_t      curPos;     // current active result row index of pResult list
   SResultRowPosition cur;
 } SResultRowInfo;
 
@@ -135,7 +139,7 @@ typedef struct {
   int32_t colId;
 } SStddevInterResult;
 
-void    initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo);
+void    initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
 void    initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);

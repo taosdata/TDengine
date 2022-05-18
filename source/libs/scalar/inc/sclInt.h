@@ -26,11 +26,17 @@ typedef struct SScalarCtx {
   int32_t      code;
   SArray      *pBlockList;  /* element is SSDataBlock* */
   SHashObj    *pRes;  /* element is SScalarParam */
+  void        *param;      // additional parameter (meta actually) for acquire value such as tbname/tags values
 } SScalarCtx;
 
 
 #define SCL_DATA_TYPE_DUMMY_HASH 9000
 #define SCL_DEFAULT_OP_NUM 10
+
+#define SCL_IS_CONST_NODE(_node) ((NULL == (_node)) || (QUERY_NODE_VALUE == (_node)->type) || (QUERY_NODE_NODE_LIST == (_node)->type))
+#define SCL_IS_CONST_CALC(_ctx) (NULL == (_ctx)->pBlockList)
+//#define SCL_IS_NULL_VALUE_NODE(_node) ((QUERY_NODE_VALUE == nodeType(_node)) && (TSDB_DATA_TYPE_NULL == ((SValueNode *)_node)->node.resType.type) && (((SValueNode *)_node)->placeholderNo <= 0))
+#define SCL_IS_NULL_VALUE_NODE(_node) ((QUERY_NODE_VALUE == nodeType(_node)) && (TSDB_DATA_TYPE_NULL == ((SValueNode *)_node)->node.resType.type))
 
 #define sclFatal(...)  qFatal(__VA_ARGS__)
 #define sclError(...)  qError(__VA_ARGS__)
@@ -45,6 +51,7 @@ typedef struct SScalarCtx {
 
 int32_t doConvertDataType(SValueNode* pValueNode, SScalarParam* out);
 SColumnInfoData* createColumnInfoData(SDataType* pType, int32_t numOfRows);
+void sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode);
 
 #define GET_PARAM_TYPE(_c)      ((_c)->columnData->info.type)
 #define GET_PARAM_BYTES(_c)     ((_c)->columnData->info.bytes)

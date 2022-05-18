@@ -1,0 +1,13 @@
+
+# wcwidth
+ExternalProject_Add(wcwidth
+        GIT_REPOSITORY https://github.com/fumiyas/wcwidth-cjk.git
+        GIT_TAG master
+        SOURCE_DIR "${TD_CONTRIB_DIR}/wcwidth"
+        BINARY_DIR ""
+        #BUILD_IN_SOURCE TRUE
+        CONFIGURE_COMMAND ""
+        BUILD_COMMAND ""
+        INSTALL_COMMAND ""
+        TEST_COMMAND ""
+)

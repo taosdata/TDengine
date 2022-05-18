@@ -33,17 +33,18 @@ typedef struct FILE TdCmd;
 
 void* taosLoadDll(const char* filename) {
 #if defined(WINDOWS)
+  assert(0);
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
 #else
   void* handle = dlopen(filename, RTLD_LAZY);
   if (!handle) {
-    //printf("load dll:%s failed, error:%s", filename, dlerror());
+    // printf("load dll:%s failed, error:%s", filename, dlerror());
     return NULL;
   }
 
-  //printf("dll %s loaded", filename);
+  // printf("dll %s loaded", filename);
 
   return handle;
 #endif
@@ -51,6 +52,7 @@ void* taosLoadDll(const char* filename) {
 
 void* taosLoadSym(void* handle, char* name) {
 #if defined(WINDOWS)
+  assert(0);
   return NULL;
 #elif defined(_TD_DARWIN_64)
   return NULL;
@@ -59,18 +61,19 @@ void* taosLoadSym(void* handle, char* name) {
   char* error = NULL;
 
   if ((error = dlerror()) != NULL) {
-    //printf("load sym:%s failed, error:%s", name, dlerror());
+    // printf("load sym:%s failed, error:%s", name, dlerror());
     return NULL;
   }
 
-  //printf("sym %s loaded", name);
+  // printf("sym %s loaded", name);
 
   return sym;
 #endif
 }
 
-void  taosCloseDll(void* handle) {
+void taosCloseDll(void* handle) {
 #if defined(WINDOWS)
+  assert(0);
   return;
 #elif defined(_TD_DARWIN_64)
   return;
@@ -100,7 +103,7 @@ int taosSetConsoleEcho(bool on) {
   struct termios term;
 
   if (tcgetattr(STDIN_FILENO, &term) == -1) {
-    perror("Cannot get the attribution of the terminal");
+    /*perror("Cannot get the attribution of the terminal");*/
     return -1;
   }
 
@@ -111,7 +114,7 @@ int taosSetConsoleEcho(bool on) {
 
   err = tcsetattr(STDIN_FILENO, TCSAFLUSH, &term);
   if (err == -1 || err == EINTR) {
-    printf("Cannot set the attribution of the terminal");
+    /*printf("Cannot set the attribution of the terminal");*/
     return -1;
   }
 
@@ -119,8 +122,9 @@ int taosSetConsoleEcho(bool on) {
 #endif
 }
 
-void setTerminalMode() {
+void taosSetTerminalMode() {
 #if defined(WINDOWS)
+  // assert(0);
 
 #else
   struct termios newtio;
@@ -152,9 +156,9 @@ void setTerminalMode() {
 #endif
 }
 
-int32_t getOldTerminalMode() {
+int32_t taosGetOldTerminalMode() {
 #if defined(WINDOWS)
-  
+  // assert(0);
 #else
   /* Make sure stdin is a terminal. */
   if (!isatty(STDIN_FILENO)) {
@@ -170,9 +174,9 @@ int32_t getOldTerminalMode() {
 #endif
 }
 
-void resetTerminalMode() {
+void taosResetTerminalMode() {
 #if defined(WINDOWS)
-
+  // assert(0);
 #else
   if (tcsetattr(0, TCSANOW, &oldtio) != 0) {
     fprintf(stderr, "Fail to reset the terminal properties!\n");
@@ -181,18 +185,35 @@ void resetTerminalMode() {
 #endif
 }
 
-TdCmdPtr taosOpenCmd(const char *cmd) {
+TdCmdPtr taosOpenCmd(const char* cmd) {
   if (cmd == NULL) return NULL;
+#ifdef WINDOWS
+  return (TdCmdPtr)_popen(cmd, "r");
+#else
   return (TdCmdPtr)popen(cmd, "r");
+#endif
 }
 
-int64_t taosGetLineCmd(TdCmdPtr pCmd, char ** __restrict ptrBuf) {
-  if (pCmd == NULL) {
+int64_t taosGetLineCmd(TdCmdPtr pCmd, char** __restrict ptrBuf) {
+  if (pCmd == NULL || ptrBuf == NULL) {
     return -1;
   }
-
+  if (*ptrBuf != NULL) {
+    taosMemoryFreeClear(*ptrBuf);
+  }
+#ifdef WINDOWS
+  *ptrBuf = taosMemoryMalloc(1024);
+  if (*ptrBuf == NULL) return -1;
+  if (fgets(*ptrBuf, 1023, (FILE*)pCmd) == NULL) {
+    taosMemoryFreeClear(*ptrBuf);
+    return -1;
+  }
+  (*ptrBuf)[1023] = 0;
+  return strlen(*ptrBuf);
+#else
   size_t len = 0;
   return getline(ptrBuf, &len, (FILE*)pCmd);
+#endif
 }
 
 int32_t taosEOFCmd(TdCmdPtr pCmd) {
@@ -202,11 +223,15 @@ int32_t taosEOFCmd(TdCmdPtr pCmd) {
   return feof((FILE*)pCmd);
 }
 
-int64_t taosCloseCmd(TdCmdPtr *ppCmd) {
+int64_t taosCloseCmd(TdCmdPtr* ppCmd) {
   if (ppCmd == NULL || *ppCmd == NULL) {
     return 0;
   }
+#ifdef WINDOWS
+  _pclose((FILE*)(*ppCmd));
+#else
   pclose((FILE*)(*ppCmd));
+#endif
   *ppCmd = NULL;
   return 0;
 }

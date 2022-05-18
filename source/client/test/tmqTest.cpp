@@ -108,7 +108,7 @@ TEST(testCase, tmq_subscribe_ctb_Test) {
 
   while (1) {
     tmq_message_t* msg = tmq_consumer_poll(tmq, 1000);
-    tmq_message_destroy(msg);
+    taos_free_result(msg);
     //printf("get msg\n");
     //if (msg == NULL) break;
   }
@@ -141,7 +141,7 @@ TEST(testCase, tmq_subscribe_stb_Test) {
       tmq_commit(tmq, NULL, 0);
     }
     //tmq_commit(tmq, NULL, 0);
-    tmq_message_destroy(msg);
+    taos_free_result(msg);
     //printf("get msg\n");
   }
 }

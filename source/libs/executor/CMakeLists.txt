@@ -8,7 +8,7 @@ add_library(executor STATIC ${EXECUTOR_SRC})
 #        )
 
 target_link_libraries(executor
-            PRIVATE os util common function parser planner qcom vnode scalar nodes
+            PRIVATE os util common function parser planner qcom vnode scalar nodes index
         )
 
 target_include_directories(
@@ -17,6 +17,6 @@ target_include_directories(
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
-#if(${BUILD_TEST})
+if(${BUILD_TEST})
     ADD_SUBDIRECTORY(test)
-#endif(${BUILD_TEST})
+endif(${BUILD_TEST})

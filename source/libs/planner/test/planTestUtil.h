@@ -19,19 +19,26 @@
 #include <gtest/gtest.h>
 
 class PlannerTestBaseImpl;
+struct TAOS_MULTI_BIND;
 
 class PlannerTestBase : public testing::Test {
-public:
+ public:
   PlannerTestBase();
   virtual ~PlannerTestBase();
 
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql);
+  // stmt mode APIs
+  void prepare(const std::string& sql);
+  void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx);
+  void exec();
 
-private:
+ private:
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 
-extern bool g_isDump;
+extern int32_t g_skipSql;
+
+extern void setDumpModule(const char* pModule);
 
 #endif  // PLAN_TEST_UTIL_H

@@ -22,18 +22,6 @@
 extern "C" {
 #endif
 
-typedef struct SPerfsTableSchema {
-  char   *name;
-  int32_t type;
-  int32_t bytes;
-} SPerfsTableSchema;
-
-typedef struct SPerfsTableMeta {
-  char                    *name;
-  const SPerfsTableSchema *schema;
-  int32_t                  colNum;
-} SPerfsTableMeta;
-
 int32_t mndBuildPerfsTableSchema(SMnode *pMnode, const char *dbFName, const char *tbName, STableMetaRsp *pRsp);
 int32_t mndInitPerfs(SMnode *pMnode);
 void mndCleanupPerfs(SMnode *pMnode);

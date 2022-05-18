@@ -77,7 +77,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     SyncAppendEntries* pMsg = NULL;
     SSyncRaftEntry*    pEntry = logStoreGetEntry(pSyncNode->pLogStore, nextIndex);
     if (pEntry != NULL) {
-      pMsg = syncAppendEntriesBuild(pEntry->bytes);
+      pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
       assert(pMsg != NULL);
 
       // add pEntry into msg
@@ -91,7 +91,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
 
     } else {
       // maybe overflow, send empty record
-      pMsg = syncAppendEntriesBuild(0);
+      pMsg = syncAppendEntriesBuild(0, pSyncNode->vgId);
       assert(pMsg != NULL);
     }
 

@@ -32,7 +32,7 @@
 static int32_t mndOffsetActionInsert(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionDelete(SSdb *pSdb, SMqOffsetObj *pOffset);
 static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOffset, SMqOffsetObj *pNewOffset);
-static int32_t mndProcessCommitOffsetReq(SNodeMsg *pReq);
+static int32_t mndProcessCommitOffsetReq(SRpcMsg *pReq);
 
 int32_t mndInitOffset(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_OFFSET,
@@ -49,6 +49,14 @@ int32_t mndInitOffset(SMnode *pMnode) {
 }
 
 void mndCleanupOffset(SMnode *pMnode) {}
+
+bool mndOffsetFromTopic(SMqOffsetObj *pOffset, const char *topic) {
+  int32_t i = 0;
+  while (pOffset->key[i] != ':') i++;
+  while (pOffset->key[i] != ':') i++;
+  if (strcmp(&pOffset->key[i + 1], topic) == 0) return true;
+  return false;
+}
 
 SSdbRaw *mndOffsetActionEncode(SMqOffsetObj *pOffset) {
   terrno = TSDB_CODE_OUT_OF_MEMORY;
@@ -130,15 +138,15 @@ OFFSET_DECODE_OVER:
   return pRow;
 }
 
-int32_t mndCreateOffset(STrans *pTrans, const char *cgroup, const char *topicName, const SArray *vgs) {
-  int32_t code = 0;
+int32_t mndCreateOffsets(STrans *pTrans, const char *cgroup, const char *topicName, const SArray *vgs) {
   int32_t sz = taosArrayGetSize(vgs);
   for (int32_t i = 0; i < sz; i++) {
-    SMqConsumerEp *pConsumerEp = taosArrayGet(vgs, i);
-    SMqOffsetObj   offsetObj;
-    if (mndMakePartitionKey(offsetObj.key, cgroup, topicName, pConsumerEp->vgId) < 0) {
+    int32_t      vgId = *(int32_t *)taosArrayGet(vgs, i);
+    SMqOffsetObj offsetObj = {0};
+    if (mndMakePartitionKey(offsetObj.key, cgroup, topicName, vgId) < 0) {
       return -1;
     }
+    // TODO assign db
     offsetObj.offset = -1;
     SSdbRaw *pOffsetRaw = mndOffsetActionEncode(&offsetObj);
     if (pOffsetRaw == NULL) {
@@ -152,32 +160,43 @@ int32_t mndCreateOffset(STrans *pTrans, const char *cgroup, const char *topicNam
   return 0;
 }
 
-static int32_t mndProcessCommitOffsetReq(SNodeMsg *pMsg) {
+static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
   char key[TSDB_PARTITION_KEY_LEN];
 
-  SMnode              *pMnode = pMsg->pNode;
-  char                *msgStr = pMsg->rpcMsg.pCont;
+  SMnode              *pMnode = pMsg->info.node;
+  char                *msgStr = pMsg->pCont;
   SMqCMCommitOffsetReq commitOffsetReq;
-  SCoder               decoder;
-  tCoderInit(&decoder, TD_LITTLE_ENDIAN, msgStr, pMsg->rpcMsg.contLen, TD_DECODER);
+  SDecoder             decoder;
+  tDecoderInit(&decoder, msgStr, pMsg->contLen);
 
   tDecodeSMqCMCommitOffsetReq(&decoder, &commitOffsetReq);
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_COMMIT_OFFSET, &pMsg->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_COMMIT_OFFSET, pMsg);
 
   for (int32_t i = 0; i < commitOffsetReq.num; i++) {
     SMqOffset *pOffset = &commitOffsetReq.offsets[i];
     if (mndMakePartitionKey(key, pOffset->cgroup, pOffset->topicName, pOffset->vgId) < 0) {
       return -1;
     }
+    bool          create = false;
     SMqOffsetObj *pOffsetObj = mndAcquireOffset(pMnode, key);
-    ASSERT(pOffsetObj);
+    if (pOffsetObj == NULL) {
+      pOffsetObj = taosMemoryMalloc(sizeof(SMqOffsetObj));
+      memcpy(pOffsetObj->key, key, TSDB_PARTITION_KEY_LEN);
+      create = true;
+    }
     pOffsetObj->offset = pOffset->offset;
     SSdbRaw *pOffsetRaw = mndOffsetActionEncode(pOffsetObj);
     sdbSetRawStatus(pOffsetRaw, SDB_STATUS_READY);
     mndTransAppendRedolog(pTrans, pOffsetRaw);
-    mndReleaseOffset(pMnode, pOffsetObj);
+    if (create) {
+      taosMemoryFree(pOffsetObj);
+    } else {
+      mndReleaseOffset(pMnode, pOffsetObj);
+    }
   }
+
+  tDecoderClear(&decoder);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("mq-commit-offset-trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -201,7 +220,7 @@ static int32_t mndOffsetActionDelete(SSdb *pSdb, SMqOffsetObj *pOffset) {
 
 static int32_t mndOffsetActionUpdate(SSdb *pSdb, SMqOffsetObj *pOldOffset, SMqOffsetObj *pNewOffset) {
   mTrace("offset:%s, perform update action", pOldOffset->key);
-  pOldOffset->offset = pNewOffset->offset;
+  atomic_store_64(&pOldOffset->offset, pNewOffset->offset);
   return 0;
 }
 
@@ -222,4 +241,76 @@ void mndReleaseOffset(SMnode *pMnode, SMqOffsetObj *pOffset) {
 static void mndCancelGetNextOffset(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndSetDropOffsetCommitLogs(SMnode *pMnode, STrans *pTrans, SMqOffsetObj *pOffset) {
+  SSdbRaw *pCommitRaw = mndOffsetActionEncode(pOffset);
+  if (pCommitRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;
+  if (sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  return 0;
+}
+
+static int32_t mndSetDropOffsetRedoLogs(SMnode *pMnode, STrans *pTrans, SMqOffsetObj *pOffset) {
+  SSdbRaw *pRedoRaw = mndOffsetActionEncode(pOffset);
+  if (pRedoRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pRedoRaw) != 0) return -1;
+  if (sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPED) != 0) return -1;
+  return 0;
+}
+
+int32_t mndDropOffsetByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb) {
+  int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  void         *pIter = NULL;
+  SMqOffsetObj *pOffset = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_OFFSET, pIter, (void **)&pOffset);
+    if (pIter == NULL) break;
+
+    if (pOffset->dbUid != pDb->uid) {
+      sdbRelease(pSdb, pOffset);
+      continue;
+    }
+
+    if (mndSetDropOffsetCommitLogs(pMnode, pTrans, pOffset) < 0) {
+      sdbRelease(pSdb, pOffset);
+      goto END;
+    }
+
+    sdbRelease(pSdb, pOffset);
+  }
+
+  code = 0;
+END:
+  return code;
+}
+
+int32_t mndDropOffsetByTopic(SMnode *pMnode, STrans *pTrans, const char *topic) {
+  int32_t code = -1;
+  SSdb   *pSdb = pMnode->pSdb;
+
+  void         *pIter = NULL;
+  SMqOffsetObj *pOffset = NULL;
+  while (1) {
+    pIter = sdbFetch(pSdb, SDB_OFFSET, pIter, (void **)&pOffset);
+    if (pIter == NULL) break;
+
+    if (!mndOffsetFromTopic(pOffset, topic)) {
+      sdbRelease(pSdb, pOffset);
+      continue;
+    }
+
+    if (mndSetDropOffsetRedoLogs(pMnode, pTrans, pOffset) < 0) {
+      sdbRelease(pSdb, pOffset);
+      goto END;
+    }
+
+    sdbRelease(pSdb, pOffset);
+  }
+
+  code = 0;
+END:
+  return code;
 }

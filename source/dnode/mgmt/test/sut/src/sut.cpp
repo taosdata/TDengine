@@ -30,6 +30,7 @@ void Testbase::InitLog(const char* path) {
   tsdbDebugFlag = 0;
   tsLogEmbedded = 1;
   tsAsyncLog = 0;
+  tsRpcQueueMemoryAllowed = 1024 * 1024 * 64;
 
   taosRemoveDir(path);
   taosMkDir(path);
@@ -40,15 +41,17 @@ void Testbase::InitLog(const char* path) {
 }
 
 void Testbase::Init(const char* path, int16_t port) {
-  dmInit();
-
-  char fqdn[] = "localhost";
-  char firstEp[TSDB_EP_LEN] = {0};
-  snprintf(firstEp, TSDB_EP_LEN, "%s:%u", fqdn, port);
-
+  tsServerPort = port;
+  strcpy(tsLocalFqdn, "localhost");
+  snprintf(tsLocalEp, TSDB_EP_LEN, "%s:%u", tsLocalFqdn, tsServerPort);
+  strcpy(tsFirst, tsLocalEp);
+  strcpy(tsDataDir, path);
+  taosRemoveDir(path);
+  taosMkDir(path);
   InitLog("/tmp/td");
-  server.Start(path, fqdn, port, firstEp);
-  client.Init("root", "taosdata", fqdn, port);
+
+  server.Start();
+  client.Init("root", "taosdata");
   showRsp = NULL;
 }
 
@@ -64,13 +67,12 @@ void Testbase::Cleanup() {
 }
 
 void Testbase::Restart() {
-  server.Restart();
+  // server.Restart();
   client.Restart();
 }
 
 void Testbase::ServerStop() { server.Stop(); }
-
-void Testbase::ServerStart() { server.DoStart(); }
+void Testbase::ServerStart() { server.Start(); }
 void Testbase::ClientRestart() { client.Restart(); }
 
 SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
@@ -82,14 +84,13 @@ SRpcMsg* Testbase::SendReq(tmsg_t msgType, void* pCont, int32_t contLen) {
   return client.SendReq(&rpcMsg);
 }
 
-int32_t Testbase::SendShowReq(int8_t showType, const char *tb, const char* db) {
+int32_t Testbase::SendShowReq(int8_t showType, const char* tb, const char* db) {
   if (showRsp != NULL) {
     rpcFreeCont(showRsp);
     showRsp = NULL;
   }
 
   SRetrieveTableReq retrieveReq = {0};
-  retrieveReq.type = showType;
   strcpy(retrieveReq.db, db);
   strcpy(retrieveReq.tb, tb);
 

@@ -366,7 +366,7 @@ const STfsFile *tfsReaddir(STfsDir *pTfsDir) {
 void tfsClosedir(STfsDir *pTfsDir) {
   if (pTfsDir) {
     if (pTfsDir->pDir != NULL) {
-      taosCloseDir(pTfsDir->pDir);
+      taosCloseDir(&pTfsDir->pDir);
       pTfsDir->pDir = NULL;
     }
     taosMemoryFree(pTfsDir);
@@ -455,7 +455,7 @@ static int32_t tfsFormatDir(char *idir, char *odir) {
   }
 
   char tmp[PATH_MAX] = {0};
-  if (realpath(wep.we_wordv[0], tmp) == NULL) {
+  if (taosRealPath(wep.we_wordv[0], tmp, PATH_MAX) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     wordfree(&wep);
     return -1;
@@ -499,7 +499,7 @@ static int32_t tfsOpendirImpl(STfs *pTfs, STfsDir *pTfsDir) {
   char      adir[TMPNAME_LEN * 2] = "\0";
 
   if (pTfsDir->pDir != NULL) {
-    taosCloseDir(pTfsDir->pDir);
+    taosCloseDir(&pTfsDir->pDir);
     pTfsDir->pDir = NULL;
   }
 

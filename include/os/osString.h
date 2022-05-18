@@ -37,9 +37,10 @@ typedef int32_t TdUcs4;
     #define wcstombs WCSTOMBS_FUNC_TAOS_FORBID
     #define wcsncpy WCSNCPY_FUNC_TAOS_FORBID
     #define wchar_t WCHAR_T_TYPE_TAOS_FORBID
+    #define strcasestr STR_CASE_STR_FORBID
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   #define tstrdup(str) _strdup(str)
 #else
   #define tstrdup(str) strdup(str)
@@ -59,6 +60,8 @@ bool    taosMbsToUcs4(const char *mbs, size_t mbs_len, TdUcs4 *ucs4, int32_t ucs
 int32_t tasoUcs4Compare(TdUcs4 *f1_ucs4, TdUcs4 *f2_ucs4, int32_t bytes);
 TdUcs4* tasoUcs4Copy(TdUcs4 *target_ucs4, TdUcs4 *source_ucs4, int32_t len_ucs4);
 bool    taosValidateEncodec(const char *encodec);
+int32_t taosHexEncode(const char *src, char *dst, int32_t len);
+int32_t taosHexDecode(const char *src, char *dst, int32_t len);
 
 int32_t taosWcharWidth(TdWchar wchar);
 int32_t taosWcharsWidth(TdWchar *pWchar, int32_t size);
@@ -66,6 +69,8 @@ int32_t taosMbToWchar(TdWchar *pWchar, const char *pStr, int32_t size);
 int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size);
 int32_t taosWcharToMb(char *pStr, TdWchar wchar);
 int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size);
+
+char *taosStrCaseStr(const char *str, const char *pattern);
 
 #ifdef __cplusplus
 }

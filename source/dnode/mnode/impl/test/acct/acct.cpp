@@ -13,7 +13,7 @@
 
 class MndTestAcct : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_acct", 9012); }
+  static void SetUpTestSuite() { test.Init("/tmp/acctTest", 9012); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -32,7 +32,7 @@ TEST_F(MndTestAcct, 01_Create_Acct) {
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_ACCT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MSG_NOT_PROCESSED);
 }
 
 TEST_F(MndTestAcct, 02_Alter_Acct) {
@@ -42,7 +42,7 @@ TEST_F(MndTestAcct, 02_Alter_Acct) {
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_ACCT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MSG_NOT_PROCESSED);
 }
 
 TEST_F(MndTestAcct, 03_Drop_Acct) {
@@ -52,5 +52,5 @@ TEST_F(MndTestAcct, 03_Drop_Acct) {
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_ACCT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MSG_NOT_PROCESSED);
 }

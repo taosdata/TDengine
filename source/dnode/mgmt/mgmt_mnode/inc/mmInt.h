@@ -16,8 +16,7 @@
 #ifndef _TD_DND_MNODE_INT_H_
 #define _TD_DND_MNODE_INT_H_
 
-#include "dmInt.h"
-
+#include "dmUtil.h"
 #include "mnode.h"
 
 #ifdef __cplusplus
@@ -25,10 +24,11 @@ extern "C" {
 #endif
 
 typedef struct SMnodeMgmt {
+  SDnodeData   *pData;
   SMnode       *pMnode;
-  SDnode       *pDnode;
-  SMgmtWrapper *pWrapper;
+  SMsgCb        msgCb;
   const char   *path;
+  const char   *name;
   SSingleWorker queryWorker;
   SSingleWorker readWorker;
   SSingleWorker writeWorker;
@@ -41,33 +41,31 @@ typedef struct SMnodeMgmt {
 
 // mmFile.c
 int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
-int32_t mmWriteFile(SMgmtWrapper *pWrapper, SDCreateMnodeReq *pReq, bool deployed);
+int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq, bool deployed);
 
 // mmInt.c
 int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq);
 
 // mmHandle.c
-void    mmInitMsgHandle(SMgmtWrapper *pWrapper);
-int32_t mmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t mmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SNodeMsg *pMsg);
-int32_t mmProcessGetMonMmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
-int32_t mmProcessGetMnodeLoadsReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
-void    mmGetMnodeLoads(SMgmtWrapper *pWrapper, SMonMloadInfo *pInfo);
+SArray *mmGetMsgHandles();
+int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq);
+int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq);
 
 // mmWorker.c
 int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
-int32_t mmProcessWriteMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t mmProcessSyncMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t mmProcessReadMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t mmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t mmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-
-int32_t mmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);
-int32_t mmPutMsgToReadQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);
-int32_t mmPutMsgToWriteQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);
-int32_t mmPutMsgToSyncQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc);
+int32_t mmPutNodeMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutRpcMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc);
+int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc);
+int32_t mmPutRpcMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc);
+int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc);
 
 #ifdef __cplusplus
 }

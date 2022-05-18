@@ -26,8 +26,13 @@ int32_t mndInitSubscribe(SMnode *pMnode);
 void    mndCleanupSubscribe(SMnode *pMnode);
 
 SMqSubscribeObj *mndAcquireSubscribe(SMnode *pMnode, const char *CGroup, const char *topicName);
-SMqSubscribeObj *mndAcquireSubscribeByKey(SMnode *pMnode, const char* key);
+SMqSubscribeObj *mndAcquireSubscribeByKey(SMnode *pMnode, const char *key);
 void             mndReleaseSubscribe(SMnode *pMnode, SMqSubscribeObj *pSub);
+
+int32_t mndMakeSubscribeKey(char *key, const char *cgroup, const char *topicName);
+
+int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
+int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topic);
 
 #ifdef __cplusplus
 }

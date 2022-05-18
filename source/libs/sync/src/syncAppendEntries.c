@@ -15,6 +15,7 @@
 
 #include "syncAppendEntries.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -125,7 +126,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         "logOK:%d",
         pMsg->term, ths->pRaftStore->currentTerm, ths->state, logOK);
 
-    SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild();
+    SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
     pReply->srcId = ths->myRaftId;
     pReply->destId = pMsg->srcId;
     pReply->term = ths->pRaftStore->currentTerm;
@@ -199,13 +200,21 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
             SSyncRaftEntry* pRollBackEntry = logStoreGetEntry(ths->pLogStore, index);
             assert(pRollBackEntry != NULL);
 
-            // maybe is a NOOP ENTRY
-            // assert(pRollBackEntry->entryType == SYNC_RAFT_ENTRY_DATA);
+            // if (pRollBackEntry->msgType != TDMT_VND_SYNC_NOOP) {
+            if (syncUtilUserRollback(pRollBackEntry->msgType)) {
+              SRpcMsg rpcMsg;
+              syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
 
-            SRpcMsg rpcMsg;
-            syncEntry2OriginalRpc(pRollBackEntry, &rpcMsg);
-            ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, pRollBackEntry->index, pRollBackEntry->isWeak, 0, ths->state);
-            rpcFreeCont(rpcMsg.pCont);
+              SFsmCbMeta cbMeta;
+              cbMeta.index = pRollBackEntry->index;
+              cbMeta.isWeak = pRollBackEntry->isWeak;
+              cbMeta.code = 0;
+              cbMeta.state = ths->state;
+              cbMeta.seqNum = pRollBackEntry->seqNum;
+              ths->pFsm->FpRollBackCb(ths->pFsm, &rpcMsg, cbMeta);
+              rpcFreeCont(rpcMsg.pCont);
+            }
+
             syncEntryDestory(pRollBackEntry);
           }
         }
@@ -220,8 +229,15 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         SRpcMsg rpcMsg;
         syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
         if (ths->pFsm != NULL) {
-          if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
-            ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pAppendEntry->index, pAppendEntry->isWeak, 2, ths->state);
+          // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+          if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
+            SFsmCbMeta cbMeta;
+            cbMeta.index = pAppendEntry->index;
+            cbMeta.isWeak = pAppendEntry->isWeak;
+            cbMeta.code = 2;
+            cbMeta.state = ths->state;
+            cbMeta.seqNum = pAppendEntry->seqNum;
+            ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
           }
         }
         rpcFreeCont(rpcMsg.pCont);
@@ -245,8 +261,15 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       SRpcMsg rpcMsg;
       syncEntry2OriginalRpc(pAppendEntry, &rpcMsg);
       if (ths->pFsm != NULL) {
-        if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
-          ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, pAppendEntry->index, pAppendEntry->isWeak, 3, ths->state);
+        // if (ths->pFsm->FpPreCommitCb != NULL && pAppendEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+        if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pAppendEntry->originalRpcType)) {
+          SFsmCbMeta cbMeta;
+          cbMeta.index = pAppendEntry->index;
+          cbMeta.isWeak = pAppendEntry->isWeak;
+          cbMeta.code = 3;
+          cbMeta.state = ths->state;
+          cbMeta.seqNum = pAppendEntry->seqNum;
+          ths->pFsm->FpPreCommitCb(ths->pFsm, &rpcMsg, cbMeta);
         }
       }
       rpcFreeCont(rpcMsg.pCont);
@@ -261,7 +284,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       assert(0);
     }
 
-    SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild();
+    SyncAppendEntriesReply* pReply = syncAppendEntriesReplyBuild(ths->vgId);
     pReply->srcId = ths->myRaftId;
     pReply->destId = pMsg->srcId;
     pReply->term = ths->pRaftStore->currentTerm;
@@ -301,8 +324,29 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               SRpcMsg rpcMsg;
               syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-              if (ths->pFsm->FpCommitCb != NULL && pEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
-                ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, ths->state);
+              // if (ths->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+              if (ths->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
+                SFsmCbMeta cbMeta;
+                cbMeta.index = pEntry->index;
+                cbMeta.isWeak = pEntry->isWeak;
+                cbMeta.code = 0;
+                cbMeta.state = ths->state;
+                cbMeta.seqNum = pEntry->seqNum;
+                ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+              }
+
+              // config change
+              if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+                SSyncCfg newSyncCfg;
+                int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
+                ASSERT(ret == 0);
+
+                syncNodeUpdateConfig(ths, &newSyncCfg);
+                if (ths->state == TAOS_SYNC_STATE_LEADER) {
+                  syncNodeBecomeLeader(ths);
+                } else {
+                  syncNodeBecomeFollower(ths);
+                }
               }
 
               rpcFreeCont(rpcMsg.pCont);

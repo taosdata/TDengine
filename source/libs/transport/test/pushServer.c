@@ -69,11 +69,11 @@ void processShellMsg() {
       memset(&rpcMsg, 0, sizeof(rpcMsg));
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
-      rpcMsg.handle = pRpcMsg->handle;
+      rpcMsg.info = pRpcMsg->info;
       rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
-      void *handle = pRpcMsg->handle;
+      void *handle = pRpcMsg->info.handle;
       taosFreeQitem(pRpcMsg);
 
       {
@@ -81,7 +81,7 @@ void processShellMsg() {
         SRpcMsg nRpcMsg = {0};
         nRpcMsg.pCont = rpcMallocCont(msgSize);
         nRpcMsg.contLen = msgSize;
-        nRpcMsg.handle = handle;
+        nRpcMsg.info.handle = handle;
         nRpcMsg.code = TSDB_CODE_CTG_NOT_READY;
         rpcSendResponse(&nRpcMsg);
       }
@@ -114,7 +114,7 @@ int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);

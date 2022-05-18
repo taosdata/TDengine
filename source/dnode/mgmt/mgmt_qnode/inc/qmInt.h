@@ -16,7 +16,7 @@
 #ifndef _TD_DND_QNODE_INT_H_
 #define _TD_DND_QNODE_INT_H_
 
-#include "dmInt.h"
+#include "dmUtil.h"
 
 #include "qnode.h"
 
@@ -25,31 +25,32 @@ extern "C" {
 #endif
 
 typedef struct SQnodeMgmt {
+  SDnodeData   *pData;
   SQnode       *pQnode;
-  SDnode       *pDnode;
-  SMgmtWrapper *pWrapper;
+  SMsgCb        msgCb;
   const char   *path;
+  const char   *name;
   SSingleWorker queryWorker;
   SSingleWorker fetchWorker;
   SSingleWorker monitorWorker;
 } SQnodeMgmt;
 
 // qmHandle.c
-void    qmInitMsgHandle(SMgmtWrapper *pWrapper);
-int32_t qmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t qmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t qmProcessGetMonQmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq);
+SArray *qmGetMsgHandles();
+int32_t qmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t qmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
+int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SRpcMsg *pReq);
 
 // qmWorker.c
-int32_t qmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-int32_t qmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
-int32_t qmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype);
+int32_t qmPutRpcMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t qmPutRpcMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype);
 
 int32_t qmStartWorker(SQnodeMgmt *pMgmt);
 void    qmStopWorker(SQnodeMgmt *pMgmt);
-int32_t qmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t qmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
-int32_t qmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg);
+int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

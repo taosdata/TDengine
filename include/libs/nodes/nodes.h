@@ -22,19 +22,20 @@ extern "C" {
 
 #include "tdef.h"
 
-#define nodeType(nodeptr) (((const SNode*)(nodeptr))->type)
+#define nodeType(nodeptr)          (((const SNode*)(nodeptr))->type)
 #define setNodeType(nodeptr, type) (((SNode*)(nodeptr))->type = (type))
 
 #define LIST_LENGTH(l) (NULL != (l) ? (l)->length : 0)
 
-#define FOREACH(node, list)	\
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
+#define FOREACH(node, list)                                       \
+  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
+       (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false)); cell = cell->pNext)
 
 #define REPLACE_NODE(newNode) cell->pNode = (SNode*)(newNode)
 
 #define INSERT_LIST(target, src) nodesListInsertList((target), cell, src)
 
-#define WHERE_EACH(node, list) \
+#define WHERE_EACH(node, list)                               \
   SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
   while (NULL != cell ? (node = cell->pNode, true) : (node = NULL, false))
 
@@ -43,13 +44,26 @@ extern "C" {
 // only be use in WHERE_EACH
 #define ERASE_NODE(list) cell = nodesListErase((list), cell)
 
-#define FORBOTH(node1, list1, node2, list2) \
-  for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL), *cell2 = (NULL != (list2) ? (list2)->pHead : NULL); \
-    (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)), (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), (node1 != NULL && node2 != NULL); \
-    cell1 = cell1->pNext, cell2 = cell2->pNext)
+#define FORBOTH(node1, list1, node2, list2)                                               \
+  for (SListCell* cell1 = (NULL != (list1) ? (list1)->pHead : NULL),                      \
+                  *cell2 = (NULL != (list2) ? (list2)->pHead : NULL);                     \
+       (NULL == cell1 ? (node1 = NULL, false) : (node1 = cell1->pNode, true)),            \
+                  (NULL == cell2 ? (node2 = NULL, false) : (node2 = cell2->pNode, true)), \
+                  (node1 != NULL && node2 != NULL);                                       \
+       cell1 = cell1->pNext, cell2 = cell2->pNext)
 
-#define FOREACH_FOR_REWRITE(node, list)	\
-  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
+#define REPLACE_LIST1_NODE(newNode) cell1->pNode = (SNode*)(newNode)
+#define REPLACE_LIST2_NODE(newNode) cell2->pNode = (SNode*)(newNode)
+
+#define FOREACH_FOR_REWRITE(node, list)                           \
+  for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
+       (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
+
+#define DESTORY_LIST(list)  \
+  do {                      \
+    nodesDestroyList(list); \
+    list = NULL;            \
+  } while (0)
 
 typedef enum ENodeType {
   // Syntax nodes are used in parser and planner module, and some are also used in executor module, such as COLUMN,
@@ -81,6 +95,7 @@ typedef enum ENodeType {
   QUERY_NODE_INDEX_OPTIONS,
   QUERY_NODE_EXPLAIN_OPTIONS,
   QUERY_NODE_STREAM_OPTIONS,
+  QUERY_NODE_TOPIC_OPTIONS,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,
@@ -128,12 +143,15 @@ typedef enum ENodeType {
   QUERY_NODE_REDISTRIBUTE_VGROUP_STMT,
   QUERY_NODE_SPLIT_VGROUP_STMT,
   QUERY_NODE_SYNCDB_STMT,
+  QUERY_NODE_GRANT_STMT,
+  QUERY_NODE_REVOKE_STMT,
   QUERY_NODE_SHOW_DNODES_STMT,
   QUERY_NODE_SHOW_MNODES_STMT,
   QUERY_NODE_SHOW_MODULES_STMT,
   QUERY_NODE_SHOW_QNODES_STMT,
   QUERY_NODE_SHOW_SNODES_STMT,
   QUERY_NODE_SHOW_BNODES_STMT,
+  QUERY_NODE_SHOW_CLUSTER_STMT,
   QUERY_NODE_SHOW_DATABASES_STMT,
   QUERY_NODE_SHOW_FUNCTIONS_STMT,
   QUERY_NODE_SHOW_INDEXES_STMT,
@@ -146,7 +164,6 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_TOPICS_STMT,
   QUERY_NODE_SHOW_CONSUMERS_STMT,
   QUERY_NODE_SHOW_SUBSCRIBES_STMT,
-  QUERY_NODE_SHOW_TRANS_STMT,
   QUERY_NODE_SHOW_SMAS_STMT,
   QUERY_NODE_SHOW_CONFIGS_STMT,
   QUERY_NODE_SHOW_CONNECTIONS_STMT,
@@ -158,8 +175,11 @@ typedef enum ENodeType {
   QUERY_NODE_SHOW_CREATE_DATABASE_STMT,
   QUERY_NODE_SHOW_CREATE_TABLE_STMT,
   QUERY_NODE_SHOW_CREATE_STABLE_STMT,
+  QUERY_NODE_SHOW_TRANSACTIONS_STMT,
   QUERY_NODE_KILL_CONNECTION_STMT,
   QUERY_NODE_KILL_QUERY_STMT,
+  QUERY_NODE_KILL_TRANSACTION_STMT,
+  QUERY_NODE_QUERY,
 
   // logic plan node
   QUERY_NODE_LOGIC_PLAN_SCAN,
@@ -169,6 +189,7 @@ typedef enum ENodeType {
   QUERY_NODE_LOGIC_PLAN_VNODE_MODIF,
   QUERY_NODE_LOGIC_PLAN_EXCHANGE,
   QUERY_NODE_LOGIC_PLAN_WINDOW,
+  QUERY_NODE_LOGIC_PLAN_FILL,
   QUERY_NODE_LOGIC_PLAN_SORT,
   QUERY_NODE_LOGIC_PLAN_PARTITION,
   QUERY_NODE_LOGIC_SUBPLAN,
@@ -186,6 +207,8 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_EXCHANGE,
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_FILL,
   QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_PARTITION,
@@ -197,7 +220,7 @@ typedef enum ENodeType {
 
 /**
  * The first field of a node of any type is guaranteed to be the ENodeType.
- * Hence the type of any node can be gotten by casting it to SNode. 
+ * Hence the type of any node can be gotten by casting it to SNode.
  */
 typedef struct SNode {
   ENodeType type;
@@ -206,41 +229,37 @@ typedef struct SNode {
 typedef struct SListCell {
   struct SListCell* pPrev;
   struct SListCell* pNext;
-  SNode* pNode;
+  SNode*            pNode;
 } SListCell;
 
 typedef struct SNodeList {
-  int32_t length;
+  int32_t    length;
   SListCell* pHead;
   SListCell* pTail;
 } SNodeList;
 
-#define SNodeptr void*  
+#define SNodeptr void*
 
+int32_t  nodesNodeSize(ENodeType type);
 SNodeptr nodesMakeNode(ENodeType type);
-void nodesDestroyNode(SNodeptr pNode);
+void     nodesDestroyNode(SNodeptr pNode);
 
 SNodeList* nodesMakeList();
-int32_t nodesListAppend(SNodeList* pList, SNodeptr pNode);
-int32_t nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
-int32_t nodesListMakeAppend(SNodeList** pList, SNodeptr pNode);
-int32_t nodesListMakeStrictAppend(SNodeList** pList, SNodeptr pNode);
-int32_t nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
-int32_t nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
-int32_t nodesListPushFront(SNodeList* pList, SNodeptr pNode);
+int32_t    nodesListAppend(SNodeList* pList, SNodeptr pNode);
+int32_t    nodesListStrictAppend(SNodeList* pList, SNodeptr pNode);
+int32_t    nodesListMakeAppend(SNodeList** pList, SNodeptr pNode);
+int32_t    nodesListMakeStrictAppend(SNodeList** pList, SNodeptr pNode);
+int32_t    nodesListAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t    nodesListStrictAppendList(SNodeList* pTarget, SNodeList* pSrc);
+int32_t    nodesListPushFront(SNodeList* pList, SNodeptr pNode);
 SListCell* nodesListErase(SNodeList* pList, SListCell* pCell);
-void nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
-SNodeptr nodesListGetNode(SNodeList* pList, int32_t index);
-void nodesDestroyList(SNodeList* pList);
+void       nodesListInsertList(SNodeList* pTarget, SListCell* pPos, SNodeList* pSrc);
+SNodeptr   nodesListGetNode(SNodeList* pList, int32_t index);
+void       nodesDestroyList(SNodeList* pList);
 // Only clear the linked list structure, without releasing the elements inside
 void nodesClearList(SNodeList* pList);
 
-typedef enum EDealRes {
-  DEAL_RES_CONTINUE = 1,
-  DEAL_RES_IGNORE_CHILD,
-  DEAL_RES_ERROR,
-  DEAL_RES_END
-} EDealRes;
+typedef enum EDealRes { DEAL_RES_CONTINUE = 1, DEAL_RES_IGNORE_CHILD, DEAL_RES_ERROR, DEAL_RES_END } EDealRes;
 
 typedef EDealRes (*FNodeWalker)(SNode* pNode, void* pContext);
 void nodesWalkExpr(SNodeptr pNode, FNodeWalker walker, void* pContext);
@@ -256,18 +275,18 @@ void nodesRewriteExprsPostOrder(SNodeList* pList, FNodeRewriter rewriter, void* 
 
 bool nodesEqualNode(const SNodeptr a, const SNodeptr b);
 
-SNodeptr nodesCloneNode(const SNodeptr pNode);
+SNodeptr   nodesCloneNode(const SNodeptr pNode);
 SNodeList* nodesCloneList(const SNodeList* pList);
 
 const char* nodesNodeName(ENodeType type);
-int32_t nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen);
-int32_t nodesStringToNode(const char* pStr, SNode** pNode);
+int32_t     nodesNodeToString(const SNodeptr pNode, bool format, char** pStr, int32_t* pLen);
+int32_t     nodesStringToNode(const char* pStr, SNode** pNode);
 
 int32_t nodesListToString(const SNodeList* pList, bool format, char** pStr, int32_t* pLen);
 int32_t nodesStringToList(const char* pStr, SNodeList** pList);
 
-int32_t nodesNodeToSQL(SNode *pNode, char *buf, int32_t bufSize, int32_t *len);
-char *nodesGetNameFromColumnNode(SNode *pNode);
+int32_t nodesNodeToSQL(SNode* pNode, char* buf, int32_t bufSize, int32_t* len);
+char*   nodesGetNameFromColumnNode(SNode* pNode);
 int32_t nodesGetOutputNumFromSlotList(SNodeList* pSlots);
 
 #ifdef __cplusplus

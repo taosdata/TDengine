@@ -1,0 +1,28 @@
+sql connect
+
+#---- global parameters start ----#
+$dbName    = db
+$vgroups    = 1
+$stbPrefix  = stb
+$ctbPrefix  = ctb
+$ntbPrefix  = ntb
+$stbNum     = 1
+$ctbNum     = 10
+$ntbNum     = 10
+$rowsPerCtb = 100
+$tstart     = 1640966400000  # 2022-01-01 00:00:00.000
+#---- global parameters end ----#
+
+sql use $dbName
+
+print == create consume info table and consume result table
+sql drop table consumeinfo
+sql drop table consumeresult
+sql create table consumeinfo (ts timestamp, consumerid int, topiclist binary(1024), keylist binary(1024), expectmsgcnt bigint, ifcheckdata int)
+sql create table consumeresult (ts timestamp, consumerid int, consummsgcnt bigint, consumrowcnt bigint, checkresult int)
+
+sql show tables
+if $rows != 2 then 
+  return -1
+endi
+

@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "querynodes.h"
 #include "plannodes.h"
+#include "querynodes.h"
 
 typedef enum ETraversalOrder {
   TRAVERSAL_PREORDER = 1,
@@ -29,7 +29,8 @@ static EDealRes walkExprs(SNodeList* pNodeList, ETraversalOrder order, FNodeWalk
 static EDealRes walkPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalker walker, void* pContext);
 static EDealRes walkPhysiPlans(SNodeList* pNodeList, ETraversalOrder order, FNodeWalker walker, void* pContext);
 
-static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker, void* pContext, FNodeDispatcher dispatcher) {
+static EDealRes walkNode(SNode* pNode, ETraversalOrder order, FNodeWalker walker, void* pContext,
+                         FNodeDispatcher dispatcher) {
   if (NULL == pNode) {
     return DEAL_RES_CONTINUE;
   }
@@ -77,7 +78,7 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
       break;
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
-      break; // todo
+      break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
       res = walkExpr(pJoinTableNode->pLeft, order, walker, pContext);
@@ -131,9 +132,14 @@ static EDealRes dispatchExpr(SNode* pNode, ETraversalOrder order, FNodeWalker wa
     case QUERY_NODE_NODE_LIST:
       res = walkExprs(((SNodeListNode*)pNode)->pNodeList, order, walker, pContext);
       break;
-    case QUERY_NODE_FILL:
-      res = walkExpr(((SFillNode*)pNode)->pValues, order, walker, pContext);
+    case QUERY_NODE_FILL: {
+      SFillNode* pFill = (SFillNode*)pNode;
+      res = walkExpr(pFill->pValues, order, walker, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = walkExpr(pFill->pWStartTs, order, walker, pContext);
+      }
       break;
+    }
     case QUERY_NODE_RAW_EXPR:
       res = walkExpr(((SRawExprNode*)pNode)->pNode, order, walker, pContext);
       break;
@@ -217,7 +223,7 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
       break;
     case QUERY_NODE_REAL_TABLE:
     case QUERY_NODE_TEMP_TABLE:
-      break; // todo
+      break;  // todo
     case QUERY_NODE_JOIN_TABLE: {
       SJoinTableNode* pJoinTableNode = (SJoinTableNode*)pNode;
       res = rewriteExpr(&(pJoinTableNode->pLeft), order, rewriter, pContext);
@@ -271,9 +277,14 @@ static EDealRes rewriteExpr(SNode** pRawNode, ETraversalOrder order, FNodeRewrit
     case QUERY_NODE_NODE_LIST:
       res = rewriteExprs(((SNodeListNode*)pNode)->pNodeList, order, rewriter, pContext);
       break;
-    case QUERY_NODE_FILL:
-      res = rewriteExpr(&(((SFillNode*)pNode)->pValues), order, rewriter, pContext);
+    case QUERY_NODE_FILL: {
+      SFillNode* pFill = (SFillNode*)pNode;
+      res = rewriteExpr(&pFill->pValues, order, rewriter, pContext);
+      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
+        res = rewriteExpr(&(pFill->pWStartTs), order, rewriter, pContext);
+      }
       break;
+    }
     case QUERY_NODE_RAW_EXPR:
       res = rewriteExpr(&(((SRawExprNode*)pNode)->pNode), order, rewriter, pContext);
       break;
@@ -332,6 +343,9 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
     case SQL_CLAUSE_PARTITION_BY:
       nodesWalkExpr(pSelect->pWindow, walker, pContext);
     case SQL_CLAUSE_WINDOW:
+      if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+        nodesWalkExpr(((SIntervalWindowNode*)pSelect->pWindow)->pFill, walker, pContext);
+      }
       nodesWalkExprs(pSelect->pGroupByList, walker, pContext);
     case SQL_CLAUSE_GROUP_BY:
       nodesWalkExpr(pSelect->pHaving, walker, pContext);
@@ -339,7 +353,7 @@ void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker wa
     case SQL_CLAUSE_DISTINCT:
       nodesWalkExprs(pSelect->pOrderByList, walker, pContext);
     case SQL_CLAUSE_ORDER_BY:
-      nodesWalkExprs(pSelect->pProjectionList, walker, pContext);      
+      nodesWalkExprs(pSelect->pProjectionList, walker, pContext);
     default:
       break;
   }
@@ -361,6 +375,9 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     case SQL_CLAUSE_PARTITION_BY:
       nodesRewriteExpr(&(pSelect->pWindow), rewriter, pContext);
     case SQL_CLAUSE_WINDOW:
+      if (NULL != pSelect->pWindow && QUERY_NODE_INTERVAL_WINDOW == nodeType(pSelect->pWindow)) {
+        nodesRewriteExpr(&(((SIntervalWindowNode*)pSelect->pWindow)->pFill), rewriter, pContext);
+      }
       nodesRewriteExprs(pSelect->pGroupByList, rewriter, pContext);
     case SQL_CLAUSE_GROUP_BY:
       nodesRewriteExpr(&(pSelect->pHaving), rewriter, pContext);
@@ -368,7 +385,7 @@ void nodesRewriteSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeRewrit
     case SQL_CLAUSE_DISTINCT:
       nodesRewriteExprs(pSelect->pOrderByList, rewriter, pContext);
     case SQL_CLAUSE_ORDER_BY:
-      nodesRewriteExprs(pSelect->pProjectionList, rewriter, pContext);      
+      nodesRewriteExprs(pSelect->pProjectionList, rewriter, pContext);
     default:
       break;
   }
@@ -395,7 +412,8 @@ static EDealRes walkScanPhysi(SScanPhysiNode* pScan, ETraversalOrder order, FNod
   return res;
 }
 
-static EDealRes walkTableScanPhysi(STableScanPhysiNode* pScan, ETraversalOrder order, FNodeWalker walker, void* pContext) {
+static EDealRes walkTableScanPhysi(STableScanPhysiNode* pScan, ETraversalOrder order, FNodeWalker walker,
+                                   void* pContext) {
   EDealRes res = walkScanPhysi((SScanPhysiNode*)pScan, order, walker, pContext);
   if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
     res = walkPhysiPlans(pScan->pDynamicScanFuncs, order, walker, pContext);
@@ -421,6 +439,9 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
   EDealRes res = DEAL_RES_CONTINUE;
 
   switch (nodeType(pNode)) {
+    case QUERY_NODE_NODE_LIST:
+      res = walkPhysiPlans(((SNodeListNode*)pNode)->pNodeList, order, walker, pContext);
+      break;
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       res = walkScanPhysi((SScanPhysiNode*)pNode, order, walker, pContext);
       break;
@@ -491,14 +512,10 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       }
       break;
     }
-    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL: {
-      SIntervalPhysiNode* pInterval = (SIntervalPhysiNode*)pNode;
+    case QUERY_NODE_PHYSICAL_PLAN_INTERVAL:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL:
       res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlan((SNode*)pInterval->pFill, order, walker, pContext);
-      }
       break;
-    }
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
       break;
@@ -532,10 +549,7 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       break;
     case QUERY_NODE_PHYSICAL_SUBPLAN: {
       SSubplan* pSubplan = (SSubplan*)pNode;
-      res = walkPhysiNode((SPhysiNode*)pNode, order, walker, pContext);
-      if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
-        res = walkPhysiPlans(pSubplan->pChildren, order, walker, pContext);
-      }
+      res = walkPhysiPlans(pSubplan->pChildren, order, walker, pContext);
       if (DEAL_RES_ERROR != res && DEAL_RES_END != res) {
         res = walkPhysiPlan((SNode*)pSubplan->pNode, order, walker, pContext);
       }

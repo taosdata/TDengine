@@ -17,7 +17,7 @@
 #include "mndAuth.h"
 #include "mndUser.h"
 
-static int32_t mndProcessAuthReq(SNodeMsg *pReq);
+static int32_t mndProcessAuthReq(SRpcMsg *pReq);
 
 int32_t mndInitAuth(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_MND_AUTH, mndProcessAuthReq);
@@ -45,9 +45,9 @@ static int32_t mndRetriveAuth(SMnode *pMnode, SAuthRsp *pRsp) {
   return 0;
 }
 
-static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
+static int32_t mndProcessAuthReq(SRpcMsg *pReq) {
   SAuthReq authReq = {0};
-  if (tDeserializeSAuthReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &authReq) != 0) {
+  if (tDeserializeSAuthReq(pReq->pCont, pReq->contLen, &authReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -55,8 +55,8 @@ static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
   SAuthReq authRsp = {0};
   memcpy(authRsp.user, authReq.user, TSDB_USER_LEN);
 
-  int32_t code = mndRetriveAuth(pReq->pNode, &authRsp);
-  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->user, authRsp.spi, authRsp.encrypt,
+  int32_t code = mndRetriveAuth(pReq->info.node, &authRsp);
+  mTrace("user:%s, auth req received, spi:%d encrypt:%d ruser:%s", pReq->conn.user, authRsp.spi, authRsp.encrypt,
          authRsp.user);
 
   int32_t contLen = tSerializeSAuthReq(NULL, 0, &authRsp);
@@ -68,28 +68,23 @@ static int32_t mndProcessAuthReq(SNodeMsg *pReq) {
 
   tSerializeSAuthReq(pRsp, contLen, &authRsp);
 
-  pReq->pRsp = pRsp;
-  pReq->rspLen = contLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
   return code;
 }
 
 int32_t mndCheckCreateUserAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
-
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
 
-int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb, SAlterUserReq *pAlter) {
+int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter) {
   if (pAlter->alterType == TSDB_ALTER_USER_PASSWD) {
     if (pOperUser->superUser || strcmp(pUser->user, pOperUser->user) == 0) {
       return 0;
     }
-  }
-
-  if (pAlter->alterType == TSDB_ALTER_USER_SUPERUSER) {
+  } else if (pAlter->alterType == TSDB_ALTER_USER_SUPERUSER) {
     if (strcmp(pUser->user, TSDB_DEFAULT_USER) == 0) {
       terrno = TSDB_CODE_MND_NO_RIGHTS;
       return -1;
@@ -98,17 +93,8 @@ int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb,
     if (pOperUser->superUser) {
       return 0;
     }
-  }
-
-  if (pAlter->alterType == TSDB_ALTER_USER_CLEAR_WRITE_DB || pAlter->alterType == TSDB_ALTER_USER_CLEAR_READ_DB) {
+  } else {
     if (pOperUser->superUser) {
-      return 0;
-    }
-  }
-
-  if (pAlter->alterType == TSDB_ALTER_USER_ADD_READ_DB || pAlter->alterType == TSDB_ALTER_USER_REMOVE_READ_DB ||
-      pAlter->alterType == TSDB_ALTER_USER_ADD_WRITE_DB || pAlter->alterType == TSDB_ALTER_USER_REMOVE_WRITE_DB) {
-    if (pOperUser->superUser || strcmp(pUser->user, pDb->createUser) == 0) {
       return 0;
     }
   }
@@ -118,28 +104,25 @@ int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb,
 }
 
 int32_t mndCheckDropUserAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
-
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
 
 int32_t mndCheckNodeAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
-
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }
 
 int32_t mndCheckFuncAuth(SUserObj *pOperUser) {
-  if (pOperUser->superUser) {
-    return 0;
-  }
+  if (pOperUser->superUser) return 0;
+  terrno = TSDB_CODE_MND_NO_RIGHTS;
+  return -1;
+}
 
+int32_t mndCheckTransAuth(SUserObj *pOperUser) {
+  if (pOperUser->superUser) return 0;
   terrno = TSDB_CODE_MND_NO_RIGHTS;
   return -1;
 }

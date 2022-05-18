@@ -62,7 +62,7 @@ extern "C" {
   #define strncasecmp _strnicmp
   #define wcsncasecmp _wcsnicmp
   #define strtok_r strtok_s
-  #define snprintf _snprintf
+  // #define snprintf _snprintf
   #define in_addr_t unsigned long
 //  #define socklen_t int
 
@@ -191,7 +191,7 @@ extern "C" {
   #define threadlocal __declspec( thread )
 #endif
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   #define PRIzu "ld"  
 #else
   #define PRIzu "zu"  

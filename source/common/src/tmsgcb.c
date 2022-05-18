@@ -15,33 +15,48 @@
 
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
+#include "taoserror.h"
 
 static SMsgCb tsDefaultMsgCb;
 
 void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
 
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
-  return (*pMsgCb->queueFps[qtype])(pMsgCb->pWrapper, pReq);
+int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pMsg) {
+  PutToQueueFp fp = pMsgCb->queueFps[qtype];
+  return (*fp)(pMsgCb->mgmt, pMsg);
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
-  return (*pMsgCb->qsizeFp)(pMsgCb->pWrapper, vgId, qtype);
+  GetQueueSizeFp fp = pMsgCb->qsizeFp;
+  return (*fp)(pMsgCb->mgmt, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
-  return (*pMsgCb->sendReqFp)(pMsgCb->pWrapper, epSet, pReq);
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
+  SendReqFp fp = tsDefaultMsgCb.sendReqFp;
+  return (*fp)(epSet, pMsg);
 }
 
-void tmsgSendRsp(const SRpcMsg* pRsp) { return (*tsDefaultMsgCb.sendRspFp)(tsDefaultMsgCb.pWrapper, pRsp); }
-
-void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
-  (*pMsgCb->registerBrokenLinkArgFp)(pMsgCb->pWrapper, pMsg);
+void tmsgSendRsp(SRpcMsg* pMsg) {
+  SendRspFp fp = tsDefaultMsgCb.sendRspFp;
+  return (*fp)(pMsg);
 }
 
-void tmsgReleaseHandle(void* handle, int8_t type) {
-  (*tsDefaultMsgCb.releaseHandleFp)(tsDefaultMsgCb.pWrapper, handle, type);
+void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
+  SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
+  (*fp)(pMsg, pNewEpSet);
+}
+
+void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) {
+  RegisterBrokenLinkArgFp fp = tsDefaultMsgCb.registerBrokenLinkArgFp;
+  (*fp)(pMsg);
+}
+
+void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) {
+  ReleaseHandleFp fp = tsDefaultMsgCb.releaseHandleFp;
+  (*fp)(pHandle, type);
 }
 
 void tmsgReportStartup(const char* name, const char* desc) {
-  (*tsDefaultMsgCb.reportStartupFp)(tsDefaultMsgCb.pWrapper, name, desc);
+  ReportStartup fp = tsDefaultMsgCb.reportStartupFp;
+  (*fp)(name, desc);
 }

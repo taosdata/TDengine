@@ -52,13 +52,25 @@ typedef struct SSchHbTrans {
 
 typedef struct SSchApiStat {
 
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SSchApiStat;
 
 typedef struct SSchRuntimeStat {
 
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
+
 } SSchRuntimeStat;
 
 typedef struct SSchJobStat {
+
+#ifdef WINDOWS
+  size_t avoidCompilationErrors;
+#endif
 
 } SSchJobStat;
 
@@ -73,7 +85,10 @@ typedef struct SSchedulerMgmt {
   uint64_t        taskId; // sequential taksId
   uint64_t        sId;    // schedulerId
   SSchedulerCfg   cfg;
+  SRWLatch        lock;
+  bool            exit;
   int32_t         jobRef;
+  int32_t         jobNum;
   SSchedulerStat  stat;
   SHashObj       *hbConnections;
 } SSchedulerMgmt;
@@ -144,6 +159,7 @@ typedef struct SSchTask {
 
 typedef struct SSchJobAttr {
   EExplainMode explainMode;
+  bool         needRes;
   bool         syncSchedule;
   bool         queryJob;
   bool         needFlowCtrl;
@@ -175,6 +191,7 @@ typedef struct SSchJob {
   SSchTask        *fetchTask;
   int32_t          errCode;
   SArray          *errList;    // SArray<SQueryErrorInfo>
+  SRWLatch         resLock;
   void            *resData;         //TODO free it or not
   int32_t          resNumOfRows;
   const char      *sql;

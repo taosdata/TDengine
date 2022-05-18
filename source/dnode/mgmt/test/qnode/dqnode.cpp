@@ -13,7 +13,7 @@
 
 class DndTestQnode : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/dnode_test_qnode", 9111); }
+  static void SetUpTestSuite() { test.Init("/tmp/dqnodeTest", 9111); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -82,6 +82,7 @@ TEST_F(DndTestQnode, 01_Create_Qnode) {
 }
 
 TEST_F(DndTestQnode, 02_Drop_Qnode) {
+#if 0
   {
     SDDropQnodeReq dropReq = {0};
     dropReq.dnodeId = 2;
@@ -94,6 +95,7 @@ TEST_F(DndTestQnode, 02_Drop_Qnode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, TSDB_CODE_INVALID_OPTION);
   }
+#endif
 
   {
     SDDropQnodeReq dropReq = {0};

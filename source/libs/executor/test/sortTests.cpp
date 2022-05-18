@@ -164,13 +164,13 @@ int32_t docomp(const void* p1, const void* p2, void* param) {
 
     bool leftNull  = false;
     if (pLeftColInfoData->hasNull) {
-      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg);
+      leftNull = colDataIsNull(pLeftColInfoData, pLeftBlock->info.rows, pLeftSource->src.rowIndex, pLeftBlock->pBlockAgg[pOrder->slotId]);
     }
 
     SColumnInfoData* pRightColInfoData = (SColumnInfoData*) TARRAY_GET_ELEM(pRightBlock->pDataBlock, pOrder->slotId);
     bool rightNull = false;
     if (pRightColInfoData->hasNull) {
-      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg);
+      rightNull = colDataIsNull(pRightColInfoData, pRightBlock->info.rows, pRightSource->src.rowIndex, pRightBlock->pBlockAgg[pOrder->slotId]);
     }
 
     if (leftNull && rightNull) {
@@ -210,7 +210,7 @@ TEST(testCase, inMem_sort_Test) {
   taosArrayPush(orderInfo, &oi);
 
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_SINGLESOURCE_SORT, 1024, 5, NULL, "test_abc");
-  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
 
   _info* pInfo = (_info*) taosMemoryCalloc(1, sizeof(_info));
   pInfo->startVal = 0;
@@ -299,7 +299,7 @@ TEST(testCase, external_mem_sort_Test) {
     taosArrayPush(orderInfo, &oi);
 
     SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_SINGLESOURCE_SORT, 128, 3, NULL, "test_abc");
-    tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+    tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
 
     SSortSource* ps = static_cast<SSortSource*>(taosMemoryCalloc(1, sizeof(SSortSource)));
     ps->param = &pInfo[i];
@@ -366,7 +366,7 @@ TEST(testCase, ordered_merge_sort_Test) {
   }
 
   SSortHandle* phandle = tsortCreateSortHandle(orderInfo, NULL, SORT_MULTISOURCE_MERGE, 1024, 5, pBlock,"test_abc");
-  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock);
+  tsortSetFetchRawDataFp(phandle, getSingleColDummyBlock, NULL, NULL);
   tsortSetComparFp(phandle, docomp);
 
   SSortSource* p[10] = {0};

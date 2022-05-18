@@ -66,7 +66,7 @@ int32_t taosUnLockFile(TdFilePtr pFile);
 int32_t taosUmaskFile(int32_t maskVal);
  
 int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime);
-int32_t taosDevInoFile(const char *path, int64_t *stDev, int64_t *stIno);
+int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno);
 int32_t taosFStatFile(TdFilePtr pFile, int64_t *size, int32_t *mtime);
 bool    taosCheckExistFile(const char *pathname);
  
@@ -80,6 +80,7 @@ int64_t taosWriteFile(TdFilePtr pFile, const void *buf, int64_t count);
 void    taosFprintfFile(TdFilePtr pFile, const char *format, ...);
 
 int64_t taosGetLineFile(TdFilePtr pFile, char ** __restrict ptrBuf);
+int64_t taosGetsFile(TdFilePtr pFile, int32_t maxSize, char *__restrict buf);
 
 int32_t taosEOFFile(TdFilePtr pFile);
  
@@ -93,7 +94,6 @@ void    taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, 
 
 int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, int64_t size);
 
-void *taosMmapReadOnlyFile(TdFilePtr pFile, int64_t length);
 bool taosValidFile(TdFilePtr pFile);
 
 int32_t taosGetErrorFile(TdFilePtr pFile);

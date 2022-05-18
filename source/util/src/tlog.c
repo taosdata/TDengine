@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "tlog.h"
+#include "os.h"
 #include "tutil.h"
 
 #define LOG_MAX_LINE_SIZE             (1024)
@@ -89,8 +90,12 @@ int32_t qDebugFlag = 131;
 int32_t wDebugFlag = 135;
 int32_t sDebugFlag = 135;
 int32_t tsdbDebugFlag = 131;
+int32_t tdbDebugFlag = 131;
 int32_t tqDebugFlag = 135;
 int32_t fsDebugFlag = 135;
+int32_t metaDebugFlag = 135;
+int32_t fnDebugFlag = 135;
+int32_t smaDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -135,24 +140,24 @@ static void taosStopLog() {
   }
 }
 
-static void taosLogBuffDestroy() {
-  taosThreadMutexDestroy(&tsLogObj.logHandle->buffMutex);
-  taosCloseFile(&tsLogObj.logHandle->pFile);
-  taosMemoryFreeClear(tsLogObj.logHandle->buffer);
-  memset(&tsLogObj.logHandle->buffer, 0, sizeof(tsLogObj.logHandle->buffer));
-  taosThreadMutexDestroy(&tsLogObj.logMutex);
-  taosMemoryFreeClear(tsLogObj.logHandle);
-  memset(&tsLogObj.logHandle, 0, sizeof(tsLogObj.logHandle));
-  tsLogObj.logHandle = NULL;
-}
-
 void taosCloseLog() {
-  taosStopLog();
-  if (taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
-    taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+  if (tsLogObj.logHandle != NULL) {
+    taosStopLog();
+    if (tsLogObj.logHandle != NULL && taosCheckPthreadValid(tsLogObj.logHandle->asyncThread)) {
+      taosThreadJoin(tsLogObj.logHandle->asyncThread, NULL);
+      taosThreadClear(&tsLogObj.logHandle->asyncThread);
+    }
+    tsLogInited = 0;
+
+    taosThreadMutexDestroy(&tsLogObj.logHandle->buffMutex);
+    taosCloseFile(&tsLogObj.logHandle->pFile);
+    taosMemoryFreeClear(tsLogObj.logHandle->buffer);
+    memset(&tsLogObj.logHandle->buffer, 0, sizeof(tsLogObj.logHandle->buffer));
+    taosThreadMutexDestroy(&tsLogObj.logMutex);
+    taosMemoryFreeClear(tsLogObj.logHandle);
+    memset(&tsLogObj.logHandle, 0, sizeof(tsLogObj.logHandle));
+    tsLogObj.logHandle = NULL;
   }
-  tsLogInited = 0;
-  taosLogBuffDestroy(tsLogObj.logHandle);
 }
 
 static bool taosLockLogFile(TdFilePtr pFile) {
@@ -221,7 +226,7 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  taosSsleep(3);
+  taosSsleep(10);
   taosCloseLogByFd(pOldFile);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);
@@ -752,6 +757,8 @@ void taosSetAllDebugFlag(int32_t flag) {
   tsdbDebugFlag = flag;
   tqDebugFlag = flag;
   fsDebugFlag = flag;
+  fnDebugFlag = flag;
+  smaDebugFlag = flag;
 
   uInfo("all debug flag are set to %d", flag);
 }

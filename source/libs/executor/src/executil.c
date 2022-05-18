@@ -157,8 +157,6 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
   pResultRow->pageId = -1;
   pResultRow->offset = -1;
   pResultRow->closed = false;
-
-  taosMemoryFreeClear(pResultRow->key);
   pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
@@ -186,12 +184,55 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   pGroupResInfo->index     = 0;
 }
 
-void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo) {
+static int32_t resultrowComparAsc(const void* p1, const void* p2) {
+  SResKeyPos* pp1 = *(SResKeyPos**) p1;
+  SResKeyPos* pp2 = *(SResKeyPos**) p2;
+
+  if (pp1->groupId == pp2->groupId) {
+    int64_t pts1 = *(int64_t*) pp1->key;
+    int64_t pts2 = *(int64_t*) pp2->key;
+
+    if (pts1 == pts2) {
+      return 0;
+    } else {
+      return pts1 < pts2? -1:1;
+    }
+  } else {
+    return pp1->groupId < pp2->groupId? -1:1;
+  }
+}
+
+static int32_t resultrowComparDesc(const void* p1, const void* p2) {
+  return resultrowComparAsc(p2, p1);
+}
+
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order) {
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
 
-  pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pPosition, pResultInfo->size, sizeof(SResultRowPosition));
+  // extract the result rows information from the hash map
+  void* pData = NULL;
+  pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
+
+  size_t keyLen = 0;
+  while((pData = taosHashIterate(pHashmap, pData)) != NULL) {
+    void* key = taosHashGetKey(pData, &keyLen);
+
+    SResKeyPos* p = taosMemoryMalloc(keyLen + sizeof(SResultRowPosition));
+
+    p->groupId = *(uint64_t*) key;
+    p->pos = *(SResultRowPosition*) pData;
+    memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
+
+    taosArrayPush(pGroupResInfo->pRows, &p);
+  }
+
+  if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
+    __compar_fn_t fn = (order == TSDB_ORDER_ASC)? resultrowComparAsc:resultrowComparDesc;
+    qsort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
+  }
+
   pGroupResInfo->index = 0;
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }

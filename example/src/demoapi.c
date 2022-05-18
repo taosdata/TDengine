@@ -4,10 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <unistd.h>
+// #include <unistd.h>
 #include <inttypes.h>
+#ifndef WINDOWS
 #include <argp.h>
-
+#endif
+#include "osSleep.h"
 #include "taos.h"
 
 #define debugPrint(fmt, ...) \
@@ -32,6 +34,7 @@
 int64_t g_num_of_tb = 2;
 int64_t g_num_of_rec = 3;
 
+#ifndef WINDOWS
 static struct argp_option options[] = {
     {"tables", 't', "NUMBER", 0, "Number of child tables, default is 10000."},
     {"records", 'n', "NUMBER", 0,
@@ -61,16 +64,16 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
 }
 
 static struct argp argp = {options, parse_opt, "", ""};
-
+#endif
 static void prepare_data(TAOS* taos) {
     TAOS_RES *res;
     res = taos_query(taos, "drop database if exists test;");
     taos_free_result(res);
-    usleep(100000);
+    taosMsleep(100);
 
     res = taos_query(taos, "create database test;");
     taos_free_result(res);
-    usleep(100000);
+    taosMsleep(100);
     taos_select_db(taos, "test");
 
     char command[1024] = {0};
@@ -87,18 +90,17 @@ static void prepare_data(TAOS* taos) {
     taos_free_result(res);
 
     for (int64_t i = 0; i < g_num_of_tb; i ++) {
+        // sprintf(command, "create table t%"PRId64" using meters "
+        //         "tags(%"PRId64", '%s', '%s', '%s');",
+        //         i, i, (i%2)?"beijing":"shanghai",
+        //         (i%2)?"朝阳区":"黄浦区",
+        //         (i%2)?"长安街":"中山路");
         sprintf(command, "create table t%"PRId64" using meters "
-                "tags(%"PRId64", '%s', '%s', '%s');",
-                i, i, (i%2)?"beijing":"shanghai",
-                (i%2)?"朝阳区":"黄浦区",
-                (i%2)?"长安街":"中山路");
-/*        sprintf(command, "create table t%"PRId64" using meters "
                 "tags(%"PRId64", '%s', '%s', '%s');",
                 i, i,
                 (i%2)?"beijing":"shanghai",
                 (i%2)?"chaoyang":"huangpu",
                 (i%2?"changan street":"jianguo rd"));
-                */
         res = taos_query(taos,  command);
         if ((res) && (0 == taos_errno(res))) {
             okPrint("t%" PRId64 " created\n", i);
@@ -117,7 +119,8 @@ static void prepare_data(TAOS* taos) {
                     "'%c%d', '%s%c%d', '%c%d')",
                     i, 1650000000000+j, (float)j, j,
                     'a'+(int)j%25, rand(),
-                    "涛思", 'z' - (int)j%25, rand(),
+                    // "涛思", 'z' - (int)j%25, rand(),
+                    "TAOS", 'z' - (int)j%25, rand(),
                     'b' - (int)j%25, rand()
                     );
             res = taos_query(taos,  command);
@@ -176,7 +179,7 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
     }
 
     if (block) {
-        warnPrint("%s", "call taos_fetch_block()\n");
+        warnPrint("%s", "call taos_fetch_block(), don't call taos_fetch_lengths()\n");
         int rows = 0;
         while ((rows = taos_fetch_block(res, &row))) {
             int *lengths = taos_fetch_lengths(res);
@@ -196,7 +199,7 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                                     printf("col%d, row: %"PRId64", "
                                             "value: %"PRId64"\n",
                                             f, c,
-                                            *(int64_t*)(row[f]+c*sizeof(int64_t)));
+                                            *(int64_t*)((char*)(row[f])+c*sizeof(int64_t)));
                                 }
                                 break;
 
@@ -208,7 +211,7 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                                     printf("col%d, row: %"PRId64", "
                                             "value: %d\n",
                                             f, c,
-                                            *(int32_t*)(row[f]+c*sizeof(int32_t)));
+                                            *(int32_t*)((char*)(row[f])+c*sizeof(int32_t)));
                                 }
                                 break;
 
@@ -220,7 +223,7 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                                     printf("col%d, row: %"PRId64", "
                                             "value: %f\n",
                                             f, c,
-                                            *(float*)(row[f]+c*sizeof(float)));
+                                            *(float*)((char*)(row[f])+c*sizeof(float)));
                                 }
                                 break;
 
@@ -235,9 +238,9 @@ static int print_result(char *tbname, TAOS_RES* res, int block) {
                     if (offsets) {
                         for (int c = 0; c < rows; c++) {
                             if (offsets[c] != -1) {
-                                int length = *(int16_t*)(row[f] + offsets[c]);
+                                int length = *(int16_t*)((char*)(row[f]) + offsets[c]);
                                 char *buf = calloc(1, length + 1);
-                                strncpy(buf, (char *)(row[f] + offsets[c] + 2), length);
+                                strncpy(buf, (char *)((char*)(row[f]) + offsets[c] + 2), length);
                                 printf("row: %d, col: %d, offset: %d, length: %d, content: %s\n",
                                         c, f, offsets[c], length, buf);
                                 free(buf);
@@ -314,8 +317,9 @@ int main(int argc, char *argv[]) {
     const char* host = "127.0.0.1";
     const char* user = "root";
     const char* passwd = "taosdata";
-
+#ifndef WINDOWS
     argp_parse(&argp, argc, argv, 0, 0, NULL);
+#endif
     TAOS* taos = taos_connect(host, user, passwd, "", 0);
     if (taos == NULL) {
         printf("\033[31mfailed to connect to db, reason:%s\033[0m\n", taos_errstr(taos));

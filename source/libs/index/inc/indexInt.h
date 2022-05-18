@@ -34,6 +34,7 @@
 extern "C" {
 #endif
 
+typedef enum { LT, LE, GT, GE } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
 typedef struct SIndexStat {
@@ -45,9 +46,7 @@ typedef struct SIndexStat {
 } SIndexStat;
 
 struct SIndex {
-#ifdef USE_LUCENE
-  index_t* index;
-#endif
+  int64_t   refId;
   void*     cache;
   void*     tindex;
   SHashObj* colObj;  // < field name, field id>
@@ -57,7 +56,7 @@ struct SIndex {
 
   char* path;
 
-  SIndexStat      stat;
+  SIndexStat    stat;
   TdThreadMutex mtx;
 };
 
@@ -123,6 +122,11 @@ typedef struct TFileCacheKey {
 
 int indexFlushCacheToTFile(SIndex* sIdx, void*);
 
+int64_t indexAddRef(void* p);
+int32_t indexRemoveRef(int64_t ref);
+void    indexAcquireRef(int64_t ref);
+void    indexReleaseRef(int64_t ref);
+
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);
 // int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
@@ -165,7 +169,9 @@ int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
   } while (0)
 
 #define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
+
 #define INDEX_TYPE_GET_TYPE(ty) (ty & 0x0F)
+
 #define INDEX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
   do {                                       \
     uint8_t oldTy = ty;                      \

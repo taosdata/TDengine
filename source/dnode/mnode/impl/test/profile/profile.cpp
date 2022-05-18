@@ -30,8 +30,15 @@ int32_t  MndTestProfile::connId;
 TEST_F(MndTestProfile, 01_ConnectMsg) {
   SConnectReq connectReq = {0};
   connectReq.pid = 1234;
+
+  char passwd[] = "taosdata";
+  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
+  taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
+
   strcpy(connectReq.app, "mnode_test_profile");
   strcpy(connectReq.db, "");
+  strcpy(connectReq.user, "root");
+  strcpy(connectReq.passwd, secretEncrypt);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);
@@ -58,10 +65,16 @@ TEST_F(MndTestProfile, 01_ConnectMsg) {
 }
 
 TEST_F(MndTestProfile, 02_ConnectMsg_InvalidDB) {
+  char passwd[] = "taosdata";
+  char secretEncrypt[TSDB_PASSWORD_LEN] = {0};
+  taosEncryptPass_c((uint8_t*)passwd, strlen(passwd), secretEncrypt);
+
   SConnectReq connectReq = {0};
   connectReq.pid = 1234;
   strcpy(connectReq.app, "mnode_test_profile");
   strcpy(connectReq.db, "invalid_db");
+  strcpy(connectReq.user, "root");
+  strcpy(connectReq.passwd, secretEncrypt);
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connectReq);
   void*   pReq = rpcMallocCont(contLen);

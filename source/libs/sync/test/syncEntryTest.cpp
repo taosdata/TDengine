@@ -52,7 +52,7 @@ void test3() {
   pSyncMsg->isWeak = 1;
   strcpy(pSyncMsg->data, "test3");
 
-  SSyncRaftEntry* pEntry = syncEntryBuild3(pSyncMsg, 100, 200, SYNC_RAFT_ENTRY_NOOP);
+  SSyncRaftEntry* pEntry = syncEntryBuild3(pSyncMsg, 100, 200);
   syncEntryPrint(pEntry);
 
   syncClientRequestDestroy(pSyncMsg);
@@ -68,7 +68,6 @@ void test4() {
   pEntry->isWeak = true;
   pEntry->term = 44;
   pEntry->index = 55;
-  pEntry->entryType = SYNC_RAFT_ENTRY_CONFIG;
   strcpy(pEntry->data, "test4");
   syncEntryPrint(pEntry);
 
@@ -84,9 +83,8 @@ void test4() {
 }
 
 int main(int argc, char** argv) {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
 
   test1();
   test2();

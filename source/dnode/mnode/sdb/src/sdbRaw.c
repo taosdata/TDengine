@@ -27,7 +27,7 @@ SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
   pRaw->sver = sver;
   pRaw->dataLen = dataLen;
 
-  mTrace("raw:%p, is created, len:%d", pRaw, dataLen);
+  mTrace("raw:%p, is created, len:%d table:%s", pRaw, dataLen, sdbTableName(type));
   return pRaw;
 }
 
@@ -107,7 +107,9 @@ int32_t sdbSetRawBinary(SSdbRaw *pRaw, int32_t dataPos, const char *pVal, int32_
     return -1;
   }
 
-  memcpy(pRaw->pData + dataPos, pVal, valLen);
+  if (pVal != NULL) {
+    memcpy(pRaw->pData + dataPos, pVal, valLen);
+  }
   return 0;
 }
 
@@ -129,6 +131,11 @@ int32_t sdbSetRawDataLen(SSdbRaw *pRaw, int32_t dataLen) {
 int32_t sdbSetRawStatus(SSdbRaw *pRaw, ESdbStatus status) {
   if (pRaw == NULL) {
     terrno = TSDB_CODE_INVALID_PTR;
+    return -1;
+  }
+
+  if (status == SDB_STATUS_INIT) {
+    terrno = TSDB_CODE_INVALID_PARA;
     return -1;
   }
 
@@ -206,8 +213,9 @@ int32_t sdbGetRawBinary(SSdbRaw *pRaw, int32_t dataPos, char *pVal, int32_t valL
     terrno = TSDB_CODE_SDB_INVALID_DATA_LEN;
     return -1;
   }
-
-  memcpy(pVal, pRaw->pData + dataPos, valLen);
+  if (pVal != NULL) {
+    memcpy(pVal, pRaw->pData + dataPos, valLen);
+  }
   return 0;
 }
 

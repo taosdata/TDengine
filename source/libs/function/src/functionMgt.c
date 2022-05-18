@@ -15,29 +15,38 @@
 
 #include "functionMgt.h"
 
+#include "builtins.h"
+#include "catalog.h"
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
 #include "thash.h"
-#include "builtins.h"
+#include "tudf.h"
 
 typedef struct SFuncMgtService {
   SHashObj* pFuncNameHashTable;
 } SFuncMgtService;
 
-static SFuncMgtService gFunMgtService;
-static TdThreadOnce functionHashTableInit = PTHREAD_ONCE_INIT;
-static int32_t initFunctionCode = 0;
+typedef struct SUdfInfo {
+  SDataType outputDt;
+  int8_t    funcType;
+} SUdfInfo;
 
-static void doInitFunctionHashTable() {
-  gFunMgtService.pFuncNameHashTable = taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+static SFuncMgtService gFunMgtService;
+static TdThreadOnce    functionHashTableInit = PTHREAD_ONCE_INIT;
+static int32_t         initFunctionCode = 0;
+
+static void doInitFunctionTable() {
+  gFunMgtService.pFuncNameHashTable =
+      taosHashInit(funcMgtBuiltinsNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == gFunMgtService.pFuncNameHashTable) {
     initFunctionCode = TSDB_CODE_FAILED;
     return;
   }
 
   for (int32_t i = 0; i < funcMgtBuiltinsNum; ++i) {
-    if (TSDB_CODE_SUCCESS != taosHashPut(gFunMgtService.pFuncNameHashTable, funcMgtBuiltins[i].name, strlen(funcMgtBuiltins[i].name), &i, sizeof(int32_t))) {
+    if (TSDB_CODE_SUCCESS != taosHashPut(gFunMgtService.pFuncNameHashTable, funcMgtBuiltins[i].name,
+                                         strlen(funcMgtBuiltins[i].name), &i, sizeof(int32_t))) {
       initFunctionCode = TSDB_CODE_FAILED;
       return;
     }
@@ -45,39 +54,54 @@ static void doInitFunctionHashTable() {
 }
 
 static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
+  if (fmIsUserDefinedFunc(funcId)) {
+    return FUNC_MGT_AGG_FUNC == classification
+               ? FUNC_AGGREGATE_UDF_ID == funcId
+               : (FUNC_MGT_SCALAR_FUNC == classification ? FUNC_SCALAR_UDF_ID == funcId : false);
+  }
   if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return false;
   }
   return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, classification);
 }
 
-int32_t fmFuncMgtInit() {
-  taosThreadOnce(&functionHashTableInit, doInitFunctionHashTable);
-  return initFunctionCode;
-}
-
-int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType) {
-  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFuncName, strlen(pFuncName));
-  if (NULL == pVal) {
-    return TSDB_CODE_FAILED;
+static int32_t getUdfInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
+  SFuncInfo* pInfo = NULL;
+  int32_t    code = catalogGetUdfInfo(pParam->pCtg, pParam->pRpc, pParam->pMgmtEps, pFunc->functionName, &pInfo);
+  if (TSDB_CODE_SUCCESS != code) {
+    return code;
   }
-  *pFuncId = *(int32_t*)pVal;
-  if (*pFuncId < 0 || *pFuncId >= funcMgtBuiltinsNum) {
-    return TSDB_CODE_FAILED;
+  if (NULL == pInfo) {
+    snprintf(pParam->pErrBuf, pParam->errBufLen, "Invalid function name: %s", pFunc->functionName);
+    return TSDB_CODE_FUNC_INVALID_FUNTION;
   }
-  *pFuncType = funcMgtBuiltins[*pFuncId].type;
+  pFunc->funcType = FUNCTION_TYPE_UDF;
+  pFunc->funcId = TSDB_FUNC_TYPE_AGGREGATE == pInfo->funcType ? FUNC_AGGREGATE_UDF_ID : FUNC_SCALAR_UDF_ID;
+  pFunc->node.resType.type = pInfo->outputType;
+  pFunc->node.resType.bytes = pInfo->outputLen;
+  pFunc->udfBufSize = pInfo->bufSize;
+  tFreeSFuncInfo(pInfo);
+  taosMemoryFree(pInfo);
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
-  if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
-    return TSDB_CODE_FAILED;
+int32_t fmFuncMgtInit() {
+  taosThreadOnce(&functionHashTableInit, doInitFunctionTable);
+  return initFunctionCode;
+}
+
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
+  void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc->functionName, strlen(pFunc->functionName));
+  if (NULL != pVal) {
+    pFunc->funcId = *(int32_t*)pVal;
+    pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
+    return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pParam->pErrBuf, pParam->errBufLen);
   }
-  return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pErrBuf, len);
+  return getUdfInfo(pParam, pFunc);
 }
 
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
-  if (pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
+  if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
   }
   if (NULL == funcMgtBuiltins[pFunc->funcId].dataRequiredFunc) {
@@ -87,7 +111,7 @@ EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWin
 }
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
-  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
     return TSDB_CODE_FAILED;
   }
   pFpSet->getEnv = funcMgtBuiltins[funcId].getEnvFunc;
@@ -97,38 +121,43 @@ int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
-  if (funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (!fmIsUserDefinedFunc(funcId)) {
     return TSDB_CODE_FAILED;
   }
-  pFpSet->process = funcMgtBuiltins[funcId].sprocessFunc;
-  pFpSet->getEnv  = funcMgtBuiltins[funcId].getEnvFunc;
+  pFpSet->getEnv = udfAggGetEnv;
+  pFpSet->init = udfAggInit;
+  pFpSet->process = udfAggProcess;
+  pFpSet->finalize = udfAggFinalize;
   return TSDB_CODE_SUCCESS;
 }
 
-bool fmIsAggFunc(int32_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_AGG_FUNC);
+int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->process = funcMgtBuiltins[funcId].sprocessFunc;
+  pFpSet->getEnv = funcMgtBuiltins[funcId].getEnvFunc;
+  return TSDB_CODE_SUCCESS;
 }
 
-bool fmIsScalarFunc(int32_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC);
-}
+bool fmIsAggFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_AGG_FUNC); }
 
-bool fmIsPseudoColumnFunc(int32_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC);
-}
+bool fmIsScalarFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCALAR_FUNC); }
 
-bool fmIsWindowPseudoColumnFunc(int32_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_WINDOW_PC_FUNC);
-}
+bool fmIsSelectFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SELECT_FUNC); }
 
-bool fmIsWindowClauseFunc(int32_t funcId) {
-  return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId);
-}
+bool fmIsTimelineFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_TIMELINE_FUNC); }
 
-bool fmIsNonstandardSQLFunc(int32_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_NONSTANDARD_SQL_FUNC);
-}
+bool fmIsPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_PSEUDO_COLUMN_FUNC); }
+
+bool fmIsScanPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_SCAN_PC_FUNC); }
+
+bool fmIsWindowPseudoColumnFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_WINDOW_PC_FUNC); }
+
+bool fmIsWindowClauseFunc(int32_t funcId) { return fmIsAggFunc(funcId) || fmIsWindowPseudoColumnFunc(funcId); }
+
+bool fmIsNonstandardSQLFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_NONSTANDARD_SQL_FUNC); }
 
 bool fmIsSpecialDataRequiredFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_SPECIAL_DATA_REQUIRED);
@@ -138,13 +167,46 @@ bool fmIsDynamicScanOptimizedFunc(int32_t funcId) {
   return isSpecificClassifyFunc(funcId, FUNC_MGT_DYNAMIC_SCAN_OPTIMIZED);
 }
 
-bool fmIsMultiResFunc(int32_t funcId) {
-  return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_RES_FUNC);
-}
+bool fmIsMultiResFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_MULTI_RES_FUNC); }
+
+bool fmIsRepeatScanFunc(int32_t funcId) { return isSpecificClassifyFunc(funcId, FUNC_MGT_REPEAT_SCAN_FUNC); }
+
+bool fmIsUserDefinedFunc(int32_t funcId) { return funcId > FUNC_UDF_ID_START; }
 
 void fmFuncMgtDestroy() {
   void* m = gFunMgtService.pFuncNameHashTable;
   if (m != NULL && atomic_val_compare_exchange_ptr((void**)&gFunMgtService.pFuncNameHashTable, m, 0) == m) {
     taosHashCleanup(m);
   }
+}
+
+int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->process = funcMgtBuiltins[funcId].invertFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet) {
+  if (fmIsUserDefinedFunc(funcId) || funcId < 0 || funcId >= funcMgtBuiltinsNum) {
+    return TSDB_CODE_FAILED;
+  }
+  pFpSet->process = funcMgtBuiltins[funcId].processFunc;
+  return TSDB_CODE_SUCCESS;
+}
+
+bool fmIsInvertible(int32_t funcId) {
+  bool res = false;
+  switch (funcMgtBuiltins[funcId].type) {
+    case FUNCTION_TYPE_COUNT:
+    case FUNCTION_TYPE_SUM:
+    case FUNCTION_TYPE_STDDEV:
+    case FUNCTION_TYPE_AVG:
+      res = true;
+      break;
+    default:
+      break;
+  }
+  return res;
 }

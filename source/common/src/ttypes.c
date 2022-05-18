@@ -402,7 +402,8 @@ tDataTypeDescriptor tDataTypes[TSDB_DATA_TYPE_MAX] = {
     {TSDB_DATA_TYPE_UINT, 12, INT_BYTES, "INT UNSIGNED", 0, UINT32_MAX, tsCompressInt, tsDecompressInt, getStatics_u32},
     {TSDB_DATA_TYPE_UBIGINT, 15, LONG_BYTES, "BIGINT UNSIGNED", 0, UINT64_MAX, tsCompressBigint, tsDecompressBigint,
      getStatics_u64},
-    {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString, getStatics_nchr},
+    {TSDB_DATA_TYPE_JSON, 4, TSDB_MAX_JSON_TAG_LEN, "JSON", 0, 0, tsCompressString, tsDecompressString,
+     getStatics_nchr},
 };
 
 char tTokenTypeSwitcher[13] = {
@@ -557,7 +558,7 @@ static const void *nullValues[] = {
 };
 
 const void *getNullValue(int32_t type) {
-  assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);
+  assert(type >= TSDB_DATA_TYPE_BOOL && type <= TSDB_DATA_TYPE_UBIGINT);  // TODO: extend the types
   return nullValues[type - 1];
 }
 
@@ -651,35 +652,35 @@ void tsDataSwap(void *pLeft, void *pRight, int32_t type, int32_t size, void *buf
   switch (type) {
     case TSDB_DATA_TYPE_INT:
     case TSDB_DATA_TYPE_UINT: {
-      TSWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight), int32_t);
+      TSWAP(*(int32_t *)(pLeft), *(int32_t *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_BIGINT:
     case TSDB_DATA_TYPE_UBIGINT:
     case TSDB_DATA_TYPE_TIMESTAMP: {
-      TSWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight), int64_t);
+      TSWAP(*(int64_t *)(pLeft), *(int64_t *)(pRight));
       break;
     }
     case TSDB_DATA_TYPE_DOUBLE: {
-      TSWAP(*(double *)(pLeft), *(double *)(pRight), double);
+      TSWAP(*(double *)(pLeft), *(double *)(pRight));
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT:
     case TSDB_DATA_TYPE_USMALLINT: {
-      TSWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight), int16_t);
+      TSWAP(*(int16_t *)(pLeft), *(int16_t *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_FLOAT: {
-      TSWAP(*(float *)(pLeft), *(float *)(pRight), float);
+      TSWAP(*(float *)(pLeft), *(float *)(pRight));
       break;
     }
 
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT:
     case TSDB_DATA_TYPE_UTINYINT: {
-      TSWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight), int8_t);
+      TSWAP(*(int8_t *)(pLeft), *(int8_t *)(pRight));
       break;
     }
 

@@ -14,7 +14,7 @@
  */
 
 #include "syncEnv.h"
-#include <assert.h>
+// #include <assert.h>
 
 SSyncEnv *gSyncEnv = NULL;
 
@@ -26,11 +26,21 @@ static int32_t   doSyncEnvStopTimer(SSyncEnv *pSyncEnv);
 static void      syncEnvTick(void *param, void *tmrId);
 // --------------------------------
 
+bool syncEnvIsStart() {
+  if (gSyncEnv == NULL) {
+    return false;
+  }
+
+  return atomic_load_8(&(gSyncEnv->isStart));
+}
+
 int32_t syncEnvStart() {
   int32_t ret = 0;
   taosSeedRand(taosGetTimestampSec());
-  gSyncEnv = doSyncEnvStart(gSyncEnv);
+  // gSyncEnv = doSyncEnvStart(gSyncEnv);
+  gSyncEnv = doSyncEnvStart();
   assert(gSyncEnv != NULL);
+  sTrace("syncEnvStart ok!");
   return ret;
 }
 
@@ -86,11 +96,19 @@ static SSyncEnv *doSyncEnvStart() {
 
   // start tmr thread
   pSyncEnv->pTimerManager = taosTmrInit(1000, 50, 10000, "SYNC-ENV");
+
+  atomic_store_8(&(pSyncEnv->isStart), 1);
   return pSyncEnv;
 }
 
 static int32_t doSyncEnvStop(SSyncEnv *pSyncEnv) {
-  taosTmrCleanUp(pSyncEnv->pTimerManager);
+  assert(pSyncEnv == gSyncEnv);
+  if (pSyncEnv != NULL) {
+    atomic_store_8(&(pSyncEnv->isStart), 0);
+    taosTmrCleanUp(pSyncEnv->pTimerManager);
+    taosMemoryFree(pSyncEnv);
+  }
+  gSyncEnv = NULL;
   return 0;
 }
 

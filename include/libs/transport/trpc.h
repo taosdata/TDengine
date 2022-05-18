@@ -26,42 +26,52 @@ extern "C" {
 
 #define TAOS_CONN_SERVER 0
 #define TAOS_CONN_CLIENT 1
+#define IsReq(pMsg)      (pMsg->msgType & 1U)
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcConnInfo {
+typedef struct {
   uint32_t clientIp;
   uint16_t clientPort;
-  uint32_t serverIp;
   char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
-typedef struct SRpcMsg {
-  tmsg_t  msgType;
-  void *  pCont;
-  int     contLen;
-  int32_t code;
-  void *  handle;         // rpc handle returned to app
-  void *  ahandle;        // app handle set by client
-  int     noResp;         // has response or not(default 0, 0: resp, 1: no resp);
-  int     persistHandle;  // persist handle or not
+typedef struct SRpcHandleInfo {
+  // rpc info
+  void   *handle;         // rpc handle returned to app
+  int64_t refId;          // refid, used by server
+  int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
+  int32_t persistHandle;  // persist handle or not
 
+  // app info
+  void *ahandle;  // app handle set by client
+  void *wrapper;  // wrapper handle
+  void *node;     // node mgmt handle
+
+  // resp info
+  void   *rsp;
+  int32_t rspLen;
+} SRpcHandleInfo;
+
+typedef struct SRpcMsg {
+  tmsg_t         msgType;
+  void          *pCont;
+  int32_t        contLen;
+  int32_t        code;
+  SRpcHandleInfo info;
+  SRpcConnInfo   conn;
 } SRpcMsg;
 
-typedef struct {
-  char     user[TSDB_USER_LEN];
-  uint32_t clientIp;
-  uint16_t clientPort;
-  SRpcMsg  rpcMsg;
-  int32_t  rspLen;
-  void    *pRsp;
-  void    *pNode;
-} SNodeMsg;
-
-typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *);
+typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
 typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
+///
+// // SRpcMsg code
+// REDIERE,
+// NOT READY, EpSet
+typedef bool (*RpcRfp)(int32_t code);
 
 typedef struct SRpcInit {
+  char     localFqdn[TSDB_FQDN_LEN];
   uint16_t localPort;     // local port
   char *   label;         // for debug purpose
   int      numOfThreads;  // number of threads to handle connections
@@ -80,22 +90,25 @@ typedef struct SRpcInit {
   RpcCfp cfp;
 
   // call back to retrieve the client auth info, for server app only
-  RpcAfp afp;;
+  RpcAfp afp;
+
+  // user defined retry func
+  RpcRfp rfp;
 
   void *parent;
 } SRpcInit;
 
 typedef struct {
-  void     *val;
+  void *val;
   int32_t (*clone)(void *src, void **dst);
-  void    (*freeFunc)(const void *arg);
+  void (*freeFunc)(const void *arg);
 } SRpcCtxVal;
 
 typedef struct {
-  int32_t   msgType;
-  void     *val;
+  int32_t msgType;
+  void *  val;
   int32_t (*clone)(void *src, void **dst);
-  void    (*freeFunc)(const void *arg);
+  void (*freeFunc)(const void *arg);
 } SRpcBrokenlinkVal;
 
 typedef struct {

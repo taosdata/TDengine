@@ -28,8 +28,8 @@ char     simScriptDir[PATH_MAX] = {0};
 extern bool simExecSuccess;
 
 int32_t simInitCfg() {
-  taosCreateLog("simlog", 1, configDir, NULL, NULL, NULL, 1);
-  taosInitCfg(configDir, NULL, NULL, NULL, 1);
+  taosCreateLog("simlog", 1, configDir, NULL, NULL, NULL, NULL, 1);
+  taosInitCfg(configDir, NULL, NULL, NULL, NULL, 1);
 
   SConfig *pCfg = taosGetCfg();
   simDebugFlag = cfgGetItem(pCfg, "simDebugFlag")->i32;
@@ -56,6 +56,7 @@ void simFreeScript(SScript *script) {
       bgScript->killed = true;
       if (taosCheckPthreadValid(bgScript->bgPid)) {
         taosThreadJoin(bgScript->bgPid, NULL);
+        taosThreadClear(&bgScript->bgPid);
       }
 
       simDebug("script:%s, background thread joined", bgScript->fileName);

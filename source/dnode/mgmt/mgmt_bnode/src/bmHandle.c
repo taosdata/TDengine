@@ -16,12 +16,12 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-void bmGetMonitorInfo(SMgmtWrapper *pWrapper, SMonBmInfo *bmInfo) {}
+static void bmGetMonitorInfo(SBnodeMgmt *pMgmt, SMonBmInfo *bmInfo) {}
 
-int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
+int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SRpcMsg *pReq) {
   SMonBmInfo bmInfo = {0};
-  bmGetMonitorInfo(pWrapper, &bmInfo);
-  dmGetMonitorSysInfo(&bmInfo.sys);
+  bmGetMonitorInfo(pMgmt, &bmInfo);
+  dmGetMonitorSystemInfo(&bmInfo.sys);
   monGetLogs(&bmInfo.log);
 
   int32_t rspLen = tSerializeSMonBmInfo(NULL, 0, &bmInfo);
@@ -37,15 +37,14 @@ int32_t bmProcessGetMonBmInfoReq(SMgmtWrapper *pWrapper, SNodeMsg *pReq) {
   }
 
   tSerializeSMonBmInfo(pRsp, rspLen, &bmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = rspLen;
   tFreeSMonBmInfo(&bmInfo);
   return 0;
 }
 
-int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pWrapper->pDnode;
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDCreateBnodeReq createReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
@@ -53,14 +52,14 @@ int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (createReq.dnodeId != pDnode->data.dnodeId) {
+  if (pInput->pData->dnodeId != 0 && createReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pDnode->data.dnodeId);
+    dError("failed to create bnode since %s, input:%d cur:%d", terrstr(), createReq.dnodeId, pInput->pData->dnodeId);
     return -1;
   }
 
   bool deployed = true;
-  if (dmWriteFile(pWrapper, deployed) != 0) {
+  if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write bnode file since %s", terrstr());
     return -1;
   }
@@ -68,9 +67,8 @@ int32_t bmProcessCreateReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SDnode  *pDnode = pWrapper->pDnode;
-  SRpcMsg *pReq = &pMsg->rpcMsg;
+int32_t bmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
+  SRpcMsg *pReq = pMsg;
 
   SDDropBnodeReq dropReq = {0};
   if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -78,14 +76,14 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
     return -1;
   }
 
-  if (dropReq.dnodeId != pDnode->data.dnodeId) {
+  if (pInput->pData->dnodeId != 0 && dropReq.dnodeId != pInput->pData->dnodeId) {
     terrno = TSDB_CODE_INVALID_OPTION;
     dError("failed to drop bnode since %s", terrstr());
     return -1;
   }
 
   bool deployed = false;
-  if (dmWriteFile(pWrapper, deployed) != 0) {
+  if (dmWriteFile(pInput->path, pInput->name, deployed) != 0) {
     dError("failed to write bnode file since %s", terrstr());
     return -1;
   }
@@ -93,6 +91,19 @@ int32_t bmProcessDropReq(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
   return 0;
 }
 
-void bmInitMsgHandle(SMgmtWrapper *pWrapper) {
-  dmSetMsgHandle(pWrapper, TDMT_MON_BM_INFO, bmProcessMonitorMsg, DEFAULT_HANDLE);
+SArray *bmGetMsgHandles() {
+  int32_t code = -1;
+  SArray *pArray = taosArrayInit(2, sizeof(SMgmtHandle));
+  if (pArray == NULL) goto _OVER;
+
+  if (dmSetMgmtHandle(pArray, TDMT_MON_BM_INFO, bmPutNodeMsgToMonitorQueue, 0) == NULL) goto _OVER;
+
+  code = 0;
+_OVER:
+  if (code != 0) {
+    taosArrayDestroy(pArray);
+    return NULL;
+  } else {
+    return pArray;
+  }
 }

@@ -13,7 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "vnodeInt.h"
+#include "tsdb.h"
 
 #define TSDB_KEY_COL_OFFSET 0
 
@@ -246,9 +246,16 @@ int tsdbLoadBlockInfo(SReadH *pReadh, void *pTarget) {
   return 0;
 }
 
+static FORCE_INLINE void tsdbSwapDataCols(SDataCols *pDest, SDataCols *pSrc) {
+  SDataCol *pCols = pDest->cols;
+  memcpy(pDest, pSrc, sizeof(SDataCols));
+  pSrc->cols = pCols;
+}
+
 int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   ASSERT(pBlock->numOfSubBlocks > 0);
-  int8_t update = pReadh->pRepo->config.update;
+  STsdbCfg *pCfg = REPO_CFG(pReadh->pRepo);
+  int8_t    update = pCfg->update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {
@@ -265,21 +272,33 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
   }
+  // if ((pBlock->numOfSubBlocks == 1) && (iBlock->hasDupKey)) { // TODO: use this line
+  if (pBlock->numOfSubBlocks == 1) {
+    tdResetDataCols(pReadh->pDCols[1]);
+    pReadh->pDCols[1]->bitmapMode = pReadh->pDCols[0]->bitmapMode;
+    if (tdMergeDataCols(pReadh->pDCols[1], pReadh->pDCols[0], pReadh->pDCols[0]->numOfRows, NULL,
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
+      return -1;
+    }
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
+    ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
+  }
 
-  ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
+  ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
 
   return 0;
 }
 
+// TODO: filter by Multi-Version
 int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, const int16_t *colIds, int numOfColsIds,
                           bool mergeBitmap) {
   ASSERT(pBlock->numOfSubBlocks > 0);
-  int8_t update = pReadh->pRepo->config.update;
+  int8_t update = pReadh->pRepo->pVnode->config.tsdbCfg.update;
 
   SBlock *iBlock = pBlock;
   if (pBlock->numOfSubBlocks > 1) {
@@ -296,22 +315,34 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
-                        update != TD_ROW_PARTIAL_UPDATE, UINT64_MAX) < 0)
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
   }
+  // if ((pBlock->numOfSubBlocks == 1) && (iBlock->hasDupKey)) { // TODO: use this line
+  if (pBlock->numOfSubBlocks == 1) {
+    tdResetDataCols(pReadh->pDCols[1]);
+    pReadh->pDCols[1]->bitmapMode = pReadh->pDCols[0]->bitmapMode;
+    if (tdMergeDataCols(pReadh->pDCols[1], pReadh->pDCols[0], pReadh->pDCols[0]->numOfRows, NULL,
+                        TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0) {
+      return -1;
+    }
+    tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
+    ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
+  }
+
 
   if (mergeBitmap && !tdDataColsIsBitmapI(pReadh->pDCols[0])) {
     for (int i = 0; i < numOfColsIds; ++i) {
       SDataCol *pDataCol = pReadh->pDCols[0]->cols + i;
       if (pDataCol->bitmap) {
         ASSERT(pDataCol->colId != PRIMARYKEY_TIMESTAMP_COL_ID);
-        tdMergeBitmap(pDataCol->pBitmap, TD_BITMAP_BYTES(pReadh->pDCols[0]->numOfRows), pDataCol->pBitmap);
+        tdMergeBitmap(pDataCol->pBitmap, pReadh->pDCols[0]->numOfRows, pDataCol->pBitmap);
         tdDataColsSetBitmapI(pReadh->pDCols[0]);
       }
     }
   }
 
-  ASSERT(pReadh->pDCols[0]->numOfRows == pBlock->numOfRows);
+  ASSERT(pReadh->pDCols[0]->numOfRows <= pBlock->numOfRows);
   ASSERT(dataColsKeyFirst(pReadh->pDCols[0]) == pBlock->keyFirst);
   ASSERT(dataColsKeyLast(pReadh->pDCols[0]) == pBlock->keyLast);
 
@@ -322,15 +353,18 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
 
   if (!pBlock->aggrStat) {
+    tsdbDebug("vgId:%d no need to load block statis part for uid %" PRIu64 " since not exist", REPO_ID(pReadh->pRepo),
+              TSDB_READ_TABLE_UID(pReadh));
     return TSDB_STATIS_NONE;
   }
 
   SDFile *pDFileAggr = pBlock->last ? TSDB_READ_SMAL_FILE(pReadh) : TSDB_READ_SMAD_FILE(pReadh);
 
   if (tsdbSeekDFile(pDFileAggr, pBlock->aggrOffset, SEEK_SET) < 0) {
-    tsdbError("vgId:%d failed to load block aggr part while seek file %s to offset %" PRIu64 " since %s",
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset,
-              tstrerror(terrno));
+    tsdbError("vgId:%d failed to load block statis part for uid %" PRIu64 " while seek file %s to offset %" PRIu64
+              " since %s",
+              TSDB_READ_REPO_ID(pReadh), TSDB_READ_TABLE_UID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr),
+              (uint64_t)pBlock->aggrOffset, tstrerror(terrno));
     return -1;
   }
 
@@ -339,25 +373,28 @@ int tsdbLoadBlockStatis(SReadH *pReadh, SBlock *pBlock) {
 
   int64_t nreadAggr = tsdbReadDFile(pDFileAggr, (void *)(pReadh->pAggrBlkData), sizeAggr);
   if (nreadAggr < 0) {
-    tsdbError("vgId:%d failed to load block aggr part while read file %s since %s, offset:%" PRIu64 " len :%" PRIzu,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), tstrerror(terrno),
-              (uint64_t)pBlock->aggrOffset, sizeAggr);
+    tsdbError("vgId:%d failed to load block statis part for uid %" PRIu64
+              " while read file %s since %s, offset:%" PRIu64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_READ_TABLE_UID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr),
+              tstrerror(terrno), (uint64_t)pBlock->aggrOffset, sizeAggr);
     return -1;
   }
 
   if (nreadAggr < sizeAggr) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block aggr part in file %s is corrupted, offset:%" PRIu64 " expected bytes:%" PRIzu
-              " read bytes: %" PRId64,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset, sizeAggr,
-              nreadAggr);
+    tsdbError("vgId:%d block statis part for uid %" PRIu64 " in file %s is corrupted, offset:%" PRIu64
+              " expected bytes:%" PRIzu " read bytes: %" PRId64,
+              TSDB_READ_REPO_ID(pReadh), TSDB_READ_TABLE_UID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr),
+              (uint64_t)pBlock->aggrOffset, sizeAggr, nreadAggr);
     return -1;
   }
 
   if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pAggrBlkData), (uint32_t)sizeAggr)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block aggr part in file %s is corrupted since wrong checksum, offset:%" PRIu64 " len :%" PRIzu,
-              TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr), (uint64_t)pBlock->aggrOffset, sizeAggr);
+    tsdbError("vgId:%d block statis part for uid %" PRIu64
+              "in file %s is corrupted since wrong checksum, offset:%" PRIu64 " len :%" PRIzu,
+              TSDB_READ_REPO_ID(pReadh), TSDB_READ_TABLE_UID(pReadh), TSDB_FILE_FULL_NAME(pDFileAggr),
+              (uint64_t)pBlock->aggrOffset, sizeAggr);
     return -1;
   }
   return 0;
@@ -367,7 +404,7 @@ static int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
   ASSERT(pBlock->numOfSubBlocks <= 1);
   SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
   if (tsdbSeekDFile(pDFile, pBlock->offset, SEEK_SET) < 0) {
-    tsdbError("vgId:%d failed to load block statis part while seek file %s to offset %" PRId64 " since %s",
+    tsdbError("vgId:%d failed to load block head part while seek file %s to offset %" PRId64 " since %s",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tstrerror(terrno));
     return -1;
   }
@@ -377,14 +414,14 @@ static int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
 
   int64_t nread = tsdbReadDFile(pDFile, (void *)(pReadh->pBlkData), size);
   if (nread < 0) {
-    tsdbError("vgId:%d failed to load block statis part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
+    tsdbError("vgId:%d failed to load block head part while read file %s since %s, offset:%" PRId64 " len :%" PRIzu,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), tstrerror(terrno), (int64_t)pBlock->offset, size);
     return -1;
   }
 
   if (nread < size) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block statis part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
+    tsdbError("vgId:%d block head part in file %s is corrupted, offset:%" PRId64 " expected bytes:%" PRIzu
               " read bytes: %" PRId64,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size, nread);
     return -1;
@@ -392,7 +429,7 @@ static int tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock) {
 
   if (!taosCheckChecksumWhole((uint8_t *)(pReadh->pBlkData), (uint32_t)size)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
+    tsdbError("vgId:%d block head part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%" PRIzu,
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, size);
     return -1;
   }
@@ -465,7 +502,7 @@ void tsdbGetBlockStatis(SReadH *pReadh, SColumnDataAgg *pStatis, int numOfCols, 
     SAggrBlkData *pAggrBlkData = pReadh->pAggrBlkData;
 
     for (int i = 0, j = 0; i < numOfCols;) {
-      if (j >= pBlock->numOfCols) {
+      if (j >= pBlock->numOfBSma) {
         pStatis[i].numOfNull = -1;
         ++i;
         continue;
@@ -546,7 +583,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
   int32_t tsize = (int32_t)tsdbBlockStatisSize(pBlock->numOfCols, (uint32_t)pBlock->blkVer);
   if (!taosCheckChecksumWhole((uint8_t *)TSDB_READ_BUF(pReadh), tsize)) {
     terrno = TSDB_CODE_TDB_FILE_CORRUPTED;
-    tsdbError("vgId:%d block statis part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%d",
+    tsdbError("vgId:%d block head part in file %s is corrupted since wrong checksum, offset:%" PRId64 " len :%d",
               TSDB_READ_REPO_ID(pReadh), TSDB_FILE_FULL_NAME(pDFile), (int64_t)pBlock->offset, tsize);
     return -1;
   }
@@ -579,7 +616,7 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       tcolId = pBlockCol->colId;
       toffset = tsdbGetBlockColOffset(pBlockCol);
       tlen = pBlockCol->len;
-      pDataCol->bitmap = pBlockCol->bitmap;
+      pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
     } else {
       ASSERT(pDataCol->colId == tcolId);
       TD_SET_COL_ROWS_NORM(pDataCol);
@@ -587,17 +624,8 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
 
     // int32_t tBitmaps = 0;
     int32_t tLenBitmap = 0;
-    if ((dcol != 0) && !TD_COL_ROWS_NORM(pBlockCol)) {
+    if ((dcol != 0) && (pBlockCol->blen > 0)) {
       tLenBitmap = nBitmaps;
-#if 0
-      if (IS_VAR_DATA_TYPE(pDataCol->type)) {
-        tBitmaps = nBitmaps;
-        tLenBitmap = tBitmaps;
-      } else {
-        tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
-        tLenBitmap = tBitmaps * TYPE_BYTES[pDataCol->type];
-      }
-#endif
     }
 
     if (tcolId == pDataCol->colId) {
@@ -616,15 +644,15 @@ static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDat
       }
 
       if (dcol != 0) {
-        ccol++;
+        ++ccol;
       }
-      dcol++;
+      ++dcol;
     } else if (tcolId < pDataCol->colId) {
-      ccol++;
+      ++ccol;
     } else {
       // Set current column as NULL and forward
       dataColReset(pDataCol);
-      dcol++;
+      ++dcol;
     }
   }
 
@@ -747,8 +775,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 
     if (colId == PRIMARYKEY_TIMESTAMP_COL_ID) {  // load the key row
       blockCol.colId = colId;
-      TD_SET_COL_ROWS_NORM(&blockCol);  // default is NORM for the primary key column
-      blockCol.blen = 0;
+      blockCol.blen = 0;  // default is NORM for the primary key column
       blockCol.len = pBlock->keyLen;
       blockCol.type = pDataCol->type;
       blockCol.offset = TSDB_KEY_COL_OFFSET;
@@ -778,7 +805,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
       ASSERT(pBlockCol->colId == pDataCol->colId);
     }
     // set the bitmap
-    pDataCol->bitmap = pBlockCol->bitmap;
+    pDataCol->bitmap = pBlockCol->blen > 0 ? 1 : 0;
 
     if (tsdbLoadColData(pReadh, pDFile, pBlock, pBlockCol, pDataCol) < 0) return -1;
   }
@@ -796,17 +823,8 @@ static int tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBloc
   // int32_t tBitmaps = 0;
   int32_t tLenBitmap = 0;
 
-  if (!TD_COL_ROWS_NORM(pBlockCol)) {
+  if (pBlockCol->blen) {
     tLenBitmap = nBitmaps;
-#if 0
-    if (IS_VAR_DATA_TYPE(pDataCol->type)) {
-      tBitmaps = nBitmaps;
-      tLenBitmap = tBitmaps;
-    } else {
-      tBitmaps = (int32_t)ceil((double)nBitmaps / TYPE_BYTES[pDataCol->type]);
-      tLenBitmap = tBitmaps * TYPE_BYTES[pDataCol->type];
-    }
-#endif
   }
 
   int tsize = pDataCol->bytes * pBlock->numOfRows + tLenBitmap + 2 * COMP_OVERFLOW_BYTES;

@@ -17,12 +17,14 @@
 #include "query.h"
 #include "tname.h"
 #include "catalogInt.h"
+#include "systable.h"
 
 int32_t ctgActUpdateVg(SCtgMetaAction *action);
 int32_t ctgActUpdateTbl(SCtgMetaAction *action);
 int32_t ctgActRemoveDB(SCtgMetaAction *action);
 int32_t ctgActRemoveStb(SCtgMetaAction *action);
 int32_t ctgActRemoveTbl(SCtgMetaAction *action);
+int32_t ctgActUpdateUser(SCtgMetaAction *action);
 
 extern SCtgDebug gCTGDebug;
 SCatalogMgmt gCtgMgmt = {0};
@@ -50,6 +52,11 @@ SCtgAction gCtgAction[CTG_ACT_MAX] = {{
                             CTG_ACT_REMOVE_TBL,
                             "remove tbMeta",
                             ctgActRemoveTbl
+                          },
+                          {
+                            CTG_ACT_UPDATE_USER,
+                            "update user",
+                            ctgActUpdateUser
                           }
 };
 
@@ -356,6 +363,31 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgPushUpdateUserMsgInQueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syncReq) {
+  int32_t code = 0;
+  SCtgMetaAction action= {.act = CTG_ACT_UPDATE_USER, .syncReq = syncReq};
+  SCtgUpdateUserMsg *msg = taosMemoryMalloc(sizeof(SCtgUpdateUserMsg));
+  if (NULL == msg) {
+    ctgError("malloc %d failed", (int32_t)sizeof(SCtgUpdateUserMsg));
+    CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
+  }
+
+  msg->pCtg = pCtg;
+  msg->userAuth = *pAuth;
+
+  action.data = msg;
+
+  CTG_ERR_JRET(ctgPushAction(pCtg, &action));
+
+  return TSDB_CODE_SUCCESS;
+  
+_return:
+
+  tFreeSGetUserAuthRsp(pAuth);
+  taosMemoryFreeClear(msg);
+  
+  CTG_RET(code);
+}
 
 int32_t ctgAcquireVgInfo(SCatalog *pCtg, SCtgDBCache *dbCache, bool *inCache) {
   CTG_LOCK(CTG_READ, &dbCache->vgLock);
@@ -494,7 +526,7 @@ _return:
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SArray **out) {
+int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, SArray *out) {
   char *msg = NULL;
   int32_t msgLen = 0;
 
@@ -526,7 +558,7 @@ int32_t ctgGetQnodeListFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmt
     CTG_ERR_RET(code);
   }
 
-  ctgDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(*out));
+  ctgDebug("Got qnode list from mnode, listNum:%d", (int32_t)taosArrayGetSize(out));
 
   return TSDB_CODE_SUCCESS;
 }
@@ -643,6 +675,86 @@ int32_t ctgGetIndexInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmt
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t ctgGetUdfInfoFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char *funcName, SFuncInfo **out) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+
+  ctgDebug("try to get udf info from mnode, funcName:%s", funcName);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)]((void *)funcName, &msg, 0, &msgLen);
+  if (code) {
+    ctgError("Build get udf msg failed, code:%x, db:%s", code, funcName);
+    CTG_ERR_RET(code);
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_RETRIEVE_FUNC,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+
+  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    if (TSDB_CODE_MND_FUNC_NOT_EXIST == rpcRsp.code) {
+      ctgDebug("funcName %s not exist in mnode", funcName);
+      taosMemoryFreeClear(*out);
+      CTG_RET(TSDB_CODE_SUCCESS);
+    }
+    
+    ctgError("error rsp for get udf, error:%s, funcName:%s", tstrerror(rpcRsp.code), funcName);
+    CTG_ERR_RET(rpcRsp.code);
+  }
+
+  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_RETRIEVE_FUNC)](*out, rpcRsp.pCont, rpcRsp.contLen);
+  if (code) {
+    ctgError("Process get udf rsp failed, code:%x, funcName:%s", code, funcName);
+    CTG_ERR_RET(code);
+  }
+
+  ctgDebug("Got udf from mnode, funcName:%s", funcName);
+
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgGetUserDbAuthFromMnode(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char *user, SGetUserAuthRsp *authRsp) {
+  char *msg = NULL;
+  int32_t msgLen = 0;
+
+  ctgDebug("try to get user auth from mnode, user:%s", user);
+
+  int32_t code = queryBuildMsg[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)]((void *)user, &msg, 0, &msgLen);
+  if (code) {
+    ctgError("Build get user auth msg failed, code:%x, db:%s", code, user);
+    CTG_ERR_RET(code);
+  }
+  
+  SRpcMsg rpcMsg = {
+      .msgType = TDMT_MND_GET_USER_AUTH,
+      .pCont   = msg,
+      .contLen = msgLen,
+  };
+
+  SRpcMsg rpcRsp = {0};
+
+  rpcSendRecv(pRpc, (SEpSet*)pMgmtEps, &rpcMsg, &rpcRsp);
+  if (TSDB_CODE_SUCCESS != rpcRsp.code) {
+    ctgError("error rsp for get user auth, error:%s, user:%s", tstrerror(rpcRsp.code), user);
+    CTG_ERR_RET(rpcRsp.code);
+  }
+
+  code = queryProcessMsgRsp[TMSG_INDEX(TDMT_MND_GET_USER_AUTH)](authRsp, rpcRsp.pCont, rpcRsp.contLen);
+  if (code) {
+    ctgError("Process get user auth rsp failed, code:%x, user:%s", code, user);
+    CTG_ERR_RET(code);
+  }
+
+  ctgDebug("Got user auth from mnode, user:%s", user);
+
+  return TSDB_CODE_SUCCESS;
+}
+
 
 int32_t ctgIsTableMetaExistInCache(SCatalog* pCtg, char *dbFName, char* tbName, int32_t *exist) {
   if (NULL == pCtg->dbCache) {
@@ -729,6 +841,8 @@ int32_t ctgGetTableMetaFromCache(SCatalog* pCtg, const SName* pTableName, STable
     
     return TSDB_CODE_SUCCESS;
   }
+
+  ctgDebug("Got subtable meta from cache, type:%d, dbFName:%s, tbName:%s, suid:%" PRIx64, tbMeta->tableType, dbFName, pTableName->tname, tbMeta->suid);
   
   CTG_LOCK(CTG_READ, &dbCache->tbCache.stbLock);
   
@@ -811,6 +925,55 @@ int32_t ctgGetTableTypeFromCache(SCatalog* pCtg, const char* dbFName, const char
   ctgReleaseDBCache(pCtg, dbCache);
 
   ctgDebug("Got tbtype from cache, dbFName:%s, tbName:%s, type:%d", dbFName, tableName, *tbType);  
+  
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t ctgChkAuthFromCache(SCatalog* pCtg, const char* user, const char* dbFName, AUTH_TYPE type, bool *inCache, bool *pass) {
+  if (NULL == pCtg->userCache) {
+    ctgDebug("empty user auth cache, user:%s", user);
+    goto _return;
+  }
+  
+  SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, user, strlen(user));
+  if (NULL == pUser) {
+    ctgDebug("user not in cache, user:%s", user);
+    goto _return;
+  }
+
+  *inCache = true;
+
+  ctgDebug("Got user from cache, user:%s", user);
+  CTG_CACHE_STAT_ADD(userHitNum, 1);
+  
+  if (pUser->superUser) {
+    *pass = true;
+    return TSDB_CODE_SUCCESS;
+  }
+
+  CTG_LOCK(CTG_READ, &pUser->lock);
+  if (pUser->createdDbs && taosHashGet(pUser->createdDbs, dbFName, strlen(dbFName))) {
+    *pass = true;
+    CTG_UNLOCK(CTG_READ, &pUser->lock);
+    return TSDB_CODE_SUCCESS;
+  }
+  
+  if (pUser->readDbs && taosHashGet(pUser->readDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_READ) {
+    *pass = true;
+  }
+  
+  if (pUser->writeDbs && taosHashGet(pUser->writeDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_WRITE) {
+    *pass = true;
+  }
+
+  CTG_UNLOCK(CTG_READ, &pUser->lock);
+  
+  return TSDB_CODE_SUCCESS;
+
+_return:
+
+  *inCache = false;
+  CTG_CACHE_STAT_ADD(userMissNum, 1);
   
   return TSDB_CODE_SUCCESS;
 }
@@ -1494,6 +1657,11 @@ int32_t ctgUpdateTblMeta(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, ui
   STableMeta *orig = taosHashGet(tbCache->metaCache, tbName, strlen(tbName));
   if (orig) {
     origType = orig->tableType;
+
+    if (origType == meta->tableType && orig->uid == meta->uid && orig->sversion >= meta->sversion && orig->tversion >= meta->tversion) {
+      CTG_UNLOCK(CTG_READ, &tbCache->metaLock);  
+      return TSDB_CODE_SUCCESS;
+    }
     
     if (origType == TSDB_SUPER_TABLE) {
       if ((!isStb) || orig->suid != meta->suid) {
@@ -1532,16 +1700,10 @@ int32_t ctgUpdateTblMeta(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, ui
     CTG_CACHE_STAT_ADD(tblNum, 1);
   }
 
-  ctgDebug("tbmeta updated to cache, dbFName:%s, tbName:%s, tbType:%d", dbFName, tbName, meta->tableType);
+  ctgDebug("tbmeta updated to cache, dbFName:%s, tbName:%s, tbType:%d, suid:%" PRIx64, dbFName, tbName, meta->tableType, meta->suid);
   ctgdShowTableMeta(pCtg, tbName, meta);
 
   if (!isStb) {
-    CTG_UNLOCK(CTG_READ, &tbCache->metaLock);  
-    return TSDB_CODE_SUCCESS;
-  }
-
-  if (origType == TSDB_SUPER_TABLE && origSuid == meta->suid) {
-    CTG_UNLOCK(CTG_WRITE, &tbCache->stbLock);
     CTG_UNLOCK(CTG_READ, &tbCache->metaLock);  
     return TSDB_CODE_SUCCESS;
   }
@@ -1560,7 +1722,7 @@ int32_t ctgUpdateTblMeta(SCatalog *pCtg, SCtgDBCache *dbCache, char *dbFName, ui
 
   CTG_UNLOCK(CTG_READ, &tbCache->metaLock);
 
-  ctgDebug("stb updated to stbCache, dbFName:%s, tbName:%s, tbType:%d", dbFName, tbName, meta->tableType);
+  ctgDebug("stb updated to stbCache, dbFName:%s, tbName:%s, tbType:%d, suid:%" PRIx64 ",ma:%p", dbFName, tbName, meta->tableType, meta->suid, tbMeta);
 
   SSTableMetaVersion metaRent = {.dbId = dbId, .suid = meta->suid, .sversion = meta->sversion, .tversion = meta->tversion};
   strcpy(metaRent.dbFName, dbFName);
@@ -1908,6 +2070,45 @@ _return:
   CTG_RET(code);
 }
 
+int32_t ctgChkAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass) {
+  bool inCache = false;
+  int32_t code = 0;
+  
+  *pass = false;
+  
+  CTG_ERR_RET(ctgChkAuthFromCache(pCtg, user, dbFName, type, &inCache, pass));
+
+  if (inCache) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SGetUserAuthRsp authRsp = {0};
+  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(pCtg, pRpc, pMgmtEps, user, &authRsp));
+  
+  if (authRsp.superAuth) {
+    *pass = true;
+    goto _return;
+  }
+
+  if (authRsp.createdDbs && taosHashGet(authRsp.createdDbs, dbFName, strlen(dbFName))) {
+    *pass = true;
+    goto _return;
+  }
+
+  if (authRsp.readDbs && taosHashGet(authRsp.readDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_READ) {
+    *pass = true;
+  }
+
+  if (authRsp.writeDbs && taosHashGet(authRsp.writeDbs, dbFName, strlen(dbFName)) && type == AUTH_TYPE_WRITE) {
+    *pass = true;
+  }
+
+_return:
+
+  ctgPushUpdateUserMsgInQueue(pCtg, &authRsp, false);
+
+  return TSDB_CODE_SUCCESS;
+}
 
 
 int32_t ctgActUpdateVg(SCtgMetaAction *action) {
@@ -2074,6 +2275,67 @@ _return:
 
   taosMemoryFreeClear(msg);
 
+  CTG_RET(code);
+}
+
+int32_t ctgActUpdateUser(SCtgMetaAction *action) {
+  int32_t code = 0;
+  SCtgUpdateUserMsg *msg = action->data;
+  SCatalog* pCtg = msg->pCtg;
+
+  if (NULL == pCtg->userCache) {
+    pCtg->userCache = taosHashInit(gCtgMgmt.cfg.maxUserCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), false, HASH_ENTRY_LOCK);
+    if (NULL == pCtg->userCache) {
+      ctgError("taosHashInit %d user cache failed", gCtgMgmt.cfg.maxUserCacheNum);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+  
+  SCtgUserAuth *pUser = (SCtgUserAuth *)taosHashGet(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user));
+  if (NULL == pUser) {
+    SCtgUserAuth userAuth = {0};
+
+    userAuth.version = msg->userAuth.version;
+    userAuth.superUser = msg->userAuth.superAuth;
+    userAuth.createdDbs = msg->userAuth.createdDbs;
+    userAuth.readDbs = msg->userAuth.readDbs;
+    userAuth.writeDbs = msg->userAuth.writeDbs;
+
+    if (taosHashPut(pCtg->userCache, msg->userAuth.user, strlen(msg->userAuth.user), &userAuth, sizeof(userAuth))) {
+      ctgError("taosHashPut user %s to cache failed", msg->userAuth.user);
+      CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
+    }
+
+    return TSDB_CODE_SUCCESS;
+  }
+
+  pUser->version = msg->userAuth.version;
+
+  CTG_LOCK(CTG_WRITE, &pUser->lock);
+
+  taosHashCleanup(pUser->createdDbs);
+  pUser->createdDbs = msg->userAuth.createdDbs;
+  msg->userAuth.createdDbs = NULL;
+
+  taosHashCleanup(pUser->readDbs);
+  pUser->readDbs = msg->userAuth.readDbs;
+  msg->userAuth.readDbs = NULL;
+
+  taosHashCleanup(pUser->writeDbs);
+  pUser->writeDbs = msg->userAuth.writeDbs;
+  msg->userAuth.writeDbs = NULL;
+
+  CTG_UNLOCK(CTG_WRITE, &pUser->lock);
+
+_return:
+
+
+  taosHashCleanup(msg->userAuth.createdDbs);
+  taosHashCleanup(msg->userAuth.readDbs);
+  taosHashCleanup(msg->userAuth.writeDbs);
+ 
+  taosMemoryFreeClear(msg);
+  
   CTG_RET(code);
 }
 
@@ -2314,12 +2576,6 @@ int32_t catalogGetHandle(uint64_t clusterId, SCatalog** catalogHandle) {
       CTG_ERR_JRET(TSDB_CODE_CTG_MEM_ERROR);
     }
 
-    SHashObj *metaCache = taosHashInit(gCtgMgmt.cfg.maxTblCacheNum, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_ENTRY_LOCK);
-    if (NULL == metaCache) {
-      qError("taosHashInit failed, num:%d", gCtgMgmt.cfg.maxTblCacheNum);
-      CTG_ERR_RET(TSDB_CODE_CTG_MEM_ERROR);
-    }
-    
     code = taosHashPut(gCtgMgmt.pCluster, &clusterId, sizeof(clusterId), &clusterCtg, POINTER_BYTES);
     if (code) {
       if (HASH_NODE_EXIST(code)) {
@@ -2735,7 +2991,8 @@ int32_t catalogGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, 
   }
 
   if (pReq->qNodeRequired) {
-    CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pTrans, pMgmtEps, &pRsp->pEpSetList));
+    pRsp->pQnodeList = taosArrayInit(10, sizeof(SQueryNodeAddr));
+    CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pTrans, pMgmtEps, pRsp->pQnodeList));
   }
 
   CTG_API_LEAVE(TSDB_CODE_SUCCESS);
@@ -2764,7 +3021,7 @@ int32_t catalogGetQnodeList(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, 
     CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
   }
 
-  CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pRpc, pMgmtEps, &pQnodeList));
+  CTG_ERR_JRET(ctgGetQnodeListFromMnode(pCtg, pRpc, pMgmtEps, pQnodeList));
 
 _return:
 
@@ -2791,6 +3048,35 @@ int32_t catalogGetExpiredDBs(SCatalog* pCtg, SDbVgVersion **dbs, uint32_t *num) 
   CTG_API_LEAVE(ctgMetaRentGet(&pCtg->dbRent, (void **)dbs, num, sizeof(SDbVgVersion)));
 }
 
+int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion **users, uint32_t *num) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == users || NULL == num) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  *num = taosHashGetSize(pCtg->userCache);
+  if (*num > 0) {
+    *users = taosMemoryCalloc(*num, sizeof(SUserAuthVersion));
+    if (NULL == *users) {
+      ctgError("calloc %d userAuthVersion failed", *num);
+      CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+    }
+  }
+
+  uint32_t i = 0;
+  SCtgUserAuth *pAuth = taosHashIterate(pCtg->userCache, NULL);
+  while (pAuth != NULL) {
+    void *key = taosHashGetKey(pAuth, NULL);
+    strncpy((*users)[i].user, key, sizeof((*users)[i].user));
+    (*users)[i].version = pAuth->version;
+    pAuth = taosHashIterate(pCtg->userCache, pAuth);
+  }
+
+  CTG_API_LEAVE(TSDB_CODE_SUCCESS);
+}
+
+
 int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg) {
   CTG_API_ENTER();
   
@@ -2809,6 +3095,55 @@ int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, 
   }
 
   CTG_API_LEAVE(ctgGetIndexInfoFromMnode(pCtg, pRpc, pMgmtEps, indexName, pInfo));
+}
+
+int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo** pInfo) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == funcName || NULL == pInfo) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  *pInfo = taosMemoryMalloc(sizeof(SFuncInfo));
+  if (NULL == *pInfo) {
+    CTG_API_LEAVE(TSDB_CODE_OUT_OF_MEMORY);
+  }
+
+  CTG_ERR_JRET(ctgGetUdfInfoFromMnode(pCtg, pRpc, pMgmtEps, funcName, pInfo));
+  
+_return:
+
+  if (code) {
+    taosMemoryFreeClear(*pInfo);    
+  }
+  
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogChkAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass) {
+  CTG_API_ENTER();
+  
+  if (NULL == pCtg || NULL == pRpc || NULL == pMgmtEps || NULL == user || NULL == dbFName || NULL == pass) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  int32_t code = 0;
+  CTG_ERR_JRET(ctgChkAuth(pCtg, pRpc, pMgmtEps, user, dbFName, type, pass));
+  
+_return:
+
+  CTG_API_LEAVE(code);
+}
+
+int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth) {
+  CTG_API_ENTER();
+
+  if (NULL == pCtg || NULL == pAuth) {
+    CTG_API_LEAVE(TSDB_CODE_CTG_INVALID_INPUT);
+  }
+
+  CTG_API_LEAVE(ctgPushUpdateUserMsgInQueue(pCtg, pAuth, false));
 }
 
 

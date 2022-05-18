@@ -41,24 +41,22 @@ void* MndTestStb::BuildCreateDbReq(const char* dbname, int32_t* pContLen) {
   SCreateDbReq createReq = {0};
   strcpy(createReq.db, dbname);
   createReq.numOfVgroups = 2;
-  createReq.cacheBlockSize = 16;
-  createReq.totalBlocks = 10;
+  createReq.buffer = -1;
+  createReq.pageSize = -1;
+  createReq.pages = -1;
   createReq.daysPerFile = 1000;
   createReq.daysToKeep0 = 3650;
   createReq.daysToKeep1 = 3650;
   createReq.daysToKeep2 = 3650;
   createReq.minRows = 100;
   createReq.maxRows = 4096;
-  createReq.commitTime = 3600;
   createReq.fsyncPeriod = 3000;
   createReq.walLevel = 1;
   createReq.precision = 0;
   createReq.compression = 2;
   createReq.replications = 1;
   createReq.strict = 1;
-  createReq.update = 0;
   createReq.cacheLastRow = 0;
-  createReq.ttl = 1;
   createReq.ignoreExist = 1;
 
   int32_t contLen = tSerializeSCreateDbReq(NULL, 0, &createReq);
@@ -139,7 +137,7 @@ void* MndTestStb::BuildCreateStbReq(const char* stbname, int32_t* pContLen) {
 }
 
 void* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -160,7 +158,7 @@ void* MndTestStb::BuildAlterStbAddTagReq(const char* stbname, const char* tagnam
 }
 
 void* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -182,7 +180,7 @@ void* MndTestStb::BuildAlterStbDropTagReq(const char* stbname, const char* tagna
 
 void* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char* tagname, const char* newtagname,
                                                 int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 2;
   req.pFields = taosArrayInit(2, sizeof(SField));
@@ -210,7 +208,7 @@ void* MndTestStb::BuildAlterStbUpdateTagNameReq(const char* stbname, const char*
 
 void* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char* tagname, int32_t bytes,
                                                  int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -231,7 +229,7 @@ void* MndTestStb::BuildAlterStbUpdateTagBytesReq(const char* stbname, const char
 }
 
 void* MndTestStb::BuildAlterStbAddColumnReq(const char* stbname, const char* colname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -252,7 +250,7 @@ void* MndTestStb::BuildAlterStbAddColumnReq(const char* stbname, const char* col
 }
 
 void* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* colname, int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -274,7 +272,7 @@ void* MndTestStb::BuildAlterStbDropColumnReq(const char* stbname, const char* co
 
 void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const char* colname, int32_t bytes,
                                                     int32_t* pContLen) {
-  SMAltertbReq req = {0};
+  SMAlterStbReq req = {0};
   strcpy(req.name, stbname);
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
@@ -343,7 +341,6 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     EXPECT_EQ(metaRsp.numOfTags, 3);
     EXPECT_EQ(metaRsp.precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(metaRsp.tableType, TSDB_SUPER_TABLE);
-    EXPECT_EQ(metaRsp.update, 0);
     EXPECT_EQ(metaRsp.sversion, 1);
     EXPECT_EQ(metaRsp.tversion, 0);
     EXPECT_GT(metaRsp.suid, 0);

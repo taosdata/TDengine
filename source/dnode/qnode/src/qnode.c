@@ -17,6 +17,7 @@
 #include "qndInt.h"
 #include "query.h"
 #include "qworker.h"
+#include "libs/function/function.h"
 
 SQnode *qndOpen(const SQnodeOpt *pOption) {
   SQnode *pQnode = taosMemoryCalloc(1, sizeof(SQnode));
@@ -36,15 +37,14 @@ SQnode *qndOpen(const SQnodeOpt *pOption) {
 
 void qndClose(SQnode *pQnode) {
   qWorkerDestroy((void **)&pQnode->pQuery);
-
   taosMemoryFree(pQnode);
 }
 
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
-  qTrace("message in query queue is processing");
-  SReadHandle handle = {0};
+  qTrace("message in qnode query queue is processing");
+  SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY: {
@@ -77,6 +77,8 @@ int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
       // return vnodeGetTableMeta(pQnode, pMsg);
     case TDMT_VND_CONSUME:
       // return tqProcessConsumeReq(pQnode->pTq, pMsg);
+    case TDMT_VND_QUERY_HEARTBEAT:
+      return qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg);      
     default:
       qError("unknown msg type:%d in fetch queue", pMsg->msgType);
       return TSDB_CODE_VND_APP_ERROR;

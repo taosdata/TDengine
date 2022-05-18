@@ -20,13 +20,13 @@ SyncPing *createMsg() {
   srcId.vgId = 100;
   destId.addr = syncUtilAddr2U64("127.0.0.1", 5678);
   destId.vgId = 100;
-  SyncPing *pMsg = syncPingBuild3(&srcId, &destId);
+  SyncPing *pMsg = syncPingBuild3(&srcId, &destId, 1000);
   return pMsg;
 }
 
 void test1() {
   SyncPing *pMsg = createMsg();
-  syncPingPrint2((char *)"test1:", pMsg);
+  syncPingLog2((char *)"test1:", pMsg);
   syncPingDestroy(pMsg);
 }
 
@@ -37,7 +37,7 @@ void test2() {
   syncPingSerialize(pMsg, serialized, len);
   SyncPing *pMsg2 = syncPingBuild(pMsg->dataLen);
   syncPingDeserialize(serialized, len, pMsg2);
-  syncPingPrint2((char *)"test2: syncPingSerialize -> syncPingDeserialize ", pMsg2);
+  syncPingLog2((char *)"test2: syncPingSerialize -> syncPingDeserialize ", pMsg2);
 
   taosMemoryFree(serialized);
   syncPingDestroy(pMsg);
@@ -49,7 +49,7 @@ void test3() {
   uint32_t  len;
   char *    serialized = syncPingSerialize2(pMsg, &len);
   SyncPing *pMsg2 = syncPingDeserialize2(serialized, len);
-  syncPingPrint2((char *)"test3: syncPingSerialize3 -> syncPingDeserialize2 ", pMsg2);
+  syncPingLog2((char *)"test3: syncPingSerialize2 -> syncPingDeserialize2 ", pMsg2);
 
   taosMemoryFree(serialized);
   syncPingDestroy(pMsg);
@@ -62,10 +62,11 @@ void test4() {
   syncPing2RpcMsg(pMsg, &rpcMsg);
   SyncPing *pMsg2 = (SyncPing *)taosMemoryMalloc(rpcMsg.contLen);
   syncPingFromRpcMsg(&rpcMsg, pMsg2);
-  syncPingPrint2((char *)"test4: syncPing2RpcMsg -> syncPingFromRpcMsg ", pMsg2);
+  syncPingLog2((char *)"test4: syncPing2RpcMsg -> syncPingFromRpcMsg ", pMsg2);
 
   syncPingDestroy(pMsg);
   syncPingDestroy(pMsg2);
+  rpcFreeCont(rpcMsg.pCont);
 }
 
 void test5() {
@@ -73,16 +74,30 @@ void test5() {
   SRpcMsg   rpcMsg;
   syncPing2RpcMsg(pMsg, &rpcMsg);
   SyncPing *pMsg2 = syncPingFromRpcMsg2(&rpcMsg);
-  syncPingPrint2((char *)"test5: syncPing2RpcMsg -> syncPingFromRpcMsg2 ", pMsg2);
+  syncPingLog2((char *)"test5: syncPing2RpcMsg -> syncPingFromRpcMsg2 ", pMsg2);
 
+  syncPingDestroy(pMsg);
+  syncPingDestroy(pMsg2);
+  rpcFreeCont(rpcMsg.pCont);
+}
+
+void test6() {
+  SyncPing *pMsg = createMsg();
+  int32_t   bufLen = syncPingSerialize3(pMsg, NULL, 0);
+  char *    serialized = (char *)taosMemoryMalloc(bufLen);
+  syncPingSerialize3(pMsg, serialized, bufLen);
+  SyncPing *pMsg2 = syncPingDeserialize3(serialized, bufLen);
+  assert(pMsg2 != NULL);
+  syncPingLog2((char *)"test6: syncPingSerialize3 -> syncPingDeserialize3 ", pMsg2);
+
+  taosMemoryFree(serialized);
   syncPingDestroy(pMsg);
   syncPingDestroy(pMsg2);
 }
 
 int main() {
-  // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
-  sDebugFlag = 143 + 64;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
   logTest();
 
   test1();
@@ -90,6 +105,7 @@ int main() {
   test3();
   test4();
   test5();
+  test6();
 
   return 0;
 }

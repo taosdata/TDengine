@@ -22,13 +22,12 @@
 extern "C" {
 #endif
 
-#define tjsonGetNumberValue(pJson, pName, val) \
-  ({ \
-    uint64_t _tmp = 0; \
-    int32_t _code = tjsonGetUBigIntValue(pJson, pName, &_tmp); \
-    val = _tmp; \
-    _code; \
-  })
+#define tjsonGetNumberValue(pJson, pName, val, code)  \
+  do {                                                \
+    uint64_t _tmp = 0;                                \
+    code = tjsonGetBigIntValue(pJson, pName, &_tmp); \
+    val = _tmp;                                       \
+  } while (0)
 
 typedef void SJson;
 
@@ -45,6 +44,8 @@ int32_t tjsonAddItemToObject(SJson* pJson, const char* pName, SJson* pItem);
 int32_t tjsonAddItemToArray(SJson* pJson, SJson* pItem);
 
 SJson*  tjsonGetObjectItem(const SJson* pJson, const char* pName);
+int32_t tjsonGetObjectName(const SJson* pJson, char** pName);
+int32_t tjsonGetObjectValueString(const SJson* pJson, char** pStringValue);
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal);
 int32_t tjsonDupStringValue(const SJson* pJson, const char* pName, char** pVal);
 int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal);
@@ -77,6 +78,7 @@ char* tjsonToUnformattedString(const SJson* pJson);
 
 SJson* tjsonParse(const char* pStr);
 bool   tjsonValidateJson(const char* pJson);
+const char* tjsonGetError();
 
 #ifdef __cplusplus
 }

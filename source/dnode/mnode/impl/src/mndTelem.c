@@ -21,9 +21,6 @@
 #include "thttp.h"
 #include "tjson.h"
 
-#define TELEMETRY_SERVER "telemetry.taosdata.com"
-#define TELEMETRY_PORT   80
-
 typedef struct {
   int64_t numOfDnode;
   int64_t numOfMnode;
@@ -62,6 +59,12 @@ static void mndGetStat(SMnode* pMnode, SMnodeStat* pStat) {
 
     sdbRelease(pSdb, pVgroup);
   }
+
+  pStat->numOfChildTable = 100;
+  pStat->numOfColumn = 200;
+  pStat->totalPoints = 300;
+  pStat->totalStorage = 400;
+  pStat->compStorage = 500;
 }
 
 static void mndBuildRuntimeInfo(SMnode* pMnode, SJson* pJson) {
@@ -119,15 +122,17 @@ static char* mndBuildTelemetryReport(SMnode* pMnode) {
   return pCont;
 }
 
-static int32_t mndProcessTelemTimer(SNodeMsg* pReq) {
-  SMnode*     pMnode = pReq->pNode;
+static int32_t mndProcessTelemTimer(SRpcMsg* pReq) {
+  SMnode*     pMnode = pReq->info.node;
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
-  if (!pMgmt->enable) return 0;
+  if (!tsEnableTelem) return 0;
 
   taosWLockLatch(&pMgmt->lock);
   char* pCont = mndBuildTelemetryReport(pMnode);
   if (pCont != NULL) {
-    taosSendHttpReport(TELEMETRY_SERVER, TELEMETRY_PORT, pCont, strlen(pCont), HTTP_FLAT);
+    if (taosSendHttpReport(tsTelemServer, tsTelemPort, pCont, strlen(pCont), HTTP_FLAT) != 0) {
+      mError("failed to send telemetry msg");
+    }
     taosMemoryFree(pCont);
   }
   taosWUnLockLatch(&pMgmt->lock);
@@ -138,11 +143,9 @@ int32_t mndInitTelem(SMnode* pMnode) {
   STelemMgmt* pMgmt = &pMnode->telemMgmt;
 
   taosInitRWLatch(&pMgmt->lock);
-  pMgmt->enable = tsEnableTelemetryReporting;
   taosGetEmail(pMgmt->email, sizeof(pMgmt->email));
   mndSetMsgHandle(pMnode, TDMT_MND_TELEM_TIMER, mndProcessTelemTimer);
 
-  mDebug("mnode telemetry is initialized");
   return 0;
 }
 

@@ -17,7 +17,23 @@
 #include "os.h"
 #include "taoserror.h"
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#define PROCESS_ITEM 12
+
+typedef struct {
+  uint64_t user;
+  uint64_t nice;
+  uint64_t system;
+  uint64_t idle;
+} SysCpuInfo;
+
+typedef struct {
+  uint64_t utime;   // user time
+  uint64_t stime;   // kernel time
+  uint64_t cutime;  // all user time
+  uint64_t cstime;  // all dead time
+} ProcCpuInfo;
+
+#ifdef WINDOWS
 
 /*
  * windows implementation
@@ -92,22 +108,6 @@ LONG WINAPI FlCrashDump(PEXCEPTION_POINTERS ep) {
 #include <sys/utsname.h>
 #include <unistd.h>
 
-#define PROCESS_ITEM 12
-
-typedef struct {
-  uint64_t user;
-  uint64_t nice;
-  uint64_t system;
-  uint64_t idle;
-} SysCpuInfo;
-
-typedef struct {
-  uint64_t utime;   // user time
-  uint64_t stime;   // kernel time
-  uint64_t cutime;  // all user time
-  uint64_t cstime;  // all dead time
-} ProcCpuInfo;
-
 static pid_t tsProcId;
 static char  tsSysNetFile[] = "/proc/net/dev";
 static char  tsSysCpuFile[] = "/proc/stat";
@@ -125,8 +125,26 @@ static void taosGetProcIOnfos() {
   snprintf(tsProcCpuFile, sizeof(tsProcCpuFile), "/proc/%d/stat", tsProcId);
   snprintf(tsProcIOFile, sizeof(tsProcIOFile), "/proc/%d/io", tsProcId);
 }
+#endif
 
 static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
+#ifdef WINDOWS
+  FILETIME pre_idleTime = {0};
+  FILETIME pre_kernelTime = {0};
+  FILETIME pre_userTime = {0};
+  FILETIME idleTime;
+  FILETIME kernelTime;
+  FILETIME userTime;
+  bool res = GetSystemTimes(&idleTime, &kernelTime, &userTime);
+  if (res) {
+    cpuInfo->idle = CompareFileTime(&pre_idleTime, &idleTime);
+    cpuInfo->system = CompareFileTime(&pre_kernelTime, &kernelTime);
+    cpuInfo->user = CompareFileTime(&pre_userTime, &userTime);
+    cpuInfo->nice = 0;
+  }
+#elif defined(_TD_DARWIN_64)
+  assert(0);
+#else
   TdFilePtr pFile = taosOpenFile(tsSysCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return -1;
@@ -145,10 +163,25 @@ static int32_t taosGetSysCpuInfo(SysCpuInfo *cpuInfo) {
 
   if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
+#endif
   return 0;
 }
 
 static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
+#ifdef WINDOWS
+  FILETIME pre_krnlTm = {0};
+  FILETIME pre_usrTm = {0};
+	FILETIME creatTm, exitTm, krnlTm, usrTm;
+
+	if (GetThreadTimes(GetCurrentThread(), &creatTm, &exitTm, &krnlTm, &usrTm)) {
+    cpuInfo->stime = CompareFileTime(&pre_krnlTm, &krnlTm);
+    cpuInfo->utime = CompareFileTime(&pre_usrTm, &usrTm);
+    cpuInfo->cutime = 0;
+    cpuInfo->cstime = 0;
+	}
+#elif defined(_TD_DARWIN_64)
+  assert(0);
+#else
   TdFilePtr pFile = taosOpenFile(tsProcCpuFile, TD_FILE_READ | TD_FILE_STREAM);
   if (pFile == NULL) {
     return -1;
@@ -172,10 +205,10 @@ static int32_t taosGetProcCpuInfo(ProcCpuInfo *cpuInfo) {
 
   if (line != NULL) taosMemoryFreeClear(line);
   taosCloseFile(&pFile);
+#endif
   return 0;
 }
 
-#endif
 
 bool taosCheckSystemIsSmallEnd() {
   union check {
@@ -187,7 +220,7 @@ bool taosCheckSystemIsSmallEnd() {
 }
 
 void taosGetSystemInfo() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   taosGetCpuCores(&tsNumOfCores);
   taosGetTotalMemory(&tsTotalMemoryKB);
 
@@ -210,7 +243,8 @@ void taosGetSystemInfo() {
 }
 
 int32_t taosGetEmail(char *email, int32_t maxLen) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  // assert(0);
 #elif defined(_TD_DARWIN_64)
   const char *filepath = "/usr/local/taos/email";
 
@@ -241,7 +275,8 @@ int32_t taosGetEmail(char *email, int32_t maxLen) {
 }
 
 int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -296,7 +331,8 @@ int32_t taosGetOsReleaseName(char *releaseName, int32_t maxLen) {
 }
 
 int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
 #elif defined(_TD_DARWIN_64)
   char   *line = NULL;
   size_t  size = 0;
@@ -355,7 +391,7 @@ int32_t taosGetCpuInfo(char *cpuModel, int32_t maxLen, float *numOfCores) {
 }
 
 int32_t taosGetCpuCores(float *numOfCores) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   SYSTEM_INFO info;
   GetSystemInfo(&info);
   *numOfCores = info.dwNumberOfProcessors;
@@ -399,7 +435,7 @@ void taosGetCpuUsage(double *cpu_system, double *cpu_engine) {
 }
 
 int32_t taosGetTotalMemory(int64_t *totalKB) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
@@ -417,7 +453,7 @@ int32_t taosGetTotalMemory(int64_t *totalKB) {
 }
 
 int32_t taosGetProcMemory(int64_t *usedKB) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   unsigned bytes_used = 0;
 
 #if defined(_WIN64) && defined(_MSC_VER)
@@ -469,7 +505,7 @@ int32_t taosGetProcMemory(int64_t *usedKB) {
 }
 
 int32_t taosGetSysMemory(int64_t *usedKB) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   MEMORYSTATUSEX memsStat;
   memsStat.dwLength = sizeof(memsStat);
   if (!GlobalMemoryStatusEx(&memsStat)) {
@@ -534,7 +570,7 @@ int32_t taosGetDiskSize(char *dataDir, SDiskSize *diskSize) {
 }
 
 int32_t taosGetProcIO(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, int64_t *write_bytes) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   IO_COUNTERS io_counter;
   if (GetProcessIoCounters(GetCurrentProcess(), &io_counter)) {
     if (rchars) *rchars = io_counter.ReadTransferCount;
@@ -620,7 +656,7 @@ void taosGetProcIODelta(int64_t *rchars, int64_t *wchars, int64_t *read_bytes, i
 }
 
 int32_t taosGetCardInfo(int64_t *receive_bytes, int64_t *transmit_bytes) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   *receive_bytes = 0;
   *transmit_bytes = 0;
   return 0;
@@ -691,7 +727,7 @@ void taosGetCardInfoDelta(int64_t *receive_bytes, int64_t *transmit_bytes) {
 }
 
 void taosKillSystem() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   printf("function taosKillSystem, exit!");
   exit(0);
 #elif defined(_TD_DARWIN_64)
@@ -705,11 +741,10 @@ void taosKillSystem() {
 }
 
 int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   GUID guid;
   CoCreateGuid(&guid);
-
-  sprintf(uid, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3, guid.Data4[0],
+  snprintf(uid, uidlen, "%08X-%04X-%04X-%02X%02X-%02X%02X%02X%02X%02X%02X", guid.Data1, guid.Data2, guid.Data3, guid.Data4[0],
           guid.Data4[1], guid.Data4[2], guid.Data4[3], guid.Data4[4], guid.Data4[5], guid.Data4[6], guid.Data4[7]);
 
   return 0;
@@ -741,7 +776,8 @@ int32_t taosGetSystemUUID(char *uid, int32_t uidlen) {
 }
 
 char *taosGetCmdlineByPID(int pid) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
   return "";
 #elif defined(_TD_DARWIN_64)
   static char cmdline[1024];
@@ -777,7 +813,7 @@ char *taosGetCmdlineByPID(int pid) {
 }
 
 void taosSetCoreDump(bool enable) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   SetUnhandledExceptionFilter(&FlCrashDump);
 #elif defined(_TD_DARWIN_64)
 #else
@@ -857,7 +893,21 @@ void taosSetCoreDump(bool enable) {
 }
 
 SysNameInfo taosGetSysNameInfo() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  SysNameInfo info = {0};
+  DWORD dwVersion = GetVersion();
+
+  char *tmp = NULL;
+  tmp = getenv("OS");
+  if (tmp != NULL) tstrncpy(info.sysname, tmp, sizeof(info.sysname));
+  tmp = getenv("COMPUTERNAME");
+  if (tmp != NULL) tstrncpy(info.nodename, tmp, sizeof(info.nodename));
+  sprintf_s(info.release, sizeof(info.release), "%d", dwVersion & 0x0F);
+  sprintf_s(info.version, sizeof(info.release), "%d", (dwVersion >> 8) & 0x0F);
+  tmp = getenv("PROCESSOR_ARCHITECTURE");
+  if (tmp != NULL) tstrncpy(info.machine, tmp, sizeof(info.machine));
+
+  return info;
 #elif defined(_TD_DARWIN_64)
   SysNameInfo info = {0};
 

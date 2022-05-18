@@ -33,8 +33,19 @@ typedef struct {
   void   *pCont;
 } STransAction;
 
+typedef enum {
+  TEST_TRANS_START_FUNC = 1,
+  TEST_TRANS_STOP_FUNC = 2,
+  MQ_REB_TRANS_START_FUNC = 3,
+  MQ_REB_TRANS_STOP_FUNC = 4,
+} ETrnFuncType;
+
+typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
+
 int32_t mndInitTrans(SMnode *pMnode);
 void    mndCleanupTrans(SMnode *pMnode);
+STrans *mndAcquireTrans(SMnode *pMnode, int32_t transId);
+void    mndReleaseTrans(SMnode *pMnode, STrans *pTrans);
 
 STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const SRpcMsg *pReq);
 void    mndTransDrop(STrans *pTrans);
@@ -44,11 +55,13 @@ int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
+void    mndTransSetCb(STrans *pTrans, ETrnFuncType startFunc, ETrnFuncType stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
-void    mndTransProcessRsp(SNodeMsg *pRsp);
+void    mndTransProcessRsp(SRpcMsg *pRsp);
 void    mndTransPullup(SMnode *pMnode);
+int32_t mndKillTrans(SMnode *pMnode, STrans *pTrans);
 
 #ifdef __cplusplus
 }
