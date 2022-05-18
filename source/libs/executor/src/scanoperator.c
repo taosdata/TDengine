@@ -445,21 +445,18 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _error;
   }
 
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
 
   int32_t numOfCols = 0;
   SArray* pColList = extractColMatchInfo(pTableScanNode->scan.pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
-
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
-    return NULL;
+    pTaskInfo->code = code;
+    goto _error;
   }
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
@@ -480,13 +477,13 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pInfo->scanFlag          = MAIN_SCAN;
   pInfo->pColMatchInfo     = pColList;
 
-  pOperator->name         = "TableScanOperator";  // for debug purpose
-  pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
-  pOperator->blocking     = false;
-  pOperator->status       = OP_NOT_OPENED;
-  pOperator->info         = pInfo;
-  pOperator->numOfExprs   = numOfCols;
-  pOperator->pTaskInfo    = pTaskInfo;
+  pOperator->name          = "TableScanOperator";  // for debug purpose
+  pOperator->operatorType  = QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN;
+  pOperator->blocking      = false;
+  pOperator->status        = OP_NOT_OPENED;
+  pOperator->info          = pInfo;
+  pOperator->numOfExprs    = numOfCols;
+  pOperator->pTaskInfo     = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo, NULL, NULL, NULL);
 
@@ -498,6 +495,11 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->resultInfo.totalRows = ++cost;
 
   return pOperator;
+
+  _error:
+  taosMemoryFreeClear(pInfo);
+  taosMemoryFreeClear(pOperator);
+  return NULL;
 }
 
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* pTaskInfo) {

@@ -13,33 +13,18 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <vnode.h>
 #include "dataSinkMgt.h"
-#include "texception.h"
 #include "os.h"
-#include "tarray.h"
-#include "tcache.h"
-#include "tglobal.h"
 #include "tmsg.h"
 #include "tudf.h"
 
 #include "executor.h"
 #include "executorimpl.h"
 #include "query.h"
-#include "thash.h"
-#include "tlosertree.h"
-#include "ttypes.h"
-
-typedef struct STaskMgmt {
-  TdThreadMutex lock;
-  SCacheObj      *qinfoPool;      // query handle pool
-  int32_t         vgId;
-  bool            closed;
-} STaskMgmt;
 
 int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, SSubplan* pSubplan,
     qTaskInfo_t* pTaskInfo, DataSinkHandle* handle, EOPTR_EXEC_MODEL model) {
-  assert(readHandle != NULL && pSubplan != NULL);
+  ASSERT(readHandle != NULL && pSubplan != NULL);
   SExecTaskInfo** pTask = (SExecTaskInfo**)pTaskInfo;
 
   int32_t code = createExecTaskInfoImpl(pSubplan, pTask, readHandle, taskId, model);
@@ -59,6 +44,15 @@ int32_t qCreateExecTask(SReadHandle* readHandle, int32_t vgId, uint64_t taskId, 
   _error:
   // if failed to add ref for all tables in this query, abort current query
   return code;
+}
+
+int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, int32_t* sversion, int32_t* tversion) {
+  ASSERT(tinfo != NULL);
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+
+  *sversion = pTaskInfo->schemaVer.sversion;
+  *tversion = pTaskInfo->schemaVer.tversion;
+  return 0;
 }
 
 #ifdef TEST_IMPL

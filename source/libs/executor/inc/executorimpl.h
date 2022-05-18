@@ -214,9 +214,14 @@ typedef struct SExecTaskInfo {
   uint32_t         status;
   STimeWindow      window;
   STaskCostInfo    cost;
-  int64_t          owner;  // if it is in execution
+  int64_t          owner;                // if it is in execution
   int32_t          code;
   uint64_t         totalRows;            // total number of rows
+  struct {
+    int32_t        sversion;
+    int32_t        tversion;
+  } schemaVer;
+
   STableGroupInfo  tableqinfoGroupInfo;  // this is a group array list, including SArray<STableQueryInfo*> structure
   char*            sql;                  // query sql string
   jmp_buf          env;                  // jump to this position when error happens.
@@ -272,7 +277,7 @@ typedef struct SOperatorInfo {
   bool                    blocking;      // block operator or not
   uint8_t                 status;        // denote if current operator is completed
   int32_t                 numOfExprs;   // number of columns of the current operator results
-  char*                   name;          // name, used to show the query execution plan
+  char*                   name;          // name, for debug purpose
   void*                   info;          // extension attribution
   SExprInfo*              pExpr;
   SExecTaskInfo*          pTaskInfo;
