@@ -476,8 +476,8 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
       // the result of (NANOSECOND_PER_USEC/(double)factors[fromPrecision]) maybe a double
       switch (fromPrecision) {
         case TSDB_TIME_PRECISION_MILLI:{
-          tmp /= 1000;
-          time /= 1000;
+          tmp *= 1000;
+          time *= 1000;
           break;
         }
         case TSDB_TIME_PRECISION_MICRO:{
@@ -486,8 +486,8 @@ int64_t convertTimeFromPrecisionToUnit(int64_t time, int32_t fromPrecision, char
           break;
         }
         case TSDB_TIME_PRECISION_NANO:{
-          tmp *= 1000;
-          time *= 1000;
+          tmp /= 1000;
+          time /= 1000;
           break;
         }
       }
