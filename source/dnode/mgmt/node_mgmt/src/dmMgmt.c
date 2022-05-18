@@ -274,25 +274,24 @@ static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) 
   }
 }
 
-void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("net test req is received");
-  SRpcMsg rsp = {.code = 0, .info = pReq->info};
-  rsp.pCont = rpcMallocCont(pReq->contLen);
+void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
+  dDebug("msg:%p, net test req will be processed", pMsg);
+  SRpcMsg rsp = {.code = 0, .info = pMsg->info};
+  rsp.pCont = rpcMallocCont(pMsg->contLen);
   if (rsp.pCont == NULL) {
     rsp.code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    rsp.contLen = pReq->contLen;
+    rsp.contLen = pMsg->contLen;
   }
   rpcSendResponse(&rsp);
 }
 
-void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pReq) {
-  dDebug("server startup status req is received");
-
+void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
+  dDebug("msg:%p, server startup status req will be processed", pMsg);
   SServerStatusRsp statusRsp = {0};
   dmGetServerStartupStatus(pDnode, &statusRsp);
 
-  SRpcMsg rspMsg = {.info = pReq->info};
+  SRpcMsg rspMsg = {.info = pMsg->info};
   int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
   if (rspLen < 0) {
     rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;

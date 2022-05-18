@@ -24,7 +24,7 @@ sql insert into t1 values(1648791233002,3,2,3,2.1);
 sql insert into t1 values(1648791243003,4,2,3,3.1);
 sql insert into t1 values(1648791213004,4,2,3,4.1);
 sleep 1000
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
   print ======$rows
@@ -137,7 +137,7 @@ endi
 
 sql insert into t1 values(1648791223001,12,14,13,11.1);
 sleep 500
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 if $rows != 4 then
   print ======$rows
@@ -250,7 +250,7 @@ endi
 
 sql insert into t1 values(1648791223002,12,14,13,11.1);
 sleep 100
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 2 then
@@ -280,7 +280,7 @@ endi
 
 sql insert into t1 values(1648791223003,12,14,13,11.1);
 sleep 100
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 3 then
@@ -312,7 +312,7 @@ sql insert into t1 values(1648791223001,1,1,1,1.1);
 sql insert into t1 values(1648791223002,2,2,2,2.1);
 sql insert into t1 values(1648791223003,3,3,3,3.1);
 sleep 100
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 3 then
@@ -344,7 +344,7 @@ sql insert into t1 values(1648791233003,3,2,3,2.1);
 sql insert into t1 values(1648791233002,5,6,7,8.1);
 sql insert into t1 values(1648791233002,3,2,3,2.1);
 sleep 100
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 2
 if $data21 != 2 then
@@ -374,7 +374,7 @@ endi
 
 sql insert into t1 values(1648791213004,4,2,3,4.1) (1648791213006,5,4,7,9.1) (1648791213004,40,20,30,40.1) (1648791213005,4,2,3,4.1);
 sleep 100
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 0
 if $data01 != 4 then
@@ -404,7 +404,7 @@ endi
 
 sql insert into t1 values(1648791223004,4,2,3,4.1) (1648791233006,5,4,7,9.1) (1648791223004,40,20,30,40.1) (1648791233005,4,2,3,4.1);
 sleep 100
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 
 # row 1
 if $data11 != 4 then

@@ -378,6 +378,13 @@ typedef enum EStreamScanMode {
   STREAM_SCAN_FROM_DATAREADER,
 } EStreamScanMode;
 
+typedef struct SCatchSupporter {
+  SHashObj* pWindowHashTable;  // quick locate the window object for each window
+  SDiskbasedBuf* pDataBuf;           // buffer based on blocked-wised disk file
+  int32_t keySize;
+  int64_t* pKeyBuf;
+} SCatchSupporter;
+
 typedef struct SStreamBlockScanInfo {
   SArray*      pBlockLists;      // multiple SSDatablock.
   SSDataBlock* pRes;             // result SSDataBlock
@@ -400,6 +407,8 @@ typedef struct SStreamBlockScanInfo {
   EStreamScanMode scanMode;
   SOperatorInfo* pOperatorDumy;
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
+  SCatchSupporter childAggSup;
+  SArray* childIds;
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
@@ -459,6 +468,16 @@ typedef struct SIntervalAggOperatorInfo {
   struct SFillInfo*  pFillInfo;          // fill info
   bool               invertible;
 } SIntervalAggOperatorInfo;
+
+typedef struct SStreamFinalIntervalOperatorInfo {
+  SOptrBasicInfo     binfo;              // basic info
+  SGroupResInfo      groupResInfo;       // multiple results build supporter
+  SInterval          interval;           // interval info
+  int32_t            primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
+  SAggSupporter      aggSup;             // aggregate supporter
+  int32_t            order;              // current SSDataBlock scan order
+  STimeWindowAggSupp twAggSup;
+} SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
   SOptrBasicInfo     binfo;
@@ -696,6 +715,9 @@ SOperatorInfo* createSysTableScanOperatorInfo(void* pSysTableReadHandle, SSDataB
 SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
                                           STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
+                                          SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
+                                          STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
 
                                                 SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
@@ -771,9 +793,8 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
                                         TSKEY ekey, __block_search_fn_t searchFn, STableQueryInfo* item,
                                         int32_t order);
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
-
-void doClearWindow(SIntervalAggOperatorInfo* pInfo, char* pData, int16_t bytes,
-    uint64_t groupId, int32_t numOfOutput);
+int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, size_t keyBufSize,
+                         const char* pKey, const char* pDir);
 
 #ifdef __cplusplus
 }
