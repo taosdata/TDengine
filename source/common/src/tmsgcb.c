@@ -17,46 +17,46 @@
 #include "tmsgcb.h"
 #include "taoserror.h"
 
-static SMsgCb tsDefaultMsgCb;
+static SMsgCb defaultMsgCb;
 
-void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
+void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pMsg) {
-  PutToQueueFp fp = pMsgCb->queueFps[qtype];
-  return (*fp)(pMsgCb->mgmt, pMsg);
+int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
+  PutToQueueFp fp = msgcb->queueFps[qtype];
+  return (*fp)(msgcb->mgmt, pMsg);
 }
 
-int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
-  GetQueueSizeFp fp = pMsgCb->qsizeFp;
-  return (*fp)(pMsgCb->mgmt, vgId, qtype);
+int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
+  GetQueueSizeFp fp = msgcb->qsizeFp;
+  return (*fp)(msgcb->mgmt, vgId, qtype);
 }
 
 int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
-  SendReqFp fp = tsDefaultMsgCb.sendReqFp;
+  SendReqFp fp = defaultMsgCb.sendReqFp;
   return (*fp)(epSet, pMsg);
 }
 
 void tmsgSendRsp(SRpcMsg* pMsg) {
-  SendRspFp fp = tsDefaultMsgCb.sendRspFp;
+  SendRspFp fp = defaultMsgCb.sendRspFp;
   return (*fp)(pMsg);
 }
 
 void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
-  SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
+  SendRedirectRspFp fp = defaultMsgCb.sendRedirectRspFp;
   (*fp)(pMsg, pNewEpSet);
 }
 
 void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) {
-  RegisterBrokenLinkArgFp fp = tsDefaultMsgCb.registerBrokenLinkArgFp;
+  RegisterBrokenLinkArgFp fp = defaultMsgCb.registerBrokenLinkArgFp;
   (*fp)(pMsg);
 }
 
 void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) {
-  ReleaseHandleFp fp = tsDefaultMsgCb.releaseHandleFp;
+  ReleaseHandleFp fp = defaultMsgCb.releaseHandleFp;
   (*fp)(pHandle, type);
 }
 
 void tmsgReportStartup(const char* name, const char* desc) {
-  ReportStartup fp = tsDefaultMsgCb.reportStartupFp;
+  ReportStartup fp = defaultMsgCb.reportStartupFp;
   (*fp)(name, desc);
 }
