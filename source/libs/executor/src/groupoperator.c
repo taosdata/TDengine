@@ -396,7 +396,10 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       pGInfo->groupId = calcGroupId(pInfo->keyBuf, len);
     }
 
+    // number of rows
     int32_t* rows = (int32_t*) pPage;
+
+    // group id
 
     size_t numOfCols = pOperator->numOfExprs;
     for(int32_t i = 0; i < numOfCols; ++i) {
@@ -408,13 +411,13 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       int32_t bytes = pColInfoData->info.bytes;
       int32_t startOffset = pInfo->columnOffset[i];
 
-      char* columnLen    = NULL;
-      int32_t contentLen = 0;
+      int32_t* columnLen  = NULL;
+      int32_t  contentLen = 0;
 
       if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
         int32_t* offset = (int32_t*)((char*)pPage + startOffset);
-        columnLen       = (char*)pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity;
-        char*    data   = (char*)(columnLen + sizeof(int32_t));
+        columnLen       = (int32_t*) ((char*)pPage + startOffset + sizeof(int32_t) * pInfo->rowCapacity);
+        char*    data   = (char*)((char*) columnLen + sizeof(int32_t));
 
         if (colDataIsNull_s(pColInfoData, j)) {
           offset[(*rows)] = -1;
@@ -423,11 +426,15 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           offset[*rows] = (*columnLen);
           char* src = colDataGetData(pColInfoData, j);
           memcpy(data + (*columnLen), src, varDataTLen(src));
+          int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
+          ASSERT(v > 0);
+          printf("len:%d\n", v);
+
           contentLen = varDataTLen(src);
         }
       } else {
         char* bitmap = (char*)pPage + startOffset;
-        columnLen    = (char*)pPage + startOffset + BitmapLen(pInfo->rowCapacity);
+        columnLen    = (int32_t*) ((char*)pPage + startOffset + BitmapLen(pInfo->rowCapacity));
         char* data   = (char*) columnLen + sizeof(int32_t);
 
         bool isNull = colDataIsNull_f(pColInfoData->nullbitmap, j);
@@ -440,6 +447,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
       }
 
       (*columnLen) += contentLen;
+      ASSERT(*columnLen >= 0);
     }
 
     (*rows) += 1;
@@ -476,7 +484,12 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
       pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
       taosArrayPush(p->pPageList, &pageId);
 
-      *(int32_t*) pPage = 0;
+//      // number of rows
+//      *(int32_t*) pPage = 0;
+//
+//      uint64_t* groupId = (pPage + sizeof(int32_t));
+//      *groupId = 0;
+      memset(pPage, 0, getBufPageSize(pInfo->pBuf));
     }
   }
 
@@ -500,7 +513,7 @@ int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity) {
   size_t numOfCols = pBlock->info.numOfCols;
   int32_t* offset = taosMemoryCalloc(pBlock->info.numOfCols, sizeof(int32_t));
 
-  offset[0] = sizeof(int32_t);  // the number of rows in current page, ref to SSDataBlock paged serialization format
+  offset[0] = sizeof(int32_t) + sizeof(uint64_t);  // the number of rows in current page, ref to SSDataBlock paged serialization format
 
   for(int32_t i = 0; i < numOfCols - 1; ++i) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, i);
@@ -571,7 +584,6 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
       break;
     }
 
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfExprs);
     doHashPartition(pOperator, pBlock);
   }
 
