@@ -70,7 +70,7 @@ struct SSmaStatItem {
    * N.B. only applicable to tsma
    */
   int8_t    state;           // ETsdbSmaStat
-  SHashObj *expiredWindows;  // key: skey of time window, value: N/A
+  SHashObj *expiredWindows;  // key: skey of time window, value: version
   STSma    *pTSma;           // cache schema
 };
 
@@ -217,6 +217,11 @@ static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path, 
 static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SDiskID did, SSmaEnv **pEnv);
 
 void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
+
+int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
+int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version);
+// TODO: This is the basic params, and should wrap the params to a queryHandle.
+int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult);
 
 #ifdef __cplusplus
 }

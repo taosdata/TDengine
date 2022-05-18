@@ -372,13 +372,13 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, 
     }
 
     if (level == TSDB_RETENTION_L0) {
-      tsdbDebug("%p rsma level %d is selected to query", pReadHandle, TSDB_RETENTION_L0);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L0);
       return VND_RSMA0(pVnode);
     } else if (level == TSDB_RETENTION_L1) {
-      tsdbDebug("%p rsma level %d is selected to query", pReadHandle, TSDB_RETENTION_L1);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L1);
       return VND_RSMA1(pVnode);
     } else {
-      tsdbDebug("%p rsma level %d is selected to query", pReadHandle, TSDB_RETENTION_L2);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L2);
       return VND_RSMA2(pVnode);
     }
   }
@@ -2760,7 +2760,7 @@ static int32_t getAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
     taosArrayPush(list, &info);
   }
 
-  metaCloseCtbCurosr(pCur);
+  metaCloseCtbCursor(pCur);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3055,7 +3055,8 @@ static bool loadDataBlockFromTableSeq(STsdbReadHandle* pTsdbReadHandle) {
 bool tsdbNextDataBlock(tsdbReaderT pHandle) {
   STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)pHandle;
 
-  for (int32_t i = 0; i < taosArrayGetSize(pTsdbReadHandle->pColumns); ++i) {
+  size_t numOfCols = taosArrayGetSize(pTsdbReadHandle->pColumns);
+  for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pColInfo = taosArrayGet(pTsdbReadHandle->pColumns, i);
     colInfoDataCleanup(pColInfo, pTsdbReadHandle->outputCapacity);
   }

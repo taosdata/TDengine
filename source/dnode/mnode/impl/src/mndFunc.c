@@ -29,12 +29,12 @@ static SSdbRow *mndFuncActionDecode(SSdbRaw *pRaw);
 static int32_t  mndFuncActionInsert(SSdb *pSdb, SFuncObj *pFunc);
 static int32_t  mndFuncActionDelete(SSdb *pSdb, SFuncObj *pFunc);
 static int32_t  mndFuncActionUpdate(SSdb *pSdb, SFuncObj *pOld, SFuncObj *pNew);
-static int32_t  mndCreateFunc(SMnode *pMnode, SNodeMsg *pReq, SCreateFuncReq *pCreate);
-static int32_t  mndDropFunc(SMnode *pMnode, SNodeMsg *pReq, SFuncObj *pFunc);
-static int32_t  mndProcessCreateFuncReq(SNodeMsg *pReq);
-static int32_t  mndProcessDropFuncReq(SNodeMsg *pReq);
-static int32_t  mndProcessRetrieveFuncReq(SNodeMsg *pReq);
-static int32_t  mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
+static int32_t  mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCreate);
+static int32_t  mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc);
+static int32_t  mndProcessCreateFuncReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropFuncReq(SRpcMsg *pReq);
+static int32_t  mndProcessRetrieveFuncReq(SRpcMsg *pReq);
+static int32_t  mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextFunc(SMnode *pMnode, void *pIter);
 
 int32_t mndInitFunc(SMnode *pMnode) {
@@ -186,7 +186,7 @@ static void mndReleaseFunc(SMnode *pMnode, SFuncObj *pFunc) {
   sdbRelease(pSdb, pFunc);
 }
 
-static int32_t mndCreateFunc(SMnode *pMnode, SNodeMsg *pReq, SCreateFuncReq *pCreate) {
+static int32_t mndCreateFunc(SMnode *pMnode, SRpcMsg *pReq, SCreateFuncReq *pCreate) {
   int32_t code = -1;
   STrans *pTrans = NULL;
 
@@ -215,7 +215,7 @@ static int32_t mndCreateFunc(SMnode *pMnode, SNodeMsg *pReq, SCreateFuncReq *pCr
   }
   memcpy(func.pCode, pCreate->pCode, func.codeSize);
 
-  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_FUNC, &pReq->rpcMsg);
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_FUNC, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create func:%s", pTrans->id, pCreate->name);
@@ -243,9 +243,9 @@ _OVER:
   return code;
 }
 
-static int32_t mndDropFunc(SMnode *pMnode, SNodeMsg *pReq, SFuncObj *pFunc) {
+static int32_t mndDropFunc(SMnode *pMnode, SRpcMsg *pReq, SFuncObj *pFunc) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_FUNC, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_FUNC, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop user:%s", pTrans->id, pFunc->name);
@@ -271,14 +271,14 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessCreateFuncReq(SNodeMsg *pReq) {
-  SMnode        *pMnode = pReq->pNode;
+static int32_t mndProcessCreateFuncReq(SRpcMsg *pReq) {
+  SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
   SFuncObj      *pFunc = NULL;
   SCreateFuncReq createReq = {0};
 
-  if (tDeserializeSCreateFuncReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+  if (tDeserializeSCreateFuncReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -319,7 +319,7 @@ static int32_t mndProcessCreateFuncReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     goto _OVER;
@@ -344,14 +344,14 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessDropFuncReq(SNodeMsg *pReq) {
-  SMnode      *pMnode = pReq->pNode;
+static int32_t mndProcessDropFuncReq(SRpcMsg *pReq) {
+  SMnode      *pMnode = pReq->info.node;
   int32_t      code = -1;
   SUserObj    *pUser = NULL;
   SFuncObj    *pFunc = NULL;
   SDropFuncReq dropReq = {0};
 
-  if (tDeserializeSDropFuncReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+  if (tDeserializeSDropFuncReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -375,7 +375,7 @@ static int32_t mndProcessDropFuncReq(SNodeMsg *pReq) {
     }
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     goto _OVER;
@@ -399,13 +399,13 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessRetrieveFuncReq(SNodeMsg *pReq) {
-  SMnode          *pMnode = pReq->pNode;
+static int32_t mndProcessRetrieveFuncReq(SRpcMsg *pReq) {
+  SMnode          *pMnode = pReq->info.node;
   int32_t          code = -1;
   SRetrieveFuncReq retrieveReq = {0};
   SRetrieveFuncRsp retrieveRsp = {0};
 
-  if (tDeserializeSRetrieveFuncReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &retrieveReq) != 0) {
+  if (tDeserializeSRetrieveFuncReq(pReq->pCont, pReq->contLen, &retrieveReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto RETRIEVE_FUNC_OVER;
   }
@@ -472,8 +472,8 @@ static int32_t mndProcessRetrieveFuncReq(SNodeMsg *pReq) {
 
   tSerializeSRetrieveFuncRsp(pRsp, contLen, &retrieveRsp);
 
-  pReq->pRsp = pRsp;
-  pReq->rspLen = contLen;
+  pReq->info.rsp = pRsp;
+  pReq->info.rspLen = contLen;
 
   code = 0;
 
@@ -502,8 +502,8 @@ static void *mnodeGenTypeStr(char *buf, int32_t buflen, uint8_t type, int16_t le
   return tDataTypes[type].name;
 }
 
-static int32_t mndRetrieveFuncs(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
-  SMnode   *pMnode = pReq->pNode;
+static int32_t mndRetrieveFuncs(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode   *pMnode = pReq->info.node;
   SSdb     *pSdb = pMnode->pSdb;
   int32_t   numOfRows = 0;
   SFuncObj *pFunc = NULL;

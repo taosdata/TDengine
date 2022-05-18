@@ -403,6 +403,19 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWra
   return 0;
 }
 
+static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaWrapper* pSW) {
+  if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
+
+  pSW->pSchema = (SSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SSchema));
+  if (pSW->pSchema == NULL) return -1;
+  for (int32_t i = 0; i < pSW->nCols; i++) {
+    if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;
+  }
+
+  return 0;
+}
+
 STSchema* tdGetSTSChemaFromSSChema(SSchema** pSchema, int32_t nCols);
 
 typedef struct {
@@ -2098,6 +2111,18 @@ enum {
 };
 
 typedef struct {
+  SMsgHead head;
+  int64_t  leftForVer;
+  int32_t  vgId;
+  int64_t  consumerId;
+  char     subKey[TSDB_SUBSCRIBE_KEY_LEN];
+} SMqVDeleteReq;
+
+typedef struct {
+  int8_t reserved;
+} SMqVDeleteRsp;
+
+typedef struct {
   int64_t leftForVer;
   int32_t vgId;
   int64_t oldConsumerId;
@@ -2255,20 +2280,22 @@ static FORCE_INLINE void tdDestroyTSma(STSma* pSma) {
   }
 }
 
-static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW) {
+static FORCE_INLINE void tdDestroyTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
   if (pSW) {
     if (pSW->tSma) {
-      for (uint32_t i = 0; i < pSW->number; ++i) {
-        tdDestroyTSma(pSW->tSma + i);
+      if (deepCopy) {
+        for (uint32_t i = 0; i < pSW->number; ++i) {
+          tdDestroyTSma(pSW->tSma + i);
+        }
       }
       taosMemoryFreeClear(pSW->tSma);
     }
   }
 }
 
-static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW) {
-  tdDestroyTSmaWrapper(pSW);
-  taosMemoryFree(pSW);
+static FORCE_INLINE void* tdFreeTSmaWrapper(STSmaWrapper* pSW, bool deepCopy) {
+  tdDestroyTSmaWrapper(pSW, deepCopy);
+  taosMemoryFreeClear(pSW);
   return NULL;
 }
 
@@ -2532,11 +2559,15 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
 }
 
 typedef struct {
-  void* data;
+  int64_t streamId;
+  int32_t taskId;
+  int32_t sourceVg;
+  int64_t sourceVer;
+  SArray* data;  // SArray<SSDataBlock>
 } SStreamDispatchReq;
 
 typedef struct {
-  int8_t status;
+  int8_t inputStatus;
 } SStreamDispatchRsp;
 
 #define TD_AUTO_CREATE_TABLE 0x1

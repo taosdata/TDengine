@@ -184,7 +184,7 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   pGroupResInfo->index     = 0;
 }
 
-static int32_t resultrowCompar1(const void* p1, const void* p2) {
+static int32_t resultrowComparAsc(const void* p1, const void* p2) {
   SResKeyPos* pp1 = *(SResKeyPos**) p1;
   SResKeyPos* pp2 = *(SResKeyPos**) p2;
 
@@ -202,7 +202,11 @@ static int32_t resultrowCompar1(const void* p1, const void* p2) {
   }
 }
 
-void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, bool sortGroupResult) {
+static int32_t resultrowComparDesc(const void* p1, const void* p2) {
+  return resultrowComparAsc(p2, p1);
+}
+
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order) {
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
@@ -224,8 +228,9 @@ void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, boo
     taosArrayPush(pGroupResInfo->pRows, &p);
   }
 
-  if (sortGroupResult) {
-    qsort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, resultrowCompar1);
+  if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
+    __compar_fn_t fn = (order == TSDB_ORDER_ASC)? resultrowComparAsc:resultrowComparDesc;
+    qsort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
   }
 
   pGroupResInfo->index = 0;
