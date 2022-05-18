@@ -343,19 +343,20 @@ void mndStop(SMnode *pMnode) { return mndCleanupTimer(pMnode); }
 int32_t mndProcessMsg(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   void   *ahandle = pMsg->info.ahandle;
-
   mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
 
-  if (IsReq(pMsg) && !mndIsMaster(pMnode)) {
-    terrno = TSDB_CODE_APP_NOT_READY;
-    mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    return -1;
-  }
+  if (IsReq(pMsg)) {
+    if (!mndIsMaster(pMnode)) {
+      terrno = TSDB_CODE_APP_NOT_READY;
+      mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+      return -1;
+    }
 
-  if (IsReq(pMsg) && (pMsg->contLen == 0 || pMsg->pCont == NULL)) {
-    terrno = TSDB_CODE_INVALID_MSG_LEN;
-    mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    return -1;
+    if (pMsg->contLen == 0 || pMsg->pCont == NULL) {
+      terrno = TSDB_CODE_INVALID_MSG_LEN;
+      mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
+      return -1;
+    }
   }
 
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];

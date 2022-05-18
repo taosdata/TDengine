@@ -275,7 +275,7 @@ static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) 
 }
 
 void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
-  dDebug("start to process net test req");
+  dDebug("msg:%p, net test req will be processed", pMsg);
   SRpcMsg rsp = {.code = 0, .info = pMsg->info};
   rsp.pCont = rpcMallocCont(pMsg->contLen);
   if (rsp.pCont == NULL) {
@@ -287,8 +287,7 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
 }
 
 void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
-  dDebug("start to process server startup status req");
-
+  dDebug("msg:%p, server startup status req will be processed", pMsg);
   SServerStatusRsp statusRsp = {0};
   dmGetServerStartupStatus(pDnode, &statusRsp);
 
