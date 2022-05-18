@@ -242,6 +242,7 @@ def pre_test_build_win() {
         time /t
         cmake .. -G "NMake Makefiles JOM" || exit 7
         echo ">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> jom -j 6"
+        time /t
         jom -j 6 || exit 8
         time /t
     '''
