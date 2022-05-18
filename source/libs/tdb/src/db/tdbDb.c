@@ -15,7 +15,7 @@
 
 #include "tdbInt.h"
 
-int tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb) {
+int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
   TDB *pDb;
   int  dsize;
   int  zsize;
@@ -36,16 +36,16 @@ int tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb) {
   pDb = (TDB *)pPtr;
   pPtr += sizeof(*pDb);
   // pDb->rootDir
-  pDb->rootDir = pPtr;
-  memcpy(pDb->rootDir, dbname, dsize);
-  pDb->rootDir[dsize] = '\0';
+  pDb->dbName = pPtr;
+  memcpy(pDb->dbName, dbname, dsize);
+  pDb->dbName[dsize] = '\0';
   pPtr = pPtr + dsize + 1;
   // pDb->jfname
-  pDb->jfname = pPtr;
-  memcpy(pDb->jfname, dbname, dsize);
-  pDb->jfname[dsize] = '/';
-  memcpy(pDb->jfname + dsize + 1, TDB_JOURNAL_NAME, strlen(TDB_JOURNAL_NAME));
-  pDb->jfname[dsize + 1 + strlen(TDB_JOURNAL_NAME)] = '\0';
+  pDb->jnName = pPtr;
+  memcpy(pDb->jnName, dbname, dsize);
+  pDb->jnName[dsize] = '/';
+  memcpy(pDb->jnName + dsize + 1, TDB_JOURNAL_NAME, strlen(TDB_JOURNAL_NAME));
+  pDb->jnName[dsize + 1 + strlen(TDB_JOURNAL_NAME)] = '\0';
 
   pDb->jfd = -1;
 

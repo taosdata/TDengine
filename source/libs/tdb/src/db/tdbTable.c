@@ -44,7 +44,7 @@ int tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprF
 
   pPager = tdbEnvGetPager(pEnv, tbname);
   if (pPager == NULL) {
-    snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->rootDir, tbname);
+    snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->dbName, tbname);
     ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
     if (ret < 0) {
       return -1;
