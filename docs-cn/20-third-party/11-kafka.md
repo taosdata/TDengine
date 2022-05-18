@@ -3,19 +3,17 @@ sidebar_label: Kafka
 title: TDengine Kafka Connector 使用教程
 ---
 
-TDengine Kafka Connector 本质上是 Kafka Connect 的两个插件: TDengine Source Connector 和 TDengine Sink Connector。借助 Confluent 平台，用户只需提供简单的配置文件，就可以将 Kafka 中指定 topic 的数据（批量或实时）同步到 TDengine， 或将 TDengine 中指定数据库的数据（批量或实时）同步到 Kafka。
+TDengine Kafka Connector 包含两个插件: TDengine Source Connector 和 TDengine Sink Connector。用户只需提供简单的配置文件，就可以将 Kafka 中指定 topic 的数据（批量或实时）同步到 TDengine， 或将 TDengine 中指定数据库的数据（批量或实时）同步到 Kafka。
 
 ## 什么是 Kafka Connect？
 
-如今 Apache Kafka 已经从最初的消息队列发展成为一个完备的事件流平台。Kafka Connect 是这个平台的一个组件，用于使其它系统，比如数据库、云服务、文件系统等能方便地连接到 Kafka。数据既可以通过 Kafka Connect 从其它系统流向 Kafka, 也可以通过 Kafka Connect 从 Kafka 流向其它系统。
+Kafka Connect 是 Apache Kafka 的一个组件，用于使其它系统，比如数据库、云服务、文件系统等能方便地连接到 Kafka。数据既可以通过 Kafka Connect 从其它系统流向 Kafka, 也可以通过 Kafka Connect 从 Kafka 流向其它系统。从其它系统读数据的插件称为 Source Connector, 写数据到其它系统的插件称为 Sink Connector。Source Connector 和 Sink Connector 都不会直接连接 Kafka Broker，Source Connector 把数据转交给 Kafka Connect。Sink Connector 从 Kafka Connect 接收数据。
 
 ![](Kafka_Connect.png)
 
-Kafka Connect 可以看作由众多插件组成的生态系统。从其它系统读数据的插件称为 Source Connector, 写数据到其它系统的插件称为 Sink Connector。TDengine Source Connector 的作用就是把数据实时地从 TDengine 读出来交给 Kafka Connect。TDengine Sink Connector 的作用就是 从 Kafka Connect 接收数据写入 TDengine 的插件。Source Connector 和 Sink Connector 都不会直接连接 Kafka Broker。 Source Connector 只是把数据转交给 Kafka Connect。 SinkConnector 也只需从 Kafka Connect 接收数据。所以 Kafka Connect 也可以看作 Kafka 的一个客户端应用。Kafka Connect 有自己独立的进程，自身的设计也是分布式的。
+TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送给 Kafka Connect。TDengine Sink Connector 用于 从 Kafka Connect 接收数据并写入 TDengine。
 
 ![](streaming-integration-with-kafka-connect.png)
-
-Kafka 已经提供了生产者和消费者 API 以及客户端库用来与 Kafka 集成，为什么还需要 Kafka Connect？ 因为一个好 Kafka 客户端程序，不是单单生产或消费数据，还需要考虑容错、重启、日志、弹性伸缩、序列化、反序列化等。当开发者自己完成了这一切就开发了一个和 Kafka Connect 类似的东西。与 Kafka 集成是 Kafka Connect 已经解决的问题, 用户不需要重复造轮子，只有在少数边缘场景才需要定制化的集成方案。
 
 ## 什么是 Confluent？
 
@@ -30,7 +28,7 @@ Confluent 在 Kafka 的基础上增加很多扩展功能。包括：
 这些扩展功能有的包含在社区版本的 Confluent 中，有的只有企业版能用。
 ![](confluentPlatform.png)
 
-Confluent 企业版提供了 `confluent` 命令行工具管理各个组件。在本教程我们将多次用到此命令。
+Confluent 企业版提供了 `confluent` 命令行工具管理各个组件。
 
 ## 前置条件
 
@@ -43,7 +41,9 @@ Confluent 企业版提供了 `confluent` 命令行工具管理各个组件。在
 
 ## 安装 Confluent
 
-Confluent 提供了 Docker 和二进制包两种安装方式。本教程为了演示简单（无需进入容器操作），采用二进制包的方式安装。在任意目录下执行：
+Confluent 提供了 Docker 和二进制包两种安装方式。本文仅介绍二进制包方式安装。
+
+在任意目录下执行：
 
 ```
 curl -O http://packages.confluent.io/archive/7.1/confluent-7.1.1.tar.gz
@@ -78,19 +78,17 @@ Development: false
 ### 从源码安装
 
 ```
-git@github.com:taosdata/kafka-connect-tdengine.git
+git clone https://github.com:taosdata/kafka-connect-tdengine.git
 cd kafka-connect-tdengine
 mvn clean package
 unzip -d $CONFLUENT_HOME/share/confluent-hub-components/ target/components/packages/taosdata-kafka-connect-tdengine-0.1.0.zip
 ```
 
-以上脚本先 clone 项目源码，然后用 maven 编译打包。打包完成后在 `target/components/packages/` 目录生成了插件的 zip 包。然后把这个 zip 包解压到安装插件的路径即可。安装插件的路径在配置文件 `$CONFLUENT_HOME/etc/kafka/connect-standalone.properties` 中配置，以上命令使用了默认的插件路径 `$CONFLUENT_HOME/share/confluent-hub-components/`。
-
-执行完上面的操作，TDengine Sink Connector 和 TDengine Source Connector 都已安装。
+以上脚本先 clone 项目源码，然后用 Maven 编译打包。打包完成后在 `target/components/packages/` 目录生成了插件的 zip 包。把这个 zip 包解压到安装插件的路径即可。安装插件的路径在配置文件 `$CONFLUENT_HOME/etc/kafka/connect-standalone.properties` 中。默认的路径为 `$CONFLUENT_HOME/share/confluent-hub-components/`。
 
 ### 用 confluent-hub 安装
 
-[Confluent Hub](https://www.confluent.io/hub) 提供下载 Kafka Connect 插件的服务。可以用命令工具 `confluent-hub` 安装已发布到 Confluent Hub 的插件。
+[Confluent Hub](https://www.confluent.io/hub) 提供下载 Kafka Connect 插件的服务。在 TDengine Kafka Connector 发布到 Confluent Hub 后可以使用命令工具 `confluent-hub` 安装。
 **TDengine Kafka Connector 目前没有正式发布，不能用这种方式安装**。
 
 ## 启动 Confluent
@@ -124,14 +122,14 @@ Starting Control Center
 Control Center is [UP]
 ```
 
-可执行 `rm -rf /tmp/confluent.106668` 清空数据。
+清空数据可执行 `rm -rf /tmp/confluent.106668`。
 :::
 
-## Sink Connector 的使用
+## TDengine Sink Connector 的使用
 
-Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。目标数据库的名字可手动指定（见配置参数 connection.database）， 也可按一定规则生成(见配置参数 connection.database.prefix)。
+TDengine Sink Connector 的作用是同步指定 topic 的数据到 TDengine。用户无需提前创建数据库和超级表。可手动指定目标数据库的名字（见配置参数 connection.database）， 也可按一定规则生成(见配置参数 connection.database.prefix)。
 
-TDengine Sink Connector 内部使用 TDengine [无模式写入接口](/reference/connector/cpp#无模式写入-api)写数据到 TDengine，目前支持三种格式的数据：[InfluxDB 行协议格式](/develop/insert-data/influxdb-line)、 [OpenTSDB 行协议格式](/develop/insert-data/opentsdb-telnet) 和 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)。
+TDengine Sink Connector 内部使用 TDengine [无模式写入接口](/reference/connector/cpp#无模式写入-api)写数据到 TDengine，目前支持三种格式的数据：[InfluxDB 行协议格式](/develop/insert-data/influxdb-line)、 [OpenTSDB Telnet 协议格式](/develop/insert-data/opentsdb-telnet) 和 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)。
 
 下面的示例将主题 meters 的数据，同步到目标数据库 power。数据格式为 InfluxDB Line 协议格式。
 
@@ -234,11 +232,11 @@ Query OK, 4 row(s) in set (0.004208s)
 
 若看到了以上数据，则说明同步成功。若没有，请检查 Kafka Connect 的日志。配置参数的详细说明见[配置参考](#配置参考)。
 
-## Source Connector 的使用
+## TDengine Source Connector 的使用
 
-Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据全部推送到 Kafka。Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
+TDengine Source Connector 的作用是将 TDengine 某个数据库某一时刻之后的数据全部推送到 Kafka。TDengine Source Connector 的实现原理是，先分批拉取历史数据，再用定时查询的策略同步增量数据。同时会监控表的变化，可以自动同步新增的表。如果重启 Kafka Connect, 会从上次中断的位置继续同步。
 
-Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](/develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)， 然后写入 Kafka。
+TDengine Source Connector 会将 TDengine 数据表中的数据转换成 [InfluxDB Line 协议格式](/develop/insert-data/influxdb-line/) 或 [OpenTSDB JSON 协议格式](/develop/insert-data/opentsdb-json)， 然后写入 Kafka。
 
 下面的示例程序同步数据库 test 中的数据到主题 tdengine-source-test。
 
@@ -329,7 +327,7 @@ INSERT INTO d1002 VALUES (now, 16.3, 233, 0.22);
 confluent local services connect connector status
 ```
 
-如果按照本教程操作，此时应有两个活跃的 connector。使用下面的命令 unload：
+如果按照前述操作，此时应有两个活跃的 connector。使用下面的命令 unload：
 
 ```
 confluent local services connect connector unload TDengineSourceConnector
@@ -352,7 +350,7 @@ confluent local services connect connector unload TDengineSourceConnector
 8. `connection.attempts` ：最大尝试连接次数。默认 3。
 9. `connection.backoff.ms` ： 创建连接失败重试时间隔时间，单位为 ms。 默认 5000。
 
-### Sink Connector 特有的配置
+### TDengine Sink Connector 特有的配置
 
 1. `connection.database`： 目标数据库名。如果指定的数据库不存在会则自动创建。自动建库使用的时间精度为纳秒。默认值为 null。为 null 时目标数据库命名规则参考 `connection.database.prefix` 参数的说明
 2. `connection.database.prefix`： 当 connection.database 为 null 时, 目标数据库的前缀。可以包含占位符 '${topic}'。 比如 kafka_${topic}, 对于主题 'orders' 将写入数据库 'kafka_orders'。 默认 null。当为 null 时，目标数据库的名字和主题的名字是一致的。
@@ -361,7 +359,7 @@ confluent local services connect connector unload TDengineSourceConnector
 5. `retry.backoff.ms`: 发送错误时重试的时间间隔。单位毫秒，默认 3000。
 6. `db.schemaless`: 数据格式，必须指定为： line、json、telnet 中的一个。分别代表 InfluxDB 行协议格式、 OpenTSDB JSON 格式、 OpenTSDB Telnet 行协议格式。
 
-### Source Connector 特有的配置
+### TDengine Source Connector 特有的配置
 
 1. `connection.database`: 源数据库名称，无缺省值。
 2. `topic.prefix`： 数据导入 kafka 后 topic 名称前缀。 使用 `topic.prefix` + `connection.database` 名称作为完整 topic 名。默认为空字符串 ""。
