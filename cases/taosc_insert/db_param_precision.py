@@ -14,21 +14,20 @@
 import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-
+from taostest.util.get_json import GetJson
+from taostest.util.remote import Remote
 class TestComp(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-        for env_setting in self.env_setting["settings"]:
-            if env_setting["name"].lower() == "taosd":
-                self.taosd_setting = env_setting
-                self.fqdn = self.taosd_setting["fqdn"][0]
-                self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + "/vnode"
-
+        self._remote: Remote = Remote(self.logger)
+        
     def precision_check(self):
         """
         precision check
         """
         test_param = "precision"
+        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
+
         # default
         default_value = 'ms'
         precision_data = ''
@@ -39,11 +38,7 @@ class TestComp(TDCase):
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-
-        self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-        file = open(f"{self.vnode_dir}/vnode.json")
-        data = json.load(file)
-
+        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
         if int(data['config']['precision']) == 0:
             precision_data = 'ms'
         elif int(data['config']['precision']) == 1:
@@ -62,9 +57,7 @@ class TestComp(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            self.vnode_dir = self.taosd_setting["spec"]["dnodes"][0]["config"]["dataDir"] + f"/vnode/vnode{db_vnode_kv_dict[0][0]}"
-            file = open(f"{self.vnode_dir}/vnode.json")
-            data = json.load(file)
+            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             if int(data['config']['precision']) == 0:
                 precision_data = 'ms'
             elif int(data['config']['precision']) == 1:
@@ -86,8 +79,9 @@ class TestComp(TDCase):
         self.tdSql.execute('insert into ntb values(1640966400000,1)')
         self.tdSql.query("select * from ntb")
         self.tdSql.checkData(0,0,'2022-01-01 00:00:00.000')
-        self.tdSql.error('insert into ntb values(1640966400000,1)')
-        pass
+        #TD-15674
+        # self.tdSql.error('insert into ntb values(1640966400000,1)')
+        
     def run(self) -> bool:
         self.precision_check()
         self.check_presicion_data()

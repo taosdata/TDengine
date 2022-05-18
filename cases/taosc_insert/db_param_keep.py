@@ -16,7 +16,7 @@ import re
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
-from taostest.util.get_json import get_json
+from taostest.util.get_json import GetJson
 class TestKeep(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -27,7 +27,7 @@ class TestKeep(TDCase):
         keep check
         """
         test_param = "keep"
-        get_data = get_json(self.logger, self.run_log_dir,self.env_setting)
+        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
         # default
         default_value = "5256000,5256000,5256000"
 
@@ -133,9 +133,7 @@ class TestKeep(TDCase):
         self.tdSql.execute("insert into ntb values(now,1)")
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
-        self.tdSql.execute("insert into ntb values('2020-1-1 00:00:00',1)")
-        self.tdSql.query("select * from ntb")
-        self.tdSql.checkRow(1)
+        self.tdSql.error("insert into ntb values('2020-1-1 00:00:00',1)")
 
         
 

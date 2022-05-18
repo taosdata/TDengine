@@ -16,7 +16,7 @@ import re
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
-from taostest.util.get_json import get_json
+from taostest.util.get_json import GetJson
 
 class TestDuration(TDCase):
     def init(self):
@@ -30,7 +30,7 @@ class TestDuration(TDCase):
         """
         test_param = "days"
         test_param_bak = "duration"
-        get_data = get_json(self.logger, self.run_log_dir,self.env_setting)
+        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
         # default
         default_value = 14400
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
