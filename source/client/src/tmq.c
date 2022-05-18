@@ -119,7 +119,7 @@ enum {
 enum {
   TMQ_CONSUMER_STATUS__INIT = 0,
   TMQ_CONSUMER_STATUS__READY,
-  /*TMQ_CONSUMER_STATUS__NO_TOPIC,*/
+  TMQ_CONSUMER_STATUS__NO_TOPIC,
 };
 
 enum {
@@ -753,18 +753,11 @@ tmq_resp_err_t tmq_commit(tmq_t* tmq, const tmq_topic_vgroup_list_t* offsets, in
 }
 
 tmq_resp_err_t tmq_subscribe(tmq_t* tmq, const tmq_list_t* topic_list) {
-  if (topic_list == NULL) {
-    return TMQ_RESP_ERR__FAIL;
-  }
   const SArray*   container = &topic_list->container;
   int32_t         sz = taosArrayGetSize(container);
   void*           buf = NULL;
   SCMSubscribeReq req = {0};
   int32_t         code = -1;
-
-  if (sz == 0) {
-    return TMQ_RESP_ERR__FAIL;
-  }
 
   req.consumerId = tmq->consumerId;
   tstrncpy(req.cgroup, tmq->groupId, TSDB_CGROUP_LEN);
@@ -1083,13 +1076,10 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
   taosHashCleanup(pHash);
   tmq->clientTopics = newTopics;
 
-  ASSERT(taosArrayGetSize(tmq->clientTopics) != 0);
-  atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
-
-  /*if (taosArrayGetSize(tmq->clientTopics) == 0)*/
-  /*atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__NO_TOPIC);*/
-  /*else*/
-  /*atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);*/
+  if (taosArrayGetSize(tmq->clientTopics) == 0)
+    atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__NO_TOPIC);
+  else
+    atomic_store_8(&tmq->status, TMQ_CONSUMER_STATUS__READY);
 
   atomic_store_32(&tmq->epoch, epoch);
   return set;
