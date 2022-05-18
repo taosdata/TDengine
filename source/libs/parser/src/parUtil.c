@@ -158,6 +158,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Primary timestamp column cannot be dropped";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
       return "Only binary/nchar column length could be modified";
+    case TSDB_CODE_PAR_INVALID_TBNAME:
+      return "Invalid tbname pseudo column";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
