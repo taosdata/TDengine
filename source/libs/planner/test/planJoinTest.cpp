@@ -30,6 +30,14 @@ TEST_F(PlanJoinTest, basic) {
   run("SELECT t1.c1, t2.c1 FROM st1s1 t1 JOIN st1s2 t2 ON t1.ts = t2.ts");
 }
 
+TEST_F(PlanJoinTest, complex) {
+  useDb("root", "test");
+
+  run("SELECT t1.c1, t2.c2 FROM st1s1 t1, st1s2 t2 "
+      "WHERE t1.ts = t2.ts AND t1.c1 BETWEEN -10 AND 10 AND t2.c1 BETWEEN -100 AND 100 AND "
+      "(t1.c2 LIKE 'nchar%' OR t1.c1 = 0 OR t2.c2 LIKE 'nchar%' OR t2.c1 = 0)");
+}
+
 TEST_F(PlanJoinTest, withWhere) {
   useDb("root", "test");
 
