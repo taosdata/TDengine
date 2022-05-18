@@ -117,27 +117,29 @@ def pre_test(){
 def pre_test_win(){
     bat '''
         hostname
+        ipconfig
+        set
         date /t
         time /t
-        taskkill /f /t /im python.exe
-        taskkill /f /t /im bash.exe
         rd /s /Q C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
-        exit 0
     '''
     bat '''
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
         git reset --hard
         git fetch || git fetch
+    '''
+    bat '''
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
         git reset --hard
         git fetch || git fetch
-        git checkout -f
     '''
     script {
         if (env.CHANGE_TARGET == 'master') {
             bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
                 git checkout master
+            '''
+            bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout master
             '''
@@ -145,6 +147,8 @@ def pre_test_win(){
             bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
                 git checkout 2.0
+            '''
+            bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout 2.0
             '''
@@ -152,6 +156,8 @@ def pre_test_win(){
             bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
                 git checkout 3.0
+            '''
+            bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout 3.0
             '''
@@ -159,6 +165,8 @@ def pre_test_win(){
             bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
                 git checkout develop
+            '''
+            bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout develop
             '''
@@ -169,30 +177,50 @@ def pre_test_win(){
             bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
                 git pull
-                git log -5
+            '''
+            bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git pull
-                git fetch origin +refs/pull/${CHANGE_ID}/merge
+            '''
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+                git fetch origin +refs/pull/%CHANGE_ID%/merge
+            '''
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git checkout -qf FETCH_HEAD
-                git log -5
             '''
         } else if (env.CHANGE_URL =~ /\/TDinternal\//) {
             bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
                 git pull
-                git fetch origin +refs/pull/${CHANGE_ID}/merge
+            '''
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+                git fetch origin +refs/pull/%CHANGE_ID%/merge
+            '''
+            bat '''
+                cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
                 git checkout -qf FETCH_HEAD
-                git log -5
+            '''
+            bat '''
                 cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
                 git pull
-                git log -5
             '''
         } else {
-            sh '''
-                echo "unmatched reposiotry ${CHANGE_URL}"
+            bat '''
+                echo "unmatched reposiotry %CHANGE_URL%"
             '''
         }
     }
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal
+        git log -5
+    '''
+    bat '''
+        cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
+        git log -5
+    '''
     bat '''
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\community
         git submodule update --init --recursive
