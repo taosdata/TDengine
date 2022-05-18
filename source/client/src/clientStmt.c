@@ -218,6 +218,13 @@ int32_t stmtParseSql(STscStmt* pStmt) {
 
   pStmt->bInfo.needParse = false;
 
+  if (pStmt->sql.pQuery->pRoot && 0 == pStmt->sql.type) {
+    pStmt->sql.type = STMT_TYPE_INSERT;
+  } else if (pStmt->sql.pQuery->pPrepareRoot) {
+    pStmt->sql.type = STMT_TYPE_QUERY;
+  }
+
+/*  
   switch (nodeType(pStmt->sql.pQuery->pRoot)) {
     case QUERY_NODE_VNODE_MODIF_STMT:
       if (0 == pStmt->sql.type) {
@@ -231,6 +238,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
       tscError("not supported stmt type %d", nodeType(pStmt->sql.pQuery->pRoot));
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_CLAUSE_ERROR);
   }
+*/
 
   return TSDB_CODE_SUCCESS;
 }

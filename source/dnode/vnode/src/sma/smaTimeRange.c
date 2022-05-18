@@ -16,21 +16,22 @@
 #include "sma.h"
 #include "tsdb.h"
 
+typedef STsdbCfg STSmaKeepCfg;
+
 #undef _TEST_SMA_PRINT_DEBUG_LOG_
-#define SMA_STORAGE_TSDB_DAYS   30
-#define SMA_STORAGE_TSDB_TIMES  10
-#define SMA_STORAGE_SPLIT_HOURS 24
-#define SMA_KEY_LEN             16  // TSKEY+groupId 8+8
-#define SMA_DROP_EXPIRED_TIME   10  // default is 10 seconds
+#define SMA_STORAGE_TSDB_MINUTES 86400
+#define SMA_STORAGE_TSDB_TIMES   10
+#define SMA_STORAGE_SPLIT_FACTOR 144  // least records in tsma file
+#define SMA_KEY_LEN              16   // TSKEY+groupId 8+8
+#define SMA_DROP_EXPIRED_TIME    10   // default is 10 seconds
 
 #define SMA_STATE_ITEM_HASH_SLOT 32
-
 
 typedef struct {
   SSma         *pSma;
   SDBFile       dFile;
   const SArray *pDataBlocks;  // sma data
-  int32_t       interval;     // interval with the precision of DB
+  int64_t       interval;     // interval with the precision of DB
 } STSmaWriteH;
 
 typedef struct {
@@ -42,10 +43,10 @@ typedef struct {
   STsdb    *pTsdb;
   SSma     *pSma;
   SDBFile   dFile;
-  int32_t   interval;   // interval with the precision of DB
+  int64_t   interval;   // interval with the precision of DB
   int32_t   blockSize;  // size of SMA block item
+  int32_t   days;
   int8_t    storageLevel;
-  int8_t    days;
   SmaFsIter smaFsIter;
 } STSmaReadH;
 
@@ -58,9 +59,9 @@ typedef enum {
 // static func
 
 static int64_t tdGetIntervalByPrecision(int64_t interval, uint8_t intervalUnit, int8_t precision, bool adjusted);
-static int32_t tdGetSmaStorageLevel(int64_t interval, int8_t intervalUnit);
+static int32_t tdGetSmaStorageLevel(STSmaKeepCfg *pCfg, int64_t interval);
 static int32_t tdInitTSmaWriteH(STSmaWriteH *pSmaH, SSma *pSma, const SArray *pDataBlocks, int64_t interval,
-                                  int8_t intervalUnit);
+                                int8_t intervalUnit);
 static int32_t tdInitTSmaReadH(STSmaReadH *pSmaH, SSma *pSma, int64_t interval, int8_t intervalUnit);
 static void    tdDestroyTSmaWriteH(STSmaWriteH *pSmaH);
 static int32_t tdGetTSmaDays(SSma *pSma, int64_t interval, int32_t storageLevel);
@@ -92,9 +93,10 @@ static int32_t tdDropTSmaDataImpl(SSma *pSma, int64_t indexUid);
  * @return int32_t
  */
 static int32_t tdInitTSmaReadH(STSmaReadH *pSmaH, SSma *pSma, int64_t interval, int8_t intervalUnit) {
+  STSmaKeepCfg *pCfg = SMA_TSDB_CFG(pSma);
   pSmaH->pSma = pSma;
   pSmaH->interval = tdGetIntervalByPrecision(interval, intervalUnit, SMA_TSDB_CFG(pSma)->precision, true);
-  pSmaH->storageLevel = tdGetSmaStorageLevel(interval, intervalUnit);
+  pSmaH->storageLevel = tdGetSmaStorageLevel(pCfg, interval);
   pSmaH->days = tdGetTSmaDays(pSma, pSmaH->interval, pSmaH->storageLevel);
   return TSDB_CODE_SUCCESS;
 }
@@ -275,11 +277,13 @@ static int32_t tdSetTSmaDataFile(STSmaWriteH *pSmaH, int64_t indexUid, int32_t f
  */
 static int32_t tdGetTSmaDays(SSma *pSma, int64_t interval, int32_t storageLevel) {
   STsdbCfg *pCfg = SMA_TSDB_CFG(pSma);
-  int32_t   daysPerFile = pCfg->days;
+  int32_t   daysPerFile = pCfg->days;  // unit is minute
 
   if (storageLevel == SMA_STORAGE_LEVEL_TSDB) {
-    int32_t days = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerMin[pCfg->precision]);
-    daysPerFile = days > SMA_STORAGE_TSDB_DAYS ? days : SMA_STORAGE_TSDB_DAYS;
+    int32_t minutes = SMA_STORAGE_TSDB_TIMES * (interval / tsTickPerMin[pCfg->precision]);
+    if (minutes > SMA_STORAGE_TSDB_MINUTES) {
+      daysPerFile = SMA_STORAGE_TSDB_MINUTES;
+    }
   }
 
   return daysPerFile;
@@ -288,45 +292,14 @@ static int32_t tdGetTSmaDays(SSma *pSma, int64_t interval, int32_t storageLevel)
 /**
  * @brief Judge the tSma storage level
  *
+ * @param pCfg
  * @param interval
- * @param intervalUnit
  * @return int32_t
  */
-static int32_t tdGetSmaStorageLevel(int64_t interval, int8_t intervalUnit) {
-  // TODO: configurable for SMA_STORAGE_SPLIT_HOURS?
-  switch (intervalUnit) {
-    case TIME_UNIT_HOUR:
-      if (interval < SMA_STORAGE_SPLIT_HOURS) {
-        return SMA_STORAGE_LEVEL_DFILESET;
-      }
-      break;
-    case TIME_UNIT_MINUTE:
-      if (interval < 60 * SMA_STORAGE_SPLIT_HOURS) {
-        return SMA_STORAGE_LEVEL_DFILESET;
-      }
-      break;
-    case TIME_UNIT_SECOND:
-      if (interval < 3600 * SMA_STORAGE_SPLIT_HOURS) {
-        return SMA_STORAGE_LEVEL_DFILESET;
-      }
-      break;
-    case TIME_UNIT_MILLISECOND:
-      if (interval < 3600 * 1e3 * SMA_STORAGE_SPLIT_HOURS) {
-        return SMA_STORAGE_LEVEL_DFILESET;
-      }
-      break;
-    case TIME_UNIT_MICROSECOND:
-      if (interval < 3600 * 1e6 * SMA_STORAGE_SPLIT_HOURS) {
-        return SMA_STORAGE_LEVEL_DFILESET;
-      }
-      break;
-    case TIME_UNIT_NANOSECOND:
-      if (interval < 3600 * 1e9 * SMA_STORAGE_SPLIT_HOURS) {
-        return SMA_STORAGE_LEVEL_DFILESET;
-      }
-      break;
-    default:
-      break;
+static int32_t tdGetSmaStorageLevel(STSmaKeepCfg *pCfg, int64_t interval) {
+  int64_t mInterval = convertTimeFromPrecisionToUnit(interval, pCfg->precision, TIME_UNIT_MINUTE);
+  if (pCfg->days / mInterval >= SMA_STORAGE_SPLIT_FACTOR) {
+    return SMA_STORAGE_LEVEL_DFILESET;
   }
   return SMA_STORAGE_LEVEL_TSDB;
 }
@@ -346,6 +319,7 @@ static int32_t tdGetSmaStorageLevel(int64_t interval, int8_t intervalUnit) {
 int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   STsdbCfg     *pCfg = SMA_TSDB_CFG(pSma);
   const SArray *pDataBlocks = (const SArray *)msg;
+  int64_t       testSkey = TSKEY_INITIAL_VAL;
 
   // TODO: destroy SSDataBlocks(msg)
 
@@ -403,8 +377,8 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
   }
 
   // Step 1: Judge the storage level and days
-  int32_t storageLevel = tdGetSmaStorageLevel(pTSma->interval, pTSma->intervalUnit);
-  int32_t daysPerFile = tdGetTSmaDays(pSma, tSmaH.interval, storageLevel);
+  int32_t storageLevel = tdGetSmaStorageLevel(pCfg, tSmaH.interval);
+  int32_t minutePerFile = tdGetTSmaDays(pSma, tSmaH.interval, storageLevel);
 
   char    smaKey[SMA_KEY_LEN] = {0};  // key: skey + groupId
   char    dataBuf[512] = {0};         // val: aggr data // TODO: handle 512 buffer?
@@ -432,6 +406,7 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
             if (!isStartKey) {
               isStartKey = true;
               skey = *(TSKEY *)var;
+              testSkey = skey;
               printf("= skey %" PRIi64 " groupId = %" PRIi64 "|", skey, groupId);
               tdEncodeTSmaKey(groupId, skey, &pSmaKey);
             } else {
@@ -503,9 +478,10 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
             break;
         }
       }
+      printf("\n");
       // if ((tlen > 0) && (skey != TSKEY_INITIAL_VAL)) {
       if (tlen > 0) {
-        int32_t fid = (int32_t)(TSDB_KEY_FID(skey, daysPerFile, pCfg->precision));
+        int32_t fid = (int32_t)(TSDB_KEY_FID(skey, minutePerFile, pCfg->precision));
 
         // Step 2: Set the DFile for storage of SMA index, and iterate/split the TSma data and store to B+Tree index
         // file
@@ -517,6 +493,8 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
             smaCloseDBF(&tSmaH.dFile);
           }
           tdSetTSmaDataFile(&tSmaH, indexUid, fid);
+          smaDebug("@@@ vgId:%d write to DBF %s, days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi32 " queryKey:%" PRIi64,
+                   SMA_VID(pSma), tSmaH.dFile.path, minutePerFile, tSmaH.interval, storageLevel, testSkey);
           if (smaOpenDBF(pEnv->dbEnv, &tSmaH.dFile) != 0) {
             smaWarn("vgId:%d open DB file %s failed since %s", SMA_VID(pSma),
                      tSmaH.dFile.path ? tSmaH.dFile.path : "path is NULL", tstrerror(terrno));
@@ -528,16 +506,17 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
         }
 
         if (tdInsertTSmaBlocks(&tSmaH, &smaKey, SMA_KEY_LEN, dataBuf, tlen, &pEnv->txn) != 0) {
-          smaWarn("vgId:%d insert tSma data blocks fail for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64
-                   " since %s",
-                   SMA_VID(pSma), indexUid, skey, groupId, tstrerror(terrno));
+          smaWarn("vgId:%d insert tsma data blocks fail for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64
+                  " since %s",
+                  SMA_VID(pSma), indexUid, skey, groupId, tstrerror(terrno));
           tdSmaEndCommit(pEnv);
           tdDestroyTSmaWriteH(&tSmaH);
           tdUnRefSmaStat(pSma, pStat);
           return TSDB_CODE_FAILED;
         }
-        smaDebug("vgId:%d insert tSma data blocks success for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64,
-                  SMA_VID(pSma), indexUid, skey, groupId);
+
+        smaDebug("vgId:%d insert tsma data blocks success for index %" PRIi64 ", skey %" PRIi64 ", groupId %" PRIi64,
+                 SMA_VID(pSma), indexUid, skey, groupId);
         // TODO:tsdbEndTSmaCommit();
 
         // Step 3: reset the SSmaStat
@@ -547,7 +526,6 @@ int32_t tdProcessTSmaInsertImpl(SSma *pSma, int64_t indexUid, const char *msg) {
                  SMA_VID(pSma), skey, tlen, indexUid);
       }
 
-      printf("\n");
     }
   }
   tdSmaEndCommit(pEnv);  // TODO: not commit for every insert
@@ -579,14 +557,14 @@ static int32_t tdInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t keyL
                                   TXN *txn) {
   SDBFile *pDBFile = &pSmaH->dFile;
 
-  // TODO: insert sma data blocks into B+Tree(TDB)
+  // TODO: insert tsma data blocks into B+Tree(TDB)
   if (smaSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen, txn) != 0) {
-    smaWarn("vgId:%d insert sma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " fail",
-           SMA_VID(pSmaH->pSma), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
+    smaWarn("vgId:%d insert tsma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " fail",
+            SMA_VID(pSmaH->pSma), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
     return TSDB_CODE_FAILED;
   }
-  smaDebug("vgId:%d insert sma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " succeed",
-          SMA_VID(pSmaH->pSma), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
+  smaDebug("vgId:%d insert tsma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " succeed",
+           SMA_VID(pSmaH->pSma), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
 
 #ifdef _TEST_SMA_PRINT_DEBUG_LOG_
   uint32_t valueSize = 0;
@@ -776,6 +754,8 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
   tdUnRefSmaStat(pSma, pStat);
 
   tdInitTSmaFile(&tReadH, indexUid, querySKey);
+  smaDebug("### vgId:%d read from DBF %s  days:%d, interval:%" PRIi64 ", storageLevel:%" PRIi8 " queryKey:%" PRIi64,
+          SMA_VID(pSma), tReadH.dFile.path, tReadH.days, tReadH.interval, tReadH.storageLevel, querySKey);
   if (smaOpenDBF(pEnv->dbEnv, &tReadH.dFile) != 0) {
     smaWarn("vgId:%d open DBF %s failed since %s", SMA_VID(pSma), tReadH.dFile.path, tstrerror(terrno));
     return TSDB_CODE_FAILED;
@@ -783,7 +763,7 @@ int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY query
 
   char    smaKey[SMA_KEY_LEN] = {0};
   void   *pSmaKey = &smaKey;
-  int64_t queryGroupId = 1;
+  int64_t queryGroupId = 0;
   tdEncodeTSmaKey(queryGroupId, querySKey, (void **)&pSmaKey);
 
   smaDebug("vgId:%d get sma data from %s: smaKey %" PRIx64 "-%" PRIx64 ", keyLen %d", SMA_VID(pSma),
@@ -915,8 +895,8 @@ static int32_t tdSetExpiredWindow(SSma *pSma, SHashObj *pItemsHash, int64_t inde
       terrno = TSDB_CODE_TDB_NO_SMA_INDEX_IN_META;
       taosHashCleanup(pItem->expiredWindows);
       taosMemoryFree(pItem);
-      smaWarn("vgId:%d update expired window failed for smaIndex %" PRIi64 " since %s", SMA_VID(pSma), indexUid,
-               tstrerror(terrno));
+      smaWarn("vgId:%d set expire window, get tsma meta failed for smaIndex %" PRIi64 " since %s", SMA_VID(pSma),
+              indexUid, tstrerror(terrno));
       return TSDB_CODE_FAILED;
     }
     pItem->pTSma = pTSma;
@@ -1021,7 +1001,7 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version)
         pSW = tdFreeTSmaWrapper(pSW, false);
         break;
       }
-      if (!pSW || (pTSma->tableUid != msgIter.suid)) {
+      if (!pSW || (pTSma && (pTSma->tableUid != msgIter.suid))) {
         if (pSW) {
           pSW = tdFreeTSmaWrapper(pSW, false);
         }
@@ -1043,6 +1023,7 @@ int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version)
         interval.slidingUnit = pTSma->slidingUnit;
       }
 
+      // TODO: process multiple tsma for one table uid
       TSKEY winSKey = taosTimeTruncate(TD_ROW_KEY(row), &interval, interval.precision);
 
       if (lastWinSKey != winSKey) {
