@@ -4093,6 +4093,7 @@ static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBl
   }
   if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
   if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
+  if (tEncodeI64v(pEncoder, pBlock->sver) < 0) return -1;
 
   tEndEncode(pEncoder);
   return 0;
@@ -4111,6 +4112,7 @@ static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
   }
   if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
+  if (tDecodeI64v(pDecoder, &pBlock->sver) < 0) return -1;
 
   tEndDecode(pDecoder);
   return 0;
