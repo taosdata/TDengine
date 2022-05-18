@@ -122,6 +122,11 @@ void ctgFreeDbCache(SCtgDBCache *dbCache) {
   ctgFreeTableMetaCache(&dbCache->tbCache);
 }
 
+void ctgFreeSCtgUserAuth(SCtgUserAuth *userCache) {
+  taosHashCleanup(userCache->createdDbs);
+  taosHashCleanup(userCache->readDbs);
+  taosHashCleanup(userCache->writeDbs);
+}
 
 void ctgFreeHandle(SCatalog* pCtg) {
   ctgFreeMetaRent(&pCtg->dbRent);
@@ -145,7 +150,24 @@ void ctgFreeHandle(SCatalog* pCtg) {
     
     CTG_CACHE_STAT_SUB(dbNum, dbNum);
   }
-  
+
+  if (pCtg->userCache) {
+    int32_t userNum = taosHashGetSize(pCtg->userCache);
+    
+    void *pIter = taosHashIterate(pCtg->userCache, NULL);
+    while (pIter) {
+      SCtgUserAuth *userCache = pIter;
+
+      ctgFreeSCtgUserAuth(userCache);
+            
+      pIter = taosHashIterate(pCtg->userCache, pIter);
+    }  
+
+    taosHashCleanup(pCtg->userCache);
+    
+    CTG_CACHE_STAT_SUB(userNum, userNum);
+  }
+    
   taosMemoryFree(pCtg);
 }
 
@@ -2031,10 +2053,13 @@ int32_t ctgGetTableMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, cons
 
     SName stbName = *pTableName;
     strcpy(stbName.tname, output->tbName);
+
+    taosMemoryFreeClear(output->tbMeta);
     
     CTG_ERR_JRET(ctgGetTableMetaFromCache(pCtg, &stbName, pTableMeta, &inCache, flag, NULL));
     if (!inCache) {
       ctgDebug("stb no longer exist, dbFName:%s, tbName:%s", output->dbFName, pTableName->tname);
+      
       continue;
     }
 
@@ -2305,6 +2330,8 @@ int32_t ctgActUpdateUser(SCtgMetaAction *action) {
       ctgError("taosHashPut user %s to cache failed", msg->userAuth.user);
       CTG_ERR_JRET(TSDB_CODE_OUT_OF_MEMORY);
     }
+
+    taosMemoryFreeClear(msg);
 
     return TSDB_CODE_SUCCESS;
   }

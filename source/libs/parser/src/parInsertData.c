@@ -235,12 +235,12 @@ static void destroyDataBlock(STableDataBlocks* pDataBlock) {
   }
 
   taosMemoryFreeClear(pDataBlock->pData);
-  if (!pDataBlock->cloned) {
+//  if (!pDataBlock->cloned) {
     // free the refcount for metermeta
     taosMemoryFreeClear(pDataBlock->pTableMeta);
 
     destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  }
+//  }
   taosMemoryFreeClear(pDataBlock);
 }
 

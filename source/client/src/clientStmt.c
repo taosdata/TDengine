@@ -260,8 +260,8 @@ int32_t stmtCleanBindInfo(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool freeRequest) {
-  if (STMT_TYPE_QUERY != pStmt->sql.type || freeRequest) {
+int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
+  if (STMT_TYPE_QUERY != pStmt->sql.type || deepClean) {
     taos_free_result(pStmt->exec.pRequest);
     pStmt->exec.pRequest = NULL;
   }
@@ -280,7 +280,11 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool freeRequest) {
       continue;
     }
 
-    qFreeStmtDataBlock(pBlocks);
+    if (STMT_TYPE_MULTI_INSERT == pStmt->sql.type) {
+      qFreeStmtDataBlock(pBlocks);
+    } else {
+      qDestroyStmtDataBlock(pBlocks);
+    }
     taosHashRemove(pStmt->exec.pBlockHash, key, keyLen);
 
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
@@ -320,10 +324,10 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   taosHashCleanup(pStmt->sql.pTableCache);
   pStmt->sql.pTableCache = NULL;
 
-  memset(&pStmt->sql, 0, sizeof(pStmt->sql));
-
   STMT_ERR_RET(stmtCleanExecInfo(pStmt, false, true));
   STMT_ERR_RET(stmtCleanBindInfo(pStmt));
+
+  memset(&pStmt->sql, 0, sizeof(pStmt->sql));
 
   return TSDB_CODE_SUCCESS;
 }
