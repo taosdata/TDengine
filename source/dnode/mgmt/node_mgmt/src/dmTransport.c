@@ -43,8 +43,8 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
     return -1;
   }
 
-  pMsg->info.wrapper = pWrapper;
   dTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
+  pMsg->info.wrapper = pWrapper;
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
