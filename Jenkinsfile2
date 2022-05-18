@@ -235,8 +235,8 @@ def pre_test_build_win() {
         cd debug
         call "C:\\Program Files (x86)\\Microsoft Visual Studio\\2017\\Community\\VC\\Auxiliary\\Build\\vcvarsall.bat" x64
         set CL=/MP8
-        cmake .. -G "NMake Makefiles JOM"
-        jom -j 4 || exit 8
+        cmake .. -G "NMake Makefiles JOM" || exit 7
+        jom -j 6 || exit 8
         time /t
     '''
     return 1
