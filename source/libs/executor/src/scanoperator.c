@@ -36,6 +36,11 @@
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
+typedef struct SWindowPosition {
+  int32_t pageId;
+  int32_t rowId;
+} SWindowPosition;
+
 static int32_t buildSysDbTableInfo(const SSysTableScanInfo* pInfo, int32_t capacity);
 static int32_t buildDbTableInfoBlock(const SSDataBlock* p, const SSysTableMeta* pSysDbTableMeta, size_t size,
                                      const char* dbName);
@@ -668,8 +673,99 @@ static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool inverti
     }
     pDataBlock->info.rows = size;
     pDataBlock->info.type = STREAM_REPROCESS;
+    blockDataUpdateTsWindow(pDataBlock);
     taosArrayClear(pInfo->tsArray);
     return pDataBlock;
+  }
+  return NULL;
+}
+
+void static setSupKeyBuf(SCatchSupporter* pSup, int64_t groupId, int64_t childId, TSKEY ts) {
+  int64_t* pKey = (int64_t*)pSup->pKeyBuf;
+  pKey[0] = groupId;
+  pKey[1] = childId;
+  pKey[2] = ts;
+}
+
+static int32_t catchWidonwInfo(SSDataBlock* pDataBlock, SCatchSupporter* pSup,
+    int32_t pageId, int32_t tsIndex, int64_t childId) {
+  SColumnInfoData* pColDataInfo = taosArrayGet(pDataBlock->pDataBlock, tsIndex);
+  TSKEY* tsCols = (int64_t*)pColDataInfo->pData;
+  for (int32_t i = 0; i < pDataBlock->info.rows; i++) {
+    setSupKeyBuf(pSup, pDataBlock->info.groupId, childId, tsCols[i]);
+    SWindowPosition* p1 = (SWindowPosition*)taosHashGet(pSup->pWindowHashTable,
+        pSup->pKeyBuf, pSup->keySize);
+    if (p1 == NULL) {
+      SWindowPosition pos = {.pageId = pageId, .rowId = i};
+      int32_t code = taosHashPut(pSup->pWindowHashTable, pSup->pKeyBuf, pSup->keySize, &pos,
+          sizeof(SWindowPosition));
+      if (code != TSDB_CODE_SUCCESS ) {
+        return code;
+      }
+    } else {
+      p1->pageId = pageId;
+      p1->rowId = i;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t catchDatablock(SSDataBlock* pDataBlock, SCatchSupporter* pSup,
+    int32_t tsIndex, int64_t childId) {
+  int32_t start = 0;
+  int32_t stop = 0;
+  int32_t pageSize = getBufPageSize(pSup->pDataBuf);
+  while(start < pDataBlock->info.rows) {
+    blockDataSplitRows(pDataBlock, pDataBlock->info.hasVarCol, start, &stop, pageSize);
+    SSDataBlock* pDB = blockDataExtractBlock(pDataBlock, start, stop - start + 1);
+    if (pDB == NULL) {
+      return terrno;
+    }
+    int32_t pageId = -1;
+    void* pPage = getNewBufPage(pSup->pDataBuf, pDataBlock->info.groupId, &pageId);
+    if (pPage == NULL) {
+      blockDataDestroy(pDB);
+      return terrno;
+    }
+    int32_t size = blockDataGetSize(pDB) + sizeof(int32_t)  + pDB->info.numOfCols * sizeof(int32_t);
+    assert(size <= pageSize);
+    blockDataToBuf(pPage, pDB);
+    setBufPageDirty(pPage, true);
+    releaseBufPage(pSup->pDataBuf, pPage);
+    blockDataDestroy(pDB);
+    start = stop + 1;
+    int32_t code = catchWidonwInfo(pDB, pSup, pageId, tsIndex, childId);
+    if (code != TSDB_CODE_SUCCESS ) {
+      return code;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static SSDataBlock* getDataFromCatch(SStreamBlockScanInfo* pInfo) {
+  SSDataBlock* pBlock = pInfo->pUpdateRes;
+  if (pInfo->updateResIndex < pBlock->info.rows) {
+    blockDataCleanup(pInfo->pRes);
+    SCatchSupporter* pCSup = &pInfo->childAggSup;
+    SColumnInfoData* pColDataInfo = taosArrayGet(pBlock->pDataBlock, 0);
+    TSKEY *tsCols = (TSKEY*)pColDataInfo->pData;
+    int32_t size = taosArrayGetSize(pInfo->childIds);
+    for (int32_t i = 0; i < size; i++) {
+      int64_t id = *(int64_t *)taosArrayGet(pInfo->childIds, i);
+      setSupKeyBuf(pCSup, pBlock->info.groupId, id,
+          tsCols[pInfo->updateResIndex]);
+      SWindowPosition* pos = (SWindowPosition*)taosHashGet(pCSup->pWindowHashTable,
+          pCSup->pKeyBuf, pCSup->keySize);
+      void* buf = getBufPage(pCSup->pDataBuf, pos->pageId);
+      SSDataBlock* pDB = createOneDataBlock(pInfo->pRes, false);
+      blockDataFromBuf(pDB, buf);
+      SSDataBlock* pSub = blockDataExtractBlock(pDB, pos->rowId, 1);
+      blockDataMerge(pInfo->pRes, pSub, NULL);
+      blockDataDestroy(pDB);
+      blockDataDestroy(pSub);
+    }
+    pInfo->updateResIndex++;
+    return pInfo->pRes;
   }
   return NULL;
 }
@@ -687,6 +783,15 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
+    if (pInfo->scanMode == STREAM_SCAN_FROM_UPDATERES) {
+      SSDataBlock* pDB = getDataFromCatch(pInfo);
+      if (pDB != NULL) {
+        return pDB;
+      } else {
+       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
+      }
+    }
+
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
       pOperator->status = OP_EXEC_DONE;
@@ -694,7 +799,17 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     }
 
     int32_t current = pInfo->validBlockIndex++;
-    return taosArrayGetP(pInfo->pBlockLists, current);
+    SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
+    if (pBlock->info.type == STREAM_REPROCESS) {
+      pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
+    } else {
+      int32_t code = catchDatablock(pBlock, &pInfo->childAggSup, pInfo->primaryTsIndex, 0);
+      if (code != TDB_CODE_SUCCESS) {
+        pTaskInfo->code = code;
+        longjmp(pTaskInfo->env, code);
+      }
+    }
+    return pBlock;
   } else {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
@@ -768,6 +883,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
       rows = pBlockInfo->rows;
       doFilter(pInfo->pCondition, pInfo->pRes, NULL);
+      blockDataUpdateTsWindow(pInfo->pRes);
 
       break;
     }
@@ -854,6 +970,10 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
   pInfo->scanMode       = STREAM_SCAN_FROM_READERHANDLE;
   pInfo->pOperatorDumy  = pOperatorDumy;
   pInfo->interval       = pSTInfo->interval;
+
+  size_t childKeyBufSize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
+  initCatchSupporter(&pInfo->childAggSup, 1024, childKeyBufSize,
+      "StreamFinalInterval", "/tmp/"); // TODO(liuyao) get row size from phy plan
 
   pOperator->name       = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;

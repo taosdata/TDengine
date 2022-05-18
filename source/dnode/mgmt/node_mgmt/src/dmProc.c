@@ -162,7 +162,7 @@ static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg 
   return 0;
 }
 
-static int32_t dmPopFromProcQueue(SProcQueue *queue, SRpcMsg **ppMsg, EProcFuncType *pFuncType) {
+static inline int32_t dmPopFromProcQueue(SProcQueue *queue, SRpcMsg **ppMsg, EProcFuncType *pFuncType) {
   tsem_wait(&queue->sem);
 
   taosThreadMutexLock(&queue->mutex);
@@ -412,7 +412,7 @@ void dmCleanupProc(struct SMgmtWrapper *pWrapper) {
   SProc *proc = &pWrapper->proc;
   if (proc->name == NULL) return;
 
-  dDebug("node:%s, start to clean up proc", pWrapper->name);
+  dDebug("node:%s, start to cleanup proc", pWrapper->name);
   dmStopProc(proc);
   dmCleanupProcQueue(proc->cqueue);
   dmCleanupProcQueue(proc->pqueue);
