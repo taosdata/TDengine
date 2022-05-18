@@ -15,7 +15,7 @@ import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
 from taostest.util.remote import Remote
-from taostest.util.get_json import get_json
+from taostest.util.get_json import GetJson
 class TestMaxrows(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -26,7 +26,7 @@ class TestMaxrows(TDCase):
         maxrows check
         """
         test_param = "maxrows"
-        get_data = get_json(self.logger, self.run_log_dir,self.env_setting)
+        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
         # default
         default_value = 4096
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
