@@ -542,6 +542,12 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
+  if (IS_NULL_TYPE(type)) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElem = 1;
+    goto _avg_over;
+  }
+
   switch (type) {
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t* plist = (int8_t*)pCol->pData;
@@ -633,6 +639,7 @@ int32_t avgFunction(SqlFunctionCtx* pCtx) {
       break;
   }
 
+_avg_over:
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return TSDB_CODE_SUCCESS;
@@ -1330,6 +1337,12 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
+  if (IS_NULL_TYPE(type)) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
+    numOfElem = 1;
+    goto _stddev_over;
+  }
+
   switch (type) {
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t* plist = (int8_t*)pCol->pData;
@@ -1427,6 +1440,7 @@ int32_t stddevFunction(SqlFunctionCtx* pCtx) {
       break;
   }
 
+_stddev_over:
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
   return TSDB_CODE_SUCCESS;

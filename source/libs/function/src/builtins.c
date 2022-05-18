@@ -63,7 +63,7 @@ static int32_t translateInNumOutDou(SFunctionNode* pFunc, char* pErrBuf, int32_t
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(paraType)) {
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
