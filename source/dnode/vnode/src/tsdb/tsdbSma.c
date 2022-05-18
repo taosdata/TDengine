@@ -53,7 +53,7 @@ struct SSmaEnv {
   TXN            txn;
   SPoolMem      *pPool;
   SDiskID        did;
-  TENV          *dbEnv;  // TODO: If it's better to put it in smaIndex level?
+  TDB           *dbEnv;  // TODO: If it's better to put it in smaIndex level?
   char          *path;   // relative path
   SSmaStat      *pStat;
 };
@@ -876,7 +876,7 @@ static int32_t tsdbInsertTSmaBlocks(STSmaWriteH *pSmaH, void *smaKey, int32_t ke
                                     TXN *txn) {
   SDBFile *pDBFile = &pSmaH->dFile;
 
-  // TODO: insert tsma data blocks into B+Tree(TDB)
+  // TODO: insert tsma data blocks into B+Tree(TTB)
   if (tsdbSaveSmaToDB(pDBFile, smaKey, keyLen, pData, dataLen, txn) != 0) {
     tsdbWarn("vgId:%d insert tsma data blocks into %s: smaKey %" PRIx64 "-%" PRIx64 ", dataLen %" PRIu32 " fail",
              REPO_ID(pSmaH->pTsdb), pDBFile->path, *(int64_t *)smaKey, *(int64_t *)POINTER_SHIFT(smaKey, 8), dataLen);
