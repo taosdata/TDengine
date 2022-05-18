@@ -1,5 +1,4 @@
 ---
-sidebar_label: Data Model
 slug: /model
 title: Data Model
 ---
@@ -43,12 +42,11 @@ If you are using versions prior to 2.0.15, the `STable` keyword needs to be repl
 
 :::
 
-Similar to creating a normal table, when creating a STable, name and schema need to be provided too. In the STable schema, the first column must be timestamp (like ts in the example), and other columns (like current, voltage and phase in the example) are the data collected. The type of a column can be integer, floating point number, string ,etc. Besides, the schema for tags need to be provided, like location and groupId in the example. The type of a tag can be integer, floating point number, string, etc. The static properties of a data collection point can be defined as tags, like the location, device type, device group ID, manager ID, etc. Tags in the schema can be added, removed or updated. Please refer to [STable](/taos-sql/stable) for more details.
+Similar to creating a regular table, when creating a STable, name and schema need to be provided too. In the STable schema, the first column must be timestamp (like ts in the example), and other columns (like current, voltage and phase in the example) are the data collected. The type of a column can be integer, float, double, string ,etc. Besides, the schema for tags need to be provided, like location and groupId in the example. The type of a tag can be integer, float, string, etc. The static properties of a data collection point can be defined as tags, like the location, device type, device group ID, manager ID, etc. Tags in the schema can be added, removed or updated. Please refer to [STable](/taos-sql/stable) for more details.
 
-Each kind of data collection points needs a corresponding STable to be created, so there may be many STables in an application. For electrical power system, we need to create a STable respectively for meters, transformers, busbars, switches. There may be multiple kinds of data collection points on a single device, for example there may be one data collection point for electrical data like current and voltage and another point for environmental data like temperature, humidity and wind direction, multiple STables are required for such kind of device.
+For each kind of data collection points, a corresponding STable must be created. There may be man y STables in an application. For electrical power system, we need to create a STable respectively for meters, transformers, busbars, switches. There may be multiple kinds of data collection points on a single device, for example there may be one data collection point for electrical data like current and voltage and another point for environmental data like temperature, humidity and wind direction, multiple STables are required for such kind of device.
 
 At most 4096 (or 1024 prior to version 2.1.7.0) columns are allowed in a STable. If there are more than 4096 of metrics to bo collected for a data collection point, multiple STables are required for such kind of data collection point. There can be multiple databases in system, while one or more STables can exist in a database.
-
 
 ## Create Table
 
@@ -60,6 +58,7 @@ CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
 
 In the above SQL statement, "d1001" is the table name, "meters" is the STable name, followed by the value of tag "Location" and the value of tag "groupId", which are "Beijing.Chaoyang" and "2" respectively in the example. The tag values can be updated after the table is created. Please refer to [Tables](/taos-sql/table) for details.
 
+In TDengine system, it's recommended to create a table for a data collection point via STable. Table created via STable is called subtable in some parts of TDengine document. All SQL commands applied on regular table can be applied on subtable.
 
 :::warning
 It's not recommended to create a table in a database while using a STable from another database as template.

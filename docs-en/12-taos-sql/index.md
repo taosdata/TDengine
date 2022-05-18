@@ -1,9 +1,9 @@
 ---
 title: TAOS SQL
-description: "The syntax, select, functions and tips supported by TAOS SQL "
+description: "The syntax supported by TAOS SQL "
 ---
 
-This document explains the syntax, select, functions and some tips that can be used in TAOS SQL. It would be easier to understand with some fundamental knowledge of SQL.
+This document explains the syntax about operating database, table, STable, inserting data, selecting data, functions and some tips that can be used in TAOS SQL. It would be easier to understand with some fundamental knowledge of SQL.
 
 TAOS SQL is the major interface for users to write data into or query from TDengine. For users to easily use, syntax similar to standard SQL is provided. However, please be noted that TAOS SQL is not standard SQL. Besides, because TDengine doesn't provide the functionality of deleting time series data, corresponding statements are not provided in TAOS SQL.
 

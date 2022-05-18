@@ -1,6 +1,6 @@
 ---
-sidebar_label: Window
-title: Aggregate by Window
+sidebar_label: Interval
+title: Aggregate by Time Window
 ---
 
 Aggregate by time window is supported in TDengine. For example, each temperature sensor reports the temperature every second, the average temperature every 10 minutes can be retrieved by query with time window.

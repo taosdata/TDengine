@@ -19,7 +19,23 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-faq/faq)。
 3. 数据库名最大长度为 33；
 4. 一条 SQL 语句的最大长度为 65480 个字符；
-5. 数据库还有更多与数据库相关的配置参数，如 cache, blocks, days, keep, minRows, maxRows, wal, fsync, update, cacheLast, replica, quorum, maxVgroupsPerDb, ctime, comp, prec, 具体细节请参见 [配置参数](/reference/config/) 章节。
+5. 创建数据库时可用的参数有：
+   - cache: [Description](/reference/config/#cache)
+   - blocks: [Description](/reference/config/#blocks)
+   - days: [Description](/reference/config/#days)
+   - keep: [Description](/reference/config/#keep)
+   - minRows: [Description](/reference/config/#minrows)
+   - maxRows: [Description](/reference/config/#maxrows)
+   - wal: [Description](/reference/config/#wallevel)
+   - fsync: [Description](/reference/config/#fsync)
+   - update: [Description](/reference/config/#update)
+   - cacheLast: [Description](/reference/config/#cachelast)
+   - replica: [Description](/reference/config/#replica)
+   - quorum: [Description](/reference/config/#quorum)
+   - maxVgroupsPerDb: [Description](/reference/config/#maxvgroupsperdb)
+   - comp: [Description](/reference/config/#comp)
+   - precision: [Description](reference/config/#precision)
+6. 请注意上面列出的所有参数都可以配置在配置文件 `taosd.cfg` 中作为创建数据库时使用的默认配置， `create database` 的参数中明确指定的会覆盖配置文件中的设置。
 
 :::
 

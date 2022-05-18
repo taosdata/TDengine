@@ -1,6 +1,5 @@
 ---
-sidebar_label: Monitor
-title: Monitor TDengine
+title: TDengine Monitoring
 ---
 
 After TDengine is started, a database named `log` for monitoring is created automatically. The information about CPU, memory, disk, bandwidth, number of requests, disk I/O speed, slow query is written into `log` database on the basis of a predefined interval. Besides, some important system operations, like logon, create user, drop database, and alerts and warnings generated in TDengine are written into `log` database too. System operator can view the data in `log` database from TDengine CLI or from a web console.

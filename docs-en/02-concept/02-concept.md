@@ -135,13 +135,25 @@ The design of one table for one data collection point will require a huge number
 
 STable is an set for a type of data collection point. A STable contains a set of data collection points (tables) that have the same schema or data structure, but with different static attributes(tags). To describe a STable, in addition to defining the table structure of the metrics, it is also necessary to define the schema of its tags. The data type of tags can be int, float, string, and there can be multiple tags, which can be added, deleted, or modified afterward. If the whole system has N different types of data collection points, N STables need to be established.
 
-In the design of TDengine, **a table is used to represent a specific data collection point, and STable is used to represent a set of data collection points of the same type**. When creating a table for a specific data collection point, the user uses a STable as a template and specifies the tag value of the specific DCP (table). Compared with the traditional relational database, the table (a DCP) has static tags, and these tags can be added, deleted, and updated afterward. The relationship between the STable and the tables created based on the STable is as follows:
+In the design of TDengine, **a table is used to represent a specific data collection point, and STable is used to represent a set of data collection points of the same type**. 
 
-1. A STable contains multiple tables with the same metric schema but with different tag values.
-2. The schema of metrics or labels cannot be adjusted through tables, and it can only be changed via STable. Changes to the schema of a STable takes effect immediately for all belonged tables.
-3. STable defines only one template and does not store any data or label information by itself. Therefore, data cannot be written to a STable, only to tables.
+## Subtable
 
-Query can be executed on both table and STable. For a query on a STable, TDengine will treat the data in all belonged tables as a whole data set for processing. TDengine will first find out the tables that meet the tag filter conditions, then scan the time-series data of these tables to perform aggregation operation, which can greatly reduce the data sets to be scanned, thus greatly improving the performance of data aggregation across multiple DCPs.
+When creating a table for a specific data collection point, the user can use a STable as a template and specifies the tag value of this specific DCP to create it. **The table created by using a STable as the template is called subtable** in TDengine system. The difference between regular table and subtable is: 
+1. Subtable is a table, all SQL commands applied on a regular table can be applied on subtable.
+2. Subtable is a table with extension, it has static tags(labels), and these tags can be added, deleted, and updated afterward. But regular table does not have tags.
+3. A subtable belongs to only one STable, but a STable may have many subtables. Regular table does not belong to any STable.
+4. A regular table could not converted into a subtable, and vice versa. 
+
+The relationship between a STable and the subtables created based on this STable is as follows:
+
+1. A STable contains multiple subtables with the same metric schema but with different tag values.
+2. The schema of metrics or labels cannot be adjusted through subtables, and it can only be changed via STable. Changes to the schema of a STable takes effect immediately for all belonged subtables.
+3. STable defines only one template and does not store any data or label information by itself. Therefore, data cannot be written to a STable, only to subtables.
+
+Query can be executed on both table(subtable) and STable. For a query on a STable, TDengine will treat the data in all its subtables as a whole data set for processing. TDengine will first find out the subtables that meet the tag filter conditions, then scan the time-series data of these subtables to perform aggregation operation, which can greatly reduce the data sets to be scanned, thus greatly improving the performance of data aggregation across multiple DCPs.
+
+In TDengine system, it is recommend to use a substable instead of a regular table for a DCP. 
 
 ## Database
 

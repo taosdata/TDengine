@@ -4,7 +4,7 @@ sidebar_label: C/C++
 title: C/C++ Connector
 ---
 
-C/C++ developers can use TDengine's client driver, the C/C++ connector (hereafter referred to as the TDengine client driver), to develop their applications to connect to TDengine clusters for data storing, querying, and other functions. To use it, you need to include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs; the application also needs to link to the corresponding dynamic libraries on the platform where it is located.
+C/C++ developers can use TDengine's client driver and the C/C++ connector, to develop their applications to connect to TDengine clusters for data writing, querying, and other functions. To use it, you need to include the TDengine header file _taos.h_, which lists the function prototypes of the provided APIs; the application also needs to link to the corresponding dynamic libraries on the platform where it is located.
 
 ```c
 #include <taos.h>
@@ -22,19 +22,19 @@ The dynamic libraries for the TDengine client driver are located in.
 
 ## Supported platforms
 
-Please refer to [list of supported platforms](/reference/connector#supported platforms)
+Please refer to [list of supported platforms](/reference/connector#supported-platforms)
 
 ## Supported versions
 
-The version number of the TDengine client driver and the version number of the TDengine server require one-to-one correspondence and recommend using the same client driver as the TDengine server. Although a lower version of the client driver is compatible with a higher version of the server, if the first three version numbers are the same (i.e., only the fourth version number is different), it is not recommended. It is strongly discouraged to use a high version of the client driver to access a low version of the server.
+The version number of the TDengine client driver and the version number of the TDengine server require one-to-one correspondence and recommend using the same version of client driver as what the TDengine server version is. Although a lower version of the client driver is compatible to work with a higher version of the server, if the first three version numbers are the same (i.e., only the fourth version number is different), but it is not recommended. It is strongly discouraged to use a higher version of the client driver to access a lower version of the TDengine server.
 
 ## Installation steps
 
-Please refer to the [Installation Guide](/reference/connector#installation steps) for TDengine client driver installation
+Please refer to the [Installation Steps](/reference/connector#installation-steps) for TDengine client driver installation
 
 ## Establishing a connection
 
-The basic process of accessing a TDengine cluster using the client driver is to establish a connection, query and write, close the connection, and clear the resource.
+The basic process of accessing a TDengine cluster using the client driver is to establish a connection, query and write data, close the connection, and clear the resource.
 
 The following is sample code for establishing a connection, which omits the query and writing sections and shows how to establish a connection, close a connection, and clear a resource.
 
@@ -51,12 +51,12 @@ The following is sample code for establishing a connection, which omits the quer
   taos_cleanup();
 ```
 
-In the above example code, `taos_connect` establishes a connection to port 6030 on the host where the client application is located, `taos_close` closes the current connection, and `taos_cleanup` clears the resources requested and used by the client driver.
+In the above example code, `taos_connect()` establishes a connection to port 6030 on the host where the client application is located, `taos_close()` closes the current connection, and `taos_cleanup()` clears the resources requested and used by the client driver.
 
 :::note
 
 - If not specified, when the return value of the API is an integer, _0_ means success, the others are error codes representing the reason for failure, and when the return value is a pointer, _NULL_ means failure.
-- All error codes and their corresponding causes are described in the taoserror.h file.
+- All error codes and their corresponding causes are described in the `taoserror.h` file.
 
 :::
 
@@ -66,7 +66,7 @@ This section shows sample code for standard access methods to TDengine clusters 
 
 ### Synchronous query example
 
-<details
+<details>
 <summary>Synchronous query</summary>
 
 ```c
@@ -120,15 +120,15 @@ This section shows sample code for standard access methods to TDengine clusters 
 </details>
 
 :::info
-More example code and downloads are available at [github](https://github.com/taosdata/TDengine/tree/develop/examples/c)
-You can find it in the installation directory under the examples/c path. This directory has a makefile and can be compiled under Linux by executing make directly.
-**Hint:** When compiling in an ARM environment, please remove `-msse4.2` from the makefile. This option is only supported on x64/x86 hardware platforms.
+More example code and downloads are available at [GitHub](https://github.com/taosdata/TDengine/tree/develop/examples/c).
+You can find it in the installation directory under the `examples/c` path. This directory has a makefile and can be compiled under Linux by executing `make` directly.
+**Hint:** When compiling in an ARM environment, please remove `-msse4.2` from the makefile. This option is only supported on the x64/x86 hardware platforms.
 
 :::
 
 ## API reference
 
-The following describes the basic API, synchronous API, asynchronous API, subscription API, and modeless write API of TDengine client driver, respectively.
+The following describes the basic API, synchronous API, asynchronous API, subscription API, and schemaless write API of TDengine client driver, respectively.
 
 ### Basic API
 
@@ -154,7 +154,7 @@ The base API is used to do things like create database connections and provide a
 
 - `TAOS *taos_connect(const char *host, const char *user, const char *pass, const char *db, int port)`
 
-  Creates a database connection and initializes the connection context. Among the parameters required from the user are
+  Creates a database connection and initializes the connection context. Among the parameters required from the user are:
 
   - host: FQDN of any node in the TDengine cluster
   - user: user name
@@ -162,7 +162,7 @@ The base API is used to do things like create database connections and provide a
   - db: database name, if the user does not provide, it can also be connected correctly, the user can create a new database through this connection, if the user provides the database name, it means that the database user has already created, the default use of the database
   - port: the port the tasd program is listening on
 
-  A null return value indicates a failure. The application needs to save the returned parameters for subsequent use.
+  NULL indicates a failure. The application needs to save the returned parameters for subsequent use.
 
   :::info
   The same process can connect to multiple TDengine clusters according to different host/port
@@ -187,7 +187,7 @@ The APIs described in this subsection are all synchronous interfaces. After bein
 
 - `TAOS_RES* taos_query(TAOS *taos, const char *sql)`
 
-  Executes an SQL statement, either a DQL, DML, or DDL statement. The `taos` parameter is a handle obtained with `taos_connect()`. You can't tell if the result failed by whether the return value is `NULL`, but by parsing the error code in the result set with the `taos_errno()` function.
+  Executes an SQL command, either a DQL, DML, or DDL statement. The `taos` parameter is a handle obtained with `taos_connect()`. You can't tell if the result failed by whether the return value is `NULL`, but by parsing the error code in the result set with the `taos_errno()` function.
 
 - `int taos_result_precision(TAOS_RES *res)`
 
@@ -248,15 +248,15 @@ TDengine version 2.0 and above recommends that each thread of a database applica
 
 ### Asynchronous query API
 
-TDengine also provides a higher performance asynchronous API to handle data insertion and query operations. Given the same hardware and software environment, the asynchronous API can run data insertion 2 to 4 times faster than the synchronous API. The asynchronous API is called non-blocking and returns immediately before the system completes a specific database operation. The calling thread can go to work on other tasks, which can improve the performance of the whole application. Asynchronous APIs are particularly advantageous in the case of severe network latency.
+TDengine also provides a set of asynchronous API to handle data insertion and query operations with a higher performance. Given the same hardware and software environment, the asynchronous API can run data insertion 2 to 4 times faster than the synchronous API. The asynchronous API is called non-blocking and returns immediately before the system completes a specific database operation. The calling thread can go to work on other tasks, which can improve the performance of the whole application. Asynchronous APIs are particularly advantageous in the case of severe network latency.
 
-The asynchronous APIs require the application to provide a callback function with the following parameters: the first two parameters are consistent, and the third parameter depends on the API. The first parameter, param, is provided to the system when the application calls the asynchronous API. It is used for the callback so that the application can retrieve the context of the specific operation, depending on the implementation. The second parameter is the result set of the SQL operation. If it is empty, such as insert operation, it means that there are no records returned, and if it is not empty, such as select operation, it means that there are records returned.
+The asynchronous APIs require the application to provide a callback function with the following parameters: the first two parameters are consistent, and the third parameter depends on the API. The first parameter, `param`, is provided to the system when the application calls the asynchronous API. It is used for the callback so that the application can retrieve the context of the specific operation, depending on the implementation. The second parameter is the result set of the SQL operation. If it is NULL, such as insert operation, it means that there are no records returned, and if it is not NULL, such as select operation, it means that there are records returned.
 
 The asynchronous API has relatively high user requirements, so users can use it selectively according to specific application scenarios. The following are two important asynchronous APIs.
 
 - `void taos_query_a(TAOS *taos, const char *sql, void (*fp)(void *param, TAOS_RES *, int code), void *param);`
 
-  Execute SQL statements asynchronously.
+  Execute SQL command asynchronously.
 
   - taos: the database connection returned by calling `taos_connect()`
   - sql: the SQL statement to be executed
@@ -270,13 +270,13 @@ The asynchronous API has relatively high user requirements, so users can use it 
   - res: the result set returned by the `taos_query_a()` callback
   - fp: callback function. Its parameter `param` is a user-definable parameter structure passed to the callback function; `numOfRows` is the number of rows of the fetched data (not a function of the entire query result set). In the callback function, the application can iterate forward to fetch each row of records in the batch by calling `taos_fetch_row()`. After reading all the rows in a block, the application needs to continue calling `taos_fetch_rows_a()` in the callback function to get the next batch of rows for processing until the number of rows returned, `numOfRows`, is zero (result return complete) or the number of rows is negative (query error).
 
-TDengine's asynchronous APIs all use a non-blocking call pattern. Applications can open multiple tables simultaneously using multiple threads and perform queries or inserts on each open table at the same time. It is important to note that **client applications must ensure that operations on the same table are fully serialized**. i.e., no second insert or query operation can be performed while an insert or query operation on the same table is incomplete (not returned).
+All TDengine's asynchronous APIs use a non-blocking call pattern. Applications can open multiple tables simultaneously using multiple threads and perform queries or inserts on each open table at the same time. It is important to note that **client applications must ensure that operations on the same table are fully serialized**. i.e., no second insert or query operation can be performed while an insert or query operation on the same table is incomplete (not returned).
 
 ### Parameter Binding API
 
-In addition to direct calls to `taos_query()` to perform queries, TDengine also provides a Prepare API that supports parameter binding, similar in style to MySQL, and currently only supports using a question mark `? ` to represent the parameter to be bound.
+In addition to direct calls to `taos_query()` to perform queries, TDengine also provides a set of `bind` APIs that supports parameter binding, similar in style to MySQL, and currently only supports using a question mark `? ` to represent the parameter to be bound.
 
-Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved the parameter binding interface's support for data writing (INSERT) scenarios. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thus significantly improving write performance in most cases. A typical operation, in this case, is as follows.
+Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved the bind APIs to support for data writing (INSERT) scenarios. This avoids the resource consumption of SQL syntax parsing when writing data through the parameter binding interface, thus significantly improving write performance in most cases. A typical operation, in this case, is as follows.
 
 1. call `taos_stmt_init()` to create the parameter binding object.
 2. call `taos_stmt_prepare()` to parse the INSERT statement. 3.
@@ -288,7 +288,7 @@ Starting with versions 2.1.1.0 and 2.1.2.0, TDengine has significantly improved 
 8. call `taos_stmt_execute()` to execute the prepared batch instructions.
 9. When execution is complete, call `taos_stmt_close()` to release all resources.
 
-Note: If `taos_stmt_execute()` succeeds, you can reuse the parsed result of `taos_stmt_prepare()` to bind new data in steps 3 to 6 if you don't need to change the SQL statement. However, if there is an execution error, it is not recommended to continue working in the current context but release the resources and start again with `taos_stmt_init()` steps.
+Note: If `taos_stmt_execute()` succeeds, you can reuse the parsed result of `taos_stmt_prepare()` to bind new data in steps 3 to 6 if you don't need to change the SQL command. However, if there is an execution error, it is not recommended to continue working in the current context but release the resources and start again with `taos_stmt_init()` steps.
 
 The specific functions related to the interface are as follows (see also the [prepare.c](https://github.com/taosdata/TDengine/blob/develop/examples/c/prepare.c) file for the way to use the corresponding functions)
 
@@ -298,7 +298,7 @@ The specific functions related to the interface are as follows (see also the [pr
 
 - ` int taos_stmt_prepare(TAOS_STMT *stmt, const char *sql, unsigned long length)`
 
-  Parse a SQL statement, and bind the parsed result and parameter information to stmt. If the parameter length is greater than 0, use this parameter as the length of the SQL statement. If it is equal to 0, the length of the SQL statement will be determined automatically.
+  Parse a SQL command, and bind the parsed result and parameter information to `stmt`. If the parameter length is greater than 0, use this parameter as the length of the SQL command. If it is equal to 0, the length of the SQL command will be determined automatically.
 
 - `int taos_stmt_bind_param(TAOS_STMT *stmt, TAOS_BIND *bind)`
 
@@ -319,17 +319,17 @@ The specific functions related to the interface are as follows (see also the [pr
 
 - `int taos_stmt_set_tbname(TAOS_STMT* stmt, const char* name)`
 
-  (New in version 2.1.1.0, only supported for replacing parameter values in INSERT statements)
-  When the table name in the SQL statement uses `? ` placeholder, you can use this function to bind a specific table name.
+  (Available in 2.1.1.0 and later versions, only supported for replacing parameter values in INSERT statements)
+  When the table name in the SQL command uses `? ` placeholder, you can use this function to bind a specific table name.
 
 - `int taos_stmt_set_tbname_tags(TAOS_STMT* stmt, const char* name, TAOS_BIND* tags)`
 
-  (New in version 2.1.2.0, only supported for replacing parameter values in INSERT statements)
-  When the table name and TAGS in the SQL statement both use `? `, you can use this function to bind the specific table name and the specific TAGS value. The most typical usage scenario is an INSERT statement that uses the automatic table building function (the current version does not support specifying specific TAGS columns.) The number of columns in the TAGS parameter needs to be the same as the number of TAGS requested in the SQL statement.
+  (Available in 2.1.2.0 and later versions, only supported for replacing parameter values in INSERT statements)
+  When the table name and TAGS in the SQL command both use `? `, you can use this function to bind the specific table name and the specific TAGS value. The most typical usage scenario is an INSERT statement that uses the automatic table building function (the current version does not support specifying specific TAGS columns.) The number of columns in the TAGS parameter needs to be the same as the number of TAGS requested in the SQL command.
 
 - `int taos_stmt_bind_param_batch(TAOS_STMT* stmt, TAOS_MULTI_BIND* bind)`
 
-  (new in version 2.1.1.0, only supported for replacing parameter values in INSERT statements)
+  (Available in 2.1.1.0 and later versions, only supported for replacing parameter values in INSERT statements)
   To pass the data to be bound in a multi-column manner, it is necessary to ensure that the order of the data columns and the number of columns given here are the same as the VALUES parameter in the SQL statement. The specific definition of TAOS_MULTI_BIND is as follows.
 
   ```c
@@ -345,7 +345,7 @@ The specific functions related to the interface are as follows (see also the [pr
 
 - ` int taos_stmt_add_batch(TAOS_STMT *stmt)`
 
-  Adds the currently bound parameter to the batch. After calling this function, you can call `taos_stmt_bind_param()` or `taos_stmt_bind_param_batch()` again to bind a new parameter. Note that this function only supports INSERT/IMPORT statements. Other SQL statements such as SELECT will return an error.
+  Adds the currently bound parameter to the batch. After calling this function, you can call `taos_stmt_bind_param()` or `taos_stmt_bind_param_batch()` again to bind a new parameter. Note that this function only supports INSERT/IMPORT statements. Other SQL command such as SELECT will return an error.
 
 - `int taos_stmt_execute(TAOS_STMT *stmt)`
 
@@ -361,12 +361,12 @@ The specific functions related to the interface are as follows (see also the [pr
 
 - ` char * taos_stmt_errstr(TAOS_STMT *stmt)`
 
-  (new in version 2.1.3.0)
+  (Available in 2.1.3.0 and later versions)
   Used to get error information if other STMT APIs return errors (return error codes or null pointers).
 
-### Write-without-mode API
+### Schemaless Writing API
 
-In addition to writing data using the SQL method or the parameter binding API, writing can also be done using Schemaless, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of Schemaless is described in the chapter [Schemaless Writing](/reference/schemaless/), and the C/C++ API used with it is described here.
+In addition to writing data using the SQL method or the parameter binding API, writing can also be done using schemaless writing, which eliminates the need to create a super table/data sub-table structure in advance and writes the data directly. The TDengine system automatically creates and maintains the required table structure based on the written data content. The use of schemaless writing is described in the chapter [Schemaless Writing](/reference/schemaless/), and the C/C++ API used with it is described here.
 
 - `TAOS_RES* taos_schemaless_insert(TAOS* taos, const char* lines[], int numLines, int protocol, int precision)`
 
@@ -374,11 +374,11 @@ In addition to writing data using the SQL method or the parameter binding API, w
   This interface writes the text data of the line protocol to TDengine.
 
   **Parameter description**
-  taos: database connection, established by the `taos_connect()` function.
-  lines: text data. A pattern-free text string that meets the parsing format requirements.
-  numLines: the number of lines of text data, cannot be 0.
-  protocol: the protocol type of the lines, used to identify the text data format.
-  precision: precision string for the timestamp in the text data.
+  - taos: database connection, established by the `taos_connect()` function.
+  - lines: text data. A pattern-free text string that meets the parsing format requirements.
+  - numLines: the number of lines of text data, cannot be 0.
+  - protocol: the protocol type of the lines, used to identify the text data format.
+  - precision: precision string for the timestamp in the text data.
 
   **return value**
   TAOS_RES structure, application can get error message by using `taos_errstr()` and also error code by using `taos_errno()`.
@@ -419,7 +419,7 @@ The Subscription API currently supports subscribing to one or more tables and co
   - taos: the database connection that has been established
   - restart: if the subscription already exists, whether to restart or continue the previous subscription
   - topic: the topic of the subscription (i.e., the name). This parameter is the unique identifier of the subscription
-  - sql: the query statement of the subscription, this statement can only be `select` statement, only the original data should be queried, only the data can be queried in time order
+  - sql: the query statement of the subscription, this statement can only be _select_ statement, only the original data should be queried, only the data can be queried in time order
   - fp: the callback function when the query result is received (the function prototype will be introduced later), only used when called asynchronously. This parameter should be passed `NULL` when called synchronously
   - param: additional parameter when calling the callback function, the system API will pass it to the callback function as it is, without any processing
   - interval: polling period in milliseconds. The callback function will be called periodically according to this parameter when called asynchronously. not recommended to set this parameter too small To avoid impact on system performance when called synchronously. If the interval between two calls to `taos_consume()` is less than this period, the API will block until the interval exceeds this period.

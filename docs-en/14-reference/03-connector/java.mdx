@@ -9,16 +9,16 @@ description: TDengine Java based on JDBC API and provide both native and REST co
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-'taos-jdbcdriver' is TDengine's official Java language connector, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard and provides two forms of connectors. One is to connect to a TDengine instance natively through the TDengine client driver (taosc), which supports functions such as data writing, querying, subscription, schemaless interface, and parameter binding interface. And the other is to connect to a TDengine instance through the REST interface provided by taosAdapter (2.0.18 and later). Rest connections implement small differences between the set of features implemented and native connections.
+'taos-jdbcdriver' is TDengine's official Java language connector, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard and provides two forms of connectors. One is to connect to a TDengine instance natively through the TDengine client driver (taosc), which supports functions including data writing, querying, subscription, schemaless writing, and bind interface. And the other is to connect to a TDengine instance through the REST interface provided by taosAdapter (2.4.0.0 and later). REST connections implement has a slight differences to compare the set of features implemented and native connections.
 
-! [tdengine-connector] (tdengine-jdbc-connector.png)
+![tdengine-connector](tdengine-jdbc-connector.png)
 
-The preceding diagram shows two ways for a Java app to access TDengine using connectors:
+The preceding diagram shows two ways for a Java app to access TDengine via connector:
 
-- JDBC native connectivity: Java applications use TSDBDriver on physical node 1 (pnode1) to call client-driven directly (libtaos.so or taos.dll) APIs to send writing and query requests to taosd instances located on physical node 2 (pnode2).
-- JDBC REST connection: The Java application encapsulates the SQL as a REST request via RestfulDriver, sends it to the REST server of physical node 2 (taosAdapter), requests taosd through the REST server, and returns the result.
+- JDBC native connection: Java applications use TSDBDriver on physical node 1 (pnode1) to call client-driven directly (`libtaos.so` or `taos.dll`) APIs to send writing and query requests to taosd instances located on physical node 2 (pnode2).
+- JDBC REST connection: The Java application encapsulates the SQL as a REST request via RestfulDriver, sends it to the REST server of physical node 2 (taosAdapter), requests TDengine server through the REST server, and returns the result.
 
-Using REST connectivity, which does not rely on TDengine client drivers, can be cross-platform, more convenient, and flexible but has about 30% lower performance than native connectors.
+Using REST connection, which does not rely on TDengine client drivers.It can be cross-platform more convenient and flexible but introduce about 30% lower performance than native connection.
 
 :::info
 TDengine's JDBC driver implementation is as consistent as possible with the relational database driver. Still, there are differences in the use scenarios and technical characteristics of TDengine and relational object databases, so 'taos-jdbcdriver' also has some differences from traditional JDBC drivers. You need to pay attention to the following points when using:
@@ -30,12 +30,12 @@ TDengine's JDBC driver implementation is as consistent as possible with the rela
 
 ## Supported platforms
 
-Native connectivity supports the same platform as TDengine client-driven support.
-REST connectivity supports all platforms that can run Java.
+Native connection supports the same platform as TDengine client-driven support.
+REST connection supports all platforms that can run Java.
 
 ## Version support
 
-Please refer to [Version Support List] (/reference/connector# version support)
+Please refer to [Version Support List](/reference/connector#version-support).
 
 ## TDengine DataType vs. Java DataType
 
@@ -55,17 +55,27 @@ TDengine currently supports timestamp, number, character, Boolean type, and the 
 | NCHAR             | java.lang.String                  | java.lang.String                   |
 | JSON              | -                                 | java.lang.String                   |
 
-In the above example, JDBC uses the client's configuration file to establish a connection to a hostname of cluster_node1, port 6030, and a database named test. When the firstEp node fails, JDBC attempts to connect to the cluster using secondEp.
+**Note**: Only TAG supports JSON types
 
-In TDengine, as long as one node in firstEp and secondEp is valid, the connection to the cluster can be established and worked.
+## Installation steps
 
-> **Note**: The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default value of /etc/taos/taos .cfg on Linux OS, and the default value of C://TDengine/cfg/taos.cfg on Windows OS.
+### Pre-installation preparation
+
+Before using Java Connector to connect to the database, the following conditions are required.
+
+- Java 1.8 or above runtime environment and Maven 3.6 or above installed
+- TDengine client driver installed (required for native connections, not required for REST connections), please refer to [Installing Client Driver](/reference/connector#Install-Client-Driver)
+
+### Install the connectors
+
+<Tabs defaultValue="maven">
+<TabItem value="maven" label="install via Maven">
 
 - [sonatype](https://search.maven.org/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - [mvnrepository](https://mvnrepository.com/artifact/com.taosdata.jdbc/taos-jdbcdriver)
 - [maven.aliyun](https://maven.aliyun.com/mvn/search)
 
-Add following dependency in the pom.xml file of your Maven project:
+Add following dependency in the `pom.xml` file of your Maven project:
 
 ```xml-dtd
 <dependency>
@@ -99,7 +109,7 @@ TDengine's JDBC URL specification format is:
 For establishing connections, native connections differ slightly from REST connections.
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
+<TabItem value="native" label="Native connection">
 
 ```java
 Class.forName("com.taosdata.jdbc.TSDBDriver");
@@ -107,9 +117,9 @@ String jdbcUrl = "jdbc:TAOS://taosdemo.com:6030/test?user=root&password=taosdata
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-In the above example, TSDBDriver, which uses a JDBC native connection, establishes a connection to a hostname of taosdemo.com, port 6030 (the default port for TDengine), and a database named test. In this URL, the user name (user) is specified as root, and the password (password) is taosdata.
+In the above example, TSDBDriver, which uses a JDBC native connection, establishes a connection to a hostname `taosdemo.com`, port `6030` (the default port for TDengine), and a database named `test`. In this URL, the user name `user` is specified as `root`, and the `password` is `taosdata`.
 
-Note: With JDBC native connections, taos-jdbcdriver relies on the client driver (libtaos.so under Linux; taos .dll under Windows).
+Note: With JDBC native connections, taos-jdbcdriver relies on the client driver (`libtaos.so` on Linux; `taos.dll` on Windows).
 
 The configuration parameters in the URL are as follows:
 
@@ -119,14 +129,14 @@ The configuration parameters in the URL are as follows:
 - charset: The character set used by the client, the default value is the system character set.
 - locale: Client locale, by default, use the system's current locale.
 - timezone: The time zone used by the client, the default value is the system's current time zone.
-- batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is: false. Enabling batch pull and obtaining a batch of data can improve query performance when the query data volume is large.
+- batchfetch: true: pulls result sets in batches when executing queries; false: pulls result sets row by row. The default value is: false. Enabling batch pulling and obtaining a batch of data can improve query performance when the query data volume is large.
 - batchErrorIgnore:true: When executing statement executeBatch, if there is a SQL execution failure in the middle, the following SQL will continue to be executed. false: No more statements after the failed SQL are executed. The default value is: false.
 
-For more information about JDBC native connections, see [Video Tutorial] (https://www.taosdata.com/blog/2020/11/11/1955.html).
+For more information about JDBC native connections, see [Video Tutorial](https://www.taosdata.com/blog/2020/11/11/1955.html).
 
 **Connect using the TDengine client-driven configuration file **
 
-When you use a JDBC native connection to connect to a TDengine cluster, you can use the TDengine client-driven configuration file to specify parameters such as firstEp and secondEp of the cluster in the configuration file as below:
+When you use a JDBC native connection to connect to a TDengine cluster, you can use the TDengine client driver configuration file to specify parameters such as `firstEp` and `secondEp` of the cluster in the configuration file as below:
 
 1. Do not specify hostname and port in Java applications.
 
@@ -159,14 +169,14 @@ secondEp              cluster_node2:6030
 # locale                en_US.UTF-8
 ```
 
-In the above example, JDBC uses the client's configuration file to establish a connection to a hostname of cluster_node1, port 6030, and a database named test. When the firstEp node in the cluster fails, JDBC attempts to connect to the cluster using secondEp.
+In the above example, JDBC uses the client's configuration file to establish a connection to a hostname `cluster_node1`, port 6030, and a database named `test`. When the firstEp node in the cluster fails, JDBC attempts to connect to the cluster using secondEp.
 
 In TDengine, as long as one node in firstEp and secondEp is valid, the connection to the cluster can be established normally.
 
-> **Note**: The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default value of /etc/taos/taos .cfg on Linux OS, and the default value of C://TDengine/cfg/taos.cfg on Windows OS.
+> **Note**: The configuration file here refers to the configuration file on the machine where the application that calls the JDBC Connector is located, the default path is `/etc/taos/taos.cfg` on Linux, and the default path is `C://TDengine/cfg/taos.cfg` on Windows.
 
 </TabItem>
-<TabItem value="rest" label="REST 连接">
+<TabItem value="rest" label="REST connection">
 
 ```java
 Class.forName("com.taosdata.jdbc.rs.RestfulDriver");
@@ -174,12 +184,12 @@ String jdbcUrl = "jdbc:TAOS-RS://taosdemo.com:6041/test?user=root&password=taosd
 Connection conn = DriverManager.getConnection(jdbcUrl);
 ```
 
-In the above example, a RestfulDriver with a JDBC REST connection is used to establish a connection to a database named test with hostname taosdemo.com on port 6041. The URL specifies the user name (user) as root and the password (password) as taosdata.
+In the above example, a RestfulDriver with a JDBC REST connection is used to establish a connection to a database named `test` with hostname `taosdemo.com` on port `6041`. The URL specifies the user name as `root` and the password as `taosdata`.
 
 There is no dependency on the client driver when Using a JDBC REST connection. Compared to a JDBC native connection, only the following are required: 1.
 
 1. driverClass specified as "com.taosdata.jdbc.rs.RestfulDriver".
-2. jdbcUrl starting with "jdbc:TAOS-RS://". 3.
+2. jdbcUrl starting with "jdbc:TAOS-RS://".
 3. use 6041 as the connection port.
 
 The configuration parameters in the URL are as follows.
@@ -199,7 +209,7 @@ The configuration parameters in the URL are as follows.
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
 ```
 
-- Starting from taos-jdbcdriver-2.0.36 and TDengine 2.2.0.0, if dbname is specified in the url, JDBC REST connections will use /rest/sql/dbname as the url for restful requests by default, and there is no need to specify dbname in SQL. For example, if the url is jdbc:TAOS-RS://127.0.0.1:6041/test, then the sql can be executed: insert into t1 using weather(ts, temperature) tags('beijing') values(now, 24.6);
+- Starting from taos-jdbcdriver-2.0.36 and TDengine 2.2.0.0, if dbname is specified in the URL, JDBC REST connections will use `/rest/sql/dbname` as the URL for REST requests by default, and there is no need to specify dbname in SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/test`, then the SQL can be executed: insert into t1 using weather(ts, temperature) tags('beijing') values(now, 24.6);
 
 :::
 
@@ -239,7 +249,7 @@ public Connection getRestConn() throws Exception{
 }
 ```
 
-In the above example, a connection is established to taosdemo.com with hostname taosdemo.com, port 6030/6041, and database named test. The connection specifies the user name (user) as root and the password (password) as taosdata in the URL and specifies the character set, language environment, time zone, and whether to enable bulk fetching in the connProps.
+In the above example, a connection is established to `taosdemo.com`, port is 6030/6041, and database named `test`. The connection specifies the user name as `root` and the password as `taosdata` in the URL and specifies the character set, language environment, time zone, and whether to enable bulk fetching in the connProps.
 
 The configuration parameters in properties are as follows.
 
@@ -251,11 +261,11 @@ The configuration parameters in properties are as follows.
 - TSDBDriver.PROPERTY_KEY_CHARSET: takes effect only when using JDBC native connection. In the character set used by the client, the default value is the system character set.
 - TSDBDriver.PROPERTY_KEY_LOCALE: this only takes effect when using JDBC native connection. Client language environment, the default value is system current locale.
 - TSDBDriver.PROPERTY_KEY_TIME_ZONE: only takes effect when using JDBC native connection. In the time zone used by the client, the default value is the system's current time zone.
-For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](/reference/config/#Client only).
+For JDBC native connections, you can specify other parameters, such as log level, SQL length, etc., by specifying URL and Properties. For more detailed configuration, please refer to [Client Configuration](/reference/config/#Client-Only).
 
 ### Priority of configuration parameters
 
-If the configuration parameters are duplicated in the URL, Properties, or client configuration file, the `priority` of the parameters, from highest to lowest, are as follows.
+If the configuration parameters are duplicated in the URL, Properties, or client configuration file, the `priority` of the parameters, from highest to lowest, are as follows:
 
 1. JDBC URL parameters, as described above, can be specified in the parameters of the JDBC URL.
 2. Properties connProps
@@ -340,16 +350,16 @@ There are three types of error codes that the JDBC connector can report:
 
 For specific error codes, please refer to.
 
-- [TDengine Java Connector](https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/ TSDBErrorNumbers.java)
+- [TDengine Java Connector](https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
 - [TDengine_ERROR_CODE](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h)
 
 ### Writing data via parameter binding
 
-TDengine's native JDBC connection implementation has significantly improved its support for data writing (INSERT) scenarios via parameter binding with version 2.1.2.0 and later versions. Writing data in this way avoids the resource consumption of SQL syntax parsing, resulting in significant write performance improvements in many cases.
+TDengine's native JDBC connection implementation has significantly improved its support for data writing (INSERT) scenarios via bind interface with version 2.1.2.0 and later versions. Writing data in this way avoids the resource consumption of SQL syntax parsing, resulting in significant write performance improvements in many cases.
 
 **Note**.
 
-- JDBC REST connections do not currently support parameter binding
+- JDBC REST connections do not currently support bind interface
 - The following sample code is based on taos-jdbcdriver-2.0.36
 - The setString method should be called for binary type data, and the setNString method should be called for nchar type data
 - both setString and setNString require the user to declare the width of the corresponding column in the size parameter of the table definition
@@ -611,9 +621,9 @@ public void setString(int columnIndex, ArrayList<String> list, int size) throws 
 public void setNString(int columnIndex, ArrayList<String> list, int size) throws SQLException
 ```
 
-### Writing without mode
+### Schemaless Writing
 
-Starting with version 2.2.0.0, TDengine has added the ability to write without mode. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. See [schemaless writing](/reference/schemaless/) for details.
+Starting with version 2.2.0.0, TDengine has added the ability to schemaless writing. It is compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. See [schemaless writing](/reference/schemaless/) for details.
 
 **Note**.
 
@@ -659,13 +669,13 @@ The TDengine Java Connector supports subscription functionality with the followi
 TSDBSubscribe sub = ((TSDBConnection)conn).subscribe("topic", "select * from meters", false);
 ```
 
-The three parameters of the `subscribe` method have the following meanings.
+The three parameters of the `subscribe()` method have the following meanings.
 
 - topic: the subscribed topic (i.e., name). This parameter is the unique identifier of the subscription
 - sql: the query statement of the subscription, this statement can only be `select` statement, only the original data should be queried, and you can query only the data in the positive time order
 - restart: if the subscription already exists, whether to restart or continue the previous subscription
 
-The above example will use the SQL statement `select * from meters` to create a subscription named `topic`. If the subscription exists, it will continue the progress of the previous query instead of consuming all the data from the beginning.
+The above example will use the SQL command `select * from meters` to create a subscription named `topic`. If the subscription exists, it will continue the progress of the previous query instead of consuming all the data from the beginning.
 
 #### Subscribe to consume data
 
@@ -683,7 +693,7 @@ while(true) {
 }
 ```
 
-The `consume` method returns a result set containing all new data from the last `consume`. Be sure to choose a reasonable frequency for calling `consume` as needed (e.g. `Thread.sleep(1000)` in the example). Otherwise, it will cause unnecessary stress on the server-side.
+The `consume()` method returns a result set containing all new data from the last `consume()`. Be sure to choose a reasonable frequency for calling `consume()` as needed (e.g. `Thread.sleep(1000)` in the example). Otherwise, it will cause unnecessary stress on the server-side.
 
 #### Close subscriptions
 
@@ -691,7 +701,7 @@ The `consume` method returns a result set containing all new data from the last 
 sub.close(true);
 ```
 
-The ``close`` method closes a subscription. If its argument is ``true`'' it means that the subscription progress information is retained, and the subscription with the same name can be created to continue consuming data; if it is ``false`'' it does not retain the subscription progress.
+The `close()` method closes a subscription. If its argument is `true` it means that the subscription progress information is retained, and the subscription with the same name can be created to continue consuming data; if it is `false` it does not retain the subscription progress.
 
 ### Closing resources
 
@@ -701,9 +711,9 @@ stmt.close();
 conn.close();
 ```
 
-> ``Be sure to close the connection``, otherwise, there will be a connection leak.
+> **Be sure to close the connection**, otherwise, there will be a connection leak.
 
-### Use with connection pools
+### Use with connection pool
 
 #### HikariCP
 
@@ -796,7 +806,7 @@ The source code of the sample application is under `TDengine/examples/JDBC`:
 
 Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
-## Important update logs
+## Recent update logs
 
 | taos-jdbcdriver version | major changes |
 | :------------------: | :----------------------------: |
@@ -806,17 +816,17 @@ Please refer to: [JDBC example](https://github.com/taosdata/TDengine/tree/develo
 
 ## Frequently Asked Questions
 
-1. Why is there no performance improvement when using Statement's `addBatch` and `executeBatch` to perform `batch writes/reviews`?
+1. Why is there no performance improvement when using Statement's `addBatch()` and `executeBatch()` to perform `batch data writing/update`?
 
-   **Cause**: In TDengine's JDBC implementation, SQL statements submitted by `addBatch` method are executed sequentially in the order they are added, which does not reduce the number of interactions with the server and does not bring performance improvement.
+   **Cause**: In TDengine's JDBC implementation, SQL statements submitted by `addBatch()` method are executed sequentially in the order they are added, which does not reduce the number of interactions with the server and does not bring performance improvement.
 
    **Solution**: 1. splice multiple values in a single insert statement; 2. use multi-threaded concurrent insertion; 3. use parameter-bound writing
 
 2. java.lang.UnsatisfiedLinkError: no taos in java.library.path
 
-   **Cause**: The program did not find the dependent native library taos.
+   **Cause**: The program did not find the dependent native library `taos`.
 
-   **Solution**: Under Windows you can copy C:\TDengine\driver\taos.dll to the C:\Windows\System32\ directory, under Linux the following softlink will be created `ln -s /usr/local/taos/driver/libtaos.so.x.x. x.x /usr/lib/libtaos.so` will work.
+   **Solution**: On Windows you can copy `C:\TDengine\driver\taos.dll` to the `C:\Windows\System32` directory, on Linux the following soft link will be created `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` will work.
 
 3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on an IA 32-bit platform
 

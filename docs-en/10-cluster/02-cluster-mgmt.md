@@ -6,7 +6,7 @@ title: Manage DNODEs
 It has been introduced that how to deploy and start a cluster from scratch. Once a cluster is ready, the dnode status in the cluster can be shown at any time, new dnode can be added to scale out the cluster, an existing dnode can be removed, even load balance can be performed manually.\
 
 :::note
-All the commands to be introduced in this chapter need to be run after login TDengine, sometimes it's necessary to use root privilege.
+All the commands to be introduced in this chapter need to be run through TDengine CLI, sometimes it's necessary to use root privilege.
 
 :::
 
@@ -67,7 +67,7 @@ Query OK, 8 row(s) in set (0.001154s)
 
 ## Add DNODE
 
-Launch TDengine CLI `taos` and execute to add the end point of a new dnode into the EPI (end point) list of the cluster. "fqdn:port" must be quoted using double quotes.
+Launch TDengine CLI `taos` and execute the command below to add the end point of a new dnode into the EPI (end point) list of the cluster. "fqdn:port" must be quoted using double quotes.
 
 ```sql
 CREATE DNODE "fqdn:port";
@@ -100,7 +100,7 @@ Query OK, 2 row(s) in set (0.001316s)
 
 ## Drop DNODE
 
-Launch TDengine CLI `taos` and execute command below to drop or remove a dndoe from the cluster. In the command, `dnodeId` can be gotten from `show dnodes`.
+Launch TDengine CLI `taos` and execute the command below to drop or remove a dndoe from the cluster. In the command, `dnodeId` can be gotten from `show dnodes`.
 
 ```sql
 DROP DNODE "fqdn:port";

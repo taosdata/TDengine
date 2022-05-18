@@ -3,7 +3,7 @@ sidebar_label: TCollector
 title: TCollector writing
 ---
 
-import Tcollector from "../14-reference/_tcollector.mdx"
+import TCollector from "../14-reference/_tcollector.mdx"
 
 TCollector is part of openTSDB and collects client computer's logs to send to the database.
 
@@ -17,7 +17,7 @@ To write data to the TDengine via TCollector requires the following preparations
 - TCollector has been installed. Please refer to [official documentation](http://opentsdb.net/docs/build/html/user_guide/utilities/tcollector.html#installation-of-tcollector) for TCollector installation
 
 ## Configuration steps
-<Tcollector />
+<TCollector />
 
 ## Verification method
 
