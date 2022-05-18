@@ -56,7 +56,7 @@ class MndTestTrans2 : public ::testing::Test {
     msgCb.sendReqFp = sendReq;
     msgCb.sendRspFp = sendRsp;
     msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
-    tmsgSetDefaultMsgCb(&msgCb);
+    tmsgSetDefault(&msgCb);
 
     SMnodeOpt opt = {0};
     opt.deploy = 1;
