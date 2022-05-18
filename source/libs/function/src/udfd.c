@@ -139,7 +139,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     SUdf* udf = msgInfo->param;
     udf->funcType = pFuncInfo->funcType;
     udf->scriptType = pFuncInfo->scriptType;
-    udf->outputType = pFuncInfo->funcType;
+    udf->outputType = pFuncInfo->outputType;
     udf->outputLen = pFuncInfo->outputLen;
     udf->bufSize = pFuncInfo->bufSize;
 

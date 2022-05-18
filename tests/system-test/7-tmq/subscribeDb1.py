@@ -468,14 +468,10 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
-        #self.tmqCase8(cfgPath, buildPath)
-        #self.tmqCase9(cfgPath, buildPath) 
-        #self.tmqCase10(cfgPath, buildPath)
+        self.tmqCase8(cfgPath, buildPath)
+        self.tmqCase9(cfgPath, buildPath) 
+        self.tmqCase10(cfgPath, buildPath)
         self.tmqCase11(cfgPath, buildPath)
-        # self.tmqCase12(cfgPath, buildPath)
-        # self.tmqCase13(cfgPath, buildPath)
-        # self.tmqCase14(cfgPath, buildPath)
-
 
     def stop(self):
         tdSql.close()
