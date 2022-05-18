@@ -44,7 +44,7 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
   }
 
   pMsg->info.wrapper = pWrapper;
-  dTrace("msg:%p, will be processed by %s, handle:%p", pMsg, pWrapper->name, pMsg->info.handle);
+  dTrace("msg:%p, will be processed by %s", pMsg, pWrapper->name);
   return (*msgFp)(pWrapper->pMgmt, pMsg);
 }
 
@@ -56,8 +56,8 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   SMgmtWrapper *pWrapper = NULL;
 
-  dTrace("msg:%s is received, handle:%p cont:%p len:%d code:0x%04x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
-         pRpc->info.handle, pRpc->pCont, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
+  dTrace("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
+         pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
   pRpc->info.noResp = 0;
   pRpc->info.persistHandle = 0;
   pRpc->info.wrapper = NULL;

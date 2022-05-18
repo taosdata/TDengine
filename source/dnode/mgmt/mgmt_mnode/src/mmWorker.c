@@ -29,7 +29,7 @@ static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
 static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  dTrace("msg:%p, get from mnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  dTrace("msg:%p, get from mnode queue", pMsg);
 
   switch (pMsg->msgType) {
     case TDMT_DND_ALTER_MNODE:
@@ -51,7 +51,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     mmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, result:0x%x:%s", pMsg, code, tstrerror(code));
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -73,13 +73,13 @@ static void mmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     }
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, result:0x%x:%s", pMsg, code, tstrerror(code));
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
 static int32_t mmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
-  dTrace("msg:%p, put into worker %s, type:%s", pMsg, pWorker->name, TMSG_INFO(pMsg->msgType));
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }

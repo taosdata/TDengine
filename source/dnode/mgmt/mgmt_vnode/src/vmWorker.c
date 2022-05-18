@@ -59,7 +59,7 @@ static void vmProcessMgmtMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     vmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, result:0x%x:%s", pMsg, code, tstrerror(code));
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -73,7 +73,7 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     if (terrno != 0) code = terrno;
     vmSendRsp(pMsg, code);
 
-    dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+    dTrace("msg:%p, is freed, result:0x%x:%s", pMsg, code, tstrerror(code));
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
@@ -88,7 +88,7 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     if (terrno != 0) code = terrno;
     vmSendRsp(pMsg, code);
 
-    dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+    dTrace("msg:%p, is freed, result:0x%x:%s", pMsg, code, tstrerror(code));
     rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
@@ -238,7 +238,7 @@ static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
       if (terrno != 0) code = terrno;
       vmSendRsp(pMsg, code);
 
-      dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+      dTrace("msg:%p, is freed, result:0x%x:%s", pMsg, code, tstrerror(code));
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
     }

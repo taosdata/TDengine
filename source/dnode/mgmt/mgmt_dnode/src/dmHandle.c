@@ -86,7 +86,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SRpcMsg rpcMsg = {.pCont = pHead, .contLen = contLen, .msgType = TDMT_MND_STATUS, .info.ahandle = (void *)0x9527};
   SRpcMsg rpcRsp = {0};
 
-  dTrace("send status msg to mnode, app:%p", rpcMsg.info.ahandle);
+  dTrace("send status msg to mnode");
 
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);

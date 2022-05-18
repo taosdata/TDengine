@@ -44,7 +44,7 @@ static void smProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     smSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, result:0x%x:%s", pMsg, code, tstrerror(code));
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }
