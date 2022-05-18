@@ -315,6 +315,7 @@ void shellDumpFieldToFile(TdFilePtr pFile, const char *val, TAOS_FIELD *field, i
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       memcpy(buf, val, length);
       buf[length] = 0;
       taosFprintfFile(pFile, "\'%s\'", buf);
@@ -384,19 +385,25 @@ void shellPrintNChar(const char *str, int32_t length, int32_t width) {
   while (pos < length) {
     TdWchar wc;
     int32_t bytes = taosMbToWchar(&wc, str + pos, MB_CUR_MAX);
-    if (bytes == 0) {
-      break;
-    }
-    pos += bytes;
-    if (pos > length) {
+    if (bytes <= 0) {
       break;
     }
 
+    if (pos + bytes > length) {
+      break;
+    }
+    int w = 0;
 #ifdef WINDOWS
-    int32_t w = bytes;
+    w = bytes;
 #else
-    int32_t w = taosWcharWidth(wc);
+    if(*(str + pos) == '\t' || *(str + pos) == '\n' || *(str + pos) == '\r'){
+      w = bytes;
+    }else{
+      w = taosWcharWidth(wc);
+    }
 #endif
+    pos += bytes;
+
     if (w <= 0) {
       continue;
     }
@@ -496,6 +503,7 @@ void shellPrintField(const char *val, TAOS_FIELD *field, int32_t width, int32_t 
       break;
     case TSDB_DATA_TYPE_BINARY:
     case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON:
       shellPrintNChar(val, length, width);
       break;
     case TSDB_DATA_TYPE_TIMESTAMP:
@@ -604,7 +612,6 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
     case TSDB_DATA_TYPE_DOUBLE:
       return TMAX(25, width);
 
-    case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_BINARY:
       if (field->bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);
@@ -612,7 +619,8 @@ int32_t shellCalcColWidth(TAOS_FIELD *field, int32_t precision) {
         return TMAX(field->bytes, width);
       }
 
-    case TSDB_DATA_TYPE_NCHAR: {
+    case TSDB_DATA_TYPE_NCHAR:
+    case TSDB_DATA_TYPE_JSON: {
       int16_t bytes = field->bytes * TSDB_NCHAR_SIZE;
       if (bytes > shell.args.displayWidth) {
         return TMAX(shell.args.displayWidth, width);

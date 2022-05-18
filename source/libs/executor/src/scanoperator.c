@@ -1467,7 +1467,12 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(str, mr.me.name);
         colDataAppend(pDst, count, str, false);
       } else { // it is a tag value
-        const char* p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
+        const char* p = NULL;
+        if(pDst->info.type == TSDB_DATA_TYPE_JSON){
+          p = mr.me.ctbEntry.pTags;
+        }else{
+          p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
+        }
         colDataAppend(pDst, count, p, (p == NULL));
       }
     }
