@@ -323,6 +323,7 @@ static FORCE_INLINE int32_t getNumofElem(SqlFunctionCtx* pCtx) {
   }
   return numOfElem;
 }
+
 /*
  * count function does need the finalize, if data is missing, the default value, which is 0, is used
  * count function does not use the pCtx->interResBuf to keep the intermediate buffer
@@ -817,16 +818,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         int64_t val = GET_INT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-          //        for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          //          SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          //          if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-          //            __ctx->tag.i = key;
-          //            __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
-          //          }
-          //
-          //          __ctx->fpSet.process(__ctx);
-          //        }
-
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -839,15 +830,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         uint64_t val = GET_UINT64_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-          //          for (int32_t i = 0; i < (pCtx)->subsidiaries.num; ++i) {
-          //            SqlFunctionCtx* __ctx = pCtx->subsidiaries.pCtx[i];
-          //            if (__ctx->functionId == FUNCTION_TS_DUMMY) {  // TODO refactor
-          //              __ctx->tag.i = key;
-          //              __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;
-          //            }
-          //
-          //            __ctx->fpSet.process(__ctx);
-          //          }
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -859,7 +841,6 @@ int32_t doMinMaxHelper(SqlFunctionCtx* pCtx, int32_t isMinFunc) {
         double val = GET_DOUBLE_VAL(tval);
         if ((prev < val) ^ isMinFunc) {
           pBuf->v = val;
-
           if (pCtx->subsidiaries.num > 0) {
             saveTupleData(pCtx, index, pCtx->pSrcBlock, &pBuf->tuplePos);
           }
@@ -1739,7 +1720,7 @@ int32_t percentileFunction(SqlFunctionCtx* pCtx) {
         char* data = colDataGetData(pCol, i);
 
         double v = 0;
-        GET_TYPED_DATA(v, double, pCtx->inputType, data);
+        GET_TYPED_DATA(v, double, type, data);
         if (v < GET_DOUBLE_VAL(&pInfo->minval)) {
           SET_DOUBLE_VAL(&pInfo->minval, v);
         }
@@ -2552,7 +2533,7 @@ int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
       }
     }
   } else {  // computing based on the true data block
-    if (0 == pCtx->size) {
+    if (0 == pInput->numOfRows) {
       if (pCtx->order == TSDB_ORDER_DESC) {
         if (pCtx->end.key != INT64_MIN) {
           pInfo->min = pCtx->end.key;
@@ -2571,7 +2552,7 @@ int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
     TSKEY* ptsList = (int64_t*)colDataGetData(pCol, start);
     if (pCtx->order == TSDB_ORDER_DESC) {
       if (pCtx->start.key == INT64_MIN) {
-        pInfo->max = (pInfo->max < ptsList[pCtx->size - 1]) ? ptsList[pCtx->size - 1] : pInfo->max;
+        pInfo->max = (pInfo->max < ptsList[start + pInput->numOfRows - 1]) ? ptsList[start + pInput->numOfRows - 1] : pInfo->max;
       } else {
         pInfo->max = pCtx->start.key + 1;
       }
@@ -2591,7 +2572,7 @@ int32_t elapsedFunction(SqlFunctionCtx *pCtx) {
       if (pCtx->end.key != INT64_MIN) {
         pInfo->max = pCtx->end.key + 1;
       } else {
-        pInfo->max = ptsList[pCtx->size - 1];
+        pInfo->max = ptsList[start + pInput->numOfRows - 1];
       }
     }
   }
