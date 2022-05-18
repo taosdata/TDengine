@@ -330,8 +330,18 @@ static FORCE_INLINE int32_t getNumofElem(SqlFunctionCtx* pCtx) {
 int32_t countFunction(SqlFunctionCtx* pCtx) {
   int32_t numOfElem = getNumofElem(pCtx);
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  char*                buf = GET_ROWCELL_INTERBUF(pResInfo);
-  *((int64_t*)buf) += numOfElem;
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  int32_t type   = pInput->pData[0]->info.type;
+
+  char* buf = GET_ROWCELL_INTERBUF(pResInfo);
+  if (IS_NULL_TYPE(type)) {
+    //select count(NULL) returns 0
+    numOfElem = 1;
+    *((int64_t*)buf) = 0;
+  } else {
+    *((int64_t*)buf) += numOfElem;
+  }
 
   SET_VAL(pResInfo, numOfElem, 1);
   return TSDB_CODE_SUCCESS;
