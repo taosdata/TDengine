@@ -13,7 +13,7 @@ The major features are listed below:
 
 1. Besides [using SQL to insert](/develop/insert-data/sql-writing)，it supports [Schemaless writing](/reference/schemaless/)，and it supports [InfluxDB LINE](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json) and other protocols.
 2. Support for seamless integration with third-party data collection agents like [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQX](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker). Without a line of code, those agents can write data points into TDengine just by configuration. 
-3. Support for [all kinds of queries](/query-data), including aggregation, nested query, downsampling, interpolation, etc.
+3. Support for [all kinds of queries](/develop/query-data), including aggregation, nested query, downsampling, interpolation, etc.
 4. Support for [user defined functions](/develop/udf)
 5. Support for [caching](/develop/cache). TDengine always saves the last data point in cache, so Redis is not needed in some scenarios.
 6. Support for [continuous query](/develop/continuous-query).

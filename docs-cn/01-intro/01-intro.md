@@ -14,7 +14,7 @@ TDengine的主要功能如下：
 
 1. 高速数据写入，除 [SQL 写入](/develop/insert-data/sql-writing)外，还支持 [Schemaless 写入](/reference/schemaless/)，支持 [InfluxDB LINE 协议](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json)等协议写入；
 2. 第三方数据采集工具 [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker) 等都可以进行配置后，不用任何代码，即可将数据写入；
-3. 支持[各种查询](/query-data),包括聚合查询、嵌套查询、降采样查询、插值等
+3. 支持[各种查询](/develop/query-data),包括聚合查询、嵌套查询、降采样查询、插值等
 4. 支持[用户自定义函数](/develop/udf)
 5. 支持[缓存](/develop/cache)，将每张表的最后一条记录缓存起来，这样无需 Redis
 6. 支持[连续查询](/develop/continuous-query)(Continuous Query)
