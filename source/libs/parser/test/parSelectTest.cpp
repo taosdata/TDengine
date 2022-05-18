@@ -73,7 +73,7 @@ TEST_F(ParserSelectTest, pseudoColumn) {
 TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
   useDb("root", "test");
 
-  run("SELECT TBNAME FROM (SELECT * FROM st1s1)");
+  run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
 }
 
 TEST_F(ParserSelectTest, multiResFunc) {
