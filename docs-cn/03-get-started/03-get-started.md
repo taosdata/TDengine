@@ -10,7 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## 安装
 
-TDengine 完整的软件包包括服务端(taosd)、用于与第三方系统对接并提供RESTful接口的taosAdapter、应用驱动(taosc)、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端taosd、taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除 RESTful接口外，还提供一些列编程语言的连接器。2.4 之前的版本中，无 taosAdapter，RESTfule 接口均由 taosd 内置的 http 服务提供。
+TDengine 完整的软件包包括服务端（taosd）、用于与第三方系统对接并提供 RESTful 接口的 taosAdapter、应用驱动（taosc）、命令行程序 (CLI，taos) 和一些工具软件，目前 2.X 版服务端 taosd 和 taosAdapter 仅在 Linux 系统上安装和运行，后续将支持 Windows、macOS 等系统。应用驱动 taosc 与 TDengine CLI 可以在 Windows 或 Linux 上安装和运行。TDengine 除 RESTful 接口外，还提供一些列编程语言的连接器。2.4 之前的版本中，无 taosAdapter，RESTful 接口均由 taosd 内置的 http 服务提供。
 
 TDengine 支持 X64/ARM64/MIPS64/Alpha64 硬件平台，后续将支持 ARM32、RISC-V 等 CPU 架构。
 
