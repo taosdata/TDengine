@@ -20,6 +20,7 @@ p *
 #include "indexFstCountingWriter.h"
 #include "indexUtil.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "tcoding.h"
 #include "tcompare.h"
 
@@ -472,16 +473,16 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
 
     int32_t sz = 0;
     char*   ch = (char*)fstSliceData(s, &sz);
-    char*   tmp = taosMemoryCalloc(1, sz + 1);
-    memcpy(tmp, ch, sz);
+    // char*   tmp = taosMemoryCalloc(1, sz + 1);
+    // memcpy(tmp, ch, sz);
 
-    if (0 != strncmp(tmp, p, skip)) {
+    if (0 != strncmp(ch, p, skip)) {
       swsResultDestroy(rt);
-      taosMemoryFree(tmp);
+      // taosMemoryFree(tmp);
       break;
     }
 
-    TExeCond cond = cmpFn(tmp + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
+    TExeCond cond = cmpFn(ch + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
 
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
@@ -490,7 +491,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
       swsResultDestroy(rt);
       break;
     }
-    taosMemoryFree(tmp);
+    // taosMemoryFree(tmp);
     swsResultDestroy(rt);
   }
   streamWithStateDestroy(st);
@@ -533,10 +534,12 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
-  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    indexError("failed to open readonly file: %s, reason: %s", fullname, terrstr());
     return NULL;
   }
+  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
@@ -613,9 +616,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     if (tfileWriteData(tw, v) != 0) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
-      // printf("write faile\n");
     } else {
-      // printf("write sucee\n");
       // indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
       //          (int)taosArrayGetSize(v->tableId));
 

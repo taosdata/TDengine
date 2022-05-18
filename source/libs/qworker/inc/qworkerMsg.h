@@ -30,21 +30,21 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg);
 int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req);
 
-int32_t qwBuildAndSendDropRsp(SQWConnInfo *pConn, int32_t code);
-int32_t qwBuildAndSendCancelRsp(SQWConnInfo *pConn, int32_t code);
-int32_t qwBuildAndSendFetchRsp(SQWConnInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
+int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code);
+int32_t qwBuildAndSendCancelRsp(SRpcHandleInfo *pConn, int32_t code);
+int32_t qwBuildAndSendFetchRsp(SRpcHandleInfo *pConn, SRetrieveTableRsp *pRsp, int32_t dataLength,
                                int32_t code);
 void    qwBuildFetchRsp(void *msg, SOutputData *input, int32_t len, bool qComplete);
-int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SQWConnInfo *pConn);
-int32_t qwBuildAndSendReadyRsp(SQWConnInfo *pConn, int32_t code);
-int32_t qwBuildAndSendQueryRsp(SQWConnInfo *pConn, int32_t code);
-int32_t qwBuildAndSendExplainRsp(SQWConnInfo *pConn, SExplainExecInfo *execInfo, int32_t num);
+int32_t qwBuildAndSendCQueryMsg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn);
+int32_t qwBuildAndSendReadyRsp(SRpcHandleInfo *pConn, int32_t code);
+int32_t qwBuildAndSendQueryRsp(SRpcHandleInfo *pConn, int32_t code);
+int32_t qwBuildAndSendExplainRsp(SRpcHandleInfo *pConn, SExplainExecInfo *execInfo, int32_t num);
 void    qwFreeFetchRsp(void *msg);
 int32_t qwMallocFetchRsp(int32_t length, SRetrieveTableRsp **rsp);
 int32_t qwGetSchTasksStatus(SQWorker *mgmt, uint64_t sId, SSchedulerStatusRsp **rsp);
-int32_t qwBuildAndSendHbRsp(SQWConnInfo *pConn, SSchedulerHbRsp *rsp, int32_t code);
-int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SQWConnInfo *pConn);
-int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SQWConnInfo *pConn);
+int32_t qwBuildAndSendHbRsp(SRpcHandleInfo *pConn, SSchedulerHbRsp *rsp, int32_t code);
+int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn);
+int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *pConn);
 
 #ifdef __cplusplus
 }

@@ -170,32 +170,18 @@ typedef struct SInputColumnInfoData {
 
 // sql function runtime context
 typedef struct SqlFunctionCtx {
-  SInputColumnInfoData input;
-  SResultDataInfo      resDataInfo;
-  uint32_t             order;  // data block scanner order: asc|desc
-  uint8_t              scanFlag;  // record current running step, default: 0
-  ////////////////////////////////////////////////////////////////
-  int32_t          startRow;   // start row index
-  int32_t          size;       // handled processed row number
-  SColumnInfoData* pInput;
-  SColumnDataAgg   agg;
-  int16_t          inputType;    // TODO remove it
-  int16_t          inputBytes;   // TODO remove it
-  bool             hasNull;      // null value exist in current block, TODO remove it
-  bool             requireNull;  // require null in some function, TODO remove it
-  int32_t          columnIndex;  // TODO remove it
-  bool             isAggSet;
-  int64_t          startTs;       // timestamp range of current query when function is executed on a specific data block, TODO remove it
-  bool             stableQuery;
-  /////////////////////////////////////////////////////////////////
-  int16_t          functionId;    // function id
-  char *           pOutput;       // final result output buffer, point to sdata->data
-  int32_t          numOfParams;
-  SFunctParam     *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
-  int64_t         *ptsList;       // corresponding timestamp array list
-  SColumnInfoData *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
-  int32_t          offset;
-  SVariant         tag;
+  SInputColumnInfoData   input;
+  SResultDataInfo        resDataInfo;
+  uint32_t               order;  // data block scanner order: asc|desc
+  uint8_t                scanFlag;  // record current running step, default: 0
+  int16_t                functionId;    // function id
+  char                  *pOutput;       // final result output buffer, point to sdata->data
+  int32_t                numOfParams;
+  SFunctParam           *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
+  int64_t               *ptsList;       // corresponding timestamp array list
+  SColumnInfoData       *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
+  int32_t                offset;
+  SVariant               tag;
   struct  SResultRowEntryInfo *resultInfo;
   SSubsidiaryResInfo     subsidiaries;
   SPoint1                start;

@@ -21,7 +21,7 @@
 #include "mndShow.h"
 
 #ifndef _GRANT
-static int32_t mndRetrieveGrant(SNodeMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) { return TSDB_CODE_OPS_NOT_SUPPORT; }
+static int32_t mndRetrieveGrant(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock* pBlock, int32_t rows) { return TSDB_CODE_OPS_NOT_SUPPORT; }
 
 int32_t mndInitGrant(SMnode *pMnode) {
     mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_GRANTS, mndRetrieveGrant);

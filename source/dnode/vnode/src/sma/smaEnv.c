@@ -122,12 +122,10 @@ static void poolFree(void *arg, void *ptr) {
 }
 
 int32_t tdInitSma(SSma *pSma) {
-  // tSma
-  int32_t numOfTSma = taosArrayGetSize(metaGetSmaTbUids(SMA_META(pSma), false));
+  int32_t numOfTSma = taosArrayGetSize(metaGetSmaTbUids(SMA_META(pSma)));
   if (numOfTSma > 0) {
     atomic_store_16(&SMA_TSMA_NUM(pSma), (int16_t)numOfTSma);
   }
-  // TODO: rSma
   return TSDB_CODE_SUCCESS;
 }
 

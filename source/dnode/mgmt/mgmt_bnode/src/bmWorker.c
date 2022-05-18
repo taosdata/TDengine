@@ -16,23 +16,18 @@
 #define _DEFAULT_SOURCE
 #include "bmInt.h"
 
-static void bmSendErrorRsp(SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rpcRsp = {
-      .handle = pMsg->rpcMsg.handle,
-      .ahandle = pMsg->rpcMsg.ahandle,
-      .code = code,
-      .refId = pMsg->rpcMsg.refId,
-  };
-  tmsgSendRsp(&rpcRsp);
+static void bmSendErrorRsp(SRpcMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {.code = code, .info = pMsg->info};
+  tmsgSendRsp(&rsp);
 
   dTrace("msg:%p, is freed", pMsg);
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
 static void bmSendErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SNodeMsg *pMsg = NULL;
+    SRpcMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
     if (pMsg != NULL) {
       bmSendErrorRsp(pMsg, code);
@@ -40,24 +35,24 @@ static void bmSendErrorRsps(STaosQall *qall, int32_t numOfMsgs, int32_t code) {
   }
 }
 
-static inline void bmSendRsp(SNodeMsg *pMsg, int32_t code) {
-  SRpcMsg rsp = {.handle = pMsg->rpcMsg.handle,
-                 .ahandle = pMsg->rpcMsg.ahandle,
-                 .refId = pMsg->rpcMsg.refId,
-                 .code = code,
-                 .pCont = pMsg->pRsp,
-                 .contLen = pMsg->rspLen};
+static inline void bmSendRsp(SRpcMsg *pMsg, int32_t code) {
+  SRpcMsg rsp = {
+      .code = code,
+      .info = pMsg->info,
+      .pCont = pMsg->info.rsp,
+      .contLen = pMsg->info.rspLen,
+  };
   tmsgSendRsp(&rsp);
 }
 
-static void bmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void bmProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SBnodeMgmt *pMgmt = pInfo->ahandle;
 
   dTrace("msg:%p, get from bnode-monitor queue", pMsg);
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  SRpcMsg *pRpc = pMsg;
   int32_t  code = -1;
 
-  if (pMsg->rpcMsg.msgType == TDMT_MON_BM_INFO) {
+  if (pMsg->msgType == TDMT_MON_BM_INFO) {
     code = bmProcessGetMonBmInfoReq(pMgmt, pMsg);
   } else {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
@@ -76,14 +71,14 @@ static void bmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
 static void bmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SBnodeMgmt *pMgmt = pInfo->ahandle;
 
-  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SNodeMsg *));
+  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
   if (pArray == NULL) {
     bmSendErrorRsps(qall, numOfMsgs, TSDB_CODE_OUT_OF_MEMORY);
     return;
   }
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
-    SNodeMsg *pMsg = NULL;
+    SRpcMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
     if (pMsg != NULL) {
       dTrace("msg:%p, get from bnode-write queue", pMsg);
@@ -96,17 +91,17 @@ static void bmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
   bndProcessWMsgs(pMgmt->pBnode, pArray);
 
   for (size_t i = 0; i < numOfMsgs; i++) {
-    SNodeMsg *pMsg = *(SNodeMsg **)taosArrayGet(pArray, i);
+    SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
     if (pMsg != NULL) {
       dTrace("msg:%p, is freed", pMsg);
-      rpcFreeCont(pMsg->rpcMsg.pCont);
+      rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
     }
   }
   taosArrayDestroy(pArray);
 }
 
-int32_t bmPutNodeMsgToWriteQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t bmPutNodeMsgToWriteQueue(SBnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMultiWorker *pWorker = &pMgmt->writeWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
@@ -114,7 +109,7 @@ int32_t bmPutNodeMsgToWriteQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
   return 0;
 }
 
-int32_t bmPutNodeMsgToMonitorQueue(SBnodeMgmt *pMgmt, SNodeMsg *pMsg) {
+int32_t bmPutNodeMsgToMonitorQueue(SBnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
   dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);

@@ -283,13 +283,13 @@ TEST_F(ParserInitialATest, alterTable) {
   setAlterColFunc("t1", TSDB_ALTER_TABLE_DROP_COLUMN, "c1");
   run("ALTER TABLE t1 DROP COLUMN c1");
 
-  setAlterColFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, "c1", TSDB_DATA_TYPE_VARCHAR, 20 + VARSTR_HEADER_SIZE);
-  run("ALTER TABLE t1 MODIFY COLUMN c1 VARCHAR(20)");
+  setAlterColFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES, "c2", TSDB_DATA_TYPE_VARCHAR, 30 + VARSTR_HEADER_SIZE);
+  run("ALTER TABLE t1 MODIFY COLUMN c2 VARCHAR(30)");
 
   setAlterColFunc("t1", TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME, "c1", 0, 0, "cc1");
   run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
 
-  int64_t val = 10;
+  int32_t val = 10;
   setAlterTagFunc("st1s1", "tag1", (const uint8_t*)&val, sizeof(val));
   run("ALTER TABLE st1s1 SET TAG tag1=10");
 

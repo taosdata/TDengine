@@ -102,7 +102,7 @@ static void getNextTimeWindow(SInterval* pInterval, STimeWindow* tw, int32_t ord
   tw->ekey -= 1;
 }
 
-static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo) {
+static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockInfo, int32_t order) {
   STimeWindow w = {0};
 
   // 0 by default, which means it is not a interval operator of the upstream operator.
@@ -110,13 +110,7 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
     return false;
   }
 
-  // todo handle the time range case
-  TSKEY sk = INT64_MIN;
-  TSKEY ek = INT64_MAX;
-  //  TSKEY sk = MIN(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-  //  TSKEY ek = MAX(pQueryAttr->window.skey, pQueryAttr->window.ekey);
-
-  if (true) {
+  if (order == TSDB_ORDER_ASC) {
     getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.skey, &w);
     assert(w.ekey >= pBlockInfo->window.skey);
 
@@ -124,8 +118,8 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       return true;
     }
 
-    while (1) {  // todo handle the desc order scan case
-      getNextTimeWindow(pInterval, &w, TSDB_ORDER_ASC);
+    while (1) {
+      getNextTimeWindow(pInterval, &w, order);
       if (w.skey > pBlockInfo->window.ekey) {
         break;
       }
@@ -136,24 +130,24 @@ static bool overlapWithTimeWindow(SInterval* pInterval, SDataBlockInfo* pBlockIn
       }
     }
   } else {
-    //    getAlignQueryTimeWindow(pQueryAttr, pBlockInfo->window.ekey, sk, ek, &w);
-    //    assert(w.skey <= pBlockInfo->window.ekey);
-    //
-    //    if (w.skey > pBlockInfo->window.skey) {
-    //      return true;
-    //    }
-    //
-    //    while(1) {
-    //      getNextTimeWindow(pQueryAttr, &w);
-    //      if (w.ekey < pBlockInfo->window.skey) {
-    //        break;
-    //      }
-    //
-    //      assert(w.skey < pBlockInfo->window.skey);
-    //      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
-    //        return true;
-    //      }
-    //    }
+    getAlignQueryTimeWindow(pInterval, pInterval->precision, pBlockInfo->window.ekey, &w);
+    assert(w.skey <= pBlockInfo->window.ekey);
+
+    if (w.skey > pBlockInfo->window.skey) {
+      return true;
+    }
+
+    while(1) {
+      getNextTimeWindow(pInterval, &w, order);
+      if (w.ekey < pBlockInfo->window.skey) {
+        break;
+      }
+
+      assert(w.skey < pBlockInfo->window.skey);
+      if (w.ekey < pBlockInfo->window.ekey && w.ekey >= pBlockInfo->window.skey) {
+        return true;
+      }
+    }
   }
 
   return false;
@@ -172,7 +166,8 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
   pCost->totalRows += pBlock->info.rows;
 
   *status = pInfo->dataBlockLoadFlag;
-  if (pTableScanInfo->pFilterNode != NULL || overlapWithTimeWindow(&pTableScanInfo->interval, &pBlock->info)) {
+  if (pTableScanInfo->pFilterNode != NULL ||
+      overlapWithTimeWindow(&pTableScanInfo->interval, &pBlock->info, pTableScanInfo->cond.order)) {
     (*status) = FUNC_DATA_REQUIRED_DATA_LOAD;
   }
 
@@ -188,6 +183,13 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     qDebug("%s data block skipped, brange:%" PRId64 "-%" PRId64 ", rows:%d", GET_TASKID(pTaskInfo),
            pBlockInfo->window.skey, pBlockInfo->window.ekey, pBlockInfo->rows);
     pCost->skipBlocks += 1;
+
+    // clear all data in pBlock that are set when handing the previous block
+    for(int32_t i = 0; i < pBlockInfo->numOfCols; ++i) {
+      SColumnInfoData* pcol = taosArrayGet(pBlock->pDataBlock, i);
+      pcol->pData = NULL;
+    }
+
     return TSDB_CODE_SUCCESS;
   } else if (*status == FUNC_DATA_REQUIRED_STATIS_LOAD) {
     pCost->loadBlockStatis += 1;
@@ -466,6 +468,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   }
 
   pInfo->scanInfo = (SScanInfo){.numOfAsc = pTableScanNode->scanSeq[0], .numOfDesc = pTableScanNode->scanSeq[1]};
+//  pInfo->scanInfo = (SScanInfo){.numOfAsc = 0, .numOfDesc = 1}; // for debug purpose
 
   pInfo->readHandle        = *readHandle;
   pInfo->interval          = extractIntervalInfo(pTableScanNode);
@@ -655,12 +658,18 @@ static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool inverti
     //  p->info.type = STREAM_INVERT;
     //  taosArrayClear(pInfo->tsArray);
     //  return p;
-    SSDataBlock* p = createOneDataBlock(pInfo->pRes, false);
-    taosArraySet(p->pDataBlock, 0, pInfo->tsArray);
-    p->info.rows = size;
-    p->info.type = STREAM_REPROCESS;
+    SSDataBlock* pDataBlock = createOneDataBlock(pInfo->pRes, false);
+    SColumnInfoData* pCol = (SColumnInfoData*) taosArrayGet(pDataBlock->pDataBlock, 0);
+    ASSERT(pCol->info.type == TSDB_DATA_TYPE_TIMESTAMP);
+    colInfoDataEnsureCapacity(pCol, 0, size);
+    for (int32_t i = 0; i < size; i++) {
+      TSKEY* pTs = (TSKEY*)taosArrayGet(pInfo->tsArray, i);
+      colDataAppend(pCol, i, (char*)pTs, false);
+    }
+    pDataBlock->info.rows = size;
+    pDataBlock->info.type = STREAM_REPROCESS;
     taosArrayClear(pInfo->tsArray);
-    return p;
+    return pDataBlock;
   }
   return NULL;
 }
@@ -707,14 +716,14 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     SDataBlockInfo* pBlockInfo = &pInfo->pRes->info;
     blockDataCleanup(pInfo->pRes);
 
-    while (tqNextDataBlock(pInfo->readerHandle)) {
+    while (tqNextDataBlock(pInfo->streamBlockReader)) {
       SArray*  pCols = NULL;
       uint64_t groupId = 0;
       uint64_t uid = 0;
       int32_t  numOfRows = 0;
       int16_t  outputCol = 0;
 
-      int32_t code = tqRetrieveDataBlock(&pCols, pInfo->readerHandle, &groupId, &uid, &numOfRows, &outputCol);
+      int32_t code = tqRetrieveDataBlock(&pCols, pInfo->streamBlockReader, &groupId, &uid, &numOfRows, &outputCol);
 
       if (code != TSDB_CODE_SUCCESS || numOfRows == 0) {
         pTaskInfo->code = code;
@@ -788,9 +797,10 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
   }
 }
 
-SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader,
-    SSDataBlock* pResBlock, SArray* pColList, SArray* pTableIdList,
-    SExecTaskInfo* pTaskInfo, SNode* pCondition, SOperatorInfo* pOperatorDumy ) {
+SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataReader, SReadHandle* pHandle,
+                                            uint64_t uid, SSDataBlock* pResBlock, SArray* pColList,
+                                            SArray* pTableIdList, SExecTaskInfo* pTaskInfo, SNode* pCondition,
+                                            SOperatorInfo* pOperatorDumy) {
   SStreamBlockScanInfo* pInfo = taosMemoryCalloc(1, sizeof(SStreamBlockScanInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -826,37 +836,32 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
 
   pInfo->tsArray = taosArrayInit(4, sizeof(TSKEY));
   if (pInfo->tsArray == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    goto _error;
   }
 
   pInfo->primaryTsIndex = 0;                           // TODO(liuyao) get it from physical plan
   pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, 10000); // TODO(liuyao) get watermark from physical plan
   if (pInfo->pUpdateInfo == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    return NULL;
+    goto _error;
   }
 
-  pInfo->readerHandle = streamReadHandle;
-  pInfo->pRes = pResBlock;
-  pInfo->pCondition = pCondition;
-  pInfo->pDataReader = pDataReader;
-  pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-  pInfo->pOperatorDumy = pOperatorDumy;
-  pInfo->interval = pSTInfo->interval;
+  pInfo->readHandle     = *pHandle;
+  pInfo->tableUid       = uid;
+  pInfo->streamBlockReader = streamReadHandle;
+  pInfo->pRes           = pResBlock;
+  pInfo->pCondition     = pCondition;
+  pInfo->pDataReader    = pDataReader;
+  pInfo->scanMode       = STREAM_SCAN_FROM_READERHANDLE;
+  pInfo->pOperatorDumy  = pOperatorDumy;
+  pInfo->interval       = pSTInfo->interval;
 
-  pOperator->name = "StreamBlockScanOperator";
+  pOperator->name       = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
+  pOperator->blocking   = false;
+  pOperator->status     = OP_NOT_OPENED;
+  pOperator->info       = pInfo;
   pOperator->numOfExprs = pResBlock->info.numOfCols;
-  pOperator->fpSet._openFn = operatorDummyOpenFn;
-  pOperator->fpSet.getNextFn = doStreamBlockScan;
-  pOperator->fpSet.closeFn = operatorDummyCloseFn;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->pTaskInfo  = pTaskInfo;
 
   pOperator->fpSet =
       createOperatorFpSet(operatorDummyOpenFn, doStreamBlockScan, NULL, NULL, operatorDummyCloseFn, NULL, NULL, NULL);
