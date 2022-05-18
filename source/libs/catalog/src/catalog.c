@@ -2883,6 +2883,11 @@ _return:
   CTG_API_LEAVE(code);
 }
 
+int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, SArray* pTables) {
+
+}
+
+
 int32_t catalogRefreshDBVgInfo(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const char* dbFName) {
   CTG_API_ENTER();
 

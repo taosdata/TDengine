@@ -59,6 +59,11 @@ typedef struct SMetaData {
   SArray    *pQnodeList;  // qnode list, SArray<SQueryNodeAddr>
 } SMetaData;
 
+typedef struct STbSVersion {
+  char* tbFName;
+  int32_t sver;
+} STbSVersion;
+
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
