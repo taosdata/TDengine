@@ -9,7 +9,7 @@ If the tips in FAQ don't help much, please submit an issue on  [GitHub](https://
 
 ## Frequently Asked Questions
 
-**1. How to upgrade to TDengine 2.0 from older version? ☆☆☆**
+### 1. How to upgrade to TDengine 2.0 from older version?
 
     version 2.x is not compatible with version 1.x regarding configuration file and data file, please do following before upgrading:
 
@@ -19,7 +19,7 @@ If the tips in FAQ don't help much, please submit an issue on  [GitHub](https://
     4. Install latests 2.x version
     5. If the data needs to be kept and migrated to newer version, please contact professional service of TDengine for assistance
 
-**2. How to handle "Unable to establish connection"**
+### 2. How to handle "Unable to establish connection"？
 
     When the client is unable to connect to the server, you can try following ways to find out why.
 
@@ -49,7 +49,7 @@ If the tips in FAQ don't help much, please submit an issue on  [GitHub](https://
 
     7.  TDengine CLI `taos` can also be used to check network, please refer to [TDengine CLI](/reference/taos-shell).
 
-**3. How to handle "Unexpected generic error in RPC" or  "Unable to resolve FQDN" ?**
+### 3. How to handle "Unexpected generic error in RPC" or  "Unable to resolve FQDN" ?
 
     This error is caused because the FQDN can't be resolved. Please try following ways:
 
@@ -58,41 +58,41 @@ If the tips in FAQ don't help much, please submit an issue on  [GitHub](https://
     3. If the network configuration on the server side is OK, try to ping the server from the client side.
     4. If TDengine has been used before with an old hostname then the hostname has been changed, please check `/var/lib/taos/taos/dnode/dnodeEps.json`. Before setting up a new TDengine cluster, it's better to cleanup the directories configured.
 
-**4. "Invalid SQL" is returned even though the Syntax is correct**
+### 4. "Invalid SQL" is returned even though the Syntax is correct
 
     "Invalid SQL" is returned when the length of SQL statement exceeds maximum allowed length or the syntax is not correct.
 
-**5. Whether validation queries are supported?**
+### 5. Whether validation queries are supported?
 
     It's suggested to use a builtin database named as `log` to monitor.
 
 <a class="anchor" id="update"></a>
 
-**6. Can I delete a record?**
+### 6. Can I delete a record?
 
     From version 2.6.0.0 Enterprise version, deleting data can be supported.
 
-**7. How to create a table of over 1024 columns?**
+### 7. How to create a table of over 1024 columns?
 
     From version 2.1.7.0, at most 4096 columns can be defined for a table.
 
-**8. How to improve the efficiency of inserting data?**
+### 8. How to improve the efficiency of inserting data?
 
     Inserting data in batch is a good practice. Single SQL statement can insert data for one or multiple tables in batch.
 
-**9. JDBC Error： the excuted SQL is not a DML or a DDL？**
+### 9. JDBC Error： the excuted SQL is not a DML or a DDL？
 
     Please upgrade to latest JDBC driver, for details please refer to [Java Connector](/reference/connector/java)
 
-**10. Failed to connect with error  "invalid timestamp"**
+### 10. Failed to connect with error  "invalid timestamp"
 
     The most common reason is that the time setting is not aligned on the client side and the server side. On Linux system, please use `ntpdate` command. On Windows system, please enable automatic sync in system time setting.
 
-**11. Table name is not shown in full**
+### 11. Table name is not shown in full
 
     There is a display width setting in TDengine CLI `taos`. It can be controlled by configuration parameter `maxBinaryDisplayWidth`, or can be set using SQL command `set max_binary_display_width`. A more convenient way is to append `\G` in a SQL command to bypass this limitation.
 
-**12. How to change log level temporarily?**
+### 12. How to change log level temporarily?
 
     Below SQL command can be used to adjust log level temporarily
 
@@ -105,7 +105,7 @@ If the tips in FAQ don't help much, please submit an issue on  [GitHub](https://
 <a class="anchor" id="timezone"></a>
 
 
-**13. Hhat to do if go compilation fails?**
+### 13. Hhat to do if go compilation fails?
 
     From version 2.3.0.0, a new component named `taosAdapter` is introduced. Its' developed in Go. If you want to compile from source code and meet go compilation problems, try to do below steps to resolve Go environment problems.
 
