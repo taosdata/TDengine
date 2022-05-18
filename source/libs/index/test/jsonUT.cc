@@ -66,6 +66,17 @@ static void WriteData(SIndexJson* index, const std::string& colName, int8_t dtyp
 
   indexMultiTermDestroy(terms);
 }
+
+static void delData(SIndexJson* index, const std::string& colName, int8_t dtype, void* data, int dlen, int tableId,
+                    int8_t operType = DEL_VALUE) {
+  SIndexTerm* term =
+      indexTermCreate(1, (SIndexOperOnColumn)operType, dtype, colName.c_str(), colName.size(), (const char*)data, dlen);
+  SIndexMultiTerm* terms = indexMultiTermCreate();
+  indexMultiTermAdd(terms, term);
+  tIndexJsonPut(index, terms, (int64_t)tableId);
+
+  indexMultiTermDestroy(terms);
+}
 static void Search(SIndexJson* index, const std::string& colNam, int8_t dtype, void* data, int dlen, int8_t filterType,
                    SArray** result) {
   std::string colName(colNam);

@@ -264,6 +264,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   CONN_SHOULD_RELEASE(pConn, pHead);
 
   STransMsg transMsg;
+  memset(&transMsg, 0, sizeof(transMsg));
   transMsg.contLen = transContLenFromMsg(pHead->msgLen);
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
