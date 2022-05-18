@@ -35,7 +35,7 @@ int metaGetTableEntryByVersion(SMetaReader *pReader, int64_t version, tb_uid_t u
   STbDbKey tbDbKey = {.version = version, .uid = uid};
 
   // query table.db
-  if (tdbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbTbGet(pMeta->pTbDb, &tbDbKey, sizeof(tbDbKey), &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     goto _err;
   }
@@ -58,7 +58,7 @@ int metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid) {
   int64_t version;
 
   // query uid.idx
-  if (tdbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
@@ -72,7 +72,7 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
   tb_uid_t uid;
 
   // query name.idx
-  if (tdbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
+  if (tdbTbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pReader->pBuf, &pReader->szBuf) < 0) {
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
@@ -100,9 +100,9 @@ SMTbCursor *metaOpenTbCursor(SMeta *pMeta) {
 
   metaReaderInit(&pTbCur->mr, pMeta, 0);
 
-  tdbDbcOpen(pMeta->pUidIdx, &pTbCur->pDbc, NULL);
+  tdbTbcOpen(pMeta->pUidIdx, &pTbCur->pDbc, NULL);
 
-  tdbDbcMoveToFirst(pTbCur->pDbc);
+  tdbTbcMoveToFirst(pTbCur->pDbc);
 
   return pTbCur;
 }
@@ -113,7 +113,7 @@ void metaCloseTbCursor(SMTbCursor *pTbCur) {
     tdbFree(pTbCur->pVal);
     metaReaderClear(&pTbCur->mr);
     if (pTbCur->pDbc) {
-      tdbDbcClose(pTbCur->pDbc);
+      tdbTbcClose(pTbCur->pDbc);
     }
     taosMemoryFree(pTbCur);
   }
@@ -125,7 +125,7 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
   STbCfg tbCfg;
 
   for (;;) {
-    ret = tdbDbcNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
+    ret = tdbTbcNext(pTbCur->pDbc, &pTbCur->pKey, &pTbCur->kLen, &pTbCur->pVal, &pTbCur->vLen);
     if (ret < 0) {
       return -1;
     }
@@ -159,7 +159,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
   pKey = &skmDbKey;
   kLen = sizeof(skmDbKey);
   metaRLock(pMeta);
-  ret = tdbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
+  ret = tdbTbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
   metaULock(pMeta);
   if (ret < 0) {
     return NULL;
@@ -184,7 +184,7 @@ SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, boo
 
 struct SMCtbCursor {
   SMeta   *pMeta;
-  TDBC    *pCur;
+  TBC     *pCur;
   tb_uid_t suid;
   void    *pKey;
   void    *pVal;
@@ -207,7 +207,7 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   pCtbCur->suid = uid;
   metaRLock(pMeta);
 
-  ret = tdbDbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur, NULL);
+  ret = tdbTbcOpen(pMeta->pCtbIdx, &pCtbCur->pCur, NULL);
   if (ret < 0) {
     metaULock(pMeta);
     taosMemoryFree(pCtbCur);
@@ -217,9 +217,9 @@ SMCtbCursor *metaOpenCtbCursor(SMeta *pMeta, tb_uid_t uid) {
   // move to the suid
   ctbIdxKey.suid = uid;
   ctbIdxKey.uid = INT64_MIN;
-  tdbDbcMoveTo(pCtbCur->pCur, &ctbIdxKey, sizeof(ctbIdxKey), &c);
+  tdbTbcMoveTo(pCtbCur->pCur, &ctbIdxKey, sizeof(ctbIdxKey), &c);
   if (c > 0) {
-    tdbDbcMoveToNext(pCtbCur->pCur);
+    tdbTbcMoveToNext(pCtbCur->pCur);
   }
 
   return pCtbCur;
@@ -229,7 +229,7 @@ void metaCloseCtbCursor(SMCtbCursor *pCtbCur) {
   if (pCtbCur) {
     if (pCtbCur->pMeta) metaULock(pCtbCur->pMeta);
     if (pCtbCur->pCur) {
-      tdbDbcClose(pCtbCur->pCur);
+      tdbTbcClose(pCtbCur->pCur);
 
       tdbFree(pCtbCur->pKey);
       tdbFree(pCtbCur->pVal);
@@ -243,7 +243,7 @@ tb_uid_t metaCtbCursorNext(SMCtbCursor *pCtbCur) {
   int         ret;
   SCtbIdxKey *pCtbIdxKey;
 
-  ret = tdbDbcNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
+  ret = tdbTbcNext(pCtbCur->pCur, &pCtbCur->pKey, &pCtbCur->kLen, &pCtbCur->pVal, &pCtbCur->vLen);
   if (ret < 0) {
     return 0;
   }
@@ -299,7 +299,7 @@ int metaGetTbNum(SMeta *pMeta) {
 
 typedef struct {
   SMeta   *pMeta;
-  TDBC    *pCur;
+  TBC     *pCur;
   tb_uid_t uid;
   void    *pKey;
   void    *pVal;
@@ -323,7 +323,7 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   pSmaCur->uid = uid;
   metaRLock(pMeta);
 
-  ret = tdbDbcOpen(pMeta->pSmaIdx, &pSmaCur->pCur, NULL);
+  ret = tdbTbcOpen(pMeta->pSmaIdx, &pSmaCur->pCur, NULL);
   if (ret < 0) {
     metaULock(pMeta);
     taosMemoryFree(pSmaCur);
@@ -333,9 +333,9 @@ SMSmaCursor *metaOpenSmaCursor(SMeta *pMeta, tb_uid_t uid) {
   // move to the suid
   smaIdxKey.uid = uid;
   smaIdxKey.smaUid = INT64_MIN;
-  tdbDbcMoveTo(pSmaCur->pCur, &smaIdxKey, sizeof(smaIdxKey), &c);
+  tdbTbcMoveTo(pSmaCur->pCur, &smaIdxKey, sizeof(smaIdxKey), &c);
   if (c > 0) {
-    tdbDbcMoveToNext(pSmaCur->pCur);
+    tdbTbcMoveToNext(pSmaCur->pCur);
   }
 
   return pSmaCur;
@@ -345,7 +345,7 @@ void metaCloseSmaCursor(SMSmaCursor *pSmaCur) {
   if (pSmaCur) {
     if (pSmaCur->pMeta) metaULock(pSmaCur->pMeta);
     if (pSmaCur->pCur) {
-      tdbDbcClose(pSmaCur->pCur);
+      tdbTbcClose(pSmaCur->pCur);
 
       tdbFree(pSmaCur->pKey);
       tdbFree(pSmaCur->pVal);
@@ -359,7 +359,7 @@ tb_uid_t metaSmaCursorNext(SMSmaCursor *pSmaCur) {
   int         ret;
   SSmaIdxKey *pSmaIdxKey;
 
-  ret = tdbDbcNext(pSmaCur->pCur, &pSmaCur->pKey, &pSmaCur->kLen, &pSmaCur->pVal, &pSmaCur->vLen);
+  ret = tdbTbcNext(pSmaCur->pCur, &pSmaCur->pKey, &pSmaCur->kLen, &pSmaCur->pVal, &pSmaCur->vLen);
   if (ret < 0) {
     return 0;
   }

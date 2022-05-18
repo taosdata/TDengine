@@ -275,10 +275,10 @@ int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
-#define COL_SMA_ON  ((int8_t)0x1)
-#define COL_IDX_ON  ((int8_t)0x2)
-#define COL_VAL_SET ((int8_t)0x4)
-
+#define COL_SMA_ON   ((int8_t)0x1)
+#define COL_IDX_ON   ((int8_t)0x2)
+#define COL_SET_NULL ((int8_t)0x10)
+#define COL_SET_VAL  ((int8_t)0x20)
 typedef struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -286,6 +286,9 @@ typedef struct SSchema {
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
+
+#define COL_IS_SET(FLG)  ((FLG) & (COL_SET_VAL | COL_SET_NULL) != 0)
+#define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
 

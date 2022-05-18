@@ -316,52 +316,63 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
     case TSDB_DATA_TYPE_TIMESTAMP:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(int64_t*)src, *dst, -1);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_UTINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(uint8_t*)src, *dst, 1);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_TINYINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(int8_t*)src, *dst, 1);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_SMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(int16_t*)src, *dst, -1);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_USMALLINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(uint16_t*)src, *dst, -1);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_INT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(int32_t*)src, *dst, -1);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(uint32_t*)src, *dst, 1);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_BIGINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       sprintf(*dst, "%" PRIu64, *(uint64_t*)src);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_UBIGINT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       indexInt2str(*(uint64_t*)src, *dst, 1);
+      tlen = strlen(*dst);
     case TSDB_DATA_TYPE_FLOAT:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       sprintf(*dst, "%.9lf", *(float*)src);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_DOUBLE:
       *dst = taosMemoryCalloc(1, bufSize + 1);
       sprintf(*dst, "%.9lf", *(double*)src);
+      tlen = strlen(*dst);
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
-      *dst = *dst - tlen;
+      *dst = (char*) * dst - tlen;
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY

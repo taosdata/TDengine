@@ -17,12 +17,12 @@
 
 #include "sma.h"
 
-int32_t smaOpenDBEnv(TENV **ppEnv, const char *path) {
+int32_t smaOpenDBEnv(TDB **ppEnv, const char *path) {
   int ret = 0;
 
   if (path == NULL) return -1;
 
-  ret = tdbEnvOpen(path, 4096, 256, ppEnv);  // use as param
+  ret = tdbOpen(path, 4096, 256, ppEnv);  // use as param
 
   if (ret != 0) {
     smaError("failed to create tsdb db env, ret = %d", ret);
@@ -32,7 +32,7 @@ int32_t smaOpenDBEnv(TENV **ppEnv, const char *path) {
   return 0;
 }
 
-int32_t smaCloseDBEnv(TENV *pEnv) { return tdbEnvClose(pEnv); }
+int32_t smaCloseDBEnv(TDB *pEnv) { return tdbClose(pEnv); }
 
 static inline int tdSmaKeyCmpr(const void *arg1, int len1, const void *arg2, int len2) {
   const SSmaKey *pKey1 = (const SSmaKey *)arg1;
@@ -54,21 +54,21 @@ static inline int tdSmaKeyCmpr(const void *arg1, int len1, const void *arg2, int
   return 0;
 }
 
-static int32_t smaOpenDBDb(TDB **ppDB, TENV *pEnv, const char *pFName) {
+static int32_t smaOpenDBDb(TTB **ppDB, TDB *pEnv, const char *pFName) {
   tdb_cmpr_fn_t compFunc;
 
   // Create a database
   compFunc = tdSmaKeyCmpr;
-  if (tdbOpen(pFName, -1, -1, compFunc, pEnv, ppDB) < 0) {
+  if (tdbTbOpen(pFName, -1, -1, compFunc, pEnv, ppDB) < 0) {
     return -1;
   }
 
   return 0;
 }
 
-static int32_t smaCloseDBDb(TDB *pDB) { return tdbClose(pDB); }
+static int32_t smaCloseDBDb(TTB *pDB) { return tdbTbClose(pDB); }
 
-int32_t smaOpenDBF(TENV *pEnv, SDBFile *pDBF) {
+int32_t smaOpenDBF(TDB *pEnv, SDBFile *pDBF) {
   // TEnv is shared by a group of SDBFile
   if (!pEnv || !pDBF) {
     terrno = TSDB_CODE_INVALID_PTR;
@@ -99,7 +99,7 @@ int32_t smaSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, in
   int32_t ret;
 
   printf("save tsma data into %s, keyLen:%d valLen:%d txn:%p\n", pDBF->path, keyLen, valLen, txn);
-  ret = tdbUpsert(pDBF->pDB, pKey, keyLen, pVal, valLen, txn);
+  ret = tdbTbUpsert(pDBF->pDB, pKey, keyLen, pVal, valLen, txn);
   if (ret < 0) {
     smaError("failed to upsert tsma data into db, ret = %d", ret);
     return -1;
@@ -112,7 +112,7 @@ void *smaGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_
   void *pVal = NULL;
   int   ret;
 
-  ret = tdbGet(pDBF->pDB, pKey, keyLen, &pVal, valLen);
+  ret = tdbTbGet(pDBF->pDB, pKey, keyLen, &pVal, valLen);
 
   if (ret < 0) {
     smaError("failed to get tsma data from db, ret = %d", ret);
