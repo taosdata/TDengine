@@ -502,6 +502,17 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   SMqTopicObj *pTopic = mndAcquireTopic(pMnode, dropReq.name);
+  // if (pTopic == NULL) {
+  //   if (dropReq.igNotExists) {
+  //     mDebug("topic:%s, not exist, ignore not exist is set", dropReq.name);
+  //     return 0;
+  //   } else {
+  //     terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
+  //     mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+  //     return -1;
+  //   }
+  // }
+
   if (pTopic->refConsumerCnt != 0) {
     mndReleaseTopic(pMnode, pTopic);
     terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;

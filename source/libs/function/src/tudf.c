@@ -1386,7 +1386,7 @@ int32_t cleanUpUdfs() {
       if (handle != NULL && ((SUdfcUvSession*)handle)->udfUvPipe != NULL) {
         taosArrayPush(udfStubs, stub);
       } else {
-        fnInfo("invalid handle for %s, refCount: %d, last ref time: %"PRId64". remove it from cache",
+        fnInfo("udf invalid handle for %s, refCount: %d, last ref time: %"PRId64". remove it from cache",
                stub->udfName, stub->refCount, stub->lastRefTime);
       }
     }
@@ -1528,7 +1528,15 @@ int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols,
   if (code != 0) {
     return code;
   }
+  SUdfcUvSession *session = handle;
   code = doCallUdfScalarFunc(handle, input, numOfCols, output);
+  if (session->outputType != output->columnData->info.type
+      || session->outputLen != output->columnData->info.bytes) {
+    fnError("udfc scalar function calculate error, session type: %d(%d), output type: %d(%d)",
+            session->outputType, session->outputLen,
+            output->columnData->info.type, output->columnData->info.bytes);
+    code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+  }
   releaseUdfFuncHandle(udfName);
   return code;
 }
@@ -1602,6 +1610,7 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
   SUdfInterBuf buf = {0};
   if ((udfCode = doCallUdfAggInit(handle, &buf)) != 0) {
     fnError("udfAggInit error. step doCallUdfAggInit. udf code: %d", udfCode);
+    releaseUdfFuncHandle(pCtx->udfName);
     return false;
   }
   udfRes->interResNum = buf.numOfResult;
@@ -1609,6 +1618,7 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
     memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
   } else {
     fnError("udfc inter buf size %d is greater than function bufSize %d", buf.bufLen, session->bufSize);
+    releaseUdfFuncHandle(pCtx->udfName);
     return false;
   }
   freeUdfInterBuf(&buf);
@@ -1674,6 +1684,9 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   blockDataDestroy(inputBlock);
   taosArrayDestroy(tempBlock.pDataBlock);
 
+  if (udfCode != 0) {
+    releaseUdfFuncHandle(pCtx->udfName);
+  }
   freeUdfInterBuf(&newState);
   return udfCode;
 }

@@ -372,4 +372,92 @@ if $data25 != 3 then
   return -1
 endi
 
+sql insert into t1 values(1648791213004,4,2,3,4.1) (1648791213006,5,4,7,9.1) (1648791213004,40,20,30,40.1) (1648791213005,4,2,3,4.1);
+sleep 100
+sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 0
+if $data01 != 4 then
+  print ======$data01
+  return -1
+endi
+
+if $data02 != 4 then
+  print ======$data02
+  return -1
+endi
+
+if $data03 != 14 then
+  print ======$data03
+  return -1
+endi
+
+if $data04 != 4 then
+  print ======$data04
+  return -1
+endi
+
+if $data05 != 3 then
+  print ======$data05
+  return -1
+endi
+
+sql insert into t1 values(1648791223004,4,2,3,4.1) (1648791233006,5,4,7,9.1) (1648791223004,40,20,30,40.1) (1648791233005,4,2,3,4.1);
+sleep 100
+sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+
+# row 1
+if $data11 != 4 then
+  print ======$data11
+  # return -1
+endi
+
+if $data12 != 4 then
+  print ======$data12
+  # return -1
+endi
+
+if $data13 != 10 then
+  print ======$data13
+  # return -1
+endi
+
+if $data14 != 3 then
+  print ======$data14
+  # return -1
+endi
+
+if $data15 != 1 then
+  print ======$data15
+  # return -1
+endi
+
+# row 2
+if $data21 != 4 then
+  print ======$data21
+  # return -1
+endi
+
+if $data22 != 4 then
+  print ======$data22
+  # return -1
+endi
+
+if $data23 != 15 then
+  print ======$data23
+    # return -1
+endi
+
+if $data24 != 4 then
+  print ======$data24
+  # return -1
+endi
+
+if $data25 != 3 then
+  print ======$data25
+  # return -1
+endi
+
+
+
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

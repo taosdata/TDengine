@@ -258,6 +258,7 @@ typedef struct {
   char*   tblFName;
   int32_t numOfRows;
   int32_t affectedRows;
+  int64_t sver;
 } SSubmitBlkRsp;
 
 typedef struct {
