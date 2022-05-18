@@ -21,9 +21,9 @@ static SMsgCb tsDefaultMsgCb;
 
 void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
 
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
+int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pMsg) {
   PutToQueueFp fp = pMsgCb->queueFps[qtype];
-  return (*fp)(pMsgCb->mgmt, pReq);
+  return (*fp)(pMsgCb->mgmt, pMsg);
 }
 
 int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
@@ -31,17 +31,17 @@ int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
   return (*fp)(pMsgCb->mgmt, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pReq) {
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
   SendReqFp fp = tsDefaultMsgCb.sendReqFp;
-  return (*fp)(epSet, pReq);
+  return (*fp)(epSet, pMsg);
 }
 
-void tmsgSendRsp(const SRpcMsg* pMsg) {
+void tmsgSendRsp(SRpcMsg* pMsg) {
   SendRspFp fp = tsDefaultMsgCb.sendRspFp;
   return (*fp)(pMsg);
 }
 
-void tmsgSendRedirectRsp(const SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
+void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
   SendRedirectRspFp fp = tsDefaultMsgCb.sendRedirectRspFp;
   (*fp)(pMsg, pNewEpSet);
 }

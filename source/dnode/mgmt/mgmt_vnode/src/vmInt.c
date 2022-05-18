@@ -196,6 +196,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
       taosThreadJoin(pThread->thread, NULL);
+      taosThreadClear(&pThread->thread);
     }
     taosMemoryFree(pThread->pCfgs);
   }
