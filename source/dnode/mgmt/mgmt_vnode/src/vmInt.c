@@ -196,6 +196,7 @@ static int32_t vmOpenVnodes(SVnodeMgmt *pMgmt) {
     SVnodeThread *pThread = &threads[t];
     if (pThread->vnodeNum > 0 && taosCheckPthreadValid(pThread->thread)) {
       taosThreadJoin(pThread->thread, NULL);
+      taosThreadClear(&pThread->thread);
     }
     taosMemoryFree(pThread->pCfgs);
   }
@@ -234,26 +235,22 @@ static void vmCloseVnodes(SVnodeMgmt *pMgmt) {
 }
 
 static void vmCleanup(SVnodeMgmt *pMgmt) {
-  dInfo("vnode-mgmt start to cleanup");
   vmCloseVnodes(pMgmt);
   vmStopWorker(pMgmt);
   vnodeCleanup();
   tfsClose(pMgmt->pTfs);
   taosMemoryFree(pMgmt);
-
-  dInfo("vnode-mgmt is cleaned up");
 }
 
-static int32_t vmInit(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
-  dInfo("vnode-mgmt start to init");
+static int32_t vmInit(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   int32_t code = -1;
 
   SVnodeMgmt *pMgmt = taosMemoryCalloc(1, sizeof(SVnodeMgmt));
   if (pMgmt == NULL) goto _OVER;
 
+  pMgmt->pData = pInput->pData;
   pMgmt->path = pInput->path;
   pMgmt->name = pInput->name;
-  pMgmt->dnodeId = pInput->dnodeId;
   pMgmt->msgCb = pInput->msgCb;
   pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)vmPutRpcMsgToWriteQueue;
   pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)vmPutRpcMsgToSyncQueue;
@@ -262,15 +259,15 @@ static int32_t vmInit(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.queueFps[FETCH_QUEUE] = (PutToQueueFp)vmPutRpcMsgToFetchQueue;
   pMgmt->msgCb.queueFps[MERGE_QUEUE] = (PutToQueueFp)vmPutRpcMsgToMergeQueue;
   pMgmt->msgCb.qsizeFp = (GetQueueSizeFp)vmGetQueueSize;
-  pMgmt->msgCb.pMgmt = pMgmt;
+  pMgmt->msgCb.mgmt = pMgmt;
   taosInitRWLatch(&pMgmt->latch);
 
   SDiskCfg dCfg = {0};
-  tstrncpy(dCfg.dir, pInput->dataDir, TSDB_FILENAME_LEN);
+  tstrncpy(dCfg.dir, tsDataDir, TSDB_FILENAME_LEN);
   dCfg.level = 0;
   dCfg.primary = 1;
-  SDiskCfg *pDisks = pInput->disks;
-  int32_t   numOfDisks = pInput->numOfDisks;
+  SDiskCfg *pDisks = tsDiskCfg;
+  int32_t   numOfDisks = tsDiskCfgNum;
   if (numOfDisks <= 0 || pDisks == NULL) {
     pDisks = &dCfg;
     numOfDisks = 1;
@@ -323,7 +320,6 @@ static int32_t vmInit(const SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
 _OVER:
   if (code == 0) {
     pOutput->pMgmt = pMgmt;
-    dInfo("vnodes-mgmt is initialized");
   } else {
     dError("failed to init vnodes-mgmt since %s", terrstr());
     vmCleanup(pMgmt);
@@ -333,12 +329,11 @@ _OVER:
 }
 
 static int32_t vmRequire(const SMgmtInputOpt *pInput, bool *required) {
-  *required = pInput->supportVnodes > 0;
+  *required = tsNumOfSupportVnodes > 0;
   return 0;
 }
 
 static int32_t vmStart(SVnodeMgmt *pMgmt) {
-  dDebug("vnode-mgmt start to run");
   taosRLockLatch(&pMgmt->latch);
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);

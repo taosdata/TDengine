@@ -26,13 +26,13 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
 
 int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
 #if 0
-  SNodeMsg *pMsg;
+  SRpcMsg *pMsg;
   SRpcMsg  *pRpc;
 
   *version = pVnode->state.processed;
   for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
-    pMsg = *(SNodeMsg **)taosArrayGet(pMsgs, i);
-    pRpc = &pMsg->rpcMsg;
+    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
+    pRpc = pMsg;
 
     // set request version
     if (walWrite(pVnode->pWal, pVnode->state.processed++, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
@@ -98,6 +98,11 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
     case TDMT_VND_MQ_VG_CHANGE:
       if (tqProcessVgChangeReq(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)),
                                pMsg->contLen - sizeof(SMsgHead)) < 0) {
+        // TODO: handle error
+      }
+      break;
+    case TDMT_VND_MQ_VG_DELETE:
+      if (tqProcessVgDeleteReq(pVnode->pTq, pMsg->pCont, pMsg->contLen) < 0) {
         // TODO: handle error
       }
       break;
@@ -199,7 +204,7 @@ void smaHandleRes(void *pVnode, int64_t smaId, const SArray *data) {
 
 int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
   int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
-  
+
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pVnode->sync);
     assert(pSyncNode != NULL);
@@ -328,6 +333,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   SVCreateTbRsp      cRsp = {0};
   char               tbName[TSDB_TABLE_FNAME_LEN];
   STbUidStore       *pStore = NULL;
+  SArray            *tbUids = NULL;
 
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -343,7 +349,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   }
 
   rsp.pArray = taosArrayInit(req.nReqs, sizeof(cRsp));
-  if (rsp.pArray == NULL) {
+  tbUids = taosArrayInit(req.nReqs, sizeof(int64_t));
+  if (rsp.pArray == NULL || tbUids == NULL) {
     rcode = -1;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -371,6 +378,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
       tdFetchTbUidList(pVnode->pSma, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
+      taosArrayPush(tbUids, &pCreateReq->uid);
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
@@ -378,6 +386,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
   tDecoderClear(&decoder);
 
+  tqUpdateTbUidList(pVnode->pTq, tbUids);
   tdUpdateTbUidList(pVnode->pSma, pStore);
   tdUidStoreFree(pStore);
 
@@ -397,6 +406,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
 _exit:
   taosArrayDestroy(rsp.pArray);
+  taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
   return rcode;
@@ -462,7 +472,11 @@ _exit:
 
 static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
   SVAlterTbReq vAlterTbReq = {0};
+  SVAlterTbRsp vAlterTbRsp = {0};
   SDecoder     dc = {0};
+  int          rcode = 0;
+  int          ret;
+  SEncoder     ec = {0};
 
   pRsp->msgType = TDMT_VND_ALTER_TABLE_RSP;
   pRsp->pCont = NULL;
@@ -473,19 +487,27 @@ static int vnodeProcessAlterTbReq(SVnode *pVnode, int64_t version, void *pReq, i
 
   // decode
   if (tDecodeSVAlterTbReq(&dc, &vAlterTbReq) < 0) {
-    pRsp->code = TSDB_CODE_INVALID_MSG;
+    vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&dc);
-    return -1;
+    rcode = -1;
+    goto _exit;
   }
 
   // process
   if (metaAlterTable(pVnode->pMeta, version, &vAlterTbReq) < 0) {
-    pRsp->code = terrno;
+    vAlterTbRsp.code = TSDB_CODE_INVALID_MSG;
     tDecoderClear(&dc);
-    return -1;
+    rcode = -1;
+    goto _exit;
   }
-
   tDecoderClear(&dc);
+
+_exit:
+  tEncodeSize(tEncodeSVAlterTbRsp, &vAlterTbRsp, pRsp->contLen, ret);
+  pRsp->pCont = rpcMallocCont(pRsp->contLen);
+  tEncoderInit(&ec, pRsp->pCont, pRsp->contLen);
+  tEncodeSVAlterTbRsp(&ec, &vAlterTbRsp);
+  tEncoderClear(&ec);
   return 0;
 }
 
@@ -711,15 +733,22 @@ static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq
     goto _err;
   }
 
-  if (metaCreateTSma(pVnode->pMeta, version, &req) < 0) {
+  // record current timezone of server side
+  req.timezoneInt = tsTimezone;
+
+  if (tdProcessTSmaCreate(pVnode->pSma, version, (const char *)&req) < 0) {
     pRsp->code = terrno;
     goto _err;
   }
 
   tDecoderClear(&coder);
+  vDebug("vgId:%d success to create tsma %s:%" PRIi64 " for table %" PRIi64, TD_VID(pVnode), req.indexName,
+         req.indexUid, req.tableUid);
   return 0;
 
 _err:
   tDecoderClear(&coder);
+  vError("vgId:%d failed to create tsma %s:%" PRIi64 " for table %" PRIi64 " since %s", TD_VID(pVnode), req.indexName,
+         req.indexUid, req.tableUid, terrstr(terrno));
   return -1;
 }

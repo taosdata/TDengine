@@ -155,7 +155,7 @@ SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, 
 void operatorDummyCloseFn(void* param, int32_t numOfCols) {}
 
 static int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
-                                  int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs);
+                                  int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs);
 
 static void initCtxOutputBuffer(SqlFunctionCtx* pCtx, int32_t size);
 static void setResultBufSize(STaskAttr* pQueryAttr, SResultInfo* pResultInfo);
@@ -340,28 +340,6 @@ SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, 
   pData->num += interBufSize;
 
   return pResultRow;
-}
-
-void doClearWindow(SIntervalAggOperatorInfo* pInfo, char* pData, int16_t bytes,
-    uint64_t groupId, int32_t numOfOutput) {
-  SAggSupporter* pSup = &pInfo->aggSup;
-  SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
-  SResultRowPosition* p1 =
-      (SResultRowPosition*)taosHashGet(pSup->pResultRowHashTable, pSup->keyBuf,
-          GET_RES_WINDOW_KEY_LEN(bytes));
-  SResultRow* pResult = getResultRowByPos(pSup->pResultBuf, p1);
-  SqlFunctionCtx* pCtx = pInfo->binfo.pCtx;
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    pCtx[i].resultInfo = getResultCell(pResult, i, pInfo->binfo.rowCellInfoOffset);
-    struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
-    if (fmIsWindowPseudoColumnFunc(pCtx[i].functionId)) {
-      continue;
-    }
-    pResInfo->initialized = false;
-    if (pCtx[i].functionId != -1) {
-      pCtx[i].fpSet.init(&pCtx[i], pResInfo);
-    }
-  }
 }
 
 /**
@@ -602,8 +580,6 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                       int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
-    pCtx[k].startTs = pWin->skey;
-
     // keep it temporarily
     bool    hasAgg = pCtx[k].input.colDataAggIsSet;
     int32_t numOfRows = pCtx[k].input.numOfRows;
@@ -619,8 +595,8 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
 
     // not a whole block involved in query processing, statistics data can not be used
     // NOTE: the original value of isSet have been changed here
-    if (pCtx[k].isAggSet && forwardStep < numOfTotal) {
-      pCtx[k].isAggSet = false;
+    if (pCtx[k].input.colDataAggIsSet && forwardStep < numOfTotal) {
+      pCtx[k].input.colDataAggIsSet = false;
     }
 
     if (fmIsWindowPseudoColumnFunc(pCtx[k].functionId)) {
@@ -680,7 +656,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SqlFunctionCtx* pC
                                     int32_t order) {
   for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
-    pCtx[i].size = pBlock->info.rows;
+    pCtx[i].input.numOfRows = pBlock->info.rows;
     setBlockStatisInfo(&pCtx[i], &pOperator->pExpr[i], pBlock);
   }
 }
@@ -742,7 +718,8 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 
   for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
-    pCtx[i].size = pBlock->info.rows;
+    pCtx[i].input.numOfRows = pBlock->info.rows;
+
     pCtx[i].pSrcBlock = pBlock;
     pCtx[i].scanFlag  = scanFlag;
 
@@ -827,7 +804,6 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
-      pCtx[k].startTs = startTs;
       // todo add a dummy funtion to avoid process check
       if (pCtx[k].fpSet.process != NULL) {
         int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
@@ -2136,23 +2112,13 @@ void setExecutionContext(int32_t numOfOutput, uint64_t groupId, SExecTaskInfo* p
  * @param result
  */
 int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
-                           int32_t orderType, int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs) {
+                           int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
-  int32_t numOfResult = pBlock->info.rows;  // there are already exists result rows
-
-  int32_t start = 0;
-  int32_t step = 1;
+  int32_t start = pGroupResInfo->index;
 
   // qDebug("QInfo:0x%"PRIx64" start to copy data from windowResInfo to output buf", GET_TASKID(pRuntimeEnv));
-  assert(orderType == TSDB_ORDER_ASC || orderType == TSDB_ORDER_DESC);
 
-  if (orderType == TSDB_ORDER_ASC) {
-    start = pGroupResInfo->index;
-  } else {  // desc order copy all data
-    start = numOfRows - pGroupResInfo->index - 1;
-  }
-
-  for (int32_t i = start; (i < numOfRows) && (i >= 0); i += step) {
+  for (int32_t i = start; i < numOfRows; i += 1) {
     SResKeyPos* pPos = taosArrayGetP(pGroupResInfo->pRows, i);
     SFilePage*  page = getBufPage(pBuf, pPos->pos.pageId);
 
@@ -2162,9 +2128,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
       continue;
     }
 
-    // TODO copy multiple rows?
-    int32_t numOfRowsToCopy = pRow->numOfRows;
-    if (numOfResult + numOfRowsToCopy >= pBlock->info.capacity) {
+    if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       break;
     }
 
@@ -2195,7 +2159,6 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
     }
 
     releaseBufPage(pBuf, page);
-
     pBlock->info.rows += pRow->numOfRows;
     if (pBlock->info.rows >= pBlock->info.capacity) {  // output buffer is full
       break;
@@ -2223,8 +2186,7 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
     return;
   }
 
-  int32_t orderType = TSDB_ORDER_ASC;
-  doCopyToSDataBlock(pTaskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, orderType, rowCellOffset, pCtx, numOfExprs);
+  doCopyToSDataBlock(pTaskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, rowCellOffset, pCtx, numOfExprs);
 
   // add condition (pBlock->info.rows >= 1) just to runtime happy
   blockDataUpdateTsWindow(pBlock);
@@ -2729,8 +2691,8 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
 }
 
 void qProcessFetchRsp(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
-  assert(pMsg->ahandle != NULL);
+  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
+  assert(pMsg->info.ahandle != NULL);
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL};
 
@@ -3344,7 +3306,7 @@ static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char** buf, int3
 static void doMergeResultImpl(SSortedMergeOperatorInfo* pInfo, SqlFunctionCtx* pCtx, int32_t numOfExpr,
                               int32_t rowIndex) {
   for (int32_t j = 0; j < numOfExpr; ++j) {  // TODO set row index
-    pCtx[j].startRow = rowIndex;
+//    pCtx[j].startRow = rowIndex;
   }
 
   for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -3395,7 +3357,7 @@ static void doMergeImpl(SOperatorInfo* pOperator, int32_t numOfExpr, SSDataBlock
 
   SqlFunctionCtx* pCtx = pInfo->binfo.pCtx;
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    pCtx[i].size = 1;
+//    pCtx[i].size = 1;
   }
 
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -3707,7 +3669,7 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   finalizeMultiTupleQueryResult(pOperator->numOfExprs, pAggInfo->aggSup.pResultBuf, &pAggInfo->binfo.resultRowInfo,
                                 pAggInfo->binfo.rowCellInfoOffset);
 
-  initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, false);
+  initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
   OPTR_SET_OPENED(pOperator);
   return TSDB_CODE_SUCCESS;
 }
@@ -4262,7 +4224,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  int32_t numOfRows = 10;
+  int32_t numOfRows = 1024;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
   initResultSizeInfo(pOperator, numOfRows);
@@ -4717,10 +4679,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SOperatorInfo* pOperatorDumy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
       SArray* tableIdList = extractTableIdList(pTableGroupInfo);
-      SSDataBlock*        pResBlock = createResDataBlock(pDescNode);
 
-      SArray*        pCols = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pDataReader, pResBlock, pCols, tableIdList, pTaskInfo,
+      SSDataBlock* pResBlock = createResDataBlock(pDescNode);
+      SArray*      pCols = extractColMatchInfo(pScanPhyNode->pScanCols, pDescNode, &numOfCols, COL_MATCH_FROM_COL_ID);
+
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pHandle->reader, pDataReader, pHandle, pScanPhyNode->uid, pResBlock, pCols, tableIdList, pTaskInfo,
                                                               pScanPhyNode->node.pConditions, pOperatorDumy);
       taosArrayDestroy(tableIdList);
       return pOperator;
@@ -5336,3 +5299,16 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, size_t keyBufSize,
+                         const char* pKey, const char* pDir) {
+  pCatchSup->keySize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
+  pCatchSup->pKeyBuf = taosMemoryCalloc(1, pCatchSup->keySize);
+  int32_t pageSize = rowSize * 32;
+  int32_t bufSize = pageSize * 4096;
+  createDiskbasedBuf(&pCatchSup->pDataBuf, pageSize, bufSize, pKey, pDir);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pCatchSup->pWindowHashTable = taosHashInit(10000, hashFn, true, HASH_NO_LOCK);;
+  return TSDB_CODE_SUCCESS;
+}
+                        

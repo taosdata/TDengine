@@ -81,8 +81,8 @@ int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
     syncUtilMsgHtoN(pMsg->pCont);
   }
 
-  pMsg->handle = NULL;
-  pMsg->noResp = 1;
+  pMsg->info.handle = NULL;
+  pMsg->info.noResp = 1;
   rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
   return ret;
 }
@@ -237,6 +237,7 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
   int32_t ret = 0;
   atomic_store_8(&io->isStart, 0);
   taosThreadJoin(io->consumerTid, NULL);
+  taosThreadClear(&io->consumerTid);
   taosTmrCleanUp(io->timerMgr);
   return ret;
 }

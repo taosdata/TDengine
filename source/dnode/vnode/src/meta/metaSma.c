@@ -16,7 +16,7 @@
 #include "meta.h"
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME);
-static int metaSaveSmaToDB(SMeta *pMeta,  const SMetaEntry *pME);
+static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME);
 
 int32_t metaCreateTSma(SMeta *pMeta, int64_t version, SSmaCfg *pCfg) {
   // TODO: Validate the cfg
@@ -81,55 +81,6 @@ int32_t metaDropTSma(SMeta *pMeta, int64_t indexUid) {
   return TSDB_CODE_SUCCESS;
 }
 
-// static int metaSaveSmaToDB(SMeta *pMeta, STSma *pSmaCfg) {
-//   int32_t ret = 0;
-//   void   *pBuf = NULL, *qBuf = NULL;
-//   void   *key = {0}, *val = {0};
-
-//   // save sma info
-//   int32_t len = tEncodeTSma(NULL, pSmaCfg);
-//   pBuf = taosMemoryCalloc(1, len);
-//   if (pBuf == NULL) {
-//     terrno = TSDB_CODE_OUT_OF_MEMORY;
-//     return -1;
-//   }
-
-//   key = (void *)&pSmaCfg->indexUid;
-//   qBuf = pBuf;
-//   tEncodeTSma(&qBuf, pSmaCfg);
-//   val = pBuf;
-
-//   int32_t kLen = sizeof(pSmaCfg->indexUid);
-//   int32_t vLen = POINTER_DISTANCE(qBuf, pBuf);
-
-//   ret = tdbDbInsert(pMeta->pTbDb, key, kLen, val, vLen, &pMeta->txn);
-//   if (ret < 0) {
-//     taosMemoryFreeClear(pBuf);
-//     return -1;
-//   }
-
-//   // add sma idx
-//   SSmaIdxKey smaIdxKey;
-//   smaIdxKey.uid = pSmaCfg->tableUid;
-//   smaIdxKey.smaUid = pSmaCfg->indexUid;
-//   key = &smaIdxKey;
-//   kLen = sizeof(smaIdxKey);
-//   val = NULL;
-//   vLen = 0;
-
-//   ret = tdbDbInsert(pMeta->pSmaIdx, key, kLen, val, vLen, &pMeta->txn);
-//   if (ret < 0) {
-//     taosMemoryFreeClear(pBuf);
-//     return -1;
-//   }
-
-//   // release
-//   taosMemoryFreeClear(pBuf);
-
-//   return 0;
-// }
-
-
 static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME) {
   STbDbKey tbDbKey;
   void    *pKey = NULL;
@@ -166,7 +117,7 @@ static int metaSaveSmaToDB(SMeta *pMeta, const SMetaEntry *pME) {
   tEncoderClear(&coder);
 
   // write to table.db
-  if (tdbDbInsert(pMeta->pTbDb, pKey, kLen, pVal, vLen, &pMeta->txn) < 0) {
+  if (tdbTbInsert(pMeta->pTbDb, pKey, kLen, pVal, vLen, &pMeta->txn) < 0) {
     goto _err;
   }
 
@@ -179,13 +130,17 @@ _err:
 }
 
 static int metaUpdateUidIdx(SMeta *pMeta, const SMetaEntry *pME) {
-  return tdbDbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
+  return tdbTbInsert(pMeta->pUidIdx, &pME->uid, sizeof(tb_uid_t), &pME->version, sizeof(int64_t), &pMeta->txn);
+}
+
+static int metaUpdateNameIdx(SMeta *pMeta, const SMetaEntry *pME) {
+  return tdbTbInsert(pMeta->pNameIdx, pME->name, strlen(pME->name) + 1, &pME->uid, sizeof(tb_uid_t), &pMeta->txn);
 }
 
 static int metaUpdateSmaIdx(SMeta *pMeta, const SMetaEntry *pME) {
   SSmaIdxKey smaIdxKey = {.uid = pME->smaEntry.tsma->tableUid, .smaUid = pME->smaEntry.tsma->indexUid};
 
-  return tdbDbInsert(pMeta->pSmaIdx, &smaIdxKey, sizeof(smaIdxKey), NULL, 0, &pMeta->txn);
+  return tdbTbInsert(pMeta->pSmaIdx, &smaIdxKey, sizeof(smaIdxKey), NULL, 0, &pMeta->txn);
 }
 
 static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME) {
@@ -194,9 +149,13 @@ static int metaHandleSmaEntry(SMeta *pMeta, const SMetaEntry *pME) {
   // save to table.db
   if (metaSaveSmaToDB(pMeta, pME) < 0) goto _err;
 
-  // // update uid.idx
+  // update uid.idx
   if (metaUpdateUidIdx(pMeta, pME) < 0) goto _err;
 
+  // update name.idx
+  if (metaUpdateNameIdx(pMeta, pME) < 0) goto _err;
+
+  // update sma.idx
   if (metaUpdateSmaIdx(pMeta, pME) < 0) goto _err;
 
   metaULock(pMeta);

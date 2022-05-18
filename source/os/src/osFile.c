@@ -110,7 +110,7 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 int64_t taosCopyFile(const char *from, const char *to) {
 #ifdef WINDOWS
   assert(0);
-  return 0;
+  return -1;
 #else
   char    buffer[4096];
   int64_t size = 0;
@@ -190,15 +190,35 @@ int32_t taosStatFile(const char *path, int64_t *size, int32_t *mtime) {
 
   return 0;
 }
-int32_t taosDevInoFile(const char *path, int64_t *stDev, int64_t *stIno) {
+int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
+  if (pFile == NULL) {
+    return 0;
+  }
+  assert(pFile->fd >= 0);  // Please check if you have closed the file.
 
-  struct stat fileStat;
 #ifdef WINDOWS
-  int32_t     code = _stat(path, &fileStat);
+
+  BY_HANDLE_FILE_INFORMATION bhfi;
+  HANDLE handle = (HANDLE)_get_osfhandle(pFile->fd);
+  if (GetFileInformationByHandle(handle, &bhfi) == FALSE) {
+    printf("taosFStatFile get file info fail.");
+    return -1;
+  }
+
+  if (stDev != NULL) {
+    *stDev = (int64_t)(bhfi.dwVolumeSerialNumber);
+  }
+
+  if (stIno != NULL) {
+    *stIno = (int64_t)((((uint64_t)bhfi.nFileIndexHigh) << 32) + bhfi.nFileIndexLow);
+  }
+
 #else
-  int32_t     code = stat(path, &fileStat);
-#endif
+  
+  struct stat fileStat;
+  int32_t     code = fstat(pFile->fd, &fileStat);
   if (code < 0) {
+    printf("taosFStatFile run fstat fail.");
     return code;
   }
 
@@ -209,6 +229,7 @@ int32_t taosDevInoFile(const char *path, int64_t *stDev, int64_t *stIno) {
   if (stIno != NULL) {
     *stIno = fileStat.st_ino;
   }
+#endif
 
   return 0;
 }

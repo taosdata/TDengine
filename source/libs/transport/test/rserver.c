@@ -69,7 +69,7 @@ void processShellMsg() {
       memset(&rpcMsg, 0, sizeof(rpcMsg));
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
-      rpcMsg.handle = pRpcMsg->handle;
+      rpcMsg.info = pRpcMsg->info;
       rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 

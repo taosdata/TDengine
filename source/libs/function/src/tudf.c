@@ -312,6 +312,7 @@ typedef struct SUdfcFuncStub {
   char udfName[TSDB_FUNC_NAME_LEN];
   UdfcFuncHandle handle;
   int32_t refCount;
+  int64_t lastRefTime;
 } SUdfcFuncStub;
 
 typedef struct SUdfcProxy {
@@ -794,7 +795,6 @@ int32_t convertScalarParamToDataBlock(SScalarParam *input, int32_t numOfCols, SS
   }
   output->info.hasVarCol = hasVarCol;
 
-  //TODO: free the array output->pDataBlock
   output->pDataBlock = taosArrayInit(numOfCols, sizeof(SColumnInfoData));
   for (int32_t i = 0; i < numOfCols; ++i) {
     taosArrayPush(output->pDataBlock, (input + i)->columnData);
@@ -808,8 +808,12 @@ int32_t convertDataBlockToScalarParm(SSDataBlock *input, SScalarParam *output) {
     return -1;
   }
   output->numOfRows = input->info.rows;
-  //TODO: memory
-  output->columnData = taosArrayGet(input->pDataBlock, 0);
+
+  output->columnData = taosMemoryMalloc(sizeof(SColumnInfoData));
+  memcpy(output->columnData,
+         taosArrayGet(input->pDataBlock, 0),
+         sizeof(SColumnInfoData));
+
   return 0;
 }
 
@@ -832,7 +836,7 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
   fnDebug("udfc get uv task result. task: %p, uvTask: %p", task, uvTask);
   if (uvTask->type == UV_TASK_REQ_RSP) {
     if (uvTask->rspBuf.base != NULL) {
-      SUdfResponse rsp;
+      SUdfResponse rsp = {0};
       void* buf = decodeUdfResponse(uvTask->rspBuf.base, &rsp);
       assert(uvTask->rspBuf.len == POINTER_DISTANCE(buf, uvTask->rspBuf.base));
       task->errCode = rsp.code;
@@ -1283,7 +1287,7 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   task->type = UDF_TASK_SETUP;
 
   SUdfSetupRequest *req = &task->_setup.req;
-  memcpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
+  strncpy(req->udfName, udfName, TSDB_FUNC_NAME_LEN);
 
   int32_t errCode = udfcRunUdfUvTask(task, UV_TASK_CONNECT);
   if (errCode != 0) {
@@ -1308,6 +1312,93 @@ int32_t doSetupUdf(char udfName[], UdfcFuncHandle *funcHandle) {
   int32_t err = task->errCode;
   taosMemoryFree(task);
   return err;
+}
+
+int compareUdfcFuncSub(const void* elem1, const void* elem2) {
+  SUdfcFuncStub *stub1 = (SUdfcFuncStub *)elem1;
+  SUdfcFuncStub *stub2 = (SUdfcFuncStub *)elem2;
+  return strcmp(stub1->udfName, stub2->udfName);
+}
+
+int32_t acquireUdfFuncHandle(char* udfName, UdfcFuncHandle* pHandle) {
+  int32_t code = 0;
+  uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
+  SUdfcFuncStub key = {0};
+  strcpy(key.udfName, udfName);
+  int32_t stubIndex = taosArraySearchIdx(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
+  if (stubIndex != -1) {
+    SUdfcFuncStub *foundStub = taosArrayGet(gUdfdProxy.udfStubs, stubIndex);
+    UdfcFuncHandle handle = foundStub->handle;
+    if (handle != NULL && ((SUdfcUvSession*)handle)->udfUvPipe != NULL) {
+      *pHandle = foundStub->handle;
+      ++foundStub->refCount;
+      foundStub->lastRefTime = taosGetTimestampUs();
+      uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
+      return 0;
+    } else {
+      fnInfo("invalid handle for %s, refCount: %d, last ref time: %"PRId64". remove it from cache",
+             udfName, foundStub->refCount, foundStub->lastRefTime);
+      taosArrayRemove(gUdfdProxy.udfStubs, stubIndex);
+    }
+  }
+  *pHandle = NULL;
+  code = doSetupUdf(udfName, pHandle);
+  if (code == TSDB_CODE_SUCCESS) {
+    SUdfcFuncStub stub = {0};
+    strcpy(stub.udfName, udfName);
+    stub.handle = *pHandle;
+    ++stub.refCount;
+    stub.lastRefTime = taosGetTimestampUs();
+    taosArrayPush(gUdfdProxy.udfStubs, &stub);
+    taosArraySort(gUdfdProxy.udfStubs, compareUdfcFuncSub);
+  } else {
+    *pHandle = NULL;
+  }
+
+  uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
+  return code;
+}
+
+void releaseUdfFuncHandle(char* udfName) {
+  uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
+  SUdfcFuncStub key = {0};
+  strcpy(key.udfName, udfName);
+  SUdfcFuncStub *foundStub = taosArraySearch(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
+  if (!foundStub) {
+    return;
+  }
+  if (foundStub->refCount > 0) {
+    --foundStub->refCount;
+  }
+  uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
+}
+
+int32_t cleanUpUdfs() {
+  uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
+  int32_t i = 0;
+  SArray* udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
+  while (i < taosArrayGetSize(gUdfdProxy.udfStubs)) {
+    SUdfcFuncStub *stub = taosArrayGet(gUdfdProxy.udfStubs, i);
+    if (stub->refCount == 0) {
+      fnInfo("tear down udf. udf name: %s, handle: %p, ref count: %d", stub->udfName, stub->handle, stub->refCount);
+      doTeardownUdf(stub->handle);
+    } else {
+      fnInfo("udf still in use. udf name: %s, ref count: %d, last ref time: %"PRId64", handle: %p",
+             stub->udfName, stub->refCount, stub->lastRefTime, stub->handle);
+      UdfcFuncHandle handle = stub->handle;
+      if (handle != NULL && ((SUdfcUvSession*)handle)->udfUvPipe != NULL) {
+        taosArrayPush(udfStubs, stub);
+      } else {
+        fnInfo("udf invalid handle for %s, refCount: %d, last ref time: %"PRId64". remove it from cache",
+               stub->udfName, stub->refCount, stub->lastRefTime);
+      }
+    }
+    ++i;
+  }
+  taosArrayDestroy(gUdfdProxy.udfStubs);
+  gUdfdProxy.udfStubs = udfStubs;
+  uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
+  return 0;
 }
 
 int32_t callUdf(UdfcFuncHandle handle, int8_t callType, SSDataBlock *input, SUdfInterBuf *state, SUdfInterBuf *state2,
@@ -1426,63 +1517,32 @@ int32_t doCallUdfScalarFunc(UdfcFuncHandle handle, SScalarParam *input, int32_t 
   int32_t err = callUdf(handle, callType, &inputBlock, NULL, NULL, &resultBlock, NULL);
   if (err == 0) {
     convertDataBlockToScalarParm(&resultBlock, output);
+    taosArrayDestroy(resultBlock.pDataBlock);
   }
+
+  taosArrayDestroy(inputBlock.pDataBlock);
   return err;
 }
 
-int compareUdfcFuncSub(const void* elem1, const void* elem2) {
-  SUdfcFuncStub *stub1 = (SUdfcFuncStub *)elem1;
-  SUdfcFuncStub *stub2 = (SUdfcFuncStub *)elem2;
-  return strcmp(stub1->udfName, stub2->udfName);
-}
-
-int32_t accquireUdfFuncHandle(char* udfName, UdfcFuncHandle* pHandle) {
-  int32_t code = 0;
-  uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
-  SUdfcFuncStub key = {0};
-  strcpy(key.udfName, udfName);
-  SUdfcFuncStub *foundStub = taosArraySearch(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
-  if (foundStub != NULL) {
-    uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
-    *pHandle = foundStub->handle;
-    ++foundStub->refCount;
-    return 0;
-  }
-  *pHandle = NULL;
-  code = doSetupUdf(udfName, pHandle);
-  if (code == TSDB_CODE_SUCCESS) {
-    SUdfcFuncStub stub = {0};
-    strcpy(stub.udfName, udfName);
-    stub.handle = *pHandle;
-    ++stub.refCount;
-    taosArrayPush(gUdfdProxy.udfStubs, &stub);
-    taosArraySort(gUdfdProxy.udfStubs, compareUdfcFuncSub);
-  } else {
-    *pHandle = NULL;
-  }
-
-  uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
-  return code;
-}
-
-void releaseUdfFuncHandle(char* udfName) {
-  uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
-  SUdfcFuncStub key = {0};
-  strcpy(key.udfName, udfName);
-  SUdfcFuncStub *foundStub = taosArraySearch(gUdfdProxy.udfStubs, &key, compareUdfcFuncSub, TD_EQ);
-  ASSERT(foundStub);
-  --foundStub->refCount;
-  ASSERT(foundStub->refCount>=0);
-  uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
-}
 
 int32_t callUdfScalarFunc(char *udfName, SScalarParam *input, int32_t numOfCols, SScalarParam *output) {
   UdfcFuncHandle handle = NULL;
-  int32_t code = accquireUdfFuncHandle(udfName, &handle);
+  int32_t code = acquireUdfFuncHandle(udfName, &handle);
   if (code != 0) {
     return code;
   }
+  SUdfcUvSession *session = handle;
   code = doCallUdfScalarFunc(handle, input, numOfCols, output);
+  if (output->columnData == NULL) {
+    fnError("udfc scalar function calculate error. no column data");
+    code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+  } else {
+    if (session->outputType != output->columnData->info.type || session->outputLen != output->columnData->info.bytes) {
+      fnError("udfc scalar function calculate error. type mismatch. session type: %d(%d), output type: %d(%d)", session->outputType,
+              session->outputLen, output->columnData->info.type, output->columnData->info.bytes);
+      code = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+    }
+  }
   releaseUdfFuncHandle(udfName);
   return code;
 }
@@ -1505,22 +1565,20 @@ int32_t doTeardownUdf(UdfcFuncHandle handle) {
 
   udfcRunUdfUvTask(task, UV_TASK_REQ_RSP);
 
-  SUdfTeardownResponse *rsp = &task->_teardown.rsp;
   int32_t err = task->errCode;
 
   udfcRunUdfUvTask(task, UV_TASK_DISCONNECT);
 
-  taosMemoryFree(task->session);
-  taosMemoryFree(task);
-
   fnInfo("tear down udf. udf name: %s, udf func handle: %p", session->udfName, handle);
+
+  taosMemoryFree(session);
+  taosMemoryFree(task);
 
   return err;
 }
 
 //memory layout |---SUdfAggRes----|-----final result-----|---inter result----|
 typedef struct SUdfAggRes {
-  SUdfcUvSession *session;
   int8_t finalResNum;
   int8_t interResNum;
   char* finalResBuf;
@@ -1541,7 +1599,7 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
   }
   UdfcFuncHandle handle;
   int32_t udfCode = 0;
-  if ((udfCode = accquireUdfFuncHandle((char *)pCtx->udfName, &handle)) != 0) {
+  if ((udfCode = acquireUdfFuncHandle((char *)pCtx->udfName, &handle)) != 0) {
     fnError("udfAggInit error. step doSetupUdf. udf code: %d", udfCode);
     return false;
   }
@@ -1553,29 +1611,40 @@ bool udfAggInit(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInfo* pResult
   udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
   udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
-  udfRes->session = (SUdfcUvSession *)handle;
   SUdfInterBuf buf = {0};
   if ((udfCode = doCallUdfAggInit(handle, &buf)) != 0) {
     fnError("udfAggInit error. step doCallUdfAggInit. udf code: %d", udfCode);
+    releaseUdfFuncHandle(pCtx->udfName);
     return false;
   }
   udfRes->interResNum = buf.numOfResult;
-  memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+  if (buf.bufLen <= session->bufSize) {
+    memcpy(udfRes->interResBuf, buf.buf, buf.bufLen);
+  } else {
+    fnError("udfc inter buf size %d is greater than function bufSize %d", buf.bufLen, session->bufSize);
+    releaseUdfFuncHandle(pCtx->udfName);
+    return false;
+  }
+  releaseUdfFuncHandle(pCtx->udfName);
+  freeUdfInterBuf(&buf);
   return true;
 }
 
 int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
-  SInputColumnInfoData* pInput = &pCtx->input;
-  int32_t numOfCols = pInput->numOfInputCols;
-
-  SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  SUdfcUvSession *session = udfRes->session;
-  if (session == NULL) {
-    return TSDB_CODE_UDF_NO_FUNC_HANDLE;
+  int32_t udfCode = 0;
+  UdfcFuncHandle handle = 0;
+  if ((udfCode = acquireUdfFuncHandle((char *)pCtx->udfName, &handle)) != 0) {
+    fnError("udfAggProcess  error. step acquireUdfFuncHandle. udf code: %d", udfCode);
+    return udfCode;
   }
+
+  SUdfcUvSession *session = handle;
+  SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
   udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
+  SInputColumnInfoData* pInput = &pCtx->input;
+  int32_t numOfCols = pInput->numOfInputCols;
   int32_t start = pInput->startRowIndex;
   int32_t numOfRows = pInput->numOfRows;
 
@@ -1603,13 +1672,18 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
                         .numOfResult = udfRes->interResNum};
   SUdfInterBuf newState = {0};
 
-  int32_t udfCode = doCallUdfAggProcess(session, inputBlock, &state, &newState);
+  udfCode = doCallUdfAggProcess(session, inputBlock, &state, &newState);
   if (udfCode != 0) {
     fnError("udfAggProcess error. code: %d", udfCode);
     newState.numOfResult = 0;
   } else {
     udfRes->interResNum = newState.numOfResult;
-    memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+    if (newState.bufLen <= session->bufSize) {
+      memcpy(udfRes->interResBuf, newState.buf, newState.bufLen);
+    } else {
+      fnError("udfc inter buf size %d is greater than function bufSize %d", newState.bufLen, session->bufSize);
+      udfCode = TSDB_CODE_UDF_INVALID_BUFSIZE;
+    }
   }
   if (newState.numOfResult == 1 || state.numOfResult == 1) {
     GET_RES_INFO(pCtx)->numOfRes = 1;
@@ -1618,16 +1692,21 @@ int32_t udfAggProcess(struct SqlFunctionCtx *pCtx) {
   blockDataDestroy(inputBlock);
   taosArrayDestroy(tempBlock.pDataBlock);
 
-  taosMemoryFree(newState.buf);
+  releaseUdfFuncHandle(pCtx->udfName);
+  freeUdfInterBuf(&newState);
   return udfCode;
 }
 
 int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
-  SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  SUdfcUvSession *session = udfRes->session;
-  if (session == NULL) {
-    return TSDB_CODE_UDF_NO_FUNC_HANDLE;
+  int32_t udfCode = 0;
+  UdfcFuncHandle handle = 0;
+  if ((udfCode = acquireUdfFuncHandle((char *)pCtx->udfName, &handle)) != 0) {
+    fnError("udfAggProcess  error. step acquireUdfFuncHandle. udf code: %d", udfCode);
+    return udfCode;
   }
+
+  SUdfcUvSession *session = handle;
+  SUdfAggRes* udfRes = (SUdfAggRes *)GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
   udfRes->finalResBuf = (char*)udfRes + sizeof(SUdfAggRes);
   udfRes->interResBuf = (char*)udfRes + sizeof(SUdfAggRes) + session->outputLen;
 
@@ -1642,33 +1721,20 @@ int32_t udfAggFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
     fnError("udfAggFinalize error. doCallUdfAggFinalize step. udf code:%d", udfCallCode);
     GET_RES_INFO(pCtx)->numOfRes = 0;
   } else {
-    memcpy(udfRes->finalResBuf, resultBuf.buf, session->outputLen);
-    udfRes->finalResNum = resultBuf.numOfResult;
-    GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
+    if (resultBuf.bufLen <= session->outputLen) {
+      memcpy(udfRes->finalResBuf, resultBuf.buf, session->outputLen);
+      udfRes->finalResNum = resultBuf.numOfResult;
+      GET_RES_INFO(pCtx)->numOfRes = udfRes->finalResNum;
+    } else {
+      fnError("udfc inter buf size %d is greater than function output size %d", resultBuf.bufLen, session->outputLen);
+      GET_RES_INFO(pCtx)->numOfRes = 0;
+      udfCallCode = TSDB_CODE_UDF_INVALID_OUTPUT_TYPE;
+    }
   }
+
+  freeUdfInterBuf(&resultBuf);
 
   int32_t numOfResults = functionFinalizeWithResultBuf(pCtx, pBlock, udfRes->finalResBuf);
   releaseUdfFuncHandle(pCtx->udfName);
   return udfCallCode == 0 ? numOfResults : udfCallCode;
-}
-
-int32_t cleanUpUdfs() {
-  uv_mutex_lock(&gUdfdProxy.udfStubsMutex);
-  int32_t i = 0;
-  SArray* udfStubs = taosArrayInit(16, sizeof(SUdfcFuncStub));
-  while (i < taosArrayGetSize(gUdfdProxy.udfStubs)) {
-    SUdfcFuncStub *stub = taosArrayGet(gUdfdProxy.udfStubs, i);
-    if (stub->refCount == 0) {
-      fnInfo("tear down udf. udf name: %s, handle: %p", stub->udfName, stub->handle);
-      doTeardownUdf(stub->handle);
-    } else {
-      fnInfo("udf still in use. udf name: %s, ref count: %d, handle: %p", stub->udfName, stub->refCount, stub->handle);
-      taosArrayPush(udfStubs, stub);
-    }
-    ++i;
-  }
-  taosArrayDestroy(gUdfdProxy.udfStubs);
-  gUdfdProxy.udfStubs = udfStubs;
-  uv_mutex_unlock(&gUdfdProxy.udfStubsMutex);
-  return 0;
 }

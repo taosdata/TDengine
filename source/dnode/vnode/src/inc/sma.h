@@ -46,7 +46,7 @@ struct SSmaEnv {
   TXN            txn;
   void          *pPool;  // SPoolMem
   SDiskID        did;
-  TENV          *dbEnv;  // TODO: If it's better to put it in smaIndex level?
+  TDB           *dbEnv;  // TODO: If it's better to put it in smaIndex level?
   char          *path;   // relative path
   SSmaStat      *pStat;
 };
@@ -70,7 +70,7 @@ struct SSmaStatItem {
    * N.B. only applicable to tsma
    */
   int8_t    state;           // ETsdbSmaStat
-  SHashObj *expiredWindows;  // key: skey of time window, value: N/A
+  SHashObj *expiredWindows;  // key: skey of time window, value: version
   STSma    *pTSma;           // cache schema
 };
 
@@ -93,16 +93,16 @@ typedef struct SDBFile SDBFile;
 
 struct SDBFile {
   int32_t fid;
-  TDB    *pDB;
+  TTB    *pDB;
   char   *path;
 };
 
 int32_t tdSmaBeginCommit(SSmaEnv *pEnv);
 int32_t tdSmaEndCommit(SSmaEnv *pEnv);
 
-int32_t smaOpenDBEnv(TENV **ppEnv, const char *path);
-int32_t smaCloseDBEnv(TENV *pEnv);
-int32_t smaOpenDBF(TENV *pEnv, SDBFile *pDBF);
+int32_t smaOpenDBEnv(TDB **ppEnv, const char *path);
+int32_t smaCloseDBEnv(TDB *pEnv);
+int32_t smaOpenDBF(TDB *pEnv, SDBFile *pDBF);
 int32_t smaCloseDBF(SDBFile *pDBF);
 int32_t smaSaveSmaToDB(SDBFile *pDBF, void *pKey, int32_t keyLen, void *pVal, int32_t valLen, TXN *txn);
 void   *smaGetSmaDataByKey(SDBFile *pDBF, const void *pKey, int32_t keyLen, int32_t *valLen);
@@ -217,6 +217,11 @@ static SSmaEnv *tdNewSmaEnv(const SSma *pSma, int8_t smaType, const char *path, 
 static int32_t  tdInitSmaEnv(SSma *pSma, int8_t smaType, const char *path, SDiskID did, SSmaEnv **pEnv);
 
 void *tdFreeRSmaInfo(SRSmaInfo *pInfo);
+
+int32_t tdProcessTSmaCreateImpl(SSma *pSma, int64_t version, const char *pMsg);
+int32_t tdUpdateExpiredWindowImpl(SSma *pSma, SSubmitReq *pMsg, int64_t version);
+// TODO: This is the basic params, and should wrap the params to a queryHandle.
+int32_t tdGetTSmaDataImpl(SSma *pSma, char *pData, int64_t indexUid, TSKEY querySKey, int32_t nMaxResult);
 
 #ifdef __cplusplus
 }

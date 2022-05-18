@@ -26,9 +26,9 @@ static SSdbRow *mndAcctActionDecode(SSdbRaw *pRaw);
 static int32_t  mndAcctActionInsert(SSdb *pSdb, SAcctObj *pAcct);
 static int32_t  mndAcctActionDelete(SSdb *pSdb, SAcctObj *pAcct);
 static int32_t  mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew);
-static int32_t  mndProcessCreateAcctReq(SNodeMsg *pReq);
-static int32_t  mndProcessAlterAcctReq(SNodeMsg *pReq);
-static int32_t  mndProcessDropAcctReq(SNodeMsg *pReq);
+static int32_t  mndProcessCreateAcctReq(SRpcMsg *pReq);
+static int32_t  mndProcessAlterAcctReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropAcctReq(SRpcMsg *pReq);
 
 int32_t mndInitAcct(SMnode *pMnode) {
   SSdbTable table = {.sdbType = SDB_ACCT,
@@ -185,19 +185,19 @@ static int32_t mndAcctActionUpdate(SSdb *pSdb, SAcctObj *pOld, SAcctObj *pNew) {
   return 0;
 }
 
-static int32_t mndProcessCreateAcctReq(SNodeMsg *pReq) {
+static int32_t mndProcessCreateAcctReq(SRpcMsg *pReq) {
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
-static int32_t mndProcessAlterAcctReq(SNodeMsg *pReq) {
+static int32_t mndProcessAlterAcctReq(SRpcMsg *pReq) {
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;
 }
 
-static int32_t mndProcessDropAcctReq(SNodeMsg *pReq) {
+static int32_t mndProcessDropAcctReq(SRpcMsg *pReq) {
   terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   mError("failed to process create acct request since %s", terrstr());
   return -1;

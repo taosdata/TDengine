@@ -129,7 +129,7 @@ int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   char*   configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
   SRpcMsg rpcMsg = {0};
   rpcMsg.msgType = TDMT_VND_SYNC_CONFIG_CHANGE;
-  rpcMsg.noResp = 1;
+  rpcMsg.info.noResp = 1;
   rpcMsg.contLen = strlen(configChange) + 1;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
   snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", configChange);
@@ -687,7 +687,7 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    pMsg->noResp = 1;
+    pMsg->info.noResp = 1;
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
@@ -702,7 +702,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
   SEpSet epSet;
   syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    pMsg->noResp = 1;
+    pMsg->info.noResp = 1;
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 

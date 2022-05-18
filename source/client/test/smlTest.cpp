@@ -207,7 +207,7 @@ TEST(testCase, smlParseCols_Error_Test) {
     char *sql = (char*)taosMemoryCalloc(256, 1);
     memcpy(sql, data[i], len + 1);
     SArray *cols = taosArrayInit(8, POINTER_BYTES);
-    int32_t ret = smlParseCols(sql, len, cols, false, dumplicateKey, &msgBuf);
+    int32_t ret = smlParseCols(sql, len, cols, NULL, false, dumplicateKey, &msgBuf);
     ASSERT_NE(ret, TSDB_CODE_SUCCESS);
     taosHashClear(dumplicateKey);
     taosMemoryFree(sql);
@@ -233,7 +233,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   const char *data =
       "cbin=\"passit helloc\",cnch=L\"iisdfsf\",cbool=false,cf64=4.31f64,cf64_=8.32,cf32=8.23f32,ci8=-34i8,cu8=89u8,ci16=233i16,cu16=898u16,ci32=98289i32,cu32=12323u32,ci64=-89238i64,ci=989i,cu64=8989323u64,cbooltrue=true,cboolt=t,cboolf=f,cnch_=l\"iuwq\"";
   int32_t len = strlen(data);
-  int32_t ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
+  int32_t ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
@@ -265,7 +265,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   len = 0;
   memset(msgBuf.buf, 0, msgBuf.len);
   taosHashClear(dumplicateKey);
-  ret = smlParseCols(data, len, cols, true, dumplicateKey, &msgBuf);
+  ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 1);
@@ -298,7 +298,7 @@ TEST(testCase, smlParseCols_Test) {
   int32_t len = strlen(data);
   char *sql = (char*)taosMemoryCalloc(1024, 1);
   memcpy(sql, data, len + 1);
-  int32_t ret = smlParseCols(sql, len, cols, false, dumplicateKey, &msgBuf);
+  int32_t ret = smlParseCols(sql, len, cols, NULL, false, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   int32_t size = taosArrayGetSize(cols);
   ASSERT_EQ(size, 19);
@@ -488,44 +488,118 @@ TEST(testCase, smlProcess_influx_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists inflx_db");
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "use sml_db");
+  pRes = taos_query(taos, "use inflx_db");
   taos_free_result(pRes);
 
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0 1451606400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451607400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,heading=221,grade=0,fuel_consumption=25 1451608400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451609400000000000",
-    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451619400000000000",
-    "readings,name=truck_1,fleet=South,driver=Albert,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=72.45258,longitude=68.83761,elevation=255,velocity=0,heading=181,grade=0,fuel_consumption=25 1451606400000000000",
-    "readings,name=truck_2,driver=Derek,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606400000000000",
-    "readings,name=truck_2,fleet=North,driver=Derek,model=F-150 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451609400000000000",
-    "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451629400000000000",
-    "stable,t1=t1,t2=t2,t3=t3 c1=1,c2=2,c3=3,c4=4 1451629500000000000",
-    "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=3,c4=4 1451629600000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0 1451606401000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451607402000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 load_capacity=1500,fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,heading=221,grade=0,fuel_consumption=25 1451608403000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_capacity=150,nominal_fuel_consumption=12,latitude=52.31854,longitude=4.72037,elevation=124,velocity=0,heading=221,grade=0,fuel_consumption=25 1451609404000000000",
+    "readings,name=truck_0,fleet=South,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451619405000000000",
+    "readings,name=truck_1,fleet=South,driver=Albert,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=72.45258,longitude=68.83761,elevation=255,velocity=0,heading=181,grade=0,fuel_consumption=25 145160640600000000",
+    "readings,name=truck_2,driver=Derek,model=F-150,device_version=v1.5 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451606407000000000",
+    "readings,name=truck_2,fleet=North,driver=Derek,model=F-150 load_capacity=2000,fuel_capacity=200,nominal_fuel_consumption=15,latitude=24.5208,longitude=28.09377,elevation=428,velocity=0,heading=304,grade=0,fuel_consumption=25 1451609408000000000",
+    "readings,fleet=South,name=truck_0,driver=Trish,model=H-2,device_version=v2.3 fuel_consumption=25,grade=0 1451629409000000000",
+    "stable,t1=t1,t2=t2,t3=t3 c1=1,c2=2,c3=\"kk\",c4=4 1451629501000000000",
+    "stable,t2=t2,t1=t1,t3=t3 c1=1,c3=\"\",c4=4 1451629602000000000",
   };
   int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
   ASSERT_EQ(ret, 0);
 
-//  TAOS_RES *res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
-//  ASSERT_NE(res, nullptr);
-//  int fieldNum = taos_field_count(res);
-//  ASSERT_EQ(fieldNum, 5);
-//  int rowNum = taos_affected_rows(res);
-//  ASSERT_EQ(rowNum, 2);
-//  for (int i = 0; i < rowNum; ++i) {
-//    TAOS_ROW rows = taos_fetch_row(res);
-//  }
-//  taos_free_result(res);
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_91e0b182be80332b5c530cbf872f760e");
+  ASSERT_NE(res, nullptr);
+  int fieldNum = taos_field_count(res);
+  ASSERT_EQ(fieldNum, 11);
+  printf("fieldNum:%d\n", fieldNum);
+
+  TAOS_ROW row = NULL;
+  int32_t rowIndex = 0;
+  while((row = taos_fetch_row(res)) != NULL) {
+    int64_t ts = *(int64_t*)row[0];
+    double load_capacity = *(double*)row[1];
+    double fuel_capacity = *(double*)row[2];
+    double nominal_fuel_consumption = *(double*)row[3];
+    double latitude = *(double*)row[4];
+    double longitude = *(double*)row[5];
+    double elevation = *(double*)row[6];
+    double velocity = *(double*)row[7];
+    double heading = *(double*)row[8];
+    double grade = *(double*)row[9];
+    double fuel_consumption = *(double*)row[10];
+    if(rowIndex == 0){
+      ASSERT_EQ(ts, 1451606407000);
+      ASSERT_EQ(load_capacity, 2000);
+      ASSERT_EQ(fuel_capacity, 200);
+      ASSERT_EQ(nominal_fuel_consumption, 15);
+      ASSERT_EQ(latitude, 24.5208);
+      ASSERT_EQ(longitude, 28.09377);
+      ASSERT_EQ(elevation, 428);
+      ASSERT_EQ(velocity, 0);
+      ASSERT_EQ(heading, 304);
+      ASSERT_EQ(grade, 0);
+      ASSERT_EQ(fuel_consumption, 25);
+    }else{
+      ASSERT_FALSE(1);
+    }
+    rowIndex++;
+  }
+  taos_free_result(res);
+
+  // case 2
+  res = taos_query(taos, "select * from t_6885c584b98481584ee13dac399e173d");
+  ASSERT_NE(res, nullptr);
+  fieldNum = taos_field_count(res);
+  ASSERT_EQ(fieldNum, 5);
+  printf("fieldNum:%d\n", fieldNum);
+
+  rowIndex = 0;
+  while((row = taos_fetch_row(res)) != NULL) {
+    int *length = taos_fetch_lengths(res);
+
+    int64_t ts = *(int64_t*)row[0];
+    double c1 = *(double*)row[1];
+    double c4 = *(double*)row[4];
+    if(rowIndex == 0){
+      ASSERT_EQ(ts, 1451629501000);
+      ASSERT_EQ(c1, 1);
+      ASSERT_EQ(*(double*)row[2], 2);
+      ASSERT_EQ(length[3], 2);
+      ASSERT_EQ(memcmp(row[3], "kk", length[3]), 0);
+      ASSERT_EQ(c4, 4);
+    }else if(rowIndex == 1){
+      ASSERT_EQ(ts, 1451629602000);
+      ASSERT_EQ(c1, 1);
+      ASSERT_EQ(row[2], nullptr);
+      ASSERT_EQ(length[3], 0);
+      ASSERT_EQ(c4, 4);
+    }else{
+      ASSERT_FALSE(1);
+    }
+    rowIndex++;
+  }
+  taos_free_result(res);
+
+  // case 2
+  res = taos_query(taos, "show tables");
+  ASSERT_NE(res, nullptr);
+
+  row = taos_fetch_row(res);
+  int rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 5);
+  taos_free_result(res);
+
+
   destroyRequest(request);
   smlDestroyInfo(info);
 }
@@ -544,7 +618,7 @@ TEST(testCase, smlParseLine_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
@@ -584,16 +658,16 @@ TEST(testCase, smlProcess_telnet_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists telnet_db");
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "use sml_db");
+  pRes = taos_query(taos, "use telnet_db");
   taos_free_result(pRes);
 
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
@@ -605,27 +679,31 @@ TEST(testCase, smlProcess_telnet_Test) {
   int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
   ASSERT_EQ(ret, 0);
 
-//  TAOS_RES *res = taos_query(taos, "select * from t_8c30283b3c4131a071d1e16cf6d7094a");
-//  ASSERT_NE(res, nullptr);
-//  int fieldNum = taos_field_count(res);
-//  ASSERT_EQ(fieldNum, 2);
-//  int rowNum = taos_affected_rows(res);
-//  ASSERT_EQ(rowNum, 1);
-//  for (int i = 0; i < rowNum; ++i) {
-//   TAOS_ROW rows = taos_fetch_row(res);
-//  }
-//  taos_free_result(res);
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_8c30283b3c4131a071d1e16cf6d7094a");
+  ASSERT_NE(res, nullptr);
+  int fieldNum = taos_field_count(res);
+  ASSERT_EQ(fieldNum, 2);
 
-//  res = taos_query(taos, "select * from t_6931529054e5637ca92c78a1ad441961");
-//  ASSERT_NE(res, nullptr);
-//  fieldNum = taos_field_count(res);
-//  ASSERT_EQ(fieldNum, 2);
-//  rowNum = taos_affected_rows(res);
-//  ASSERT_EQ(rowNum, 2);
-//  for (int i = 0; i < rowNum; ++i) {
-//   TAOS_ROW rows = taos_fetch_row(res);
-//  }
-//  taos_free_result(res);
+  TAOS_ROW row = taos_fetch_row(res);
+  int64_t ts = *(int64_t*)row[0];
+  double c1 = *(double*)row[1];
+  ASSERT_EQ(ts, 1479496100000);
+  ASSERT_EQ(c1, 42);
+
+  int rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 1);
+  taos_free_result(res);
+
+  // case 2
+  res = taos_query(taos, "show tables");
+  ASSERT_NE(res, nullptr);
+
+  row = taos_fetch_row(res);
+  rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 3);
+  taos_free_result(res);
+
   destroyRequest(request);
   smlDestroyInfo(info);
 }
@@ -634,16 +712,16 @@ TEST(testCase, smlProcess_json1_Test) {
   TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(taos, nullptr);
 
-  TAOS_RES *pRes = taos_query(taos, "create database if not exists sml_db");
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists json_db");
   taos_free_result(pRes);
 
-  pRes = taos_query(taos, "use sml_db");
+  pRes = taos_query(taos, "use json_db");
   taos_free_result(pRes);
 
   SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql =
@@ -670,16 +748,31 @@ TEST(testCase, smlProcess_json1_Test) {
   int ret = smlProcess(info, (char **)(&sql), -1);
   ASSERT_EQ(ret, 0);
 
-//  TAOS_RES *res = taos_query(taos, "select * from t_cb27a7198d637b4f1c6464bd73f756a7");
-//  ASSERT_NE(res, nullptr);
-//  int fieldNum = taos_field_count(res);
-//  ASSERT_EQ(fieldNum, 2);
-  //   int rowNum = taos_affected_rows(res);
-  //   ASSERT_EQ(rowNum, 1);
-  //   for (int i = 0; i < rowNum; ++i) {
-  //     TAOS_ROW rows = taos_fetch_row(res);
-  //   }
-//  taos_free_result(res);
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_cb27a7198d637b4f1c6464bd73f756a7");
+  ASSERT_NE(res, nullptr);
+  int fieldNum = taos_field_count(res);
+  ASSERT_EQ(fieldNum, 2);
+
+  TAOS_ROW row = taos_fetch_row(res);
+  int64_t ts = *(int64_t*)row[0];
+  double c1 = *(double*)row[1];
+  ASSERT_EQ(ts, 1346846400000);
+  ASSERT_EQ(c1, 18);
+
+  int rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 1);
+  taos_free_result(res);
+
+  // case 2
+  res = taos_query(taos, "show tables");
+  ASSERT_NE(res, nullptr);
+
+  row = taos_fetch_row(res);
+  rowNum = taos_affected_rows(res);
+  ASSERT_EQ(rowNum, 2);
+  taos_free_result(res);
+
   destroyRequest(request);
   smlDestroyInfo(info);
 }
@@ -697,7 +790,7 @@ TEST(testCase, smlProcess_json2_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
   const char *sql =
      "{\n"
@@ -741,7 +834,7 @@ TEST(testCase, smlProcess_json3_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
   const char *sql =
      "{\n"
@@ -813,7 +906,7 @@ TEST(testCase, smlProcess_json4_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_JSON_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
   const char *sql = "{\n"
      "    \"metric\": \"meter_current2\",\n"
@@ -875,7 +968,7 @@ TEST(testCase, smlParseTelnetLine_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   int32_t ret = 0;
@@ -924,7 +1017,7 @@ TEST(testCase, smlParseTelnetLine_diff_type_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[2] = {
@@ -951,7 +1044,7 @@ TEST(testCase, smlParseTelnetLine_json_error_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   int32_t ret = 0;
@@ -1019,7 +1112,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type1_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[2] = {
@@ -1064,7 +1157,7 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS, true);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[2] = {
@@ -1094,4 +1187,37 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
 
   destroyRequest(request);
   smlDestroyInfo(info);
+}
+
+TEST(testCase, sml_TD15662_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_15662 precision 'ns'");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use db_15662");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[] = {
+      "iyyyje,id=iyyyje_41943_1303,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+  };
+  int ret = smlProcess(info, (char **)sql, sizeof(sql) / sizeof(sql[0]));
+  ASSERT_EQ(ret, 0);
+
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_a5615048edae55218a22a149edebdc82");
+  ASSERT_NE(res, nullptr);
+
+  TAOS_ROW row = taos_fetch_row(res);
+  int64_t ts = *(int64_t*)row[0];
+  ASSERT_EQ(ts, 1626006833639000000);
+
+  taos_free_result(res);
 }

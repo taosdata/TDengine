@@ -196,6 +196,8 @@ struct SMetaEntry {
       STSma *tsma;
     } smaEntry;
   };
+
+  uint8_t *pBuf;
 };
 
 struct SMetaReader {
@@ -208,7 +210,7 @@ struct SMetaReader {
 };
 
 struct SMTbCursor {
-  TDBC       *pDbc;
+  TBC        *pDbc;
   void       *pKey;
   void       *pVal;
   int         kLen;

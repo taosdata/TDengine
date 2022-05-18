@@ -278,7 +278,7 @@ void build_consumer(SThreadInfo* pInfo) {
 
   //tmq_conf_set(conf, "td.connect.db", g_stConfInfo.dbName);
 
-  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print, NULL);
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
 
   // tmq_conf_set(conf, "group.id", "cgrp1");
   for (int32_t i = 0; i < pInfo->numOfKey; i++) {
@@ -322,8 +322,11 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
   sprintf(sqlStr, "insert into %s.consumeresult values (now, %d, %" PRId64 ", %" PRId64 ", %d)", g_stConfInfo.cdbName,
           pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt, pInfo->checkresult);
 
-  taosFprintfFile(g_fp, "== save result sql: %s \n", sqlStr);
-  
+  time_t	tTime = taosGetTimestampSec();
+  struct tm tm = *taosLocalTime(&tTime, NULL);
+  taosFprintfFile(g_fp, "# save result:	%d-%02d-%02d %02d:%02d:%02d, sql: %s\n", tm.tm_year + 1900, tm.tm_mon + 1,
+						  tm.tm_mday, tm.tm_hour, tm.tm_min, tm.tm_sec, sqlStr);
+
   TAOS_RES* pRes = taos_query(pConn, sqlStr);
   if (taos_errno(pRes) != 0) {
     pError("error in save consumeinfo, reason:%s\n", taos_errstr(pRes));
@@ -534,6 +537,7 @@ int main(int32_t argc, char* argv[]) {
 
   for (int32_t i = 0; i < g_stConfInfo.numOfThread; i++) {
     taosThreadJoin(g_stConfInfo.stThreads[i].thread, NULL);
+    taosThreadClear(&g_stConfInfo.stThreads[i].thread);
   }
 
   // printf("consumer: %d, cosumer1: %d\n", totalMsgs, pInfo->consumeMsgCnt);

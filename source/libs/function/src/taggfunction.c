@@ -480,7 +480,7 @@ static bool function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInf
   initResultRowEntry(pResultInfo, pCtx->resDataInfo.interBufSize);
   return true;
 }
-
+#if 0
 /**
  * in handling the stable query, function_finalizer is called after the secondary
  * merge being completed, during the first merge procedure, which is executed at the
@@ -495,53 +495,6 @@ static void function_finalizer(SqlFunctionCtx *pCtx) {
 //  }
   
   doFinalizer(pCtx);
-}
-
-/*
- * count function does need the finalize, if data is missing, the default value, which is 0, is used
- * count function does not use the pCtx->interResBuf to keep the intermediate buffer
- */
-static void count_function(SqlFunctionCtx *pCtx) {
-  int32_t numOfElem = 0;
-  
-  /*
-   * 1. column data missing (schema modified) causes pCtx->hasNull == true. pCtx->isAggSet == true;
-   * 2. for general non-primary key columns, pCtx->hasNull may be true or false, pCtx->isAggSet == true;
-   * 3. for primary key column, pCtx->hasNull always be false, pCtx->isAggSet == false;
-   */
-  if (pCtx->isAggSet) {
-    numOfElem = pCtx->size - pCtx->agg.numOfNull;
-  } else {
-    if (pCtx->hasNull) {
-      for (int32_t i = 0; i < pCtx->size; ++i) {
-        char *val = GET_INPUT_DATA(pCtx, i);
-        if (isNull(val, pCtx->inputType)) {
-          continue;
-        }
-        
-        numOfElem += 1;
-      }
-    } else {
-      //when counting on the primary time stamp column and no statistics data is presented, use the size value directly.
-      numOfElem = pCtx->size;
-    }
-  }
-  
-  if (numOfElem > 0) {
-//    GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
-  }
-  
-  *((int64_t *)pCtx->pOutput) += numOfElem;
-  SET_VAL(pCtx, numOfElem, 1);
-}
-
-static void count_func_merge(SqlFunctionCtx *pCtx) {
-  int64_t *pData = (int64_t *)GET_INPUT_DATA_LIST(pCtx);
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    *((int64_t *)pCtx->pOutput) += pData[i];
-  }
-  
-  SET_VAL(pCtx, pCtx->size, 1);
 }
 
 /**
@@ -633,113 +586,6 @@ int32_t noDataRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
     LOOPCHECK_N(*_data, _list, ctx, tsdbType, sign, notNullElems);             \
   } while (0)
 
-static void do_sum(SqlFunctionCtx *pCtx) {
-  int32_t notNullElems = 0;
-  
-  // Only the pre-computing information loaded and actual data does not loaded
-  if (pCtx->isAggSet) {
-    notNullElems = pCtx->size - pCtx->agg.numOfNull;
-    assert(pCtx->size >= pCtx->agg.numOfNull);
-    
-    if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      int64_t *retVal = (int64_t *)pCtx->pOutput;
-      *retVal += pCtx->agg.sum;
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      uint64_t *retVal = (uint64_t *)pCtx->pOutput;
-      *retVal += (uint64_t)pCtx->agg.sum;
-    } else if (IS_FLOAT_TYPE(pCtx->inputType)) {
-      double *retVal = (double*) pCtx->pOutput;
-      SET_DOUBLE_VAL(retVal, *retVal + GET_DOUBLE_VAL((const char*)&(pCtx->agg.sum)));
-    }
-  } else {  // computing based on the true data block
-    void *pData = GET_INPUT_DATA_LIST(pCtx);
-    notNullElems = 0;
-
-    if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      int64_t *retVal = (int64_t *)pCtx->pOutput;
-
-      if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int8_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int16_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_INT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int32_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_BIGINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, int64_t, notNullElems, pCtx->inputType);
-      }
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
-      uint64_t *retVal = (uint64_t *)pCtx->pOutput;
-
-      if (pCtx->inputType == TSDB_DATA_TYPE_UTINYINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint8_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_USMALLINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint16_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_UINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint32_t, notNullElems, pCtx->inputType);
-      } else if (pCtx->inputType == TSDB_DATA_TYPE_UBIGINT) {
-        LIST_ADD_N(*retVal, pCtx, pData, uint64_t, notNullElems, pCtx->inputType);
-      }
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_DOUBLE) {
-      double *retVal = (double *)pCtx->pOutput;
-      LIST_ADD_N_DOUBLE(*retVal, pCtx, pData, double, notNullElems, pCtx->inputType);
-    } else if (pCtx->inputType == TSDB_DATA_TYPE_FLOAT) {
-      double *retVal = (double *)pCtx->pOutput;
-      LIST_ADD_N_DOUBLE_FLOAT(*retVal, pCtx, pData, float, notNullElems, pCtx->inputType);
-    }
-  }
-  
-  // data in the check operation are all null, not output
-  SET_VAL(pCtx, notNullElems, 1);
-  
-  if (notNullElems > 0) {
-//    GET_RES_INFO(pCtx)->hasResult = DATA_SET_FLAG;
-  }
-}
-
-static void sum_function(SqlFunctionCtx *pCtx) {
-  do_sum(pCtx);
-  
-  // keep the result data in output buffer, not in the intermediate buffer
-  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-//  if (pResInfo->hasResult == DATA_SET_FLAG && pCtx->stableQuery) {
-    // set the flag for super table query
-    SSumInfo *pSum = (SSumInfo *)pCtx->pOutput;
-    pSum->hasResult = DATA_SET_FLAG;
-//  }
-}
-
-static void sum_func_merge(SqlFunctionCtx *pCtx) {
-  int32_t notNullElems = 0;
-
-  GET_TRUE_DATA_TYPE();
-  assert(pCtx->stableQuery);
-
-  for (int32_t i = 0; i < pCtx->size; ++i) {
-    char *    input = GET_INPUT_DATA(pCtx, i);
-    SSumInfo *pInput = (SSumInfo *)input;
-    if (pInput->hasResult != DATA_SET_FLAG) {
-      continue;
-    }
-
-    notNullElems++;
-
-    if (IS_SIGNED_NUMERIC_TYPE(type)) {
-      *(int64_t *)pCtx->pOutput += pInput->isum;
-    } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
-      *(uint64_t *) pCtx->pOutput += pInput->usum;
-    } else {
-      SET_DOUBLE_VAL((double *)pCtx->pOutput, *(double *)pCtx->pOutput + pInput->dsum);
-    }
-  }
-
-  SET_VAL(pCtx, notNullElems, 1);
-  SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  
-  if (notNullElems > 0) {
-    //pResInfo->hasResult = DATA_SET_FLAG;
-  }
-}
-
 static int32_t statisRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_t colId) {
   return BLK_DATA_SMA_LOAD;
 }
@@ -822,17 +668,17 @@ static int32_t lastDistFuncRequired(SqlFunctionCtx *pCtx, STimeWindow* w, int32_
  */
 static void avg_function(SqlFunctionCtx *pCtx) {
   int32_t notNullElems = 0;
-  
+
   // NOTE: keep the intermediate result into the interResultBuf
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   SAvgInfo *pAvgInfo = (SAvgInfo *)GET_ROWCELL_INTERBUF(pResInfo);
   double   *pVal = &pAvgInfo->sum;
-  
+
   if (pCtx->isAggSet) { // Pre-aggregation
     notNullElems = pCtx->size - pCtx->agg.numOfNull;
     assert(notNullElems >= 0);
-    
+
     if (IS_SIGNED_NUMERIC_TYPE(pCtx->inputType)) {
       *pVal += pCtx->agg.sum;
     }  else if (IS_UNSIGNED_NUMERIC_TYPE(pCtx->inputType)) {
@@ -842,7 +688,7 @@ static void avg_function(SqlFunctionCtx *pCtx) {
     }
   } else {
     void *pData = GET_INPUT_DATA_LIST(pCtx);
-    
+
     if (pCtx->inputType == TSDB_DATA_TYPE_TINYINT) {
       LIST_ADD_N(*pVal, pCtx, pData, int8_t, notNullElems, pCtx->inputType);
     } else if (pCtx->inputType == TSDB_DATA_TYPE_SMALLINT) {
@@ -865,18 +711,18 @@ static void avg_function(SqlFunctionCtx *pCtx) {
       LIST_ADD_N(*pVal, pCtx, pData, uint64_t, notNullElems, pCtx->inputType);
     }
   }
-  
+
   if (!pCtx->hasNull) {
     assert(notNullElems == pCtx->size);
   }
-  
+
   SET_VAL(pCtx, notNullElems, 1);
   pAvgInfo->num += notNullElems;
-  
+
   if (notNullElems > 0) {
     //pResInfo->hasResult = DATA_SET_FLAG;
   }
-  
+
   // keep the data into the final output buffer for super table query since this execution may be the last one
   if (pCtx->stableQuery) {
     memcpy(pCtx->pOutput, GET_ROWCELL_INTERBUF(pResInfo), sizeof(SAvgInfo));
@@ -885,18 +731,18 @@ static void avg_function(SqlFunctionCtx *pCtx) {
 
 static void avg_func_merge(SqlFunctionCtx *pCtx) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
-  
+
   double *sum = (double*) pCtx->pOutput;
   char   *input = GET_INPUT_DATA_LIST(pCtx);
-  
+
   for (int32_t i = 0; i < pCtx->size; ++i, input += pCtx->inputBytes) {
     SAvgInfo *pInput = (SAvgInfo *)input;
     if (pInput->num == 0) {  // current input is null
       continue;
     }
-    
+
     SET_DOUBLE_VAL(sum, *sum + pInput->sum);
-    
+
     // keep the number of data into the temp buffer
     *(int64_t *)GET_ROWCELL_INTERBUF(pResInfo) += pInput->num;
   }
@@ -2735,18 +2581,6 @@ static void deriv_function(SqlFunctionCtx *pCtx) {
   GET_RES_INFO(pCtx)->numOfRes += notNullElems;
 }
 
-#define DIFF_IMPL(ctx, d, type)                                                              \
-  do {                                                                                       \
-    if ((ctx)->param[1].param.nType == INITIAL_VALUE_NOT_ASSIGNED) {                               \
-      (ctx)->param[1].param.nType = (ctx)->inputType;                                              \
-      *(type *)&(ctx)->param[1].param.i = *(type *)(d);                                       \
-    } else {                                                                                 \
-      *(type *)(ctx)->pOutput = *(type *)(d) - (*(type *)(&(ctx)->param[1].param.i));      \
-      *(type *)(&(ctx)->param[1].param.i) = *(type *)(d);                                     \
-      *(int64_t *)(ctx)->pTsOutput = GET_TS_DATA(ctx, index);                             \
-    }                                                                                        \
-  } while (0);
-
 // TODO difference in date column
 static void diff_function(SqlFunctionCtx *pCtx) {
   void *data = GET_INPUT_DATA_LIST(pCtx);
@@ -4072,460 +3906,4 @@ int32_t functionCompatList[] = {
     // tid_tag, derivative, blk_info
     6,          8,        7,
 };
-
-SAggFunctionInfo aggFunc[35] = {{
-                              // 0, count function does not invoke the finalize function
-                              "count",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_COUNT,
-                              FUNCTION_COUNT,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              count_function,
-                              doFinalizer,
-                              count_func_merge,
-                              countRequired,
-                          },
-                          {
-                              // 1
-                              "sum",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_SUM,
-                              FUNCTION_SUM,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              sum_function,
-                              function_finalizer,
-                              sum_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 2
-                              "avg",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_AVG,
-                              FUNCTION_AVG,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              avg_function,
-                              avg_finalizer,
-                              avg_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 3
-                              "min",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_MIN,
-                              FUNCTION_MIN,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              min_func_setup,
-                              NULL,
-                              function_finalizer,
-                              min_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 4
-                              "max",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_MAX,
-                              FUNCTION_MAX,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              max_func_setup,
-                              NULL,
-                              function_finalizer,
-                              max_func_merge,
-                              statisRequired,
-                          },
-                          {
-                              // 5
-                              "stddev",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_STDDEV,
-                              FUNCTION_STDDEV_DST,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM,
-                              function_setup,
-                              stddev_function,
-                              stddev_finalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 6
-                              "percentile",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_PERCT,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM,
-                              percentile_function_setup,
-                              percentile_function,
-                              percentile_finalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 7
-                              "apercentile",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_APERCT,
-                              FUNCTION_APERCT,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM | FUNCSTATE_STABLE,
-                              apercentile_function_setup,
-                              apercentile_function,
-                              apercentile_finalizer,
-                              apercentile_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 8
-                              "first",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_FIRST,
-                              FUNCTION_FIRST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              function_setup,
-                              first_function,
-                              function_finalizer,
-                              noop1,
-                              firstFuncRequired,
-                          },
-                          {
-                              // 9
-                              "last",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_LAST,
-                              FUNCTION_LAST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_SELECTIVITY,
-                              function_setup,
-                              last_function,
-                              function_finalizer,
-                              noop1,
-                              lastFuncRequired,
-                          },
-                          {
-                              // 10
-                              "last_row",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_LAST_ROW,
-                              FUNCTION_LAST_ROW,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              first_last_function_setup,
-                              last_row_function,
-                              last_row_finalizer,
-                              last_dist_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 11
-                              "top",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TOP,
-                              FUNCTION_TOP,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              top_bottom_function_setup,
-                              top_function,
-                              top_bottom_func_finalizer,
-                              top_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 12
-                              "bottom",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_BOTTOM,
-                              FUNCTION_BOTTOM,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              top_bottom_function_setup,
-                              bottom_function,
-                              top_bottom_func_finalizer,
-                              bottom_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 13
-                              "spread",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_SPREAD,
-                              FUNCTION_SPREAD,
-                              BASIC_FUNC_SO,
-                              spread_function_setup,
-                              spread_function,
-                              spread_function_finalizer,
-                              spread_func_merge,
-                              countRequired,
-                          },
-                          {
-                              // 14
-                              "twa",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TWA,
-                              FUNCTION_TWA,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              twa_function_setup,
-                              twa_function,
-                              twa_function_finalizer,
-                              twa_function_copy,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 15
-                              "leastsquares",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_LEASTSQR,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_SO | FUNCSTATE_STREAM,
-                              leastsquares_function_setup,
-                              leastsquares_function,
-                              leastsquares_finalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 16
-                              "dummy",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TS,
-                              FUNCTION_TS,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              date_col_output_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {
-                              // 17
-                              "ts",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TS_DUMMY,
-                              FUNCTION_TS_DUMMY,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              noop1,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 18
-                              "tag_dummy",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TAG_DUMMY,
-                              FUNCTION_TAG_DUMMY,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              tag_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {
-                              // 19
-                              "ts",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TS_COMP,
-                              FUNCTION_TS_COMP,
-                              FUNCSTATE_MO | FUNCSTATE_NEED_TS,
-                              ts_comp_function_setup,
-                              ts_comp_function,
-                              ts_comp_finalize,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 20
-                              "tag",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TAG,
-                              FUNCTION_TAG,
-                              BASIC_FUNC_SO,
-                              function_setup,
-                              tag_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {//TODO this is a scala function
-                              // 21, column project sql function
-                              "colprj",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_PRJ,
-                              FUNCTION_PRJ,
-                              BASIC_FUNC_MO | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              col_project_function,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 22, multi-output, tag function has only one result
-                              "tagprj",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_TAGPRJ,
-                              FUNCTION_TAGPRJ,
-                              BASIC_FUNC_MO,
-                              function_setup,
-                              tag_project_function,
-                              doFinalizer,
-                              copy_function,
-                              noDataRequired,
-                          },
-                          {
-                              // 23
-                              "arithmetic",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_ARITHM,
-                              FUNCTION_ARITHM,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS,
-                              function_setup,
-                              arithmetic_function,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 24
-                              "diff",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_DIFF,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              diff_function_setup,
-                              diff_function,
-                              doFinalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-    // distributed version used in two-stage aggregation processes
-                          {
-                              // 25
-                              "first_dist",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_FIRST_DST,
-                              FUNCTION_FIRST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              first_last_function_setup,
-                              first_dist_function,
-                              function_finalizer,
-                              first_dist_func_merge,
-                              firstDistFuncRequired,
-                          },
-                          {
-                              // 26
-                              "last_dist",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_LAST_DST,
-                              FUNCTION_LAST_DST,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              first_last_function_setup,
-                              last_dist_function,
-                              function_finalizer,
-                              last_dist_func_merge,
-                              lastDistFuncRequired,
-                          },
-                          {
-                              // 27
-                              "stddev",   // return table id and the corresponding tags for join match and subscribe
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_STDDEV_DST,
-                              FUNCTION_AVG,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE,
-                              function_setup,
-                              NULL,
-                                    NULL,
-                                    NULL,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 28
-                              "interp",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_INTERP,
-                              FUNCTION_INTERP,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS ,
-                              function_setup,
-                              interp_function,
-                              doFinalizer,
-                              copy_function,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 29
-                              "rate",
-                                    FUNCTION_TYPE_AGG,
-                                    FUNCTION_RATE,
-                              FUNCTION_RATE,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              rate_function,
-                              rate_finalizer,
-                              rate_func_copy,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 30
-                              "irate",
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_IRATE,
-                              FUNCTION_IRATE,
-                              BASIC_FUNC_SO | FUNCSTATE_NEED_TS,
-                              rate_function_setup,
-                              irate_function,
-                              rate_finalizer,
-                              rate_func_copy,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 31
-                              "tbid",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_TID_TAG,
-                              FUNCTION_TID_TAG,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE,
-                              function_setup,
-                              noop1,
-                              noop1,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {   //32
-                              "derivative",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_DERIVATIVE,
-                              FUNCTION_INVALID_ID,
-                              FUNCSTATE_MO | FUNCSTATE_STABLE | FUNCSTATE_NEED_TS | FUNCSTATE_SELECTIVITY,
-                              deriv_function_setup,
-                              deriv_function,
-                              doFinalizer,
-                              noop1,
-                              dataBlockRequired,
-                          },
-                          {
-                                // 33
-                              "block_dist",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_BLKINFO,
-                              FUNCTION_BLKINFO,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE,
-                              function_setup,
-                              blockInfo_func,
-                              blockinfo_func_finalizer,
-                              block_func_merge,
-                              dataBlockRequired,
-                          },
-                          {
-                              // 34
-                              "cov",   // return table id and the corresponding tags for join match and subscribe
-                              FUNCTION_TYPE_AGG,
-                              FUNCTION_COV,
-                              FUNCTION_COV,
-                              FUNCSTATE_SO | FUNCSTATE_STABLE,
-                              function_setup,
-                              sum_function,
-                              function_finalizer,
-                              sum_func_merge,
-                              statisRequired,
-                          }
-                          };
+#endif
