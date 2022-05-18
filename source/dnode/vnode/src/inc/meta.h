@@ -22,8 +22,8 @@
 extern "C" {
 #endif
 
-typedef struct SMetaIdx    SMetaIdx;
-typedef struct SMetaDB     SMetaDB;
+typedef struct SMetaIdx SMetaIdx;
+typedef struct SMetaDB  SMetaDB;
 
 // metaDebug ==================
 // clang-format off
@@ -63,16 +63,16 @@ struct SMeta {
 
   char*     path;
   SVnode*   pVnode;
-  TENV*     pEnv;
+  TDB*      pEnv;
   TXN       txn;
-  TDB*      pTbDb;
-  TDB*      pSkmDb;
-  TDB*      pUidIdx;
-  TDB*      pNameIdx;
-  TDB*      pCtbIdx;
-  TDB*      pTagIdx;
-  TDB*      pTtlIdx;
-  TDB*      pSmaIdx;
+  TTB*      pTbDb;
+  TTB*      pSkmDb;
+  TTB*      pUidIdx;
+  TTB*      pNameIdx;
+  TTB*      pCtbIdx;
+  TTB*      pTagIdx;
+  TTB*      pTtlIdx;
+  TTB*      pSmaIdx;
   SMetaIdx* pIdx;
 };
 
@@ -118,7 +118,7 @@ typedef struct {
 int  metaOpenDB(SMeta* pMeta);
 void metaCloseDB(SMeta* pMeta);
 int  metaSaveTableToDB(SMeta* pMeta, STbCfg* pTbCfg, STbDdlH* pHandle);
-int metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
+int  metaRemoveTableFromDb(SMeta* pMeta, tb_uid_t uid);
 #endif
 
 #ifdef __cplusplus
