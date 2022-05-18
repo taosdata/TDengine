@@ -85,7 +85,7 @@ static FORCE_INLINE int tsdbCheckRowRange(STsdb *pTsdb, tb_uid_t uid, STSRow *ro
   return 0;
 }
 
-int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, SSubmitReq *pMsg) {
+int tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, const SSubmitReq *pMsg) {
   ASSERT(pMsg != NULL);
   // STsdbMeta *    pMeta = pTsdb->tsdbMeta;
   SSubmitMsgIter msgIter = {0};
