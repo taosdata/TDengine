@@ -442,7 +442,8 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   }
 
   entry.version = version;
-  int tlen;
+  int      tlen;
+  SSchema *pNewSchema = NULL;
   switch (pAlterTbReq->action) {
     case TSDB_ALTER_TABLE_ADD_COLUMN:
       if (pColumn) {
@@ -451,8 +452,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
       }
       pSchema->sver++;
       pSchema->nCols++;
-      pSchema->pSchema =
-          taosMemoryRealloc(entry.ntbEntry.schema.pSchema, sizeof(SSchema) * entry.ntbEntry.schema.nCols);
+      pNewSchema = taosMemoryMalloc(sizeof(SSchema) * pSchema->nCols);
+      memcpy(pNewSchema, pSchema->pSchema, sizeof(SSchema) * (pSchema->nCols - 1));
+      pSchema->pSchema = pNewSchema;
       pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].bytes = pAlterTbReq->bytes;
       pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].type = pAlterTbReq->type;
       pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].flags = pAlterTbReq->flags;
@@ -511,6 +513,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   metaULock(pMeta);
 
+  if (pNewSchema) taosMemoryFree(pNewSchema);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
   tdbTbcClose(pUidIdxc);
