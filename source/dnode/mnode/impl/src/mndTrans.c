@@ -842,13 +842,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     }
     taosMemoryFree(pTrans->rpcRsp);
 
-    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, code & 0xFFFF, pTrans->stage,
-           pTrans->rpcInfo.ahandle);
+    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, code, pTrans->stage, pTrans->rpcInfo.ahandle);
     SRpcMsg rspMsg = {
-        .info = pTrans->rpcInfo,
         .code = code,
         .pCont = rpcCont,
         .contLen = pTrans->rpcRspLen,
+        .info = pTrans->rpcInfo,
     };
     tmsgSendRsp(&rspMsg);
     pTrans->rpcInfo.handle = NULL;
