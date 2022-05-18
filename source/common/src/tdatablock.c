@@ -322,9 +322,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     }
 
     pColumnInfoData->pData = tmp;
-    if (pColumnInfoData->info.type != TSDB_DATA_TYPE_NULL) {
-      memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
-    }
+    memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
   }
 
   pColumnInfoData->hasNull = pSource->hasNull;
