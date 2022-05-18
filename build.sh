@@ -3,8 +3,8 @@
 git submodule update --init --recursive > /dev/null || echo -e "failed to update git submodule"
 
 if [ ! -d debug ]; then
-    mkdir debug || echo -e "failed to make directory build"
+    mkdir debug || echo -e "failed to make directory for build"
 fi
 
-cd build && cmake .. -DBUILD_TOOLS=true && make
+cd debug && cmake .. -DBUILD_TOOLS=true && make
 
