@@ -170,11 +170,11 @@ CaseCfg gCase[] = {
   // 22
   {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, true, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
 
-//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
-//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
 
-  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
-  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
+//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
+//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
 
 };
 
@@ -209,7 +209,7 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = { // default
   .bindNullNum = 0,
   .printCreateTblSql = false,
@@ -267,7 +267,7 @@ CaseCtrl gCaseCtrl = {
 };
 #endif
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .bindNullNum = 1,
   .printCreateTblSql = false,
@@ -292,7 +292,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
 
 #if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
-  .bindNullNum = 0,
+  .bindNullNum = 1,
   .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
@@ -309,10 +309,10 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
-  .optrIdxListNum = tListLen(optrIdxList),
-  .optrIdxList = optrIdxList,
-  .bindColTypeNum = tListLen(bindColTypeList),
-  .bindColTypeList = bindColTypeList,
+  //.optrIdxListNum = tListLen(optrIdxList),
+  //.optrIdxList = optrIdxList,
+  //.bindColTypeNum = tListLen(bindColTypeList),
+  //.bindColTypeList = bindColTypeList,
   .caseIdx = 24,
   .caseNum = 1,
   .caseRunNum = 1,
@@ -665,15 +665,16 @@ void bpGenerateConstInFuncSQL(BindData *data, int32_t tblIdx) {
 
 
 void generateQueryMiscSQL(BindData *data, int32_t tblIdx) {
-  switch(tblIdx) {
-    case 0:
-      //TODO FILL TEST
-    default:
-      bpGenerateConstInOpSQL(data, tblIdx);
-      break;
-    case FUNCTION_TEST_IDX:
-      bpGenerateConstInFuncSQL(data, tblIdx);
-      break;
+  if (tblIdx == FUNCTION_TEST_IDX && gCurCase->bindNullNum <= 0) {
+    bpGenerateConstInFuncSQL(data, tblIdx);
+  } else {
+    switch(tblIdx) {
+      case 0:
+        //TODO FILL TEST
+      default:
+        bpGenerateConstInOpSQL(data, tblIdx);
+        break;
+    }
   }
 
   if (gCaseCtrl.printStmtSql) {
@@ -1064,6 +1065,8 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
 
   if (tblIdx == FUNCTION_TEST_IDX) {
     gCaseCtrl.numericParam = true;
+  } else {
+    gCaseCtrl.numericParam = false;
   }
   
   for (int b = 0; b < bindNum; b++) {
@@ -1072,8 +1075,10 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
     }
   }
 
+  gCaseCtrl.numericParam = false;
+
   generateQueryMiscSQL(data, tblIdx);
-  
+
   return 0;
 }
 
