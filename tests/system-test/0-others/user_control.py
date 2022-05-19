@@ -339,7 +339,110 @@ class TDTestCase:
         self.drop_user_error()
         self.drop_user_current()
 
+    def __create_tb(self):
+
+        tdLog.printNoPrefix("==========step1:create table")
+        create_stb_sql  =  f'''create table stb1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            ) tags (t1 int)
+            '''
+        create_ntb_sql = f'''create table t1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            )
+            '''
+        tdSql.execute(create_stb_sql)
+        tdSql.execute(create_ntb_sql)
+
+        for i in range(4):
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
+
+    def __insert_data(self, rows):
+        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+        for i in range(rows):
+            tdSql.execute(
+                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+        tdSql.execute(
+            f'''insert into ct1 values
+            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 } )
+            ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 } )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct4 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000}
+                )
+            (
+                { now_time + 2592000000 }, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000}
+                )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct2 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
+                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 2592000000 }, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127,
+                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
+            '''
+        )
+
+        for i in range(rows):
+            insert_data = f'''insert into t1 values
+                ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
+                "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i } )
+                '''
+            tdSql.execute(insert_data)
+        tdSql.execute(
+            f'''insert into t1 values
+            ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7200000 }, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 },
+                "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 3600000 } , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
+                "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
+            '''
+        )
+
     def run(self):
+        tdSql.prepare()
+        self.__create_tb()
+        self.rows = 10
+        self.__insert_data(self.rows)
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
         # 默认只有 root 用户
         tdLog.printNoPrefix("==========step0: init, user list only has root account")
