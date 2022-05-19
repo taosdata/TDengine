@@ -37,14 +37,14 @@ static int iBinarySearch(SArray *arr, int s, int e, uint64_t k) {
 }
 
 void iIntersection(SArray *inters, SArray *final) {
-  int32_t sz = taosArrayGetSize(inters);
+  int32_t sz = (int32_t)taosArrayGetSize(inters);
   if (sz <= 0) {
     return;
   }
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(inters, i);
-    mi[i].len = taosArrayGetSize(t);
+    mi[i].len = (int32_t)taosArrayGetSize(t);
     mi[i].idx = 0;
   }
 
@@ -70,7 +70,7 @@ void iIntersection(SArray *inters, SArray *final) {
   taosMemoryFreeClear(mi);
 }
 void iUnion(SArray *inters, SArray *final) {
-  int32_t sz = taosArrayGetSize(inters);
+  int32_t sz = (int32_t)taosArrayGetSize(inters);
   if (sz <= 0) {
     return;
   }
@@ -82,7 +82,7 @@ void iUnion(SArray *inters, SArray *final) {
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
     SArray *t = taosArrayGetP(inters, i);
-    mi[i].len = taosArrayGetSize(t);
+    mi[i].len = (int32_t)taosArrayGetSize(t);
     mi[i].idx = 0;
   }
   while (1) {
@@ -117,8 +117,8 @@ void iUnion(SArray *inters, SArray *final) {
 }
 
 void iExcept(SArray *total, SArray *except) {
-  int32_t tsz = taosArrayGetSize(total);
-  int32_t esz = taosArrayGetSize(except);
+  int32_t tsz = (int32_t)taosArrayGetSize(total);
+  int32_t esz = (int32_t)taosArrayGetSize(except);
   if (esz == 0 || tsz == 0) {
     return;
   }
@@ -141,7 +141,10 @@ int uidCompare(const void *a, const void *b) {
   // add more version compare
   uint64_t u1 = *(uint64_t *)a;
   uint64_t u2 = *(uint64_t *)b;
-  return u1 - u2;
+  if (u1 == u2) {
+    return 0;
+  }
+  return u1 < u2 ? -1 : 1;
 }
 int verdataCompare(const void *a, const void *b) {
   SIdxVerdata *va = (SIdxVerdata *)a;
