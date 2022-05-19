@@ -32,6 +32,15 @@ TEST_F(PlanSetOpTest, unionAllSubquery) {
   run("SELECT * FROM (SELECT c1, c2 FROM t1 UNION ALL SELECT c1, c2 FROM t1)");
 }
 
+TEST_F(PlanSetOpTest, unionAllWithSubquery) {
+  useDb("root", "test");
+
+  // child table
+  run("SELECT ts FROM (SELECT ts FROM st1s1) UNION ALL SELECT ts FROM (SELECT ts FROM st1s2)");
+  // super table
+  run("SELECT ts FROM (SELECT ts FROM st1) UNION ALL SELECT ts FROM (SELECT ts FROM st1)");
+}
+
 TEST_F(PlanSetOpTest, union) {
   useDb("root", "test");
 

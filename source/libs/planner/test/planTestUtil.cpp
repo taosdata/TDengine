@@ -322,6 +322,7 @@ class PlannerTestBaseImpl {
   }
 
   void setPlanContext(SQuery* pQuery, SPlanContext* pCxt) {
+    pCxt->queryId = 1;
     if (QUERY_NODE_CREATE_TOPIC_STMT == nodeType(pQuery->pRoot)) {
       pCxt->pAstRoot = ((SCreateTopicStmt*)pQuery->pRoot)->pQuery;
       pCxt->topicQuery = true;

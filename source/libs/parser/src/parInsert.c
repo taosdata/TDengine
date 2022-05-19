@@ -442,7 +442,7 @@ static bool isNullStr(SToken* pToken) {
 
 static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPtr) {
   errno = 0;
-  *value = strtold(pToken->z, endPtr);
+  *value = taosStr2Double(pToken->z, endPtr);
 
   // not a valid integer number, return error
   if ((*endPtr - pToken->z) != pToken->n) {
@@ -482,9 +482,9 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
         }
       } else if (pToken->type == TK_NK_INTEGER) {
-        return func(pMsgBuf, ((strtoll(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+        return func(pMsgBuf, ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
       } else if (pToken->type == TK_NK_FLOAT) {
-        return func(pMsgBuf, ((strtod(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+        return func(pMsgBuf, ((taosStr2Double(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
       }

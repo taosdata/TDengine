@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-static void qmGetMonitorInfo(SQnodeMgmt *pMgmt, SMonQmInfo *qmInfo) {}
+void qmGetMonitorInfo(SQnodeMgmt *pMgmt, SMonQmInfo *qmInfo) {}
 
 int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SRpcMsg *pReq) {
   SMonQmInfo qmInfo = {0};

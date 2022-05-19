@@ -72,11 +72,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   taosRUnLockLatch(&pMgmt->pData->latch);
 
   SMonVloadInfo vinfo = {0};
-  dmGetVnodeLoads(pMgmt, &vinfo);
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
   SMonMloadInfo minfo = {0};
-  dmGetMnodeLoads(pMgmt, &minfo);
+  (*pMgmt->getMnodeLoadsFp)(&minfo);
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);
@@ -115,7 +115,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
 
   SServerStatusRsp statusRsp = {0};
   SMonMloadInfo    minfo = {0};
-  dmGetMnodeLoads(pMgmt, &minfo);
+  (*pMgmt->getMnodeLoadsFp)(&minfo);
   if (minfo.isMnode && minfo.load.syncState == TAOS_SYNC_STATE_ERROR) {
     pStatus->statusCode = TSDB_SRV_STATUS_SERVICE_DEGRADED;
     snprintf(pStatus->details, sizeof(pStatus->details), "mnode sync state is %s", syncStr(minfo.load.syncState));
@@ -123,7 +123,7 @@ static void dmGetServerRunStatus(SDnodeMgmt *pMgmt, SServerStatusRsp *pStatus) {
   }
 
   SMonVloadInfo vinfo = {0};
-  dmGetVnodeLoads(pMgmt, &vinfo);
+  (*pMgmt->getVnodeLoadsFp)(&vinfo);
   for (int32_t i = 0; i < taosArrayGetSize(vinfo.pVloads); ++i) {
     SVnodeLoad *pLoad = taosArrayGet(vinfo.pVloads, i);
     if (pLoad->syncState == TAOS_SYNC_STATE_ERROR) {
