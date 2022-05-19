@@ -14,7 +14,6 @@
  */
 
 #include "executor.h"
-#include <vnode.h>
 #include "executorimpl.h"
 #include "planner.h"
 #include "tdatablock.h"
@@ -170,4 +169,16 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion, int32_t* tversion) {
+  ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+
+  *sversion = pTaskInfo->schemaVer.sversion;
+  *tversion = pTaskInfo->schemaVer.tversion;
+  strcpy(dbName, pTaskInfo->schemaVer.dbname);
+  strcpy(tableName, pTaskInfo->schemaVer.tablename);
+
+  return 0;
 }

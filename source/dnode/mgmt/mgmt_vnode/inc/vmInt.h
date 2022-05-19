@@ -26,21 +26,21 @@ extern "C" {
 #endif
 
 typedef struct SVnodeMgmt {
-  SDnodeData   *pData;
-  SMsgCb        msgCb;
-  const char   *path;
-  const char   *name;
-  SQWorkerPool  queryPool;
-  SQWorkerPool  fetchPool;
-  SWWorkerPool  syncPool;
-  SWWorkerPool  writePool;
-  SWWorkerPool  mergePool;
-  SSingleWorker mgmtWorker;
-  SSingleWorker monitorWorker;
-  SHashObj     *hash;
-  SRWLatch      latch;
-  SVnodesStat   state;
-  STfs         *pTfs;
+  SDnodeData    *pData;
+  SMsgCb         msgCb;
+  const char    *path;
+  const char    *name;
+  SQWorkerPool   queryPool;
+  SQWorkerPool   fetchPool;
+  SWWorkerPool   syncPool;
+  SWWorkerPool   writePool;
+  SWWorkerPool   mergePool;
+  SSingleWorker  mgmtWorker;
+  SSingleWorker  monitorWorker;
+  SHashObj      *hash;
+  TdThreadRwlock lock;
+  SVnodesStat    state;
+  STfs          *pTfs;
 } SVnodeMgmt;
 
 typedef struct {
@@ -84,10 +84,10 @@ void       vmCloseVnode(SVnodeMgmt *pMgmt, SVnodeObj *pVnode);
 
 // vmHandle.c
 SArray *vmGetMsgHandles();
-int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pReq);
-int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pReq);
-int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pReq);
-int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pReq);
+int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // vmFile.c
 int32_t     vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t *numOfVnodes);

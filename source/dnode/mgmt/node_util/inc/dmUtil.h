@@ -94,18 +94,18 @@ typedef void (*GetVnodeLoadsFp)();
 typedef void (*GetMnodeLoadsFp)();
 
 typedef struct {
-  int32_t   dnodeId;
-  int64_t   clusterId;
-  int64_t   dnodeVer;
-  int64_t   updateTime;
-  int64_t   rebootTime;
-  bool      dropped;
-  bool      stopped;
-  SEpSet    mnodeEps;
-  SArray   *dnodeEps;
-  SHashObj *dnodeHash;
-  SRWLatch  latch;
-  SMsgCb    msgCb;
+  int32_t        dnodeId;
+  int64_t        clusterId;
+  int64_t        dnodeVer;
+  int64_t        updateTime;
+  int64_t        rebootTime;
+  bool           dropped;
+  bool           stopped;
+  SEpSet         mnodeEps;
+  SArray        *dnodeEps;
+  SHashObj      *dnodeHash;
+  TdThreadRwlock lock;
+  SMsgCb         msgCb;
 } SDnodeData;
 
 typedef struct {

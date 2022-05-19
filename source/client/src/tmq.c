@@ -1435,7 +1435,7 @@ TAOS_RES* tmq_consumer_poll(tmq_t* tmq, int64_t wait_time) {
 
   while (1) {
     tmqHandleAllDelayedTask(tmq);
-    tmqPollImpl(tmq, wait_time);
+    if (tmqPollImpl(tmq, wait_time) < 0) return NULL;
 
     rspObj = tmqHandleAllRsp(tmq, wait_time, false);
     if (rspObj) {

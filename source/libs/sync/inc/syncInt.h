@@ -159,11 +159,10 @@ typedef struct SSyncNode {
   char        configPath[TSDB_FILENAME_LEN * 2];
 
   // sync io
-  SWal* pWal;
-  void* rpcClient;
-  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
-  void* queue;
-  int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
+  SWal*         pWal;
+  const SMsgCb* msgcb;
+  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 
   // init internal
   SNodeInfo myNodeInfo;

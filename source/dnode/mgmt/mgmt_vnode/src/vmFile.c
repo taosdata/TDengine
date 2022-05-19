@@ -17,7 +17,7 @@
 #include "vmInt.h"
 
 SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
-  taosRLockLatch(&pMgmt->latch);
+  taosThreadRwlockRdlock(&pMgmt->lock);
 
   int32_t     num = 0;
   int32_t     size = taosHashGetSize(pMgmt->hash);
@@ -38,7 +38,7 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
     }
   }
 
-  taosRUnLockLatch(&pMgmt->latch);
+  taosThreadRwlockUnlock(&pMgmt->lock);
   *numOfVnodes = num;
 
   return pVnodes;
