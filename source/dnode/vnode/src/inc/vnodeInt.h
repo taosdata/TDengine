@@ -82,7 +82,7 @@ int             metaCreateSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* 
 int             metaAlterSTable(SMeta* pMeta, int64_t version, SVCreateStbReq* pReq);
 int             metaDropSTable(SMeta* pMeta, int64_t verison, SVDropStbReq* pReq);
 int             metaCreateTable(SMeta* pMeta, int64_t version, SVCreateTbReq* pReq);
-int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq);
+int             metaDropTable(SMeta* pMeta, int64_t version, SVDropTbReq* pReq, SArray* tbUids);
 int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq);
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);

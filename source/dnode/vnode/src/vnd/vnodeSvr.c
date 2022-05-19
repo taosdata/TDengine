@@ -62,11 +62,6 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   pReq = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   len = pMsg->contLen - sizeof(SMsgHead);
 
-  if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
-    vError("vgId:%d failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
-    return -1;
-  }
-
   switch (pMsg->msgType) {
     /* META */
     case TDMT_VND_CREATE_STB:
@@ -124,6 +119,11 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
   }
 
   vDebug("vgId:%d process %s request success, version: %" PRId64, TD_VID(pVnode), TMSG_INFO(pMsg->msgType), version);
+
+  if (tqPushMsg(pVnode->pTq, pMsg->pCont, pMsg->contLen, pMsg->msgType, version) < 0) {
+    vError("vgId:%d failed to push msg to TQ since %s", TD_VID(pVnode), tstrerror(terrno));
+    return -1;
+  }
 
   // commit if need
   if (vnodeShouldCommit(pVnode)) {
@@ -517,7 +517,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   SDecoder         decoder = {0};
   SEncoder         encoder = {0};
   int              ret;
-  SArray          *tbUids;
+  SArray          *tbUids = NULL;
 
   pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
   pRsp->pCont = NULL;
@@ -543,7 +543,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
     SVDropTbRsp  dropTbRsp = {0};
 
     /* code */
-    ret = metaDropTable(pVnode->pMeta, version, pDropTbReq);
+    ret = metaDropTable(pVnode->pMeta, version, pDropTbReq, tbUids);
     if (ret < 0) {
       if (pDropTbReq->igNotExists && terrno == TSDB_CODE_VND_TABLE_NOT_EXIST) {
         dropTbRsp.code = TSDB_CODE_SUCCESS;
