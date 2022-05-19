@@ -92,7 +92,7 @@ void convertStringToDouble(const void *inData, void *outData, int8_t inType, int
   tmp[len] = 0;
 
   ASSERT(outType == TSDB_DATA_TYPE_DOUBLE);
-  double value = strtod(tmp, NULL);
+  double value = taosStr2Double(tmp, NULL);
 
   *((double *)outData) = value;
   taosMemoryFreeClear(tmp);
@@ -267,22 +267,22 @@ static FORCE_INLINE void varToTimestamp(char *buf, SScalarParam* pOut, int32_t r
 static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   switch (pOut->columnData->info.type) {
     case TSDB_DATA_TYPE_TINYINT: {
-      int8_t value = (int8_t)strtoll(buf, NULL, 10);
+      int8_t value = (int8_t)taosStr2Int8(buf, NULL, 10);
       colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_SMALLINT: {
-      int16_t value = (int16_t)strtoll(buf, NULL, 10);
+      int16_t value = (int16_t)taosStr2Int16(buf, NULL, 10);
       colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_INT: {
-      int32_t value = (int32_t)strtoll(buf, NULL, 10);
+      int32_t value = (int32_t)taosStr2Int32(buf, NULL, 10);
       colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_BIGINT: {
-      int64_t value = (int64_t)strtoll(buf, NULL, 10);
+      int64_t value = (int64_t)taosStr2Int64(buf, NULL, 10);
       colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
       break;
     }   
@@ -292,22 +292,22 @@ static FORCE_INLINE void varToSigned(char *buf, SScalarParam* pOut, int32_t rowI
 static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t rowIndex) {
   switch (pOut->columnData->info.type) {
     case TSDB_DATA_TYPE_UTINYINT: {
-      uint8_t value = (uint8_t)strtoull(buf, NULL, 10);
+      uint8_t value = (uint8_t)taosStr2UInt8(buf, NULL, 10);
       colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_USMALLINT: {
-      uint16_t value = (uint16_t)strtoull(buf, NULL, 10);
+      uint16_t value = (uint16_t)taosStr2UInt16(buf, NULL, 10);
       colDataAppendInt16(pOut->columnData, rowIndex, (int16_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_UINT: {
-      uint32_t value = (uint32_t)strtoull(buf, NULL, 10);
+      uint32_t value = (uint32_t)taosStr2UInt32(buf, NULL, 10);
       colDataAppendInt32(pOut->columnData, rowIndex, (int32_t*)&value);
       break;
     } 
     case TSDB_DATA_TYPE_UBIGINT: {
-      uint64_t value = (uint64_t)strtoull(buf, NULL, 10);
+      uint64_t value = (uint64_t)taosStr2UInt64(buf, NULL, 10);
       colDataAppendInt64(pOut->columnData, rowIndex, (int64_t*)&value);
       break;
     }   
@@ -315,12 +315,12 @@ static FORCE_INLINE void varToUnsigned(char *buf, SScalarParam* pOut, int32_t ro
 }
 
 static FORCE_INLINE void varToFloat(char *buf, SScalarParam* pOut, int32_t rowIndex) {
-  double value = strtod(buf, NULL);
+  double value = taosStr2Double(buf, NULL);
   colDataAppendDouble(pOut->columnData, rowIndex, &value);
 }
 
 static FORCE_INLINE void varToBool(char *buf, SScalarParam* pOut, int32_t rowIndex) {
-  int64_t value = strtoll(buf, NULL, 10);
+  int64_t value = taosStr2Int64(buf, NULL, 10);
   bool v = (value != 0)? true:false;
   colDataAppendInt8(pOut->columnData, rowIndex, (int8_t*) &v);
 }

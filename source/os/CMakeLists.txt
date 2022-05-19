@@ -27,6 +27,9 @@ if(BUILD_ADDR2LINE)
         os PUBLIC addr2line dl z
     )
 endif ()
+if(CHECK_STR2INT_ERROR)
+    add_definitions(-DTD_CHECK_STR_TO_INT_ERROR)
+endif()
 target_link_libraries(
     os PUBLIC pthread
 )

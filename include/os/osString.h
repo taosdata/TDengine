@@ -38,6 +38,13 @@ typedef int32_t TdUcs4;
     #define wcsncpy WCSNCPY_FUNC_TAOS_FORBID
     #define wchar_t WCHAR_T_TYPE_TAOS_FORBID
     #define strcasestr STR_CASE_STR_FORBID
+    #define strtoll STR_TO_LL_FUNC_TAOS_FORBID
+    #define strtoull STR_TO_ULL_FUNC_TAOS_FORBID
+    #define strtol STR_TO_L_FUNC_TAOS_FORBID
+    #define strtoul STR_TO_UL_FUNC_TAOS_FORBID
+    #define strtod STR_TO_LD_FUNC_TAOS_FORBID
+    #define strtold STR_TO_D_FUNC_TAOS_FORBID
+    #define strtof STR_TO_F_FUNC_TAOS_FORBID
 #endif
 
 #ifdef WINDOWS
@@ -71,6 +78,17 @@ int32_t taosWcharToMb(char *pStr, TdWchar wchar);
 int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size);
 
 char *taosStrCaseStr(const char *str, const char *pattern);
+
+int64_t taosStr2Int64(const char *str, char** pEnd, int32_t radix);
+uint64_t taosStr2UInt64(const char *str, char** pEnd, int32_t radix);
+int32_t taosStr2Int32(const char *str, char** pEnd, int32_t radix);
+uint32_t taosStr2UInt32(const char *str, char** pEnd, int32_t radix);
+int16_t taosStr2Int16(const char *str, char** pEnd, int32_t radix);
+uint16_t taosStr2UInt16(const char *str, char** pEnd, int32_t radix);
+int8_t taosStr2Int8(const char *str, char** pEnd, int32_t radix);
+uint8_t taosStr2UInt8(const char *str, char** pEnd, int32_t radix);
+double taosStr2Double(const char *str, char** pEnd);
+float taosStr2Float(const char *str, char** pEnd);
 
 #ifdef __cplusplus
 }

@@ -118,21 +118,21 @@ TExeCond tCompare(__compar_fn_t func, int8_t cmptype, void* a, void* b, int8_t d
     }
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_FLOAT) {
-    float va = strtod(a, NULL);
+    float va = taosStr2Float(a, NULL);
     if (errno == ERANGE && va == -1) {
       return CONTINUE;
     }
-    float vb = strtod(b, NULL);
+    float vb = taosStr2Float(b, NULL);
     if (errno == ERANGE && va == -1) {
       return CONTINUE;
     }
     return tDoCompare(func, cmptype, &va, &vb);
   } else if (dtype == TSDB_DATA_TYPE_DOUBLE) {
-    double va = strtod(a, NULL);
+    double va = taosStr2Double(a, NULL);
     if (errno == ERANGE && va == -1) {
       return CONTINUE;
     }
-    double vb = strtod(b, NULL);
+    double vb = taosStr2Double(b, NULL);
     if (errno == ERANGE && va == -1) {
       return CONTINUE;
     }
