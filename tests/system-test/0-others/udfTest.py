@@ -44,8 +44,8 @@ class TDTestCase:
         libudf1 = subprocess.Popen('find %s -name "libudf1.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         libudf2 = subprocess.Popen('find %s -name "libudf2.so"|grep lib|head -n1'%projPath , shell=True, stdout=subprocess.PIPE,stderr=subprocess.STDOUT).stdout.read().decode("utf-8")
         os.system("mkdir /tmp/udf/")
-        os.system("sudo cp %s /tmp/udf/ "%libudf1.replace("\n" ,""))
-        os.system("sudo cp  %s /tmp/udf/ "%libudf2.replace("\n" ,""))
+        os.system("cp %s /tmp/udf/ "%libudf1.replace("\n" ,""))
+        os.system("cp  %s /tmp/udf/ "%libudf2.replace("\n" ,""))
 
 
     def prepare_data(self):
@@ -580,7 +580,7 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/dnode1/cfg"
         udfdPath = buildPath +'/build/bin/udfd'
 
-        for i in range(5):
+        for i in range(3):
 
             tdLog.info(" loop restart udfd  %d_th" % i)
 
@@ -588,7 +588,7 @@ class TDTestCase:
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
             # stop udfd cmds 
-            get_processID = "ps -ef | grep -w udfd | grep 'root' | grep -v grep| grep -v defunct | awk '{print $2}'"
+            get_processID = "ps -ef | grep -w udfd | grep -v grep| grep -v defunct | awk '{print $2}'"
             processID = subprocess.check_output(get_processID, shell=True).decode("utf-8")
             stop_udfd = " kill -9 %s" % processID
             os.system(stop_udfd)
@@ -622,7 +622,6 @@ class TDTestCase:
     def restart_taosd_query_udf(self):
 
         for i in range(5):
-            time.sleep(5)
             tdLog.info("  this is %d_th restart taosd " %i)
             tdSql.execute("use db ")
             tdSql.query("select count(*) from stb1")
@@ -631,9 +630,8 @@ class TDTestCase:
             tdSql.checkData(0,0,169.661427555)
             tdSql.checkData(0,1,169.661427555)
             tdDnodes.stop(1)
-            time.sleep(2)
             tdDnodes.start(1)
-            time.sleep(5)
+            time.sleep(2)
             
             
             
@@ -645,12 +643,13 @@ class TDTestCase:
         self.create_udf_function()
         self.basic_udf_query()
         self.loop_kill_udfd()
-        self.restart_taosd_query_udf()
+        #self.restart_taosd_query_udf()
         self.unexpected_create()
         tdSql.execute(" drop function udf1 ")
         tdSql.execute(" drop function udf2 ")
         self.create_udf_function()
-        # self.basic_udf_query()
+        sleep(2)
+        self.basic_udf_query()
         self.test_function_name()
        
         
