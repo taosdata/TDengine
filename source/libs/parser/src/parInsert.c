@@ -1110,7 +1110,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       NEXT_TOKEN(pCxt->pSql, sToken);
       autoCreateTbl = true;
     } else {
-      CHECK_CODE(getTableMeta(pCxt, &name, tbFName));
+      char dbFName[TSDB_DB_FNAME_LEN];
+      tNameGetFullDbName(&name, dbFName);
+      CHECK_CODE(getTableMeta(pCxt, &name, dbFName));
     }
 
     STableDataBlocks* dataBuf = NULL;
