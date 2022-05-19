@@ -463,7 +463,7 @@ typedef struct {
 typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
-  char     appId[TSDB_CGROUP_LEN];
+  char     clientId[256];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;
