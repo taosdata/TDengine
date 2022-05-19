@@ -34,7 +34,7 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    - quorum: [Description](/reference/config/#quorum)
    - maxVgroupsPerDb: [Description](/reference/config/#maxvgroupsperdb)
    - comp: [Description](/reference/config/#comp)
-   - precision: [Description](reference/config/#precision)
+   - precision: [Description](/reference/config/#precision)
 6. 请注意上面列出的所有参数都可以配置在配置文件 `taosd.cfg` 中作为创建数据库时使用的默认配置， `create database` 的参数中明确指定的会覆盖配置文件中的设置。
 
 :::
@@ -110,7 +110,7 @@ CACHELAST 参数控制是否在内存中缓存子表的最近数据。缺省值�
 
 :::tip
 以上所有参数修改后都可以用 show databases 来确认是否修改成功。另外，从 2.1.3.0 版本开始，修改这些参数后无需重启服务器即可生效。
-:::tip
+:::
 
 ## 显示系统所有数据库
 
