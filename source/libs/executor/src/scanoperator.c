@@ -898,11 +898,11 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       SSDataBlock* upRes = getUpdateDataBlock(pInfo, true); //TODO(liuyao) get invertible from plan
       if (upRes) {
         pInfo->pUpdateRes = upRes;
-        if (upRes->info.type = STREAM_REPROCESS) {
+        if (upRes->info.type == STREAM_REPROCESS) {
           pInfo->updateResIndex = 0;
           prepareDataScan(pInfo);
           pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
-        } else if (upRes->info.type = STREAM_INVERT) {
+        } else if (upRes->info.type == STREAM_INVERT) {
           pInfo->scanMode = STREAM_SCAN_FROM_RES;
           return upRes;
         }
