@@ -39,6 +39,14 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
 
 :::
 
+### 创建数据库示例
+
+创建时间精度为纳秒的数据库, 保留 1 年数据：
+
+```sql
+CREATE DATABASE test PRECISION 'ns' KEEP 365;
+```
+
 ## 显示系统当前参数
 
 ```
