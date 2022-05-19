@@ -137,7 +137,11 @@ endi
 
 sql insert into t1 values(1648791223001,12,14,13,11.1);
 sleep 500
-sql select _wstartts, c1, c2 ,c3 ,c4, c5 from streamt;
+sql select * from streamt;
+
+print    count(*) , count(d) , sum(a) , max(b) , min(c)
+print 0: $data00 , $data01 , $data02 , $data03 , $data04 , $data05
+print 1: $data10 , $data11 , $data12 , $data13 , $data14 , $data15
 
 if $rows != 4 then
   print ======$rows

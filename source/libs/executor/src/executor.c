@@ -14,8 +14,6 @@
  */
 
 #include "executor.h"
-#include <executorimpl.h>
-#include <vnode.h>
 #include "executorimpl.h"
 #include "planner.h"
 #include "tdatablock.h"

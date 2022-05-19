@@ -1048,7 +1048,9 @@ static void doClearWindows(SIntervalAggOperatorInfo* pInfo, int32_t numOfOutput,
 
 static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
   SIntervalAggOperatorInfo* pInfo = pOperator->info;
-  int32_t                   order = TSDB_ORDER_ASC;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
+
+  pInfo->order = TSDB_ORDER_ASC;
 
   if (pOperator->status == OP_EXEC_DONE) {
     return NULL;
@@ -1062,11 +1064,9 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
   }
 
-  //  STimeWindow win = {0};
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   SArray* pUpdated = NULL;
-
   while (1) {
     publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
@@ -1079,15 +1079,17 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
     // The timewindows that overlaps the timestamps of the input pBlock need to be recalculated and return to the
     // caller. Note that all the time window are not close till now.
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, pInfo->order, MAIN_SCAN, true);
     if (pInfo->invertible) {
       setInverFunction(pInfo->binfo.pCtx, pOperator->numOfExprs, pBlock->info.type);
     }
+
     if (pBlock->info.type == STREAM_REPROCESS) {
       doClearWindows(pInfo, pOperator->numOfExprs, pBlock);
+      qDebug("%s clear existed time window results for updates checked", GET_TASKID(pTaskInfo));
       continue;
     }
-    pInfo->order = TSDB_ORDER_ASC;
+
     pUpdated = hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
   }
 
