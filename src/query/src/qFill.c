@@ -85,7 +85,7 @@ static void doFillOneRowResult(SFillInfo* pFillInfo, void** data, char** srcData
       setNullValueForRow(pFillInfo, data, pFillInfo->numOfCols, index);
     }
   } else if (pFillInfo->type == TSDB_FILL_NEXT) {
-    char* p = FILL_IS_ASC_FILL(pFillInfo)? next : prev;
+    char* p = next;
 
     if (p != NULL) {
       for (int32_t i = 1; i < pFillInfo->numOfCols; ++i) {
