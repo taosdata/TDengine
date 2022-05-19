@@ -291,7 +291,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 
   SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
   int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
-                                       pRequest->metric.start, &res);
+                                  pRequest->metric.start, &res);
   if (code != TSDB_CODE_SUCCESS) {
     if (pRequest->body.queryJob != 0) {
       schedulerFreeJob(pRequest->body.queryJob);
@@ -325,7 +325,7 @@ int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) 
 int32_t validateSversion(SRequestObj* pRequest, void* res) {
   SArray* pArray = NULL;
   int32_t code = 0;
-  
+
   if (TDMT_VND_SUBMIT == pRequest->type) {
     SSubmitRsp* pRsp = (SSubmitRsp*)res;
     if (pRsp->nBlocks <= 0) {
@@ -337,14 +337,13 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    
+
     for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
-      SSubmitBlkRsp *blk = pRsp->pBlocks + i;
-      STbSVersion tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
+      SSubmitBlkRsp* blk = pRsp->pBlocks + i;
+      STbSVersion    tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
       taosArrayPush(pArray, &tbSver);
     }
   } else if (TDMT_VND_QUERY == pRequest->type) {
-
   }
 
   SCatalog* pCatalog = NULL;
@@ -365,11 +364,10 @@ void freeRequestRes(SRequestObj* pRequest, void* res) {
   if (NULL == res) {
     return;
   }
-  
+
   if (TDMT_VND_SUBMIT == pRequest->type) {
     tFreeSSubmitRsp((SSubmitRsp*)res);
   } else if (TDMT_VND_QUERY == pRequest->type) {
-
   }
 }
 
@@ -1022,7 +1020,6 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   SRpcInit           rpcInit = {0};
   char               pass[TSDB_PASSWORD_LEN + 1] = {0};
 
-  taosEncryptPass_c((uint8_t*)("_pwd"), strlen("_pwd"), pass);
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = NULL;
@@ -1030,9 +1027,6 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
-  rpcInit.ckey = "_key";
-  rpcInit.spi = 1;
-  rpcInit.secret = pass;
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {
