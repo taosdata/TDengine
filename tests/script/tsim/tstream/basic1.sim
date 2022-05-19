@@ -409,53 +409,53 @@ sql select `_wstartts`, c1, c2 ,c3 ,c4, c5 from streamt;
 # row 1
 if $data11 != 4 then
   print ======$data11
-  # return -1
+  return -1
 endi
 
 if $data12 != 4 then
   print ======$data12
-  # return -1
+  return -1
 endi
 
 if $data13 != 10 then
   print ======$data13
-  # return -1
+  return -1
 endi
 
 if $data14 != 3 then
   print ======$data14
-  # return -1
+  return -1
 endi
 
 if $data15 != 1 then
   print ======$data15
-  # return -1
+  return -1
 endi
 
 # row 2
 if $data21 != 4 then
   print ======$data21
-  # return -1
+  return -1
 endi
 
 if $data22 != 4 then
   print ======$data22
-  # return -1
+  return -1
 endi
 
 if $data23 != 15 then
   print ======$data23
-    # return -1
+    return -1
 endi
 
 if $data24 != 4 then
   print ======$data24
-  # return -1
+  return -1
 endi
 
 if $data25 != 3 then
   print ======$data25
-  # return -1
+  return -1
 endi
 
 
