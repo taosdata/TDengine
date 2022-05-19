@@ -66,7 +66,6 @@
 use std::collections::BTreeMap;
 use std::fmt::Display;
 use std::num::ParseIntError;
-use std::ops::Deref;
 use std::str::FromStr;
 
 use itertools::Itertools;
@@ -134,7 +133,7 @@ impl Address {
     }
 
     #[inline]
-    fn empty(&self) -> bool {
+    pub fn is_empty(&self) -> bool {
         self.host.is_none() && self.port.is_none() && self.path.is_none()
     }
 }
@@ -285,7 +284,7 @@ impl FromStr for Dsn {
     type Err = DsnError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let dsn = DsnParser::parse(Rule::dsn, &s)?.next().unwrap();
+        let dsn = DsnParser::parse(Rule::dsn, s)?.next().unwrap();
 
         let mut to = Dsn::default();
         for pair in dsn.into_inner() {

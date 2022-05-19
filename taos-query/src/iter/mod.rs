@@ -43,6 +43,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct RowsIter<'b, T: BlockExt> {
     block: &'b T,
     row: usize,
@@ -78,6 +79,7 @@ where
     }
 }
 
+#[derive(Debug)]
 pub struct IntoRowsIter<T: BlockExt> {
     block: Rc<T>,
     row: usize,

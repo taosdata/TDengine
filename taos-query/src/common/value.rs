@@ -1,5 +1,6 @@
 use std::{borrow::Cow, str::Utf8Error};
 
+use rust_decimal::prelude::*;
 use serde::{Deserialize, Serialize};
 
 use super::{Timestamp, Ty};
@@ -23,7 +24,7 @@ pub enum BorrowedValue<'b> {
     UBigInt(u64), // 14
     Json(Cow<'b, [u8]>),
     VarBinary(&'b [u8]),
-    Decimal(f64),
+    Decimal(Decimal),
     Blob(&'b [u8]),
     MediumBlob(&'b [u8]),
 }
@@ -176,7 +177,7 @@ pub enum Value {
     UBigInt(u64), // 14
     Json(serde_json::Value),
     VarBinary(Vec<u8>),
-    Decimal(f64),
+    Decimal(Decimal),
     Blob(Vec<u8>),
     MediumBlob(Vec<u8>),
 }
@@ -270,7 +271,7 @@ impl Value {
             USmallInt(v) => format!("{v}"),
             UInt(v) => format!("{v}"),
             UBigInt(v) => format!("{v}"),
-            Json(v) => format!("\"{}\"", v.to_string()),
+            Json(v) => format!("\"{}\"", v),
             VarBinary(_) => todo!(),
             Decimal(_) => todo!(),
             Blob(_) => todo!(),
@@ -278,43 +279,5 @@ impl Value {
         }
     }
 }
-
-// impl<'b> crate::Valuable for BorrowedValue<'b> {
-//     fn is_null(&self) -> bool {
-//         use BorrowedValue::*;
-//         matches!(self, Null)
-//     }
-
-//     fn as_borrowed_value(&self) -> BorrowedValue {
-//         self.clone()
-//     }
-
-//     fn into_owned_value(self) -> crate::Value {
-//         self.into_value()
-//     }
-
-//     fn ty(&self) -> Ty {
-//         self.ty()
-//     }
-// }
-
-// impl<'b> crate::Valuable for &'b Value {
-//     fn is_null(&self) -> bool {
-//         use Value::*;
-//         matches!(self, Null)
-//     }
-
-//     fn as_borrowed_value(&self) -> BorrowedValue {
-//         self.to_borrowed_value()
-//     }
-
-//     fn into_owned_value(self) -> crate::Value {
-//         (*self).clone()
-//     }
-
-//     fn ty(&self) -> Ty {
-//         (*self).ty()
-//     }
-// }
 
 mod de;

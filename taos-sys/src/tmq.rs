@@ -121,7 +121,7 @@ extern "C" {
         value: *const c_char,
     ) -> tmq_conf_res_t;
 
-    pub fn tmq_conf_set_offset_commit_cb(
+    pub fn tmq_conf_set_auto_commit_cb(
         conf: *mut tmq_conf_t,
         cb: tmq_commit_cb,
         param: *mut c_void,

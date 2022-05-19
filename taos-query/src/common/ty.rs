@@ -77,7 +77,7 @@ pub enum Ty {
     Double, // 7
     /// 8: VarChar, `binary` type in sql for TDengine 2.x, `varchar` for TDengine 3.x,
     ///  will be represented in Rust as [&str] or [String]. This type of data be deserialized to [Vec<u8>].
-    VarChar, // 8, since 3.0 Binary is just an alias of VarChar
+    VarChar,
     /// 9: Timestamp, `timestamp` type in sql, will be represented as [i64] in Rust.
     /// But can be deserialized to [chrono::naive::NaiveDateTime] or [String].
     Timestamp, // 9
@@ -137,14 +137,12 @@ impl<'de> serde::Deserialize<'de> for Ty {
                 Ok(Ty::from_u8(v as u8))
             }
 
-
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
             where
                 E: serde::de::Error,
             {
                 Ty::from_str(v).map_err(<E as serde::de::Error>::custom)
             }
-
 
             fn visit_none<E>(self) -> Result<Self::Value, E>
             where
@@ -211,6 +209,45 @@ impl Ty {
     pub const fn is_var_type(&self) -> bool {
         use Ty::*;
         matches!(self, VarChar | VarBinary | NChar)
+    }
+
+    pub const fn is_primitive(&self) -> bool {
+        use Ty::*;
+        matches!(
+            self,
+            Bool | TinyInt
+                | SmallInt
+                | Int
+                | BigInt
+                | UTinyInt
+                | USmallInt
+                | UInt
+                | UBigInt
+                | Float
+                | Double
+                | Decimal
+        )
+    }
+
+    /// Fixed length if the type is primitive.
+    pub const fn fixed_length(&self) -> usize {
+        use Ty::*;
+        match self {
+            Bool => 1,
+            TinyInt => 1,
+            SmallInt => 2,
+            Int => 4,
+            BigInt => 8,
+            Float => 4,
+            Double => 8,
+            Timestamp => 8,
+            UTinyInt => 1,
+            USmallInt => 2,
+            UInt => 4,
+            UBigInt => 8,
+            Decimal => 16,
+            _ => panic!("not a fixed length type"),
+        }
     }
 
     /// The sql name of type.
@@ -307,36 +344,3 @@ macro_rules! _impl_from_primitive {
 }
 
 _impl_from_primitive!(i8 i16 i32 i64 u16 u32 u64);
-
-// impl<'de> serde::de::VariantAccess<'de> for TaosDataType {
-//     type Error = serde::de::value::Error;
-
-//     fn unit_variant(self) -> Result<(), Self::Error> {
-//         Ok(())
-//     }
-
-//     fn newtype_variant_seed<T>(self, seed: T) -> Result<T::Value, Self::Error>
-//     where
-//         T: serde::de::DeserializeSeed<'de>,
-//     {
-//         todo!()
-//     }
-
-//     fn tuple_variant<V>(self, len: usize, visitor: V) -> Result<V::Value, Self::Error>
-//     where
-//         V: serde::de::Visitor<'de>,
-//     {
-//         todo!()
-//     }
-
-//     fn struct_variant<V>(
-//         self,
-//         fields: &'static [&'static str],
-//         visitor: V,
-//     ) -> Result<V::Value, Self::Error>
-//     where
-//         V: serde::de::Visitor<'de>,
-//     {
-//         todo!()
-//     }
-// }

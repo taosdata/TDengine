@@ -78,18 +78,18 @@ impl RawTaos {
         pass: *const c_char,
         db: *const c_char,
         port: u16,
-    ) -> Option<Self> {
+    ) -> Result<Self, Error> {
         let ptr = unsafe { taos_connect(host, user, pass, db, port) };
-        let tmp = RawRes::from_ptr(std::ptr::null_mut());
-        if tmp.is_err() {
-            let err = tmp.unwrap_err();
-            log::debug!("connect error: {err}");
-        }
 
         if ptr.is_null() {
-            None
+            let null = std::ptr::null_mut();
+            let code = unsafe { taos_errno(null) };
+            let err = unsafe { CStr::from_ptr(taos_errstr(null)) }
+                .to_string_lossy()
+                .to_string();
+            Err(Error::new(code, err))
         } else {
-            Some(RawTaos(ptr))
+            Ok(RawTaos(ptr))
         }
     }
     #[inline]
@@ -99,12 +99,17 @@ impl RawTaos {
         auth: *const c_char,
         db: *const c_char,
         port: u16,
-    ) -> Option<Self> {
+    ) -> Result<Self, Error> {
         let ptr = unsafe { taos_connect_auth(host, user, auth, db, port) };
         if ptr.is_null() {
-            None
+            let null = std::ptr::null_mut();
+            let code = unsafe { taos_errno(null) };
+            let err = unsafe { CStr::from_ptr(taos_errstr(null)) }
+                .to_string_lossy()
+                .to_string();
+            Err(Error::new(code, err))
         } else {
-            Some(RawTaos(ptr))
+            Ok(RawTaos(ptr))
         }
     }
 
@@ -399,135 +404,8 @@ impl RawRes {
     }
 }
 
-#[derive(Debug)]
-pub struct RawStmt(*mut TAOS_STMT);
-
-impl Drop for RawStmt {
-    fn drop(&mut self) {
-        let _ = self.close();
-    }
-}
-impl RawStmt {
-    #[inline]
-    pub unsafe fn as_ptr(&self) -> *mut TAOS_STMT {
-        self.0
-    }
-    #[inline]
-    pub fn errstr(&self) -> &CStr {
-        unsafe { CStr::from_ptr(taos_errstr(self.as_ptr())) }
-    }
-
-    #[inline]
-    pub fn err_as_str(&self) -> &'static str {
-        unsafe {
-            std::str::from_utf8_unchecked(CStr::from_ptr(taos_errstr(self.as_ptr())).to_bytes())
-        }
-    }
-
-    #[inline]
-    pub fn from_raw_taos(taos: &RawTaos) -> RawStmt {
-        RawStmt(unsafe { taos_stmt_init(taos.as_ptr()) })
-    }
-    #[inline]
-    pub fn close(&mut self) -> Result<(), Error> {
-        err_or!(self, taos_stmt_close(self.as_ptr()))
-    }
-
-    #[inline]
-    pub fn prepare(&mut self, sql: *const c_char, length: c_ulong) -> Result<(), Error> {
-        err_or!(self, taos_stmt_prepare(self.as_ptr(), sql, length))
-    }
-
-    #[inline]
-    pub fn set_tbname_tags(
-        &mut self,
-        name: *const c_char,
-        tags: *mut TAOS_BIND,
-    ) -> Result<(), Error> {
-        err_or!(self, taos_stmt_set_tbname_tags(self.as_ptr(), name, tags))
-    }
-
-    #[inline]
-    pub fn set_tbname(&mut self, name: *const c_char) -> Result<(), Error> {
-        err_or!(self, taos_stmt_set_tbname(self.as_ptr(), name))
-    }
-
-    #[inline]
-    pub fn set_sub_tbname(&mut self, name: *const c_char) -> Result<(), Error> {
-        err_or!(self, taos_stmt_set_sub_tbname(self.as_ptr(), name))
-    }
-
-    #[inline]
-    pub fn use_result(&mut self) -> RawRes {
-        unsafe { RawRes::from_ptr_unchecked(taos_stmt_use_result(self.as_ptr())) }
-    }
-
-    #[inline]
-    pub fn affected_rows(&self) -> i32 {
-        unsafe { taos_stmt_affected_rows(self.as_ptr()) }
-    }
-
-    #[inline]
-    pub fn execute(&self) -> Result<(), Error> {
-        err_or!(self, taos_stmt_execute(self.as_ptr()))
-    }
-
-    #[inline]
-    pub fn add_batch(&self) -> Result<(), Error> {
-        err_or!(self, taos_stmt_add_batch(self.as_ptr()))
-    }
-
-    #[inline]
-    pub fn is_insert(&self) -> Result<bool, Error> {
-        let mut is_insert = 0;
-        err_or!(
-            self,
-            taos_stmt_is_insert(self.as_ptr(), &mut is_insert as _),
-            is_insert != 0
-        )
-    }
-
-    #[inline]
-    pub fn num_params(&self) -> Result<i32, Error> {
-        let mut num = 0;
-        err_or!(
-            self,
-            taos_stmt_num_params(self.as_ptr(), &mut num as _),
-            num
-        )
-    }
-
-    #[inline]
-    pub fn get_param(&mut self, idx: i32) -> Result<(Ty, i32), Error> {
-        let (mut type_, mut bytes) = (0, 0);
-        err_or!(
-            self,
-            taos_stmt_get_param(self.as_ptr(), idx, &mut type_ as _, &mut bytes as _),
-            ((type_ as u8).into(), bytes)
-        )
-    }
-    #[inline]
-    pub fn bind_param(&mut self, bind: *mut TAOS_BIND) -> Result<(), Error> {
-        err_or!(self, taos_stmt_bind_param(self.as_ptr(), bind))
-    }
-
-    #[inline]
-    pub fn bind_param_batch(&mut self, bind: *mut TAOS_MULTI_BIND) -> Result<(), Error> {
-        err_or!(self, taos_stmt_bind_param_batch(self.as_ptr(), bind))
-    }
-
-    #[inline]
-    pub fn bind_single_param_batch(
-        &self,
-        bind: *mut TAOS_MULTI_BIND,
-        col: i32,
-    ) -> Result<(), Error> {
-        err_or!(
-            self,
-            taos_stmt_bind_single_param_batch(self.as_ptr(), bind, col)
-        )
-    }
-}
+pub mod stmt;
+pub mod into_c_str;
 
 // #[derive(Debug, Clone, Copy)]
 // #[repr(C)]

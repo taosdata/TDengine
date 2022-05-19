@@ -54,6 +54,13 @@ impl ResultSet {
         })
     }
 
+    pub(crate) fn from_raw_res(raw: RawRes) -> Self {
+        Self {
+            raw: DroppableRawRes::new(raw),
+            summary: Default::default(),
+        }
+    }
+
     pub(crate) fn new(raw: DroppableRawRes) -> Self {
         Self {
             raw,

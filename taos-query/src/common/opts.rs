@@ -65,7 +65,8 @@ impl TaosOpts {
         if dsn.is_empty() {
             return Ok(Self::new());
         }
-        let dsn = Dsn::parse(dsn)?;
+        let _ = Dsn::parse(dsn)?;
+        
         Ok(Self::default())
     }
 

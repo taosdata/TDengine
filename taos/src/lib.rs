@@ -66,7 +66,6 @@ impl Taos {
             port,
         )
         .map(Self)
-        .ok_or_else(|| Error::from_string("invalid connection"))
     }
 
     /// Asynchronously query with sql
@@ -280,6 +279,25 @@ mod tests {
 
     use crate::prelude::*;
     use anyhow::Result;
+
+    #[test]
+    fn test_invalid_database() {
+        let res = TaosOptions::default().database("invalid_database").build();
+        assert!(res.is_err());
+
+        let err = res.unwrap_err();
+        dbg!(err);
+    }
+
+    #[test(log_level = "trace")]
+    async fn test_information_schema(taos: &Taos) -> Result<()> {
+        let info: Vec<Value> = taos
+            .query_one("select * from information_schema.user_databases where name like 'infor%'")
+            .await?
+            .unwrap();
+        dbg!(info);
+        Ok(())
+    }
     #[test]
     async fn test_describe(taos: &Taos) -> Result<()> {
         let desc = taos.describe("log.logs").await?;

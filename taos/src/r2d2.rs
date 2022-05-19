@@ -22,9 +22,9 @@ impl r2d2::ManageConnection for TaosOptions {
 
 #[test]
 fn test_r2d2() {
+    use crate::prelude::*;
     use std::sync::mpsc::channel;
     use std::thread;
-    use crate::prelude::*;
 
     let opts = TaosOptions::new();
     let pool = TaosPool::builder().build(opts).expect("");

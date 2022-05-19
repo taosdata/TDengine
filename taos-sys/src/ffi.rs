@@ -87,7 +87,7 @@ extern "C" {
     pub fn taos_stmt_set_tbname_tags(
         stmt: *mut TAOS_STMT,
         name: *const c_char,
-        tags: *mut TAOS_BIND,
+        tags: *mut TaosBind,
     ) -> c_int;
 
     pub fn taos_stmt_set_tbname(stmt: *mut TAOS_STMT, name: *const c_char) -> c_int;
@@ -105,13 +105,13 @@ extern "C" {
         bytes: *mut c_int,
     ) -> c_int;
 
-    pub fn taos_stmt_bind_param(stmt: *mut TAOS_STMT, bind: *mut TAOS_BIND) -> c_int;
+    pub fn taos_stmt_bind_param(stmt: *mut TAOS_STMT, bind: *const TaosBind) -> c_int;
 
-    pub fn taos_stmt_bind_param_batch(stmt: *mut TAOS_STMT, bind: *mut TAOS_MULTI_BIND) -> c_int;
+    pub fn taos_stmt_bind_param_batch(stmt: *mut TAOS_STMT, bind: *const TaosMultiBind) -> c_int;
 
     pub fn taos_stmt_bind_single_param_batch(
         stmt: *mut TAOS_STMT,
-        bind: *mut TAOS_MULTI_BIND,
+        bind: *const TaosMultiBind,
         colIdx: c_int,
     ) -> c_int;
 
@@ -174,7 +174,10 @@ extern "C" {
 
     pub fn taos_errno(tres: *mut TAOS_RES) -> c_int;
 
-    #[cfg(taos_v3)]
+}
+
+#[c_cfg(taos_v3)]
+extern "C" {
     pub fn taos_get_column_data_offset(res: *mut TAOS_RES, col: i32) -> *mut i32;
 }
 

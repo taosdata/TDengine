@@ -3,10 +3,10 @@ use std::{marker::PhantomData, mem::ManuallyDrop};
 use bitvec_simd::BitVec;
 
 use taos_query::common::Ty;
-use taos_sys::TAOS_MULTI_BIND;
+use taos_sys::TaosMultiBind;
 
 #[derive(Debug)]
-pub struct MultiBind<'a>(TAOS_MULTI_BIND, PhantomData<&'a u8>);
+pub struct MultiBind<'a>(TaosMultiBind, PhantomData<&'a u8>);
 
 unsafe impl<'a> Send for MultiBind<'a> {}
 unsafe impl<'a> Sync for MultiBind<'a> {}
@@ -41,7 +41,7 @@ impl_taos_type_of!(f64, Double);
 impl<'a> MultiBind<'a> {
     pub(crate) fn nulls(n: usize) -> Self {
         Self(
-            TAOS_MULTI_BIND {
+            TaosMultiBind {
                 buffer_type: Ty::Null as _,
                 buffer: std::ptr::null_mut(),
                 buffer_length: 0,
@@ -54,7 +54,7 @@ impl<'a> MultiBind<'a> {
     }
     pub(crate) fn from_primitives<T: TaosTypeOf>(nulls: &BitVec, values: &[T]) -> Self {
         Self(
-            TAOS_MULTI_BIND {
+            TaosMultiBind {
                 buffer_type: T::taos_type_of() as _,
                 buffer: values.as_ptr() as _,
                 buffer_length: std::mem::size_of::<T>(),
@@ -67,7 +67,7 @@ impl<'a> MultiBind<'a> {
     }
     pub(crate) fn from_raw_timestamps(nulls: &BitVec, values: &[i64]) -> Self {
         Self(
-            TAOS_MULTI_BIND {
+            TaosMultiBind {
                 buffer_type: Ty::Timestamp as _,
                 buffer: values.as_ptr() as _,
                 buffer_length: std::mem::size_of::<i64>(),
@@ -112,7 +112,7 @@ impl<'a> MultiBind<'a> {
             }
         }
         Self(
-            TAOS_MULTI_BIND {
+            TaosMultiBind {
                 buffer_type: Ty::VarChar as _,
                 buffer: buffer.as_ptr() as _,
                 buffer_length,

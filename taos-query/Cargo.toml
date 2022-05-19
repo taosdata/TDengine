@@ -12,8 +12,10 @@ itertools = "0.10.3"
 log = "0.4"
 mdsn = { path = "../mdsn" }
 num_enum = "0.5.7"
+rust_decimal = { version = "1", features = ["c-repr"] }
 thiserror = "1.0"
 url = "2.2.2"
+derive_more = "0.99"
 
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

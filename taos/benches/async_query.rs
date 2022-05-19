@@ -24,9 +24,7 @@ fn criterion_benchmark(c: &mut Criterion) {
     let _rt = runtime::Runtime::new().unwrap();
 
     group.bench_function("async", |b| b.iter(|| bench_query_sync0(&taos)));
-    group.bench_function("sync", |b| {
-        b.iter(|| bench_query_sync1(&taos))
-    });
+    group.bench_function("sync", |b| b.iter(|| bench_query_sync1(&taos)));
     group.finish();
 }
 

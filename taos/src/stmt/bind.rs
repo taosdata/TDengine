@@ -11,7 +11,7 @@ use std::ptr;
 use std::time::SystemTime;
 
 #[repr(transparent)]
-pub struct BindParam(TAOS_BIND);
+pub struct BindParam(TaosBindV2);
 
 unsafe impl std::marker::Send for BindParam {}
 unsafe impl std::marker::Sync for BindParam {}
@@ -31,7 +31,7 @@ impl BindParam {
         let length: *mut usize = ptr::null_mut();
         let is_null: *mut c_int = ptr::null_mut();
         let error: *mut c_int = ptr::null_mut();
-        Self(TAOS_BIND {
+        Self(TaosBindV2 {
             buffer_type: buffer_type as _,
             buffer,
             buffer_length: 0,
@@ -40,7 +40,7 @@ impl BindParam {
             is_unsigned: 0,
             error,
             allocated: 0,
-            u: taos_bind_field_anonym_union { ts: 0 },
+            u: TaosBindUnionV2 { ts: 0 },
         })
     }
     pub fn null() -> Self {

@@ -1,6 +1,7 @@
 use std::{ffi::*, os::raw::c_int};
 
 #[test]
+#[cfg(taos_v2)]
 fn test_query_a() {
     use taos_sys::*;
 

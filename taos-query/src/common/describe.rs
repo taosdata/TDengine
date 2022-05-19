@@ -37,7 +37,7 @@ impl Describe {
         let (cols, tags): (Vec<_>, Vec<_>) = self.fields().iter().partition(|f| !f.is_tag());
         let col_sql = cols.into_iter().map(|f| f.sql_repr()).join(",");
 
-        if tags.len() == 0 {
+        if tags.is_empty() {
             format!("create table if not exists {table} ({col_sql})")
         } else {
             let tags_sql = tags.into_iter().map(|f| f.sql_repr()).join(",");

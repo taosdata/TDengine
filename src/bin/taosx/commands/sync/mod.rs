@@ -155,6 +155,7 @@ impl App {
                 log::info!("[{idx}] task start");
                 while let Some(rs) = tmq.poll() {
                     let mut rs = rs?;
+                    log::info!("[{idx}] get result");
                     let _: Vec<_> = rs
                         .blocks_iter()
                         .map(|block| -> Result<()> {
@@ -189,54 +190,6 @@ impl App {
             let _ = handle.join();
         }
         
-
-        // let tmq = builder.build()?;
-        // while let Some(rs) = tmq.poll() {
-        //     log::info!("polled");
-        //     let mut rs = rs?;
-        //     let _: Vec<_> = rs
-        //         .block_stream()
-        //         .map(|block| -> Result<()> {
-        //             let table = block.tmq_table_name().unwrap();
-        //             log::info!("table name is {table}");
-        //             if taos2.exec_sync(format!("describe {table}")).is_err() {
-        //                 futures::executor::block_on(sync_schema(&taos1, &taos2))?;
-        //             }
-
-        //             let bind: Vec<MultiBind> = block.columns_iter().map(|col| col.into()).collect();
-        //             use itertools::Itertools;
-        //             let questions = std::iter::repeat("?").take(bind.len()).join(",");
-        //             let mut stmt =
-        //                 taos2.stmt(format!("insert into {table} values({questions})"))?;
-        //             stmt.multi_bind(&bind)?;
-        //             stmt.execute()?;
-        //             let inserted = stmt.affected_rows();
-        //             log::info!("inserted {inserted} rows");
-        //             Ok(())
-        //         })
-        //         .collect()
-        //         .await;
-        // }
-
-        // let unfold = futures::sink::unfold(0, |mut sum, mut rs: ResultSet| async move {
-        //     rs.block_stream()
-        //         .for_each(|block| async {
-        //             let bind: Vec<MultiBind> = block.columns_iter().map(|col| col.into()).collect();
-        //             let table = block.tmq_table_name().unwrap();
-        //             let mut stmt = taos2.stmt(format!("insert into {table} values(?,?)")).unwrap();
-        //             stmt.multi_bind(&bind).unwrap();
-        //             stmt.execute().unwrap();
-        //             let inserted = stmt.affected_rows();
-        //             log::info!("inserted {inserted} rows");
-        //         });
-        //     let (blocks, rows) = rs.summary();
-        //     assert!(blocks == 1, "tmq response blocks always should be 1");
-        //     sum += rows;
-        //     eprintln!("sum: {sum}, rows in block = {rows}");
-        //     Ok::<_, taos::Error>(sum)
-        // });
-        // futures::pin_mut!(unfold);
-        // tmq.forward(unfold).await?;
         Ok(())
     }
 }

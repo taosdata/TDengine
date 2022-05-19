@@ -168,7 +168,7 @@ impl TmqBuilder {
         self.on_commit = Some(on_commit);
         // todo: callback pointer should be freed in Drop.
         self.conf
-            .set_offset_commit_cb(tmq_commit_callback, Box::into_raw(Box::new(cb)) as _);
+            .set_auto_commit_cb(tmq_commit_callback, Box::into_raw(Box::new(cb)) as _);
         self
     }
 
@@ -238,7 +238,7 @@ mod test {
         ) {
             log::info!("commit {resp:?}");
         }
-        conf.set_offset_commit_cb(tmq_commit_callback, std::ptr::null_mut());
+        conf.set_auto_commit_cb(tmq_commit_callback, std::ptr::null_mut());
         println!("build consumer");
         Ok(conf.consumer()?)
     }
@@ -382,7 +382,7 @@ mod test {
         ])?;
         let unfold = futures::sink::unfold(0, |mut sum, mut rs: ResultSet| async move {
             for block in rs.blocks_iter() {
-                let bind: Vec<MultiBind> = block.columns_iter().map(|col| col.into()).collect();
+                let bind: Vec<TaosMultiBind> = block.columns_iter().map(|col| col.into()).collect();
                 let table = block.tmq_table_name().unwrap();
                 let mut stmt = taos.stmt(format!("insert into db2.{table} values(?,?)"))?;
                 stmt.multi_bind(&bind)?;

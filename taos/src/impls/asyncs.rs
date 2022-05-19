@@ -4,7 +4,7 @@ use std::os::raw::c_int;
 use async_trait::async_trait;
 
 use taos_query::common::*;
-use taos_query::{AsyncQueryable, AsyncFetchable};
+use taos_query::{AsyncFetchable, AsyncQueryable};
 use taos_sys::DroppableRawRes;
 
 use super::ResultSet;
@@ -97,7 +97,7 @@ mod tests {
 
     #[test(log_level = "info")]
     async fn async_query_de(taos: &Taos, _database: &str) -> Result<()> {
-        use taos_query::{AsyncQueryable, AsyncFetchable};
+        use taos_query::{AsyncFetchable, AsyncQueryable};
         taos.exec("create table tb1 (ts timestamp, level tinyint, content varchar(100), dnode_id int, dnode_ep varchar(100))")
             .await?;
         taos.exec("insert into tb1 values(now, 1, '', 1, 'abc')")

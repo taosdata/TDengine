@@ -124,7 +124,7 @@ pub trait BlockExt: Debug + Sized {
 
     /// Rows as [futures::stream::Stream].
     fn rows_stream(&self) -> futures::stream::Iter<RowsIter<'_, Self>> {
-        futures::stream::iter(Self::iter_rows(&self))
+        futures::stream::iter(Self::iter_rows(self))
     }
 
     /// Owned version to rows stream.
@@ -137,7 +137,7 @@ pub trait BlockExt: Debug + Sized {
     where
         T: serde::de::Deserialize<'b>,
     {
-        futures::stream::iter(Self::deserialize(&self))
+        futures::stream::iter(Self::deserialize(self))
     }
 }
 
@@ -286,8 +286,8 @@ where
 
     fn block_stream(&mut self) -> Self::BlockStream;
 
-    fn deserialize_stream<'a, T>(
-        &'a mut self,
+    fn deserialize_stream<T>(
+        &mut self,
     ) -> futures::stream::FlatMap<
         <Self as AsyncFetchable>::BlockStream,
         futures::stream::Iter<std::vec::IntoIter<Result<T, DeError>>>,
@@ -444,10 +444,11 @@ pub struct Manager<T: FromDsn> {
 
 impl<T: FromDsn> Default for Manager<T> {
     fn default() -> Self {
-        let mut dsn: Dsn = Default::default();
-        dsn.driver = "taos".to_string();
         Self {
-            dsn,
+            dsn: Dsn {
+                driver: "taos".to_string(),
+                ..Default::default()
+            },
             marker: Default::default(),
         }
     }

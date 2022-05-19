@@ -1,2 +1,1 @@
-mod into_c_str;
-pub use into_c_str::*;
+pub use taos_sys::into_c_str::*;

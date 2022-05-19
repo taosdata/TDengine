@@ -64,7 +64,10 @@ impl NamingStrategy {
                     .collect();
                 for _ in 0..uuid.len() {
                     if uuid[0].is_alphabetic() {
-                        log::trace!("create database with name: {}", String::from_iter(uuid.clone()));
+                        log::trace!(
+                            "create database with name: {}",
+                            String::from_iter(uuid.clone())
+                        );
                         break;
                     } else {
                         uuid.rotate_left(1);

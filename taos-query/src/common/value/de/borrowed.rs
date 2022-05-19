@@ -162,7 +162,7 @@ impl<'de, 'b: 'de> serde::de::Deserializer<'de> for BorrowedValue<'de> {
     where
         V: serde::de::Visitor<'de>,
     {
-        log::trace!("call deserialize_str");
+        log::trace!("call deserialize_str: {self:?}");
         use BorrowedValue::*;
         match self {
             Null => visitor.visit_borrowed_str(""), // todo: empty string or error?

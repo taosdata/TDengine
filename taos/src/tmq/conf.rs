@@ -105,9 +105,9 @@ impl TmqConf {
         }
     }
 
-    pub fn set_offset_commit_cb(&mut self, cb: tmq_commit_cb, param: *mut c_void) -> () {
+    pub fn set_auto_commit_cb(&mut self, cb: tmq_commit_cb, param: *mut c_void) -> () {
         unsafe {
-            tmq_conf_set_offset_commit_cb(self.0, cb, param);
+            tmq_conf_set_auto_commit_cb(self.0, cb, param);
         }
     }
 

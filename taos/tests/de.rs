@@ -84,9 +84,7 @@ async fn de_seq_value(taos: &Taos, _database: &str) -> anyhow::Result<()> {
     ))?;
 
     log::info!("select");
-    let mut res = taos
-        .query("select tbname,gid,location from stb1")
-        .await?;
+    let mut res = taos.query("select tbname,gid,location from stb1").await?;
     use futures::StreamExt;
 
     use futures::future;
