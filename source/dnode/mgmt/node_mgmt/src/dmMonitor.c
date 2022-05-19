@@ -57,78 +57,78 @@ static void dmGetDmMonitorInfo(SDnode *pDnode) {
 }
 
 static void dmGetMmMonitorInfo(SDnode *pDnode) {
-  SMonMmInfo    mmInfo = {0};
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, MNODE);
-  if (pWrapper != NULL && pWrapper->required) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    SMonMmInfo mmInfo = {0};
     if (tsMultiProcess) {
       dmSendLocalRecv(pDnode, TDMT_MON_MM_INFO, tDeserializeSMonMmInfo, &mmInfo);
     } else if (pWrapper->pMgmt != NULL) {
       mmGetMonitorInfo(pWrapper->pMgmt, &mmInfo);
     }
+    dmReleaseWrapper(pWrapper);
+    monSetMmInfo(&mmInfo);
+    tFreeSMonMmInfo(&mmInfo);
   }
-  dmReleaseWrapper(pWrapper);
-  monSetMmInfo(&mmInfo);
-  tFreeSMonMmInfo(&mmInfo);
 }
 
 static void dmGetVmMonitorInfo(SDnode *pDnode) {
-  SMonVmInfo    vmInfo = {0};
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, VNODE);
-  if (pWrapper != NULL && pWrapper->required) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    SMonVmInfo vmInfo = {0};
     if (tsMultiProcess) {
       dmSendLocalRecv(pDnode, TDMT_MON_VM_INFO, tDeserializeSMonVmInfo, &vmInfo);
     } else if (pWrapper->pMgmt != NULL) {
       vmGetMonitorInfo(pWrapper->pMgmt, &vmInfo);
     }
+    dmReleaseWrapper(pWrapper);
+    monSetVmInfo(&vmInfo);
+    tFreeSMonVmInfo(&vmInfo);
   }
-  dmReleaseWrapper(pWrapper);
-  monSetVmInfo(&vmInfo);
-  tFreeSMonVmInfo(&vmInfo);
 }
 
 static void dmGetQmMonitorInfo(SDnode *pDnode) {
-  SMonQmInfo    qmInfo = {0};
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, VNODE);
-  if (pWrapper != NULL && pWrapper->required) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[QNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    SMonQmInfo qmInfo = {0};
     if (tsMultiProcess) {
       dmSendLocalRecv(pDnode, TDMT_MON_QM_INFO, tDeserializeSMonQmInfo, &qmInfo);
     } else if (pWrapper->pMgmt != NULL) {
       qmGetMonitorInfo(pWrapper->pMgmt, &qmInfo);
     }
+    dmReleaseWrapper(pWrapper);
+    monSetQmInfo(&qmInfo);
+    tFreeSMonQmInfo(&qmInfo);
   }
-  dmReleaseWrapper(pWrapper);
-  monSetQmInfo(&qmInfo);
-  tFreeSMonQmInfo(&qmInfo);
 }
 
 static void dmGetSmMonitorInfo(SDnode *pDnode) {
-  SMonSmInfo    smInfo = {0};
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, VNODE);
-  if (pWrapper != NULL && pWrapper->required) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[SNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    SMonSmInfo smInfo = {0};
     if (tsMultiProcess) {
       dmSendLocalRecv(pDnode, TDMT_MON_SM_INFO, tDeserializeSMonSmInfo, &smInfo);
     } else if (pWrapper->pMgmt != NULL) {
       smGetMonitorInfo(pWrapper->pMgmt, &smInfo);
     }
+    dmReleaseWrapper(pWrapper);
+    monSetSmInfo(&smInfo);
+    tFreeSMonSmInfo(&smInfo);
   }
-  dmReleaseWrapper(pWrapper);
-  monSetSmInfo(&smInfo);
-  tFreeSMonSmInfo(&smInfo);
 }
 
 static void dmGetBmMonitorInfo(SDnode *pDnode) {
-  SMonBmInfo    bmInfo = {0};
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, VNODE);
-  if (pWrapper != NULL && pWrapper->required) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[BNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
+    SMonBmInfo bmInfo = {0};
     if (tsMultiProcess) {
       dmSendLocalRecv(pDnode, TDMT_MON_BM_INFO, tDeserializeSMonBmInfo, &bmInfo);
     } else if (pWrapper->pMgmt != NULL) {
       bmGetMonitorInfo(pWrapper->pMgmt, &bmInfo);
     }
+    dmReleaseWrapper(pWrapper);
+    monSetBmInfo(&bmInfo);
+    tFreeSMonBmInfo(&bmInfo);
   }
-  dmReleaseWrapper(pWrapper);
-  monSetBmInfo(&bmInfo);
-  tFreeSMonBmInfo(&bmInfo);
 }
 
 void dmSendMonitorReport() {
@@ -147,26 +147,24 @@ void dmSendMonitorReport() {
 
 void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, VNODE);
-  if (pWrapper != NULL && pWrapper->required) {
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[VNODE];
+  if (dmMarkWrapper(pWrapper) == 0) {
     if (tsMultiProcess) {
       dmSendLocalRecv(pDnode, TDMT_MON_VM_LOAD, tDeserializeSMonVloadInfo, pInfo);
     } else if (pWrapper->pMgmt != NULL) {
       vmGetVnodeLoads(pWrapper->pMgmt, pInfo);
     }
+    dmReleaseWrapper(pWrapper);
   }
-  dmReleaseWrapper(pWrapper);
 }
 
 void dmGetMnodeLoads(SMonMloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();
-  SMgmtWrapper *pWrapper = dmAcquireWrapper(pDnode, MNODE);
-  if (pWrapper != NULL && pWrapper->required) {
-    if (tsMultiProcess) {
-      dmSendLocalRecv(pDnode, TDMT_MON_MM_LOAD, tDeserializeSMonMloadInfo, pInfo);
-    } else if (pWrapper->pMgmt != NULL) {
-      mmGetMnodeLoads(pWrapper->pMgmt, pInfo);
-    }
+  SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];
+  if (tsMultiProcess) {
+    dmSendLocalRecv(pDnode, TDMT_MON_MM_LOAD, tDeserializeSMonMloadInfo, pInfo);
+  } else if (pWrapper->pMgmt != NULL) {
+    mmGetMnodeLoads(pWrapper->pMgmt, pInfo);
   }
   dmReleaseWrapper(pWrapper);
 }
