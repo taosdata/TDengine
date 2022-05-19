@@ -586,8 +586,7 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
     int32_t numOfRows = pCtx[k].input.numOfRows;
     int32_t startOffset = pCtx[k].input.startRowIndex;
 
-    int32_t pos = (order == TSDB_ORDER_ASC) ? offset : offset - (forwardStep - 1);
-    pCtx[k].input.startRowIndex = pos;
+    pCtx[k].input.startRowIndex = offset;
     pCtx[k].input.numOfRows = forwardStep;
 
     if (tsCol != NULL) {
@@ -758,45 +757,6 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
         }
       }
     }
-
-    //    setBlockStatisInfo(&pCtx[i], pBlock, pOperator->pExpr[i].base.pColumns);
-    //      uint32_t flag = pOperator->pExpr[i].base.pParam[0].pCol->flag;
-    //      if (TSDB_COL_IS_NORMAL_COL(flag) /*|| (pCtx[i].functionId == FUNCTION_BLKINFO) ||
-    //          (TSDB_COL_IS_TAG(flag) && pOperator->pRuntimeEnv->scanFlag == MERGE_STAGE)*/) {
-
-    //        SColumn* pCol = pOperator->pExpr[i].base.pParam[0].pCol;
-    //        if (pCtx[i].columnIndex == -1) {
-    //          for(int32_t j = 0; j < pBlock->info.numOfCols; ++j) {
-    //            SColumnInfoData* pColData = taosArrayGet(pBlock->pDataBlock, j);
-    //            if (pColData->info.colId == pCol->colId) {
-    //              pCtx[i].columnIndex = j;
-    //              break;
-    //            }
-    //          }
-    //        }
-
-    //        uint32_t status = aAggs[pCtx[i].functionId].status;
-    //        if ((status & (FUNCSTATE_SELECTIVITY | FUNCSTATE_NEED_TS)) != 0) {
-    //          SColumnInfoData* tsInfo = taosArrayGet(pBlock->pDataBlock, 0);
-    // In case of the top/bottom query again the nest query result, which has no timestamp column
-    // don't set the ptsList attribute.
-    //          if (tsInfo->info.type == TSDB_DATA_TYPE_TIMESTAMP) {
-    //            pCtx[i].ptsList = (int64_t*) tsInfo->pData;
-    //          } else {
-    //            pCtx[i].ptsList = NULL;
-    //          }
-    //        }
-    //      } else if (TSDB_COL_IS_UD_COL(pCol->flag) && (pOperator->pRuntimeEnv->scanFlag == MERGE_STAGE)) {
-    //        SColIndex*       pColIndex = &pOperator->pExpr[i].base.colInfo;
-    //        SColumnInfoData* p = taosArrayGet(pBlock->pDataBlock, pColIndex->colIndex);
-    //
-    //        pCtx[i].pInput = p->pData;
-    //        assert(p->info.colId == pColIndex->info.colId && pCtx[i].inputType == p->info.type);
-    //        for(int32_t j = 0; j < pBlock->info.rows; ++j) {
-    //          char* dst = p->pData + j * p->info.bytes;
-    //          taosVariantDump(&pOperator->pExpr[i].base.param[1], dst, p->info.type, true);
-    //        }
-    //      }
   }
 
   return code;
@@ -875,7 +835,7 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
         taosArrayDestroy(pBlockList);
         return code;
       }
-      
+
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
       colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
       colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
@@ -2842,9 +2802,11 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
 
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData idata = {0};
-      idata.info.type = pSchema[i].type;
+
+      idata.info.type  = pSchema[i].type;
       idata.info.bytes = pSchema[i].bytes;
       idata.info.colId = pSchema[i].colId;
+      idata.hasNull    = true;
 
       taosArrayPush(pBlock->pDataBlock, &idata);
       if (IS_VAR_DATA_TYPE(idata.info.type)) {
@@ -5341,4 +5303,4 @@ int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, size_t ke
   pCatchSup->pWindowHashTable = taosHashInit(10000, hashFn, true, HASH_NO_LOCK);;
   return TSDB_CODE_SUCCESS;
 }
-                        
+
