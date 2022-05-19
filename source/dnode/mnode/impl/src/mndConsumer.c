@@ -427,6 +427,7 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
   pConsumerOld = mndAcquireConsumer(pMnode, consumerId);
   if (pConsumerOld == NULL) {
     pConsumerNew = tNewSMqConsumerObj(consumerId, cgroup);
+    tstrncpy(pConsumerNew->clientId, subscribe.clientId, 256);
     pConsumerNew->updateType = CONSUMER_UPDATE__MODIFY;
     pConsumerNew->rebNewTopics = newSub;
     subscribe.topicNames = NULL;
@@ -848,11 +849,11 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
 
       // app id
-      char appId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
-      tstrncpy(varDataVal(appId), pConsumer->appId, TSDB_CGROUP_LEN);
-      varDataSetLen(appId, strlen(varDataVal(appId)));
+      char clientId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
+      tstrncpy(varDataVal(clientId), pConsumer->clientId, TSDB_CGROUP_LEN);
+      varDataSetLen(clientId, strlen(varDataVal(clientId)));
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-      colDataAppend(pColInfo, numOfRows, (const char *)appId, false);
+      colDataAppend(pColInfo, numOfRows, (const char *)clientId, false);
 
       // status
       char status[20 + VARSTR_HEADER_SIZE] = {0};

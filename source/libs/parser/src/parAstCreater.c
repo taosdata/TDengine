@@ -123,7 +123,7 @@ static bool checkAndSplitEndpoint(SAstCreateContext* pCxt, const SToken* pEp, ch
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ENDPOINT);
     } else {
       strncpy(pFqdn, ep, pColon - ep);
-      *pPort = strtol(pColon + 1, NULL, 10);
+      *pPort = taosStr2Int32(pColon + 1, NULL, 10);
       if (*pPort >= UINT16_MAX || *pPort <= 0) {
         pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
       }
@@ -147,7 +147,7 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
   if (NULL == pPortToken) {
     pCxt->errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
   } else {
-    *pPort = strtol(pPortToken->z, NULL, 10);
+    *pPort = taosStr2Int32(pPortToken->z, NULL, 10);
     if (*pPort >= UINT16_MAX || *pPort <= 0) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_PORT);
     }
@@ -476,9 +476,9 @@ SNode* createJoinTableNode(SAstCreateContext* pCxt, EJoinType type, SNode* pLeft
 SNode* createLimitNode(SAstCreateContext* pCxt, const SToken* pLimit, const SToken* pOffset) {
   SLimitNode* limitNode = (SLimitNode*)nodesMakeNode(QUERY_NODE_LIMIT);
   CHECK_OUT_OF_MEM(limitNode);
-  limitNode->limit = strtol(pLimit->z, NULL, 10);
+  limitNode->limit = taosStr2Int64(pLimit->z, NULL, 10);
   if (NULL != pOffset) {
-    limitNode->offset = strtol(pOffset->z, NULL, 10);
+    limitNode->offset = taosStr2Int64(pOffset->z, NULL, 10);
   }
   return (SNode*)limitNode;
 }
@@ -694,59 +694,59 @@ SNode* createAlterDatabaseOptions(SAstCreateContext* pCxt) {
 SNode* setDatabaseOption(SAstCreateContext* pCxt, SNode* pOptions, EDatabaseOptionType type, void* pVal) {
   switch (type) {
     case DB_OPTION_BUFFER:
-      ((SDatabaseOptions*)pOptions)->buffer = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->buffer = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_CACHELAST:
-      ((SDatabaseOptions*)pOptions)->cachelast = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->cachelast = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_COMP:
-      ((SDatabaseOptions*)pOptions)->compressionLevel = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->compressionLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_DAYS: {
       SToken* pToken = pVal;
       if (TK_NK_INTEGER == pToken->type) {
-        ((SDatabaseOptions*)pOptions)->daysPerFile = strtol(pToken->z, NULL, 10) * 1440;
+        ((SDatabaseOptions*)pOptions)->daysPerFile = taosStr2Int32(pToken->z, NULL, 10) * 1440;
       } else {
         ((SDatabaseOptions*)pOptions)->pDaysPerFile = (SValueNode*)createDurationValueNode(pCxt, pToken);
       }
       break;
     }
     case DB_OPTION_FSYNC:
-      ((SDatabaseOptions*)pOptions)->fsyncPeriod = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->fsyncPeriod = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_MAXROWS:
-      ((SDatabaseOptions*)pOptions)->maxRowsPerBlock = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->maxRowsPerBlock = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_MINROWS:
-      ((SDatabaseOptions*)pOptions)->minRowsPerBlock = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->minRowsPerBlock = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_KEEP:
       ((SDatabaseOptions*)pOptions)->pKeep = pVal;
       break;
     case DB_OPTION_PAGES:
-      ((SDatabaseOptions*)pOptions)->pages = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->pages = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_PAGESIZE:
-      ((SDatabaseOptions*)pOptions)->pagesize = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->pagesize = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_PRECISION:
       copyStringFormStringToken((SToken*)pVal, ((SDatabaseOptions*)pOptions)->precisionStr,
                                 sizeof(((SDatabaseOptions*)pOptions)->precisionStr));
       break;
     case DB_OPTION_REPLICA:
-      ((SDatabaseOptions*)pOptions)->replica = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->replica = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_STRICT:
-      ((SDatabaseOptions*)pOptions)->strict = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->strict = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_WAL:
-      ((SDatabaseOptions*)pOptions)->walLevel = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->walLevel = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_VGROUPS:
-      ((SDatabaseOptions*)pOptions)->numOfVgroups = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->numOfVgroups = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_SINGLE_STABLE:
-      ((SDatabaseOptions*)pOptions)->singleStable = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((SDatabaseOptions*)pOptions)->singleStable = taosStr2Int8(((SToken*)pVal)->z, NULL, 10);
       break;
     case DB_OPTION_RETENTIONS:
       ((SDatabaseOptions*)pOptions)->pRetentions = pVal;
@@ -827,16 +827,16 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
                                 sizeof(((STableOptions*)pOptions)->comment));
       break;
     case TABLE_OPTION_DELAY:
-      ((STableOptions*)pOptions)->delay = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((STableOptions*)pOptions)->delay = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case TABLE_OPTION_FILE_FACTOR:
-      ((STableOptions*)pOptions)->filesFactor = strtod(((SToken*)pVal)->z, NULL);
+      ((STableOptions*)pOptions)->filesFactor = taosStr2Float(((SToken*)pVal)->z, NULL);
       break;
     case TABLE_OPTION_ROLLUP:
       ((STableOptions*)pOptions)->pRollupFuncs = pVal;
       break;
     case TABLE_OPTION_TTL:
-      ((STableOptions*)pOptions)->ttl = strtol(((SToken*)pVal)->z, NULL, 10);
+      ((STableOptions*)pOptions)->ttl = taosStr2Int32(((SToken*)pVal)->z, NULL, 10);
       break;
     case TABLE_OPTION_SMA:
       ((STableOptions*)pOptions)->pSma = pVal;
@@ -868,7 +868,7 @@ SDataType createDataType(uint8_t type) {
 }
 
 SDataType createVarLenDataType(uint8_t type, const SToken* pLen) {
-  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = strtol(pLen->z, NULL, 10)};
+  SDataType dt = {.type = type, .precision = 0, .scale = 0, .bytes = taosStr2Int16(pLen->z, NULL, 10)};
   return dt;
 }
 
@@ -1119,7 +1119,7 @@ SNode* createDropDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode) {
   SDropDnodeStmt* pStmt = (SDropDnodeStmt*)nodesMakeNode(QUERY_NODE_DROP_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
   if (TK_NK_INTEGER == pDnode->type) {
-    pStmt->dnodeId = strtol(pDnode->z, NULL, 10);
+    pStmt->dnodeId = taosStr2Int32(pDnode->z, NULL, 10);
   } else {
     if (!checkAndSplitEndpoint(pCxt, pDnode, pStmt->fqdn, &pStmt->port)) {
       nodesDestroyNode(pStmt);
@@ -1133,7 +1133,7 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
                             const SToken* pValue) {
   SAlterDnodeStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_DNODE_STMT);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->dnodeId = strtol(pDnode->z, NULL, 10);
+  pStmt->dnodeId = taosStr2Int32(pDnode->z, NULL, 10);
   trimString(pConfig->z, pConfig->n, pStmt->config, sizeof(pStmt->config));
   if (NULL != pValue) {
     trimString(pValue->z, pValue->n, pStmt->value, sizeof(pStmt->value));
@@ -1183,7 +1183,7 @@ SNode* createDropIndexStmt(SAstCreateContext* pCxt, bool ignoreNotExists, SToken
 SNode* createCreateComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
   SCreateComponentNodeStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
   ;
   return (SNode*)pStmt;
 }
@@ -1191,7 +1191,7 @@ SNode* createCreateComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, co
 SNode* createDropComponentNodeStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pDnodeId) {
   SDropComponentNodeStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->dnodeId = strtol(pDnodeId->z, NULL, 10);
+  pStmt->dnodeId = taosStr2Int32(pDnodeId->z, NULL, 10);
   ;
   return (SNode*)pStmt;
 }
@@ -1251,7 +1251,7 @@ SNode* setExplainVerbose(SAstCreateContext* pCxt, SNode* pOptions, const SToken*
 }
 
 SNode* setExplainRatio(SAstCreateContext* pCxt, SNode* pOptions, const SToken* pVal) {
-  ((SExplainOptions*)pOptions)->ratio = strtod(pVal->z, NULL);
+  ((SExplainOptions*)pOptions)->ratio = taosStr2Double(pVal->z, NULL);
   return pOptions;
 }
 
@@ -1347,7 +1347,7 @@ SNode* createDropStreamStmt(SAstCreateContext* pCxt, bool ignoreNotExists, const
 SNode* createKillStmt(SAstCreateContext* pCxt, ENodeType type, const SToken* pId) {
   SKillStmt* pStmt = nodesMakeNode(type);
   CHECK_OUT_OF_MEM(pStmt);
-  pStmt->targetId = strtol(pId->z, NULL, 10);
+  pStmt->targetId = taosStr2Int32(pId->z, NULL, 10);
   return (SNode*)pStmt;
 }
 
