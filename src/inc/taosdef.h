@@ -22,7 +22,7 @@ extern "C" {
 
 #include <stdint.h>
 #include <stdbool.h>
-
+#include "taos.h"
 
 #define TSDB__packed
 
@@ -468,7 +468,6 @@ typedef enum {
 } ETsdbStatisStatus;
 
 extern char *qtypeStr[];
-#include "taos.h"
 
 #ifdef __cplusplus
 }

@@ -18,7 +18,6 @@
 
 #include <stdint.h>
 #include <stdbool.h>
-#include "taosdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -59,7 +58,7 @@ typedef enum {
 } TSDB_OPTION;
 
 typedef struct taosField {
-  char     name[TSDB_COL_NAME_LEN];
+  char     name[129]; // if TSDB_COL_NAME_LEN changed , must modify here.
   uint8_t  type;
   int16_t  bytes;
 } TAOS_FIELD;
