@@ -1850,12 +1850,6 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
 
     pCtx[i].resultInfo = pEntry;
     pCtx[i].scanFlag = stage;
-
-    // set the timestamp output buffer for top/bottom/diff query
-    //    int32_t fid = pCtx[i].functionId;
-    //    if (fid == FUNCTION_TOP || fid == FUNCTION_BOTTOM || fid == FUNCTION_DIFF || fid == FUNCTION_DERIVATIVE) {
-    //      if (i > 0) pCtx[i].pTsOutput = pCtx[i-1].pOutput;
-    //    }
   }
 
   initCtxOutputBuffer(pCtx, pDataBlock->info.numOfCols);
@@ -4672,6 +4666,8 @@ void extractTableSchemaVersion(SReadHandle *pHandle, uint64_t uid, SExecTaskInfo
   } else {
     pTaskInfo->schemaVer.sversion = mr.me.ntbEntry.schema.sver;
   }
+
+  metaReaderClear(&mr);
 }
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
