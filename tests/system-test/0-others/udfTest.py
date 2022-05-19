@@ -621,6 +621,8 @@ class TDTestCase:
 
     def restart_taosd_query_udf(self):
 
+        self.create_udf_function()
+
         for i in range(5):
             tdLog.info("  this is %d_th restart taosd " %i)
             tdSql.execute("use db ")
@@ -634,7 +636,6 @@ class TDTestCase:
             time.sleep(2)
             
             
-            
     def run(self):  # sourcery skip: extract-duplicate-method, remove-redundant-fstring
         
         print(" env is ok for all ") 
@@ -643,14 +644,15 @@ class TDTestCase:
         self.create_udf_function()
         self.basic_udf_query()
         self.loop_kill_udfd()
-        #self.restart_taosd_query_udf()
+        
         self.unexpected_create()
         tdSql.execute(" drop function udf1 ")
         tdSql.execute(" drop function udf2 ")
         self.create_udf_function()
-        sleep(2)
+        time.sleep(2)
         self.basic_udf_query()
         self.test_function_name()
+        self.restart_taosd_query_udf()
        
         
 
