@@ -45,7 +45,7 @@ The `-f <json file>` argument cannot be used when running taosBenchmark with com
 taosBenchmark -I stmt -n 200 -t 100
 ```
 
-In the above command, `taosBenchmark` will create the default database named `test`, create the default super table named `meters`, create 100 subtables in the super table and insert 200 records for each subtable.
+In the above command, `taosBenchmark` will create the default database named `test`, create the default super table named `meters`, create 100 subtables in the super table and insert 200 records for each subtable using parameter binding.
 
 ### Run with the configuration file
 
