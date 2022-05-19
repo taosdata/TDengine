@@ -19,11 +19,11 @@
 static void dmUpdateDnodeCfg(SDnodeMgmt *pMgmt, SDnodeCfg *pCfg) {
   if (pMgmt->pData->dnodeId == 0 || pMgmt->pData->clusterId == 0) {
     dInfo("set dnodeId:%d clusterId:%" PRId64, pCfg->dnodeId, pCfg->clusterId);
-    taosWLockLatch(&pMgmt->pData->latch);
+    taosThreadRwlockWrlock(&pMgmt->pData->lock);
     pMgmt->pData->dnodeId = pCfg->dnodeId;
     pMgmt->pData->clusterId = pCfg->clusterId;
     dmWriteEps(pMgmt->pData);
-    taosWUnLockLatch(&pMgmt->pData->latch);
+    taosThreadRwlockUnlock(&pMgmt->pData->lock);
   }
 }
 
@@ -50,7 +50,7 @@ static void dmProcessStatusRsp(SDnodeMgmt *pMgmt, SRpcMsg *pRsp) {
 void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SStatusReq req = {0};
 
-  taosRLockLatch(&pMgmt->pData->latch);
+  taosThreadRwlockRdlock(&pMgmt->pData->lock);
   req.sver = tsVersion;
   req.dnodeVer = pMgmt->pData->dnodeVer;
   req.dnodeId = pMgmt->pData->dnodeId;
@@ -69,7 +69,7 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   memcpy(req.clusterCfg.timezone, tsTimezoneStr, TD_TIMEZONE_LEN);
   memcpy(req.clusterCfg.locale, tsLocale, TD_LOCALE_LEN);
   memcpy(req.clusterCfg.charset, tsCharset, TD_LOCALE_LEN);
-  taosRUnLockLatch(&pMgmt->pData->latch);
+  taosThreadRwlockUnlock(&pMgmt->pData->lock);
 
   SMonVloadInfo vinfo = {0};
   (*pMgmt->getVnodeLoadsFp)(&vinfo);

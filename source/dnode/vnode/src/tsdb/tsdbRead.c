@@ -420,6 +420,11 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
   setQueryTimewindow(pReadHandle, pCond);
 
   if (pCond->numOfCols > 0) {
+    int32_t rowLen = 0;
+    for(int32_t i = 0; i < pCond->numOfCols; ++i) {
+      rowLen += pCond->colList[i].bytes;
+    }
+
     // allocate buffer in order to load data blocks from file
     pReadHandle->suppInfo.pstatis = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnDataAgg));
     if (pReadHandle->suppInfo.pstatis == NULL) {

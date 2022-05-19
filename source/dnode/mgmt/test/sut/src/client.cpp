@@ -48,10 +48,10 @@ void TestClient::DoInit() {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = 30 * 1000;
   rpcInit.user = (char*)this->user;
-  rpcInit.ckey = (char*)"key";
+  // rpcInit.ckey = (char*)"key";
   rpcInit.parent = this;
-  rpcInit.secret = (char*)secretEncrypt;
-  rpcInit.spi = 1;
+  // rpcInit.secret = (char*)secretEncrypt;
+  // rpcInit.spi = 1;
 
   clientRpc = rpcOpen(&rpcInit);
   ASSERT(clientRpc);

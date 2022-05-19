@@ -24,9 +24,9 @@
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SSplitContext {
-  int32_t queryId;
-  int32_t groupId;
-  bool    split;
+  uint64_t queryId;
+  int32_t  groupId;
+  bool     split;
 } SSplitContext;
 
 typedef int32_t (*FSplit)(SSplitContext* pCxt, SLogicSubplan* pSubplan);

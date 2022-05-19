@@ -43,7 +43,7 @@ int main() {
     SRpcMsg        rpcMsg;
     syncPingReply2RpcMsg(pSyncMsg, &rpcMsg);
 
-    syncIOSendMsg(gSyncIO->clientRpc, &epSet, &rpcMsg);
+    syncIOSendMsg(&epSet, &rpcMsg);
     taosSsleep(1);
   }
 
