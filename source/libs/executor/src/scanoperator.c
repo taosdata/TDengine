@@ -1467,7 +1467,6 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(str, mr.me.name);
         colDataAppend(pDst, count, str, false);
       } else { // it is a tag value
-        const char* p = NULL;
         if(pDst->info.type == TSDB_DATA_TYPE_JSON){
           const uint8_t *tmp = mr.me.ctbEntry.pTags;
           char *data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
@@ -1477,11 +1476,12 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
           }
           *data = TSDB_DATA_TYPE_JSON;
           memcpy(data+1, tmp, kvRowLen(tmp));
-          p = data;
+          colDataAppend(pDst, count, data, false);
+          taosMemoryFree(data);
         }else{
-          p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
+          const char* p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
+          colDataAppend(pDst, count, p, (p == NULL));
         }
-        colDataAppend(pDst, count, p, (p == NULL));
       }
     }
 

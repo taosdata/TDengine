@@ -832,8 +832,7 @@ static char* parseTagDatatoJson(void *p){
         goto end;
       }
       cJSON_AddItemToObject(json, tagJsonKey, value);
-    }
-    else{
+    }else{
       ASSERT(0);
     }
 
