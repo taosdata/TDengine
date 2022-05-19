@@ -104,7 +104,7 @@ static void tdSRowDemo() {
   taosMemoryFree(pTSChema);
 }
 
-int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList) {
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   void*    pIter = NULL;
   STqExec* pExec = NULL;
   while (1) {
@@ -113,7 +113,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList) {
     pExec = (STqExec*)pIter;
     if (pExec->subType == TOPIC_SUB_TYPE__DB) continue;
     for (int32_t i = 0; i < 5; i++) {
-      int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, true);
+      int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, isAdd);
       ASSERT(code == 0);
     }
   }
