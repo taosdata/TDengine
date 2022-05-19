@@ -44,7 +44,7 @@ static void qmProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     qmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }
@@ -60,7 +60,7 @@ static void qmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     qmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -76,7 +76,7 @@ static void qmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     qmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -105,7 +105,7 @@ static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SR
     return -1;
   }
 
-  dTrace("msg:%p, is created and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
+  dTrace("msg:%p, create and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;

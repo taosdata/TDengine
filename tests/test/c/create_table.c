@@ -436,6 +436,7 @@ int32_t main(int32_t argc, char *argv[]) {
   taosMsleep(300);
   for (int32_t i = 0; i < numOfThreads; i++) {
     taosThreadJoin(pInfo[i].thread, NULL);
+    taosThreadClear(&pInfo[i].thread);
   }
 
   int64_t maxDelay = 0;

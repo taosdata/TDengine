@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-static void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
@@ -37,7 +37,7 @@ static void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   taosRUnLockLatch(&pMgmt->latch);
 }
 
-static void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
+void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
   vmGetVnodeLoads(pMgmt, &vloads);
 

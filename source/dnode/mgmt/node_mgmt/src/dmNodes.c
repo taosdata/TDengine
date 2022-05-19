@@ -37,6 +37,7 @@ static int32_t dmCreateShm(SMgmtWrapper *pWrapper) {
     dError("node:%s, failed to create shm size:%d since %s", pWrapper->name, shmsize, terrstr());
     return -1;
   }
+
   dInfo("node:%s, shm:%d is created, size:%d", pWrapper->name, pWrapper->proc.shm.id, shmsize);
   return 0;
 }
@@ -58,8 +59,9 @@ static int32_t dmNewProc(SMgmtWrapper *pWrapper, EDndNodeType ntype) {
     return -1;
   }
 
+  taosIgnSignal(SIGCHLD);
   pWrapper->proc.pid = pid;
-  dInfo("node:%s, continue running in new process:%d", pWrapper->name, pid);
+  dInfo("node:%s, continue running in new pid:%d", pWrapper->name, pid);
   return 0;
 }
 
@@ -76,7 +78,7 @@ int32_t dmOpenNode(SMgmtWrapper *pWrapper) {
   SMgmtInputOpt  input = dmBuildMgmtInputOpt(pWrapper);
 
   if (pWrapper->ntype == DNODE || InChildProc(pWrapper)) {
-    tmsgSetDefaultMsgCb(&input.msgCb);
+    tmsgSetDefault(&input.msgCb);
   }
 
   if (OnlyInSingleProc(pWrapper)) {
@@ -176,11 +178,11 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
   if (OnlyInParentProc(pWrapper)) {
     int32_t pid = pWrapper->proc.pid;
     if (pid > 0 && taosProcExist(pid)) {
-      dInfo("node:%s, send kill signal to the child process:%d", pWrapper->name, pid);
+      dInfo("node:%s, send kill signal to the child pid:%d", pWrapper->name, pid);
       taosKillProc(pid);
-      dInfo("node:%s, wait for child process:%d to stop", pWrapper->name, pid);
+      dInfo("node:%s, wait for child pid:%d to stop", pWrapper->name, pid);
       taosWaitProc(pid);
-      dInfo("node:%s, child process:%d is stopped", pWrapper->name, pid);
+      dInfo("node:%s, child pid:%d is stopped", pWrapper->name, pid);
     }
   }
 
@@ -254,7 +256,7 @@ static void dmWatchNodes(SDnode *pDnode) {
     if (!OnlyInParentProc(pWrapper)) continue;
 
     if (proc->pid <= 0 || !taosProcExist(proc->pid)) {
-      dWarn("node:%s, process:%d is killed and needs to restart", pWrapper->name, proc->pid);
+      dError("node:%s, pid:%d is killed and needs to restart", pWrapper->name, proc->pid);
       dmCloseProcRpcHandles(&pWrapper->proc);
       dmNewProc(pWrapper, ntype);
     }

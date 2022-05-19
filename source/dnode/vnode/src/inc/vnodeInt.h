@@ -96,14 +96,15 @@ STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy)
 SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*         metaGetSmaTbUids(SMeta* pMeta);
 
-int32_t         metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
-int32_t         metaDropTSma(SMeta* pMeta, int64_t indexUid);
+int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
+int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
 
 // tsdb
 int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeepCfg* pKeepCfg);
 int          tsdbClose(STsdb** pTsdb);
 int          tsdbBegin(STsdb* pTsdb);
 int          tsdbCommit(STsdb* pTsdb);
+int          tsdbScanAndConvertSubmitMsg(STsdb *pTsdb, const SSubmitReq *pMsg);
 int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
 int          tsdbInsertTableData(STsdb* pTsdb, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkRsp* pRsp);
 tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
@@ -117,6 +118,7 @@ STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
 void    tqClose(STQ*);
 int     tqPushMsg(STQ*, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver);
 int     tqCommit(STQ*);
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);

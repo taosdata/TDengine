@@ -261,8 +261,7 @@ void mndReleaseDb(SMnode *pMnode, SDbObj *pDb) {
   sdbRelease(pSdb, pDb);
 }
 
-static int32_t mndAddCreateVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SVnodeGid *pVgid,
-                                       bool isRedo) {
+static int32_t mndAddCreateVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SVnodeGid *pVgid) {
   STransAction action = {0};
 
   SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
@@ -279,48 +278,29 @@ static int32_t mndAddCreateVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *p
   action.msgType = TDMT_DND_CREATE_VNODE;
   action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
 
-  if (isRedo) {
-    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
-    }
-  } else {
-    if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
-    }
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(pReq);
+    return -1;
   }
 
   return 0;
 }
 
-static int32_t mndAddAlterVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SVnodeGid *pVgid,
-                                      bool isRedo) {
+static int32_t mndAddAlterVnodeAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
   STransAction action = {0};
-
-  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
-  if (pDnode == NULL) return -1;
-  action.epSet = mndGetDnodeEpset(pDnode);
-  mndReleaseDnode(pMnode, pDnode);
+  action.epSet = mndGetVgroupEpset(pMnode, pVgroup);
 
   int32_t contLen = 0;
-  void   *pReq = mndBuildAlterVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+  void   *pReq = mndBuildAlterVnodeReq(pMnode, pDb, pVgroup, &contLen);
   if (pReq == NULL) return -1;
 
   action.pCont = pReq;
   action.contLen = contLen;
   action.msgType = TDMT_VND_ALTER_VNODE;
 
-  if (isRedo) {
-    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
-    }
-  } else {
-    if (mndTransAppendUndoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
-    }
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(pReq);
+    return -1;
   }
 
   return 0;
@@ -398,11 +378,14 @@ static int32_t mndCheckDbCfg(SMnode *pMnode, SDbCfg *pCfg) {
   if (pCfg->precision < TSDB_MIN_PRECISION && pCfg->precision > TSDB_MAX_PRECISION) return -1;
   if (pCfg->compression < TSDB_MIN_COMP_LEVEL || pCfg->compression > TSDB_MAX_COMP_LEVEL) return -1;
   if (pCfg->replications < TSDB_MIN_DB_REPLICA || pCfg->replications > TSDB_MAX_DB_REPLICA) return -1;
-  if (pCfg->replications > mndGetDnodeSize(pMnode)) return -1;
   if (pCfg->replications != 1 && pCfg->replications != 3) return -1;
   if (pCfg->strict < TSDB_DB_STRICT_OFF || pCfg->strict > TSDB_DB_STRICT_ON) return -1;
   if (pCfg->cacheLastRow < TSDB_MIN_DB_CACHE_LAST_ROW || pCfg->cacheLastRow > TSDB_MAX_DB_CACHE_LAST_ROW) return -1;
   if (pCfg->hashMethod != 1) return -1;
+  if (pCfg->replications > mndGetDnodeSize(pMnode)) {
+    terrno = TSDB_CODE_MND_NO_ENOUGH_DNODES;
+    return -1;
+  }
 
   terrno = 0;
   return TSDB_CODE_SUCCESS;
@@ -484,7 +467,7 @@ static int32_t mndSetCreateDbRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj 
 
     for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
       SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, true) != 0) {
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid) != 0) {
         return -1;
       }
     }
@@ -723,11 +706,8 @@ static int32_t mndSetAlterDbCommitLogs(SMnode *pMnode, STrans *pTrans, SDbObj *p
 
 static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup, SArray *pArray) {
   if (pVgroup->replica <= 0 || pVgroup->replica == pDb->cfg.replications) {
-    for (int32_t vn = 0; vn < pVgroup->replica; ++vn) {
-      SVnodeGid *pVgid = pVgroup->vnodeGid + vn;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, pVgroup, pVgid, true) != 0) {
-        return -1;
-      }
+    if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, pVgroup) != 0) {
+      return -1;
     }
   } else {
     SVgObj newVgroup = {0};
@@ -741,9 +721,9 @@ static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
         return -1;
       }
       newVgroup.replica = pDb->cfg.replications;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[0], true) != 0) return -1;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[1], true) != 0) return -1;
-      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[2], true) != 0) return -1;
+      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup) != 0) return -1;
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[1]) != 0) return -1;
+      if (mndAddCreateVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[2]) != 0) return -1;
     } else {
       mInfo("db:%s, vgId:%d, will remove 2 vnodes", pVgroup->dbName, pVgroup->vgId);
 
@@ -754,7 +734,7 @@ static int32_t mndBuildAlterVgroupAction(SMnode *pMnode, STrans *pTrans, SDbObj 
         return -1;
       }
       newVgroup.replica = pDb->cfg.replications;
-      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup, &newVgroup.vnodeGid[0], true) != 0) return -1;
+      if (mndAddAlterVnodeAction(pMnode, pTrans, pDb, &newVgroup) != 0) return -1;
       if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVgroup, &del1, true) != 0) return -1;
       if (mndAddDropVnodeAction(pMnode, pTrans, pDb, &newVgroup, &del2, true) != 0) return -1;
     }
@@ -1447,8 +1427,8 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
   }
 
   char *status = "ready";
-  char  b[24] = {0};
-  STR_WITH_SIZE_TO_VARSTR(b, status, strlen(status));
+  char  statusB[24] = {0};
+  STR_WITH_SIZE_TO_VARSTR(statusB, status, strlen(status));
 
   if (sysDb) {
     for (int32_t i = 0; i < pShow->numOfColumns; ++i) {
@@ -1458,7 +1438,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
       } else if (i == 3) {
         colDataAppend(pColInfo, rows, (const char *)&numOfTables, false);
       } else if (i == 20) {
-        colDataAppend(pColInfo, rows, b, false);
+        colDataAppend(pColInfo, rows, statusB, false);
       } else {
         colDataAppendNULL(pColInfo, rows);
       }
@@ -1481,9 +1461,10 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.replications, false);
 
     const char *src = pDb->cfg.strict ? "strict" : "nostrict";
-    STR_WITH_SIZE_TO_VARSTR(b, src, strlen(src));
+    char        strict[24] = {0};
+    STR_WITH_SIZE_TO_VARSTR(strict, src, strlen(src));
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, rows, (const char *)b, false);
+    colDataAppend(pColInfo, rows, (const char *)strict, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.daysPerFile, false);
@@ -1554,7 +1535,7 @@ static void dumpDbInfoData(SSDataBlock *pBlock, SDbObj *pDb, SShowObj *pShow, in
     colDataAppend(pColInfo, rows, (const char *)&pDb->cfg.numOfStables, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols);
-    colDataAppend(pColInfo, rows, (const char *)b, false);
+    colDataAppend(pColInfo, rows, (const char *)statusB, false);
   }
 }
 

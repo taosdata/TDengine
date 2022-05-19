@@ -333,6 +333,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   SVCreateTbRsp      cRsp = {0};
   char               tbName[TSDB_TABLE_FNAME_LEN];
   STbUidStore       *pStore = NULL;
+  SArray            *tbUids = NULL;
 
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -348,7 +349,8 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   }
 
   rsp.pArray = taosArrayInit(req.nReqs, sizeof(cRsp));
-  if (rsp.pArray == NULL) {
+  tbUids = taosArrayInit(req.nReqs, sizeof(int64_t));
+  if (rsp.pArray == NULL || tbUids == NULL) {
     rcode = -1;
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -376,6 +378,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
     } else {
       cRsp.code = TSDB_CODE_SUCCESS;
       tdFetchTbUidList(pVnode->pSma, &pStore, pCreateReq->ctb.suid, pCreateReq->uid);
+      taosArrayPush(tbUids, &pCreateReq->uid);
     }
 
     taosArrayPush(rsp.pArray, &cRsp);
@@ -383,6 +386,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
   tDecoderClear(&decoder);
 
+  tqUpdateTbUidList(pVnode->pTq, tbUids);
   tdUpdateTbUidList(pVnode->pSma, pStore);
   tdUidStoreFree(pStore);
 
@@ -402,6 +406,7 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
 
 _exit:
   taosArrayDestroy(rsp.pArray);
+  taosArrayDestroy(tbUids);
   tDecoderClear(&decoder);
   tEncoderClear(&encoder);
   return rcode;
@@ -626,6 +631,11 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
 #endif
 
+  if (tsdbScanAndConvertSubmitMsg(pVnode->pTsdb, pSubmitReq) < 0) {
+    pRsp->code = terrno;
+    goto _exit;
+  }
+
   // handle the request
   if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
     pRsp->code = TSDB_CODE_INVALID_MSG;
@@ -676,6 +686,9 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 
       vnodeDebugPrintSingleSubmitMsg(pVnode->pMeta, pBlock, &msgIter, "real uid");
       tDecoderClear(&decoder);
+    } else {
+      submitBlkRsp.tblFName = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
+      sprintf(submitBlkRsp.tblFName, "%s.", pVnode->config.dbname);
     }
 
     if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &submitBlkRsp) < 0) {

@@ -128,7 +128,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   *numOfVnodes = vnodesNum;
   code = 0;
-  dInfo("succcessed to read file %s", file);
+  dDebug("succcessed to read file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);

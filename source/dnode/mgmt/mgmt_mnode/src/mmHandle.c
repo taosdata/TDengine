@@ -16,8 +16,13 @@
 #define _DEFAULT_SOURCE
 #include "mmInt.h"
 
-static void mmGetMonitorInfo(SMnodeMgmt *pMgmt, SMonMmInfo *mmInfo) {
-  mndGetMonitorInfo(pMgmt->pMnode, &mmInfo->cluster, &mmInfo->vgroup, &mmInfo->grant);
+void mmGetMonitorInfo(SMnodeMgmt *pMgmt, SMonMmInfo *pInfo) {
+  mndGetMonitorInfo(pMgmt->pMnode, &pInfo->cluster, &pInfo->vgroup, &pInfo->grant);
+}
+
+void mmGetMnodeLoads(SMnodeMgmt *pMgmt, SMonMloadInfo *pInfo) {
+  pInfo->isMnode = 1;
+  mndGetLoad(pMgmt->pMnode, &pInfo->load);
 }
 
 int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq) {
@@ -43,11 +48,6 @@ int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq) {
   pReq->info.rspLen = rspLen;
   tFreeSMonMmInfo(&mmInfo);
   return 0;
-}
-
-static void mmGetMnodeLoads(SMnodeMgmt *pMgmt, SMonMloadInfo *pInfo) {
-  pInfo->isMnode = 1;
-  mndGetLoad(pMgmt->pMnode, &pInfo->load);
 }
 
 int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq) {

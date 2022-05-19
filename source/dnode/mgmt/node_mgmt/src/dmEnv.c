@@ -168,11 +168,6 @@ static int32_t dmProcessDropNodeReq(EDndNodeType ntype, SRpcMsg *pMsg) {
   return code;
 }
 
-static bool dmIsNodeRequired(EDndNodeType ntype) {
-  SDnode *pDnode = dmInstance();
-  return pDnode->wrappers[ntype].required;
-}
-
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
   SMgmtInputOpt opt = {
       .path = pWrapper->path,
@@ -180,7 +175,9 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper) {
       .pData = &pWrapper->pDnode->data,
       .processCreateNodeFp = dmProcessCreateNodeReq,
       .processDropNodeFp = dmProcessDropNodeReq,
-      .isNodeRequiredFp = dmIsNodeRequired,
+      .sendMonitorReportFp = dmSendMonitorReport,
+      .getVnodeLoadsFp = dmGetVnodeLoads,
+      .getMnodeLoadsFp = dmGetMnodeLoads,
   };
 
   opt.msgCb = dmGetMsgcb(pWrapper->pDnode);
