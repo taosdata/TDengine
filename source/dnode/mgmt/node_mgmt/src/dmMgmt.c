@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmNodes.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
