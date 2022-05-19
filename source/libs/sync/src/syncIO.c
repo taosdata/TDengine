@@ -237,6 +237,7 @@ static int32_t syncIOStopInternal(SSyncIO *io) {
   int32_t ret = 0;
   atomic_store_8(&io->isStart, 0);
   taosThreadJoin(io->consumerTid, NULL);
+  taosThreadClear(&io->consumerTid);
   taosTmrCleanUp(io->timerMgr);
   return ret;
 }

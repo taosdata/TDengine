@@ -244,6 +244,7 @@ static void walStopThread() {
 
   if (taosCheckPthreadValid(tsWal.thread)) {
     taosThreadJoin(tsWal.thread, NULL);
+    taosThreadClear(&tsWal.thread);
   }
 
   wDebug("wal thread is stopped");

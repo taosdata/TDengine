@@ -218,6 +218,13 @@ int32_t stmtParseSql(STscStmt* pStmt) {
 
   pStmt->bInfo.needParse = false;
 
+  if (pStmt->sql.pQuery->pRoot && 0 == pStmt->sql.type) {
+    pStmt->sql.type = STMT_TYPE_INSERT;
+  } else if (pStmt->sql.pQuery->pPrepareRoot) {
+    pStmt->sql.type = STMT_TYPE_QUERY;
+  }
+
+/*  
   switch (nodeType(pStmt->sql.pQuery->pRoot)) {
     case QUERY_NODE_VNODE_MODIF_STMT:
       if (0 == pStmt->sql.type) {
@@ -231,6 +238,7 @@ int32_t stmtParseSql(STscStmt* pStmt) {
       tscError("not supported stmt type %d", nodeType(pStmt->sql.pQuery->pRoot));
       STMT_ERR_RET(TSDB_CODE_TSC_STMT_CLAUSE_ERROR);
   }
+*/
 
   return TSDB_CODE_SUCCESS;
 }
@@ -252,8 +260,8 @@ int32_t stmtCleanBindInfo(STscStmt* pStmt) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool freeRequest) {
-  if (STMT_TYPE_QUERY != pStmt->sql.type || freeRequest) {
+int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool deepClean) {
+  if (STMT_TYPE_QUERY != pStmt->sql.type || deepClean) {
     taos_free_result(pStmt->exec.pRequest);
     pStmt->exec.pRequest = NULL;
   }
@@ -272,7 +280,11 @@ int32_t stmtCleanExecInfo(STscStmt* pStmt, bool keepTable, bool freeRequest) {
       continue;
     }
 
-    qFreeStmtDataBlock(pBlocks);
+    if (STMT_TYPE_MULTI_INSERT == pStmt->sql.type) {
+      qFreeStmtDataBlock(pBlocks);
+    } else {
+      qDestroyStmtDataBlock(pBlocks);
+    }
     taosHashRemove(pStmt->exec.pBlockHash, key, keyLen);
 
     pIter = taosHashIterate(pStmt->exec.pBlockHash, pIter);
@@ -312,10 +324,10 @@ int32_t stmtCleanSQLInfo(STscStmt* pStmt) {
   taosHashCleanup(pStmt->sql.pTableCache);
   pStmt->sql.pTableCache = NULL;
 
-  memset(&pStmt->sql, 0, sizeof(pStmt->sql));
-
   STMT_ERR_RET(stmtCleanExecInfo(pStmt, false, true));
   STMT_ERR_RET(stmtCleanBindInfo(pStmt));
+
+  memset(&pStmt->sql, 0, sizeof(pStmt->sql));
 
   return TSDB_CODE_SUCCESS;
 }

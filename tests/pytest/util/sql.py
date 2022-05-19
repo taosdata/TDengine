@@ -57,7 +57,7 @@ class TDSql:
             tdLog.notice("'reset query cache' is not supported")
         s = 'drop database if exists db'
         self.cursor.execute(s)
-        s = 'create database db'
+        s = 'create database db days 300'
         self.cursor.execute(s)
         s = 'use db'
         self.cursor.execute(s)

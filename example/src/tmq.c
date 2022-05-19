@@ -167,7 +167,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
   tmq_conf_set(conf, "msg.with.table.name", "true");
-  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print, NULL);
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
   return tmq;
@@ -176,6 +176,7 @@ tmq_t* build_consumer() {
 tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
   tmq_list_append(topic_list, "topic_ctb_column");
+  /*tmq_list_append(topic_list, "tmq_test_db_multi_insert_topic");*/
   return topic_list;
 }
 
@@ -190,7 +191,7 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
-    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 0);
     if (tmqmessage) {
       cnt++;
       /*printf("get data\n");*/
@@ -238,7 +239,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
 
-      tmq_commit(tmq, NULL, 1);
+      tmq_commit_async(tmq, NULL, tmq_commit_cb_print, NULL);
       /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }

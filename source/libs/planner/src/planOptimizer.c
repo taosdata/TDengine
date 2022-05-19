@@ -598,39 +598,63 @@ static bool cpdIsPrimaryKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
   return false;
 }
 
-static int32_t cpdCheckOpCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode* pOnCond) {
-  if (!cpdIsPrimaryKeyEqualCond(pJoin, pOnCond)) {
-    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+static bool cpdContainPrimaryKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pCond)) {
+    SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pCond;
+    if (LOGIC_COND_TYPE_AND != pLogicCond->condType) {
+      return false;
+    }
+    bool   hasPrimaryKeyEqualCond = false;
+    SNode* pCond = NULL;
+    FOREACH(pCond, pLogicCond->pParameterList) {
+      if (cpdContainPrimaryKeyEqualCond(pJoin, pCond)) {
+        hasPrimaryKeyEqualCond = true;
+        break;
+      }
+    }
+    return hasPrimaryKeyEqualCond;
+  } else {
+    return cpdIsPrimaryKeyEqualCond(pJoin, pCond);
   }
-  return TSDB_CODE_SUCCESS;
 }
 
-static int32_t cpdCheckLogicCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SLogicConditionNode* pOnCond) {
-  if (LOGIC_COND_TYPE_AND != pOnCond->condType) {
-    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
-  }
-  bool   hasPrimaryKeyEqualCond = false;
-  SNode* pCond = NULL;
-  FOREACH(pCond, pOnCond->pParameterList) {
-    if (cpdIsPrimaryKeyEqualCond(pJoin, pCond)) {
-      hasPrimaryKeyEqualCond = true;
-    }
-  }
-  if (!hasPrimaryKeyEqualCond) {
-    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
-  }
-  return TSDB_CODE_SUCCESS;
-}
+// static int32_t cpdCheckOpCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode* pOnCond) {
+//   if (!cpdIsPrimaryKeyEqualCond(pJoin, pOnCond)) {
+//     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+//   }
+//   return TSDB_CODE_SUCCESS;
+// }
+
+// static int32_t cpdCheckLogicCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SLogicConditionNode* pOnCond) {
+//   if (LOGIC_COND_TYPE_AND != pOnCond->condType) {
+//     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+//   }
+//   bool   hasPrimaryKeyEqualCond = false;
+//   SNode* pCond = NULL;
+//   FOREACH(pCond, pOnCond->pParameterList) {
+//     if (cpdIsPrimaryKeyEqualCond(pJoin, pCond)) {
+//       hasPrimaryKeyEqualCond = true;
+//     }
+//   }
+//   if (!hasPrimaryKeyEqualCond) {
+//     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
+//   }
+//   return TSDB_CODE_SUCCESS;
+// }
 
 static int32_t cpdCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pOnConditions) {
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
   }
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions)) {
-    return cpdCheckLogicCond(pCxt, pJoin, (SLogicConditionNode*)pJoin->pOnConditions);
-  } else {
-    return cpdCheckOpCond(pCxt, pJoin, pJoin->pOnConditions);
+  if (!cpdContainPrimaryKeyEqualCond(pJoin, pJoin->pOnConditions)) {
+    return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
+  return TSDB_CODE_SUCCESS;
+  // if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions)) {
+  //   return cpdCheckLogicCond(pCxt, pJoin, (SLogicConditionNode*)pJoin->pOnConditions);
+  // } else {
+  //   return cpdCheckOpCond(pCxt, pJoin, pJoin->pOnConditions);
+  // }
 }
 
 static int32_t cpdPushJoinCondition(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {

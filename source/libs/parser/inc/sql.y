@@ -621,6 +621,7 @@ column_reference(A) ::= table_name(B) NK_DOT column_name(C).                    
 
 pseudo_column(A) ::= ROWTS(B).                                                    { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= TBNAME(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
+pseudo_column(A) ::= table_name(B) NK_DOT TBNAME(C).                              { A = createRawExprNodeExt(pCxt, &B, &C, createFunctionNode(pCxt, &C, createNodeList(pCxt, createValueNode(pCxt, TSDB_DATA_TYPE_BINARY, &B)))); }
 pseudo_column(A) ::= QSTARTTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= QENDTS(B).                                                   { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }
 pseudo_column(A) ::= WSTARTTS(B).                                                 { A = createRawExprNode(pCxt, &B, createFunctionNode(pCxt, &B, NULL)); }

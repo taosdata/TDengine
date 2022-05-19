@@ -32,6 +32,9 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
+  /*if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {*/
+  /*ASSERT(0);*/
+  /*}*/
 
 #if 0
   pTq->tqMeta = tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer,
@@ -99,6 +102,32 @@ static void tdSRowDemo() {
   tdSRowPrint(row, pTSChema, __func__);
 
   taosMemoryFree(pTSChema);
+}
+
+int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
+  void*    pIter = NULL;
+  STqExec* pExec = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->execs, pIter);
+    if (pIter == NULL) break;
+    pExec = (STqExec*)pIter;
+    if (pExec->subType == TOPIC_SUB_TYPE__DB) {
+      if (isAdd) {
+        continue;
+      } else {
+        int32_t sz = taosArrayGetSize(tbUidList);
+        for (int32_t i = 0; i < sz; i++) {
+          int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
+          taosHashPut(pExec->pDropTbUid, &tbUid, sizeof(int64_t), NULL, 0);
+        }
+      }
+    }
+    for (int32_t i = 0; i < 5; i++) {
+      int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, isAdd);
+      ASSERT(code == 0);
+    }
+  }
+  return 0;
 }
 
 int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) {
@@ -563,7 +592,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
         rsp.withSchema = 1;
         STqReadHandle* pReader = pExec->pExecReader[workerId];
         tqReadHandleSetMsg(pReader, pCont, 0);
-        while (tqNextDataBlock(pReader)) {
+        while (tqNextDataBlockFilterOut(pReader, pExec->pDropTbUid)) {
           SSDataBlock block = {0};
           if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                                   &block.info.numOfCols) < 0) {
@@ -896,9 +925,10 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
     req.qmsg = NULL;
 
     pExec->pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
-    for (int32_t i = 0; i < 5; i++) {
-      pExec->pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-      if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+      for (int32_t i = 0; i < 5; i++) {
+        pExec->pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
+
         SReadHandle handle = {
             .reader = pExec->pExecReader[i],
             .meta = pTq->pVnode->pMeta,
@@ -906,9 +936,12 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
         };
         pExec->task[i] = qCreateStreamExecTaskInfo(pExec->qmsg, &handle);
         ASSERT(pExec->task[i]);
-      } else {
-        pExec->task[i] = NULL;
       }
+    } else {
+      for (int32_t i = 0; i < 5; i++) {
+        pExec->pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
+      }
+      pExec->pDropTbUid = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }
     taosHashPut(pTq->execs, req.subKey, strlen(req.subKey), pExec, sizeof(STqExec));
     return 0;

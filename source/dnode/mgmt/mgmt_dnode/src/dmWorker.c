@@ -50,7 +50,7 @@ static void *dmMonitorThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
-      dmSendMonitorReport(pMgmt);
+      (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
     }
   }
@@ -75,6 +75,7 @@ int32_t dmStartStatusThread(SDnodeMgmt *pMgmt) {
 void dmStopStatusThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->statusThread)) {
     taosThreadJoin(pMgmt->statusThread, NULL);
+    taosThreadClear(&pMgmt->statusThread);
   }
 }
 
@@ -95,6 +96,7 @@ int32_t dmStartMonitorThread(SDnodeMgmt *pMgmt) {
 void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
   if (taosCheckPthreadValid(pMgmt->monitorThread)) {
     taosThreadJoin(pMgmt->monitorThread, NULL);
+    taosThreadClear(&pMgmt->monitorThread);
   }
 }
 
@@ -151,14 +153,14 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
         .code = code,
-        .info = pMsg->info,
         .pCont = pMsg->info.rsp,
         .contLen = pMsg->info.rspLen,
+        .info = pMsg->info,
     };
     rpcSendResponse(&rsp);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }

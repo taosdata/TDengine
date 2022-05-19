@@ -56,6 +56,7 @@ void simFreeScript(SScript *script) {
       bgScript->killed = true;
       if (taosCheckPthreadValid(bgScript->bgPid)) {
         taosThreadJoin(bgScript->bgPid, NULL);
+        taosThreadClear(&bgScript->bgPid);
       }
 
       simDebug("script:%s, background thread joined", bgScript->fileName);

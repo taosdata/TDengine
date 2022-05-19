@@ -258,6 +258,7 @@ typedef struct {
   char*   tblFName;
   int32_t numOfRows;
   int32_t affectedRows;
+  int64_t sver;
 } SSubmitBlkRsp;
 
 typedef struct {
@@ -274,10 +275,10 @@ int32_t tEncodeSSubmitRsp(SEncoder* pEncoder, const SSubmitRsp* pRsp);
 int32_t tDecodeSSubmitRsp(SDecoder* pDecoder, SSubmitRsp* pRsp);
 void    tFreeSSubmitRsp(SSubmitRsp* pRsp);
 
-#define COL_SMA_ON  ((int8_t)0x1)
-#define COL_IDX_ON  ((int8_t)0x2)
-#define COL_VAL_SET ((int8_t)0x4)
-
+#define COL_SMA_ON   ((int8_t)0x1)
+#define COL_IDX_ON   ((int8_t)0x2)
+#define COL_SET_NULL ((int8_t)0x10)
+#define COL_SET_VAL  ((int8_t)0x20)
 typedef struct SSchema {
   int8_t   type;
   int8_t   flags;
@@ -285,6 +286,9 @@ typedef struct SSchema {
   int32_t  bytes;
   char     name[TSDB_COL_NAME_LEN];
 } SSchema;
+
+#define COL_IS_SET(FLG)  ((FLG) & (COL_SET_VAL | COL_SET_NULL) != 0)
+#define COL_CLR_SET(FLG) ((FLG) &= (~(COL_SET_VAL | COL_SET_NULL)))
 
 #define IS_BSMA_ON(s) (((s)->flags & 0x01) == COL_SMA_ON)
 
@@ -297,6 +301,8 @@ typedef struct SSchema {
 typedef struct {
   int32_t  nCols;
   int32_t  sver;
+  int32_t  tagVer;
+  int32_t  colVer;
   SSchema* pSchema;
 } SSchemaWrapper;
 
@@ -305,6 +311,8 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
   if (pSW == NULL) return pSW;
   pSW->nCols = pSchemaWrapper->nCols;
   pSW->sver = pSchemaWrapper->sver;
+  pSW->tagVer = pSchemaWrapper->tagVer;
+  pSW->colVer = pSchemaWrapper->colVer;
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     taosMemoryFree(pSW);
@@ -360,6 +368,8 @@ static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWr
   int32_t tlen = 0;
   tlen += taosEncodeVariantI32(buf, pSW->nCols);
   tlen += taosEncodeVariantI32(buf, pSW->sver);
+  tlen += taosEncodeVariantI32(buf, pSW->tagVer);
+  tlen += taosEncodeVariantI32(buf, pSW->colVer);
   for (int32_t i = 0; i < pSW->nCols; i++) {
     tlen += taosEncodeSSchema(buf, &pSW->pSchema[i]);
   }
@@ -369,6 +379,8 @@ static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWr
 static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeVariantI32(buf, &pSW->nCols);
   buf = taosDecodeVariantI32(buf, &pSW->sver);
+  buf = taosDecodeVariantI32(buf, &pSW->tagVer);
+  buf = taosDecodeVariantI32(buf, &pSW->colVer);
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     return NULL;
@@ -383,6 +395,8 @@ static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapp
 static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSchemaWrapper* pSW) {
   if (tEncodeI32v(pEncoder, pSW->nCols) < 0) return -1;
   if (tEncodeI32v(pEncoder, pSW->sver) < 0) return -1;
+  if (tEncodeI32v(pEncoder, pSW->tagVer) < 0) return -1;
+  if (tEncodeI32v(pEncoder, pSW->colVer) < 0) return -1;
   for (int32_t i = 0; i < pSW->nCols; i++) {
     if (tEncodeSSchema(pEncoder, &pSW->pSchema[i]) < 0) return -1;
   }
@@ -393,8 +407,25 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSch
 static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWrapper* pSW) {
   if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->tagVer) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->colVer) < 0) return -1;
 
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
+  if (pSW->pSchema == NULL) return -1;
+  for (int32_t i = 0; i < pSW->nCols; i++) {
+    if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;
+  }
+
+  return 0;
+}
+
+static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaWrapper* pSW) {
+  if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->tagVer) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->colVer) < 0) return -1;
+
+  pSW->pSchema = (SSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SSchema));
   if (pSW->pSchema == NULL) return -1;
   for (int32_t i = 0; i < pSW->nCols; i++) {
     if (tDecodeSSchema(pDecoder, &pSW->pSchema[i]) < 0) return -1;
@@ -438,6 +469,7 @@ int32_t tDeserializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
+  int32_t verInBlock;
   int32_t numOfFields;
   SArray* pFields;
   int32_t ttl;
@@ -1463,6 +1495,7 @@ typedef struct {
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
+  char    clientId[256];
   SArray* topicNames;  // SArray<char**>
 } SCMSubscribeReq;
 
@@ -1470,6 +1503,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->cgroup);
+  tlen += taosEncodeString(buf, pReq->clientId);
 
   int32_t topicNum = taosArrayGetSize(pReq->topicNames);
   tlen += taosEncodeFixedI32(buf, topicNum);
@@ -1483,6 +1517,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
 static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
+  buf = taosDecodeStringTo(buf, pReq->clientId);
 
   int32_t topicNum;
   buf = taosDecodeFixedI32(buf, &topicNum);
@@ -1612,6 +1647,15 @@ typedef struct {
 
 int32_t tSerializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
 int32_t tDeserializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
+
+typedef struct {
+  char   topic[TSDB_TOPIC_FNAME_LEN];
+  char   cgroup[TSDB_CGROUP_LEN];
+  int8_t igNotExists;
+} SMDropCgroupReq;
+
+int32_t tSerializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pReq);
+int32_t tDeserializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pReq);
 
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];

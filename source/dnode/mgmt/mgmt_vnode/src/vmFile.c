@@ -17,7 +17,7 @@
 #include "vmInt.h"
 
 SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
-  taosRLockLatch(&pMgmt->latch);
+  taosThreadRwlockRdlock(&pMgmt->lock);
 
   int32_t     num = 0;
   int32_t     size = taosHashGetSize(pMgmt->hash);
@@ -38,7 +38,7 @@ SVnodeObj **vmGetVnodeListFromHash(SVnodeMgmt *pMgmt, int32_t *numOfVnodes) {
     }
   }
 
-  taosRUnLockLatch(&pMgmt->latch);
+  taosThreadRwlockUnlock(&pMgmt->lock);
   *numOfVnodes = num;
 
   return pVnodes;
@@ -128,7 +128,7 @@ int32_t vmGetVnodeListFromFile(SVnodeMgmt *pMgmt, SWrapperCfg **ppCfgs, int32_t 
 
   *numOfVnodes = vnodesNum;
   code = 0;
-  dInfo("succcessed to read file %s", file);
+  dDebug("succcessed to read file %s", file);
 
 _OVER:
   if (content != NULL) taosMemoryFree(content);

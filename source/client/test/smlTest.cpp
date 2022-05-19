@@ -1188,3 +1188,36 @@ TEST(testCase, smlParseTelnetLine_diff_json_type2_Test) {
   destroyRequest(request);
   smlDestroyInfo(info);
 }
+
+TEST(testCase, sml_TD15662_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES *pRes = taos_query(taos, "create database if not exists db_15662 precision 'ns'");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use db_15662");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[] = {
+      "iyyyje,id=iyyyje_41943_1303,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+  };
+  int ret = smlProcess(info, (char **)sql, sizeof(sql) / sizeof(sql[0]));
+  ASSERT_EQ(ret, 0);
+
+  // case 1
+  TAOS_RES *res = taos_query(taos, "select * from t_a5615048edae55218a22a149edebdc82");
+  ASSERT_NE(res, nullptr);
+
+  TAOS_ROW row = taos_fetch_row(res);
+  int64_t ts = *(int64_t*)row[0];
+  ASSERT_EQ(ts, 1626006833639000000);
+
+  taos_free_result(res);
+}

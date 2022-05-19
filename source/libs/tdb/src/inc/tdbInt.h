@@ -103,9 +103,9 @@ typedef struct SPage   SPage;
 #define TDB_TXN_IS_READ_UNCOMMITTED(PTXN) ((PTXN)->flags & TDB_TXN_READ_UNCOMMITTED)
 
 // tdbEnv.c ====================================
-void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
-void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);
-SPager *tdbEnvGetPager(TENV *pEnv, const char *fname);
+void    tdbEnvAddPager(TDB *pEnv, SPager *pPager);
+void    tdbEnvRemovePager(TDB *pEnv, SPager *pPager);
+SPager *tdbEnvGetPager(TDB *pEnv, const char *fname);
 
 // tdbBtree.c ====================================
 typedef struct SBTree SBTree;
@@ -334,9 +334,9 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   return pCell;
 }
 
-struct STEnv {
-  char    *rootDir;
-  char    *jfname;
+struct STDB {
+  char    *dbName;
+  char    *jnName;
   int      jfd;
   SPCache *pCache;
   SPager  *pgrList;
@@ -357,8 +357,8 @@ struct SPager {
   SPgno    dbOrigSize;
   SPage   *pDirty;
   u8       inTran;
-  SPager  *pNext;      // used by TENV
-  SPager  *pHashNext;  // used by TENV
+  SPager  *pNext;      // used by TDB
+  SPager  *pHashNext;  // used by TDB
 };
 
 #ifdef __cplusplus

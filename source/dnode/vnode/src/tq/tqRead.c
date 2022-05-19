@@ -64,22 +64,28 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
     }
     if (pHandle->pBlock == NULL) return false;
 
-    /*pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);*/
-    /*if (pHandle->tbUid == pHandle->pBlock->uid) {*/
     if (pHandle->tbIdHash == NULL) {
       return true;
     }
     void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->msgIter.uid, sizeof(int64_t));
     if (ret != NULL) {
-      /*printf("retrieve one tb %ld\n", pHandle->pBlock->uid);*/
-      /*pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);*/
-      /*pHandle->pBlock->sversion = htonl(pHandle->pBlock->sversion);*/
-      /*pHandle->pBlock->dataLen = htonl(pHandle->pBlock->dataLen);*/
-      /*pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);*/
-      /*pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);*/
       return true;
-      /*} else {*/
-      /*printf("skip one tb %ld\n", pHandle->pBlock->uid);*/
+    }
+  }
+  return false;
+}
+
+bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
+  while (1) {
+    if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
+      return false;
+    }
+    if (pHandle->pBlock == NULL) return false;
+
+    ASSERT(pHandle->tbIdHash == NULL);
+    void* ret = taosHashGet(filterOutUids, &pHandle->msgIter.uid, sizeof(int64_t));
+    if (ret == NULL) {
+      return true;
     }
   }
   return false;

@@ -17,6 +17,15 @@ TARGET_INCLUDE_DIRECTORIES(
         PRIVATE "${TD_SOURCE_DIR}/source/libs/common/inc"
 )
 
+# dataformatTest.cpp 
+add_executable(dataformatTest "")
+target_sources(
+    dataformatTest
+    PRIVATE
+    "dataformatTest.cpp"
+)
+target_link_libraries(dataformatTest gtest gtest_main util)
+
 # tmsg test
 # add_executable(tmsgTest "")
 # target_sources(tmsgTest 
