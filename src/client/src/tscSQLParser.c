@@ -10133,6 +10133,9 @@ static int32_t doLoadAllTableMeta(SSqlObj* pSql, SQueryInfo* pQueryInfo, SSqlNod
     char fname[TSDB_TABLE_FNAME_LEN] = {0};
     tNameExtractFullName(&pTableMetaInfo->name, fname);
     STableMetaVgroupInfo* p = taosHashGet(pCmd->pTableMetaMap, fname, strnlen(fname, TSDB_TABLE_FNAME_LEN));
+    if (p == NULL) {
+      return TSDB_CODE_TSC_NO_META_CACHED;
+    }
 
     pTableMetaInfo->pTableMeta        = tscTableMetaDup(p->pTableMeta);
     pTableMetaInfo->tableMetaCapacity = tscGetTableMetaSize(pTableMetaInfo->pTableMeta);
