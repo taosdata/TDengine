@@ -154,6 +154,6 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq, bool deployed) {
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d", realfile, deployed);
+  dDebug("successed to write %s, deployed:%d", realfile, deployed);
   return 0;
 }
