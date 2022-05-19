@@ -365,6 +365,8 @@ typedef struct {
   int64_t  uid;
   int64_t  dbUid;
   int32_t  version;
+  int32_t  tagVer;
+  int32_t  colVer;
   int32_t  nextColId;
   float    xFilesFactor;
   int32_t  delay;
