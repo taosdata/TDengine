@@ -243,7 +243,6 @@
 25,,pytest,python3 test.py -f alter/alter_cacheLastRow.py 
 25,,develop-test,bash 3-connectors/go/test.sh 
 24,,script,./test.sh -f general/wal/maxtables.sim 
-24,,script,./test.sh -f general/connection/test_old_data.sim 
 24,,script,./test.sh -f general/cache/restart_metrics.sim 
 24,,script,./test.sh -f general/alter/insert2.sim 
 24,,pytest,python3 test.py -f tag_lite/datatype-without-alter.py 

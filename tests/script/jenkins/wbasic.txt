@@ -387,7 +387,6 @@ wtest.bat -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir.sim
 wtest.bat -f unique/migrate/mn2_vn2_repl2_rmMnodeVnodeDir_stopAll_starAll.sim
 wtest.bat -f unique/migrate/mn2_vn2_repl2_rmVnodeDir.sim
 
-wtest.bat -f general/connection/test_old_data.sim
 wtest.bat -f unique/dnode/datatrans_3node.sim 
 wtest.bat -f unique/dnode/datatrans_3node_2.sim
 
