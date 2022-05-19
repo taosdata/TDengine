@@ -83,6 +83,15 @@ void closeTransporter(STscObj *pTscObj) {
   rpcClose(pTscObj->pAppInfo->pTransporter);
 }
 
+static bool clientRpcRfp(int32_t code) {
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+
 // TODO refactor
 void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
@@ -91,6 +100,7 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
+  rpcInit.rfp = clientRpcRfp;
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
