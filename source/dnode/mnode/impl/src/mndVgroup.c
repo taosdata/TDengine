@@ -256,7 +256,7 @@ void *mndBuildCreateVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVg
   return pReq;
 }
 
-void *mndBuildAlterVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen) {
+void *mndBuildAlterVnodeReq(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup, int32_t *pContLen) {
   SAlterVnodeReq alterReq = {0};
   alterReq.vgVersion = pVgroup->version;
   alterReq.buffer = pDb->cfg.buffer;
@@ -285,16 +285,14 @@ void *mndBuildAlterVnodeReq(SMnode *pMnode, SDnodeObj *pDnode, SDbObj *pDb, SVgO
     pReplica->port = pVgidDnode->port;
     memcpy(pReplica->fqdn, pVgidDnode->fqdn, TSDB_FQDN_LEN);
     mndReleaseDnode(pMnode, pVgidDnode);
-
-    if (pDnode->id == pVgid->dnodeId) {
-      alterReq.selfIndex = v;
-    }
   }
 
+#if 0
   if (alterReq.selfIndex == -1) {
     terrno = TSDB_CODE_MND_APP_ERROR;
     return NULL;
   }
+#endif
 
   int32_t contLen = tSerializeSAlterVnodeReq(NULL, 0, &alterReq);
   if (contLen < 0) {

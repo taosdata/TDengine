@@ -155,9 +155,9 @@ static bool checkPort(SAstCreateContext* pCxt, const SToken* pPortToken, int32_t
   return TSDB_CODE_SUCCESS == pCxt->errCode;
 }
 
-static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool query) {
+static bool checkDbName(SAstCreateContext* pCxt, SToken* pDbName, bool demandDb) {
   if (NULL == pDbName) {
-    if (query && NULL == pCxt->pQueryCxt->db) {
+    if (demandDb && NULL == pCxt->pQueryCxt->db) {
       pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_DB_NOT_SPECIFIED);
     }
   } else {
@@ -457,6 +457,8 @@ SNode* createTempTableNode(SAstCreateContext* pCxt, SNode* pSubquery, const STok
   }
   if (QUERY_NODE_SELECT_STMT == nodeType(pSubquery)) {
     strcpy(((SSelectStmt*)pSubquery)->stmtName, tempTable->table.tableAlias);
+  } else if (QUERY_NODE_SET_OPERATOR == nodeType(pSubquery)) {
+    strcpy(((SSetOperator*)pSubquery)->stmtName, tempTable->table.tableAlias);
   }
   return (SNode*)tempTable;
 }
@@ -637,6 +639,7 @@ SNode* createSetOperator(SAstCreateContext* pCxt, ESetOperatorType type, SNode* 
   setOp->opType = type;
   setOp->pLeft = pLeft;
   setOp->pRight = pRight;
+  sprintf(setOp->stmtName, "%p", setOp);
   return (SNode*)setOp;
 }
 
@@ -1140,7 +1143,7 @@ SNode* createAlterDnodeStmt(SAstCreateContext* pCxt, const SToken* pDnode, const
 
 SNode* createCreateIndexStmt(SAstCreateContext* pCxt, EIndexType type, bool ignoreExists, SToken* pIndexName,
                              SToken* pTableName, SNodeList* pCols, SNode* pOptions) {
-  if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName)) {
+  if (!checkIndexName(pCxt, pIndexName) || !checkTableName(pCxt, pTableName) || !checkDbName(pCxt, NULL, true)) {
     return NULL;
   }
   SCreateIndexStmt* pStmt = nodesMakeNode(QUERY_NODE_CREATE_INDEX_STMT);

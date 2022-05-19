@@ -22,51 +22,51 @@
 extern "C" {
 #endif
 
-typedef int (*tdb_cmpr_fn_t)(const void *pKey1, int kLen1, const void *pKey2, int kLen2);
+typedef int (*tdb_cmpr_fn_t)(const void *pKey1, int32_t kLen1, const void *pKey2, int32_t kLen2);
 
 // exposed types
-typedef struct STEnv TENV;
-typedef struct STDB  TDB;
-typedef struct STDBC TDBC;
-typedef struct STxn  TXN;
-
-// TENV
-int tdbEnvOpen(const char *rootDir, int szPage, int pages, TENV **ppEnv);
-int tdbEnvClose(TENV *pEnv);
-int tdbBegin(TENV *pEnv, TXN *pTxn);
-int tdbCommit(TENV *pEnv, TXN *pTxn);
+typedef struct STDB TDB;
+typedef struct STTB TTB;
+typedef struct STBC TBC;
+typedef struct STxn TXN;
 
 // TDB
-int tdbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TENV *pEnv, TDB **ppDb);
-int tdbClose(TDB *pDb);
-int tdbDrop(TDB *pDb);
-int tdbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);
-int tdbDelete(TDB *pDb, const void *pKey, int kLen, TXN *pTxn);
-int tdbUpsert(TDB *pDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
-int tdbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen);
-int tdbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+int32_t tdbOpen(const char *dbname, int szPage, int pages, TDB **ppDb);
+int32_t tdbClose(TDB *pDb);
+int32_t tdbBegin(TDB *pDb, TXN *pTxn);
+int32_t tdbCommit(TDB *pDb, TXN *pTxn);
 
-// TDBC
-int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn);
-int tdbDbcClose(TDBC *pDbc);
-int tdbDbcIsValid(TDBC *pDbc);
-int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, int *c);
-int tdbDbcMoveToFirst(TDBC *pDbc);
-int tdbDbcMoveToLast(TDBC *pDbc);
-int tdbDbcMoveToNext(TDBC *pDbc);
-int tdbDbcMoveToPrev(TDBC *pDbc);
-int tdbDbcGet(TDBC *pDbc, const void **ppKey, int *pkLen, const void **ppVal, int *pvLen);
-int tdbDbcDelete(TDBC *pDbc);
-int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
-int tdbDbcUpsert(TDBC *pDbc, const void *pKey, int nKey, const void *pData, int nData, int insert);
+// TTB
+int32_t tdbTbOpen(const char *tbname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TDB *pEnv, TTB **ppTb);
+int32_t tdbTbClose(TTB *pTb);
+int32_t tdbTbDrop(TTB *pTb);
+int32_t tdbTbInsert(TTB *pTb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn);
+int32_t tdbTbDelete(TTB *pTb, const void *pKey, int kLen, TXN *pTxn);
+int32_t tdbTbUpsert(TTB *pTb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn);
+int32_t tdbTbGet(TTB *pTb, const void *pKey, int kLen, void **ppVal, int *vLen);
+int32_t tdbTbPGet(TTB *pTb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen);
+
+// TBC
+int32_t tdbTbcOpen(TTB *pTb, TBC **ppTbc, TXN *pTxn);
+int32_t tdbTbcClose(TBC *pTbc);
+int32_t tdbTbcIsValid(TBC *pTbc);
+int32_t tdbTbcMoveTo(TBC *pTbc, const void *pKey, int kLen, int *c);
+int32_t tdbTbcMoveToFirst(TBC *pTbc);
+int32_t tdbTbcMoveToLast(TBC *pTbc);
+int32_t tdbTbcMoveToNext(TBC *pTbc);
+int32_t tdbTbcMoveToPrev(TBC *pTbc);
+int32_t tdbTbcGet(TBC *pTbc, const void **ppKey, int *pkLen, const void **ppVal, int *pvLen);
+int32_t tdbTbcDelete(TBC *pTbc);
+int32_t tdbTbcNext(TBC *pTbc, void **ppKey, int *kLen, void **ppVal, int *vLen);
+int32_t tdbTbcUpsert(TBC *pTbc, const void *pKey, int nKey, const void *pData, int nData, int insert);
 
 // TXN
 #define TDB_TXN_WRITE            0x1
 #define TDB_TXN_READ_UNCOMMITTED 0x2
 
-int tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *), void *xArg,
-               int flags);
-int tdbTxnClose(TXN *pTxn);
+int32_t tdbTxnOpen(TXN *pTxn, int64_t txnid, void *(*xMalloc)(void *, size_t), void (*xFree)(void *, void *),
+                   void *xArg, int flags);
+int32_t tdbTxnClose(TXN *pTxn);
 
 // other
 void tdbFree(void *);

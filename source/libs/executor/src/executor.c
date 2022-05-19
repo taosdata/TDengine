@@ -106,7 +106,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   pMsg->contentLen = pMsg->contentLen;
 #endif
 
-  qDebugL("stream task string %s", (const char*)msg);
+  /*qDebugL("stream task string %s", (const char*)msg);*/
 
   struct SSubplan* plan = NULL;
   int32_t          code = qStringToSubplan(msg, &plan);
@@ -126,7 +126,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   return pTaskInfo;
 }
 
-int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd) {
+int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
   // traverse to the stream scanner node to add this table id
@@ -141,12 +141,12 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
 
     SMetaReader mr = {0};
     metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
-    for(int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+    for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
       int64_t* id = (int64_t*)taosArrayGet(tableIdList, i);
 
       int32_t code = metaGetTableEntryByUid(&mr, *id);
       if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get table meta, uid:%"PRIu64" code:%s", *id, tstrerror(terrno));
+        qError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
         continue;
       }
 
@@ -160,7 +160,7 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
 
     metaReaderClear(&mr);
 
-    qDebug(" %d qualified child tables added into stream scanner", (int32_t) taosArrayGetSize(qa));
+    qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
     int32_t code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, qa);
     if (code != TSDB_CODE_SUCCESS) {
       return code;

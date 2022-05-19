@@ -19,9 +19,9 @@
 static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
       .code = code,
-      .info = pMsg->info,
       .pCont = pMsg->info.rsp,
       .contLen = pMsg->info.rspLen,
+      .info = pMsg->info,
   };
   tmsgSendRsp(&rsp);
 }
@@ -29,7 +29,7 @@ static inline void mmSendRsp(SRpcMsg *pMsg, int32_t code) {
 static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  dTrace("msg:%p, get from mnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+  dTrace("msg:%p, get from mnode queue", pMsg);
 
   switch (pMsg->msgType) {
     case TDMT_DND_ALTER_MNODE:
@@ -51,7 +51,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     mmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -73,7 +73,7 @@ static void mmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     }
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
@@ -84,13 +84,20 @@ static int32_t mmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t mmPutNodeMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) { return mmPutNodeMsgToWorker(&pMgmt->writeWorker, pMsg); }
+int32_t mmPutNodeMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutNodeMsgToWorker(&pMgmt->writeWorker, pMsg);
+}
 
-int32_t mmPutNodeMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) { return mmPutNodeMsgToWorker(&pMgmt->syncWorker, pMsg); }
+int32_t mmPutNodeMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutNodeMsgToWorker(&pMgmt->syncWorker, pMsg);
+}
 
-int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) { return mmPutNodeMsgToWorker(&pMgmt->readWorker, pMsg); }
+int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutNodeMsgToWorker(&pMgmt->readWorker, pMsg);
+}
 
-int32_t mmPutNodeMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) { return mmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
+int32_t mmPutNodeMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 
 int32_t mmPutNodeMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -101,25 +108,25 @@ static inline int32_t mmPutRpcMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pRpc)
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) return -1;
 
-  dTrace("msg:%p, is created and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
+  dTrace("msg:%p, create and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
-int32_t mmPutRpcMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return mmPutRpcMsgToWorker(&pMgmt->queryWorker, pRpc);
+int32_t mmPutRpcMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutRpcMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 
-int32_t mmPutRpcMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return mmPutRpcMsgToWorker(&pMgmt->writeWorker, pRpc);
+int32_t mmPutRpcMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutRpcMsgToWorker(&pMgmt->writeWorker, pMsg);
 }
 
-int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc) {
-  return mmPutRpcMsgToWorker(&pMgmt->readWorker, pRpc);
+int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutRpcMsgToWorker(&pMgmt->readWorker, pMsg);
 }
 
-int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pRpc) { return mmPutRpcMsgToWorker(&pMgmt->syncWorker, pRpc); }
+int32_t mmPutMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) { return mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg); }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   SSingleWorkerCfg qCfg = {
