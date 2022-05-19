@@ -1,5 +1,4 @@
 ---
-slug: /query-data
 title: 查询数据
 description: "主要查询功能，通过连接器执行同步查询和异步查询"
 ---
@@ -13,6 +12,7 @@ import RustQuery from "./_rust.mdx";
 import NodeQuery from "./_js.mdx";
 import CsQuery from "./_cs.mdx";
 import CQuery from "./_c.mdx";
+import PhpQuery from "./_php.mdx";
 import PyAsync from "./_py_async.mdx";
 import NodeAsync from "./_js_async.mdx";
 import CsAsync from "./_cs_async.mdx";
@@ -150,12 +150,15 @@ Query OK, 5 row(s) in set (0.001521s)
   <TabItem label="C" value="c">
     <CQuery />
   </TabItem>
+  <TabItem label="PHP" value="php">
+    <PhpQuery />
+  </TabItem>
 </Tabs>
 
 :::note
 
 1. 无论是使用 REST 连接还是原生连接的连接器，以上示例代码都能正常工作。
-2. 唯一需要注意的是：由于 RESTful 接口无状态， 不能使用 `use db` 语句来切换数据库。
+2. 唯一需要注意的是：由于 REST 接口无状态， 不能使用 `use db` 语句来切换数据库。
 
 :::
 

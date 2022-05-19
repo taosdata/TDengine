@@ -1,59 +1,56 @@
 ---
 title: taosdump
-description: "taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序"
+description: "taosdump is a tool application that supports backing up data from a running TDengine cluster and restoring the backed up data to the same or another running TDengine cluster."
 ---
 
-## 简介
+## Introduction
 
-taosdump 是一个支持从运行中的 TDengine 集群备份数据并将备份的数据恢复到相同或另一个运行中的 TDengine 集群中的工具应用程序。
+taosdump is a tool application that supports backing up data from a running TDengine cluster and restoring the backed up data to the same or another running TDengine cluster.
 
-taosdump 可以用数据库、超级表或普通表作为逻辑数据单元进行备份，也可以对数据库、超级
-表和普通表中指定时间段内的数据记录进行备份。使用时可以指定数据备份的目录路径，如果
-不指定位置，taosdump 默认会将数据备份到当前目录。
+taosdump can back up a database, a super table, or a normal table as a logical data unit or backup data records in the database, super tables, and normal tables. When using taosdump, you can specify the directory path for data backup. If you do not specify a directory, taosdump will back up the data to the current directory by default.
 
-如果指定的位置已经有数据文件，taosdump 会提示用户并立即退出，避免数据被覆盖。这意味着同一路径只能被用于一次备份。
-如果看到相关提示，请小心操作。
+Suppose the specified location already has data files. In that case, taosdump will prompt the user and exit immediately to avoid data overwriting which means that the same path can only be used for one backup.
+Please be careful if you see a prompt for this.
 
-taosdump 是一个逻辑备份工具，它不应被用于备份任何原始数据、环境设置、
-硬件信息、服务端配置或集群的拓扑结构。taosdump 使用
-[ Apache AVRO ](https://avro.apache.org/)作为数据文件格式来存储备份数据。
+taosdump is a logical backup tool and should not be used to back up any raw data, environment settings,
+Users should not use taosdump to back up raw data, environment settings, hardware information, server configuration, or cluster topology. taosdump uses [Apache AVRO](https://avro.apache.org/) as the data file format to store backup data.
 
-## 安装
+## Installation
 
-taosdump 有两种安装方式:
+There are two ways to install taosdump:
 
-- 安装 taosTools 官方安装包, 请从[所有下载链接](https://www.taosdata.com/all-downloads)页面找到 taosTools 并下载安装。
+- Install the taosTools official installer. Please find taosTools from [All download links](https://www.taosdata.com/all-downloads) page and download and install it.
 
-- 单独编译 taos-tools 并安装, 详情请参考 [taos-tools](https://github.com/taosdata/taos-tools) 仓库。
+- Compile taos-tools separately and install it. Please refer to the [taos-tools](https://github.com/taosdata/taos-tools) repository for details.
 
-## 常用使用场景
+## Common usage scenarios
 
-### taosdump 备份数据
+### taosdump backup data
 
-1.  备份所有数据库：指定 `-A` 或 `--all-databases` 参数；
-2.  备份多个指定数据库：使用 `-D db1,db2,...` 参数；
-3.  备份指定数据库中的某些超级表或普通表：使用 `dbname stbname1 stbname2 tbname1 tbname2 ...` 参数，注意这种输入序列第一个参数为数据库名称，且只支持一个数据库，第二个和之后的参数为该数据库中的超级表或普通表名称，中间以空格分隔；
-4.  备份系统 log 库：TDengine 集群通常会包含一个系统数据库，名为 `log`，这个数据库内的数据为 TDengine 自我运行的数据，taosdump 默认不会对 log 库进行备份。如果有特定需求对 log 库进行备份，可以使用 `-a` 或 `--allow-sys` 命令行参数。
-5.  “宽容”模式备份：taosdump 1.4.1 之后的版本提供 `-n` 参数和 `-L` 参数，用于备份数据时不使用转义字符和“宽容”模式，可以在表名、列名、标签名没使用转义字符的情况下减少备份数据时间和备份数据占用空间。如果不确定符合使用 `-n` 和 `-L` 条件时请使用默认参数进行“严格”模式进行备份。转义字符的说明请参考[官方文档](/taos-sql/escape)。
+1. backing up all databases: specify `-A` or `-all-databases` parameter.
+2. backup multiple specified databases: use `-D db1,db2,... ` parameters; 3.
+3. back up some super or normal tables in the specified database: use `-dbname stbname1 stbname2 tbname1 tbname2 ... ` parameters. Note that the first parameter of this input sequence is the database name, and only one database is supported. The second and subsequent parameters are the names of super or normal tables in that database, separated by spaces.
+4. back up the system log database: TDengine clusters usually contain a system database named `log`. The data in this database is the data that TDengine runs itself, and the taosdump will not back up the log database by default. If users need to back up the log database, users can use the `-a` or `-allow-sys` command-line parameter. 
+5. Loose mode backup: taosdump version 1.4.1 onwards provides `-n` and `-L` parameters for backing up data without using escape characters and "loose" mode, which can reduce the number of backups if table names, column names, tag names do not use This can reduce the backup data time and backup data footprint if table names, column names, and tag names do not use `escape character`. If you are unsure about using `-n` and `-L` conditions, please use the default parameters for "strict" mode backup. See the [official documentation](/taos-sql/escape) for a description of escaped characters.
 
 :::tip
-- taosdump 1.4.1 之后的版本提供 `-I` 参数，用于解析 avro 文件 schema 和数据，如果指定 `-s` 参数将只解析 schema。
-- taosdump 1.4.2 之后的备份使用 `-B` 参数指定的批次数，默认值为 16384，如果在某些环境下由于网络速度或磁盘性能不足导致 "Error actual dump .. batch .." 可以通过 `-B` 参数挑战为更小的值进行尝试。
+- taosdump versions after 1.4.1 provide the `-I` argument for parsing Avro file schema and data. If users specify `-s` then only taosdump will parse schema.
+- Backups after taosdump 1.4.2 use the batch count specified by the `-B` parameter. The default value is 16384. If, in some environments, low network speed or disk performance causes "Error actual dump ... batch ..." can be tried by challenging the `-B` parameter to a smaller value.
 
 :::
 
-### taosdump 恢复数据
+### taosdump recover data
 
-恢复指定路径下的数据文件：使用 `-i` 参数加上数据文件所在路径。如前面提及，不应该使用同一个目录备份不同数据集合，也不应该在同一路径多次备份同一数据集，否则备份数据会造成覆盖或多次备份。
+Restore the data file in the specified path: use the `-i` parameter plus the path to the data file. You should not use the same directory to backup different data sets, and you should not backup the same data set multiple times in the same path. Otherwise, the backup data will cause overwriting or multiple backups.
 
 :::tip
-taosdump 内部使用 TDengine stmt binding API 进行恢复数据的写入，为提高数据恢复性能，目前使用 16384 为一次写入批次。如果备份数据中有比较多列数据，可能会导致产生 "WAL size exceeds limit" 错误，此时可以通过使用 `-B` 参数调整为一个更小的值进行尝试。
+taosdump internally uses TDengine stmt binding API for writing recovery data and currently uses 16384 as one write batch for better data recovery performance. If there are more columns in the backup data, it may cause a "WAL size exceeds limit" error. You can try to adjust to a smaller value by using the `-B` parameter.
 
 :::
 
-## 详细命令行参数列表
+## Detailed command-line parameter list
 
-以下为 taosdump 详细命令行参数列表：
+The following is a detailed list of taosdump command-line arguments.
 
 ```
 Usage: taosdump [OPTION...] dbname [tbname ...]

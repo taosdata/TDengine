@@ -34,11 +34,11 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### TDengine
 
-从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.3.0.0 或以上版本安装。
+从涛思数据官网[下载](http://taosdata.com/cn/all-downloads/)页面下载最新 TDengine-server 2.4.0.x 或以上版本安装。
 
 ## 数据链路设置
 
-### 下载 TDengine 插件到 grafana 插件目录
+### 下载 TDengine 插件到 Grafana 插件目录
 
 ```bash
 1. wget -c https://github.com/taosdata/grafanaplugin/releases/download/v3.1.3/tdengine-datasource-3.1.3.zip
@@ -50,7 +50,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 ### 修改 /etc/telegraf/telegraf.conf
 
-配置方法，在 /etc/telegraf/telegraf.conf 增加如下文字，其中 database name 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，TDengine server/cluster host、username 和 password 填写 TDengine 实际值：
+配置方法，在 `/etc/telegraf/telegraf.conf` 增加如下文字，其中 `database name` 请填写希望在 TDengine 保存 Telegraf 数据的数据库名，`TDengine server/cluster host`、`username` 和 `password` 填写 TDengine 实际值：
 
 ```
 [[outputs.http]]
@@ -63,7 +63,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
   influx_max_line_bytes = 250
 ```
 
-然后重启 telegraf：
+然后重启 Telegraf：
 
 ```bash
 sudo systemctl start telegraf
@@ -71,12 +71,12 @@ sudo systemctl start telegraf
 
 ### 导入 Dashboard
 
-使用 Web 浏览器访问 IP:3000 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
-点击左侧齿轮图标并选择 Plugins，应该可以找到 TDengine data source 插件图标。
-点击左侧加号图标并选择 Import，从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json` 下载 dashboard JSON 文件后导入。之后可以看到如下界面的仪表盘：
+使用 Web 浏览器访问 `IP:3000` 登录 Grafana 界面，系统初始用户名密码为 admin/admin。
+点击左侧齿轮图标并选择 `Plugins`，应该可以找到 TDengine data source 插件图标。
+点击左侧加号图标并选择 `Import`，从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json` 下载 dashboard JSON 文件后导入。之后可以看到如下界面的仪表盘：
 
 ![IT-DevOps-Solutions-telegraf-dashboard.png](/img/IT-DevOps-Solutions-telegraf-dashboard.png)
 
 ## 总结
 
-以上演示如何快速搭建一个完整的 IT 运维展示系统。得力于 TDengine 2.3.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统。TDengine 强大的数据写入查询性能和其他丰富功能请参考官方文档和产品落地案例。
+以上演示如何快速搭建一个完整的 IT 运维展示系统。得力于 TDengine 2.4.0.0 版本中新增的 schemaless 协议解析功能，以及强大的生态软件适配能力，用户可以短短数分钟就可以搭建一个高效易用的 IT 运维系统。TDengine 强大的数据写入查询性能和其他丰富功能请参考官方文档和产品落地案例。

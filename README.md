@@ -34,11 +34,11 @@ TDengine can be widely applied to Internet of Things (IoT), Connected Vehicles, 
 # Documentation
 
 For user manual, system design and architecture, engineering blogs, refer to [TDengine Documentation](https://www.taosdata.com/en/documentation/)(中文版请点击[这里](https://www.taosdata.com/cn/documentation20/))
- for details. The documentation from our website can also be downloaded locally from *documentation/tdenginedocs-en* or *documentation/tdenginedocs-cn*.
+for details. The documentation from our website can also be downloaded locally from _documentation/tdenginedocs-en_ or _documentation/tdenginedocs-cn_.
 
 # Building
 
-At the moment, TDengine only supports building and running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or from the source code. This quick guide is for installation from the source only.
+At the moment, TDengine server only supports running on Linux systems. You can choose to [install from packages](https://www.taosdata.com/en/getting-started/#Install-from-Package) or build it from the source code. This quick guide is for installation from the source only.
 
 To build TDengine, use [CMake](https://cmake.org/) 3.0.2 or higher versions in the project directory.
 
@@ -169,9 +169,20 @@ You can modify the file ~/.gitconfig to use ssh protocol instead of https for be
 
 ### On Linux platform
 
+You can run the bash script `build.sh` to build both TDengine and taosTools including taosBenchmark and taosdump as below:
+
 ```bash
-mkdir debug && cd debug
-cmake .. && cmake --build .
+./build.sh
+```
+
+It equals to execute following commands:
+
+```bash
+git submodule update --init --recursive
+mkdir debug
+cd debug
+cmake .. -DBUILD_TOOLS=true
+make
 ```
 
 Note TDengine 2.3.x.0 and later use a component named 'taosAdapter' to play http daemon role by default instead of the http daemon embedded in the early version of TDengine. The taosAdapter is programmed by go language. If you pull TDengine source code to the latest from an existing codebase, please execute 'git submodule update --init --recursive' to pull taosAdapter source code. Please install go language version 1.14 or above for compiling taosAdapter. If you meet difficulties regarding 'go mod', especially you are from China, you can use a proxy to solve the problem.
@@ -258,7 +269,9 @@ cmake .. && cmake --build .
 
 # Installing
 
-After building successfully, TDengine can be installed by: (On Windows platform, the following command should be `nmake install`)
+## On Linux platform
+
+After building successfully, TDengine can be installed by
 
 ```bash
 sudo make install
@@ -281,7 +294,7 @@ taos
 
 If TDengine shell connects the server successfully, welcome messages and version info are printed. Otherwise, an error message is shown.
 
-## Install TDengine by apt-get
+### Install TDengine by apt-get
 
 If you use Debian or Ubuntu system, you can use 'apt-get' command to install TDengine from official repository. Please use following commands to setup:
 
@@ -292,6 +305,40 @@ echo "deb [arch=amd64] http://repos.taosdata.com/tdengine-stable stable main" | 
 sudo apt-get update
 apt-cache policy tdengine
 sudo apt-get install tdengine
+```
+
+## On Windows platform
+
+After building successfully, TDengine can be installed by:
+
+```cmd
+nmake install
+```
+
+## On macOS platform
+
+After building successfully, TDengine can be installed by:
+
+```bash
+sudo make install
+```
+
+To start the service after installation, config `.plist` file first, in a terminal, use:
+
+```bash
+sudo cp ../packaging/macOS/com.taosdata.tdengine.plist /Library/LaunchDaemons
+```
+
+To start the service, in a terminal, use:
+
+```bash
+sudo launchctl load /Library/LaunchDaemons/com.taosdata.tdengine.plist
+```
+
+To stop the service, in a terminal, use:
+
+```bash
+sudo launchctl unload /Library/LaunchDaemons/com.taosdata.tdengine.plist
 ```
 
 ## Quick Run
@@ -315,13 +362,17 @@ option "-c test/cfg" specifies the system configuration file directory.
 It is easy to run SQL commands from TDengine shell which is the same as other SQL databases.
 
 ```sql
-create database db;
-use db;
-create table t (ts timestamp, a int);
-insert into t values ('2019-07-15 00:00:00', 1);
-insert into t values ('2019-07-15 01:00:00', 2);
-select * from t;
-drop database db;
+CREATE DATABASE demo;
+USE demo;
+CREATE TABLE t (ts TIMESTAMP, speed INT);
+INSERT INTO t VALUES('2019-07-15 00:00:00', 10);
+INSERT INTO t VALUES('2019-07-15 01:00:00', 20);
+SELECT * FROM t;
+          ts          |   speed   |
+===================================
+ 19-07-15 00:00:00.000|         10|
+ 19-07-15 01:00:00.000|         20|
+Query OK, 2 row(s) in set (0.001700s)
 ```
 
 # Developing with TDengine
@@ -348,8 +399,8 @@ The TDengine community has also kindly built some of their own connectors! Follo
 
 # How to run the test cases and how to add a new test case
 
-  TDengine's test framework and all test cases are fully open source.
-  Please refer to [this document](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
+TDengine's test framework and all test cases are fully open source.
+Please refer to [this document](https://github.com/taosdata/TDengine/blob/develop/tests/How-To-Run-Test-And-How-To-Add-New-Test-Case.md) for how to run test and develop new test case.
 
 # TDengine Roadmap
 

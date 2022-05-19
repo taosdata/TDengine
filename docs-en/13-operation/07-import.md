@@ -1,27 +1,27 @@
 ---
-title: 数据导入
+title: Data Import
 ---
 
-TDengine 提供多种方便的数据导入功能，一种按脚本文件导入，一种按数据文件导入，一种是 taosdump 工具导入本身导出的文件。
+There are multiple ways of importing data provided byTDengine: import with script, import from data file, import using `taosdump`.
 
-## 按脚本文件导入
+## Import Using Script
 
-TDengine 的 shell 支持 source filename 命令，用于批量运行文件中的 SQL 语句。用户可将建库、建表、写数据等 SQL 命令写在同一个文件中，每条命令单独一行，在 shell 中运行 source 命令，即可按顺序批量运行文件中的 SQL 语句。以‘#’开头的 SQL 语句被认为是注释，shell 将自动忽略。
+TDengine CLI `taos` supports `source <filename>` command for executing the SQL statements in the file in batch. The SQL statements for creating databases, creating tables, and inserting rows can be written in single file with one statement on each line, then the file can be executed using `source` command in TDengine CLI `taos` to execute the SQL statements in order and in batch. In the script file, any line beginning with "#" is treated as comments and ignored silently.
 
-## 按数据文件导入
+## Import from Data File
 
-TDengine 也支持在 shell 对已存在的表从 CSV 文件中进行数据导入。CSV 文件只属于一张表且 CSV 文件中的数据格式需与要导入表的结构相同，在导入的时候，其语法如下：
+In TDengine CLI, data can be imported from a CSV file into an existing table. The data in single CSV must belong to same table and must be consistent with the schema of that table. The SQL statement is as below:也
 
 ```sql
 insert into tb1 file 'path/data.csv';
 ```
 
 :::note
-注意：如果 CSV 文件首行存在描述信息，请手动删除后再导入。如某列为空，填 NULL，无引号。\*\*
+If there is description in the first line of a CSV file, please remove it before importing. If there is no value for a column, please use `NULL` without quotes.
 
 :::
 
-例如，现在存在一个子表 d1001, 其表结构如下：
+For example, there is a sub table d1001 whose schema is as below:
 
 ```sql
 taos> DESCRIBE d1001
@@ -35,7 +35,7 @@ taos> DESCRIBE d1001
  groupid                        | INT                |           4 | TAG        |
 ```
 
-要导入的 data.csv 的格式如下：
+The format of the CSV file to be imported, data.csv, is as below:
 
 ```csv
 '2018-10-04 06:38:05.000',10.30000,219,0.31000
@@ -49,13 +49,13 @@ taos> DESCRIBE d1001
 '2018-10-12 06:38:05.000',18.30000,219,0.31000
 ```
 
-那么可以用如下命令导入数据：
+Then, below SQL statement can be used to import data from file "data.csv", assuming the file is located under the home directory of current Linux user.
 
 ```sql
 taos> insert into d1001 file '~/data.csv';
 Query OK, 9 row(s) affected (0.004763s)
 ```
 
-## taosdump 工具导入
+## Import using taosdump
 
-TDengine 提供了方便的数据库导入导出工具 taosdump。用户可以将 taosdump 从一个系统导出的数据，导入到其他系统中。具体使用方法，请参见：[TDengine 数据备份工具: taosdump](/reference/taosdump)。
+A convenient tool for importing and exporting data is provided by TDengine, `taosdump`, which can used to export data from one TDengine cluster and import into another one. For the details of using `taosdump` please refer to [Tool for exporting and importing data: taosdump](/reference/taosdump).

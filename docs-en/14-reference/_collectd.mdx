@@ -1,8 +1,8 @@
-### 配置 taosAdapter
+### Configuring taosAdapter
 
-配置 taosAdapter 接收 collectd 数据的方法：
+To configure taosAdapter to receive collectd data.
 
-- 在 taosAdapter 配置文件（默认位置为 /etc/taos/taosadapter.toml）中使能配置项
+- Enable the configuration item in the taosAdapter configuration file (default location is /etc/taos/taosadapter.toml)
 
 ```
 ...
@@ -17,17 +17,17 @@ password = "taosdata"
 ...
 ```
 
-其中 taosAdapter 默认写入的数据库名称为 `collectd`，也可以修改 taosAdapter 配置文件 dbs 项来指定不同的名称。user 和 password 填写实际 TDengine 配置的值。修改过配置文件 taosAdapter 需重新启动。
+The default database name written by taosAdapter is `collectd`. You can also modify the taosAdapter configuration file dbs entry to specify a different name. user and password are the values configured by the actual TDengine. After changing the configuration file, you need to restart the taosAdapter.
 
-- 也可以使用 taosAdapter 命令行参数或设置环境变量启动的方式，使能 taosAdapter 接收 collectd 数据功能，具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
+- You can also enable the taosAdapter to receive collectd data by using the taosAdapter command-line parameters or by setting environment variables.
 
-### 配置 collectd
-#
-collectd 使用插件机制可以以多种形式将采集到的监控数据写入到不同的数据存储软件。TDengine 支持直接采集插件和 write_tsdb 插件。
+### Configure collectd
+#collectd
+collectd uses a plugin mechanism to write the collected monitoring data to different data storage software in various forms. tdengine supports both direct collection plugins and write_tsdb plugins.
 
-#### 配置接收直接采集插件数据
+#### is configured to receive data from the direct collection plugin
 
-修改 collectd 配置文件（默认位置 /etc/collectd/collectd.conf）相关配置项。
+Modify the relevant configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
 
 ```text
 LoadPlugin network
@@ -36,20 +36,20 @@ LoadPlugin network
 </Plugin>
 ```
 
-其中 <taosAdapter's host\> 填写运行 taosAdapter 的服务器域名或 IP 地址。<port for collectd direct\> 填写 taosAdapter 用于接收 collectd 数据的端口（默认为 6045）。
+where <taosAdapter's host\> fills in the server's domain name or IP address running taosAdapter. <port for collectd direct\> fills in the port that taosAdapter uses to receive collectd data (default is 6045).
 
-实例如下：
+An example is as follows.
 
 ```text
 LoadPlugin network
-<Plugin network>
+<Plugin network
          Server "127.0.0.1" "6045"
 </Plugin>
 ```
 
-#### 配置 write_tsdb 插件数据
+#### Configure write_tsdb plugin data
 
-修改 collectd 配置文件（默认位置 /etc/collectd/collectd.conf）相关配置项。
+Modify the relevant configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
 
 ```text
 LoadPlugin write_tsdb
@@ -62,7 +62,7 @@ LoadPlugin write_tsdb
 </Plugin>
 ```
 
-其中 <taosAdapter's host\> 填写运行 taosAdapter 的服务器域名或 IP 地址。<port for collectd write_tsdb plugin\> 填写 taosAdapter 用于接收 collectd write_tsdb 插件的数据（默认为 6047）。
+Where <taosAdapter's host\> fills in the server's domain name or IP address running taosAdapter. <port for collectd write_tsdb plugin\> Fill in the data that taosAdapter uses to receive the collectd write_tsdb plugin (default is 6047).
 
 ```text
 LoadPlugin write_tsdb
@@ -73,13 +73,12 @@ LoadPlugin write_tsdb
                 HostTags "status=production"
                 StoreRates false
                 AlwaysAppendDS false
-        </Node>
+        </Node
 </Plugin>
 ```
 
-然后重启 collectd：
+Then restart collectd.
 
 ```
 systemctl restart collectd
 ```
-

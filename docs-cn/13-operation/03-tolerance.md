@@ -10,7 +10,7 @@ TDengine 接收到应用的请求数据包时，先将请求的原始数据包�
 
 涉及的系统配置参数有两个：
 
-- walLevel：WAL 级别，0：不写 wal; 1：写 wal, 但不执行 fsync; 2：写 wal, 而且执行 fsync。
+- walLevel：WAL 级别，0：不写 WAL; 1：写 WAL, 但不执行 fsync; 2：写 WAL, 而且执行 fsync。
 - fsync：当 walLevel 设置为 2 时，执行 fsync 的周期。设置为 0，表示每次写入，立即执行 fsync。
 
 如果要 100%的保证数据不丢失，需要将 walLevel 设置为 2，fsync 设置为 0。这时写入速度将会下降。但如果应用侧启动的写数据的线程数达到一定的数量(超过 50)，那么写入数据的性能也会很不错，只会比 fsync 设置为 3000 毫秒下降 30%左右。

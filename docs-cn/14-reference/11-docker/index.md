@@ -1,6 +1,6 @@
 ---
 title: 用 Docker 部署 TDengine
-description: "本章主要介绍如何在容器中启动 TDengine 服务并访问它"
+description: '本章主要介绍如何在容器中启动 TDengine 服务并访问它'
 ---
 
 本章主要介绍如何在容器中启动 TDengine 服务并访问它。可以在 docker run 命令行中或者 docker-compose 文件中使用环境变量来控制容器中服务的行为。
@@ -315,13 +315,13 @@ password:             taosdata
      taoslog-td2:
    ```
 
-  :::note
-   - `VERSION` 环境变量被用来设置 tdengine image tag
-   - 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
-   - `TAOS_REPLICA` 用来设置缺省的数据库副本数量，其取值范围为[1,3]
-     在双副本环境下，推荐使用 arbitrator, 用 TAOS_ARBITRATOR 来设置
-  :::
+:::note
 
+- `VERSION` 环境变量被用来设置 tdengine image tag
+- 在新创建的实例上必须设置 `TAOS_FIRST_EP` 以使其能够加入 TDengine 集群；如果有高可用需求，则需要同时使用 `TAOS_SECOND_EP`
+- `TAOS_REPLICA` 用来设置缺省的数据库副本数量，其取值范围为[1,3]
+  在双副本环境下，推荐使用 arbitrator, 用 TAOS_ARBITRATOR 来设置
+  :::
 
 2. 启动集群
 
@@ -382,7 +382,7 @@ password:             taosdata
    如果要部署多个 taosAdapter 来提高吞吐量并提供高可用性，推荐配置方式为使用 nginx 等反向代理来提供统一的访问入口。具体配置方法请参考 nginx 的官方文档。如下是示例：
 
    ```docker
-   ersion: "3"
+   version: "3"
 
    networks:
      inter:

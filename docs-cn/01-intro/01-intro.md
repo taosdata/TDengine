@@ -4,36 +4,75 @@ title: 产品简介
 toc_max_heading_level: 2
 ---
 
-## TDengine 简介
+TDengine 是一款高性能、分布式、支持 SQL 的时序数据库，其核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。TDengine 能被广泛运用于物联网、工业互联网、车联网、IT 运维、金融等领域。除核心的时序数据库功能外，TDengine 还提供[缓存](/develop/cache/)、[数据订阅](/develop/subscribe)、[流式计算](/develop/continuous-query)等大数据平台所需要的系列功能，最大程度减少研发和运维的复杂度。
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库。而且除时序数据库功能外，它还提供[缓存](/develop/cache/)、数据订阅、流式计算等功能，最大程度减少研发和运维的复杂度，且核心代码，包括集群功能全部开源（开源协议，AGPL v3.0）。与其他时序数据数据库相比，TDengine 有以下特点：
+本章节介绍TDengine的主要功能、竞争优势、适用场景、与其他数据库的对比测试等等，让大家对TDengine有个整体的了解。
 
-- **高性能**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，而且存储空间也大为节省。
+## 主要功能
 
-- **分布式**：通过原生分布式的设计，TDengine 提供了水平扩展的能力，只需要增加节点就能获得更强的数据处理能力，同时通过多副本机制保证了系统的高可用。
+TDengine的主要功能如下：
 
-- **支持 SQL**：TDengine 采用 SQL 作为数据查询语言，减少学习和迁移成本，同时提供 SQL 扩展来处理时序数据特有的分析，而且支持方便灵活的 schemaless 数据写入。
+1. 高速数据写入，除 [SQL 写入](/develop/insert-data/sql-writing)外，还支持 [Schemaless 写入](/reference/schemaless/)，支持 [InfluxDB LINE 协议](/develop/insert-data/influxdb-line)，[OpenTSDB Telnet](/develop/insert-data/opentsdb-telnet), [OpenTSDB JSON ](/develop/insert-data/opentsdb-json)等协议写入；
+2. 第三方数据采集工具 [Telegraf](/third-party/telegraf)，[Prometheus](/third-party/prometheus)，[StatsD](/third-party/statsd)，[collectd](/third-party/collectd)，[icinga2](/third-party/icinga2), [TCollector](/third-party/tcollector), [EMQ](/third-party/emq-broker), [HiveMQ](/third-party/hive-mq-broker) 等都可以进行配置后，不用任何代码，即可将数据写入；
+3. 支持[各种查询](/develop/query-data),包括聚合查询、嵌套查询、降采样查询、插值等
+4. 支持[用户自定义函数](/develop/udf)
+5. 支持[缓存](/develop/cache)，将每张表的最后一条记录缓存起来，这样无需 Redis
+6. 支持[连续查询](/develop/continuous-query)(Continuous Query)
+7. 支持[数据订阅](/develop/subscribe)，而且可以指定过滤条件
+8. 支持[集群](/cluster/)，可以通过多节点进行水平扩展，并通过多副本实现高可靠
+9. 提供[命令行程序](/reference/taos-shell)，便于管理集群，检查系统状态，做即席查询
+10. 提供多种数据的[导入](/operation/import)、[导出](/operation/export)
+11. 支持对[TDengine 集群本身的监控](/operation/monitor)
+12. 提供 [C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node) 等多种编程语言的[连接器](/reference/connector/)
+13. 支持 [REST 接口](/reference/rest-api/)
+14. 支持与[ Grafana 无缝集成](/third-party/grafana)
+15. 支持与 Google Data Studio 无缝集成
+
+更多细小的功能，请阅读整个文档。
+
+## 竞争优势
+
+由于 TDengine 充分利用了[时序数据特点](https://www.taosdata.com/blog/2019/07/09/105.html)，比如结构化、无需事务、很少删除或更新、写多读少等等，设计了全新的针对时序数据的存储引擎和计算引擎，因此与其他时序数据库相比，TDengine 有以下特点：
+
+- **[高性能](https://www.taosdata.com/fast)**：通过创新的存储引擎设计，无论是数据写入还是查询，TDengine 的性能比通用数据库快 10 倍以上，也远超其他时序数据库，而且存储空间也大为节省。
+
+- **[分布式](https://www.taosdata.com/scalable)**：通过原生分布式的设计，TDengine 提供了水平扩展的能力，只需要增加节点就能获得更强的数据处理能力，同时通过多副本机制保证了系统的高可用。
+
+- **[支持 SQL](https://www.taosdata.com/sql-support)**：TDengine 采用 SQL 作为数据查询语言，减少学习和迁移成本，同时提供 SQL 扩展来处理时序数据特有的分析，而且支持方便灵活的 schemaless 数据写入。
 
 - **All in One**：将数据库、消息队列、缓存、流式计算等功能融合一起，应用无需再集成 Kafka/Redis/HBase/Spark 等软件，大幅降低应用开发和维护成本。
 
 - **零管理**：安装、集群几秒搞定，无任何依赖，不用分库分表，系统运行状态监测能与 Grafana 或其他运维工具无缝集成。
 
-- **零学习成本**：采用 SQL 查询语言，支持 Python, Java, C/C++, Go, Rust, Node.js 等多种编程语言,与 MySQL 相似，零学习成本。
+- **零学习成本**：采用 SQL 查询语言，支持 C/C++、Python、Java、Go、Rust、Node.js、C#、Lua（社区贡献）、PHP（社区贡献） 等多种编程语言,与 MySQL 相似，零学习成本。
 
-- **无缝集成**：不用一行代码，即可与 Telegraf, Grafana, EMQX, Prometheus, StatsD, collectd, Matlab, R 等第三方工具无缝集成。
+- **无缝集成**：不用一行代码，即可与 Telegraf、Grafana、Prometheus、EMQX、HiveMQ、StatsD、collectd、icinga、TCollector、Matlab、R 等第三方工具无缝集成。
 
 - **互动 Console**: 通过命令行 console，不用编程，执行 SQL 语句就能做即席查询、各种数据库的操作、管理以及集群的维护.
 
-采用 TDengine，可将典型的物联网、车联网、工业互联网大数据平台的总拥有成本大幅降低。表现在几个方面，1：由于其超强性能，它能将系统需要的计算资源和存储资源大幅降低；2：因为采用SQL接口，能与众多第三放软件无缝集成，学习迁移成本大幅下降；3：因为其All In One的特性，系统复杂度降低，能降研发成本；4：因为运维维护简单，运营维护成本能大幅降低。
+采用 TDengine，可将典型的物联网、车联网、工业互联网大数据平台的总拥有成本大幅降低。表现在几个方面：
 
-在整个时序大数据平台中，TDengine在其中扮演的角色如下：
+1. 由于其超强性能，它能将系统需要的计算资源和存储资源大幅降低
+2. 因为采用 SQL 接口，能与众多第三放软件无缝集成，学习迁移成本大幅下降
+3. 因为其 All In One 的特性，系统复杂度降低，能降研发成本
+4. 因为运维维护简单，运营维护成本能大幅降低
+
+## 技术生态
+
+在整个时序大数据平台中，TDengine 在其中扮演的角色如下：
+
+<figure>
+
 ![TDengine技术生态图](eco_system.png)
 
+</figure>
 <center>图 1. TDengine技术生态图</center>
+
+上图中，左侧是各种数据采集或消息队列，包括 OPC-UA、MQTT、Telegraf、也包括 Kafka, 他们的数据将被源源不断的写入到 TDengine。右侧则是可视化、BI 工具、组态软件、应用程序。下侧则是 TDengine 自身提供的命令行程序 (CLI) 以及可视化管理管理。
 
 ## TDengine 总体适用场景
 
-作为一个高性能、分布式、支持 SQL 的时序数据库，TDengine 的典型适用场景包括但不限于 IoT、工业互联网、车联网、IT运维、能源、金融证券等领域。需要指出的是，TDengine是针对时序数据场景设计的专用数据库和专用大数据处理工具，因充分利用了时序大数据的特点，它无法用来处理网络爬虫、微博、微信、电商、ERP、CRM 等通用型数据。本文对适用场景做更多详细的分析。
+作为一个高性能、分布式、支持 SQL 的时序数据库，TDengine 的典型适用场景包括但不限于 IoT、工业互联网、车联网、IT 运维、能源、金融证券等领域。需要指出的是，TDengine 是针对时序数据场景设计的专用数据库和专用大数据处理工具，因充分利用了时序大数据的特点，它无法用来处理网络爬虫、微博、微信、电商、ERP、CRM 等通用型数据。本文对适用场景做更多详细的分析。
 
 ### 数据源特点和需求
 
@@ -76,7 +115,7 @@ TDengine 是一款高性能、分布式、支持 SQL 的时序数据库。而且
 | 要求运维学习成本可控   |        |          | √        | 同上。                                                                                                                |
 | 要求市场有大量人才储备 | √      |          |          | TDengine 作为新一代产品，目前人才市场里面有经验的人员还有限。但是学习成本低，我们作为厂家也提供运维的培训和辅助服务。 |
 
-## TDengine 与其他数据库的对比测试
+## 与其他数据库的对比测试
 
 - [用 InfluxDB 开源的性能测试工具对比 InfluxDB 和 TDengine](https://www.taosdata.com/blog/2020/01/13/1105.html)
 - [TDengine 与 OpenTSDB 对比测试](https://www.taosdata.com/blog/2019/08/21/621.html)

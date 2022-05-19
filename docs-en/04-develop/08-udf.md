@@ -1,180 +1,190 @@
 ---
-sidebar_label: 用户定义函数
-title: UDF（用户定义函数）
-description: "支持用户编码的聚合函数和标量函数，在查询中嵌入并使用用户定义函数，拓展查询的能力和功能。"
+sidebar_label: UDF
+title: User Defined Functions
+description: "Scalar functions and aggregate functions developed by users can be utilized by the query framework to expand the query capability"
 ---
 
-在有些应用场景中，应用逻辑需要的查询无法直接使用系统内置的函数来表示。利用 UDF 功能，TDengine 可以插入用户编写的处理代码并在查询中使用它们，就能够很方便地解决特殊应用场景中的使用需求。 UDF 通常以数据表中的一列数据做为输入，同时支持以嵌套子查询的结果作为输入。
+In some use cases, the query capability required by application programs can't be achieved directly by builtin functions. With UDF, the functions developed by users can be utilized by query framework to meet some special requirements. UDF normally takes one column of data as input, but can also support the result of sub query as input.
 
-从 2.2.0.0 版本开始，TDengine 支持通过 C/C++ 语言进行 UDF 定义。接下来结合示例讲解 UDF 的使用方法。
+From version 2.2.0.0, UDF programmed in C/C++ language can be supported by TDengine.
 
-用户可以通过 UDF 实现两类函数： 标量函数 和 聚合函数。
+Two kinds of functions can be implemented by UDF: scalar function and aggregate function.
 
-## 用 C/C++ 语言来定义 UDF
+## Define UDF
 
-### 标量函数
+### Scalar Function
 
-用户可以按照下列函数模板定义自己的标量计算函数
+Below function template can be used to define your own scalar function.
 
- `void udfNormalFunc(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput, int* numOfOutput, short otype, short obytes, SUdfInit* buf)` 
- 
- 其中 udfNormalFunc 是函数名的占位符，以上述模板实现的函数对行数据块进行标量计算，其参数项是固定的，用于按照约束完成与引擎之间的数据交换。
+`void udfNormalFunc(char* data, short itype, short ibytes, int numOfRows, long long* ts, char* dataOutput, char* interBuf, char* tsOutput, int* numOfOutput, short otype, short obytes, SUdfInit* buf)`
 
-- udfNormalFunc 中各参数的具体含义是：
-  - data：输入数据。
-  - itype：输入数据的类型。这里采用的是短整型表示法，与各种数据类型对应的值可以参见 [column_meta 中的列类型说明](/reference/rest-api/)。例如 4 用于表示 INT 型。
-  - iBytes：输入数据中每个值会占用的字节数。
-  - numOfRows：输入数据的总行数。
-  - ts：主键时间戳在输入中的列数据(只读)。
-  - dataOutput：输出数据的缓冲区，缓冲区大小为用户指定的输出类型大小 \* numOfRows。
-  - interBuf：中间计算结果的缓冲区，大小为用户在创建 UDF 时指定的 BUFSIZE 大小。通常用于计算中间结果与最终结果不一致时使用，由引擎负责分配与释放。
-  - tsOutput：主键时间戳在输出时的列数据，如果非空可用于输出结果对应的时间戳。
-  - numOfOutput：输出结果的个数（行数）。
-  - oType：输出数据的类型。取值含义与 itype 参数一致。
-  - oBytes：输出数据中每个值占用的字节数。
-  - buf：用于在 UDF 与引擎间的状态控制信息传递块。
+`udfNormalFunc` is the place holder of function name, a function implemented based on the above template can be used to perform scalar computation on data rows. The parameters are fixed to control the data exchange between UDF and TDengine.
 
-  [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c) 是结构最简单的 UDF 实现，也即上面定义的 udfNormalFunc 函数的一个具体实现。其功能为：对传入的一个数据列（可能因 WHERE 子句进行了筛选）中的每一项，都输出 +1 之后的值，并且要求输入的列数据类型为 INT。
+- Defintions of the parameters:
 
-### 聚合函数
+  - data：input data
+  - itype：the type of input data, for details please refer to [type definition in column_meta](/reference/rest-api/), for example 4 represents INT
+  - iBytes：the number of bytes consumed by each value in the input data
+  - oType：the type of output data, similar to iType
+  - oBytes：the number of bytes consumed by each value in the output data
+  - numOfRows：the number of rows in the input data
+  - ts: the column of timestamp corresponding to the input data
+  - dataOutput：the buffer for output data, total size is `oBytes * numberOfRows`
+  - interBuf：the buffer for intermediate result, its size is specified by `BUFSIZE` parameter when creating a UDF. It's normally used when the intermediate result is not same as the final result, it's allocated and freed by TDengine.
+  - tsOutput：the column of timestamps corresponding to the output data; it can be used to output timestamp together with the output data if it's not NULL
+  - numOfOutput：the number of rows in output data
+  - buf：for the state exchange between UDF and TDengine
 
-用户可以按照如下函数模板定义自己的聚合函数。
+  [add_one.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c) is one example of the simplest UDF implementations, i.e. one instance of the above `udfNormalFunc` template. It adds one to each value of a column passed in which can be filtered using `where` clause and outputs the result.
+
+### Aggregate Function
+
+Below function template can be used to define your own aggregate function.
 
 `void abs_max_merge(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf)`
 
-其中 udfMergeFunc 是函数名的占位符，以上述模板实现的函数用于对计算中间结果进行聚合，只有针对超级表的聚合查询才需要调用该函数。其中各参数的具体含义是：
+`udfMergeFunc` is the place holder of function name, the function implemented with the above template is used to aggregate the intermediate result, only can be used in the aggregate query for STable.
 
-  - data：udfNormalFunc 的输出数据数组，如果使用了 interBuf 那么 data 就是 interBuf 的数组。
-  - numOfRows：data 中数据的行数。
-  - dataOutput：输出数据的缓冲区，大小等于一条最终结果的大小。如果此时输出还不是最终结果，可以选择输出到 interBuf 中即 data 中。
-  - numOfOutput：输出结果的个数（行数）。
-  - buf：用于在 UDF 与引擎间的状态控制信息传递块。
+Definitions of the parameters:
 
-[abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c) 实现的是一个聚合函数，功能是对一组数据按绝对值取最大值。
+- data：array of output data, if interBuf is used it's an array of interBuf
+- numOfRows：number of rows in `data`
+- dataOutput：the buffer for output data, the size is same as that of the final result; If the result is not final, it can be put in the interBuf, i.e. `data`.
+- numOfOutput：number of rows in the output data
+- buf：for the state exchange between UDF and TDengine
 
-其计算过程为：与所在查询语句相关的数据会被分为多个行数据块，对每个行数据块调用 udfNormalFunc（在本例的实现代码中，实际函数名是 `abs_max`)来生成每个子表的中间结果，再将子表的中间结果调用 udfMergeFunc（本例中，其实际的函数名是 `abs_max_merge`）进行聚合，生成超级表的最终聚合结果或中间结果。聚合查询最后还会通过 udfFinalizeFunc（本例中，其实际的函数名是 `abs_max_finalize`）再把超级表的中间结果处理为最终结果，最终结果只能含 0 或 1 条结果数据。
+[abs_max.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c) is an user defined aggregate function to get the maximum from the absolute value of a column.
 
-其他典型场景，如协方差的计算，也可通过定义聚合 UDF 的方式实现。
+The internal processing is that the data affected by the select statement will be divided into multiple row blocks and `udfNormalFunc`, i.e. `abs_max` in this case, is performed on each row block to generate the intermediate of each sub table, then `udfMergeFunc`, i.e. `abs_max_merge` in this case, is performed on the intermediate result of sub tables to aggregate to generate the final or intermediate result of STable. The intermediate result of STable is finally processed by `udfFinalizeFunc` to generate the final result, which contain either 0 or 1 row.
 
-### 最终计算
+Other typical scenarios, like covariance, can also be achieved by aggregate UDF.
 
-用户可以按下面的函数模板实现自己的函数对计算结果进行最终计算，通常用于有 interBuf 使用的场景。
+### Finalize
+
+Below function template can be used to finalize the result of your own UDF, normally used when interBuf is used.
 
 `void abs_max_finalize(char* dataOutput, char* interBuf, int* numOfOutput, SUdfInit* buf)`
 
-其中 udfFinalizeFunc 是函数名的占位符 ，其中各参数的具体含义是：
-  - dataOutput：输出数据的缓冲区。
-  - interBuf：中间结算结果缓冲区，可作为输入。
-  - numOfOutput：输出数据的个数，对聚合函数来说只能是 0 或者 1。
-  - buf：用于在 UDF 与引擎间的状态控制信息传递块。
+`udfFinalizeFunc` is the place holder of function name, definitions of the parameter are as below:
 
-## UDF 实现方式的规则总结
+- dataOutput：buffer for output data
+- interBuf：buffer for intermediate result, can be used as input for next processing step
+- numOfOutput：number of output data, can only be 0 or 1 for aggregate function
+- buf：for state exchange between UDF and TDengine
 
-三类 UDF 函数： udfNormalFunc、udfMergeFunc、udfFinalizeFunc ，其函数名约定使用相同的前缀，此前缀即 udfNormalFunc 的实际函数名，也即 udfNormalFunc 函数不需要在实际函数名后添加后缀；而udfMergeFunc 的函数名要加上后缀 `_merge`、udfFinalizeFunc 的函数名要加上后缀 `_finalize`，这是 UDF 实现规则的一部分，系统会按照这些函数名后缀来调用相应功能。
+## UDF Conventions
 
-根据 UDF 函数类型的不同，用户所要实现的功能函数也不同：
+The naming of 3 kinds of UDF, i.e. udfNormalFunc, udfMergeFunc, and udfFinalizeFunc is required to have same prefix, i.e. the actual name of udfNormalFunc, which means udfNormalFunc doesn't need a suffix following the function name. While udfMergeFunc should be udfNormalFunc followed by `_merge`, udfFinalizeFunc should be udfNormalFunc followed by `_finalize`. The naming convention is part of UDF framework, TDengine follows this convention to invoke corresponding actual functions.\
 
-- 标量函数：UDF 中需实现 udfNormalFunc。
-- 聚合函数：UDF 中需实现 udfNormalFunc、udfMergeFunc（对超级表查询）、udfFinalizeFunc。
+According to the kind of UDF to implement, the functions that need to be implemented are different.
 
-:::note
-如果对应的函数不需要具体的功能，也需要实现一个空函数。
+- Scalar function：udfNormalFunc is required
+- Aggregate function：udfNormalFunc, udfMergeFunc (if query on STable) and udfFinalizeFunc are required
 
-:::
+To be more accurate, assuming we want to implement a UDF named "foo". If the function is a scalar function, what we really need to implement is `foo`; if the function is aggregate function, we need to implement `foo`, `foo_merge`, and `foo_finalize`. For aggregate UDF, even though one of the three functions is not necessary, there must be an empty implementation.
 
-## 编译 UDF
+## Compile UDF
 
-用户定义函数的 C 语言源代码无法直接被 TDengine 系统使用，而是需要先编译为 动态链接库，之后才能载入 TDengine 系统。
+The source code of UDF in C can't be utilized by TDengine directly. UDF can only be loaded into TDengine after compiling to dynamically linked library.
 
-例如，按照上一章节描述的规则准备好了用户定义函数的源代码 add_one.c，以 Linux 为例可以执行如下指令编译得到动态链接库文件：
+For example, the example UDF `add_one.c` mentioned in previous sections need to be compiled into DLL using below command on Linux Shell.
 
 ```bash
 gcc -g -O0 -fPIC -shared add_one.c -o add_one.so
 ```
 
-这样就准备好了动态链接库 add_one.so 文件，可以供后文创建 UDF 时使用了。为了保证可靠的系统运行，编译器 GCC 推荐使用 7.5 及以上版本。
+The generated DLL file `dd_one.so` can be used later when creating UDF. It's recommended to use GCC not older than 7.5.
 
-## 在系统中管理和使用 UDF
+## Create and Use UDF
 
-### 创建 UDF
+### Create UDF
 
-用户可以通过 SQL 指令在系统中加载客户端所在主机上的 UDF 函数库（不能通过 RESTful 接口或 HTTP 管理界面来进行这一过程）。一旦创建成功，则当前 TDengine 集群的所有用户都可以在 SQL 指令中使用这些函数。UDF 存储在系统的 MNode 节点上，因此即使重启 TDengine 系统，已经创建的 UDF 也仍然可用。
+SQL command can be executed on the same hos where the generated UDF DLL resides to load the UDF DLL into TDengine, this operation can't be done through REST interface or web console. Once created, all the clients of the current TDengine can use these UDF functions in their SQL commands. UDF are stored in the management node of TDengine. The UDFs loaded in TDengine would be still available after TDengine is restarted.
 
-在创建 UDF 时，需要区分标量函数和聚合函数。如果创建时声明了错误的函数类别，则可能导致通过 SQL 指令调用函数时出错。此外， UDF 支持输入与输出类型不一致，用户需要保证输入数据类型与 UDF 程序匹配，UDF 输出数据类型与 OUTPUTTYPE 匹配。
+When creating UDF, it needs to be clarified as either scalar function or aggregate function. If the specified type is wrong, the SQL statements using the function would fail with error. Besides, the input type and output type don't need to be same in UDF, but the input data type and output data type need to be consistent with the UDF definition.
 
-- 创建标量函数
+- Create Scalar Function
+
 ```sql
 CREATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];
 ```
 
-  - ids(X)：标量函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  - ids(Y)：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
-  - typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
-  - B：中间计算结果的缓冲区大小，单位是字节，最小 0，最大 512，如果不使用可以不设置。
+- ids(X)：the function name to be sued in SQL statement, must be consistent with the function name defined by `udfNormalFunc`
+- ids(Y)：the absolute path of the DLL file including the implementation of the UDF, the path needs to be quoted by single or double quotes
+- typename(Z)：the output data type, the value is the literal string of the type
+- B：the size of intermediate buffer, in bytes; it's an optional parameter and the range is [0,512]
 
-  例如，如下语句可以把 add_one.so 创建为系统中可用的 UDF：
+For example, below SQL statement can be used to create a UDF from `add_one.so`.
 
-  ```sql
-  CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
-  ```
+```sql
+CREATE FUNCTION add_one AS "/home/taos/udf_example/add_one.so" OUTPUTTYPE INT;
+```
 
-- 创建聚合函数：
+- Create Aggregate Function
+
 ```sql
 CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];
 ```
 
-  - ids(X)：聚合函数未来在 SQL 指令中被调用时的函数名，必须与函数实现中 udfNormalFunc 的实际名称一致；
-  - ids(Y)：包含 UDF 函数实现的动态链接库的库文件绝对路径（指的是库文件在当前客户端所在主机上的保存路径，通常是指向一个 .so 文件），这个路径需要用英文单引号或英文双引号括起来；
-  - typename(Z)：此函数计算结果的数据类型，与上文中 udfNormalFunc 的 itype 参数不同，这里不是使用数字表示法，而是直接写类型名称即可；
-  - B：中间计算结果的缓冲区大小，单位是字节，最小 0，最大 512，如果不使用可以不设置。
+- ids(X)：the function name to be sued in SQL statement, must be consistent with the function name defined by `udfNormalFunc`
+- ids(Y)：the absolute path of the DLL file including the implementation of the UDF, the path needs to be quoted by single or double quotes
+- typename(Z)：the output data type, the value is the literal string of the type 此
+- B：the size of intermediate buffer, in bytes; it's an optional parameter and the range is [0,512]
 
-  关于中间计算结果的使用，可以参考示例程序[demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
+For details about how to use intermediate result, please refer to example program [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c).
 
-  例如，如下语句可以把 demo.so 创建为系统中可用的 UDF：
+For example, below SQL statement can be used to create a UDF rom `demo.so`.
 
-  ```sql
-  CREATE AGGREGATE FUNCTION demo AS "/home/taos/udf_example/demo.so" OUTPUTTYPE DOUBLE bufsize 14;
-  ```
+```sql
+CREATE AGGREGATE FUNCTION demo AS "/home/taos/udf_example/demo.so" OUTPUTTYPE DOUBLE bufsize 14;
+```
 
-### 管理 UDF
+### Manage UDF
 
-- 删除指定名称的用户定义函数：
+- Delete UDF
+
 ```
 DROP FUNCTION ids(X);
 ```
 
-- ids(X)：此参数的含义与 CREATE 指令中的 ids(X) 参数一致，也即要删除的函数的名字，例如 
+- ids(X)：same as that in `CREATE FUNCTION` statement
+
 ```sql
 DROP FUNCTION add_one;
 ```
-- 显示系统中当前可用的所有 UDF：
+
+- Show Available UDF
+
 ```sql
 SHOW FUNCTIONS;
 ```
 
-### 调用 UDF
+### Use UDF
 
-在 SQL 指令中，可以直接以在系统中创建 UDF 时赋予的函数名来调用用户定义函数。例如：
+The function name specified when creating UDF can be used directly in SQL statements, just like builtin functions.
+
 ```sql
-SELECT X(c) FROM table/stable;
+SELECT X(c) FROM table/STable;
 ```
 
-表示对名为 c 的数据列调用名为 X 的用户定义函数。SQL 指令中用户定义函数可以配合 WHERE 等查询特性来使用。
+The above SQL statement invokes function X for column c.
 
-## UDF 的一些使用限制
+## Restrictions for UDF
 
-在当前版本下，使用 UDF 存在如下这些限制：
+In current version there are some restrictions for UDF
 
-1. 在创建和调用 UDF 时，服务端和客户端都只支持 Linux 操作系统；
-2. UDF 不能与系统内建的 SQL 函数混合使用，暂不支持在一条 SQL 语句中使用多个不同名的 UDF ；
-3. UDF 只支持以单个数据列作为输入；
-4. UDF 只要创建成功，就会被持久化存储到 MNode 节点中；
-5. 无法通过 RESTful 接口来创建 UDF；
-6. UDF 在 SQL 中定义的函数名，必须与 .so 库文件实现中的接口函数名前缀保持一致，也即必须是 udfNormalFunc 的名称，而且不可与 TDengine 中已有的内建 SQL 函数重名。
+1. Only Linux is supported when creating and invoking UDF for both client side and server side
+2. UDF can't be mixed with builtin functions
+3. Only one UDF can be used in a SQL statement
+4. Single column is supported as input for UDF
+5. Once created successfully, UDF is persisted in MNode of TDengineUDF
+6. UDF can't be created through REST interface
+7. The function name used when creating UDF in SQL must be consistent with the function name defined in the DLL, i.e. the name defined by `udfNormalFunc`
+8. The name name of UDF name should not conflict with any of builtin functions
 
-## 示例代码
+## Examples
 
-### 标量函数示例 [add_one](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
+### Scalar function example [add_one](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/add_one.c)
 
 <details>
 <summary>add_one.c</summary>
@@ -185,7 +195,7 @@ SELECT X(c) FROM table/stable;
 
 </details>
 
-### 向量函数示例 [abs_max](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
+### Aggregate function example [abs_max](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/abs_max.c)
 
 <details>
 <summary>abs_max.c</summary>
@@ -196,7 +206,7 @@ SELECT X(c) FROM table/stable;
 
 </details>
 
-### 使用中间计算结果示例 [demo](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
+### Example for using intermediate result [demo](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c)
 
 <details>
 <summary>demo.c</summary>

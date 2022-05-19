@@ -1,9 +1,10 @@
 ---
-title: 物联网大数据
-description: "物联网、工业互联网大数据的特点；物联网大数据平台应具备的功能和特点；通用大数据架构为什么不适合处理物联网数据；物联网、车联网、工业互联网大数据平台，为什么推荐使用 TDengine"
+title: IoT Big Data
+description: "Characteristics of IoT Big Data, why general big data platform does not work well for IoT? The required features for an IoT Big Data Platform"
 ---
 
-- [物联网、工业互联网大数据的特点](https://www.taosdata.com/blog/2019/07/09/105.html)
-- [物联网大数据平台应具备的功能和特点](https://www.taosdata.com/blog/2019/07/29/542.html)
-- [通用大数据架构为什么不适合处理物联网数据？](https://www.taosdata.com/blog/2019/07/09/107.html)
-- [物联网、车联网、工业互联网大数据平台，为什么推荐使用 TDengine？](https://www.taosdata.com/blog/2019/07/09/109.html)
+- [Characteristics of IoT Big Data](https://tdengine.com/2019/07/09/86.html)
+- [Why don’t General Big Data Platforms Fit IoT Scenarios?](https://tdengine.com/2019/07/09/92.html)
+- [Why TDengine is the Best Choice for IoT Big Data Processing?](https://tdengine.com/2019/07/09/94.html)
+- [Why Redis, Kafka, Spark aren’t Needed if TDengine is Used in the IoT Platform?](https://tdengine.com/2019/07/09/96.html)
+

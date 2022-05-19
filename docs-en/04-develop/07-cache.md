@@ -1,21 +1,19 @@
 ---
-sidebar_label: 缓存
-title:  缓存
-description: "提供写驱动的缓存管理机制，将每个表最近写入的一条记录持续保存在缓存中，可以提供高性能的最近状态查询。"
+sidebar_label: Cache
+title: Cache
+description: "The latest row of each table is kept in cache to provide high performance query of latest state."
 ---
 
-TDengine 采用时间驱动缓存管理策略（First-In-First-Out，FIFO），又称为写驱动的缓存管理机制。这种策略有别于读驱动的数据缓存模式（Least-Recent-Used，LRU），直接将最近写入的数据保存在系统的缓存中。当缓存达到临界值的时候，将最早的数据批量写入磁盘。一般意义上来说，对于物联网数据的使用，用户最为关心最近产生的数据，即当前状态。TDengine 充分利用了这一特性，将最近到达的（当前状态）数据保存在缓存中。
+The cache management policy in TDengine is First-In-First-Out (FIFO), which is also known as insert driven cache management policy and different from read driven cache management, i.e. Least-Recent-Used (LRU). It simply stores the latest data in cache and flushes the oldest data in cache to disk when the cache usage reaches a threshold. In IoT use cases, the most cared about data is the latest data, i.e. current state. The cache policy in TDengine is based the nature of IoT data.
 
-TDengine 通过查询函数向用户提供毫秒级的数据获取能力。直接将最近到达的数据保存在缓存中，可以更加快速地响应用户针对最近一条或一批数据的查询分析，整体上提供更快的数据库查询响应能力。从这个意义上来说，可通过设置合适的配置参数将 TDengine 作为数据缓存来使用，而不需要再部署额外的缓存系统，可有效地简化系统架构，降低运维的成本。需要注意的是，TDengine 重启以后系统的缓存将被清空，之前缓存的数据均会被批量写入磁盘，缓存的数据将不会像专门的 key-value 缓存系统再将之前缓存的数据重新加载到缓存中。
+Caching the latest data provides the capability of retrieving data in milliseconds. With this capability, TDengine can be configured properly to be used as caching system without deploying another separate caching system to simplify the system architecture and minimize the operation cost. The cache will be emptied after TDengine is restarted, TDengine doesn't reload data from disk into cache like a real key-value caching system.
 
-TDengine 分配固定大小的内存空间作为缓存空间，缓存空间可根据应用的需求和硬件资源配置。通过适当的设置缓存空间，TDengine 可以提供极高性能的写入和查询的支持。TDengine 中每个虚拟节点（virtual node）创建时分配独立的缓存池。每个虚拟节点管理自己的缓存池，不同虚拟节点间不共享缓存池。每个虚拟节点内部所属的全部表共享该虚拟节点的缓存池。
+The memory space used by TDengine cache is fixed in size, according to the configuration based on application requirement and system resources. Independent memory pool is allocated for and managed by each vnode (virtual node) in TDengine, there is no sharing of memory pools between vnodes. All the tables belonging to a vnode share all the cache memory of the vnode.
 
-TDengine 将内存池按块划分进行管理，数据在内存块里是以行（row）的形式存储。一个 vnode 的内存池是在 vnode 创建时按块分配好，而且每个内存块按照先进先出的原则进行管理。在创建内存池时，块的大小由系统配置参数 cache 决定；每个 vnode 中内存块的数目则由配置参数 blocks 决定。因此对于一个 vnode，总的内存大小为：`cache * blocks`。一个 cache block 需要保证每张表能存储至少几十条以上记录，才会有效率。
+Memory pool is divided into blocks and data is stored in row format in memory and each block follows FIFO policy. The size of each block is determined by configuration parameter `cache`, the number of blocks for each vnode is determined by `blocks`. For each vnode, the total cache size is `cache * blocks`. It's better to set the size of each block to hold at least tends of rows.
 
-你可以通过函数 last_row() 快速获取一张表或一张超级表的最后一条记录，这样很便于在大屏显示各设备的实时状态或采集值。例如：
+`last_row` function can be used to retrieve the last row of a table or a STable to quickly show the current state of devices on monitoring screen. For example below SQL statement retrieves the latest voltage of all meters in Chaoyang district of Beijing.
 
 ```sql
 select last_row(voltage) from meters where location='Beijing.Chaoyang';
 ```
-
-该 SQL 语句将获取所有位于北京朝阳区的电表最后记录的电压值。

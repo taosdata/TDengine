@@ -1,22 +1,22 @@
 ---
-title: 安装和卸载
-description: 安装、卸载、启动、停止和升级
+title: Install & Uninstall
+description: Install, Uninstall, Start, Stop and Upgrade
 ---
 
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine 开源版本提供 deb 和 rpm 格式安装包，用户可以根据自己的运行环境选择合适的安装包。其中 deb 支持 Debian/Ubuntu 及衍生系统，rpm 支持 CentOS/RHEL/SUSE 及衍生系统。同时我们也为企业用户提供 tar.gz 格式安装包。
+TDengine community version provides dev and rpm package for users to choose based on the system environment. deb supports Debian, Ubuntu and systems derived from them. rpm supports CentOS, RHEL, SUSE and systems derived from them. Furthermore, tar.gz package is provided for enterprise customers.
 
-## 安装
+## Install
 
 <Tabs>
-<TabItem label="Deb 安装" value="debinst">
+<TabItem label="Install Deb" value="debinst">
 
-1、从官网下载获得 deb 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.deb；
-2、进入到 TDengine-server-2.4.0.7-Linux-x64.deb 安装包所在目录，执行如下的安装命令：
+1. Download deb package from official website, for example TDengine-server-2.4.0.7-Linux-x64.deb
+2. In the directory where the package is located, execute below command
 
-```
+```bash
 $ sudo dpkg -i TDengine-server-2.4.0.7-Linux-x64.deb
 (Reading database ... 137504 files and directories currently installed.)
 Preparing to unpack TDengine-server-2.4.0.7-Linux-x64.deb ...
@@ -43,10 +43,10 @@ TDengine is installed successfully!
 
 </TabItem>
 
-<TabItem label="RPM 安装" value="rpminst">
+<TabItem label="Install RPM" value="rpminst">
 
-1、从官网下载获得 rpm 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.rpm；
-2、进入到 TDengine-server-2.4.0.7-Linux-x64.rpm 安装包所在目录，执行如下的安装命令：
+1. Download rpm package from official website, for example TDengine-server-2.4.0.7-Linux-x64.rpm；
+2. In the directory where the package is located, execute below command
 
 ```
 $ sudo rpm -ivh TDengine-server-2.4.0.7-Linux-x64.rpm
@@ -74,12 +74,12 @@ TDengine is installed successfully!
 
 </TabItem>
 
-<TabItem label="tar.gz 安装" value="tarinst">
+<TabItem label="Install tar.gz" value="tarinst">
 
-1、从官网下载获得 tar.gz 安装包，例如 TDengine-server-2.4.0.7-Linux-x64.tar.gz；
-2、进入到 TDengine-server-2.4.0.7-Linux-x64.tar.gz 安装包所在目录，先解压文件后，进入子目录，执行其中的 install.sh 安装脚本：
+1. Download the tar.gz package, for example TDengine-server-2.4.0.7-Linux-x64.tar.gz；
+   2、In the directory where the package is located, firstly decompress the file, then switch to the sub-directory generated in decompressing, i.e. "TDengine-enterprise-server-2.4.0.7/" in this example, and execute the `install.sh` script.
 
-```
+```bash
 $ tar xvzf TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
 TDengine-enterprise-server-2.4.0.7/
 TDengine-enterprise-server-2.4.0.7/driver/
@@ -124,7 +124,7 @@ taoskeeper is installed, enable it by `systemctl enable taoskeeper`
 ```
 
 :::info
-install.sh 安装脚本在执行过程中，会通过命令行交互界面询问一些配置信息。如果希望采取无交互安装方式，那么可以用 -e no 参数来执行 install.sh 脚本。运行 `./install.sh -h` 指令可以查看所有参数的详细说明信息。
+Some configuration will be prompted for users to provide when install.sh is executing, the interactive mode can be disabled by executing `./install.sh -e no`. `./install -h` can show all parameters and detailed explanation.
 
 :::
 
@@ -132,18 +132,18 @@ install.sh 安装脚本在执行过程中，会通过命令行交互界面询问
 </Tabs>
 
 :::note
-当安装第一个节点时，出现 Enter FQDN：提示的时候，不需要输入任何内容。只有当安装第二个或以后更多的节点时，才需要输入已有集群中任何一个可用节点的 FQDN，支持该新节点加入集群。当然也可以不输入，而是在新节点启动前，配置到新节点的配置文件中。
+When installing on the first node in the cluster, when "Enter FQDN:" is prompted, nothing needs to be provided. When installing on following nodes, when "Enter FQDN:" is prompted, the end point of the first dnode in the cluster can be input if it has been already up; or just ignore it and configure later after installation is done.
 
 :::
 
-## 卸载
+## Uninstall
 
 <Tabs>
-<TabItem label="Deb 卸载" value="debuninst">
+<TabItem label="Uninstall Deb" value="debuninst">
 
-卸载命令如下:
+Deb package of TDengine can be uninstalled as below:
 
-```
+```bash
 $ sudo dpkg -r tdengine
 (Reading database ... 137504 files and directories currently installed.)
 Removing tdengine (2.4.0.7) ...
@@ -153,9 +153,9 @@ TDengine is removed successfully!
 
 </TabItem>
 
-<TabItem label="RPM 卸载" value="rpmuninst">
+<TabItem label="Uninstall RPM" value="rpmuninst">
 
-卸载命令如下:
+RPM package of TDengine can be uninstalled as below:
 
 ```
 $ sudo rpm -e tdengine
@@ -164,9 +164,9 @@ TDengine is removed successfully!
 
 </TabItem>
 
-<TabItem label="tar.gz 卸载" value="taruninst">
+<TabItem label="Uninstall tar.gz" value="taruninst">
 
-卸载命令如下:
+tar.gz package of TDengine can be uninstalled as below:
 
 ```
 $ rmtaos
@@ -179,32 +179,28 @@ taosKeeper is removed successfully!
 </TabItem>
 </Tabs>
 
-:::info
-- TDengine 提供了多种安装包，但最好不要在一个系统上同时使用 tar.gz 安装包和 deb 或 rpm 安装包。否则会相互影响，导致在使用时出现问题。
+:::note
 
-- 对于 deb 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
+- It's strongly suggested not to use multiple kinds of installation packages on single host TDengine
+- After deb package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as below command and then reinstalling.
 
-   ```
+```bash
    $ sudo rm -f /var/lib/dpkg/info/tdengine*
-   ```
+```
 
-然后再重新进行安装就可以了。
+- After rpm package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as below command and then reinstalling.
 
-- 对于 rpm 包安装后，如果安装目录被手工误删了部分，出现卸载、或重新安装不能成功。此时，需要清除 TDengine 包的安装信息，执行如下命令：
-
-   ```
+```bash
    $ sudo rpm -e --noscripts tdengine
-   ```
-
-然后再重新进行安装就可以了。
+```
 
 :::
 
-## 安装目录说明
+## Installation Directory
 
-TDengine 成功安装后，主安装目录是 /usr/local/taos，目录内容如下：
+TDengine is installed at /usr/local/taos if successful.
 
-```
+```bash
 $ cd /usr/local/taos
 $ ll
 $ ll
@@ -220,64 +216,67 @@ drwxr-xr-x  2 root root 4096 Feb 22 09:34 include/
 lrwxrwxrwx  1 root root   13 Feb 22 09:34 log -> /var/log/taos/
 ```
 
-- 自动生成配置文件目录、数据库目录、日志目录。
-- 配置文件缺省目录：/etc/taos/taos.cfg， 软链接到 /usr/local/taos/cfg/taos.cfg；
-- 数据库缺省目录：/var/lib/taos， 软链接到 /usr/local/taos/data；
-- 日志缺省目录：/var/log/taos， 软链接到 /usr/local/taos/log；
-- /usr/local/taos/bin 目录下的可执行文件，会软链接到 /usr/bin 目录下；
-- /usr/local/taos/driver 目录下的动态库文件，会软链接到 /usr/lib 目录下；
-- /usr/local/taos/include 目录下的头文件，会软链接到到 /usr/include 目录下；
+During the installation process:
 
-## 卸载和更新文件说明
+- Configuration directory, data directory, and log directory are created automatically if they don't exist
+- The default configuration file is located at /etc/taos/taos.cfg, which is a copy of /usr/local/taos/cfg/taos.cfg if not existing
+- The default data directory is /var/lib/taos, which is a soft link to /usr/local/taos/data
+- The default log directory is /var/log/taos, which is a soft link to /usr/local/taos/log
+- The executables at /usr/local/taos/bin are linked to /usr/bin
+- The DLL files at /usr/local/taos/driver are linked to /usr/lib
+- The header files at /usr/local/taos/include are linked to /usr/include
 
-卸载安装包的时候，将保留配置文件、数据库文件和日志文件，即 /etc/taos/taos.cfg 、 /var/lib/taos 、 /var/log/taos 。如果用户确认后不需保留，可以手工删除，但一定要慎重，因为删除后，数据将永久丢失，不可以恢复！
+:::note
 
-如果是更新安装，当缺省配置文件（ /etc/taos/taos.cfg ）存在时，仍然使用已有的配置文件，安装包中携带的配置文件修改为 taos.cfg.orig 保存在 /usr/local/taos/cfg/ 目录，可以作为设置配置参数的参考样例；如果不存在配置文件，就使用安装包中自带的配置文件。
+- When TDengine is uninstalled, the configuration /etc/taos/taos.cfg, data directory /var/lib/taos, log directory /var/log/taos are kept. They can be deleted manually with caution because data can't be recovered once
+- When reinstalling TDengine, if the default configuration file /etc/taos/taos.cfg exists, it will be kept and the configuration file in the installation package will be renamed to taos.cfg.orig and stored at /usr/loca/taos/cfg to be used as configuration sample. Otherwise the configuration file in the installation package will be installed to /etc/taos/taos.cfg and used.
 
-## 启动和停止
+## Start and Stop
 
-TDengine 使用 Linux 系统的 systemd/systemctl/service 来管理系统的启动和、停止、重启操作。TDengine 的服务进程是 taosd，默认情况下 TDengine 在系统启动后将自动启动。DBA 可以通过 systemd/systemctl/service 手动操作停止、启动、重新启动服务。
+Linux system services `systemd`, `systemctl` or `service` is used to start, stop and restart TDengine. The server process of TDengine is `taosd`, which is started automatically after the Linux system is started. System operator can use `systemd`, `systemctl` or `service` to start, stop or restart TDengine server.
 
-以 systemctl 为例，命令如下：
+For example, if using `systemctl` , the commands to start, stop, restart and check TDengine server are as below:
 
-- 启动服务进程：`systemctl start taosd`
+- Start server：`systemctl start taosd`
 
-- 停止服务进程：`systemctl stop taosd`
+- Stop server：`systemctl stop taosd`
 
-- 重启服务进程：`systemctl restart taosd`
+- Restart server：`systemctl restart taosd`
 
-- 查看服务状态：`systemctl status taosd`
+- Check server status：`systemctl status taosd`
 
-注意：TDengine 在 2.4 版本之后包含一个独立组件 taosAdapter 需要使用 systemctl 命令管理 taosAdapter 服务的启动和停止。
+From version 2.4.0.0, a new independent component named as `taosAdapter` has been included in TDengine. `taosAdapter` should be started and stopped using `systemctl`.
 
-如果服务进程处于活动状态，则 status 指令会显示如下的相关信息：
+If the server process is OK, the output of `systemctl status` is like below:
 
-   ```
-   Active: active (running)
-   ```
+```
+Active: active (running)
+```
 
-如果后台服务进程处于停止状态，则 status 指令会显示如下的相关信息：
+Otherwise, the output is as below:
 
-   ```
-   Active: inactive (dead)
-   ```
+```
+Active: inactive (dead)
+```
 
-## 升级
-升级分为两个层面：升级安装包 和 升级运行中的实例。
+## Upgrade
 
-升级安装包请遵循前述安装和卸载的步骤先卸载旧版本再安装新版本。
+There are two aspects in upgrade operation: upgrade installation package and upgrade a running server.
 
-升级运行中的实例则要复杂得多，首先请注意版本号，TDengine 的版本号目前分为四段，如 2.4.0.14 和 2.4.0.16，只有前三段版本号一致（即只有第四段版本号不同）才能把一个运行中的实例进行升级。升级步骤如下：
-- 停止数据写入
-- 确保所有数据落盘，即写入时序数据库
-- 停止 TDengine 集群
-- 卸载旧版本并安装新版本
-- 重新启动 TDengine 集群
-- 进行简单的查询操作确认旧数据没有丢失 
-- 进行简单的写入操作确认 TDengine 集群可用
-- 重新恢复业务数据的写入
+Upgrading package should follow the steps mentioned previously to firstly uninstall old version then install new version.
+
+Upgrading a running server is much more complex. Firstly please check the version number of old version and new version. The version number of TDengine consists of 4 sections, only the first 3 section match can the old version be upgraded to the new version. The steps of upgrading a running server are as below:
+
+- Stop inserting data
+- Make sure all data persisted into disk
+- Stop the cluster of TDengine
+- Uninstall old version and install new version
+- Start the cluster of TDengine
+- Make some simple queries to make sure no data loss
+- Make some simple data insertion to make sure the cluster works well
+- Restore business data
 
 :::warning
-TDengine 不保证低版本能够兼容高版本的数据，所以任何时候都不推荐降级
+TDengine doesn't guarantee any lower version is compatible with the data generated by a higher version, so it's never recommended to downgrade the version.
 
 :::

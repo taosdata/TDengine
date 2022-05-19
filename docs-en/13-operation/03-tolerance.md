@@ -1,28 +1,29 @@
 ---
-title: 容错和灾备
+sidebar_label: Fault Tolerance
+title: Fault Tolerance & Disaster Recovery
 ---
 
-## 容错
+## Fault Tolerance
 
-TDengine 支持**WAL**（Write Ahead Log）机制，实现数据的容错能力，保证数据的高可用。
+TDengine uses **WAL**, i.e. Write Ahead Log, to achieve fault tolerance and high reliability.
 
-TDengine 接收到应用的请求数据包时，先将请求的原始数据包写入数据库日志文件，等数据成功写入数据库数据文件后，再删除相应的 WAL。这样保证了 TDengine 能够在断电等因素导致的服务重启时从数据库日志文件中恢复数据，避免数据的丢失。
+When a data block is received by TDengine, the original data block is firstly written into WAL. The log in WAL will be deleted only after the data has been written into data files in the database. Data can be recovered from WAL in case the server is stopped abnormally due to any reason and then restarted.
 
-涉及的系统配置参数有两个：
+There are 2 configuration parameters related to WAL:
 
-- walLevel：WAL 级别，0：不写 wal; 1：写 wal, 但不执行 fsync; 2：写 wal, 而且执行 fsync。
-- fsync：当 walLevel 设置为 2 时，执行 fsync 的周期。设置为 0，表示每次写入，立即执行 fsync。
+- walLevel：0：wal is disabled; 1：wal is enabled without fsync; 2：wal is enabled with fsync.
+- fsync：only valid when walLevel is set to 2, it specified the interval of invoking fsync. If set to 0, it means fsync is invoked immediately once WAL is written.
 
-如果要 100%的保证数据不丢失，需要将 walLevel 设置为 2，fsync 设置为 0。这时写入速度将会下降。但如果应用侧启动的写数据的线程数达到一定的数量(超过 50)，那么写入数据的性能也会很不错，只会比 fsync 设置为 3000 毫秒下降 30%左右。
+To achieve absolutely no data loss, walLevel needs to be set to 2 and fsync needs to be set to 1. The penalty is the performance of data ingestion downgrades. However, if the concurrent threads of data insertion on the client side can reach a big enough number, for example 50, the data ingestion performance would be still good enough, our verification shows that the drop is only 30% compared to fsync is set to 3,000 milliseconds.
 
-## 灾备
+## Disaster Recovery
 
-TDengine 的集群通过多个副本的机制，来提供系统的高可用性，实现灾备能力。
+TDengine uses replications to provide high availability and disaster recovery capability.
 
-TDengine 集群是由 mnode 负责管理的，为保证 mnode 的高可靠，可以配置多个 mnode 副本，副本数由系统配置参数 numOfMnodes 决定，为了支持高可靠，需要设置大于 1。为保证元数据的强一致性，mnode 副本之间通过同步方式进行数据复制，保证了元数据的强一致性。
+TDengine cluster is managed by mnode. To make sure the high availability of mnode, multiple replicas can be configured by system parameter `numOfMnodes`. The data replication between mnode replicas is in synchronous way to guarantee the metadata consistency.
 
-TDengine 集群中的时序数据的副本数是与数据库关联的，一个集群里可以有多个数据库，每个数据库可以配置不同的副本数。创建数据库时，通过参数 replica 指定副本数。为了支持高可靠，需要设置副本数大于 1。
+The number of replicas for time series data in TDengine is associated with each database, there can be a lot of databases in a cluster while each database can be configured with a different number of replicas. When creating a database, parameter `replica` is used to configure the number of replications. To achieve high availability, `replica` needs to be higher than 1.
 
-TDengine 集群的节点数必须大于等于副本数，否则创建表时将报错。
+The number of dnodes in a TDengine cluster must NOT be lower than the number of replicas for any database, otherwise it would fail when trying to create table.
 
-当 TDengine 集群中的节点部署在不同的物理机上，并设置多个副本数时，就实现了系统的高可靠性，无需再使用其他软件或工具。TDengine 企业版还可以将副本部署在不同机房，从而实现异地容灾。
+As long as the dnodes of a TDengine cluster are deployed on different physical machines and replica number is set to bigger than 1, high availability can be achieved without any other assistance. If dnodes of TDengine cluster are deployed in geographically different data centers, disaster recovery can be achieved too.

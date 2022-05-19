@@ -9,7 +9,7 @@ description: TDengine Java 连接器基于标准 JDBC API 实现, 并提供原�
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例（2.0.18 及更高版本）。REST 连接实现的功能集合和原生连接有少量不同。
+`taos-jdbcdriver` 是 TDengine 的官方 Java 语言连接器，Java 开发人员可以通过它开发存取 TDengine 数据库的应用软件。`taos-jdbcdriver` 实现了 JDBC driver 标准的接口，并提供两种形式的连接器。一种是通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能，一种是通过 taosAdapter 提供的 REST 接口连接 TDengine 实例（2.4.0.0 及更高版本）。REST 连接实现的功能集合和原生连接有少量不同。
 
 ![tdengine-connector](tdengine-jdbc-connector.png)
 
@@ -211,7 +211,7 @@ url 中的配置参数如下：
 INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
 ```
 
-- 从 taos-jdbcdriver-2.0.36 和 TDengine 2.2.0.0 版本开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 resful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperatrue) tags('beijing') values(now, 24.6);
+- 从 taos-jdbcdriver-2.0.36 和 TDengine 2.2.0.0 版本开始，如果在 url 中指定了 dbname，那么，JDBC REST 连接会默认使用/rest/sql/dbname 作为 restful 请求的 url，在 SQL 中不需要指定 dbname。例如：url 为 jdbc:TAOS-RS://127.0.0.1:6041/test，那么，可以执行 sql：insert into t1 using weather(ts, temperature) tags('beijing') values(now, 24.6);
 
 :::
 
@@ -348,8 +348,8 @@ JDBC 连接器可能报错的错误码包括 3 种：JDBC driver 本身的报错
 
 具体的错误码请参考：
 
-- https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java
-- https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h
+- [TDengine Java Connector](https://github.com/taosdata/TDengine/blob/develop/src/connector/jdbc/src/main/java/com/taosdata/jdbc/TSDBErrorNumbers.java)
+- [TDengine_ERROR_CODE](https://github.com/taosdata/TDengine/blob/develop/src/inc/taoserror.h)
 
 ### 通过参数绑定写入数据
 
@@ -804,7 +804,7 @@ Query OK, 1 row(s) in set (0.000141s)
 
 请参考：[JDBC example](https://github.com/taosdata/TDengine/tree/develop/examples/JDBC)
 
-## 重要更新记录
+## 最近更新记录
 
 | taos-jdbcdriver 版本 |            主要变化            |
 | :------------------: | :----------------------------: |
@@ -814,23 +814,23 @@ Query OK, 1 row(s) in set (0.000141s)
 
 ## 常见问题
 
-1. 使用 Statement 的 `addBatch` 和 `executeBatch` 来执行“批量写入/更行”，为什么没有带来性能上的提升？
+1. 使用 Statement 的 `addBatch()` 和 `executeBatch()` 来执行“批量写入/更新”，为什么没有带来性能上的提升？
 
-  **原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
+   **原因**：TDengine 的 JDBC 实现中，通过 `addBatch` 方法提交的 SQL 语句，会按照添加的顺序，依次执行，这种方式没有减少与服务端的交互次数，不会带来性能上的提升。
 
-  **解决方法**：1. 在一条 insert 语句中拼接多个 values 值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
+   **解决方法**：1. 在一条 insert 语句中拼接多个 values 值；2. 使用多线程的方式并发插入；3. 使用参数绑定的写入方式
 
 2. java.lang.UnsatisfiedLinkError: no taos in java.library.path
 
-  **原因**：程序没有找到依赖的本地函数库 taos。
+   **原因**：程序没有找到依赖的本地函数库 taos。
 
-  **解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
+   **解决方法**：Windows 下可以将 C:\TDengine\driver\taos.dll 拷贝到 C:\Windows\System32\ 目录下，Linux 下将建立如下软链 `ln -s /usr/local/taos/driver/libtaos.so.x.x.x.x /usr/lib/libtaos.so` 即可。
 
 3. java.lang.UnsatisfiedLinkError: taos.dll Can't load AMD 64 bit on a IA 32-bit platform
 
-  **原因**：目前 TDengine 只支持 64 位 JDK。
+   **原因**：目前 TDengine 只支持 64 位 JDK。
 
-  **解决方法**：重新安装 64 位 JDK。
+   **解决方法**：重新安装 64 位 JDK。
 
 4. 其它问题请参考 [FAQ](/train-faq/faq)
 
