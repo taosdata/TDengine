@@ -42,6 +42,7 @@ static struct argp_option options[] = {
     {"dump-config", 'C', 0, 0, "Dump configuration."},
     {"commands", 's', "COMMANDS", 0, "Commands to run without enter the shell."},
     {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful"},
+    {"token", 't', "TOKEN", 0, "The token to use when connecting TDengine's cloud services"},
     {"raw-time", 'r', 0, 0, "Output time as uint64_t."},
     {"file", 'f', "FILE", 0, "Script to run without enter the shell."},
     {"directory", 'D', "DIRECTORY", 0, "Use multi-thread to import all SQL files in the directory separately."},
@@ -66,6 +67,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
   wordexp_t        full_path;
 
   switch (key) {
+    case 't':
+      arguments->token = arg;
     case 'R':
       arguments->restful = true;
       break;

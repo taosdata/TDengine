@@ -44,6 +44,7 @@ typedef struct SShellArguments {
   char*              database;
   char*              timezone;
   bool               restful;
+  char*              token;
   int                socket;
   struct sockaddr_in serv_addr;
   char*              base64_buf;

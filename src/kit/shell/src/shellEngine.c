@@ -409,19 +409,37 @@ void shellRunCommandOnServer(TAOS *con, char command[]) {
     char *request_buffer;
     request_buffer = calloc(1, strlen(command) + 1024);
     if (strlen(args.database) > 0) {
-      char *http_protocol =
+      if (args.token) {
+        char *http_protocol =
+          "POST /rest/sql/%s?token=%s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
+          "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
+          "application/x-www-form-urlencoded\r\n\r\n%s";
+        snprintf(request_buffer, strlen(command) + 1024, http_protocol, args.database, args.token, args.host, args.port,
+               args.base64_buf, strlen(command), command);
+      } else {
+        char *http_protocol =
           "POST /rest/sql/%s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
           "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
           "application/x-www-form-urlencoded\r\n\r\n%s";
-      snprintf(request_buffer, strlen(command) + 1024, http_protocol, args.database, args.host, args.port,
+        snprintf(request_buffer, strlen(command) + 1024, http_protocol, args.database, args.host, args.port,
                args.base64_buf, strlen(command), command);
+      }
     } else {
-      char *http_protocol =
+      if (args.token) {
+        char *http_protocol =
+          "POST /rest/sql?token=%s HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
+          "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
+          "application/x-www-form-urlencoded\r\n\r\n%s";
+        snprintf(request_buffer, strlen(command) + 1024, http_protocol, args.token, args.host, args.port, args.base64_buf,
+               strlen(command), command);
+      } else {
+        char *http_protocol =
           "POST /rest/sql HTTP/1.1\r\nHost: %s:%d\r\nAccept: */*\r\nAuthorization: "
           "Basic %s\r\nContent-Length: %d\r\nContent-Type: "
           "application/x-www-form-urlencoded\r\n\r\n%s";
-      snprintf(request_buffer, strlen(command) + 1024, http_protocol, args.host, args.port, args.base64_buf,
+        snprintf(request_buffer, strlen(command) + 1024, http_protocol, args.host, args.port, args.base64_buf,
                strlen(command), command);
+      }
     }
 
     int bytes, sent, received, req_str_len;
