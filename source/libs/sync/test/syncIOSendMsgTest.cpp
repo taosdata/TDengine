@@ -25,9 +25,8 @@ SSyncFSM* pFsm;
 
 SSyncNode* syncNodeInit() {
   syncInfo.vgId = 1234;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = pFsm;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s", "./");
@@ -103,7 +102,7 @@ int main(int argc, char** argv) {
 
     SEpSet epSet;
     syncUtilnodeInfo2EpSet(&pSyncNode->myNodeInfo, &epSet);
-    pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, &rpcMsg);
+    pSyncNode->FpSendMsg(&epSet, &rpcMsg);
 
     taosMsleep(1000);
   }

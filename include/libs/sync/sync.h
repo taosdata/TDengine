@@ -20,14 +20,11 @@
 extern "C" {
 #endif
 
-#include <stdbool.h>
-#include <stdint.h>
-//#include <tdatablock.h>
+#include "os.h"
+
 #include "cJSON.h"
 #include "tdef.h"
-//#include "taosdef.h"
-//#include "trpc.h"
-//#include "wal.h"
+#include "tmsgcb.h"
 
 typedef uint64_t SyncNodeId;
 typedef int32_t  SyncGroupId;
@@ -132,11 +129,10 @@ typedef struct SSyncInfo {
   char        path[TSDB_FILENAME_LEN];
   SWal*       pWal;
   SSyncFSM*   pFsm;
+  SMsgCb*     msgcb;
 
-  void* rpcClient;
-  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
-  void* queue;
-  int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
+  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 
 } SSyncInfo;
 
