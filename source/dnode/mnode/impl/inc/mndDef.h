@@ -365,6 +365,8 @@ typedef struct {
   int64_t  uid;
   int64_t  dbUid;
   int32_t  version;
+  int32_t  tagVer;
+  int32_t  colVer;
   int32_t  nextColId;
   float    xFilesFactor;
   int32_t  delay;
@@ -463,7 +465,7 @@ typedef struct {
 typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
-  char     appId[TSDB_CGROUP_LEN];
+  char     clientId[256];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;

@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "dmNodes.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -189,7 +190,7 @@ int32_t dmInitDnode(SDnode *pDnode, EDndNodeType rtype) {
   }
 
   dmReportStartup("dnode-transport", "initialized");
-  dInfo("dnode is created, ptr:%p", pDnode);
+  dDebug("dnode is created, ptr:%p", pDnode);
   code = 0;
 
 _OVER:
@@ -208,7 +209,7 @@ void dmCleanupDnode(SDnode *pDnode) {
   dmCleanupClient(pDnode);
   dmCleanupServer(pDnode);
   dmClearVars(pDnode);
-  dInfo("dnode is closed, ptr:%p", pDnode);
+  dDebug("dnode is closed, ptr:%p", pDnode);
 }
 
 void dmSetStatus(SDnode *pDnode, EDndRunStatus status) {

@@ -600,6 +600,7 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->alterType) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->verInBlock) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfFields) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfFields; ++i) {
     SField *pField = taosArrayGet(pReq->pFields, i);
@@ -626,6 +627,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->alterType) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->verInBlock) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfFields) < 0) return -1;
   pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SField));
   if (pReq->pFields == NULL) {
@@ -4087,10 +4089,8 @@ static int32_t tEncodeSSubmitBlkRsp(SEncoder *pEncoder, const SSubmitBlkRsp *pBl
 
   if (tEncodeI32(pEncoder, pBlock->code) < 0) return -1;
   if (tEncodeI8(pEncoder, pBlock->hashMeta) < 0) return -1;
-  if (pBlock->hashMeta) {
-    if (tEncodeI64(pEncoder, pBlock->uid) < 0) return -1;
-    if (tEncodeCStr(pEncoder, pBlock->tblFName) < 0) return -1;
-  }
+  if (tEncodeI64(pEncoder, pBlock->uid) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pBlock->tblFName) < 0) return -1;
   if (tEncodeI32v(pEncoder, pBlock->numOfRows) < 0) return -1;
   if (tEncodeI32v(pEncoder, pBlock->affectedRows) < 0) return -1;
   if (tEncodeI64v(pEncoder, pBlock->sver) < 0) return -1;
@@ -4104,12 +4104,10 @@ static int32_t tDecodeSSubmitBlkRsp(SDecoder *pDecoder, SSubmitBlkRsp *pBlock) {
 
   if (tDecodeI32(pDecoder, &pBlock->code) < 0) return -1;
   if (tDecodeI8(pDecoder, &pBlock->hashMeta) < 0) return -1;
-  if (pBlock->hashMeta) {
-    if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
-    pBlock->tblFName = taosMemoryCalloc(TSDB_TABLE_FNAME_LEN, 1);
-    if (NULL == pBlock->tblFName) return -1;
-    if (tDecodeCStrTo(pDecoder, pBlock->tblFName) < 0) return -1;
-  }
+  if (tDecodeI64(pDecoder, &pBlock->uid) < 0) return -1;
+  pBlock->tblFName = taosMemoryCalloc(TSDB_TABLE_FNAME_LEN, 1);
+  if (NULL == pBlock->tblFName) return -1;
+  if (tDecodeCStrTo(pDecoder, pBlock->tblFName) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pBlock->numOfRows) < 0) return -1;
   if (tDecodeI32v(pDecoder, &pBlock->affectedRows) < 0) return -1;
   if (tDecodeI64v(pDecoder, &pBlock->sver) < 0) return -1;
