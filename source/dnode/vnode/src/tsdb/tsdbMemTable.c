@@ -320,6 +320,8 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
+  strcat(pRsp->tblFName, mr.me.name);
+  
   if (mr.me.type == TSDB_NORMAL_TABLE) {
     sverNew = mr.me.ntbEntry.schema.sver;
   } else {

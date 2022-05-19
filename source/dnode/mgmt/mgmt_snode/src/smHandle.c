@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-static void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
+void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
 
 int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pReq) {
   SMonSmInfo smInfo = {0};

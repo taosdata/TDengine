@@ -45,7 +45,9 @@ static int32_t dmOpenMgmt(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->name = pInput->name;
   pMgmt->processCreateNodeFp = pInput->processCreateNodeFp;
   pMgmt->processDropNodeFp = pInput->processDropNodeFp;
-  pMgmt->isNodeRequiredFp = pInput->isNodeRequiredFp;
+  pMgmt->sendMonitorReportFp = pInput->sendMonitorReportFp;
+  pMgmt->getVnodeLoadsFp = pInput->getVnodeLoadsFp;
+  pMgmt->getMnodeLoadsFp = pInput->getMnodeLoadsFp;
 
   if (dmStartWorker(pMgmt) != 0) {
     return -1;

@@ -724,7 +724,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       case TSDB_DATA_TYPE_BIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
           memcpy(output, varDataVal(input), varDataLen(input));
-          *(int64_t *)output = strtoll(output, NULL, 10);
+          *(int64_t *)output = taosStr2Int64(output, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           char *newBuf = taosMemoryCalloc(1, outputLen * TSDB_NCHAR_SIZE + 1);
           int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
@@ -733,7 +733,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
             return TSDB_CODE_FAILED;
           }
           newBuf[len] = 0;
-          *(int64_t *)output = strtoll(newBuf, NULL, 10);
+          *(int64_t *)output = taosStr2Int64(newBuf, NULL, 10);
           taosMemoryFree(newBuf);
         } else {
           GET_TYPED_DATA(*(int64_t *)output, int64_t, inputType, input);
@@ -743,7 +743,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       case TSDB_DATA_TYPE_UBIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
           memcpy(output, varDataVal(input), varDataLen(input));
-          *(uint64_t *)output = strtoull(output, NULL, 10);
+          *(uint64_t *)output = taosStr2UInt64(output, NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
           char *newBuf = taosMemoryCalloc(1, outputLen * TSDB_NCHAR_SIZE + 1);
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
@@ -752,7 +752,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
             return TSDB_CODE_FAILED;
           }
           newBuf[len] = 0;
-          *(uint64_t *)output = strtoull(newBuf, NULL, 10);
+          *(uint64_t *)output = taosStr2UInt64(newBuf, NULL, 10);
           taosMemoryFree(newBuf);
         } else {
           GET_TYPED_DATA(*(uint64_t *)output, uint64_t, inputType, input);

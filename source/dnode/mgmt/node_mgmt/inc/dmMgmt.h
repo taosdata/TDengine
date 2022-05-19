@@ -13,8 +13,8 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_DND_IMP_H_
-#define _TD_DND_IMP_H_
+#ifndef _TD_DND_MGMT_H_
+#define _TD_DND_MGMT_H_
 
 // tobe deleted
 #include "uv.h"
@@ -70,7 +70,7 @@ typedef struct SMgmtWrapper {
   const char    *name;
   char          *path;
   int32_t        refCount;
-  SRWLatch       latch;
+  TdThreadRwlock lock;
   EDndNodeType   ntype;
   bool           deployed;
   bool           required;
@@ -165,16 +165,13 @@ SMsgCb  dmGetMsgcb(SDnode *pDnode);
 int32_t dmInitMsgHandle(SDnode *pDnode);
 int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg);
 
-// mgmt nodes
-SMgmtFunc dmGetMgmtFunc();
-SMgmtFunc bmGetMgmtFunc();
-SMgmtFunc qmGetMgmtFunc();
-SMgmtFunc smGetMgmtFunc();
-SMgmtFunc vmGetMgmtFunc();
-SMgmtFunc mmGetMgmtFunc();
+// dmMonitor.c
+void dmSendMonitorReport();
+void dmGetVnodeLoads(SMonVloadInfo *pInfo);
+void dmGetMnodeLoads(SMonMloadInfo *pInfo);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*_TD_DND_IMP_H_*/
+#endif /*_TD_DND_MGMT_H_*/

@@ -59,6 +59,11 @@ typedef struct SMetaData {
   SArray    *pQnodeList;  // qnode list, SArray<SQueryNodeAddr>
 } SMetaData;
 
+typedef struct STbSVersion {
+  char* tbFName;
+  int32_t sver;
+} STbSVersion;
+
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
@@ -164,6 +169,8 @@ int32_t catalogUpdateSTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
  * @return error code
  */
 int32_t catalogRefreshDBVgInfo(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const char* dbFName);
+
+int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, SArray* pTables);
 
 /**
  * Force refresh a table's local cached meta data. 

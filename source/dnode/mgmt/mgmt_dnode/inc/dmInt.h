@@ -32,7 +32,9 @@ typedef struct SDnodeMgmt {
   SSingleWorker       mgmtWorker;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
-  IsNodeRequiredFp    isNodeRequiredFp;
+  SendMonitorReportFp sendMonitorReportFp;
+  GetVnodeLoadsFp     getVnodeLoadsFp;
+  GetMnodeLoadsFp     getMnodeLoadsFp;
 } SDnodeMgmt;
 
 // dmHandle.c
@@ -42,11 +44,6 @@ int32_t dmProcessConfigReq(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessGrantRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t dmProcessServerRunStatus(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);
-
-// dmMonitor.c
-void dmGetVnodeLoads(SDnodeMgmt *pMgmt, SMonVloadInfo *pInfo);
-void dmGetMnodeLoads(SDnodeMgmt *pMgmt, SMonMloadInfo *pInfo);
-void dmSendMonitorReport(SDnodeMgmt *pMgmt);
 
 // dmWorker.c
 int32_t dmPutNodeMsgToMgmtQueue(SDnodeMgmt *pMgmt, SRpcMsg *pMsg);

@@ -100,6 +100,10 @@ int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
   return getUdfInfo(pParam, pFunc);
 }
 
+bool fmIsBuiltinFunc(const char* pFunc) {
+  return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
+}
+
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;

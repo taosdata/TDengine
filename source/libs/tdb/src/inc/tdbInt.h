@@ -335,8 +335,8 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
 }
 
 struct STDB {
-  char    *rootDir;
-  char    *jfname;
+  char    *dbName;
+  char    *jnName;
   int      jfd;
   SPCache *pCache;
   SPager  *pgrList;

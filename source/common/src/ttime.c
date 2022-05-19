@@ -590,7 +590,7 @@ int32_t parseAbsoluteDuration(const char* token, int32_t tokenlen, int64_t* dura
   char* endPtr = NULL;
 
   /* get the basic numeric value */
-  int64_t timestamp = strtoll(token, &endPtr, 10);
+  int64_t timestamp = taosStr2Int64(token, &endPtr, 10);
   if (errno != 0) {
     return -1;
   }
@@ -608,7 +608,7 @@ int32_t parseNatualDuration(const char* token, int32_t tokenLen, int64_t* durati
   errno = 0;
 
   /* get the basic numeric value */
-  *duration = strtoll(token, NULL, 10);
+  *duration = taosStr2Int64(token, NULL, 10);
   if (errno != 0) {
     return -1;
   }

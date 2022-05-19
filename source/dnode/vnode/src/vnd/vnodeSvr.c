@@ -631,6 +631,11 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   vnodeDebugPrintSubmitMsg(pVnode, pReq, __func__);
 #endif
 
+  if (tsdbScanAndConvertSubmitMsg(pVnode->pTsdb, pSubmitReq) < 0) {
+    pRsp->code = terrno;
+    goto _exit;
+  }
+
   // handle the request
   if (tInitSubmitMsgIter(pSubmitReq, &msgIter) < 0) {
     pRsp->code = TSDB_CODE_INVALID_MSG;
@@ -681,6 +686,9 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
 
       vnodeDebugPrintSingleSubmitMsg(pVnode->pMeta, pBlock, &msgIter, "real uid");
       tDecoderClear(&decoder);
+    } else {
+      submitBlkRsp.tblFName = taosMemoryMalloc(TSDB_TABLE_FNAME_LEN);
+      sprintf(submitBlkRsp.tblFName, "%s.", pVnode->config.dbname);
     }
 
     if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &submitBlkRsp) < 0) {

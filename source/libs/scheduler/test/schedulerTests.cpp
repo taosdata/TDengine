@@ -985,7 +985,7 @@ TEST(insertTest, normalCase) {
   taosThreadCreate(&(thread1), &thattr, schtSendRsp, &insertJobRefId);
 
   SQueryResult res = {0};
-  code = schedulerExecJob(mockPointer, qnodeList, &dag, &insertJobRefId, "insert into tb values(now,1)", 0, false, &res);
+  code = schedulerExecJob(mockPointer, qnodeList, &dag, &insertJobRefId, "insert into tb values(now,1)", 0, &res);
   ASSERT_EQ(code, 0);
   ASSERT_EQ(res.numOfRows, 20);
 

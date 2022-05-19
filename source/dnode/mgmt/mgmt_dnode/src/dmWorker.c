@@ -50,7 +50,7 @@ static void *dmMonitorThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
-      dmSendMonitorReport(pMgmt);
+      (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
     }
   }
@@ -153,9 +153,9 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
         .code = code,
-        .info = pMsg->info,
         .pCont = pMsg->info.rsp,
         .contLen = pMsg->info.rspLen,
+        .info = pMsg->info,
     };
     rpcSendResponse(&rsp);
   }
