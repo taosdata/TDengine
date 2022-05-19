@@ -284,7 +284,7 @@
 22,,pytest,python3 test.py -f import_merge/importDataLastH.py 
 22,,pytest,python3 test.py -f import_merge/importDataHO2.py 
 22,,pytest,python3 test.py -f import_merge/importCacheFileH.py 
-21,,system-test,python3 ./test.py -f 2-query/TD-12204.py 
+# 21,,system-test,python3 ./test.py -f 2-query/TD-12204.py 
 21,,script,./test.sh -f general/parser/single_row_in_tb.sim 
 21,,script,./test.sh -f general/parser/last_cache.sim 
 21,,script,./test.sh -f general/parser/join_multivnode.sim 

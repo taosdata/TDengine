@@ -39,7 +39,8 @@ typedef struct SUdfInfo {
   int8_t  resType;     // result type
   int16_t resBytes;    // result byte
   int32_t contLen;     // content length
-  int32_t bufSize;     //interbuf size
+  int32_t bufSize;     // interbuf size
+  int32_t numOfParams; // number of parameters
   char   *name;        // function name
   void   *handle;      // handle loaded in mem
   void   *funcs[TSDB_UDF_FUNC_MAX_NUM];     // function ptr
@@ -57,15 +58,19 @@ typedef struct SUdfInfo {
 //script 
 
 typedef int32_t (*scriptInitFunc)(void *pCtx);
-typedef void (*scriptNormalFunc)(void *pCtx, char* data, int16_t iType, int16_t iBytes, int32_t numOfRows,
-                                 int64_t* ptList, int64_t key, char* dataOutput, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes);
+typedef void (*scriptNormalFunc)(void *pCtx, char* data, int16_t itype, int32_t iBytes, int32_t numOfRows,
+                                  int64_t* ptList, int64_t key, char* dataOutput, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes);
+typedef void (*scriptNormalFuncParams)(void *pCtx, char** data, int16_t* itype, int32_t* iBytes, int32_t numOfRows,
+                                  int64_t* ptList, int64_t key, char* dataOutput, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes);
 typedef void (*scriptFinalizeFunc)(void *pCtx, int64_t key, char* dataOutput, int32_t* numOfOutput);
 typedef void (*scriptMergeFunc)(void *pCtx, char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput);
 typedef void (*scriptDestroyFunc)(void* pCtx);
 
 // dynamic lib
-typedef void (*udfNormalFunc)(char* data, int16_t itype, int16_t iBytes, int32_t numOfRows, int64_t* ts, char* dataOutput, char* interBuf,
-  char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes, SUdfInit* buf);
+typedef void (*udfNormalFunc)(char* data, int16_t itype, int32_t iBytes, int32_t numOfRows, int64_t* ts,
+                             char* dataOutput, char* interBuf, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes, SUdfInit* buf);
+typedef void (*udfNormalFuncParams)(char** data, int16_t* itype, int32_t* iBytes, int32_t numOfRows, int64_t* ts,
+                             char* dataOutput, char* interBuf, char* tsOutput, int32_t* numOfOutput, int16_t oType, int16_t oBytes, SUdfInit* buf);
 typedef int32_t (*udfInitFunc)(SUdfInit* data);
 typedef void (*udfFinalizeFunc)(char* dataOutput, char *interBuf, int32_t* numOfOutput, SUdfInit* buf);
 typedef void (*udfMergeFunc)(char* data, int32_t numOfRows, char* dataOutput, int32_t* numOfOutput, SUdfInit* buf);

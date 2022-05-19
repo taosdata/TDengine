@@ -225,6 +225,7 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",   TK_OUTPUTTYPE},
     {"AGGREGATE",    TK_AGGREGATE},
     {"BUFSIZE",      TK_BUFSIZE},
+    {"PARAMS",       TK_PARAMS},
     {"RANGE",        TK_RANGE},
     {"CONTAINS",     TK_CONTAINS},
     {"TO",           TK_TO},

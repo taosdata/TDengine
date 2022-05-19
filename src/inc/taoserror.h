@@ -217,6 +217,7 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_MND_INVALID_TOPIC_OPTION      TAOS_DEF_ERROR_CODE(0, 0x0393)  //"Invalid topic option)
 #define TSDB_CODE_MND_INVALID_TOPIC_PARTITONS   TAOS_DEF_ERROR_CODE(0, 0x0394)  //"Invalid topic partitons num, valid range: [1, 1000])
 #define TSDB_CODE_MND_TOPIC_ALREADY_EXIST       TAOS_DEF_ERROR_CODE(0, 0x0395)  //"Topic already exists)
+#define TSDB_CODE_MND_INVALID_FUNC_PARAMS       TAOS_DEF_ERROR_CODE(0, 0x0396)  //"Invalid func parameters"
 
 // dnode
 #define TSDB_CODE_DND_MSG_NOT_PROCESSED         TAOS_DEF_ERROR_CODE(0, 0x0400)  //"Message not processed"

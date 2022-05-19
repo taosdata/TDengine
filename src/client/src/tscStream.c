@@ -109,7 +109,7 @@ static void doLaunchQuery(void* param, TAOS_RES* tres, int32_t code) {
 
   // failed to get table Meta or vgroup list, retry in 10sec.
   if (code == TSDB_CODE_SUCCESS) {
-    tscTansformFuncForSTableQuery(pQueryInfo);
+    tscTransformFuncForSTableQuery(pQueryInfo);
 
     tscDebug("0x%"PRIx64" stream:%p, start stream query on:%s QueryInfo->skey=%"PRId64" ekey=%"PRId64" ", pSql->self, pStream, tNameGetTableName(&pTableMetaInfo->name), pQueryInfo->window.skey, pQueryInfo->window.ekey);
 

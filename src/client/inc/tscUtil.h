@@ -240,6 +240,8 @@ void tscExprAddParams(SSqlExpr* pExpr, char* argument, int32_t type, int32_t byt
 
 SExprInfo* tscExprAppend(SQueryInfo* pQueryInfo, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
                            int16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
+void tscExprAppendColInfo(SQueryInfo* pQueryInfo, SExprInfo* pExpr, int16_t functionId, SColumnIndex* pColIndex, int16_t type,
+                           int16_t size, int16_t resColId, int32_t interSize, bool isTagCol);
 
 SExprInfo* tscExprUpdate(SQueryInfo* pQueryInfo, int32_t index, int16_t functionId, int16_t srcColumnIndex, int16_t type,
                            int32_t size);

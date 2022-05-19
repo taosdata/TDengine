@@ -863,9 +863,13 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
     return TSDB_CODE_TSC_INVALID_TABLE_NAME;
   }
 
-  if (validateColumn && !tscValidateColumnId(pTableMetaInfo, pExpr->colInfo.colId)) {
-    tscError("0x%"PRIx64" table schema is not matched with parsed sql", id);
-    return TSDB_CODE_TSC_INVALID_OPERATION;
+  if (validateColumn) {
+    for (int32_t i = 0; i < pExpr->numOfColumns; ++i) {
+      if (!tscValidateColumnId(pTableMetaInfo, pExpr->colInfo[i].colId)) {
+        tscError("0x%"PRIx64" table schema is not matched with parsed sql at %d", id, i);
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+    }
   }
 
   if (pExpr->resColId > 0) {
@@ -875,14 +879,19 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
 
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
 
-  SColIndex* pIndex = &pSqlExpr->colInfo;
+  SColIndex* pIndex = pSqlExpr->colInfo;
 
-  pIndex->colId         = htons(pExpr->colInfo.colId);
-  pIndex->colIndex      = htons(pExpr->colInfo.colIndex);
-  pIndex->flag          = htons(pExpr->colInfo.flag);
+  for (int32_t i = 0; i < pExpr->numOfColumns; ++i) {
+    pIndex[i].colId       = htons(pExpr->colInfo[i].colId);
+    pIndex[i].colIndex    = htons(pExpr->colInfo[i].colIndex);
+    pIndex[i].flag        = htons(pExpr->colInfo[i].flag);
+
+    pSqlExpr->colType[i]  = htons(pExpr->colType[i]);
+    pSqlExpr->colBytes[i] = htons(pExpr->colBytes[i]);
+  }
+
+  pSqlExpr->numOfColumns = htons(pExpr->numOfColumns);
   pSqlExpr->uid         = htobe64(pExpr->uid);
-  pSqlExpr->colType     = htons(pExpr->colType);
-  pSqlExpr->colBytes    = htons(pExpr->colBytes);
   pSqlExpr->resType     = htons(pExpr->resType);
   pSqlExpr->resBytes    = htons(pExpr->resBytes);
   pSqlExpr->interBytes  = htonl(pExpr->interBytes);
@@ -1165,6 +1174,9 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *(int32_t*) pMsg = htonl(pUdfInfo->bufSize);
       pMsg += sizeof(pUdfInfo->bufSize);
 
+      *(int32_t*) pMsg = htonl(pUdfInfo->numOfParams);
+      pMsg += sizeof(pUdfInfo->numOfParams);
+
       pQueryMsg->udfContentLen = htonl(pUdfInfo->contLen);
       memcpy(pMsg, pUdfInfo->content, pUdfInfo->contLen);
 
@@ -1177,8 +1189,6 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
 
   memcpy(pMsg, pSql->sqlstr, sqlLen);
   pMsg += sqlLen;
-
-
 
   pQueryMsg->extend = 1;
   
@@ -2360,6 +2370,7 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
       pUdfInfo->bufSize  = htonl(pFunc->bufSize);
+      pUdfInfo->numOfParams  = htonl(pFunc->numOfParams);
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
       memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);
@@ -2531,6 +2542,7 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
       pUdfInfo->bufSize  = htonl(pFunc->bufSize);
+      pUdfInfo->numOfParams  = htonl(pFunc->numOfParams);
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
       memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);
@@ -3322,7 +3334,7 @@ int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   STableMetaInfo *pTableMetaInfo = tscGetMetaInfo(pQueryInfo, 0);
   STableMeta     *pTableMeta     = pTableMetaInfo->pTableMeta;
   uint32_t       command         = CMD_DELETE_DATA;
-  
+
   // pSql->cmd.payloadLen is set during copying data into payload
   pCmd->msgType = TSDB_MSG_TYPE_SUBMIT;
   if (pTableMeta->tableType == TSDB_SUPER_TABLE) {
@@ -3350,7 +3362,7 @@ int tscBuildDelDataMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
   }
 
   int32_t payloadLen = sizeof(SMsgDesc) + sizeof(SSubmitMsg) + sizeof(SSubmitBlk) + sizeof(SControlData) + tagCondLen;
-    
+
   int32_t ret = tscAllocPayload(pCmd, payloadLen);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
