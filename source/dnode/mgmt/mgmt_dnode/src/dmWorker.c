@@ -50,7 +50,7 @@ static void *dmMonitorThreadFp(void *param) {
     int64_t curTime = taosGetTimestampMs();
     float   interval = (curTime - lastTime) / 1000.0f;
     if (interval >= tsMonitorInterval) {
-      dmSendMonitorReport(pMgmt);
+      (*pMgmt->sendMonitorReportFp)();
       lastTime = curTime;
     }
   }

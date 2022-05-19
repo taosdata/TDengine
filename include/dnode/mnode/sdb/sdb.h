@@ -333,23 +333,23 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 
 typedef struct SSdb {
-  SMnode     *pMnode;
-  char       *currDir;
-  char       *syncDir;
-  char       *tmpDir;
-  int64_t     lastCommitVer;
-  int64_t     curVer;
-  int64_t     tableVer[SDB_MAX];
-  int64_t     maxId[SDB_MAX];
-  EKeyType    keyTypes[SDB_MAX];
-  SHashObj   *hashObjs[SDB_MAX];
-  SRWLatch    locks[SDB_MAX];
-  SdbInsertFp insertFps[SDB_MAX];
-  SdbUpdateFp updateFps[SDB_MAX];
-  SdbDeleteFp deleteFps[SDB_MAX];
-  SdbDeployFp deployFps[SDB_MAX];
-  SdbEncodeFp encodeFps[SDB_MAX];
-  SdbDecodeFp decodeFps[SDB_MAX];
+  SMnode        *pMnode;
+  char          *currDir;
+  char          *syncDir;
+  char          *tmpDir;
+  int64_t        lastCommitVer;
+  int64_t        curVer;
+  int64_t        tableVer[SDB_MAX];
+  int64_t        maxId[SDB_MAX];
+  EKeyType       keyTypes[SDB_MAX];
+  SHashObj      *hashObjs[SDB_MAX];
+  TdThreadRwlock locks[SDB_MAX];
+  SdbInsertFp    insertFps[SDB_MAX];
+  SdbUpdateFp    updateFps[SDB_MAX];
+  SdbDeleteFp    deleteFps[SDB_MAX];
+  SdbDeployFp    deployFps[SDB_MAX];
+  SdbEncodeFp    encodeFps[SDB_MAX];
+  SdbDecodeFp    decodeFps[SDB_MAX];
 } SSdb;
 
 #ifdef __cplusplus

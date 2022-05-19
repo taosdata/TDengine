@@ -30,7 +30,6 @@ typedef struct SSnodeMgmt {
   SMsgCb        msgCb;
   const char   *path;
   const char   *name;
-  SRWLatch      latch;
   int8_t        uniqueWorkerInUse;
   SArray       *uniqueWorkers;  // SArray<SMultiWorker*>
   SSingleWorker sharedWorker;

@@ -272,6 +272,10 @@ static bool isTimelineFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsTimelineFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isScanPseudoColumnFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
   return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
 }
@@ -498,7 +502,7 @@ static int32_t parseTimeFromValueNode(SValueNode* pVal) {
       return TSDB_CODE_SUCCESS;
     }
     char* pEnd = NULL;
-    pVal->datum.i = strtoll(pVal->literal, &pEnd, 10);
+    pVal->datum.i = taosStr2Int64(pVal->literal, &pEnd, 10);
     return (NULL != pEnd && '\0' == *pEnd) ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
   } else {
     return TSDB_CODE_FAILED;
@@ -527,61 +531,61 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         break;
       case TSDB_DATA_TYPE_TINYINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int8_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_SMALLINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int16_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_INT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int32_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_BIGINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int64_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_UTINYINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint8_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_USMALLINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint16_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_UINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint32_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_UBIGINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint64_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_FLOAT: {
         char* endPtr = NULL;
-        pVal->datum.d = strtold(pVal->literal, &endPtr);
+        pVal->datum.d = taosStr2Double(pVal->literal, &endPtr);
         *(float*)&pVal->typeData = pVal->datum.d;
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
         char* endPtr = NULL;
-        pVal->datum.d = strtold(pVal->literal, &endPtr);
+        pVal->datum.d = taosStr2Double(pVal->literal, &endPtr);
         *(double*)&pVal->typeData = pVal->datum.d;
         break;
       }
@@ -892,7 +896,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return DEAL_RES_IGNORE_CHILD;
     }
   }
-  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pCxt->selectFuncNum > 1) {
       return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
     } else {
@@ -930,7 +934,7 @@ static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
   if (isAggFunc(*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     return rewriteColToSelectValFunc((STranslateContext*)pContext, NULL, pNode);
   }
   return DEAL_RES_CONTINUE;
@@ -958,7 +962,7 @@ static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
     pCxt->existAggFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+  if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
     pCxt->existCol = true;
   }
   return DEAL_RES_CONTINUE;
@@ -3261,6 +3265,9 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
 }
 
 static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionStmt* pStmt) {
+  if (fmIsBuiltinFunc(pStmt->funcName)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FUNCTION_NAME);
+  }
   SCreateFuncReq req = {0};
   strcpy(req.name, pStmt->funcName);
   req.igExists = pStmt->ignoreExists;

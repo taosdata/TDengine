@@ -44,6 +44,7 @@ int metaOpen(SVnode *pVnode, SMeta **ppMeta) {
   pMeta->path = (char *)&pMeta[1];
   sprintf(pMeta->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP,
           VNODE_META_DIR);
+  taosRealPath(pMeta->path, NULL, slen);
   pMeta->pVnode = pVnode;
 
   // create path if not created yet

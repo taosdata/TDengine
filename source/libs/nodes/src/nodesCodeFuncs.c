@@ -946,6 +946,23 @@ static int32_t jsonToLogicSubplan(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkLogicPlanSubplans = "Subplans";
+
+static int32_t logicPlanToJson(const void* pObj, SJson* pJson) {
+  const SQueryLogicPlan* pNode = (const SQueryLogicPlan*)pObj;
+  return tjsonAddObject(pJson, jkLogicPlanSubplans, nodeToJson, nodesListGetNode(pNode->pTopSubplans, 0));
+}
+
+static int32_t jsonToLogicPlan(const SJson* pJson, void* pObj) {
+  SQueryLogicPlan* pNode = (SQueryLogicPlan*)pObj;
+  SNode*           pChild = NULL;
+  int32_t          code = jsonToNodeObject(pJson, jkLogicPlanSubplans, &pChild);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pNode->pTopSubplans, pChild);
+  }
+  return code;
+}
+
 static const char* jkJoinLogicPlanJoinType = "JoinType";
 static const char* jkJoinLogicPlanOnConditions = "OnConditions";
 
@@ -3029,7 +3046,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN:
-      break;
+      return logicPlanToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return physiTagScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
@@ -3126,6 +3143,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicPartitionNode(pJson, pObj);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return jsonToLogicSubplan(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN:
+      return jsonToLogicPlan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return jsonToPhysiTagScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
