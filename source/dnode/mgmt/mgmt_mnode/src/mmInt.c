@@ -87,9 +87,9 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
   return 0;
 }
 
-int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
+int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pMsg) {
   SMnodeOpt option = {0};
-  if (mmBuildOptionFromReq(pMgmt, &option, pReq) != 0) {
+  if (mmBuildOptionFromReq(pMgmt, &option, pMsg) != 0) {
     return -1;
   }
 
@@ -98,7 +98,7 @@ int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pReq) {
   }
 
   bool deployed = true;
-  if (mmWriteFile(pMgmt, pReq, deployed) != 0) {
+  if (mmWriteFile(pMgmt, pMsg, deployed) != 0) {
     dError("failed to write mnode file since %s", terrstr());
     return -1;
   }
@@ -135,7 +135,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)mmPutRpcMsgToQueryQueue;
   pMgmt->msgCb.queueFps[READ_QUEUE] = (PutToQueueFp)mmPutRpcMsgToReadQueue;
   pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
-  pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
+  pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)mmPutRpcMsgToSyncQueue;
   pMgmt->msgCb.mgmt = pMgmt;
 
   bool deployed = false;
