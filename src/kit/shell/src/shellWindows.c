@@ -1,41 +1,32 @@
 /*******************************************************************
-<<<<<<< HEAD
- *           Copyright (c) 2017 by TAOS Technologies, Inc.
- *                     All rights reserved.
- *
- *  This file is proprietary and confidential to TAOS Technologies.
- *  No part of this file may be reproduced, stored, transmitted,
- *  disclosed or used in any form or by any means other than as
- *  expressly provided by the written permission from Jianhui Tao
- *
- * ****************************************************************/
-=======
-*Copyright(c) 2022 by TAOS Technologies,
-    Inc.*All rights reserved.**This file is proprietary and confidential to TAOS Technologies
-        .*No part of this file may be reproduced,
-    stored, transmitted,
-    *disclosed or used in any form or
-        by any means other than as *expressly provided by the written
-            permission from Jianhui Tao ****************************************************************** /
->>>>>>> 2ab429ee59d47e11697c3664a7a62231f6a99275
+*           Copyright (c) 2022 by TAOS Technologies, Inc.
+*                     All rights reserved.
+*
+*  This file is proprietary and confidential to TAOS Technologies.
+*  No part of this file may be reproduced, stored, transmitted,
+*  disclosed or used in any form or by any means other than as
+*  expressly provided by the written permission from Jianhui Tao
+*
+* ****************************************************************/
 
-            #include<assert.h>
+#include <assert.h>
 #include <regex.h>
 #include <stdio.h>
 #include "os.h"
 #include "shell.h"
-#include "shellCommand.h"
 #include "taos.h"
+#include "shellCommand.h"
 
 #define SHELL_INPUT_MAX_COMMAND_SIZE 10000
 
-            extern char configDir[];
+extern char configDir[];
 
-char WINCLIENT_VERSION[] =
-    "Welcome to the TDengine shell from %s, Client Version:%s\n"
-    "Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.\n\n";
+char      WINCLIENT_VERSION[] = "Welcome to the TDengine shell from %s, Client Version:%s\n"
+                             "Copyright (c) 2022 by TAOS Data, Inc. All rights reserved.\n\n";
 
-void printVersion() { printf("version: %s\n", version); }
+void printVersion() {
+  printf("version: %s\n", version);
+}
 
 void printHelp() {
   char indent[10] = "        ";
@@ -66,9 +57,7 @@ void printHelp() {
   printf("%s%s\n", indent, "-t");
   printf("%s%s%s\n", indent, indent, "Time zone of the shell, default is local.");
   printf("%s%s\n", indent, "-n");
-  printf("%s%s%s\n", indent, indent,
-         "Net role when network connectivity test, default is startup, options: "
-         "client|server|rpc|startup|sync|speed|fqdn.");
+  printf("%s%s%s\n", indent, indent, "Net role when network connectivity test, default is startup, options: client|server|rpc|startup|sync|speed|fqdn.");
   printf("%s%s\n", indent, "-l");
   printf("%s%s%s\n", indent, indent, "Packet length used for net test, default is 1000 bytes.");
   printf("%s%s\n", indent, "-N");
@@ -95,24 +84,26 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
       }
     }
     // for password
-    else if ((strncmp(argv[i], "-p", 2) == 0) || (strncmp(argv[i], "--password", 10) == 0)) {
-      arguments->is_use_passwd = true;
-      strcpy(tsOsName, "Windows");
-      printf(WINCLIENT_VERSION, tsOsName, taos_get_client_info());
-      if ((strlen(argv[i]) == 2) || (strncmp(argv[i], "--password", 10) == 0)) {
-        printf("Enter password: ");
-        taosSetConsoleEcho(false);
-        if (scanf("%128s", g_password) > 1) {
-          fprintf(stderr, "password read error!\n");
+    else if ((strncmp(argv[i], "-p", 2) == 0)
+            || (strncmp(argv[i], "--password", 10) == 0)) {
+        arguments->is_use_passwd = true;
+        strcpy(tsOsName, "Windows");
+        printf(WINCLIENT_VERSION, tsOsName, taos_get_client_info());
+        if ((strlen(argv[i]) == 2)
+                  || (strncmp(argv[i], "--password", 10) == 0)) {
+            printf("Enter password: ");
+            taosSetConsoleEcho(false);
+            if (scanf("%128s", g_password) > 1) {
+                fprintf(stderr, "password read error!\n");
+            }
+            taosSetConsoleEcho(true);
+            getchar();
+        } else {
+            tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
         }
-        taosSetConsoleEcho(true);
-        getchar();
-      } else {
-        tstrncpy(g_password, (char *)(argv[i] + 2), SHELL_MAX_PASSWORD_LEN);
-      }
-      arguments->password = g_password;
-      strcpy(argv[i], "");
-      argc -= 1;
+        arguments->password = g_password;
+        strcpy(argv[i], "");
+        argc -= 1;
     }
     // for management port
     else if (strcmp(argv[i], "-P") == 0) {
@@ -188,35 +179,40 @@ void shellParseArgument(int argc, char *argv[], SShellArguments *arguments) {
         fprintf(stderr, "option -t requires an argument\n");
         exit(EXIT_FAILURE);
       }
-    } else if (strcmp(argv[i], "-n") == 0) {
+    }
+    else if (strcmp(argv[i], "-n") == 0) {
       if (i < argc - 1) {
         arguments->netTestRole = argv[++i];
       } else {
         fprintf(stderr, "option -n requires an argument\n");
         exit(EXIT_FAILURE);
       }
-    } else if (strcmp(argv[i], "-l") == 0) {
+    }
+    else if (strcmp(argv[i], "-l") == 0) {
       if (i < argc - 1) {
         arguments->pktLen = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -l requires an argument\n");
         exit(EXIT_FAILURE);
       }
-    } else if (strcmp(argv[i], "-N") == 0) {
+    }
+    else if (strcmp(argv[i], "-N") == 0) {
       if (i < argc - 1) {
         arguments->pktNum = atoi(argv[++i]);
       } else {
         fprintf(stderr, "option -N requires an argument\n");
         exit(EXIT_FAILURE);
       }
-    } else if (strcmp(argv[i], "-S") == 0) {
+    }
+    else if (strcmp(argv[i], "-S") == 0) {
       if (i < argc - 1) {
         arguments->pktType = argv[++i];
       } else {
         fprintf(stderr, "option -S requires an argument\n");
         exit(EXIT_FAILURE);
       }
-    } else if (strcmp(argv[i], "-V") == 0) {
+    }
+    else if (strcmp(argv[i], "-V") == 0) {
       printVersion();
       exit(EXIT_SUCCESS);
     }
@@ -278,10 +274,10 @@ int32_t shellReadCommand(TAOS *con, char command[]) {
   cmd.command = (char *)calloc(1, MAX_COMMAND_SIZE);
 
   // Read input.
-  void *        console = GetStdHandle(STD_INPUT_HANDLE);
+  void *console = GetStdHandle(STD_INPUT_HANDLE);
   unsigned long read;
-  wchar_t *     c = (wchar_t *)calloc(SHELL_INPUT_MAX_COMMAND_SIZE, sizeof(wchar_t));
-  char          mbStr[16];
+  wchar_t *c= (wchar_t *)calloc(SHELL_INPUT_MAX_COMMAND_SIZE, sizeof(wchar_t));
+  char mbStr[16];
   while (1) {
     int ret = ReadConsole(console, c, SHELL_INPUT_MAX_COMMAND_SIZE, &read, NULL);
     for (int input_index = 0; input_index < read; input_index++) {
@@ -336,6 +332,8 @@ void *shellLoopQuery(void *arg) {
   return NULL;
 }
 
-void get_history_path(char *history) { sprintf(history, "C:/TDengine/%s", HISTORY_FILE); }
+void get_history_path(char *history) {
+  sprintf(history, "C:/TDengine/%s", HISTORY_FILE);
+}
 
 void exitShell() { exit(EXIT_SUCCESS); }
