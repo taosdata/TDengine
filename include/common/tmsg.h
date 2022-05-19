@@ -1634,6 +1634,15 @@ int32_t tSerializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq
 int32_t tDeserializeSMDropTopicReq(void* buf, int32_t bufLen, SMDropTopicReq* pReq);
 
 typedef struct {
+  char   topic[TSDB_TOPIC_FNAME_LEN];
+  char   cgroup[TSDB_CGROUP_LEN];
+  int8_t igNotExists;
+} SMDropCgroupReq;
+
+int32_t tSerializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pReq);
+int32_t tDeserializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pReq);
+
+typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
   SSchema schema;
