@@ -255,3 +255,82 @@ char *taosStrCaseStr(const char *str, const char *pattern) {
   } 
   return NULL; 
 }
+
+int64_t taosStr2Int64(const char *str, char** pEnd, int32_t radix) {
+  int64_t tmp = strtoll(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  return tmp;
+}
+
+uint64_t taosStr2UInt64(const char *str, char** pEnd, int32_t radix) {
+  uint64_t tmp = strtoull(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  return tmp;
+}
+
+int32_t taosStr2Int32(const char *str, char** pEnd, int32_t radix) {
+  int32_t tmp = strtol(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  return tmp;
+}
+
+uint32_t taosStr2UInt32(const char *str, char** pEnd, int32_t radix) {
+  uint32_t tmp = strtol(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  return tmp;
+}
+
+int16_t taosStr2Int16(const char *str, char** pEnd, int32_t radix) {
+  int32_t tmp = strtol(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp >= SHRT_MIN);
+  assert(tmp <= SHRT_MAX);
+  return (int16_t)tmp;
+}
+
+uint16_t taosStr2UInt16(const char *str, char** pEnd, int32_t radix) {
+  uint32_t tmp = strtoul(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp <= USHRT_MAX);
+  return (uint16_t)tmp;
+}
+
+int8_t taosStr2Int8(const char *str, char** pEnd, int32_t radix) {
+  int32_t tmp = strtol(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp >= SCHAR_MIN);
+  assert(tmp <= SCHAR_MAX);
+  return tmp;
+}
+
+uint8_t taosStr2UInt8(const char *str, char** pEnd, int32_t radix) {
+  uint32_t tmp = strtoul(str, pEnd, radix);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp <= UCHAR_MAX);
+  return tmp;
+}
+
+double taosStr2Double(const char *str, char** pEnd) {
+  double tmp = strtod(str, pEnd);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp != HUGE_VAL);
+  return tmp;
+}
+
+float taosStr2Float(const char *str, char** pEnd) {
+  float tmp = strtof(str, pEnd);
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp != HUGE_VALF);
+  assert(tmp != NAN);
+  return tmp;
+}
