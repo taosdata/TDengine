@@ -20,6 +20,7 @@ p *
 #include "indexFstCountingWriter.h"
 #include "indexUtil.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "tcoding.h"
 #include "tcompare.h"
 
@@ -482,7 +483,6 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
     }
 
     TExeCond cond = cmpFn(tmp + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
-
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
@@ -533,10 +533,12 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
-  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    indexError("failed to open readonly file: %s, reason: %s", fullname, terrstr());
     return NULL;
   }
+  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
@@ -613,9 +615,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     if (tfileWriteData(tw, v) != 0) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
-      // printf("write faile\n");
     } else {
-      // printf("write sucee\n");
       // indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
       //          (int)taosArrayGetSize(v->tableId));
 

@@ -16,11 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "vmInt.h"
 
-static void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
+void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
   pInfo->pVloads = taosArrayInit(pMgmt->state.totalVnodes, sizeof(SVnodeLoad));
   if (pInfo->pVloads == NULL) return;
 
-  taosRLockLatch(&pMgmt->latch);
+  taosThreadRwlockRdlock(&pMgmt->lock);
 
   void *pIter = taosHashIterate(pMgmt->hash, NULL);
   while (pIter) {
@@ -34,10 +34,10 @@ static void vmGetVnodeLoads(SVnodeMgmt *pMgmt, SMonVloadInfo *pInfo) {
     pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
-  taosRUnLockLatch(&pMgmt->latch);
+  taosThreadRwlockUnlock(&pMgmt->lock);
 }
 
-static void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
+void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   SMonVloadInfo vloads = {0};
   vmGetVnodeLoads(pMgmt, &vloads);
 
@@ -82,7 +82,7 @@ static void vmGetMonitorInfo(SVnodeMgmt *pMgmt, SMonVmInfo *pInfo) {
   taosArrayDestroy(pVloads);
 }
 
-int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SNodeMsg *pReq) {
+int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonVmInfo vmInfo = {0};
   vmGetMonitorInfo(pMgmt, &vmInfo);
   dmGetMonitorSystemInfo(&vmInfo.sys);
@@ -101,13 +101,13 @@ int32_t vmProcessGetMonitorInfoReq(SVnodeMgmt *pMgmt, SNodeMsg *pReq) {
   }
 
   tSerializeSMonVmInfo(pRsp, rspLen, &vmInfo);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   tFreeSMonVmInfo(&vmInfo);
   return 0;
 }
 
-int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SNodeMsg *pReq) {
+int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonVloadInfo vloads = {0};
   vmGetVnodeLoads(pMgmt, &vloads);
 
@@ -124,8 +124,8 @@ int32_t vmProcessGetLoadsReq(SVnodeMgmt *pMgmt, SNodeMsg *pReq) {
   }
 
   tSerializeSMonVloadInfo(pRsp, rspLen, &vloads);
-  pReq->pRsp = pRsp;
-  pReq->rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   tFreeSMonVloadInfo(&vloads);
   return 0;
 }
@@ -173,13 +173,12 @@ static void vmGenerateWrapperCfg(SVnodeMgmt *pMgmt, SCreateVnodeReq *pCreate, SW
   snprintf(pCfg->path, sizeof(pCfg->path), "%s%svnode%d", pMgmt->path, TD_DIRSEP, pCreate->vgId);
 }
 
-int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg        *pReq = &pMsg->rpcMsg;
+int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SCreateVnodeReq createReq = {0};
   int32_t         code = -1;
   char            path[TSDB_FILENAME_LEN] = {0};
 
-  if (tDeserializeSCreateVnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateVnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -241,10 +240,9 @@ _OVER:
   return code;
 }
 
-int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SNodeMsg *pMsg) {
-  SRpcMsg      *pReq = &pMsg->rpcMsg;
+int32_t vmProcessDropVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SDropVnodeReq dropReq = {0};
-  if (tDeserializeSDropVnodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSDropVnodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

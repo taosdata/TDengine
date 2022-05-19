@@ -144,31 +144,29 @@ typedef enum {
 } ECsmUpdateType;
 
 typedef struct {
-  int32_t    id;
-  ETrnStage  stage;
-  ETrnPolicy policy;
-  ETrnType   type;
-  int32_t    code;
-  int32_t    failedTimes;
-  void*      rpcHandle;
-  void*      rpcAHandle;
-  int64_t    rpcRefId;
-  void*      rpcRsp;
-  int32_t    rpcRspLen;
-  SArray*    redoLogs;
-  SArray*    undoLogs;
-  SArray*    commitLogs;
-  SArray*    redoActions;
-  SArray*    undoActions;
-  int64_t    createdTime;
-  int64_t    lastExecTime;
-  int64_t    dbUid;
-  char       dbname[TSDB_DB_FNAME_LEN];
-  char       lastError[TSDB_TRANS_ERROR_LEN];
-  int32_t    startFunc;
-  int32_t    stopFunc;
-  int32_t    paramLen;
-  void*      param;
+  int32_t        id;
+  ETrnStage      stage;
+  ETrnPolicy     policy;
+  ETrnType       type;
+  int32_t        code;
+  int32_t        failedTimes;
+  SRpcHandleInfo rpcInfo;
+  void*          rpcRsp;
+  int32_t        rpcRspLen;
+  SArray*        redoLogs;
+  SArray*        undoLogs;
+  SArray*        commitLogs;
+  SArray*        redoActions;
+  SArray*        undoActions;
+  int64_t        createdTime;
+  int64_t        lastExecTime;
+  int64_t        dbUid;
+  char           dbname[TSDB_DB_FNAME_LEN];
+  char           lastError[TSDB_TRANS_ERROR_LEN];
+  int32_t        startFunc;
+  int32_t        stopFunc;
+  int32_t        paramLen;
+  void*          param;
 } STrans;
 
 typedef struct {
@@ -367,6 +365,8 @@ typedef struct {
   int64_t  uid;
   int64_t  dbUid;
   int32_t  version;
+  int32_t  tagVer;
+  int32_t  colVer;
   int32_t  nextColId;
   float    xFilesFactor;
   int32_t  delay;
@@ -465,7 +465,7 @@ typedef struct {
 typedef struct {
   int64_t  consumerId;
   char     cgroup[TSDB_CGROUP_LEN];
-  char     appId[TSDB_CGROUP_LEN];
+  char     clientId[256];
   int8_t   updateType;  // used only for update
   int32_t  epoch;
   int32_t  status;

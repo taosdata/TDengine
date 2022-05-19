@@ -74,6 +74,7 @@ int32_t diffFunction(SqlFunctionCtx *pCtx);
 bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t firstFunction(SqlFunctionCtx *pCtx);
 int32_t lastFunction(SqlFunctionCtx *pCtx);
+int32_t lastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 int32_t topFunction(SqlFunctionCtx *pCtx);
@@ -84,6 +85,11 @@ bool getSpreadFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool spreadFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t spreadFunction(SqlFunctionCtx* pCtx);
 int32_t spreadFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool getElapsedFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool elapsedFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t elapsedFunction(SqlFunctionCtx* pCtx);
+int32_t elapsedFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
 bool getHistogramFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool histogramFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);

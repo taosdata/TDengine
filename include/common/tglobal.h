@@ -32,6 +32,7 @@ extern char     tsLocalEp[];
 extern uint16_t tsServerPort;
 extern int32_t  tsVersion;
 extern int32_t  tsStatusInterval;
+extern int32_t  tsNumOfSupportVnodes;
 
 // common
 extern int32_t tsMaxShellConns;
@@ -45,7 +46,7 @@ extern bool    tsPrintAuth;
 extern int64_t tsTickPerMin[3];
 
 // multi-process
-extern bool    tsMultiProcess;
+extern int32_t tsMultiProcess;
 extern int32_t tsMnodeShmSize;
 extern int32_t tsVnodeShmSize;
 extern int32_t tsQnodeShmSize;

@@ -83,9 +83,9 @@ class Client {
     *resp = this->resp;
   }
   void SendAndRecvNoHandle(SRpcMsg *req, SRpcMsg *resp) {
-    if (req->handle != NULL) {
-      rpcReleaseHandle(req->handle, TAOS_CONN_CLIENT);
-      req->handle = NULL;
+    if (req->info.handle != NULL) {
+      rpcReleaseHandle(req->info.handle, TAOS_CONN_CLIENT);
+      req->info.handle = NULL;
     }
     SendAndRecv(req, resp);
   }
@@ -154,7 +154,7 @@ static void processReq(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = rpcMallocCont(100);
   rpcMsg.contLen = 100;
-  rpcMsg.handle = pMsg->handle;
+  rpcMsg.info = pMsg->info;
   rpcMsg.code = 0;
   rpcSendResponse(&rpcMsg);
 }
@@ -164,7 +164,7 @@ static void processContinueSend(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     SRpcMsg rpcMsg = {0};
     rpcMsg.pCont = rpcMallocCont(100);
     rpcMsg.contLen = 100;
-    rpcMsg.handle = pMsg->handle;
+    rpcMsg.info = pMsg->info;
     rpcMsg.code = 0;
     rpcSendResponse(&rpcMsg);
   }
@@ -173,19 +173,18 @@ static void processReleaseHandleCb(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = rpcMallocCont(100);
   rpcMsg.contLen = 100;
-  rpcMsg.handle = pMsg->handle;
+  rpcMsg.info = pMsg->info;
   rpcMsg.code = 0;
   rpcSendResponse(&rpcMsg);
 
-  rpcReleaseHandle(pMsg->handle, TAOS_CONN_SERVER);
+  rpcReleaseHandle(pMsg->info.handle, TAOS_CONN_SERVER);
 }
 static void processRegisterFailure(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
-  void *handle = pMsg->handle;
   {
     SRpcMsg rpcMsg1 = {0};
     rpcMsg1.pCont = rpcMallocCont(100);
     rpcMsg1.contLen = 100;
-    rpcMsg1.handle = handle;
+    rpcMsg1.info = pMsg->info;
     rpcMsg1.code = 0;
     rpcRegisterBrokenLinkArg(&rpcMsg1);
   }
@@ -194,7 +193,7 @@ static void processRegisterFailure(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) 
   SRpcMsg rpcMsg = {0};
   rpcMsg.pCont = rpcMallocCont(100);
   rpcMsg.contLen = 100;
-  rpcMsg.handle = pMsg->handle;
+  rpcMsg.info = pMsg->info;
   rpcMsg.code = 0;
   rpcSendResponse(&rpcMsg);
 }
@@ -334,8 +333,8 @@ TEST_F(TransEnv, cliPersistHandle) {
   void *  handle = NULL;
   for (int i = 0; i < 10; i++) {
     SRpcMsg req = {0};
-    req.handle = resp.handle;
-    req.persistHandle = 1;
+    req.info = resp.info;
+    req.info.persistHandle = 1;
 
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
@@ -348,7 +347,7 @@ TEST_F(TransEnv, cliPersistHandle) {
     // if (i >= 6) {
     //  EXPECT_TRUE(resp.code != 0);
     //}
-    handle = resp.handle;
+    handle = resp.info.handle;
   }
   rpcReleaseHandle(handle, TAOS_CONN_CLIENT);
   for (int i = 0; i < 10; i++) {
@@ -371,8 +370,8 @@ TEST_F(TransEnv, srvReleaseHandle) {
   SRpcMsg req = {0};
   for (int i = 0; i < 1; i++) {
     memset(&req, 0, sizeof(req));
-    req.handle = resp.handle;
-    req.persistHandle = 1;
+    req.info = resp.info;
+    req.info.persistHandle = 1;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -387,8 +386,8 @@ TEST_F(TransEnv, cliReleaseHandleExcept) {
   SRpcMsg req = {0};
   for (int i = 0; i < 3; i++) {
     memset(&req, 0, sizeof(req));
-    req.handle = resp.handle;
-    req.persistHandle = 1;
+    req.info = resp.info;
+    req.info.persistHandle = 1;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -424,7 +423,7 @@ TEST_F(TransEnv, srvPersistHandleExcept) {
   SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
     memset(&req, 0, sizeof(req));
-    req.handle = resp.handle;
+    req.info = resp.info;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -444,7 +443,7 @@ TEST_F(TransEnv, cliPersistHandleExcept) {
   SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
     memset(&req, 0, sizeof(req));
-    req.handle = resp.handle;
+    req.info = resp.info;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
@@ -468,14 +467,14 @@ TEST_F(TransEnv, queryExcept) {
   SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
     memset(&req, 0, sizeof(req));
-    req.handle = resp.handle;
-    req.persistHandle = 1;
+    req.info = resp.info;
+    req.info.persistHandle = 1;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;
     tr->cliSendAndRecv(&req, &resp);
     if (i == 2) {
-      rpcReleaseHandle(resp.handle, TAOS_CONN_CLIENT);
+      rpcReleaseHandle(resp.info.handle, TAOS_CONN_CLIENT);
       tr->StopCli();
       break;
     }
@@ -487,7 +486,7 @@ TEST_F(TransEnv, noResp) {
   SRpcMsg req = {0};
   for (int i = 0; i < 5; i++) {
     memset(&req, 0, sizeof(req));
-    req.noResp = 1;
+    req.info.noResp = 1;
     req.msgType = 1;
     req.pCont = rpcMallocCont(10);
     req.contLen = 10;

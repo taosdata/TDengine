@@ -9,11 +9,11 @@
 #include "tmsg.h"
 #include "tname.h"
 
-SQWDebug gQWDebug = {.statusEnable = true, .dumpEnable = true};
+SQWDebug     gQWDebug = {.statusEnable = true, .dumpEnable = true};
 SQWorkerMgmt gQwMgmt = {
-  .lock  = 0,
-  .qwRef = -1, 
-  .qwNum = 0,
+    .lock = 0,
+    .qwRef = -1,
+    .qwNum = 0,
 };
 
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore) {
@@ -110,9 +110,9 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
 
   QW_LOCK(QW_READ, &mgmt->schLock);
 
-  QW_DUMP("total remain schduler num:%d", taosHashGetSize(mgmt->schHash));
+  /*QW_DUMP("total remain schduler num:%d", taosHashGetSize(mgmt->schHash));*/
 
-  void *        key = NULL;
+  void         *key = NULL;
   size_t        keyLen = 0;
   int32_t       i = 0;
   SQWSchStatus *sch = NULL;
@@ -127,7 +127,7 @@ void qwDbgDumpMgmtInfo(SQWorker *mgmt) {
 
   QW_UNLOCK(QW_READ, &mgmt->schLock);
 
-  QW_DUMP("total remain ctx num:%d", taosHashGetSize(mgmt->ctxHash));
+  /*QW_DUMP("total remain ctx num:%d", taosHashGetSize(mgmt->ctxHash));*/
 }
 
 char *qwPhaseStr(int32_t phase) {
@@ -412,7 +412,7 @@ int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 }
 
 void qwFreeTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  tmsgReleaseHandle(ctx->ctrlConnInfo.handle, TAOS_CONN_SERVER);
+  tmsgReleaseHandle(&ctx->ctrlConnInfo, TAOS_CONN_SERVER);
   ctx->ctrlConnInfo.handle = NULL;
   ctx->ctrlConnInfo.refId = -1;
 
@@ -462,7 +462,7 @@ int32_t qwDropTaskCtx(QW_FPARAMS_DEF) {
 }
 
 int32_t qwDropTaskStatus(QW_FPARAMS_DEF) {
-  SQWSchStatus * sch = NULL;
+  SQWSchStatus  *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 
@@ -499,7 +499,7 @@ _return:
 }
 
 int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status) {
-  SQWSchStatus * sch = NULL;
+  SQWSchStatus  *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 
@@ -536,10 +536,8 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
       int32_t           resNum = 0;
       QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
 
-      SQWConnInfo connInfo = {0};
-      connInfo.handle = ctx->ctrlConnInfo.handle;
-      connInfo.refId = ctx->ctrlConnInfo.refId;
-
+      SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
+      connInfo.ahandle = NULL;
       QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
     }
 
@@ -552,11 +550,11 @@ int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
 int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
   int32_t        code = 0;
   bool           qcontinue = true;
-  SSDataBlock *  pRes = NULL;
+  SSDataBlock   *pRes = NULL;
   uint64_t       useconds = 0;
   int32_t        i = 0;
   int32_t        execNum = 0;
-  qTaskInfo_t *  taskHandle = &ctx->taskHandle;
+  qTaskInfo_t   *taskHandle = &ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
 
   while (true) {
@@ -634,7 +632,7 @@ int32_t qwGenerateSchHbRsp(SQWorker *mgmt, SQWSchStatus *sch, SQWHbInfo *hbInfo)
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
-  void *      key = NULL;
+  void       *key = NULL;
   size_t      keyLen = 0;
   int32_t     i = 0;
   STaskStatus status = {0};
@@ -721,10 +719,10 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
 }
 
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
-  int32_t      code = 0;
-  SQWTaskCtx * ctx = NULL;
-  SQWConnInfo *dropConnection = NULL;
-  SQWConnInfo *cancelConnection = NULL;
+  int32_t         code = 0;
+  SQWTaskCtx     *ctx = NULL;
+  SRpcHandleInfo *dropConnection = NULL;
+  SRpcHandleInfo *cancelConnection = NULL;
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
@@ -844,10 +842,10 @@ _return:
 }
 
 int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
-  int32_t      code = 0;
-  SQWTaskCtx * ctx = NULL;
-  SQWConnInfo  connInfo = {0};
-  SQWConnInfo *readyConnection = NULL;
+  int32_t         code = 0;
+  SQWTaskCtx     *ctx = NULL;
+  SRpcHandleInfo  connInfo = {0};
+  SRpcHandleInfo *readyConnection = NULL;
 
   QW_TASK_DLOG("start to handle event at phase %s", qwPhaseStr(phase));
 
@@ -867,8 +865,7 @@ int32_t qwHandlePostPhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *inp
       QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
     }
 #else
-    connInfo.handle = ctx->ctrlConnInfo.handle;
-    connInfo.refId = ctx->ctrlConnInfo.refId;
+    connInfo = ctx->ctrlConnInfo;
     readyConnection = &connInfo;
 
     QW_SET_EVENT_PROCESSED(ctx, QW_EVENT_READY);
@@ -928,13 +925,13 @@ _return:
 }
 
 int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t explain) {
-  int32_t          code = 0;
-  bool             queryRsped = false;
-  SSubplan*        plan = NULL;
-  SQWPhaseInput    input = {0};
-  qTaskInfo_t      pTaskInfo = NULL;
-  DataSinkHandle   sinkHandle = NULL;
-  SQWTaskCtx *     ctx = NULL;
+  int32_t        code = 0;
+  bool           queryRsped = false;
+  SSubplan      *plan = NULL;
+  SQWPhaseInput  input = {0};
+  qTaskInfo_t    pTaskInfo = NULL;
+  DataSinkHandle sinkHandle = NULL;
+  SQWTaskCtx    *ctx = NULL;
 
   QW_ERR_JRET(qwRegisterQueryBrokenLinkArg(QW_FPARAMS(), &qwMsg->connInfo));
 
@@ -945,11 +942,9 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
   atomic_store_8(&ctx->taskType, taskType);
   atomic_store_8(&ctx->explain, explain);
 
-  atomic_store_ptr(&ctx->ctrlConnInfo.handle, qwMsg->connInfo.handle);
-  atomic_store_ptr(&ctx->ctrlConnInfo.ahandle, qwMsg->connInfo.ahandle);
-  atomic_store_64(&ctx->ctrlConnInfo.refId, qwMsg->connInfo.refId);
+  ctx->ctrlConnInfo = qwMsg->connInfo;
 
-  QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);
+  /*QW_TASK_DLOGL("subplan json string, len:%d, %s", qwMsg->msgLen, qwMsg->msg);*/
 
   code = qStringToSubplan(qwMsg->msg, &plan);
   if (TSDB_CODE_SUCCESS != code) {
@@ -1012,8 +1007,7 @@ int32_t qwProcessReady(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (ctx->phase == QW_PHASE_PRE_QUERY) {
-    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
-    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo = qwMsg->connInfo;
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_READY);
     needRsp = false;
     QW_TASK_DLOG_E("ready msg will not rsp now");
@@ -1061,10 +1055,10 @@ _return:
 }
 
 int32_t qwProcessCQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
-  SQWTaskCtx *  ctx = NULL;
+  SQWTaskCtx   *ctx = NULL;
   int32_t       code = 0;
   SQWPhaseInput input = {0};
-  void *        rsp = NULL;
+  void         *rsp = NULL;
   int32_t       dataLen = 0;
   bool          queryEnd = false;
 
@@ -1144,8 +1138,8 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   int32_t       code = 0;
   int32_t       dataLen = 0;
   bool          locked = false;
-  SQWTaskCtx *  ctx = NULL;
-  void *        rsp = NULL;
+  SQWTaskCtx   *ctx = NULL;
+  void         *rsp = NULL;
   SQWPhaseInput input = {0};
 
   QW_ERR_JRET(qwHandlePrePhaseEvents(QW_FPARAMS(), QW_PHASE_PRE_FETCH, &input, NULL));
@@ -1246,8 +1240,7 @@ int32_t qwProcessDrop(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   }
 
   if (!rsped) {
-    ctx->ctrlConnInfo.handle = qwMsg->connInfo.handle;
-    ctx->ctrlConnInfo.ahandle = qwMsg->connInfo.ahandle;
+    ctx->ctrlConnInfo = qwMsg->connInfo;
 
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_DROP);
   }
@@ -1281,14 +1274,14 @@ _return:
 int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
   SSchedulerHbRsp rsp = {0};
-  SQWSchStatus *  sch = NULL;
+  SQWSchStatus   *sch = NULL;
 
   QW_ERR_RET(qwAcquireAddScheduler(mgmt, req->sId, QW_READ, &sch));
 
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (qwMsg->connInfo.handle == sch->hbConnInfo.handle) {
-    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
     sch->hbConnInfo.handle = NULL;
     sch->hbConnInfo.ahandle = NULL;
 
@@ -1307,7 +1300,7 @@ int32_t qwProcessHbLinkBroken(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *re
 int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   int32_t         code = 0;
   SSchedulerHbRsp rsp = {0};
-  SQWSchStatus *  sch = NULL;
+  SQWSchStatus   *sch = NULL;
 
   if (qwMsg->code) {
     QW_RET(qwProcessHbLinkBroken(mgmt, qwMsg, req));
@@ -1320,7 +1313,8 @@ int32_t qwProcessHb(SQWorker *mgmt, SQWMsg *qwMsg, SSchedulerHbReq *req) {
   QW_LOCK(QW_WRITE, &sch->hbConnLock);
 
   if (sch->hbConnInfo.handle) {
-    tmsgReleaseHandle(sch->hbConnInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&sch->hbConnInfo, TAOS_CONN_SERVER);
+    sch->hbConnInfo.handle = NULL;
   }
 
   memcpy(&sch->hbConnInfo, &qwMsg->connInfo, sizeof(qwMsg->connInfo));
@@ -1340,31 +1334,32 @@ _return:
   qwBuildAndSendHbRsp(&qwMsg->connInfo, &rsp, code);
 
   if (code) {
-    tmsgReleaseHandle(qwMsg->connInfo.handle, TAOS_CONN_SERVER);
+    tmsgReleaseHandle(&qwMsg->connInfo, TAOS_CONN_SERVER);
+    qwMsg->connInfo.handle = NULL;
   }
 
-  QW_DLOG("hb rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
+  /*QW_DLOG("hb rsp send, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));*/
 
   QW_RET(TSDB_CODE_SUCCESS);
 }
 
 void qwProcessHbTimerEvent(void *param, void *tmrId) {
-  SQWHbParam* hbParam = (SQWHbParam*)param;
+  SQWHbParam *hbParam = (SQWHbParam *)param;
   if (hbParam->qwrId != atomic_load_32(&gQwMgmt.qwRef)) {
     return;
   }
 
-  int64_t refId = hbParam->refId;
+  int64_t   refId = hbParam->refId;
   SQWorker *mgmt = qwAcquire(refId);
   if (NULL == mgmt) {
     QW_DLOG("qwAcquire %" PRIx64 "failed", refId);
     taosMemoryFree(param);
     return;
   }
-  
+
   SQWSchStatus *sch = NULL;
   int32_t       taskNum = 0;
-  SQWHbInfo *   rspList = NULL;
+  SQWHbInfo    *rspList = NULL;
   int32_t       code = 0;
 
   qwDbgDumpMgmtInfo(mgmt);
@@ -1388,7 +1383,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     return;
   }
 
-  void *  key = NULL;
+  void   *key = NULL;
   size_t  keyLen = 0;
   int32_t i = 0;
 
@@ -1418,29 +1413,27 @@ _return:
 
   for (int32_t j = 0; j < i; ++j) {
     qwBuildAndSendHbRsp(&rspList[j].connInfo, &rspList[j].rsp, code);
-    QW_DLOG("hb rsp send, handle:%p, code:%x - %s, taskNum:%d", rspList[j].connInfo.handle, code, tstrerror(code),
-            (rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));
+    /*QW_DLOG("hb rsp send, handle:%p, code:%x - %s, taskNum:%d", rspList[j].connInfo.handle, code, tstrerror(code),*/
+    /*(rspList[j].rsp.taskStatus ? (int32_t)taosArrayGetSize(rspList[j].rsp.taskStatus) : 0));*/
     tFreeSSchedulerHbRsp(&rspList[j].rsp);
   }
 
   taosMemoryFreeClear(rspList);
 
   taosTmrReset(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, param, mgmt->timer, &mgmt->hbTimer);
-  qwRelease(refId);  
+  qwRelease(refId);
 }
 
 void qwCloseRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
   if (atomic_load_32(&gQwMgmt.qwNum) <= 0 && gQwMgmt.qwRef >= 0) {
     taosCloseRef(gQwMgmt.qwRef);
-    gQwMgmt.qwRef= -1;
+    gQwMgmt.qwRef = -1;
   }
   taosWUnLockLatch(&gQwMgmt.lock);
 }
 
-void qwDestroySchStatus(SQWSchStatus *pStatus) {
-  taosHashCleanup(pStatus->tasksHash);
-}
+void qwDestroySchStatus(SQWSchStatus *pStatus) { taosHashCleanup(pStatus->tasksHash); }
 
 void qwDestroyImpl(void *pMgmt) {
   SQWorker *mgmt = (SQWorker *)pMgmt;
@@ -1459,12 +1452,12 @@ void qwDestroyImpl(void *pMgmt) {
     SQWSchStatus *sch = (SQWSchStatus *)pIter;
     qwDestroySchStatus(sch);
     pIter = taosHashIterate(mgmt->schHash, pIter);
-  }  
+  }
   taosHashCleanup(mgmt->schHash);
 
   taosMemoryFree(mgmt);
 
-  atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);  
+  atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
 
   qwCloseRef();
 }
@@ -1472,7 +1465,7 @@ void qwDestroyImpl(void *pMgmt) {
 int32_t qwOpenRef(void) {
   taosWLockLatch(&gQwMgmt.lock);
   if (gQwMgmt.qwRef < 0) {
-    gQwMgmt.qwRef= taosOpenRef(100, qwDestroyImpl);
+    gQwMgmt.qwRef = taosOpenRef(100, qwDestroyImpl);
     if (gQwMgmt.qwRef < 0) {
       taosWUnLockLatch(&gQwMgmt.lock);
       qError("init qworker ref failed");
@@ -1480,14 +1473,14 @@ int32_t qwOpenRef(void) {
     }
   }
   taosWUnLockLatch(&gQwMgmt.lock);
-  
+
   return TSDB_CODE_SUCCESS;
 }
 
 void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
   int32_t paramIdx = 0;
   int32_t newParamIdx = 0;
-  
+
   while (true) {
     paramIdx = atomic_load_32(&gQwMgmt.paramIdx);
     if (paramIdx == tListLen(gQwMgmt.param)) {
@@ -1495,7 +1488,7 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
     } else {
       newParamIdx = paramIdx + 1;
     }
-    
+
     if (paramIdx == atomic_val_compare_exchange_32(&gQwMgmt.paramIdx, paramIdx, newParamIdx)) {
       break;
     }
@@ -1508,7 +1501,7 @@ void qwSetHbParam(int64_t refId, SQWHbParam **pParam) {
 }
 
 int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qWorkerMgmt, const SMsgCb *pMsgCb) {
-  if (NULL == qWorkerMgmt || pMsgCb->pWrapper == NULL) {
+  if (NULL == qWorkerMgmt || pMsgCb->mgmt == NULL) {
     qError("invalid param to init qworker");
     QW_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
@@ -1582,12 +1575,12 @@ int32_t qWorkerInit(int8_t nodeType, int32_t nodeId, SQWorkerCfg *cfg, void **qW
   SQWHbParam *param = NULL;
   qwSetHbParam(mgmt->refId, &param);
 
-  mgmt->hbTimer = taosTmrStart(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, (void*)param, mgmt->timer);
+  mgmt->hbTimer = taosTmrStart(qwProcessHbTimerEvent, QW_DEFAULT_HEARTBEAT_MSEC, (void *)param, mgmt->timer);
   if (NULL == mgmt->hbTimer) {
     qError("start hb timer failed");
     QW_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
-  
+
   *qWorkerMgmt = mgmt;
 
   qDebug("qworker initialized for node, type:%d, id:%d, handle:%p", mgmt->nodeType, mgmt->nodeId, mgmt);
@@ -1604,9 +1597,9 @@ _return:
     taosTmrCleanUp(mgmt->timer);
     taosMemoryFreeClear(mgmt);
 
-    atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);    
+    atomic_sub_fetch_32(&gQwMgmt.qwNum, 1);
   }
-  
+
   QW_RET(code);
 }
 
@@ -1683,7 +1676,7 @@ int32_t qwUpdateSchLastAccess(SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64
 }
 
 int32_t qwGetTaskStatus(SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId, int8_t *taskStatus) {
-  SQWSchStatus * sch = NULL;
+  SQWSchStatus  *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 
@@ -1710,7 +1703,7 @@ int32_t qwGetTaskStatus(SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId
 }
 
 int32_t qwCancelTask(SQWorker *mgmt, uint64_t sId, uint64_t qId, uint64_t tId) {
-  SQWSchStatus * sch = NULL;
+  SQWSchStatus  *sch = NULL;
   SQWTaskStatus *task = NULL;
   int32_t        code = 0;
 

@@ -58,11 +58,9 @@ void TestClient::DoInit() {
   tsem_init(&this->sem, 0, 0);
 }
 
-bool TestClient::Init(const char* user, const char* pass, const char* fqdn, uint16_t port) {
-  strcpy(this->fqdn, fqdn);
+bool TestClient::Init(const char* user, const char* pass) {
   strcpy(this->user, user);
   strcpy(this->pass, pass);
-  this->port = port;
   this->pRsp = NULL;
   this->DoInit();
   return true;
@@ -77,9 +75,10 @@ void TestClient::Restart() {
   this->Cleanup();
   this->DoInit();
 }
+
 SRpcMsg* TestClient::SendReq(SRpcMsg* pReq) {
   SEpSet epSet = {0};
-  addEpIntoEpSet(&epSet, fqdn, port);
+  addEpIntoEpSet(&epSet, tsLocalFqdn, tsServerPort);
   rpcSendRequest(clientRpc, &epSet, pReq, NULL);
   tsem_wait(&sem);
   uInfo("y response:%s from dnode, code:0x%x, msgSize: %d", TMSG_INFO(pRsp->msgType), pRsp->code, pRsp->contLen);

@@ -250,7 +250,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
       return -1;
     }
 
-    dst->acctId = strtoll(str, NULL, 10);
+    dst->acctId = taosStr2Int32(str, NULL, 10);
   }
 
   if ((type & T_NAME_DB) == T_NAME_DB) {

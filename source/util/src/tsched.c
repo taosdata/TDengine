@@ -209,6 +209,7 @@ void taosCleanUpScheduler(void *param) {
   for (int32_t i = 0; i < pSched->numOfThreads; ++i) {
     if (taosCheckPthreadValid(pSched->qthread[i])) {
       taosThreadJoin(pSched->qthread[i], NULL);
+      taosThreadClear(&pSched->qthread[i]);
     }
   }
 

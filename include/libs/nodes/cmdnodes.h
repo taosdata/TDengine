@@ -78,7 +78,7 @@ typedef struct SAlterDatabaseStmt {
 
 typedef struct STableOptions {
   ENodeType  type;
-  char       comment[TSDB_STB_COMMENT_LEN];
+  char       comment[TSDB_TB_COMMENT_LEN];
   int32_t    delay;
   float      filesFactor;
   SNodeList* pRollupFuncs;
@@ -90,7 +90,7 @@ typedef struct SColumnDefNode {
   ENodeType type;
   char      colName[TSDB_COL_NAME_LEN];
   SDataType dataType;
-  char      comments[TSDB_STB_COMMENT_LEN];
+  char      comments[TSDB_TB_COMMENT_LEN];
   bool      sma;
 } SColumnDefNode;
 

@@ -60,7 +60,7 @@ typedef struct {
   TSKEY minKey;
 } SRtn;
 
-#define TSDB_DATA_DIR_LEN 6
+#define TSDB_DATA_DIR_LEN 6  // adapt accordingly
 struct STsdb {
   char          *path;
   SVnode        *pVnode;

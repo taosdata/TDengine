@@ -42,7 +42,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   int    slen = 0;
 
   *ppTsdb = NULL;
-  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + TSDB_DATA_DIR_LEN + 3;
+  slen = strlen(tfsGetPrimaryPath(pVnode->pTfs)) + strlen(pVnode->path) + strlen(dir) + 3;
 
   // create handle
   pTsdb = (STsdb *)taosMemoryCalloc(1, sizeof(*pTsdb) + slen);
@@ -55,6 +55,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   memcpy(pTsdb->dir, dir, strlen(dir));
   pTsdb->path = (char *)&pTsdb[1];
   sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP, dir);
+  taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   pTsdb->repoLocked = false;
   taosThreadMutexInit(&pTsdb->mutex, NULL);
@@ -73,7 +74,8 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
     goto _err;
   }
 
-  tsdbDebug("vgId:%d tsdb is opened for %s", TD_VID(pVnode), pTsdb->path);
+  tsdbDebug("vgId:%d tsdb is opened for %s, days:%d, keep:%d,%d,%d", TD_VID(pVnode), pTsdb->path, pTsdb->keepCfg.days,
+            pTsdb->keepCfg.keep0, pTsdb->keepCfg.keep1, pTsdb->keepCfg.keep2);
 
   *ppTsdb = pTsdb;
   return 0;
