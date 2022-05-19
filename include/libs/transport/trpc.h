@@ -38,7 +38,7 @@ typedef struct {
 
 typedef struct SRpcHandleInfo {
   // rpc info
-  void   *handle;         // rpc handle returned to app
+  void *  handle;         // rpc handle returned to app
   int64_t refId;          // refid, used by server
   int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int32_t persistHandle;  // persist handle or not
@@ -49,13 +49,13 @@ typedef struct SRpcHandleInfo {
   void *node;     // node mgmt handle
 
   // resp info
-  void   *rsp;
+  void *  rsp;
   int32_t rspLen;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
   tmsg_t         msgType;
-  void          *pCont;
+  void *         pCont;
   int32_t        contLen;
   int32_t        code;
   SRpcHandleInfo info;
