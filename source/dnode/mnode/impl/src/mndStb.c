@@ -323,7 +323,7 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   pOld->version = pNew->version;
   pOld->tagVer = pNew->tagVer;
   pOld->colVer = pNew->colVer;
-  pOld->colVer = pNew->nextColId;
+  pOld->nextColId = pNew->nextColId;
   pOld->ttl = pNew->ttl;
   pOld->numOfColumns = pNew->numOfColumns;
   pOld->numOfTags = pNew->numOfTags;
@@ -1314,6 +1314,13 @@ static int32_t mndProcessMAlterStbReq(SRpcMsg *pReq) {
   pStb = mndAcquireStb(pMnode, alterReq.name);
   if (pStb == NULL) {
     terrno = TSDB_CODE_MND_STB_NOT_EXIST;
+    goto _OVER;
+  }
+
+  if (alterReq.verInBlock > 0 && alterReq.verInBlock <= pStb->version) {
+    mDebug("stb:%s, already exist, verInBlock:%d smaller than verInStb:%d, alter success", alterReq.name,
+           alterReq.verInBlock, pStb->version);
+    code = 0;
     goto _OVER;
   }
 

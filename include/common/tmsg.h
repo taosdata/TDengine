@@ -469,6 +469,7 @@ int32_t tDeserializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
+  int32_t verInBlock;
   int32_t numOfFields;
   SArray* pFields;
   int32_t ttl;
