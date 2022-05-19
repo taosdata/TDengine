@@ -624,14 +624,12 @@ static int32_t mndProcessConfigDnodeReq(SRpcMsg *pReq) {
 
   SRpcMsg rpcMsg = {.msgType = TDMT_DND_CONFIG_DNODE, .pCont = pBuf, .contLen = bufLen, .info = pReq->info};
 
-  mInfo("dnode:%d, app:%p config:%s req send to dnode", cfgReq.dnodeId, rpcMsg.info.ahandle, cfgReq.config);
-  tmsgSendReq(&epSet, &rpcMsg);
-
-  return 0;
+  mDebug("dnode:%d, send config req to dnode, app:%p", cfgReq.dnodeId, rpcMsg.info.ahandle);
+  return tmsgSendReq(&epSet, &rpcMsg);
 }
 
 static int32_t mndProcessConfigDnodeRsp(SRpcMsg *pRsp) {
-  mInfo("app:%p config rsp from dnode", pRsp->info.ahandle);
+  mDebug("config rsp from dnode, app:%p", pRsp->info.ahandle);
   return TSDB_CODE_SUCCESS;
 }
 

@@ -121,6 +121,26 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }
 
+TEST_F(ParserSelectTest, nonstdFunc) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1) FROM t1");
+
+  // run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, nonstdFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+}
+
 TEST_F(ParserSelectTest, clause) {
   useDb("root", "test");
 

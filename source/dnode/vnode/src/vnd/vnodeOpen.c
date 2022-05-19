@@ -180,8 +180,7 @@ void vnodeClose(SVnode *pVnode) {
 
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) {
-  vnodeSyncSetQ(pVnode, NULL);
-  vnodeSyncSetRpc(pVnode, NULL);
+  vnodeSyncSetMsgCb(pVnode);
   vnodeSyncStart(pVnode);
   return 0;
 }
