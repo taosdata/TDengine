@@ -53,6 +53,8 @@ static bool afterGroupBy(ESqlClause clause) { return clause > SQL_CLAUSE_GROUP_B
 
 static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING; }
 
+static bool afterHaving(ESqlClause clause) { return clause > SQL_CLAUSE_HAVING; }
+
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   size_t currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);
   if (currTotalLevel > pCxt->currLevel) {
@@ -276,6 +278,10 @@ static bool isScanPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isNonstandardSQLFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsNonstandardSQLFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
   return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
 }
@@ -433,6 +439,7 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t  nums = taosArrayGetSize(pTables);
   bool    found = false;
+  bool    isInternalPk = isInternalPrimaryKey(pCol);
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
     if (findAndSetColumn(pCol, pTable)) {
@@ -440,10 +447,13 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
       }
       found = true;
+      if (isInternalPk) {
+        break;
+      }
     }
   }
   if (!found) {
-    if (isInternalPrimaryKey(pCol)) {
+    if (isInternalPk) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
     } else {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
@@ -480,6 +490,9 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode* pCol) {
       found = translateColumnUseAlias(pCxt, pCol);
     }
     res = (found ? DEAL_RES_CONTINUE : translateColumnWithoutPrefix(pCxt, pCol));
+  }
+  if (afterHaving(pCxt->currClause)) {
+    pCxt->pCurrStmt->hasProjCol = true;
   }
   return res;
 }
@@ -783,6 +796,16 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_TBNAME);
       }
     }
+    if (afterHaving(pCxt->currClause)) {
+      pCxt->pCurrStmt->hasProjCol = true;
+    }
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsNonstandardSQLFunc(pFunc->funcId)) {
+    if (SQL_CLAUSE_SELECT != pCxt->currClause || pCxt->pCurrStmt->hasNonstdSQLFunc || pCxt->pCurrStmt->hasAggFuncs ||
+        pCxt->pCurrStmt->hasProjCol) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC, pFunc->functionName);
+    }
+    pCxt->pCurrStmt->hasNonstdSQLFunc = true;
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
