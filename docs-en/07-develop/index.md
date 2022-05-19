@@ -1,5 +1,5 @@
 ---
-title: Develop
+title: Developer Guide
 ---
 
 To develop an application, if you are going to use TDengine as the tool to process time-series data, you shall take the following steps:
