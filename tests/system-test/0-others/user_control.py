@@ -8,10 +8,23 @@ from util.sql import *
 from util.cases import *
 from util.dnodes import *
 
-
 PRIVILEGES_ALL      = "ALL"
 PRIVILEGES_READ     = "READ"
 PRIVILEGES_WRITE    = "WRITE"
+
+PRIMARY_COL = "ts"
+
+INT_COL     = "c1"
+BINT_COL    = "c2"
+SINT_COL    = "c3"
+TINT_COL    = "c4"
+FLOAT_COL   = "c5"
+DOUBLE_COL  = "c6"
+BOOL_COL    = "c7"
+
+BINARY_COL  = "c8"
+NCHAR_COL   = "c9"
+TS_COL      = "c10"
 
 class TDconnect:
     def __init__(self,
