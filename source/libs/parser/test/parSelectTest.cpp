@@ -70,6 +70,12 @@ TEST_F(ParserSelectTest, pseudoColumn) {
   run("SELECT _WSTARTTS, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
+TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+}
+
 TEST_F(ParserSelectTest, multiResFunc) {
   useDb("root", "test");
 

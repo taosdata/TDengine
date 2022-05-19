@@ -342,28 +342,6 @@ SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, 
   return pResultRow;
 }
 
-void doClearWindow(SIntervalAggOperatorInfo* pInfo, char* pData, int16_t bytes,
-    uint64_t groupId, int32_t numOfOutput) {
-  SAggSupporter* pSup = &pInfo->aggSup;
-  SET_RES_WINDOW_KEY(pSup->keyBuf, pData, bytes, groupId);
-  SResultRowPosition* p1 =
-      (SResultRowPosition*)taosHashGet(pSup->pResultRowHashTable, pSup->keyBuf,
-          GET_RES_WINDOW_KEY_LEN(bytes));
-  SResultRow* pResult = getResultRowByPos(pSup->pResultBuf, p1);
-  SqlFunctionCtx* pCtx = pInfo->binfo.pCtx;
-  for (int32_t i = 0; i < numOfOutput; ++i) {
-    pCtx[i].resultInfo = getResultCell(pResult, i, pInfo->binfo.rowCellInfoOffset);
-    struct SResultRowEntryInfo* pResInfo = pCtx[i].resultInfo;
-    if (fmIsWindowPseudoColumnFunc(pCtx[i].functionId)) {
-      continue;
-    }
-    pResInfo->initialized = false;
-    if (pCtx[i].functionId != -1) {
-      pCtx[i].fpSet.init(&pCtx[i], pResInfo);
-    }
-  }
-}
-
 /**
  * the struct of key in hash table
  * +----------+---------------+
@@ -602,8 +580,6 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin, SColumnInfoData* pTimeWindowData, int32_t offset,
                       int32_t forwardStep, TSKEY* tsCol, int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
-    pCtx[k].startTs = pWin->skey;
-
     // keep it temporarily
     bool    hasAgg = pCtx[k].input.colDataAggIsSet;
     int32_t numOfRows = pCtx[k].input.numOfRows;
@@ -619,8 +595,8 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
 
     // not a whole block involved in query processing, statistics data can not be used
     // NOTE: the original value of isSet have been changed here
-    if (pCtx[k].isAggSet && forwardStep < numOfTotal) {
-      pCtx[k].isAggSet = false;
+    if (pCtx[k].input.colDataAggIsSet && forwardStep < numOfTotal) {
+      pCtx[k].input.colDataAggIsSet = false;
     }
 
     if (fmIsWindowPseudoColumnFunc(pCtx[k].functionId)) {
@@ -680,7 +656,7 @@ static void doSetInputDataBlockInfo(SOperatorInfo* pOperator, SqlFunctionCtx* pC
                                     int32_t order) {
   for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
-    pCtx[i].size = pBlock->info.rows;
+    pCtx[i].input.numOfRows = pBlock->info.rows;
     setBlockStatisInfo(&pCtx[i], &pOperator->pExpr[i], pBlock);
   }
 }
@@ -742,7 +718,8 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 
   for (int32_t i = 0; i < pOperator->numOfExprs; ++i) {
     pCtx[i].order = order;
-    pCtx[i].size = pBlock->info.rows;
+    pCtx[i].input.numOfRows = pBlock->info.rows;
+
     pCtx[i].pSrcBlock = pBlock;
     pCtx[i].scanFlag  = scanFlag;
 
@@ -827,7 +804,6 @@ static int32_t doSetInputDataBlock(SOperatorInfo* pOperator, SqlFunctionCtx* pCt
 static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunctionCtx* pCtx) {
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
-      pCtx[k].startTs = startTs;
       // todo add a dummy funtion to avoid process check
       if (pCtx[k].fpSet.process != NULL) {
         int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
@@ -893,8 +869,12 @@ int32_t projectApplyFunctions(SExprInfo* pExpr, SSDataBlock* pResult, SSDataBloc
       SColumnInfoData  idata = {.info = pResColData->info, .hasNull = true};
 
       SScalarParam dest = {.columnData = &idata};
-      scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
-
+      int32_t code = scalarCalculate(pExpr[k].pExpr->_optrRoot.pRootNode, pBlockList, &dest);
+      if (code != TSDB_CODE_SUCCESS) {
+        taosArrayDestroy(pBlockList);
+        return code;
+      }
+      
       int32_t startOffset = createNewColModel ? 0 : pResult->info.rows;
       colInfoDataEnsureCapacity(pResColData, startOffset, pResult->info.capacity);
       colDataMergeCol(pResColData, startOffset, &pResult->info.capacity, &idata, dest.numOfRows);
@@ -3330,7 +3310,7 @@ static bool needToMerge(SSDataBlock* pBlock, SArray* groupInfo, char** buf, int3
 static void doMergeResultImpl(SSortedMergeOperatorInfo* pInfo, SqlFunctionCtx* pCtx, int32_t numOfExpr,
                               int32_t rowIndex) {
   for (int32_t j = 0; j < numOfExpr; ++j) {  // TODO set row index
-    pCtx[j].startRow = rowIndex;
+//    pCtx[j].startRow = rowIndex;
   }
 
   for (int32_t j = 0; j < numOfExpr; ++j) {
@@ -3381,7 +3361,7 @@ static void doMergeImpl(SOperatorInfo* pOperator, int32_t numOfExpr, SSDataBlock
 
   SqlFunctionCtx* pCtx = pInfo->binfo.pCtx;
   for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
-    pCtx[i].size = 1;
+//    pCtx[i].size = 1;
   }
 
   for (int32_t i = 0; i < pBlock->info.rows; ++i) {
@@ -4248,7 +4228,7 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  int32_t numOfRows = 10;
+  int32_t numOfRows = 1024;
   size_t  keyBufSize = sizeof(int64_t) + sizeof(int64_t) + POINTER_BYTES;
 
   initResultSizeInfo(pOperator, numOfRows);
@@ -5323,3 +5303,16 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
 
   return TSDB_CODE_SUCCESS;
 }
+
+int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, size_t keyBufSize,
+                         const char* pKey, const char* pDir) {
+  pCatchSup->keySize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
+  pCatchSup->pKeyBuf = taosMemoryCalloc(1, pCatchSup->keySize);
+  int32_t pageSize = rowSize * 32;
+  int32_t bufSize = pageSize * 4096;
+  createDiskbasedBuf(&pCatchSup->pDataBuf, pageSize, bufSize, pKey, pDir);
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pCatchSup->pWindowHashTable = taosHashInit(10000, hashFn, true, HASH_NO_LOCK);;
+  return TSDB_CODE_SUCCESS;
+}
+                        

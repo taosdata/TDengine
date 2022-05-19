@@ -492,8 +492,8 @@ static int32_t mndDropTopic(SMnode *pMnode, STrans *pTrans, SRpcMsg *pReq, SMqTo
 }
 
 static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
-  SMnode        *pMnode = pReq->info.node;
-  SSdb          *pSdb = pMnode->pSdb;
+  SMnode *pMnode = pReq->info.node;
+  /*SSdb          *pSdb = pMnode->pSdb;*/
   SMDropTopicReq dropReq = {0};
 
   if (tDeserializeSMDropTopicReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
@@ -502,6 +502,17 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
   }
 
   SMqTopicObj *pTopic = mndAcquireTopic(pMnode, dropReq.name);
+  if (pTopic == NULL) {
+    if (dropReq.igNotExists) {
+      mDebug("topic:%s, not exist, ignore not exist is set", dropReq.name);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_TOPIC_NOT_EXIST;
+      mError("topic:%s, failed to drop since %s", dropReq.name, terrstr());
+      return -1;
+    }
+  }
+
   if (pTopic->refConsumerCnt != 0) {
     mndReleaseTopic(pMnode, pTopic);
     terrno = TSDB_CODE_MND_TOPIC_SUBSCRIBED;
@@ -517,12 +528,10 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
 
   mDebug("trans:%d, used to drop topic:%s", pTrans->id, pTopic->name);
 
-#if 1
   if (mndDropOffsetByTopic(pMnode, pTrans, dropReq.name) < 0) {
     ASSERT(0);
     return -1;
   }
-#endif
 
   if (mndDropSubByTopic(pMnode, pTrans, dropReq.name) < 0) {
     ASSERT(0);

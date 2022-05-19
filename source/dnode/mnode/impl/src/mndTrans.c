@@ -842,13 +842,12 @@ static void mndTransSendRpcRsp(SMnode *pMnode, STrans *pTrans) {
     }
     taosMemoryFree(pTrans->rpcRsp);
 
-    mDebug("trans:%d, send rsp, code:0x%04x stage:%d app:%p", pTrans->id, code & 0xFFFF, pTrans->stage,
-           pTrans->rpcInfo.ahandle);
+    mDebug("trans:%d, send rsp, code:0x%x stage:%d app:%p", pTrans->id, code, pTrans->stage, pTrans->rpcInfo.ahandle);
     SRpcMsg rspMsg = {
-        .info = pTrans->rpcInfo,
         .code = code,
         .pCont = rpcCont,
         .contLen = pTrans->rpcRspLen,
+        .info = pTrans->rpcInfo,
     };
     tmsgSendRsp(&rspMsg);
     pTrans->rpcInfo.handle = NULL;
@@ -899,7 +898,7 @@ void mndTransProcessRsp(SRpcMsg *pRsp) {
     }
   }
 
-  mDebug("trans:%d, action:%d response is received, code:0x%04x, accept:0x%04x", transId, action, pRsp->code,
+  mDebug("trans:%d, action:%d response is received, code:0x%x, accept:0x%04x", transId, action, pRsp->code,
          pAction->acceptableCode);
   mndTransExecute(pMnode, pTrans);
 
@@ -986,7 +985,8 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
     memcpy(rpcMsg.pCont, pAction->pCont, pAction->contLen);
 
     if (tmsgSendReq(&pAction->epSet, &rpcMsg) == 0) {
-      mDebug("trans:%d, action:%d is sent", pTrans->id, action);
+      mDebug("trans:%d, action:%d is sent to %s:%u", pTrans->id, action, pAction->epSet.eps[pAction->epSet.inUse].fqdn,
+             pAction->epSet.eps[pAction->epSet.inUse].port);
       pAction->msgSent = 1;
       pAction->msgReceived = 0;
       pAction->errCode = 0;
@@ -1031,7 +1031,7 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
       mDebug("trans:%d, all %d actions execute successfully", pTrans->id, numOfActions);
       return 0;
     } else {
-      mError("trans:%d, all %d actions executed, code:0x%04x", pTrans->id, numOfActions, errCode & 0XFFFF);
+      mError("trans:%d, all %d actions executed, code:0x%x", pTrans->id, numOfActions, errCode & 0XFFFF);
       mndTransResetActions(pMnode, pTrans, pArray);
       terrno = errCode;
       return errCode;
@@ -1222,7 +1222,7 @@ static bool mndTransPerfromFinishedStage(SMnode *pMnode, STrans *pTrans) {
     mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
   }
 
-  mDebug("trans:%d, finished, code:0x%04x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
+  mDebug("trans:%d, finished, code:0x%x, failedTimes:%d", pTrans->id, pTrans->code, pTrans->failedTimes);
 
   return continueExec;
 }
