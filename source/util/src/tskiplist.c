@@ -185,10 +185,10 @@ void tSkipListPutBatchByIter(SSkipList *pSkipList, void *iter, iter_next_fn_t it
             pKey = SL_GET_NODE_KEY(pSkipList, p);
 
             compare = pSkipList->comparFn(pKey, pDataKey);
-            if (compare >= 0) {
-              if (compare == 0 && !hasDup) hasDup = true;
+            if (compare > 0) {
               break;
             } else {
+              if (compare == 0 && !hasDup) hasDup = true;
               px = p;
               p = SL_NODE_GET_FORWARD_POINTER(px, i);
             }
