@@ -88,6 +88,8 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT64(pRaw, dataPos, pStb->uid, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->dbUid, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->version, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->tagVer, _OVER)
+  SDB_SET_INT32(pRaw, dataPos, pStb->colVer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, _OVER)
   SDB_SET_INT32(pRaw, dataPos, (int32_t)(pStb->xFilesFactor * 10000), _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->delay, _OVER)
@@ -166,6 +168,8 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pStb->uid, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pStb->dbUid, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->version, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->tagVer, _OVER)
+  SDB_GET_INT32(pRaw, dataPos, &pStb->colVer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, _OVER)
   int32_t xFilesFactor = 0;
   SDB_GET_INT32(pRaw, dataPos, &xFilesFactor, _OVER)
@@ -317,7 +321,9 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
 
   pOld->updateTime = pNew->updateTime;
   pOld->version = pNew->version;
-  pOld->nextColId = pNew->nextColId;
+  pOld->tagVer = pNew->tagVer;
+  pOld->colVer = pNew->colVer;
+  pOld->colVer = pNew->nextColId;
   pOld->ttl = pNew->ttl;
   pOld->numOfColumns = pNew->numOfColumns;
   pOld->numOfTags = pNew->numOfTags;
@@ -384,6 +390,8 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.rollup = pStb->ast1Len > 0 ? 1 : 0;
   req.schema.nCols = pStb->numOfColumns;
   req.schema.sver = pStb->version;
+  req.schema.tagVer = pStb->tagVer;
+  req.schema.colVer = pStb->colVer;
   req.schema.pSchema = pStb->pColumns;
   req.schemaTag.nCols = pStb->numOfTags;
   req.schemaTag.sver = 1;
@@ -657,6 +665,8 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
   pDst->version = 1;
+  pDst->tagVer = 1;
+  pDst->colVer = 1;
   pDst->nextColId = 1;
   pDst->xFilesFactor = pCreate->xFilesFactor;
   pDst->delay = pCreate->delay;
@@ -949,6 +959,7 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
   }
 
   pNew->version++;
+  pNew->tagVer++;
   return 0;
 }
 
@@ -967,6 +978,7 @@ static int32_t mndDropSuperTableTag(const SStbObj *pOld, SStbObj *pNew, const ch
   pNew->numOfTags--;
 
   pNew->version++;
+  pNew->tagVer++;
   mDebug("stb:%s, start to drop tag %s", pNew->name, tagName);
   return 0;
 }
@@ -1007,6 +1019,7 @@ static int32_t mndAlterStbTagName(const SStbObj *pOld, SStbObj *pNew, SArray *pF
   memcpy(pSchema->name, newTagName, TSDB_COL_NAME_LEN);
 
   pNew->version++;
+  pNew->tagVer++;
   mDebug("stb:%s, start to modify tag %s to %s", pNew->name, oldTagName, newTagName);
   return 0;
 }
@@ -1036,6 +1049,7 @@ static int32_t mndAlterStbTagBytes(const SStbObj *pOld, SStbObj *pNew, const SFi
 
   pTag->bytes = pField->bytes;
   pNew->version++;
+  pNew->tagVer++;
 
   mDebug("stb:%s, start to modify tag len %s to %d", pNew->name, pField->name, pField->bytes);
   return 0;
@@ -1075,6 +1089,7 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
   }
 
   pNew->version++;
+  pNew->colVer++;
   return 0;
 }
 
@@ -1103,6 +1118,7 @@ static int32_t mndDropSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const
   pNew->numOfColumns--;
 
   pNew->version++;
+  pNew->colVer++;
   mDebug("stb:%s, start to drop col %s", pNew->name, colName);
   return 0;
 }
@@ -1141,6 +1157,7 @@ static int32_t mndAlterStbColumnBytes(const SStbObj *pOld, SStbObj *pNew, const 
 
   pCol->bytes = pField->bytes;
   pNew->version++;
+  pNew->colVer++;
 
   mDebug("stb:%s, start to modify col len %s to %d", pNew->name, pField->name, pField->bytes);
   return 0;
