@@ -2823,9 +2823,11 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
 
     for (int32_t i = 0; i < numOfCols; ++i) {
       SColumnInfoData idata = {0};
-      idata.info.type = pSchema[i].type;
+
+      idata.info.type  = pSchema[i].type;
       idata.info.bytes = pSchema[i].bytes;
       idata.info.colId = pSchema[i].colId;
+      idata.hasNull    = true;
 
       taosArrayPush(pBlock->pDataBlock, &idata);
       if (IS_VAR_DATA_TYPE(idata.info.type)) {
