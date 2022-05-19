@@ -515,11 +515,11 @@ TEST(tdb_test, multi_thread_query) {
 
   // start a transaction
   txnid++;
-  txn = {.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED,
-         .txnId = -1,
-         .xMalloc = poolMalloc,
-         .xFree = poolFree,
-         .xArg = pPool};
+  txn = (TXN){.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED,
+              .txnId = -1,
+              .xMalloc = poolMalloc,
+              .xFree = poolFree,
+              .xArg = pPool};
   // tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, );
   tdbBegin(pEnv, &txn);
 
@@ -554,7 +554,7 @@ TEST(tdb_test, multi_thread_query) {
     TXN   txn;
 
     SPoolMem *pPool = openPool();
-    txn = {.flags = 0, .txnId = 0, .xMalloc = poolMalloc, .xFree = poolFree, .xArg = pPool};
+    txn = (TXN){.flags = 0, .txnId = 0, .xMalloc = poolMalloc, .xFree = poolFree, .xArg = pPool};
 
     ret = tdbTbcOpen(pDb, &pDBC, &txn);
     GTEST_ASSERT_EQ(ret, 0);
