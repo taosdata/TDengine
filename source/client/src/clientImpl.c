@@ -23,6 +23,8 @@
 #include "tmsgtype.h"
 #include "tpagedbuf.h"
 #include "tref.h"
+#include "cJSON.h"
+#include "tdataformat.h"
 
 static int32_t       initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet);
 static SMsgSendInfo* buildConnectMsg(SRequestObj* pRequest);
@@ -745,7 +747,6 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
-#include "cJSON.h"
 static char* parseTagDatatoJson(void *p){
   char* string = NULL;
   cJSON *json = cJSON_CreateObject();
@@ -815,14 +816,14 @@ static char* parseTagDatatoJson(void *p){
         goto end;
       }
       cJSON_AddItemToObject(json, tagJsonKey, value);
-    }else if(type == TSDB_DATA_TYPE_BIGINT){
-      int64_t jsonVd = *(int64_t*)(realData);
-      cJSON* value = cJSON_CreateNumber((double)jsonVd);
-      if (value == NULL)
-      {
-        goto end;
-      }
-      cJSON_AddItemToObject(json, tagJsonKey, value);
+//    }else if(type == TSDB_DATA_TYPE_BIGINT){
+//      int64_t jsonVd = *(int64_t*)(realData);
+//      cJSON* value = cJSON_CreateNumber((double)jsonVd);
+//      if (value == NULL)
+//      {
+//        goto end;
+//      }
+//      cJSON_AddItemToObject(json, tagJsonKey, value);
     }else if (type == TSDB_DATA_TYPE_BOOL) {
       char jsonVd = *(char*)(realData);
       cJSON* value = cJSON_CreateBool(jsonVd);
@@ -833,7 +834,7 @@ static char* parseTagDatatoJson(void *p){
       cJSON_AddItemToObject(json, tagJsonKey, value);
     }
     else{
-      tscError("unsupportted json value");
+      ASSERT(0);
     }
 
   }
@@ -842,7 +843,6 @@ end:
   cJSON_Delete(json);
   return string;
 }
-#include "tdataformat.h"
 
 static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
   for (int32_t i = 0; i < numOfCols; ++i) {
@@ -886,51 +886,43 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
       for (int32_t j = 0; j < numOfRows; ++j) {
         if (pCol->offset[j] != -1) {
           char* pStart = pCol->offset[j] + pCol->pData;
-          char dst[TSDB_MAX_JSON_TAG_LEN] = {0};
-          char *jsonString = parseTagDatatoJson(pStart);
-          STR_TO_VARSTR(dst, jsonString);
-          taosMemoryFree(jsonString);
-//          int32_t jsonInnerType = *pStart;
-//          char*   jsonInnerData = pStart + CHAR_BYTES;
-//          char    dst[TSDB_MAX_JSON_TAG_LEN] = {0};
-//          if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
-//            sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
-//            varDataSetLen(dst, strlen(varDataVal(dst)));
-//          } else if (jsonInnerType == TSDB_DATA_TYPE_JSON) {
-//            int32_t length =
-//                taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(dst));
-//
-//            if (length <= 0) {
-//              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-//                       varDataVal(jsonInnerData));
-//              length = 0;
-//            }
-//            varDataSetLen(dst, length);
-//          } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
-//            *(char*)varDataVal(dst) = '\"';
-//            int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
-//                                           varDataVal(dst) + CHAR_BYTES);
-//            if (length <= 0) {
-//              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-//                       varDataVal(jsonInnerData));
-//              length = 0;
-//            }
-//            varDataSetLen(dst, length + CHAR_BYTES * 2);
-//            *(char*)(varDataVal(dst), length + CHAR_BYTES) = '\"';
-//          } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
-//            double jsonVd = *(double*)(jsonInnerData);
-//            sprintf(varDataVal(dst), "%.9lf", jsonVd);
-//            varDataSetLen(dst, strlen(varDataVal(dst)));
-//          } else if (jsonInnerType == TSDB_DATA_TYPE_BIGINT) {
-//            int64_t jsonVd = *(int64_t*)(jsonInnerData);
-//            sprintf(varDataVal(dst), "%" PRId64, jsonVd);
-//            varDataSetLen(dst, strlen(varDataVal(dst)));
-//          } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
-//            sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
-//            varDataSetLen(dst, strlen(varDataVal(dst)));
-//          } else {
-//            ASSERT(0);
-//          }
+
+
+          int32_t jsonInnerType = *pStart;
+          char*   jsonInnerData = pStart + CHAR_BYTES;
+          char    dst[TSDB_MAX_JSON_TAG_LEN] = {0};
+          if (jsonInnerType == TSDB_DATA_TYPE_NULL) {
+            sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          } else if (jsonInnerType == TSDB_DATA_TYPE_JSON) {
+            char *jsonString = parseTagDatatoJson(jsonInnerData);
+            STR_TO_VARSTR(dst, jsonString);
+            taosMemoryFree(jsonString);
+          } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
+            *(char*)varDataVal(dst) = '\"';
+            int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
+                                           varDataVal(dst) + CHAR_BYTES);
+            if (length <= 0) {
+              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
+                       varDataVal(jsonInnerData));
+              length = 0;
+            }
+            varDataSetLen(dst, length + CHAR_BYTES * 2);
+            *(char*)(varDataVal(dst), length + CHAR_BYTES) = '\"';
+          } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
+            double jsonVd = *(double*)(jsonInnerData);
+            sprintf(varDataVal(dst), "%.9lf", jsonVd);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          } else if (jsonInnerType == TSDB_DATA_TYPE_BIGINT) {
+            int64_t jsonVd = *(int64_t*)(jsonInnerData);
+            sprintf(varDataVal(dst), "%" PRId64, jsonVd);
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          } else if (jsonInnerType == TSDB_DATA_TYPE_BOOL) {
+            sprintf(varDataVal(dst), "%s", (*((char*)jsonInnerData) == 1) ? "true" : "false");
+            varDataSetLen(dst, strlen(varDataVal(dst)));
+          } else {
+            ASSERT(0);
+          }
 
           if (len + varDataTLen(dst) > colLength[i]) {
             p = taosMemoryRealloc(pResultInfo->convertBuf[i], len + varDataTLen(dst));

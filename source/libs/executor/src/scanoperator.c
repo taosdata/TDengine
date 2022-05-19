@@ -1469,7 +1469,15 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
       } else { // it is a tag value
         const char* p = NULL;
         if(pDst->info.type == TSDB_DATA_TYPE_JSON){
-          p = mr.me.ctbEntry.pTags;
+          const uint8_t *tmp = mr.me.ctbEntry.pTags;
+          char *data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+          if(data == NULL){
+            qError("doTagScan calloc error:%d", kvRowLen(tmp) + 1);
+            return NULL;
+          }
+          *data = TSDB_DATA_TYPE_JSON;
+          memcpy(data+1, tmp, kvRowLen(tmp));
+          p = data;
         }else{
           p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
         }
