@@ -206,6 +206,7 @@ class TDTestCase:
         return f"GRANT {privilege} ON {self.__priv_level(dbname)} TO {user_name} "
 
     def grant_check_read(self, user="root", passwd="taosdata"):
+        # sourcery skip: class-extract-method
         with taos_connect(user=user, passwd=passwd) as user:
             user.query("use db")
             user.query("show tables")
@@ -238,39 +239,57 @@ class TDTestCase:
         self.grant_check_none(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
         tdLog.printNoPrefix("==========step 1.1: grant read, can read, can not write")
-        self.__grant_user_privileges(privilege=self.__privilege[1], user_name=self.__user_list[0])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[1], user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_read(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
         tdLog.printNoPrefix("==========step 1.2: grant write, can write, can not read")
-        self.__grant_user_privileges(privilege=self.__privilege[2], user_name=self.__user_list[1])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[2], user_name=self.__user_list[1])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_write(user=self.__user_list[1], passwd=self.__passwd_list[1])
 
         tdLog.printNoPrefix("==========step 1.3: grant all, can write and read")
-        self.__grant_user_privileges(privilege=self.__privilege[0], user_name=self.__user_list[2])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[0], user_name=self.__user_list[2])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_all(user=self.__user_list[2], passwd=self.__passwd_list[2])
 
         tdLog.printNoPrefix("==========step 1.4: change grant read to write, can write , can not read")
-        self.__grant_user_privileges(privilege=self.__privilege[2], user_name=self.__user_list[0])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[2], user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_write(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
         tdLog.printNoPrefix("==========step 1.5: change grant write to read, can not write , can read")
-        self.__grant_user_privileges(privilege=self.__privilege[1], user_name=self.__user_list[0])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[1], user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_read(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
         tdLog.printNoPrefix("==========step 1.6: change grant read to all, can write , can read")
-        self.__grant_user_privileges(privilege=self.__privilege[0], user_name=self.__user_list[0])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[0], user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_all(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
         tdLog.printNoPrefix("==========step 1.7: change grant all to write, can write , can not read")
-        self.__grant_user_privileges(privilege=self.__privilege[2], user_name=self.__user_list[0])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[2], user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_write(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
         tdLog.printNoPrefix("==========step 1.8: change grant write to all, can write , can read")
-        self.__grant_user_privileges(privilege=self.__privilege[0], user_name=self.__user_list[0])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[0], user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_all(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
         tdLog.printNoPrefix("==========step 1.9: change grant all to read, can not write , can read")
-        self.__grant_user_privileges(privilege=self.__privilege[1], user_name=self.__user_list[0])
+        sql = self.__grant_user_privileges(privilege=self.__privilege[1], user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
         self.grant_check_read(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
     def __grant_err(self):
