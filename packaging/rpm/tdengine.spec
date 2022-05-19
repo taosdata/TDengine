@@ -74,9 +74,9 @@ if [ -f %{_compiledir}/build/bin/taosadapter ]; then
     cp %{_compiledir}/build/bin/taosadapter                    %{buildroot}%{homepath}/bin ||:
 fi
 cp %{_compiledir}/build/lib/${libfile}              %{buildroot}%{homepath}/driver
-cp %{_compiledir}/../src/inc/taos.h                 %{buildroot}%{homepath}/include
-cp %{_compiledir}/../src/inc/taosdef.h              %{buildroot}%{homepath}/include
-cp %{_compiledir}/../src/inc/taoserror.h            %{buildroot}%{homepath}/include
+cp %{_compiledir}/../include/client/taos.h          %{buildroot}%{homepath}/include
+cp %{_compiledir}/../include/common/taosdef.h       %{buildroot}%{homepath}/include
+cp %{_compiledir}/../include/util/taoserror.h       %{buildroot}%{homepath}/include
 #cp -r %{_compiledir}/../src/connector/python        %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/go            %{buildroot}%{homepath}/connector
 #cp -r %{_compiledir}/../src/connector/nodejs        %{buildroot}%{homepath}/connector
