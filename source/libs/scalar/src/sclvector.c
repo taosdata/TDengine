@@ -922,7 +922,7 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   }
 }
 
-char *getJsonValue(char *json, char *key){
+char *getJsonValue(char *json, char *key){      //todo
   json++;     // jump type
   int16_t cols = kvRowNCols(json);
   for (int i = 0; i < cols; ++i) {

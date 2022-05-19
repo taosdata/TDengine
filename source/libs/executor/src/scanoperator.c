@@ -295,9 +295,25 @@ void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock)
     if (fmIsScanPseudoColumnFunc(functionId)) {
       setTbNameColData(pTableScanInfo->readHandle.meta, pBlock, pColInfoData, functionId);
     } else {  // these are tags
-      const char* p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
+      const char* p = NULL;
+      if(pColInfoData->info.type == TSDB_DATA_TYPE_JSON){
+        const uint8_t *tmp = mr.me.ctbEntry.pTags;
+        char *data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+        if(data == NULL){
+          qError("doTagScan calloc error:%d", kvRowLen(tmp) + 1);
+          return;
+        }
+        *data = TSDB_DATA_TYPE_JSON;
+        memcpy(data+1, tmp, kvRowLen(tmp));
+        p = data;
+      }else{
+        p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
+      }
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         colDataAppend(pColInfoData, i, p, (p == NULL));
+      }
+      if(pColInfoData->info.type == TSDB_DATA_TYPE_JSON){
+        taosMemoryFree((void*)p);
       }
     }
   }
