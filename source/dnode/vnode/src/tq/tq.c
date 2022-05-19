@@ -111,6 +111,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList) {
     pIter = taosHashIterate(pTq->execs, pIter);
     if (pIter == NULL) break;
     pExec = (STqExec*)pIter;
+    if (pExec->subType == TOPIC_SUB_TYPE__DB) continue;
     for (int32_t i = 0; i < 5; i++) {
       int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, true);
       ASSERT(code == 0);
