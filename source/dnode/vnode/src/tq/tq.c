@@ -32,6 +32,9 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
+  /*if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {*/
+  /*ASSERT(0);*/
+  /*}*/
 
 #if 0
   pTq->tqMeta = tqStoreOpen(pTq, path, (FTqSerialize)tqSerializeConsumer, (FTqDeserialize)tqDeserializeConsumer,
@@ -108,6 +111,7 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList) {
     pIter = taosHashIterate(pTq->execs, pIter);
     if (pIter == NULL) break;
     pExec = (STqExec*)pIter;
+    if (pExec->subType == TOPIC_SUB_TYPE__DB) continue;
     for (int32_t i = 0; i < 5; i++) {
       int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, true);
       ASSERT(code == 0);

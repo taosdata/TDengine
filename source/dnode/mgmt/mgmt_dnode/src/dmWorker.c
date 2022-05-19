@@ -153,14 +153,14 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
         .code = code,
-        .info = pMsg->info,
         .pCont = pMsg->info.rsp,
         .contLen = pMsg->info.rspLen,
+        .info = pMsg->info,
     };
     rpcSendResponse(&rsp);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }

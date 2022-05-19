@@ -162,7 +162,7 @@ static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg 
   return 0;
 }
 
-static int32_t dmPopFromProcQueue(SProcQueue *queue, SRpcMsg **ppMsg, EProcFuncType *pFuncType) {
+static inline int32_t dmPopFromProcQueue(SProcQueue *queue, SRpcMsg **ppMsg, EProcFuncType *pFuncType) {
   tsem_wait(&queue->sem);
 
   taosThreadMutexLock(&queue->mutex);
@@ -412,7 +412,7 @@ void dmCleanupProc(struct SMgmtWrapper *pWrapper) {
   SProc *proc = &pWrapper->proc;
   if (proc->name == NULL) return;
 
-  dDebug("node:%s, start to clean up proc", pWrapper->name);
+  dDebug("node:%s, start to cleanup proc", pWrapper->name);
   dmStopProc(proc);
   dmCleanupProcQueue(proc->cqueue);
   dmCleanupProcQueue(proc->pqueue);
@@ -433,7 +433,7 @@ void dmCloseProcRpcHandles(SProc *proc) {
   SRpcHandleInfo *pInfo = taosHashIterate(proc->hash, NULL);
   while (pInfo != NULL) {
     dError("node:%s, the child process dies and send an offline rsp to handle:%p", proc->name, pInfo->handle);
-    SRpcMsg rpcMsg = {.info = *pInfo, .code = TSDB_CODE_NODE_OFFLINE};
+    SRpcMsg rpcMsg = {.code = TSDB_CODE_NODE_OFFLINE, .info = *pInfo};
     rpcSendResponse(&rpcMsg);
     pInfo = taosHashIterate(proc->hash, pInfo);
   }

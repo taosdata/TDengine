@@ -580,7 +580,7 @@ static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg){
   const char *pVal = kvVal->value;
   int32_t len = kvVal->length;
   char *endptr = NULL;
-  double result = strtod(pVal, &endptr);
+  double result = taosStr2Double(pVal, &endptr);
   if(pVal == endptr){
     smlBuildInvalidDataMsg(msg, "invalid data", pVal);
     return false;
@@ -714,7 +714,7 @@ static bool smlIsNchar(const char *pVal, uint16_t len) {
 
 static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   char *endPtr = NULL;
-  int64_t tsInt64 = strtoll(value, &endPtr, 10);
+  int64_t tsInt64 = taosStr2Int64(value, &endPtr, 10);
   if(value + len != endPtr){
     return -1;
   }
