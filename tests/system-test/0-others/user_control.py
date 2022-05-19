@@ -220,7 +220,7 @@ class TDTestCase:
             user.error("select * from ct1")
             user.error("insert into t1 (ts) values (now())")
 
-    def grant_current(self):
+    def test_grant_current(self):
         tdLog.printNoPrefix("==========step 1.0: if do not grant, can not read/write")
         self.grant_check_none(user=self.__user_list[0], passwd=self.__passwd_list[0])
 
@@ -273,9 +273,12 @@ class TDTestCase:
         ]
 
     def test_grant_err(self):
-
         for sql in self.__grant_err():
             tdSql.error(sql)
+
+    def test_grant(self):
+        self.test_grant_err()
+        self.test_grant_current()
 
     def test_user_create(self):
         self.create_user_current()
@@ -358,6 +361,9 @@ class TDTestCase:
         # 密码登录认证
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
         self.login_err(self.__user_list[0], f"new{self.__passwd_list[0]}")
+
+        # 用户权限设置
+        self.test_grant()
 
         # 修改密码
         tdLog.printNoPrefix("==========step3: alter user pass test")
