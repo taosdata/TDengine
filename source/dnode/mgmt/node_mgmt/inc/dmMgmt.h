@@ -70,7 +70,7 @@ typedef struct SMgmtWrapper {
   const char    *name;
   char          *path;
   int32_t        refCount;
-  SRWLatch       latch;
+  TdThreadRwlock lock;
   EDndNodeType   ntype;
   bool           deployed;
   bool           required;
