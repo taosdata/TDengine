@@ -94,7 +94,7 @@ which systemctl
 
 ## TDengine 命令行 (CLI)
 
-为便于检查 TDengine 的状态，执行各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可。
+为便于检查 TDengine 的状态，执行数据库 (Database) 的各种即席(Ad Hoc)查询，TDengine 提供一命令行应用程序(以下简称为 TDengine CLI) taos。要进入 TDengine 命令行，您只要在安装有 TDengine 的 Linux 终端执行 `taos` 即可。
 
 ```bash
 taos
@@ -106,7 +106,7 @@ taos
 taos>
 ```
 
-在 TDengine CLI 中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行插入查询操作。在终端中运行的 SQL 语句需要以分号结束来运行。示例：
+在 TDengine CLI 中，用户可以通过 SQL 命令来创建/删除数据库、表等，并进行数据库(database)插入查询操作。在终端中运行的 SQL 语句需要以分号结束来运行。示例：
 
 ```sql
 create database demo;
