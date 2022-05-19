@@ -334,19 +334,23 @@ static int32_t vmRequire(const SMgmtInputOpt *pInput, bool *required) {
 }
 
 static int32_t vmStart(SVnodeMgmt *pMgmt) {
-  taosRLockLatch(&pMgmt->latch);
+  int32_t     numOfVnodes = 0;
+  SVnodeObj **pVnodes = vmGetVnodeListFromHash(pMgmt, &numOfVnodes);
 
-  void *pIter = taosHashIterate(pMgmt->hash, NULL);
-  while (pIter) {
-    SVnodeObj **ppVnode = pIter;
-    if (ppVnode == NULL || *ppVnode == NULL) continue;
-
-    SVnodeObj *pVnode = *ppVnode;
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    SVnodeObj *pVnode = pVnodes[i];
     vnodeStart(pVnode->pImpl);
-    pIter = taosHashIterate(pMgmt->hash, pIter);
   }
 
-  taosRUnLockLatch(&pMgmt->latch);
+  for (int32_t i = 0; i < numOfVnodes; ++i) {
+    SVnodeObj *pVnode = pVnodes[i];
+    vmReleaseVnode(pMgmt, pVnode);
+  }
+
+  if (pVnodes != NULL) {
+    taosMemoryFree(pVnodes);
+  }
+
   return 0;
 }
 
