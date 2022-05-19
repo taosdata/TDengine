@@ -120,6 +120,17 @@ class TDTestCase:
             '''
         )
 
+        # udf functions with join
+        ts_start = 1652517451000
+        tdSql.execute("create stable st (ts timestamp , c1 int , c2 int ,c3 double ,c4 double ) tags(ind int)")
+        tdSql.execute("create table sub1 using st tags(1)")
+        tdSql.execute("create table sub2 using st tags(2)")
+
+        for i in range(10):
+            ts = ts_start + i *1000
+            tdSql.execute(" insert into sub1 values({} , {},{},{},{})".format(ts,i ,i*10,i*100.0,i*1000.0))
+            tdSql.execute(" insert into sub2 values({} , {},{},{},{})".format(ts,i ,i*10,i*100.0,i*1000.0))
+
 
     def create_udf_function(self):
 
@@ -381,17 +392,6 @@ class TDTestCase:
         tdSql.checkData(0,1,88)
         tdSql.checkData(0,2,-99.990000000)
         tdSql.checkData(0,3,88)
-
-        # udf functions with join
-        ts_start = 1652517451000
-        tdSql.execute("create stable st (ts timestamp , c1 int , c2 int ,c3 double ,c4 double ) tags(ind int)")
-        tdSql.execute("create table sub1 using st tags(1)")
-        tdSql.execute("create table sub2 using st tags(2)")
-
-        for i in range(10):
-            ts = ts_start + i *1000
-            tdSql.execute(" insert into sub1 values({} , {},{},{},{})".format(ts,i ,i*10,i*100.0,i*1000.0))
-            tdSql.execute(" insert into sub2 values({} , {},{},{},{})".format(ts,i ,i*10,i*100.0,i*1000.0))
         
         tdSql.query("select sub1.c1, sub2.c2 from sub1, sub2 where sub1.ts=sub2.ts and sub1.c1 is not null")
         tdSql.checkData(0,0,0)
@@ -642,7 +642,7 @@ class TDTestCase:
         tdSql.execute(" drop function udf1 ")
         tdSql.execute(" drop function udf2 ")
         self.create_udf_function()
-        self.basic_udf_query()
+        # self.basic_udf_query()
         self.test_function_name()
         
 
