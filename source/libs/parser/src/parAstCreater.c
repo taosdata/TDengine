@@ -196,6 +196,15 @@ static bool checkIndexName(SAstCreateContext* pCxt, SToken* pIndexName) {
   return true;
 }
 
+static bool checkComment(SAstCreateContext* pCxt, const SToken* pCommentToken, bool demand) {
+  if (NULL == pCommentToken) {
+    pCxt->errCode = demand ? TSDB_CODE_PAR_SYNTAX_ERROR : TSDB_CODE_SUCCESS;
+  } else if (pCommentToken->n >= (TSDB_TB_COMMENT_LEN + 2)) {
+    pCxt->errCode = generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_COMMENT_TOO_LONG);
+  }
+  return TSDB_CODE_SUCCESS == pCxt->errCode;
+}
+
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode) {
   SRawExprNode* target = (SRawExprNode*)nodesMakeNode(QUERY_NODE_RAW_EXPR);
   CHECK_OUT_OF_MEM(target);
@@ -823,8 +832,10 @@ SNode* createAlterTableOptions(SAstCreateContext* pCxt) {
 SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType type, void* pVal) {
   switch (type) {
     case TABLE_OPTION_COMMENT:
-      copyStringFormStringToken((SToken*)pVal, ((STableOptions*)pOptions)->comment,
-                                sizeof(((STableOptions*)pOptions)->comment));
+      if (checkComment(pCxt, (SToken*)pVal, true)) {
+        copyStringFormStringToken((SToken*)pVal, ((STableOptions*)pOptions)->comment,
+                                  sizeof(((STableOptions*)pOptions)->comment));
+      }
       break;
     case TABLE_OPTION_DELAY:
       ((STableOptions*)pOptions)->delay = strtol(((SToken*)pVal)->z, NULL, 10);
@@ -848,7 +859,7 @@ SNode* setTableOption(SAstCreateContext* pCxt, SNode* pOptions, ETableOptionType
 }
 
 SNode* createColumnDefNode(SAstCreateContext* pCxt, SToken* pColName, SDataType dataType, const SToken* pComment) {
-  if (!checkColumnName(pCxt, pColName)) {
+  if (!checkColumnName(pCxt, pColName) || !checkComment(pCxt, pComment, false)) {
     return NULL;
   }
   SColumnDefNode* pCol = (SColumnDefNode*)nodesMakeNode(QUERY_NODE_COLUMN_DEF);
