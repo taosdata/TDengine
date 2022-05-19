@@ -57,6 +57,12 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
+typedef struct STbVerInfo {
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t sversion;
+  int32_t tversion;
+} STbVerInfo;
+
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
  * ASSERT(tableType == TSDB_CHILD_TABLE)

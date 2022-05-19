@@ -1070,6 +1070,27 @@ int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRs
   return TSDB_CODE_SUCCESS;
 }
 
+int32_t schSaveJobQueryRes(SSchJob *pJob, SResReadyRsp *rsp) {
+  if (rsp->tbFName[0]) {
+    if (NULL == pJob->resData) {
+      pJob->resData = taosArrayInit(pJob->taskNum, sizeof(STbVerInfo));
+      if (NULL == pJob->resData) {
+        SCH_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
+      }
+    }
+
+    STbVerInfo tbInfo;
+    strcpy(tbInfo.tbFName, rsp->tbFName);
+    tbInfo.sversion = rsp->sversion;
+    tbInfo.tversion = rsp->tversion;
+
+    taosArrayPush((SArray *)pJob->resData, &tbInfo);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 // Note: no more task error processing, handled in function internal
 int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, char *msg, int32_t msgSize,
                              int32_t rspCode) {
@@ -1225,6 +1246,10 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
       SCH_ERR_JRET(rsp->code);
+      pJob->resType = SCH_RES_TYPE_QUERY;
+
+      SCH_ERR_JRET(schSaveJobQueryRes(pJob, rsp));
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
