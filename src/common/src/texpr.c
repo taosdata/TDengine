@@ -86,8 +86,13 @@ int32_t exprTreeValidateFunctionNode(char* msgbuf, tExprNode *pExpr) {
 }
 
 int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
-  int16_t leftType = pExpr->_node.pLeft->resultType;
-  int16_t rightType = pExpr->_node.pRight->resultType;
+  tExprNode *pLeft = pExpr->_node.pLeft;
+  tExprNode *pRight = pExpr->_node.pRight;
+
+  int16_t leftType = pLeft->resultType;
+  int16_t rightType = pRight->resultType;
+
+  int32_t brChecked = 0;
 
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
@@ -103,11 +108,120 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
              pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
   {
     if (!IS_NUMERIC_TYPE(leftType) || !IS_NUMERIC_TYPE(rightType)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      if (pLeft->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (pLeft->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (pRight->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (pRight->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (brChecked == 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
+
+      brChecked = 0;
     }
     if (IS_FLOAT_TYPE(leftType) || IS_FLOAT_TYPE(rightType)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      if (pLeft->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (pLeft->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (pRight->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (pRight->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pRight->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (brChecked == 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
     }
+
+    // colx bitwise_op (coly logic_op n)
+    if (pRight->resultType == TSDB_DATA_TYPE_DOUBLE) {
+      pRight->resultType = TSDB_DATA_TYPE_BIGINT;
+      pRight->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    }
+
     if (pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT) {
       pExpr->resultType = leftType;
       pExpr->resultBytes = tDataTypes[leftType].bytes;
@@ -118,10 +232,40 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
     return TSDB_CODE_SUCCESS;
   } else if (pExpr->_node.optr == TSDB_BINARY_OP_BITNOT) {
     if (!IS_NUMERIC_TYPE(leftType) || IS_FLOAT_TYPE(leftType)) {
-      return TSDB_CODE_TSC_INVALID_OPERATION;
+      if (pLeft->_node.pLeft) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pLeft->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (pLeft->_node.pRight) {
+        if (!IS_NUMERIC_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        if (IS_FLOAT_TYPE(pLeft->_node.pRight->resultType)) {
+          return TSDB_CODE_TSC_INVALID_OPERATION;
+        }
+
+        brChecked++;
+      }
+
+      if (brChecked == 0) {
+        return TSDB_CODE_TSC_INVALID_OPERATION;
+      }
     }
-    pExpr->resultType = leftType;
-    pExpr->resultBytes = tDataTypes[leftType].bytes;
+    if (leftType == TSDB_DATA_TYPE_DOUBLE) {
+      pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
+    } else {
+      pExpr->resultType = leftType;
+    }
+    pExpr->resultBytes = tDataTypes[pExpr->resultType].bytes;
     return TSDB_CODE_SUCCESS;
   } else {
     return TSDB_CODE_SUCCESS;
@@ -449,8 +593,8 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
 
   tExprNode *pLeft = pExpr->_node.pLeft;
   tExprNode *pRight = pExpr->_node.pRight;
-  char *ltmp = NULL, *rtmp = NULL;
-  char *leftIn = NULL, *rightIn = NULL;
+  char *ltmp = NULL, *rtmp = NULL, *pl = NULL, *pr = NULL, *pt = NULL;
+  char *leftIn = NULL, *rightIn = NULL, *transl = NULL, *transr = NULL;
   int32_t leftNum = 0, rightNum = 0;
   int32_t leftType = 0, rightType = 0;
   int32_t fnOrder = TSDB_ORDER_ASC;
@@ -460,9 +604,31 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     tExprOperandInfo left;
     left.data = ltmp;
     exprTreeInternalNodeTraverse(pLeft, numOfRows, &left, param, order, getSourceDataBlock);
-    
+
     leftIn = ltmp;
-    leftType = left.type;
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+        pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
+        pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+    {
+      if (left.type == TSDB_DATA_TYPE_DOUBLE) {
+        transl = (char *)malloc(sizeof(int64_t) * left.numOfRows);
+        if (transl == NULL) {
+          return;
+        }
+
+        pl = ltmp;
+        pt = transl;
+
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((double *) pl + i));
+        }
+
+        leftIn = transl;
+        leftType = TSDB_DATA_TYPE_BIGINT;
+      }
+    } else {
+      leftType = left.type;
+    }
     leftNum = left.numOfRows;
   } else if (pLeft->nodeType == TSQL_NODE_COL) {
     char *pInputData = getSourceDataBlock(param, pLeft->pSchema->name, pLeft->pSchema->colId);
@@ -489,9 +655,31 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     tExprOperandInfo right;
     right.data = rtmp;
     exprTreeInternalNodeTraverse(pRight, numOfRows, &right, param, order, getSourceDataBlock);
-    
+
     rightIn = rtmp;
-    rightType = right.type;
+    if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
+        pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
+        pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
+    {
+      if (right.type == TSDB_DATA_TYPE_DOUBLE) {
+        transr = (char *)malloc(sizeof(int64_t) * right.numOfRows);
+        if (transr == NULL) {
+          return;
+        }
+
+        pr = rtmp;
+        pt = transr;
+
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((double *) pr + i));
+        }
+
+        rightIn = transr;
+        rightType = TSDB_DATA_TYPE_BIGINT;
+      }
+    } else {
+      rightType = right.type;
+    }
     rightNum = right.numOfRows;
   } else if (pRight->nodeType == TSQL_NODE_COL) {
     char *pInputData = getSourceDataBlock(param, pRight->pSchema->name, pRight->pSchema->colId);
@@ -533,6 +721,9 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     }
   }
   output->bytes = tDataTypes[output->type].bytes;
+
+  if (transl) tfree(transl);
+  if (transr) tfree(transr);
 
   tfree(ltmp);
   tfree(rtmp);
@@ -1140,6 +1331,7 @@ int32_t exprValidateMathNode(tExprNode *pExpr) {
 
       return TSDB_CODE_SUCCESS;
     }
+
     case TSDB_FUNC_SCALAR_ABS: {
       if (pExpr->_func.numChildren != 1) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
