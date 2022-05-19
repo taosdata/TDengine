@@ -48,7 +48,7 @@ class FstWriter {
 
 class FstReadMemory {
  public:
-  FstReadMemory(size_t size, const std::string& fileName = "/tmp/tindex.tindex") {
+  FstReadMemory(int32_t size, const std::string& fileName = "/tmp/tindex.tindex") {
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;
@@ -152,7 +152,7 @@ class FstReadMemory {
   Fst*               _fst;
   FstSlice           _s;
   WriterCtx*         _wc;
-  size_t             _size;
+  int32_t            _size;
 };
 
 #define L 100
