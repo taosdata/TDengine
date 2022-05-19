@@ -3863,7 +3863,7 @@ static YYACTIONTYPE yy_reduce(
 { yymsp[1].minor.yy140 = 0; }
         break;
       case 245: /* bufsize_opt ::= BUFSIZE NK_INTEGER */
-{ yymsp[-1].minor.yy140 = strtol(yymsp[0].minor.yy0.z, NULL, 10); }
+{ yymsp[-1].minor.yy140 = taosStr2Int32(yymsp[0].minor.yy0.z, NULL, 10); }
         break;
       case 246: /* cmd ::= CREATE STREAM not_exists_opt stream_name stream_options into_opt AS query_expression */
 { pCxt->pRootNode = createCreateStreamStmt(pCxt, yymsp[-5].minor.yy617, &yymsp[-4].minor.yy105, yymsp[-2].minor.yy172, yymsp[-3].minor.yy172, yymsp[0].minor.yy172); }

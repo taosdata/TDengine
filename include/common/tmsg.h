@@ -1480,6 +1480,7 @@ typedef struct {
 typedef struct {
   int64_t consumerId;
   char    cgroup[TSDB_CGROUP_LEN];
+  char    clientId[256];
   SArray* topicNames;  // SArray<char**>
 } SCMSubscribeReq;
 
@@ -1487,6 +1488,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
   int32_t tlen = 0;
   tlen += taosEncodeFixedI64(buf, pReq->consumerId);
   tlen += taosEncodeString(buf, pReq->cgroup);
+  tlen += taosEncodeString(buf, pReq->clientId);
 
   int32_t topicNum = taosArrayGetSize(pReq->topicNames);
   tlen += taosEncodeFixedI32(buf, topicNum);
@@ -1500,6 +1502,7 @@ static FORCE_INLINE int32_t tSerializeSCMSubscribeReq(void** buf, const SCMSubsc
 static FORCE_INLINE void* tDeserializeSCMSubscribeReq(void* buf, SCMSubscribeReq* pReq) {
   buf = taosDecodeFixedI64(buf, &pReq->consumerId);
   buf = taosDecodeStringTo(buf, pReq->cgroup);
+  buf = taosDecodeStringTo(buf, pReq->clientId);
 
   int32_t topicNum;
   buf = taosDecodeFixedI32(buf, &topicNum);

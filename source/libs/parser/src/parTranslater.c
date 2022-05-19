@@ -498,7 +498,7 @@ static int32_t parseTimeFromValueNode(SValueNode* pVal) {
       return TSDB_CODE_SUCCESS;
     }
     char* pEnd = NULL;
-    pVal->datum.i = strtoll(pVal->literal, &pEnd, 10);
+    pVal->datum.i = taosStr2Int64(pVal->literal, &pEnd, 10);
     return (NULL != pEnd && '\0' == *pEnd) ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
   } else {
     return TSDB_CODE_FAILED;
@@ -527,61 +527,61 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         break;
       case TSDB_DATA_TYPE_TINYINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int8_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_SMALLINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int16_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_INT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int32_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_BIGINT: {
         char* endPtr = NULL;
-        pVal->datum.i = strtoll(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
         *(int64_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_UTINYINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint8_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_USMALLINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint16_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_UINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint32_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_UBIGINT: {
         char* endPtr = NULL;
-        pVal->datum.u = strtoull(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
         *(uint64_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_FLOAT: {
         char* endPtr = NULL;
-        pVal->datum.d = strtold(pVal->literal, &endPtr);
+        pVal->datum.d = taosStr2Double(pVal->literal, &endPtr);
         *(float*)&pVal->typeData = pVal->datum.d;
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
         char* endPtr = NULL;
-        pVal->datum.d = strtold(pVal->literal, &endPtr);
+        pVal->datum.d = taosStr2Double(pVal->literal, &endPtr);
         *(double*)&pVal->typeData = pVal->datum.d;
         break;
       }
