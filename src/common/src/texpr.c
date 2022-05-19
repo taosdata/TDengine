@@ -216,15 +216,21 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
       }
     }
 
-    // colx bitwise_op (coly logic_op n)
+    // colx logic_op n bitwise_op coly
+    if (pLeft->resultType == TSDB_DATA_TYPE_DOUBLE) {
+      pLeft->resultType = TSDB_DATA_TYPE_BIGINT;
+      pLeft->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
+    }
+
+    // colx bitwise_op coly logic_op n
     if (pRight->resultType == TSDB_DATA_TYPE_DOUBLE) {
       pRight->resultType = TSDB_DATA_TYPE_BIGINT;
       pRight->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
     }
 
     if (pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT) {
-      pExpr->resultType = leftType;
-      pExpr->resultBytes = tDataTypes[leftType].bytes;
+      pExpr->resultType = pLeft->resultType;
+      pExpr->resultBytes = tDataTypes[pLeft->resultType].bytes;
     } else {
       pExpr->resultType = TSDB_DATA_TYPE_BIGINT;
       pExpr->resultBytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes;
