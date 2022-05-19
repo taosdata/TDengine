@@ -558,6 +558,14 @@ class TDTestCase:
         for aggregate_sql in udf2_sqls:
             tdSql.error(aggregate_sql)
 
+        tdSql.execute(" create function db as '/tmp/udf/libudf1.so' outputtype int bufSize 8 ")
+        tdSql.execute(" create aggregate function test as '/tmp/udf/libudf1.so' outputtype int bufSize 8 ")
+        tdSql.error(" select db(c1) from stb1 ")
+        tdSql.error(" select db(c1,c6), db(c6) from stb1 ")
+        tdSql.error(" select db(num1,num2), db(num1) from tb ")
+        tdSql.error(" select test(c1) from stb1 ")
+        tdSql.error(" select test(c1,c6), test(c6) from stb1 ")
+        tdSql.error(" select test(num1,num2), test(num1) from tb ")
         
         
 
@@ -644,6 +652,7 @@ class TDTestCase:
         self.create_udf_function()
         # self.basic_udf_query()
         self.test_function_name()
+       
         
 
     def stop(self):
