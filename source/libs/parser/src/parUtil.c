@@ -160,6 +160,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Only binary/nchar column length could be modified";
     case TSDB_CODE_PAR_INVALID_TBNAME:
       return "Invalid tbname pseudo column";
+    case TSDB_CODE_PAR_INVALID_FUNCTION_NAME:
+      return "Invalid function name";
+    case TSDB_CODE_PAR_COMMENT_TOO_LONG:
+      return "Comment too long";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:

@@ -18,7 +18,7 @@
 
 void bmGetMonitorInfo(SBnodeMgmt *pMgmt, SMonBmInfo *bmInfo) {}
 
-int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SRpcMsg *pReq) {
+int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonBmInfo bmInfo = {0};
   bmGetMonitorInfo(pMgmt, &bmInfo);
   dmGetMonitorSystemInfo(&bmInfo.sys);
@@ -37,17 +37,15 @@ int32_t bmProcessGetMonBmInfoReq(SBnodeMgmt *pMgmt, SRpcMsg *pReq) {
   }
 
   tSerializeSMonBmInfo(pRsp, rspLen, &bmInfo);
-  pReq->info.rsp = pRsp;
-  pReq->info.rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   tFreeSMonBmInfo(&bmInfo);
   return 0;
 }
 
 int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
-  SRpcMsg *pReq = pMsg;
-
   SDCreateBnodeReq createReq = {0};
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -68,10 +66,8 @@ int32_t bmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 }
 
 int32_t bmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
-  SRpcMsg *pReq = pMsg;
-
   SDDropBnodeReq dropReq = {0};
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

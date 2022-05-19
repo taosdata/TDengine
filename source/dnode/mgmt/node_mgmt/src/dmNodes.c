@@ -186,12 +186,12 @@ void dmCloseNode(SMgmtWrapper *pWrapper) {
     }
   }
 
-  taosWLockLatch(&pWrapper->latch);
+  taosThreadRwlockWrlock(&pWrapper->lock);
   if (pWrapper->pMgmt != NULL) {
     (*pWrapper->func.closeFp)(pWrapper->pMgmt);
     pWrapper->pMgmt = NULL;
   }
-  taosWUnLockLatch(&pWrapper->latch);
+  taosThreadRwlockUnlock(&pWrapper->lock);
 
   if (!OnlyInSingleProc(pWrapper)) {
     dmCleanupProc(pWrapper);

@@ -200,12 +200,12 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
   return 0;
 }
 
-static void dmSendRpcRedirectRsp(const SRpcMsg *pReq) {
+static void dmSendRpcRedirectRsp(const SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
   SEpSet  epSet = {0};
   dmGetMnodeEpSet(&pDnode->data, &epSet);
 
-  dDebug("RPC %p, req is redirected, num:%d use:%d", pReq->info.handle, epSet.numOfEps, epSet.inUse);
+  dDebug("RPC %p, req is redirected, num:%d use:%d", pMsg->info.handle, epSet.numOfEps, epSet.inUse);
   for (int32_t i = 0; i < epSet.numOfEps; ++i) {
     dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
     if (strcmp(epSet.eps[i].fqdn, tsLocalFqdn) == 0 && epSet.eps[i].port == tsServerPort) {
@@ -220,12 +220,14 @@ static void dmSendRpcRedirectRsp(const SRpcMsg *pReq) {
 
   SRpcMsg rsp = {
       .code = TSDB_CODE_RPC_REDIRECT,
-      .info = pReq->info,
+      .info = pMsg->info,
       .contLen = len,
   };
   rsp.pCont = rpcMallocCont(len);
   tSerializeSMEpSet(rsp.pCont, len, &msg);
   rpcSendResponse(&rsp);
+
+  rpcFreeCont(pMsg->pCont);
 }
 
 static inline void dmSendRecv(SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
@@ -239,16 +241,16 @@ static inline void dmSendRecv(SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
   }
 }
 
-static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pReq) {
+static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   SDnode *pDnode = dmInstance();
   if (pDnode->status != DND_STAT_RUNNING) {
-    rpcFreeCont(pReq->pCont);
-    pReq->pCont = NULL;
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
     terrno = TSDB_CODE_NODE_OFFLINE;
-    dError("failed to send rpc msg since %s, handle:%p", terrstr(), pReq->info.handle);
+    dError("failed to send rpc msg since %s, handle:%p", terrstr(), pMsg->info.handle);
     return -1;
   } else {
-    rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pReq, NULL);
+    rpcSendRequest(pDnode->trans.clientRpc, pEpSet, pMsg, NULL);
     return 0;
   }
 }

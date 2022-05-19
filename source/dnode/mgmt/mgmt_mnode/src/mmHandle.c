@@ -25,7 +25,7 @@ void mmGetMnodeLoads(SMnodeMgmt *pMgmt, SMonMloadInfo *pInfo) {
   mndGetLoad(pMgmt->pMnode, &pInfo->load);
 }
 
-int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq) {
+int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonMmInfo mmInfo = {0};
   mmGetMonitorInfo(pMgmt, &mmInfo);
   dmGetMonitorSystemInfo(&mmInfo.sys);
@@ -44,13 +44,13 @@ int32_t mmProcessGetMonitorInfoReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq) {
   }
 
   tSerializeSMonMmInfo(pRsp, rspLen, &mmInfo);
-  pReq->info.rsp = pRsp;
-  pReq->info.rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   tFreeSMonMmInfo(&mmInfo);
   return 0;
 }
 
-int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq) {
+int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonMloadInfo mloads = {0};
   mmGetMnodeLoads(pMgmt, &mloads);
 
@@ -67,16 +67,14 @@ int32_t mmProcessGetLoadsReq(SMnodeMgmt *pMgmt, SRpcMsg *pReq) {
   }
 
   tSerializeSMonMloadInfo(pRsp, rspLen, &mloads);
-  pReq->info.rsp = pRsp;
-  pReq->info.rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   return 0;
 }
 
 int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
-  SRpcMsg *pReq = pMsg;
-
   SDCreateMnodeReq createReq = {0};
-  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSDCreateMnodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -101,10 +99,8 @@ int32_t mmProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 }
 
 int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
-  SRpcMsg *pReq = pMsg;
-
   SDDropMnodeReq dropReq = {0};
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -129,10 +125,8 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 }
 
 int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SRpcMsg *pReq = pMsg;
-
   SDAlterMnodeReq alterReq = {0};
-  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
+  if (tDeserializeSDCreateMnodeReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
