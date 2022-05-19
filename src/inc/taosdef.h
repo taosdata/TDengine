@@ -468,6 +468,7 @@ typedef enum {
 } ETsdbStatisStatus;
 
 extern char *qtypeStr[];
+#include "taos.h"
 
 #ifdef __cplusplus
 }

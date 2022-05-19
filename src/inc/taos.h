@@ -18,6 +18,7 @@
 
 #include <stdint.h>
 #include <stdbool.h>
+#include "taosdef.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -212,7 +213,6 @@ DLL_EXPORT TAOS_RES *taos_schemaless_insert(TAOS* taos, char* lines[], int numLi
 
 DLL_EXPORT int32_t taos_parse_time(char* timestr, int64_t* time, int32_t len, int32_t timePrec, int8_t dayligth);
 
-#include "taosdef.h"
 
 #ifdef __cplusplus
 }
