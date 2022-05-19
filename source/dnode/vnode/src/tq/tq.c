@@ -112,19 +112,18 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
     if (pIter == NULL) break;
     pExec = (STqExec*)pIter;
     if (pExec->subType == TOPIC_SUB_TYPE__DB) {
-      if (isAdd) {
-        continue;
-      } else {
+      if (!isAdd) {
         int32_t sz = taosArrayGetSize(tbUidList);
         for (int32_t i = 0; i < sz; i++) {
           int64_t tbUid = *(int64_t*)taosArrayGet(tbUidList, i);
           taosHashPut(pExec->pDropTbUid, &tbUid, sizeof(int64_t), NULL, 0);
         }
       }
-    }
-    for (int32_t i = 0; i < 5; i++) {
-      int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, isAdd);
-      ASSERT(code == 0);
+    } else {
+      for (int32_t i = 0; i < 5; i++) {
+        int32_t code = qUpdateQualifiedTableId(pExec->task[i], tbUidList, isAdd);
+        ASSERT(code == 0);
+      }
     }
   }
   return 0;
@@ -1057,6 +1056,57 @@ int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t wo
     }
   }
   return 0;
+}
+
+int32_t tqProcessStreamTriggerNew(STQ* pTq, SSubmitReq* data) {
+  SStreamDataSubmit* pSubmit = NULL;
+
+  // build data
+  pSubmit = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  if (pSubmit == NULL) return -1;
+  pSubmit->dataRef = taosMemoryMalloc(sizeof(int32_t));
+  if (pSubmit->dataRef == NULL) goto FAIL;
+  *pSubmit->dataRef = 1;
+  pSubmit->data = data;
+  pSubmit->type = STREAM_INPUT__DATA_BLOCK;
+
+  void* pIter = NULL;
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = (SStreamTask*)pIter;
+    if (pTask->inputType == TASK_INPUT_TYPE__SUMBIT_BLOCK) {
+      streamEnqueueDataSubmit(pTask, pSubmit);
+      // TODO cal back pressure
+    }
+    // check run
+    int8_t execStatus = atomic_load_8(&pTask->status);
+    if (execStatus == TASK_STATUS__IDLE || execStatus == TASK_STATUS__CLOSING) {
+      SStreamTaskRunReq* pReq = taosMemoryMalloc(sizeof(SStreamTaskRunReq));
+      if (pReq == NULL) continue;
+      // TODO: do we need htonl?
+      pReq->head.vgId = pTq->pVnode->config.vgId;
+      pReq->streamId = pTask->streamId;
+      pReq->taskId = pTask->taskId;
+      SRpcMsg msg = {
+          .msgType = 0,
+          .pCont = pReq,
+          .contLen = sizeof(SStreamTaskRunReq),
+      };
+      tmsgPutToQueue(&pTq->pVnode->msgCb, FETCH_QUEUE, &msg);
+    }
+  }
+  streamDataSubmitRefDec(pSubmit);
+
+  return 0;
+FAIL:
+  if (pSubmit) {
+    if (pSubmit->dataRef) {
+      taosMemoryFree(pSubmit->dataRef);
+    }
+    taosFreeQitem(pSubmit);
+  }
+  return -1;
 }
 
 int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId) {
