@@ -80,8 +80,8 @@ class TestComp(TDCase):
         self.tdSql.query("select * from ntb")
         self.tdSql.checkData(0,0,'2022-01-01 00:00:00.000')
         #TD-15674
-        # self.tdSql.error('insert into ntb values(1640966400000000,1)')
-        # self.tdSql.error('insert into ntb values(1640966400000000000,1)')
+        self.tdSql.error('insert into ntb values(1640966400000000,1)')
+        self.tdSql.error('insert into ntb values(1640966400000000000,1)')
         
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'drop database if exists {dbname}')
@@ -92,8 +92,8 @@ class TestComp(TDCase):
         self.tdSql.query("select * from ntb")
         self.tdSql.checkData(0,0,'2022-01-01 00:00:00.000')
         #TD-15674
-        # self.tdSql.error('insert into ntb values(1640966400000,1)')
-        # self.tdSql.error('insert into ntb values(1640966400000000000,1)')
+        self.tdSql.error('insert into ntb values(1640966400000,1)')
+        self.tdSql.error('insert into ntb values(1640966400000000000,1)')
 
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.execute(f'drop database if exists {dbname}')
@@ -104,8 +104,8 @@ class TestComp(TDCase):
         self.tdSql.query("select * from ntb")
         self.tdSql.checkData(0,0,1640966400000000001)
         #TD-15674
-        # self.tdSql.error('insert into ntb values(1640966400000,1)')
-        # self.tdSql.error('insert into ntb values(1640966400000000,1)')
+        self.tdSql.error('insert into ntb values(1640966400000,1)')
+        self.tdSql.error('insert into ntb values(1640966400000000,1)')
     def run(self) -> bool:
         self.precision_check()
         self.check_presicion_data()

@@ -133,8 +133,20 @@ class TestKeep(TDCase):
         self.tdSql.execute("insert into ntb values(now,1)")
         self.tdSql.query("select * from ntb")
         self.tdSql.checkRow(1)
-        # self.tdSql.error("insert into ntb values('2020-1-1 00:00:00',1)")
+        self.tdSql.error("insert into ntb values('2020-1-1 00:00:00',1)")
+        self.tdSql.error("insert into ntb values(now+2d,1)")
+        self.tdSql.execute("drop database db1")
 
+        # bug TD-15499
+        self.tdSql.execute("drop database if exists db1")
+        self.tdSql.execute("create database if not exists db1 keep 36500d")
+        self.tdSql.execute("use db1")
+        self.tdSql.execute("create table ntb (ts timestamp,c0 int)")
+        self.tdSql.execute("insert into ntb values(0,1)")
+        self.tdSql.query("select * from ntb")
+        self.tdSql.checkRow(1)
+        self.tdSql.execute("insert into ntb values(-1,1)")
+        self.tdSql.checkRow(1)
         
 
 
