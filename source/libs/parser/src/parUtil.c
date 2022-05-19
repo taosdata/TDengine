@@ -165,7 +165,7 @@ static char* getSyntaxErrFormat(int32_t errCode) {
     case TSDB_CODE_PAR_COMMENT_TOO_LONG:
       return "Comment too long";
     case TSDB_CODE_PAR_NOT_ALLOWED_FUNC:
-      return "%s are allowed only in the SELECT list of a query. "
+      return "Some functions are allowed only in the SELECT list of a query. "
              "And, cannot be mixed with other non scalar functions or columns.";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";

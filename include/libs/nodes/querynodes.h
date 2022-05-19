@@ -237,7 +237,6 @@ typedef struct SSelectStmt {
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasNonstdSQLFunc;
-  bool        hasProjCol;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
