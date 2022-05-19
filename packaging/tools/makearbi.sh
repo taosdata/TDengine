@@ -22,7 +22,7 @@ productName="TDengine"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
-code_dir="${top_dir}/src"
+code_dir="${top_dir}"
 release_dir="${top_dir}/release"
 
 #package_name='linux'
@@ -36,7 +36,7 @@ fi
 bin_files="${build_dir}/bin/tarbitrator ${script_dir}/remove_arbi.sh"
 install_files="${script_dir}/install_arbi.sh"
 
-#header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
+#header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h"
 init_file_tarbitrator_deb=${script_dir}/../deb/tarbitratord
 init_file_tarbitrator_rpm=${script_dir}/../rpm/tarbitratord
 

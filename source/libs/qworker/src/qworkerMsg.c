@@ -287,7 +287,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
   req->taskId = htobe64(tId);
   req->refId = htobe64(rId);
 
-  SRpcMsg pMsg = {
+  SRpcMsg brokenMsg = {
       .msgType = TDMT_VND_DROP_TASK,
       .pCont = req,
       .contLen = sizeof(STaskDropReq),
@@ -295,7 +295,7 @@ int32_t qwRegisterQueryBrokenLinkArg(QW_FPARAMS_DEF, SRpcHandleInfo *pConn) {
       .info = *pConn,
   };
 
-  tmsgRegisterBrokenLinkArg(&pMsg);
+  tmsgRegisterBrokenLinkArg(&brokenMsg);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -321,7 +321,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
     QW_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SRpcMsg pMsg = {
+  SRpcMsg brokenMsg = {
       .msgType = TDMT_VND_QUERY_HEARTBEAT,
       .pCont = msg,
       .contLen = msgSize,
@@ -329,7 +329,7 @@ int32_t qwRegisterHbBrokenLinkArg(SQWorker *mgmt, uint64_t sId, SRpcHandleInfo *
       .info = *pConn,
   };
 
-  tmsgRegisterBrokenLinkArg(&pMsg);
+  tmsgRegisterBrokenLinkArg(&brokenMsg);
 
   return TSDB_CODE_SUCCESS;
 }
