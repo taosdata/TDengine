@@ -107,6 +107,7 @@ static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) 
   if (ref == 0) {
     taosMemoryFree(pDataSubmit->data);
     taosMemoryFree(pDataSubmit->dataRef);
+    taosFreeQitem(pDataSubmit);
   }
 }
 
@@ -278,6 +279,12 @@ typedef struct {
   int64_t version;
   SArray* res;  // SArray<SSDataBlock>
 } SStreamSinkReq;
+
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+} SStreamTaskRunReq;
 
 int32_t streamEnqueueDataSubmit(SStreamTask* pTask, SStreamDataSubmit* input);
 int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
