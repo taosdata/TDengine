@@ -515,11 +515,11 @@ TEST(tdb_test, multi_thread_query) {
 
   // start a transaction
   txnid++;
-  txn = (TXN){.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED,
-              .txnId = -1,
-              .xMalloc = poolMalloc,
-              .xFree = poolFree,
-              .xArg = pPool};
+  txn.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED;
+  txn.txnId = -1;
+  txn.xMalloc = poolMalloc;
+  txn.xFree = poolFree;
+  txn.xArg = pPool;
   // tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, );
   tdbBegin(pEnv, &txn);
 
@@ -528,20 +528,6 @@ TEST(tdb_test, multi_thread_query) {
     sprintf(val, "value%d", iData);
     ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
     GTEST_ASSERT_EQ(ret, 0);
-
-    // if pool is full, commit the transaction and start a new one
-    // if (pPool->size >= poolLimit) {
-    //   break;
-    // // commit current transaction
-    // tdbCommit(pEnv, &txn);
-    // tdbTxnClose(&txn);
-
-    // // start a new transaction
-    // clearPool(pPool);
-    // txnid++;
-    // tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED);
-    // tdbBegin(pEnv, &txn);
-    // }
   }
 
   auto f = [](TTB *pDb, int nData) {
@@ -554,7 +540,11 @@ TEST(tdb_test, multi_thread_query) {
     TXN   txn;
 
     SPoolMem *pPool = openPool();
-    txn = (TXN){.flags = 0, .txnId = 0, .xMalloc = poolMalloc, .xFree = poolFree, .xArg = pPool};
+    txn.flags = 0;
+    txn.txnId = 0;
+    txn.xMalloc = poolMalloc;
+    txn.xFree = poolFree;
+    txn.xArg = pPool;
 
     ret = tdbTbcOpen(pDb, &pDBC, &txn);
     GTEST_ASSERT_EQ(ret, 0);
