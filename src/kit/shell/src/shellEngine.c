@@ -1338,3 +1338,55 @@ void source_file(TAOS *con, char *fptr) {
 }
 
 void shellGetGrantInfo(void *con) { return; }
+
+void encode_base_64(char *base64_buf, char *user, char *password) {
+  char        userpass_buf[1024];
+  static char base64[] = {'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P',
+                          'Q', 'R', 'S', 'T', 'U', 'V', 'W', 'X', 'Y', 'Z', 'a', 'b', 'c', 'd', 'e', 'f',
+                          'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                          'w', 'x', 'y', 'z', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '+', '/'};
+  snprintf(userpass_buf, 1024, "%s:%s", user, password);
+
+  int mod_table[] = {0, 2, 1};
+
+  size_t userpass_buf_len = strlen(userpass_buf);
+  size_t encoded_len = 4 * ((userpass_buf_len + 2) / 3);
+
+  for (int n = 0, m = 0; n < userpass_buf_len;) {
+    uint32_t oct_a = n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+    uint32_t oct_b = n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+    uint32_t oct_c = n < userpass_buf_len ? (unsigned char)userpass_buf[n++] : 0;
+    uint32_t triple = (oct_a << 0x10) + (oct_b << 0x08) + oct_c;
+
+    base64_buf[m++] = base64[(triple >> 3 * 6) & 0x3f];
+    base64_buf[m++] = base64[(triple >> 2 * 6) & 0x3f];
+    base64_buf[m++] = base64[(triple >> 1 * 6) & 0x3f];
+    base64_buf[m++] = base64[(triple >> 0 * 6) & 0x3f];
+  }
+
+  for (int l = 0; l < mod_table[userpass_buf_len % 3]; l++) base64_buf[encoded_len - 1 - l] = '=';
+}
+
+int convertHostToServAddr() {
+  if (args.port == 0) {
+    args.port = 6041;
+  }
+  if (NULL == args.host) {
+    args.host = "127.0.0.1";
+  }
+  struct hostent *server = gethostbyname(args.host);
+  if ((server == NULL) || (server->h_addr == NULL)) {
+    fprintf(stderr, "no such host: %s", args.host);
+    return -1;
+  }
+  memset(&(args.serv_addr), 0, sizeof(struct sockaddr_in));
+  args.serv_addr.sin_family = AF_INET;
+  args.serv_addr.sin_port = htons(args.port);
+#ifdef WINDOWS
+    args.serv_addr.sin_addr.s_addr = inet_addr(args.host);
+#else
+    memcpy(&(args.serv_addr.sin_addr.s_addr), server->h_addr, server->h_length);
+#endif
+  
+  return 0;
+}
