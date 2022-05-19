@@ -64,7 +64,11 @@ int32_t udf2(SUdfDataBlock* block, SUdfInterBuf *interBuf, SUdfInterBuf *newInte
     *(double*)(newInterBuf->buf) = sumSquares;
     newInterBuf->bufLen = sizeof(double);
   }
-  newInterBuf->numOfResult = numOutput;
+  if (interBuf->numOfResult == 0 && numOutput == 0) {
+    newInterBuf->numOfResult = 0;
+  } else {
+    newInterBuf->numOfResult = 1;
+  }
   return 0;
 }
 

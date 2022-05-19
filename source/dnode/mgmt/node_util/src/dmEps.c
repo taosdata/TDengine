@@ -21,7 +21,7 @@ static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep);
 static void dmResetEps(SDnodeData *pData, SArray *dnodeEps);
 
 static void dmGetDnodeEp(SDnodeData *pData, int32_t dnodeId, char *pEp, char *pFqdn, uint16_t *pPort) {
-  taosRLockLatch(&pData->latch);
+  taosThreadRwlockRdlock(&pData->lock);
 
   SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
@@ -36,7 +36,7 @@ static void dmGetDnodeEp(SDnodeData *pData, int32_t dnodeId, char *pEp, char *pF
     }
   }
 
-  taosRUnLockLatch(&pData->latch);
+  taosThreadRwlockUnlock(&pData->lock);
 }
 
 int32_t dmReadEps(SDnodeData *pData) {
@@ -232,7 +232,7 @@ void dmUpdateEps(SDnodeData *pData, SArray *eps) {
   int32_t numOfEps = taosArrayGetSize(eps);
   if (numOfEps <= 0) return;
 
-  taosWLockLatch(&pData->latch);
+  taosThreadRwlockWrlock(&pData->lock);
 
   int32_t numOfEpsOld = (int32_t)taosArrayGetSize(pData->dnodeEps);
   if (numOfEps != numOfEpsOld) {
@@ -246,7 +246,7 @@ void dmUpdateEps(SDnodeData *pData, SArray *eps) {
     }
   }
 
-  taosWUnLockLatch(&pData->latch);
+  taosThreadRwlockUnlock(&pData->lock);
 }
 
 static void dmResetEps(SDnodeData *pData, SArray *dnodeEps) {
@@ -292,7 +292,7 @@ static void dmPrintEps(SDnodeData *pData) {
 static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
   bool changed = false;
   if (dnodeId == 0) return changed;
-  taosRLockLatch(&pData->latch);
+  taosThreadRwlockRdlock(&pData->lock);
 
   SDnodeEp *pDnodeEp = taosHashGet(pData->dnodeHash, &dnodeId, sizeof(int32_t));
   if (pDnodeEp != NULL) {
@@ -304,24 +304,23 @@ static bool dmIsEpChanged(SDnodeData *pData, int32_t dnodeId, const char *ep) {
     }
   }
 
-  taosRUnLockLatch(&pData->latch);
+  taosThreadRwlockUnlock(&pData->lock);
   return changed;
 }
 
 void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
-  taosRLockLatch(&pData->latch);
+  taosThreadRwlockRdlock(&pData->lock);
   *pEpSet = pData->mnodeEps;
-  taosRUnLockLatch(&pData->latch);
+  taosThreadRwlockUnlock(&pData->lock);
 }
 
 void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
-  dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
-
-  taosWLockLatch(&pData->latch);
+  taosThreadRwlockWrlock(&pData->lock);
   pData->mnodeEps = *pEpSet;
+  taosThreadRwlockUnlock(&pData->lock);
+
+  dInfo("mnode is changed, num:%d use:%d", pEpSet->numOfEps, pEpSet->inUse);
   for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
     dInfo("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
-
-  taosWUnLockLatch(&pData->latch);
 }
