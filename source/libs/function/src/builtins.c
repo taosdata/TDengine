@@ -893,16 +893,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = lastFinalize
   },
   {
-    .name = "unique",
-    .type = FUNCTION_TYPE_UNIQUE,
-    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_TIMELINE_FUNC,
-    .translateFunc = translateUnique,
-    .getEnvFunc   = getUniqueFuncEnv,
-    .initFunc     = uniqueFunctionSetup,
-    .processFunc  = uniqueFunction,
-    .finalizeFunc = uniqueFinalize
-  },
-  {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
     .classification = FUNC_MGT_AGG_FUNC,
@@ -991,6 +981,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
     .finalizeFunc = tailFinalize
+  },
+  {
+    .name = "unique",
+    .type = FUNCTION_TYPE_UNIQUE,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateUnique,
+    .getEnvFunc   = getUniqueFuncEnv,
+    .initFunc     = uniqueFunctionSetup,
+    .processFunc  = uniqueFunction,
+    .finalizeFunc = uniqueFinalize
   },
   {
     .name = "abs",
