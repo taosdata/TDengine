@@ -45,7 +45,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     catalogUpdateUserAuthInfo(pCatalog, rsp);
   }
 
-  tFreeSUserAuthBatchRsp(&batchRsp);
+  taosArrayDestroy(batchRsp.pArray);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -285,6 +285,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     int64_t     *rid = pIter;
     SRequestObj *pRequest = acquireRequest(*rid);
     if (NULL == pRequest) {
+      pIter = taosHashIterate(pObj->pRequests, pIter);
       continue;
     }
 
@@ -544,7 +545,7 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
     }
 
     taosArrayPush(pBatchReq->reqs, pOneReq);
-    hbClearClientHbReq(pOneReq);
+    //hbClearClientHbReq(pOneReq);
 
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
@@ -564,6 +565,11 @@ void hbClearReqInfo(SAppHbMgr *pAppHbMgr) {
 
     tFreeReqKvHash(pOneReq->info);
     taosHashClear(pOneReq->info);
+
+    if (pOneReq->query) {
+      taosArrayDestroy(pOneReq->query->queryDesc);
+      taosMemoryFreeClear(pOneReq->query);
+    }
 
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
@@ -745,13 +751,13 @@ int hbMgrInit() {
   hbMgrInitHandle();
 
   // init backgroud thread
-  /*hbCreateThread();*/
+  hbCreateThread();
 
   return 0;
 }
 
 void hbMgrCleanUp() {
-  // hbStopThread();
+  hbStopThread();
 
   // destroy all appHbMgr
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
