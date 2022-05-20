@@ -20,9 +20,6 @@
 extern "C" {
 #endif
 
-#include "os.h"
-
-#include "cJSON.h"
 #include "trpc.h"
 
 // ------------------ ds -------------------
@@ -32,9 +29,6 @@ typedef struct SRaftId {
 } SRaftId;
 
 // ------------------ control -------------------
-struct SSyncNode;
-typedef struct SSyncNode SSyncNode;
-
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);
 
