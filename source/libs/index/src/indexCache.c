@@ -709,9 +709,6 @@ static bool indexCacheIteratorNext(Iterate* itera) {
     iv->type = ct->operaType;
     iv->ver = ct->version;
     iv->colVal = tstrdup(ct->colVal);
-    // printf("col Val: %s\n", iv->colVal);
-    // iv->colType = cv->colType;
-
     taosArrayPush(iv->val, &ct->uid);
   }
   return next;
