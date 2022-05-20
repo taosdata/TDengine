@@ -65,12 +65,14 @@ for (int i = 1; i < keyLen; ++i) {      \
 #define OTD_TIMESTAMP_COLUMN_NAME "ts"
 #define OTD_METRIC_VALUE_COLUMN_NAME "value"
 
-#define TS        "_ts"
-#define TS_LEN    3
-#define TAG       "_tagNone"
-#define TAG_LEN   8
-#define VALUE     "value"
-#define VALUE_LEN 5
+#define TS              "_ts"
+#define TS_LEN          3
+#define TAG             "_tag"
+#define TAG_LEN         4
+#define TAG_VALUE       "NULL"
+#define TAG_VALUE_LEN   4
+#define VALUE           "value"
+#define VALUE_LEN       5
 
 #define BINARY_ADD_LEN 2        // "binary"   2 means " "
 #define NCHAR_ADD_LEN 3         // L"nchar"   3 means L" "
@@ -598,25 +600,33 @@ static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg){
     kvVal->type = TSDB_DATA_TYPE_FLOAT;
     kvVal->f = (float)result;
   }else if ((left == 1 && *endptr == 'i') || (left == 3 && strncasecmp(endptr, "i64", left) == 0)){
-    if(result >= (double)INT64_MAX){
-      kvVal->i = INT64_MAX;
-    }else if(result <= (double)INT64_MIN){
-      kvVal->i = INT64_MIN;
-    }else{
-      kvVal->i = result;
+    if(smlDoubleToInt64OverFlow(result)){
+      errno = 0;
+      int64_t tmp = taosStr2Int64(pVal, &endptr, 10);
+      if(errno == ERANGE){
+        smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal);
+        return false;
+      }
+      kvVal->type = TSDB_DATA_TYPE_BIGINT;
+      kvVal->i = tmp;
+      return true;
     }
     kvVal->type = TSDB_DATA_TYPE_BIGINT;
+    kvVal->i = (int64_t)result;
   }else if ((left == 3 && strncasecmp(endptr, "u64", left) == 0)){
-    if(result < 0){
-      smlBuildInvalidDataMsg(msg, "unsigned big int is too large, out of precision", pVal);
-      return false;
-    }
-    if(result >= (double)UINT64_MAX){
-      kvVal->u = UINT64_MAX;
-    }else{
-      kvVal->u = result;
+    if(result >= (double)UINT64_MAX || result < 0){
+      errno = 0;
+      uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);
+      if(errno == ERANGE || result < 0){
+        smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal);
+        return false;
+      }
+      kvVal->type = TSDB_DATA_TYPE_UBIGINT;
+      kvVal->u = tmp;
+      return true;
     }
     kvVal->type = TSDB_DATA_TYPE_UBIGINT;
+    kvVal->u = result;
   }else if (left == 3 && strncasecmp(endptr, "i32", left) == 0){
     if(!IS_VALID_INT(result)){
       smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal);
@@ -1103,8 +1113,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
   kv->keyLen = VALUE_LEN;
   kv->value = value;
   kv->length = valueLen;
-  if(!smlParseValue(kv, &info->msgBuf) || kv->type == TSDB_DATA_TYPE_BINARY
-      || kv->type == TSDB_DATA_TYPE_NCHAR || kv->type == TSDB_DATA_TYPE_BOOL){
+  if(!smlParseValue(kv, &info->msgBuf)){
     return TSDB_CODE_SML_INVALID_DATA;
   }
 
@@ -1124,8 +1133,8 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, char *c
     if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
     kv->key = TAG;
     kv->keyLen = TAG_LEN;
-    kv->value = TAG;
-    kv->length = TAG_LEN;
+    kv->value = TAG_VALUE;
+    kv->length = TAG_VALUE_LEN;
     kv->type = TSDB_DATA_TYPE_NCHAR;
     if(cols) taosArrayPush(cols, &kv);
     return TSDB_CODE_SUCCESS;
@@ -2264,6 +2273,7 @@ static int32_t smlParseLine(SSmlHandle *info, char* lines[], int numLines){
       uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, *lines);
       return code;
     }
+    return code;
   }
 
   for (int32_t i = 0; i < numLines; ++i) {

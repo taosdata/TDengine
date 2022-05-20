@@ -848,7 +848,7 @@ static int32_t mndRetrieveConsumer(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *
       pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
       colDataAppend(pColInfo, numOfRows, (const char *)cgroup, false);
 
-      // app id
+      // client id
       char clientId[TSDB_CGROUP_LEN + VARSTR_HEADER_SIZE] = {0};
       tstrncpy(varDataVal(clientId), pConsumer->clientId, TSDB_CGROUP_LEN);
       varDataSetLen(clientId, strlen(varDataVal(clientId)));

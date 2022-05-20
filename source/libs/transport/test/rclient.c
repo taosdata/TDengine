@@ -118,9 +118,6 @@ int main(int argc, char *argv[]) {
   rpcInit.sessions = 100;
   rpcInit.idleTime = 100;
   rpcInit.user = "michael";
-  rpcInit.secret = secret;
-  rpcInit.ckey = "key";
-  rpcInit.spi = 1;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcDebugFlag = 131;
 
@@ -144,9 +141,7 @@ int main(int argc, char *argv[]) {
     } else if (strcmp(argv[i], "-u") == 0 && i < argc - 1) {
       rpcInit.user = argv[++i];
     } else if (strcmp(argv[i], "-k") == 0 && i < argc - 1) {
-      rpcInit.secret = argv[++i];
     } else if (strcmp(argv[i], "-spi") == 0 && i < argc - 1) {
-      rpcInit.spi = atoi(argv[++i]);
     } else if (strcmp(argv[i], "-d") == 0 && i < argc - 1) {
       rpcDebugFlag = atoi(argv[++i]);
     } else {
@@ -160,8 +155,6 @@ int main(int argc, char *argv[]) {
       printf("  [-n requests]: number of requests per thread, default is:%d\n", numOfReqs);
       printf("  [-o compSize]: compression message size, default is:%d\n", tsCompressMsgSize);
       printf("  [-u user]: user name for the connection, default is:%s\n", rpcInit.user);
-      printf("  [-k secret]: password for the connection, default is:%s\n", rpcInit.secret);
-      printf("  [-spi SPI]: security parameter index, default is:%d\n", rpcInit.spi);
       printf("  [-d debugFlag]: debug flag, default:%d\n", rpcDebugFlag);
       printf("  [-h help]: print out this help\n\n");
       exit(0);

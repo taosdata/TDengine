@@ -32,7 +32,7 @@ fi
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
-code_dir="${top_dir}/src"
+code_dir="${top_dir}"
 release_dir="${top_dir}/release"
 
 #package_name='linux'
@@ -62,7 +62,7 @@ else
   lib_files="${build_dir}/lib/libtaos.${version}.dylib"
 fi
 
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h"
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
 else
@@ -152,7 +152,7 @@ if [[ $productName == "TDengine" ]]; then
     cp -r ${examples_dir}/go ${install_dir}/examples
     cp -r ${examples_dir}/nodejs ${install_dir}/examples
     cp -r ${examples_dir}/C# ${install_dir}/examples
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../src/kit/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 
   if [ "$verMode" == "cluster" ]; then
@@ -199,8 +199,8 @@ if [[ "$pagMode" != "lite" ]] && [[ "$cpuType" != "aarch32" ]]; then
   else
     echo "WARNING: go connector not found, please check if want to use it!"
   fi
-  cp -r ${connector_dir}/python ${install_dir}/connector
-  cp -r ${connector_dir}/nodejs ${install_dir}/connector
+  cp -r ${connector_dir}/python ${install_dir}/connector || :
+  cp -r ${connector_dir}/nodejs ${install_dir}/connector || :
 fi
 # Copy release note
 # cp ${script_dir}/release_note ${install_dir}
