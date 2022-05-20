@@ -93,6 +93,10 @@ typedef struct SValueNode {
   char    unit;
 } SValueNode;
 
+typedef struct SLeftValueNode {
+  ENodeType type;
+} SLeftValueNode;
+
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
   EOperatorType opType;

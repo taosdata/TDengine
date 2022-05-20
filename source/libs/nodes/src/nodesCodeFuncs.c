@@ -78,6 +78,8 @@ const char* nodesNodeName(ENodeType type) {
       return "TableOptions";
     case QUERY_NODE_INDEX_OPTIONS:
       return "IndexOptions";
+    case QUERY_NODE_LEFT_VALUE:
+      return "LeftValue";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -3012,6 +3014,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return downstreamSourceNodeToJson(pObj, pJson);
+    case QUERY_NODE_LEFT_VALUE:
+      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -3123,6 +3127,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToSlotDescNode(pJson, pObj);
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return jsonToDownstreamSourceNode(pJson, pObj);
+    case QUERY_NODE_LEFT_VALUE:
+      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:
