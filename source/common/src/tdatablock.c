@@ -122,10 +122,14 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
         dataLen = 0;
       } else if (*pData == TSDB_DATA_TYPE_NCHAR) {
         dataLen = varDataTLen(pData + CHAR_BYTES);
-      } else if (*pData == TSDB_DATA_TYPE_BIGINT || *pData == TSDB_DATA_TYPE_DOUBLE) {
-        dataLen = LONG_BYTES;
+      } else if (*pData == TSDB_DATA_TYPE_DOUBLE) {
+        dataLen = DOUBLE_BYTES;
       } else if (*pData == TSDB_DATA_TYPE_BOOL) {
         dataLen = CHAR_BYTES;
+      } else if (*pData == TSDB_DATA_TYPE_JSON) {
+        dataLen = kvRowLen(pData + CHAR_BYTES);
+      } else {
+        ASSERT(0);
       }
       dataLen += CHAR_BYTES;
     }

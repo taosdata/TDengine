@@ -674,10 +674,10 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    pMsg->info.noResp = 1;
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
+    pMsg->info.noResp = 1;
     pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
     sTrace("syncNodeSendMsgById pSyncNode->FpSendMsg is NULL");
@@ -689,10 +689,10 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
   SEpSet epSet;
   syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    pMsg->info.noResp = 1;
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
+    pMsg->info.noResp = 1;
     pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
     sTrace("syncNodeSendMsgByInfo pSyncNode->FpSendMsg is NULL");

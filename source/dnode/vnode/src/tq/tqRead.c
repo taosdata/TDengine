@@ -34,21 +34,11 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
 
 int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
   pReadHandle->pMsg = pMsg;
-  // pMsg->length = htonl(pMsg->length);
-  // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
-  // iterate and convert
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   while (true) {
     if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
     if (pReadHandle->pBlock == NULL) break;
-
-    // pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
-    // pReadHandle->pBlock->suid = htobe64(pReadHandle->pBlock->suid);
-    // pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
-    // pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
-    // pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
-    // pReadHandle->pBlock->numOfRows = htons(pReadHandle->pBlock->numOfRows);
   }
 
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
