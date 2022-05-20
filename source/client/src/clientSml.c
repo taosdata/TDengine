@@ -58,19 +58,17 @@ for (int i = 1; i < keyLen; ++i) {      \
 #define IS_INVALID_COL_LEN(len)   ((len) <= 0 || (len) >= TSDB_COL_NAME_LEN)
 #define IS_INVALID_TABLE_LEN(len) ((len) <= 0 || (len) >= TSDB_TABLE_NAME_LEN)
 
-#define OTD_MAX_FIELDS_NUM      2
 #define OTD_JSON_SUB_FIELDS_NUM 2
 #define OTD_JSON_FIELDS_NUM     4
 
-#define OTD_TIMESTAMP_COLUMN_NAME "ts"
-#define OTD_METRIC_VALUE_COLUMN_NAME "value"
-
-#define TS        "_ts"
-#define TS_LEN    3
-#define TAG       "_tagNone"
-#define TAG_LEN   8
-#define VALUE     "value"
-#define VALUE_LEN 5
+#define TS              "_ts"
+#define TS_LEN          3
+#define TAG             "_tag"
+#define TAG_LEN         4
+#define TAG_VALUE       "NULL"
+#define TAG_VALUE_LEN   4
+#define VALUE           "value"
+#define VALUE_LEN       5
 
 #define BINARY_ADD_LEN 2        // "binary"   2 means " "
 #define NCHAR_ADD_LEN 3         // L"nchar"   3 means L" "
@@ -598,25 +596,33 @@ static bool smlParseNumber(SSmlKv *kvVal, SSmlMsgBuf *msg){
     kvVal->type = TSDB_DATA_TYPE_FLOAT;
     kvVal->f = (float)result;
   }else if ((left == 1 && *endptr == 'i') || (left == 3 && strncasecmp(endptr, "i64", left) == 0)){
-    if(result >= (double)INT64_MAX){
-      kvVal->i = INT64_MAX;
-    }else if(result <= (double)INT64_MIN){
-      kvVal->i = INT64_MIN;
-    }else{
-      kvVal->i = result;
+    if(smlDoubleToInt64OverFlow(result)){
+      errno = 0;
+      int64_t tmp = taosStr2Int64(pVal, &endptr, 10);
+      if(errno == ERANGE){
+        smlBuildInvalidDataMsg(msg, "big int out of range[-9223372036854775808,9223372036854775807]", pVal);
+        return false;
+      }
+      kvVal->type = TSDB_DATA_TYPE_BIGINT;
+      kvVal->i = tmp;
+      return true;
     }
     kvVal->type = TSDB_DATA_TYPE_BIGINT;
+    kvVal->i = (int64_t)result;
   }else if ((left == 3 && strncasecmp(endptr, "u64", left) == 0)){
-    if(result < 0){
-      smlBuildInvalidDataMsg(msg, "unsigned big int is too large, out of precision", pVal);
-      return false;
-    }
-    if(result >= (double)UINT64_MAX){
-      kvVal->u = UINT64_MAX;
-    }else{
-      kvVal->u = result;
+    if(result >= (double)UINT64_MAX || result < 0){
+      errno = 0;
+      uint64_t tmp = taosStr2UInt64(pVal, &endptr, 10);
+      if(errno == ERANGE || result < 0){
+        smlBuildInvalidDataMsg(msg, "unsigned big int out of range[0,18446744073709551615]", pVal);
+        return false;
+      }
+      kvVal->type = TSDB_DATA_TYPE_UBIGINT;
+      kvVal->u = tmp;
+      return true;
     }
     kvVal->type = TSDB_DATA_TYPE_UBIGINT;
+    kvVal->u = result;
   }else if (left == 3 && strncasecmp(endptr, "i32", left) == 0){
     if(!IS_VALID_INT(result)){
       smlBuildInvalidDataMsg(msg, "int out of range[-2147483648,2147483647]", pVal);
@@ -718,55 +724,41 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   if(value + len != endPtr){
     return -1;
   }
+  if(tsInt64 == 0){
+    return taosGetTimestampNs();
+  }
   double ts = tsInt64;
   switch (type) {
     case TSDB_TIME_PRECISION_HOURS:
-      ts *= (3600 * 1e9);
-      tsInt64 *= (3600 * 1e9);
+      ts *= NANOSECOND_PER_HOUR;
+      tsInt64 *= NANOSECOND_PER_HOUR;
       break;
     case TSDB_TIME_PRECISION_MINUTES:
-      ts *= (60 * 1e9);
-      tsInt64 *= (60 * 1e9);
+      ts *= NANOSECOND_PER_MINUTE;
+      tsInt64 *= NANOSECOND_PER_MINUTE;
       break;
     case TSDB_TIME_PRECISION_SECONDS:
-      ts *= (1e9);
-      tsInt64 *= (1e9);
+      ts *= NANOSECOND_PER_SEC;
+      tsInt64 *= NANOSECOND_PER_SEC;
       break;
     case TSDB_TIME_PRECISION_MILLI:
-      ts *= (1e6);
-      tsInt64 *= (1e6);
+      ts *= NANOSECOND_PER_MSEC;
+      tsInt64 *= NANOSECOND_PER_MSEC;
       break;
     case TSDB_TIME_PRECISION_MICRO:
-      ts *= (1e3);
-      tsInt64 *= (1e3);
+      ts *= NANOSECOND_PER_USEC;
+      tsInt64 *= NANOSECOND_PER_USEC;
       break;
     case TSDB_TIME_PRECISION_NANO:
       break;
     default:
       ASSERT(0);
   }
-  if(ts >= (double)INT64_MAX || ts <= 0){
+  if(ts >= (double)INT64_MAX || ts < 0){
     return -1;
   }
 
   return tsInt64;
-}
-
-static int64_t smlGetTimeNow(int8_t precision) {
-  switch (precision) {
-    case TSDB_TIME_PRECISION_HOURS:
-      return taosGetTimestampMs()/1000/3600;
-    case TSDB_TIME_PRECISION_MINUTES:
-      return taosGetTimestampMs()/1000/60;
-    case TSDB_TIME_PRECISION_SECONDS:
-      return taosGetTimestampMs()/1000;
-    case TSDB_TIME_PRECISION_MILLI:
-    case TSDB_TIME_PRECISION_MICRO:
-    case TSDB_TIME_PRECISION_NANO:
-      return taosGetTimestamp(precision);
-    default:
-      ASSERT(0);
-  }
 }
 
 static int8_t smlGetTsTypeByLen(int32_t len) {
@@ -800,13 +792,14 @@ static int8_t smlGetTsTypeByPrecision(int8_t precision) {
 }
 
 static int64_t smlParseInfluxTime(SSmlHandle* info, const char* data, int32_t len){
+  if(len == 0){
+    return taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+  }
+
   int8_t tsType = smlGetTsTypeByPrecision(info->precision);
   if (tsType == -1) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp precision", NULL);
     return -1;
-  }
-  if(len == 0){
-    return smlGetTimeNow(tsType);
   }
 
   int64_t ts = smlGetTimeValue(data, len, tsType);
@@ -1103,8 +1096,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
   kv->keyLen = VALUE_LEN;
   kv->value = value;
   kv->length = valueLen;
-  if(!smlParseValue(kv, &info->msgBuf) || kv->type == TSDB_DATA_TYPE_BINARY
-      || kv->type == TSDB_DATA_TYPE_NCHAR || kv->type == TSDB_DATA_TYPE_BOOL){
+  if(!smlParseValue(kv, &info->msgBuf)){
     return TSDB_CODE_SML_INVALID_DATA;
   }
 
@@ -1124,8 +1116,8 @@ static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, char *c
     if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
     kv->key = TAG;
     kv->keyLen = TAG_LEN;
-    kv->value = TAG;
-    kv->length = TAG_LEN;
+    kv->value = TAG_VALUE;
+    kv->length = TAG_VALUE_LEN;
     kv->type = TSDB_DATA_TYPE_NCHAR;
     if(cols) taosArrayPush(cols, &kv);
     return TSDB_CODE_SUCCESS;
@@ -1610,7 +1602,8 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
-    if(timeDouble <= 0){
+
+    if(timeDouble < 0){
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
     uint8_t tsLen = smlGetTimestampLen((int64_t)timeDouble);
@@ -1628,7 +1621,9 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
         return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
       tsVal = timeDouble;
-    } else {
+    } else if(timeDouble == 0){
+      tsVal = taosGetTimestampNs();
+    }else {
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
   } else if (cJSON_IsObject(timestamp)) {
@@ -2264,6 +2259,7 @@ static int32_t smlParseLine(SSmlHandle *info, char* lines[], int numLines){
       uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, *lines);
       return code;
     }
+    return code;
   }
 
   for (int32_t i = 0; i < numLines; ++i) {

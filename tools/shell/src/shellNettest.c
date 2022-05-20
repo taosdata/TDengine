@@ -31,9 +31,6 @@ static void shellWorkAsClient() {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
-  rpcInit.ckey = "_key";
-  rpcInit.spi = 1;
-  rpcInit.secret = pass;
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {

@@ -116,7 +116,7 @@ TFileCache* tfileCacheCreate(const char* path) {
       continue;
     }
     TFileHeader* header = &reader->header;
-    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
+    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = (int32_t)strlen(header->colName)};
 
     char    buf[128] = {0};
     int32_t sz = indexSerialCacheKey(&key, buf);
@@ -230,7 +230,7 @@ static int32_t tfSearchTerm(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
     indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex, time cost: %" PRIu64 "us",
               tem->suid, tem->colName, tem->colVal, cost);
 
-    ret = tfileReaderLoadTableIds((TFileReader*)reader, offset, tr->total);
+    ret = tfileReaderLoadTableIds((TFileReader*)reader, (int32_t)offset, tr->total);
     cost = taosGetTimestampUs() - et;
     indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, time cost: %" PRIu64 "us", tem->suid,
               tem->colName, tem->colVal, cost);
@@ -890,7 +890,7 @@ static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(tfileMagicNumber) + 1] = {0};
   void* pBuf = (void*)buf;
   taosEncodeFixedU64((void**)(void*)&pBuf, tfileMagicNumber);
-  int nwrite = write->ctx->write(write->ctx, buf, strlen(buf));
+  int nwrite = write->ctx->write(write->ctx, buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
   assert(nwrite == sizeof(tfileMagicNumber));

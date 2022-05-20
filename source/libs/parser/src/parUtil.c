@@ -164,6 +164,11 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Invalid function name";
     case TSDB_CODE_PAR_COMMENT_TOO_LONG:
       return "Comment too long";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FUNC:
+      return "Some functions are allowed only in the SELECT list of a query. "
+             "And, cannot be mixed with other non scalar functions or columns.";
+    case TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY:
+      return "Window query not supported, since the result of subquery not include valid timestamp column";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -362,8 +367,8 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
     if (keyLen == 0 || taosHashGet(keyHash, jsonKey, keyLen) != NULL) {
       continue;
     }
-    // key: keyLen + VARSTR_HEADER_SIZE, value type: CHAR_BYTES, value reserved: LONG_BYTES
-    tagKV = taosMemoryCalloc(keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + LONG_BYTES, 1);
+    // key: keyLen + VARSTR_HEADER_SIZE, value type: CHAR_BYTES, value reserved: DOUBLE_BYTES
+    tagKV = taosMemoryCalloc(keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + DOUBLE_BYTES, 1);
     if (!tagKV) {
       retCode = TSDB_CODE_TSC_OUT_OF_MEMORY;
       goto end;
@@ -408,13 +413,9 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
       }
       char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
       char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
-      *valueType =
-          (item->valuedouble - (int64_t)(item->valuedouble) == 0) ? TSDB_DATA_TYPE_BIGINT : TSDB_DATA_TYPE_DOUBLE;
-      if (*valueType == TSDB_DATA_TYPE_DOUBLE)
-        *((double*)valueData) = item->valuedouble;
-      else if (*valueType == TSDB_DATA_TYPE_BIGINT)
-        *((int64_t*)valueData) = item->valueint;
-      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + LONG_BYTES);
+      *valueType = TSDB_DATA_TYPE_DOUBLE;
+      *((double*)valueData) = item->valuedouble;
+      tdAddColToKVRow(kvRowBuilder, jsonIndex++, tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES + DOUBLE_BYTES);
     } else if (item->type == cJSON_True || item->type == cJSON_False) {
       char* valueType = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE);
       char* valueData = POINTER_SHIFT(tagKV, keyLen + VARSTR_HEADER_SIZE + CHAR_BYTES);
