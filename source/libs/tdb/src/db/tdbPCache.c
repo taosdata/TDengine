@@ -14,8 +14,8 @@
  */
 #include "tdbInt.h"
 
-#include <sys/types.h>
-#include <unistd.h>
+// #include <sys/types.h>
+// #include <unistd.h>
 
 struct SPCache {
   int         szPage;
