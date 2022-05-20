@@ -188,6 +188,10 @@ fn test_tbname_tags() -> Result<(), Error> {
     stmt.set_tbname_tags_v3(&tbname, &tags)?;
     println!("bind");
 
+    // todo: get_param not implemented in taosc 3.0
+    // let p = stmt.get_param(0)?;
+    // dbg!(p);
+
     let params = vec![TaosBind::from(&ITimestamp(0)), TaosBind::from(&0i32)];
     stmt.bind_param(&params)?;
     println!("add batch");
@@ -198,8 +202,7 @@ fn test_tbname_tags() -> Result<(), Error> {
     assert!(stmt.affected_rows() == 1);
 
     let res = taos.query(b"select count(*) from st1\0".as_ptr() as _)?;
-    
 
-    // taos.query(b"drop database stt1\0".as_ptr() as _)?;
+    taos.query(b"drop database stt1\0".as_ptr() as _)?;
     Ok(())
 }

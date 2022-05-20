@@ -165,7 +165,7 @@ impl App {
                                 futures::executor::block_on(sync_schema(&taos1, &taos2))?;
                             }
 
-                            let bind: Vec<MultiBind> =
+                            let bind: Vec<TaosMultiBind> =
                                 block.columns_iter().map(|col| col.into()).collect();
                             use itertools::Itertools;
                             let questions = std::iter::repeat("?").take(bind.len()).join(",");
@@ -179,7 +179,7 @@ impl App {
                         })
                         .collect();
                 }
-                tmq.commit(None, 0)?;
+                tmq.commit_sync(())?;
                 log::info!("[{idx}] task done");
                 Ok::<_, anyhow::Error>(())
             });
@@ -189,7 +189,7 @@ impl App {
         for handle in handles {
             let _ = handle.join();
         }
-        
+
         Ok(())
     }
 }

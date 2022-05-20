@@ -236,7 +236,7 @@ pub mod prelude {
     pub use crate::impls::ResultSet;
     pub use crate::options::TaosOptions;
     pub use crate::query::FromDsn;
-    pub use crate::stmt::MultiBind;
+    pub use crate::stmt::{TaosBind, TaosMultiBind};
     pub use crate::Taos;
     pub use taos_query::common::{Precision, Timestamp, Ty, Value};
     pub use taos_query::{common, AsyncFetchable, AsyncQueryable, BlockCodec, BlockExt};
@@ -254,7 +254,7 @@ pub mod prelude {
         pub use crate::impls::ResultSet;
         pub use crate::options::TaosOptions;
         pub use crate::query::FromDsn;
-        pub use crate::stmt::MultiBind;
+        pub use crate::stmt::{TaosBind, TaosMultiBind};
         pub use crate::Taos;
         pub use taos_query::common::{Precision, Timestamp, Ty, Value};
         pub use taos_query::{common, BlockCodec, BlockExt, Fetchable, Queryable};

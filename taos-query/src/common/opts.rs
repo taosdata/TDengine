@@ -66,7 +66,7 @@ impl TaosOpts {
             return Ok(Self::new());
         }
         let _ = Dsn::parse(dsn)?;
-        
+
         Ok(Self::default())
     }
 

@@ -71,6 +71,7 @@ impl Stream for BlockStream {
 
                 Some(SyncBlock {
                     raw: self.raw.clone(),
+                    fields: None,
                     precision: self.raw.precision(),
                     data,
                     lengths,

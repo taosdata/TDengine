@@ -7,7 +7,7 @@ use serde::Deserializer;
 use serde::de::value::Error;
 
 use crate::common::BorrowedValue;
-use crate::{Field};
+use crate::Field;
 
 /// Row-based deserializer helper.
 ///

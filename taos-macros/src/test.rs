@@ -187,7 +187,9 @@ impl Attr {
                     }
                 }
 
-                TokenTree::Ident(ident) if ident.to_string() == "log_level" || ident.to_string() == "log-level" => {
+                TokenTree::Ident(ident)
+                    if ident.to_string() == "log_level" || ident.to_string() == "log-level" =>
+                {
                     const EXPECT: &str = "`[test(log_level = \"trace|debug|info|warn|error\")]`";
                     let _ = iter.next();
                     let value = iter.next().expect(EXPECT);

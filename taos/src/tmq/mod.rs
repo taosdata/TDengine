@@ -10,6 +10,19 @@ use crate::{Code, Error, IntoCStr, Result, Taos};
 use taos_query::Dsn;
 use taos_sys::*;
 
+unsafe extern "C" fn tmq_commit_callback(
+    _tmq: *mut tmq_t,
+    resp: tmq_resp_err_t,
+    _topic: *mut tmq_topic_vgroup_list_t,
+    param: *mut c_void,
+) {
+    log::info!("commit {resp:?}");
+    let cons = ConsumerRef::from_ptr(_tmq);
+    let topic = resp.ok_or("commit failed").map(|_| Offsets(_topic));
+    let cb: &Weak<fn(ConsumerRef, Result<Offsets>)> = std::mem::transmute(param);
+    (*cb.as_ptr())(cons, topic);
+}
+
 #[derive(Debug)]
 pub struct TmqList(*mut tmq_list_t);
 
@@ -149,22 +162,9 @@ impl TmqBuilder {
         })
     }
 
-    pub fn on_commit(&mut self, callback: fn(ConsumerRef, Result<Offsets>)) -> &mut Self {
-        unsafe extern "C" fn tmq_commit_callback(
-            _tmq: *mut tmq_t,
-            resp: tmq_resp_err_t,
-            _topic: *mut tmq_topic_vgroup_list_t,
-            param: *mut c_void,
-        ) {
-            log::info!("commit {resp:?}");
-            let cons = ConsumerRef::from_ptr(_tmq);
-            let topic = resp.ok_or("commit failed").map(|_| Offsets(_topic));
-            let cb: &Weak<fn(ConsumerRef, Result<Offsets>)> = std::mem::transmute(param);
-            (*cb.as_ptr())(cons, topic);
-        }
+    pub fn on_auto_commit(&mut self, callback: fn(ConsumerRef, Result<Offsets>)) -> &mut Self {
         let on_commit = Arc::new(callback);
         let cb = Arc::downgrade(&on_commit);
-
         self.on_commit = Some(on_commit);
         // todo: callback pointer should be freed in Drop.
         self.conf
@@ -220,6 +220,44 @@ mod test {
     use crate::tmq::*;
 
     use anyhow::Result;
+
+    #[crate::test(log_level = "debug")]
+    fn independent_blocks(taos: &Taos, database: &str) -> Result<()> {
+        taos.exec("create table tb1 (ts timestamp, v1 int)")?;
+        taos.exec("create table tb2 (ts timestamp, v2 int)")?;
+        taos.exec("create table tb3 (ts timestamp, v3 int)")?;
+        taos.exec("create table tb4 (ts timestamp, v4 int)")?;
+        taos.exec("create table tb5 (ts timestamp, v5 int)")?;
+        taos.exec(concat!(
+            "insert into tb1 values(now, 1) ",
+            "tb2 values(now, 2) ",
+            "tb3 values(now, 3)",
+            "tb4 values(now, 4)",
+            "tb5 values(now, 5)",
+        ))?;
+        taos.exec(format!("create topic {database} as {database}"))?;
+
+        let builder = TmqBuilder::from_dsn(format!(
+            "taos:///{database}?topics={database}&group.id={database}&wait=1000"
+        ))?;
+        let tmq = builder.build()?;
+        while let Some(Ok(mut rs)) = tmq.poll() {
+            for block in rs.blocks_iter() {
+                let fields = block.fields();
+                let tbname = block.tmq_table_name().unwrap();
+                log::info!("block table name: {tbname}");
+                assert!(fields.len() == 2);
+                dbg!(fields);
+                for row in block.deserialize::<(String, i32)>() {
+                    let row = row?;
+                    dbg!(row);
+                }
+            }
+            let (blocks, records) = rs.summary();
+            log::info!("fetch {blocks} blocks, with {records} records");
+        }
+        Ok(())
+    }
 
     fn drop_topic(taos: &Taos, topic: &str) -> Result<()> {
         taos.exec(format!("drop topic if exists {topic}"))?;
@@ -291,7 +329,7 @@ mod test {
                 process_message(&mut msg);
                 msg_count.fetch_add(1, atomic::Ordering::SeqCst);
 
-                consumer.commit(None, 0)?;
+                consumer.commit_sync(None)?;
                 println!("msg summary: {:?}", msg.summary());
             }
         }
@@ -322,7 +360,7 @@ mod test {
         let dsn = format!("taos:///{database}?topics={topic}&group.id={gid}&wait=1000");
         log::info!("subscribe with dsn: {dsn}");
         let consumer = TmqBuilder::from_dsn(&dsn)?
-            .on_commit(
+            .on_auto_commit(
                 |_: ConsumerRef, _: std::result::Result<Offsets, taos_error::Error>| {
                     log::info!("rust callback");
                 },
@@ -362,7 +400,7 @@ mod test {
         );
         log::info!("subscribe with dsn: {dsn}");
         let consumer = TmqBuilder::from_dsn(&dsn)?
-            .on_commit(
+            .on_auto_commit(
                 |_: ConsumerRef, _: std::result::Result<Offsets, taos_error::Error>| {
                     log::info!("rust callback");
                 },

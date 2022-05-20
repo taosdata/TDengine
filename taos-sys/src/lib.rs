@@ -273,6 +273,11 @@ impl RawRes {
         &fields
     }
 
+    pub fn fetch_fields(&self) -> Vec<Field> {
+        let len = unsafe { taos_num_fields(self.as_ptr()) };
+        from_raw_fields(unsafe { taos_fetch_fields(self.as_ptr()) }, len as usize)
+    }
+
     #[inline]
     pub fn fetch_lengths(&self) -> *const i32 {
         unsafe { taos_fetch_lengths(self.as_ptr()) }
@@ -404,8 +409,8 @@ impl RawRes {
     }
 }
 
-pub mod stmt;
 pub mod into_c_str;
+pub mod stmt;
 
 // #[derive(Debug, Clone, Copy)]
 // #[repr(C)]

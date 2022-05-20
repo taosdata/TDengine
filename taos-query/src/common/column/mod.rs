@@ -53,9 +53,7 @@ pub enum Column {
     Blob(BitVec, Vec<Vec<u8>>),
 }
 
-
 impl<'block> BorrowedColumn<'block> {
-
     pub fn get(&self, index: usize) -> BorrowedValue<'block> {
         macro_rules! get_primitive {
             ($target:ident, $nulls:expr, $values:expr) => {

@@ -1,5 +1,3 @@
-
-
 use std::fmt::{Debug, Display};
 
 use super::ty::Ty;

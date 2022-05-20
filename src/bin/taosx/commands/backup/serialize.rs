@@ -12,7 +12,11 @@ use parquet::{
     schema::types::Type,
 };
 
-use taos::{block::{BlockStream, Describe}, helpers::ColumnMeta, prelude::BlockExt};
+use taos::{
+    block::{BlockStream, Describe},
+    helpers::ColumnMeta,
+    prelude::BlockExt,
+};
 use taosx::{TaosBlock, TaosDescribe, TaosTag};
 
 pub struct Serialize<W: ParquetWriter + 'static> {
