@@ -815,9 +815,6 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
-  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pInfo->binfo.resultRowInfo,
-                                pInfo->binfo.rowCellInfoOffset);
-
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->order);
   OPTR_SET_OPENED(pOperator);
   return TSDB_CODE_SUCCESS;
@@ -933,7 +930,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+    if (pBInfo->pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       return NULL;
     }
@@ -960,13 +957,11 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
 
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pBInfo->resultRowInfo);
-  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
-                                pBInfo->rowCellInfoOffset);
 
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-  if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+  if (pBInfo->pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
 
@@ -994,7 +989,7 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
     blockDataEnsureCapacity(pBlock, pOperator->resultInfo.capacity);
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
 
-    if (pBlock->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+    if (pBlock->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
@@ -1082,7 +1077,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+    if (pInfo->binfo.pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
     return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
@@ -1413,7 +1408,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+    if (pBInfo->pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
       return NULL;
     }
@@ -1440,13 +1435,11 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pBInfo->resultRowInfo);
-  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pBInfo->resultRowInfo,
-                                pBInfo->rowCellInfoOffset);
 
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, TSDB_ORDER_ASC);
   blockDataEnsureCapacity(pBInfo->pRes, pOperator->resultInfo.capacity);
   doBuildResultDatablock(pOperator, pBInfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-  if (pBInfo->pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+  if (pBInfo->pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
     doSetOperatorCompleted(pOperator);
   }
 
@@ -1461,7 +1454,7 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
   STimeSliceOperatorInfo* pSliceInfo = pOperator->info;
   if (pOperator->status == OP_RES_TO_RETURN) {
     //    doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pIntervalInfo->pRes);
-    if (pSliceInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pSliceInfo->groupResInfo)) {
+    if (pSliceInfo->binfo.pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pSliceInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
 
@@ -1493,7 +1486,7 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
   //  initGroupedResultInfo(&pSliceInfo->groupResInfo, &pSliceInfo->binfo.resultRowInfo);
   //  doBuildResultDatablock(&pRuntimeEnv->groupResInfo, pRuntimeEnv, pSliceInfo->pRes);
 
-  if (pSliceInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pSliceInfo->groupResInfo)) {
+  if (pSliceInfo->binfo.pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pSliceInfo->groupResInfo)) {
     pOperator->status = OP_EXEC_DONE;
   }
 
@@ -1695,7 +1688,7 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
     return NULL;
   } else if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pInfo->binfo.pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+    if (pInfo->binfo.pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
     return pInfo->binfo.pRes->info.rows == 0 ? NULL : pInfo->binfo.pRes;
