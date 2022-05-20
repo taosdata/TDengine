@@ -188,13 +188,14 @@ int main(int argc, char const *argv[]) {
   }
 
   if (dmInitLog() != 0) {
-    printf("failed to start since init log error");
+    printf("failed to start since init log error\n");
     taosCleanupArgs();
     return -1;
   }
 
   if (taosInitCfg(configDir, global.envCmd, global.envFile, global.apolloUrl, global.pArgs, 0) != 0) {
     dError("failed to start since read config error");
+    taosCloseLog();
     taosCleanupArgs();
     return -1;
   }
