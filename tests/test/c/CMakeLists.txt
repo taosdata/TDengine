@@ -23,6 +23,8 @@ target_link_libraries(
     PUBLIC common
     PUBLIC os
 )
+
+IF (TD_LINUX)
 target_link_libraries(
     sdbDump
     PUBLIC dnode
@@ -37,3 +39,4 @@ target_include_directories(
     PRIVATE "${TD_SOURCE_DIR}/source/dnode/mnode/sdb/inc"
     PRIVATE "${TD_SOURCE_DIR}/source/dnode/mgmt/node_mgmt/inc"
 )
+ENDIF ()
