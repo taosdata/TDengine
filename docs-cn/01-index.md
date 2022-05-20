@@ -4,7 +4,7 @@ sidebar_label: 文档首页
 slug: /
 ---
 
-TDengine 是一款高性能、分布式、支持 SQL 的时序数据库 (Database)。本文档是 TDengine 用户手册，主要是介绍 TDengine 的基本概念、安装、使用、功能、开发接口、运营维护、TDengine 内核设计等等，它主要是面向架构师、开发者与系统管理员的。
+TDengine 是一款[高性能](https://www.taosdata.com/fast)、[分布式](https://www.taosdata.com/scalable)、[支持 SQL](https://www.taosdata.com/sql-support) 的时序数据库 (Database)。本文档是 TDengine 用户手册，主要是介绍 TDengine 的基本概念、安装、使用、功能、开发接口、运营维护、TDengine 内核设计等等，它主要是面向架构师、开发者与系统管理员的。
 
 TDengine 充分利用了时序数据的特点，提出了“一个数据采集点一张表”与“超级表”的概念，设计了创新的存储引擎，让数据的写入、查询和存储效率都得到极大的提升。为正确理解并使用TDengine, 无论如何，请您仔细阅读[基本概念](./concept)一章。
 

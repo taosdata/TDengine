@@ -20,7 +20,7 @@ Below function template can be used to define your own scalar function.
 
 `udfNormalFunc` is the place holder of function name, a function implemented based on the above template can be used to perform scalar computation on data rows. The parameters are fixed to control the data exchange between UDF and TDengine.
 
-- Defintions of the parameters:
+- Definitions of the parameters:
 
   - data：input data
   - itype：the type of input data, for details please refer to [type definition in column_meta](/reference/rest-api/), for example 4 represents INT
@@ -128,7 +128,7 @@ CREATE AGGREGATE FUNCTION ids(X) AS ids(Y) OUTPUTTYPE typename(Z) [ BUFSIZE B ];
 
 - ids(X)：the function name to be sued in SQL statement, must be consistent with the function name defined by `udfNormalFunc`
 - ids(Y)：the absolute path of the DLL file including the implementation of the UDF, the path needs to be quoted by single or double quotes
-- typename(Z)：the output data type, the value is the literal string of the type 此
+- typename(Z)：the output data type, the value is the literal string of the type
 - B：the size of intermediate buffer, in bytes; it's an optional parameter and the range is [0,512]
 
 For details about how to use intermediate result, please refer to example program [demo.c](https://github.com/taosdata/TDengine/blob/develop/tests/script/sh/demo.c).

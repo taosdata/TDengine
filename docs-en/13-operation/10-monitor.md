@@ -38,7 +38,7 @@ There are two ways to setup Grafana alert notification.
      sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
      ```
 
-- The AliClund SMS alert built in TDengine data source plugin can be enabled with parameter `-s`, the parameters of this way are as follows:
+- The AliCloud SMS alert built in TDengine data source plugin can be enabled with parameter `-s`, the parameters of this way are as follows:
 
   - `-I`: AliCloud SMS Key ID
   - `-K`: AliCloud SMS Key Secret

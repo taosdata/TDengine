@@ -153,7 +153,7 @@ The relationship between a STable and the subtables created based on this STable
 
 Queries can be executed on both a table (subtable) and a STable. For a query on a STable, TDengine will treat the data in all its subtables as a whole data set for processing. TDengine will first find the subtables that meet the tag filter conditions, then scan the time-series data of these subtables to perform aggregation operation, which can greatly reduce the data sets to be scanned, thus greatly improving the performance of data aggregation across multiple DCPs.
 
-In TDengine, it is recommended to use a substable instead of a regular table for a DCP. 
+In TDengine, it is recommended to use a subtable instead of a regular table for a DCP. 
 
 ## Database
 

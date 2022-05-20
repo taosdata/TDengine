@@ -312,7 +312,7 @@ Logical operations in below table can be used in `where` clause to filter the re
 | like          | match a wildcard string  | **`binary`** **`nchar`**                  |
 | match/nmatch  | filter regex             | **`binary`** **`nchar`**                  |
 
-**使用说明**:
+**Explanations**:
 
 - Operator `<\>` is equal to `!=`, please be noted that this operator can't be used on the first column of any table, i.e.timestamp column.
 - Operator `like` is used together with wildcards to match strings
