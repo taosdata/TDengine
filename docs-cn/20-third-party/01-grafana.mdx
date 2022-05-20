@@ -8,6 +8,7 @@ TDengine 能够与开源数据可视化系统 [Grafana](https://www.grafana.com/
 ## 前置条件
 
 要让 Grafana 能正常添加 TDengine 数据源，需要以下几方面的准备工作。
+
 - TDengine 集群已经部署并正常运行
 - taosAdapter 已经安装并正常运行。具体细节请参考 [taosAdapter 的使用手册](/reference/taosadapter)
 
@@ -23,14 +24,14 @@ TDengine 的 Grafana 插件托管在 GitHub，可从 <https://github.com/taosdat
 
 ```bash
 sudo -u grafana grafana-cli \
-  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.1.4/tdengine-datasource-3.1.4.zip \
+  --pluginUrl https://github.com/taosdata/grafanaplugin/releases/download/v3.1.7/tdengine-datasource-3.1.7.zip \
   plugins install tdengine-datasource
 ```
 
 或者下载到本地并解压到 Grafana 插件目录。
 
 ```bash
-GF_VERSION=3.1.4
+GF_VERSION=3.1.7
 wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/tdengine-datasource-$GF_VERSION.zip
 ```
 
@@ -40,12 +41,15 @@ wget https://github.com/taosdata/grafanaplugin/releases/download/v$GF_VERSION/td
 sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 ```
 
-Grafana 7.3+ / 8.x 版本会对插件进行签名检查，因此还需要在 grafana.ini 文件中增加如下行，才能正确使用插件：
+:::note
+插件版本 3.1.6 及之前版本未签名，在 Grafana 7.3+ / 8.x 版本签名检查会导致无法加载插件，因此需要在 grafana.ini 文件中修改配置如下：
 
 ```ini
 [plugins]
 allow_loading_unsigned_plugins = tdengine-datasource
 ```
+
+:::
 
 在 Docker 环境下，可以使用如下的环境变量设置自动安装并设置 TDengine 插件：
 
