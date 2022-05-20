@@ -736,7 +736,7 @@ class TDTestCase:
             sql += ")"
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            tdSql.error(sql)
+            #tdSql.error(sql)
             #TD-15610 tdSql.query(sql)
             # tdSql.checkRows(100)
 

@@ -485,6 +485,17 @@ function install_service() {
     # fi
 }
 
+function install_config() {
+    if [ ! -f ${cfg_install_dir}/${configFile} ]; then
+        ${csudo}mkdir -p ${cfg_install_dir}
+        [ -f ${script_dir}/cfg/${configFile} ] && ${csudo}cp ${script_dir}/cfg/${configFile} ${cfg_install_dir}
+        ${csudo}chmod 644 ${cfg_install_dir}/*
+    fi
+
+    ${csudo}cp -f ${script_dir}/cfg/${configFile} ${install_main_dir}/cfg/${configFile}.org
+    ${csudo}ln -s ${cfg_install_dir}/${configFile} ${install_main_dir}/cfg
+}
+
 function install_TDengine() {
     # Start to install
     echo -e "${GREEN}Start to install TDengine...${NC}"
@@ -500,7 +511,7 @@ function install_TDengine() {
         # For installing new
         install_bin
         install_service
-        #install_config
+        install_config
 
         # Ask if to start the service
         #echo
@@ -539,7 +550,7 @@ function install_TDengine() {
         echo
     else # Only install client
         install_bin
-        #install_config
+        install_config
         echo
         echo -e "\033[44;32;1mTDengine client is installed successfully!${NC}"
     fi

@@ -16,9 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-static void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
+void smGetMonitorInfo(SSnodeMgmt *pMgmt, SMonSmInfo *smInfo) {}
 
-int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pReq) {
+int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonSmInfo smInfo = {0};
   smGetMonitorInfo(pMgmt, &smInfo);
   dmGetMonitorSystemInfo(&smInfo.sys);
@@ -37,17 +37,15 @@ int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pReq) {
   }
 
   tSerializeSMonSmInfo(pRsp, rspLen, &smInfo);
-  pReq->info.rsp = pRsp;
-  pReq->info.rspLen = rspLen;
+  pMsg->info.rsp = pRsp;
+  pMsg->info.rspLen = rspLen;
   tFreeSMonSmInfo(&smInfo);
   return 0;
 }
 
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
-  SRpcMsg *pReq = pMsg;
-
   SDCreateSnodeReq createReq = {0};
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -68,10 +66,8 @@ int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
 }
 
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
-  SRpcMsg *pReq = pMsg;
-
   SDDropSnodeReq dropReq = {0};
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pMsg->pCont, pMsg->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }

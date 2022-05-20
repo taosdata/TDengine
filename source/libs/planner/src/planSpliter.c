@@ -24,8 +24,9 @@
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SSplitContext {
-  int32_t groupId;
-  bool    split;
+  uint64_t queryId;
+  int32_t  groupId;
+  bool     split;
 } SSplitContext;
 
 typedef int32_t (*FSplit)(SSplitContext* pCxt, SLogicSubplan* pSubplan);
@@ -62,6 +63,7 @@ static SLogicSubplan* splCreateScanSubplan(SSplitContext* pCxt, SScanLogicNode* 
   if (NULL == pSubplan) {
     return NULL;
   }
+  pSubplan->id.queryId = pCxt->queryId;
   pSubplan->id.groupId = pCxt->groupId;
   pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   pSubplan->pNode = (SLogicNode*)nodesCloneNode(pScan);
@@ -242,6 +244,7 @@ static SLogicSubplan* unionCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode)
   if (NULL == pSubplan) {
     return NULL;
   }
+  pSubplan->id.queryId = pCxt->queryId;
   pSubplan->id.groupId = pCxt->groupId;
   pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   pSubplan->pNode = pNode;
@@ -406,7 +409,7 @@ static const SSplitRule splitRuleSet[] = {{.pName = "SuperTableScan", .splitFunc
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
 static int32_t applySplitRule(SLogicSubplan* pSubplan) {
-  SSplitContext cxt = {.groupId = pSubplan->id.groupId + 1, .split = false};
+  SSplitContext cxt = {.queryId = pSubplan->id.queryId, .groupId = pSubplan->id.groupId + 1, .split = false};
   do {
     cxt.split = false;
     for (int32_t i = 0; i < splitRuleNum; ++i) {

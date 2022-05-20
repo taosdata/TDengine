@@ -89,21 +89,23 @@ typedef enum {
 
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
-typedef bool (*IsNodeRequiredFp)(EDndNodeType ntype);
+typedef void (*SendMonitorReportFp)();
+typedef void (*GetVnodeLoadsFp)();
+typedef void (*GetMnodeLoadsFp)();
 
 typedef struct {
-  int32_t      dnodeId;
-  int64_t      clusterId;
-  int64_t      dnodeVer;
-  int64_t      updateTime;
-  int64_t      rebootTime;
-  bool         dropped;
-  bool         stopped;
-  SEpSet       mnodeEps;
-  SArray      *dnodeEps;
-  SHashObj    *dnodeHash;
-  SRWLatch     latch;
-  SMsgCb       msgCb;
+  int32_t        dnodeId;
+  int64_t        clusterId;
+  int64_t        dnodeVer;
+  int64_t        updateTime;
+  int64_t        rebootTime;
+  bool           dropped;
+  bool           stopped;
+  SEpSet         mnodeEps;
+  SArray        *dnodeEps;
+  SHashObj      *dnodeHash;
+  TdThreadRwlock lock;
+  SMsgCb         msgCb;
 } SDnodeData;
 
 typedef struct {
@@ -113,7 +115,9 @@ typedef struct {
   SMsgCb              msgCb;
   ProcessCreateNodeFp processCreateNodeFp;
   ProcessDropNodeFp   processDropNodeFp;
-  IsNodeRequiredFp    isNodeRequiredFp;
+  SendMonitorReportFp sendMonitorReportFp;
+  GetVnodeLoadsFp     getVnodeLoadsFp;
+  GetMnodeLoadsFp     getMnodeLoadsFp;
 } SMgmtInputOpt;
 
 typedef struct {

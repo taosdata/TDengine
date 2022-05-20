@@ -100,6 +100,10 @@ int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
   return getUdfInfo(pParam, pFunc);
 }
 
+bool fmIsBuiltinFunc(const char* pFunc) {
+  return NULL != taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc, strlen(pFunc));
+}
+
 EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow) {
   if (fmIsUserDefinedFunc(pFunc->funcId) || pFunc->funcId < 0 || pFunc->funcId >= funcMgtBuiltinsNum) {
     return FUNC_DATA_REQUIRED_DATA_LOAD;
@@ -203,6 +207,9 @@ bool fmIsInvertible(int32_t funcId) {
     case FUNCTION_TYPE_SUM:
     case FUNCTION_TYPE_STDDEV:
     case FUNCTION_TYPE_AVG:
+    case FUNCTION_TYPE_WSTARTTS:
+    case FUNCTION_TYPE_WENDTS:
+    case FUNCTION_TYPE_WDURATION:
       res = true;
       break;
     default:

@@ -53,6 +53,8 @@ static bool afterGroupBy(ESqlClause clause) { return clause > SQL_CLAUSE_GROUP_B
 
 static bool beforeHaving(ESqlClause clause) { return clause < SQL_CLAUSE_HAVING; }
 
+static bool afterHaving(ESqlClause clause) { return clause > SQL_CLAUSE_HAVING; }
+
 static int32_t addNamespace(STranslateContext* pCxt, void* pTable) {
   size_t currTotalLevel = taosArrayGetSize(pCxt->pNsLevel);
   if (currTotalLevel > pCxt->currLevel) {
@@ -272,6 +274,14 @@ static bool isTimelineFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsTimelineFunc(((SFunctionNode*)pNode)->funcId));
 }
 
+static bool isScanPseudoColumnFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
+}
+
+static bool isNonstandardSQLFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsNonstandardSQLFunc(((SFunctionNode*)pNode)->funcId));
+}
+
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
   return (SQL_CLAUSE_ORDER_BY == pCxt->currClause && pCxt->pCurrStmt->isDistinct);
 }
@@ -372,6 +382,35 @@ static bool isInternalPrimaryKey(const SColumnNode* pCol) {
   return PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && 0 == strcmp(pCol->colName, PK_TS_COL_INTERNAL_NAME);
 }
 
+static bool isTimeOrderQuery(SNode* pStmt) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    return ((SSelectStmt*)pStmt)->isTimeOrderQuery;
+  } else {
+    return false;
+  }
+}
+
+static bool isPrimaryKeyImpl(STempTableNode* pTable, SNode* pExpr) {
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    return (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId);
+  } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+    if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
+      return isPrimaryKeyImpl(pTable, nodesListGetNode(pFunc->pParameterList, 0));
+    } else if (FUNCTION_TYPE_WSTARTTS == pFunc->funcType || FUNCTION_TYPE_WENDTS == pFunc->funcType) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
+  if (!isTimeOrderQuery(pTable->pSubquery)) {
+    return false;
+  }
+  return isPrimaryKeyImpl(pTable, pExpr);
+}
+
 static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
   bool found = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
@@ -394,8 +433,7 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
     FOREACH(pNode, pProjectList) {
       SExprNode* pExpr = (SExprNode*)pNode;
       if (0 == strcmp(pCol->colName, pExpr->aliasName) ||
-          ((QUERY_NODE_COLUMN == nodeType(pExpr) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId) &&
-           isInternalPrimaryKey(pCol))) {
+          (isPrimaryKey((STempTableNode*)pTable, pNode) && isInternalPrimaryKey(pCol))) {
         setColumnInfoByExpr(pTable, pExpr, pCol);
         found = true;
         break;
@@ -429,6 +467,7 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
   SArray* pTables = taosArrayGetP(pCxt->pNsLevel, pCxt->currLevel);
   size_t  nums = taosArrayGetSize(pTables);
   bool    found = false;
+  bool    isInternalPk = isInternalPrimaryKey(pCol);
   for (size_t i = 0; i < nums; ++i) {
     STableNode* pTable = taosArrayGetP(pTables, i);
     if (findAndSetColumn(pCol, pTable)) {
@@ -436,10 +475,16 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AMBIGUOUS_COLUMN, pCol->colName);
       }
       found = true;
+      if (isInternalPk) {
+        break;
+      }
     }
   }
   if (!found) {
-    if (isInternalPrimaryKey(pCol)) {
+    if (isInternalPk) {
+      if (NULL != pCxt->pCurrStmt->pWindow) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
+      }
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
     } else {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
@@ -699,8 +744,11 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes haveAggFunction(SNode* pNode, void* pContext) {
+static EDealRes haveAggOrNonstdFunction(SNode* pNode, void* pContext) {
   if (isAggFunc(pNode)) {
+    *((bool*)pContext) = true;
+    return DEAL_RES_END;
+  } else if (isNonstandardSQLFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -739,6 +787,12 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
   return code;
 }
 
+static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
+  bool hasInvalidFunc = false;
+  nodesWalkExprs(pParameterList, haveAggOrNonstdFunction, &hasInvalidFunc);
+  return hasInvalidFunc;
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
                                .pRpc = pCxt->pParseCxt->pTransporter,
@@ -750,14 +804,14 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
     if (beforeHaving(pCxt->currClause)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
     }
-    bool haveAggFunc = false;
-    nodesWalkExprs(pFunc->pParameterList, haveAggFunction, &haveAggFunc);
-    if (haveAggFunc) {
+    if (hasInvalidFuncNesting(pFunc->pParameterList)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
+    }
+    if (pCxt->pCurrStmt->hasNonstdSQLFunc) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
     }
 
     pCxt->pCurrStmt->hasAggFuncs = true;
-    pCxt->pCurrStmt->isTimeOrderQuery = false;
     if (isCountStar(pFunc)) {
       pCxt->errCode = rewriteCountStar(pCxt, pFunc);
     }
@@ -779,6 +833,15 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
         return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_TBNAME);
       }
     }
+  }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsNonstandardSQLFunc(pFunc->funcId)) {
+    if (SQL_CLAUSE_SELECT != pCxt->currClause || pCxt->pCurrStmt->hasNonstdSQLFunc || pCxt->pCurrStmt->hasAggFuncs) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
+    }
+    if (hasInvalidFuncNesting(pFunc->pParameterList)) {
+      return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
+    }
+    pCxt->pCurrStmt->hasNonstdSQLFunc = true;
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -892,7 +955,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return DEAL_RES_IGNORE_CHILD;
     }
   }
-  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     if (pCxt->selectFuncNum > 1) {
       return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
     } else {
@@ -930,7 +993,7 @@ static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
   if (isAggFunc(*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (QUERY_NODE_COLUMN == nodeType(*pNode)) {
+  if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
     return rewriteColToSelectValFunc((STranslateContext*)pContext, NULL, pNode);
   }
   return DEAL_RES_CONTINUE;
@@ -948,6 +1011,7 @@ typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existAggFunc;
   bool               existCol;
+  bool               existNonstdFunc;
   int32_t            selectFuncNum;
 } CheckAggColCoexistCxt;
 
@@ -958,7 +1022,11 @@ static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
     pCxt->existAggFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+  if (isNonstandardSQLFunc(pNode)) {
+    pCxt->existNonstdFunc = true;
+    return DEAL_RES_IGNORE_CHILD;
+  }
+  if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
     pCxt->existCol = true;
   }
   return DEAL_RES_CONTINUE;
@@ -968,15 +1036,20 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if (NULL != pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
   }
-  CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt, .existAggFunc = false, .existCol = false};
+  CheckAggColCoexistCxt cxt = {
+      .pTranslateCxt = pCxt, .existAggFunc = false, .existCol = false, .existNonstdFunc = false};
   nodesWalkExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
   if (!pSelect->isDistinct) {
     nodesWalkExprs(pSelect->pOrderByList, doCheckAggColCoexist, &cxt);
   }
   if (1 == cxt.selectFuncNum) {
     return rewriteColsToSelectValFunc(pCxt, pSelect);
-  } else if ((cxt.selectFuncNum > 1 || cxt.existAggFunc || NULL != pSelect->pWindow) && cxt.existCol) {
+  }
+  if ((cxt.selectFuncNum > 1 || cxt.existAggFunc || NULL != pSelect->pWindow) && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
+  }
+  if (cxt.existNonstdFunc && cxt.existCol) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -3261,6 +3334,9 @@ static int32_t readFromFile(char* pName, int32_t* len, char** buf) {
 }
 
 static int32_t translateCreateFunction(STranslateContext* pCxt, SCreateFunctionStmt* pStmt) {
+  if (fmIsBuiltinFunc(pStmt->funcName)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_FUNCTION_NAME);
+  }
   SCreateFuncReq req = {0};
   strcpy(req.name, pStmt->funcName);
   req.igExists = pStmt->ignoreExists;

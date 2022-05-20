@@ -69,9 +69,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     memcpy(pRpc->user, pInit->user, strlen(pInit->user));
   }
-  if (pInit->secret) {
-    memcpy(pRpc->secret, pInit->secret, strlen(pInit->secret));
-  }
   return pRpc;
 }
 void rpcClose(void* arg) {

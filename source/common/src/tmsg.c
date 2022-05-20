@@ -600,6 +600,7 @@ int32_t tSerializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq) 
   if (tStartEncode(&encoder) < 0) return -1;
   if (tEncodeCStr(&encoder, pReq->name) < 0) return -1;
   if (tEncodeI8(&encoder, pReq->alterType) < 0) return -1;
+  if (tEncodeI32(&encoder, pReq->verInBlock) < 0) return -1;
   if (tEncodeI32(&encoder, pReq->numOfFields) < 0) return -1;
   for (int32_t i = 0; i < pReq->numOfFields; ++i) {
     SField *pField = taosArrayGet(pReq->pFields, i);
@@ -626,6 +627,7 @@ int32_t tDeserializeSMAlterStbReq(void *buf, int32_t bufLen, SMAlterStbReq *pReq
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->alterType) < 0) return -1;
+  if (tDecodeI32(&decoder, &pReq->verInBlock) < 0) return -1;
   if (tDecodeI32(&decoder, &pReq->numOfFields) < 0) return -1;
   pReq->pFields = taosArrayInit(pReq->numOfFields, sizeof(SField));
   if (pReq->pFields == NULL) {
@@ -2618,6 +2620,35 @@ int32_t tDeserializeSMDropTopicReq(void *buf, int32_t bufLen, SMDropTopicReq *pR
 
   if (tStartDecode(&decoder) < 0) return -1;
   if (tDecodeCStrTo(&decoder, pReq->name) < 0) return -1;
+  if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
+  tEndDecode(&decoder);
+
+  tDecoderClear(&decoder);
+  return 0;
+}
+
+int32_t tSerializeSMDropCgroupReq(void *buf, int32_t bufLen, SMDropCgroupReq *pReq) {
+  SEncoder encoder = {0};
+  tEncoderInit(&encoder, buf, bufLen);
+
+  if (tStartEncode(&encoder) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->topic) < 0) return -1;
+  if (tEncodeCStr(&encoder, pReq->cgroup) < 0) return -1;
+  if (tEncodeI8(&encoder, pReq->igNotExists) < 0) return -1;
+  tEndEncode(&encoder);
+
+  int32_t tlen = encoder.pos;
+  tEncoderClear(&encoder);
+  return tlen;
+}
+
+int32_t tDeserializeSMDropCgroupReq(void *buf, int32_t bufLen, SMDropCgroupReq *pReq) {
+  SDecoder decoder = {0};
+  tDecoderInit(&decoder, buf, bufLen);
+
+  if (tStartDecode(&decoder) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->topic) < 0) return -1;
+  if (tDecodeCStrTo(&decoder, pReq->cgroup) < 0) return -1;
   if (tDecodeI8(&decoder, &pReq->igNotExists) < 0) return -1;
   tEndDecode(&decoder);
 

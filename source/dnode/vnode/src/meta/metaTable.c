@@ -255,7 +255,7 @@ _err:
   return -1;
 }
 
-int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
+int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUids) {
   TBC        *pTbDbc = NULL;
   TBC        *pUidIdxc = NULL;
   TBC        *pNameIdxc = NULL;
@@ -336,6 +336,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   if (type == TSDB_CHILD_TABLE) {
     ctime = me.ctbEntry.ctime;
     suid = me.ctbEntry.suid;
+    taosArrayPush(tbUids, &me.uid);
   } else if (type == TSDB_NORMAL_TABLE) {
     ctime = me.ntbEntry.ctime;
     suid = 0;

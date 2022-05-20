@@ -92,7 +92,19 @@ target_link_libraries (jsonUT
   index
 )
 
-#add_test(
-#  NAME index_test
-#  COMMAND indexTest
-#)
+add_test(
+  NAME idxtest
+  COMMAND indexTest
+)
+add_test(
+  NAME idxJsonUT
+  COMMAND jsonUT 
+)
+add_test(
+  NAME idxUtilUT 
+  COMMAND UtilUT 
+)
+add_test(
+  NAME idxFstUT 
+  COMMAND fstUT 
+)

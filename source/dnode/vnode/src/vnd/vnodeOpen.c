@@ -109,6 +109,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   // open wal
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_WAL_DIR);
+  taosRealPath(tdir, NULL, sizeof(tdir));
   pVnode->pWal = walOpen(tdir, &(pVnode->config.walCfg));
   if (pVnode->pWal == NULL) {
     vError("vgId:%d failed to open vnode wal since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -117,6 +118,7 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
 
   // open tq
   sprintf(tdir, "%s%s%s", dir, TD_DIRSEP, VNODE_TQ_DIR);
+  taosRealPath(tdir, NULL, sizeof(tdir));
   pVnode->pTq = tqOpen(tdir, pVnode, pVnode->pWal);
   if (pVnode->pTq == NULL) {
     vError("vgId:%d failed to open vnode tq since %s", TD_VID(pVnode), tstrerror(terrno));
@@ -178,8 +180,6 @@ void vnodeClose(SVnode *pVnode) {
 
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) {
-  vnodeSyncSetQ(pVnode, NULL);
-  vnodeSyncSetRpc(pVnode, NULL);
   vnodeSyncStart(pVnode);
   return 0;
 }

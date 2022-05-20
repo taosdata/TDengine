@@ -946,6 +946,23 @@ static int32_t jsonToLogicSubplan(const SJson* pJson, void* pObj) {
   return code;
 }
 
+static const char* jkLogicPlanSubplans = "Subplans";
+
+static int32_t logicPlanToJson(const void* pObj, SJson* pJson) {
+  const SQueryLogicPlan* pNode = (const SQueryLogicPlan*)pObj;
+  return tjsonAddObject(pJson, jkLogicPlanSubplans, nodeToJson, nodesListGetNode(pNode->pTopSubplans, 0));
+}
+
+static int32_t jsonToLogicPlan(const SJson* pJson, void* pObj) {
+  SQueryLogicPlan* pNode = (SQueryLogicPlan*)pObj;
+  SNode*           pChild = NULL;
+  int32_t          code = jsonToNodeObject(pJson, jkLogicPlanSubplans, &pChild);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = nodesListMakeStrictAppend(&pNode->pTopSubplans, pChild);
+  }
+  return code;
+}
+
 static const char* jkJoinLogicPlanJoinType = "JoinType";
 static const char* jkJoinLogicPlanOnConditions = "OnConditions";
 
@@ -1754,6 +1771,7 @@ static const char* jkSubplanId = "Id";
 static const char* jkSubplanType = "SubplanType";
 static const char* jkSubplanMsgType = "MsgType";
 static const char* jkSubplanLevel = "Level";
+static const char* jkSubplanDbFName = "DbFName";
 static const char* jkSubplanNodeAddr = "NodeAddr";
 static const char* jkSubplanRootNode = "RootNode";
 static const char* jkSubplanDataSink = "DataSink";
@@ -1770,6 +1788,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddIntegerToObject(pJson, jkSubplanLevel, pNode->level);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddStringToObject(pJson, jkSubplanDbFName, pNode->dbFName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSubplanNodeAddr, queryNodeAddrToJson, &pNode->execNode);
@@ -1797,6 +1818,9 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonGetIntValue(pJson, jkSubplanLevel, &pNode->level);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonGetStringValue(pJson, jkSubplanDbFName, pNode->dbFName);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonToObject(pJson, jkSubplanNodeAddr, jsonToQueryNodeAddr, &pNode->execNode);
@@ -3029,7 +3053,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_LOGIC_SUBPLAN:
       return logicSubplanToJson(pObj, pJson);
     case QUERY_NODE_LOGIC_PLAN:
-      break;
+      return logicPlanToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return physiTagScanNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
@@ -3126,6 +3150,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToLogicPartitionNode(pJson, pObj);
     case QUERY_NODE_LOGIC_SUBPLAN:
       return jsonToLogicSubplan(pJson, pObj);
+    case QUERY_NODE_LOGIC_PLAN:
+      return jsonToLogicPlan(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN:
       return jsonToPhysiTagScanNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN:
