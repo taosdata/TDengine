@@ -759,7 +759,7 @@ public abstract class AbstractDatabaseMetaData extends WrapperImpl implements Da
         ColumnMetaData col4 = new ColumnMetaData();
         col4.setColIndex(colIndex);
         col4.setColName("COLUMN_NAME");
-        col4.setColSize(65);
+        col4.setColSize(129);
         col4.setColType(TSDBConstants.TSDB_DATA_TYPE_NCHAR);
         return col4;
     }
