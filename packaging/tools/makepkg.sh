@@ -312,7 +312,7 @@ if [ "$verMode" == "cluster" ]; then
         else
             echo "WARNING: go connector not found, please check if want to use it!"
         fi
-        git clone --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
+        git clone -b longcolumn --depth 1 https://github.com/taosdata/taos-connector-python ${install_dir}/connector/python
         rm -rf ${install_dir}/connector/python/.git ||:
 
         git clone --depth 1 https://github.com/taosdata/taos-connector-node ${install_dir}/connector/nodejs
