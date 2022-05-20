@@ -30,7 +30,6 @@ typedef struct SSnodeMgmt {
   SMsgCb        msgCb;
   const char   *path;
   const char   *name;
-  SRWLatch      latch;
   int8_t        uniqueWorkerInUse;
   SArray       *uniqueWorkers;  // SArray<SMultiWorker*>
   SSingleWorker sharedWorker;
@@ -41,7 +40,7 @@ typedef struct SSnodeMgmt {
 SArray *smGetMsgHandles();
 int32_t smProcessCreateReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
 int32_t smProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg);
-int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pReq);
+int32_t smProcessGetMonitorInfoReq(SSnodeMgmt *pMgmt, SRpcMsg *pMsg);
 
 // smWorker.c
 int32_t smStartWorker(SSnodeMgmt *pMgmt);
