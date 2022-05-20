@@ -123,7 +123,6 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp = processRequestMsg;
   rpcInit.sessions = 1000;
   rpcInit.idleTime = 2 * 1500;
-  rpcInit.afp = retrieveAuthInfo;
 
   rpcDebugFlag = 131;
 

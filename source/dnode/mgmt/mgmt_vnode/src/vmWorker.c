@@ -126,7 +126,6 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
       syncGetEpSet(vnodeGetSyncHandle(pVnode->pImpl), &newEpSet);
       newEpSet.inUse = (newEpSet.inUse + 1) % newEpSet.numOfEps;
       tmsgSendRedirectRsp(&rsp, &newEpSet);
-
     } else if (ret == TAOS_SYNC_PROPOSE_OTHER_ERROR) {
       rsp.code = TSDB_CODE_SYN_INTERNAL_ERROR;
       tmsgSendRsp(&rsp);

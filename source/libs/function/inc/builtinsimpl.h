@@ -76,6 +76,11 @@ int32_t firstFunction(SqlFunctionCtx *pCtx);
 int32_t lastFunction(SqlFunctionCtx *pCtx);
 int32_t lastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool uniqueFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t uniqueFunction(SqlFunctionCtx *pCtx);
+int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
 int32_t topFunction(SqlFunctionCtx *pCtx);
 int32_t bottomFunction(SqlFunctionCtx *pCtx);

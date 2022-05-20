@@ -27,9 +27,8 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   syncInfo.pWal = pVnode->pWal;
 
   syncInfo.pFsm = syncVnodeMakeFsm(pVnode);
-  syncInfo.rpcClient = NULL;
-  syncInfo.FpSendMsg = vnodeSendMsg;
-  syncInfo.queue = NULL;
+  syncInfo.msgcb = NULL;
+  syncInfo.FpSendMsg = vnodeSyncSendMsg;
   syncInfo.FpEqMsg = vnodeSyncEqMsg;
 
   pVnode->sync = syncOpen(&syncInfo);
@@ -53,31 +52,13 @@ void vnodeSyncClose(SVnode *pVnode) {
   syncStop(pVnode->sync);
 }
 
-void vnodeSyncSetQ(SVnode *pVnode, void *qHandle) { syncSetQ(pVnode->sync, (void *)(&(pVnode->msgCb))); }
+void vnodeSyncSetMsgCb(SVnode *pVnode) { syncSetMsgCb(pVnode->sync, &pVnode->msgCb); }
 
-void vnodeSyncSetRpc(SVnode *pVnode, void *rpcHandle) { syncSetRpc(pVnode->sync, (void *)(&(pVnode->msgCb))); }
+int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
 
-int32_t vnodeSyncEqMsg(void *qHandle, SRpcMsg *pMsg) {
-  int32_t ret = 0;
-  SMsgCb *pMsgCb = qHandle;
-  if (pMsgCb->queueFps[SYNC_QUEUE] != NULL) {
-    tmsgPutToQueue(qHandle, SYNC_QUEUE, pMsg);
-  } else {
-    vError("vnodeSyncEqMsg queue is NULL, SYNC_QUEUE:%d", SYNC_QUEUE);
-  }
-  return ret;
-}
-
-int32_t vnodeSendMsg(void *rpcHandle, const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  int32_t ret = 0;
-  SMsgCb *pMsgCb = rpcHandle;
-  if (pMsgCb->queueFps[SYNC_QUEUE] != NULL) {
-    pMsg->info.noResp = 1;
-    tmsgSendReq(pEpSet, pMsg);
-  } else {
-    vError("vnodeSendMsg queue is NULL, SYNC_QUEUE:%d", SYNC_QUEUE);
-  }
-  return ret;
+int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  pMsg->info.noResp = 1;
+  return tmsgSendReq(pEpSet, pMsg);
 }
 
 int32_t vnodeSyncGetSnapshotCb(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
