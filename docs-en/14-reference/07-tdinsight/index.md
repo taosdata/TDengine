@@ -5,7 +5,7 @@ sidebar_label: TDinsight
 
 TDinsight is a solution for monitoring TDengine using the builtin native monitoring database and [Grafana].
 
-After TDengine starts, it will automatically create a monitoring database log. TDengine will automatically write many metrics in specific intervals into the log database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, and other information, and record important system operations (such as login, database creation, database deletion, etc.), and various error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight could visualize cluster status, node information, insertion and query requests, resource usage, etc., and also supports vnode, dnode, and mnode status,  exception alerts, and support developers with the convenience of monitoring TDengine cluster operation status in real-time. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel through `TDinsight.sh` installation script.
+After TDengine starts, it will automatically create a monitoring database `log`. TDengine will automatically write many metrics in specific intervals into the `log` database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, other information like important system operations (user login, database creation, database deletion, etc.), and error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight can visualize cluster status, node information, insertion and query requests, resource usage, etc., and also vnode, dnode, and mnode status, and exception alerts. Developers monitoring TDengine cluster operation status in real-time can be very convinient. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel through `TDinsight.sh` installation script.
 
 ## System Requirements
 
@@ -49,7 +49,7 @@ EOF
 sudo yum install grafana
 ```
 
-Or install its RPM package.
+Or install it with RPM package.
 
 ```bash
 wget https://dl.grafana.com/oss/release/grafana-7.5.11-1.x86_64.rpm
@@ -61,13 +61,14 @@ sudo yum install \
 
 ## Automated deployment of TDinsight
 
-We provide an automated installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) script to allow users to configure the installation quickly.
+We provide an installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) script to allow users to configure the installation automatically and quickly.
 
 You can download the script via `wget` or other tools:
 
 ```bash
 wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
 chmod +x TDinsight.sh
+./TDinsight.sh
 ```
 
 This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/grafana/dashboards/15167) with configurable parameters from the command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
@@ -76,7 +77,7 @@ Assume you use TDengine and Grafana's default services on the same host. Run `. 
 
 The following is a description of TDinsight.sh usage.
 
-```bash
+```text
 Usage:
    ./TDinsight.sh
    ./TDinsight.sh -h|--help
@@ -105,13 +106,13 @@ Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 syste
 
 -E, --external-notifier <string>            Apply external notifier uid to TDinsight dashboard.
 
-Aliyun SMS as Notifier:
--s, --sms-enabled                           To enable tdengine-datasource plugin builtin Aliyun SMS webhook.
+Alibaba Cloud SMS as Notifier:
+-s, --sms-enabled                           To enable tdengine-datasource plugin builtin Alibaba Cloud SMS webhook.
 -N, --sms-notifier-name <string>            Provisioning notifier name.[default: TDinsight Builtin SMS]
 -U, --sms-notifier-uid <string>             Provisioning notifier uid, use lowercase notifier name by default.
 -D, --sms-notifier-is-default               Set notifier as default.
--I, --sms-access-key-id <string>            Aliyun sms access key id
--K, --sms-access-key-secret <string>        Aliyun sms access key secret
+-I, --sms-access-key-id <string>            Alibaba Cloud SMS access key id
+-K, --sms-access-key-secret <string>        Alibaba Cloud SMS access key secret
 -S, --sms-sign-name <string>                Sign name
 -C, --sms-template-code <string>            Template code
 -T, --sms-template-param <string>           Template param, a escaped JSON string like '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
@@ -135,17 +136,17 @@ Most command-line options can take effect the same as environment variables.
 | -t | --tdinsight-title | TDINSIGHT_DASHBOARD_TITLE | TDinsight dashboard title. [Default: TDinsight] | -e | -tdinsight-title
 | -e | --tdinsight-editable | TDINSIGHT_DASHBOARD_EDITABLE | If the dashboard is configured to be editable. [Default: false] | -e | --external
 | -E | --external-notifier | EXTERNAL_NOTIFIER | Apply the external notifier uid to the TDinsight dashboard.                                | -s
-| -s | --sms-enabled | SMS_ENABLED | Enable the tdengine-datasource plugin built into Aliyun SMS webhook.                    | -s
+| -s | --sms-enabled | SMS_ENABLED | Enable the tdengine-datasource plugin built into Alibaba Cloud SMS webhook.                    | -s
 | -N | --sms-notifier-name | SMS_NOTIFIER_NAME | The name of the provisioning notifier. [Default: `TDinsight Builtin SMS`] | -U
 | -U | --sms-notifier-uid | SMS_NOTIFIER_UID | "Notification Channel" `uid`, lowercase of the program name is used by default, other characters are replaced by "-". |-sms
 | -D | --sms-notifier-is-default | SMS_NOTIFIER_IS_DEFAULT | Set built-in SMS notification to default value.                                                |-sms-notifier-is-default
-| -I | --sms-access-key-id | SMS_ACCESS_KEY_ID | Aliyun SMS access key id |
-| -K | --sms-access-key-secret | SMS_ACCESS_KEY_SECRET | 阿里云SMS-access-secret-key |
+| -I | --sms-access-key-id | SMS_ACCESS_KEY_ID | Alibaba Cloud SMS access key id |
+| -K | --sms-access-key-secret | SMS_ACCESS_KEY_SECRET | AliCloud SMS-access-secret-key |
 | -S | --sms-sign-name | SMS_SIGN_NAME | Signature |
 | -C | --sms-template-code | SMS_TEMPLATE_CODE | Template code |
 | -T | --sms-template-param | SMS_TEMPLATE_PARAM | JSON template for template parameters |
 | -B | --sms-phone-numbers | SMS_PHONE_NUMBERS | A comma-separated list of phone numbers, e.g. `"189xxxxxxxx,132xxxxxxxx"` |
-| -L | --sms-listen-addr | SMS_LISTEN_ADDR | Built-in sms webhook listener address, default is `127.0.0.1:9100` |
+| -L | --sms-listen-addr | SMS_LISTEN_ADDR | Built-in SMS webhook listener address, default is `127.0.0.1:9100` |
 
 Suppose you start a TDengine database on host `tdengine` with HTTP API port `6041`, user `root1`, and password `pass5ord`. Execute the script.
 
@@ -165,15 +166,15 @@ Use the `uid` value obtained above as `-E` input.
 sudo ./TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord -E existing-notifier
 ```
 
-If you want to use the [AliCloud SMS](https://www.aliyun.com/product/sms) service as a notification channel, you should enable it with the `-s` flag add the following parameters.
+If you want to use the [Alibaba Cloud SMS](https://www.aliyun.com/product/sms) service as a notification channel, you should enable it with the `-s` flag add the following parameters.
 
 - `-N`: Notification Channel name, default is `TDinsight Builtin SMS`.
 - `-U`: Channel uid, default is lowercase of `name`, any other character is replaced with -, for the default `-N`, its uid is `tdinsight-builtin-sms`.
-- `-I`: Aliyun SMS access key id.
-- `-K`: Aliyun SMS access secret key.
-- `-S`: Aliyun SMS signature.
-- `-C`: Aliyun SMS template id.
-- `-T`: Aliyun SMS template parameters, for JSON format template, example is as follows `'{"alarm_level":"%s", "time":"%s", "name":"%s", "content":"%s"}'`. There are four parameters: alarm level, time, name and alarm content.
+- `-I`: Alibaba Cloud SMS access key id.
+- `-K`: Alibaba Cloud SMS access secret key.
+- `-S`: Alibaba Cloud SMS signature.
+- `-C`: Alibaba Cloud SMS template id.
+- `-T`: Alibaba Cloud SMS template parameters, for JSON format template, example is as follows `'{"alarm_level":"%s", "time":"%s", "name":"%s", "content":"%s"}'`. There are four parameters: alarm level, time, name and alarm content.
 - `-B`: a list of phone numbers, separated by a comma `,`.
 
 If you want to monitor multiple TDengine clusters, you need to set up numerous TDinsight dashboards. Setting up non-default TDinsight requires some changes: the `-n` `-i` `-t` options need to be changed to non-default names, and `-N` and `-L` should also be changed if using the built-in SMS alerting feature.
@@ -349,11 +350,11 @@ Data node resource usage display with repeated multiple rows for the variable `$
 
 Currently, only the number of logins per minute is reported.
 
-### taosAdapter
+### Monitoring taosAdapter
 
 ![taosadapter](./assets/TDinsight-8-taosadapter.png)
 
-Support taosAdapter request statistics and status details. Includes.
+Support monitoring taosAdapter request statistics and status details. Includes.
 
 1. **http_request**: contains the total number of requests, the number of failed requests, and the number of requests being processed
 2. **top 3 request endpoint**: data of the top 3 requests by endpoint group

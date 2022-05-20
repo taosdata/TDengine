@@ -5,7 +5,7 @@ sidebar_label: TDinsight
 
 TDinsight 是使用内置监控数据库和 [Grafana] 对 TDengine 进行监控的解决方案。
 
-TDengine 启动后，会自动创建一个监测数据库 log，并自动将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库，并对重要的系统操作（比如登录、创建、删除数据库等）以及各种错误报警信息进行记录。通过 [Grafana] 和 [TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases)，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，同时还支持 vnode、dnode、mnode 节点状态异常告警，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 Grafana 服务器并通过 `TDinsight.sh` 安装脚本自动安装 TDengine 数据源插件及部署 TDinsight 可视化面板。
+TDengine 启动后，会自动创建一个监测数据库 `log`，并自动将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库，并对重要的系统操作（比如登录、创建、删除数据库等）以及各种错误报警信息进行记录。通过 [Grafana] 和 [TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases)，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，同时还支持 vnode、dnode、mnode 节点状态异常告警，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 Grafana 服务器并通过 `TDinsight.sh` 安装脚本自动安装 TDengine 数据源插件及部署 TDinsight 可视化面板。
 
 ## 系统要求
 
@@ -68,6 +68,7 @@ sudo yum install \
 ```bash
 wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
 chmod +x TDinsight.sh
+./TDinsight.sh
 ```
 
 这个脚本会自动下载最新的[Grafana TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases/latest) 和 [TDinsight 仪表盘](https://grafana.com/grafana/dashboards/15167) ，将命令行选项中的可配置参数转为 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置文件，以进行自动化部署及更新等操作。利用该脚本提供的告警设置选项，你还可以获得内置的阿里云短信告警通知支持。
@@ -76,7 +77,7 @@ chmod +x TDinsight.sh
 
 下面是 TDinsight.sh 的用法说明：
 
-```bash
+```text
 Usage:
    ./TDinsight.sh
    ./TDinsight.sh -h|--help
@@ -110,8 +111,8 @@ Aliyun SMS as Notifier:
 -N, --sms-notifier-name <string>            Provisioning notifier name.[default: TDinsight Builtin SMS]
 -U, --sms-notifier-uid <string>             Provisioning notifier uid, use lowercase notifier name by default.
 -D, --sms-notifier-is-default               Set notifier as default.
--I, --sms-access-key-id <string>            Aliyun sms access key id
--K, --sms-access-key-secret <string>        Aliyun sms access key secret
+-I, --sms-access-key-id <string>            Aliyun SMS access key id
+-K, --sms-access-key-secret <string>        Aliyun SMS access key secret
 -S, --sms-sign-name <string>                Sign name
 -C, --sms-template-code <string>            Template code
 -T, --sms-template-param <string>           Template param, a escaped JSON string like '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
@@ -145,7 +146,7 @@ Aliyun SMS as Notifier:
 | -C     | --sms-template-code        | SMS_TEMPLATE_CODE            | 模板代码                                                                    |
 | -T     | --sms-template-param       | SMS_TEMPLATE_PARAM           | 模板参数的 JSON 模板                                                        |
 | -B     | --sms-phone-numbers        | SMS_PHONE_NUMBERS            | 逗号分隔的手机号列表，例如`"189xxxxxxxx,132xxxxxxxx"`                       |
-| -L     | --sms-listen-addr          | SMS_LISTEN_ADDR              | 内置 sms webhook 监听地址，默认为`127.0.0.1:9100`                           |
+| -L     | --sms-listen-addr          | SMS_LISTEN_ADDR              | 内置 SMS webhook 监听地址，默认为`127.0.0.1:9100`                           |
 
 假设您在主机 `tdengine` 上启动 TDengine 数据库，HTTP API 端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：
 
@@ -349,11 +350,11 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mnodes
 
 目前只报告每分钟登录次数。
 
-### taosAdapter
+### 监控 taosAdapter
 
 ![taosadapter](./assets/TDinsight-8-taosadapter.png)
 
-包含 taosAdapter 请求统计和状态详情。包括：
+支持监控 taosAdapter 请求统计和状态详情。包括：
 
 1. **http_request**: 包含总请求数，请求失败数以及正在处理的请求数
 2. **top 3 request endpoint**: 按终端分组，请求排名前三的数据
