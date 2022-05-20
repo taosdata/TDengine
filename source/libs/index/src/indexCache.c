@@ -22,7 +22,7 @@
 #define MAX_INDEX_KEY_LEN 256  // test only, change later
 
 #define MEM_TERM_LIMIT     10 * 10000
-#define MEM_THRESHOLD      1024 * 1024
+#define MEM_THRESHOLD      64 * 1024
 #define MEM_ESTIMATE_RADIO 1.5
 
 static void indexMemRef(MemTable* tbl);
@@ -282,8 +282,10 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTe
     if (0 != strncmp(c->colVal, pCt->colVal, skip)) {
       break;
     }
+    char* p = taosMemoryCalloc(1, strlen(c->colVal) + 1);
+    memcpy(p, c->colVal, strlen(c->colVal));
 
-    TExeCond cond = cmpFn(c->colVal + skip, term->colVal, dType);
+    TExeCond cond = cmpFn(p + skip, term->colVal, dType);
     if (cond == MATCH) {
       if (c->operaType == ADD_VALUE) {
         INDEX_MERGE_ADD_DEL(tr->deled, tr->added, c->uid)
@@ -297,6 +299,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTe
     } else if (cond == BREAK) {
       break;
     }
+    taosMemoryFree(p);
   }
 
   taosMemoryFree(pCt);
@@ -460,8 +463,10 @@ int indexCacheSchedToMerge(IndexCache* pCache) {
   schedMsg.fp = doMergeWork;
   schedMsg.ahandle = pCache;
   schedMsg.thandle = NULL;
+  // schedMsg.thandle = taosMemoryCalloc(1, sizeof(int64_t));
+  // memcpy((char*)(schedMsg.thandle), (char*)&(pCache->index->refId), sizeof(int64_t));
   schedMsg.msg = NULL;
-
+  indexAcquireRef(pCache->index->refId);
   taosScheduleTask(indexQhandle, &schedMsg);
 
   return 0;

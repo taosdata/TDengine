@@ -16,27 +16,25 @@
 #define _DEFAULT_SOURCE
 #include "smInt.h"
 
-static inline void smSendRsp(SNodeMsg *pMsg, int32_t code) {
+static inline void smSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
-      .handle = pMsg->rpcMsg.handle,
-      .ahandle = pMsg->rpcMsg.ahandle,
-      .refId = pMsg->rpcMsg.refId,
       .code = code,
-      .pCont = pMsg->pRsp,
-      .contLen = pMsg->rspLen,
+      .pCont = pMsg->info.rsp,
+      .contLen = pMsg->info.rspLen,
+      .info = pMsg->info,
   };
   tmsgSendRsp(&rsp);
 }
 
-static void smProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void smProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
   dTrace("msg:%p, get from snode-monitor queue", pMsg);
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  SRpcMsg *pRpc = pMsg;
   int32_t  code = -1;
 
-  if (pMsg->rpcMsg.msgType == TDMT_MON_SM_INFO) {
-    code = smProcessGetMonSmInfoReq(pMgmt->pWrapper, pMsg);
+  if (pMsg->msgType == TDMT_MON_SM_INFO) {
+    code = smProcessGetMonitorInfoReq(pMgmt, pMsg);
   } else {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
@@ -46,7 +44,7 @@ static void smProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     smSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }
@@ -55,26 +53,26 @@ static void smProcessUniqueQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t num
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
   for (int32_t i = 0; i < numOfMsgs; i++) {
-    SNodeMsg *pMsg = NULL;
+    SRpcMsg *pMsg = NULL;
     taosGetQitem(qall, (void **)&pMsg);
 
     dTrace("msg:%p, get from snode-unique queue", pMsg);
-    sndProcessUMsg(pMgmt->pSnode, &pMsg->rpcMsg);
+    sndProcessUMsg(pMgmt->pSnode, pMsg);
 
     dTrace("msg:%p, is freed", pMsg);
-    rpcFreeCont(pMsg->rpcMsg.pCont);
+    rpcFreeCont(pMsg->pCont);
     taosFreeQitem(pMsg);
   }
 }
 
-static void smProcessSharedQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void smProcessSharedQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SSnodeMgmt *pMgmt = pInfo->ahandle;
 
   dTrace("msg:%p, get from snode-shared queue", pMsg);
-  sndProcessSMsg(pMgmt->pSnode, &pMsg->rpcMsg);
+  sndProcessSMsg(pMgmt->pSnode, pMsg);
 
   dTrace("msg:%p, is freed", pMsg);
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
@@ -121,18 +119,16 @@ int32_t smStartWorker(SSnodeMgmt *pMgmt) {
     return -1;
   }
 
-  if (tsMultiProcess) {
-    SSingleWorkerCfg mCfg = {
-        .min = 1,
-        .max = 1,
-        .name = "snode-monitor",
-        .fp = (FItem)smProcessMonitorQueue,
-        .param = pMgmt,
-    };
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-      dError("failed to start snode-monitor worker since %s", terrstr());
-      return -1;
-    }
+  SSingleWorkerCfg mCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "snode-monitor",
+      .fp = (FItem)smProcessMonitorQueue,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+    dError("failed to start snode-monitor worker since %s", terrstr());
+    return -1;
   }
 
   dDebug("snode workers are initialized");
@@ -163,56 +159,52 @@ static FORCE_INLINE int32_t smGetSWTypeFromMsg(SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t smProcessMgmtMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
+int32_t smPutNodeMsgToMgmtQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, 0);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
-int32_t smProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
+int32_t smPutNodeMsgToMonitorQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
 
-  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
-int32_t smProcessUniqueMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt   *pMgmt = pWrapper->pMgmt;
-  int32_t       index = smGetSWIdFromMsg(&pMsg->rpcMsg);
+int32_t smPutNodeMsgToUniqueQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t       index = smGetSWIdFromMsg(pMsg);
   SMultiWorker *pWorker = taosArrayGetP(pMgmt->uniqueWorkers, index);
   if (pWorker == NULL) {
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
 
-  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
-int32_t smProcessSharedMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SSnodeMgmt    *pMgmt = pWrapper->pMgmt;
+int32_t smPutNodeMsgToSharedQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->sharedWorker;
 
-  dTrace("msg:%p, put into worker:%s", pMsg, pWorker->name);
+  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
-int32_t smProcessExecMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  int32_t workerType = smGetSWTypeFromMsg(&pMsg->rpcMsg);
+int32_t smPutNodeMsgToExecQueue(SSnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  int32_t workerType = smGetSWTypeFromMsg(pMsg);
   if (workerType == SND_WORKER_TYPE__SHARED) {
-    return smProcessSharedMsg(pWrapper, pMsg);
+    return smPutNodeMsgToSharedQueue(pMgmt, pMsg);
   } else {
-    return smProcessUniqueMsg(pWrapper, pMsg);
+    return smPutNodeMsgToUniqueQueue(pMgmt, pMsg);
   }
 }

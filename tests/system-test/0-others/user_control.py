@@ -6,11 +6,25 @@ import traceback
 from util.log import *
 from util.sql import *
 from util.cases import *
-
+from util.dnodes import *
 
 PRIVILEGES_ALL      = "ALL"
 PRIVILEGES_READ     = "READ"
 PRIVILEGES_WRITE    = "WRITE"
+
+PRIMARY_COL = "ts"
+
+INT_COL     = "c1"
+BINT_COL    = "c2"
+SINT_COL    = "c3"
+TINT_COL    = "c4"
+FLOAT_COL   = "c5"
+DOUBLE_COL  = "c6"
+BOOL_COL    = "c7"
+
+BINARY_COL  = "c8"
+NCHAR_COL   = "c9"
+TS_COL      = "c10"
 
 class TDconnect:
     def __init__(self,
@@ -161,6 +175,8 @@ class TDTestCase:
         for sql in sqls:
             tdSql.error(sql)
 
+        tdSql.execute("DROP USER u1")
+
     def __alter_pass_sql(self, user, passwd):
         return f'''ALTER USER {user} PASS '{passwd}' '''
 
@@ -186,9 +202,99 @@ class TDTestCase:
         for sql in sqls:
             tdSql.error(sql)
 
-
-    def grant_user_privileges(self, privilege,  dbname=None, user_name="root"):
+    def __grant_user_privileges(self, privilege,  dbname=None, user_name="root"):
         return f"GRANT {privilege} ON {self.__priv_level(dbname)} TO {user_name} "
+
+    def grant_check(self, user="root", passwd="taosdata", priv=PRIVILEGES_ALL):
+        with taos_connect(user=user, passwd=passwd) as user:
+            user.query("use db")
+            user.query("show tables")
+            if priv in [PRIVILEGES_ALL, PRIVILEGES_READ]:
+                user.query("select * from ct1")
+            else:
+                user.error("select * from ct1")
+            if priv in [PRIVILEGES_ALL, PRIVILEGES_WRITE]:
+                user.query("insert into t1 (ts) values (now())")
+            else:
+                user.error("insert into t1 (ts) values (now())")
+
+    def test_grant_current(self):
+        tdLog.printNoPrefix("==========step 1.0: if do not grant, can not read/write")
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=None)
+
+        tdLog.printNoPrefix("==========step 1.1: grant read, can read, can not write")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_READ, user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=PRIVILEGES_READ)
+
+        tdLog.printNoPrefix("==========step 1.2: grant write, can write, can not read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_WRITE, user_name=self.__user_list[1])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[1], passwd=self.__passwd_list[1], priv=PRIVILEGES_WRITE)
+
+        tdLog.printNoPrefix("==========step 1.3: grant all, can write and read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_ALL, user_name=self.__user_list[2])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[2], passwd=self.__passwd_list[2], priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.4: change grant read to write, can write , can not read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_WRITE, user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=PRIVILEGES_WRITE)
+
+        tdLog.printNoPrefix("==========step 1.5: change grant write to read, can not write , can read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_READ, user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=PRIVILEGES_READ)
+
+        tdLog.printNoPrefix("==========step 1.6: change grant read to all, can write , can read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_ALL, user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.7: change grant all to write, can write , can not read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_WRITE, user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=PRIVILEGES_WRITE)
+
+        tdLog.printNoPrefix("==========step 1.8: change grant write to all, can write , can read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_ALL, user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.9: change grant all to read, can not write , can read")
+        sql = self.__grant_user_privileges(privilege=PRIVILEGES_READ, user_name=self.__user_list[0])
+        tdLog.info(sql)
+        tdSql.query(sql)
+        self.grant_check(user=self.__user_list[0], passwd=self.__passwd_list[0], priv=PRIVILEGES_READ)
+
+    def __grant_err(self):
+        return [
+            self.__grant_user_privileges(privilege=self.__privilege[0], user_name="") ,
+            self.__grant_user_privileges(privilege=self.__privilege[0], user_name="*") ,
+            self.__grant_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
+            self.__grant_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
+            self.__grant_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
+            self.__grant_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
+            f"GRANT {self.__privilege[0]} ON * TO {self.__user_list[0]}" ,
+            f"GRANT {self.__privilege[0]} ON db.t1 TO {self.__user_list[0]}" ,
+        ]
+
+    def test_grant_err(self):
+        for sql in self.__grant_err():
+            tdSql.error(sql)
+
+    def test_grant(self):
+        self.test_grant_err()
+        self.test_grant_current()
 
     def test_user_create(self):
         self.create_user_current()
@@ -215,7 +321,6 @@ class TDTestCase:
         else:
             tdLog.info("connect successfully, user and pass matched!")
 
-
     def login_err(self, user, passwd):
         login_except, _ = self.user_login(user, passwd)
         if login_except:
@@ -237,7 +342,7 @@ class TDTestCase:
             f"DROP user {self.__user_list[0]} , {self.__user_list[1]}",
             f"DROP users {self.__user_list[0]}  {self.__user_list[1]}",
             f"DROP users {self.__user_list[0]} , {self.__user_list[1]}",
-            "DROP user root",
+            # "DROP user root",
             "DROP user abcde",
             "DROP user ALL",
         ]
@@ -250,7 +355,110 @@ class TDTestCase:
         self.drop_user_error()
         self.drop_user_current()
 
+    def __create_tb(self):
+
+        tdLog.printNoPrefix("==========step1:create table")
+        create_stb_sql  =  f'''create table stb1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            ) tags (t1 int)
+            '''
+        create_ntb_sql = f'''create table t1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            )
+            '''
+        tdSql.execute(create_stb_sql)
+        tdSql.execute(create_ntb_sql)
+
+        for i in range(4):
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
+
+    def __insert_data(self, rows):
+        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+        for i in range(rows):
+            tdSql.execute(
+                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+        tdSql.execute(
+            f'''insert into ct1 values
+            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 } )
+            ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 } )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct4 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000}
+                )
+            (
+                { now_time + 2592000000 }, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000}
+                )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct2 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
+                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 2592000000 }, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127,
+                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
+            '''
+        )
+
+        for i in range(rows):
+            insert_data = f'''insert into t1 values
+                ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
+                "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i } )
+                '''
+            tdSql.execute(insert_data)
+        tdSql.execute(
+            f'''insert into t1 values
+            ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7200000 }, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 },
+                "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 3600000 } , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
+                "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
+            '''
+        )
+
     def run(self):
+        tdSql.prepare()
+        self.__create_tb()
+        self.rows = 10
+        self.__insert_data(self.rows)
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
         # 默认只有 root 用户
         tdLog.printNoPrefix("==========step0: init, user list only has root account")
@@ -267,11 +475,14 @@ class TDTestCase:
         # 查看用户
         tdLog.printNoPrefix("==========step2: show user test")
         tdSql.query("show users")
-        tdSql.checkRows(self.users_count + 2)
+        tdSql.checkRows(self.users_count + 1)
 
         # 密码登录认证
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
         self.login_err(self.__user_list[0], f"new{self.__passwd_list[0]}")
+
+        # 用户权限设置
+        self.test_grant()
 
         # 修改密码
         tdLog.printNoPrefix("==========step3: alter user pass test")
@@ -282,34 +493,54 @@ class TDTestCase:
         self.login_err(self.__user_list[0], self.__passwd_list[0])
         self.login_currrent(self.__user_list[0], f"new{self.__passwd_list[0]}")
 
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        tdSql.query("show users")
+        tdSql.checkRows(self.users_count + 1)
+
         # 普通用户权限
         # 密码登录
-        _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
-        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as conn:
-            user = conn
-        # 不能创建用户
-        tdLog.printNoPrefix("==========step5: normal user can not create user")
-        user.error("create use utest1 pass 'utest1pass'")
-        # 可以查看用户
-        tdLog.printNoPrefix("==========step6: normal user can show user")
-        user.query("show users")
-        assert user.queryRows == self.users_count + 2
-        # 不可以修改其他用户的密码
-        tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
-        user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
-        user.error("root", "taosdata_root")
-        # 可以修改自己的密码
-        tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
-        user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
-        # 不可以删除用户，包括自己
-        tdLog.printNoPrefix("==========step9: normal user can not drop any user ")
-        user.error(f"drop user {self.__user_list[0]}")
-        user.error(f"drop user {self.__user_list[1]}")
-        user.error("drop user root")
+        # _, user = self.user_login(self.__user_list[0], f"new{self.__passwd_list[0]}")
+        with taos_connect(user=self.__user_list[0], passwd=f"new{self.__passwd_list[0]}") as user:
+            # user = conn
+            # 不能创建用户
+            tdLog.printNoPrefix("==========step5: normal user can not create user")
+            user.error("create use utest1 pass 'utest1pass'")
+            # 可以查看用户
+            tdLog.printNoPrefix("==========step6: normal user can show user")
+            user.query("show users")
+            assert user.queryRows == self.users_count + 1
+            # 不可以修改其他用户的密码
+            tdLog.printNoPrefix("==========step7: normal user can not alter other user pass")
+            user.error(self.__alter_pass_sql(self.__user_list[1], self.__passwd_list[1] ))
+            user.error(self.__alter_pass_sql("root", "taosdata_root" ))
+            # 可以修改自己的密码
+            tdLog.printNoPrefix("==========step8: normal user can alter owner pass")
+            user.query(self.__alter_pass_sql(self.__user_list[0], self.__passwd_list[0]))
+            # 不可以删除用户，包括自己
+            tdLog.printNoPrefix("==========step9: normal user can not drop any user ")
+            user.error(f"drop user {self.__user_list[0]}")
+            user.error(f"drop user {self.__user_list[1]}")
+            user.error("drop user root")
 
         # root删除用户测试
         tdLog.printNoPrefix("==========step10: super user drop normal user")
         self.test_drop_user()
+
+        tdSql.query("show users")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, "root")
+        tdSql.checkData(0, 1, "super")
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
+
+        # 删除后无法登录
+        self.login_err(self.__user_list[0], self.__passwd_list[0])
+        self.login_err(self.__user_list[0], f"new{self.__passwd_list[0]}")
+        self.login_err(self.__user_list[1], self.__passwd_list[1])
+        self.login_err(self.__user_list[1], f"new{self.__passwd_list[1]}")
 
         tdSql.query("show users")
         tdSql.checkRows(1)

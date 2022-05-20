@@ -16,27 +16,25 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-static inline void qmSendRsp(SNodeMsg *pMsg, int32_t code) {
+static inline void qmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
-      .handle = pMsg->rpcMsg.handle,
-      .ahandle = pMsg->rpcMsg.ahandle,
-      .refId = pMsg->rpcMsg.refId,
       .code = code,
-      .pCont = pMsg->pRsp,
-      .contLen = pMsg->rspLen,
+      .info = pMsg->info,
+      .pCont = pMsg->info.rsp,
+      .contLen = pMsg->info.rspLen,
   };
   tmsgSendRsp(&rsp);
 }
 
-static void qmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void qmProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
 
   dTrace("msg:%p, get from qnode-monitor queue", pMsg);
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  SRpcMsg *pRpc = pMsg;
   int32_t  code = -1;
 
-  if (pMsg->rpcMsg.msgType == TDMT_MON_QM_INFO) {
-    code = qmProcessGetMonQmInfoReq(pMgmt->pWrapper, pMsg);
+  if (pMsg->msgType == TDMT_MON_QM_INFO) {
+    code = qmProcessGetMonitorInfoReq(pMgmt, pMsg);
   } else {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
@@ -46,98 +44,90 @@ static void qmProcessMonitorQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
     qmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pRpc->pCont);
   taosFreeQitem(pMsg);
 }
 
-static void qmProcessQueryQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void qmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
 
   dTrace("msg:%p, get from qnode-query queue", pMsg);
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  SRpcMsg *pRpc = pMsg;
   int32_t  code = qndProcessQueryMsg(pMgmt->pQnode, pRpc);
 
   if (pRpc->msgType & 1U && code != 0) {
     qmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
-static void qmProcessFetchQueue(SQueueInfo *pInfo, SNodeMsg *pMsg) {
+static void qmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
 
   dTrace("msg:%p, get from qnode-fetch queue", pMsg);
-  SRpcMsg *pRpc = &pMsg->rpcMsg;
+  SRpcMsg *pRpc = pMsg;
   int32_t  code = qndProcessFetchMsg(pMgmt->pQnode, pRpc);
 
   if (pRpc->msgType & 1U && code != 0) {
     qmSendRsp(pMsg, code);
   }
 
-  dTrace("msg:%p, is freed, result:0x%04x:%s", pMsg, code & 0XFFFF, tstrerror(code));
-  rpcFreeCont(pMsg->rpcMsg.pCont);
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 
-static void qmPutMsgToWorker(SSingleWorker *pWorker, SNodeMsg *pMsg) {
+static int32_t qmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
   dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
   taosWriteQitem(pWorker->queue, pMsg);
-}
-
-int32_t qmProcessQueryMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  qmPutMsgToWorker(&pMgmt->queryWorker, pMsg);
   return 0;
 }
 
-int32_t qmProcessFetchMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  qmPutMsgToWorker(&pMgmt->fetchWorker, pMsg);
-  return 0;
+int32_t qmPutNodeMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return qmPutNodeMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 
-int32_t qmProcessMonitorMsg(SMgmtWrapper *pWrapper, SNodeMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
-  qmPutMsgToWorker(&pMgmt->monitorWorker, pMsg);
-  return 0;
+int32_t qmPutNodeMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return qmPutNodeMsgToWorker(&pMgmt->fetchWorker, pMsg);
+}
+
+int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return qmPutNodeMsgToWorker(&pMgmt->monitorWorker, pMsg);
 }
 
 static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pRpc) {
-  SNodeMsg *pMsg = taosAllocateQitem(sizeof(SNodeMsg));
+  SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
   if (pMsg == NULL) {
     return -1;
   }
 
-  dTrace("msg:%p, is created and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
-  pMsg->rpcMsg = *pRpc;
+  dTrace("msg:%p, create and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
+  memcpy(pMsg, pRpc, sizeof(SRpcMsg));
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
-int32_t qmPutMsgToQueryQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t qmPutRpcMsgToQueryQueue(SQnodeMgmt *pMgmt, SRpcMsg *pRpc) {
   return qmPutRpcMsgToWorker(pMgmt, &pMgmt->queryWorker, pRpc);
 }
 
-int32_t qmPutMsgToFetchQueue(SMgmtWrapper *pWrapper, SRpcMsg *pRpc) {
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t qmPutRpcMsgToFetchQueue(SQnodeMgmt *pMgmt, SRpcMsg *pRpc) {
   return qmPutRpcMsgToWorker(pMgmt, &pMgmt->fetchWorker, pRpc);
 }
 
-int32_t qmGetQueueSize(SMgmtWrapper *pWrapper, int32_t vgId, EQueueType qtype) {
-  int32_t     size = -1;
-  SQnodeMgmt *pMgmt = pWrapper->pMgmt;
+int32_t qmGetQueueSize(SQnodeMgmt *pMgmt, int32_t vgId, EQueueType qtype) {
+  int32_t size = -1;
 
   switch (qtype) {
     case QUERY_QUEUE:
-      size = taosQueueSize(pMgmt->queryWorker.queue);
+      size = taosQueueItemSize(pMgmt->queryWorker.queue);
       break;
     case FETCH_QUEUE:
-      size = taosQueueSize(pMgmt->fetchWorker.queue);
+      size = taosQueueItemSize(pMgmt->fetchWorker.queue);
       break;
     default:
       break;
@@ -173,18 +163,16 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
     return -1;
   }
 
-  if (tsMultiProcess) {
-    SSingleWorkerCfg mCfg = {
-        .min = 1,
-        .max = 1,
-        .name = "qnode-monitor",
-        .fp = (FItem)qmProcessMonitorQueue,
-        .param = pMgmt,
-    };
-    if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-      dError("failed to start qnode-monitor worker since %s", terrstr());
-      return -1;
-    }
+  SSingleWorkerCfg mCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "qnode-monitor",
+      .fp = (FItem)qmProcessMonitorQueue,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
+    dError("failed to start qnode-monitor worker since %s", terrstr());
+    return -1;
   }
 
   dDebug("qnode workers are initialized");

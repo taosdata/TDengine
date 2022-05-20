@@ -310,12 +310,7 @@ static int32_t createScanLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
 
 static int32_t createSubqueryLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, STempTableNode* pTable,
                                        SLogicNode** pLogicNode) {
-  int32_t code = createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
-  if (TSDB_CODE_SUCCESS == code) {
-    SNode* pNode;
-    FOREACH(pNode, (*pLogicNode)->pTargets) { strcpy(((SColumnNode*)pNode)->tableAlias, pTable->table.tableAlias); }
-  }
-  return code;
+  return createQueryLogicNode(pCxt, pTable->pSubquery, pLogicNode);
 }
 
 static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SJoinTableNode* pJoinTable,
@@ -879,7 +874,8 @@ static int32_t createSetOpProjectLogicNode(SLogicPlanContext* pCxt, SSetOperator
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = createColumnByProjections(pCxt, NULL, pSetOperator->pProjectionList, &pProject->node.pTargets);
+    code = createColumnByProjections(pCxt, pSetOperator->stmtName, pSetOperator->pProjectionList,
+                                     &pProject->node.pTargets);
   }
 
   if (TSDB_CODE_SUCCESS == code) {
@@ -933,7 +929,7 @@ static int32_t createSetOpLogicNode(SLogicPlanContext* pCxt, SSetOperator* pSetO
       code = createSetOpAggLogicNode(pCxt, pSetOperator, &pSetOp);
       break;
     default:
-      code = -1;
+      code = TSDB_CODE_FAILED;
       break;
   }
 
@@ -985,6 +981,8 @@ static int32_t getMsgType(ENodeType sqlType) {
       return TDMT_VND_CREATE_TABLE;
     case QUERY_NODE_DROP_TABLE_STMT:
       return TDMT_VND_DROP_TABLE;
+    case QUERY_NODE_ALTER_TABLE_STMT:
+      return TDMT_VND_ALTER_TABLE;
     default:
       break;
   }

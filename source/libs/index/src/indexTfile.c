@@ -20,6 +20,7 @@ p *
 #include "indexFstCountingWriter.h"
 #include "indexUtil.h"
 #include "taosdef.h"
+#include "taoserror.h"
 #include "tcoding.h"
 #include "tcompare.h"
 
@@ -115,7 +116,7 @@ TFileCache* tfileCacheCreate(const char* path) {
       continue;
     }
     TFileHeader* header = &reader->header;
-    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
+    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = (int32_t)strlen(header->colName)};
 
     char    buf[128] = {0};
     int32_t sz = indexSerialCacheKey(&key, buf);
@@ -229,7 +230,7 @@ static int32_t tfSearchTerm(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
     indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex, time cost: %" PRIu64 "us",
               tem->suid, tem->colName, tem->colVal, cost);
 
-    ret = tfileReaderLoadTableIds((TFileReader*)reader, offset, tr->total);
+    ret = tfileReaderLoadTableIds((TFileReader*)reader, (int32_t)offset, tr->total);
     cost = taosGetTimestampUs() - et;
     indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, time cost: %" PRIu64 "us", tem->suid,
               tem->colName, tem->colVal, cost);
@@ -410,8 +411,9 @@ static int32_t tfSearchTerm_JSON(void* reader, SIndexTerm* tem, SIdxTempResult* 
 
     ret = tfileReaderLoadTableIds((TFileReader*)reader, offset, tr->total);
     cost = taosGetTimestampUs() - et;
-    indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, time cost: %" PRIu64 "us", tem->suid,
-              tem->colName, tem->colVal, cost);
+    indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, offset: %" PRIu64
+              ", size: %d, time cost: %" PRIu64 "us",
+              tem->suid, tem->colName, tem->colVal, offset, (int)taosArrayGetSize(tr->total), cost);
   }
   fstSliceDestroy(&key);
   return 0;
@@ -469,13 +471,18 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
   while ((rt = streamWithStateNextWith(st, NULL)) != NULL) {
     FstSlice* s = &rt->data;
 
-    char* ch = (char*)fstSliceData(s, NULL);
-    if (0 != strncmp(ch, p, skip)) {
+    int32_t sz = 0;
+    char*   ch = (char*)fstSliceData(s, &sz);
+    char*   tmp = taosMemoryCalloc(1, sz + 1);
+    memcpy(tmp, ch, sz);
+
+    if (0 != strncmp(tmp, p, skip)) {
       swsResultDestroy(rt);
+      taosMemoryFree(tmp);
       break;
     }
 
-    TExeCond cond = cmpFn(ch + skip, tem->colVal, tem->colType);
+    TExeCond cond = cmpFn(tmp + skip, tem->colVal, INDEX_TYPE_GET_TYPE(tem->colType));
     if (MATCH == cond) {
       tfileReaderLoadTableIds((TFileReader*)reader, rt->out.out, tr->total);
     } else if (CONTINUE == cond) {
@@ -483,6 +490,7 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
       swsResultDestroy(rt);
       break;
     }
+    taosMemoryFree(tmp);
     swsResultDestroy(rt);
   }
   streamWithStateDestroy(st);
@@ -525,10 +533,12 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
   WriterCtx* wc = writerCtxCreate(TFile, fullname, true, 1024 * 1024 * 1024);
-  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
   if (wc == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    indexError("failed to open readonly file: %s, reason: %s", fullname, terrstr());
     return NULL;
   }
+  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
@@ -605,9 +615,7 @@ int tfileWriterPut(TFileWriter* tw, void* data, bool order) {
     if (tfileWriteData(tw, v) != 0) {
       indexError("failed to write data: %s, offset: %d len: %d", v->colVal, v->offset,
                  (int)taosArrayGetSize(v->tableId));
-      // printf("write faile\n");
     } else {
-      // printf("write sucee\n");
       // indexInfo("success to write data: %s, offset: %d len: %d", v->colVal, v->offset,
       //          (int)taosArrayGetSize(v->tableId));
 
@@ -882,7 +890,7 @@ static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(tfileMagicNumber) + 1] = {0};
   void* pBuf = (void*)buf;
   taosEncodeFixedU64((void**)(void*)&pBuf, tfileMagicNumber);
-  int nwrite = write->ctx->write(write->ctx, buf, strlen(buf));
+  int nwrite = write->ctx->write(write->ctx, buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
   assert(nwrite == sizeof(tfileMagicNumber));
@@ -934,7 +942,7 @@ static int tfileReaderLoadTableIds(TFileReader* reader, int32_t offset, SArray* 
   // TODO(yihao): opt later
   WriterCtx* ctx = reader->ctx;
   // add block cache
-  char    block[1024] = {0};
+  char    block[4096] = {0};
   int32_t nread = ctx->readFrom(ctx, block, sizeof(block), offset);
   assert(nread >= sizeof(uint32_t));
 

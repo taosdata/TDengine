@@ -9,10 +9,12 @@
 #include <unistd.h>
 #include "../../../include/client/taos.h"
 
+#define FUNCTION_TEST_IDX 1
+
 int32_t shortColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
 int32_t fullColList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_BOOL, TSDB_DATA_TYPE_TINYINT, TSDB_DATA_TYPE_UTINYINT, TSDB_DATA_TYPE_SMALLINT, TSDB_DATA_TYPE_USMALLINT, TSDB_DATA_TYPE_INT, TSDB_DATA_TYPE_UINT, TSDB_DATA_TYPE_BIGINT, TSDB_DATA_TYPE_UBIGINT, TSDB_DATA_TYPE_FLOAT, TSDB_DATA_TYPE_DOUBLE, TSDB_DATA_TYPE_BINARY, TSDB_DATA_TYPE_NCHAR};
-int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_NCHAR};
-int32_t optrIdxList[] = {0, 9};
+int32_t bindColTypeList[] = {TSDB_DATA_TYPE_TIMESTAMP, TSDB_DATA_TYPE_INT};
+int32_t optrIdxList[] = {0, 7};
 
 typedef struct {
   char*   oper;
@@ -53,7 +55,6 @@ FuncInfo funcInfo[] = {
   {"count", 1},
   {"sum",   1},
   {"min",   1},
-  {"sin",   1},
 };
 
 char *bpStbPrefix = "st";
@@ -66,6 +67,10 @@ int32_t bpDefaultStbId = 1;
 //char *varoperatorList[] = {">", ">=", "<", "<=", "=", "<>", "in", "not in", "like", "not like", "match", "nmatch"};
 
 #define tListLen(x) (sizeof(x) / sizeof((x)[0]))
+#define IS_SIGNED_NUMERIC_TYPE(_t)   ((_t) >= TSDB_DATA_TYPE_TINYINT && (_t) <= TSDB_DATA_TYPE_BIGINT)
+#define IS_UNSIGNED_NUMERIC_TYPE(_t) ((_t) >= TSDB_DATA_TYPE_UTINYINT && (_t) <= TSDB_DATA_TYPE_UBIGINT)
+#define IS_FLOAT_TYPE(_t)            ((_t) == TSDB_DATA_TYPE_FLOAT || (_t) == TSDB_DATA_TYPE_DOUBLE)
+#define IS_NUMERIC_TYPE(_t) ((IS_SIGNED_NUMERIC_TYPE(_t)) || (IS_UNSIGNED_NUMERIC_TYPE(_t)) || (IS_FLOAT_TYPE(_t)))
 
 typedef struct {
   int64_t*   tsData;
@@ -166,7 +171,10 @@ CaseCfg gCase[] = {
   {"insert:AUTO1-FULL", tListLen(fullColList), fullColList, TTYPE_INSERT, true, true, insertAUTOTest1, 10, 10, 2, 0, 0, 0, 1, -1},
 
   {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 10, 10, 1, 3, 0, 0, 1, 2},
-  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 3, 0, 0, 1, 2},
+  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 10, 10, 1, 3, 0, 0, 1, 2},
+
+//  {"query:SUBT-COLUMN", tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryColumnTest, 1, 10, 1, 1, 0, 0, 1, 2},
+//  {"query:SUBT-MISC",   tListLen(fullColList), fullColList, TTYPE_QUERY, false, false, queryMiscTest, 2, 10, 1, 1, 0, 0, 1, 2},
 
 };
 
@@ -181,6 +189,7 @@ typedef struct {
   bool     printQuerySql;
   bool     printStmtSql;
   bool     autoCreateTbl;
+  bool     numericParam;
   int32_t  rowNum;               //row num for one table
   int32_t  bindColNum;
   int32_t  bindTagNum;
@@ -200,13 +209,14 @@ typedef struct {
   int32_t  caseRunNum;           // total run case num
 } CaseCtrl;
 
-#if 0
+#if 1
 CaseCtrl gCaseCtrl = { // default
   .bindNullNum = 0,
   .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
   .autoCreateTbl = false,
+  .numericParam = false,
   .rowNum = 0,
   .bindColNum = 0,
   .bindTagNum = 0,
@@ -241,44 +251,36 @@ CaseCtrl gCaseCtrl = {
   .bindColNum = 0,
   .bindTagNum = 0,
   .bindRowNum = 0,
-  .bindColTypeNum = tListLen(bindColTypeList),
-  .bindColTypeList = bindColTypeList,
   .bindTagTypeNum = 0,
   .bindTagTypeList = NULL,
-  .optrIdxListNum = tListLen(optrIdxList),
-  .optrIdxList = optrIdxList,
   .checkParamNum = false,
   .printRes = false,
   .runTimes = 0,
-  .caseIdx = 23,
+  .caseIdx = 1,
   .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = 1,
 };
 #endif
 
-#if 1
+#if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
-  .bindNullNum = 0,
+  .bindNullNum = 1,
   .printCreateTblSql = false,
   .printQuerySql = true,
   .printStmtSql = true,
   .rowNum = 0,
   .bindColNum = 0,
   .bindRowNum = 0,
-  .bindColTypeNum = 0,
-  .bindColTypeList = NULL,
-  .optrIdxListNum = 0,
-  .optrIdxList = NULL,
+  .optrIdxListNum = tListLen(optrIdxList),
+  .optrIdxList = optrIdxList,
+  .bindColTypeNum = tListLen(bindColTypeList),
+  .bindColTypeList = bindColTypeList,
   .checkParamNum = false,
   .printRes = true,
   .runTimes = 0,
   .caseRunIdx = -1,
-  .optrIdxListNum = 0,
-  .optrIdxList = NULL,
-  .bindColTypeNum = 0,
-  .bindColTypeList = NULL,
-  .caseIdx = 24,
+  .caseIdx = 23,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -286,7 +288,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
 
 #if 0
 CaseCtrl gCaseCtrl = {  // query case with specified col&oper
-  .bindNullNum = 0,
+  .bindNullNum = 1,
   .printCreateTblSql = true,
   .printQuerySql = true,
   .printStmtSql = true,
@@ -307,7 +309,7 @@ CaseCtrl gCaseCtrl = {  // query case with specified col&oper
   //.optrIdxList = optrIdxList,
   //.bindColTypeNum = tListLen(bindColTypeList),
   //.bindColTypeList = bindColTypeList,
-  .caseIdx = 22,
+  .caseIdx = 24,
   .caseNum = 1,
   .caseRunNum = 1,
 };
@@ -659,15 +661,16 @@ void bpGenerateConstInFuncSQL(BindData *data, int32_t tblIdx) {
 
 
 void generateQueryMiscSQL(BindData *data, int32_t tblIdx) {
-  switch(tblIdx) {
-    case 0:
-      bpGenerateConstInOpSQL(data, tblIdx);
-      break;
-    case 1:
-      //TODO FILL TEST
-    default:
-      bpGenerateConstInFuncSQL(data, tblIdx);
-      break;
+  if (tblIdx == FUNCTION_TEST_IDX && gCurCase->bindNullNum <= 0) {
+    bpGenerateConstInFuncSQL(data, tblIdx);
+  } else {
+    switch(tblIdx) {
+      case 0:
+        //TODO FILL TEST
+      default:
+        bpGenerateConstInOpSQL(data, tblIdx);
+        break;
+    }
   }
 
   if (gCaseCtrl.printStmtSql) {
@@ -708,6 +711,16 @@ void generateColDataType(BindData *data, int32_t bindIdx, int32_t colIdx, int32_
       return;
     } else if (gCurCase->fullCol) {
       *dataType = gCurCase->colList[bindIdx];
+      return;
+    } else if (gCaseCtrl.numericParam) {
+      while (true) {
+        *dataType = rand() % (TSDB_DATA_TYPE_MAX - 1) + 1;
+        if (!IS_NUMERIC_TYPE(*dataType)) {
+          continue;
+        }
+
+        break;
+      }
       return;
     } else if (0 == colIdx) {
       *dataType = TSDB_DATA_TYPE_TIMESTAMP;
@@ -1046,14 +1059,22 @@ int32_t prepareQueryMiscData(BindData *data, int32_t tblIdx) {
     data->binaryLen[i] = gVarCharLen;
   }
 
+  if (tblIdx == FUNCTION_TEST_IDX) {
+    gCaseCtrl.numericParam = true;
+  } else {
+    gCaseCtrl.numericParam = false;
+  }
+  
   for (int b = 0; b < bindNum; b++) {
     for (int c = 0; c < gCurCase->bindColNum; ++c) {
       prepareColData(BP_BIND_COL, data, b*gCurCase->bindColNum+c, b*gCurCase->bindRowNum, c);
     }
   }
 
+  gCaseCtrl.numericParam = false;
+
   generateQueryMiscSQL(data, tblIdx);
-  
+
   return 0;
 }
 
@@ -1076,7 +1097,9 @@ void destroyData(BindData *data) {
   taosMemoryFree(data->binaryLen);
   taosMemoryFree(data->isNull);
   taosMemoryFree(data->pBind);
+  taosMemoryFree(data->pTags);
   taosMemoryFree(data->colTypes);
+  taosMemoryFree(data->sql);
 }
 
 void bpFetchRows(TAOS_RES *result, bool printr, int32_t *rows) {

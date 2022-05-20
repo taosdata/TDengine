@@ -103,6 +103,16 @@ void syncStart(int64_t rid) {
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
 
+void syncStartStandBy(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return;
+  }
+  syncNodeStartStandBy(pSyncNode);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
 void syncStop(int64_t rid) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
@@ -116,10 +126,10 @@ void syncStop(int64_t rid) {
 
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   int32_t ret = 0;
-  char *configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
+  char*   configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
   SRpcMsg rpcMsg = {0};
   rpcMsg.msgType = TDMT_VND_SYNC_CONFIG_CHANGE;
-  rpcMsg.noResp = 1;
+  rpcMsg.info.noResp = 1;
   rpcMsg.contLen = strlen(configChange) + 1;
   rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
   snprintf(rpcMsg.pCont, rpcMsg.contLen, "%s", configChange);
@@ -188,10 +198,9 @@ void syncGetEpSet(int64_t rid, SEpSet* pEpSet) {
     (pEpSet->numOfEps)++;
 
     sInfo("syncGetEpSet index:%d %s:%d", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
-
   }
   pEpSet->inUse = pSyncNode->pRaftCfg->cfg.myIndex;
-  
+
   sInfo("syncGetEpSet pEpSet->inUse:%d ", pEpSet->inUse);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -231,26 +240,14 @@ int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
   return ret;
 }
 
-void syncSetQ(int64_t rid, void* queue) {
+void syncSetMsgCb(int64_t rid, const SMsgCb *msgcb) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     sTrace("syncSetQ get pSyncNode is NULL, rid:%ld", rid);
     return;
   }
   assert(rid == pSyncNode->rid);
-  pSyncNode->queue = queue;
-
-  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
-}
-
-void syncSetRpc(int64_t rid, void* rpcHandle) {
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
-  if (pSyncNode == NULL) {
-    sTrace("syncSetRpc get pSyncNode is NULL, rid:%ld", rid);
-    return;
-  }
-  assert(rid == pSyncNode->rid);
-  pSyncNode->rpcClient = rpcHandle;
+  pSyncNode->msgcb = msgcb;
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
 }
@@ -323,7 +320,7 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     SRpcMsg            rpcMsg;
     syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
     if (pSyncNode->FpEqMsg != NULL) {
-      pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+      pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
     } else {
       sTrace("syncPropose pSyncNode->FpEqMsg is NULL");
     }
@@ -366,9 +363,8 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   snprintf(pSyncNode->configPath, sizeof(pSyncNode->configPath), "%s/raft_config.json", pSyncInfo->path);
 
   pSyncNode->pWal = pSyncInfo->pWal;
-  pSyncNode->rpcClient = pSyncInfo->rpcClient;
+  pSyncNode->msgcb = pSyncInfo->msgcb;
   pSyncNode->FpSendMsg = pSyncInfo->FpSendMsg;
-  pSyncNode->queue = pSyncInfo->queue;
   pSyncNode->FpEqMsg = pSyncInfo->FpEqMsg;
 
   // init raft config
@@ -524,6 +520,17 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   assert(ret == 0);
 }
 
+void syncNodeStartStandBy(SSyncNode* pSyncNode) {
+  // state change
+  pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // reset elect timer, long enough
+  int32_t electMS = TIMER_MAX_MS;
+  int32_t ret = syncNodeRestartElectTimer(pSyncNode, electMS);
+  ASSERT(ret == 0);
+}
+
 void syncNodeClose(SSyncNode* pSyncNode) {
   int32_t ret;
   assert(pSyncNode != NULL);
@@ -667,11 +674,11 @@ int32_t syncNodeSendMsgById(const SRaftId* destRaftId, SSyncNode* pSyncNode, SRp
   SEpSet epSet;
   syncUtilraftId2EpSet(destRaftId, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    pMsg->noResp = 1;
+    pMsg->info.noResp = 1;
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
-    pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+    pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
     sTrace("syncNodeSendMsgById pSyncNode->FpSendMsg is NULL");
   }
@@ -682,11 +689,11 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
   SEpSet epSet;
   syncUtilnodeInfo2EpSet(nodeInfo, &epSet);
   if (pSyncNode->FpSendMsg != NULL) {
-    pMsg->noResp = 1;
+    pMsg->info.noResp = 1;
     // htonl
     syncUtilMsgHtoN(pMsg->pCont);
 
-    pSyncNode->FpSendMsg(pSyncNode->rpcClient, &epSet, pMsg);
+    pSyncNode->FpSendMsg(&epSet, pMsg);
   } else {
     sTrace("syncNodeSendMsgByInfo pSyncNode->FpSendMsg is NULL");
   }
@@ -708,12 +715,12 @@ cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->pWal);
     cJSON_AddStringToObject(pRoot, "pWal", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->rpcClient);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->msgcb);
     cJSON_AddStringToObject(pRoot, "rpcClient", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpSendMsg);
     cJSON_AddStringToObject(pRoot, "FpSendMsg", u64buf);
 
-    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->queue);
+    snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->msgcb);
     cJSON_AddStringToObject(pRoot, "queue", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%p", pSyncNode->FpEqMsg);
     cJSON_AddStringToObject(pRoot, "FpEqMsg", u64buf);
@@ -858,7 +865,7 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   return s;
 }
 
-void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg *newConfig) {
+void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
   pSyncNode->pRaftCfg->cfg = *newConfig;
   int32_t ret = raftCfgPersist(pSyncNode->pRaftCfg);
   ASSERT(ret == 0);
@@ -885,6 +892,11 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg *newConfig) {
   for (int i = 0; i < pSyncNode->pRaftCfg->cfg.replicaNum; ++i) {
     syncUtilnodeInfo2raftId(&pSyncNode->pRaftCfg->cfg.nodeInfo[i], pSyncNode->vgId, &pSyncNode->replicasId[i]);
   }
+
+  syncIndexMgrUpdate(pSyncNode->pNextIndex, pSyncNode);
+  syncIndexMgrUpdate(pSyncNode->pMatchIndex, pSyncNode);
+
+  syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
 }
 
 SSyncNode* syncNodeAcquire(int64_t rid) {
@@ -1070,7 +1082,7 @@ static void syncNodeEqPingTimer(void* param, void* tmrId) {
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     syncRpcMsgLog2((char*)"==syncNodeEqPingTimer==", &rpcMsg);
     if (pSyncNode->FpEqMsg != NULL) {
-      pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+      pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
     } else {
       sTrace("syncNodeEqPingTimer pSyncNode->FpEqMsg is NULL");
     }
@@ -1093,7 +1105,7 @@ static void syncNodeEqElectTimer(void* param, void* tmrId) {
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     syncRpcMsgLog2((char*)"==syncNodeEqElectTimer==", &rpcMsg);
     if (pSyncNode->FpEqMsg != NULL) {
-      pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+      pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
     } else {
       sTrace("syncNodeEqElectTimer pSyncNode->FpEqMsg is NULL");
     }
@@ -1120,7 +1132,7 @@ static void syncNodeEqHeartbeatTimer(void* param, void* tmrId) {
     syncTimeout2RpcMsg(pSyncMsg, &rpcMsg);
     syncRpcMsgLog2((char*)"==syncNodeEqHeartbeatTimer==", &rpcMsg);
     if (pSyncNode->FpEqMsg != NULL) {
-      pSyncNode->FpEqMsg(pSyncNode->queue, &rpcMsg);
+      pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
     } else {
       sTrace("syncNodeEqHeartbeatTimer pSyncNode->FpEqMsg is NULL");
     }
@@ -1150,10 +1162,10 @@ static int32_t syncNodeEqNoop(SSyncNode* ths) {
   assert(pSyncMsg->dataLen == entryLen);
   memcpy(pSyncMsg->data, serialized, entryLen);
 
-  SRpcMsg rpcMsg;
+  SRpcMsg rpcMsg = {0};
   syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
   if (ths->FpEqMsg != NULL) {
-    ths->FpEqMsg(ths->queue, &rpcMsg);
+    ths->FpEqMsg(ths->msgcb, &rpcMsg);
   } else {
     sTrace("syncNodeEqNoop pSyncNode->FpEqMsg is NULL");
   }
@@ -1245,7 +1257,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      //if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;
@@ -1267,7 +1279,7 @@ int32_t syncNodeOnClientRequestCb(SSyncNode* ths, SyncClientRequest* pMsg) {
     syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
     if (ths->pFsm != NULL) {
-      //if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
+      // if (ths->pFsm->FpPreCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
       if (ths->pFsm->FpPreCommitCb != NULL && syncUtilUserPreCommit(pEntry->originalRpcType)) {
         SFsmCbMeta cbMeta;
         cbMeta.index = pEntry->index;

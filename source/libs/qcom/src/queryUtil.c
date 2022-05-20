@@ -97,7 +97,7 @@ bool tIsValidSchema(struct SSchema* pSchema, int32_t numOfCols, int32_t numOfTag
 static void* pTaskQueue = NULL;
 
 int32_t initTaskQueue() {
-  int32_t queueSize = tsMaxConnections * 2;
+  int32_t queueSize = tsMaxShellConns * 2;
   pTaskQueue = taosInitScheduler(queueSize, tsNumOfTaskQueueThreads, "tsc");
   if (NULL == pTaskQueue) {
     qError("failed to init task queue");
@@ -149,9 +149,9 @@ int32_t asyncSendMsgToServerExt(void* pTransporter, SEpSet* epSet, int64_t* pTra
   SRpcMsg rpcMsg = {.msgType = pInfo->msgType,
                     .pCont = pMsg,
                     .contLen = pInfo->msgInfo.len,
-                    .ahandle = (void*)pInfo,
-                    .handle = pInfo->msgInfo.handle,
-                    .persistHandle = persistHandle,
+                    .info.ahandle = (void*)pInfo,
+                    .info.handle = pInfo->msgInfo.handle,
+                    .info.persistHandle = persistHandle,
                     .code = 0};
   assert(pInfo->fp != NULL);
 

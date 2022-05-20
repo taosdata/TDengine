@@ -131,6 +131,7 @@ typedef struct SCtgCacheStat {
   uint64_t dbNum;
   uint64_t tblNum;
   uint64_t stblNum;
+  uint64_t userNum;
   uint64_t vgHitNum;
   uint64_t vgMissNum;
   uint64_t tblHitNum;

@@ -208,6 +208,7 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_SORT,
   QUERY_NODE_PHYSICAL_PLAN_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_FILL,
   QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW,
@@ -240,6 +241,7 @@ typedef struct SNodeList {
 
 #define SNodeptr void*
 
+int32_t  nodesNodeSize(ENodeType type);
 SNodeptr nodesMakeNode(ENodeType type);
 void     nodesDestroyNode(SNodeptr pNode);
 

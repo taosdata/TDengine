@@ -19,6 +19,7 @@
 #include <gtest/gtest.h>
 
 class PlannerTestBaseImpl;
+struct TAOS_MULTI_BIND;
 
 class PlannerTestBase : public testing::Test {
  public:
@@ -27,10 +28,16 @@ class PlannerTestBase : public testing::Test {
 
   void useDb(const std::string& acctId, const std::string& db);
   void run(const std::string& sql);
+  // stmt mode APIs
+  void prepare(const std::string& sql);
+  void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx);
+  void exec();
 
  private:
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
+
+extern int32_t g_skipSql;
 
 extern void setDumpModule(const char* pModule);
 

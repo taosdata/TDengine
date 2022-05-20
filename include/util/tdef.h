@@ -218,8 +218,8 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_SQL_SHOW_LEN    1024
 #define TSDB_MAX_ALLOWED_SQL_LEN (1 * 1024 * 1024u)  // sql length should be less than 1mb
 
-#define TSDB_APP_NAME_LEN    TSDB_UNI_LEN
-#define TSDB_STB_COMMENT_LEN 1024
+#define TSDB_APP_NAME_LEN   TSDB_UNI_LEN
+#define TSDB_TB_COMMENT_LEN 1025
 
 /**
  *  In some scenarios uint16_t (0~65535) is used to store the row len.
@@ -425,9 +425,12 @@ enum {
   SND_WORKER_TYPE__UNIQUE,
 };
 
-#define MNODE_HANDLE   -1
-#define QNODE_HANDLE   1
 #define DEFAULT_HANDLE 0
+#define MNODE_HANDLE   -1
+#define QNODE_HANDLE   -2
+#define SNODE_HANDLE   -3
+#define VNODE_HANDLE   -4
+#define BNODE_HANDLE   -5
 
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN  48

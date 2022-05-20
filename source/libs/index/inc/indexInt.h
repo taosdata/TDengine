@@ -46,9 +46,7 @@ typedef struct SIndexStat {
 } SIndexStat;
 
 struct SIndex {
-#ifdef USE_LUCENE
-  index_t* index;
-#endif
+  int64_t   refId;
   void*     cache;
   void*     tindex;
   SHashObj* colObj;  // < field name, field id>
@@ -123,6 +121,11 @@ typedef struct TFileCacheKey {
 } ICacheKey;
 
 int indexFlushCacheToTFile(SIndex* sIdx, void*);
+
+int64_t indexAddRef(void* p);
+int32_t indexRemoveRef(int64_t ref);
+void    indexAcquireRef(int64_t ref);
+void    indexReleaseRef(int64_t ref);
 
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);

@@ -22,17 +22,12 @@
 extern "C" {
 #endif
 
-#ifdef WINDOWS
-#define tjsonGetNumberValue(pJson, pName, val) -1
-#else
-#define tjsonGetNumberValue(pJson, pName, val) \
-  ({ \
-    uint64_t _tmp = 0; \
-    int32_t _code = tjsonGetUBigIntValue(pJson, pName, &_tmp); \
-    val = _tmp; \
-    _code; \
-  })
-#endif
+#define tjsonGetNumberValue(pJson, pName, val, code)  \
+  do {                                                \
+    uint64_t _tmp = 0;                                \
+    code = tjsonGetBigIntValue(pJson, pName, &_tmp); \
+    val = _tmp;                                       \
+  } while (0)
 
 typedef void SJson;
 

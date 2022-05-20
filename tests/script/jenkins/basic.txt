@@ -63,6 +63,7 @@
 
 # ---- tstream
 ./test.sh -f tsim/tstream/basic0.sim
+./test.sh -f tsim/tstream/basic1.sim
 
 # ---- transaction
  ./test.sh -f tsim/trans/create_db.sim
@@ -103,7 +104,8 @@
 ./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
-# ./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError.sim -v

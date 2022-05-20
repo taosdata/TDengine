@@ -18,9 +18,22 @@
 
 #include "tdb.h"
 
+#include "tlog.h"
+
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+// clang-format off
+extern int32_t tdbDebugFlag;
+
+#define tdbFatal(...) do { if (tdbDebugFlag & DEBUG_FATAL) { taosPrintLog("TDB FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define tdbError(...) do { if (tdbDebugFlag & DEBUG_ERROR) { taosPrintLog("TDB ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define tdbWarn(...)  do { if (tdbDebugFlag & DEBUG_WARN)  { taosPrintLog("TDB WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define tdbInfo(...)  do { if (tdbDebugFlag & DEBUG_INFO)  { taosPrintLog("TDB ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define tdbDebug(...) do { if (tdbDebugFlag & DEBUG_DEBUG) { taosPrintLog("TDB ", DEBUG_DEBUG, tdbDebugFlag, __VA_ARGS__); }} while(0)
+#define tdbTrace(...) do { if (tdbDebugFlag & DEBUG_TRACE) { taosPrintLog("TDB ", DEBUG_TRACE, tdbDebugFlag, __VA_ARGS__); }} while(0)
+// clang-format on
 
 typedef int8_t   i8;
 typedef int16_t  i16;
@@ -90,9 +103,9 @@ typedef struct SPage   SPage;
 #define TDB_TXN_IS_READ_UNCOMMITTED(PTXN) ((PTXN)->flags & TDB_TXN_READ_UNCOMMITTED)
 
 // tdbEnv.c ====================================
-void    tdbEnvAddPager(TENV *pEnv, SPager *pPager);
-void    tdbEnvRemovePager(TENV *pEnv, SPager *pPager);
-SPager *tdbEnvGetPager(TENV *pEnv, const char *fname);
+void    tdbEnvAddPager(TDB *pEnv, SPager *pPager);
+void    tdbEnvRemovePager(TDB *pEnv, SPager *pPager);
+SPager *tdbEnvGetPager(TDB *pEnv, const char *fname);
 
 // tdbBtree.c ====================================
 typedef struct SBTree SBTree;
@@ -161,25 +174,21 @@ void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn);
 int  tdbPagerAllocPage(SPager *pPager, SPgno *ppgno);
 
 // tdbPCache.c ====================================
-#define TDB_PCACHE_PAGE \
-  u8      isAnchor;     \
-  u8      isLocal;      \
-  u8      isDirty;      \
-  i32     nRef;         \
-  SPage  *pCacheNext;   \
-  SPage  *pFreeNext;    \
-  SPage  *pHashNext;    \
-  SPage  *pLruNext;     \
-  SPage  *pLruPrev;     \
-  SPage  *pDirtyNext;   \
-  SPager *pPager;       \
-  SPgid   pgid;
+#define TDB_PCACHE_PAGE    \
+  u8           isAnchor;   \
+  u8           isLocal;    \
+  u8           isDirty;    \
+  volatile i32 nRef;       \
+  i32          id;         \
+  SPage       *pFreeNext;  \
+  SPage       *pHashNext;  \
+  SPage       *pLruNext;   \
+  SPage       *pLruPrev;   \
+  SPage       *pDirtyNext; \
+  SPager      *pPager;     \
+  SPgid        pgid;
 
 // For page ref
-#define TDB_INIT_PAGE_REF(pPage) ((pPage)->nRef = 0)
-#define TDB_REF_PAGE(pPage)      atomic_add_fetch_32(&((pPage)->nRef), 1)
-#define TDB_UNREF_PAGE(pPage)    atomic_sub_fetch_32(&((pPage)->nRef), 1)
-#define TDB_GET_PAGE_REF(pPage)  atomic_load_32(&((pPage)->nRef))
 
 int    tdbPCacheOpen(int pageSize, int cacheSize, SPCache **ppCache);
 int    tdbPCacheClose(SPCache *pCache);
@@ -246,6 +255,20 @@ struct SPage {
   TDB_PCACHE_PAGE
 };
 
+static inline i32 tdbRefPage(SPage *pPage) {
+  i32 nRef = atomic_add_fetch_32(&((pPage)->nRef), 1);
+  tdbTrace("ref page %d, nRef %d", pPage->id, nRef);
+  return nRef;
+}
+
+static inline i32 tdbUnrefPage(SPage *pPage) {
+  i32 nRef = atomic_sub_fetch_32(&((pPage)->nRef), 1);
+  tdbTrace("unref page %d, nRef %d", pPage->id, nRef);
+  return nRef;
+}
+
+#define tdbGetPageRef(pPage) atomic_load_32(&((pPage)->nRef))
+
 // For page lock
 #define P_LOCK_SUCC 0
 #define P_LOCK_BUSY 1
@@ -311,9 +334,9 @@ static inline SCell *tdbPageGetCell(SPage *pPage, int idx) {
   return pCell;
 }
 
-struct STEnv {
-  char    *rootDir;
-  char    *jfname;
+struct STDB {
+  char    *dbName;
+  char    *jnName;
   int      jfd;
   SPCache *pCache;
   SPager  *pgrList;
@@ -334,8 +357,8 @@ struct SPager {
   SPgno    dbOrigSize;
   SPage   *pDirty;
   u8       inTran;
-  SPager  *pNext;      // used by TENV
-  SPager  *pHashNext;  // used by TENV
+  SPager  *pNext;      // used by TDB
+  SPager  *pHashNext;  // used by TDB
 };
 
 #ifdef __cplusplus

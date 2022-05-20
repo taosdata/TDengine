@@ -442,7 +442,7 @@ static bool isNullStr(SToken* pToken) {
 
 static FORCE_INLINE int32_t toDouble(SToken* pToken, double* value, char** endPtr) {
   errno = 0;
-  *value = strtold(pToken->z, endPtr);
+  *value = taosStr2Double(pToken->z, endPtr);
 
   // not a valid integer number, return error
   if ((*endPtr - pToken->z) != pToken->n) {
@@ -482,9 +482,9 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
           return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
         }
       } else if (pToken->type == TK_NK_INTEGER) {
-        return func(pMsgBuf, ((strtoll(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+        return func(pMsgBuf, ((taosStr2Int64(pToken->z, NULL, 10) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
       } else if (pToken->type == TK_NK_FLOAT) {
-        return func(pMsgBuf, ((strtod(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
+        return func(pMsgBuf, ((taosStr2Double(pToken->z, NULL) == 0) ? &FALSE_VALUE : &TRUE_VALUE), pSchema->bytes, param);
       } else {
         return buildSyntaxErrMsg(pMsgBuf, "invalid bool data", pToken->z);
       }
@@ -758,7 +758,7 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
     int32_t output = 0;
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
       char buf[512] = {0};
-      snprintf(buf, tListLen(buf), "%s", strerror(errno));
+      snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
       return buildSyntaxErrMsg(pMsgBuf, buf, value);
     }
 
@@ -1041,22 +1041,11 @@ static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   destroyCreateSubTbReq(&pCxt->createTblReq);
 }
 
-static void destroyDataBlock(STableDataBlocks* pDataBlock) {
-  if (pDataBlock == NULL) {
-    return;
-  }
-
-  taosMemoryFreeClear(pDataBlock->pData);
-  if (!pDataBlock->cloned) {
-    destroyBoundColumnInfo(&pDataBlock->boundColumnInfo);
-  }
-  taosMemoryFreeClear(pDataBlock);
-}
-
 static void destroyInsertParseContext(SInsertParseContext* pCxt) {
   destroyInsertParseContextForTable(pCxt);
   taosHashCleanup(pCxt->pVgroupsHashObj);
   taosHashCleanup(pCxt->pSubTableHashObj);
+  taosHashCleanup(pCxt->pTableNameHashObj);
 
   destroyBlockHashmap(pCxt->pTableBlockHashObj);
   destroyBlockArrayList(pCxt->pVgDataBlocks);
@@ -1121,7 +1110,9 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       NEXT_TOKEN(pCxt->pSql, sToken);
       autoCreateTbl = true;
     } else {
-      CHECK_CODE(getTableMeta(pCxt, &name, tbFName));
+      char dbFName[TSDB_DB_FNAME_LEN];
+      tNameGetFullDbName(&name, dbFName);
+      CHECK_CODE(getTableMeta(pCxt, &name, dbFName));
     }
 
     STableDataBlocks* dataBuf = NULL;
@@ -1227,16 +1218,20 @@ int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery) {
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    (*pQuery)->pTableList = taosArrayInit(taosHashGetSize(context.pTableNameHashObj), sizeof(SName));
-    if (NULL == (*pQuery)->pTableList) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+
     (*pQuery)->execMode = QUERY_EXEC_MODE_SCHEDULE;
     (*pQuery)->haveResultSet = false;
     (*pQuery)->msgType = TDMT_VND_SUBMIT;
     (*pQuery)->pRoot = (SNode*)context.pOutput;
   }
 
+  if (NULL == (*pQuery)->pTableList) {
+    (*pQuery)->pTableList = taosArrayInit(taosHashGetSize(context.pTableNameHashObj), sizeof(SName));
+    if (NULL == (*pQuery)->pTableList) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  
   context.pOutput->payloadType = PAYLOAD_TYPE_KV;
 
   int32_t code = skipInsertInto(&context);
@@ -1297,6 +1292,7 @@ int32_t qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash
 
   CHECK_CODE(buildOutput(&insertCtx));
 
+  destroyBlockArrayList(insertCtx.pVgDataBlocks);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1576,15 +1572,24 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD** fields
 
 // schemaless logic start
 
-typedef struct SmlExecHandle {
-  SHashObj* pBlockHash;
-
+typedef struct SmlExecTableHandle {
   SParsedDataColInfo tags;          // each table
   SKVRowBuilder      tagsBuilder;   // each table
   SVCreateTbReq      createTblReq;  // each table
+} SmlExecTableHandle;
 
-  SQuery* pQuery;
+typedef struct SmlExecHandle {
+  SHashObj*           pBlockHash;
+  SmlExecTableHandle  tableExecHandle;
+  SQuery              *pQuery;
 } SSmlExecHandle;
+
+static void smlDestroyTableHandle(void* pHandle) {
+  SmlExecTableHandle* handle = (SmlExecTableHandle*)pHandle;
+  tdDestroyKVRowBuilder(&handle->tagsBuilder);
+  destroyBoundColumnInfo(&handle->tags);
+  destroyCreateSubTbReq(&handle->createTblReq);
+}
 
 static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SSchema* pSchema) {
   col_id_t nCols = pColList->numOfCols;
@@ -1668,7 +1673,11 @@ static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedD
     SSchema* pTagSchema = &pSchema[tags->boundColumns[i] - 1];  // colId starts with 1
     param.schema = pTagSchema;
     SSmlKv* kv = taosArrayGetP(cols, i);
-    KvRowAppend(msg, kv->value, kv->valueLen, &param);
+    if(IS_VAR_DATA_TYPE(kv->type)){
+      KvRowAppend(msg, kv->value, kv->length, &param);
+    }else{
+      KvRowAppend(msg, &(kv->value), kv->length, &param);
+    }
   }
 
   *row = tdGetKVRowFromBuilder(tagsBuilder);
@@ -1684,25 +1693,26 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsSchema, SArray *cols
   SMsgBuf pBuf = {.buf = msgBuf, .len = msgBufLen};
 
   SSmlExecHandle* smlHandle = (SSmlExecHandle*)handle;
+  smlDestroyTableHandle(&smlHandle->tableExecHandle);   // free for each table
   SSchema*        pTagsSchema = getTableTagSchema(pTableMeta);
-  setBoundColumnInfo(&smlHandle->tags, pTagsSchema, getNumOfTags(pTableMeta));
-  int ret = smlBoundColumnData(tags, &smlHandle->tags, pTagsSchema);
+  setBoundColumnInfo(&smlHandle->tableExecHandle.tags, pTagsSchema, getNumOfTags(pTableMeta));
+  int ret = smlBoundColumnData(tags, &smlHandle->tableExecHandle.tags, pTagsSchema);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "bound tags error");
     return ret;
   }
   SKVRow row = NULL;
-  ret = smlBuildTagRow(tags, &smlHandle->tagsBuilder, &smlHandle->tags, pTagsSchema, &row, &pBuf);
+  ret = smlBuildTagRow(tags, &smlHandle->tableExecHandle.tagsBuilder, &smlHandle->tableExecHandle.tags, pTagsSchema, &row, &pBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
-  buildCreateTbReq(&smlHandle->createTblReq, tableName, row, pTableMeta->suid);
+  buildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, row, pTableMeta->suid);
 
   STableDataBlocks* pDataBlock = NULL;
   ret = getDataBlockFromList(smlHandle->pBlockHash, &pTableMeta->uid, sizeof(pTableMeta->uid),
                              TSDB_DEFAULT_PAYLOAD_SIZE, sizeof(SSubmitBlk), getTableInfo(pTableMeta).rowSize,
-                             pTableMeta, &pDataBlock, NULL, &smlHandle->createTblReq);
+                             pTableMeta, &pDataBlock, NULL, &smlHandle->tableExecHandle.createTblReq);
   if (ret != TSDB_CODE_SUCCESS) {
     buildInvalidOperationMsg(&pBuf, "create data block error");
     return ret;
@@ -1766,14 +1776,16 @@ int32_t smlBindData(void *handle, SArray *tags, SArray *colsSchema, SArray *cols
       if (!kv || kv->length == 0) {
         MemRowAppend(&pBuf, NULL, 0, &param);
       } else {
-        int32_t colLen = pColSchema->bytes;
-        if (IS_VAR_DATA_TYPE(pColSchema->type)) {
-          colLen = kv->length;
-        } else if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
+        int32_t colLen = kv->length;
+        if (pColSchema->type == TSDB_DATA_TYPE_TIMESTAMP) {
           kv->i = convertTimePrecision(kv->i, TSDB_TIME_PRECISION_NANO, pTableMeta->tableInfo.precision);
         }
 
-        MemRowAppend(&pBuf, &(kv->value), colLen, &param);
+        if(IS_VAR_DATA_TYPE(kv->type)){
+          MemRowAppend(&pBuf, kv->value, colLen, &param);
+        }else{
+          MemRowAppend(&pBuf, &(kv->value), colLen, &param);
+        }
       }
 
       if (PRIMARYKEY_TIMESTAMP_COL_ID == pColSchema->colId) {
@@ -1816,6 +1828,7 @@ void smlDestroyHandle(void* pHandle) {
   if (!pHandle) return;
   SSmlExecHandle* handle = (SSmlExecHandle*)pHandle;
   destroyBlockHashmap(handle->pBlockHash);
+  smlDestroyTableHandle(&handle->tableExecHandle);
   taosMemoryFree(handle);
 }
 

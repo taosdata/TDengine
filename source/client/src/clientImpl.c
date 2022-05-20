@@ -172,7 +172,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
                        .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
                        .pTransporter = pTscObj->pAppInfo->pTransporter,
                        .pStmtCb = pStmtCb,
-                       .pUser = pTscObj->user};
+                       .pUser = pTscObj->user,
+                       .isSuperUser = (0 == strcmp(pTscObj->user, TSDB_DEFAULT_USER))};
 
   cxt.mgmtEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
   int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &cxt.pCatalog);
@@ -232,8 +233,7 @@ int32_t getPlan(SRequestObj* pRequest, SQuery* pQuery, SQueryPlan** pPlan, SArra
                       .pAstRoot = pQuery->pRoot,
                       .showRewrite = pQuery->showRewrite,
                       .pMsg = pRequest->msgBuf,
-                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE,
-                      .placeholderNum = pQuery->placeholderNum};
+                      .msgLen = ERROR_MSG_BUF_DEFAULT_SIZE};
   SEpSet       mgmtEpSet = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
   SCatalog*    pCatalog = NULL;
   int32_t      code = catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog);
@@ -291,7 +291,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
 
   SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
   int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
-                                       pRequest->metric.start, NULL != pRes, &res);
+                                  pRequest->metric.start, &res);
   if (code != TSDB_CODE_SUCCESS) {
     if (pRequest->body.queryJob != 0) {
       schedulerFreeJob(pRequest->body.queryJob);
@@ -310,9 +310,7 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     }
   }
 
-  if (pRes) {
-    *pRes = res.res;
-  }
+  *pRes = res.res;
 
   pRequest->code = res.code;
   terrno = res.code;
@@ -324,7 +322,58 @@ int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) 
   return getPlan(pRequest, pQuery, &pRequest->body.pDag, *pNodeList);
 }
 
+int32_t validateSversion(SRequestObj* pRequest, void* res) {
+  SArray* pArray = NULL;
+  int32_t code = 0;
+
+  if (TDMT_VND_SUBMIT == pRequest->type) {
+    SSubmitRsp* pRsp = (SSubmitRsp*)res;
+    if (pRsp->nBlocks <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    pArray = taosArrayInit(pRsp->nBlocks, sizeof(STbSVersion));
+    if (NULL == pArray) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
+      SSubmitBlkRsp* blk = pRsp->pBlocks + i;
+      STbSVersion    tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
+      taosArrayPush(pArray, &tbSver);
+    }
+  } else if (TDMT_VND_QUERY == pRequest->type) {
+  }
+
+  SCatalog* pCatalog = NULL;
+  CHECK_CODE_GOTO(catalogGetHandle(pRequest->pTscObj->pAppInfo->clusterId, &pCatalog), _return);
+
+  SEpSet epset = getEpSet_s(&pRequest->pTscObj->pAppInfo->mgmtEp);
+
+  code = catalogChkTbMetaVersion(pCatalog, pRequest->pTscObj->pAppInfo->pTransporter, &epset, pArray);
+
+_return:
+
+  taosArrayDestroy(pArray);
+
+  return code;
+}
+
+void freeRequestRes(SRequestObj* pRequest, void* res) {
+  if (NULL == res) {
+    return;
+  }
+
+  if (TDMT_VND_SUBMIT == pRequest->type) {
+    tFreeSSubmitRsp((SSubmitRsp*)res);
+  } else if (TDMT_VND_QUERY == pRequest->type) {
+  }
+}
+
 SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code, bool keepQuery, void** res) {
+  void* pRes = NULL;
+
   if (TSDB_CODE_SUCCESS == code) {
     switch (pQuery->execMode) {
       case QUERY_EXEC_MODE_LOCAL:
@@ -337,7 +386,10 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
         SArray* pNodeList = taosArrayInit(4, sizeof(struct SQueryNodeAddr));
         code = getPlan(pRequest, pQuery, &pRequest->body.pDag, pNodeList);
         if (TSDB_CODE_SUCCESS == code) {
-          code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList, res);
+          code = scheduleQuery(pRequest, pRequest->body.pDag, pNodeList, &pRes);
+          if (NULL != pRes) {
+            code = validateSversion(pRequest, pRes);
+          }
         }
         taosArrayDestroy(pNodeList);
         break;
@@ -356,6 +408,12 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
 
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
+    freeRequestRes(pRequest, pRes);
+    pRes = NULL;
+  }
+
+  if (res) {
+    *res = pRes;
   }
 
   return pRequest;
@@ -517,8 +575,9 @@ STscObj* taosConnectImpl(const char* user, const char* auth, const char* db, __t
   if (pRequest->code != TSDB_CODE_SUCCESS) {
     const char* errorMsg =
         (pRequest->code == TSDB_CODE_RPC_FQDN_ERROR) ? taos_errstr(pRequest) : tstrerror(pRequest->code);
-    printf("failed to connect to server, reason: %s\n\n", errorMsg);
+    fprintf(stderr, "failed to connect to server, reason: %s\n\n", errorMsg);
 
+    terrno = pRequest->code;
     destroyRequest(pRequest);
     taos_close(pTscObj);
     pTscObj = NULL;
@@ -583,8 +642,8 @@ bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
 }
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
-  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->ahandle;
-  assert(pMsg->ahandle != NULL);
+  SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
+  assert(pMsg->info.ahandle != NULL);
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
@@ -615,7 +674,7 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
 
-  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->handle};
+  SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle};
 
   if (pMsg->contLen > 0) {
     buf.pData = taosMemoryCalloc(1, pMsg->contLen);
@@ -956,12 +1015,11 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   void*              clientRpc = NULL;
   SServerStatusRsp   statusRsp = {0};
   SEpSet             epSet = {.inUse = 0, .numOfEps = 1};
-  SRpcMsg            rpcMsg = {.ahandle = (void*)0x9526, .msgType = TDMT_DND_SERVER_STATUS};
+  SRpcMsg            rpcMsg = {.info.ahandle = (void*)0x9526, .msgType = TDMT_DND_SERVER_STATUS};
   SRpcMsg            rpcRsp = {0};
   SRpcInit           rpcInit = {0};
   char               pass[TSDB_PASSWORD_LEN + 1] = {0};
 
-  taosEncryptPass_c((uint8_t*)("_pwd"), strlen("_pwd"), pass);
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = NULL;
@@ -969,9 +1027,6 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
-  rpcInit.ckey = "_key";
-  rpcInit.spi = 1;
-  rpcInit.secret = pass;
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {

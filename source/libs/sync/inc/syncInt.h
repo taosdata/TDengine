@@ -159,11 +159,10 @@ typedef struct SSyncNode {
   char        configPath[TSDB_FILENAME_LEN * 2];
 
   // sync io
-  SWal* pWal;
-  void* rpcClient;
-  int32_t (*FpSendMsg)(void* rpcClient, const SEpSet* pEpSet, SRpcMsg* pMsg);
-  void* queue;
-  int32_t (*FpEqMsg)(void* queue, SRpcMsg* pMsg);
+  SWal*         pWal;
+  const SMsgCb* msgcb;
+  int32_t (*FpSendMsg)(const SEpSet* pEpSet, SRpcMsg* pMsg);
+  int32_t (*FpEqMsg)(const SMsgCb* msgcb, SRpcMsg* pMsg);
 
   // init internal
   SNodeInfo myNodeInfo;
@@ -247,6 +246,7 @@ typedef struct SSyncNode {
 // open/close --------------
 SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo);
 void       syncNodeStart(SSyncNode* pSyncNode);
+void       syncNodeStartStandBy(SSyncNode* pSyncNode);
 void       syncNodeClose(SSyncNode* pSyncNode);
 
 // ping --------------
@@ -271,7 +271,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
-void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg *newConfig);
+void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);

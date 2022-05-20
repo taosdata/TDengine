@@ -27,6 +27,8 @@ extern "C" {
 #include "tref.h"
 #include "plannodes.h"
 
+#include "trpc.h"
+
 #define QW_DEFAULT_SCHEDULER_NUMBER 10000
 #define QW_DEFAULT_TASK_NUMBER      10000
 #define QW_DEFAULT_SCH_TASK_NUMBER  10000
@@ -74,18 +76,12 @@ typedef struct SQWDebug {
   bool dumpEnable;
 } SQWDebug;
 
-typedef struct SQWConnInfo {
-  void *  handle;
-  void *  ahandle;
-  int64_t refId;
-} SQWConnInfo;
-
 typedef struct SQWMsg {
-  void *      node;
-  int32_t     code;
-  char *      msg;
-  int32_t     msgLen;
-  SQWConnInfo connInfo;
+  void          *node;
+  int32_t        code;
+  char          *msg;
+  int32_t        msgLen;
+  SRpcHandleInfo connInfo;
 } SQWMsg;
 
 typedef struct SQWHbParam {
@@ -96,7 +92,7 @@ typedef struct SQWHbParam {
 
 typedef struct SQWHbInfo {
   SSchedulerHbRsp rsp;
-  SQWConnInfo     connInfo;
+  SRpcHandleInfo  connInfo;
 } SQWHbInfo;
 
 typedef struct SQWPhaseInput {
@@ -127,8 +123,8 @@ typedef struct SQWTaskCtx {
   bool    queryInQueue;
   int32_t rspCode;
 
-  SQWConnInfo ctrlConnInfo;
-  SQWConnInfo dataConnInfo;
+  SRpcHandleInfo ctrlConnInfo;
+  SRpcHandleInfo dataConnInfo;
 
   int8_t events[QW_EVENT_MAX];
 
@@ -140,10 +136,10 @@ typedef struct SQWTaskCtx {
 typedef struct SQWSchStatus {
   int32_t        lastAccessTs;  // timestamp in second
   SRWLatch       hbConnLock;
-  SQWConnInfo    hbConnInfo;
+  SRpcHandleInfo hbConnInfo;
   SQueryNodeEpId hbEpId;
   SRWLatch       tasksLock;
-  SHashObj *     tasksHash;  // key:queryId+taskId, value: SQWTaskStatus
+  SHashObj      *tasksHash;  // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
 
 // Qnode/Vnode level task management

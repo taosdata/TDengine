@@ -26,7 +26,7 @@ static const SSysDbTableSchema dnodesSchema[] = {
     {.name = "id", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "endpoint", .bytes = TSDB_EP_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
-    {.name = "max_vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
+    {.name = "support_vnodes", .bytes = 2, .type = TSDB_DATA_TYPE_SMALLINT},
     {.name = "status", .bytes = 10 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "note", .bytes = 256 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
@@ -263,7 +263,7 @@ static const SSysDbTableSchema topicSchema[] = {
 static const SSysDbTableSchema consumerSchema[] = {
     {.name = "consumer_id", .bytes = 8, .type = TSDB_DATA_TYPE_BIGINT},
     {.name = "consumer_group", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
-    {.name = "app_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
+    {.name = "client_id", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "status", .bytes = 20 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "topics", .bytes = TSDB_TOPIC_FNAME_LEN + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_BINARY},
     {.name = "pid", .bytes = 4, .type = TSDB_DATA_TYPE_INT},

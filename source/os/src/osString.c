@@ -236,3 +236,121 @@ int32_t taosMbsToWchars(TdWchar *pWchars, const char *pStrs, int32_t size) { ret
 int32_t taosWcharToMb(char *pStr, TdWchar wchar) { return wctomb(pStr, wchar); }
 
 int32_t taosWcharsToMbs(char *pStrs, TdWchar *pWchars, int32_t size) { return wcstombs(pStrs, pWchars, size); }
+
+char *taosStrCaseStr(const char *str, const char *pattern) {
+  size_t i; 
+
+  if (!*pattern) 
+    return (char*)str; 
+
+  for (; *str; str++) { 
+    if (toupper(*str) == toupper(*pattern)) { 
+    for (i = 1;; i++) { 
+      if (!pattern[i]) 
+      return (char*)str; 
+      if (toupper(str[i]) != toupper(pattern[i])) 
+      break; 
+    } 
+    } 
+  } 
+  return NULL; 
+}
+
+int64_t taosStr2Int64(const char *str, char** pEnd, int32_t radix) {
+  int64_t tmp = strtoll(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+#endif
+  return tmp;
+}
+
+uint64_t taosStr2UInt64(const char *str, char** pEnd, int32_t radix) {
+  uint64_t tmp = strtoull(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+#endif
+  return tmp;
+}
+
+int32_t taosStr2Int32(const char *str, char** pEnd, int32_t radix) {
+  int32_t tmp = strtol(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+#endif
+  return tmp;
+}
+
+uint32_t taosStr2UInt32(const char *str, char** pEnd, int32_t radix) {
+  uint32_t tmp = strtol(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+#endif
+  return tmp;
+}
+
+int16_t taosStr2Int16(const char *str, char** pEnd, int32_t radix) {
+  int32_t tmp = strtol(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp >= SHRT_MIN);
+  assert(tmp <= SHRT_MAX);
+#endif
+  return (int16_t)tmp;
+}
+
+uint16_t taosStr2UInt16(const char *str, char** pEnd, int32_t radix) {
+  uint32_t tmp = strtoul(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp <= USHRT_MAX);
+#endif
+  return (uint16_t)tmp;
+}
+
+int8_t taosStr2Int8(const char *str, char** pEnd, int32_t radix) {
+  int32_t tmp = strtol(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp >= SCHAR_MIN);
+  assert(tmp <= SCHAR_MAX);
+#endif
+  return tmp;
+}
+
+uint8_t taosStr2UInt8(const char *str, char** pEnd, int32_t radix) {
+  uint32_t tmp = strtoul(str, pEnd, radix);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp <= UCHAR_MAX);
+#endif
+  return tmp;
+}
+
+double taosStr2Double(const char *str, char** pEnd) {
+  double tmp = strtod(str, pEnd);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp != HUGE_VAL);
+#endif
+  return tmp;
+}
+
+float taosStr2Float(const char *str, char** pEnd) {
+  float tmp = strtof(str, pEnd);
+#ifdef TD_CHECK_STR_TO_INT_ERROR
+  assert(errno != ERANGE);
+  assert(errno != EINVAL);
+  assert(tmp != HUGE_VALF);
+  assert(tmp != NAN);
+#endif
+  return tmp;
+}

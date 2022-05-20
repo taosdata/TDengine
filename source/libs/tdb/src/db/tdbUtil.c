@@ -35,10 +35,10 @@ void tdbFree(void *p) {
   }
 }
 
-int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique) {
+int tdbGnrtFileID(tdb_fd_t fd, uint8_t *fileid, bool unique) {
   int64_t stDev = 0, stIno = 0;
 
-  if (taosDevInoFile(fname, &stDev, &stIno) < 0) {
+  if (taosDevInoFile(fd, &stDev, &stIno) < 0) {
     return -1;
   }
 

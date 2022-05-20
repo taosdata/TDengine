@@ -69,7 +69,7 @@ void processShellMsg() {
       memset(&rpcMsg, 0, sizeof(rpcMsg));
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
-      rpcMsg.handle = pRpcMsg->handle;
+      rpcMsg.info = pRpcMsg->info;
       rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
@@ -103,7 +103,7 @@ int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
@@ -123,7 +123,6 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp = processRequestMsg;
   rpcInit.sessions = 1000;
   rpcInit.idleTime = 2 * 1500;
-  rpcInit.afp = retrieveAuthInfo;
 
   rpcDebugFlag = 131;
 

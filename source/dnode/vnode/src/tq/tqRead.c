@@ -25,6 +25,7 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
   pReadHandle->ver = -1;
   pReadHandle->pColIdList = NULL;
   pReadHandle->sver = -1;
+  pReadHandle->cachedSchemaUid = -1;
   pReadHandle->pSchema = NULL;
   pReadHandle->pSchemaWrapper = NULL;
   pReadHandle->tbIdHash = NULL;
@@ -33,21 +34,11 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
 
 int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
   pReadHandle->pMsg = pMsg;
-  // pMsg->length = htonl(pMsg->length);
-  // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
-  // iterate and convert
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   while (true) {
     if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
     if (pReadHandle->pBlock == NULL) break;
-
-    // pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
-    // pReadHandle->pBlock->suid = htobe64(pReadHandle->pBlock->suid);
-    // pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
-    // pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
-    // pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
-    // pReadHandle->pBlock->numOfRows = htons(pReadHandle->pBlock->numOfRows);
   }
 
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
@@ -63,40 +54,47 @@ bool tqNextDataBlock(STqReadHandle* pHandle) {
     }
     if (pHandle->pBlock == NULL) return false;
 
-    /*pHandle->pBlock->uid = htobe64(pHandle->pBlock->uid);*/
-    /*if (pHandle->tbUid == pHandle->pBlock->uid) {*/
     if (pHandle->tbIdHash == NULL) {
       return true;
     }
     void* ret = taosHashGet(pHandle->tbIdHash, &pHandle->msgIter.uid, sizeof(int64_t));
     if (ret != NULL) {
-      /*printf("retrieve one tb %ld\n", pHandle->pBlock->uid);*/
-      /*pHandle->pBlock->tid = htonl(pHandle->pBlock->tid);*/
-      /*pHandle->pBlock->sversion = htonl(pHandle->pBlock->sversion);*/
-      /*pHandle->pBlock->dataLen = htonl(pHandle->pBlock->dataLen);*/
-      /*pHandle->pBlock->schemaLen = htonl(pHandle->pBlock->schemaLen);*/
-      /*pHandle->pBlock->numOfRows = htons(pHandle->pBlock->numOfRows);*/
       return true;
-      /*} else {*/
-      /*printf("skip one tb %ld\n", pHandle->pBlock->uid);*/
     }
   }
   return false;
 }
 
-int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid, int32_t* pNumOfRows,
-                            int16_t* pNumOfCols) {
+bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
+  while (1) {
+    if (tGetSubmitMsgNext(&pHandle->msgIter, &pHandle->pBlock) < 0) {
+      return false;
+    }
+    if (pHandle->pBlock == NULL) return false;
+
+    ASSERT(pHandle->tbIdHash == NULL);
+    void* ret = taosHashGet(filterOutUids, &pHandle->msgIter.uid, sizeof(int64_t));
+    if (ret == NULL) {
+      return true;
+    }
+  }
+  return false;
+}
+
+int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
+                            int32_t* pNumOfRows, int16_t* pNumOfCols) {
   /*int32_t         sversion = pHandle->pBlock->sversion;*/
   // TODO set to real sversion
   *pUid = 0;
 
-  int32_t sversion = 0;
-  if (pHandle->sver != sversion) {
+  int32_t sversion = 1;
+  if (pHandle->sver != sversion || pHandle->cachedSchemaUid != pHandle->msgIter.suid) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
 
     // this interface use suid instead of uid
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.suid, sversion, true);
     pHandle->sver = sversion;
+    pHandle->cachedSchemaUid = pHandle->msgIter.suid;
   }
 
   STSchema*       pTschema = pHandle->pSchema;

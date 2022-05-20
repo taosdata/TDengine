@@ -250,7 +250,7 @@ int32_t tNameFromString(SName* dst, const char* str, uint32_t type) {
       return -1;
     }
 
-    dst->acctId = strtoll(str, NULL, 10);
+    dst->acctId = taosStr2Int32(str, NULL, 10);
   }
 
   if ((type & T_NAME_DB) == T_NAME_DB) {
@@ -317,7 +317,11 @@ void buildChildTableName(RandTableName* rName) {
   for (int j = 0; j < size; ++j) {
     SSmlKv* tagKv = taosArrayGetP(rName->tags, j);
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
-    taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->valueLen);
+    if(IS_VAR_DATA_TYPE(tagKv->type)){
+      taosStringBuilderAppendStringLen(&sb, tagKv->value, tagKv->length);
+    }else{
+      taosStringBuilderAppendStringLen(&sb, (char*)(&(tagKv->value)), tagKv->length);
+    }
   }
   size_t    len = 0;
   char*     keyJoined = taosStringBuilderGetResult(&sb, &len);

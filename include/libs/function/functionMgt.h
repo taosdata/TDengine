@@ -41,6 +41,7 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
   FUNCTION_TYPE_HISTOGRAM,
+  FUNCTION_TYPE_HYPERLOGLOG,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -140,6 +141,8 @@ int32_t fmFuncMgtInit();
 void fmFuncMgtDestroy();
 
 int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc);
+
+bool fmIsBuiltinFunc(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);

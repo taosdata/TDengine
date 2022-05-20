@@ -26,45 +26,43 @@ extern "C" {
 
 #define TAOS_CONN_SERVER 0
 #define TAOS_CONN_CLIENT 1
+#define IsReq(pMsg)      (pMsg->msgType & 1U)
 
 extern int tsRpcHeadSize;
 
-typedef struct SRpcConnInfo {
+typedef struct {
   uint32_t clientIp;
   uint16_t clientPort;
-  uint32_t serverIp;
   char     user[TSDB_USER_LEN];
 } SRpcConnInfo;
 
-typedef struct SRpcMsg {
-  tmsg_t  msgType;
-  void *  pCont;
-  int     contLen;
-  int32_t code;
+typedef struct SRpcHandleInfo {
+  // rpc info
   void *  handle;         // rpc handle returned to app
-  void *  ahandle;        // app handle set by client
   int64_t refId;          // refid, used by server
-  int     noResp;         // has response or not(default 0, 0: resp, 1: no resp);
-  int     persistHandle;  // persist handle or not
+  int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
+  int32_t persistHandle;  // persist handle or not
 
+  // app info
+  void *ahandle;  // app handle set by client
+  void *wrapper;  // wrapper handle
+  void *node;     // node mgmt handle
+
+  // resp info
+  void *  rsp;
+  int32_t rspLen;
+} SRpcHandleInfo;
+
+typedef struct SRpcMsg {
+  tmsg_t         msgType;
+  void *         pCont;
+  int32_t        contLen;
+  int32_t        code;
+  SRpcHandleInfo info;
+  SRpcConnInfo   conn;
 } SRpcMsg;
 
-typedef struct {
-  char     user[TSDB_USER_LEN];
-  uint32_t clientIp;
-  uint16_t clientPort;
-  SRpcMsg  rpcMsg;
-  int32_t  rspLen;
-  void *   pRsp;
-  void *   pNode;
-} SNodeMsg;
-
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
-typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
-///
-// // SRpcMsg code
-// REDIERE,
-// NOT READY, EpSet
 typedef bool (*RpcRfp)(int32_t code);
 
 typedef struct SRpcInit {
@@ -77,17 +75,10 @@ typedef struct SRpcInit {
   int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
   // the following is for client app ecurity only
-  char *user;     // user name
-  char  spi;      // security parameter index
-  char  encrypt;  // encrypt algorithm
-  char *secret;   // key for authentication
-  char *ckey;     // ciphering key
+  char *user;  // user name
 
   // call back to process incoming msg, code shall be ignored by server app
   RpcCfp cfp;
-
-  // call back to retrieve the client auth info, for server app only
-  RpcAfp afp;
 
   // user defined retry func
   RpcRfp rfp;

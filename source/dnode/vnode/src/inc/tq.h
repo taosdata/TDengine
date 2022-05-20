@@ -93,6 +93,7 @@ struct STqReadHandle {
   SMeta*            pVnodeMeta;
   SArray*           pColIdList;  // SArray<int16_t>
   int32_t           sver;
+  int64_t           cachedSchemaUid;
   SSchemaWrapper*   pSchemaWrapper;
   STSchema*         pSchema;
 };
@@ -162,6 +163,7 @@ typedef struct {
   int8_t        withSchema;
   int8_t        withTag;
   char*         qmsg;
+  SHashObj*     pDropTbUid;
   STqPushHandle pushHandle;
   // SRWLatch        lock;
   SWalReadHandle* pWalReader;
@@ -178,6 +180,7 @@ struct STQ {
   SHashObj* pStreamTasks;
   SVnode*   pVnode;
   SWal*     pWal;
+  // TDB*      pTdb;
 };
 
 typedef struct {

@@ -21,13 +21,14 @@
 #include "tcache.h"
 #include "tglobal.h"
 #include "tmsg.h"
+#include "tudf.h"
 
-#include "thash.h"
-#include "executorimpl.h"
 #include "executor.h"
+#include "executorimpl.h"
+#include "query.h"
+#include "thash.h"
 #include "tlosertree.h"
 #include "ttypes.h"
-#include "query.h"
 
 typedef struct STaskMgmt {
   TdThreadMutex lock;
@@ -132,6 +133,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   if (ret != TSDB_CODE_SUCCESS) {
     publishQueryAbortEvent(pTaskInfo, ret);
     pTaskInfo->code = ret;
+    cleanUpUdfs();
     qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo),
            tstrerror(pTaskInfo->code));
     return pTaskInfo->code;
@@ -156,6 +158,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
   pTaskInfo->totalRows += current;
 
+  cleanUpUdfs();
   qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
          GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0, el/1000.0);
 

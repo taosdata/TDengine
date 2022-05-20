@@ -128,6 +128,7 @@ int     tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList
 int     tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
+bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
                             int32_t *pNumOfRows, int16_t *pNumOfCols);
 
@@ -189,9 +190,15 @@ struct SMetaEntry {
     struct {
       int64_t        ctime;
       int32_t        ttlDays;
+      int32_t        ncid;  // next column id
       SSchemaWrapper schema;
     } ntbEntry;
+    struct {
+      STSma *tsma;
+    } smaEntry;
   };
+
+  uint8_t *pBuf;
 };
 
 struct SMetaReader {
@@ -204,7 +211,7 @@ struct SMetaReader {
 };
 
 struct SMTbCursor {
-  TDBC       *pDbc;
+  TBC        *pDbc;
   void       *pKey;
   void       *pVal;
   int         kLen;

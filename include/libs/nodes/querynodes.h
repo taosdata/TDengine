@@ -48,6 +48,7 @@ typedef struct SExprNode {
   ENodeType type;
   SDataType resType;
   char      aliasName[TSDB_COL_NAME_LEN];
+  char      userAlias[TSDB_COL_NAME_LEN];
   SArray*   pAssociation;
 } SExprNode;
 
@@ -235,6 +236,7 @@ typedef struct SSelectStmt {
   bool        isTimeOrderQuery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
+  bool        hasNonstdSQLFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -247,6 +249,7 @@ typedef struct SSetOperator {
   SNode*           pRight;
   SNodeList*       pOrderByList;  // SOrderByExprNode
   SNode*           pLimit;
+  char             stmtName[TSDB_TABLE_NAME_LEN];
 } SSetOperator;
 
 typedef enum ESqlClause {
@@ -325,6 +328,7 @@ typedef struct SQuery {
   bool           showRewrite;
   int32_t        placeholderNum;
   SArray*        pPlaceholderValues;
+  SNode*         pPrepareRoot;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
@@ -345,6 +349,7 @@ bool nodesIsUnaryOp(const SOperatorNode* pOp);
 bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
+bool nodesIsRegularOp(const SOperatorNode* pOp);
 
 bool nodesIsTimeorderQuery(const SNode* pQuery);
 bool nodesIsTimelineQuery(const SNode* pQuery);

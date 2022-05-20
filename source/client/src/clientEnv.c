@@ -60,7 +60,7 @@ static void registerRequest(SRequestObj *pRequest) {
 static void deregisterRequest(SRequestObj *pRequest) {
   assert(pRequest != NULL);
 
-  STscObj          *pTscObj = pRequest->pTscObj;
+  STscObj *         pTscObj = pRequest->pTscObj;
   SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
@@ -83,6 +83,14 @@ void closeTransporter(STscObj *pTscObj) {
   rpcClose(pTscObj->pAppInfo->pTransporter);
 }
 
+static bool clientRpcRfp(int32_t code) {
+  if (code == TSDB_CODE_RPC_REDIRECT) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
 // TODO refactor
 void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
@@ -91,14 +99,11 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.label = "TSC";
   rpcInit.numOfThreads = numOfThread;
   rpcInit.cfp = processMsgFromServer;
-  rpcInit.sessions = tsMaxConnections;
+  rpcInit.rfp = clientRpcRfp;
+  rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.ckey = "key";
-  rpcInit.spi = 1;
-  rpcInit.secret = (char *)auth;
-
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
     tscError("failed to init connection to server");
@@ -308,7 +313,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     return 0;
   }
 
-  SConfig     *pCfg = taosGetCfg();
+  SConfig *    pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
   switch (option) {
