@@ -72,11 +72,10 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (code != 0) {
     if (terrno != 0) code = terrno;
     vmSendRsp(pMsg, code);
-
-    dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
   }
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }
 
 static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
@@ -87,11 +86,10 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (code != 0) {
     if (terrno != 0) code = terrno;
     vmSendRsp(pMsg, code);
-
-    dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
   }
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }
 
 static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
@@ -149,7 +147,7 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
 static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg   *pMsg = NULL;
+  SRpcMsg *  pMsg = NULL;
   SRpcMsg    rsp;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
@@ -190,7 +188,7 @@ static void vmProcessApplyQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 
 static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg   *pMsg = NULL;
+  SRpcMsg *  pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     taosGetQitem(qall, (void **)&pMsg);
@@ -216,7 +214,7 @@ static void vmProcessSyncQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOf
 
 static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SRpcMsg   *pMsg = NULL;
+  SRpcMsg *  pMsg = NULL;
 
   for (int32_t i = 0; i < numOfMsgs; ++i) {
     taosGetQitem(qall, (void **)&pMsg);
@@ -235,7 +233,7 @@ static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
 }
 
 static int32_t vmPutNodeMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
-  SRpcMsg  *pRpc = pMsg;
+  SRpcMsg * pRpc = pMsg;
   SMsgHead *pHead = pRpc->pCont;
   int32_t   code = 0;
 
