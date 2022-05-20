@@ -18,7 +18,6 @@ python3 ./test.py -f 5-taos-tools/taosbenchmark/auto_create_table_json.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/commandline.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/json_tag.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/insert_alltypes_json.py
-python3 ./test.py -f 5-taos-tools/taosbenchmark/query_json.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_interlace.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_telnet_alltypes.py
 python3 ./test.py -f 5-taos-tools/taosbenchmark/subscripe_json.py

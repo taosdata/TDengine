@@ -23,7 +23,6 @@
 127,,script,./test.sh -f general/stream/metrics_replica1_vnoden.sim 
 127,,script,./test.sh -f general/stream/metrics_del.sim 
 127,,pytest,python3 test.py -f query/queryConnection.py 
-124,,develop-test/3-connectors/java,bash test.sh 
 121,2,script,./test.sh -f unique/cluster/balance3.sim 
 114,,script,./test.sh -f general/db/alter_tables_d2.sim 
 113,,pytest,python3 test.py -f update/append_commit_last.py 
@@ -43,7 +42,6 @@
 82,,script,./test.sh -f general/parser/limit1.sim 
 82,,pytest,python3 test.py -f query/last_row_cache.py 
 81,,develop-test,timeout 180 bash 3-connectors/c#/test.sh 
-80,,develop-test,timeout 180 bash 3-connectors/nodejs/test.sh 
 79,,script,./test.sh -f general/db/alter_tables_v4.sim 
 79,,pytest,python3 test.py -f insert/verifyMemToDiskCrash.py 
 78,2,script,./test.sh -f unique/dnode/balance3.sim 
@@ -135,8 +133,7 @@
 47,,script,./test.sh -f unique/migrate/mn2_vn2_repl2_rmMnodeDir.sim 
 47,,script,./test.sh -f unique/dnode/monitor.sim 
 47,,script,./test.sh -f unique/big/maxvnodes.sim 
-47,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py 
-46,,system-test,python3 ./test.py  -f  5-taos-tools/taosbenchmark/taosdemoTestQueryWithJson.py
+47,,pytest,python3 test.py -f tools/taosdemoAllTest/NanoTestCase/taosdemoTestSupportNanosubscribe.py
 45,,script,./test.sh -f unique/mnode/mgmt24.sim 
 45,,pytest,python3 test.py -f tools/taosdemoAllTest/TD-5213/insertSigcolumnsNum4096.py 
 44,,script,./test.sh -f unique/vnode/replica3_vgroup.sim 
@@ -497,8 +494,7 @@
 12,,pytest,python3 test.py -f import_merge/importBlock2HO.py 
 12,,pytest,python3 test.py -f import_merge/importBlock1TPO.py 
 12,,pytest,python3 test.py -f import_merge/importBlock1H.py 
-12,,pytest,python3 test.py -f import_merge/importBlock1HPO.py 
-12,,pytest,python3 test.py -f functions/variable_httpDbNameMandatory.py 
+12,,pytest,python3 test.py -f import_merge/importBlock1HPO.py  
 12,,pytest,python3 test.py -f functions/function_round.py 
 12,,pytest,python3 test.py -f functions/function_percentile2.py 
 12,,pytest,python3 test.py -f functions/function_ceil.py 
@@ -552,7 +548,6 @@
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeInt.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosdump/taosdumpTestTypeDouble.py 
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/insert_alltypes_json.py
-8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/query_json.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/sml_interlace.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/subscripe_json.py
 8,,develop-test,python3 ./test.py -f 5-taos-tools/taosbenchmark/invalid_commandline.py

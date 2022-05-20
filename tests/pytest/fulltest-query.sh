@@ -192,7 +192,7 @@ python3 ./test.py  -f functions/function_elapsed.py
 python3 ./test.py -f functions/function_mavg.py
 python3 ./test.py -f functions/function_csum.py
 python3 ./test.py -f functions/function_percentile2.py
-python3 ./test.py -f functions/variable_httpDbNameMandatory.py
+#python3 ./test.py -f functions/variable_httpDbNameMandatory.py
 ######## system-test
 #python3 ./test.py -f ../system-test/2-query/9-others/TD-11389.py # this case will run when this bug fix  TD-11389
 #======================p5-end===============

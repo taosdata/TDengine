@@ -224,7 +224,6 @@ python3 ./test.py -f perfbenchmark/bug3433.py
 
 #taosdemo
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertWithJson.py
-python3 test.py -f tools/taosdemoAllTest/taosdemoTestQueryWithJson.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertAllType.py
 python3 test.py -f tools/taosdemoAllTest/taosdemoTestInsertShell.py
 
@@ -434,7 +433,7 @@ python3 ./test.py -f tools/taosdemoTestdatatype.py
 #python3 ./test.py -f insert/schemalessInsert.py
 #python3 ./test.py -f insert/openTsdbJsonInsert.py
 python3 ./test.py -f insert/openTsdbTelnetLinesInsert.py
-python3 ./test.py -f functions/variable_httpDbNameMandatory.py
+#python3 ./test.py -f functions/variable_httpDbNameMandatory.py
 
 #======================p4-end===============
 
