@@ -184,8 +184,11 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
 
-    case TDMT_VND_TASK_RUN:
-      return tqProcessTaskRunReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TASK_RUN: {
+      int32_t code = tqProcessTaskRunReq(pVnode->pTq, pMsg);
+      pMsg->pCont = NULL;
+      return code;
+    }
     case TDMT_VND_TASK_DISPATCH:
       return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
     case TDMT_VND_TASK_RECOVER:
