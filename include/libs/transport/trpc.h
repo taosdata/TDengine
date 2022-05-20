@@ -38,7 +38,7 @@ typedef struct {
 
 typedef struct SRpcHandleInfo {
   // rpc info
-  void   *handle;         // rpc handle returned to app
+  void *  handle;         // rpc handle returned to app
   int64_t refId;          // refid, used by server
   int32_t noResp;         // has response or not(default 0, 0: resp, 1: no resp);
   int32_t persistHandle;  // persist handle or not
@@ -49,13 +49,13 @@ typedef struct SRpcHandleInfo {
   void *node;     // node mgmt handle
 
   // resp info
-  void   *rsp;
+  void *  rsp;
   int32_t rspLen;
 } SRpcHandleInfo;
 
 typedef struct SRpcMsg {
   tmsg_t         msgType;
-  void          *pCont;
+  void *         pCont;
   int32_t        contLen;
   int32_t        code;
   SRpcHandleInfo info;
@@ -63,11 +63,6 @@ typedef struct SRpcMsg {
 } SRpcMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
-typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
-///
-// // SRpcMsg code
-// REDIERE,
-// NOT READY, EpSet
 typedef bool (*RpcRfp)(int32_t code);
 
 typedef struct SRpcInit {
@@ -80,17 +75,10 @@ typedef struct SRpcInit {
   int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
   // the following is for client app ecurity only
-  char *user;     // user name
-  char  spi;      // security parameter index
-  char  encrypt;  // encrypt algorithm
-  char *secret;   // key for authentication
-  char *ckey;     // ciphering key
+  char *user;  // user name
 
   // call back to process incoming msg, code shall be ignored by server app
   RpcCfp cfp;
-
-  // call back to retrieve the client auth info, for server app only
-  RpcAfp afp;
 
   // user defined retry func
   RpcRfp rfp;

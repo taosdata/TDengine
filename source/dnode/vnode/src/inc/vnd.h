@@ -24,7 +24,6 @@
 extern "C" {
 #endif
 
-// vnodeDebug ====================
 // clang-format off
 #define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
 #define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
@@ -34,17 +33,17 @@ extern "C" {
 #define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
 // clang-format on
 
-// vnodeCfg ====================
+// vnodeCfg.c
 extern const SVnodeCfg vnodeCfgDefault;
 
-int vnodeCheckCfg(const SVnodeCfg*);
-int vnodeEncodeConfig(const void* pObj, SJson* pJson);
-int vnodeDecodeConfig(const SJson* pJson, void* pObj);
+int32_t vnodeCheckCfg(const SVnodeCfg*);
+int32_t vnodeEncodeConfig(const void* pObj, SJson* pJson);
+int32_t vnodeDecodeConfig(const SJson* pJson, void* pObj);
 
-// vnodeModule ====================
-int vnodeScheduleTask(int (*execute)(void*), void* arg);
+// vnodeModule.c
+int32_t vnodeScheduleTask(int32_t (*execute)(void*), void* arg);
 
-// vnodeBufPool ====================
+// vnodeBufPool.c
 typedef struct SVBufPoolNode SVBufPoolNode;
 struct SVBufPoolNode {
   SVBufPoolNode*  prev;
@@ -62,38 +61,29 @@ struct SVBufPool {
   SVBufPoolNode  node;
 };
 
-int  vnodeOpenBufPool(SVnode* pVnode, int64_t size);
-int  vnodeCloseBufPool(SVnode* pVnode);
-void vnodeBufPoolReset(SVBufPool* pPool);
+int32_t vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int32_t vnodeCloseBufPool(SVnode* pVnode);
+void    vnodeBufPoolReset(SVBufPool* pPool);
 
-// vnodeQuery ====================
-int  vnodeQueryOpen(SVnode* pVnode);
-void vnodeQueryClose(SVnode* pVnode);
-int  vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
+// vnodeQuery.c
+int32_t vnodeQueryOpen(SVnode* pVnode);
+void    vnodeQueryClose(SVnode* pVnode);
+int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
 
-// vnodeCommit ====================
-int vnodeBegin(SVnode* pVnode);
-int vnodeShouldCommit(SVnode* pVnode);
-int vnodeCommit(SVnode* pVnode);
-int vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
-int vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
-int vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
-int vnodeSyncCommit(SVnode* pVnode);
-int vnodeAsyncCommit(SVnode* pVnode);
+// vnodeCommit.c
+int32_t vnodeBegin(SVnode* pVnode);
+int32_t vnodeShouldCommit(SVnode* pVnode);
+int32_t vnodeCommit(SVnode* pVnode);
+int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
+int32_t vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
+int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
+int32_t vnodeSyncCommit(SVnode* pVnode);
+int32_t vnodeAsyncCommit(SVnode* pVnode);
 
-// vnodeCommit ====================
+// vnodeSync.c
 int32_t   vnodeSyncOpen(SVnode* pVnode, char* path);
-int32_t   vnodeSyncStart(SVnode* pVnode);
+void      vnodeSyncStart(SVnode* pVnode);
 void      vnodeSyncClose(SVnode* pVnode);
-void      vnodeSyncSetQ(SVnode* pVnode, void* qHandle);
-void      vnodeSyncSetRpc(SVnode* pVnode, void* rpcHandle);
-int32_t   vnodeSyncEqMsg(void* qHandle, SRpcMsg* pMsg);
-int32_t   vnodeSendMsg(void* rpcHandle, const SEpSet* pEpSet, SRpcMsg* pMsg);
-void      vnodeSyncCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
-void      vnodeSyncPreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
-void      vnodeSyncRollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
-int32_t   vnodeSyncGetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
-SSyncFSM* syncVnodeMakeFsm();
 
 #ifdef __cplusplus
 }
