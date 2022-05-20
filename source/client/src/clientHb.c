@@ -655,6 +655,9 @@ static int32_t hbCreateThread() {
 }
 
 static void hbStopThread() {
+  if (0 == atomic_load_8(&clientHbMgr.inited)) {
+    return;
+  }
   if (atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 0, 1)) {
     tscDebug("hb thread already stopped");
     return;
