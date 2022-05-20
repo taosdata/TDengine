@@ -2077,10 +2077,10 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
 #endif
         if (TD_SUPPORT_UPDATE(pCfg->update)) {
           if (lastKeyAppend != key) {
-            lastKeyAppend = key;
             if (lastKeyAppend != TSKEY_INITIAL_VAL) {
               ++curRow;
             }
+            lastKeyAppend = key;
           }
           // load data from file firstly
           numOfRows = doCopyRowsFromFileBlock(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, curRow, pos, pos);
