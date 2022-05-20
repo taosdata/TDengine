@@ -126,6 +126,8 @@ STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 void    tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList);
 int     tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 int     tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
+int     tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList);
+
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
 int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,

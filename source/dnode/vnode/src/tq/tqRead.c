@@ -235,3 +235,14 @@ int tqReadHandleAddTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
 
   return 0;
 }
+
+int tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+  ASSERT(pHandle->tbIdHash != NULL);
+
+  for(int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
+    int64_t* pKey = (int64_t*) taosArrayGet(tbUidList, i);
+    taosHashRemove(pHandle->tbIdHash, pKey, sizeof(int64_t));
+  }
+
+  return 0;
+}
