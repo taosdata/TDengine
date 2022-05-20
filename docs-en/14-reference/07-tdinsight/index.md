@@ -65,12 +65,12 @@ We provide an automated installation script [`TDinsight.sh`](https://github.com/
 
 You can download the script via `wget` or other tools:
 
-``bash
+```bash
 wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
 chmod +x TDinsight.sh
 ```
 
-This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/) grafana/dashboards/15167) with configurable parameters from the command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning /) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
+This script will automatically download the latest [Grafana TDengine data source plugin](https://github.com/taosdata/grafanaplugin/releases/latest) and [TDinsight dashboard](https://grafana.com/grafana/dashboards/15167) with configurable parameters from the command-line options to the [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) configuration file to automate deployment and updates, etc. With the alert setting options provided by this script, you can also get built-in support for AliCloud SMS alert notifications.
 
 Assume you use TDengine and Grafana's default services on the same host. Run `. /TDinsight.sh` and open the Grafana browser window to see the TDinsight dashboard.
 
@@ -155,7 +155,7 @@ sudo . /TDinsight.sh -a http://tdengine:6041 -u root1 -p pass5ord
 
 We provide a "-E" option to configure TDinsight to use the existing Notification Channel from the command line. Assuming your Grafana user and password is `admin:admin`, use the following command to get the `uid` of an existing notification channel.
 
-``bash
+```bash
 curl --no-progress-meter -u admin:admin http://localhost:3000/api/alert-notifications | jq
 ```
 
@@ -183,7 +183,7 @@ sudo . /TDengine.sh -n TDengine-Env1 -a http://another:6041 -u root -p taosdata 
 # If using built-in SMS notifications
 sudo . /TDengine.sh -n TDengine-Env1 -a http://another:6041 -u root -p taosdata -i tdinsight-env1 -t 'TDinsight Env1' \
   -s -N 'Env1 SMS' -I xx -K xx -S xx -C SMS_XX -T '' -B 00000000000 -L 127.0.0.01:10611
-``''
+```
 
 Please note that the configuration data source, notification channel, and dashboard are not changeable on the front end. You should update the configuration again via this script or manually change the configuration file in the `/etc/grafana/provisioning` directory (this is the default directory for Grafana, use the `-P` option to change it as needed).
 
@@ -210,7 +210,7 @@ sudo grafana-cli \
 :::note
 The 3.1.6 and earlier version plugins require the following setting in the configuration file `/etc/grafana/grafana.ini` to enable unsigned plugins.
 
-``ini
+```ini
 [plugins]
 allow_loading_unsigned_plugins = tdengine-datasource
 ```
@@ -232,33 +232,33 @@ The default username/password is `admin`. Grafana will require a password change
 
 Point to the **Configurations** -> **Data Sources** menu, and click the **Add data source** button.
 
-! [Add data source button](. /assets/howto-add-datasource-button.png)
+![Add data source button](./assets/howto-add-datasource-button.png)
 
 Search for and select **TDengine**.
 
-! [Add datasource](. /assets/howto-add-datasource-tdengine.png)
+![Add datasource](./assets/howto-add-datasource-tdengine.png)
 
 Configure the TDengine datasource.
 
-! [Datasource Configuration](. /assets/howto-add-datasource.png)
+![Datasource Configuration](./assets/howto-add-datasource.png)
 
 Save and test. It will report 'TDengine Data source is working' under normal circumstances.
 
-! [datasource test](. /assets/howto-add-datasource-test.png)
+![datasource test](./assets/howto-add-datasource-test.png)
 
 ### Importing dashboards
 
 Point to **+** / **Create** - **import** (or `/dashboard/import` url).
 
-! [Import Dashboard and Configuration](. /assets/import_dashboard.png)
+![Import Dashboard and Configuration](./assets/import_dashboard.png)
 
 Type the dashboard ID `15167` in the **Import via grafana.com** location and **Load**.
 
-! [Import via grafana.com](. /assets/import-dashboard-15167.png)
+![Import via grafana.com](./assets/import-dashboard-15167.png)
 
 Once the import is complete, the full page view of TDinsight is shown below.
 
-! [show](. /assets/TDinsight-full.png)
+![show](./assets/TDinsight-full.png)
 
 ## TDinsight dashboard details
 
@@ -268,7 +268,7 @@ Details of the metrics are as follows.
 
 ### Cluster Status
 
-! [tdinsight-mnodes-overview](. /assets/TDinsight-1-cluster-status.png)
+![tdinsight-mnodes-overview](./assets/TDinsight-1-cluster-status.png)
 
 This section contains the current information and status of the cluster, the alert information is also here (from left to right, top to bottom).
 
@@ -288,7 +288,7 @@ This section contains the current information and status of the cluster, the ale
 
 ### DNodes Status
 
-! [tdinsight-mnodes-overview](. /assets/TDinsight-2-dnodes.png)
+![tdinsight-mnodes-overview](./assets/TDinsight-2-dnodes.png)
 
 - **DNodes Status**: simple table view of `show dnodes`.
 - **DNodes Lifetime**: the time elapsed since the dnode was created.
@@ -297,14 +297,14 @@ This section contains the current information and status of the cluster, the ale
 
 ### MNode Overview
 
-! [tdinsight-mnodes-overview](. /assets/TDinsight-3-mnodes.png)
+![tdinsight-mnodes-overview](./assets/TDinsight-3-mnodes.png)
 
 1. **MNodes Status**: a simple table view of `show mnodes`. 2.
 2. **MNodes Number**: similar to `DNodes Number`, the number of MNodes changes.
 
 ### Request
 
-! [tdinsight-requests](. /assets/TDinsight-4-requests.png)
+![tdinsight-requests](./assets/TDinsight-4-requests.png)
 
 1. **Requests Rate(Inserts per Second)**: average number of inserts per second.
 2. **Requests (Selects)**: number of query requests and change rate (count of second).
@@ -312,7 +312,7 @@ This section contains the current information and status of the cluster, the ale
 
 ### Database
 
-! [tdinsight-database](. /assets/TDinsight-5-database.png)
+![tdinsight-database](./assets/TDinsight-5-database.png)
 
 Database usage, repeated for each value of the variable `$database` i.e. multiple rows per database.
 
@@ -324,7 +324,7 @@ Database usage, repeated for each value of the variable `$database` i.e. multipl
 
 ### DNode Resource Usage
 
-! [dnode-usage](. /assets/TDinsight-6-dnode-usage.png)
+![dnode-usage](./assets/TDinsight-6-dnode-usage.png)
 
 Data node resource usage display with repeated multiple rows for the variable `$fqdn` i.e., each data node. Includes.
 
@@ -345,7 +345,7 @@ Data node resource usage display with repeated multiple rows for the variable `$
 
 ### Login History
 
-! [Login History](. /assets/TDinsight-7-login-history.png)
+![Login History](./assets/TDinsight-7-login-history.png)
 
 Currently, only the number of logins per minute is reported.
 
@@ -415,13 +415,13 @@ volumes:
   grafana-data:
 ```
 
-Replace the environment variables in `docker-compose.yml` or save the environment variables to the `.env` file, then start Grafana with `docker-compose up`. See [Docker Compose Reference]( https://docs.docker.com/compose/)
+Replace the environment variables in `docker-compose.yml` or save the environment variables to the `.env` file, then start Grafana with `docker-compose up`. See [Docker Compose Reference](https://docs.docker.com/compose/)
 
-``bash
+```bash
 docker-compose up -d
 ```
 
 Then the TDinsight was deployed via Provisioning. Go to http://localhost:3000/d/tdinsight/ to view the dashboard.
 
 [grafana]: https://grafana.com
-[tdengine]: https://www.taosdata.com
+[tdengine]: https://tdengine.com
