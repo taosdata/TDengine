@@ -70,11 +70,10 @@ static void vmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (code != 0) {
     if (terrno != 0) code = terrno;
     vmSendRsp(pMsg, code);
-
-    dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
   }
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }
 
 static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
@@ -85,16 +84,15 @@ static void vmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   if (code != 0) {
     if (terrno != 0) code = terrno;
     vmSendRsp(pMsg, code);
-
-    dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-    rpcFreeCont(pMsg->pCont);
-    taosFreeQitem(pMsg);
   }
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }
 
 static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numOfMsgs) {
   SVnodeObj *pVnode = pInfo->ahandle;
-  SArray *pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
+  SArray *   pArray = taosArrayInit(numOfMsgs, sizeof(SRpcMsg *));
   if (pArray == NULL) {
     dError("failed to process %d msgs in write-queue since %s", numOfMsgs, terrstr());
     return;
@@ -216,16 +214,15 @@ static void vmProcessMergeQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     if (code != 0) {
       if (terrno != 0) code = terrno;
       vmSendRsp(pMsg, code);
-
-      dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-      rpcFreeCont(pMsg->pCont);
-      taosFreeQitem(pMsg);
     }
+    dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
   }
 }
 
 static int32_t vmPutNodeMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg, EQueueType qtype) {
-  SRpcMsg  *pRpc = pMsg;
+  SRpcMsg * pRpc = pMsg;
   SMsgHead *pHead = pRpc->pCont;
   int32_t   code = 0;
 
@@ -304,7 +301,7 @@ int32_t vmPutNodeMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType qtype) {
-  SMsgHead  *pHead = pRpc->pCont;
+  SMsgHead * pHead = pRpc->pCont;
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) return -1;
 

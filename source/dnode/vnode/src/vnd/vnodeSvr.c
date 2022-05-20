@@ -199,8 +199,12 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_TASK_PIPE_EXEC:
     case TDMT_VND_TASK_MERGE_EXEC:
       return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen, 0);
-    case TDMT_VND_STREAM_TRIGGER:
-      return tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen, 0);
+    case TDMT_VND_STREAM_TRIGGER:{
+      // refactor, avoid double free
+      int code = tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen, 0);
+      pMsg->pCont = NULL;
+      return code;
+    }
 #endif
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
