@@ -351,9 +351,6 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);
 
-bool nodesIsTimeorderQuery(const SNode* pQuery);
-bool nodesIsTimelineQuery(const SNode* pQuery);
-
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);
 char*   nodesGetStrValueFromNode(SValueNode* pNode);
