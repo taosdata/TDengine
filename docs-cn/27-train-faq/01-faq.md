@@ -130,15 +130,7 @@ Connection = DriverManager.getConnection(url, properties);
 
 ### 13.JDBC 报错： the executed SQL is not a DML or a DDL？
 
-请更新至最新的 JDBC 驱动
-
-```xml
-<dependency>
-  <groupId>com.taosdata.jdbc</groupId>
-  <artifactId>taos-jdbcdriver</artifactId>
-  <version>2.0.27</version>
-</dependency>
-```
+请更新至最新的 JDBC 驱动，参考 [Java 连接器](/reference/connector/java)
 
 ### 14. taos connect failed, reason&#58; invalid timestamp
 
