@@ -85,11 +85,11 @@ class TDTestCase:
 
 
         tdSql.execute("drop database if exists db1")
-        tdSql.execute("create database db1 wal 1 fsync 3000")
+        tdSql.execute("create database db1 wal 1 fsync 6000")
         tdSql.query("show databases")
         for i in range(tdSql.queryRows):
             if tdSql.queryResult[i][0] == "db1":
-                tdSql.checkData(i, fsync_index, 180000)
+                tdSql.checkData(i, fsync_index, 6000)
                 tdSql.checkData(i, wal_index, 1)
 
         tdSql.execute("drop database if exists db1")
