@@ -309,11 +309,12 @@ static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType q
   if (pVnode == NULL) return -1;
 
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  int32_t  code = -1;
+  int32_t  code = 0;
 
   if (pMsg == NULL) {
     rpcFreeCont(pRpc->pCont);
     pRpc->pCont = NULL;
+    code = -1;
   } else {
     memcpy(pMsg, pRpc, sizeof(SRpcMsg));
     switch (qtype) {
@@ -342,6 +343,7 @@ static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType q
         taosWriteQitem(pVnode->pSyncQ, pMsg);
         break;
       default:
+        code = -1;
         terrno = TSDB_CODE_INVALID_PARA;
         break;
     }
