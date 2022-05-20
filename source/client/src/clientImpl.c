@@ -759,9 +759,9 @@ static char* parseTagDatatoJson(void *p){
   char tagJsonKey[256] = {0};
   for (int j = 0; j < nCols; ++j) {
     SColIdx * pColIdx = kvRowColIdxAt(p, j);
-    void* val = (kvRowColVal(p, pColIdx));
+    char* val = (char*)(kvRowColVal(p, pColIdx));
     if (j == 0){
-      if(*(char*)val == TSDB_DATA_TYPE_NULL){
+      if(*val == TSDB_DATA_TYPE_NULL){
         string = taosMemoryCalloc(1, 8);
         sprintf(varDataVal(string), "%s", TSDB_DATA_NULL_STR_L);
         varDataSetLen(string, strlen(varDataVal(string)));
@@ -776,7 +776,7 @@ static char* parseTagDatatoJson(void *p){
     // json value
     val += varDataTLen(val);
     char* realData = POINTER_SHIFT(val, CHAR_BYTES);
-    char type = *(char*)val;
+    char type = *val;
     if(type == TSDB_DATA_TYPE_NULL) {
       cJSON* value = cJSON_CreateNull();
       if (value == NULL)
@@ -790,8 +790,7 @@ static char* parseTagDatatoJson(void *p){
         char *tagJsonValue = taosMemoryCalloc(varDataLen(realData), 1);
         int32_t length = taosUcs4ToMbs((TdUcs4 *)varDataVal(realData), varDataLen(realData), tagJsonValue);
         if (length < 0) {
-          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                    (char*)val);
+          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, val);
           taosMemoryFree(tagJsonValue);
           goto end;
         }
