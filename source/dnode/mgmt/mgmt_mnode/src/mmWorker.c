@@ -126,7 +126,9 @@ int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutRpcMsgToWorker(&pMgmt->readWorker, pMsg);
 }
 
-int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) { return mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg); }
+int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
+}
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   SSingleWorkerCfg qCfg = {
