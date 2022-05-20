@@ -264,6 +264,7 @@ static void uvHandleReq(SSrvConn* pConn) {
   CONN_SHOULD_RELEASE(pConn, pHead);
 
   STransMsg transMsg;
+  memset(&transMsg, 0, sizeof(transMsg));
   transMsg.contLen = transContLenFromMsg(pHead->msgLen);
   transMsg.pCont = pHead->content;
   transMsg.msgType = pHead->msgType;
@@ -468,6 +469,8 @@ static void uvStartSendResp(SSrvMsg* smsg) {
 
   if (pConn->broken == true) {
     // persist by
+    transFreeMsg(smsg->msg.pCont);
+    taosMemoryFree(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }

@@ -99,7 +99,7 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
   if (fstSliceIsEmpty(s)) {
     return;
   }
-  size_t                    sz = taosArrayGetSize(nodes->stack) - 1;
+  int32_t                   sz = taosArrayGetSize(nodes->stack) - 1;
   FstBuilderNodeUnfinished* un = taosArrayGet(nodes->stack, sz);
   assert(un->last == NULL);
 
@@ -130,11 +130,11 @@ void fstUnFinishedNodesAddSuffix(FstUnFinishedNodes* nodes, FstSlice bs, Output 
 uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes* node, FstSlice bs) {
   FstSlice* s = &bs;
 
-  size_t   ssz = taosArrayGetSize(node->stack);  // stack size
+  int32_t  ssz = taosArrayGetSize(node->stack);  // stack size
   uint64_t count = 0;
   int32_t  lsz;  // data len
   uint8_t* data = fstSliceData(s, &lsz);
-  for (size_t i = 0; i < ssz && i < lsz; i++) {
+  for (int32_t i = 0; i < ssz && i < lsz; i++) {
     FstBuilderNodeUnfinished* un = taosArrayGet(node->stack, i);
     if (un->last->inp == data[i]) {
       count++;
@@ -147,8 +147,8 @@ uint64_t fstUnFinishedNodesFindCommPrefix(FstUnFinishedNodes* node, FstSlice bs)
 uint64_t fstUnFinishedNodesFindCommPrefixAndSetOutput(FstUnFinishedNodes* node, FstSlice bs, Output in, Output* out) {
   FstSlice* s = &bs;
 
-  size_t lsz = (size_t)(s->end - s->start + 1);  // data len
-  size_t ssz = taosArrayGetSize(node->stack);    // stack size
+  int32_t lsz = (size_t)(s->end - s->start + 1);  // data len
+  int32_t ssz = taosArrayGetSize(node->stack);    // stack size
   *out = in;
   uint64_t i = 0;
   for (i = 0; i < lsz && i < ssz; i++) {
@@ -245,7 +245,7 @@ void fstStateCompileForOneTrans(FstCountingWriter* w, CompiledAddr addr, FstTran
   return;
 }
 void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuilderNode* node) {
-  size_t sz = taosArrayGetSize(node->trans);
+  int32_t sz = taosArrayGetSize(node->trans);
   assert(sz <= 256);
 
   uint8_t tSize = 0;
@@ -253,7 +253,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
 
   // finalOutput.is_zero()
   bool anyOuts = (node->finalOutput != 0);
-  for (size_t i = 0; i < sz; i++) {
+  for (int32_t i = 0; i < sz; i++) {
     FstTransition* t = taosArrayGet(node->trans, i);
     tSize = TMAX(tSize, packDeltaSize(addr, t->addr));
     oSize = TMAX(oSize, packSize(t->out));
@@ -301,7 +301,7 @@ void fstStateCompileForAnyTrans(FstCountingWriter* w, CompiledAddr addr, FstBuil
     /// for (uint8_t i = 0; i < 256; i++) {
     //  index[i] = 255;
     ///}
-    for (size_t i = 0; i < sz; i++) {
+    for (int32_t i = 0; i < sz; i++) {
       FstTransition* t = taosArrayGet(node->trans, i);
       index[t->inp] = i;
       // fstPackDeltaIn(w, addr, t->addr, tSize);
@@ -731,7 +731,7 @@ bool fstNodeFindInput(FstNode* node, uint8_t b, uint64_t* res) {
 }
 
 bool fstNodeCompile(FstNode* node, void* w, CompiledAddr lastAddr, CompiledAddr addr, FstBuilderNode* builderNode) {
-  size_t sz = taosArrayGetSize(builderNode->trans);
+  int32_t sz = taosArrayGetSize(builderNode->trans);
   assert(sz < 256);
   if (sz == 0 && builderNode->isFinal && builderNode->finalOutput == 0) {
     return true;
@@ -959,8 +959,8 @@ void fstBuilderNodeUnfinishedAddOutputPrefix(FstBuilderNodeUnfinished* unNode, O
   if (FST_BUILDER_NODE_IS_FINAL(unNode->node)) {
     unNode->node->finalOutput += out;
   }
-  size_t sz = taosArrayGetSize(unNode->node->trans);
-  for (size_t i = 0; i < sz; i++) {
+  int32_t sz = taosArrayGetSize(unNode->node->trans);
+  for (int32_t i = 0; i < sz; i++) {
     FstTransition* trn = taosArrayGet(unNode->node->trans, i);
     trn->out += out;
   }
@@ -1077,7 +1077,7 @@ bool fstGet(Fst* fst, FstSlice* b, Output* out) {
     tOut = tOut + FST_NODE_FINAL_OUTPUT(root);
   }
 
-  for (size_t i = 0; i < taosArrayGetSize(nodes); i++) {
+  for (int32_t i = 0; i < taosArrayGetSize(nodes); i++) {
     FstNode** node = (FstNode**)taosArrayGet(nodes, i);
     fstNodeDestroy(*node);
   }
@@ -1352,7 +1352,7 @@ StreamWithStateResult* streamWithStateNextWith(StreamWithState* sws, StreamCallb
     StreamState s2 = {.node = nextNode, .trans = 0, .out = {.null = false, .out = out}, .autState = nextState};
     taosArrayPush(sws->stack, &s2);
 
-    size_t   isz = taosArrayGetSize(sws->inp);
+    int32_t  isz = taosArrayGetSize(sws->inp);
     uint8_t* buf = (uint8_t*)taosMemoryMalloc(isz * sizeof(uint8_t));
     for (uint32_t i = 0; i < isz; i++) {
       buf[i] = *(uint8_t*)taosArrayGet(sws->inp, i);

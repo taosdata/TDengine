@@ -107,6 +107,7 @@ static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) 
   if (ref == 0) {
     taosMemoryFree(pDataSubmit->data);
     taosMemoryFree(pDataSubmit->dataRef);
+    // taosFreeQitem(pDataSubmit);
   }
 }
 
@@ -279,6 +280,42 @@ typedef struct {
   SArray* res;  // SArray<SSDataBlock>
 } SStreamSinkReq;
 
+typedef struct {
+  SMsgHead head;
+  int64_t  streamId;
+  int32_t  taskId;
+} SStreamTaskRunReq;
+
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t sourceTaskId;
+  int32_t sourceVg;
+#if 0
+  int64_t sourceVer;
+#endif
+  SArray* data;  // SArray<SSDataBlock>
+} SStreamDispatchReq;
+
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int8_t  inputStatus;
+} SStreamDispatchRsp;
+
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int32_t sourceTaskId;
+  int32_t sourceVg;
+} SStreamTaskRecoverReq;
+
+typedef struct {
+  int64_t streamId;
+  int32_t taskId;
+  int8_t  inputStatus;
+} SStreamTaskRecoverRsp;
+
 int32_t streamEnqueueDataSubmit(SStreamTask* pTask, SStreamDataSubmit* input);
 int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
 int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
@@ -288,6 +325,12 @@ int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, in
 int32_t streamTaskRun(SStreamTask* pTask);
 
 int32_t streamTaskHandleInput(SStreamTask* pTask, void* data);
+
+int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb);
+int32_t streamTaskProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamTaskProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchRsp* pRsp);
+int32_t streamTaskProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
+int32_t streamTaskProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
 
 #ifdef __cplusplus
 }

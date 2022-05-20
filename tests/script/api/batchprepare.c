@@ -251,16 +251,12 @@ CaseCtrl gCaseCtrl = {
   .bindColNum = 0,
   .bindTagNum = 0,
   .bindRowNum = 0,
-  .bindColTypeNum = tListLen(bindColTypeList),
-  .bindColTypeList = bindColTypeList,
   .bindTagTypeNum = 0,
   .bindTagTypeList = NULL,
-  .optrIdxListNum = tListLen(optrIdxList),
-  .optrIdxList = optrIdxList,
   .checkParamNum = false,
   .printRes = false,
   .runTimes = 0,
-  .caseIdx = 23,
+  .caseIdx = 1,
   .caseNum = 1,
   .caseRunIdx = -1,
   .caseRunNum = 1,
@@ -1101,7 +1097,9 @@ void destroyData(BindData *data) {
   taosMemoryFree(data->binaryLen);
   taosMemoryFree(data->isNull);
   taosMemoryFree(data->pBind);
+  taosMemoryFree(data->pTags);
   taosMemoryFree(data->colTypes);
+  taosMemoryFree(data->sql);
 }
 
 void bpFetchRows(TAOS_RES *result, bool printr, int32_t *rows) {

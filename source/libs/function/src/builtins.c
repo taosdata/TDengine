@@ -47,8 +47,10 @@ static int32_t translateInOutNum(SFunctionNode* pFunc, char* pErrBuf, int32_t le
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(paraType)) {
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  } else if (IS_NULL_TYPE(paraType)) {
+    paraType = TSDB_DATA_TYPE_BIGINT;
   }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[paraType].bytes, .type = paraType};
@@ -62,7 +64,7 @@ static int32_t translateInNumOutDou(SFunctionNode* pFunc, char* pErrBuf, int32_t
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(paraType)) {
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
@@ -115,18 +117,19 @@ static int32_t translateSum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
-  if (!IS_NUMERIC_TYPE(paraType)) {
+  if (!IS_NUMERIC_TYPE(paraType) && !IS_NULL_TYPE(paraType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   uint8_t resType = 0;
-  if (IS_SIGNED_NUMERIC_TYPE(paraType) || paraType == TSDB_DATA_TYPE_BOOL) {
+  if (IS_SIGNED_NUMERIC_TYPE(paraType) || TSDB_DATA_TYPE_BOOL == paraType || IS_NULL_TYPE(paraType)) {
     resType = TSDB_DATA_TYPE_BIGINT;
   } else if (IS_UNSIGNED_NUMERIC_TYPE(paraType)) {
     resType = TSDB_DATA_TYPE_UBIGINT;
   } else if (IS_FLOAT_TYPE(paraType)) {
     resType = TSDB_DATA_TYPE_DOUBLE;
   }
+
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
   return TSDB_CODE_SUCCESS;
 }
@@ -484,6 +487,21 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   if (QUERY_NODE_COLUMN != nodeType(pPara)) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
                            "The parameters of first/last can only be columns");
+  }
+
+  pFunc->node.resType = ((SExprNode*)pPara)->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t translateUnique(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The parameters of UNIQUE can only be columns");
   }
 
   pFunc->node.resType = ((SExprNode*)pPara)->resType;
@@ -872,17 +890,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
-    .finalizeFunc = functionFinalize
-  },
-  {
-    .name = "diff",
-    .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
-    .translateFunc = translateDiff,
-    .getEnvFunc   = getDiffFuncEnv,
-    .initFunc     = diffFunctionSetup,
-    .processFunc  = diffFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = lastFinalize
   },
   {
     .name = "histogram",
@@ -903,6 +911,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
     .finalizeFunc = hllFinalize
+  },
+  {
+    .name = "diff",
+    .type = FUNCTION_TYPE_DIFF,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateDiff,
+    .getEnvFunc   = getDiffFuncEnv,
+    .initFunc     = diffFunctionSetup,
+    .processFunc  = diffFunction,
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "state_count",
@@ -962,7 +980,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
-    .finalizeFunc = tailFinalize
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "unique",
+    .type = FUNCTION_TYPE_UNIQUE,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateUnique,
+    .getEnvFunc   = getUniqueFuncEnv,
+    .initFunc     = uniqueFunctionSetup,
+    .processFunc  = uniqueFunction,
+    .finalizeFunc = NULL
   },
   {
     .name = "abs",

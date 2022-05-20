@@ -15,134 +15,164 @@
 
 #include "tdbInt.h"
 
-struct STDB {
-  TENV   *pEnv;
-  SBTree *pBt;
-};
-
-struct STDBC {
-  SBTC btc;
-};
-
-int tdbOpen(const char *fname, int keyLen, int valLen, tdb_cmpr_fn_t keyCmprFn, TENV *pEnv, TDB **ppDb) {
-  TDB    *pDb;
-  SPager *pPager;
-  int     ret;
-  char    fFullName[TDB_FILENAME_LEN];
-  SPage  *pPage;
-  SPgno   pgno;
+int32_t tdbOpen(const char *dbname, int32_t szPage, int32_t pages, TDB **ppDb) {
+  TDB *pDb;
+  int  dsize;
+  int  zsize;
+  int  tsize;
+  u8  *pPtr;
+  int  ret;
 
   *ppDb = NULL;
 
-  pDb = (TDB *)tdbOsCalloc(1, sizeof(*pDb));
-  if (pDb == NULL) {
+  dsize = strlen(dbname);
+  zsize = sizeof(*pDb) + dsize * 2 + strlen(TDB_JOURNAL_NAME) + 3;
+
+  pPtr = (uint8_t *)tdbOsCalloc(1, zsize);
+  if (pPtr == NULL) {
     return -1;
   }
 
-  // pDb->pEnv
-  pDb->pEnv = pEnv;
+  pDb = (TDB *)pPtr;
+  pPtr += sizeof(*pDb);
+  // pDb->rootDir
+  pDb->dbName = pPtr;
+  memcpy(pDb->dbName, dbname, dsize);
+  pDb->dbName[dsize] = '\0';
+  pPtr = pPtr + dsize + 1;
+  // pDb->jfname
+  pDb->jnName = pPtr;
+  memcpy(pDb->jnName, dbname, dsize);
+  pDb->jnName[dsize] = '/';
+  memcpy(pDb->jnName + dsize + 1, TDB_JOURNAL_NAME, strlen(TDB_JOURNAL_NAME));
+  pDb->jnName[dsize + 1 + strlen(TDB_JOURNAL_NAME)] = '\0';
 
-  pPager = tdbEnvGetPager(pEnv, fname);
-  if (pPager == NULL) {
-    snprintf(fFullName, TDB_FILENAME_LEN, "%s/%s", pEnv->rootDir, fname);
-    ret = tdbPagerOpen(pEnv->pCache, fFullName, &pPager);
-    if (ret < 0) {
-      return -1;
-    }
+  pDb->jfd = -1;
 
-    tdbEnvAddPager(pEnv, pPager);
-  }
-
-  ASSERT(pPager != NULL);
-
-  // pDb->pBt
-  ret = tdbBtreeOpen(keyLen, valLen, pPager, keyCmprFn, &(pDb->pBt));
+  ret = tdbPCacheOpen(szPage, pages, &(pDb->pCache));
   if (ret < 0) {
     return -1;
   }
+
+  pDb->nPgrHash = 8;
+  tsize = sizeof(SPager *) * pDb->nPgrHash;
+  pDb->pgrHash = tdbOsMalloc(tsize);
+  if (pDb->pgrHash == NULL) {
+    return -1;
+  }
+  memset(pDb->pgrHash, 0, tsize);
+
+  mkdir(dbname, 0755);
 
   *ppDb = pDb;
   return 0;
 }
 
 int tdbClose(TDB *pDb) {
+  SPager *pPager;
+
   if (pDb) {
-    tdbBtreeClose(pDb->pBt);
+    for (pPager = pDb->pgrList; pPager; pPager = pDb->pgrList) {
+      pDb->pgrList = pPager->pNext;
+      tdbPagerClose(pPager);
+    }
+
+    tdbPCacheClose(pDb->pCache);
+    tdbOsFree(pDb->pgrHash);
     tdbOsFree(pDb);
   }
+
   return 0;
 }
 
-int tdbDrop(TDB *pDb) {
-  // TODO
-  return 0;
-}
+int tdbBegin(TDB *pDb, TXN *pTxn) {
+  SPager *pPager;
+  int     ret;
 
-int tdbInsert(TDB *pDb, const void *pKey, int keyLen, const void *pVal, int valLen, TXN *pTxn) {
-  return tdbBtreeInsert(pDb->pBt, pKey, keyLen, pVal, valLen, pTxn);
-}
-
-int tdbDelete(TDB *pDb, const void *pKey, int kLen, TXN *pTxn) { return tdbBtreeDelete(pDb->pBt, pKey, kLen, pTxn); }
-
-int tdbUpsert(TDB *pDb, const void *pKey, int kLen, const void *pVal, int vLen, TXN *pTxn) {
-  return tdbBtreeUpsert(pDb->pBt, pKey, kLen, pVal, vLen, pTxn);
-}
-
-int tdbGet(TDB *pDb, const void *pKey, int kLen, void **ppVal, int *vLen) {
-  return tdbBtreeGet(pDb->pBt, pKey, kLen, ppVal, vLen);
-}
-
-int tdbPGet(TDB *pDb, const void *pKey, int kLen, void **ppKey, int *pkLen, void **ppVal, int *vLen) {
-  return tdbBtreePGet(pDb->pBt, pKey, kLen, ppKey, pkLen, ppVal, vLen);
-}
-
-int tdbDbcOpen(TDB *pDb, TDBC **ppDbc, TXN *pTxn) {
-  int   ret;
-  TDBC *pDbc = NULL;
-
-  *ppDbc = NULL;
-  pDbc = (TDBC *)tdbOsMalloc(sizeof(*pDbc));
-  if (pDbc == NULL) {
-    return -1;
-  }
-
-  tdbBtcOpen(&pDbc->btc, pDb->pBt, pTxn);
-
-  *ppDbc = pDbc;
-  return 0;
-}
-
-int tdbDbcMoveTo(TDBC *pDbc, const void *pKey, int kLen, int *c) { return tdbBtcMoveTo(&pDbc->btc, pKey, kLen, c); }
-
-int tdbDbcMoveToFirst(TDBC *pDbc) { return tdbBtcMoveToFirst(&pDbc->btc); }
-
-int tdbDbcMoveToLast(TDBC *pDbc) { return tdbBtcMoveToLast(&pDbc->btc); }
-
-int tdbDbcMoveToNext(TDBC *pDbc) { return tdbBtcMoveToNext(&pDbc->btc); }
-
-int tdbDbcMoveToPrev(TDBC *pDbc) { return tdbBtcMoveToPrev(&pDbc->btc); }
-
-int tdbDbcGet(TDBC *pDbc, const void **ppKey, int *pkLen, const void **ppVal, int *pvLen) {
-  return tdbBtcGet(&pDbc->btc, ppKey, pkLen, ppVal, pvLen);
-}
-
-int tdbDbcDelete(TDBC *pDbc) { return tdbBtcDelete(&pDbc->btc); }
-
-int tdbDbcNext(TDBC *pDbc, void **ppKey, int *kLen, void **ppVal, int *vLen) {
-  return tdbBtreeNext(&pDbc->btc, ppKey, kLen, ppVal, vLen);
-}
-
-int tdbDbcUpsert(TDBC *pDbc, const void *pKey, int nKey, const void *pData, int nData, int insert) {
-  return tdbBtcUpsert(&pDbc->btc, pKey, nKey, pData, nData, insert);
-}
-
-int tdbDbcClose(TDBC *pDbc) {
-  if (pDbc) {
-    tdbBtcClose(&pDbc->btc);
-    tdbOsFree(pDbc);
+  for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerBegin(pPager, pTxn);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
   }
 
   return 0;
 }
 
-int tdbDbcIsValid(TDBC *pDbc) { return tdbBtcIsValid(&pDbc->btc); }
+int tdbCommit(TDB *pDb, TXN *pTxn) {
+  SPager *pPager;
+  int     ret;
+
+  for (pPager = pDb->pgrList; pPager; pPager = pPager->pNext) {
+    ret = tdbPagerCommit(pPager, pTxn);
+    if (ret < 0) {
+      ASSERT(0);
+      return -1;
+    }
+  }
+
+  return 0;
+}
+
+SPager *tdbEnvGetPager(TDB *pDb, const char *fname) {
+  u32      hash;
+  SPager **ppPager;
+
+  hash = tdbCstringHash(fname);
+  ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
+  for (; *ppPager && (strcmp(fname, (*ppPager)->dbFileName) != 0); ppPager = &((*ppPager)->pHashNext)) {
+  }
+
+  return *ppPager;
+}
+
+void tdbEnvAddPager(TDB *pDb, SPager *pPager) {
+  u32      hash;
+  SPager **ppPager;
+
+  // rehash if neccessary
+  if (pDb->nPager + 1 > pDb->nPgrHash) {
+    // TODO
+  }
+
+  // add to list
+  pPager->pNext = pDb->pgrList;
+  pDb->pgrList = pPager;
+
+  // add to hash
+  hash = tdbCstringHash(pPager->dbFileName);
+  ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
+  pPager->pHashNext = *ppPager;
+  *ppPager = pPager;
+
+  // increase the counter
+  pDb->nPager++;
+}
+
+void tdbEnvRemovePager(TDB *pDb, SPager *pPager) {
+  u32      hash;
+  SPager **ppPager;
+
+  // remove from the list
+  for (ppPager = &pDb->pgrList; *ppPager && (*ppPager != pPager); ppPager = &((*ppPager)->pNext)) {
+  }
+  ASSERT(*ppPager == pPager);
+  *ppPager = pPager->pNext;
+
+  // remove from hash
+  hash = tdbCstringHash(pPager->dbFileName);
+  ppPager = &pDb->pgrHash[hash % pDb->nPgrHash];
+  for (; *ppPager && *ppPager != pPager; ppPager = &((*ppPager)->pHashNext)) {
+  }
+  ASSERT(*ppPager == pPager);
+  *ppPager = pPager->pNext;
+
+  // decrease the counter
+  pDb->nPager--;
+
+  // rehash if necessary
+  if (pDb->nPgrHash > 8 && pDb->nPager < pDb->nPgrHash / 2) {
+    // TODO
+  }
+}

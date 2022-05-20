@@ -55,6 +55,7 @@ int tsdbOpen(SVnode *pVnode, STsdb **ppTsdb, const char *dir, STsdbKeepCfg *pKee
   memcpy(pTsdb->dir, dir, strlen(dir));
   pTsdb->path = (char *)&pTsdb[1];
   sprintf(pTsdb->path, "%s%s%s%s%s", tfsGetPrimaryPath(pVnode->pTfs), TD_DIRSEP, pVnode->path, TD_DIRSEP, dir);
+  taosRealPath(pTsdb->path, NULL, slen);
   pTsdb->pVnode = pVnode;
   pTsdb->repoLocked = false;
   taosThreadMutexInit(&pTsdb->mutex, NULL);

@@ -14,7 +14,6 @@
  */
 
 #include "executor.h"
-#include <vnode.h>
 #include "executorimpl.h"
 #include "planner.h"
 #include "tdatablock.h"
@@ -106,7 +105,7 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   pMsg->contentLen = pMsg->contentLen;
 #endif
 
-  qDebugL("stream task string %s", (const char*)msg);
+  /*qDebugL("stream task string %s", (const char*)msg);*/
 
   struct SSubplan* plan = NULL;
   int32_t          code = qStringToSubplan(msg, &plan);
@@ -126,7 +125,34 @@ qTaskInfo_t qCreateStreamExecTaskInfo(void* msg, void* streamReadHandle) {
   return pTaskInfo;
 }
 
-int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isAdd) {
+static SArray* filterQualifiedChildTables(const SStreamBlockScanInfo* pScanInfo, const SArray* tableIdList) {
+  SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
+
+  // let's discard the tables those are not created according to the queried super table.
+  SMetaReader mr = {0};
+  metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
+  for (int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
+    int64_t* id = (int64_t*)taosArrayGet(tableIdList, i);
+
+    int32_t code = metaGetTableEntryByUid(&mr, *id);
+    if (code != TSDB_CODE_SUCCESS) {
+      qError("failed to get table meta, uid:%" PRIu64 " code:%s", *id, tstrerror(terrno));
+      continue;
+    }
+
+    ASSERT(mr.me.type == TSDB_CHILD_TABLE);
+    if (mr.me.ctbEntry.suid != pScanInfo->tableUid) {
+      continue;
+    }
+
+    taosArrayPush(qa, id);
+  }
+
+  metaReaderClear(&mr);
+  return qa;
+}
+
+int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bool isAdd) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*)tinfo;
 
   // traverse to the stream scanner node to add this table id
@@ -135,39 +161,34 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, SArray* tableIdList, bool isA
     pInfo = pInfo->pDownstream[0];
   }
 
+  int32_t code = 0;
   SStreamBlockScanInfo* pScanInfo = pInfo->info;
-  if (isAdd) {
-    SArray* qa = taosArrayInit(4, sizeof(tb_uid_t));
+  if (isAdd) {  // add new table id
+    SArray* qa = filterQualifiedChildTables(pScanInfo, tableIdList);
 
-    SMetaReader mr = {0};
-    metaReaderInit(&mr, pScanInfo->readHandle.meta, 0);
-    for(int32_t i = 0; i < taosArrayGetSize(tableIdList); ++i) {
-      int64_t* id = (int64_t*)taosArrayGet(tableIdList, i);
+    qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
+    code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, qa);
+    taosArrayDestroy(qa);
 
-      int32_t code = metaGetTableEntryByUid(&mr, *id);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("failed to get table meta, uid:%"PRIu64" code:%s", *id, tstrerror(terrno));
-        continue;
-      }
+  } else {  // remove the table id in current list
+    SArray* qa = filterQualifiedChildTables(pScanInfo, tableIdList);
 
-      ASSERT(mr.me.type == TSDB_CHILD_TABLE);
-      if (mr.me.ctbEntry.suid != pScanInfo->tableUid) {
-        continue;
-      }
-
-      taosArrayPush(qa, id);
-    }
-
-    metaReaderClear(&mr);
-
-    qDebug(" %d qualified child tables added into stream scanner", (int32_t) taosArrayGetSize(qa));
-    int32_t code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, qa);
-    if (code != TSDB_CODE_SUCCESS) {
-      return code;
-    }
-  } else {
-    assert(0);
+    qDebug(" %d remove child tables from the stream scanner", (int32_t)taosArrayGetSize(tableIdList));
+    code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, tableIdList);
+    taosArrayDestroy(qa);
   }
 
-  return TSDB_CODE_SUCCESS;
+  return code;
+}
+
+int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tableName, int32_t* sversion, int32_t* tversion) {
+  ASSERT(tinfo != NULL && dbName != NULL && tableName != NULL);
+  SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) tinfo;
+
+  *sversion = pTaskInfo->schemaVer.sversion;
+  *tversion = pTaskInfo->schemaVer.tversion;
+  strcpy(dbName, pTaskInfo->schemaVer.dbname);
+  strcpy(tableName, pTaskInfo->schemaVer.tablename);
+
+  return 0;
 }

@@ -142,6 +142,8 @@ void fmFuncMgtDestroy();
 
 int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc);
 
+bool fmIsBuiltinFunc(const char* pFunc);
+
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
 bool fmIsNonstandardSQLFunc(int32_t funcId);

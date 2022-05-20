@@ -104,7 +104,7 @@ _OVER:
   return code;
 }
 
-int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq, bool deployed) {
+int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pMsg, bool deployed) {
   char file[PATH_MAX] = {0};
   char realfile[PATH_MAX] = {0};
   snprintf(file, sizeof(file), "%s%smnode.json.bak", pMgmt->path, TD_DIRSEP);
@@ -124,11 +124,11 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq, bool deployed) {
   len += snprintf(content + len, maxLen - len, "{\n");
   len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
 
-  int8_t replica = (pReq != NULL ? pReq->replica : pMgmt->replica);
+  int8_t replica = (pMsg != NULL ? pMsg->replica : pMgmt->replica);
   for (int32_t i = 0; i < replica; ++i) {
     SReplica *pReplica = &pMgmt->replicas[i];
-    if (pReq != NULL) {
-      pReplica = &pReq->replicas[i];
+    if (pMsg != NULL) {
+      pReplica = &pMsg->replicas[i];
     }
     len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
     len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
@@ -154,6 +154,6 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pReq, bool deployed) {
     return -1;
   }
 
-  dInfo("successed to write %s, deployed:%d", realfile, deployed);
+  dDebug("successed to write %s, deployed:%d", realfile, deployed);
   return 0;
 }

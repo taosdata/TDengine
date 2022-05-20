@@ -70,6 +70,12 @@ TEST_F(ParserSelectTest, pseudoColumn) {
   run("SELECT _WSTARTTS, _WENDTS, COUNT(*) FROM t1 INTERVAL(10s)");
 }
 
+TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+}
+
 TEST_F(ParserSelectTest, multiResFunc) {
   useDb("root", "test");
 
@@ -115,10 +121,29 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }
 
-TEST_F(ParserSelectTest, clause) {
+TEST_F(ParserSelectTest, nonstdFunc) {
   useDb("root", "test");
 
-  // GROUP BY clause
+  run("SELECT DIFF(c1) FROM t1");
+}
+
+TEST_F(ParserSelectTest, nonstdFuncSemanticCheck) {
+  useDb("root", "test");
+
+  run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), tbname FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), count(*) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
+
+  // run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, groupBy) {
+  useDb("root", "test");
+
   run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0");
 
   run("SELECT COUNT(*), c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2");
@@ -128,13 +153,19 @@ TEST_F(ParserSelectTest, clause) {
   run("SELECT COUNT(*), c1, c2 + 10, c1 + c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c2, c1");
 
   run("SELECT COUNT(*), c1 + 10, c2 cnt FROM t1 WHERE c1 > 0 GROUP BY c1 + 10, c2");
+}
 
-  // order by clause
+TEST_F(ParserSelectTest, orderBy) {
+  useDb("root", "test");
+
   run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 order by cnt");
 
   run("SELECT COUNT(*) cnt FROM t1 WHERE c1 > 0 GROUP BY c2 order by 1");
+}
 
-  // distinct clause
+TEST_F(ParserSelectTest, distinct) {
+  useDb("root", "test");
+
   // run("SELECT distinct c1, c2 FROM t1 WHERE c1 > 0 order by c1");
 
   // run("SELECT distinct c1 + 10, c2 FROM t1 WHERE c1 > 0 order by c1 + 10, c2");
@@ -165,6 +196,25 @@ TEST_F(ParserSelectTest, intervalSemanticCheck) {
 
   run("SELECT c1 FROM t1 INTERVAL(10s)", TSDB_CODE_PAR_NOT_SINGLE_GROUP, PARSER_STAGE_TRANSLATE);
   run("SELECT DISTINCT c1, c2 FROM t1 WHERE c1 > 3 INTERVAL(1d) FILL(NEXT)", TSDB_CODE_PAR_INVALID_FILL_TIME_RANGE,
+      PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, subquery) {
+  useDb("root", "test");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 INTERVAL(1m)) INTERVAL(1n)");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 INTERVAL(1m)) INTERVAL(1n)");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, ts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a, _wstartts FROM st1s1 PARTITION BY TBNAME INTERVAL(1m)) INTERVAL(1n)");
+}
+
+TEST_F(ParserSelectTest, subquerySemanticError) {
+  useDb("root", "test");
+
+  run("SELECT SUM(a) FROM (SELECT MAX(c1) a FROM st1s1 INTERVAL(1m)) INTERVAL(1n)", TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY,
       PARSER_STAGE_TRANSLATE);
 }
 

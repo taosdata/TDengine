@@ -158,6 +158,17 @@ static char* getSyntaxErrFormat(int32_t errCode) {
       return "Primary timestamp column cannot be dropped";
     case TSDB_CODE_PAR_INVALID_MODIFY_COL:
       return "Only binary/nchar column length could be modified";
+    case TSDB_CODE_PAR_INVALID_TBNAME:
+      return "Invalid tbname pseudo column";
+    case TSDB_CODE_PAR_INVALID_FUNCTION_NAME:
+      return "Invalid function name";
+    case TSDB_CODE_PAR_COMMENT_TOO_LONG:
+      return "Comment too long";
+    case TSDB_CODE_PAR_NOT_ALLOWED_FUNC:
+      return "Some functions are allowed only in the SELECT list of a query. "
+             "And, cannot be mixed with other non scalar functions or columns.";
+    case TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY:
+      return "Window query not supported, since the result of subquery not include valid timestamp column";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
