@@ -8,7 +8,7 @@ Window related clauses are used to divide the data set to be queried into subset
 
 ## Time Window
 
-`INTERVAL` claused is used to generate time windows of same time interval, `SLIDING` is used to specify the time step for which the time window moves forward. The query is performed on one time window each time, and the time window moves forward with time. When defining continuous query both the size of time window and the step of forward sliding time need to be specified. As shown in the figure blow, [t0s, t0e] ，[t1s , t1e]， [t2s, t2e] are respectively the time range of three time windows on which continuous queries are executed. The time step for which time window moves forward is marked by `sliding time`. Query, filter and aggregate operations are executed on each time window respectively. When the time step specified by `SLIDING` is same as the time interval specified by `INTERVAL`, the sliding time window is actually a flip time window.
+`INTERVAL` clause is used to generate time windows of same time interval, `SLIDING` is used to specify the time step for which the time window moves forward. The query is performed on one time window each time, and the time window moves forward with time. When defining continuous query both the size of time window and the step of forward sliding time need to be specified. As shown in the figure blow, [t0s, t0e] ，[t1s , t1e]， [t2s, t2e] are respectively the time range of three time windows on which continuous queries are executed. The time step for which time window moves forward is marked by `sliding time`. Query, filter and aggregate operations are executed on each time window respectively. When the time step specified by `SLIDING` is same as the time interval specified by `INTERVAL`, the sliding time window is actually a flip time window.
 
 ![Time Window](/img/sql/timewindow-1.png)
 
@@ -48,7 +48,7 @@ The primary key, i.e. timestamp, is used to determine which session window the r
 
 ![Session Window](/img/sql/timewindow-2.png)
 
-If the time interval between two continuous rows are withint the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. Session window is not supported on STable for now.
+If the time interval between two continuous rows are within the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. Session window is not supported on STable for now.
 
 ## More On Window Aggregate
 
@@ -73,7 +73,7 @@ SELECT function_list FROM stb_name
 
 ### Restrictions
 
-- Aggregate functions and selection functions can be used in `function_list`, with each function having only one output, for example COUNT, AVG, SUM, STDDEV, LEASTSQUARES, PERCENTILE, MIN, MAX, FIRST, LAST. Functions having multiple ouput can't be used, for example DIFF or arithmetic operations.
+- Aggregate functions and selection functions can be used in `function_list`, with each function having only one output, for example COUNT, AVG, SUM, STDDEV, LEASTSQUARES, PERCENTILE, MIN, MAX, FIRST, LAST. Functions having multiple output can't be used, for example DIFF or arithmetic operations.
 - `LAST_ROW` can't be used together with window aggregate.
 - Scalar functions, like CEIL/FLOOR, can't be used with window aggregate.
 - `WHERE` clause can be used to specify the starting and ending time and other filter conditions

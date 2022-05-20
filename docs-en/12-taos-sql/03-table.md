@@ -62,7 +62,7 @@ DROP TABLE [IF EXISTS] tb_name;
 ## Show All Tables In Current Database
 
 ```
-SHOW TABLES [LIKE tb_name_wildcar];
+SHOW TABLES [LIKE tb_name_wildcard];
 ```
 
 ## Show Create Statement of A Table

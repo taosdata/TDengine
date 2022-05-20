@@ -4,11 +4,11 @@ sidebar_label: TDengine CLI
 description: Instructions and tips for using the TDengine CLI
 ---
 
-The TDengine command-line application (hereafter referred to as `TDengine CLI`) is the most feasility way for users to manipulate and interact with TDengine instances.
+The TDengine command-line application (hereafter referred to as `TDengine CLI`) is the most simplest way for users to manipulate and interact with TDengine instances.
 
 ## Installation
 
-If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI on the environemtn which no TDengine server running, the TDengine client installation package needs to be installed first. For details, please refer to [connector](/reference/connector/).
+If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI on the environment which no TDengine server running, the TDengine client installation package needs to be installed first. For details, please refer to [connector](/reference/connector/).
 
 ## Execution
 
@@ -62,13 +62,13 @@ And many more parameters.
 - -f, --file=FILE: Execute the SQL script file in non-interactive mode
 - -k, --check=CHECK: Specify the table to be checked
 - -l, --pktlen=PKTLEN: Test package size to be used for network testing
-- -n, --netrole=NETROLE: test scope for network connection test, default is `startup`, The value can be `client`, `server`, `rpc`, `startup`, `sync`, `speed`, or `fqdn`.
+- -n, --netrole=NETROLE: test scope for network connection test, default is `startup`. The value can be `client`, `server`, `rpc`, `startup`, `sync`, `speed`, or `fqdn`.
 - -r, --raw-time: output the timestamp format as unsigned 64-bits integer (uint64_t in C language)
 - -s, --commands=COMMAND: execute SQL commands in non-interactive mode
-- -S, --pkttype=PKTTYPE: Specify the packet type used for network testing. The default is TCP. can be specified as either TCP or UDP when `speed` is specified to netrole parameter
+- -S, --pkttype=PKTTYPE: Specify the packet type used for network testing. The default is TCP, can be specified as either TCP or UDP when `speed` is specified to `netrole` parameter
 - -T, --thread=THREADNUM: The number of threads to import data in multi-threaded mode
 - -s, --commands: Run TDengine CLI commands without entering the terminal
-- -z, --timezone=TIMEZONE: Specify time zone. Default is the value of current configruation file
+- -z, --timezone=TIMEZONE: Specify time zone. Default is the value of current configuration file
 - -V, --version: Print out the current version number
 
 Example.

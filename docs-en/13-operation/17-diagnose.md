@@ -115,7 +115,7 @@ Once this parameter is set to 135 or 143, the log file grows very quickly especi
 
 ## Client Log
 
-An independent log file, named as "taoslog+<seq num\>" is generated for each client program, i.e. a client process. The default value of `debugfalg` is also 131 and only log at level of INFO/ERROR/WARNING is recorded, it and needs to be changed to 135 or 143 so that log at DEBUG or TRACE level can be recorded for debugging purpose.
+An independent log file, named as "taoslog+<seq num\>" is generated for each client program, i.e. a client process. The default value of `debugFlag` is also 131 and only log at level of INFO/ERROR/WARNING is recorded, it and needs to be changed to 135 or 143 so that log at DEBUG or TRACE level can be recorded for debugging purpose.
 
 The maximum length of a single log file is controlled by parameter `numOfLogLines` and only 2 log files are kept for each `taosd` server process.
 

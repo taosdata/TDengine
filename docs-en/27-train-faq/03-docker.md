@@ -72,7 +72,7 @@ $ docker exec -it tdengine /bin/bash
 root@tdengine-server:~/TDengine-server-2.4.0.4#
 ```
 
-- **docker exec**: Attach to the continaer
+- **docker exec**: Attach to the container
 - **-i**: Interactive mode
 - **-t**: Use terminal
 - **tdengine**: Container name, up to the output of `docker ps`
@@ -156,7 +156,7 @@ Below is an example output:
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["log","2021-12-28 09:18:55.765",10,1,1,1,10,"30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":1}
 ```
 
-### Use taosBenchmark on host to access TDenginer server in container
+### Use taosBenchmark on host to access TDengine server in container
 
 1. Run `taosBenchmark`, named as `taosdemo` previously, on the host:
 

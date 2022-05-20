@@ -281,7 +281,7 @@ INSERT INTO d1001 USING meters TAGS(Beijing.Chaoyang, 2) VALUES('2018-10-03 14:3
 使用 TDengine CLI, 执行 SQL 文件。
 
 ```
-taos -f prepare-sorce-data.sql
+taos -f prepare-source-data.sql
 ```
 
 ### 创建 Connector 实例
