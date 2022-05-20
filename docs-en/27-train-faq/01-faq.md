@@ -80,7 +80,7 @@ From version 2.1.7.0, at most 4096 columns can be defined for a table.
 
 Inserting data in batch is a good practice. Single SQL statement can insert data for one or multiple tables in batch.
 
-### 9. JDBC Error： the excuted SQL is not a DML or a DDL？
+### 9. JDBC Error： the executed SQL is not a DML or a DDL？
 
 Please upgrade to latest JDBC driver, for details please refer to [Java Connector](/reference/connector/java)
 
@@ -104,7 +104,7 @@ ALTER LOCAL flag_name flag_value;
 
 <a class="anchor" id="timezone"></a>
 
-### 13. Hhat to do if go compilation fails?
+### 13. What to do if go compilation fails?
 
 From version 2.3.0.0, a new component named `taosAdapter` is introduced. Its' developed in Go. If you want to compile from source code and meet go compilation problems, try to do below steps to resolve Go environment problems.
 

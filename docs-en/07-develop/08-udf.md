@@ -20,7 +20,7 @@ Below function template can be used to define your own scalar function.
 
 `udfNormalFunc` is the place holder of function name, a function implemented based on the above template can be used to perform scalar computation on data rows. The parameters are fixed to control the data exchange between UDF and TDengine.
 
-- Defintions of the parameters:
+- Definitions of the parameters:
 
   - data：input data
   - itype：the type of input data, for details please refer to [type definition in column_meta](/reference/rest-api/), for example 4 represents INT

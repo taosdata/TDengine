@@ -90,8 +90,8 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | TCP      | 6041         | REST connection between client and server        | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](/reference/taosadapter/) |
 | TCP      | 6042         | Service Port of Arbitrator                       | The parameter of Arbitrator                                                                    |
 | TCP      | 6043         | Service Port of TaosKeeper                       | The parameter of TaosKeeper                                                                    |
-| TCP      | 6044         | Data access port for StatsD                      | efer to [taosAdapter](/reference/taosadapter/)                                                 |
-| UDP      | 6045         | Data access for statsd                           | efer to [taosAdapter](/reference/taosadapter/)                                                 |
+| TCP      | 6044         | Data access port for StatsD                      | refer to [taosAdapter](/reference/taosadapter/)                                                 |
+| UDP      | 6045         | Data access for statsd                           | refer to [taosAdapter](/reference/taosadapter/)                                                 |
 | TCP      | 6060         | Port of Monitoring Service in Enterprise version |                                                                                                |
 | UDP      | 6030-6034    | Communication between client and server          | serverPort                                                                                     |
 | UDP      | 6035-6039    | Communication among server nodes in cluster      | serverPort                                                                                     |
@@ -120,7 +120,7 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | Attribute     | Description                                                         |
 | ------------- | ------------------------------------------------------------------- |
 | Applicable    | Server and Client                                                   |
-| Meaning       | TCP is used forcely                                                 |
+| Meaning       | TCP is used by force                                                |
 | Value Range   | 0: disabled 1: enabled                                              |
 | Default Value | 0                                                                   |
 | Note          | It's suggested to configure to enable if network is not good enough |
@@ -197,7 +197,7 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | Default Value | TimeZone configured in the host |
 
 :::info
-To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored TDengie. The timestamp generated from any timezones at same time is same in Unix timestamp. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
+To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored TDengine. The timestamp generated from any timezones at same time is same in Unix timestamp. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
 
 On Linux system, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below.
 
@@ -240,7 +240,7 @@ To avoid the problems of using time strings, Unix timestamp can be used directly
 | Default Value | Locale configured in host |
 
 :::info
-A specific type "nchar" is provied in TDengine to store non-ASCII characters such as Chinese, Japanese, Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
+A specific type "nchar" is provided in TDengine to store non-ASCII characters such as Chinese, Japanese, Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
 
 The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
@@ -700,7 +700,7 @@ charset CP936
 | Default Value | 0.0000000000000001                                          |
 | Note          | The fractional part lower than this value will be discarded |
 
-## Continuous Query Prameters
+## Continuous Query Parameters
 
 ### stream
 

@@ -160,7 +160,7 @@ The base API is used to do things like create database connections and provide a
   - user: user name
   - pass: password
   - db: database name, if the user does not provide, it can also be connected correctly, the user can create a new database through this connection, if the user provides the database name, it means that the database user has already created, the default use of the database
-  - port: the port the tasd program is listening on
+  - port: the port the taosd program is listening on
 
   NULL indicates a failure. The application needs to save the returned parameters for subsequent use.
 
@@ -215,7 +215,7 @@ The APIs described in this subsection are all synchronous interfaces. After bein
 
 - ` TAOS_FIELD *taos_fetch_fields(TAOS_RES *res)`
 
-  Gets the properties of each column of the query result set (column name, column data type, column length), used in conjunction with `taos_num_fileds()` to parse a tuple (one row) of data returned by `taos_fetch_row()`. The structure of `TAOS_FIELD` is as follows.
+  Gets the properties of each column of the query result set (column name, column data type, column length), used in conjunction with `taos_num_fields()` to parse a tuple (one row) of data returned by `taos_fetch_row()`. The structure of `TAOS_FIELD` is as follows.
 
 ```c
 typedef struct taosField {
