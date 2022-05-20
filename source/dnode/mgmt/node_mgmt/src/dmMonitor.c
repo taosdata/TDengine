@@ -161,10 +161,12 @@ void dmGetVnodeLoads(SMonVloadInfo *pInfo) {
 void dmGetMnodeLoads(SMonMloadInfo *pInfo) {
   SDnode       *pDnode = dmInstance();
   SMgmtWrapper *pWrapper = &pDnode->wrappers[MNODE];
-  if (tsMultiProcess) {
-    dmSendLocalRecv(pDnode, TDMT_MON_MM_LOAD, tDeserializeSMonMloadInfo, pInfo);
-  } else if (pWrapper->pMgmt != NULL) {
-    mmGetMnodeLoads(pWrapper->pMgmt, pInfo);
+  if (dmMarkWrapper(pWrapper) == 0) {
+    if (tsMultiProcess) {
+      dmSendLocalRecv(pDnode, TDMT_MON_MM_LOAD, tDeserializeSMonMloadInfo, pInfo);
+    } else if (pWrapper->pMgmt != NULL) {
+      mmGetMnodeLoads(pWrapper->pMgmt, pInfo);
+    }
+    dmReleaseWrapper(pWrapper);
   }
-  dmReleaseWrapper(pWrapper);
 }
