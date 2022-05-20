@@ -1103,8 +1103,7 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
   kv->keyLen = VALUE_LEN;
   kv->value = value;
   kv->length = valueLen;
-  if(!smlParseValue(kv, &info->msgBuf) || kv->type == TSDB_DATA_TYPE_BINARY
-      || kv->type == TSDB_DATA_TYPE_NCHAR || kv->type == TSDB_DATA_TYPE_BOOL){
+  if(!smlParseValue(kv, &info->msgBuf)){
     return TSDB_CODE_SML_INVALID_DATA;
   }
 
@@ -2264,6 +2263,7 @@ static int32_t smlParseLine(SSmlHandle *info, char* lines[], int numLines){
       uError("SML:0x%" PRIx64 " smlParseJSON failed:%s", info->id, *lines);
       return code;
     }
+    return code;
   }
 
   for (int32_t i = 0; i < numLines; ++i) {

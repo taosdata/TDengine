@@ -745,7 +745,7 @@ TEST(testCase, smlProcess_json1_Test) {
      "        }\n"
      "    }\n"
      "]";
-  int ret = smlProcess(info, (char **)(&sql), -1);
+  int ret = smlProcess(info, (char **)(&sql), 1);
   ASSERT_EQ(ret, 0);
 
   // case 1
@@ -1220,4 +1220,56 @@ TEST(testCase, sml_TD15662_Test) {
   ASSERT_EQ(ts, 1626006833639000000);
 
   taos_free_result(res);
+}
+
+TEST(testCase, sml_TD15735_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists sml_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use sml_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[1] = {
+      "{'metric': 'pekoiw', 'timestamp': {'value': 1626006833639000000, 'type': 'ns'}, 'value': {'value': False, 'type': 'bool'}, 'tags': {'t0': {'value': True, 'type': 'bool'}, 't1': {'value': 127, 'type': 'tinyint'}, 't2': {'value': 32767, 'type': 'smallint'}, 't3': {'value': 2147483647, 'type': 'int'}, 't4': {'value': 9223372036854775807, 'type': 'bigint'}, 't5': {'value': 11.12345027923584, 'type': 'float'}, 't6': {'value': 22.123456789, 'type': 'double'}, 't7': {'value': 'binaryTagValue', 'type': 'binary'}, 't8': {'value': 'ncharTagValue', 'type': 'nchar'}}}",
+  };
+  int32_t ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_NE(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
+}
+
+TEST(testCase, sml_TD15742_Test) {
+  TAOS *taos = taos_connect("localhost", "root", "taosdata", NULL, 0);
+  ASSERT_NE(taos, nullptr);
+
+  TAOS_RES* pRes = taos_query(taos, "create database if not exists telnet_db");
+  taos_free_result(pRes);
+
+  pRes = taos_query(taos, "use telnet_db");
+  taos_free_result(pRes);
+
+  SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
+  ASSERT_NE(request, nullptr);
+
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  ASSERT_NE(info, nullptr);
+
+  const char *sql[] = {
+      "zgzbix 1626006833641 False id=zgzbix_992_38861 t0=t t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7=\"binaryTagValue\" t8=L\"ncharTagValue\"",
+  };
+  int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
+  ASSERT_EQ(ret, 0);
+
+  destroyRequest(request);
+  smlDestroyInfo(info);
 }
