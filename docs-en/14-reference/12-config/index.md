@@ -1,27 +1,30 @@
 ---
-title: 配置参数
-description: "TDengine 客户端和服务配置列表"
+sidebar_label: Configuration
+title: Configuration Parameters
+description: "Configuration parameters for client and server in TDengine"
 ---
 
-## 为服务端指定配置文件
+In this chapter, all the configuration parameters on both server and client side are described thoroughly.
 
-TDengine 系统后台服务由 taosd 提供，可以在配置文件 taos.cfg 里修改配置参数，以满足不同场景的需求。配置文件的缺省位置在/etc/taos 目录，可以通过 taosd 命令行执行参数 -c 指定配置文件目录。比如，指定配置文件位于`/home/user` 这个目录：
+## Configuration File on Server Side
 
-```
+On the server side, the actual service of TDengine is provided by an executable `taosd` whose parameters can be configured in file `taos.cfg` to meet the requirements of different use cases. The default location of `taos.cfg` is `/etc/taos`, but can be changed by using `-c` parameter on the CLI of `taosd`. For example, the configuration file can be put under `/home/user` and used like below
+
+```bash
 taosd -c /home/user
 ```
 
-另外可以使用 `-C` 显示当前服务器配置参数：
+Parameter `-C` can be used on the CLI of `taosd` to show its configuration, like below:
 
 ```
 taosd -C
 ```
 
-## 为客户端指定配置文件
+## Configuration File on Client Side
 
-TDengine 系统的前台交互客户端应用程序为 taos，以及应用驱动，它可以与 taosd 共享同一个配置文件 taos.cfg，也可以使用单独指定配置文件。运行 taos 时，使用参数-c 指定配置文件目录，如 taos -c /home/cfg，表示使用/home/cfg/目录下的 taos.cfg 配置文件中的参数，缺省目录是/etc/taos。更多 taos 的使用方法请见帮助信息 `taos --help`。
+TDengine CLI `taos` is the tool for users to interact with TDengine. It can share same configuration file as `taosd` or use a separate configuration file. When launching `taos`, parameter `-c` can be used to specify the location where its configuration file is. For example `taos -c /home/cfg` means `/home/cfg/taos.cfg` will be used. If `-c` is not used, the default location of the configuration file is `/etc/taos`. For more details please use `taos --help` to get.
 
-**2.0.10.0 之后版本支持命令行以下参数显示当前客户端参数的配置**
+From version 2.0.10.0 below commands can be used to show the configuration parameters of the client side.
 
 ```bash
 taos -C
@@ -31,1096 +34,1087 @@ taos -C
 taos --dump-config
 ```
 
-# 配置参数详细列表
+# Configuration Parameters
 
 :::note
-本节内容覆盖产品的配置参数，适用于服务端的参数按其对产品行为的影响进行分类，这其中有部分参数也同时适用于客户端；但有少量参数仅适用于客户端，这部分参数进行了单独归类。
+`taosd` needs to be restarted for the parameters changed in the configuration file to take effect.
 
 :::
 
-
-:::note
-配置文件参数修改后，需要重启*taosd*服务，或客户端应用才能生效。
-
-:::
-
-## 连接相关
+## Connection Parameters
 
 ### firstEp
 
-| 属性     | 说明                                                  |
-| -------- | ----------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                                  |
-| 含义     | taosd 或者 taos 启动时，主动连接的集群中首个 dnode 的 end point |
-| 缺省值   | localhost:6030                                        |
+| Attribute     | Description                                                                                          |
+| ------------- | ---------------------------------------------------------------------------------------------------- |
+| Applicable    | Server and Client                                                                                    |
+| Meaning       | The end point of the first dnode in the cluster to be connected to when `taosd` or `taos` is started |
+| Default Value | localhost:6030                                                                                       |
 
 ### secondEp
 
-| 属性     | 说明                                                                         |
-| -------- | ---------------------------------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                                                         |
-| 含义     | taosd 或者 taos 启动时，如果 firstEp 连接不上，尝试连接集群中第二个 dnode 的 end point |
-| 缺省值   | 无                                                                           |
+| Attribute     | Description                                                                                                            |
+| ------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server and Client                                                                                                      |
+| Meaning       | The end point of the second dnode to be connected to if the firstEp is not available when `taosd` or `taos` is started |
+| Default Value | None                                                                                                                   |
 
 ### fqdn
 
-| 属性     | 说明                                                              |
-| -------- | ----------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                              |
-| 含义     | 数据节点的 FQDN。如果习惯 IP 地址访问，可设置为该节点的 IP 地址。 |
-| 缺省值   | 缺省为操作系统配置的第一个 hostname。                             |
-| 补充说明 | 这个参数值的长度需要控制在 96 个字符以内。                        |
+| Attribute     | Description                                                              |
+| ------------- | ------------------------------------------------------------------------ |
+| Applicable    | Server Only                                                              |
+| Meaning       | The FQDN of the host where `taosd` will be started. It can be IP address |
+| Default Value | The first hostname configured for the hos                                |
+| Note          | It should be within 96 bytes                                             |
 
 ### serverPort
 
-| 属性     | 说明                                                                                                                |
-| -------- | ------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                |
-| 含义     | taosd 启动后，对外服务的端口号                                                                                      |
-| 缺省值   | 6030                                                                                                                |
-| 补充说明 | RESTful 服务在2.4.0.0之前（不含）由taosd提供，默认端口为 6041; 在2.4.0.0 及后续版本由 taosAdapter，默认端口为6041 |
+| Attribute     | Description                                                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                                                     |
+| Meaning       | The port for external access after `taosd` is started 号                                                                        |
+| Default Value | 6030                                                                                                                            |
+| Note          | REST service is provided by `taosd` before 2.4.0.0 but by `taosAdapter` after 2.4.0.0, the default port of REST service is 6041 |
 
 :::note
-对于端口，TDengine 会使用从 serverPort 起 13 个连续的 TCP 和 UDP 端口号，请务必在防火墙打开。因此如果是缺省配置，需要打开从 6030 到 6042 共 13 个端口，而且必须 TCP 和 UDP 都打开。（详细的端口情况请参见下表）
+TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by `serverPort`. These ports need to be kept as open if firewall is enabled. Below table describes the ports used by TDengine in details.
+
 :::
-| 协议 | 默认端口  | 用途说明                            | 修改方法                                                                                                                           |
-| :--- | :-------- | :---------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------- |
-| TCP  | 6030      | 客户端与服务端之间通讯。            | 由配置文件设置 serverPort 决定。                                                                                                   |
-| TCP  | 6035      | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。                                                                                                           |
-| TCP  | 6040      | 多节点集群的节点间数据同步。        | 随 serverPort 端口变化。                                                                                                           |
-| TCP  | 6041      | 客户端与服务端之间的 RESTful 通讯。 | 随 serverPort 端口变化。注意 taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
-| TCP  | 6042      | Arbitrator 的服务端口。             | 随 Arbitrator 启动参数设置变化。                                                                                                   |
-| TCP  | 6043      | TaosKeeper 监控服务端口。           | 随 TaosKeeper 启动参数设置变化。                                                                                                   |
-| TCP  | 6044      | 支持 StatsD 的数据接入端口。        | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。                                                                              |
-| UDP  | 6045      | 支持 collectd 数据接入端口。        | 随 taosAdapter 启动参数设置变化（2.3.0.1+以上版本）。                                                                              |
-| TCP  | 6060      | 企业版内 Monitor 服务的网络端口。   |                                                                                                                                    |
-| UDP  | 6030-6034 | 客户端与服务端之间通讯。            | 随 serverPort 端口变化。                                                                                                           |
-| UDP  | 6035-6039 | 多节点集群的节点间通讯。            | 随 serverPort 端口变化。
+
+| Protocol | Default Port | Description                                      | How to configure                                                                               |
+| :------- | :----------- | :----------------------------------------------- | :--------------------------------------------------------------------------------------------- |
+| TCP      | 6030         | Communication between client and server          | serverPort                                                                                     |
+| TCP      | 6035         | Communication among server nodes in cluster      | serverPort+5                                                                                   |
+| TCP      | 6040         | Data syncup among server nodes in cluster        | serverPort+10                                                                                  |
+| TCP      | 6041         | REST connection between client and server        | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](/reference/taosadapter/) |
+| TCP      | 6042         | Service Port of Arbitrator                       | The parameter of Arbitrator                                                                    |
+| TCP      | 6043         | Service Port of TaosKeeper                       | The parameter of TaosKeeper                                                                    |
+| TCP      | 6044         | Data access port for StatsD                      | efer to [taosAdapter](/reference/taosadapter/)                                                 |
+| UDP      | 6045         | Data access for statsd                           | efer to [taosAdapter](/reference/taosadapter/)                                                 |
+| TCP      | 6060         | Port of Monitoring Service in Enterprise version |                                                                                                |
+| UDP      | 6030-6034    | Communication between client and server          | serverPort                                                                                     |
+| UDP      | 6035-6039    | Communication among server nodes in cluster      | serverPort                                                                                     |
 
 ### maxShellConns
 
-| 属性     | 说明                    |
-| -------- | ----------------------- |
-| 适用范围 | 仅服务端适用            |
-| 含义     | 一个 dnode 容许的连接数 |
-| 取值范围 | 10-50000000             |
-| 缺省值   | 5000                    |
+| Attribute     | Description                                          |
+| ------------- | ---------------------------------------------------- |
+| Applicable    | Server Only                                          |
+| Meaning       | The maximum number of connections a dnode can accept |
+| Value Range   | 10-50000000                                          |
+| Default Value | 5000                                                 |
 
 ### maxConnections
 
-| 属性     | 说明                                                                            |
-| -------- | ------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                    |
-| 含义     | 一个数据库连接所容许的 dnode 连接数                                             |
-| 取值范围 | 1-100000                                                                        |
-| 缺省值   | 5000                                                                            |
-| 补充说明 | 实际测试下来，如果默认没有配，选 50 个 worker thread 会产生 Network unavailable |
+| Attribute     | Description                                                                   |
+| ------------- | ----------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                   |
+| Meaning       | The maximum number of connections allowed by a database                       |
+| Value Range   | 1-100000                                                                      |
+| Default Value | 5000                                                                          |
+| Note          | The maximum number of worker threads on the client side is maxConnections/100 |
 
 ### rpcForceTcp
 
-| 属性     | 说明                                                |
-| -------- | --------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                                |
-| 含义     | 强制使用 TCP 传输                                   |
-| 取值范围 | 0: 不开启 1: 开启                                   |
-| 缺省值   | 0                                                   |
-| 补充说明 | 在网络比较差的环境中，建议开启。<br/>2.0 版本新增。 |
+| Attribute     | Description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| Applicable    | Server and Client                                                   |
+| Meaning       | TCP is used forcely                                                 |
+| Value Range   | 0: disabled 1: enabled                                              |
+| Default Value | 0                                                                   |
+| Note          | It's suggested to configure to enable if network is not good enough |
 
-## 监控相关
+## Monitoring Parameters
 
 ### monitor
 
-| 属性     | 说明                                                                                                                                           |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                                                   |
-| 含义     | 服务器内部的系统监控开关。监控主要负责收集物理节点的负载状况，包括 CPU、内存、硬盘、网络带宽、HTTP 请求量的监控记录，记录信息存储在`LOG`库中。 |
-| 取值范围 | 0：关闭监控服务， 1：激活监控服务。                                                                                                            |
-| 缺省值   | 0                                                                                                                                              |
+| Attribute     | Description                                                                                                                                                                         |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                                                                                                         |
+| Meaning       | The switch for monitoring inside server. The workload of the hosts, including CPU, memory, disk, network, TTP requests, are collected and stored in a system builtin database `LOG` |
+| Value Range   | 0: monitoring disabled, 1: monitoring enabled 务.                                                                                                                                   |
+| Default Value | 0                                                                                                                                                                                   |
 
 ### monitorInterval
 
-| 属性     | 说明                                         |
-| -------- | -------------------------------------------- |
-| 适用范围 | 仅服务端适用                                 |
-| 含义     | 监控数据库记录系统参数（CPU/内存）的时间间隔 |
-| 单位     | 秒                                           |
-| 取值范围 | 1-600                                        |
-| 缺省值   | 30                                           |
-
+| Attribute     | Description                                |
+| ------------- | ------------------------------------------ |
+| Applicable    | Server Only                                |
+| Meaning       | The interval of collecting system workload |
+| Unit          | second                                     |
+| Value Range   | 1-600                                      |
+| Default Value | 30                                         |
 
 ### telemetryReporting
 
-| 属性     | 说明                                     |
-| -------- | ---------------------------------------- |
-| 适用范围 | 仅服务端适用                             |
-| 含义     | 是否允许 TDengine 采集和上报基本使用信息 |
-| 取值范围 | 0：不允许        1：允许                  |
-| 缺省值   | 1                                        |
+| Attribute     | Description                                                                  |
+| ------------- | ---------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                  |
+| Meaning       | Switch for allowing TDengine to collect and report service usage information |
+| Value Range   | 0: Not allowed; 1: Allowed                                                   |
+| Default Value | 1                                                                            |
 
-## 查询相关
+## Query Parameters
 
 ### queryBufferSize
 
-| 属性     | 说明                                                                                                                |
-| -------- | ------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                        |
-| 含义     | 为所有并发查询占用保留的内存大小。                                                                                  |
-| 单位     | MB                                                                                                                  |
-| 缺省值   | 无 |
-| 补充说明 | 计算规则可以根据实际应用可能的最大并发数和表的数字相乘，再乘 170 。<br/>（2.0.15 以前的版本中，此参数的单位是字节） |
+| Attribute     | Description                                                                             |
+| ------------- | --------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                             |
+| Meaning       | The total memory size reserved for all queries                                          |
+| Unit          | MB                                                                                      |
+| Default Value | 无                                                                                      |
+| Note          | It can be estimated by "maximum number of concurrent quries" _ "number of tables" _ 170 |
 
 ### ratioOfQueryCores
 
-| 属性     | 说明                                                                                                                                                                                                    |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --- |
-| 适用范围 | 仅服务端适用                                                                                                                                                                                            |
-| 含义     | 设置查询线程的最大数量。                                                                                                                                                                                |
-| 缺省值   |              1  |
-| 补充说明 | 最小值 0 表示只有 1 个查询线程 <br/> 最大值 2 表示最大建立 2 倍 CPU 核数的查询线程。<br/>默认为 1，表示最大和 CPU 核数相等的查询线程。<br/>该值可以为小数，即 0.5 表示最大建立 CPU 核数一半的查询线程。 |    
+| Attribute     | Description                                                                                           |
+| ------------- | ----------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                           |
+| Meaning       | Maximum number of query threads                                                                       |
+| Default Value | 1                                                                                                     |
+| Note          | value range: float number between [0, 2] 0: only 1 query thread; >0: the times of the number of cores |
 
 ### maxNumOfDistinctRes
 
-| 属性     | 说明                             |
-| -------- | -------------------------------- |
-| 适用范围 | 仅服务端适用                     |
-| 含义     | 允许返回的 distinct 结果最大行数 |
-| 取值范围 | 默认值为 10 万，最大值 1 亿      |
-| 缺省值   | 10 万                            |
-| 补充说明 | 2.3 版本新增。                   | |
+| Attribute     | Description                                  |
+| ------------- | -------------------------------------------- |
+| Applicable    | Server Only                                  |
+| Meaning       | The maximum number of distinct rows returned |
+| Value Range   | [100,000 - 100, 000, 000]                    |
+| Default Value | 100, 000                                     |
+| Note          | After version 2.3.0.0                        |
 
-## 区域相关
+## Locale Parameters
 
 ### timezone
 
-| 属性     | 说明                           |
-| -------- | ------------------------------ |
-| 适用范围 | 服务端和客户端均适用           |
-| 含义     | 时区                           |
-| 缺省值   | 从系统中动态获取当前的时区设置 |
+| Attribute     | Description                     |
+| ------------- | ------------------------------- |
+| Applicable    | Server and Client               |
+| Meaning       | TimeZone                        |
+| Default Value | TimeZone configured in the host |
 
 :::info
-为应对多时区的数据写入和查询问题，TDengine 采用 Unix 时间戳(Unix Timestamp)来记录和存储时间戳。Unix 时间戳的特点决定了任一时刻不论在任何时区，产生的时间戳均一致。需要注意的是，Unix 时间戳是在客户端完成转换和记录。为了确保客户端其他形式的时间转换为正确的 Unix 时间戳，需要设置正确的时区。
+To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored TDengie. The timestamp generated from any timezones at same time is same in Unix timestamp. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
 
-  在 Linux 系统中，客户端会自动读取系统设置的时区信息。用户也可以采用多种方式在配置文件设置时区。例如：
+On Linux system, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below.
 
-  ```
-  timezone UTC-8
-  timezone GMT-8
-  timezone Asia/Shanghai
-  ```
+```
+timezone UTC-8
+timezone GMT-8
+timezone Asia/Shanghai
+```
 
-  均是合法的设置东八区时区的格式。但需注意，Windows 下并不支持 `timezone Asia/Shanghai` 这样的写法，而必须写成 `timezone UTC-8`。
+The above examples are all proper configuration for the timezone of UTC+8. On Windows system, however, `timezone Asia/Shanghai` is not supported, it must be set as `timezone UTC-8`.
 
-  时区的设置对于查询和写入 SQL 语句中非 Unix 时间戳的内容（时间戳字符串、关键词 now 的解析）产生影响。例如：
+The setting for timezone impacts the strings not in Unix timestamp, keywords or functions related to date/time, for example
 
-  ```sql
-  SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
-  ```
+```sql
+SELECT count(*) FROM table_name WHERE TS<'2019-04-11 12:01:08';
+```
 
-  在东八区，SQL 语句等效于
+If the timezone is UTC+8, the above SQL statement is equal to:
 
-  ```sql
-  SELECT count(*) FROM table_name WHERE TS<1554955268000;
-  ```
+```sql
+SELECT count(*) FROM table_name WHERE TS<1554955268000;
+```
 
-  在 UTC 时区，SQL 语句等效于
+If the timezone is UTC, it's equal to
 
-  ```sql
-  SELECT count(*) FROM table_name WHERE TS<1554984068000;
-  ```
+```sql
+SELECT count(*) FROM table_name WHERE TS<1554984068000;
+```
 
-  为了避免使用字符串时间格式带来的不确定性，也可以直接使用 Unix 时间戳。此外，还可以在 SQL 语句中使用带有时区的时间戳字符串，例如：RFC3339 格式的时间戳字符串，2013-04-12T15:52:01.123+08:00 或者 ISO-8601 格式时间戳字符串 2013-04-12T15:52:01.123+0800。上述两个字符串转化为 Unix 时间戳不受系统所在时区的影响。
+To avoid the problems of using time strings, Unix timestamp can be used directly. Furthermore, time strings with timezone can be used in SQL statement, for example "2013-04-12T15:52:01.123+08:00" in RFC3339 format or "2013-04-12T15:52:01.123+0800" in ISO-8601 format, they are not influenced by timezone setting when converted to Unix timestamp.
 
 :::
 
 ### locale
 
-| 属性     | 说明                                                                    |
-| -------- | ----------------------------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                                                    |
-| 含义     | 系统区位信息及编码格式                                                  |
-| 缺省值   | 系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置 |
+| Attribute     | Description               |
+| ------------- | ------------------------- |
+| Applicable    | Server and Client         |
+| Meaning       | Location code             |
+| Default Value | Locale configured in host |
 
 :::info
-  TDengine 为存储中文、日文、韩文等非 ASCII 编码的宽字符，提供一种专门的字段类型 nchar。写入 nchar 字段的数据将统一采用 UCS4-LE 格式进行编码并发送到服务器。需要注意的是，编码正确性是客户端来保证。因此，如果用户想要正常使用 nchar 字段来存储诸如中文、日文、韩文等非 ASCII 字符，需要正确设置客户端的编码格式。
+A specific type "nchar" is provied in TDengine to store non-ASCII characters such as Chinese, Japanese, Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
 
-  客户端的输入的字符均采用操作系统当前默认的编码格式，在 Linux 系统上多为 UTF-8，部分中文系统编码则可能是 GB18030 或 GBK 等。在 docker 环境中默认的编码是 POSIX。在中文版 Windows 系统中，编码则是 CP936。客户端需要确保正确设置自己所使用的字符集，即客户端运行的操作系统当前编码字符集，才能保证 nchar 中的数据正确转换为 UCS4-LE 编码格式。
+The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
-  在 Linux 中 locale 的命名规则为: <语言>\_<地区>.<字符集编码> 如：zh_CN.UTF-8，zh 代表中文，CN 代表大陆地区，UTF-8 表示字符集。字符集编码为客户端正确解析本地字符串提供编码转换的说明。Linux 系统与 Mac OSX 系统可以通过设置 locale 来确定系统的字符编码，由于 Windows 使用的 locale 中不是 POSIX 标准的 locale 格式，因此在 Windows 下需要采用另一个配置参数 charset 来指定字符编码。在 Linux 系统中也可以使用 charset 来指定字符编码。
+The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, for example, in "zh_CN.UTF-8", "zh" means Chinese, "CN" means China mainland, "UTF-8" means charset. On Linux andMac OSX, the charset can be set by locale in the system. On Windows system another configuration parameter `charset` must be used to configure charset because the locale used on Windows is not POSIX standard. Of course, `charset` can also be used on Linux to specify the charset.
 
 :::
 
 ### charset
 
-| 属性     | 说明                                                                    |
-| -------- | ----------------------------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                                                    |
-| 含义     | 字符集编码                                                              |
-| 缺省值   | 系统中动态获取，如果自动获取失败，需要用户在配置文件设置或通过 API 设置 |
+| Attribute     | Description                  |
+| ------------- | ---------------------------- |
+| Applicable    | Server and Client            |
+| Meaning       | Character                    |
+| Default Value | charset set in the system 系 |
 
 :::info
-如果配置文件中不设置 charset，在 Linux 系统中，taos 在启动时候，自动读取系统当前的 locale 信息，并从 locale 信息中解析提取 charset 编码格式。如果自动读取 locale 信息失败，则尝试读取 charset 配置，如果读取 charset 配置也失败，则中断启动过程。
+On Linux, if `charset` is not set in `taos.cfg`, when `taos` is started, the charset is obtained from system locale. If obtaining charset from system locale fails, `taos` would fail to start. So on Linux system, if system locale is set properly, it's not necessary to set `charset` in `taos.cfg`. For example:
 
-  在 Linux 系统中，locale 信息包含了字符编码信息，因此正确设置了 Linux 系统 locale 以后可以不用再单独设置 charset。例如：
+```
+locale zh_CN.UTF-8
+```
 
-  ```
-  locale zh_CN.UTF-8
-  ```
+Besides, on Linux system, if the charset contained in `locale` is not consistent with that set by `charset`, the one who comes later in the configuration file is used.
 
-  在 Windows 系统中，无法从 locale 获取系统当前编码。如果无法从配置文件中读取字符串编码信息，taos 默认设置为字符编码为 CP936。其等效在配置文件中添加如下配置：
+```title="Effective charset is GBK"
+locale zh_CN.UTF-8
+charset GBK
+```
 
-  ```
-  charset CP936
-  ```
+```title="Effective charset is UTF-8"
+charset GBK
+locale zh_CN.UTF-8
+```
 
-  如果需要调整字符编码，请查阅当前操作系统使用的编码，并在配置文件中正确设置。
+On Windows system, it's not possible to obtain charset from system locale. If it's not set in configuration file `taos.cfg`, it would be default to CP936, same as set as below in `taos.cfg`. For example
 
-  在 Linux 系统中，如果用户同时设置了 locale 和字符集编码 charset，并且 locale 和 charset 的不一致，后设置的值将覆盖前面设置的值。
-
-  ```
-  locale zh_CN.UTF-8
-  charset GBK
-  ```
-
-  则 charset 的有效值是 GBK。
-
-  ```
-  charset GBK
-  locale zh_CN.UTF-8
-  ```
-
-  charset 的有效值是 UTF-8。
+```
+charset CP936
+```
 
 :::
 
-## 存储相关
+## Storage Parameters
 
 ### dataDir
 
-| 属性     | 说明                                       |
-| -------- | ------------------------------------------ |
-| 适用范围 | 仅服务端适用                               |
-| 含义     | 数据文件目录，所有的数据文件都将写入该目录 |
-| 缺省值   | /var/lib/taos                              |
+| Attribute     | Description                                 |
+| ------------- | ------------------------------------------- |
+| Applicable    | Server Only                                 |
+| Meaning       | All data files are stored in this directory |
+| Default Value | /var/lib/taos                               |
 
 ### cache
 
-| 属性     | 说明         |
-| -------- | ------------ |
-| 适用范围 | 仅服务端适用 |
-| 含义     | 内存块的大小 |
-| 单位     | MB           |
-| 缺省值   | 16           |
+| Attribute     | Description                   |
+| ------------- | ----------------------------- |
+| Applicable    | Server Only                   |
+| Meaning       | The size of each memory block |
+| Unit          | MB                            |
+| Default Value | 16                            |
 
 ### blocks
 
-| 属性     | 说明                                                                                                  |
-| -------- | ----------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                          |
-| 含义     | 每个 vnode（tsdb）中有多少 cache 大小的内存块。因此一个 vnode 的用的内存大小粗略为（cache \* blocks） |
-| 缺省值   | 6                                                                                                     |
+| Attribute     | Description                                                    |
+| ------------- | -------------------------------------------------------------- |
+| Applicable    | Server Only                                                    |
+| Meaning       | The number of memory blocks of size `cache` used by each vnode |
+| Default Value | 6                                                              |
 
 ### days
 
-| 属性     | 说明                       |
-| -------- | -------------------------- |
-| 适用范围 | 仅服务端适用               |
-| 含义     | 数据文件存储数据的时间跨度 |
-| 单位     | 天                         |
-| 缺省值   | 10                         |
+| Attribute     | Description                                           |
+| ------------- | ----------------------------------------------------- |
+| Applicable    | Server Only                                           |
+| Meaning       | The time range of the data stored in single data file |
+| Unit          | day                                                   |
+| Default Value | 10                                                    |
 
 ### keep
 
-| 属性     | 说明           |
-| -------- | -------------- |
-| 适用范围 | 仅服务端适用   |
-| 含义     | 数据保留的天数 |
-| 单位     | 天             |
-| 缺省值   | 3650           |
+| Attribute     | Description                            |
+| ------------- | -------------------------------------- |
+| Applicable    | Server Only                            |
+| Meaning       | The number of days for data to be kept |
+| Unit          | day                                    |
+| Default Value | 3650                                   |
 
 ### minRows
 
-| 属性     | 说明                   |
-| -------- | ---------------------- |
-| 适用范围 | 仅服务端适用           |
-| 含义     | 文件块中记录的最小条数 |
-| 缺省值   | 100                    |
+| Attribute     | Description                                |
+| ------------- | ------------------------------------------ |
+| Applicable    | Server Only                                |
+| Meaning       | minimum number of rows in single data file |
+| Default Value | 100                                        |
 
 ### maxRows
 
-| 属性     | 说明                   |
-| -------- | ---------------------- |
-| 适用范围 | 仅服务端适用           |
-| 含义     | 文件块中记录的最大条数 |
-| 缺省值   | 4096                   |
+| Attribute     | Description                                |
+| ------------- | ------------------------------------------ |
+| Applicable    | Server Only                                |
+| Meaning       | maximum number of rows in single data file |
+| Default Value | 4096                                       |
 
 ### walLevel
 
-| 属性     | 说明                                                      |
-| -------- | --------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                              |
-| 含义     | WAL 级别                                                  |
-| 取值范围 | 1：写 wal, 但不执行 fsync <br/> 2：写 wal, 而且执行 fsync |
-| 缺省值   | 1                                                         |
+| Attribute     | Description                                                  |
+| ------------- | ------------------------------------------------------------ |
+| Applicable    | Server Only                                                  |
+| Meaning       | WAL level                                                    |
+| Value Range   | 0: wal disabled <br/> 1: wal enabled without fsync <br/> 2: wal enabled with fsync |
+| Default Value | 1                                                            |
 
 ### fsync
 
-| 属性     | 说明                                                                 |
-| -------- | -------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                         |
-| 含义     | 当 wal 设置为 2 时，执行 fsync 的周期                                |
-| 单位     | 毫秒                                                                 |
-| 取值范围 | 最小为 0，表示每次写入，立即执行 fsync <br/> 最大为 180000（三分钟） |
-| 缺省值   | 3000                                                                 |
+| Attribute     | Description                                                                                                           |
+| ------------- | --------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                                           |
+| Meaning       | The waiting time for invoking fsync when walLevel is 2                                                                |
+| Unit          | millisecond                                                                                                           |
+| Value Range   | 0: no waiting time, fsync is performed immediately once WAL is written; <br/> maximum value is 180000, i.e. 3 minutes |
+| Default Value | 3000                                                                                                                  |
 
 ### update
 
-| 属性     | 说明                                                                                                                         |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                                 |
-| 含义     | 允许更新已存在的数据行                                                                                                       |
-| 取值范围 | 0：不允许更新 <br/> 1：允许整行更新 <br/> 2：允许部分列更新。（2.1.7.0 版本开始此参数支持设为 2，在此之前取值只能是 [0, 1]） |
-| 缺省值   | 0                                                                                                                            |
-| 补充说明 | 2.0.8.0 版本之前，不支持此参数。                                                                                             |
+| Attribute     | Description                                                                                            |
+| ------------- | ------------------------------------------------------------------------------------------------------ |
+| Applicable    | Server Only                                                                                            |
+| Meaning       | If it's allowed to update existing data                                                                |
+| Value Range   | 0: not allowed <br/> 1: a row can only be updated as a whole <br/> 2: a part of columns can be updated |
+| Default Value | 0                                                                                                      |
+| Note          | Not available from version 2.0.8.0                                                                     |
 
 ### cacheLast
 
-| 属性     | 说明                                                                                                                                                                                             |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 适用范围 | 仅服务端适用                                                                                                                                                                                     |
-| 含义     | 是否在内存中缓存子表的最近数据                                                                                                                                                                   |
-| 取值范围 | 0：关闭 <br/> 1：缓存子表最近一行数据 <br/> 2：缓存子表每一列的最近的非 NULL 值 <br/> 3：同时打开缓存最近行和列功能。（2.1.2.0 版本开始此参数支持 0 ～ 3 的取值范围，在此之前取值只能是 [0, 1]） |
-| 缺省值   | 0                                                                                                                                                                                                |
-| 补充说明 | 2.1.2.0 版本之前、2.0.20.7 版本之前在 taos.cfg 文件中不支持此参数。 
+| Attribute     | Description                                                                                                                                                          |
+| ------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                                                                                          |
+| Meaning       | Whether to cache the latest rows of each sub table in memory                                                                                                         |
+| Value Range   | 0: not cached <br/> 1: the last row of each sub table is cached <br/> 2: the last non-null value of each column is cached <br/> 3: identical to both 1 and 2 are set |
+| Default Value | 0                                                                                                                                                                    |
 
 ### minimalTmpDirGB
 
-| 属性     | 说明                                             |
-| -------- | ------------------------------------------------ |
-| 适用范围 | 服务端和客户端均适用                             |
-| 含义     | 当日志文件夹的磁盘大小小于该值时，停止写临时文件 |
-| 单位     | GB                                               |
-| 缺省值   | 1.0                                             |
+| Attribute     | Description                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| Applicable    | Server and Client                                                                               |
+| Meaning       | When the available disk space in tmpDir is below this threshold, writing to tmpDir is suspended |
+| Unit          | GB                                                                                              |
+| Default Value | 1.0                                                                                             |
 
 ### minimalDataDirGB
 
-| 属性     | 说明                                             |
-| -------- | ------------------------------------------------ |
-| 适用范围 | 仅服务端适用                                     |
-| 含义     | 当日志文件夹的磁盘大小小于该值时，停止写时序数据 |
-| 单位     | GB                                               |
-| 缺省值   | 2.0                                              |
+| Attribute     | Description                                                                                      |
+| ------------- | ------------------------------------------------------------------------------------------------ |
+| Applicable    | Server Only                                                                                      |
+| Meaning       | hen the available disk space in dataDir is below this threshold, writing to dataDir is suspended |
+| Unit          | GB                                                                                               |
+| Default Value | 2.0                                                                                              |
 
 ### vnodeBak
 
-| 属性     | 说明                             |
-| -------- | -------------------------------- |
-| 适用范围 | 仅服务端适用                     |
-| 含义     | 删除 vnode 时是否备份 vnode 目录 |
-| 取值范围 | 0：否，1：是                     |
-| 缺省值   | 1                                |
+| Attribute     | Description                                                                 |
+| ------------- | --------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                 |
+| Meaning       | Whether to backup the corresponding vnode directory when a vnode is deleted |
+| Value Range   | 0: not backed up, 1: backup                                                 |
+| Default Value | 1                                                                           |
 
-## 集群相关
+## Cluster Parameters
 
 ### numOfMnodes
 
-| 属性     | 说明               |
-| -------- | ------------------ |
-| 适用范围 | 仅服务端适用       |
-| 含义     | 系统中管理节点个数 |
-| 缺省值   | 3                  |
+| Attribute     | Description                    |
+| ------------- | ------------------------------ |
+| Applicable    | Server Only                    |
+| Meaning       | The number of management nodes |
+| Default Value | 3                              |
 
 ### replica
 
-| 属性     | 说明         |
-| -------- | ------------ |
-| 适用范围 | 仅服务端适用 |
-| 含义     | 副本个数     |
-| 取值范围 | 1-3          |
-| 缺省值   | 1            |
+| Attribute     | Description                |
+| ------------- | -------------------------- |
+| Applicable    | Server Only                |
+| Meaning       | The number of replications |
+| Value Range   | 1-3                        |
+| Default Value | 1                          |
 
 ### quorum
 
-| 属性     | 说明                             |
-| -------- | -------------------------------- |
-| 适用范围 | 仅服务端适用                     |
-| 含义     | 多副本环境下指令执行的确认数要求 |
-| 取值范围 | 1,2                              |
-| 缺省值   | 1                                |
+| Attribute     | Description                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                   |
+| Meaning       | The number of required confirmations for data replication in case of multiple replications 多 |
+| Value Range   | 1,2                                                                                           |
+| Default Value | 1                                                                                             |
 
 ### role
 
-| 属性     | 说明                                                                                                                                      |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                                              |
-| 含义     | dnode 的可选角色                                                                                                                          |
-| 取值范围 | 0：any（既可作为 mnode，也可分配 vnode） <br/> 1：mgmt（只能作为 mnode，不能分配 vnode） <br/> 2：dnode（不能作为 mnode，只能分配 vnode） |
-| 缺省值   | 0                                                                                                                                         |
+| Attribute     | Description                                                     |
+| ------------- | --------------------------------------------------------------- |
+| Applicable    | Server Only                                                     |
+| Meaning       | The role of the dnode                                           |
+| Value Range   | 0: both mnode and vnode <br/> 1: mnode only <br/> 2: dnode only |
+| Default Value | 0                                                               |
+
 ### balance
 
-| 属性     | 说明             |
-| -------- | ---------------- |
-| 适用范围 | 仅服务端适用     |
-| 含义     | 是否启动负载均衡 |
-| 取值范围 | 0，1             |
-| 缺省值   | 1                |
+| Attribute     | Description              |
+| ------------- | ------------------------ |
+| Applicable    | Server Only              |
+| Meaning       | Automatic load balancing |
+| Value Range   | 0: disabled, 1: enabled  |
+| Default Value | 1                        |
 
 ### balanceInterval
 
-| 属性     | 说明                                             |
-| -------- | ------------------------------------------------ |
-| 适用范围 | 仅服务端适用                                     |
-| 含义     | 管理节点在正常运行状态下，检查负载均衡的时间间隔 |
-| 单位     | 秒                                               |
-| 取值范围 | 1-30000                                          |
-| 缺省值   | 300                                              |
+| Attribute     | Description                                     |
+| ------------- | ----------------------------------------------- |
+| Applicable    | Server Only                                     |
+| Meaning       | The interval for checking load balance by mnode |
+| Unit          | second                                          |
+| Value Range   | 1-30000                                         |
+| Default Value | 300                                             |
 
 ### arbitrator
 
-| 属性     | 说明                     |
-| -------- | ------------------------ |
-| 适用范围 | 仅服务端适用             |
-| 含义     | 系统中裁决器的 end point，其格式如firstEp |
-| 缺省值   | 空                       |
+| Attribute     | Description                                        |
+| ------------- | -------------------------------------------------- |
+| Applicable    | Server Only                                        |
+| Meaning       | End point of arbitrator, format is same as firstEp |
+| Default Value | None                                               |
 
-## 时间相关
+## Time Parameters
+
+### precision
+
+| Attribute     | Description                                       |
+| ------------- | ------------------------------------------------- |
+| Applicable    | Server only                                       |
+| Meaning       | Time precision used for each database             |
+| Value Range   | ms: millisecond; us: microsecond ; ns: nanosecond |
+| Default Value | ms                                                |
 
 ### rpcTimer
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | rpc 重试时长         |
-| 单位     | 毫秒                 |
-| 取值范围 | 100-3000             |
-| 缺省值   | 300                  |
+| Attribute     | Description        |
+| ------------- | ------------------ |
+| Applicable    | Server and Client  |
+| Meaning       | rpc retry interval |
+| Unit          | milliseconds       |
+| Value Range   | 100-3000           |
+| Default Value | 300                |
 
 ### rpcMaxTime
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | rpc 等待应答最大时长 |
-| 单位     | 秒                   |
-| 取值范围 | 100-7200             |
-| 缺省值   | 600                  |
+| Attribute     | Description                        |
+| ------------- | ---------------------------------- |
+| Applicable    | Server and Client                  |
+| Meaning       | maximum wait time for rpc response |
+| Unit          | second                             |
+| Value Range   | 100-7200                           |
+| Default Value | 600                                |
 
 ### statusInterval
 
-| 属性     | 说明                        |
-| -------- | --------------------------- |
-| 适用范围 | 仅服务端适用                |
-| 含义     | dnode 向 mnode 报告状态间隔 |
-| 单位     | 秒                          |
-| 取值范围 | 1-10                        |
-| 缺省值   | 1                           |
+| Attribute     | Description                                     |
+| ------------- | ----------------------------------------------- |
+| Applicable    | Server Only                                     |
+| Meaning       | the interval of dnode reporting status to mnode |
+| Unit          | second                                          |
+| Value Range   | 1-10                                            |
+| Default Value | 1                                               |
 
 ### shellActivityTimer
 
-| 属性     | 说明                              |
-| -------- | --------------------------------- |
-| 适用范围 | 服务端和客户端均适用              |
-| 含义     | shell 客户端向 mnode 发送心跳间隔 |
-| 单位     | 秒                                |
-| 取值范围 | 1-120                             |
-| 缺省值   | 3                                 |
+| Attribute     | Description                                            |
+| ------------- | ------------------------------------------------------ |
+| Applicable    | Server and Client                                      |
+| Meaning       | The interval for taos shell to send heartbeat to mnode |
+| Unit          | second                                                 |
+| Value Range   | 1-120                                                  |
+| Default Value | 3                                                      |
 
 ### tableMetaKeepTimer
 
-| 属性     | 说明                  |
-| -------- | --------------------- |
-| 适用范围 | 仅服务端适用          |
-| 含义     | 表的元数据 cache 时长 |
-| 单位     | 秒                    |
-| 取值范围 | 1-8640000             |
-| 缺省值   | 7200                  |
+| Attribute     | Description                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                        |
+| Meaning       | The expiration time for metadata in cache, once it's reached the client would refresh the metadata |
+| Unit          | second                                                                                             |
+| Value Range   | 1-8640000                                                                                          |
+| Default Value | 7200                                                                                               |
 
 ### maxTmrCtrl
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | 定时器个数           |
-| 单位     | 个                   |
-| 取值范围 | 8-2048               |
-| 缺省值   | 512                  |
+| Attribute     | Description              |
+| ------------- | ------------------------ |
+| Applicable    | Server and Client        |
+| Meaning       | Maximum number of timers |
+| Unit          | None                     |
+| Value Range   | 8-2048                   |
+| Default Value | 512                      |
 
 ### offlineThreshold
 
-| 属性     | 说明                                        |
-| -------- | ------------------------------------------- |
-| 适用范围 | 仅服务端适用                                |
-| 含义     | dnode 离线阈值，超过该时间将导致 dnode 离线 |
-| 单位     | 秒                                          |
-| 取值范围 | 5-7200000                                   |
-| 缺省值   | 86400\*10（10 天）                          |
+| Attribute     | Description                                                                                                                   |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                                                   |
+| Meaning       | The expiration time for dnode online status, once it's reached before receiving status from a node, the dnode becomes offline |
+| Unit          | second                                                                                                                        |
+| Value Range   | 5-7200000                                                                                                                     |
+| Default Value | 86400\*10（10 天）                                                                                                            |
 
-
-## 性能调优
+## Performance Optimization Parameters
 
 ### numOfThreadsPerCore
 
-| 属性     | 说明                                |
-| -------- | ----------------------------------- |
-| 适用范围 | 服务端和客户端均适用                |
-| 含义     | 每个 CPU 核生成的队列消费者线程数量 |
-| 缺省值   | 1.0                                 |
+| Attribute     | Description                                 |
+| ------------- | ------------------------------------------- |
+| Applicable    | Server and Client                           |
+| Meaning       | The number of consumer threads per CPU core |
+| Default Value | 1.0                                         |
 
 ### ratioOfQueryThreads
 
-| 属性     | 说明                                                                                                                |
-| -------- | ------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                        |
-| 含义     | 设置查询线程的最大数量                                                                                              |
-| 取值范围 | 0：表示只有 1 个查询线程 <br/> 1：表示最大和 CPU 核数相等的查询线程 <br/> 2：表示最大建立 2 倍 CPU 核数的查询线程。 |
-| 缺省值   | 1                                                                                                                   |
-| 补充说明 | 该值可以为小数，即 0.5 表示最大建立 CPU 核数一半的查询线程。                                                        |
+| Attribute     | Description                                                                                   |
+| ------------- | --------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                   |
+| Meaning       | Maximum number of query threads 量                                                            |
+| Value Range   | 0: Only one query thread <br/> 1: Same as number of CPU cores <br/> 2: two times of CPU cores |
+| Default Value | 1                                                                                             |
+| Note          | This value can be a float number, 0.5 means half of the CPU cores                             |
 
 ### maxVgroupsPerDb
 
-| 属性     | 说明                                 |
-| -------- | ------------------------------------ |
-| 适用范围 | 仅服务端适用                         |
-| 含义     | 每个 DB 中 能够使用的最大 vnode 个数 |
-| 取值范围 | 0-8192                               |
-| 缺省值   |                                      |
+| Attribute     | Description                          |
+| ------------- | ------------------------------------ |
+| Applicable    | Server Only                          |
+| Meaning       | Maximum number of vnodes for each DB |
+| Value Range   | 0-8192                               |
+| Default Value |                                      |
 
 ### maxTablesPerVnode
 
-| 属性     | 说明                              |
-| -------- | --------------------------------- |
-| 适用范围 | 仅服务端适用                      |
-| 含义     | 每个 vnode 中能够创建的最大表个数 |
-| 缺省值   | 1000000                           |
+| Attribute     | Description                            |
+| ------------- | -------------------------------------- |
+| Applicable    | Server Only                            |
+| Meaning       | Maximum number of tables in each vnode |
+| Default Value | 1000000                                |
 
 ### minTablesPerVnode
 
-| 属性     | 说明                              |
-| -------- | --------------------------------- |
-| 适用范围 | 仅服务端适用                      |
-| 含义     | 每个 vnode 中必须创建表的最小数量 |
-| 缺省值   | 1000                              |
+| Attribute     | Description                            |
+| ------------- | -------------------------------------- |
+| Applicable    | Server Only                            |
+| Meaning       | Minimum number of tables in each vnode |
+| Default Value | 1000                                   |
 
 ### tableIncStepPerVnode
 
-| 属性     | 说明                                |
-| -------- | ----------------------------------- |
-| 适用范围 | 仅服务端适用                        |
-| 含义     | 每个 vnode 中超过最小表数，i.e. minTablesPerVnode, 后递增步长 |
-| 缺省值   | 1000                                |
+| Attribute     | Description                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                 |
+| Meaning       | When minTablesPerVnode is reached, the number of tables are allocated for a vnode each time |
+| Default Value | 1000                                                                                        |
 
 ### maxNumOfOrderedRes
 
-| 属性     | 说明                                   |
-| -------- | -------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                   |
-| 含义     | 支持超级表时间排序允许的最多记录数限制 |
-| 缺省值   | 10 万                                  |
-
+| Attribute     | Description                                 |
+| ------------- | ------------------------------------------- |
+| Applicable    | Server and Client                           |
+| Meaning       | Maximum number of rows ordered for a STable |
+| Default Value | 100,000                                     |
 
 ### mnodeEqualVnodeNum
 
-| 属性     | 说明                               |
-| -------- | ---------------------------------- |
-| 适用范围 | 仅服务端适用                       |
-| 含义     | 将一个 mnode 等同于 vnode 消耗的个数 |
-| 缺省值   | 4                                  |
+| Attribute     | Description                                                                                     |
+| ------------- | ----------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                     |
+| Meaning       | The number of vnodes whose system resources consumption are considered as equal to single mnode |
+| Default Value | 4                                                                                               |
 
 ### numOfCommitThreads
 
-| 属性     | 说明                   |
-| -------- | ---------------------- |
-| 适用范围 | 仅服务端适用           |
-| 含义     | 设置写入线程的最大数量 |
-| 缺省值   |                        |
+| Attribute     | Description                               |
+| ------------- | ----------------------------------------- |
+| Applicable    | Server Only                               |
+| Meaning       | Maximum of threads for committing to disk |
+| Default Value |                                           |
 
-## 压缩相关
+## Compression Parameters
 
 ### comp
 
-| 属性     | 说明                                |
-| -------- | ----------------------------------- |
-| 适用范围 | 仅服务端适用                        |
-| 含义     | 文件压缩标志位                      |
-| 取值范围 | 0：关闭，1:一阶段压缩，2:两阶段压缩 |
-| 缺省值   | 2                                   |
+| Attribute     | Description                                                         |
+| ------------- | ------------------------------------------------------------------- |
+| Applicable    | Server Only                                                         |
+| Meaning       | Whether data is compressed                                          |
+| Value Range   | 0: uncompressed, 1: One phase compression, 2: Two phase compression |
+| Default Value | 2                                                                   |
 
 ### tsdbMetaCompactRatio
 
-| 属性     | 说明                                                           |
-| -------- | -------------------------------------------------------------- |
-| 含义     | tsdb meta 文件中冗余数据超过多少阈值，开启 meta 文件的压缩功能 |
-| 取值范围 | 0：不开启，[1-100]：冗余数据比例                               |
-| 缺省值   | 0                                                              |
+| Attribute     | Description                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| Meaning       | The threshold for percentage of redundant in meta file to trigger compression for meta file |
+| Value Range   | 0: no compression forever, [1-100]: The threshold percentage                                |
+| Default Value | 0                                                                                           |
 
 ### compressMsgSize
 
-| 属性     | 说明                                                                                                                                           |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                                                   |
-| 含义     | 客户端与服务器之间进行消息通讯过程中，对通讯的消息进行压缩的阈值。如果要压缩消息，建议设置为 64330 字节，即大于 64330 字节的消息体才进行压缩。 |
-| 单位     | bytes                                                                                                                                          |
-| 取值范围 | `0 `表示对所有的消息均进行压缩 >0: 超过该值的消息才进行压缩 -1: 不压缩                                                                         |
-| 缺省值   | -1                                                                                                                                             |
+| Attribute     | Description                                                                      |
+| ------------- | -------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                      |
+| Meaning       | The threshold for message size to compress the message..                         |
+| Unit          | bytes                                                                            |
+| Value Range   | 0: already compress; >0: compress when message exceeds it; -1: always uncompress |
+| Default Value | -1                                                                               |
 
 ### compressColData
 
-| 属性     | 说明                                                                                    |
-| -------- | --------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                            |
-| 含义     | 客户端与服务器之间进行消息通讯过程中，对服务器端查询结果进行列压缩的阈值。              |
-| 单位     | bytes                                                                                   |
-| 取值范围 | 0: 对所有查询结果均进行压缩 >0: 查询结果中任意列大小超过该值的消息才进行压缩 -1: 不压缩 |
-| 缺省值   | -1                                                                                      |
-| 补充说明 | 2.3.0.0 版本新增。                                                                      |
+| Attribute     | Description                                                                                                         |
+| ------------- | ------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                                         |
+| Meaning       | The threshold for size of column data to trigger compression for the query result                                   |
+| Unit          | bytes                                                                                                               |
+| Value Range   | 0: always compress; >0: only compress when the size of any column data exceeds the threshold; -1: always uncompress |
+| Default Value | -1                                                                                                                  |
+| Note          | available from version 2.3.0.0                                                                                      |
 
 ### lossyColumns
 
-| 属性     | 说明                                                                                                                                                         |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 适用范围 | 服务器端                                                                                                                                                     |
-| 含义     | 配置要进行有损压缩的浮点数据类型                                                                                                                             |
-| 取值范围 | 空字符串：关闭有损压缩 <br/> float：只对 float 类型进行有损压缩 <br/>double：只对 double 类型进行有损压缩 <br/> float \| double：float double 都进行有损压缩 |
-| 缺省值   | 空字符串                                                                                                                                                          |
-| 补充说明 | 有损压缩默认为关闭状态，只有配置后才生效                                                                                                                     |
+| Attribute     | Description                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                                                                                 |
+| Meaning       | The floating number types for lossy compression                                                                                             |
+| Value Range   | "": lossy compression is disabled <br/> float: only for float <br/>double: only for double <br/> float \| double: for both float and double |
+| Default Value | "" , i.e. disabled                                                                                                                          |
 
 ### fPrecision
 
-| 属性     | 说明                             |
-| -------- | -------------------------------- |
-| 适用范围 | 服务器端                         |
-| 含义     | 设置 float 类型浮点数压缩精度    |
-| 取值范围 | 0.1 ~ 0.00000001                 |
-| 缺省值   | 0.00000001                       |
-| 补充说明 | 小于此值的浮点数尾数部分将被截取 |
+| Attribute     | Description                                                 |
+| ------------- | ----------------------------------------------------------- |
+| Applicable    | Server Only                                                 |
+| Meaning       | Compression precision for float type                        |
+| Value Range   | 0.1 ~ 0.00000001                                            |
+| Default Value | 0.00000001                                                  |
+| Note          | The fractional part lower than this value will be discarded |
 
 ### dPrecision
 
-| 属性     | 说明                             |
-| -------- | -------------------------------- |
-| 适用范围 | 服务器端                         |
-| 含义     | 设置 double 类型浮点数压缩精度   |
-| 取值范围 | 0.1 ~ 0.0000000000000001         |
-| 缺省值   | 0.0000000000000001               |
-| 补充说明 | 小于此值的浮点数尾数部分将被截取 |
+| Attribute     | Description                                                 |
+| ------------- | ----------------------------------------------------------- |
+| Applicable    | Server Only                                                 |
+| Meaning       | Compression precision for double type                       |
+| Value Range   | 0.1 ~ 0.0000000000000001                                    |
+| Default Value | 0.0000000000000001                                          |
+| Note          | The fractional part lower than this value will be discarded |
 
-## 连续查询相关
+## Continuous Query Prameters
 
 ### stream
 
-| 属性     | 说明                           |
-| -------- | ------------------------------ |
-| 适用范围 | 仅服务端适用                   |
-| 含义     | 是否启用连续查询（流计算功能） |
-| 取值范围 | 0：不允许 <br/> 1：允许        |
-| 缺省值   | 1                              |
+| Attribute     | Description                        |
+| ------------- | ---------------------------------- |
+| Applicable    | Server Only                        |
+| Meaning       | Whether to enable continuous query |
+| Value Range   | 0: disabled <br/> 1: enabled       |
+| Default Value | 1                                  |
 
 ### minSlidingTime
 
-| 属性     | 说明                                |
-| -------- | ----------------------------------- |
-| 适用范围 | 仅服务端适用                        |
-| 含义     | 最小滑动窗口时长                    |
-| 单位     | 毫秒                                |
-| 取值范围 | 10-1000000                          |
-| 缺省值   | 10                                  |
-| 补充说明 | 支持 us 补值后，这个值就是 1us 了。 |
+| Attribute     | Description                                              |
+| ------------- | -------------------------------------------------------- |
+| Applicable    | Server Only                                              |
+| Meaning       | Minimum sliding time of time window                      |
+| Unit          | millisecond or microsecond , depending on time precision |
+| Value Range   | 10-1000000                                               |
+| Default Value | 10                                                       |
 
 ### minIntervalTime
 
-| 属性     | 说明           |
-| -------- | -------------- |
-| 适用范围 | 仅服务端适用   |
-| 含义     | 时间窗口最小值 |
-| 单位     | 毫秒           |
-| 取值范围 | 1-1000000      |
-| 缺省值   | 10             |
+| Attribute     | Description                 |
+| ------------- | --------------------------- |
+| Applicable    | Server Only                 |
+| Meaning       | Minimum size of time window |
+| Unit          | millisecond                 |
+| Value Range   | 1-1000000                   |
+| Default Value | 10                          |
 
 ### maxStreamCompDelay
 
-| 属性     | 说明                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| 适用范围 | 仅服务端适用                                                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
-| 含义     | 连续查询启动最大延迟                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 单位     | 毫秒                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
-| 取值范围 | 10-1000000000                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
-| 缺省值   | 20000                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |
+| Attribute     | Description                                      |
+| ------------- | ------------------------------------------------ |
+| Applicable    | Server Only                                      |
+| Meaning       | Maximum delay before starting a continuous query |
+| Unit          | millisecond                                      |
+| Value Range   | 10-1000000000                                    |
+| Default Value | 20000                                            |
 
 ### maxFirstStreamCompDelay
 
-| 属性     | 说明                       |
-| -------- | -------------------------- |
-| 适用范围 | 仅服务端适用               |
-| 含义     | 第一次连续查询启动最大延迟 |
-| 单位     | 毫秒                       |
-| 取值范围 | 10-1000000000              |
-| 缺省值   | 10000                      |
+| Attribute     | Description                                                          |
+| ------------- | -------------------------------------------------------------------- |
+| Applicable    | Server Only                                                          |
+| Meaning       | Maximum delay time before starting a continuous query the first time |
+| Unit          | millisecond                                                          |
+| Value Range   | 10-1000000000                                                        |
+| Default Value | 10000                                                                |
 
 ### retryStreamCompDelay
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 仅服务端适用         |
-| 含义     | 连续查询重试等待间隔 |
-| 单位     | 毫秒                 |
-| 取值范围 | 10-1000000000        |
-| 缺省值   | 10                   |
+| Attribute     | Description                                   |
+| ------------- | --------------------------------------------- |
+| Applicable    | Server Only                                   |
+| Meaning       | Delay time before retrying a continuous query |
+| Unit          | millisecond                                   |
+| Value Range   | 10-1000000000                                 |
+| Default Value | 10                                            |
 
 ### streamCompDelayRatio
 
-| 属性     | 说明                       |
-| -------- | -------------------------- |
-| 适用范围 | 仅服务端适用               |
-| 含义     | 连续查询的延迟时间计算系数，实际延迟时间为本参数乘以计算时间窗口 |
-| 取值范围 | 0.1-0.9                    |
-| 缺省值   | 0.1                        |
+| Attribute     | Description                                                              |
+| ------------- | ------------------------------------------------------------------------ |
+| Applicable    | Server Only                                                              |
+| Meaning       | The delay ratio, with time window size as the base, for continuous query |
+| Value Range   | 0.1-0.9                                                                  |
+| Default Value | 0.1                                                                      |
 
 :::info
-为避免多个 stream 同时执行占用太多系统资源，程序中对 stream 的执行时间人为增加了一些随机的延时。<br/>maxFirstStreamCompDelay 是 stream 第一次执行前最少要等待的时间。<br/>streamCompDelayRatio 是延迟时间的计算系数，它乘以查询的 interval 后为延迟时间基准。<br/>maxStreamCompDelay 是延迟时间基准的上限。<br/>实际延迟时间为一个不超过延迟时间基准的随机值。<br/>stream 某次计算失败后需要重试，retryStreamCompDelay 是重试的等待时间基准。<br/>实际重试等待时间为不超过等待时间基准的随机值。
+To prevent system resource from being exhausted by multiple concurrent streams, a random delay is applied on each stream automatically. `maxFirstStreamCompDelay` is the maximum delay time before a continuous query is started the first time. `streamCompDelayRatio` is the ratio for calculating delay time, with the size of the time window as base. `maxStreamCompDelay` is the maximum delay time. The actual delay time is a random time not bigger than `maxStreamCompDelay`. If a continuous query fails, `retryStreamComDelay` is the delay time before retrying it, also not bigger than `maxStreamCompDelay`.
 
 :::
 
-## HTTP 相关
+## HTTP Parameters
 
 :::note
-HTTP服务在2.4.0.0（不含）以前的版本中由taosd提供，在2.4.0.0以后（含）由taosAdapter提供。
-本节的配置参数仅在2.4.0.0（不含）以前的版本中生效。如果您使用的是2.4.0.0（含）及以后的版本请参考[文档](/reference/taosadapter/)。
+HTTP server had been provided by `taosd` prior to version 2.4.0.0, now is provided by `taosAdapter` after version 2.4.0.0.
+The parameters described in this section are only application in versions prior to 2.4.0.0. If you are using any version from 2.4.0.0, please refer to [taosAdapter]](/reference/taosadapter/).
 
 :::
 
 ### http
 
-| 属性     | 说明                                    |
-| -------- | --------------------------------------- |
-| 适用范围 | 仅服务端适用                            |
-| 含义     | 服务器内部的 http 服务开关。            |
-| 取值范围 | 0：关闭 http 服务， 1：激活 http 服务。 |
-| 缺省值   | 1                                       |
+| Attribute     | Description                    |
+| ------------- | ------------------------------ |
+| Applicable    | Server Only                    |
+| Meaning       | Whether to enable http service |
+| Value Range   | 0: disabled, 1: enabled        |
+| Default Value | 1                              |
 
 ### httpEnableRecordSql
 
-| 属性     | 说明                                                                                                                                                    |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                                                            |
-| 含义     | 记录通过 RESTFul 接口，产生的 SQL 调用。 |
-| 缺省值   | 0                                                                                                                                                       |
-| 补充说明 | 生成的文件（httpnote.0/httpnote.1），与服务端日志所在目录相同。                                                                                         |
+| Attribute     | Description                                                               |
+| ------------- | ------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                               |
+| Meaning       | Whether to record the SQL invocation through REST interface               |
+| Default Value | 0: false; 1: true                                                         |
+| Note          | The resulting files, i.e. httpnote.0/httpnote.1, are located under logDir |
 
 ### httpMaxThreads
 
-| 属性     | 说明                                                                                                                        |
-| -------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                                |
-| 含义     | RESTFul 接口的线程数。taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
-| 缺省值   | 2                                                                                                                           |
+| Attribute     | Description                                  |
+| ------------- | -------------------------------------------- |
+| Applicable    | Server Only                                  |
+| Meaning       | The number of threads for RESTFul interface. |
+| Default Value | 2                                            |
 
 ### restfulRowLimit
 
-| 属性     | 说明                                                                                                                                  |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 适用范围 | 仅服务端适用                                                                                                                          |
-| 含义     | RESTFul 接口单次返回的记录条数。taosAdapter 配置或有不同，请参考相应[文档](/reference/taosadapter/)。 |
-| 缺省值   | 10240                                                                                                                                 |
-| 补充说明 | 最大 10,000,000                                                                                                                       |
+| Attribute     | Description                                                  |
+| ------------- | ------------------------------------------------------------ |
+| Applicable    | Server Only                                                  |
+| Meaning       | Maximum number of rows returned each time by REST interface. |
+| Default Value | 10240                                                        |
+| Note          | Maximum value is 10,000,000                                  |
 
 ### httpDBNameMandatory
 
-| 属性     | 说明                         |
-| -------- | ---------------------------- |
-| 适用范围 | 仅服务端适用                 |
-| 含义     | 是否在 URL 中输入 数据库名称 |
-| 取值范围 | 0：不开启，1：开启           |
-| 缺省值   | 0                            |
-| 补充说明 | 2.3 版本新增。               |
+| Attribute     | Description                              |
+| ------------- | ---------------------------------------- |
+| Applicable    | Server Only                              |
+| Meaning       | Whether database name is required in URL |
+| Value Range   | 0:not required, 1: required              |
+| Default Value | 0                                        |
+| Note          | From version 2.3.0.0                     |
 
-## 日志相关
+## Log Parameters
 
 ### logDir
 
-| 属性     | 说明                                               |
-| -------- | -------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                               |
-| 含义     | 日志文件目录，客户端和服务器的运行日志将写入该目录 |
-| 缺省值   | /var/log/taos                                      |
+| Attribute     | Description                         |
+| ------------- | ----------------------------------- |
+| Applicable    | Server and Client                   |
+| Meaning       | The directory for writing log files |
+| Default Value | /var/log/taos                       |
 
 ### minimalLogDirGB
 
-| 属性     | 说明                                         |
-| -------- | -------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                         |
-| 含义     | 当日志文件夹的磁盘大小小于该值时，停止写日志 |
-| 单位     | GB                                           |
-| 缺省值   | 1.0                                         |
-
+| Attribute     | Description                                                                                        |
+| ------------- | -------------------------------------------------------------------------------------------------- |
+| Applicable    | Server and Client                                                                                  |
+| Meaning       | When the available disk space in logDir is below this threshold, writing to log files is suspended |
+| Unit          | GB                                                                                                 |
+| Default Value | 1.0                                                                                                |
 
 ### numOfLogLines
 
-| 属性     | 说明                         |
-| -------- | ---------------------------- |
-| 适用范围 | 服务端和客户端均适用         |
-| 含义     | 单个日志文件允许的最大行数。 |
-| 缺省值   | 10,000,000                   |
+| Attribute     | Description                                |
+| ------------- | ------------------------------------------ |
+| Applicable    | Server and Client                          |
+| Meaning       | Maximum number of lines in single log file |
+| Default Value | 10,000,000                                 |
 
 ### asyncLog
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | 日志写入模式         |
-| 取值范围 | 0：同步、1：异步     |
-| 缺省值   | 1                    |
+| Attribute     | Description                  |
+| ------------- | ---------------------------- |
+| Applicable    | Server and Client            |
+| Meaning       | The mode of writing log file |
+| Value Range   | 0: sync way; 1: async way    |
+| Default Value | 1                            |
 
 ### logKeepDays
 
-| 属性     | 说明                                                                                |
-| -------- | ----------------------------------------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                                                                |
-| 含义     | 日志文件的最长保存时间                                                              |
-| 单位     | 天                                                                                  |
-| 缺省值   | 0                                                                                   |
-| 补充说明 | 大于 0 时，日志文件会被重命名为 taosdlog.xxx，其中 xxx 为日志文件最后修改的时间戳。 |
+| Attribute     | Description                                                                                                                                 |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server and Client                                                                                                                           |
+| Meaning       | The number of days for log files to be kept                                                                                                 |
+| Unit          | day                                                                                                                                         |
+| Default Value | 0                                                                                                                                           |
+| Note          | When it's bigger than 0, the log file would be renamed to "taosdlog.xxx" in which "xxx" is the timestamp when the file is changed last time |
 
 ### debugFlag
 
-| 属性     | 说明                                                                                              |
-| -------- | ------------------------------------------------------------------------------------------------- |
-| 适用范围 | 服务端和客户端均适用                                                                              |
-| 含义     | 运行日志开关                                                                                      |
-| 取值范围 | 131（输出错误和警告日志），135（输出错误、警告和调试日志），143（输出错误、警告、调试和跟踪日志） |
-| 缺省值   | 131 或 135（不同模块有不同的默认值）                                                              |
+| Attribute     | Description                                               |
+| ------------- | --------------------------------------------------------- |
+| Applicable    | Server and Client                                         |
+| Meaning       | Log level                                                 |
+| Value Range   | 131: INFO/WARNING/ERROR; 135: plus DEBUG; 143: plus TRACE |
+| Default Value | 131 or 135, depending on the module                       |
 
 ### mDebugFlag
 
-| 属性     | 说明               |
-| -------- | ------------------ |
-| 适用范围 | 仅服务端适用       |
-| 含义     | 管理模块的日志开关 |
-| 取值范围 | 同上               |
-| 缺省值   | 135                |
+| Attribute     | Description        |
+| ------------- | ------------------ |
+| Applicable    | Server Only        |
+| Meaning       | Log level of mnode |
+| Value Range   | same as debugFlag  |
+| Default Value | 135                |
 
 ### dDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | dnode 模块的日志开关 |
-| 取值范围 | 同上                 |
-| 缺省值   | 135                  |
+| Attribute     | Description        |
+| ------------- | ------------------ |
+| Applicable    | Server and Client  |
+| Meaning       | Log level of dnode |
+| Value Range   | same as debugFlag  |
+| Default Value | 135                |
 
 ### sDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | sync 模块的日志开关  |
-| 取值范围 | 同上                 |
-| 缺省值   | 135                  |
+| Attribute     | Description              |
+| ------------- | ------------------------ |
+| Applicable    | Server and Client        |
+| Meaning       | Log level of sync module |
+| Value Range   | same as debugFlag        |
+| Default Value | 135                      |
 
 ### wDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | wal 模块的日志开关   |
-| 取值范围 | 同上                 |
-| 缺省值   | 135                  |
+| Attribute     | Description             |
+| ------------- | ----------------------- |
+| Applicable    | Server and Client       |
+| Meaning       | Log level of WAL module |
+| Value Range   | same as debugFlag       |
+| Default Value | 135                     |
 
 ### sdbDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | sdb 模块的日志开关   |
-| 取值范围 | 同上                 |
-| 缺省值   | 135                  |
+| Attribute     | Description            |
+| ------------- | ---------------------- |
+| Applicable    | Server and Client      |
+| Meaning       | logLevel of sdb module |
+| Value Range   | same as debugFlag      |
+| Default Value | 135                    |
 
 ### rpcDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | rpc 模块的日志开关   |
-| 取值范围 | 同上                 |
-| 缺省值   |                      |
+| Attribute     | Description             |
+| ------------- | ----------------------- |
+| Applicable    | Server and Client       |
+| Meaning       | Log level of rpc module |
+| Value Range   | Same as debugFlag       |
+| Default Value |                         |
 
 ### tmrDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | 定时器模块的日志开关 |
-| 取值范围 | 同上                 |
-| 缺省值   |                      |
+| Attribute     | Description               |
+| ------------- | ------------------------- |
+| Applicable    | Server and Client         |
+| Meaning       | Log level of timer module |
+| Value Range   | Same as debugFlag         |
+| Default Value |                           |
 
 ### cDebugFlag
 
-| 属性     | 说明                  |
-| -------- | --------------------- |
-| 适用范围 | 仅客户端适用          |
-| 含义     | client 模块的日志开关 |
-| 取值范围 | 同上                  |
-| 缺省值   |                       |
+| Attribute     | Description         |
+| ------------- | ------------------- |
+| Applicable    | Client Only         |
+| Meaning       | Log level of Client |
+| Value Range   | Same as debugFlag   |
+| Default Value |                     |
 
 ### jniDebugFlag
 
-| 属性     | 说明               |
-| -------- | ------------------ |
-| 适用范围 | 仅客户端适用       |
-| 含义     | jni 模块的日志开关 |
-| 取值范围 | 同上               |
-| 缺省值   |                    |
+| Attribute     | Description             |
+| ------------- | ----------------------- |
+| Applicable    | Client Only             |
+| Meaning       | Log level of jni module |
+| Value Range   | 同上                    |
+| Default Value |                         |
 
 ### odbcDebugFlag
 
-| 属性     | 说明                |
-| -------- | ------------------- |
-| 适用范围 | 仅客户端适用        |
-| 含义     | odbc 模块的日志开关 |
-| 取值范围 | 同上                |
-| 缺省值   |                     |
+| Attribute     | Description              |
+| ------------- | ------------------------ |
+| Applicable    | Client Only              |
+| Meaning       | Log level of odbc module |
+| Value Range   | Same as debugFlag        |
+| Default Value |                          |
 
 ### uDebugFlag
 
-| 属性     | 说明                   |
-| -------- | ---------------------- |
-| 适用范围 | 服务端和客户端均适用   |
-| 含义     | 共用功能模块的日志开关 |
-| 取值范围 | 同上                   |
-| 缺省值   |                        |
+| Attribute     | Description                |
+| ------------- | -------------------------- |
+| Applicable    | Server and Client          |
+| Meaning       | Log level of common module |
+| Value Range   | Same as debugFlag          |
+| Default Value |                            |
 
 ### httpDebugFlag
 
-| 属性     | 说明                |
-| -------- | ------------------- |
-| 适用范围 | 仅服务端适用        |
-| 含义     | http 模块的日志开关 |
-| 取值范围 | 同上                |
-| 缺省值   |                     |
+| Attribute     | Description                                 |
+| ------------- | ------------------------------------------- |
+| Applicable    | Server Only                                 |
+| Meaning       | Log level of http module (prior to 2.4.0.0) |
+| Value Range   | Same as debugFlag                           |
+| Default Value |                                             |
 
 ### mqttDebugFlag
 
-| 属性     | 说明                |
-| -------- | ------------------- |
-| 适用范围 | 仅服务端适用        |
-| 含义     | mqtt 模块的日志开关 |
-| 取值范围 | 同上                |
-| 缺省值   |                     |
+| Attribute     | Description              |
+| ------------- | ------------------------ |
+| Applicable    | Server Only              |
+| Meaning       | Log level of mqtt module |
+| Value Range   | Same as debugFlag        |
+| Default Value |                          |
 
 ### monitorDebugFlag
 
-| 属性     | 说明               |
-| -------- | ------------------ |
-| 适用范围 | 仅服务端适用       |
-| 含义     | 监控模块的日志开关 |
-| 取值范围 | 同上               |
-| 缺省值   |                    |
+| Attribute     | Description                    |
+| ------------- | ------------------------------ |
+| Applicable    | Server Only                    |
+| Meaning       | Log level of monitoring module |
+| Value Range   | Same as debugFlag              |
+| Default Value |                                |
 
 ### qDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | 查询模块的日志开关   |
-| 取值范围 | 同上                 |
-| 缺省值   |                      |
+| Attribute     | Description               |
+| ------------- | ------------------------- |
+| Applicable    | Server and Client         |
+| Meaning       | Log level of query module |
+| Value Range   | Same as debugFlag         |
+| Default Value |                           |
 
 ### vDebugFlag
 
-| 属性     | 说明                 |
-| -------- | -------------------- |
-| 适用范围 | 服务端和客户端均适用 |
-| 含义     | vnode 模块的日志开关 |
-| 取值范围 | 同上                 |
-| 缺省值   |                      |
+| Attribute     | Description        |
+| ------------- | ------------------ |
+| Applicable    | Server and Client  |
+| Meaning       | Log level of vnode |
+| Value Range   | Same as debugFlag  |
+| Default Value |                    |
 
 ### tsdbDebugFlag
 
-| 属性     | 说明                |
-| -------- | ------------------- |
-| 适用范围 | 仅服务端适用        |
-| 含义     | TSDB 模块的日志开关 |
-| 取值范围 | 同上                |
-| 缺省值   |                     |
+| Attribute     | Description              |
+| ------------- | ------------------------ |
+| Applicable    | Server Only              |
+| Meaning       | Log level of TSDB module |
+| Value Range   | Same as debugFlag        |
+| Default Value |                          |
 
 ### cqDebugFlag
 
-| 属性     | 说明                   |
-| -------- | ---------------------- |
-| 适用范围 | 服务端和客户端均适用   |
-| 含义     | 连续查询模块的日志开关 |
-| 取值范围 | 同上                   |
-| 缺省值   |                        |
+| Attribute     | Description                          |
+| ------------- | ------------------------------------ |
+| Applicable    | Server and Client                    |
+| Meaning       | Log level of continuous query module |
+| Value Range   | Same as debugFlag                    |
+| Default Value |                                      |
 
-## 仅客户端适用
+## Client Only
 
 ### maxSQLLength
 
-| 属性     | 说明                        |
-| -------- | --------------------------- |
-| 适用范围 | 仅客户端适用                |
-| 含义     | 单条 SQL 语句允许的最长限制 |
-| 单位     | bytes                       |
-| 取值范围 | 65480-1048576               |
-| 缺省值   | 1048576                     |
+| Attribute     | Description                            |
+| ------------- | -------------------------------------- |
+| Applicable    | Client Only                            |
+| Meaning       | Maximum length of single SQL statement |
+| Unit          | bytes                                  |
+| Value Range   | 65480-1048576                          |
+| Default Value | 1048576                                |
 
 ### tscEnableRecordSql
 
-| 属性     | 说明                                                                                |
-| -------- | ----------------------------------------------------------------------------------- |
-| 含义     | 是否记录客户端 sql 语句到文件                                                       |
-| 取值范围 | 0：否，1：是                                                                        |
-| 缺省值   | 0                                                                                   |
-| 补充说明 | 生成的文件（tscnote-xxxx.0/tscnote-xxx.1，xxxx 是 pid），与客户端日志所在目录相同。 |
+| Attribute     | Description                                                                                                                                       |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Meaning       | Whether to record SQL statements in file                                                                                                          |
+| Value Range   | 0: false, 1: true                                                                                                                                 |
+| Default Value | 0                                                                                                                                                 |
+| Note          | The generated files are named as "tscnote-xxxx.0/tscnote-xxx.1" in which "xxxx" is the pid of the client, and located at same place as client log |
 
 ### maxBinaryDisplayWidth
 
-| 属性     | 说明                                                                                                                                                                                                                                                                          |
-| -------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 含义     | Taos shell 中 binary 和 nchar 字段的显示宽度上限，超过此限制的部分将被隐藏                                                                                                                                                                                                    |
-| 取值范围 | 5 -                                                                                                                                                                                                                                                                           |
-| 缺省值   | 30                                                                                                                                                                                                                                                                            |
+| Attribute     | Description                                                                                         |
+| ------------- | --------------------------------------------------------------------------------------------------- |
+| Meaning       | Maximum display width of binary and nchar in taos shell. Anything beyond this limit would be hidden |
+| Value Range   | 5 -                                                                                                 |
+| Default Value | 30                                                                                                  |
 
 :::info
-实际上限按以下规则计算：如果字段值的长度大于 maxBinaryDisplayWidth，则显示上限为 **字段名长度** 和 **maxBinaryDisplayWidth** 的较大者。<br/>否则，上限为 **字段名长度** 和 **字段值长度** 的较大者。<br/>可在 shell 中通过命令 set max_binary_display_width nn 动态修改此选项
+If the length of value exceeds `maxBinaryDisplayWidth`, then the actual display width is max(column name, maxBinaryDisplayLength); otherwise the actual display width is max(length of column name, length of column value). This parameter can also be changed dynamically using `set max_binary_display_width <nn\>` in TDengine CLI `taos`.
 
 :::
 
 ### maxWildCardsLength
 
-| 属性     | 说明                                       |
-| -------- | ------------------------------------------ |
-| 含义     | 设定 LIKE 算子的通配符字符串允许的最大长度 |
-| 单位     | bytes                                      |
-| 取值范围 | 0-16384                                    |
-| 缺省值   | 100                                        |
-| 补充说明 | 2.1.6.1 版本新增。                         |
+| Attribute     | Description                                           |
+| ------------- | ----------------------------------------------------- |
+| Meaning       | The maximum length for wildcard string used with LIKE |
+| Unit          | bytes                                                 |
+| Value Range   | 0-16384                                               |
+| Default Value | 100                                                   |
+| Note          | From version 2.1.6.1                                  |
 
 ### clientMerge
 
-| 属性     | 说明                         |
-| -------- | ---------------------------- |
-| 含义     | 是否允许客户端对写入数据去重 |
-| 取值范围 | 0：不开启，1：开启           |
-| 缺省值   | 0                            |
-| 补充说明 | 2.3 版本新增。               |
+| Attribute     | Description                                         |
+| ------------- | --------------------------------------------------- |
+| Meaning       | Whether to filter out duplicate data on client side |
+| Value Range   | 0: false; 1: true                                   |
+| Default Value | 0                                                   |
+| Note          | From version 2.3.0.0                                |
 
 ### maxRegexStringLen
 
-| 属性     | 说明                       |
-| -------- | -------------------------- |
-| 含义     | 正则表达式最大允许长度     |
-| 取值范围 | 默认值 128，最大长度 16384 |
-| 缺省值   | 128                        |
-| 补充说明 | 2.3 版本新增。             |
+| Attribute     | Description                                                 |
+| ------------- | ----------------------------------------------------------- |
+| Meaning       | Maximum length of regular expression 正则表达式最大允许长度 |
+| Value Range   | [128, 16384]                                                |
+| Default Value | 128                                                         |
+| Note          | From version 2.3.0.0                                        |
 
-## 其他
+## Other Parameters
 
 ### enableCoreFile
 
-| 属性     | 说明                                                                                                                                       |
-| -------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
-| 适用范围 | 服务端和客户端均适用                                                                                                                       |
-| 含义     | 是否开启服务 crash 时生成 core 文件                                                                                                        |
-| 取值范围 | 0：否，1：是                                                                                                                               |
-| 缺省值   | 1                                                                                                                                          |
-| 补充说明 | 不同的启动方式，生成 core 文件的目录如下：1、systemctl start taosd 启动：生成的 core 在根目录下 <br/> 2、手动启动，就在 taosd 执行目录下。 |
+| Attribute     | Description                                                                                                                                                             |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Applicable    | Server and Client                                                                                                                                                       |
+| Meaning       | Whether to generate core file when server crashes                                                                                                                       |
+| Value Range   | 0: false, 1: true                                                                                                                                                       |
+| Default Value | 1                                                                                                                                                                       |
+| Note          | The core file is generated under root directory `systemctl start taosd` is used to start, or under the working directory if `taosd` is started directly on Linux Shell. |

@@ -19,8 +19,24 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    3. UPDATE set to 2 means updating a part of columns for a row is allowed, the columns for which no value is specified will be kept as no change
 3. The maximum length of database name is 33 bytes.
 4. The maximum length of a SQL statement is 65,480 bytes.
-5. For more parameters that can be used when creating a database, like cache, blocks, days, keep, minRows, maxRows, wal, fsync, update, cacheLast, replica, quorum, maxVgroupsPerDb, ctime, comp, prec, Please refer to [Configuration Parameters](/reference/config/).
-
+5. Below are the parameters that can be used when creating a database
+   - cache: [Description](/reference/config/#cache)
+   - blocks: [Description](/reference/config/#blocks)
+   - days: [Description](/reference/config/#days)
+   - keep: [Description](/reference/config/#keep)
+   - minRows: [Description](/reference/config/#minrows)
+   - maxRows: [Description](/reference/config/#maxrows)
+   - wal: [Description](/reference/config/#wallevel)
+   - fsync: [Description](/reference/config/#fsync)
+   - update: [Description](/reference/config/#update)
+   - cacheLast: [Description](/reference/config/#cachelast)
+   - replica: [Description](/reference/config/#replica)
+   - quorum: [Description](/reference/config/#quorum)
+   - maxVgroupsPerDb: [Description](/reference/config/#maxvgroupsperdb)
+   - comp: [Description](/reference/config/#comp)
+   - precision: [Description](reference/config/#precision)
+6. Please be noted that all of the parameters mentioned in this section can be configured in configuration file `taosd.cfg` at server side and used by default,  can be override if they are specified in `create database` statement.
+   
 :::
 
 ## Show Current Configuration

@@ -19,9 +19,33 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    4. 更多关于 UPDATE 参数的用法，请参考[FAQ](/train-faq/faq)。
 3. 数据库名最大长度为 33；
 4. 一条 SQL 语句的最大长度为 65480 个字符；
-5. 数据库还有更多与数据库相关的配置参数，如 cache, blocks, days, keep, minRows, maxRows, wal, fsync, update, cacheLast, replica, quorum, maxVgroupsPerDb, ctime, comp, prec, 具体细节请参见 [配置参数](/reference/config/) 章节。
+5. 创建数据库时可用的参数有：
+   - cache: [Description](/reference/config/#cache)
+   - blocks: [Description](/reference/config/#blocks)
+   - days: [Description](/reference/config/#days)
+   - keep: [Description](/reference/config/#keep)
+   - minRows: [Description](/reference/config/#minrows)
+   - maxRows: [Description](/reference/config/#maxrows)
+   - wal: [Description](/reference/config/#wallevel)
+   - fsync: [Description](/reference/config/#fsync)
+   - update: [Description](/reference/config/#update)
+   - cacheLast: [Description](/reference/config/#cachelast)
+   - replica: [Description](/reference/config/#replica)
+   - quorum: [Description](/reference/config/#quorum)
+   - maxVgroupsPerDb: [Description](/reference/config/#maxvgroupsperdb)
+   - comp: [Description](/reference/config/#comp)
+   - precision: [Description](/reference/config/#precision)
+6. 请注意上面列出的所有参数都可以配置在配置文件 `taosd.cfg` 中作为创建数据库时使用的默认配置， `create database` 的参数中明确指定的会覆盖配置文件中的设置。
 
 :::
+
+### 创建数据库示例
+
+创建时间精度为纳秒的数据库, 保留 1 年数据：
+
+```sql
+CREATE DATABASE test PRECISION 'ns' KEEP 365;
+```
 
 ## 显示系统当前参数
 
@@ -86,7 +110,7 @@ CACHELAST 参数控制是否在内存中缓存子表的最近数据。缺省值�
 
 :::tip
 以上所有参数修改后都可以用 show databases 来确认是否修改成功。另外，从 2.1.3.0 版本开始，修改这些参数后无需重启服务器即可生效。
-:::tip
+:::
 
 ## 显示系统所有数据库
 

@@ -2,7 +2,7 @@
 title: Connector
 ---
 
-TDengine provides a rich application development interface. To facilitate users to develop their own applications quickly, TDengine supports connectors for multiple programming languages, including official connectors for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support connecting to TDengine clusters using both native interfaces (taosc) and REST interfaces (not supported in some languages yet). Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, the Lua connector, and the PHP connector.
+TDengine provides a rich set of APIs (application development interface). To facilitate users to develop their applications quickly, TDengine supports connectors for multiple programming languages, including official connectors for C/C++, Java, Python, Go, Node.js, C#, and Rust. These connectors support connecting to TDengine clusters using both native interfaces (taosc) and REST interfaces (not supported in a few languages yet). Community developers have also contributed several unofficial connectors, such as the ADO.NET connector, the Lua connector, and the PHP connector.
 
 ![image-connector](/img/connector.png)
 
@@ -11,16 +11,14 @@ TDengine provides a rich application development interface. To facilitate users 
 Currently, TDengine's native interface connectors can support platforms such as X64/X86/ARM64/ARM32/MIPS/Alpha hardware platforms and Linux/Win64/Win32 development environments. The comparison matrix is as follows.
 
 | **CPU** | **OS** | **JDBC** | **Python** | **Go** | **Node.js** | **C#** | **Rust** | C/C++ |
-| -------------- | --------- | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
-| | **X86 64bit** | **Linux** | ● | ● | ● | ● | ● | ● | ● | ●
-| **X86 64bit** | **Win64** | ● | ● | ● | ● | ● | ● | ● | ●
-| **X86 64bit** | **Win32** | ● | ● ● | ○ | ○ | ●
-| **X86 32bit** | **Win32** | ○ | ○ | ○ | ○ | ○ | ●
-| **ARM64** | **Linux** | ● | ● ● | ○ | ○ | ●
-| **ARM32** | **Linux** | ● ● ● ● ● ● | ○ | ○ | ●
-| **MIPS Longcore** | **Linux** | ○ | ○ | ○ | ○ | ○ | ○ | ○
-| **Alpha Shenwei** | **Linux** | ○ | ○ ○ | -- | -- | --- | --- | ○ |
-| **X86 Haiguang** | **Linux** | ○ | ○ | ○ | -- | -- | --- | ○ |
+| ------- | ------ | -------- | ---------- | ------ | ----------- | ------ | -------- | ----- |
+| **X86 64bit** | **Linux** | ● | ● | ● | ● | ● | ● | ● |
+| **X86 64bit** | **Win64** | ● | ● | ● | ● | ● | ● | ● |
+| **X86 64bit** | **Win32** | ● | ● | ● | ● | ○ | ○ | ● |
+| **X86 32bit** | **Win32** | ○ | ○ | ○ | ○ | ○ | ○ | ● |
+| **ARM64** | **Linux** | ● | ● | ● | ● | ○ | ○ | ● |
+| **ARM32** | **Linux** | ● | ● | ● | ● | ○ | ○ | ● |
+| **MIPS** | **Linux** | ○ | ○ | ○ | ○ | ○ | ○ | ○ |
 
 Where ● means the official test verification passed, ○ means the unofficial test verification passed, -- means no assurance.
 
@@ -46,13 +44,13 @@ Comparing the connector support for TDengine functional features as follows.
 
 | **Functional Features** | **Java** | **Python** | **Go** | **C#** | **Node.js** | **Rust** |
 | -------------- | -------- | ---------- | ------ | ------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | Support | Support | Support | Support
-| Support | Support | Support | Support | Support | Support | Support | Support | Support
-| Support | Support | Support | Support | Support | Support | Support | Support | Support
-| **Parameter Binding** | Support | Support | Support | Support | Support | Support | Support
-| Support | Support | Support | Support | Support | Support | Support | Not Supported
-| **Schemaless** | Support | Support | Support | Support | Support | Support | Support
-| **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported
+| **Connection Management** | Support | Support | Support | Support | Support | Support |
+| **Regular Query** | Support | Support | Support | Support | Support | Support |
+| **Continous Query** | Support | Support | Support | Support | Support | Support |
+| **Parameter Binding** | Support | Support | Support | Support | Support | Support |
+| **Subscription** | Support | Support | Support | Support | Support | Not Supported |
+| **Schemaless** | Support | Support | Support | Support | Support | Support |
+| **DataFrame** | Not Supported | Support | Not Supported | Not Supported | Not Supported | Not Supported |
 
 :::info
 The different database framework specifications for various programming languages do not mean that all C/C++ interfaces need a wrapper.
@@ -62,14 +60,14 @@ The different database framework specifications for various programming language
 
 | **Functional Features** | **Java** | **Python** | **Go** | **C# (not supported yet)** | **Node.js** | **Rust** |
 | ------------------------------ | -------- | ---------- | -------- | ------------------ | ----------- | -------- |
-| **Connection Management** | Support | Support | Support | N/A | Support | Support | Support
-| Support | Support | N/A | Support | Support | Support
-| Support | Support | N/A | Support | Support | Support
-| Support | N/A | Support | N/A | Support | N/A
-| | N/A | Support | N/A | Support | N/A
-| **Schemaless** | Not supported | N/A | Not supported | Not supported | N/A
-| N/A | Not Supported | Not Supported | N/A
-| **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported
+| **Connection Management** | Support | Support | Support | N/A | Support | Support |
+| **Regular Query** | Support | Support | Support | N/A | Support | Support |
+| **Continous Query ** | Support | Support | Support | N/A | Support | Support |
+| **Parameter Binding** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
+| **Subscription** | Not Supported | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
+| **Schemaless** | Not supported | Not Supported | Not Supported | N/A | Not Supported | Not supported |
+| **Bulk Pulling (based on WebSocket) **| Support | Not Supported | Not Supported | N/A | Not Supported | Not Supported |
+| **DataFrame** | Not supported | Support | Not supported | N/A | Not supported | Not supported |
 
 :::warning
 
@@ -84,7 +82,7 @@ import InstallOnLinux from "./_windows_install.mdx";
 import VerifyWindows from "./_verify_windows.mdx";
 import VerifyLinux from "./_verify_linux.mdx";
 
-## Install client driver
+## Install Client Driver
 
 :::info
 The client driver needs to be installed if you use the native interface connector on a system that does not have the TDengine server software installed.
