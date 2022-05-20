@@ -30,9 +30,12 @@ class TDTestCase:
     #
     # --------------- main frame -------------------
     #
-    clientCfgDict = {'queryproxy': '1'}
+    clientCfgDict = {'queryproxy': '1','debugFlag': 135}
     clientCfgDict["queryproxy"] = '2'
+    clientCfgDict["debugFlag"] = 143
+
     updatecfgDict = {'clientCfg': {}}
+    updatecfgDict = {'debugFlag': 143}
     updatecfgDict["clientCfg"]  = clientCfgDict
     def caseDescription(self):
         '''
@@ -146,41 +149,39 @@ class TDTestCase:
 
 
     # insert data
-    def insert_data(self, host, dbname, stbname, ts_start,rowCount):
+    def insert_data(self, host, dbname, stbname, chilCount, ts_start, rowCount):
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
-        
         tsql=self.newcur(host,config)
         tdLog.debug("ready to inser data")
-
         tsql.execute("use %s" %dbname)
         pre_insert = "insert into "
         sql = pre_insert
-        tcount=int(tcount)
-        allRows=tcount*rowCount
+        chilCount=int(chilCount)
+        allRows=chilCount*rowCount
         tdLog.debug("doing insert data into stable-index:%s rows:%d ..."%(stbname, allRows))
         exeStartTime=time.time()
-        for i in range(0,tcount):
+        for i in range(0,chilCount):
             sql += " %s_%d values "%(stbname,i)
             for j in range(rowCount):
                 sql += "(%d, %d, 'taos_%d') "%(ts_start + j*1000, j, j)
-                if j >0 and j%5000 == 0:
+                if j >0 and j%4000 == 0:
                     # print(sql)
-                    tdSql.execute(sql)
+                    tsql.execute(sql)
                     sql = "insert into %s_%d values " %(stbname,i)
         # end sql        
         if sql != pre_insert:
-            # print(sql)
-            tdSql.execute(sql)
+            print(sql)
+            print(len(sql))
+            tsql.execute(sql)
         exeEndTime=time.time()
         spendTime=exeEndTime-exeStartTime
         speedInsert=allRows/spendTime
-        # tdLog.debug("spent %.2fs to INSERT  %d rows , insert rate is  %.2f rows/s... [OK]"% (spendTime,allRows,speedInsert))
-
-        tdLog.debug("INSERT TABLE DATA ............ [OK]")
+        tdLog.debug("spent %.2fs to INSERT  %d rows into %s , insert rate is  %.2f rows/s... [OK]"% (spendTime,allRows,stbname,speedInsert))
+        # tdLog.debug("INSERT TABLE DATA ............ [OK]")
         return
 
-    def mutiThread_insert_data(self, host, dbname, stbname, threadNumbers, ts_start, tcountStart,tcountStop,rowCount):
+    def mutiThread_insert_data(self, host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount):
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         
@@ -188,42 +189,11 @@ class TDTestCase:
         tdLog.debug("ready to inser data")
 
         tsql.execute("use %s" %dbname)
-        pre_insert = "insert into "
-        sql = pre_insert
-        tcount=tcountStop-tcountStart
-        allRows=tcount*rowCount
-        tdLog.debug("doing insert data into stable:%s rows:%d ..."%(stbname, allRows))
-        exeStartTime=time.time()
-        for i in range(tcountStart,tcountStop):
-            sql += " %s_%d values "%(stbname,i)
-            for j in range(rowCount):
-                sql += "(%d, %d, 'taos_%d') "%(ts_start + j*1000, j, j)
-                if j >0 and j%5000 == 0:
-                    # print(sql)
-                    tdSql.execute(sql)
-                    sql = "insert into %s_%d values " %(stbname,i)
-        # end sql        
-        if sql != pre_insert:
-            # print(sql)
-            tdSql.execute(sql)
-        exeEndTime=time.time()
-        spendTime=exeEndTime-exeStartTime
-        speedInsert=allRows/spendTime
-        # tdLog.debug("spent %.2fs to INSERT  %d rows , insert rate is  %.2f rows/s... [OK]"% (spendTime,allRows,speedInsert))
-
-        tdLog.debug("INSERT TABLE DATA ............ [OK]")
-
-
-        buildPath = self.getBuildPath()
-        config = buildPath+ "../sim/dnode1/cfg/"
-        
-        tsql=self.newcur(host,config)
-        tsql.execute("use %s" %dbname)
-        count=int(count)
+        chilCount=int(chilCount)
         threads = []
         for i in range(threadNumbers):
-            tsql.execute("create stable %s%d(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%(stbname,i))
-            threads.append(thd.Thread(target=self.create_tables, args=(host, dbname, stbname+"%d"%i, count,))) 
+            # tsql.execute("create stable %s%d(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%(stbname,i))
+            threads.append(thd.Thread(target=self.insert_data, args=(host, dbname, stbname+"%d"%i, chilCount, ts_start, childrowcount,))) 
         start_time = time.time()
         for tr in threads:
             tr.start()
@@ -231,8 +201,18 @@ class TDTestCase:
             tr.join()
         end_time = time.time()
         spendTime=end_time-start_time
-        speedCreate=count/spendTime
-        tdLog.debug("spent %.2fs to create %d stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,threadNumbers,threadNumbers*count,speedCreate))
+        tableCounts=threadNumbers*chilCount
+        stableRows=chilCount*childrowcount
+        allRows=stableRows*threadNumbers
+        speedInsert=allRows/spendTime
+
+        for i in range(threadNumbers):
+            tdSql.execute("use %s" %dbname)
+            tdSql.query("select count(*) from %s%d"%(stbname,i))
+            tdSql.checkData(0,0,stableRows)
+        tdLog.debug("spent %.2fs to insert %d rows  into %d stable and %d table,  speed is %.2f table/s... [OK]"% (spendTime,allRows,threadNumbers,tableCounts,speedInsert))
+        tdLog.debug("INSERT TABLE DATA ............ [OK]")
+
         return
 
 
@@ -288,7 +268,10 @@ class TDTestCase:
     def test_case1(self):
         tdLog.debug("-----create database and muti-thread create tables test------- ")
         #host,dbname,stbname,vgroups,threadNumbers,tcountStart,tcountStop
-        self.mutiThread_create_tables(host="localhost",dbname="db2",stbname="stb2", vgroups=1, threadNumbers=5, count=10000)
+        #host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount
+        self.mutiThread_create_tables(host="localhost",dbname="db",stbname="stb", vgroups=1, threadNumbers=5, count=50)
+        self.mutiThread_insert_data(host="localhost",dbname="db",stbname="stb", threadNumbers=5,chilCount=50,ts_start=self.ts,childrowcount=10)
+
         return 
 
     # test case2 base:insert data
@@ -366,17 +349,17 @@ class TDTestCase:
     # run case   
     def run(self):
 
-        # #  test base case
-        # self.test_case1()
-        # tdLog.debug(" LIMIT test_case1 ............ [OK]")
+        # create database and tables。
+        self.test_case1()
+        tdLog.debug(" LIMIT test_case1 ............ [OK]")
 
-        # test case
-        # self.test_case2()
-        # tdLog.debug(" LIMIT test_case2 ............ [OK]")
+    #    # taosBenchmark ： create database and table 
+    #     self.test_case2()
+    #     tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
-        # test case
-        self.test_case3()
-        tdLog.debug(" LIMIT test_case3 ............ [OK]")
+        # # taosBenchmark：create database/table and insert data
+        # self.test_case3()
+        # tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
 
         # # test qnode
