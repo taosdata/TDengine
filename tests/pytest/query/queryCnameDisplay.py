@@ -38,9 +38,9 @@ class TDTestCase:
         # len(colName) <=64, generate cname list and make first param = 63 and second param = 65
         cname_list = []
         for i in range(10):
-            cname_list.append(self.getLongName(64))
-        cname_list[0] = self.getLongName(63)
-        cname_list[1] = self.getLongName(65)
+            cname_list.append(self.getLongName(128))
+        cname_list[0] = self.getLongName(127)
+        cname_list[1] = self.getLongName(129)
         # create table and insert data
         tdSql.execute("CREATE TABLE regular_table_cname_check (ts timestamp, pi1 int, pi2 bigint, pf1 float, pf2 double, ps1 binary(10), pi3 smallint, pi4 tinyint, pb1 bool, ps2 nchar(20))")
         tdSql.execute('insert into regular_table_cname_check values (now, 1, 2, 1.1, 2.2, "a", 1, 1, true, "aa");')
@@ -67,9 +67,9 @@ class TDTestCase:
         # len(colName) <=64, generate cname list and make first param = 63 and second param = 65
         cname_list = []
         for i in range(19):
-            cname_list.append(self.getLongName(64))
-        cname_list[0] = self.getLongName(63)
-        cname_list[1] = self.getLongName(65)
+            cname_list.append(self.getLongName(128))
+        cname_list[0] = self.getLongName(127)
+        cname_list[1] = self.getLongName(129)
 
         # create table and insert data
         tdSql.execute("create table super_table_cname_check (ts timestamp, pi1 int, pi2 bigint, pf1 float, pf2 double, ps1 binary(10), pi3 smallint, pi4 tinyint, pb1 bool, ps2 nchar(20)) tags (si1 int, si2 bigint, sf1 float, sf2 double, ss1 binary(10), si3 smallint, si4 tinyint, sb1 bool, ss2 nchar(20));")

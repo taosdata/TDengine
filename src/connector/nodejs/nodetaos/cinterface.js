@@ -15,10 +15,10 @@ const TaosObjects = require('./taosobjects');
 
 module.exports = CTaosInterface;
 const TAOSFIELD = {
-  NAME_LENGTH: 65,
-  TYPE_OFFSET: 65,
-  BYTES_OFFSET: 66,
-  STRUCT_SIZE: 68,
+  NAME_LENGTH: 129,
+  TYPE_OFFSET: 129,
+  BYTES_OFFSET:130,
+  STRUCT_SIZE: 132,
 }
 function convertTimestamp(data, num_of_rows, nbytes = 0, offset = 0, precision = 0) {
   data = ref.reinterpret(data.deref(), nbytes * num_of_rows, offset);
