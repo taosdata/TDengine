@@ -183,9 +183,6 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     rpcInit.sessions = 100;
     rpcInit.idleTime = 100;
     rpcInit.user = "sync-io";
-    rpcInit.secret = "sync-io";
-    rpcInit.ckey = "key";
-    rpcInit.spi = 0;
     rpcInit.connType = TAOS_CONN_CLIENT;
 
     io->clientRpc = rpcOpen(&rpcInit);
@@ -206,7 +203,6 @@ static int32_t syncIOStartInternal(SSyncIO *io) {
     rpcInit.cfp = syncIOProcessRequest;
     rpcInit.sessions = 1000;
     rpcInit.idleTime = 2 * 1500;
-    rpcInit.afp = syncIOAuth;
     rpcInit.parent = io;
     rpcInit.connType = TAOS_CONN_SERVER;
 

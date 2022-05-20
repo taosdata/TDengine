@@ -63,11 +63,6 @@ typedef struct SRpcMsg {
 } SRpcMsg;
 
 typedef void (*RpcCfp)(void *parent, SRpcMsg *, SEpSet *rf);
-typedef int (*RpcAfp)(void *parent, char *tableId, char *spi, char *encrypt, char *secret, char *ckey);
-///
-// // SRpcMsg code
-// REDIERE,
-// NOT READY, EpSet
 typedef bool (*RpcRfp)(int32_t code);
 
 typedef struct SRpcInit {
@@ -80,17 +75,10 @@ typedef struct SRpcInit {
   int      idleTime;      // milliseconds, 0 means idle timer is disabled
 
   // the following is for client app ecurity only
-  char *user;     // user name
-  char  spi;      // security parameter index
-  char  encrypt;  // encrypt algorithm
-  char *secret;   // key for authentication
-  char *ckey;     // ciphering key
+  char *user;  // user name
 
   // call back to process incoming msg, code shall be ignored by server app
   RpcCfp cfp;
-
-  // call back to retrieve the client auth info, for server app only
-  RpcAfp afp;
 
   // user defined retry func
   RpcRfp rfp;

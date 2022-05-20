@@ -50,9 +50,6 @@ class Client {
     rpcInit_.numOfThreads = nThread;
     rpcInit_.cfp = processResp;
     rpcInit_.user = (char *)user;
-    rpcInit_.secret = (char *)secret;
-    rpcInit_.ckey = (char *)ckey;
-    rpcInit_.spi = 1;
     rpcInit_.parent = this;
     rpcInit_.connType = TAOS_CONN_CLIENT;
     this->transCli = rpcOpen(&rpcInit_);
@@ -117,9 +114,6 @@ class Server {
     rpcInit_.numOfThreads = 5;
     rpcInit_.cfp = processReq;
     rpcInit_.user = (char *)user;
-    rpcInit_.secret = (char *)secret;
-    rpcInit_.ckey = (char *)ckey;
-    rpcInit_.spi = 1;
     rpcInit_.connType = TAOS_CONN_SERVER;
   }
   void Start() {

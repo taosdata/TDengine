@@ -27,16 +27,16 @@
 #include "trpc.h"
 
 typedef struct SUdfdContext {
-  uv_loop_t  *loop;
+  uv_loop_t * loop;
   uv_pipe_t   ctrlPipe;
   uv_signal_t intrSignal;
   char        listenPipeName[PATH_MAX + UDF_LISTEN_PIPE_NAME_LEN + 2];
   uv_pipe_t   listeningPipe;
 
-  void       *clientRpc;
+  void *     clientRpc;
   SCorEpSet  mgmtEp;
   uv_mutex_t udfsMutex;
-  SHashObj  *udfsHash;
+  SHashObj * udfsHash;
 
   bool printVersion;
 } SUdfdContext;
@@ -45,7 +45,7 @@ SUdfdContext global;
 
 typedef struct SUdfdUvConn {
   uv_stream_t *client;
-  char        *inputBuf;
+  char *       inputBuf;
   int32_t      inputLen;
   int32_t      inputCap;
   int32_t      inputTotal;
@@ -65,25 +65,25 @@ typedef struct SUdf {
   uv_mutex_t lock;
   uv_cond_t  condReady;
 
-  char   name[TSDB_FUNC_NAME_LEN];
-  int8_t funcType;
-  int8_t scriptType;
-  int8_t outputType;
+  char    name[TSDB_FUNC_NAME_LEN];
+  int8_t  funcType;
+  int8_t  scriptType;
+  int8_t  outputType;
   int32_t outputLen;
   int32_t bufSize;
 
-  char   path[PATH_MAX];
+  char path[PATH_MAX];
 
-  uv_lib_t              lib;
+  uv_lib_t lib;
 
-  TUdfScalarProcFunc    scalarProcFunc;
+  TUdfScalarProcFunc scalarProcFunc;
 
-  TUdfAggStartFunc      aggStartFunc;
-  TUdfAggProcessFunc    aggProcFunc;
-  TUdfAggFinishFunc     aggFinishFunc;
+  TUdfAggStartFunc   aggStartFunc;
+  TUdfAggProcessFunc aggProcFunc;
+  TUdfAggFinishFunc  aggFinishFunc;
 
-  TUdfInitFunc          initFunc;
-  TUdfDestroyFunc       destroyFunc;
+  TUdfInitFunc    initFunc;
+  TUdfDestroyFunc destroyFunc;
 } SUdf;
 
 // TODO: add private udf structure.
@@ -98,9 +98,9 @@ typedef enum EUdfdRpcReqRspType {
 
 typedef struct SUdfdRpcSendRecvInfo {
   EUdfdRpcReqRspType rpcType;
-  int32_t code;
-  void* param;
-  uv_sem_t resultSem;
+  int32_t            code;
+  void *             param;
+  uv_sem_t           resultSem;
 } SUdfdRpcSendRecvInfo;
 
 void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
@@ -136,7 +136,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     tDeserializeSRetrieveFuncRsp(pMsg->pCont, pMsg->contLen, &retrieveRsp);
 
     SFuncInfo *pFuncInfo = (SFuncInfo *)taosArrayGet(retrieveRsp.pFuncInfos, 0);
-    SUdf* udf = msgInfo->param;
+    SUdf *     udf = msgInfo->param;
     udf->funcType = pFuncInfo->funcType;
     udf->scriptType = pFuncInfo->scriptType;
     udf->outputType = pFuncInfo->outputType;
@@ -145,7 +145,8 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
 
     char path[PATH_MAX] = {0};
     snprintf(path, sizeof(path), "%s/lib%s.so", "/tmp", pFuncInfo->name);
-    TdFilePtr file = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+    TdFilePtr file =
+        taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
     // TODO check for failure of flush to disk
     taosWriteFile(file, pFuncInfo->pCode, pFuncInfo->codeSize);
     taosCloseFile(&file);
@@ -168,11 +169,11 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
   taosArrayPush(retrieveReq.pFuncNames, udfName);
 
   int32_t contLen = tSerializeSRetrieveFuncReq(NULL, 0, &retrieveReq);
-  void   *pReq = rpcMallocCont(contLen);
+  void *  pReq = rpcMallocCont(contLen);
   tSerializeSRetrieveFuncReq(pReq, contLen, &retrieveReq);
   taosArrayDestroy(retrieveReq.pFuncNames);
 
-  SUdfdRpcSendRecvInfo* msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
+  SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
   msgInfo->rpcType = UDFD_RPC_RETRIVE_FUNC;
   msgInfo->param = udf;
   uv_sem_init(&msgInfo->resultSem, 0);
@@ -194,7 +195,7 @@ int32_t udfdFillUdfInfoFromMNode(void *clientRpc, char *udfName, SUdf *udf) {
 int32_t udfdConnectToMnode() {
   SConnectReq connReq = {0};
   connReq.connType = CONN_TYPE__UDFD;
-  tstrncpy(connReq.app, "udfd",sizeof(connReq.app));
+  tstrncpy(connReq.app, "udfd", sizeof(connReq.app));
   tstrncpy(connReq.user, TSDB_DEFAULT_USER, sizeof(connReq.user));
   char pass[TSDB_PASSWORD_LEN + 1] = {0};
   taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
@@ -203,7 +204,7 @@ int32_t udfdConnectToMnode() {
   connReq.startTime = htobe64(taosGetTimestampMs());
 
   int32_t contLen = tSerializeSConnectReq(NULL, 0, &connReq);
-  void*   pReq = rpcMallocCont(contLen);
+  void *  pReq = rpcMallocCont(contLen);
   tSerializeSConnectReq(pReq, contLen, &connReq);
 
   SUdfdRpcSendRecvInfo *msgInfo = taosMemoryCalloc(1, sizeof(SUdfdRpcSendRecvInfo));
@@ -240,17 +241,17 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     return TSDB_CODE_UDF_LOAD_UDF_FAILURE;
   }
 
-  char initFuncName[TSDB_FUNC_NAME_LEN+5] = {0};
+  char  initFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
   char *initSuffix = "_init";
   strcpy(initFuncName, udfName);
   strncat(initFuncName, initSuffix, strlen(initSuffix));
-  uv_dlsym(&udf->lib, initFuncName, (void**)(&udf->initFunc));
+  uv_dlsym(&udf->lib, initFuncName, (void **)(&udf->initFunc));
 
-  char destroyFuncName[TSDB_FUNC_NAME_LEN+5] = {0};
+  char  destroyFuncName[TSDB_FUNC_NAME_LEN + 5] = {0};
   char *destroySuffix = "_destroy";
   strcpy(destroyFuncName, udfName);
   strncat(destroyFuncName, destroySuffix, strlen(destroySuffix));
-  uv_dlsym(&udf->lib, destroyFuncName, (void**)(&udf->destroyFunc));
+  uv_dlsym(&udf->lib, destroyFuncName, (void **)(&udf->destroyFunc));
 
   if (udf->funcType == TSDB_FUNC_TYPE_SCALAR) {
     char processFuncName[TSDB_FUNC_NAME_LEN] = {0};
@@ -270,87 +271,86 @@ int32_t udfdLoadUdf(char *udfName, SUdf *udf) {
     strncpy(finishFuncName, processFuncName, strlen(processFuncName));
     strncat(finishFuncName, finishSuffix, strlen(finishSuffix));
     uv_dlsym(&udf->lib, finishFuncName, (void **)(&udf->aggFinishFunc));
-    //TODO: merge
+    // TODO: merge
   }
   return 0;
 }
 
-void udfdProcessSetupRequest(SUvUdfWork* uvUdf, SUdfRequest* request) {
-    // TODO: tracable id from client. connect, setup, call, teardown
-    fnInfo( "setup request. seq num: %" PRId64 ", udf name: %s", request->seqNum, request->setup.udfName);
-    SUdfSetupRequest *setup = &request->setup;
-    int32_t code = TSDB_CODE_SUCCESS;
-    SUdf *udf = NULL;
-    uv_mutex_lock(&global.udfsMutex);
-    SUdf **udfInHash = taosHashGet(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName));
-    if (udfInHash) {
-      ++(*udfInHash)->refCount;
-      udf = *udfInHash;
-      uv_mutex_unlock(&global.udfsMutex);
-    } else {
-      SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
-      udfNew->refCount = 1;
-      udfNew->state = UDF_STATE_INIT;
+void udfdProcessSetupRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
+  // TODO: tracable id from client. connect, setup, call, teardown
+  fnInfo("setup request. seq num: %" PRId64 ", udf name: %s", request->seqNum, request->setup.udfName);
+  SUdfSetupRequest *setup = &request->setup;
+  int32_t           code = TSDB_CODE_SUCCESS;
+  SUdf *            udf = NULL;
+  uv_mutex_lock(&global.udfsMutex);
+  SUdf **udfInHash = taosHashGet(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName));
+  if (udfInHash) {
+    ++(*udfInHash)->refCount;
+    udf = *udfInHash;
+    uv_mutex_unlock(&global.udfsMutex);
+  } else {
+    SUdf *udfNew = taosMemoryCalloc(1, sizeof(SUdf));
+    udfNew->refCount = 1;
+    udfNew->state = UDF_STATE_INIT;
 
-      uv_mutex_init(&udfNew->lock);
-      uv_cond_init(&udfNew->condReady);
-      udf = udfNew;
-      taosHashPut(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName), &udfNew, sizeof(&udfNew));
-      uv_mutex_unlock(&global.udfsMutex);
+    uv_mutex_init(&udfNew->lock);
+    uv_cond_init(&udfNew->condReady);
+    udf = udfNew;
+    taosHashPut(global.udfsHash, request->setup.udfName, strlen(request->setup.udfName), &udfNew, sizeof(&udfNew));
+    uv_mutex_unlock(&global.udfsMutex);
+  }
+
+  uv_mutex_lock(&udf->lock);
+  if (udf->state == UDF_STATE_INIT) {
+    udf->state = UDF_STATE_LOADING;
+    code = udfdLoadUdf(setup->udfName, udf);
+    if (udf->initFunc) {
+      udf->initFunc();
     }
-
-    uv_mutex_lock(&udf->lock);
-    if (udf->state == UDF_STATE_INIT) {
-      udf->state = UDF_STATE_LOADING;
-      code = udfdLoadUdf(setup->udfName, udf);
-      if (udf->initFunc) {
-        udf->initFunc();
-      }
-      udf->state = UDF_STATE_READY;
-      uv_cond_broadcast(&udf->condReady);
-      uv_mutex_unlock(&udf->lock);
-    } else {
-      while (udf->state != UDF_STATE_READY) {
-        uv_cond_wait(&udf->condReady, &udf->lock);
-      }
-      uv_mutex_unlock(&udf->lock);
+    udf->state = UDF_STATE_READY;
+    uv_cond_broadcast(&udf->condReady);
+    uv_mutex_unlock(&udf->lock);
+  } else {
+    while (udf->state != UDF_STATE_READY) {
+      uv_cond_wait(&udf->condReady, &udf->lock);
     }
-    SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
-    handle->udf = udf;
+    uv_mutex_unlock(&udf->lock);
+  }
+  SUdfcFuncHandle *handle = taosMemoryMalloc(sizeof(SUdfcFuncHandle));
+  handle->udf = udf;
 
-    SUdfResponse rsp;
-    rsp.seqNum = request->seqNum;
-    rsp.type = request->type;
-    rsp.code = code;
-    rsp.setupRsp.udfHandle = (int64_t)(handle);
-    rsp.setupRsp.outputType = udf->outputType;
-    rsp.setupRsp.outputLen = udf->outputLen;
-    rsp.setupRsp.bufSize = udf->bufSize;
+  SUdfResponse rsp;
+  rsp.seqNum = request->seqNum;
+  rsp.type = request->type;
+  rsp.code = code;
+  rsp.setupRsp.udfHandle = (int64_t)(handle);
+  rsp.setupRsp.outputType = udf->outputType;
+  rsp.setupRsp.outputLen = udf->outputLen;
+  rsp.setupRsp.bufSize = udf->bufSize;
 
-    int32_t len = encodeUdfResponse(NULL, &rsp);
-    rsp.msgLen = len;
-    void *bufBegin = taosMemoryMalloc(len);
-    void *buf = bufBegin;
-    encodeUdfResponse(&buf, &rsp);
+  int32_t len = encodeUdfResponse(NULL, &rsp);
+  rsp.msgLen = len;
+  void *bufBegin = taosMemoryMalloc(len);
+  void *buf = bufBegin;
+  encodeUdfResponse(&buf, &rsp);
 
-    uvUdf->output = uv_buf_init(bufBegin, len);
+  uvUdf->output = uv_buf_init(bufBegin, len);
 
-    taosMemoryFree(uvUdf->input.base);
-    return;
+  taosMemoryFree(uvUdf->input.base);
+  return;
 }
 
 void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   SUdfCallRequest *call = &request->call;
-  fnDebug("%" PRId64 "call request. call type %d, handle: %" PRIx64, request->seqNum, call->callType,
-          call->udfHandle);
-  SUdfcFuncHandle *handle = (SUdfcFuncHandle *)(call->udfHandle);
-  SUdf            *udf = handle->udf;
-  SUdfResponse  response = {0};
-  SUdfResponse *rsp = &response;
+  fnDebug("%" PRId64 "call request. call type %d, handle: %" PRIx64, request->seqNum, call->callType, call->udfHandle);
+  SUdfcFuncHandle * handle = (SUdfcFuncHandle *)(call->udfHandle);
+  SUdf *            udf = handle->udf;
+  SUdfResponse      response = {0};
+  SUdfResponse *    rsp = &response;
   SUdfCallResponse *subRsp = &rsp->callRsp;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  switch(call->callType) {
+  switch (call->callType) {
     case TSDB_UDF_CALL_SCALA_PROC: {
       SUdfColumn output = {0};
 
@@ -363,9 +363,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       break;
     }
     case TSDB_UDF_CALL_AGG_INIT: {
-      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize),
-                             .bufLen= udf->bufSize,
-                             .numOfResult = 0};
+      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
       udf->aggStartFunc(&outBuf);
       subRsp->resultBuf = outBuf;
       break;
@@ -373,9 +371,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     case TSDB_UDF_CALL_AGG_PROC: {
       SUdfDataBlock input = {0};
       convertDataBlockToUdfDataBlock(&call->block, &input);
-      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize),
-                             .bufLen= udf->bufSize,
-                             .numOfResult = 0};
+      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
       code = udf->aggProcFunc(&input, &call->interBuf, &outBuf);
       freeUdfInterBuf(&call->interBuf);
       freeUdfDataDataBlock(&input);
@@ -384,9 +380,7 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
       break;
     }
     case TSDB_UDF_CALL_AGG_FIN: {
-      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize),
-                             .bufLen= udf->bufSize,
-                             .numOfResult = 0};
+      SUdfInterBuf outBuf = {.buf = taosMemoryMalloc(udf->bufSize), .bufLen = udf->bufSize, .numOfResult = 0};
       code = udf->aggFinishFunc(&call->interBuf, &outBuf);
       freeUdfInterBuf(&call->interBuf);
       subRsp->resultBuf = outBuf;
@@ -429,20 +423,19 @@ void udfdProcessCallRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
     }
     default:
       break;
-
   }
 
   taosMemoryFree(uvUdf->input.base);
   return;
 }
 
-void udfdProcessTeardownRequest(SUvUdfWork* uvUdf, SUdfRequest* request) {
+void udfdProcessTeardownRequest(SUvUdfWork *uvUdf, SUdfRequest *request) {
   SUdfTeardownRequest *teardown = &request->teardown;
   fnInfo("teardown. seq number: %" PRId64 ", handle:%" PRIx64, request->seqNum, teardown->udfHandle);
   SUdfcFuncHandle *handle = (SUdfcFuncHandle *)(teardown->udfHandle);
-  SUdf *udf = handle->udf;
-  bool  unloadUdf = false;
-  int32_t code = TSDB_CODE_SUCCESS;
+  SUdf *           udf = handle->udf;
+  bool             unloadUdf = false;
+  int32_t          code = TSDB_CODE_SUCCESS;
 
   uv_mutex_lock(&global.udfsMutex);
   udf->refCount--;
@@ -568,7 +561,7 @@ bool isUdfdUvMsgComplete(SUdfdUvConn *pipe) {
 }
 
 void udfdHandleRequest(SUdfdUvConn *conn) {
-  uv_work_t  *work = taosMemoryMalloc(sizeof(uv_work_t));
+  uv_work_t * work = taosMemoryMalloc(sizeof(uv_work_t));
   SUvUdfWork *udfWork = taosMemoryMalloc(sizeof(SUvUdfWork));
   udfWork->client = conn->client;
   udfWork->input = uv_buf_init(conn->inputBuf, conn->inputLen);
@@ -653,11 +646,11 @@ static bool udfdRpcRfp(int32_t code) {
   }
 }
 
-int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSet) {
+int initEpSetFromCfg(const char *firstEp, const char *secondEp, SCorEpSet *pEpSet) {
   pEpSet->version = 0;
 
   // init mnode ip set
-  SEpSet* mgmtEpSet = &(pEpSet->epSet);
+  SEpSet *mgmtEpSet = &(pEpSet->epSet);
   mgmtEpSet->numOfEps = 0;
   mgmtEpSet->inUse = 0;
 
@@ -694,7 +687,6 @@ int initEpSetFromCfg(const char* firstEp, const char* secondEp, SCorEpSet* pEpSe
   return 0;
 }
 
-
 int32_t udfdOpenClientRpc() {
   SRpcInit rpcInit = {0};
   rpcInit.label = "UDFD";
@@ -704,14 +696,8 @@ int32_t udfdOpenClientRpc() {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = TSDB_DEFAULT_USER;
-  rpcInit.ckey = "key";
-  rpcInit.spi = 1;
   rpcInit.parent = &global;
   rpcInit.rfp = udfdRpcRfp;
-
-  char pass[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)(TSDB_DEFAULT_PASS), strlen(TSDB_DEFAULT_PASS), pass);
-  rpcInit.secret = pass;
 
   global.clientRpc = rpcOpen(&rpcInit);
   if (global.clientRpc == NULL) {
@@ -823,7 +809,7 @@ static int32_t udfdUvInit() {
   return 0;
 }
 
-static void udfdCloseWalkCb(uv_handle_t* handle, void* arg) {
+static void udfdCloseWalkCb(uv_handle_t *handle, void *arg) {
   if (!uv_is_closing(handle)) {
     uv_close(handle, NULL);
   }
@@ -883,7 +869,7 @@ int main(int argc, char *argv[]) {
   int32_t retryMnodeTimes = 0;
   int32_t code = 0;
   while (retryMnodeTimes++ < TSDB_MAX_REPLICA) {
-    uv_sleep(500 * ( 1 << retryMnodeTimes));
+    uv_sleep(500 * (1 << retryMnodeTimes));
     code = udfdConnectToMnode();
     if (code == 0) {
       break;
