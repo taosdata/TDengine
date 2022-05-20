@@ -382,6 +382,35 @@ static bool isInternalPrimaryKey(const SColumnNode* pCol) {
   return PRIMARYKEY_TIMESTAMP_COL_ID == pCol->colId && 0 == strcmp(pCol->colName, PK_TS_COL_INTERNAL_NAME);
 }
 
+static bool isTimeOrderQuery(SNode* pStmt) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    return ((SSelectStmt*)pStmt)->isTimeOrderQuery;
+  } else {
+    return false;
+  }
+}
+
+static bool isPrimaryKeyImpl(STempTableNode* pTable, SNode* pExpr) {
+  if (QUERY_NODE_COLUMN == nodeType(pExpr)) {
+    return (PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId);
+  } else if (QUERY_NODE_FUNCTION == nodeType(pExpr)) {
+    SFunctionNode* pFunc = (SFunctionNode*)pExpr;
+    if (FUNCTION_TYPE_SELECT_VALUE == pFunc->funcType) {
+      return isPrimaryKeyImpl(pTable, nodesListGetNode(pFunc->pParameterList, 0));
+    } else if (FUNCTION_TYPE_WSTARTTS == pFunc->funcType || FUNCTION_TYPE_WENDTS == pFunc->funcType) {
+      return true;
+    }
+  }
+  return false;
+}
+
+static bool isPrimaryKey(STempTableNode* pTable, SNode* pExpr) {
+  if (!isTimeOrderQuery(pTable->pSubquery)) {
+    return false;
+  }
+  return isPrimaryKeyImpl(pTable, pExpr);
+}
+
 static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
   bool found = false;
   if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
@@ -404,8 +433,7 @@ static bool findAndSetColumn(SColumnNode* pCol, const STableNode* pTable) {
     FOREACH(pNode, pProjectList) {
       SExprNode* pExpr = (SExprNode*)pNode;
       if (0 == strcmp(pCol->colName, pExpr->aliasName) ||
-          ((QUERY_NODE_COLUMN == nodeType(pExpr) && PRIMARYKEY_TIMESTAMP_COL_ID == ((SColumnNode*)pExpr)->colId) &&
-           isInternalPrimaryKey(pCol))) {
+          (isPrimaryKey((STempTableNode*)pTable, pNode) && isInternalPrimaryKey(pCol))) {
         setColumnInfoByExpr(pTable, pExpr, pCol);
         found = true;
         break;
@@ -454,6 +482,9 @@ static EDealRes translateColumnWithoutPrefix(STranslateContext* pCxt, SColumnNod
   }
   if (!found) {
     if (isInternalPk) {
+      if (NULL != pCxt->pCurrStmt->pWindow) {
+        return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY);
+      }
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_INTERNAL_PK);
     } else {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_INVALID_COLUMN, pCol->colName);
@@ -781,7 +812,6 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
     }
 
     pCxt->pCurrStmt->hasAggFuncs = true;
-    pCxt->pCurrStmt->isTimeOrderQuery = false;
     if (isCountStar(pFunc)) {
       pCxt->errCode = rewriteCountStar(pCxt, pFunc);
     }
