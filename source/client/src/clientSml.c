@@ -724,6 +724,9 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   if(value + len != endPtr){
     return -1;
   }
+  if(tsInt64 == 0){
+    return taosGetTimestampNs();
+  }
   double ts = tsInt64;
   switch (type) {
     case TSDB_TIME_PRECISION_HOURS:
@@ -751,7 +754,7 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
     default:
       ASSERT(0);
   }
-  if(ts >= (double)INT64_MAX || ts <= 0){
+  if(ts >= (double)INT64_MAX || ts < 0){
     return -1;
   }
 
@@ -1599,7 +1602,8 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
       smlBuildInvalidDataMsg(&info->msgBuf, "timestamp is too large", NULL);
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
-    if(timeDouble <= 0){
+
+    if(timeDouble < 0){
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
     uint8_t tsLen = smlGetTimestampLen((int64_t)timeDouble);
@@ -1617,7 +1621,9 @@ static int32_t smlParseTSFromJSON(SSmlHandle *info, cJSON *root, SArray *cols) {
         return TSDB_CODE_TSC_INVALID_TIME_STAMP;
       }
       tsVal = timeDouble;
-    } else {
+    } else if(timeDouble == 0){
+      tsVal = taosGetTimestampNs();
+    }else {
       return TSDB_CODE_TSC_INVALID_TIME_STAMP;
     }
   } else if (cJSON_IsObject(timestamp)) {
