@@ -1137,10 +1137,6 @@ bool nodesIsRegularOp(const SOperatorNode* pOp) {
   return false;
 }
 
-bool nodesIsTimeorderQuery(const SNode* pQuery) { return false; }
-
-bool nodesIsTimelineQuery(const SNode* pQuery) { return false; }
-
 typedef struct SCollectColumnsCxt {
   int32_t         errCode;
   const char*     pTableAlias;
