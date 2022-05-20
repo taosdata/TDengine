@@ -1,7 +1,6 @@
-add_executable(create_table createTable.c)
 add_executable(tmq_demo tmqDemo.c)
 add_executable(tmq_sim tmqSim.c)
-add_executable(sdbDump sdbDump.c)
+add_executable(create_table createTable.c)
 target_link_libraries(
     create_table
     PUBLIC taos_static
@@ -25,6 +24,7 @@ target_link_libraries(
 )
 
 if(NOT TD_WINDOWS)
+    add_executable(sdbDump sdbDump.c)
     target_link_libraries(
         sdbDump
         PUBLIC dnode
