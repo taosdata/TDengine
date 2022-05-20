@@ -265,6 +265,7 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   pgid.pgno = pgno;
   pPage = tdbPCacheFetch(pPager->pCache, &pgid, pTxn);
   if (pPage == NULL) {
+    ASSERT(0);
     return -1;
   }
 
@@ -272,9 +273,13 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   if (!TDB_PAGE_INITIALIZED(pPage)) {
     ret = tdbPagerInitPage(pPager, pPage, initPage, arg, loadPage);
     if (ret < 0) {
+      ASSERT(0);
       return -1;
     }
   }
+
+  // printf("thread %" PRId64 " pager fetch page %d pgno %d ppage %p\n", taosGetSelfPthreadId(), pPage->id,
+  //        TDB_PAGE_PGNO(pPage), pPage);
 
   ASSERT(TDB_PAGE_INITIALIZED(pPage));
   ASSERT(pPage->pPager == pPager);
@@ -284,7 +289,11 @@ int tdbPagerFetchPage(SPager *pPager, SPgno *ppgno, SPage **ppPage, int (*initPa
   return 0;
 }
 
-void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) { tdbPCacheRelease(pPager->pCache, pPage, pTxn); }
+void tdbPagerReturnPage(SPager *pPager, SPage *pPage, TXN *pTxn) {
+  tdbPCacheRelease(pPager->pCache, pPage, pTxn);
+  // printf("thread %" PRId64 " pager retun page %d pgno %d ppage %p\n", taosGetSelfPthreadId(), pPage->id,
+  //        TDB_PAGE_PGNO(pPage), pPage);
+}
 
 static int tdbPagerAllocFreePage(SPager *pPager, SPgno *ppgno) {
   // TODO: Allocate a page from the free list
@@ -352,6 +361,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
 
     ret = (*initPage)(pPage, arg, init);
     if (ret < 0) {
+      ASSERT(0);
       TDB_UNLOCK_PAGE(pPage);
       return -1;
     }
@@ -370,6 +380,7 @@ static int tdbPagerInitPage(SPager *pPager, SPage *pPage, int (*initPage)(SPage 
       }
     }
   } else {
+    ASSERT(0);
     return -1;
   }
 
