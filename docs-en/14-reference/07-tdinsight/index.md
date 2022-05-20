@@ -3,7 +3,7 @@ title: TDinsight - Grafana-based Zero-Dependency Monitoring Solution for TDengin
 sidebar_label: TDinsight
 ---
 
-TDinsight is a solution for monitoring TDengine using the [TDengine] native monitoring database and [Grafana].
+TDinsight is a solution for monitoring TDengine using the builtin native monitoring database and [Grafana].
 
 After TDengine starts, it will automatically create a monitoring database log. TDengine will automatically write many metrics in specific intervals into the log database. The metrics may include the server's CPU, memory, hard disk space, network bandwidth, number of requests, disk read/write speed, slow queries, and other information, and record important system operations (such as login, database creation, database deletion, etc.), and various error alarms. With [Grafana] and [TDengine Data Source Plugin](https://github.com/taosdata/grafanaplugin/releases), TDinsight could visualize cluster status, node information, insertion and query requests, resource usage, etc., and also supports vnode, dnode, and mnode status,  exception alerts, and support developers with the convenience of monitoring TDengine cluster operation status in real-time. This article will guide users to install the Grafana server, automatically install the TDengine data source plug-in, and deploy the TDinsight visualization panel through `TDinsight.sh` installation script.
 
