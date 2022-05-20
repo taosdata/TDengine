@@ -17,7 +17,7 @@ TARGET_INCLUDE_DIRECTORIES(
         PUBLIC "${TD_SOURCE_DIR}/source/libs/parser/inc"
         PRIVATE "${TD_SOURCE_DIR}/source/libs/scalar/inc"
 )
-#add_test(
-#    NAME scalarTest
-#    COMMAND scalarTest
-#)
+add_test(
+    NAME scalarTest
+    COMMAND scalarTest
+)
