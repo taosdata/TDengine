@@ -42,7 +42,7 @@ sudo unzip tdengine-datasource-$GF_VERSION.zip -d /var/lib/grafana/plugins/
 ```
 
 :::note
-插件版本 3.1.6 及之前版本未签名，在 Grafana 7.3+ / 8.x 版本签名检查会导致无法加载插件，因此需要在 grafana.ini 文件中修改配置如下：
+3.1.6 和更早版本未签名，会在 Grafana 7.3+ / 8.x 版本签名检查时失败导致无法加载插件，需要在 grafana.ini 文件中修改配置如下：
 
 ```ini
 [plugins]

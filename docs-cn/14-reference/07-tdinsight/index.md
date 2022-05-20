@@ -208,7 +208,7 @@ sudo grafana-cli \
 ```
 
 :::note
-插件版本 3.1.7 以下，需要在配置文件 `/etc/grafana/grafana.ini` 中添加如下设置，以启用未签名插件。
+3.1.6 和更早版本插件需要在配置文件 `/etc/grafana/grafana.ini` 中添加如下设置，以启用未签名插件。
 
 ```ini
 [plugins]
