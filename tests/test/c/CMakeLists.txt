@@ -24,7 +24,7 @@ target_link_libraries(
     PUBLIC os
 )
 
-IF (TD_LINUX)
+IF (${TD_WINDOWS})
 target_link_libraries(
     sdbDump
     PUBLIC dnode

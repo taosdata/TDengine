@@ -42,9 +42,87 @@ char *i642str(int64_t val) {
 
 void dumpFunc(SSdb *pSdb, SJson *json) {}
 
-void dumpDb(SSdb *pSdb, SJson *json) {}
+void dumpDb(SSdb *pSdb, SJson *json) {
+  void  *pIter = NULL;
+  SJson *items = tjsonCreateObject();
+  tjsonAddItemToObject(json, "dbs", items);
 
-void dumpStb(SSdb *pSdb, SJson *json) {}
+  while (1) {
+    SDbObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_DB, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    tjsonAddItemToObject(items, "db", item);
+
+    tjsonAddStringToObject(item, "name", pObj->name);
+    tjsonAddStringToObject(item, "acct", pObj->acct);
+    tjsonAddStringToObject(item, "createUser", pObj->createUser);
+    tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
+    tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
+    tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
+    tjsonAddIntegerToObject(item, "cfgVersion", pObj->cfgVersion);
+    tjsonAddIntegerToObject(item, "vgVersion", pObj->vgVersion);
+    tjsonAddIntegerToObject(item, "numOfVgroups", pObj->cfg.numOfVgroups);
+    tjsonAddIntegerToObject(item, "numOfStables", pObj->cfg.numOfStables);
+    tjsonAddIntegerToObject(item, "buffer", pObj->cfg.buffer);
+    tjsonAddIntegerToObject(item, "pageSize", pObj->cfg.pageSize);
+    tjsonAddIntegerToObject(item, "pages", pObj->cfg.pages);
+    tjsonAddIntegerToObject(item, "daysPerFile", pObj->cfg.daysPerFile);
+    tjsonAddIntegerToObject(item, "daysToKeep0", pObj->cfg.daysToKeep0);
+    tjsonAddIntegerToObject(item, "daysToKeep1", pObj->cfg.daysToKeep1);
+    tjsonAddIntegerToObject(item, "daysToKeep2", pObj->cfg.daysToKeep2);
+    tjsonAddIntegerToObject(item, "minRows", pObj->cfg.minRows);
+    tjsonAddIntegerToObject(item, "maxRows", pObj->cfg.maxRows);
+    tjsonAddIntegerToObject(item, "fsyncPeriod", pObj->cfg.fsyncPeriod);
+    tjsonAddIntegerToObject(item, "walLevel", pObj->cfg.walLevel);
+    tjsonAddIntegerToObject(item, "precision", pObj->cfg.precision);
+    tjsonAddIntegerToObject(item, "compression", pObj->cfg.compression);
+    tjsonAddIntegerToObject(item, "replications", pObj->cfg.replications);
+    tjsonAddIntegerToObject(item, "strict", pObj->cfg.strict);
+    tjsonAddIntegerToObject(item, "cacheLastRow", pObj->cfg.cacheLastRow);
+    tjsonAddIntegerToObject(item, "hashMethod", pObj->cfg.hashMethod);
+    tjsonAddIntegerToObject(item, "numOfRetensions", pObj->cfg.numOfRetensions);
+
+    sdbRelease(pSdb, pObj);
+  }
+}
+
+void dumpStb(SSdb *pSdb, SJson *json) {
+  void  *pIter = NULL;
+  SJson *items = tjsonCreateObject();
+  tjsonAddItemToObject(json, "stbs", items);
+
+  while (1) {
+    SStbObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_STB, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    tjsonAddItemToObject(items, "stb", item);
+
+    tjsonAddStringToObject(item, "name", pObj->name);
+    tjsonAddStringToObject(item, "db", pObj->db);
+    tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
+    tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
+    tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
+    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
+    tjsonAddIntegerToObject(item, "version", pObj->version);
+    tjsonAddIntegerToObject(item, "tagVer", pObj->tagVer);
+    tjsonAddIntegerToObject(item, "colVer", pObj->colVer);
+    tjsonAddIntegerToObject(item, "nextColId", pObj->nextColId);
+    tjsonAddIntegerToObject(item, "xFilesFactor", pObj->xFilesFactor * 10000);
+    tjsonAddIntegerToObject(item, "delay", pObj->delay);
+    tjsonAddIntegerToObject(item, "ttl", pObj->ttl);
+    tjsonAddIntegerToObject(item, "numOfColumns", pObj->numOfColumns);
+    tjsonAddIntegerToObject(item, "numOfTags", pObj->numOfTags);
+    tjsonAddIntegerToObject(item, "commentLen", pObj->commentLen);
+    tjsonAddIntegerToObject(item, "ast1Len", pObj->ast1Len);
+    tjsonAddIntegerToObject(item, "ast2Len", pObj->ast2Len);
+
+    sdbRelease(pSdb, pObj);
+  }
+}
 
 void dumpSma(SSdb *pSdb, SJson *json) {}
 
@@ -60,7 +138,27 @@ void dumpOffset(SSdb *pSdb, SJson *json) {}
 
 void dumpStream(SSdb *pSdb, SJson *json) {}
 
-void dumpAcct(SSdb *pSdb, SJson *json) {}
+void dumpAcct(SSdb *pSdb, SJson *json) {
+  void  *pIter = NULL;
+  SJson *items = tjsonCreateObject();
+  tjsonAddItemToObject(json, "accts", items);
+
+  while (1) {
+    SAcctObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_ACCT, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    tjsonAddItemToObject(items, "acct", item);
+
+    tjsonAddStringToObject(item, "acct", pObj->acct);
+    tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
+    tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
+    tjsonAddIntegerToObject(item, "acctId", pObj->acctId);
+
+    sdbRelease(pSdb, pObj);
+  }
+}
 
 void dumpAuth(SSdb *pSdb, SJson *json) {}
 
@@ -120,11 +218,78 @@ void dumpSnode(SSdb *pSdb, SJson *json) {}
 
 void dumpQnode(SSdb *pSdb, SJson *json) {}
 
-void dumpMnode(SSdb *pSdb, SJson *json) {}
+void dumpMnode(SSdb *pSdb, SJson *json) {
+  void  *pIter = NULL;
+  SJson *items = tjsonCreateObject();
+  tjsonAddItemToObject(json, "mnodes", items);
 
-void dumpCluster(SSdb *pSdb, SJson *json) {}
+  while (1) {
+    SMnodeObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
 
-void dumpTrans(SSdb *pSdb, SJson *json) {}
+    SJson *item = tjsonCreateObject();
+    tjsonAddItemToObject(items, "mnode", item);
+
+    tjsonAddIntegerToObject(item, "id", pObj->id);
+    tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
+    tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
+
+    sdbRelease(pSdb, pObj);
+  }
+}
+
+void dumpCluster(SSdb *pSdb, SJson *json) {
+  void  *pIter = NULL;
+  SJson *items = tjsonCreateObject();
+  tjsonAddItemToObject(json, "clusters", items);
+
+  while (1) {
+    SClusterObj *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_CLUSTER, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    tjsonAddItemToObject(items, "cluster", item);
+
+    tjsonAddStringToObject(item, "id", i642str(pObj->id));
+    tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
+    tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
+    tjsonAddStringToObject(item, "name", pObj->name);
+
+    sdbRelease(pSdb, pObj);
+  }
+}
+
+void dumpTrans(SSdb *pSdb, SJson *json) {
+    void  *pIter = NULL;
+  SJson *items = tjsonCreateObject();
+  tjsonAddItemToObject(json, "transactions", items);
+
+  while (1) {
+    STrans *pObj = NULL;
+    pIter = sdbFetch(pSdb, SDB_TRANS, pIter, (void **)&pObj);
+    if (pIter == NULL) break;
+
+    SJson *item = tjsonCreateObject();
+    tjsonAddItemToObject(items, "trans", item);
+
+    tjsonAddIntegerToObject(item, "id", pObj->id);
+    tjsonAddIntegerToObject(item, "stage", pObj->stage);
+    tjsonAddIntegerToObject(item, "policy", pObj->policy);
+    tjsonAddIntegerToObject(item, "type", pObj->type);
+    tjsonAddStringToObject(item, "createdTime", i642str(pObj->createdTime));
+    tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
+    tjsonAddStringToObject(item, "dbname", pObj->dbname);
+    tjsonAddIntegerToObject(item, "redoLogNum", taosArrayGetSize(pObj->redoLogs));
+    tjsonAddIntegerToObject(item, "undoLogNum", taosArrayGetSize(pObj->undoLogs));
+    tjsonAddIntegerToObject(item, "commitLogNum", taosArrayGetSize(pObj->commitLogs));
+    tjsonAddIntegerToObject(item, "redoActionNum", taosArrayGetSize(pObj->redoActions));
+    tjsonAddIntegerToObject(item, "undoActionNum", taosArrayGetSize(pObj->undoActions));
+
+    sdbRelease(pSdb, pObj);
+  }
+}
 
 void dumpHeader(SSdb *pSdb, SJson *json) {
   tjsonAddIntegerToObject(json, "sver", 1);
