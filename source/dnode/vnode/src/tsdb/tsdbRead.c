@@ -1929,9 +1929,9 @@ int32_t getEndPosInDataBlock(STsdbReadHandle* pTsdbReadHandle, SDataBlockInfo* p
     }
   } else {
     if (ascScan && pTsdbReadHandle->window.ekey >= pBlockInfo->window.ekey) {
-      endPos = MIN(cur->pos + pTsdbReadHandle->outputCapacity - 1, pBlockInfo->rows - 1);
+      endPos = TMIN(cur->pos + pTsdbReadHandle->outputCapacity - 1, pBlockInfo->rows - 1);
     } else if ((!ascScan) && pTsdbReadHandle->window.ekey <= pBlockInfo->window.skey) {
-      endPos = MAX(cur->pos - pTsdbReadHandle->outputCapacity + 1, 0);
+      endPos = TMAX(cur->pos - pTsdbReadHandle->outputCapacity + 1, 0);
     } else {
       ASSERT(pCols->numOfRows > 0);
       endPos = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pTsdbReadHandle->window.ekey, order);
