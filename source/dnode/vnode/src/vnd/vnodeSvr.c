@@ -106,11 +106,13 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
       }
     } break;
+#if 0
     case TDMT_VND_TASK_WRITE_EXEC: {
       if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
                             0) < 0) {
       }
     } break;
+#endif
     case TDMT_VND_ALTER_VNODE:
       break;
     default:
@@ -162,7 +164,7 @@ int vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg) {
 
 int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
   vTrace("message in fetch queue is processing");
-  char *  msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
+  char   *msgstr = POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead));
   int32_t msgLen = pMsg->contLen - sizeof(SMsgHead);
   switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
@@ -181,15 +183,32 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return vnodeGetTableMeta(pVnode, pMsg);
     case TDMT_VND_CONSUME:
       return tqProcessPollReq(pVnode->pTq, pMsg, pInfo->workerId);
+
+    case TDMT_VND_TASK_RUN: {
+      int32_t code = tqProcessTaskRunReq(pVnode->pTq, pMsg);
+      pMsg->pCont = NULL;
+      return code;
+    }
+    case TDMT_VND_TASK_DISPATCH:
+      return tqProcessTaskDispatchReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TASK_RECOVER:
+      return tqProcessTaskRecoverReq(pVnode->pTq, pMsg);
+    case TDMT_VND_TASK_DISPATCH_RSP:
+      return tqProcessTaskDispatchRsp(pVnode->pTq, pMsg);
+    case TDMT_VND_TASK_RECOVER_RSP:
+      return tqProcessTaskRecoverRsp(pVnode->pTq, pMsg);
+
+#if 0
     case TDMT_VND_TASK_PIPE_EXEC:
     case TDMT_VND_TASK_MERGE_EXEC:
       return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen, 0);
-    case TDMT_VND_STREAM_TRIGGER: {
+    case TDMT_VND_STREAM_TRIGGER:{
       // refactor, avoid double free
       int code = tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen, 0);
       pMsg->pCont = NULL;
       return code;
     }
+#endif
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:
@@ -332,12 +351,12 @@ static int vnodeProcessCreateTbReq(SVnode *pVnode, int64_t version, void *pReq, 
   SDecoder           decoder = {0};
   int                rcode = 0;
   SVCreateTbBatchReq req = {0};
-  SVCreateTbReq *    pCreateReq;
+  SVCreateTbReq     *pCreateReq;
   SVCreateTbBatchRsp rsp = {0};
   SVCreateTbRsp      cRsp = {0};
   char               tbName[TSDB_TABLE_FNAME_LEN];
-  STbUidStore *      pStore = NULL;
-  SArray *           tbUids = NULL;
+  STbUidStore       *pStore = NULL;
+  SArray            *tbUids = NULL;
 
   pRsp->msgType = TDMT_VND_CREATE_TABLE_RSP;
   pRsp->code = TSDB_CODE_SUCCESS;
@@ -521,7 +540,7 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
   SDecoder         decoder = {0};
   SEncoder         encoder = {0};
   int              ret;
-  SArray *         tbUids = NULL;
+  SArray          *tbUids = NULL;
 
   pRsp->msgType = TDMT_VND_DROP_TABLE_RSP;
   pRsp->pCont = NULL;
@@ -576,9 +595,9 @@ _exit:
 
 static int vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, SSubmitMsgIter *msgIter, const char *tags) {
   SSubmitBlkIter blkIter = {0};
-  STSchema *     pSchema = NULL;
+  STSchema      *pSchema = NULL;
   tb_uid_t       suid = 0;
-  STSRow *       row = NULL;
+  STSRow        *row = NULL;
 
   tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
@@ -609,8 +628,8 @@ static int vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, SSub
 static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char *tags) {
   ASSERT(pMsg != NULL);
   SSubmitMsgIter msgIter = {0};
-  SMeta *        pMeta = pVnode->pMeta;
-  SSubmitBlk *   pBlock = NULL;
+  SMeta         *pMeta = pVnode->pMeta;
+  SSubmitBlk    *pBlock = NULL;
 
   if (tInitSubmitMsgIter(pMsg, &msgIter) < 0) return -1;
   while (true) {
@@ -624,10 +643,10 @@ static int vnodeDebugPrintSubmitMsg(SVnode *pVnode, SSubmitReq *pMsg, const char
 }
 
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp) {
-  SSubmitReq *   pSubmitReq = (SSubmitReq *)pReq;
+  SSubmitReq    *pSubmitReq = (SSubmitReq *)pReq;
   SSubmitRsp     submitRsp = {0};
   SSubmitMsgIter msgIter = {0};
-  SSubmitBlk *   pBlock;
+  SSubmitBlk    *pBlock;
   SSubmitRsp     rsp = {0};
   SVCreateTbReq  createTbReq = {0};
   SDecoder       decoder = {0};
