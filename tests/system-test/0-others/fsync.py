@@ -42,7 +42,6 @@ class TDTestCase:
         wal_index = 0
         fsync_index = 0
         tdSql.query("show databases")
-        print(tdSql.cursor.description)
         for i in range(tdSql.queryCols):
             if tdSql.cursor.description[i][0] == "wal":
                 wal_index = i
