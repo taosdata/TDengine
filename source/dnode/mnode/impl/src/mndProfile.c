@@ -340,8 +340,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   if (pHbReq->query) {
     SQueryHbReqBasic *pBasic = pHbReq->query;
 
-    SRpcConnInfo connInfo = {0};
-    rpcGetConnInfo(pMsg->info.handle, &connInfo);
+    SRpcConnInfo connInfo = pMsg->conn;
 
     SConnObj *pConn = mndAcquireConn(pMnode, pBasic->connId);
     if (pConn == NULL) {
