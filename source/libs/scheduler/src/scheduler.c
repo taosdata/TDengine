@@ -2565,24 +2565,32 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
     SCH_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
 
+  int32_t code = 0;
+  
+  *pJob = 0;
+  
   if (EXPLAIN_MODE_STATIC == pDag->explainInfo.mode) {
     SCH_ERR_RET(schExecStaticExplain(transport, nodeList, pDag, pJob, sql, true));
   } else {
-    SCH_ERR_RET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, startTs, true));
+    SCH_ERR_JRET(schExecJobImpl(transport, nodeList, pDag, pJob, sql, startTs, true));
   }
 
-  SSchJob *job = schAcquireJob(*pJob);
+_return:
 
-  pRes->code = atomic_load_32(&job->errCode);
-  pRes->numOfRows = job->resNumOfRows;
-  if (SCH_RES_TYPE_QUERY == job->resType) {
-    pRes->res = job->resData;
-    job->resData = NULL;
+  if (*pJob) {
+    SSchJob *job = schAcquireJob(*pJob);
+
+    pRes->code = atomic_load_32(&job->errCode);
+    pRes->numOfRows = job->resNumOfRows;
+    if (SCH_RES_TYPE_QUERY == job->resType) {
+      pRes->res = job->resData;
+      job->resData = NULL;
+    }
+
+    schReleaseJob(*pJob);
   }
 
-  schReleaseJob(*pJob);
-
-  return TSDB_CODE_SUCCESS;
+  return code;
 }
 
 int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan *pDag, const char *sql, int64_t *pJob) {

@@ -1161,8 +1161,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
   if (NULL == rsp) {
-    atomic_store_ptr(&ctx->dataConnInfo.handle, qwMsg->connInfo.handle);
-    atomic_store_ptr(&ctx->dataConnInfo.ahandle, qwMsg->connInfo.ahandle);
+    ctx->dataConnInfo = qwMsg->connInfo;
 
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
   } else {

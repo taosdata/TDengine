@@ -299,6 +299,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       schedulerFreeJob(pRequest->body.queryJob);
     }
 
+    *pRes = res.res;
+
     pRequest->code = code;
     terrno = code;
     return pRequest->code;
