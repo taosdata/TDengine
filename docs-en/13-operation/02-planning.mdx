@@ -12,9 +12,9 @@ The number of vgroups created for each database is same as the number of CPU cor
 Database Memory Size = maxVgroupsPerDb * replica * (blocks * cache + 10MB) + numOfTables * (tagSizePerTable + 0.5KB)
 ```
 
-For example, assuming the default value of `maxVgroupPerDB` is 64, the default value of `cache` 16M, the default value of `blocks` is 6, there are 100,000 tables in a DB, the replica number is 1, total length of tag values is 256 bytes, the total memory required for this DB is: 并且一个 DB 中有 10 万张表，单副本，标签总长度是 256 字节，则这个 DB 总的内存需求为：64 \* 1 \* (16 \* 6 + 10) + 100000 \* (0.25 + 0.5) / 1000 = 6792M.
+For example, assuming the default value of `maxVgroupPerDB` is 64, the default value of `cache` 16M, the default value of `blocks` is 6, there are 100,000 tables in a DB, the replica number is 1, total length of tag values is 256 bytes, the total memory required for this DB is: 64 \* 1 \* (16 \* 6 + 10) + 100000 \* (0.25 + 0.5) / 1000 = 6792M.
 
-In real operation of TDengine, we are more concerned about the memory used by each TDengine server process `taosd`.在
+In real operation of TDengine, we are more concerned about the memory used by each TDengine server process `taosd`.
 
 ```
     taosd_memory = vnode_memory + mnode_memory + query_memory

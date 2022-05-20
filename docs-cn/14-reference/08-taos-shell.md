@@ -52,7 +52,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 - -P, --port=PORT: 指定服务端所用端口号
 - -u, --user=USER: 连接时使用的用户名
 - -p, --password=PASSWORD: 连接服务端时使用的密码
-- -?, --help: 打印出所有命令行参数 
+- -?, --help: 打印出所有命令行参数
 
 还有更多其他参数：
 
@@ -77,6 +77,7 @@ taos> SET MAX_BINARY_DISPLAY_WIDTH <nn>;
 ```bash
 taos -h h1.taos.com -s "use db; show tables;"
 ```
+
 ## TDengine CLI 小技巧
 
 - 可以使用上下光标键查看历史输入的指令

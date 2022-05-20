@@ -26,7 +26,7 @@ We recommend using the latest version of `taospy`, regardless what the version o
 
 ## Supported features
 
-- Native connections support all the core features of TDeingine, including connection management, SQL execution, bind interface, subscriptions, and schemaless writing.
+- Native connections support all the core features of TDengine, including connection management, SQL execution, bind interface, subscriptions, and schemaless writing.
 - REST connections support features such as connection management and SQL execution. (SQL execution allows you to: manage databases, tables, and supertables, write data, query data, create continuous queries, etc.).
 
 ## Installation
@@ -34,7 +34,7 @@ We recommend using the latest version of `taospy`, regardless what the version o
 ### Preparation
 
 1. Install Python. Python >= 3.6 is recommended. If Python is not available on your system, refer to the [Python BeginnersGuide](https://wiki.python.org/moin/BeginnersGuide/Download) to install it.
-2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip docuemntation](https://pip.pypa.io/en/stable/installation/) to install it.
+2. Install [pip](https://pypi.org/project/pip/). In most cases, the Python installer comes with the pip utility. If not, please refer to [pip documentation](https://pip.pypa.io/en/stable/installation/) to install it.
 
 If you use a native connection, you will also need to [Install Client Driver](/reference/connector#Install-Client-Driver). The client install package includes the TDengine client dynamic link library (`libtaos.so` or `taos.dll`) and the TDengine CLI.
 
@@ -200,8 +200,8 @@ The `connect()` function returns a `taos.TaosConnection` instance. In client-sid
 All arguments to the `connect()` function are optional keyword arguments. The following are the connection parameters specified.
 
 - `host`: The host to connect to. The default is localhost.
-- `user`: TDenigne user name. The default is `root`.
-- `password`: TDeingine user password. The default is `taosdata`.
+- `user`: TDengine user name. The default is `root`.
+- `password`: TDengine user password. The default is `taosdata`.
 - `port`: The port on which the taosAdapter REST service listens. Default is 6041.
 - `timeout`: HTTP request timeout in seconds. The default is `socket._GLOBAL_DEFAULT_TIMEOUT`. Usually, no configuration is needed.
 
