@@ -169,13 +169,9 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
     code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, qa);
     taosArrayDestroy(qa);
-
   } else {  // remove the table id in current list
-    SArray* qa = filterQualifiedChildTables(pScanInfo, tableIdList);
-
     qDebug(" %d remove child tables from the stream scanner", (int32_t)taosArrayGetSize(tableIdList));
-    code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, tableIdList);
-    taosArrayDestroy(qa);
+    code = tqReadHandleRemoveTbUidList(pScanInfo->streamBlockReader, tableIdList);
   }
 
   return code;
