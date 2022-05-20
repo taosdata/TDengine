@@ -162,7 +162,7 @@ void *taosAllocateQitem(int32_t size, EQItype itype) {
     uTrace("item:%p, node:%p is allocated", pNode->item, pNode);
   }
 
-  return (void *)pNode->item;
+  return pNode->item;
 }
 
 void taosFreeQitem(void *pItem) {
