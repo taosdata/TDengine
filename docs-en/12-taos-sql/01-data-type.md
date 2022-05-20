@@ -19,7 +19,7 @@ CREATE DATABASE db_name PRECISION 'ns';
 
 In TDengine, below data types can be used when specifying a column or tag.
 
-| #   | **类型**  | **Bytes** | **说明** |
+| #   | **type**  | **Bytes** | **Description** |
 | --- | :-------: | --------- | ------------------------- |
 | 1   | TIMESTAMP | 8         | Default precision is millisecond, microsecond and nanosecond are also supported  |
 | 2   |    INT    | 4         | Integer, the value range is [-2^31+1, 2^31-1], while -2^31 is treated as NULL  |
