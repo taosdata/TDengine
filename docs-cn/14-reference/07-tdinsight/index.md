@@ -82,7 +82,7 @@ Usage:
    ./TDinsight.sh -h|--help
    ./TDinsight.sh -n <ds-name> -a <api-url> -u <user> -p <password>
 
-Install and configure TDinsight dashboard in Grafana on ubuntu 18.04/20.04 system.
+Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 system.
 
 -h, -help,          --help                  Display help
 
@@ -99,7 +99,7 @@ Install and configure TDinsight dashboard in Grafana on ubuntu 18.04/20.04 syste
 -u, --tdengine-user <string>                TDengine user name. [default: root]
 -p, --tdengine-password <string>            TDengine password. [default: taosdata]
 
--i, --tdinsight-uid <string>                Replace with a non-space ascii code as the dashboard id. [default: tdinsight]
+-i, --tdinsight-uid <string>                Replace with a non-space ASCII code as the dashboard id. [default: tdinsight]
 -t, --tdinsight-title <string>              Dashboard title. [default: TDinsight]
 -e, --tdinsight-editable                    If the provisioning dashboard could be editable. [default: false]
 
@@ -114,7 +114,7 @@ Aliyun SMS as Notifier:
 -K, --sms-access-key-secret <string>        Aliyun sms access key secret
 -S, --sms-sign-name <string>                Sign name
 -C, --sms-template-code <string>            Template code
--T, --sms-template-param <string>           Template param, a escaped json string like '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
+-T, --sms-template-param <string>           Template param, a escaped JSON string like '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
 -B, --sms-phone-numbers <string>            Comma-separated numbers list, eg "189xxxxxxxx,132xxxxxxxx"
 -L, --sms-listen-addr <string>              [default: 127.0.0.1:9100]
 ```
@@ -262,7 +262,7 @@ sudo systemctl enable grafana-server
 
 ## TDinsight 仪表盘详细信息
 
-TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes, vnodes](https://www.taosdata.com/cn/documentation/architecture#cluster)或数据库的使用情况和状态。
+TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mnodes, vnodes](https://www.taosdata.com/cn/documentation/architecture#cluster)或数据库的使用情况和状态。
 
 指标详情如下：
 
@@ -281,7 +281,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes
 - **Connections** - 当前连接个数。
 - **DNodes/MNodes/VGroups/VNodes**：每种资源的总数和存活数。
 - **DNodes/MNodes/VGroups/VNodes Alive Percent**：每种资源的存活数/总数的比例，启用告警规则，并在资源存活率（1 分钟内平均健康资源比例）不足 100%时触发。
-- **Messuring Points Used**：启用告警规则的测点数用量（社区版无数据，默认情况下是健康的）。
+- **Measuring Points Used**：启用告警规则的测点数用量（社区版无数据，默认情况下是健康的）。
 - **Grants Expire Time**：启用告警规则的企业版过期时间（社区版无数据，默认情况是健康的）。
 - **Error Rate**：启用警报的集群总合错误率（每秒平均错误数）。
 - **Variables**：`show variables` 表格展示。
@@ -349,7 +349,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes
 
 目前只报告每分钟登录次数。
 
-### TaosAdapter
+### taosAdapter
 
 ![taosadapter](./assets/TDinsight-8-taosadapter.png)
 
@@ -360,7 +360,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes
 3. **Memory Used**: taosAdapter 内存使用情况
 4. **latency_quantile(ms)**: (1, 2, 5, 9, 99)阶段的分位数
 5. **top 3 failed request endpoint**: 按终端分组，请求失败排名前三的数据
-6. **CPU Used**: taosAdapter cpu 使用情况
+6. **CPU Used**: taosAdapter CPU 使用情况
 
 ## 升级
 
