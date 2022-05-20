@@ -34,10 +34,10 @@ class TDTestCase:
         tdSql.prepare()
 
         print("============== STEP 1 ===== prepare data & validate json string")
-        tdSql.execute("create table if not exists st(ts timestamp, dataInt int)")
-        tdSql.execute("create table st_from_sub as select avg(`dataInt`) from st interval(1m)")
+        tdSql.execute("create table if not exists st(ts timestamp, dataint int)")
+        tdSql.execute("create table st_from_sub as select avg(`dataint`) from st interval(1m)")
         tdSql.query("describe st_from_sub")
-        tdSql.checkData(1, 0, 'avg__dataInt__')
+        tdSql.checkData(1, 0, 'avg__dataint__')
 
     def stop(self):
         tdSql.close()

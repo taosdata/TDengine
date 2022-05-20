@@ -117,8 +117,8 @@ sql_error create table $tb (ts timestamp, $tint int)
 sql_error create table $tb (ts timestamp, $nchar int)
 
 # too long column name
-sql_error create table $tb (ts timestamp, abcde_123456789_123456789_123456789_123456789_123456789_123456789 int)
-sql_error create table tx(ts timestamp, k int) tags(abcd5_123456789_123456789_123456789_123456789_123456789_123456789 int)
+sql_error create table $tb (ts timestamp, abcde_123456789_123456789_123456789_123456789_123456789_123456789abc1111111111111111111222333333333333333344444444455555555555abc int)
+sql_error create table tx(ts timestamp, k int) tags(abcd5_123456789_123456789_123456789_123456789_123456789_123456789abc1111111111111111111222333333333333333344444444455555555555abc int)
 print illegal_column_names test passed
 
 # case5: chinese_char_in_table_support

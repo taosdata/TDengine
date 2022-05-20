@@ -568,7 +568,7 @@ class TDTestCase:
         stb_name = tdCom.getLongName(7, "letters")
         input_sql = f'{stb_name} 1626006833640 L"bcdaaa" {tag_name}=f'
         self.resCmp(input_sql, stb_name)
-        input_sql = f'{stb_name} 1626006833640 L"gggcdaaa" {tdCom.getLongName(65, "letters")}=f'
+        input_sql = f'{stb_name} 1626006833640 L"gggcdaaa" {tdCom.getLongName(129, "letters")}=f'
         try:
             self._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
             raise Exception("should not reach here")
