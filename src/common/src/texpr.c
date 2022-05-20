@@ -113,7 +113,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
   int16_t leftType = pLeft->resultType;
   int16_t rightType = pRight->resultType;
 
-  int32_t brChecked = 0;
+  int32_t leftTreeChecked = 0, rightTreeChecked = 0;
 
   if (pExpr->_node.optr == TSDB_BINARY_OP_ADD || pExpr->_node.optr == TSDB_BINARY_OP_SUBTRACT ||
       pExpr->_node.optr == TSDB_BINARY_OP_MULTIPLY || pExpr->_node.optr == TSDB_BINARY_OP_DIVIDE ||
@@ -153,7 +153,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        leftTreeChecked++;
       }
 
       if (pLeft->_node.pRight) {
@@ -165,7 +165,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        leftTreeChecked++;
       }
 
       if (pRight->_node.pLeft) {
@@ -177,7 +177,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        rightTreeChecked++;
       }
 
       if (pRight->_node.pRight) {
@@ -189,14 +189,15 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        rightTreeChecked++;
       }
 
-      if (brChecked == 0) {
+      if ((!IS_NUMERIC_TYPE(leftType) && leftTreeChecked == 0) || (!IS_NUMERIC_TYPE(rightType) && rightTreeChecked == 0)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
 
-      brChecked = 0;
+      leftTreeChecked = 0;
+      rightTreeChecked = 0;
     }
     if (IS_FLOAT_TYPE(leftType) || IS_FLOAT_TYPE(rightType)) {
       if (pLeft->_node.pLeft) {
@@ -208,7 +209,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        leftTreeChecked++;
       }
 
       if (pLeft->_node.pRight) {
@@ -220,7 +221,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        leftTreeChecked++;
       }
 
       if (pRight->_node.pLeft) {
@@ -232,7 +233,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        rightTreeChecked++;
       }
 
       if (pRight->_node.pRight) {
@@ -244,10 +245,10 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        rightTreeChecked++;
       }
 
-      if (brChecked == 0) {
+      if ((IS_FLOAT_TYPE(leftType) && leftTreeChecked == 0) || (IS_FLOAT_TYPE(rightType) && rightTreeChecked == 0)) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }
@@ -283,7 +284,7 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        leftTreeChecked++;
       }
 
       if (pLeft->_node.pRight) {
@@ -295,10 +296,10 @@ int32_t exprTreeValidateExprNode(tExprNode *pExpr) {
           return TSDB_CODE_TSC_INVALID_OPERATION;
         }
 
-        brChecked++;
+        leftTreeChecked++;
       }
 
-      if (brChecked == 0) {
+      if (leftTreeChecked == 0) {
         return TSDB_CODE_TSC_INVALID_OPERATION;
       }
     }
@@ -654,28 +655,75 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     exprTreeInternalNodeTraverse(pLeft, numOfRows, &left, param, order, getSourceDataBlock);
 
     leftIn = ltmp;
+    leftType = left.type;
+
     if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
         pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
         pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
     {
-      if (left.type == TSDB_DATA_TYPE_DOUBLE) {
-        transl = (char *)malloc(sizeof(int64_t) * left.numOfRows);
-        if (transl == NULL) {
-          return;
+      transl = (char *)malloc(sizeof(int64_t) * left.numOfRows);
+      if (transl == NULL) {
+        return;
+      }
+
+      pl = ltmp;
+      pt = transl;
+
+      switch (left.type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int8_t *) pl + i));
         }
-
-        pl = ltmp;
-        pt = transl;
-
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int16_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_INT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int32_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int64_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint8_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint16_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint32_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint64_t *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        for (int16_t i = 0; i < left.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((float *) pl + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
         for (int16_t i = 0; i < left.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((double *) pl + i));
         }
-
-        leftIn = transl;
-        leftType = TSDB_DATA_TYPE_BIGINT;
+        break;
       }
-    } else {
-      leftType = left.type;
+
+      leftIn = transl;
+      leftType = TSDB_DATA_TYPE_BIGINT;
     }
     leftNum = left.numOfRows;
   } else if (pLeft->nodeType == TSQL_NODE_COL) {
@@ -705,28 +753,75 @@ void exprTreeExprNodeTraverse(tExprNode *pExpr, int32_t numOfRows, tExprOperandI
     exprTreeInternalNodeTraverse(pRight, numOfRows, &right, param, order, getSourceDataBlock);
 
     rightIn = rtmp;
+    rightType = right.type;
+
     if (pExpr->_node.optr == TSDB_BINARY_OP_BITAND || pExpr->_node.optr == TSDB_BINARY_OP_BITOR ||
         pExpr->_node.optr == TSDB_BINARY_OP_BITXOR || pExpr->_node.optr == TSDB_BINARY_OP_BITNOT ||
         pExpr->_node.optr == TSDB_BINARY_OP_LSHIFT || pExpr->_node.optr == TSDB_BINARY_OP_RSHIFT)
     {
-      if (right.type == TSDB_DATA_TYPE_DOUBLE) {
-        transr = (char *)malloc(sizeof(int64_t) * right.numOfRows);
-        if (transr == NULL) {
-          return;
+      transr = (char *)malloc(sizeof(int64_t) * right.numOfRows);
+      if (transr == NULL) {
+        return;
+      }
+
+      pr = rtmp;
+      pt = transr;
+
+      switch (right.type) {
+      case TSDB_DATA_TYPE_TINYINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int8_t *) pr + i));
         }
-
-        pr = rtmp;
-        pt = transr;
-
+        break;
+      case TSDB_DATA_TYPE_SMALLINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int16_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_INT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int32_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_BIGINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((int64_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UTINYINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint8_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_USMALLINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint16_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint32_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_UBIGINT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((uint64_t *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_FLOAT:
+        for (int16_t i = 0; i < right.numOfRows; i++) {
+          *((int64_t *) pt + i) = (int64_t)(*((float *) pr + i));
+        }
+        break;
+      case TSDB_DATA_TYPE_DOUBLE:
         for (int16_t i = 0; i < right.numOfRows; i++) {
           *((int64_t *) pt + i) = (int64_t)(*((double *) pr + i));
         }
-
-        rightIn = transr;
-        rightType = TSDB_DATA_TYPE_BIGINT;
+        break;
       }
-    } else {
-      rightType = right.type;
+
+      rightIn = transr;
+      rightType = TSDB_DATA_TYPE_BIGINT;
     }
     rightNum = right.numOfRows;
   } else if (pRight->nodeType == TSQL_NODE_COL) {
