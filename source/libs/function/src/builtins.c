@@ -980,7 +980,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
-    .finalizeFunc = tailFinalize
+    .finalizeFunc = NULL
   },
   {
     .name = "unique",
@@ -990,7 +990,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getUniqueFuncEnv,
     .initFunc     = uniqueFunctionSetup,
     .processFunc  = uniqueFunction,
-    .finalizeFunc = uniqueFinalize
+    .finalizeFunc = NULL
   },
   {
     .name = "abs",
