@@ -275,15 +275,15 @@ static inline i32 tdbUnrefPage(SPage *pPage) {
 #define P_LOCK_FAIL -1
 
 static inline int tdbTryLockPage(tdb_spinlock_t *pLock) {
-  int ret;
-  if (tdbSpinlockTrylock(pLock) == 0) {
-    ret = P_LOCK_SUCC;
-  } else if (errno == EBUSY) {
-    ret = P_LOCK_BUSY;
+  int ret = tdbSpinlockTrylock(pLock);
+  if (ret == 0) {
+    return P_LOCK_SUCC;
+  } else if (ret == EBUSY) {
+    return P_LOCK_BUSY;
   } else {
-    ret = P_LOCK_FAIL;
+    ASSERT(0);
+    return P_LOCK_FAIL;
   }
-  return ret;
 }
 
 #define TDB_INIT_PAGE_LOCK(pPage)    tdbSpinlockInit(&((pPage)->lock), 0)
