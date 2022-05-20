@@ -96,6 +96,11 @@ static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg 
   const int32_t fullLen = headLen + bodyLen + 8;
   const int64_t handle = (int64_t)pMsg->info.handle;
 
+  if (fullLen > queue->total) {
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return -1;
+  }
+
   taosThreadMutexLock(&queue->mutex);
   if (fullLen > queue->avail) {
     taosThreadMutexUnlock(&queue->mutex);
@@ -448,7 +453,7 @@ void dmPutToProcPQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype) {
       break;
     }
 
-    if (retry == 10) {
+    if (terrno != TSDB_CODE_OUT_OF_SHM_MEM) {
       pMsg->code = terrno;
       if (pMsg->contLen > 0) {
         rpcFreeCont(pMsg->pCont);
