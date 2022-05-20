@@ -52,6 +52,60 @@ class TDTestCase:
 
     #     return(conn1,cur1)  
     
+    def data_matrix_equal(self, sql1,row1_s,row1_e,col1_s,col1_e, sql2,row2_s,row2_e,col2_s,col2_e):
+        #  ----row1_start----col1_start----
+        #  - - - - 是一个矩阵内的数据相等- - - 
+        #  - - - - - - - - - - - - - - - - 
+        #  ----row1_end------col1_end------
+        self.sql1 = sql1
+        list1 =[]
+        tdSql.query(sql1)
+        for i1 in range(row1_s-1,row1_e):
+            #print("iiii=%d"%i1)
+            for j1 in range(col1_s-1,col1_e):
+                #print("jjjj=%d"%j1)
+                #print("data=%s" %(tdSql.getData(i1,j1)))
+                list1.append(tdSql.getData(i1,j1))
+        print("=====list1-------list1---=%s" %set(list1))
+        
+        tdSql.execute("reset query cache;")
+        self.sql2 = sql2  
+        list2 =[]
+        tdSql.query(sql2)
+        for i2 in range(row2_s-1,row2_e):
+            #print("iiii222=%d"%i2)
+            for j2 in range(col2_s-1,col2_e):
+                #print("jjjj222=%d"%j2)
+                #print("data=%s" %(tdSql.getData(i2,j2)))
+                list2.append(tdSql.getData(i2,j2))
+        print("=====list2-------list2---=%s" %set(list2)) 
+       
+        if  (list1 == list2) and len(list2)>0:
+            # print(("=====matrix===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            tdLog.info(("===matrix===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
+        elif (set(list2)).issubset(set(list1)):
+            # 解决不同子表排列结果乱序
+            # print(("=====list_issubset==matrix2in1-true===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            tdLog.info(("===matrix_issubset===sql1:'%s' matrix_set_result = sql2:'%s' matrix_set_result") %(sql1,sql2))
+        #elif abs(float(str(list1).replace("]","").replace("[","").replace("e+","")) - float(str(list2).replace("]","").replace("[","").replace("e+",""))) <= 0.0001:
+        elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-",""))) <= 0.0001:
+            print(("=====matrix_abs+e+===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            print(("=====matrix_abs+e+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace("e+","").replace(", ","").replace("(","").replace(")","").replace("-",""))))
+            tdLog.info(("===matrix_abs+e+===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))) <= 0.1:
+            #{datetime.datetime(2021, 8, 27, 1, 46, 40), -441.46841430664057}replace
+            print(("=====matrix_abs+replace===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            print(("=====matrix_abs+replace_after===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")),float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))))
+            tdLog.info(("===matrix_abs+replace===sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
+        elif abs(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")) - float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))) <= 0.5:
+            print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            print(("=====matrix_abs===sql1.list1:'%s',sql2.list2:'%s'") %(float(str(list1).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-","")),float(str(list2).replace("datetime.datetime","").replace("]","").replace("[","").replace(", ","").replace("(","").replace(")","").replace("-",""))))
+            tdLog.info(("===matrix_abs======sql1:'%s' matrix_result = sql2:'%s' matrix_result") %(sql1,sql2))
+        else:
+            print(("=====matrix_error===sql1.list1:'%s',sql2.list2:'%s'") %(list1,list2))
+            tdLog.info(("sql1:'%s' matrix_result != sql2:'%s' matrix_result") %(sql1,sql2))
+            return tdSql.checkEqual(list1,list2)
+            
     def restartDnodes(self):
         pass
         # tdDnodes.stop(1)
@@ -1702,10 +1756,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            #TD-15719 tdSql.query(sql)
         
         tdSql.query("select 17-2 from stable_1;")
         for i in range(self.fornum):
@@ -1720,10 +1774,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 17-2.2 from stable_1;")
         for i in range(self.fornum):
@@ -1738,10 +1792,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         self.restartDnodes()
         tdSql.query("select 17-3 from stable_1;")
@@ -1758,10 +1812,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            #TD-15770 tdSql.query(sql)
 
         tdSql.query("select 17-4 from stable_1;")
         for i in range(self.fornum):
@@ -1775,10 +1829,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 17-4.2 from stable_1;")
         for i in range(self.fornum):
@@ -1792,10 +1846,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 17-5 from stable_1;")
         for i in range(self.fornum):
@@ -1811,10 +1865,10 @@ class TDTestCase:
             # sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+           #TD-15719 tdSql.query(sql)
        
         tdSql.query("select 17-6 from stable_1;")
         for i in range(self.fornum):
@@ -1827,10 +1881,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            #TD-15770 tdSql.query(sql)
 
         tdSql.query("select 17-7 from stable_1;")
         for i in range(self.fornum):
@@ -1843,10 +1897,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 17-7.2 from stable_1;")
         for i in range(self.fornum):
@@ -1859,10 +1913,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         self.restartDnodes()
         tdSql.query("select 17-8 from stable_1;")
@@ -1876,10 +1930,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
        
         tdSql.query("select 17-9 from stable_1;")
         for i in range(self.fornum):
@@ -1892,10 +1946,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-           #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 17-10 from stable_1;")
         for i in range(self.fornum):
@@ -1908,10 +1962,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         #18 select apercentile from (select calc_aggregate_alls form regualr_table or stable  where <\>\in\and\or session order by  limit )interval_sliding
         tdSql.query("select 18-1 from stable_1;")
@@ -1926,10 +1980,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-           #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
                
         tdSql.query("select 18-2 from stable_1;")
         for i in range(self.fornum):
@@ -1942,10 +1996,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 18-2.2 from stable_1;")
         for i in range(self.fornum):
@@ -1958,10 +2012,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
 
         self.restartDnodes()
         tdSql.query("select 18-3 from stable_1;")
@@ -1976,10 +2030,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 18-4 from stable_1;")
         for i in range(self.fornum):
@@ -1992,10 +2046,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 18-4.2 from stable_1;")
         for i in range(self.fornum):
@@ -2008,10 +2062,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 18-5 from stable_1;")
         for i in range(self.fornum):
@@ -2025,10 +2079,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_where)
             sql += "%s " % random.choice(limit1_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            #TD-15770 tdSql.query(sql)
 
         tdSql.query("select 18-6 from stable_1;")
         for i in range(self.fornum):
@@ -2041,10 +2095,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
         
         tdSql.query("select 18-7 from stable_1;")
         for i in range(self.fornum):
@@ -2057,10 +2111,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721  tdSql.query(sql)
+            tdSql.query(sql)
 
         #19 select apercentile from (select calc_aggregate_alls form regualr_table or stable  where <\>\in\and\or session order by  limit )interval_sliding       
         #self.dropandcreateDB_random("%s" %db, 1)
@@ -2180,10 +2234,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         tdSql.query("select 19-7 from stable_1;")
         for i in range(self.fornum):
@@ -2195,10 +2249,10 @@ class TDTestCase:
             #sql += "%s " % random.choice(order_u_where)
             sql += "%s " % random.choice(limit_u_where)
             sql += ") "
-            sql += "%s " % random.choice(interval_sliding)
+            #sql += "%s " % random.choice(interval_sliding)
             tdLog.info(sql) 
             tdLog.info(len(sql))      
-            #TD-15721 tdSql.query(sql)
+            tdSql.query(sql)
 
         #20 select * from (select calc_select_fills form regualr_table or stable  where <\>\in\and\or fill_where group by  order by limit offset  )        
         #self.dropandcreateDB_random("%s" %db, 1)
@@ -2351,10 +2405,21 @@ class TDTestCase:
             tdLog.info(len(sql))      
             tdSql.query(sql)  
             
-        for i in range(self.fornum):            
-            # sql_start = "select  *  from ( "
-            # sql_end = ")"
-            for_num = random.randint(1, 10);
+            sql2 =  "select  *  from  ( select * from ( select  "
+            sql2 += "%s, " % random.choice(s_r_select) 
+            sql2 += "%s, " % random.choice(q_select)  
+            sql2 += "ts from regular_table_1 where "
+            sql2 += "%s " % random.choice(q_where)
+            sql2 += ")) "  
+            tdLog.info(sql2) 
+            tdLog.info(len(sql2)) 
+            
+            self.data_matrix_equal('%s' %sql ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
+            self.data_matrix_equal('%s' %sql ,1,10,1,1,'%s' %sql ,1,10,3,3)
+            self.data_matrix_equal('%s' %sql ,1,10,3,3,'%s' %sql2 ,1,10,3,3)
+            
+        for i in range(self.fornum):
+            for_num = random.randint(1, 15);
             sql = "select  ts  from ("  * for_num  
             sql += "select  *  from  ( select * from ( select  "
             sql += "%s, " % random.choice(s_r_select) 
@@ -2366,6 +2431,18 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql)  
+            
+            sql2 =  "select  *  from  ( select * from ( select  "
+            sql2 += "%s, " % random.choice(s_r_select) 
+            sql2 += "%s, " % random.choice(q_select)  
+            sql2 += "ts from regular_table_1 where "
+            sql2 += "%s " % random.choice(q_where)
+            sql2 += ")) "   
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.query(sql) 
+            
+            self.data_matrix_equal('%s' %sql ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
             
         #2 select * from (select * from (select * form stable  where <\>\in\and\or order by limit  ))
         tdSql.query("select 2-1 from stable_1;")
@@ -2382,9 +2459,21 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql) 
-        tdSql.query("select 2-1 from stable_1;")
+            
+            sql2 = "select  *  from  ( select * from ( select  "
+            sql2 += "%s, " % random.choice(s_s_select) 
+            sql2 += "%s, " % random.choice(qt_select) 
+            sql2 += "ts from stable_1 where "
+            sql2 += "%s " % random.choice(q_where)
+            sql2 += ")) " 
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.query(sql) 
+            
+            self.data_matrix_equal('%s' %sql ,1,10,3,3,'%s' %sql2 ,1,10,3,3)
+            
         for i in range(self.fornum):
-            for_num = random.randint(1, 10);
+            for_num = random.randint(1, 15);
             sql = "select  ts  from ("  * for_num  
             sql += "select  *  from  ( select * from ( select  "
             sql += "%s, " % random.choice(s_s_select) 
@@ -2396,6 +2485,18 @@ class TDTestCase:
             tdLog.info(sql) 
             tdLog.info(len(sql))      
             tdSql.query(sql) 
+            
+            sql2 = "select  ts  from  ( select * from ( select  "
+            sql2 += "%s, " % random.choice(s_s_select) 
+            sql2 += "%s, " % random.choice(qt_select) 
+            sql2 += "ts from stable_1 where "
+            sql2 += "%s " % random.choice(q_where)
+            sql2 += ")) " 
+            tdLog.info(sql) 
+            tdLog.info(len(sql))      
+            tdSql.query(sql) 
+            
+            self.data_matrix_equal('%s' %sql ,1,10,1,1,'%s' %sql2 ,1,10,1,1)
                          
         #3 select ts ,calc from  (select * form stable  where <\>\in\and\or order by limit  )       
         #self.dropandcreateDB_random("%s" %db, 1)
