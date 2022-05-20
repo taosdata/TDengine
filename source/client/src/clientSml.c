@@ -58,12 +58,8 @@ for (int i = 1; i < keyLen; ++i) {      \
 #define IS_INVALID_COL_LEN(len)   ((len) <= 0 || (len) >= TSDB_COL_NAME_LEN)
 #define IS_INVALID_TABLE_LEN(len) ((len) <= 0 || (len) >= TSDB_TABLE_NAME_LEN)
 
-#define OTD_MAX_FIELDS_NUM      2
 #define OTD_JSON_SUB_FIELDS_NUM 2
 #define OTD_JSON_FIELDS_NUM     4
-
-#define OTD_TIMESTAMP_COLUMN_NAME "ts"
-#define OTD_METRIC_VALUE_COLUMN_NAME "value"
 
 #define TS              "_ts"
 #define TS_LEN          3
@@ -731,24 +727,24 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   double ts = tsInt64;
   switch (type) {
     case TSDB_TIME_PRECISION_HOURS:
-      ts *= (3600 * 1e9);
-      tsInt64 *= (3600 * 1e9);
+      ts *= NANOSECOND_PER_HOUR;
+      tsInt64 *= NANOSECOND_PER_HOUR;
       break;
     case TSDB_TIME_PRECISION_MINUTES:
-      ts *= (60 * 1e9);
-      tsInt64 *= (60 * 1e9);
+      ts *= NANOSECOND_PER_MINUTE;
+      tsInt64 *= NANOSECOND_PER_MINUTE;
       break;
     case TSDB_TIME_PRECISION_SECONDS:
-      ts *= (1e9);
-      tsInt64 *= (1e9);
+      ts *= NANOSECOND_PER_SEC;
+      tsInt64 *= NANOSECOND_PER_SEC;
       break;
     case TSDB_TIME_PRECISION_MILLI:
-      ts *= (1e6);
-      tsInt64 *= (1e6);
+      ts *= NANOSECOND_PER_MSEC;
+      tsInt64 *= NANOSECOND_PER_MSEC;
       break;
     case TSDB_TIME_PRECISION_MICRO:
-      ts *= (1e3);
-      tsInt64 *= (1e3);
+      ts *= NANOSECOND_PER_USEC;
+      tsInt64 *= NANOSECOND_PER_USEC;
       break;
     case TSDB_TIME_PRECISION_NANO:
       break;
@@ -760,23 +756,6 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   }
 
   return tsInt64;
-}
-
-static int64_t smlGetTimeNow(int8_t precision) {
-  switch (precision) {
-    case TSDB_TIME_PRECISION_HOURS:
-      return taosGetTimestampMs()/1000/3600;
-    case TSDB_TIME_PRECISION_MINUTES:
-      return taosGetTimestampMs()/1000/60;
-    case TSDB_TIME_PRECISION_SECONDS:
-      return taosGetTimestampMs()/1000;
-    case TSDB_TIME_PRECISION_MILLI:
-    case TSDB_TIME_PRECISION_MICRO:
-    case TSDB_TIME_PRECISION_NANO:
-      return taosGetTimestamp(precision);
-    default:
-      ASSERT(0);
-  }
 }
 
 static int8_t smlGetTsTypeByLen(int32_t len) {
@@ -810,13 +789,14 @@ static int8_t smlGetTsTypeByPrecision(int8_t precision) {
 }
 
 static int64_t smlParseInfluxTime(SSmlHandle* info, const char* data, int32_t len){
+  if(len == 0){
+    return taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+  }
+
   int8_t tsType = smlGetTsTypeByPrecision(info->precision);
   if (tsType == -1) {
     smlBuildInvalidDataMsg(&info->msgBuf, "invalid timestamp precision", NULL);
     return -1;
-  }
-  if(len == 0){
-    return smlGetTimeNow(tsType);
   }
 
   int64_t ts = smlGetTimeValue(data, len, tsType);
