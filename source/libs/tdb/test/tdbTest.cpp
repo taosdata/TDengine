@@ -486,18 +486,18 @@ TEST(tdb_test, DISABLED_simple_upsert1) {
   tdbClose(pEnv);
 }
 
-TEST(tdb_test, DISABLED_multi_thread_query) {
+TEST(tdb_test, multi_thread_query) {
   int           ret;
   TDB          *pEnv;
   TTB          *pDb;
   tdb_cmpr_fn_t compFunc;
-  int           nData = 100000;
+  int           nData = 1000000;
   TXN           txn;
 
   taosRemoveDir("tdb");
 
   // Open Env
-  ret = tdbOpen("tdb", 512, 1, &pEnv);
+  ret = tdbOpen("tdb", 4096, 10, &pEnv);
   GTEST_ASSERT_EQ(ret, 0);
 
   // Create a database
@@ -507,7 +507,7 @@ TEST(tdb_test, DISABLED_multi_thread_query) {
 
   char      key[64];
   char      val[64];
-  int64_t   poolLimit = 4096;  // 1M pool limit
+  int64_t   poolLimit = 4096 * 20;  // 1M pool limit
   int64_t   txnid = 0;
   SPoolMem *pPool;
 
@@ -600,7 +600,7 @@ TEST(tdb_test, DISABLED_multi_thread_query) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-TEST(tdb_test, multi_thread1) {
+TEST(tdb_test, DISABLED_multi_thread1) {
 #if 0
   int           ret;
   TDB          *pDb;
