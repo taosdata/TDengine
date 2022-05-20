@@ -19,7 +19,7 @@ The major features are listed below:
 6. Support for [continuous query](/develop/continuous-query).
 7. Support for [data subscription](/develop/subscribe) with the capability to specify filter conditions.
 8. Support for [cluster](/cluster/), with the capability of increasing processing power by adding more nodes. High availability is supported by replication. 
-9. Provides interactive [command-line intrerface](/reference/taos-shell) for management, maintainence and ad-hoc query.
+9. Provides interactive [command-line interface](/reference/taos-shell) for management, maintenance and ad-hoc query.
 10. Provides many ways to [import](/operation/import) and [export](/operation/export) data.
 11. Provides [monitoring](/operation/monitor) on TDengine running instances.
 12. Provides [connectors](/reference/connector/) for [C/C++](/reference/connector/cpp), [Java](/reference/connector/java), [Python](/reference/connector/python), [Go](/reference/connector/go), [Rust](/reference/connector/rust), [Node.js](/reference/connector/node) and other programming languages.
@@ -49,7 +49,7 @@ TDengine makes full use of [the characteristics of time series data](https://tde
 
 - **Interactive Console**: TDengine provides convenient console access to the database to run ad hoc queries, maintain the database, or manage the cluster without any programming.
 
-With TDengine, the total cost of ownership of time-seriess data platform can be greatly reduced. Because 1: with its superior performance, the computing and storage resources are reduced significantly; 2：with SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly; 3: with its simple architecture and zero management, the operation and maintainence costs are reduced. 
+With TDengine, the total cost of ownership of time-series data platform can be greatly reduced. Because 1: with its superior performance, the computing and storage resources are reduced significantly; 2：with SQL support, it can be seamlessly integrated with many third party tools, and learning costs/migration costs are reduced significantly; 3: with its simple architecture and zero management, the operation and maintenance costs are reduced. 
 
 ## Technical Ecosystem
 In the time-series data processing platform, TDengine stands in a role like this diagram below:
@@ -58,7 +58,7 @@ In the time-series data processing platform, TDengine stands in a role like this
 
 <center>Figure 1. TDengine Technical Ecosystem</center>
 
-On the left side, there are data collection agents like OPC-UA, MQTT, Telegraf and Kafka. On the right side, visualization/BI tools, HMI, Python/R, and IoT Apps can be connected. TDengine itself provides interactive command-line interface and web interface for management and maintainence.
+On the left side, there are data collection agents like OPC-UA, MQTT, Telegraf and Kafka. On the right side, visualization/BI tools, HMI, Python/R, and IoT Apps can be connected. TDengine itself provides interactive command-line interface and web interface for management and maintenance.
 
 ## Suited Scenarios
 
@@ -103,7 +103,7 @@ As a high-performance, scalable and SQL supported time-series database, TDengine
 | Minimize learning and maintenance costs |                    |                      | √                   | In addition to being easily configurable, standard SQL support and the Taos shell for ad hoc queries makes maintenance simpler, allows reuse and reduces learning costs.|
 | Abundant talent supply               | √                  |                      |                     | Given the above, and given the extensive training and professional services provided by TDengine, it is easy to migrate from existing solutions or create a new and lasting solution based on TDengine.|
 
-## Comparision with other databases
+## Comparison with other databases
 
 - [Writing Performance Comparison of TDengine and InfluxDB ](https://tdengine.com/2022/02/23/4975.html)
 - [Query Performance Comparison of TDengine and InfluxDB](https://tdengine.com/2022/02/24/5120.html)
