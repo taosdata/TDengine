@@ -241,6 +241,9 @@ int32_t ctgGetTbMeta(CTG_PARAMS, SCtgTbMetaCtx* ctx, STableMeta** pTableMeta) {
   STableMetaOutput *output = NULL;
 
   CTG_ERR_RET(ctgGetTbMetaFromCache(CTG_PARAMS_LIST(), ctx, pTableMeta));
+  if (*pTableMeta) {
+    goto _return;
+  }
 
   while (true) {
     CTG_ERR_JRET(ctgRefreshTbMeta(CTG_PARAMS_LIST(), ctx, &output, false));
