@@ -565,7 +565,7 @@ public class ParameterBindingDemo {
                 // set table name
                 pstmt.setTableName("t5_" + i);
                 // set tags
-                pstmt.setTagNString(0, "北京-abc");
+                pstmt.setTagNString(0, "Beijing-abc");
 
                 // set columns
                 ArrayList<Long> tsList = new ArrayList<>();
@@ -576,7 +576,7 @@ public class ParameterBindingDemo {
 
                 ArrayList<String> f1List = new ArrayList<>();
                 for (int j = 0; j < numOfRow; j++) {
-                    f1List.add("北京-abc");
+                    f1List.add("Beijing-abc");
                 }
                 pstmt.setNString(1, f1List, BINARY_COLUMN_SIZE);
 

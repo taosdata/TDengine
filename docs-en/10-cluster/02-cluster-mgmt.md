@@ -206,7 +206,7 @@ It can be seen from above output that vgId 18 has been moved from dndoe 3 to dno
 
 :::note
 
-- Manual load balancing can only be performed when the automatic load balancing is disabled, i.e. `balance` is set to 0 只.
+- Manual load balancing can only be performed when the automatic load balancing is disabled, i.e. `balance` is set to 0.
 - Only vnode in normal state, i.e. master or slave, can be moved. vnode can't moved when its in status offline, unsynced or syncing.
 - Before moving a vnode, it's necessary to make sure the target dnode has enough resources: CPU, memory and disk.
 

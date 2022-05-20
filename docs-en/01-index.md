@@ -4,7 +4,7 @@ sidebar_label: Documentation Home
 slug: /
 ---
 
-TDengine is a high-performance, scalable time series database with SQL support. This document is TDengine user manual. It mainly introduces the basic concepts, installation, features, SQL, APIs, operation, maintenance, kernel design, etc. It’s written mainly for architects, developers and system administrators.
+TDengine is a [high-performance](https://tdengine.com/fast), [scalable](https://tdengine.com/scalable) time series database with [SQL support](https://tdengine.com/sql-support). This document is TDengine user manual. It mainly introduces the basic concepts, installation, features, SQL, APIs, operation, maintenance, kernel design, etc. It’s written mainly for architects, developers and system administrators.
 
 TDengine makes full use of the characteristics of time series data, proposes the concepts of "one table for one data collection point" and "super table", and designs an innovative storage engine, which greatly improves the efficiency of data ingestion, querying and storage. To understand the new concepts and use TDengine in the right way, please read [“concepts”](./concept) thoroughly.
 
