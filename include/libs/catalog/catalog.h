@@ -46,23 +46,33 @@ typedef enum {
   AUTH_TYPE_OTHER,
 } AUTH_TYPE;
 
+typedef struct SUserAuthInfo {
+  char user[TSDB_USER_LEN]; 
+  char dbFName[TSDB_DB_FNAME_LEN]; 
+  AUTH_TYPE type;
+} SUserAuthInfo;
+
 typedef struct SCatalogReq {
-  SArray *pTableName;     // element is SNAME
-  SArray *pUdf;           // udf name
+  SArray *pTableMeta;     // element is SNAME
+  SArray *pDbVgroup;      // element is db full name
+  SArray *pTableHash;     // element is SNAME
+  SArray *pUdf;           // element is udf name
+  SArray *pDbCfg;         // element is db full name
+  SArray *pIndex;         // element is index name
+  SArray *pUser;          // element is SUserAuthInfo
   bool    qNodeRequired;  // valid qnode
 } SCatalogReq;
 
 typedef struct SMetaData {
-  SArray    *pTableMeta;  // STableMeta array
-  SArray    *pVgroupInfo; // SVgroupInfo list
-  SArray    *pUdfList;    // udf info list
-  SArray    *pQnodeList;  // qnode list, SArray<SQueryNodeAddr>
+  SArray    *pTableMeta;  // SArray<STableMeta>
+  SArray    *pDbVgroup;   // SArray<SArray<SVgroupInfo>*>
+  SArray    *pTableHash;  // SArray<SVgroupInfo>
+  SArray    *pUdfList;    // SArray<SFuncInfo>
+  SArray    *pDbCfg;      // SArray<SDbCfgInfo>
+  SArray    *pIndex;      // SArray<SIndexInfo>
+  SArray    *pUser;       // SArray<bool>
+  SArray    *pQnodeList;  // SArray<SQueryNodeAddr>
 } SMetaData;
-
-typedef struct STbSVersion {
-  char* tbFName;
-  int32_t sver;
-} STbSVersion;
 
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
@@ -88,6 +98,11 @@ typedef struct SDbVgVersion {
   int32_t numOfTable; // unit is TSDB_TABLE_NUM_UNIT
 } SDbVgVersion;
 
+typedef struct STbSVersion {
+  char* tbFName;
+  int32_t sver;
+} STbSVersion;
+
 typedef struct SUserAuthVersion {
   char    user[TSDB_USER_LEN];
   int32_t version;
@@ -95,6 +110,8 @@ typedef struct SUserAuthVersion {
 
 typedef SDbCfgRsp SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
+
+typedef void (*catalogCallback)(SMetaData* pResult, void* param, int32_t code);
 
 int32_t catalogInit(SCatalogCfg *cfg);
 
@@ -127,32 +144,11 @@ int32_t catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* vers
  */
 int32_t catalogGetDBVgInfo(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const char* pDBName, SArray** pVgroupList);
 
-typedef struct {
-} SResultMetaInfoWrapper;
-
-typedef void (*__async_cb_fn_t)(const SResultMetaInfoWrapper* pResult, void* param, int32_t code);
-
-typedef struct {
-  SCatalog* pCatalog;
-  void*     pTransporter;
-  SEpSet*   pMgmtEps;
-  char*     pDbname;
-} CatalogParamWrapper;
-
-/**
- *
- * @param pCatalogWrapper
- * @param fp
- * @param param
- * @return
- */
-int32_t catalogGetDBVgInfo_a(CatalogParamWrapper* pCatalogWrapper, __async_cb_fn_t fp, void* param);
-
 int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t dbId, SDBVgInfo* dbInfo);
 
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
-int32_t catalogRemoveTableMeta(SCatalog* pCtg, const SName* pTableName);
+int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName);
 
 int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid);
 
@@ -262,9 +258,9 @@ int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion **users, uint32_
 
 int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg);
 
-int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
+int32_t catalogGetIndexMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
 
-int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo** pInfo);
+int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo* pInfo);
 
 int32_t catalogChkAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass);
 
