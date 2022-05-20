@@ -44,9 +44,8 @@ SWal* createWal(char* path, int32_t vgId) {
 SSyncNode* createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* pWal, char* path) {
   SSyncInfo syncInfo;
   syncInfo.vgId = vgId;
-  syncInfo.rpcClient = gSyncIO->clientRpc;
+  syncInfo.msgcb = &gSyncIO->msgcb;
   syncInfo.FpSendMsg = syncIOSendMsg;
-  syncInfo.queue = gSyncIO->pMsgQ;
   syncInfo.FpEqMsg = syncIOEqMsg;
   syncInfo.pFsm = NULL;
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);

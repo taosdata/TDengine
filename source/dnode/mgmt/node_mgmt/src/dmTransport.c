@@ -49,9 +49,9 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 }
 
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  SDnodeTrans  *pTrans = &pDnode->trans;
+  SDnodeTrans * pTrans = &pDnode->trans;
   int32_t       code = -1;
-  SRpcMsg      *pMsg = NULL;
+  SRpcMsg *     pMsg = NULL;
   bool          needRelease = false;
   SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
   SMgmtWrapper *pWrapper = NULL;
@@ -179,11 +179,11 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
+    SArray *      pArray = (*pWrapper->func.getHandlesFp)();
     if (pArray == NULL) return -1;
 
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-      SMgmtHandle  *pMgmt = taosArrayGet(pArray, i);
+      SMgmtHandle * pMgmt = taosArrayGet(pArray, i);
       SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
       if (pMgmt->needCheckVgId) {
         pHandle->needCheckVgId = pMgmt->needCheckVgId;
@@ -198,47 +198,6 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
   }
 
   return 0;
-}
-
-static void dmSendRpcRedirectRsp(const SRpcMsg *pMsg) {
-  SDnode *pDnode = dmInstance();
-  SEpSet  epSet = {0};
-  dmGetMnodeEpSet(&pDnode->data, &epSet);
-
-  dDebug("RPC %p, req is redirected, num:%d use:%d", pMsg->info.handle, epSet.numOfEps, epSet.inUse);
-  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-    dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    if (strcmp(epSet.eps[i].fqdn, tsLocalFqdn) == 0 && epSet.eps[i].port == tsServerPort) {
-      epSet.inUse = (i + 1) % epSet.numOfEps;
-    }
-
-    epSet.eps[i].port = htons(epSet.eps[i].port);
-  }
-
-  SMEpSet msg = {.epSet = epSet};
-  int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
-
-  SRpcMsg rsp = {
-      .code = TSDB_CODE_RPC_REDIRECT,
-      .info = pMsg->info,
-      .contLen = len,
-  };
-  rsp.pCont = rpcMallocCont(len);
-  tSerializeSMEpSet(rsp.pCont, len, &msg);
-  rpcSendResponse(&rsp);
-
-  rpcFreeCont(pMsg->pCont);
-}
-
-static inline void dmSendRecv(SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp) {
-  SDnode *pDnode = dmInstance();
-  if (pDnode->status != DND_STAT_RUNNING) {
-    pRsp->code = TSDB_CODE_NODE_OFFLINE;
-    rpcFreeCont(pReq->pCont);
-    pReq->pCont = NULL;
-  } else {
-    rpcSendRecv(pDnode->trans.clientRpc, pEpSet, pReq, pRsp);
-  }
 }
 
 static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
@@ -257,39 +216,38 @@ static inline int32_t dmSendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
 static inline void dmSendRsp(SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = pMsg->info.wrapper;
-  if (pMsg->code == TSDB_CODE_NODE_REDIRECT) {
-    dmSendRpcRedirectRsp(pMsg);
+  if (InChildProc(pWrapper)) {
+    dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   } else {
-    if (InChildProc(pWrapper)) {
-      dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
-    } else {
-      rpcSendResponse(pMsg);
-    }
+    rpcSendResponse(pMsg);
   }
 }
 
 static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
-  SMgmtWrapper *pWrapper = pMsg->info.wrapper;
-  if (InChildProc(pWrapper)) {
-    dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
-  } else {
-    SRpcMsg rsp = {0};
-    SMEpSet msg = {.epSet = *pNewEpSet};
-    int32_t len = tSerializeSMEpSet(NULL, 0, &msg);
-    rsp.pCont = rpcMallocCont(len);
-    rsp.contLen = len;
-    tSerializeSMEpSet(rsp.pCont, len, &msg);
+  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
+  SMEpSet msg = {.epSet = *pNewEpSet};
+  int32_t contLen = tSerializeSMEpSet(NULL, 0, &msg);
 
-    rsp.code = TSDB_CODE_RPC_REDIRECT;
-    rsp.info = pMsg->info;
-    rpcSendResponse(&rsp);
+  rsp.pCont = rpcMallocCont(contLen);
+  if (rsp.pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    tSerializeSMEpSet(rsp.pCont, contLen, &msg);
+    rsp.contLen = contLen;
   }
+  dmSendRsp(&rsp);
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
 }
 
 static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = pMsg->info.wrapper;
   if (InChildProc(pWrapper)) {
     dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_REGIST);
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
   } else {
     rpcRegisterBrokenLinkArg(pMsg);
   }
@@ -318,14 +276,8 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = INTERNAL_USER;
-  rpcInit.ckey = INTERNAL_CKEY;
-  rpcInit.spi = 1;
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
-
-  char pass[TSDB_PASSWORD_LEN + 1] = {0};
-  taosEncryptPass_c((uint8_t *)(INTERNAL_SECRET), strlen(INTERNAL_SECRET), pass);
-  rpcInit.secret = pass;
 
   pTrans->clientRpc = rpcOpen(&rpcInit);
   if (pTrans->clientRpc == NULL) {
@@ -390,4 +342,35 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .reportStartupFp = dmReportStartup,
   };
   return msgCb;
+}
+
+static void dmSendMnodeRedirectRsp(SRpcMsg *pMsg) {
+  SDnode *pDnode = dmInstance();
+  SEpSet  epSet = {0};
+  dmGetMnodeEpSet(&pDnode->data, &epSet);
+
+  dDebug("msg:%p, is redirected, num:%d use:%d", pMsg, epSet.numOfEps, epSet.inUse);
+  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+    dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    if (strcmp(epSet.eps[i].fqdn, tsLocalFqdn) == 0 && epSet.eps[i].port == tsServerPort) {
+      epSet.inUse = (i + 1) % epSet.numOfEps;
+    }
+
+    epSet.eps[i].port = htons(epSet.eps[i].port);
+  }
+
+  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
+  SMEpSet msg = {.epSet = epSet};
+  int32_t contLen = tSerializeSMEpSet(NULL, 0, &msg);
+  rsp.pCont = rpcMallocCont(contLen);
+  if (rsp.pCont == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    tSerializeSMEpSet(rsp.pCont, contLen, &msg);
+    rsp.contLen = contLen;
+  }
+
+  dmSendRsp(&rsp);
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
 }
