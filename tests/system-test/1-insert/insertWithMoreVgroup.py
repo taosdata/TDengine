@@ -119,7 +119,7 @@ class TDTestCase:
         # tdLog.debug("spent %.2fs to create 1 stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,count,speedCreate))
         return
 
-    def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,count):
+    def mutiThread_create_tables(self,host,dbname,stbname,vgroups,threadNumbers,childrowcount):
         buildPath = self.getBuildPath()
         config = buildPath+ "../sim/dnode1/cfg/"
         
@@ -128,7 +128,7 @@ class TDTestCase:
         tsql.execute("drop database if exists %s"%dbname)
         tsql.execute("create database %s vgroups %d"%(dbname,vgroups))
         tsql.execute("use %s" %dbname)
-        count=int(count)
+        count=int(childrowcount)
         threads = []
         for i in range(threadNumbers):
             tsql.execute("create stable %s%d(ts timestamp, c1 int, c2 binary(10)) tags(t1 int)"%(stbname,i))
@@ -140,7 +140,7 @@ class TDTestCase:
             tr.join()
         end_time = time.time()
         spendTime=end_time-start_time
-        speedCreate=count/spendTime
+        speedCreate=threadNumbers*count/spendTime
         tdLog.debug("spent %.2fs to create %d stable and %d table, create speed is %.2f table/s... [OK]"% (spendTime,threadNumbers,threadNumbers*count,speedCreate))
         
         return
@@ -171,7 +171,7 @@ class TDTestCase:
                     sql = "insert into %s_%d values " %(stbname,i)
         # end sql        
         if sql != pre_insert:
-            print(sql)
+            # print(sql)
             print(len(sql))
             tsql.execute(sql)
         exeEndTime=time.time()
@@ -269,7 +269,7 @@ class TDTestCase:
         tdLog.debug("-----create database and muti-thread create tables test------- ")
         #host,dbname,stbname,vgroups,threadNumbers,tcountStart,tcountStop
         #host, dbname, stbname, threadNumbers, chilCount, ts_start, childrowcount
-        self.mutiThread_create_tables(host="localhost",dbname="db",stbname="stb", vgroups=1, threadNumbers=5, count=50)
+        self.mutiThread_create_tables(host="localhost",dbname="db",stbname="stb", vgroups=1, threadNumbers=5, childrowcount=50)
         self.mutiThread_insert_data(host="localhost",dbname="db",stbname="stb", threadNumbers=5,chilCount=50,ts_start=self.ts,childrowcount=10)
 
         return 
