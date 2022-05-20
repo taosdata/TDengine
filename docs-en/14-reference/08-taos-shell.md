@@ -4,7 +4,7 @@ sidebar_label: TDengine CLI
 description: Instructions and tips for using the TDengine CLI
 ---
 
-The TDengine command-line application (hereafter referred to as `TDengine CLI`) is the most feasible way for users to manipulate and interact with TDengine instances.
+The TDengine command-line application (hereafter referred to as `TDengine CLI`) is the most simplest way for users to manipulate and interact with TDengine instances.
 
 ## Installation
 
