@@ -142,6 +142,8 @@ class TDTestCase:
                 tdSql.checkData(i, fsync_index, 3000)
                 tdSql.checkData(i, wal_index, 1)
 
+        tdSql.execute("drop database db1 ")
+
     @property
     def fsync_create_err(self):
         return [
