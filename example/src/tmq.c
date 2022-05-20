@@ -106,8 +106,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");
-  /*pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");*/
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");*/
+  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -167,6 +167,7 @@ tmq_t* build_consumer() {
   tmq_conf_set(conf, "td.connect.pass", "taosdata");
   /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
   tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set(conf, "enable.auto.commit", "false");
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
@@ -239,7 +240,7 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
       msg_process(tmqmessage);
       taos_free_result(tmqmessage);
 
-      tmq_commit_async(tmq, NULL, tmq_commit_cb_print, NULL);
+      /*tmq_commit_async(tmq, NULL, tmq_commit_cb_print, NULL);*/
       /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }
