@@ -308,22 +308,23 @@ int32_t vmPutNodeMsgToMgmtQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t vmPutNodeMsgToMonitorQueue(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SSingleWorker *pWorker = &pMgmt->monitorWorker;
-
   dTrace("msg:%p, put into vnode-monitor worker, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
 
 static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType qtype) {
-  SMsgHead *pHead = pRpc->pCont;
-
+  SMsgHead  *pHead = pRpc->pCont;
   SVnodeObj *pVnode = vmAcquireVnode(pMgmt, pHead->vgId);
   if (pVnode == NULL) return -1;
 
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  int32_t  code = 0;
+  int32_t  code = -1;
 
-  if (pMsg != NULL) {
+  if (pMsg == NULL) {
+    rpcFreeCont(pRpc->pCont);
+    pRpc->pCont = NULL;
+  } else {
     memcpy(pMsg, pRpc, sizeof(SRpcMsg));
     switch (qtype) {
       case WRITE_QUEUE:
@@ -351,7 +352,6 @@ static int32_t vmPutRpcMsgToQueue(SVnodeMgmt *pMgmt, SRpcMsg *pRpc, EQueueType q
         taosWriteQitem(pVnode->pSyncQ, pMsg);
         break;
       default:
-        code = -1;
         terrno = TSDB_CODE_INVALID_PARA;
         break;
     }
@@ -428,7 +428,7 @@ int32_t vmAllocQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
     return -1;
   }
 
-  dDebug("vgId:%d, vnode queue is alloced", pVnode->vgId);
+  dDebug("vgId:%d, queue is alloced", pVnode->vgId);
   return 0;
 }
 
@@ -445,7 +445,7 @@ void vmFreeQueue(SVnodeMgmt *pMgmt, SVnodeObj *pVnode) {
   pVnode->pQueryQ = NULL;
   pVnode->pFetchQ = NULL;
   pVnode->pMergeQ = NULL;
-  dDebug("vgId:%d, vnode queue is freed", pVnode->vgId);
+  dDebug("vgId:%d, queue is freed", pVnode->vgId);
 }
 
 int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
@@ -496,7 +496,7 @@ int32_t vmStartWorker(SVnodeMgmt *pMgmt) {
       .param = pMgmt,
   };
   if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
-    dError("failed to start mnode vnode-monitor worker since %s", terrstr());
+    dError("failed to start vnode-monitor worker since %s", terrstr());
     return -1;
   }
 
