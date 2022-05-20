@@ -108,7 +108,7 @@ From version 2.2.0.0, the above command can be executed on Linux Shell to test t
 
 The parameter `debugFlag` is used to control the log level of `taosd` server process. The default value is 131, for debug purpose it needs to be escalated to 135 or 143. 
 
-Once this parameter is set to 135 or 143, the log file grows very quickly especially when there is huge volume of data insertion and data query requests. If all the logs are stored together, some important information may be missed very easily, so on server side important information is stored at different place from other logs.一
+Once this parameter is set to 135 or 143, the log file grows very quickly especially when there is huge volume of data insertion and data query requests. If all the logs are stored together, some important information may be missed very easily, so on server side important information is stored at different place from other logs.
 
 - The log at level of INFO, WARNING and ERROR is stored in `taosinfo` so that it is easy to find important information 
 - The log at level of DEBUG (135) and TRACE (143) and other information not handled by `taosinfo` are stored in `taosdlog`
