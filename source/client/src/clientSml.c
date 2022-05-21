@@ -63,10 +63,6 @@ for (int i = 1; i < keyLen; ++i) {      \
 
 #define TS              "_ts"
 #define TS_LEN          3
-#define TAG             "_tag"
-#define TAG_LEN         4
-#define TAG_VALUE       "NULL"
-#define TAG_VALUE_LEN   4
 #define VALUE           "value"
 #define VALUE_LEN       5
 
@@ -402,7 +398,7 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       }
       if(taosArrayGetSize(cols) == 0){
         outBytes = snprintf(pos, freeBytes,"`%s` %s(%d)",
-                               TAG, tDataTypes[TSDB_DATA_TYPE_NCHAR].name, CHAR_SAVE_LENGTH);
+                            tsSmlTagName, tDataTypes[TSDB_DATA_TYPE_NCHAR].name, CHAR_SAVE_LENGTH);
         pos += outBytes; freeBytes -= outBytes;
         *pos = ','; ++pos; --freeBytes;
       }
