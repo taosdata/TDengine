@@ -774,8 +774,11 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
     if (pOld->refCount <=0) {
       if (prevNode) {
         prevNode->next = pOld->next;
+        ASSERT(prevNode->next != prevNode);
       } else {
         pe->next = pOld->next;
+        SHashNode* x = pe->next;
+        ASSERT(x->next != x);
       }
 
       pe->num--;
