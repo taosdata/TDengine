@@ -1,0 +1,130 @@
+---
+sidebar_label: SQL
+title: Insert Using SQL
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaSQL from "./_java_sql.mdx";
+import JavaStmt from "./_java_stmt.mdx";
+import PySQL from "./_py_sql.mdx";
+import PyStmt from "./_py_stmt.mdx";
+import GoSQL from "./_go_sql.mdx";
+import GoStmt from "./_go_stmt.mdx";
+import RustSQL from "./_rust_sql.mdx";
+import RustStmt from "./_rust_stmt.mdx";
+import NodeSQL from "./_js_sql.mdx";
+import NodeStmt from "./_js_stmt.mdx";
+import CsSQL from "./_cs_sql.mdx";
+import CsStmt from "./_cs_stmt.mdx";
+import CSQL from "./_c_sql.mdx";
+import CStmt from "./_c_stmt.mdx";
+
+## Introduction
+
+Application program can execute `INSERT` statement through connectors to insert rows. TAOS CLI can be launched manually to insert data too.
+
+### Insert Single Row
+
+Below SQL statement is used to insert one row into table "d1001".
+
+```sql
+INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31);
+```
+
+### Insert Multiple Rows
+
+Multiple rows can be inserted in single SQL statement. Below example inserts 2 rows into table "d1001".
+
+```sql
+INSERT INTO d1001 VALUES (1538548684000, 10.2, 220, 0.23) (1538548696650, 10.3, 218, 0.25);
+```
+
+### Insert into Multiple Tables
+
+Data can be inserted into multiple tables in same SQL statement. Below example inserts 2 rows into table "d1001" and 1 row into table "d1002".
+
+```sql
+INSERT INTO d1001 VALUES (1538548685000, 10.3, 219, 0.31) (1538548695000, 12.6, 218, 0.33) d1002 VALUES (1538548696800, 12.3, 221, 0.31);
+```
+
+For more details about `INSERT` please refer to [INSERT](/taos-sql/insert).
+
+:::info
+
+- Inserting in batch can gain better performance. Normally, the higher the batch size, the better the performance. Please be noted each single row can't exceed 16K bytes and each single SQL statement can't exceed 1M bytes.
+- Inserting with multiple threads can gain better performance too. However, depending on the system resources on the application side and the server side, with the number of inserting threads grows to a specific point, the performance may drop instead of growing. The proper number of threads need to be tested in a specific environment to find the best number.
+
+:::
+
+:::warning
+
+- If the timestamp for the row to be inserted already exists in the table, the behavior depends on the value of parameter `UPDATE`. If it's set to 0 (also the default value), the row will be discarded. If it's set to 1, the new values will override the old values for the same row.
+- The timestamp to be inserted must be newer than the timestamp of subtracting current time by the parameter `KEEP`. If `KEEP` is set to 3650 days, then the data older than 3650 days ago can't be inserted. The timestamp to be inserted can't be newer than the timestamp of current time plus parameter `DAYS`. If `DAYS` is set to 2, the data newer than 2 days later can't be inserted.
+
+:::
+
+## Examples
+
+### Insert Using SQL
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaSQL />
+  </TabItem>
+  <TabItem label="Python" value="python">
+    <PySQL />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoSQL />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustSQL />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeSQL />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsSQL />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CSQL />
+  </TabItem>
+</Tabs>
+
+:::note
+
+1. With either native connection or REST connection, the above samples can work well.
+2. Please be noted that `use db` can't be used with REST connection because REST connection is stateless, so in the samples `dbName.tbName` is used to specify the table name.
+
+:::
+
+### Insert with Parameter Binding
+
+TDengine also provides Prepare API that support parameter binding. Similar to MySQL, only `?` can be used in these APIs to represent the parameters to bind. From version 2.1.1.0 and 2.1.2.0, parameter binding support for inserting data has been improved significantly to improve the insert performance by avoiding the cost of parsing SQL statements.
+
+Parameter binding is available only with native connection.
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaStmt />
+  </TabItem>
+  <TabItem label="Python" value="python">
+    <PyStmt />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoStmt />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustStmt />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeStmt />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsStmt />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CStmt />
+  </TabItem>
+</Tabs>
