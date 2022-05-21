@@ -790,6 +790,7 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
     }
 
     getTableScanInfo(pOperator, &pInfo->order, &scanFlag);
+    blockDataUpdateTsWindow(pBlock, pInfo->primaryTsIndex);
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, pInfo->order, scanFlag, true);
@@ -938,8 +939,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
     return pBInfo->pRes;
   }
 
-  int32_t     order = TSDB_ORDER_ASC;
-  STimeWindow win = pTaskInfo->window;
+  int32_t order = TSDB_ORDER_ASC;
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
@@ -952,6 +952,8 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
     }
 
     setInputDataBlock(pOperator, pBInfo->pCtx, pBlock, order, MAIN_SCAN, true);
+    blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
+
     doStateWindowAggImpl(pOperator, pInfo, pBlock);
   }
 
@@ -1429,6 +1431,8 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
 
     // the pDataBlock are always the same one, no need to call this again
     setInputDataBlock(pOperator, pBInfo->pCtx, pBlock, order, MAIN_SCAN, true);
+    blockDataUpdateTsWindow(pBlock, pInfo->tsSlotId);
+
     doSessionWindowAggImpl(pOperator, pInfo, pBlock);
   }
 
