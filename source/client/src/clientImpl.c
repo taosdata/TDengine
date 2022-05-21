@@ -957,7 +957,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
               length = 0;
             }
             varDataSetLen(dst, length + CHAR_BYTES * 2);
-            *(char*)(varDataVal(dst), length + CHAR_BYTES) = '\"';
+            *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
           } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
             double jsonVd = *(double*)(jsonInnerData);
             sprintf(varDataVal(dst), "%.9lf", jsonVd);
