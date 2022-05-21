@@ -169,13 +169,9 @@ int32_t qUpdateQualifiedTableId(qTaskInfo_t tinfo, const SArray* tableIdList, bo
     qDebug(" %d qualified child tables added into stream scanner", (int32_t)taosArrayGetSize(qa));
     code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, qa);
     taosArrayDestroy(qa);
-
   } else {  // remove the table id in current list
-    SArray* qa = filterQualifiedChildTables(pScanInfo, tableIdList);
-
     qDebug(" %d remove child tables from the stream scanner", (int32_t)taosArrayGetSize(tableIdList));
-    code = tqReadHandleAddTbUidList(pScanInfo->streamBlockReader, tableIdList);
-    taosArrayDestroy(qa);
+    code = tqReadHandleRemoveTbUidList(pScanInfo->streamBlockReader, tableIdList);
   }
 
   return code;
@@ -187,8 +183,16 @@ int32_t qGetQueriedTableSchemaVersion(qTaskInfo_t tinfo, char* dbName, char* tab
 
   *sversion = pTaskInfo->schemaVer.sversion;
   *tversion = pTaskInfo->schemaVer.tversion;
-  strcpy(dbName, pTaskInfo->schemaVer.dbname);
-  strcpy(tableName, pTaskInfo->schemaVer.tablename);
+  if (pTaskInfo->schemaVer.dbname) {
+    strcpy(dbName, pTaskInfo->schemaVer.dbname);
+  } else {
+    dbName[0] = 0;
+  }
+  if (pTaskInfo->schemaVer.tablename) {
+    strcpy(tableName, pTaskInfo->schemaVer.tablename);
+  } else {
+    tableName[0] = 0;
+  }
 
   return 0;
 }

@@ -12,7 +12,8 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef USE_UV
+#ifndef _TD_TRANSPORT_COMM_H
+#define _TD_TRANSPORT_COMM_H
 
 #ifdef __cplusplus
 extern "C" {
@@ -22,9 +23,6 @@ extern "C" {
 #include "lz4.h"
 #include "os.h"
 #include "osSocket.h"
-#include "rpcCache.h"
-#include "rpcHead.h"
-#include "rpcLog.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
@@ -33,6 +31,7 @@ extern "C" {
 #include "tmd5.h"
 #include "tmempool.h"
 #include "tmsg.h"
+#include "transLog.h"
 #include "transportInt.h"
 #include "tref.h"
 #include "trpc.h"
@@ -193,12 +192,7 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE                (sizeof(STranConnCtx))
 
-#define RPC_MSG_OVERHEAD           (sizeof(SRpcHead) + sizeof(SRpcDigest))
-#define rpcHeadFromCont(cont)      ((SRpcHead*)((char*)cont - sizeof(SRpcHead)))
-#define rpcContFromHead(msg)       (msg + sizeof(SRpcHead))
-#define rpcMsgLenFromCont(contLen) (contLen + sizeof(SRpcHead))
-#define rpcContLenFromMsg(msgLen)  (msgLen - sizeof(SRpcHead))
-#define rpcIsReq(type)             (type & 1U)
+#define rpcIsReq(type) (type & 1U)
 
 #define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
 
@@ -209,15 +203,14 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
 #define transIsReq(type)             (type & 1U)
 
-int       rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-void      rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-int32_t   rpcCompressRpcMsg(char* pCont, int32_t contLen);
-SRpcHead* rpcDecompressRpcMsg(SRpcHead* pHead);
-
-int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
-bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
+// int  rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
+//// int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen);
+//
+// int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
+// bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
 void transFreeMsg(void* msg);
 
@@ -365,4 +358,4 @@ void transThreadOnce();
 }
 #endif
 
-#endif
+#endif  // _TD_TRANSPORT_COMM_H

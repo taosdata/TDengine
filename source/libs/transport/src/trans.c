@@ -94,7 +94,9 @@ void rpcFreeCont(void* cont) {
   if (cont == NULL) {
     return;
   }
+
   taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
+  tTrace("free mem: %p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
 void* rpcReallocCont(void* ptr, int contLen) {
   if (ptr == NULL) {

@@ -1352,6 +1352,9 @@ typedef struct {
 
 typedef struct {
   int32_t code;
+  char    tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t sversion;
+  int32_t tversion;
 } SResReadyRsp;
 
 typedef struct {
@@ -2521,7 +2524,7 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
   buf = taosDecodeFixedI32(buf, &pRsp->blockNum);
   pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
-  pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(void*));
+  pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(int32_t));
   pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
   if (pRsp->blockNum != 0) {
@@ -2588,18 +2591,6 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
 static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
   taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp);
 }
-
-typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t sourceVg;
-  int64_t sourceVer;
-  SArray* data;  // SArray<SSDataBlock>
-} SStreamDispatchReq;
-
-typedef struct {
-  int8_t inputStatus;
-} SStreamDispatchRsp;
 
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {

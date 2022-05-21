@@ -96,6 +96,11 @@ static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg 
   const int32_t fullLen = headLen + bodyLen + 8;
   const int64_t handle = (int64_t)pMsg->info.handle;
 
+  if (fullLen > queue->total) {
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return -1;
+  }
+
   taosThreadMutexLock(&queue->mutex);
   if (fullLen > queue->avail) {
     taosThreadMutexUnlock(&queue->mutex);
@@ -137,13 +142,14 @@ static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg 
       queue->tail = headLen + bodyLen;
     } else if (remain < 8 + headLen) {
       memcpy(queue->pBuffer + queue->tail + 8, pHead, remain - 8);
-      memcpy(queue->pBuffer, (char*)pHead + remain - 8, rawHeadLen - (remain - 8));
+      memcpy(queue->pBuffer, (char *)pHead + remain - 8, rawHeadLen - (remain - 8));
       if (rawBodyLen > 0) memcpy(queue->pBuffer + headLen - (remain - 8), pBody, rawBodyLen);
       queue->tail = headLen - (remain - 8) + bodyLen;
     } else if (remain < 8 + headLen + bodyLen) {
       memcpy(queue->pBuffer + queue->tail + 8, pHead, rawHeadLen);
       if (rawBodyLen > 0) memcpy(queue->pBuffer + queue->tail + 8 + headLen, pBody, remain - 8 - headLen);
-      if (rawBodyLen > 0) memcpy(queue->pBuffer, (char*)pBody + remain - 8 - headLen, rawBodyLen - (remain - 8 - headLen));
+      if (rawBodyLen > 0)
+        memcpy(queue->pBuffer, (char *)pBody + remain - 8 - headLen, rawBodyLen - (remain - 8 - headLen));
       queue->tail = bodyLen - (remain - 8 - headLen);
     } else {
       memcpy(queue->pBuffer + queue->tail + 8, pHead, rawHeadLen);
@@ -307,12 +313,7 @@ static void *dmConsumChildQueue(void *param) {
     code = dmProcessNodeMsg(pWrapper, pMsg);
     if (code != 0) {
       dError("node:%s, failed to process msg:%p since %s, put into pqueue", proc->name, pMsg, terrstr());
-      SRpcMsg rsp = {
-          .code = (terrno != 0 ? terrno : code),
-          .pCont = pMsg->info.rsp,
-          .contLen = pMsg->info.rspLen,
-          .info = pMsg->info,
-      };
+      SRpcMsg rsp = {.code = (terrno != 0 ? terrno : code), .info = pMsg->info};
       dmPutToProcPQueue(proc, &rsp, DND_FUNC_RSP);
       rpcFreeCont(pMsg->pCont);
       taosFreeQitem(pMsg);
@@ -448,7 +449,7 @@ void dmPutToProcPQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype) {
       break;
     }
 
-    if (retry == 10) {
+    if (terrno != TSDB_CODE_OUT_OF_SHM_MEM) {
       pMsg->code = terrno;
       if (pMsg->contLen > 0) {
         rpcFreeCont(pMsg->pCont);
@@ -464,8 +465,18 @@ void dmPutToProcPQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype) {
       taosMsleep(retry);
     }
   }
+
+  rpcFreeCont(pMsg->pCont);
+  pMsg->pCont = NULL;
+  pMsg->contLen = 0;
 }
 
 int32_t dmPutToProcCQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype) {
-  return dmPushToProcQueue(proc, proc->cqueue, pMsg, ftype);
+  int32_t code = dmPushToProcQueue(proc, proc->cqueue, pMsg, ftype);
+  if (code == 0) {
+    dTrace("msg:%p, is freed after push to cqueue", pMsg);
+    rpcFreeCont(pMsg->pCont);
+    taosFreeQitem(pMsg);
+  }
+  return code;
 }
