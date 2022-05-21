@@ -46,6 +46,18 @@ IF(${TD_WINDOWS})
             ON
         )
 
+    option(
+        BUILD_TEST 
+        "If build unit tests using googletest" 
+        OFF
+    )
+ELSE ()
+
+    option(
+        BUILD_TEST 
+        "If build unit tests using googletest" 
+        ON
+    )
 ENDIF ()
 
 option(
@@ -53,12 +65,6 @@ option(
     "If build addr2line"
     OFF
     )
-
-option(
-    BUILD_TEST 
-    "If build unit tests using googletest" 
-    ON
-)
 
 option(
     BUILD_WITH_LEVELDB 
