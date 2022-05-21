@@ -1382,12 +1382,12 @@ class TDTestCase:
         self.tmqCase5(cfgPath, buildPath)
         self.tmqCase6(cfgPath, buildPath)
         self.tmqCase7(cfgPath, buildPath)
-        #self.tmqCase8(cfgPath, buildPath)
-        #self.tmqCase9(cfgPath, buildPath)
-        #self.tmqCase10(cfgPath, buildPath)        
-        #self.tmqCase11(cfgPath, buildPath)
-        #self.tmqCase12(cfgPath, buildPath)
-        #self.tmqCase13(cfgPath, buildPath)
+        self.tmqCase8(cfgPath, buildPath)
+        self.tmqCase9(cfgPath, buildPath)
+        self.tmqCase10(cfgPath, buildPath)        
+        self.tmqCase11(cfgPath, buildPath)
+        self.tmqCase12(cfgPath, buildPath)
+        self.tmqCase13(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()
