@@ -262,6 +262,9 @@ class TDTestCase:
     def __change_user_priv(self, user: User, pre_priv, invoke=False):
         if user.priv == pre_priv and invoke :
             return
+        if user.name == "root":
+            return
+
         if pre_priv.upper() == PRIVILEGES_ALL:
             pre_weight = -5 if invoke else 5
         elif pre_priv.upper() == PRIVILEGES_READ:
@@ -299,7 +302,7 @@ class TDTestCase:
         tdSql.query(sql)
         self.__change_user_priv(user=user, pre_priv=priv)
         user.db_set.add(dbname)
-        time.sleep(2)
+        time.sleep(1)
 
     def revoke_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None):
         sql = self.__revoke_user_privileges(privilege=priv, dbname=dbname, user_name=user.name)
@@ -307,11 +310,9 @@ class TDTestCase:
         if user is None or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
             tdSql.error(sql)
         tdSql.query(sql)
-        if user.name == "root":
-            return
         self.__change_user_priv(user=user, pre_priv=priv, invoke=True)
         user.db_set.remove(dbname)
-        time.sleep(2)
+        time.sleep(1)
 
     def test_priv_change_current(self):
         tdLog.printNoPrefix("==========step 1.0: if do not grant, can not read/write")
