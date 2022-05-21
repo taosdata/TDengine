@@ -311,7 +311,8 @@ class TDTestCase:
             tdSql.error(sql)
         tdSql.query(sql)
         self.__change_user_priv(user=user, pre_priv=priv, invoke=True)
-        user.db_set.remove(dbname)
+        if user.name != "root":
+            user.db_set.remove(dbname) if dbname else user.db_set.clear()
         time.sleep(1)
 
     def test_priv_change_current(self):
