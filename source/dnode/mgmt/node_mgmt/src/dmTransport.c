@@ -139,7 +139,11 @@ _OVER:
         }
       }
       SRpcMsg rspMsg = {.code = code, .info = pRpc->info};
-      tmsgSendRsp(&rspMsg);
+      if (pWrapper != NULL) {
+        tmsgSendRsp(&rspMsg);
+      } else {
+        rpcSendResponse(&rspMsg);
+      }
     }
 
     dTrace("msg:%p, is freed", pMsg);
