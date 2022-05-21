@@ -300,6 +300,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
       schedulerFreeJob(pRequest->body.queryJob);
     }
 
+    *pRes = res.res;
+
     pRequest->code = code;
     terrno = code;
     return pRequest->code;
@@ -347,6 +349,23 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
       taosArrayPush(pArray, &tbSver);
     }
   } else if (TDMT_VND_QUERY == pRequest->type) {
+    SArray* pTbArray = (SArray*)res;
+    int32_t tbNum = taosArrayGetSize(pTbArray);
+    if (tbNum <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
+
+    pArray = taosArrayInit(tbNum, sizeof(STbSVersion));
+    if (NULL == pArray) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    for (int32_t i = 0; i < tbNum; ++i) {
+      STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
+      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion};
+      taosArrayPush(pArray, &tbSver);
+    }
   }
 
   SCatalog* pCatalog = NULL;
@@ -371,6 +390,7 @@ void freeRequestRes(SRequestObj* pRequest, void* res) {
   if (TDMT_VND_SUBMIT == pRequest->type) {
     tFreeSSubmitRsp((SSubmitRsp*)res);
   } else if (TDMT_VND_QUERY == pRequest->type) {
+    taosArrayDestroy((SArray *)res);
   }
 }
 

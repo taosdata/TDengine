@@ -114,12 +114,6 @@ void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
   assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
   
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-//    SResultRow* pRow = pResultRowInfo->pResult[i];
-//    if (pRow->closed) {
-//      continue;
-//    }
-    
-//    pRow->closed = true;
   }
 }
 
@@ -144,11 +138,11 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
     for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
       struct SResultRowEntryInfo *pEntryInfo = NULL;//pResultRow->pEntryInfo[i];
 
-      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resSchema.bytes;
-      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
-      memset(s, 0, size);
+//      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resSchema.bytes;
+//      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
+//      memset(s, 0, size);
 
-      offset += size;
+//      offset += size;
       cleanupResultRowEntry(pEntryInfo);
     }
   }
@@ -161,7 +155,7 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
 }
 
 // TODO refactor: use macro
-SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset) {
+SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, const int32_t* offset) {
   assert(index >= 0 && offset != NULL);
   return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
 }
@@ -247,24 +241,12 @@ void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
-bool hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo) {
+bool hashRemainDataInGroupInfo(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->pRows == NULL) {
     return false;
   }
 
   return pGroupResInfo->index < taosArrayGetSize(pGroupResInfo->pRows);
-}
-
-bool hasRemainData(SGroupResInfo* pGroupResInfo) {
-  if (hasRemainDataInCurrentGroup(pGroupResInfo)) {
-    return true;
-  }
-
-  return pGroupResInfo->currentGroup < pGroupResInfo->totalGroup;
-}
-
-bool incNextGroup(SGroupResInfo* pGroupResInfo) {
-  return (++pGroupResInfo->currentGroup) < pGroupResInfo->totalGroup;
 }
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
@@ -387,11 +369,6 @@ void orderTheResultRows(STaskRuntimeEnv* pRuntimeEnv) {
 }
 
 static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, uint64_t groupId, int32_t* rowCellInfoOffset) {
-  if (!pGroupResInfo->ordered) {
-    orderTheResultRows(pRuntimeEnv);
-    pGroupResInfo->ordered = true;
-  }
-
   if (pGroupResInfo->pRows == NULL) {
     pGroupResInfo->pRows = taosArrayInit(100, POINTER_BYTES);
   }
@@ -402,6 +379,7 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
     if (pResultRowCell->groupId != groupId) {
       break;
     }
+
 
     int64_t num = getNumOfResultWindowRes(pRuntimeEnv, &pResultRowCell->pos, rowCellInfoOffset);
     if (num <= 0) {

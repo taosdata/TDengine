@@ -314,6 +314,17 @@ void dmGetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   taosThreadRwlockUnlock(&pData->lock);
 }
 
+void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet) {
+  dmGetMnodeEpSet(pData, pEpSet);
+  dDebug("msg:%p, is redirected, num:%d use:%d", pMsg, pEpSet->numOfEps, pEpSet->inUse);
+  for (int32_t i = 0; i < pEpSet->numOfEps; ++i) {
+    dDebug("mnode index:%d %s:%u", i, pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+    if (strcmp(pEpSet->eps[i].fqdn, tsLocalFqdn) == 0 && pEpSet->eps[i].port == tsServerPort) {
+      pEpSet->inUse = (i + 1) % pEpSet->numOfEps;
+    }
+  }
+}
+
 void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
   taosThreadRwlockWrlock(&pData->lock);
   pData->mnodeEps = *pEpSet;

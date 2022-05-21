@@ -15,9 +15,9 @@
 
 //#define _DEFAULT_SOURCE
 #include "os.h"
-#include "rpcLog.h"
 #include "tglobal.h"
 #include "tqueue.h"
+#include "transLog.h"
 #include "trpc.h"
 
 int         msgSize = 128;

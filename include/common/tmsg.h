@@ -1352,6 +1352,9 @@ typedef struct {
 
 typedef struct {
   int32_t code;
+  char    tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t sversion;
+  int32_t tversion;
 } SResReadyRsp;
 
 typedef struct {
@@ -2521,7 +2524,7 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
   buf = taosDecodeFixedI32(buf, &pRsp->blockNum);
   pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
-  pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(void*));
+  pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(int32_t));
   pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
   pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
   if (pRsp->blockNum != 0) {

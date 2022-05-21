@@ -258,7 +258,6 @@ static int32_t msg_process(TAOS_RES* msg, int64_t msgIndex, int32_t threadLable)
 int queryDB(TAOS* taos, char* command) {
   TAOS_RES* pRes = taos_query(taos, command);
   int       code = taos_errno(pRes);
-  // if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
   if (code != 0) {
     pError("failed to reason:%s, sql: %s", tstrerror(code), command);
     taos_free_result(pRes);

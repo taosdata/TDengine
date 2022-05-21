@@ -1,0 +1,186 @@
+---
+Sidebar_label: Select
+title: Select
+description: "This chapter introduces major query functionalities and how to perform sync and async query using connectors."
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaQuery from "./_java.mdx";
+import PyQuery from "./_py.mdx";
+import GoQuery from "./_go.mdx";
+import RustQuery from "./_rust.mdx";
+import NodeQuery from "./_js.mdx";
+import CsQuery from "./_cs.mdx";
+import CQuery from "./_c.mdx";
+import PyAsync from "./_py_async.mdx";
+import NodeAsync from "./_js_async.mdx";
+import CsAsync from "./_cs_async.mdx";
+import CAsync from "./_c_async.mdx";
+
+## Introduction
+
+SQL is used by TDengine as the query language. Application programs can send SQL statements to TDengine through REST API or connectors. TDengine CLI `taos` can also be used to execute SQL Ad-Hoc query. Here is the list of major query functionalities supported by TDengine：
+
+- Query on single column or multiple columns
+- Filter on tags or data columns：>, <, =, <\>, like
+- Grouping of results: `Group By`
+- Sorting of results: `Order By`
+- Limit the number of results: `Limit/Offset`
+- Arithmetic on columns of numeric types or aggregate results
+- Join query with timestamp alignment
+- Aggregate functions: count, max, min, avg, sum, twa, stddev, leastsquares, top, bottom, first, last, percentile, apercentile, last_row, spread, diff
+
+For example, below SQL statement can be executed in TDengine CLI `taos` to select the rows whose voltage column is bigger than 215 and limit the output to only 2 rows.
+
+```sql
+select * from d1001 where voltage > 215 order by ts desc limit 2;
+```
+
+```title=Output
+taos> select * from d1001 where voltage > 215 order by ts desc limit 2;
+           ts            |       current        |   voltage   |        phase         |
+======================================================================================
+ 2018-10-03 14:38:16.800 |             12.30000 |         221 |              0.31000 |
+ 2018-10-03 14:38:15.000 |             12.60000 |         218 |              0.33000 |
+Query OK, 2 row(s) in set (0.001100s)
+```
+
+To meet the requirements in many use cases, some special functions have been added in TDengine, for example `twa` (Time Weighted Average), `spared` (The difference between the maximum and the minimum), `last_row` (the last row), more and more functions will be added to better perform in many use cases. Furthermore, continuous query is also supported in TDengine.
+
+For detailed query syntax please refer to [Select](/taos-sql/select).
+
+## Aggregation among Tables
+
+In many use cases, there are always multiple kinds of data collection points. A new concept, called STable (abbreviated for super table), is used in TDengine to represent a kind of data collection points, and a table is used to represent a specific data collection point. Tags are used by TDengine to represent the static properties of data collection points. A specific data collection point has its own values for static properties. By specifying filter conditions on tags, aggregation can be performed efficiently among all the subtables created via the same STable, i.e. same kind of data collection points, can be. Aggregate functions applicable for tables can be used directly on STables, syntax is exactly same.
+
+In summary, for a STable, its subtables can be aggregated by a simple query on STable, it's kind of join operation. But tables belong to different STables could not be aggregated. 
+
+### Example 1
+
+In TDengine CLI `taos`, use below SQL to get the average voltage of all the meters in BeiJing grouped by location.
+
+```
+taos> SELECT AVG(voltage) FROM meters GROUP BY location;
+       avg(voltage)        |            location            |
+=============================================================
+             222.000000000 | Beijing.Haidian                |
+             219.200000000 | Beijing.Chaoyang               |
+Query OK, 2 row(s) in set (0.002136s)
+```
+
+### Example 2
+
+In TDengine CLI `taos`, use below SQL to get the number of rows and the maximum current in the past 24 hours from meters whose groupId is 2.
+
+```
+taos> SELECT count(*), max(current) FROM meters where groupId = 2 and ts > now - 24h;
+     cunt(*)  |    max(current)  |
+==================================
+            5 |             13.4 |
+Query OK, 1 row(s) in set (0.002136s)
+```
+
+Join query is allowed between only the tables of same STable. In [Select](/taos-sql/select), all query operations are marked as whether it supports STable or not.
+
+## Down Sampling and Interpolation
+
+In IoT use cases, down sampling is widely used to aggregate the data by time range. `INTERVAL` keyword in TDengine can be used to simplify the query by time window. For example, below SQL statement can be used to get the sum of current every 10 seconds from meters table d1001.
+
+```
+taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
+           ts            |       sum(current)        |
+======================================================
+ 2018-10-03 14:38:00.000 |              10.300000191 |
+ 2018-10-03 14:38:10.000 |              24.900000572 |
+Query OK, 2 row(s) in set (0.000883s)
+```
+
+Down sampling can also be used for STable. For example, below SQL statement can be used to get the sum of current from all meters in BeiJing.
+
+```
+taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s);
+           ts            |       sum(current)        |
+======================================================
+ 2018-10-03 14:38:04.000 |              10.199999809 |
+ 2018-10-03 14:38:05.000 |              32.900000572 |
+ 2018-10-03 14:38:06.000 |              11.500000000 |
+ 2018-10-03 14:38:15.000 |              12.600000381 |
+ 2018-10-03 14:38:16.000 |              36.000000000 |
+Query OK, 5 row(s) in set (0.001538s)
+```
+
+Down sampling also supports time offset. For example, below SQL statement can be used to get the sum of current from all meters but each time window must start at the boundary of 500 milliseconds.
+
+```
+taos> SELECT SUM(current) FROM meters INTERVAL(1s, 500a);
+           ts            |       sum(current)        |
+======================================================
+ 2018-10-03 14:38:04.500 |              11.189999809 |
+ 2018-10-03 14:38:05.500 |              31.900000572 |
+ 2018-10-03 14:38:06.500 |              11.600000000 |
+ 2018-10-03 14:38:15.500 |              12.300000381 |
+ 2018-10-03 14:38:16.500 |              35.000000000 |
+Query OK, 5 row(s) in set (0.001521s)
+```
+
+In many use cases, it's hard to align the timestamp of the data collected by each collection point. However, a lot of algorithms like FFT require the data to be aligned with same time interval and application programs have to handle by themselves in many systems. In TDengine, it's easy to achieve the alignment using down sampling.
+
+Interpolation can be performed in TDengine if there is no data in a time range.
+
+For more details please refer to [Aggregate by Window](/taos-sql/interval).
+
+## Examples
+
+### Query
+
+In the section describing [Insert](/develop/insert-data/sql-writing), a database named `power` is created and some data are inserted into STable `meters`. Below sample code demonstrates how to query the data in this STable.
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaQuery />
+  </TabItem>
+  <TabItem label="Python" value="python">
+    <PyQuery />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoQuery />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustQuery />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeQuery />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsQuery />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CQuery />
+  </TabItem>
+</Tabs>
+
+:::note
+
+1. With either REST connection or native connection, the above sample code work well.
+2. Please be noted that `use db` can't be used in case of REST connection because it's stateless.
+
+:::
+
+### Asynchronous Query
+
+Besides synchronous query, asynchronous query API is also provided by TDengine to insert or query data more efficiently. With similar hardware and software environment, async API is 2~4 times faster than sync APIs. Async API works in non-blocking mode, which means an operation can be returned without finishing so that the calling thread can switch to other works to improve the performance of the whole application system. Async APIs perform especially better in case of poor network.
+
+Please be noted that async query can only be used with native connection.
+
+<Tabs defaultValue="python" groupId="lang">
+  <TabItem label="Python" value="python">
+    <PyAsync />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsAsync />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CAsync />
+  </TabItem>
+</Tabs>
