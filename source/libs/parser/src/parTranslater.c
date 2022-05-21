@@ -120,6 +120,20 @@ static int32_t getTableMeta(STranslateContext* pCxt, const char* pDbName, const 
   return getTableMetaImpl(pCxt, toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name), pMeta);
 }
 
+static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName, const char* pTableName,
+                                   STableMeta** pMeta) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  SName          name;
+  toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name);
+  int32_t code =
+      catalogRefreshGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, &name, pMeta, false);
+  if (TSDB_CODE_SUCCESS != code) {
+    parserError("catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pDbName,
+                pTableName);
+  }
+  return code;
+}
+
 static int32_t getTableDistVgInfo(STranslateContext* pCxt, const SName* pName, SArray** pVgInfo) {
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
@@ -3201,7 +3215,7 @@ static int32_t translateExplain(STranslateContext* pCxt, SExplainStmt* pStmt) {
 }
 
 static int32_t translateDescribe(STranslateContext* pCxt, SDescribeStmt* pStmt) {
-  return getTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
+  return refreshGetTableMeta(pCxt, pStmt->dbName, pStmt->tableName, &pStmt->pMeta);
 }
 
 static int32_t translateKillConnection(STranslateContext* pCxt, SKillStmt* pStmt) {

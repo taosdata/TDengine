@@ -1203,24 +1203,17 @@ TEST(testCase, sml_TD15662_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj *)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-      "iyyyje,id=iyyyje_41943_1303,t0=t,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=false,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64 1626006833639000000",
+      "hetrey,id=sub_table_0123456,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64",
   };
   int ret = smlProcess(info, (char **)sql, sizeof(sql) / sizeof(sql[0]));
   ASSERT_EQ(ret, 0);
 
-  // case 1
-  TAOS_RES *res = taos_query(taos, "select * from t_a5615048edae55218a22a149edebdc82");
-  ASSERT_NE(res, nullptr);
-
-  TAOS_ROW row = taos_fetch_row(res);
-  int64_t ts = *(int64_t*)row[0];
-  ASSERT_EQ(ts, 1626006833639000000);
-
-  taos_free_result(res);
+  destroyRequest(request);
+  smlDestroyInfo(info);
 }
 
 TEST(testCase, sml_TD15735_Test) {
@@ -1262,11 +1255,11 @@ TEST(testCase, sml_TD15742_Test) {
   SRequestObj *request = (SRequestObj *)createRequest((STscObj*)taos, NULL, NULL, TSDB_SQL_INSERT);
   ASSERT_NE(request, nullptr);
 
-  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_TELNET_PROTOCOL, TSDB_SML_TIMESTAMP_NANO_SECONDS);
+  SSmlHandle *info = smlBuildSmlInfo(taos, request, TSDB_SML_LINE_PROTOCOL, TSDB_SML_TIMESTAMP_MILLI_SECONDS);
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-      "zgzbix 1626006833641 False id=zgzbix_992_38861 t0=t t1=127i8 t2=32767i16 t3=2147483647i32 t4=9223372036854775807i64 t5=11.12345f32 t6=22.123456789f64 t7=\"binaryTagValue\" t8=L\"ncharTagValue\"",
+      "test_ms,t0=t c0=f 1626006833641",
   };
   int ret = smlProcess(info, (char**)sql, sizeof(sql)/sizeof(sql[0]));
   ASSERT_EQ(ret, 0);
