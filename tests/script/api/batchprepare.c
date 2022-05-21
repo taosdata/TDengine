@@ -1825,10 +1825,12 @@ int queryColumnTest(TAOS_STMT *stmt, TAOS *taos) {
       if (bpBindParam(stmt, data.pBind + n * gCurCase->bindColNum)) {
         exit(1);
       }
-      
-      if (taos_stmt_add_batch(stmt)) {
-        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
-        exit(1);
+
+      if (rand() % 2 == 0) {
+        if (taos_stmt_add_batch(stmt)) {
+          printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
       }
 
       if (taos_stmt_execute(stmt) != 0) {
@@ -1871,10 +1873,12 @@ int queryMiscTest(TAOS_STMT *stmt, TAOS *taos) {
       if (bpBindParam(stmt, data.pBind + n * gCurCase->bindColNum)) {
         exit(1);
       }
-      
-      if (taos_stmt_add_batch(stmt)) {
-        printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
-        exit(1);
+
+      if (rand() % 2 == 0) {      
+        if (taos_stmt_add_batch(stmt)) {
+          printf("!!!taos_stmt_add_batch error:%s\n", taos_stmt_errstr(stmt));
+          exit(1);
+        }
       }
 
       if (taos_stmt_execute(stmt) != 0) {

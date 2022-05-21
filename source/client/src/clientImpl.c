@@ -345,6 +345,10 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
 
     for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
       SSubmitBlkRsp* blk = pRsp->pBlocks + i;
+      if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
+        continue;
+      }
+      
       STbSVersion    tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
       taosArrayPush(pArray, &tbSver);
     }
@@ -499,6 +503,23 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
   return code;
 }
 
+int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
+  SCatalog* pCatalog = NULL;
+  int32_t tbNum = taosArrayGetSize(tbList);
+  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  
+  for (int32_t i = 0; i < tbNum; ++i) {
+    SName* pTbName = taosArrayGet(tbList, i);
+    catalogRemoveTableMeta(pCatalog, pTbName);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
   int32_t      retryNum = 0;
@@ -518,6 +539,10 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
     }
   } while (retryNum++ < REQUEST_MAX_TRY_TIMES);
 
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+    removeMeta(pTscObj, pRequest->tableList);
+  }
+  
   return pRequest;
 }
 

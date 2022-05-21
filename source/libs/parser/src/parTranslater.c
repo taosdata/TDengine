@@ -2726,6 +2726,7 @@ static int32_t buildCreateStbReq(STranslateContext* pCxt, SCreateTableStmt* pStm
 
   SName tableName;
   tNameExtractFullName(toName(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, &tableName), pReq->name);
+  collectUseTable(&tableName, pCxt->pTables);
 
   return buildRollupAst(pCxt, pStmt, pReq);
 }
