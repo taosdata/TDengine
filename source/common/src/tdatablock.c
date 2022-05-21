@@ -341,7 +341,7 @@ size_t blockDataGetNumOfCols(const SSDataBlock* pBlock) {
 
 size_t blockDataGetNumOfRows(const SSDataBlock* pBlock) { return pBlock->info.rows; }
 
-int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock) {
+int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) {
   if (pDataBlock == NULL || pDataBlock->info.rows <= 0) {
     return 0;
   }
@@ -350,7 +350,8 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock) {
     return -1;
   }
 
-  SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, 0);
+  int32_t index = (tsColumnIndex == -1)? 0:tsColumnIndex;
+  SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, index);
   if (pColInfoData->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
     return 0;
   }
