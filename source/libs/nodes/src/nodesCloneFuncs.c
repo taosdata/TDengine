@@ -112,6 +112,7 @@ static SNode* valueNodeCopy(const SValueNode* pSrc, SValueNode* pDst) {
   COPY_CHAR_POINT_FIELD(literal);
   COPY_SCALAR_FIELD(isDuration);
   COPY_SCALAR_FIELD(translate);
+  COPY_SCALAR_FIELD(notReserved);
   COPY_SCALAR_FIELD(placeholderNo);
   COPY_SCALAR_FIELD(typeData);
   COPY_SCALAR_FIELD(unit);

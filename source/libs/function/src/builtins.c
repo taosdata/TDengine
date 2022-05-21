@@ -14,8 +14,8 @@
  */
 
 #include "builtins.h"
-#include "querynodes.h"
 #include "builtinsimpl.h"
+#include "querynodes.h"
 #include "scalar.h"
 #include "taoserror.h"
 #include "tdatablock.h"
@@ -215,7 +215,7 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SValueNode* pValue = (SValueNode*) pParamNode;
+  SValueNode* pValue = (SValueNode*)pParamNode;
   if (pValue->node.resType.type != TSDB_DATA_TYPE_BIGINT) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -223,6 +223,8 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (pValue->datum.i < 1 || pValue->datum.i > 100) {
     return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
+  pValue->notReserved = true;
 
   SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
@@ -336,7 +338,7 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -361,7 +363,7 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT };
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -392,7 +394,7 @@ static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     }
   }
 
-  pFunc->node.resType = (SDataType) { .bytes = tDataTypes[resType].bytes, .type = resType};
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -434,7 +436,7 @@ static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   }
 
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  uint8_t colType = pCol->resType.type;
+  uint8_t    colType = pCol->resType.type;
   if (IS_VAR_DATA_TYPE(colType)) {
     pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
   } else {
@@ -463,7 +465,7 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  uint8_t colType = pCol->resType.type;
+  uint8_t    colType = pCol->resType.type;
   if (IS_VAR_DATA_TYPE(colType)) {
     pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
   } else {
@@ -500,8 +502,7 @@ static int32_t translateUnique(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
 
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN != nodeType(pPara)) {
-    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
-                           "The parameters of UNIQUE can only be columns");
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR, "The parameters of UNIQUE can only be columns");
   }
 
   pFunc->node.resType = ((SExprNode*)pPara)->resType;

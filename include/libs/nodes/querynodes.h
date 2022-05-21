@@ -81,6 +81,7 @@ typedef struct SValueNode {
   char*     literal;
   bool      isDuration;
   bool      translate;
+  bool      notReserved;
   int16_t   placeholderNo;
   union {
     bool     b;

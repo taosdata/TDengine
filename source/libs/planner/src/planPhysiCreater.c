@@ -650,6 +650,9 @@ static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
   SRewritePrecalcExprsCxt* pCxt = (SRewritePrecalcExprsCxt*)pContext;
   switch (nodeType(*pNode)) {
     case QUERY_NODE_VALUE: {
+      if (((SValueNode*)*pNode)->notReserved) {
+        break;
+      }
       pCxt->errCode = rewriteValueToOperator(pCxt, pNode);
       if (TSDB_CODE_SUCCESS != pCxt->errCode) {
         return DEAL_RES_ERROR;
