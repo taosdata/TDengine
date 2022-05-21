@@ -16,6 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
+static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet);
+static inline void dmSendRsp(SRpcMsg *pMsg);
+
 static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
   if (IsReq(pRpc) && rpcGetConnInfo(pRpc->info.handle, &connInfo) != 0) {
@@ -122,27 +125,28 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
   }
 
 _OVER:
-  if (code == 0) {
-    if (pWrapper != NULL && InParentProc(pWrapper)) {
-      dTrace("msg:%p, is freed after push to cqueue", pMsg);
-      taosFreeQitem(pMsg);
-      rpcFreeCont(pRpc->pCont);
-    }
-  } else {
+  if (code != 0) {
     dError("msg:%p, failed to process since %s", pMsg, terrstr());
     if (terrno != 0) code = terrno;
 
     if (IsReq(pRpc)) {
-      if (code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_NODE_OFFLINE) {
-        if (pRpc->msgType > TDMT_MND_MSG && pRpc->msgType < TDMT_VND_MSG) {
-          code = TSDB_CODE_NODE_REDIRECT;
+      if ((code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_APP_NOT_READY) && pRpc->msgType > TDMT_MND_MSG &&
+          pRpc->msgType < TDMT_VND_MSG) {
+        SEpSet epset = {0};
+        dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epset);
+        SRpcMsg rsp = {.code = TSDB_CODE_NODE_REDIRECT, .info = pRpc->info};
+        if (pWrapper != NULL) {
+          dmSendRedirectRsp(&rsp, &epset);
+        } else {
+          rpcSendRedirectRsp(&rsp, &epset);
         }
-      }
-      SRpcMsg rspMsg = {.code = code, .info = pRpc->info};
-      if (pWrapper != NULL) {
-        tmsgSendRsp(&rspMsg);
       } else {
-        rpcSendResponse(&rspMsg);
+        SRpcMsg rsp = {.code = code, .info = pRpc->info};
+        if (pWrapper != NULL) {
+          dmSendRsp(&rsp);
+        } else {
+          rpcSendResponse(&rsp);
+        }
       }
     }
 
@@ -198,8 +202,6 @@ static inline void dmSendRsp(SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = pMsg->info.wrapper;
   if (InChildProc(pWrapper)) {
     dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
   } else {
     rpcSendResponse(pMsg);
   }
@@ -226,8 +228,6 @@ static inline void dmRegisterBrokenLinkArg(SRpcMsg *pMsg) {
   SMgmtWrapper *pWrapper = pMsg->info.wrapper;
   if (InChildProc(pWrapper)) {
     dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_REGIST);
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
   } else {
     rpcRegisterBrokenLinkArg(pMsg);
   }
@@ -321,35 +321,4 @@ SMsgCb dmGetMsgcb(SDnode *pDnode) {
       .reportStartupFp = dmReportStartup,
   };
   return msgCb;
-}
-
-static void dmSendMnodeRedirectRsp(SRpcMsg *pMsg) {
-  SDnode *pDnode = dmInstance();
-  SEpSet  epSet = {0};
-  dmGetMnodeEpSet(&pDnode->data, &epSet);
-
-  dDebug("msg:%p, is redirected, num:%d use:%d", pMsg, epSet.numOfEps, epSet.inUse);
-  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
-    dDebug("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
-    if (strcmp(epSet.eps[i].fqdn, tsLocalFqdn) == 0 && epSet.eps[i].port == tsServerPort) {
-      epSet.inUse = (i + 1) % epSet.numOfEps;
-    }
-
-    epSet.eps[i].port = htons(epSet.eps[i].port);
-  }
-
-  SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
-  SMEpSet msg = {.epSet = epSet};
-  int32_t contLen = tSerializeSMEpSet(NULL, 0, &msg);
-  rsp.pCont = rpcMallocCont(contLen);
-  if (rsp.pCont == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-  } else {
-    tSerializeSMEpSet(rsp.pCont, contLen, &msg);
-    rsp.contLen = contLen;
-  }
-
-  dmSendRsp(&rsp);
-  rpcFreeCont(pMsg->pCont);
-  pMsg->pCont = NULL;
 }
