@@ -17,10 +17,6 @@
 #include "dmMgmt.h"
 #include "qworker.h"
 
-#define INTERNAL_USER   "_dnd"
-#define INTERNAL_CKEY   "_key"
-#define INTERNAL_SECRET "_pwd"
-
 static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
   if (IsReq(pRpc) && rpcGetConnInfo(pRpc->info.handle, &connInfo) != 0) {
@@ -275,7 +271,6 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.user = INTERNAL_USER;
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
 

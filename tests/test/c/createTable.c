@@ -261,7 +261,7 @@ void *threadFunc(void *param) {
         int64_t	startTs = taosGetTimestampUs();
         TAOS_RES *pRes = taos_query(con, qstr);
         code = taos_errno(pRes);
-        if ((code != 0) && (code != TSDB_CODE_RPC_AUTH_REQUIRED)) {
+        if (code != 0) {
           pError("failed to insert %s_t%" PRId64 ", reason:%s", stbName, t, tstrerror(code));
         }
         taos_free_result(pRes);
