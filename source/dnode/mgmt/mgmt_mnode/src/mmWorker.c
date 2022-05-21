@@ -46,7 +46,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = mndProcessMsg(pMsg);
   }
 
-  if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
     mmSendRsp(pMsg, code);
   }
@@ -59,18 +59,14 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static void mmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  tmsg_t      msgType = pMsg->msgType;
-  bool        isRequest = msgType & 1U;
   dTrace("msg:%p, get from mnode-query queue", pMsg);
 
   pMsg->info.node = pMgmt->pMnode;
   code = mndProcessMsg(pMsg);
 
-  if (isRequest) {
-    if (pMsg->info.handle != NULL && code != 0) {
-      if (code != 0 && terrno != 0) code = terrno;
-      mmSendRsp(pMsg, code);
-    }
+  if (IsReq(pMsg) && pMsg->info.handle != NULL && code != 0) {
+    if (terrno != 0) code = terrno;
+    mmSendRsp(pMsg, code);
   }
 
   dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
