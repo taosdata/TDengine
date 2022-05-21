@@ -277,7 +277,7 @@ static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) 
   }
 }
 
-void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
+int32_t dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
   dDebug("msg:%p, net test req will be processed", pMsg);
   SRpcMsg rsp = {.code = 0, .info = pMsg->info};
   rsp.pCont = rpcMallocCont(pMsg->contLen);
@@ -287,9 +287,10 @@ void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
     rsp.contLen = pMsg->contLen;
   }
   rpcSendResponse(&rsp);
+  return TSDB_CODE_RSP_IN_APP;
 }
 
-void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
+int32_t dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
   dDebug("msg:%p, server startup status req will be processed", pMsg);
   SServerStatusRsp statusRsp = {0};
   dmGetServerStartupStatus(pDnode, &statusRsp);
@@ -313,4 +314,5 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
 
 _OVER:
   rpcSendResponse(&rspMsg);
+  return TSDB_CODE_RSP_IN_APP;
 }

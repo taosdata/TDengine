@@ -46,7 +46,8 @@ STaosError errors[] = {
 #endif
 
 //common & util
-TAOS_DEFINE_ERROR(TSDB_CODE_ACTION_IN_PROGRESS,           "Action in progress")
+TAOS_DEFINE_ERROR(TSDB_CODE_RSP_IN_APP,                   "Cleanup in App")
+TAOS_DEFINE_ERROR(TSDB_CODE_CLEAN_AND_RSP_IN_APP,         "Cleanup and rsp in App")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_NOT_READY,                "Database not ready")
 TAOS_DEFINE_ERROR(TSDB_CODE_APP_ERROR,                    "Database internal error")
 TAOS_DEFINE_ERROR(TSDB_CODE_OUT_OF_MEMORY,                "Out of Memory")

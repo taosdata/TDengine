@@ -40,9 +40,10 @@ int32_t* taosGetErrno();
 #define TSDB_CODE_FAILED                    -1   // unknown or needn't tell detail error
 
 //common & util
-#define TSDB_CODE_ACTION_IN_PROGRESS            TAOS_DEF_ERROR_CODE(0, 0x0001)
-#define TSDB_CODE_APP_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x0002)
-#define TSDB_CODE_APP_ERROR                     TAOS_DEF_ERROR_CODE(0, 0x0003)
+#define TSDB_CODE_RSP_IN_APP                    TAOS_DEF_ERROR_CODE(0, 0x0001)
+#define TSDB_CODE_CLEAN_AND_RSP_IN_APP          TAOS_DEF_ERROR_CODE(0, 0x0002)
+#define TSDB_CODE_APP_NOT_READY                 TAOS_DEF_ERROR_CODE(0, 0x000A)
+#define TSDB_CODE_APP_ERROR                     TAOS_DEF_ERROR_CODE(0, 0x000B)
 #define TSDB_CODE_OUT_OF_MEMORY                 TAOS_DEF_ERROR_CODE(0, 0x0011)
 #define TSDB_CODE_OUT_OF_RANGE                  TAOS_DEF_ERROR_CODE(0, 0x0011)
 #define TSDB_CODE_OUT_OF_SHM_MEM                TAOS_DEF_ERROR_CODE(0, 0x0012)
