@@ -96,6 +96,11 @@ static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg 
   const int32_t fullLen = headLen + bodyLen + 8;
   const int64_t handle = (int64_t)pMsg->info.handle;
 
+  if (fullLen > queue->total) {
+    terrno = TSDB_CODE_OUT_OF_RANGE;
+    return -1;
+  }
+
   taosThreadMutexLock(&queue->mutex);
   if (fullLen > queue->avail) {
     taosThreadMutexUnlock(&queue->mutex);
@@ -103,7 +108,7 @@ static inline int32_t dmPushToProcQueue(SProc *proc, SProcQueue *queue, SRpcMsg 
     return -1;
   }
 
-  if (ftype == DND_FUNC_REQ && IsReq(pMsg) && pMsg->code == 0 && handle != 0) {
+  if (ftype == DND_FUNC_REQ && IsReq(pMsg) && pMsg->code == 0 && handle != 0 && pMsg->info.noResp == 0) {
     if (taosHashPut(proc->hash, &handle, sizeof(int64_t), &pMsg->info, sizeof(SRpcConnInfo)) != 0) {
       taosThreadMutexUnlock(&queue->mutex);
       return -1;
@@ -448,7 +453,7 @@ void dmPutToProcPQueue(SProc *proc, SRpcMsg *pMsg, EProcFuncType ftype) {
       break;
     }
 
-    if (retry == 10) {
+    if (terrno != TSDB_CODE_OUT_OF_SHM_MEM) {
       pMsg->code = terrno;
       if (pMsg->contLen > 0) {
         rpcFreeCont(pMsg->pCont);

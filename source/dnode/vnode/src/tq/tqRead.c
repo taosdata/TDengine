@@ -34,21 +34,11 @@ STqReadHandle* tqInitSubmitMsgScanner(SMeta* pMeta) {
 
 int32_t tqReadHandleSetMsg(STqReadHandle* pReadHandle, SSubmitReq* pMsg, int64_t ver) {
   pReadHandle->pMsg = pMsg;
-  // pMsg->length = htonl(pMsg->length);
-  // pMsg->numOfBlocks = htonl(pMsg->numOfBlocks);
 
-  // iterate and convert
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
   while (true) {
     if (tGetSubmitMsgNext(&pReadHandle->msgIter, &pReadHandle->pBlock) < 0) return -1;
     if (pReadHandle->pBlock == NULL) break;
-
-    // pReadHandle->pBlock->uid = htobe64(pReadHandle->pBlock->uid);
-    // pReadHandle->pBlock->suid = htobe64(pReadHandle->pBlock->suid);
-    // pReadHandle->pBlock->sversion = htonl(pReadHandle->pBlock->sversion);
-    // pReadHandle->pBlock->dataLen = htonl(pReadHandle->pBlock->dataLen);
-    // pReadHandle->pBlock->schemaLen = htonl(pReadHandle->pBlock->schemaLen);
-    // pReadHandle->pBlock->numOfRows = htons(pReadHandle->pBlock->numOfRows);
   }
 
   if (tInitSubmitMsgIter(pMsg, &pReadHandle->msgIter) < 0) return -1;
@@ -100,6 +90,10 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   int32_t sversion = 1;
   if (pHandle->sver != sversion || pHandle->cachedSchemaUid != pHandle->msgIter.suid) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
+    if (pHandle->pSchema == NULL) {
+      tqError("cannot found schema for table: %ld, version %d", pHandle->msgIter.suid, pHandle->sver);
+      return -1;
+    }
 
     // this interface use suid instead of uid
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.suid, sversion, true);
@@ -200,7 +194,7 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   }
   return 0;
 FAIL:
-  taosArrayDestroy(*ppCols);
+  if (*ppCols) taosArrayDestroy(*ppCols);
   return -1;
 }
 
@@ -237,6 +231,17 @@ int tqReadHandleAddTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
   for (int i = 0; i < taosArrayGetSize(tbUidList); i++) {
     int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
     taosHashPut(pHandle->tbIdHash, pKey, sizeof(int64_t), NULL, 0);
+  }
+
+  return 0;
+}
+
+int tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList) {
+  ASSERT(pHandle->tbIdHash != NULL);
+
+  for (int32_t i = 0; i < taosArrayGetSize(tbUidList); i++) {
+    int64_t* pKey = (int64_t*)taosArrayGet(tbUidList, i);
+    taosHashRemove(pHandle->tbIdHash, pKey, sizeof(int64_t));
   }
 
   return 0;

@@ -71,7 +71,7 @@ sql create database db replica $replica vgroups $vgroups
 $loop_cnt = 0
 check_db_ready:
 $loop_cnt = $loop_cnt + 1
-sleep 200
+sleep 20
 if $loop_cnt == 10 then
   print ====> db not ready!
 	return -1
@@ -83,7 +83,7 @@ print $data(db)[13] $data(db)[14] $data(db)[15] $data(db)[16] $data(db)[17] $dat
 if $rows != 3 then
   return -1
 endi
-if $data(db)[19] != nostrict then
+if $data(db)[19] != ready then
   goto check_db_ready
 endi
 
@@ -93,7 +93,7 @@ $loop_cnt = 0
 check_vg_ready:
 $loop_cnt = $loop_cnt + 1
 sleep 200
-if $loop_cnt == 40 then
+if $loop_cnt == 300 then
   print ====> vgroups not ready!
 	return -1
 endi
@@ -175,6 +175,7 @@ while $i < $tbNum
 endw
 
 $totalTblNum = $tbNum * 2
+print  ====>totalTblNum:$totalTblNum
 sql show tables
 if $rows != $totalTblNum then 
   return -1
@@ -226,7 +227,7 @@ $loop_cnt = 0
 check_vg_ready_2:
 $loop_cnt = $loop_cnt + 1
 sleep 200
-if $loop_cnt == 10 then
+if $loop_cnt == 300 then
   print ====> vgroups switch fail!!!
 	return -1
 endi

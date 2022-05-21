@@ -2885,7 +2885,7 @@ _return:
 
 
 
-int32_t ctgGetTbSverFromCache(SCatalog* pCtg, const SName* pTableName, int32_t* sver) {
+int32_t ctgGetTbSverFromCache(SCatalog* pCtg, const SName* pTableName, int32_t* sver, int32_t *tbType, uint64_t *suid, char* stbName) {
   *sver = -1;
   
   if (NULL == pCtg->dbCache) {
@@ -2903,14 +2903,12 @@ int32_t ctgGetTbSverFromCache(SCatalog* pCtg, const SName* pTableName, int32_t* 
     return TSDB_CODE_SUCCESS;
   }
   
-  int32_t tbType = 0;
-  uint64_t suid = 0;
   CTG_LOCK(CTG_READ, &dbCache->tbCache.metaLock);
   STableMeta* tbMeta = taosHashGet(dbCache->tbCache.metaCache, pTableName->tname, strlen(pTableName->tname));
   if (tbMeta) {
-    tbType = tbMeta->tableType;
-    suid = tbMeta->suid;
-    if (tbType != TSDB_CHILD_TABLE) {
+    *tbType = tbMeta->tableType;
+    *suid = tbMeta->suid;
+    if (*tbType != TSDB_CHILD_TABLE) {
       *sver = tbMeta->sversion;
     }
   }
@@ -2921,31 +2919,37 @@ int32_t ctgGetTbSverFromCache(SCatalog* pCtg, const SName* pTableName, int32_t* 
     return TSDB_CODE_SUCCESS;
   }
 
-  if (tbType != TSDB_CHILD_TABLE) {
+  if (*tbType != TSDB_CHILD_TABLE) {
     ctgReleaseDBCache(pCtg, dbCache);
-    ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, tbType, dbFName, pTableName->tname);
+    ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tbType, dbFName, pTableName->tname);
     
     return TSDB_CODE_SUCCESS;
   }
 
-  ctgDebug("Got subtable meta from cache, dbFName:%s, tbName:%s, suid:%" PRIx64, dbFName, pTableName->tname, suid);
+  ctgDebug("Got subtable meta from cache, dbFName:%s, tbName:%s, suid:%" PRIx64, dbFName, pTableName->tname, *suid);
   
   CTG_LOCK(CTG_READ, &dbCache->tbCache.stbLock);
   
-  STableMeta **stbMeta = taosHashGet(dbCache->tbCache.stbCache, &suid, sizeof(suid));
+  STableMeta **stbMeta = taosHashGet(dbCache->tbCache.stbCache, suid, sizeof(*suid));
   if (NULL == stbMeta || NULL == *stbMeta) {
     CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
     ctgReleaseDBCache(pCtg, dbCache);
-    ctgDebug("stb not in stbCache, suid:%"PRIx64, suid);
+    ctgDebug("stb not in stbCache, suid:%"PRIx64, *suid);
     return TSDB_CODE_SUCCESS;
   }
 
-  if ((*stbMeta)->suid != suid) {    
+  if ((*stbMeta)->suid != *suid) {
     CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
     ctgReleaseDBCache(pCtg, dbCache);
-    ctgError("stable suid in stbCache mis-match, expected suid:%"PRIx64 ",actual suid:%"PRIx64, suid, (*stbMeta)->suid);
+    ctgError("stable suid in stbCache mis-match, expected suid:%"PRIx64 ",actual suid:%"PRIx64, *suid, (*stbMeta)->suid);
     CTG_ERR_RET(TSDB_CODE_CTG_INTERNAL_ERROR);
   }
+
+  size_t nameLen = 0;
+  char* name = taosHashGetKey(*stbMeta, &nameLen);
+  
+  strncpy(stbName, name, nameLen);
+  stbName[nameLen] = 0;
 
   *sver = (*stbMeta)->sversion;
 
@@ -2953,11 +2957,10 @@ int32_t ctgGetTbSverFromCache(SCatalog* pCtg, const SName* pTableName, int32_t* 
 
   ctgReleaseDBCache(pCtg, dbCache);
 
-  ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, tbType, dbFName, pTableName->tname);
+  ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tbType, dbFName, pTableName->tname);
   
   return TSDB_CODE_SUCCESS;
 }
-
 
 int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, SArray* pTables) {
   CTG_API_ENTER();
@@ -2977,9 +2980,26 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void *pTrans, const SEpSet* pMgm
       continue;
     }
 
-    ctgGetTbSverFromCache(pCtg, &name, &sver);
+    int32_t tbType = 0;
+    uint64_t suid = 0;
+    char stbName[TSDB_TABLE_FNAME_LEN];
+    ctgGetTbSverFromCache(pCtg, &name, &sver, &tbType, &suid, stbName);
     if (sver >= 0 && sver < pTb->sver) {
-      catalogRemoveTableMeta(pCtg, &name); //TODO REMOVE STB FROM CACHE
+      switch (tbType) {
+        case TSDB_CHILD_TABLE: {
+          SName stb = name;
+          strcpy(stb.tname, stbName);
+          catalogRemoveTableMeta(pCtg, &stb);        
+          break;
+        }
+        case TSDB_SUPER_TABLE:
+        case TSDB_NORMAL_TABLE:
+          catalogRemoveTableMeta(pCtg, &name);
+          break;
+        default:
+          ctgError("ignore table type %d", tbType);
+          break;
+      }
     }
   }
 

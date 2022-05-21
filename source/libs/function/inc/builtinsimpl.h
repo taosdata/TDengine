@@ -120,7 +120,13 @@ int32_t sampleFunction(SqlFunctionCtx* pCtx);
 bool getTailFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 bool tailFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
 int32_t tailFunction(SqlFunctionCtx* pCtx);
-int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+//int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
+bool getUniqueFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool uniqueFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t uniqueFunction(SqlFunctionCtx *pCtx);
+//int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 

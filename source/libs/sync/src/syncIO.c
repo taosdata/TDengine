@@ -66,7 +66,7 @@ int32_t syncIOStop() {
   return ret;
 }
 
-int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
+int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   assert(pEpSet->inUse == 0);
   assert(pEpSet->numOfEps == 1);
 
@@ -83,11 +83,11 @@ int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg) {
 
   pMsg->info.handle = NULL;
   pMsg->info.noResp = 1;
-  rpcSendRequest(clientRpc, pEpSet, pMsg, NULL);
+  rpcSendRequest(gSyncIO->clientRpc, pEpSet, pMsg, NULL);
   return ret;
 }
 
-int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg) {
+int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   int32_t ret = 0;
   char    logBuf[128];
   syncRpcMsgLog2((char *)"==syncIOEqMsg==", pMsg);
@@ -96,7 +96,7 @@ int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg) {
   pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
-  STaosQueue *pMsgQ = queue;
+  STaosQueue *pMsgQ = gSyncIO->pMsgQ;
   taosWriteQitem(pMsgQ, pTemp);
 
   return ret;

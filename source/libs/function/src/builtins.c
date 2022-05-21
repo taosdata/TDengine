@@ -493,6 +493,21 @@ static int32_t translateFirstLast(SFunctionNode* pFunc, char* pErrBuf, int32_t l
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t translateUnique(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
+  if (1 != LIST_LENGTH(pFunc->pParameterList)) {
+    return TSDB_CODE_SUCCESS;
+  }
+
+  SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
+  if (QUERY_NODE_COLUMN != nodeType(pPara)) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The parameters of UNIQUE can only be columns");
+  }
+
+  pFunc->node.resType = ((SExprNode*)pPara)->resType;
+  return TSDB_CODE_SUCCESS;
+}
+
 static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   int32_t paraLen = LIST_LENGTH(pFunc->pParameterList);
   if (paraLen == 0 || paraLen > 2) {
@@ -878,16 +893,6 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .finalizeFunc = lastFinalize
   },
   {
-    .name = "diff",
-    .type = FUNCTION_TYPE_DIFF,
-    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
-    .translateFunc = translateDiff,
-    .getEnvFunc   = getDiffFuncEnv,
-    .initFunc     = diffFunctionSetup,
-    .processFunc  = diffFunction,
-    .finalizeFunc = functionFinalize
-  },
-  {
     .name = "histogram",
     .type = FUNCTION_TYPE_HISTOGRAM,
     .classification = FUNC_MGT_AGG_FUNC,
@@ -906,6 +911,16 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = hllFunction,
     .finalizeFunc = hllFinalize
+  },
+  {
+    .name = "diff",
+    .type = FUNCTION_TYPE_DIFF,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateDiff,
+    .getEnvFunc   = getDiffFuncEnv,
+    .initFunc     = diffFunctionSetup,
+    .processFunc  = diffFunction,
+    .finalizeFunc = functionFinalize
   },
   {
     .name = "state_count",
@@ -965,7 +980,17 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getTailFuncEnv,
     .initFunc     = tailFunctionSetup,
     .processFunc  = tailFunction,
-    .finalizeFunc = tailFinalize
+    .finalizeFunc = NULL
+  },
+  {
+    .name = "unique",
+    .type = FUNCTION_TYPE_UNIQUE,
+    .classification = FUNC_MGT_NONSTANDARD_SQL_FUNC | FUNC_MGT_TIMELINE_FUNC,
+    .translateFunc = translateUnique,
+    .getEnvFunc   = getUniqueFuncEnv,
+    .initFunc     = uniqueFunctionSetup,
+    .processFunc  = uniqueFunction,
+    .finalizeFunc = NULL
   },
   {
     .name = "abs",
