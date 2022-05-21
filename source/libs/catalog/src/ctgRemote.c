@@ -87,11 +87,6 @@ int32_t ctgProcessRspMsg(void* out, int32_t reqType, char* msg, int32_t msgSize,
     }
     case TDMT_MND_RETRIEVE_FUNC: {
       if (TSDB_CODE_SUCCESS != rspCode) {
-        if (TSDB_CODE_MND_FUNC_NOT_EXIST == rspCode) {
-          qError("funcName %s not exist in mnode", target);
-          CTG_RET(TSDB_CODE_SUCCESS);
-        }
-        
         qError("error rsp for get udf, error:%s, funcName:%s", tstrerror(rspCode), target);
         CTG_ERR_RET(rspCode);
       }
