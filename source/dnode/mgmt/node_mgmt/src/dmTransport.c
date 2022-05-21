@@ -16,8 +16,9 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 
-static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet);
-static inline void dmSendRsp(SRpcMsg *pMsg);
+static void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet);
+static void dmSendRsp(SRpcMsg *pMsg);
+static void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg);
 
 static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
@@ -130,23 +131,17 @@ _OVER:
     if (terrno != 0) code = terrno;
 
     if (IsReq(pRpc)) {
+      SRpcMsg rsp = {.code = code, .info = pRpc->info};
+
       if ((code == TSDB_CODE_NODE_NOT_DEPLOYED || code == TSDB_CODE_APP_NOT_READY) && pRpc->msgType > TDMT_MND_MSG &&
           pRpc->msgType < TDMT_VND_MSG) {
-        SEpSet epset = {0};
-        dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epset);
-        SRpcMsg rsp = {.code = TSDB_CODE_NODE_REDIRECT, .info = pRpc->info};
-        if (pWrapper != NULL) {
-          dmSendRedirectRsp(&rsp, &epset);
-        } else {
-          rpcSendRedirectRsp(&rsp, &epset);
-        }
+        dmBuildMnodeRedirectRsp(pDnode, &rsp);
+      }
+
+      if (pWrapper != NULL) {
+        dmSendRsp(&rsp);
       } else {
-        SRpcMsg rsp = {.code = code, .info = pRpc->info};
-        if (pWrapper != NULL) {
-          dmSendRsp(&rsp);
-        } else {
-          rpcSendResponse(&rsp);
-        }
+        rpcSendResponse(&rsp);
       }
     }
 
@@ -204,6 +199,20 @@ static inline void dmSendRsp(SRpcMsg *pMsg) {
     dmPutToProcPQueue(&pWrapper->proc, pMsg, DND_FUNC_RSP);
   } else {
     rpcSendResponse(pMsg);
+  }
+}
+
+static void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
+  SMEpSet msg = {0};
+  dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &msg.epSet);
+
+  int32_t contLen = tSerializeSMEpSet(NULL, 0, &msg);
+  pMsg->pCont = rpcMallocCont(contLen);
+  if (pMsg->pCont == NULL) {
+    pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    tSerializeSMEpSet(pMsg->pCont, contLen, &msg);
+    pMsg->contLen = contLen;
   }
 }
 
