@@ -327,6 +327,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
+  if (cfgAddString(pCfg, "smlTagName", "", 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 4;
