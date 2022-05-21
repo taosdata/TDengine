@@ -2034,6 +2034,40 @@ static SQLFunctionCtx* createSQLFunctionCtx(SQueryRuntimeEnv* pRuntimeEnv, SExpr
     return NULL;
   }
 
+  for (int32_t i = 0; i < numOfOutput; i++) {
+    SSqlExpr *pSqlExpr = &pExpr[i].base;
+
+    pFuncCtx[i].pUdfInput = (void **)calloc(pSqlExpr->numOfColumns, sizeof(void *));
+    pFuncCtx[i].udfInputType = (int16_t *)calloc(pSqlExpr->numOfColumns, sizeof(int16_t));
+    pFuncCtx[i].udfInputBytes = (int32_t *)calloc(pSqlExpr->numOfColumns, sizeof(int32_t));
+    pFuncCtx[i].colId = (int16_t *)calloc(pSqlExpr->numOfColumns, sizeof(int16_t));
+
+    if (pFuncCtx[i].pUdfInput == NULL || pFuncCtx[i].udfInputType == NULL ||
+        pFuncCtx[i].udfInputBytes == NULL || pFuncCtx[i].colId == NULL)
+    {
+      for (int32_t j = 0; j < i; j++) {
+        if (pFuncCtx[j].pUdfInput) {
+          tfree(pFuncCtx[j].pUdfInput);
+        }
+
+        if (pFuncCtx[j].udfInputType) {
+          tfree(pFuncCtx[j].udfInputType);
+        }
+
+        if (pFuncCtx[j].udfInputBytes) {
+          tfree(pFuncCtx[j].udfInputBytes);
+        }
+
+        if (pFuncCtx[j].colId) {
+          tfree(pFuncCtx[j].colId);
+        }
+      }
+
+      tfree(pFuncCtx);
+      return NULL;
+    }
+  }
+
   *rowCellInfoOffset = calloc(numOfOutput, sizeof(int32_t));
   if (*rowCellInfoOffset == 0) {
     tfree(pFuncCtx);
@@ -2166,6 +2200,22 @@ static void* destroySQLFunctionCtx(SQLFunctionCtx* pCtx, int32_t numOfOutput) {
   for (int32_t i = 0; i < numOfOutput; ++i) {
     for (int32_t j = 0; j < pCtx[i].numOfParams; ++j) {
       tVariantDestroy(&pCtx[i].param[j]);
+    }
+
+    if (pCtx[i].pUdfInput) {
+      tfree(pCtx[i].pUdfInput);
+    }
+
+    if (pCtx[i].udfInputType) {
+      tfree(pCtx[i].udfInputType);
+    }
+
+    if (pCtx[i].udfInputBytes) {
+      tfree(pCtx[i].udfInputBytes);
+    }
+
+    if (pCtx[i].colId) {
+      tfree(pCtx[i].colId);
     }
 
     tVariantDestroy(&pCtx[i].tag);
@@ -8824,12 +8874,12 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
 
     pExprMsg->numOfColumns = htons(pExprMsg->numOfColumns);
 
-    for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
-      pExprMsg->colInfo[n].colIndex = htons(pExprMsg->colInfo[n].colIndex);
-      pExprMsg->colInfo[n].colId = htons(pExprMsg->colInfo[n].colId);
-      pExprMsg->colInfo[n].flag  = htons(pExprMsg->colInfo[n].flag);
-      pExprMsg->colBytes[n]      = htons(pExprMsg->colBytes[n]);
-      pExprMsg->colType[n]       = htons(pExprMsg->colType[n]);
+    param->pExpr[i]->colInfo = (SColIndex *)calloc(pExprMsg->numOfColumns, sizeof(SColIndex));
+    param->pExpr[i]->colType = (int16_t *)calloc(pExprMsg->numOfColumns, sizeof(int16_t));
+    param->pExpr[i]->colBytes = (int16_t *)calloc(pExprMsg->numOfColumns, sizeof(int16_t));
+    if (param->pExpr[i]->colInfo == NULL || param->pExpr[i]->colType == NULL || param->pExpr[i]->colBytes == NULL) {
+      code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+      goto _cleanup;
     }
 
     pExprMsg->resType       = htons(pExprMsg->resType);
@@ -8840,7 +8890,31 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pExprMsg->numOfParams   = htons(pExprMsg->numOfParams);
     pExprMsg->resColId      = htons(pExprMsg->resColId);
     pExprMsg->flist.numOfFilters  = htons(pExprMsg->flist.numOfFilters);
+
     pMsg += sizeof(SSqlExpr);
+    SColIndex *colInfo = (SColIndex *)pMsg;
+
+    for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
+      param->pExpr[i]->colInfo[n].colIndex = htons(colInfo[n].colIndex);
+      param->pExpr[i]->colInfo[n].colId = htons(colInfo[n].colId);
+      param->pExpr[i]->colInfo[n].flag  = htons(colInfo[n].flag);
+    }
+
+    pMsg += sizeof(SColIndex) * pExprMsg->numOfColumns;
+    int16_t *colType = (int16_t *)pMsg;
+
+    for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
+      param->pExpr[i]->colType[n]        = htons(colType[n]);
+    }
+
+    pMsg += sizeof(int16_t) * pExprMsg->numOfColumns;
+    int16_t *colBytes = (int16_t *)pMsg;
+
+    for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
+      param->pExpr[i]->colBytes[n]       = htons(colBytes[n]);
+    }
+
+    pMsg += sizeof(int16_t) * pExprMsg->numOfColumns;
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
       pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
@@ -8879,12 +8953,12 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
 
       pExprMsg->numOfColumns = htons(pExprMsg->numOfColumns);
 
-      for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
-        pExprMsg->colInfo[n].colIndex = htons(pExprMsg->colInfo[n].colIndex);
-        pExprMsg->colInfo[n].colId = htons(pExprMsg->colInfo[n].colId);
-        pExprMsg->colInfo[n].flag  = htons(pExprMsg->colInfo[n].flag);
-        pExprMsg->colBytes[n]      = htons(pExprMsg->colBytes[n]);
-        pExprMsg->colType[n]       = htons(pExprMsg->colType[n]);
+      param->pSecExpr[i]->colInfo = (SColIndex *)calloc(pExprMsg->numOfColumns, sizeof(SColIndex));
+      param->pSecExpr[i]->colType = (int16_t *)calloc(pExprMsg->numOfColumns, sizeof(int16_t));
+      param->pSecExpr[i]->colBytes = (int16_t *)calloc(pExprMsg->numOfColumns, sizeof(int16_t));
+      if (param->pSecExpr[i]->colInfo == NULL || param->pSecExpr[i]->colType == NULL || param->pSecExpr[i]->colBytes == NULL) {
+        code = TSDB_CODE_QRY_OUT_OF_MEMORY;
+        goto _cleanup;
       }
 
       pExprMsg->resType       = htons(pExprMsg->resType);
@@ -8894,6 +8968,26 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       pExprMsg->numOfParams = htons(pExprMsg->numOfParams);
 
       pMsg += sizeof(SSqlExpr);
+
+      for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
+        param->pSecExpr[i]->colInfo[n].colIndex = htons(pExprMsg->colInfo[n].colIndex);
+        param->pSecExpr[i]->colInfo[n].colId = htons(pExprMsg->colInfo[n].colId);
+        param->pSecExpr[i]->colInfo[n].flag  = htons(pExprMsg->colInfo[n].flag);
+      }
+
+      pMsg += sizeof(SColIndex) * pExprMsg->numOfColumns;
+
+      for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
+        param->pSecExpr[i]->colType[n]      = htons(pExprMsg->colType[n]);
+      }
+
+      pMsg += sizeof(int16_t) * pExprMsg->numOfColumns;
+
+      for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
+        param->pSecExpr[i]->colBytes[n]       = htons(pExprMsg->colBytes[n]);
+      }
+
+      pMsg += sizeof(int16_t) * pExprMsg->numOfColumns;
 
       for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
         pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
@@ -10053,6 +10147,18 @@ void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
 
     for(int32_t j = 0; j < pExprInfo[i].base.numOfParams; ++j) {
       tVariantDestroy(&pExprInfo[i].base.param[j]);
+    }
+
+    if (pExprInfo[i].base.colInfo) {
+      tfree(pExprInfo[i].base.colInfo);
+    }
+
+    if (pExprInfo[i].base.colType) {
+      tfree(pExprInfo[i].base.colType);
+    }
+
+    if (pExprInfo[i].base.colBytes) {
+      tfree(pExprInfo[i].base.colBytes);
     }
   }
 

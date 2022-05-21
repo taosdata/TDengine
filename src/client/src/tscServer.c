@@ -709,6 +709,7 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
 
   size_t  numOfExprs = tscNumOfExprs(pQueryInfo);
   int32_t exprSize = (int32_t)(sizeof(SSqlExpr) * numOfExprs * 2);
+  exprSize += (sizeof(SColIndex) + 2 * sizeof(int16_t)) * TSDB_FUNC_PARAMS_NUM * numOfExprs * 2;
 
   int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
   int32_t sqlLen = (int32_t) strlen(pSql->sqlstr) + 1;
@@ -878,17 +879,30 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   }
 
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
-
-  SColIndex* pIndex = pSqlExpr->colInfo;
+  (*pMsg) += sizeof(SSqlExpr);
+  SColIndex* pIndex = (SColIndex *)(*pMsg);
 
   for (int32_t i = 0; i < pExpr->numOfColumns; ++i) {
     pIndex[i].colId       = htons(pExpr->colInfo[i].colId);
     pIndex[i].colIndex    = htons(pExpr->colInfo[i].colIndex);
     pIndex[i].flag        = htons(pExpr->colInfo[i].flag);
-
-    pSqlExpr->colType[i]  = htons(pExpr->colType[i]);
-    pSqlExpr->colBytes[i] = htons(pExpr->colBytes[i]);
   }
+
+  (*pMsg) += sizeof(SColIndex) * pExpr->numOfColumns;
+  int16_t *colType = (int16_t *)(*pMsg);
+
+  for (int32_t i = 0; i < pExpr->numOfColumns; i++) {
+    colType[i]  = htons(pExpr->colType[i]);
+  }
+
+  (*pMsg) += sizeof(int16_t) * pExpr->numOfColumns;
+  int16_t *colBytes = (int16_t *)(*pMsg);
+
+  for (int32_t i = 0; i < pExpr->numOfColumns; i++) {
+    colBytes[i] = htons(pExpr->colBytes[i]);
+  }
+
+  (*pMsg) += sizeof(int16_t) * pExpr->numOfColumns;
 
   pSqlExpr->numOfColumns = htons(pExpr->numOfColumns);
   pSqlExpr->uid         = htobe64(pExpr->uid);
@@ -900,7 +914,6 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->resColId    = htons(pExpr->resColId);
   pSqlExpr->flist.numOfFilters = htons(pExpr->flist.numOfFilters);
 
-  (*pMsg) += sizeof(SSqlExpr);
   for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
     pSqlExpr->param[j].nType = htonl(pExpr->param[j].nType);
     pSqlExpr->param[j].nLen  = htonl(pExpr->param[j].nLen);

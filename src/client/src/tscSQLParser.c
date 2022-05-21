@@ -2013,6 +2013,11 @@ static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
   pExprInfo->base.interBytes = 0;
   pExprInfo->base.resType    = pExpr->resultType;
 
+  pExprInfo->base.numOfColumns = 1;
+  pExprInfo->base.colInfo = (SColIndex *)calloc(1, sizeof(SColIndex));
+  pExprInfo->base.colType = (int16_t *)calloc(1, sizeof(int16_t));
+  pExprInfo->base.colBytes = (int16_t *)calloc(1, sizeof(int16_t));
+
   pExprInfo->base.functionId = TSDB_FUNC_SCALAR_EXPR;
   pExprInfo->base.numOfParams = 1;
   pExprInfo->base.resColId = getNewResColId(pCmd);

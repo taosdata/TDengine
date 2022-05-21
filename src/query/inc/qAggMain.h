@@ -188,9 +188,9 @@ typedef struct SQLFunctionCtx {
   int16_t      inputType;
   int32_t      inputBytes;
 
-  void        *pUdfInput[TSDB_FUNC_PARAMS_NUM];
-  int16_t      udfInputType[TSDB_FUNC_PARAMS_NUM];
-  int32_t      udfInputBytes[TSDB_FUNC_PARAMS_NUM];
+  void       **pUdfInput;
+  int16_t     *udfInputType;
+  int32_t     *udfInputBytes;
   int16_t      numOfUdfCols;
 
   int16_t      outputType;
@@ -213,7 +213,7 @@ typedef struct SQLFunctionCtx {
 
   SResultRowCellInfo *resultInfo;
 
-  int16_t      colId[TSDB_FUNC_PARAMS_NUM];  // used for user-specified constant value
+  int16_t     *colId;          // used for user-specified constant value
   SExtTagsInfo tagInfo;
   SPoint1      start;
   SPoint1      end;

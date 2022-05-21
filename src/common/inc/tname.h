@@ -43,26 +43,26 @@ typedef struct SResPair {
 
 // the structure for sql function in select clause
 typedef struct SSqlExpr {
-  char      aliasName[TSDB_COL_NAME_LEN];  // as aliasName
-  char      token[TSDB_COL_NAME_LEN];      // original token
-  SColIndex colInfo[TSDB_FUNC_PARAMS_NUM]; // columns
-  uint64_t  uid;            // table uid, todo refactor use the pointer
+  char       aliasName[TSDB_COL_NAME_LEN];  // as aliasName
+  char       token[TSDB_COL_NAME_LEN];      // original token
+  SColIndex *colInfo;        // columns
+  uint64_t   uid;            // table uid, todo refactor use the pointer
 
-  int16_t   numOfColumns;
+  int16_t    numOfColumns;
 
-  int16_t   functionId;     // function id in aAgg array
+  int16_t    functionId;     // function id in aAgg array
 
-  int16_t   resType;        // return value type
-  int32_t   resBytes;       // length of return value
-  int32_t   interBytes;     // inter result buffer size
+  int16_t    resType;        // return value type
+  int32_t    resBytes;       // length of return value
+  int32_t    interBytes;     // inter result buffer size
 
-  int16_t   colType[TSDB_FUNC_PARAMS_NUM];  // table column type
-  int16_t   colBytes[TSDB_FUNC_PARAMS_NUM]; // table column bytes,it should be int32_t, because it is too small for globale merge stage, pQueryAttr->interBytesForGlobal
+  int16_t   *colType;        // table column type
+  int16_t   *colBytes;       // table column bytes,it should be int32_t, because it is too small for globale merge stage, pQueryAttr->interBytesForGlobal
 
-  int16_t   numOfParams;    // argument value of each function
-  tVariant  param[3];       // parameters are not more than 3
-  int32_t   offset;         // sub result column value of arithmetic expression.
-  int16_t   resColId;       // result column id
+  int16_t    numOfParams;    // argument value of each function
+  tVariant   param[3];       // parameters are not more than 3
+  int32_t    offset;         // sub result column value of arithmetic expression.
+  int16_t    resColId;       // result column id
 
   SColumnFilterList flist;
 } SSqlExpr;
