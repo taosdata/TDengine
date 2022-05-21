@@ -543,7 +543,7 @@ bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 }
 
 bool getAvgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(double);
+  pEnv->calcMemSize = sizeof(SAvgRes);
   return true;
 }
 

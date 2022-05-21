@@ -15,11 +15,6 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
-#include "qworker.h"
-
-#define INTERNAL_USER   "_dnd"
-#define INTERNAL_CKEY   "_key"
-#define INTERNAL_SECRET "_pwd"
 
 static inline int32_t dmBuildNodeMsg(SRpcMsg *pMsg, SRpcMsg *pRpc) {
   SRpcConnInfo connInfo = {0};
@@ -49,49 +44,42 @@ int32_t dmProcessNodeMsg(SMgmtWrapper *pWrapper, SRpcMsg *pMsg) {
 }
 
 static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
-  SDnodeTrans * pTrans = &pDnode->trans;
+  SDnodeTrans  *pTrans = &pDnode->trans;
   int32_t       code = -1;
-  SRpcMsg *     pMsg = NULL;
-  bool          needRelease = false;
-  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
+  SRpcMsg      *pMsg = NULL;
   SMgmtWrapper *pWrapper = NULL;
+  SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pRpc->msgType)];
 
   dTrace("msg:%s is received, handle:%p len:%d code:0x%x app:%p refId:%" PRId64, TMSG_INFO(pRpc->msgType),
          pRpc->info.handle, pRpc->contLen, pRpc->code, pRpc->info.ahandle, pRpc->info.refId);
-  pRpc->info.noResp = 0;
-  pRpc->info.persistHandle = 0;
-  pRpc->info.wrapper = NULL;
-  pRpc->info.node = NULL;
-  pRpc->info.rsp = NULL;
-  pRpc->info.rspLen = 0;
 
   if (pRpc->msgType == TDMT_DND_NET_TEST) {
     dmProcessNetTestReq(pDnode, pRpc);
-    goto _OVER_JUST_FREE;
+    return;
   } else if (pRpc->msgType == TDMT_MND_SYSTABLE_RETRIEVE_RSP || pRpc->msgType == TDMT_VND_FETCH_RSP) {
-    qWorkerProcessFetchRsp(NULL, NULL, pRpc);
-    goto _OVER_JUST_FREE;
+    dmProcessFetchRsp(pRpc);
+    return;
   } else {
   }
 
   if (pDnode->status != DND_STAT_RUNNING) {
     if (pRpc->msgType == TDMT_DND_SERVER_STATUS) {
       dmProcessServerStartupStatus(pDnode, pRpc);
-      goto _OVER_JUST_FREE;
+      return;
     } else {
       terrno = TSDB_CODE_APP_NOT_READY;
-      goto _OVER_RSP_FREE;
+      goto _OVER;
     }
   }
 
   if (IsReq(pRpc) && pRpc->pCont == NULL) {
     terrno = TSDB_CODE_INVALID_MSG_LEN;
-    goto _OVER_RSP_FREE;
+    goto _OVER;
   }
 
   if (pHandle->defaultNtype == NODE_END) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    goto _OVER_RSP_FREE;
+    goto _OVER;
   } else {
     pWrapper = &pDnode->wrappers[pHandle->defaultNtype];
     if (pHandle->needCheckVgId) {
@@ -106,15 +94,15 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
         }
       } else {
         terrno = TSDB_CODE_INVALID_MSG_LEN;
-        goto _OVER_RSP_FREE;
+        goto _OVER;
       }
     }
   }
 
   if (dmMarkWrapper(pWrapper) != 0) {
-    goto _OVER_RSP_FREE;
+    pWrapper = NULL;
+    goto _OVER;
   } else {
-    needRelease = true;
     pRpc->info.wrapper = pWrapper;
   }
 
@@ -151,7 +139,11 @@ _OVER:
         }
       }
       SRpcMsg rspMsg = {.code = code, .info = pRpc->info};
-      tmsgSendRsp(&rspMsg);
+      if (pWrapper != NULL) {
+        tmsgSendRsp(&rspMsg);
+      } else {
+        rpcSendResponse(&rspMsg);
+      }
     }
 
     dTrace("msg:%p, is freed", pMsg);
@@ -159,19 +151,7 @@ _OVER:
     rpcFreeCont(pRpc->pCont);
   }
 
-  if (needRelease) {
-    dmReleaseWrapper(pWrapper);
-  }
-  return;
-
-_OVER_JUST_FREE:
-  rpcFreeCont(pRpc->pCont);
-  return;
-
-_OVER_RSP_FREE:
-  rpcFreeCont(pRpc->pCont);
-  SRpcMsg simpleRsp = {.code = terrno, .info = pRpc->info};
-  rpcSendResponse(&simpleRsp);
+  dmReleaseWrapper(pWrapper);
 }
 
 int32_t dmInitMsgHandle(SDnode *pDnode) {
@@ -179,11 +159,11 @@ int32_t dmInitMsgHandle(SDnode *pDnode) {
 
   for (EDndNodeType ntype = DNODE; ntype < NODE_END; ++ntype) {
     SMgmtWrapper *pWrapper = &pDnode->wrappers[ntype];
-    SArray *      pArray = (*pWrapper->func.getHandlesFp)();
+    SArray       *pArray = (*pWrapper->func.getHandlesFp)();
     if (pArray == NULL) return -1;
 
     for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
-      SMgmtHandle * pMgmt = taosArrayGet(pArray, i);
+      SMgmtHandle  *pMgmt = taosArrayGet(pArray, i);
       SDnodeHandle *pHandle = &pTrans->msgHandles[TMSG_INDEX(pMgmt->msgType)];
       if (pMgmt->needCheckVgId) {
         pHandle->needCheckVgId = pMgmt->needCheckVgId;
@@ -275,7 +255,6 @@ int32_t dmInitClient(SDnode *pDnode) {
   rpcInit.sessions = 1024;
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.user = INTERNAL_USER;
   rpcInit.parent = pDnode;
   rpcInit.rfp = rpcRfp;
 

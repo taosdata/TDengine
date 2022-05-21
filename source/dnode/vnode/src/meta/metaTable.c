@@ -483,12 +483,12 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
         goto _err;
       }
-      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes <= pAlterTbReq->bytes) {
+      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes > pAlterTbReq->colModBytes) {
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
       pSchema->sver++;
-      pColumn->bytes = pAlterTbReq->bytes;
+      pColumn->bytes = pAlterTbReq->colModBytes;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       if (pColumn == NULL) {
