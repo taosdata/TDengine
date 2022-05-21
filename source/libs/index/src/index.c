@@ -124,15 +124,21 @@ END:
 
 void indexDestroy(void* handle) {
   SIndex* sIdx = handle;
-  void*   iter = taosHashIterate(sIdx->colObj, NULL);
-  while (iter) {
-    IndexCache** pCache = iter;
-    if (*pCache) {
+  // indexAcquireRef(sIdx->refId);
+  if (sIdx->colObj != NULL) {
+    void* iter = taosHashIterate(sIdx->colObj, NULL);
+    while (iter) {
+      IndexCache** pCache = iter;
+      indexCacheForceToMerge((void*)(*pCache));
+      iter = taosHashIterate(sIdx->colObj, iter);
+
       indexCacheUnRef(*pCache);
     }
-    iter = taosHashIterate(sIdx->colObj, iter);
-  }
-  taosHashCleanup(sIdx->colObj);
+    taosHashCleanup(sIdx->colObj);
+    sIdx->colObj = NULL;
+    return;
+  }  // indexReleaseRef(sIdx->refId);
+
   taosThreadMutexDestroy(&sIdx->mtx);
   indexTFileDestroy(sIdx->tindex);
   taosMemoryFree(sIdx->path);
@@ -177,7 +183,6 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
       taosHashPut(index->colObj, buf, sz, &pCache, sizeof(void*));
     }
   }
-  taosThreadMutexUnlock(&index->mtx);
 
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
@@ -193,6 +198,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
       return ret;
     }
   }
+  taosThreadMutexUnlock(&index->mtx);
   return 0;
 }
 int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result) {
@@ -451,6 +457,14 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   }
   // handle flush
   Iterate* cacheIter = indexCacheIteratorCreate(pCache);
+  if (cacheIter == NULL) {
+    indexError("%p immtable is empty, ignore merge opera", pCache);
+    indexCacheDestroyImm(pCache);
+    tfileReaderUnRef(pReader);
+    indexReleaseRef(sIdx->refId);
+    return 0;
+  }
+
   Iterate* tfileIter = tfileIteratorCreate(pReader);
   if (tfileIter == NULL) {
     indexWarn("empty tfile reader iterator");

@@ -272,9 +272,26 @@ void validateFst() {
   }
   delete m;
 }
+static std::string logDir = "/tmp/log";
+
+static void initLog() {
+  const char*   defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10;
+
+  tsAsyncLog = 0;
+  sDebugFlag = 143;
+  strcpy(tsLogDir, logDir.c_str());
+  taosRemoveDir(tsLogDir);
+  taosMkDir(tsLogDir);
+
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", tsLogDir);
+  }
+}
 class IndexEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
+    initLog();
     taosRemoveDir(path);
     opts = indexOptsCreate();
     int ret = indexOpen(opts, path, &index);
@@ -804,7 +821,7 @@ class IndexObj {
   }
 
   ~IndexObj() {
-    indexCleanUp();
+    // indexCleanUp();
     indexClose(idx);
   }
 
@@ -884,7 +901,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
     index->Search(mq, result);
     std::cout << "target size: " << taosArrayGetSize(result) << std::endl;
-    assert(taosArrayGetSize(result) == 400);
+    EXPECT_EQ(400, taosArrayGetSize(result));
     taosArrayDestroy(result);
     indexMultiTermQueryDestroy(mq);
   }

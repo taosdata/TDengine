@@ -429,11 +429,13 @@ void indexCacheDestroy(void* cache) {
 }
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache) {
+  if (cache->imm == NULL) {
+    return NULL;
+  }
   Iterate* iiter = taosMemoryCalloc(1, sizeof(Iterate));
   if (iiter == NULL) {
     return NULL;
   }
-
   taosThreadMutexLock(&cache->mtx);
 
   indexMemRef(cache->imm);
@@ -463,12 +465,9 @@ int indexCacheSchedToMerge(IndexCache* pCache) {
   schedMsg.fp = doMergeWork;
   schedMsg.ahandle = pCache;
   schedMsg.thandle = NULL;
-  // schedMsg.thandle = taosMemoryCalloc(1, sizeof(int64_t));
-  // memcpy((char*)(schedMsg.thandle), (char*)&(pCache->index->refId), sizeof(int64_t));
   schedMsg.msg = NULL;
   indexAcquireRef(pCache->index->refId);
   taosScheduleTask(indexQhandle, &schedMsg);
-
   return 0;
 }
 
@@ -532,6 +531,19 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
   indexCacheUnRef(pCache);
   return 0;
   // encode end
+}
+void indexCacheForceToMerge(void* cache) {
+  IndexCache* pCache = cache;
+  indexCacheRef(pCache);
+  taosThreadMutexLock(&pCache->mtx);
+
+  indexInfo("%p is forced to merge into tfile", pCache);
+  pCache->occupiedMem += MEM_THRESHOLD * 5;
+  indexCacheMakeRoomForWrite(pCache);
+
+  taosThreadMutexUnlock(&pCache->mtx);
+  indexCacheUnRef(pCache);
+  return;
 }
 int indexCacheDel(void* cache, const char* fieldValue, int32_t fvlen, uint64_t uid, int8_t operType) {
   IndexCache* pCache = cache;
