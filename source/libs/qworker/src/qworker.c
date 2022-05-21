@@ -725,7 +725,11 @@ void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx) {
   
   qGetQueriedTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
 
-  sprintf(ctx->tbInfo.tbFName, "%s.%s", dbFName, tbName);
+  if (dbFName[0] && tbName[0]) {
+    sprintf(ctx->tbInfo.tbFName, "%s.%s", dbFName, tbName);
+  } else {
+    ctx->tbInfo.tbFName[0] = 0;
+  }
 }
 
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {

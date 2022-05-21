@@ -269,16 +269,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   size = taosArrayGetSize(cols);
-  ASSERT_EQ(size, 1);
-
-  // nchar
-  kv = (SSmlKv *)taosArrayGetP(cols, 0);
-  ASSERT_EQ(strncasecmp(kv->key, TAG, TAG_LEN), 0);
-  ASSERT_EQ(kv->keyLen, TAG_LEN);
-  ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->length, TAG_LEN);
-  ASSERT_EQ(strncasecmp(kv->value, TAG_VALUE, TAG_VALUE_LEN), 0);
-  taosMemoryFree(kv);
+  ASSERT_EQ(size, 0);
 
   taosArrayDestroy(cols);
   taosHashCleanup(dumplicateKey);
@@ -1207,7 +1198,8 @@ TEST(testCase, sml_TD15662_Test) {
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-      "hetrey,id=sub_table_0123456,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64",
+      "hetrey c0=f,c1=127i8 1626006833639",
+      "hetrey,t1=r c0=f,c1=127i8 1626006833640",
   };
   int ret = smlProcess(info, (char **)sql, sizeof(sql) / sizeof(sql[0]));
   ASSERT_EQ(ret, 0);

@@ -47,10 +47,8 @@ static inline void bmSendRsp(SRpcMsg *pMsg, int32_t code) {
 
 static void bmProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SBnodeMgmt *pMgmt = pInfo->ahandle;
-
+  int32_t     code = -1;
   dTrace("msg:%p, get from bnode-monitor queue", pMsg);
-  SRpcMsg *pRpc = pMsg;
-  int32_t  code = -1;
 
   if (pMsg->msgType == TDMT_MON_BM_INFO) {
     code = bmProcessGetMonBmInfoReq(pMgmt, pMsg);
@@ -58,13 +56,13 @@ static void bmProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
   }
 
-  if (pRpc->msgType & 1U) {
+  if (IsReq(pMsg)) {
     if (code != 0 && terrno != 0) code = terrno;
     bmSendRsp(pMsg, code);
   }
 
   dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-  rpcFreeCont(pRpc->pCont);
+  rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
 

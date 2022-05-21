@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "dmNodes.h"
+#include "qworker.h"
 
 static bool dmRequireNode(SDnode *pDnode, SMgmtWrapper *pWrapper) {
   SMgmtInputOpt input = dmBuildMgmtInputOpt(pWrapper);
@@ -277,42 +278,39 @@ static void dmGetServerStartupStatus(SDnode *pDnode, SServerStatusRsp *pStatus) 
   }
 }
 
-int32_t dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
+void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg) {
   dDebug("msg:%p, net test req will be processed", pMsg);
-  SRpcMsg rsp = {.code = 0, .info = pMsg->info};
+
+  SRpcMsg rsp = {.info = pMsg->info};
   rsp.pCont = rpcMallocCont(pMsg->contLen);
   if (rsp.pCont == NULL) {
     rsp.code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
     rsp.contLen = pMsg->contLen;
   }
+
   rpcSendResponse(&rsp);
-  return TSDB_CODE_RSP_IN_APP;
+  rpcFreeCont(pMsg->pCont);
 }
 
-int32_t dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
+void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
   dDebug("msg:%p, server startup status req will be processed", pMsg);
+
   SServerStatusRsp statusRsp = {0};
   dmGetServerStartupStatus(pDnode, &statusRsp);
 
-  SRpcMsg rspMsg = {.info = pMsg->info};
-  int32_t rspLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
-  if (rspLen < 0) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
+  SRpcMsg rsp = {.info = pMsg->info};
+  int32_t contLen = tSerializeSServerStatusRsp(NULL, 0, &statusRsp);
+  if (contLen < 0) {
+    rsp.code = TSDB_CODE_OUT_OF_MEMORY;
+  } else {
+    rsp.pCont = rpcMallocCont(contLen);
+    if (rsp.pCont != NULL) {
+      tSerializeSServerStatusRsp(rsp.pCont, contLen, &statusRsp);
+      rsp.contLen = contLen;
+    }
   }
 
-  void *pRsp = rpcMallocCont(rspLen);
-  if (pRsp == NULL) {
-    rspMsg.code = TSDB_CODE_OUT_OF_MEMORY;
-    goto _OVER;
-  }
-
-  tSerializeSServerStatusRsp(pRsp, rspLen, &statusRsp);
-  rspMsg.pCont = pRsp;
-  rspMsg.contLen = rspLen;
-
-_OVER:
-  rpcSendResponse(&rspMsg);
-  return TSDB_CODE_RSP_IN_APP;
+  rpcSendResponse(&rsp);
+  rpcFreeCont(pMsg->pCont);
 }
