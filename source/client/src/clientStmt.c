@@ -800,6 +800,7 @@ int stmtExec(TAOS_STMT* stmt) {
     if (code) {
       pStmt->exec.pRequest->code = code;
     } else {
+      tFreeSSubmitRsp(pRsp);
       STMT_ERR_RET(stmtResetStmt(pStmt));
       STMT_ERR_RET(TSDB_CODE_NEED_RETRY);
     }
@@ -817,11 +818,13 @@ _return:
   if (TSDB_CODE_SUCCESS == code && autoCreateTbl) {
     if (NULL == pRsp) {
       tscError("no submit resp got for auto create table");
-      STMT_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
+      code = TSDB_CODE_TSC_APP_ERROR;
+    } else {
+      code = stmtUpdateTableUid(pStmt, pRsp);
     }
-
-    STMT_ERR_RET(stmtUpdateTableUid(pStmt, pRsp));
   }
+  
+  tFreeSSubmitRsp(pRsp);
 
   ++pStmt->sql.runTimes;
 

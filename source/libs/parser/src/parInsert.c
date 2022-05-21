@@ -1085,6 +1085,10 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     // no data in the sql string anymore.
     if (sToken.n == 0) {
+      if (sToken.type && pCxt->pSql[0]) {
+        return buildSyntaxErrMsg(&pCxt->msg, "invalid charactor in SQL", sToken.z);
+      }
+      
       if (0 == pCxt->totalNum && (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {
         return buildInvalidOperationMsg(&pCxt->msg, "no data in sql");
       }

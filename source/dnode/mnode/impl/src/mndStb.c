@@ -1642,6 +1642,8 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
 
     if (pStbVersion->sversion != metaRsp.sversion) {
       taosArrayPush(batchMetaRsp.pArray, &metaRsp);
+    } else {
+      tFreeSTableMetaRsp(&metaRsp);
     }
   }
 
@@ -1660,6 +1662,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
   }
 
   tSerializeSTableMetaBatchRsp(pRsp, rspLen, &batchMetaRsp);
+  tFreeSTableMetaBatchRsp(&batchMetaRsp);
   *ppRsp = pRsp;
   *pRspLen = rspLen;
   return 0;

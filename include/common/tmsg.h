@@ -1987,19 +1987,16 @@ static FORCE_INLINE void tFreeClientHbReq(void* pReq) {
   if (req->info) {
     tFreeReqKvHash(req->info);
     taosHashCleanup(req->info);
+    req->info = NULL;
   }
 }
 
 int32_t tSerializeSClientHbBatchReq(void* buf, int32_t bufLen, const SClientHbBatchReq* pReq);
 int32_t tDeserializeSClientHbBatchReq(void* buf, int32_t bufLen, SClientHbBatchReq* pReq);
 
-static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq, bool deep) {
+static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
   SClientHbBatchReq* req = (SClientHbBatchReq*)pReq;
-  if (deep) {
-    taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
-  } else {
-    taosArrayDestroy(req->reqs);
-  }
+  taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
   taosMemoryFree(pReq);
 }
 
@@ -2023,6 +2020,7 @@ static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
 
 int32_t tSerializeSClientHbBatchRsp(void* buf, int32_t bufLen, const SClientHbBatchRsp* pBatchRsp);
 int32_t tDeserializeSClientHbBatchRsp(void* buf, int32_t bufLen, SClientHbBatchRsp* pBatchRsp);
+void tFreeSClientHbBatchRsp(SClientHbBatchRsp *pBatchRsp);
 
 static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
   if (tEncodeI32(pEncoder, pKv->key) < 0) return -1;

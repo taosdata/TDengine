@@ -387,7 +387,7 @@ _return:
 }
 
 void freeRequestRes(SRequestObj* pRequest, void* res) {
-  if (NULL == res) {
+  if (NULL == pRequest || NULL == res) {
     return;
   }
 
@@ -435,12 +435,13 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
 
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
-    freeRequestRes(pRequest, pRes);
-    pRes = NULL;
   }
 
   if (res) {
     *res = pRes;
+  } else {
+    freeRequestRes(pRequest, pRes);
+    pRes = NULL;
   }
 
   return pRequest;
