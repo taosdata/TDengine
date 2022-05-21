@@ -14,9 +14,9 @@
  */
 #include <tdatablock.h>
 #include "os.h"
-#include "rpcLog.h"
 #include "taoserror.h"
 #include "tglobal.h"
+#include "transLog.h"
 #include "trpc.h"
 #include "tutil.h"
 
