@@ -90,6 +90,9 @@ int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
  */
 int32_t mndProcessMsg(SRpcMsg *pMsg);
 
+
+int32_t mndProcessApplyMsg(SRpcMsg *pMsg);
+
 /**
  * @brief Generate machine code
  */

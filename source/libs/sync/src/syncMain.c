@@ -55,14 +55,17 @@ static void syncFreeNode(void* param);
 // ---------------------------------
 
 int32_t syncInit() {
-  int32_t ret;
-  tsNodeRefId = taosOpenRef(200, syncFreeNode);
-  if (tsNodeRefId < 0) {
-    sError("failed to init node ref");
-    syncCleanUp();
-    ret = -1;
-  } else {
-    ret = syncEnvStart();
+  int32_t ret = 0;
+
+  if (!syncEnvIsStart()) {
+    tsNodeRefId = taosOpenRef(200, syncFreeNode);
+    if (tsNodeRefId < 0) {
+      sError("failed to init node ref");
+      syncCleanUp();
+      ret = -1;
+    } else {
+      ret = syncEnvStart();
+    }
   }
 
   return ret;

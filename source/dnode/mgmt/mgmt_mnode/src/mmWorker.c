@@ -56,6 +56,32 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+
+static void mmProcessApplyQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+  int32_t     code = -1;
+  tmsg_t      msgType = pMsg->msgType;
+  bool        isRequest = msgType & 1U;
+  dTrace("msg:%p, get from mnode-query queue", pMsg);
+
+  pMsg->info.node = pMgmt->pMnode;
+  
+  mndProcessApplyMsg(pMsg);
+
+  /*
+  if (isRequest) {
+    if (pMsg->info.handle != NULL && code != 0) {
+      if (code != 0 && terrno != 0) code = terrno;
+      mmSendRsp(pMsg, code);
+    }
+  }
+  */
+
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
 static void mmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
@@ -90,6 +116,10 @@ int32_t mmPutNodeMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 int32_t mmPutNodeMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   return mmPutNodeMsgToWorker(&pMgmt->syncWorker, pMsg);
+}
+
+int32_t mmPutNodeMsgToApplyQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
+  return mmPutNodeMsgToWorker(&pMgmt->applyWorker, pMsg);
 }
 
 int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -176,6 +206,18 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
   };
   if (tSingleWorkerInit(&pMgmt->syncWorker, &sCfg) != 0) {
     dError("failed to start mnode mnode-sync worker since %s", terrstr());
+    return -1;
+  }
+
+  SSingleWorkerCfg aCfg = {
+      .min = 1,
+      .max = 1,
+      .name = "mnode-apply",
+      .fp = (FItem)mmProcessApplyQueue,
+      .param = pMgmt,
+  };
+  if (tSingleWorkerInit(&pMgmt->applyWorker, &aCfg) != 0) {
+    dError("failed to start mnode mnode-apply worker since %s", terrstr());
     return -1;
   }
 

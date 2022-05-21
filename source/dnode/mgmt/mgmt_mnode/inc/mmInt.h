@@ -33,6 +33,7 @@ typedef struct SMnodeMgmt {
   SSingleWorker readWorker;
   SSingleWorker writeWorker;
   SSingleWorker syncWorker;
+  SSingleWorker applyWorker;
   SSingleWorker monitorWorker;
   SReplica      replicas[TSDB_MAX_REPLICA];
   int8_t        replica;
@@ -59,6 +60,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt);
 void    mmStopWorker(SMnodeMgmt *pMgmt);
 int32_t mmPutNodeMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutNodeMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
+int32_t mmPutNodeMsgToApplyQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutNodeMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutNodeMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);
 int32_t mmPutNodeMsgToMonitorQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg);

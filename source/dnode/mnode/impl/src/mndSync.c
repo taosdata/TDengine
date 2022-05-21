@@ -46,6 +46,12 @@ static void mndCloseWal(SMnode *pMnode) {
 }
 
 static int32_t mndRestoreWal(SMnode *pMnode) {
+
+// do nothing
+return 0;
+
+#if 0
+
   SWal   *pWal = pMnode->syncMgmt.pWal;
   SSdb   *pSdb = pMnode->pSdb;
   int64_t lastSdbVer = sdbUpdateVer(pSdb, 0);
@@ -114,6 +120,70 @@ static int32_t mndRestoreWal(SMnode *pMnode) {
 _OVER:
   walCloseReadHandle(pHandle);
   return code;
+
+#endif
+
+}
+
+int32_t mndSyncEqMsg(const SMsgCb* msgcb, SRpcMsg *pMsg) {
+  int32_t ret = 0;
+  if (msgcb->queueFps[SYNC_QUEUE] != NULL) {
+    tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
+  } else {
+    mError("mndSyncEqMsg queue is NULL, SYNC_QUEUE:%d", SYNC_QUEUE);
+  }
+  return ret;
+}
+
+int32_t mndSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
+  int32_t ret = 0;
+  pMsg->info.noResp = 1;
+  tmsgSendReq(pEpSet, pMsg);
+  return ret;
+}
+
+void mndSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  SyncIndex beginIndex = SYNC_INDEX_INVALID;
+  if (pFsm->FpGetSnapshot != NULL) {
+    SSnapshot snapshot;
+    pFsm->FpGetSnapshot(pFsm, &snapshot);
+    beginIndex = snapshot.lastApplyIndex;
+  }
+
+  if (cbMeta.index > beginIndex) {
+    SMnode    *pMnode = pFsm->data;
+    SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+
+    mndProcessApplyMsg((SRpcMsg*)pMsg);
+    //mmPutNodeMsgToApplyQueue(pMnode->pWrapper->pMgmt, pMsg);
+
+    if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
+      tsem_post(&pMgmt->syncSem);
+    }
+  }
+}
+
+void mndSyncPreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  // strict consistent, do nothing
+}
+
+void mndSyncRollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+  // strict consistent, do nothing
+}
+
+int32_t mndSyncGetSnapshotCb(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+  // snapshot
+  return 0;
+}
+
+SSyncFSM *syncMnodeMakeFsm(SMnode *pMnode) {
+  SSyncFSM *pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
+  pFsm->data = pMnode;
+  pFsm->FpCommitCb = mndSyncCommitCb;
+  pFsm->FpPreCommitCb = mndSyncPreCommitCb;
+  pFsm->FpRollBackCb = mndSyncRollBackCb;
+  pFsm->FpGetSnapshot = mndSyncGetSnapshotCb;
+  return pFsm;
 }
 
 int32_t mndInitSync(SMnode *pMnode) {
@@ -133,7 +203,27 @@ int32_t mndInitSync(SMnode *pMnode) {
   if (pMnode->selfId == 1) {
     pMgmt->state = TAOS_SYNC_STATE_LEADER;
   }
-  pMgmt->pSyncNode = NULL;
+  
+  // pMgmt->pSyncNode = NULL;
+  SSyncInfo syncInfo;
+  syncInfo.vgId = 1;
+  SSyncCfg *pCfg = &(syncInfo.syncCfg);
+  pCfg->replicaNum = pMnode->replica;
+  pCfg->myIndex = pMnode->selfIndex;
+  for (int i = 0; i < pMnode->replica; ++i) {
+    snprintf((pCfg->nodeInfo)->nodeFqdn, sizeof((pCfg->nodeInfo)->nodeFqdn), "%s", (pMnode->replicas)[i].fqdn);
+    (pCfg->nodeInfo)->nodePort = (pMnode->replicas)[i].port;
+  }
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s/sync", pMnode->path);
+  syncInfo.pWal = pMnode->syncMgmt.pWal;
+
+  syncInfo.pFsm = syncMnodeMakeFsm(pMnode);
+  syncInfo.FpSendMsg = mndSendMsg;
+  syncInfo.FpEqMsg = mndSyncEqMsg;
+
+  pMnode->syncMgmt.sync = syncOpen(&syncInfo);
+  ASSERT(pMnode->syncMgmt.sync > 0);
+
   return 0;
 }
 
@@ -157,6 +247,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   SWal *pWal = pMnode->syncMgmt.pWal;
   SSdb *pSdb = pMnode->pSdb;
 
+#if 0
   int64_t ver = sdbUpdateVer(pSdb, 1);
   if (walWrite(pWal, ver, 1, pRaw, sdbGetRawTotalSize(pRaw)) < 0) {
     sdbUpdateVer(pSdb, -1);
@@ -168,24 +259,32 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   walCommit(pWal, ver);
   walFsync(pWal, true);
 
-#if 1
   return 0;
+
 #else
+
   if (pMnode->replica == 1) return 0;
 
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   pMgmt->errCode = 0;
 
-  SSyncBuffer buf = {.data = pRaw, .len = sdbGetRawTotalSize(pRaw)};
+  //SSyncBuffer buf = {.data = pRaw, .len = sdbGetRawTotalSize(pRaw)};
+
+  SRpcMsg rpcMsg;
+  rpcMsg.code = TDMT_MND_APPLY_MSG;
+  rpcMsg.contLen = sdbGetRawTotalSize(pRaw);
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  memcpy(rpcMsg.pCont, pRaw, rpcMsg.contLen);
 
   bool    isWeak = false;
-  int32_t code = syncPropose(pMgmt->pSyncNode, &buf, pMnode, isWeak);
+  int32_t code = syncPropose(pMgmt->sync, &rpcMsg, isWeak);
 
   if (code != 0) return code;
 
   tsem_wait(&pMgmt->syncSem);
   return pMgmt->errCode;
 #endif
+
 }
 
 bool mndIsMaster(SMnode *pMnode) {

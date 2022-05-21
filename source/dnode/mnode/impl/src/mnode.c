@@ -336,9 +336,25 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   return 0;
 }
 
-int32_t mndStart(SMnode *pMnode) { return mndInitTimer(pMnode); }
+int32_t mndStart(SMnode *pMnode) { 
+  syncStart(pMnode->syncMgmt.sync); 
+  return mndInitTimer(pMnode);
+}
 
-void mndStop(SMnode *pMnode) { return mndCleanupTimer(pMnode); }
+void mndStop(SMnode *pMnode) { 
+  syncStop(pMnode->syncMgmt.sync); 
+  return mndCleanupTimer(pMnode); 
+}
+
+int32_t mndProcessApplyMsg(SRpcMsg *pMsg) {
+
+  SSdbRaw *pRaw = pMsg->pCont;
+  SMnode *pMnode = pMsg->info.node;
+  int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+  rpcFreeCont(pMsg->pCont);
+
+  return code;
+}
 
 int32_t mndProcessMsg(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
