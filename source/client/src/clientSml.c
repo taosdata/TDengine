@@ -726,9 +726,6 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   if(value + len != endPtr){
     return -1;
   }
-  if(tsInt64 == 0){
-    return taosGetTimestampNs();
-  }
   double ts = tsInt64;
   switch (type) {
     case TSDB_TIME_PRECISION_HOURS:
@@ -794,8 +791,8 @@ static int8_t smlGetTsTypeByPrecision(int8_t precision) {
 }
 
 static int64_t smlParseInfluxTime(SSmlHandle* info, const char* data, int32_t len){
-  if(len == 0){
-    return taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+  if(len == 0 || (len == 1 && data[0] == '0')){
+    return taosGetTimestampNs();
   }
 
   int8_t tsType = smlGetTsTypeByPrecision(info->precision);
@@ -816,6 +813,9 @@ static int64_t smlParseOpenTsdbTime(SSmlHandle* info, const char* data, int32_t 
   if(!data){
     smlBuildInvalidDataMsg(&info->msgBuf, "timestamp can not be null", NULL);
     return -1;
+  }
+  if(len == 1 && data[0] == '0'){
+    return taosGetTimestampNs();
   }
   int8_t tsType = smlGetTsTypeByLen(len);
   if (tsType == -1) {

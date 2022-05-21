@@ -78,7 +78,7 @@ char     tsTelemServer[TSDB_FQDN_LEN] = "telemetry.taosdata.com";
 uint16_t tsTelemPort = 80;
 
 // schemaless
-char tsSmlTagName[TSDB_COL_NAME_LEN] = "__tag";
+char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
 char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
                                                      //If set to empty system will generate table name using MD5 hash.
 bool tsSmlDataFormat = true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
@@ -327,7 +327,7 @@ static int32_t taosAddClientCfg(SConfig *pCfg) {
   if (cfgAddBool(pCfg, "keepColumnName", tsKeepOriginalColumnName, 1) != 0) return -1;
   if (cfgAddInt32(pCfg, "queryPolicy", tsQueryPolicy, 1, 3, 1) != 0) return -1;
   if (cfgAddString(pCfg, "smlChildTableName", "", 1) != 0) return -1;
-  if (cfgAddString(pCfg, "smlTagName", "", 1) != 0) return -1;
+  if (cfgAddString(pCfg, "smlTagNullName", tsSmlTagName, 1) != 0) return -1;
   if (cfgAddBool(pCfg, "smlDataFormat", tsSmlDataFormat, 1) != 0) return -1;
 
   tsNumOfTaskQueueThreads = tsNumOfCores / 4;
@@ -524,7 +524,7 @@ static int32_t taosSetClientCfg(SConfig *pCfg) {
   }
 
   tstrncpy(tsSmlChildTableName, cfgGetItem(pCfg, "smlChildTableName")->str, TSDB_TABLE_NAME_LEN);
-  tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagName")->str, TSDB_COL_NAME_LEN);
+  tstrncpy(tsSmlTagName, cfgGetItem(pCfg, "smlTagNullName")->str, TSDB_COL_NAME_LEN);
   tsSmlDataFormat = cfgGetItem(pCfg, "smlDataFormat")->bval;
 
   tsShellActivityTimer = cfgGetItem(pCfg, "shellActivityTimer")->i32;
