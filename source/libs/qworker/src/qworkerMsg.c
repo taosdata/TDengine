@@ -63,9 +63,14 @@ int32_t qwBuildAndSendQueryRsp(SRpcHandleInfo *pConn, int32_t code) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qwBuildAndSendReadyRsp(SRpcHandleInfo *pConn, int32_t code) {
+int32_t qwBuildAndSendReadyRsp(SRpcHandleInfo *pConn, int32_t code, STbVerInfo* tbInfo) {
   SResReadyRsp *pRsp = (SResReadyRsp *)rpcMallocCont(sizeof(SResReadyRsp));
   pRsp->code = code;
+  if (tbInfo) {
+    strcpy(pRsp->tbFName, tbInfo->tbFName);
+    pRsp->sversion = tbInfo->sversion;
+    pRsp->tversion = tbInfo->tversion;
+  }
 
   SRpcMsg rpcRsp = {
       .msgType = TDMT_VND_RES_READY_RSP,

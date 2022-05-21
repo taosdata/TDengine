@@ -72,7 +72,6 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad);
  * @param pMsg The request message
  */
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg);
-int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg);
 
 #ifdef __cplusplus
 }

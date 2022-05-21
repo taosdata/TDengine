@@ -205,7 +205,7 @@ static int32_t mndProcessCommitOffsetReq(SRpcMsg *pMsg) {
   }
 
   mndTransDrop(pTrans);
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 static int32_t mndOffsetActionInsert(SSdb *pSdb, SMqOffsetObj *pOffset) {

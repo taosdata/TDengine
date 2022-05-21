@@ -57,6 +57,12 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
+typedef struct STbVerInfo {
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t sversion;
+  int32_t tversion;
+} STbVerInfo;
+
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
  * ASSERT(tableType == TSDB_CHILD_TABLE)
@@ -222,23 +228,23 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
       taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
     }                                                                                  \
   } while (0)
-#define qDebug(...)                                               \
-  do {                                                            \
-    if (qDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                             \
+#define qDebug(...)                                                                     \
+  do {                                                                                  \
+    if (qDebugFlag & DEBUG_DEBUG) {                                                     \
+      taosPrintLog("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                   \
   } while (0)
-#define qTrace(...)                                               \
-  do {                                                            \
-    if (qDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__); \
-    }                                                             \
+#define qTrace(...)                                                                     \
+  do {                                                                                  \
+    if (qDebugFlag & DEBUG_TRACE) {                                                     \
+      taosPrintLog("QRY ", DEBUG_TRACE, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                   \
   } while (0)
-#define qDebugL(...)                                                     \
-  do {                                                                   \
-    if (qDebugFlag & DEBUG_DEBUG) {                                      \
-      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                                    \
+#define qDebugL(...)                                                                           \
+  do {                                                                                         \
+    if (qDebugFlag & DEBUG_DEBUG) {                                                            \
+      taosPrintLongString("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                          \
   } while (0)
 
 #define QRY_ERR_RET(c)                \

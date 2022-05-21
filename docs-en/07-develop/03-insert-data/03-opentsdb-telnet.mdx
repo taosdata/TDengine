@@ -1,0 +1,84 @@
+---
+sidebar_label: OpenTSDB Line Protocol
+title: OpenTSDB Line Protocol
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaTelnet from "./_java_opts_telnet.mdx";
+import PyTelnet from "./_py_opts_telnet.mdx";
+import GoTelnet from "./_go_opts_telnet.mdx";
+import RustTelnet from "./_rust_opts_telnet.mdx";
+import NodeTelnet from "./_js_opts_telnet.mdx";
+import CsTelnet from "./_cs_opts_telnet.mdx";
+import CTelnet from "./_c_opts_telnet.mdx";
+
+## Introduction
+
+A single line of text is used in OpenTSDB line protocol to represent one row of data. OpenTSDB employs single column data model, so one line can only contains single data column. There can be multiple tags. Each line contains 4 parts as below:
+
+```
+<metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
+```
+
+- `metric` will be used as STable name.
+- `timestamp` is the timestamp of current row of data. The time precision will be determined automatically based on the length of the timestamp. second and millisecond time precision are supported.\
+- `value` is a metric which must be a numeric value, the corresponding column name is "value".
+- The last part is tag sets separated by space, all tags will be converted to nchar type automatically.
+
+For example:
+
+```txt
+meters.current 1648432611250 11.3 location=Beijing.Haidian groupid=3
+```
+
+Please refer to [OpenTSDB Telnet API](http://opentsdb.net/docs/build/html/api_telnet/put.html) for more details.
+
+## Examples
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaTelnet />
+  </TabItem>
+  <TabItem label="Python" value="Python">
+    <PyTelnet />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoTelnet />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustTelnet />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeTelnet />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsTelnet />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CTelnet />
+  </TabItem>
+</Tabs>
+
+2 STables will be crated automatically while each STable has 4 rows of data in the above sample code.
+
+```cmd
+taos> use test;
+Database changed.
+
+taos> show STables;
+              name              |      created_time       | columns |  tags  |   tables    |
+============================================================================================
+ meters.current                 | 2022-03-30 17:04:10.877 |       2 |      2 |           2 |
+ meters.voltage                 | 2022-03-30 17:04:10.882 |       2 |      2 |           2 |
+Query OK, 2 row(s) in set (0.002544s)
+
+taos> select tbname, * from `meters.current`;
+             tbname             |           ts            |           value           | groupid |            location            |
+==================================================================================================================================
+ t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | Beijing.Haidian                |
+ t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.250 |              11.300000000 | 3       | Beijing.Haidian                |
+ t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.249 |              10.300000000 | 2       | Beijing.Chaoyang               |
+ t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.250 |              12.600000000 | 2       | Beijing.Chaoyang               |
+Query OK, 4 row(s) in set (0.005399s)
+```

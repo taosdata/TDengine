@@ -457,10 +457,10 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
   }
 
   code = mndCreateTopic(pMnode, pReq, &createTopicReq, pDb);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 CREATE_TOPIC_OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("topic:%s, failed to create since %s", createTopicReq.name, terrstr());
   }
 
@@ -547,7 +547,7 @@ static int32_t mndProcessDropTopicReq(SRpcMsg *pReq) {
     return -1;
   }
 
-  return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  return TSDB_CODE_ACTION_IN_PROGRESS;
 }
 
 static int32_t mndProcessDropTopicInRsp(SRpcMsg *pRsp) {
