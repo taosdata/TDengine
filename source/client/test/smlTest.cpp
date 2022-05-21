@@ -1207,7 +1207,8 @@ TEST(testCase, sml_TD15662_Test) {
   ASSERT_NE(info, nullptr);
 
   const char *sql[] = {
-      "hetrey,id=sub_table_0123456,t0=f,t1=127i8,t2=32767i16,t3=2147483647i32,t4=9223372036854775807i64,t5=11.12345f32,t6=22.123456789f64,t7=\"binaryTagValue\",t8=L\"ncharTagValue\" c0=f,c1=127i8,c2=32767i16,c3=2147483647i32,c4=9223372036854775807i64,c5=11.12345f32,c6=22.123456789f64,c7=\"binaryColValue\",c8=L\"ncharColValue\",c9=7u64",
+      "hetrey c0=f,c1=127i8 1626006833639",
+      "hetrey,t1=r c0=f,c1=127i8 1626006833640",
   };
   int ret = smlProcess(info, (char **)sql, sizeof(sql) / sizeof(sql[0]));
   ASSERT_EQ(ret, 0);
