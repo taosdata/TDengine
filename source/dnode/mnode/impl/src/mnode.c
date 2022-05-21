@@ -481,7 +481,7 @@ int32_t mndProcessMsg(SRpcMsg *pMsg) {
   }
 
   int32_t code = (*fp)(pMsg);
-  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     terrno = code;
     mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
   } else if (code != 0) {

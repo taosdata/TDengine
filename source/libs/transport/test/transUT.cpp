@@ -15,10 +15,10 @@
 #include <gtest/gtest.h>
 #include <cstdio>
 #include <cstring>
-#include "rpcLog.h"
 #include "tdatablock.h"
 #include "tglobal.h"
 #include "tlog.h"
+#include "transLog.h"
 #include "trpc.h"
 using namespace std;
 

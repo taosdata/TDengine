@@ -46,7 +46,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = mndProcessMsg(pMsg);
   }
 
-  if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
     mmSendRsp(pMsg, code);
   }
@@ -172,7 +172,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .min = tsNumOfMnodeQueryThreads,
       .max = tsNumOfMnodeQueryThreads,
       .name = "mnode-query",
-      .fp = (FItem)mmProcessQueryQueue,
+      .fp = (FItem)mmProcessQueue,
       .param = pMgmt,
   };
   if (tSingleWorkerInit(&pMgmt->queryWorker, &qCfg) != 0) {

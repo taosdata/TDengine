@@ -128,6 +128,7 @@ extern bool tsStartUdfd;
 
 // schemaless
 extern char tsSmlChildTableName[];
+extern char tsSmlTagName[];
 extern bool tsSmlDataFormat;
 
 // internal
