@@ -149,7 +149,7 @@ class TDTestCase:
             user = User()
             user.name = f"user_test{i}"
             user.passwd = f"taosdata{i}"
-            user.db_set = {}
+            user.db_set = set()
             self.users.append(user)
         return self.users
 
@@ -304,7 +304,7 @@ class TDTestCase:
     def revoke_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None):
         sql = self.__revoke_user_privileges(privilege=priv, dbname=dbname, user_name=user.name)
         tdLog.info(sql)
-        if not user or priv not in():
+        if not user or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
             tdSql.error(sql)
         tdSql.query(sql)
         if user.name == "root":
@@ -334,31 +334,31 @@ class TDTestCase:
         self.grant_user(user=self.users[0], priv=PRIVILEGES_WRITE)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
 
-        tdLog.printNoPrefix("==========step 1.4:  revoke write from all = read ")
+        tdLog.printNoPrefix("==========step 1.5:  revoke write from all = read ")
         self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
 
-        tdLog.printNoPrefix("==========step 1.5: grant write to read = all")
+        tdLog.printNoPrefix("==========step 1.6: grant write to read = all")
         self.grant_user(user=self.users[1], priv=PRIVILEGES_READ)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
 
-        tdLog.printNoPrefix("==========step 1.4:  revoke read from all = write ")
+        tdLog.printNoPrefix("==========step 1.7:  revoke read from all = write ")
         self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
 
-        tdLog.printNoPrefix("==========step 1.5: grant read to all = all")
+        tdLog.printNoPrefix("==========step 1.8: grant read to all = all")
         self.grant_user(user=self.users[0], priv=PRIVILEGES_ALL)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
 
-        tdLog.printNoPrefix("==========step 1.5: grant write to all = all")
+        tdLog.printNoPrefix("==========step 1.9: grant write to all = all")
         self.grant_user(user=self.users[1], priv=PRIVILEGES_ALL)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
 
-        tdLog.printNoPrefix("==========step 1.5: grant all to read = all")
+        tdLog.printNoPrefix("==========step 1.10: grant all to read = all")
         self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
 
-        tdLog.printNoPrefix("==========step 1.5: grant all to write = all")
+        tdLog.printNoPrefix("==========step 1.11: grant all to write = all")
         self.grant_user(user=self.users[1], priv=PRIVILEGES_WRITE)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
 
@@ -366,19 +366,19 @@ class TDTestCase:
         self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
         self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
 
-        tdLog.printNoPrefix("==========step 1.5: revoke read from write = no change")
+        tdLog.printNoPrefix("==========step 1.12: revoke read from write = no change")
         self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
         self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
 
-        tdLog.printNoPrefix("==========step 1.5: revoke write from read = no change")
+        tdLog.printNoPrefix("==========step 1.13: revoke write from read = no change")
         self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
         self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
 
-        tdLog.printNoPrefix("==========step 1.5: revoke read from read = nothing")
+        tdLog.printNoPrefix("==========step 1.14: revoke read from read = nothing")
         self.revoke_user(user=self.users[0], priv=PRIVILEGES_READ)
         self.__user_check(user=self.users[0], check_priv=None)
 
-        tdLog.printNoPrefix("==========step 1.5: revoke write from write = nothing")
+        tdLog.printNoPrefix("==========step 1.15: revoke write from write = nothing")
         self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE)
         self.__user_check(user=self.users[1], check_priv=None)
 
@@ -386,15 +386,15 @@ class TDTestCase:
         self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
         self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE)
 
-        tdLog.printNoPrefix("==========step 1.5: revoke all from write = nothing")
+        tdLog.printNoPrefix("==========step 1.16: revoke all from write = nothing")
         self.revoke_user(user=self.users[1], priv=PRIVILEGES_ALL)
         self.__user_check(user=self.users[1], check_priv=None)
 
-        tdLog.printNoPrefix("==========step 1.5: revoke all from read = nothing")
+        tdLog.printNoPrefix("==========step 1.17: revoke all from read = nothing")
         self.revoke_user(user=self.users[0], priv=PRIVILEGES_ALL)
         self.__user_check(user=self.users[0], check_priv=None)
 
-        tdLog.printNoPrefix("==========step 1.5: revoke all from all = nothing")
+        tdLog.printNoPrefix("==========step 1.18: revoke all from all = nothing")
         self.revoke_user(user=self.users[2], priv=PRIVILEGES_ALL)
         self.__user_check(user=self.users[2], check_priv=None)
 
