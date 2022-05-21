@@ -2062,15 +2062,7 @@ void setExecutionContext(int32_t numOfOutput, uint64_t groupId, SExecTaskInfo* p
   pAggInfo->groupId = groupId;
 }
 
-/**
- * For interval query of both super table and table, copy the data in ascending order, since the output results are
- * ordered in SWindowResutl already. While handling the group by query for both table and super table,
- * all group result are completed already.
- *
- * @param pQInfo
- * @param result
- */
-int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
+int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprInfo* pExprInfo, SDiskbasedBuf* pBuf, SGroupResInfo* pGroupResInfo,
                            int32_t* rowCellOffset, SqlFunctionCtx* pCtx, int32_t numOfExprs) {
   int32_t numOfRows = getNumOfTotalRes(pGroupResInfo);
   int32_t start = pGroupResInfo->index;
@@ -2087,6 +2079,15 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
       continue;
     }
 
+    if (pBlock->info.groupId == 0) {
+      pBlock->info.groupId = pPos->groupId;
+    } else {
+      // current value belongs to different group, it can't be packed into one datablock
+      if (pBlock->info.groupId != pPos->groupId) {
+        break;
+      }
+    }
+
     if (pBlock->info.rows + pRow->numOfRows > pBlock->info.capacity) {
       break;
     }
@@ -2100,9 +2101,8 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
       if (pCtx[j].fpSet.finalize) {
         int32_t code = pCtx[j].fpSet.finalize(&pCtx[j], pBlock);
         if (TAOS_FAILED(code)) {
-          qError("%s build result data block error, code %s", GET_TASKID(taskInfo), tstrerror(code));
-          taskInfo->code = code;
-          longjmp(taskInfo->env, code);
+          qError("%s build result data block error, code %s", GET_TASKID(pTaskInfo), tstrerror(code));
+          longjmp(pTaskInfo->env, code);
         }
       } else if (strcmp(pCtx[j].pExpr->pExpr->_function.functionName, "_select_value") == 0) {
         // do nothing, todo refactor
@@ -2124,7 +2124,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* taskInfo, SSDataBlock* pBlock, SExprIn
     }
   }
 
-  // qDebug("QInfo:0x%"PRIx64" copy data to query buf completed", GET_TASKID(pRuntimeEnv));
+  qDebug("%s result generated, rows:%d, groupId:%"PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows, pBlock->info.groupId);
   blockDataUpdateTsWindow(pBlock);
   return 0;
 }
@@ -2145,10 +2145,9 @@ void doBuildResultDatablock(SOperatorInfo* pOperator, SOptrBasicInfo* pbInfo, SG
     return;
   }
 
+  // clear the existed group id
+  pBlock->info.groupId = 0;
   doCopyToSDataBlock(pTaskInfo, pBlock, pExprInfo, pBuf, pGroupResInfo, rowCellOffset, pCtx, numOfExprs);
-
-  // add condition (pBlock->info.rows >= 1) just to runtime happy
-  blockDataUpdateTsWindow(pBlock);
 }
 
 static void updateNumOfRowsInResultRows(SqlFunctionCtx* pCtx, int32_t numOfOutput, SResultRowInfo* pResultRowInfo,
@@ -3656,7 +3655,6 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
     doSetOperatorCompleted(pOperator);
   }
 
-  doSetOperatorCompleted(pOperator);
   return (blockDataGetNumOfRows(pInfo->pRes) != 0) ? pInfo->pRes : NULL;
 }
 
@@ -4576,10 +4574,11 @@ SExprInfo* createExprInfo(SNodeList* pNodeList, SNodeList* pGroupKeys, int32_t* 
   return pExprs;
 }
 
-static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model) {
+static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPTR_EXEC_MODEL model, char* dbFName) {
   SExecTaskInfo* pTaskInfo = taosMemoryCalloc(1, sizeof(SExecTaskInfo));
   setTaskStatus(pTaskInfo, TASK_NOT_COMPLETED);
 
+  pTaskInfo->schemaVer.dbname = strdup(dbFName);
   pTaskInfo->cost.created = taosGetTimestampMs();
   pTaskInfo->id.queryId = queryId;
   pTaskInfo->execModel = model;
@@ -4994,15 +4993,9 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
     return NULL;
   }
 
-  const char* tname = pTaskInfo->schemaVer.tablename;
   for (int32_t i = 0; i < numOfCols; ++i) {
     STargetNode* pNode = (STargetNode*)nodesListGetNode(pNodeList, i);
     SColumnNode* pColNode = (SColumnNode*)pNode->pExpr;
-
-    if (tname != NULL && (pTaskInfo->schemaVer.dbname == NULL) &&
-        strncmp(pColNode->tableName, tname, tListLen(pColNode->tableName)) == 0) {
-      pTaskInfo->schemaVer.dbname = strdup(pColNode->dbName);
-    }
 
     SColMatchInfo c = {0};
     c.output = true;
@@ -5099,7 +5092,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   uint64_t queryId = pPlan->id.queryId;
 
   int32_t code = TSDB_CODE_SUCCESS;
-  *pTaskInfo = createExecTaskInfo(queryId, taskId, model);
+  *pTaskInfo = createExecTaskInfo(queryId, taskId, model, pPlan->dbFName);
   if (*pTaskInfo == NULL) {
     code = TSDB_CODE_QRY_OUT_OF_MEMORY;
     goto _complete;
