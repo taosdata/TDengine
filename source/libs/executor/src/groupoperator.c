@@ -269,7 +269,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pRes->info.rows == 0 || !hasRemainDataInCurrentGroup(&pInfo->groupResInfo)) {
+    if (pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
       pOperator->status = OP_EXEC_DONE;
     }
     return (pRes->info.rows == 0)? NULL:pRes;
@@ -303,9 +303,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
-
-  finalizeMultiTupleQueryResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, &pInfo->binfo.resultRowInfo,
-                                pInfo->binfo.rowCellInfoOffset);
   //  if (!stableQuery) { // finalize include the update of result rows
   //    finalizeQueryResult(pInfo->binfo.pCtx, pOperator->numOfExprs);
   //  } else {
@@ -320,7 +317,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pInfo->pCondition, pRes, NULL);
 
-    bool hasRemain = hasRemainDataInCurrentGroup(&pInfo->groupResInfo);
+    bool hasRemain = hashRemainDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {
       pOperator->status = OP_EXEC_DONE;
       break;
