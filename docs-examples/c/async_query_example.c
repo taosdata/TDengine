@@ -155,7 +155,7 @@ void *select_callback(void *param, TAOS_RES *res, int code) {
     printHeader(res);
     taos_fetch_rows_a(res, fetch_row_callback, _taos);
   } else {
-    printf("failed to exeuce taos_query. error: %s\n", taos_errstr(res));
+    printf("failed to execute taos_query. error: %s\n", taos_errstr(res));
     taos_free_result(res);
     taos_close(_taos);
     taos_cleanup();

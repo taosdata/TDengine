@@ -1,13 +1,13 @@
 ---
-title: TAOS SQL
-description: "The syntax supported by TAOS SQL "
+title: TDengine SQL
+description: "The syntax supported by TDengine SQL "
 ---
 
-This document explains the syntax about operating database, table, STable, inserting data, selecting data, functions and some tips that can be used in TAOS SQL. It would be easier to understand with some fundamental knowledge of SQL.
+This section explains the syntax about operating database, table, STable, inserting data, selecting data, functions and some tips that can be used in TDengine SQL. It would be easier to understand with some fundamental knowledge of SQL.
 
-TAOS SQL is the major interface for users to write data into or query from TDengine. For users to easily use, syntax similar to standard SQL is provided. However, please be noted that TAOS SQL is not standard SQL. Besides, because TDengine doesn't provide the functionality of deleting time series data, corresponding statements are not provided in TAOS SQL.
+TDengine SQL is the major interface for users to write data into or query from TDengine. For users to easily use, syntax similar to standard SQL is provided. However, please be noted that TDengine SQL is not standard SQL. Besides, because TDengine doesn't provide the functionality of deleting time series data, corresponding statements are not provided in TDengine SQL.
 
-TAOS SQL doesn't support abbreviation for keywords, for example `DESCRIBE` can't be abbreviated as `DESC`.
+TDengine SQL doesn't support abbreviation for keywords, for example `DESCRIBE` can't be abbreviated as `DESC`.
 
 Syntax Specifications used in this chapter:
 
