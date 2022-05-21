@@ -3,9 +3,13 @@ from taostest.util.common import TDCom
 from taostest.util.sml_types import TDSmlProtocolType, TDSmlTimestampType
 from taos.error import SchemalessError
 import datetime
+import sys
+from taostest.util.remote import Remote
+
 class TestOpentsdbTelnetLineTaoscInsert(TDCase):
     def init(self):
         # self.tdCom = TDCom(self.tdSql, env_setting=self.env_setting)
+        self._remote: Remote = Remote(self.logger)
         self.tdCom = TDCom(self.tdSql)
         self.tdCom.env_setting = self.env_setting
         self.tdCom.sml_type = "opentsdb_telnet"
@@ -26,6 +30,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         normal tags and cols, one for every elm
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(protocol=protocol)
         self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
@@ -34,6 +39,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check all normal type
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
@@ -48,6 +54,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         please test :
         binary_symbols = '\"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\'\'"\"'
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
@@ -60,6 +67,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test ts list --> ["1626006833640ms", "1626006834s", "1626006822639022"]
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(ts=1626006833640)
         self.tdCom.check_res(input_sql, stb_name, ts_type=TDSmlTimestampType.MILLI_SECOND.value)
@@ -78,10 +86,13 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
 
     def opentstb_telnet_ts_check(self):
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql = f'{self.tdCom.get_long_name(length=10, mode="letters")} 0 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
-        stb_name = input_sql.split(" ")[0]
-        self.tdCom.check_res(input_sql, stb_name, ts=0)
+        # TODO commit out
+        # input_sql = f'{self.tdCom.get_long_name(length=10, mode="letters")} 0 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
+        # print(input_sql)
+        # stb_name = input_sql.split(" ")[0]
+        # self.tdCom.check_res(input_sql, stb_name, ts=0)
         input_sql = f'{self.tdCom.get_long_name(length=10, mode="letters")} 1626006833640 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
         stb_name = input_sql.split(" ")[0]
         self.tdCom.check_res(input_sql, stb_name, ts_type=TDSmlTimestampType.MILLI_SECOND.value)
@@ -101,6 +112,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         check id.index in tags
         eg: t0=**,id=**,t1=**
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True, protocol=protocol)
         self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
@@ -110,6 +122,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         check id param
         eg: id and ID
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_upper_tag=True, protocol=protocol)
         self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
@@ -122,6 +135,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         id not exist
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_noexist_tag=True, protocol=protocol)
         self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
@@ -152,6 +166,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         test illegal id name
         mix "`~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?"
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         rstr = list("~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?")
         for i in rstr:
@@ -163,6 +178,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         id is start with num
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="1aaabbb", protocol=protocol)
         self.tdCom.check_res(input_sql, stb_name, protocol=protocol)
@@ -171,6 +187,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check now unsupported
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(ts="now")[0]
         try:
@@ -183,6 +200,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check date format ts unsupported
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(ts="2021-07-21\ 19:01:46.920")[0]
         try:
@@ -195,6 +213,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check ts format like 16260068336390us19
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(ts="16260068336390us19")[0]
         try:
@@ -210,6 +229,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         chech upper tag
         length of stb_name tb_name <= 192
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         stb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
         tb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
         self.tdCom.cleanTb()
@@ -218,7 +238,8 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.query(f'select * from {stb_name}')
         self.tdSql.checkEqual(self.tdSql.query_row, 1)
         if self.tdCom.smlChildTableName_value == "ID":
-            for input_sql in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0], self.tdCom.gen_full_type_sql(tb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"]+1, mode="letters"))[0]]:
+            #for input_sql in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0], self.tdCom.gen_full_type_sql(tb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"]+1, mode="letters"))[0]]:
+            for input_sql in [self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"))]:
                 try:
                     self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                     raise Exception("should not reach here")
@@ -226,7 +247,8 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                     self.tdSql.checkNotEqual(err.errno, 0)
             input_sql = 'Abcdffgg 1626006833640 False T1=127i8 id=Abcddd'
         else:
-            input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0]
+            # input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"), tb_name=self.tdCom.get_long_name(length=5, mode="letters"))[0]
+            input_sql = self.tdCom.gen_full_type_sql(stb_name=self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"]+1, mode="letters"))[0]
             try:
                 self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
                 raise Exception("should not reach here")
@@ -241,6 +263,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check full type tag value limit
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         # nchar
         # * legal nchar could not be larger than 16374/4
@@ -259,8 +282,10 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check full type col value limit
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         # i8
+        self._remote._logger.info(f' Running i8---- {sys._getframe().f_code.co_name}()')
         for value in [f'-{self.tdCom.boundary_config["TINYINT_MAX"]}i8', f'{self.tdCom.boundary_config["TINYINT_MAX"]}i8']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
             self.tdCom.check_res(input_sql, stb_name)
@@ -273,6 +298,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             except SchemalessError as err:
                 self.tdSql.checkNotEqual(err.errno, 0)
         # i16
+        self._remote._logger.info(f' Running i16---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         for value in [f'-{self.tdCom.boundary_config["SMALLINT_MAX"]}i16']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
@@ -287,6 +313,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                 self.tdSql.checkNotEqual(err.errno, 0)
 
         # i32
+        self._remote._logger.info(f' Running i32---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         for value in [f'-{self.tdCom.boundary_config["INT_MAX"]}i32']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
@@ -302,6 +329,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
 
         # i64
         self.tdCom.cleanTb()
+        self._remote._logger.info(f' Running i64---- {sys._getframe().f_code.co_name}()')
         for value in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
             self.tdCom.check_res(input_sql, stb_name)
@@ -316,6 +344,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
 
         # f32
         self.tdCom.cleanTb()
+        self._remote._logger.info(f' Running f32---- {sys._getframe().f_code.co_name}()')
         for value in [f"{-3.4028234663852885981170418348451692544*(10**38)}f32", f"{3.4028234663852885981170418348451692544*(10**38)}f32"]:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
             self.tdCom.check_res(input_sql, stb_name)
@@ -330,6 +359,8 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
                 self.tdSql.checkNotEqual(err.errno, 0)
 
         # f64
+
+        self._remote._logger.info(f' Running f64---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         for value in [f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64', f'{-1.79769313486231570814527423731704356798070567525844996598917476803157260780*(10**308)}f64']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(value=value)
@@ -377,6 +408,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test illegal tag col value
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
@@ -402,21 +434,24 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
 
         # check accepted binary and nchar symbols
         # # * ~!@#$¥%^&*()-+={}|[]、「」:;
-        for symbol in list('~!@#$¥%^&*()-+={}|[]、「」:;'):
+        for symbol in list('、「」~!@#$¥%^&*()-+={}|[]:;'):
             input_sql1 = f'{self.tdCom.get_long_name(7, "letters")} 1626006833640 "abc{symbol}aaa" t0=t'
             input_sql2 = f'{self.tdCom.get_long_name(7, "letters")} 1626006833640 t t0=t t1="abc{symbol}aaa"'
             self.tdSql._conn.schemaless_insert([input_sql1], TDSmlProtocolType.TELNET.value, None)
-            self.tdSql._conn.schemaless_insert([input_sql2], TDSmlProtocolType.TELNET.value, None)
+            # self.tdSql._conn.schemaless_insert([input_sql2], TDSmlProtocolType.TELNET.value, None)
 
     def blank_check(self):
         """
         check blank case
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        input_sql_list = [f'{self.tdCom.get_long_name(7, "letters")}   1626006833640 "abc aaa" t0=t',
-                        f'{self.tdCom.get_long_name(7, "letters")} 1626006833640   t t0="abaaa"',
-                        f'{self.tdCom.get_long_name(7, "letters")} 1626006833640 t   t0=L"abaaa"',
-                        f'{self.tdCom.get_long_name(7, "letters")}  1626006833640   L"aba aa"   t0=L"abcaaa3"   ']
+        # input_sql_list = [f'{self.tdCom.get_long_name(7, "letters")}   1626006833640 "abc\ aaa" t0=t',
+        #                 f'{self.tdCom.get_long_name(7, "letters")} 1626006833640   t t0="abaaa"',
+        #                 f'{self.tdCom.get_long_name(7, "letters")} 1626006833640 t   t0=L"abaaa"',
+        #                 f'{self.tdCom.get_long_name(7, "letters")}  1626006833640   L"aba\ aa"   t0=L"abcaaa3"   ']
+        input_sql_list = [f'{self.tdCom.get_long_name(7, "letters")} 1626006833640   t t0="abaaa"',
+                        f'{self.tdCom.get_long_name(7, "letters")} 1626006833640 t   t0=L"abaaa"']
         for input_sql in input_sql_list:
             stb_name = input_sql.split(" ")[0]
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.TELNET.value, None)
@@ -427,6 +462,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check duplicate Id Tag Col
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         try:
@@ -449,6 +485,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         case no id when stb exist
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="sub_table_0123456", t0="f", value="f")
         self.tdCom.check_res(input_sql, stb_name)
@@ -461,6 +498,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check duplicate insert when stb exist
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -472,6 +510,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check length increase
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -489,6 +528,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         * col is added without value when update==0
         * col is added with value when update==1
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         for db_update_tag in [0, 1]:
@@ -515,6 +555,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check tag count add
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="f", value="f")
@@ -531,6 +572,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         condition: stb not change
         insert two table, keep tag unchange, change col
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(t0="f", value="f", id_noexist_tag=True)
         self.tdCom.check_res(input_sql, stb_name)
@@ -553,6 +595,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check nchar length limit
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(7, "letters")
         input_sql = f'{stb_name} 1626006833640 f t2={self.tdCom.get_long_name(1, "letters")}'
@@ -576,6 +619,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test batch insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
         self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
@@ -601,10 +645,12 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test multi insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         sql_list = []
         stb_name = self.tdCom.get_long_name(8, "letters")
-        self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
+        # TODO commit out
+        #self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name(8, "letters")}"', value=f'"{self.tdCom.get_long_name(8, "letters")}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
@@ -616,6 +662,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test batch error insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
         lines = ["st123456 1626006833640 3i 64 t1=3i64 t2=4f64 t3=\"t3\"",
@@ -630,6 +677,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test multi cols insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(c_multi_tag=True)[0]
         try:
@@ -642,6 +690,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test blank col insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(c_blank_tag=True)[0]
         try:
@@ -654,6 +703,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         test blank tag insert
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(t_blank_tag=True)[0]
         try:
@@ -666,6 +716,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         check nchar ---> chinese
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(chinese_tag=True)
         self.tdCom.check_res(input_sql, stb_name)
@@ -674,6 +725,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         '''
         multi_field
         '''
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(multi_field_tag=True)[0]
         try:
@@ -683,6 +735,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.tdSql.checkNotEqual(err.errno, 0)
 
     def spell_check(self):
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
         input_sql_list = [f'{stb_name}_1 1626006833640 127I8 t0=127I8 t1=32767I16 t2=2147483647I32 t3=9223372036854775807I64 t4=11.12345027923584F32 t5=22.123456789F64',
@@ -703,6 +756,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         metric value "." trans to "_"
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(point_trans_tag=True, protocol=protocol)[0]
         if protocol == 'telnet-tcp':
@@ -713,6 +767,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.execute("drop table `.point.trans.test`")
 
     def defaultType_check(self):
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
         input_sql_list = [f'{stb_name}_1 1626006833640 9223372036854775807 t0=f t1=127 t2=32767i16 t3=2147483647i32 t4=9223372036854775807 t5=11.12345f32 t6=22.123456789f64 t7="vozamcts" t8=L"ncharTagValue"', \
@@ -725,6 +780,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
             self.tdCom.check_res(input_sql, stb_name)
 
     def tbname_tags_cols_name_check(self):
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         if self.tdCom.smlChildTableName_value == "ID":
             input_sql = 'rFa$sta 1626006834 9223372036854775807 id=rFas$ta_1 Tt!0=true tT@1=127Ii8 t#2=32767i16 "t$3"=2147483647i32 t%4=9223372036854775807i64 t^5=11.12345f32 t&6=22.123456789f64 t*7=\"ddzhiksj\" t!@#$%^&*()_+[];:<>?,9=L\"ncharTagValue\"'
@@ -751,6 +807,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input different stb
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_sql_list()[0]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(input_sql))
@@ -761,6 +818,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         stb = "put"
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(tcp_keyword_tag=True, protocol=protocol)[0]
         stb_name = f'`{input_sql.split(" ")[1]}`'
@@ -770,6 +828,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different data, result keep first data
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -788,6 +847,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different data, add tags,  result keep first data
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -806,6 +866,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -824,6 +885,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, different data
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
         self.tdCom.check_res(input_sql, stb_name)
@@ -836,6 +898,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, different data, mul tag
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
         self.tdCom.check_res(input_sql, stb_name)
@@ -852,6 +915,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, different data, add tag
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
         self.tdCom.check_res(input_sql, stb_name)
@@ -864,6 +928,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different ts
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -883,6 +948,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different ts, mul tag
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -901,6 +967,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different ts, add tag
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, value="\"binaryTagValue\"")
@@ -924,6 +991,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, data, ts
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
         self.tdCom.check_res(input_sql, stb_name)
@@ -936,6 +1004,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, data, ts, add col, mul tag
         """
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(value="\"binaryTagValue\"")
         self.tdCom.check_res(input_sql, stb_name)
@@ -948,12 +1017,16 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
+    def test(self):
+        self.opentstb_telnet_ts_check()
+
     def run(self) -> bool:
+        # self.test()
         self.init_check()
         self.bool_check()
         self.symbols_check()
-        # self.ts_check()
-        # self.opentstb_telnet_ts_check()
+        self.ts_check()
+        self.opentstb_telnet_ts_check()
         self.id_seq_check()
         self.id_letter_check()
         self.no_id_check()
@@ -963,25 +1036,25 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.now_check()
         self.date_format_check()
         self.illegal_ts_check()
-        # self.tbname_check()
+        self.tbname_check()
         # self.tag_value_length_check()
         self.col_value_length_check()
         self.tag_col_illegal_value_check()
         self.blank_check()
         self.duplicate_id_tag_col_insert_check()
         self.no_id_stb_exist_check()
-        # self.duplicate_insert_exist_check()
+        self.duplicate_insert_exist_check()
         self.tag_col_binary_nchar_length_check()
         # self.tag_col_add_dup_id_check()
         # self.tag_col_add_check()
         # self.tag_md5_check()
         # self.tag_col_binary_max_length_check()
         # self.batch_insert_check()
-        # self.multiInsert_check(10)
+        self.multiInsert_check(10)
         self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.blank_col_insert_check()
-        # self.blank_tag_insert_check()
+        self.blank_tag_insert_check()
         self.chinese_check()
         self.multi_field_check()
         self.spell_check()
@@ -989,10 +1062,10 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.defaultType_check()
         # self.tbname_tags_cols_name_check()
         self.stb_insert_multi_thread_check()
-        self.s_stb_s_tb_d_data_insert_multi_thread_check()
+        # self.s_stb_s_tb_d_data_insert_multi_thread_check()
         # self.s_stb_s_tb_d_data_at_insert_multi_thread_check()
         # self.s_stb_stb_d_data_mt_insert_multi_thread_check()
-        self.s_stb_d_tb_d_data_insert_multi_thread_check()
+        # self.s_stb_d_tb_d_data_insert_multi_thread_check()
         # self.s_stb_d_tb_d_data_mt_insert_multi_thread_check()
         # self.s_stb_d_tb_d_data_at_insert_multi_thread_check()
         # self.s_stb_s_tb_d_data_d_ts_insert_multi_thread_check()

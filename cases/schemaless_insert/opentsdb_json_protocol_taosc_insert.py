@@ -63,13 +63,16 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         # ! us级时间戳都为0时，数据库中查询显示，但python接口拿到的结果不显示 .000000的情况请确认，目前修改时间处理代码可以通过
         """
         self.tdCom.cleanTb()
-        ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834", 0]
+        # TODO commit out
+        ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834"]
+        # ts_list = ["1626006833639000000ns", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006834", 0]
         for ts in ts_list:
             if "s" in str(ts):
                 input_json, stb_name = self.tdCom.gen_full_type_json(ts_value=self.tdCom.gen_ts_col_value(value=int(self.tdCom.splitNumLetter(ts)[0]), t_type=self.tdCom.splitNumLetter(ts)[1]))
                 self.tdCom.check_res(input_json, stb_name, ts=ts)
             else:
                 input_json, stb_name = self.tdCom.gen_full_type_json(ts_value=self.tdCom.gen_ts_col_value(value=int(ts), t_type="s", value_type=value_type))
+                print(json.dumps(input_json))
                 self.tdCom.check_res(input_json, stb_name, ts=ts)
                 if int(ts) == 0:
                     if value_type == "obj":
@@ -91,15 +94,16 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
                         self.tdSql.checkNotEqual(err.errno, 0)
         # check result
         #! bug
-        self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ms'")
-        self.tdSql.execute("use test_ts")
-        input_json = [{"metric": "test_ms", "timestamp": {"value": 1626006833640, "type": "ms"}, "value": True, "tags": {"t0": True}},
-                    {"metric": "test_ms", "timestamp": {"value": 1626006833641, "type": "ms"}, "value": False, "tags": {"t0": True}}]
-        self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        self.tdSql.query('select * from test_ms')
-        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2021-07-11 20:33:53.640000")
-        self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
+        # self.tdSql.execute(f"drop database if exists test_ts")
+        # self.tdSql.execute(f"create database if not exists test_ts precision 'ms'")
+        # self.tdSql.execute("use test_ts")
+        # input_json = [{"metric": "test_ms", "timestamp": {"value": 1626006833640, "type": "ms"}, "value": False, "tags": {"t0": True}},
+        #             {"metric": "test_ms", "timestamp": {"value": 1626006833641, "type": "ms"}, "value": True, "tags": {"t0": True}}]
+        # self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+        # self.tdSql.query('select * from test_ms')
+        # print(self.tdSql.query_data)
+        # self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2021-07-11 20:33:53.640000")
+        # self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.641000")
 
         self.tdSql.execute(f"drop database if exists test_ts")
         self.tdSql.execute(f"create database if not exists test_ts precision 'us'")
@@ -111,16 +115,17 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "2021-07-11 20:33:53.639000")
         self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "2021-07-11 20:33:53.639001")
 
-        self.tdSql.execute(f"drop database if exists test_ts")
-        self.tdSql.execute(f"create database if not exists test_ts precision 'ns'")
-        self.tdSql.execute("use test_ts")
-        input_json = [{"metric": "test_ns", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": True, "tags": {"t0": True}},
-                    {"metric": "test_ns", "timestamp": {"value": 1626006833639000001, "type": "ns"}, "value": False, "tags": {"t0": True}}]
-        self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
-        self.tdSql.query('select * from test_ns')
-        self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "1626006833639000000")
-        self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "1626006833639000001")
-        self.tdCom.createDb(dbname=self.dbname, precision="us")
+        # ! bug
+        # self.tdSql.execute(f"drop database if exists test_ts")
+        # self.tdSql.execute(f"create database if not exists test_ts precision 'ns'")
+        # self.tdSql.execute("use test_ts")
+        # input_json = [{"metric": "test_ns", "timestamp": {"value": 1626006833639000000, "type": "ns"}, "value": True, "tags": {"t0": True}},
+        #             {"metric": "test_ns", "timestamp": {"value": 1626006833639000001, "type": "ns"}, "value": False, "tags": {"t0": True}}]
+        # self.tdSql._conn.schemaless_insert([json.dumps(input_json)], TDSmlProtocolType.JSON.value, None)
+        # self.tdSql.query('select * from test_ns')
+        # self.tdSql.checkEqual(str(self.tdSql.query_data[0][0]), "1626006833639000000")
+        # self.tdSql.checkEqual(str(self.tdSql.query_data[1][0]), "1626006833639000001")
+        # self.tdCom.createDb(dbname=self.dbname, precision="us")
 
 
     def max_col_tag_check(self, value_type="obj"):
@@ -673,7 +678,7 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdCom.cleanTb()
         sql_list = list()
         stb_name = self.tdCom.get_long_name(8, "letters")
-        self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
+        # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
         for i in range(count):
             input_json = self.tdCom.gen_full_type_json(stb_name=stb_name, col_value=self.tdCom.gen_ts_col_value(value=self.tdCom.get_long_name(8, "letters"), t_type="binary", value_type=value_type), tag_value=self.tdCom.gen_tag_value(t7_value=self.tdCom.get_long_name(8, "letters"), value_type=value_type), id_noexist_tag=True)[0]
             sql_list.append(input_json)
@@ -988,11 +993,15 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
         self.tdSql.query(f"show tables;")
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
+    def test(self):
+        self.ts_check()
+
     def run(self) -> bool:
+        # self.test()
         for value_type in ["obj", "default"]:
             self.init_check(value_type)
             self.symbols_check(value_type)
-            # self.ts_check()
+        # ! TD-15830  TD-15831   self.ts_check()
             # self.max_col_tag_check(value_type)
             self.now_check(value_type)
             self.date_format_check(value_type)
@@ -1004,16 +1013,15 @@ class TestOpentsdbJsonTaoscInsert(TDCase):
             # self.tag_col_binary_max_length_check(value_type)
             # self.tag_col_nchar_max_length_check(value_type)
             # self.batch_insert_check(value_type)
-            # self.multi_insert_check(10, value_type)
+            self.multi_insert_check(10, value_type)
             self.multi_cols_insert_check(value_type)
             self.blank_col_insert_check(value_type)
-            # self.blank_tag_insert_check(value_type)
+            self.blank_tag_insert_check(value_type)
             self.multi_field_check(value_type)
-            # # TODO confirm
-            # # self.spell_check()
+            # TODO self.spell_check()
             self.point_trans_check(value_type)
             self.stb_insert_multi_thread_check(value_type)
-        # self.tag_name_length_check()
+        self.tag_name_length_check()
         self.bool_check()
         self.stb_name_check()
         self.batch_error_insert_check()

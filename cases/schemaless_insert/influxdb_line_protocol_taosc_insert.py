@@ -17,6 +17,8 @@ from taostest.util.sml_types import TDSmlProtocolType, TDSmlTimestampType
 from taos.error import SchemalessError
 import datetime
 import sys
+from taostest.util.remote import Remote
+
 class TestInfluxdbLineTaoscInsert(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
@@ -24,12 +26,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdCom.drop_all_db()
         self.dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdCom.createDb(dbname=self.dbname, precision="us")
+        self._remote: Remote = Remote(self.logger)
 
     def init_check(self):
         """
         normal tags and cols, one for every elm
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -38,7 +41,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check all normal bool type
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         full_type_list = ["f", "F", "false", "False", "t", "T", "true", "True"]
         for t_type in full_type_list:
@@ -49,7 +52,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check symbols = \"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"\"
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         binary_symbols = '"abcd`~!@#$%^&*()_-{[}]|:;<.>?lfjal"'
         nchar_symbols = f'L{binary_symbols}'
@@ -61,7 +64,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         test ts list --> ["1626006833639000000", "1626006833639019us", "1626006833640ms", "1626006834s", "1626006822639022"]
         # ! us级时间戳都为0时，数据库中查询显示，但python接口拿到的结果不显示 .000000的情况请确认，目前修改时间处理代码可以通过
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(ts=1626006833639000000)
         self.tdCom.check_res(input_sql, stb_name, ts_type=TDSmlTimestampType.NANO_SECOND.value)
@@ -109,7 +112,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         check id.index in tags
         eg: t0=**,id=**,t1=**
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_change_tag=True)
         self.tdCom.check_res(input_sql, stb_name)
@@ -119,7 +122,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         check id param
         eg: id and ID
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_upper_tag=True)
         self.tdCom.check_res(input_sql, stb_name)
@@ -132,7 +135,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         id not exist
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(id_noexist_tag=True)
         self.tdCom.check_res(input_sql, stb_name)
@@ -148,7 +151,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         max tag count is 128
         max col count is 4096
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         for input_sql in [self.tdCom.gen_long_sql(self.tdCom.boundary_config["MAX_TAG_COUNT"]-1, 1)[0], self.tdCom.gen_long_sql(1, self.tdCom.boundary_config["MAX_TAG_COL_COUNT"]-3)[0]]:
             self.tdCom.cleanTb()
             self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -165,7 +168,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         test illegal id name
         mix "~!@#$¥%^&*()-+{}|[]、「」【】:;《》<>?"
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         rstr = list("~!@#$¥%^&*()-+|[]、「」【】;:《》<>?")
         for i in rstr:
@@ -178,7 +181,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         id is start with num
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="1aaabbb")
         self.tdCom.check_res(input_sql, stb_name)
@@ -187,7 +190,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check now unsupported
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(ts="now")[0]
         try:
@@ -200,7 +203,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check date format unsupported
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(ts="2021-07-21\ 19:01:46.920")[0]
         try:
@@ -213,7 +216,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
             check ts format like 16260068336390us19
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(ts="16260068336390us19")[0]
         try:
@@ -228,7 +231,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         chech upper tag
         length of stb_name tb_name <= 192
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["STBNAME_MAX_LENGTH"], mode="letters")
         tb_name_192 = self.tdCom.get_long_name(length=self.tdCom.boundary_config["TBNAME_MAX_LENGTH"], mode="letters")
@@ -250,7 +253,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check full type tag value limit
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         # nchar
         # * legal nchar could not be larger than 16374/4
@@ -268,7 +271,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check full type col value limit
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         # i8
         for c1 in [f'-{self.tdCom.boundary_config["TINYINT_MAX"]}i8', f'{self.tdCom.boundary_config["TINYINT_MAX"]}i8']:
@@ -305,7 +308,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
                 raise Exception("should not reach here")
             except SchemalessError as err:
                 self.tdSql.checkNotEqual(err.errno, 0)
-        # ! bug i64
         # i64
         for c4 in [f'-{self.tdCom.boundary_config["BIGINT_MAX"]}i64']:
             input_sql, stb_name = self.tdCom.gen_full_type_sql(c4=c4)
@@ -373,7 +375,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test illegal tag col value
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         # bool
         for i in ["TrUe", "tRue", "trUe", "truE", "FalsE", "fAlse", "faLse", "falSe", "falsE"]:
@@ -409,7 +411,6 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         stb_name1 = self.tdCom.get_long_name(7, "letters")
         stb_name2 = self.tdCom.get_long_name(7, "letters")
         for symbol in list('、「」~!@#$¥%^&*()-+{}|[]:;'):
-            print(symbol)
             input_sql1 = f'{stb_name1},t0=t c0=f,c1="abc{symbol}aaa" 1626006833639000000'
             input_sql2 = f'{stb_name2},t0=t,t1="abc{symbol}aaa" c0=f 1626006833639000000'
             self.tdSql._conn.schemaless_insert([input_sql1], TDSmlProtocolType.LINE.value, None)
@@ -420,7 +421,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check duplicate Id Tag Col
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql_id = self.tdCom.gen_full_type_sql(id_double_tag=True)[0]
         try:
@@ -455,7 +456,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         case no id when stb exist
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name="sub_table_0123456", t0="f", c0="f")
         self.tdCom.check_res(input_sql, stb_name)
@@ -470,7 +471,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check duplicate insert when stb exist
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -481,7 +482,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check length increase
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -498,7 +499,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         * col is added without value when update==0
         * col is added with value when update==1
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         for db_update_tag in [0, 1]:
@@ -528,7 +529,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check column and tag count add
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name, t0="f", c0="f")
@@ -544,7 +545,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         condition: stb not change
         insert two table, keep tag unchange, change col
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(t0="f", c0="f", id_noexist_tag=True)
         self.tdCom.check_res(input_sql, stb_name)
@@ -567,7 +568,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         every binary and nchar must be length+2
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(7, "letters")
         tb_name = f'{stb_name}_1'
@@ -594,7 +595,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check nchar length limit
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(7, "letters")
         tb_name = f'{stb_name}_1'
@@ -632,7 +633,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test batch insert
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
         self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 bigint)')
@@ -658,11 +659,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test multi insert
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         sql_list = []
         stb_name = self.tdCom.get_long_name(8, "letters")
-        self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
+        # TODO commit out
+        # self.tdSql.execute(f'create stable {stb_name}(ts timestamp, f int) tags(t1 nchar(10))')
         for i in range(count):
             input_sql = self.tdCom.gen_full_type_sql(stb_name=stb_name, t7=f'"{self.tdCom.get_long_name(8, "letters")}"', c7=f'"{self.tdCom.get_long_name(8, "letters")}"', id_noexist_tag=True)[0]
             sql_list.append(input_sql)
@@ -674,7 +676,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test batch error insert
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
         lines = ["st123456,t1=3i64,t2=4f64,t3=\"t3\" c1=3i 64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000",
@@ -689,7 +691,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test multi cols insert
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(c_multi_tag=True)[0]
         try:
@@ -702,7 +704,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test multi tags insert
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(t_multi_tag=True)[0]
         try:
@@ -715,7 +717,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test blank col insert
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_full_type_sql(c_blank_tag=True)[0]
         try:
@@ -728,7 +730,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         test blank tag insert
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(t_blank_tag=True)
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -739,13 +741,13 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         check nchar ---> chinese
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql(chinese_tag=True)
         self.tdCom.check_res(input_sql, stb_name)
 
     def spell_check(self):
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         stb_name = self.tdCom.get_long_name(8, "letters")
         self.tdCom.cleanTb()
         input_sql_list = [f'{stb_name}_1,t0=127I8,t1=32767I16,t2=2147483647I32,t3=9223372036854775807I64,t4=11.12345027923584F32,t5=22.123456789F64 c0=127I8,c1=32767I16,c2=2147483647I32,c3=9223372036854775807I64,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000',
@@ -763,7 +765,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.tdCom.check_res(input_sql, stb_name)
 
     def default_type_check(self):
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         stb_name = self.tdCom.get_long_name(8, "letters")
         input_sql_list = [f'{stb_name}_1,t0=127,t1=32767I16,t2=2147483647I32,t3=9223372036854775807,t4=11.12345027923584F32,t5=22.123456789F64 c0=127,c1=32767I16,c2=2147483647I32,c3=9223372036854775807,c4=11.12345027923584F32,c5=22.123456789F64 1626006833639000000',
@@ -776,7 +778,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
             self.tdCom.check_res(input_sql, stb_name)
 
     def tbname_tags_cols_name_check(self):
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = 'rFa$sta,id=rFas$ta_1,Tt!0=true,tT@1=127i8,t#2=32767i16,\"t$3\"=2147483647i32,t%4=9223372036854775807i64,t^5=11.12345f32,t&6=22.123456789f64,t*7=\"ddzhiksj\",t!@#$%^&*()_+[];:<>?\,9=L\"ncharTagValue\" C)0=True,c{1=127i8,c[2=32767i16,c;3=2147483647i32,c:4=9223372036854775807i64,c<5=11.12345f32,c>6=22.123456789f64,c?7=\"bnhwlgvj\",c.8=L\"ncharTagValue\",c!@#$%^&*()_+[];:<>?\,=7u64 1626006933640000000'
         self.tdSql._conn.schemaless_insert([input_sql], TDSmlProtocolType.LINE.value, TDSmlTimestampType.NANO_SECOND.value)
@@ -793,7 +795,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input different stb
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql = self.tdCom.gen_sql_list()[0]
         self.tdCom.multi_thread_run(self.tdCom.gen_multi_thread_sql(input_sql))
@@ -804,7 +806,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different data, result keep first data
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
@@ -820,7 +822,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different data, add columes and tags,  result keep first data
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
@@ -836,7 +838,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different data, minus columes and tags,  result keep first data
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
@@ -852,7 +854,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, different data
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -865,7 +867,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, different data, add col, mul tag
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -883,7 +885,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, different data, add tag, mul col
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -896,7 +898,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different ts
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
@@ -916,7 +918,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different ts, add col, mul tag
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
@@ -940,7 +942,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb tb, different ts, add tag, mul col
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         tb_name = self.tdCom.get_long_name(7, "letters")
         input_sql, stb_name = self.tdCom.gen_full_type_sql(tb_name=tb_name)
@@ -966,7 +968,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, data, ts
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -979,7 +981,7 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         """
         thread input same stb, different tb, data, ts, add col, mul tag
         """
-        print('Running----', sys._getframe().f_code.co_name)
+        self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
         input_sql, stb_name = self.tdCom.gen_full_type_sql()
         self.tdCom.check_res(input_sql, stb_name)
@@ -993,10 +995,10 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 3)
 
     def test(self):
-        self.tbname_tags_cols_name_check()
+        self.blank_tag_insert_check()
 
     def run(self) -> bool:
-        self.test()
+        # self.test()
         self.init_check()
         self.bool_check()
         self.symbols_check()
@@ -1023,12 +1025,12 @@ class TestInfluxdbLineTaoscInsert(TDCase):
         # TODO self.tag_md5_check()
         # TODO self.tag_col_binary_max_length_check()
         # TODO self.batch_insert_check()
-        # TODO self.multi_insert_check(10)
+        self.multi_insert_check(10)
         self.batch_error_insert_check()
         self.multi_cols_insert_check()
         self.multi_tags_insert_check()
         self.blank_col_insert_check()
-        # #! self.blank_tag_insert_check()
+        self.blank_tag_insert_check()
         self.chinese_check()
         self.spell_check()
         self.default_type_check()
