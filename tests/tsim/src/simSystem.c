@@ -98,6 +98,8 @@ SScript *simProcessCallOver(SScript *script) {
       return NULL;
     }
 
+    if (simScriptPos == -1) return NULL;
+
     return simScriptList[simScriptPos];
   } else {
     simDebug("script:%s,  is stopped", script->fileName);

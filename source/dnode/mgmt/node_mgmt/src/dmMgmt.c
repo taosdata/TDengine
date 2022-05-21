@@ -314,8 +314,3 @@ void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg) {
   rpcSendResponse(&rsp);
   rpcFreeCont(pMsg->pCont);
 }
-
-void dmProcessFetchRsp(SRpcMsg *pMsg) {
-  qWorkerProcessFetchRsp(NULL, NULL, pMsg);
-  // rpcFreeCont(pMsg->pCont);
-}
