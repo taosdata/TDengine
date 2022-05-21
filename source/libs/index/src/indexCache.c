@@ -385,7 +385,7 @@ void indexCacheDebug(IndexCache* cache) {
 
 void indexCacheDestroySkiplist(SSkipList* slt) {
   SSkipListIterator* iter = tSkipListCreateIter(slt);
-  while (tSkipListIterNext(iter)) {
+  while (iter != NULL && tSkipListIterNext(iter)) {
     SSkipListNode* node = tSkipListIterGet(iter);
     CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
     if (ct != NULL) {
