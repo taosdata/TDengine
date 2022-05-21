@@ -9,8 +9,7 @@ python3 ./test.py -f 0-others/telemetry.py
 python3 ./test.py -f 0-others/taosdMonitor.py
 python3 ./test.py -f 0-others/udfTest.py
 
-# TODO privilege has error
-# python3 ./test.py -f 0-others/user_control.py
+python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 
 #python3 ./test.py -f 2-query/between.py
