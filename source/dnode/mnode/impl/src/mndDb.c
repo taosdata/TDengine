@@ -525,7 +525,6 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
-  pCreate->pRetensions = NULL;
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
@@ -605,10 +604,10 @@ static int32_t mndProcessCreateDbReq(SRpcMsg *pReq) {
   }
 
   code = mndCreateDb(pMnode, pReq, &createReq, pUser);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to create since %s", createReq.db, terrstr());
   }
 
@@ -839,10 +838,10 @@ static int32_t mndProcessAlterDbReq(SRpcMsg *pReq) {
   dbObj.cfgVersion++;
   dbObj.updateTime = taosGetTimestampMs();
   code = mndAlterDb(pMnode, pReq, pDb, &dbObj);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to alter since %s", alterReq.db, terrstr());
   }
 
@@ -1110,10 +1109,10 @@ static int32_t mndProcessDropDbReq(SRpcMsg *pReq) {
   }
 
   code = mndDropDb(pMnode, pReq, pDb);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("db:%s, failed to drop since %s", dropReq.db, terrstr());
   }
 

@@ -308,13 +308,10 @@ static int compareKv(const void* p1, const void* p2) {
  * use stable name and tags to grearate child table name
  */
 void buildChildTableName(RandTableName* rName) {
-  int32_t size = taosArrayGetSize(rName->tags);
-  ASSERT(size > 0);
-  taosArraySort(rName->tags, compareKv);
-
   SStringBuilder sb = {0};
   taosStringBuilderAppendStringLen(&sb, rName->sTableName, rName->sTableNameLen);
-  for (int j = 0; j < size; ++j) {
+  taosArraySort(rName->tags, compareKv);
+  for (int j = 0; j < taosArrayGetSize(rName->tags); ++j) {
     SSmlKv* tagKv = taosArrayGetP(rName->tags, j);
     taosStringBuilderAppendStringLen(&sb, tagKv->key, tagKv->keyLen);
     if(IS_VAR_DATA_TYPE(tagKv->type)){

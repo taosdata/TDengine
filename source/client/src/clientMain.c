@@ -146,10 +146,10 @@ void taos_free_result(TAOS_RES *res) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
     if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
     if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
-    if (pRsp->rsp.blockSchema) taosArrayDestroy(pRsp->rsp.blockSchema);
-    if (pRsp->rsp.blockTbName) taosArrayDestroy(pRsp->rsp.blockTbName);
     if (pRsp->rsp.blockTags) taosArrayDestroy(pRsp->rsp.blockTags);
     if (pRsp->rsp.blockTagSchema) taosArrayDestroy(pRsp->rsp.blockTagSchema);
+    if (pRsp->rsp.withTbName) taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
+    if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
     pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
   }

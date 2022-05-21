@@ -15,6 +15,7 @@
 
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
+#include "qworker.h"
 
 static void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet);
 static void dmSendRsp(SRpcMsg *pMsg);
@@ -61,7 +62,7 @@ static void dmProcessRpcMsg(SDnode *pDnode, SRpcMsg *pRpc, SEpSet *pEpSet) {
     dmProcessNetTestReq(pDnode, pRpc);
     return;
   } else if (pRpc->msgType == TDMT_MND_SYSTABLE_RETRIEVE_RSP || pRpc->msgType == TDMT_VND_FETCH_RSP) {
-    dmProcessFetchRsp(pRpc);
+    qWorkerProcessFetchRsp(NULL, NULL, pRpc);
     return;
   } else {
   }
