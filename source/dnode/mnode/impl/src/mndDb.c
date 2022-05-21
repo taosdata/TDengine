@@ -525,7 +525,6 @@ static int32_t mndCreateDb(SMnode *pMnode, SRpcMsg *pReq, SCreateDbReq *pCreate,
 
   dbObj.cfg.numOfRetensions = pCreate->numOfRetensions;
   dbObj.cfg.pRetensions = pCreate->pRetensions;
-  pCreate->pRetensions = NULL;
 
   mndSetDefaultDbCfg(&dbObj.cfg);
 
