@@ -15,9 +15,9 @@
 
 //#define _DEFAULT_SOURCE
 #include "os.h"
-#include "rpcLog.h"
 #include "tglobal.h"
 #include "tqueue.h"
+#include "transLog.h"
 #include "trpc.h"
 
 int         msgSize = 128;
@@ -123,7 +123,6 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp = processRequestMsg;
   rpcInit.sessions = 1000;
   rpcInit.idleTime = 2 * 1500;
-  rpcInit.afp = retrieveAuthInfo;
 
   rpcDebugFlag = 131;
 

@@ -121,7 +121,7 @@ def pre_test_win(){
         set
         date /t
         time /t
-        rd /s /Q C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug
+        rd /s /Q C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal\\debug || exit 0
     '''
     bat '''
         cd C:\\workspace\\%EXECUTOR_NUMBER%\\TDinternal

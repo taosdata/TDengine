@@ -20,6 +20,7 @@
 
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
+#define SDB_FILE_VER     1
 
 static int32_t sdbRunDeployFp(SSdb *pSdb) {
   mDebug("start to deploy sdb");
@@ -39,7 +40,22 @@ static int32_t sdbRunDeployFp(SSdb *pSdb) {
 }
 
 static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
-  int32_t ret = taosReadFile(pFile, &pSdb->curVer, sizeof(int64_t));
+  int64_t sver = 0;
+  int32_t ret = taosReadFile(pFile, &sver, sizeof(int64_t));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (ret != sizeof(int64_t)) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+  if (sver != SDB_FILE_VER) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+
+  ret = taosReadFile(pFile, &pSdb->curVer, sizeof(int64_t));
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -96,6 +112,12 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
 }
 
 static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
+  int64_t sver = SDB_FILE_VER;
+  if (taosWriteFile(pFile, &sver, sizeof(int64_t)) != sizeof(int64_t)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   if (taosWriteFile(pFile, &pSdb->curVer, sizeof(int64_t)) != sizeof(int64_t)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -256,9 +278,9 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
     mTrace("write %s to file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
-    SHashObj *hash = pSdb->hashObjs[i];
-    SRWLatch *pLock = &pSdb->locks[i];
-    taosWLockLatch(pLock);
+    SHashObj       *hash = pSdb->hashObjs[i];
+    TdThreadRwlock *pLock = &pSdb->locks[i];
+    taosThreadRwlockWrlock(pLock);
 
     SSdbRow **ppRow = taosHashIterate(hash, NULL);
     while (ppRow != NULL) {
@@ -303,7 +325,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
       sdbFreeRaw(pRaw);
       ppRow = taosHashIterate(hash, ppRow);
     }
-    taosWUnLockLatch(pLock);
+    taosThreadRwlockUnlock(pLock);
   }
 
   if (code == 0) {

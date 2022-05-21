@@ -24,9 +24,9 @@
 #define SPLIT_FLAG_TEST_MASK(val, mask) (((val) & (mask)) != 0)
 
 typedef struct SSplitContext {
-  int32_t queryId;
-  int32_t groupId;
-  bool    split;
+  uint64_t queryId;
+  int32_t  groupId;
+  bool     split;
 } SSplitContext;
 
 typedef int32_t (*FSplit)(SSplitContext* pCxt, SLogicSubplan* pSubplan);
@@ -248,6 +248,7 @@ static SLogicSubplan* unionCreateSubplan(SSplitContext* pCxt, SLogicNode* pNode)
   pSubplan->id.groupId = pCxt->groupId;
   pSubplan->subplanType = SUBPLAN_TYPE_SCAN;
   pSubplan->pNode = pNode;
+  pNode->pParent = NULL;
   return pSubplan;
 }
 
@@ -408,17 +409,30 @@ static const SSplitRule splitRuleSet[] = {{.pName = "SuperTableScan", .splitFunc
 
 static const int32_t splitRuleNum = (sizeof(splitRuleSet) / sizeof(SSplitRule));
 
+static void dumpLogicSubplan(const char* pRuleName, SLogicSubplan* pSubplan) {
+  char* pStr = NULL;
+  nodesNodeToString(pSubplan, false, &pStr, NULL);
+  qDebugL("apply %s rule: %s", pRuleName, pStr);
+  taosMemoryFree(pStr);
+}
+
 static int32_t applySplitRule(SLogicSubplan* pSubplan) {
   SSplitContext cxt = {.queryId = pSubplan->id.queryId, .groupId = pSubplan->id.groupId + 1, .split = false};
+  bool          split = false;
   do {
-    cxt.split = false;
+    split = false;
     for (int32_t i = 0; i < splitRuleNum; ++i) {
+      cxt.split = false;
       int32_t code = splitRuleSet[i].splitFunc(&cxt, pSubplan);
       if (TSDB_CODE_SUCCESS != code) {
         return code;
       }
+      if (cxt.split) {
+        split = true;
+        dumpLogicSubplan(splitRuleSet[i].pName, pSubplan);
+      }
     }
-  } while (cxt.split);
+  } while (split);
   return TSDB_CODE_SUCCESS;
 }
 

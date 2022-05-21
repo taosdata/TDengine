@@ -255,7 +255,7 @@ _err:
   return -1;
 }
 
-int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
+int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq, SArray *tbUids) {
   TBC        *pTbDbc = NULL;
   TBC        *pUidIdxc = NULL;
   TBC        *pNameIdxc = NULL;
@@ -336,6 +336,7 @@ int metaDropTable(SMeta *pMeta, int64_t version, SVDropTbReq *pReq) {
   if (type == TSDB_CHILD_TABLE) {
     ctime = me.ctbEntry.ctime;
     suid = me.ctbEntry.suid;
+    taosArrayPush(tbUids, &me.uid);
   } else if (type == TSDB_NORMAL_TABLE) {
     ctime = me.ntbEntry.ctime;
     suid = 0;
@@ -482,12 +483,12 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
         goto _err;
       }
-      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes <= pAlterTbReq->bytes) {
+      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes > pAlterTbReq->colModBytes) {
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
       pSchema->sver++;
-      pColumn->bytes = pAlterTbReq->bytes;
+      pColumn->bytes = pAlterTbReq->colModBytes;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       if (pColumn == NULL) {

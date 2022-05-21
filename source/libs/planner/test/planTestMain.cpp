@@ -35,18 +35,19 @@ class PlannerEnv : public testing::Environment {
 
  private:
   void initLog(const char* path) {
-    dDebugFlag = 143;
-    vDebugFlag = 0;
-    mDebugFlag = 143;
-    cDebugFlag = 0;
-    jniDebugFlag = 0;
-    tmrDebugFlag = 135;
-    uDebugFlag = 135;
-    rpcDebugFlag = 143;
-    qDebugFlag = 143;
-    wDebugFlag = 0;
-    sDebugFlag = 0;
-    tsdbDebugFlag = 0;
+    int32_t logLevel = getLogLevel();
+    dDebugFlag = logLevel;
+    vDebugFlag = logLevel;
+    mDebugFlag = logLevel;
+    cDebugFlag = logLevel;
+    jniDebugFlag = logLevel;
+    tmrDebugFlag = logLevel;
+    uDebugFlag = logLevel;
+    rpcDebugFlag = logLevel;
+    qDebugFlag = logLevel;
+    wDebugFlag = logLevel;
+    sDebugFlag = logLevel;
+    tsdbDebugFlag = logLevel;
     tsLogEmbedded = 1;
     tsAsyncLog = 0;
 
@@ -60,17 +61,26 @@ class PlannerEnv : public testing::Environment {
 };
 
 static void parseArg(int argc, char* argv[]) {
-  int                  opt = 0;
-  const char*          optstring = "";
+  int         opt = 0;
+  const char* optstring = "";
+  // clang-format off
   static struct option long_options[] = {
-      {"dump", optional_argument, NULL, 'd'}, {"skipSql", optional_argument, NULL, 's'}, {0, 0, 0, 0}};
+    {"dump", optional_argument, NULL, 'd'},
+    {"skipSql", required_argument, NULL, 's'},
+    {"log", required_argument, NULL, 'l'},
+    {0, 0, 0, 0}
+  };
+  // clang-format on
   while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
     switch (opt) {
       case 'd':
         setDumpModule(optarg);
         break;
       case 's':
-        g_skipSql = 1;
+        setSkipSqlNum(optarg);
+        break;
+      case 'l':
+        setLogLevel(optarg);
         break;
       default:
         break;

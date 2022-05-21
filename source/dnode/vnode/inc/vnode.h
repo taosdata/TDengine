@@ -45,20 +45,20 @@ typedef struct SVnodeCfg SVnodeCfg;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
-int     vnodeInit(int nthreads);
+int32_t vnodeInit(int32_t nthreads);
 void    vnodeCleanup();
-int     vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
+int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
-int     vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version);
-int     vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
-int     vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
-int     vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
-int     vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
-int     vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
+int32_t vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version);
+int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
+int32_t vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
+int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
+int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
-int     vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
+int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
 
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
@@ -74,8 +74,8 @@ typedef struct SMetaEntry  SMetaEntry;
 
 void        metaReaderInit(SMetaReader *pReader, SMeta *pMeta, int32_t flags);
 void        metaReaderClear(SMetaReader *pReader);
-int         metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
-int         metaReadNext(SMetaReader *pReader);
+int32_t     metaGetTableEntryByUid(SMetaReader *pReader, tb_uid_t uid);
+int32_t     metaReadNext(SMetaReader *pReader);
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid);
 
 #if 1  // refact APIs below (TODO)
@@ -86,7 +86,7 @@ typedef struct SMTbCursor SMTbCursor;
 
 SMTbCursor *metaOpenTbCursor(SMeta *pMeta);
 void        metaCloseTbCursor(SMTbCursor *pTbCur);
-int         metaTbCursorNext(SMTbCursor *pTbCur);
+int32_t     metaTbCursorNext(SMTbCursor *pTbCur);
 #endif
 
 // tsdb
@@ -124,10 +124,13 @@ typedef struct STqReadHandle STqReadHandle;
 STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 
 void    tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList);
-int     tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int     tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
+int32_t tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList);
+
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
+bool    tqNextDataBlockFilterOut(STqReadHandle *pHandle, SHashObj *filterOutUids);
 int32_t tqRetrieveDataBlock(SArray **ppCols, STqReadHandle *pHandle, uint64_t *pGroupId, uint64_t *pUid,
                             int32_t *pNumOfRows, int16_t *pNumOfCols);
 
@@ -206,15 +209,15 @@ struct SMetaReader {
   SDecoder   coder;
   SMetaEntry me;
   void      *pBuf;
-  int        szBuf;
+  int32_t    szBuf;
 };
 
 struct SMTbCursor {
   TBC        *pDbc;
   void       *pKey;
   void       *pVal;
-  int         kLen;
-  int         vLen;
+  int32_t     kLen;
+  int32_t     vLen;
   SMetaReader mr;
 };
 

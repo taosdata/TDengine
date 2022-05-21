@@ -48,7 +48,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
-    taosInitRWLatch(&pSdb->locks[i]);
+    taosThreadRwlockInit(&pSdb->locks[i], NULL);
     pSdb->maxId[i] = 0;
     pSdb->tableVer[i] = 0;
     pSdb->keyTypes[i] = SDB_KEY_INT32;
@@ -98,7 +98,10 @@ void sdbCleanup(SSdb *pSdb) {
 
     taosHashClear(hash);
     taosHashCleanup(hash);
+    taosThreadRwlockDestroy(&pSdb->locks[i]);
     pSdb->hashObjs[i] = NULL;
+    memset(&pSdb->locks[i], 0, sizeof(pSdb->locks[i]));
+
     mDebug("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
@@ -134,7 +137,6 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
-  taosInitRWLatch(&pSdb->locks[sdbType]);
   mDebug("sdb table:%s is initialized", sdbTableName(sdbType));
 
   return 0;

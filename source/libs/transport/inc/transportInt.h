@@ -21,14 +21,12 @@
 #endif
 #include "lz4.h"
 #include "os.h"
-#include "rpcCache.h"
-#include "rpcHead.h"
-#include "rpcLog.h"
 #include "taoserror.h"
 #include "tglobal.h"
 #include "thash.h"
 #include "tidpool.h"
 #include "tmsg.h"
+#include "transLog.h"
 #include "tref.h"
 #include "trpc.h"
 #include "ttimer.h"
@@ -52,23 +50,15 @@ typedef struct {
   int      idleTime;      // milliseconds;
   uint16_t localPort;
   int8_t   connType;
-  int64_t  index;
   char     label[TSDB_LABEL_LEN];
-
-  char user[TSDB_UNI_LEN];         // meter ID
-  char spi;                        // security parameter index
-  char encrypt;                    // encrypt algorithm
-  char secret[TSDB_PASSWORD_LEN];  // secret for the link
-  char ckey[TSDB_PASSWORD_LEN];    // ciphering key
+  char     user[TSDB_UNI_LEN];  // meter ID
 
   void (*cfp)(void* parent, SRpcMsg*, SEpSet*);
   bool (*retry)(int32_t code);
+  int index;
 
   int32_t       refCount;
   void*         parent;
-  void*         idPool;     // handle to ID pool
-  void*         tmrCtrl;    // handle to timer
-  SHashObj*     hash;       // handle returned by hash utility
   void*         tcphandle;  // returned handle from TCP initialization
   TdThreadMutex mutex;
 } SRpcInfo;

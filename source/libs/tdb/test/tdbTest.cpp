@@ -1,9 +1,13 @@
 #include <gtest/gtest.h>
 
+#define ALLOW_FORBID_FUNC
 #include "os.h"
 #include "tdb.h"
 
+#include <shared_mutex>
 #include <string>
+#include <thread>
+#include <vector>
 
 typedef struct SPoolMem {
   int64_t          size;
@@ -115,7 +119,7 @@ static int tDefaultKeyCmpr(const void *pKey1, int keyLen1, const void *pKey2, in
   return cret;
 }
 
-TEST(tdb_test, simple_insert1) {
+TEST(tdb_test, DISABLED_simple_insert1) {
   int           ret;
   TDB          *pEnv;
   TTB          *pDb;
@@ -235,7 +239,7 @@ TEST(tdb_test, simple_insert1) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-TEST(tdb_test, simple_insert2) {
+TEST(tdb_test, DISABLED_simple_insert2) {
   int           ret;
   TDB          *pEnv;
   TTB          *pDb;
@@ -322,7 +326,7 @@ TEST(tdb_test, simple_insert2) {
   GTEST_ASSERT_EQ(ret, 0);
 }
 
-TEST(tdb_test, simple_delete1) {
+TEST(tdb_test, DISABLED_simple_delete1) {
   int       ret;
   TTB      *pDb;
   char      key[128];
@@ -417,7 +421,7 @@ TEST(tdb_test, simple_delete1) {
   tdbClose(pEnv);
 }
 
-TEST(tdb_test, simple_upsert1) {
+TEST(tdb_test, DISABLED_simple_upsert1) {
   int       ret;
   TDB      *pEnv;
   TTB      *pDb;
@@ -480,4 +484,246 @@ TEST(tdb_test, simple_upsert1) {
 
   tdbTbClose(pDb);
   tdbClose(pEnv);
+}
+
+TEST(tdb_test, multi_thread_query) {
+  int           ret;
+  TDB          *pEnv;
+  TTB          *pDb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 1000000;
+  TXN           txn;
+
+  taosRemoveDir("tdb");
+
+  // Open Env
+  ret = tdbOpen("tdb", 4096, 10, &pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  // Create a database
+  compFunc = tKeyCmpr;
+  ret = tdbTbOpen("db.db", -1, -1, compFunc, pEnv, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  char      key[64];
+  char      val[64];
+  int64_t   poolLimit = 4096 * 20;  // 1M pool limit
+  int64_t   txnid = 0;
+  SPoolMem *pPool;
+
+  // open the pool
+  pPool = openPool();
+
+  // start a transaction
+  txnid++;
+  txn.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED;
+  txn.txnId = -1;
+  txn.xMalloc = poolMalloc;
+  txn.xFree = poolFree;
+  txn.xArg = pPool;
+  // tdbTxnOpen(&txn, txnid, poolMalloc, poolFree, pPool, );
+  tdbBegin(pEnv, &txn);
+
+  for (int iData = 1; iData <= nData; iData++) {
+    sprintf(key, "key%d", iData);
+    sprintf(val, "value%d", iData);
+    ret = tdbTbInsert(pDb, key, strlen(key), val, strlen(val), &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+  }
+
+  auto f = [](TTB *pDb, int nData) {
+    TBC  *pDBC;
+    void *pKey = NULL;
+    void *pVal = NULL;
+    int   vLen, kLen;
+    int   count = 0;
+    int   ret;
+    TXN   txn;
+
+    SPoolMem *pPool = openPool();
+    txn.flags = 0;
+    txn.txnId = 0;
+    txn.xMalloc = poolMalloc;
+    txn.xFree = poolFree;
+    txn.xArg = pPool;
+
+    ret = tdbTbcOpen(pDb, &pDBC, &txn);
+    GTEST_ASSERT_EQ(ret, 0);
+
+    tdbTbcMoveToFirst(pDBC);
+
+    for (;;) {
+      ret = tdbTbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+      if (ret < 0) break;
+
+      // std::cout.write((char *)pKey, kLen) /* << " " << kLen */ << " ";
+      // std::cout.write((char *)pVal, vLen) /* << " " << vLen */;
+      // std::cout << std::endl;
+
+      count++;
+    }
+
+    GTEST_ASSERT_EQ(count, nData);
+
+    tdbTbcClose(pDBC);
+
+    tdbFree(pKey);
+    tdbFree(pVal);
+  };
+
+  // tdbCommit(pEnv, &txn);
+
+  // multi-thread query
+  int                      nThreads = 20;
+  std::vector<std::thread> threads;
+  for (int i = 0; i < nThreads; i++) {
+    if (i == 0) {
+      threads.push_back(std::thread(tdbCommit, pEnv, &txn));
+    } else {
+      threads.push_back(std::thread(f, pDb, nData));
+    }
+  }
+
+  for (auto &th : threads) {
+    th.join();
+  }
+
+  // commit the transaction
+  tdbCommit(pEnv, &txn);
+  tdbTxnClose(&txn);
+
+  // Close a database
+  tdbTbClose(pDb);
+
+  // Close Env
+  ret = tdbClose(pEnv);
+  GTEST_ASSERT_EQ(ret, 0);
+}
+
+TEST(tdb_test, DISABLED_multi_thread1) {
+#if 0
+  int           ret;
+  TDB          *pDb;
+  TTB          *pTb;
+  tdb_cmpr_fn_t compFunc;
+  int           nData = 10000000;
+  TXN           txn;
+
+  std::shared_timed_mutex mutex;
+
+  taosRemoveDir("tdb");
+
+  // Open Env
+  ret = tdbOpen("tdb", 512, 1, &pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  ret = tdbTbOpen("db.db", -1, -1, NULL, pDb, &pTb);
+  GTEST_ASSERT_EQ(ret, 0);
+
+  auto insert = [](TDB *pDb, TTB *pTb, int nData, int *stop, std::shared_timed_mutex *mu) {
+    TXN       txn = {0};
+    char      key[128];
+    char      val[128];
+    SPoolMem *pPool = openPool();
+
+    txn.flags = TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED;
+    txn.txnId = -1;
+    txn.xMalloc = poolMalloc;
+    txn.xFree = poolFree;
+    txn.xArg = pPool;
+    tdbBegin(pDb, &txn);
+    for (int iData = 1; iData <= nData; iData++) {
+      sprintf(key, "key%d", iData);
+      sprintf(val, "value%d", iData);
+      {
+        std::lock_guard<std::shared_timed_mutex> wmutex(*mu);
+
+        int ret = tdbTbInsert(pTb, key, strlen(key), val, strlen(val), &txn);
+
+        GTEST_ASSERT_EQ(ret, 0);
+      }
+
+      if (pPool->size > 1024 * 1024) {
+        tdbCommit(pDb, &txn);
+
+        clearPool(pPool);
+        tdbBegin(pDb, &txn);
+      }
+    }
+
+    tdbCommit(pDb, &txn);
+    closePool(pPool);
+
+    *stop = 1;
+  };
+
+  auto query = [](TTB *pTb, int *stop, std::shared_timed_mutex *mu) {
+    TBC  *pDBC;
+    void *pKey = NULL;
+    void *pVal = NULL;
+    int   vLen, kLen;
+    int   ret;
+    TXN   txn;
+
+    SPoolMem *pPool = openPool();
+    txn.flags = 0;
+    txn.txnId = 0;
+    txn.xMalloc = poolMalloc;
+    txn.xFree = poolFree;
+    txn.xArg = pPool;
+
+    for (;;) {
+      if (*stop) break;
+
+      clearPool(pPool);
+      int count = 0;
+      {
+        std::shared_lock<std::shared_timed_mutex> rMutex(*mu);
+
+        ret = tdbTbcOpen(pTb, &pDBC, &txn);
+        GTEST_ASSERT_EQ(ret, 0);
+
+        tdbTbcMoveToFirst(pDBC);
+
+        for (;;) {
+          ret = tdbTbcNext(pDBC, &pKey, &kLen, &pVal, &vLen);
+          if (ret < 0) break;
+          count++;
+        }
+
+        std::cout << count << std::endl;
+
+        tdbTbcClose(pDBC);
+      }
+
+      usleep(500000);
+    }
+
+    closePool(pPool);
+    tdbFree(pKey);
+    tdbFree(pVal);
+  };
+
+  std::vector<std::thread> threads;
+  int                      nThreads = 10;
+  int                      stop = 0;
+  for (int i = 0; i < nThreads; i++) {
+    if (i == 0) {
+      threads.push_back(std::thread(insert, pDb, pTb, nData, &stop, &mutex));
+    } else {
+      threads.push_back(std::thread(query, pTb, &stop, &mutex));
+    }
+  }
+
+  for (auto &th : threads) {
+    th.join();
+  }
+
+  // Close a database
+  tdbTbClose(pTb);
+
+  // Close Env
+  ret = tdbClose(pDb);
+  GTEST_ASSERT_EQ(ret, 0);
+#endif
 }
