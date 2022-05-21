@@ -690,7 +690,7 @@ void taosHashTableResize(SHashObj *pHashObj) {
 }
 
 SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, size_t dsize, uint32_t hashVal) {
-  SHashNode *pNewNode = taosMemoryMalloc(sizeof(SHashNode) + keyLen + dsize);
+  SHashNode *pNewNode = taosMemoryMalloc(sizeof(SHashNode) + keyLen + dsize + 1);
 
   if (pNewNode == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
