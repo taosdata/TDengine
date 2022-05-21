@@ -192,12 +192,15 @@ static FORCE_INLINE void doUpdateHashNode(SHashObj *pHashObj, SHashEntry* pe, SH
   atomic_sub_fetch_16(&pNode->refCount, 1);
   if (prev != NULL) {
     prev->next = pNewNode;
+    ASSERT(prev->next != prev);
   } else {
     pe->next = pNewNode;
   }
 
   if (pNode->refCount <= 0) {
     pNewNode->next = pNode->next;
+    ASSERT(pNewNode->next != pNewNode);
+
     FREE_HASH_NODE(pHashObj->freeFp, pNode);
   } else {
     pNewNode->next = pNode;
@@ -525,6 +528,7 @@ int32_t taosHashRemove(SHashObj *pHashObj, const void *key, size_t keyLen) {
           pe->next = pNode->next;
         } else {
           prevNode->next = pNode->next;
+          ASSERT(prevNode->next != prevNode);
         }
 
         pe->num--;
@@ -719,6 +723,7 @@ void pushfrontNodeInEntryList(SHashEntry *pEntry, SHashNode *pNode) {
   pNode->next = pEntry->next;
   pEntry->next = pNode;
 
+  ASSERT(pNode->next != pNode);
   pEntry->num += 1;
 }
 
