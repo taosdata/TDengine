@@ -121,10 +121,18 @@ int     tqCommit(STQ*);
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd);
 int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
-int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
+int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
+#if 0
+int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
+int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
+#endif
+int32_t tqProcessStreamTriggerNew(STQ* pTq, SSubmitReq* data);
+int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskDispatchRsp(STQ* pTq, SRpcMsg* pMsg);
+int32_t tqProcessTaskRecoverRsp(STQ* pTq, SRpcMsg* pMsg);
 
 // sma
 int32_t smaOpen(SVnode* pVnode);
