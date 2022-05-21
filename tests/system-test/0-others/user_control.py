@@ -596,6 +596,7 @@ class TDTestCase:
         self.rows = 10
         self.users_count = 5
         self.__insert_data(self.rows)
+        self.users = self.__users()
 
         tdDnodes.stop(1)
         tdDnodes.start(1)
