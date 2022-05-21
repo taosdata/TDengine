@@ -13,8 +13,8 @@ impl ConsumerRef {
     pub(crate) fn from_ptr(ptr: *mut tmq_t) -> Self {
         ConsumerRef(ptr)
     }
-    pub fn commit(&self, offsets: Offsets, is_async: i32) -> Result<()> {
-        unsafe { tmq_commit(self.0, offsets.0, is_async) }.ok_or("commit failed")
+    pub fn commit(&self, offsets: Offsets) -> Result<()> {
+        unsafe { tmq_commit_sync(self.0, offsets.0) }.ok_or("commit failed")
     }
 }
 
@@ -54,13 +54,51 @@ impl Consumer {
     }
 
     // todo: is_async better to rename to is_non_blocking
-    pub fn commit(&self, offsets: Option<Offsets>, is_async: i32) -> Result<()> {
-        let offsets = offsets.map(|o| o.0).unwrap_or(std::ptr::null_mut());
-        let err = unsafe { tmq_commit(self.as_raw(), offsets, is_async) };
-        match err {
-            tmq_resp_err_t::Success => Ok(()),
-            tmq_resp_err_t::Fail => Err(Error::from_string("commit failed")),
+    pub fn commit_sync(&self, offsets: impl Into<Offsets>) -> Result<()> {
+        unsafe { tmq_commit_sync(self.as_raw(), offsets.into().as_ptr()) }.ok_or("commit failed")
+    }
+
+    pub fn commit_non_blocking(
+        &self,
+        offsets: impl Into<Offsets>,
+        callback: fn(ConsumerRef, Result<Offsets>),
+    ) {
+        let offsets = offsets.into();
+        unsafe {
+            tmq_commit_async(
+                self.as_raw(),
+                offsets.as_ptr(),
+                super::tmq_commit_callback,
+                Box::into_raw(Box::new(callback)) as _,
+            )
         }
+    }
+
+    pub async fn commit(&self, offsets: impl Into<Offsets>) -> Result<Offsets> {
+        use tokio::sync::oneshot::{channel, Sender};
+        let (sender, rx) = channel::<Result<Offsets>>();
+        let offsets = offsets.into();
+        unsafe extern "C" fn tmq_commit_async_cb(
+            _tmq: *mut tmq_t,
+            resp: tmq_resp_err_t,
+            _topic: *mut tmq_topic_vgroup_list_t,
+            param: *mut std::os::raw::c_void,
+        ) {
+            let offsets = resp.ok_or("commit failed").map(|_| Offsets(_topic));
+            let sender = param as *mut Sender<_>;
+            let sender = Box::from_raw(sender);
+            sender.send(offsets).unwrap();
+        }
+
+        unsafe {
+            tmq_commit_async(
+                self.as_raw(),
+                offsets.as_ptr(),
+                tmq_commit_async_cb,
+                Box::into_raw(Box::new(sender)) as *mut _,
+            )
+        }
+        Ok(rx.await.unwrap()?)
     }
 
     pub fn poll(&self) -> Option<Result<ResultSet>> {
@@ -68,7 +106,7 @@ impl Consumer {
         if res.is_null() {
             None
         } else {
-            Some(ResultSet::from_ptr(res))
+            Some(ResultSet::from_ptr(res).map(|rs| rs.independent()))
         }
     }
 

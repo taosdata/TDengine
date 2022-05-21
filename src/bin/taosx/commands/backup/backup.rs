@@ -8,8 +8,8 @@ use std::{
     path::PathBuf,
     sync::Arc,
 };
-use taos::TaosOptions;
 use taos::prelude::*;
+use taos::TaosOptions;
 
 use taosx::{Database, TaosOpts};
 use thread_id;

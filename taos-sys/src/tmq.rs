@@ -97,11 +97,17 @@ extern "C" {
 
     pub fn tmq_consumer_close(tmq: *mut tmq_t) -> tmq_resp_err_t;
 
-    pub fn tmq_commit(
+    pub fn tmq_commit_sync(
         tmq: *mut tmq_t,
         offsets: *const tmq_topic_vgroup_list_t,
-        async_: i32,
     ) -> tmq_resp_err_t;
+
+    pub fn tmq_commit_async(
+        tmq: *mut tmq_t,
+        offsets: *const tmq_topic_vgroup_list_t,
+        cb: tmq_commit_cb,
+        param: *mut c_void,
+    );
 
     pub fn tmq_get_topic_name(res: *mut TAOS_RES) -> *const c_char;
     pub fn tmq_get_table_name(res: *mut TAOS_RES) -> *const c_char;

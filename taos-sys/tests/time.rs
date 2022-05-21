@@ -1,4 +1,4 @@
-use taos_sys::{*, ffi::*};
+use taos_sys::{ffi::*, *};
 
 #[test]
 #[cfg(taos_parse_time)]

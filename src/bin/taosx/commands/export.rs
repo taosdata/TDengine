@@ -1,8 +1,7 @@
 use clap::Args;
 use taosx::TaosOpts;
 
-#[derive(Debug)]
-#[derive(Args)]
+#[derive(Debug, Args)]
 /// Export db or table to specific files.
 pub(crate) struct App {
     name: Option<String>,

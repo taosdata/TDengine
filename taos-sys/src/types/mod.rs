@@ -515,24 +515,25 @@ impl<'c> From<&'c Column> for TaosMultiBind {
 
 impl<'b> From<BorrowedColumn<'b>> for TaosMultiBind {
     fn from(col: BorrowedColumn<'b>) -> Self {
+        use BorrowedColumn::*;
         match col {
-            BorrowedColumn::Null(n) => todo!(),
-            // BorrowedColumn::Bool(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::TinyInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::SmallInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::Int(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::BigInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::UTinyInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::USmallInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::UInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::UBigInt(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::Float(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::Double(nulls, values) => MultiBind::from_primitives(&nulls, values),
-            // BorrowedColumn::Timestamp(nulls, values) => {
-            //     MultiBind::from_raw_timestamps(&nulls, values)
-            // }
-            // BorrowedColumn::Binary(values) => MultiBind::from_binary_vec(&values),
-            // BorrowedColumn::NChar(values) => MultiBind::from_string_vec(&values),
+            Null(n) => Self::nulls(n),
+            Bool(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            TinyInt(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            SmallInt(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            Int(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            BigInt(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            UTinyInt(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            USmallInt(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            UInt(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            UBigInt(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            Float(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            Double(nulls, values) => TaosMultiBind::from_primitives(nulls.into_bools(), values),
+            Timestamp(nulls, values) => {
+                TaosMultiBind::from_raw_timestamps(nulls.into_bools(), values)
+            }
+            Binary(values) => TaosMultiBind::from_binary_vec(&values),
+            NChar(values) => TaosMultiBind::from_string_vec(&values),
             _ => unreachable!(),
         }
     }

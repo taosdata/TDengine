@@ -252,7 +252,7 @@ impl Value {
             _ => panic!("expect str but only varchar/binary/json/nchar is supported"),
         }
     }
-    
+
     pub fn to_sql_value(&self) -> String {
         use Value::*;
         match self {

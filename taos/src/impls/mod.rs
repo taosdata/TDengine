@@ -32,6 +32,7 @@ pub enum Error {
 #[derive(Debug)]
 pub struct ResultSet {
     raw: DroppableRawRes,
+    independent: bool,
     summary: Arc<(AtomicU64, AtomicU64)>,
 }
 
@@ -40,6 +41,7 @@ impl ResultSet {
         let raw = RawRes::from_ptr(ptr).map(DroppableRawRes::new)?;
         Ok(ResultSet {
             raw,
+            independent: false,
             summary: Default::default(),
         })
     }
@@ -50,6 +52,7 @@ impl ResultSet {
         let raw = RawRes::from_ptr_with_code(ptr, code.into()).map(DroppableRawRes::new)?;
         Ok(ResultSet {
             raw,
+            independent: false,
             summary: Default::default(),
         })
     }
@@ -57,6 +60,7 @@ impl ResultSet {
     pub(crate) fn from_raw_res(raw: RawRes) -> Self {
         Self {
             raw: DroppableRawRes::new(raw),
+            independent: false,
             summary: Default::default(),
         }
     }
@@ -64,8 +68,14 @@ impl ResultSet {
     pub(crate) fn new(raw: DroppableRawRes) -> Self {
         Self {
             raw,
+            independent: false,
             summary: Default::default(),
         }
+    }
+
+    pub(crate) fn independent(mut self) -> Self {
+        self.independent = true;
+        self
     }
 
     pub(crate) fn append_num_of_rows(&self, num_of_rows: i32) {
@@ -78,6 +88,7 @@ impl ResultSet {
 #[derive(Debug)]
 pub struct SyncBlock {
     pub raw: Arc<RawRes>,
+    pub fields: Option<Vec<Field>>,
     pub precision: Precision,
     pub data: *mut *mut c_void,
     pub lengths: *const i32,
@@ -101,7 +112,11 @@ impl<'b> BlockExt for SyncBlock {
     }
 
     fn fields(&self) -> &[Field] {
-        &self.raw.fields()
+        if let Some(fields) = self.fields.as_ref() {
+            fields
+        } else {
+            &self.raw.fields()
+        }
     }
 
     fn precision(&self) -> Precision {
@@ -288,9 +303,15 @@ impl Iterator for ResultSet {
         if let Ok(Some((data, num_of_rows, lengths))) = self.raw.fetch_block() {
             log::info!("fetch block: {num_of_rows}");
             self.append_num_of_rows(num_of_rows);
+            let fields = if self.independent {
+                Some(self.raw.fetch_fields())
+            } else {
+                None
+            };
 
             Some(SyncBlock {
                 raw: self.raw.raw(),
+                fields,
                 precision: self.precision(),
                 data,
                 lengths,
@@ -315,6 +336,7 @@ impl<'r, 'q> SyncBlock {
             Some(SyncBlock {
                 raw,
                 data,
+                fields: None,
                 precision: precision,
                 lengths,
                 num_of_rows: num_of_rows as _,
