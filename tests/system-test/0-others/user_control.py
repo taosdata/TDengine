@@ -304,7 +304,7 @@ class TDTestCase:
     def revoke_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None):
         sql = self.__revoke_user_privileges(privilege=priv, dbname=dbname, user_name=user.name)
         tdLog.info(sql)
-        if not user or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
+        if user is None or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
             tdSql.error(sql)
         tdSql.query(sql)
         if user.name == "root":
