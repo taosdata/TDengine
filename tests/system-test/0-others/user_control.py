@@ -123,7 +123,7 @@ def taos_connect(
 class User:
     name        : str   = None
     passwd      : str   = None
-    db_set      : set   = {}
+    db_set      : set   = None
     priv        : str   = None
     priv_weight : int   = 0
 
@@ -141,7 +141,7 @@ class TDTestCase:
         self.users = []
         self.root_user = User()
         self.root_user.name = "root"
-        self.root_user.passwd = "passwd"
+        self.root_user.passwd = "taosdata"
         self.root_user.db_set = set("*")
         self.root_user.priv = PRIVILEGES_ALL
         self.root_user.priv_weight = WEIGHT_ALL
@@ -149,6 +149,7 @@ class TDTestCase:
             user = User()
             user.name = f"user_test{i}"
             user.passwd = f"taosdata{i}"
+            user.db_set = {}
             self.users.append(user)
         return self.users
 
@@ -314,7 +315,7 @@ class TDTestCase:
 
     def test_priv_change_current(self):
         tdLog.printNoPrefix("==========step 1.0: if do not grant, can not read/write")
-        self.__user_check()
+        self.__user_check(user=self.root_user)
         self.__user_check(user=self.users[0], check_priv=None)
 
         tdLog.printNoPrefix("==========step 1.1: grant read, can read, can not write")
@@ -593,6 +594,7 @@ class TDTestCase:
         tdSql.prepare()
         self.__create_tb()
         self.rows = 10
+        self.users_count = 5
         self.__insert_data(self.rows)
 
         tdDnodes.stop(1)
@@ -607,7 +609,6 @@ class TDTestCase:
         # root用户权限
         # 创建用户测试
         tdLog.printNoPrefix("==========step1: create user test")
-        self.users_count = 5
         self.test_user_create()
 
         # 查看用户
