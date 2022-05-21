@@ -35,12 +35,8 @@ static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
     case TDMT_MON_QM_INFO:
       code = qmProcessGetMonitorInfoReq(pMgmt, pMsg);
       break;
-    case TDMT_VND_QUERY:
-    case TDMT_VND_QUERY_CONTINUE:
-      code = qndProcessQueryMsg(pMgmt->pQnode, pMsg);
-      break;
     default:
-      code = qndProcessFetchMsg(pMgmt->pQnode, pMsg);
+      code = qndProcessQueryMsg(pMgmt->pQnode, pMsg);
       break;
   }
 

@@ -45,7 +45,7 @@ int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
   int32_t     code = -1;
   SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
-  qTrace("message in qnode query queue is processing");
+  qTrace("message in qnode queue is processing");
 
   switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
@@ -54,20 +54,6 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
     case TDMT_VND_QUERY_CONTINUE:
       code = qWorkerProcessCQueryMsg(&handle, pQnode->pQuery, pMsg);
       break;
-    default:
-      qError("unknown msg type:%d in query queue", pMsg->msgType);
-      terrno = TSDB_CODE_VND_APP_ERROR;
-  }
-
-  if (code == 0) return TSDB_CODE_ACTION_IN_PROGRESS;
-  return code;
-}
-
-int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
-  int32_t code = -1;
-  qTrace("message in fetch queue is processing");
-
-  switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg);
       break;
@@ -96,7 +82,7 @@ int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
       code = qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg);
       break;
     default:
-      qError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      qError("unknown msg type:%d in qnode queue", pMsg->msgType);
       terrno = TSDB_CODE_VND_APP_ERROR;
   }
 

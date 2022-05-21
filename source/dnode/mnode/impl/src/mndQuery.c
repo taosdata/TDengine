@@ -18,34 +18,19 @@
 #include "mndMnode.h"
 #include "qworker.h"
 
-int32_t mndProcessQueryMsg(SRpcMsg *pReq) {
+int32_t mndProcessQueryMsg(SRpcMsg *pMsg) {
   int32_t     code = -1;
-  SMnode     *pMnode = pReq->info.node;
+  SMnode     *pMnode = pMsg->info.node;
   SReadHandle handle = {.mnd = pMnode, .pMsgCb = &pMnode->msgCb};
 
-  mTrace("msg:%p, in query queue is processing", pReq);
-  switch (pReq->msgType) {
+  mTrace("msg:%p, in query queue is processing", pMsg);
+  switch (pMsg->msgType) {
     case TDMT_VND_QUERY:
-      code = qWorkerProcessQueryMsg(&handle, pMnode->pQuery, pReq);
+      code = qWorkerProcessQueryMsg(&handle, pMnode->pQuery, pMsg);
       break;
     case TDMT_VND_QUERY_CONTINUE:
-      code = qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, pReq);
+      code = qWorkerProcessCQueryMsg(&handle, pMnode->pQuery, pMsg);
       break;
-    default:
-      terrno = TSDB_CODE_VND_APP_ERROR;
-      mError("unknown msg type:%d in query queue", pReq->msgType);
-  }
-
-  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
-  return code;
-}
-
-int32_t mndProcessFetchMsg(SRpcMsg *pMsg) {
-  int32_t code = -1;
-  SMnode *pMnode = pMsg->info.node;
-  mTrace("msg:%p, in fetch queue is processing", pMsg);
-
-  switch (pMsg->msgType) {
     case TDMT_VND_FETCH:
       code = qWorkerProcessFetchMsg(pMnode, pMnode->pQuery, pMsg);
       break;
@@ -57,7 +42,7 @@ int32_t mndProcessFetchMsg(SRpcMsg *pMsg) {
       break;
     default:
       terrno = TSDB_CODE_VND_APP_ERROR;
-      mError("unknown msg type:%d in fetch queue", pMsg->msgType);
+      mError("unknown msg type:%d in query queue", pMsg->msgType);
   }
 
   if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
@@ -72,9 +57,9 @@ int32_t mndInitQuery(SMnode *pMnode) {
 
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY, mndProcessQueryMsg);
   mndSetMsgHandle(pMnode, TDMT_VND_QUERY_CONTINUE, mndProcessQueryMsg);
-  mndSetMsgHandle(pMnode, TDMT_VND_FETCH, mndProcessFetchMsg);
-  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TASK, mndProcessFetchMsg);
-  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_HEARTBEAT, mndProcessFetchMsg);
+  mndSetMsgHandle(pMnode, TDMT_VND_FETCH, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_VND_DROP_TASK, mndProcessQueryMsg);
+  mndSetMsgHandle(pMnode, TDMT_VND_QUERY_HEARTBEAT, mndProcessQueryMsg);
 
   return 0;
 }
