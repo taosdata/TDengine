@@ -56,24 +56,6 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
-static void mmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
-  SMnodeMgmt *pMgmt = pInfo->ahandle;
-  int32_t     code = -1;
-  dTrace("msg:%p, get from mnode-query queue", pMsg);
-
-  pMsg->info.node = pMgmt->pMnode;
-  code = mndProcessMsg(pMsg);
-
-  if (IsReq(pMsg) && pMsg->info.handle != NULL && code != 0) {
-    if (terrno != 0) code = terrno;
-    mmSendRsp(pMsg, code);
-  }
-
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-  rpcFreeCont(pMsg->pCont);
-  taosFreeQitem(pMsg);
-}
-
 static int32_t mmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
   dTrace("msg:%p, put into worker %s, type:%s", pMsg, pWorker->name, TMSG_INFO(pMsg->msgType));
   taosWriteQitem(pWorker->queue, pMsg);
@@ -131,7 +113,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .min = tsNumOfMnodeQueryThreads,
       .max = tsNumOfMnodeQueryThreads,
       .name = "mnode-query",
-      .fp = (FItem)mmProcessQueryQueue,
+      .fp = (FItem)mmProcessQueue,
       .param = pMgmt,
   };
   if (tSingleWorkerInit(&pMgmt->queryWorker, &qCfg) != 0) {
