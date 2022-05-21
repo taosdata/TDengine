@@ -121,6 +121,8 @@ int32_t walRollback(SWal *pWal, int64_t ver) {
   pWal->vers.lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->lastVer = ver - 1;
   ((SWalFileInfo *)taosArrayGetLast(pWal->fileInfoSet))->fileSize = entry.offset;
+  taosCloseFile(&pIdxTFile);
+  taosCloseFile(&pLogTFile);
 
   // unlock
   taosThreadMutexUnlock(&pWal->mutex);

@@ -18,14 +18,14 @@ class MndTestDnode : public ::testing::Test {
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dnode_test_dnode1", 9023);
+    test.Init(TD_TMP_DIR_PATH "dnode_test_dnode1", 9023);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9023";
 
-    // server2.Start("/tmp/dnode_test_dnode2", fqdn, 9024, firstEp);
-    // server3.Start("/tmp/dnode_test_dnode3", fqdn, 9025, firstEp);
-    // server4.Start("/tmp/dnode_test_dnode4", fqdn, 9026, firstEp);
-    // server5.Start("/tmp/dnode_test_dnode5", fqdn, 9027, firstEp);
+    // server2.Start(TD_TMP_DIR_PATH "dnode_test_dnode2", fqdn, 9024, firstEp);
+    // server3.Start(TD_TMP_DIR_PATH "dnode_test_dnode3", fqdn, 9025, firstEp);
+    // server4.Start(TD_TMP_DIR_PATH "dnode_test_dnode4", fqdn, 9026, firstEp);
+    // server5.Start(TD_TMP_DIR_PATH "dnode_test_dnode5", fqdn, 9027, firstEp);
     taosMsleep(300);
   }
 

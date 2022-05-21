@@ -57,7 +57,7 @@ void sifInitLogFile() {
 
   tsAsyncLog = 0;
   qDebugFlag = 159;
-  strcpy(tsLogDir, "/tmp/sif");
+  strcpy(tsLogDir, TD_TMP_DIR_PATH "sif");
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
 

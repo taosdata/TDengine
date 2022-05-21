@@ -14,7 +14,7 @@
 class DndTestBnode : public ::testing::Test {
  protected:
   static void SetUpTestSuite() {
-    test.Init("/tmp/dbnodeTest", 9112);
+    test.Init(TD_TMP_DIR_PATH "dbnodeTest", 9112);
     taosMsleep(1100);
   }
   static void TearDownTestSuite() { test.Cleanup(); }

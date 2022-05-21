@@ -144,7 +144,7 @@ void udfdProcessRpcRsp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet) {
     udf->bufSize = pFuncInfo->bufSize;
 
     char path[PATH_MAX] = {0};
-    snprintf(path, sizeof(path), "%s/lib%s.so", "/tmp", pFuncInfo->name);
+    snprintf(path, sizeof(path), "%s/lib%s.so", TD_TMP_DIR_PATH, pFuncInfo->name);
     TdFilePtr file =
         taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
     // TODO check for failure of flush to disk

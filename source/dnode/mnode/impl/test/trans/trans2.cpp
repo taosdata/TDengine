@@ -41,7 +41,7 @@ class MndTestTrans2 : public ::testing::Test {
     tsLogEmbedded = 1;
     tsAsyncLog = 0;
 
-    const char *logpath = "/tmp/td";
+    const char *logpath = TD_TMP_DIR_PATH "td";
     taosRemoveDir(logpath);
     taosMkDir(logpath);
     tstrncpy(tsLogDir, logpath, PATH_MAX);
@@ -68,7 +68,7 @@ class MndTestTrans2 : public ::testing::Test {
 
     tsTransPullupInterval = 1;
 
-    const char *mnodepath = "/tmp/mnode_test_trans";
+    const char *mnodepath = TD_TMP_DIR_PATH "mnode_test_trans";
     taosRemoveDir(mnodepath);
     pMnode = mndOpen(mnodepath, &opt);
     mndStart(pMnode);
