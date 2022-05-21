@@ -123,7 +123,7 @@ def taos_connect(
 class User:
     name        : str   = None
     passwd      : str   = None
-    db_set      : set   = set()
+    db_set      : list   = []
     priv        : str   = None
     priv_weight : int   = 0
 
@@ -142,7 +142,7 @@ class TDTestCase:
         self.root_user = User()
         self.root_user.name = "root"
         self.root_user.passwd = "passwd"
-        self.root_user.db_set = set("*")
+        self.root_user.db_set = ["*"]
         self.root_user.priv = PRIVILEGES_ALL
         self.root_user.priv_weight = WEIGHT_ALL
         for i in range(self.users_count):
@@ -297,7 +297,7 @@ class TDTestCase:
             tdSql.error(sql)
         tdSql.query(sql)
         self.__change_user_priv(user=user, pre_priv=priv)
-        user.db_set.add(dbname)
+        user.db_set = list(set(user.db_set.append(dbname)))
         time.sleep(2)
 
     def revoke_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None):
