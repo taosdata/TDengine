@@ -390,7 +390,7 @@ void freeRequestRes(SRequestObj* pRequest, void* res) {
   if (TDMT_VND_SUBMIT == pRequest->type) {
     tFreeSSubmitRsp((SSubmitRsp*)res);
   } else if (TDMT_VND_QUERY == pRequest->type) {
-    taosArrayDestroy((SArray *)res);
+    taosArrayDestroy((SArray*)res);
   }
 }
 

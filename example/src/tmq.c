@@ -171,6 +171,7 @@ tmq_t* build_consumer() {
   tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
   tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
   assert(tmq);
+  tmq_conf_destroy(conf);
   return tmq;
 }
 
