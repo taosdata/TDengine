@@ -269,16 +269,7 @@ TEST(testCase, smlParseCols_tag_Test) {
   ret = smlParseCols(data, len, cols, NULL, true, dumplicateKey, &msgBuf);
   ASSERT_EQ(ret, TSDB_CODE_SUCCESS);
   size = taosArrayGetSize(cols);
-  ASSERT_EQ(size, 1);
-
-  // nchar
-  kv = (SSmlKv *)taosArrayGetP(cols, 0);
-  ASSERT_EQ(strncasecmp(kv->key, TAG, TAG_LEN), 0);
-  ASSERT_EQ(kv->keyLen, TAG_LEN);
-  ASSERT_EQ(kv->type, TSDB_DATA_TYPE_NCHAR);
-  ASSERT_EQ(kv->length, TAG_LEN);
-  ASSERT_EQ(strncasecmp(kv->value, TAG_VALUE, TAG_VALUE_LEN), 0);
-  taosMemoryFree(kv);
+  ASSERT_EQ(size, 0);
 
   taosArrayDestroy(cols);
   taosHashCleanup(dumplicateKey);
