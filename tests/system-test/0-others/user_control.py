@@ -294,7 +294,7 @@ class TDTestCase:
             user = self.root_user
         sql = self.__grant_user_privileges(privilege=priv, dbname=dbname, user_name=user.name)
         tdLog.info(sql)
-        if user not in self.users or user.name != "root" or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
+        if (user not in self.users and user.name != "root") or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
             tdSql.error(sql)
         tdSql.query(sql)
         self.__change_user_priv(user=user, pre_priv=priv)
