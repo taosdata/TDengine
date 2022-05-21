@@ -1,0 +1,70 @@
+---
+sidebar_label: InfluxDB Line Protocol
+title: InfluxDB Line Protocol
+---
+
+import Tabs from "@theme/Tabs";
+import TabItem from "@theme/TabItem";
+import JavaLine from "./_java_line.mdx";
+import PyLine from "./_py_line.mdx";
+import GoLine from "./_go_line.mdx";
+import RustLine from "./_rust_line.mdx";
+import NodeLine from "./_js_line.mdx";
+import CsLine from "./_cs_line.mdx";
+import CLine from "./_c_line.mdx";
+
+## Introduction
+
+A single line of text is used in InfluxDB Line protocol format represents one row of data, each line contains 4 parts as shown below.
+
+```
+measurement,tag_set field_set timestamp
+```
+
+- `measurement` will be used as the STable name
+- `tag_set` will be used as tags, with format like `<tag_key>=<tag_value>,<tag_key>=<tag_value>`
+- `field_set`will be used as data columns, with format like `<field_key>=<field_value>,<field_key>=<field_value>`
+- `timestamp`  is the primary key timestamp corresponding to this row of data
+
+For example:
+
+```
+meters,location=Beijing.Haidian,groupid=2 current=13.4,voltage=223,phase=0.29 1648432611249500
+```
+
+:::note
+
+- All the data in `tag_set` will be converted to ncahr type automatically .
+- Each data in `field_set` must be self-description for its data type. For example 1.2f32 means a value 1.2 of float type, it will be treated as double without the "f" type suffix.
+- Multiple kinds of precision can be used for the `timestamp` field. Time precision can be from nanosecond (ns) to hour (h).
+
+:::
+
+For more details please refer to [InfluxDB Line Protocol](https://docs.influxdata.com/influxdb/v2.0/reference/syntax/line-protocol/) and [TDengine Schemaless](/reference/schemaless/#Schemaless-Line-Protocol)
+
+
+## Examples
+
+<Tabs defaultValue="java" groupId="lang">
+  <TabItem label="Java" value="java">
+    <JavaLine />
+  </TabItem>
+  <TabItem label="Python" value="Python">
+    <PyLine />
+  </TabItem>
+  <TabItem label="Go" value="go">
+    <GoLine />
+  </TabItem>
+  <TabItem label="Rust" value="rust">
+    <RustLine />
+  </TabItem>
+  <TabItem label="Node.js" value="nodejs">
+    <NodeLine />
+  </TabItem>
+  <TabItem label="C#" value="csharp">
+    <CsLine />
+  </TabItem>
+  <TabItem label="C" value="c">
+    <CLine />
+  </TabItem>
+</Tabs>
