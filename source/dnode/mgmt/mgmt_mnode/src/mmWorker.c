@@ -56,6 +56,13 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   taosFreeQitem(pMsg);
 }
 
+static void mmProcessSyncQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+  pMsg->info.node = pMgmt->pMnode;
+
+  mndProcessSyncMsg(pMsg);
+  return;
+}
 
 static void mmProcessApplyQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
@@ -201,7 +208,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .min = 1,
       .max = 1,
       .name = "mnode-sync",
-      .fp = (FItem)mmProcessQueue,
+      .fp = (FItem)mmProcessSyncQueue,
       .param = pMgmt,
   };
   if (tSingleWorkerInit(&pMgmt->syncWorker, &sCfg) != 0) {
