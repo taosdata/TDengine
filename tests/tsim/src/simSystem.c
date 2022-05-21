@@ -92,11 +92,13 @@ SScript *simProcessCallOver(SScript *script) {
     simScriptPos--;
     simFreeScript(script);
 
-    if (simScriptPos == -1 || simExecSuccess) {
+    if (simScriptPos == -1 && simExecSuccess) {
       simInfo("----------------------------------------------------------------------");
       simInfo("Simulation Test Done, " SUCCESS_PREFIX "%d" SUCCESS_POSTFIX " Passed:\n", simScriptSucced);
       return NULL;
     }
+
+    if (simScriptPos == -1) return NULL;
 
     return simScriptList[simScriptPos];
   } else {
