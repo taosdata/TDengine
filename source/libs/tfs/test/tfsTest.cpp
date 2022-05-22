@@ -16,7 +16,7 @@
 
 class TfsTest : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { root = "/tmp/tfsTest"; }
+  static void SetUpTestSuite() { root = TD_TMP_DIR_PATH "tfsTest"; }
   static void TearDownTestSuite() {}
 
  public:
@@ -299,15 +299,15 @@ TEST_F(TfsTest, 04_File) {
 TEST_F(TfsTest, 05_MultiDisk) {
   int32_t code = 0;
 
-  const char *root00 = "/tmp/tfsTest00";
-  const char *root01 = "/tmp/tfsTest01";
-  const char *root10 = "/tmp/tfsTest10";
-  const char *root11 = "/tmp/tfsTest11";
-  const char *root12 = "/tmp/tfsTest12";
-  const char *root20 = "/tmp/tfsTest20";
-  const char *root21 = "/tmp/tfsTest21";
-  const char *root22 = "/tmp/tfsTest22";
-  const char *root23 = "/tmp/tfsTest23";
+  const char *root00 = TD_TMP_DIR_PATH "tfsTest00";
+  const char *root01 = TD_TMP_DIR_PATH "tfsTest01";
+  const char *root10 = TD_TMP_DIR_PATH "tfsTest10";
+  const char *root11 = TD_TMP_DIR_PATH "tfsTest11";
+  const char *root12 = TD_TMP_DIR_PATH "tfsTest12";
+  const char *root20 = TD_TMP_DIR_PATH "tfsTest20";
+  const char *root21 = TD_TMP_DIR_PATH "tfsTest21";
+  const char *root22 = TD_TMP_DIR_PATH "tfsTest22";
+  const char *root23 = TD_TMP_DIR_PATH "tfsTest23";
 
   SDiskCfg dCfg[9] = {0};
   tstrncpy(dCfg[0].dir, root01, TSDB_FILENAME_LEN);

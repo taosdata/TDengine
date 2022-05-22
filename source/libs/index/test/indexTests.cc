@@ -51,7 +51,7 @@ class DebugInfo {
 class FstWriter {
  public:
   FstWriter() {
-    _wc = writerCtxCreate(TFile, "/tmp/tindex", false, 64 * 1024 * 1024);
+    _wc = writerCtxCreate(TFile, TD_TMP_DIR_PATH "tindex", false, 64 * 1024 * 1024);
     _b = fstBuilderCreate(NULL, 0);
   }
   bool Put(const std::string& key, uint64_t val) {
@@ -75,7 +75,7 @@ class FstWriter {
 class FstReadMemory {
  public:
   FstReadMemory(size_t size) {
-    _wc = writerCtxCreate(TFile, "/tmp/tindex", true, 64 * 1024);
+    _wc = writerCtxCreate(TFile, TD_TMP_DIR_PATH "tindex", true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;
     memset((void*)&_s, 0, sizeof(_s));
@@ -285,7 +285,7 @@ class IndexEnv : public ::testing::Test {
     indexOptsDestroy(opts);
   }
 
-  const char* path = "/tmp/tindex";
+  const char* path = TD_TMP_DIR_PATH "tindex";
   SIndexOpts* opts;
   SIndex*     index;
 };
@@ -342,7 +342,7 @@ class IndexEnv : public ::testing::Test {
 
 class TFileObj {
  public:
-  TFileObj(const std::string& path = "/tmp/tindex", const std::string& colName = "voltage")
+  TFileObj(const std::string& path = TD_TMP_DIR_PATH "tindex", const std::string& colName = "voltage")
       : path_(path), colName_(colName) {
     colId_ = 10;
     reader_ = NULL;
@@ -437,7 +437,7 @@ class IndexTFileEnv : public ::testing::Test {
     // tfileWriterDestroy(twrite);
   }
   TFileObj*   fObj;
-  std::string dir = "/tmp/tindex";
+  std::string dir = TD_TMP_DIR_PATH "tindex";
   std::string colName = "voltage";
 
   int coldId = 2;
@@ -822,7 +822,7 @@ class IndexEnv2 : public ::testing::Test {
   IndexObj*    index;
 };
 TEST_F(IndexEnv2, testIndexOpen) {
-  std::string path = "/tmp/test";
+  std::string path = TD_TMP_DIR_PATH "test";
   if (index->Init(path) != 0) {
     std::cout << "failed to init index" << std::endl;
     exit(1);
@@ -891,7 +891,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
 }
 
 TEST_F(IndexEnv2, testIndex_TrigeFlush) {
-  std::string path = "/tmp/testxxx";
+  std::string path = TD_TMP_DIR_PATH "testxxx";
   if (index->Init(path) != 0) {
     // r
     std::cout << "failed to init" << std::endl;
@@ -914,7 +914,7 @@ static void multi_write_and_search(IndexObj* idx) {
   idx->WriteMultiMillonData("tag2", "world test nothing", 100 * 10);
 }
 TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
     // opt
   }
@@ -934,7 +934,7 @@ TEST_F(IndexEnv2, testIndex_serarch_cache_and_tfile) {
   }
 }
 TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
   }
 
@@ -950,14 +950,14 @@ TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
 }
 
 // TEST_F(IndexEnv2, testIndex_restart) {
-//  std::string path = "/tmp/cache_and_tfile";
+//  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
 //  if (index->Init(path) != 0) {
 //  }
 //  index->SearchOneTarget("tag1", "Hello", 10);
 //  index->SearchOneTarget("tag2", "Test", 10);
 //}
 // TEST_F(IndexEnv2, testIndex_restart1) {
-//  std::string path = "/tmp/cache_and_tfile";
+//  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
 //  if (index->Init(path) != 0) {
 //  }
 //  index->ReadMultiMillonData("tag1", "coding");
@@ -966,7 +966,7 @@ TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
 //}
 
 // TEST_F(IndexEnv2, testIndex_read_performance) {
-//  std::string path = "/tmp/cache_and_tfile";
+//  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
 //  if (index->Init(path) != 0) {
 //  }
 //  index->PutOneTarge("tag1", "Hello", 12);
@@ -976,7 +976,7 @@ TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
 //  assert(3 == index->SearchOne("tag1", "Hello"));
 //}
 // TEST_F(IndexEnv2, testIndexMultiTag) {
-//  std::string path = "/tmp/multi_tag";
+//  std::string path = TD_TMP_DIR_PATH "multi_tag";
 //  if (index->Init(path) != 0) {
 //  }
 //  int64_t st = taosGetTimestampUs();
@@ -986,7 +986,7 @@ TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
 //  // index->WriteMultiMillonData("tag2", "xxxxxxxxxxxxxxxxxxxxxxxxx", 100 * 10000);
 //}
 TEST_F(IndexEnv2, testLongComVal1) {
-  std::string path = "/tmp/long_colVal";
+  std::string path = TD_TMP_DIR_PATH "long_colVal";
   if (index->Init(path) != 0) {
   }
   // gen colVal by randstr
@@ -995,7 +995,7 @@ TEST_F(IndexEnv2, testLongComVal1) {
 }
 
 TEST_F(IndexEnv2, testLongComVal2) {
-  std::string path = "/tmp/long_colVal";
+  std::string path = TD_TMP_DIR_PATH "long_colVal";
   if (index->Init(path) != 0) {
   }
   // gen colVal by randstr
@@ -1003,7 +1003,7 @@ TEST_F(IndexEnv2, testLongComVal2) {
   index->WriteMultiMillonData("tag1", randstr, 100 * 1000);
 }
 TEST_F(IndexEnv2, testLongComVal3) {
-  std::string path = "/tmp/long_colVal";
+  std::string path = TD_TMP_DIR_PATH "long_colVal";
   if (index->Init(path) != 0) {
   }
   // gen colVal by randstr
@@ -1011,7 +1011,7 @@ TEST_F(IndexEnv2, testLongComVal3) {
   index->WriteMultiMillonData("tag1", randstr, 100 * 1000);
 }
 TEST_F(IndexEnv2, testLongComVal4) {
-  std::string path = "/tmp/long_colVal";
+  std::string path = TD_TMP_DIR_PATH "long_colVal";
   if (index->Init(path) != 0) {
   }
   // gen colVal by randstr
@@ -1019,7 +1019,7 @@ TEST_F(IndexEnv2, testLongComVal4) {
   index->WriteMultiMillonData("tag1", randstr, 100 * 100);
 }
 TEST_F(IndexEnv2, testIndex_read_performance1) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
   }
   index->PutOneTarge("tag1", "Hello", 12);
@@ -1029,7 +1029,7 @@ TEST_F(IndexEnv2, testIndex_read_performance1) {
   EXPECT_EQ(2, index->SearchOne("tag1", "Hello"));
 }
 TEST_F(IndexEnv2, testIndex_read_performance2) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
   }
   index->PutOneTarge("tag1", "Hello", 12);
@@ -1039,7 +1039,7 @@ TEST_F(IndexEnv2, testIndex_read_performance2) {
   EXPECT_EQ(2, index->SearchOne("tag1", "Hello"));
 }
 TEST_F(IndexEnv2, testIndex_read_performance3) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
   }
   index->PutOneTarge("tag1", "Hello", 12);
@@ -1049,7 +1049,7 @@ TEST_F(IndexEnv2, testIndex_read_performance3) {
   EXPECT_EQ(2, index->SearchOne("tag1", "Hello"));
 }
 TEST_F(IndexEnv2, testIndex_read_performance4) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
   }
   index->PutOneTarge("tag10", "Hello", 12);
@@ -1059,7 +1059,7 @@ TEST_F(IndexEnv2, testIndex_read_performance4) {
   EXPECT_EQ(1, index->SearchOne("tag10", "Hello"));
 }
 TEST_F(IndexEnv2, testIndex_cache_del) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
   }
   for (int i = 0; i < 100; i++) {
@@ -1098,7 +1098,7 @@ TEST_F(IndexEnv2, testIndex_cache_del) {
 }
 
 TEST_F(IndexEnv2, testIndex_del) {
-  std::string path = "/tmp/cache_and_tfile";
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
   if (index->Init(path) != 0) {
   }
   for (int i = 0; i < 100; i++) {
