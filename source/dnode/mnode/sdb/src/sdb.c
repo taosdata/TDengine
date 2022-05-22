@@ -31,11 +31,9 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   char path[PATH_MAX + 100] = {0};
   snprintf(path, sizeof(path), "%s%sdata", pOption->path, TD_DIRSEP);
   pSdb->currDir = strdup(path);
-  snprintf(path, sizeof(path), "%s%ssync", pOption->path, TD_DIRSEP);
-  pSdb->syncDir = strdup(path);
   snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = strdup(path);
-  if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
+  if (pSdb->currDir == NULL || pSdb->tmpDir == NULL) {
     sdbCleanup(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to init sdb since %s", terrstr());
@@ -146,12 +144,6 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   if (taosMulMkDir(pSdb->currDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
-    return -1;
-  }
-
-  if (taosMkDir(pSdb->syncDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->syncDir, terrstr());
     return -1;
   }
 

@@ -336,8 +336,9 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   return 0;
 }
 
-int32_t mndStart(SMnode *pMnode) { 
-  syncStart(pMnode->syncMgmt.sync); 
+int32_t mndStart(SMnode *pMnode) {
+  syncSetMsgCb(pMnode->syncMgmt.sync, &pMnode->msgCb);
+  syncStart(pMnode->syncMgmt.sync);
   return mndInitTimer(pMnode);
 }
 
