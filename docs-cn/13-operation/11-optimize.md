@@ -74,7 +74,7 @@ TDengine 集群中加入一个新的 dnode 时，涉及集群相关的一些参�
 - offlineThreshold: dnode 离线阈值，超过该时间将导致该 dnode 从集群中删除。单位为秒，默认值：86400\*10（即 10 天）。
 - statusInterval: dnode 向 mnode 报告状态时长。单位为秒，默认值：1。
 - maxTablesPerVnode: 每个 vnode 中能够创建的最大表个数。默认值：1000000。
-- maxVgroupsPerDb: 每个数据库中能够使用的最大 vgroup 个数。
+- maxVgroupsPerDb: 每个数据库中能够使用的最大 vgroup 个数。0：自动配置为 CPU 的核数。默认值：0。
 - arbitrator: 系统中裁决器的 endpoint，缺省为空。
 - timezone、locale、charset 的配置见客户端配置。（2.0.20.0 及以上的版本里，集群中加入新节点已不要求 locale 和 charset 参数取值一致）
 - balance：是否启用负载均衡。0：否，1：是。默认值：1。
