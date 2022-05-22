@@ -1,3 +1,4 @@
+#trigger ci test
 from util.log import *
 from util.sql import *
 from util.cases import *
