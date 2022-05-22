@@ -91,7 +91,9 @@ int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* p
   if (pHandle->sver != sversion || pHandle->cachedSchemaUid != pHandle->msgIter.suid) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
     if (pHandle->pSchema == NULL) {
-      tqError("cannot found schema for table: %ld, version %d", pHandle->msgIter.suid, pHandle->sver);
+      tqWarn("cannot found schema for table: %ld, version %d, possibly dropped table", pHandle->msgIter.suid,
+             pHandle->sver);
+      terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
     }
 
