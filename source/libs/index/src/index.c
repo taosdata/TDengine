@@ -90,6 +90,15 @@ static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, Iterat
 // static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
+static void indexPost(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_post(&pIdx->sem);
+}
+static void indexWait(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_wait(&pIdx->sem);
+}
+
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadOnce(&isInit, indexInit);
   SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
@@ -107,6 +116,8 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   sIdx->cVersion = 1;
   sIdx->path = tstrdup(path);
   taosThreadMutexInit(&sIdx->mtx, NULL);
+  tsem_init(&sIdx->sem, 0, 0);
+  // taosThreadCondInit(&sIdx->finished, NULL);
 
   sIdx->refId = indexAddRef(sIdx);
   indexAcquireRef(sIdx->refId);
@@ -125,6 +136,7 @@ END:
 void indexDestroy(void* handle) {
   SIndex* sIdx = handle;
   taosThreadMutexDestroy(&sIdx->mtx);
+  tsem_destroy(&sIdx->sem);
   indexTFileDestroy(sIdx->tindex);
   taosMemoryFree(sIdx->path);
   taosMemoryFree(sIdx);
@@ -138,7 +150,7 @@ void indexClose(SIndex* sIdx) {
     while (iter) {
       IndexCache** pCache = iter;
       indexCacheForceToMerge((void*)(*pCache));
-      indexCacheWait((void*)(*pCache));
+      indexWait((void*)(sIdx));
       iter = taosHashIterate(sIdx->colObj, iter);
       indexCacheUnRef(*pCache);
     }
@@ -461,7 +473,8 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     indexCacheDestroyImm(pCache);
     tfileReaderUnRef(pReader);
     if (sIdx->quit) {
-      indexCacheBroadcast(pCache);
+      indexPost(sIdx);
+      // indexCacheBroadcast(pCache);
     }
     indexReleaseRef(sIdx->refId);
     return 0;
@@ -509,9 +522,6 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   indexDestroyFinalResult(result);
 
   indexCacheDestroyImm(pCache);
-  if (sIdx->quit) {
-    indexCacheBroadcast(pCache);
-  }
 
   indexCacheIteratorDestroy(cacheIter);
   tfileIteratorDestroy(tfileIter);
@@ -524,6 +534,9 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     indexError("failed to merge, time cost: %" PRId64 "ms", cost / 1000);
   } else {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
+  }
+  if (sIdx->quit) {
+    indexPost(sIdx);
   }
   indexReleaseRef(sIdx->refId);
 

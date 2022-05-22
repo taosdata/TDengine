@@ -58,6 +58,7 @@ struct SIndex {
 
   SIndexStat    stat;
   TdThreadMutex mtx;
+  tsem_t        sem;
   bool          quit;
 };
 
@@ -70,6 +71,7 @@ struct SIndexOpts {
   int32_t cacheSize;  // MB
   // add cache module later
 #endif
+  int32_t cacheOpt;  // MB
 };
 
 struct SIndexMultiTermQuery {
