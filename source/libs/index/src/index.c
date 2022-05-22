@@ -124,21 +124,6 @@ END:
 
 void indexDestroy(void* handle) {
   SIndex* sIdx = handle;
-  // indexAcquireRef(sIdx->refId);
-  if (sIdx->colObj != NULL) {
-    void* iter = taosHashIterate(sIdx->colObj, NULL);
-    while (iter) {
-      IndexCache** pCache = iter;
-      indexCacheForceToMerge((void*)(*pCache));
-      iter = taosHashIterate(sIdx->colObj, iter);
-
-      indexCacheUnRef(*pCache);
-    }
-    taosHashCleanup(sIdx->colObj);
-    sIdx->colObj = NULL;
-    return;
-  }  // indexReleaseRef(sIdx->refId);
-
   taosThreadMutexDestroy(&sIdx->mtx);
   indexTFileDestroy(sIdx->tindex);
   taosMemoryFree(sIdx->path);
@@ -147,6 +132,20 @@ void indexDestroy(void* handle) {
 }
 void indexClose(SIndex* sIdx) {
   indexReleaseRef(sIdx->refId);
+  bool ref = 0;
+  if (sIdx->colObj != NULL) {
+    void* iter = taosHashIterate(sIdx->colObj, NULL);
+    while (iter) {
+      IndexCache** pCache = iter;
+      indexCacheForceToMerge((void*)(*pCache));
+      indexCacheWait((void*)(*pCache));
+      iter = taosHashIterate(sIdx->colObj, iter);
+      indexCacheUnRef(*pCache);
+    }
+    taosHashCleanup(sIdx->colObj);
+    sIdx->colObj = NULL;
+  }
+  // taosMsleep(1000 * 5);
   indexRemoveRef(sIdx->refId);
 }
 int64_t indexAddRef(void* p) {
@@ -183,6 +182,7 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
       taosHashPut(index->colObj, buf, sz, &pCache, sizeof(void*));
     }
   }
+  taosThreadMutexUnlock(&index->mtx);
 
   for (int i = 0; i < taosArrayGetSize(fVals); i++) {
     SIndexTerm* p = taosArrayGetP(fVals, i);
@@ -198,7 +198,6 @@ int indexPut(SIndex* index, SIndexMultiTerm* fVals, uint64_t uid) {
       return ret;
     }
   }
-  taosThreadMutexUnlock(&index->mtx);
   return 0;
 }
 int indexSearch(SIndex* index, SIndexMultiTermQuery* multiQuerys, SArray* result) {
@@ -461,6 +460,9 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     indexError("%p immtable is empty, ignore merge opera", pCache);
     indexCacheDestroyImm(pCache);
     tfileReaderUnRef(pReader);
+    if (sIdx->quit) {
+      indexCacheBroadcast(pCache);
+    }
     indexReleaseRef(sIdx->refId);
     return 0;
   }
@@ -507,6 +509,9 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   indexDestroyFinalResult(result);
 
   indexCacheDestroyImm(pCache);
+  if (sIdx->quit) {
+    indexCacheBroadcast(pCache);
+  }
 
   indexCacheIteratorDestroy(cacheIter);
   tfileIteratorDestroy(tfileIter);
@@ -521,6 +526,7 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
   indexReleaseRef(sIdx->refId);
+
   return ret;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {

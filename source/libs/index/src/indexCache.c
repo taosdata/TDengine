@@ -23,6 +23,7 @@
 
 #define MEM_TERM_LIMIT     10 * 10000
 #define MEM_THRESHOLD      64 * 1024
+#define MEM_SIGNAL_QUIT    MEM_THRESHOLD * 20
 #define MEM_ESTIMATE_RADIO 1.5
 
 static void indexMemRef(MemTable* tbl);
@@ -396,17 +397,24 @@ void indexCacheDestroySkiplist(SSkipList* slt) {
   tSkipListDestroyIter(iter);
   tSkipListDestroy(slt);
 }
+void indexCacheBroadcast(void* cache) {
+  IndexCache* pCache = cache;
+  taosThreadCondBroadcast(&pCache->finished);
+}
+void indexCacheWait(void* cache) {
+  IndexCache* pCache = cache;
+  taosThreadCondWait(&pCache->finished, &pCache->mtx);
+}
 void indexCacheDestroyImm(IndexCache* cache) {
   if (cache == NULL) {
     return;
   }
-
   MemTable* tbl = NULL;
   taosThreadMutexLock(&cache->mtx);
 
   tbl = cache->imm;
   cache->imm = NULL;  // or throw int bg thread
-  taosThreadCondBroadcast(&cache->finished);
+  indexCacheBroadcast(cache);
 
   taosThreadMutexUnlock(&cache->mtx);
 
@@ -460,11 +468,13 @@ void indexCacheIteratorDestroy(Iterate* iter) {
   taosMemoryFree(iter);
 }
 
-int indexCacheSchedToMerge(IndexCache* pCache) {
+int indexCacheSchedToMerge(IndexCache* pCache, bool notify) {
   SSchedMsg schedMsg = {0};
   schedMsg.fp = doMergeWork;
   schedMsg.ahandle = pCache;
-  schedMsg.thandle = NULL;
+  if (notify) {
+    schedMsg.thandle = taosMemoryMalloc(1);
+  }
   schedMsg.msg = NULL;
   indexAcquireRef(pCache->index->refId);
   taosScheduleTask(indexQhandle, &schedMsg);
@@ -477,8 +487,10 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       break;
     } else if (cache->imm != NULL) {
       // TODO: wake up by condition variable
-      taosThreadCondWait(&cache->finished, &cache->mtx);
+      indexCacheWait(cache);
     } else {
+      bool notifyQuit = cache->occupiedMem >= MEM_SIGNAL_QUIT ? true : false;
+
       indexCacheRef(cache);
       cache->imm = cache->mem;
       cache->mem = indexInternalCacheCreate(cache->type);
@@ -486,7 +498,7 @@ static void indexCacheMakeRoomForWrite(IndexCache* cache) {
       cache->occupiedMem = 0;
       // sched to merge
       // unref cache in bgwork
-      indexCacheSchedToMerge(cache);
+      indexCacheSchedToMerge(cache, notifyQuit);
     }
   }
 }
@@ -538,7 +550,7 @@ void indexCacheForceToMerge(void* cache) {
   taosThreadMutexLock(&pCache->mtx);
 
   indexInfo("%p is forced to merge into tfile", pCache);
-  pCache->occupiedMem += MEM_THRESHOLD * 5;
+  pCache->occupiedMem += MEM_SIGNAL_QUIT;
   indexCacheMakeRoomForWrite(pCache);
 
   taosThreadMutexUnlock(&pCache->mtx);
@@ -703,6 +715,9 @@ static MemTable* indexInternalCacheCreate(int8_t type) {
 static void doMergeWork(SSchedMsg* msg) {
   IndexCache* pCache = msg->ahandle;
   SIndex*     sidx = (SIndex*)pCache->index;
+
+  sidx->quit = msg->thandle ? true : false;
+  taosMemoryFree(msg->thandle);
   indexFlushCacheToTFile(sidx, pCache);
 }
 static bool indexCacheIteratorNext(Iterate* itera) {

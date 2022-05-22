@@ -58,6 +58,7 @@ struct SIndex {
 
   SIndexStat    stat;
   TdThreadMutex mtx;
+  bool          quit;
 };
 
 struct SIndexOpts {
