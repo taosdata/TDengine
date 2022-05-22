@@ -24,7 +24,6 @@
 #include "builtinsimpl.h"
 #include "functionMgt.h"
 
-//TODO: add unit test
 typedef struct SUdfdData {
   bool          startCalled;
   bool          needCleanUp;
@@ -45,14 +44,15 @@ typedef struct SUdfdData {
 
 SUdfdData udfdGlobal = {0};
 
+int32_t udfStartUdfd(int32_t startDnodeId);
+int32_t udfStopUdfd();
+
 static int32_t udfSpawnUdfd(SUdfdData *pData);
 void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal);
 static int32_t udfSpawnUdfd(SUdfdData* pData);
 static void udfUdfdCloseWalkCb(uv_handle_t* handle, void* arg);
 static void udfUdfdStopAsyncCb(uv_async_t *async);
 static void udfWatchUdfd(void *args);
-int32_t udfStartUdfd(int32_t startDnodeId);
-int32_t udfStopUdfd();
 
 void udfUdfdExit(uv_process_t *process, int64_t exitStatus, int termSignal) {
   fnInfo("udfd process exited with status %" PRId64 ", signal %d", exitStatus, termSignal);
@@ -1191,18 +1191,15 @@ int32_t udfcGetUdfTaskResultFromUvTask(SClientUdfTask *task, SClientUvTaskNode *
 
       switch (task->type) {
         case UDF_TASK_SETUP: {
-          //TODO: copy or not
           task->_setup.rsp = rsp.setupRsp;
           break;
         }
         case UDF_TASK_CALL: {
           task->_call.rsp = rsp.callRsp;
-          //TODO: copy or not
           break;
         }
         case UDF_TASK_TEARDOWN: {
           task->_teardown.rsp = rsp.teardownRsp;
-          //TODO: copy or not?
           break;
         }
         default: {
@@ -1398,7 +1395,7 @@ int32_t udfcCreateUvTask(SClientUdfTask *task, int8_t uvTaskType, SClientUvTaskN
       request.teardown = task->_teardown.req;
       request.type = UDF_TASK_TEARDOWN;
     } else {
-      //TODO log and return error
+      fnError("udfc create uv task, invalid task type : %d", task->type);
     }
     int32_t bufLen = encodeUdfRequest(NULL, &request);
     request.msgLen = bufLen;
