@@ -1732,6 +1732,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
+          *lastRowKey = rowKey;
           ++nResult;
         } else if (update) {
           mergeOption = 2;
@@ -1739,8 +1740,6 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           mergeOption = 0;
           break;
         }
-
-        *lastRowKey = rowKey;
       }
     } else {
       // TODO: use STSRowIter
@@ -1753,6 +1752,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
+          *lastRowKey = rowKey;
           ++nResult;
         } else if (update) {
           mergeOption = 2;
@@ -1760,7 +1760,6 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           mergeOption = 0;
           break;
         }
-        *lastRowKey = rowKey;
       } else {
         SKvRowIdx* pColIdx = tdKvRowColIdxAt(row, chosen_itr - 1);
         colId = pColIdx->colId;
