@@ -600,6 +600,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           SSDataBlock block = {0};
           if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                                   &block.info.numOfCols) < 0) {
+            if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
             ASSERT(0);
           }
           int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(&block);
