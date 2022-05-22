@@ -48,6 +48,7 @@ enum DumpModule {
 
 DumpModule g_dumpModule = DUMP_MODULE_NOTHING;
 int32_t    g_skipSql = 0;
+int32_t    g_logLevel = 131;
 
 void setDumpModule(const char* pModule) {
   if (NULL == pModule) {
@@ -71,14 +72,26 @@ void setDumpModule(const char* pModule) {
   }
 }
 
+void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(optarg); }
+
+void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
+
+int32_t getLogLevel() { return g_logLevel; }
+
 class PlannerTestBaseImpl {
  public:
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
     caseEnv_.db_ = db;
+    caseEnv_.nsql_ = g_skipSql;
   }
 
   void run(const string& sql) {
+    if (caseEnv_.nsql_ > 0) {
+      --(caseEnv_.nsql_);
+      return;
+    }
+
     reset();
     try {
       SQuery* pQuery = nullptr;
@@ -109,6 +122,10 @@ class PlannerTestBaseImpl {
   }
 
   void prepare(const string& sql) {
+    if (caseEnv_.nsql_ > 0) {
+      return;
+    }
+
     reset();
     try {
       doParseSql(sql, &stmtEnv_.pQuery_, true);
@@ -119,6 +136,10 @@ class PlannerTestBaseImpl {
   }
 
   void bindParams(TAOS_MULTI_BIND* pParams, int32_t colIdx) {
+    if (caseEnv_.nsql_ > 0) {
+      return;
+    }
+
     try {
       doBindParams(stmtEnv_.pQuery_, pParams, colIdx);
     } catch (...) {
@@ -128,6 +149,11 @@ class PlannerTestBaseImpl {
   }
 
   void exec() {
+    if (caseEnv_.nsql_ > 0) {
+      --(caseEnv_.nsql_);
+      return;
+    }
+
     try {
       doParseBoundSql(stmtEnv_.pQuery_);
 
@@ -157,8 +183,9 @@ class PlannerTestBaseImpl {
 
  private:
   struct caseEnv {
-    string acctId_;
-    string db_;
+    string  acctId_;
+    string  db_;
+    int32_t nsql_;
   };
 
   struct stmtEnv {

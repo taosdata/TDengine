@@ -1965,7 +1965,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
   SDataCols* pCols = pTsdbReadHandle->rhelper.pDCols[0];
   assert(pCols->cols[0].type == TSDB_DATA_TYPE_TIMESTAMP && pCols->cols[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
          cur->pos >= 0 && cur->pos < pBlock->numOfRows);
-
+  // Even Multi-Version supported, the records with duplicated TSKEY would be merged inside of tsdbLoadData interface.
   TSKEY* tsArray = pCols->cols[0].pData;
   assert(pCols->numOfRows == pBlock->numOfRows && tsArray[0] == pBlock->keyFirst &&
          tsArray[pBlock->numOfRows - 1] == pBlock->keyLast);
@@ -1995,6 +1995,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
 
   int32_t pos = cur->pos;
   cur->win = TSWINDOW_INITIALIZER;
+  bool adjustPos = false;
 
   // no data in buffer, load data from file directly
   if (pCheckInfo->iiter == NULL && pCheckInfo->iter == NULL) {
@@ -2014,6 +2015,13 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
       TSKEY key = TD_ROW_KEY(row1);
       if ((key > pTsdbReadHandle->window.ekey && ascScan) || (key < pTsdbReadHandle->window.ekey && !ascScan)) {
         break;
+      }
+
+      if (adjustPos) {
+        if (key == lastKeyAppend) {
+          pos -= step;
+        }
+        adjustPos = false;
       }
 
       if (((pos > endPos || tsArray[pos] > pTsdbReadHandle->window.ekey) && ascScan) ||
@@ -2107,7 +2115,9 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           moveToNextRowInMem(pCheckInfo);
 
           pos += step;
+          adjustPos = true;
         } else {
+          // discard the memory record
           moveToNextRowInMem(pCheckInfo);
         }
       } else if ((key > tsArray[pos] && ascScan) || (key < tsArray[pos] && !ascScan)) {
@@ -2775,7 +2785,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
     win->ekey = key;
     if (rv != TD_ROW_SVER(row)) {
-      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 1);
+      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, TD_ROW_SVER(row));
       rv = TD_ROW_SVER(row);
     }
     numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, maxRowsToRead, &curRows, row, NULL, numOfCols, pCheckInfo->tableId,

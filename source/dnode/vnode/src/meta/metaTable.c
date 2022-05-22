@@ -483,12 +483,12 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
         goto _err;
       }
-      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes <= pAlterTbReq->bytes) {
+      if (!IS_VAR_DATA_TYPE(pColumn->type) || pColumn->bytes > pAlterTbReq->colModBytes) {
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
       pSchema->sver++;
-      pColumn->bytes = pAlterTbReq->bytes;
+      pColumn->bytes = pAlterTbReq->colModBytes;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
       if (pColumn == NULL) {
@@ -562,7 +562,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   // search table.db
   TBC *    pTbDbc = NULL;
-  SDecoder dc = {0};
+  SDecoder dc1 = {0};
+  SDecoder dc2 = {0};
 
   /* get ctbEntry */
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
@@ -572,18 +573,16 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   ctbEntry.pBuf = taosMemoryMalloc(nData);
   memcpy(ctbEntry.pBuf, pData, nData);
-  tDecoderInit(&dc, ctbEntry.pBuf, nData);
-  metaDecodeEntry(&dc, &ctbEntry);
-  tDecoderClear(&dc);
+  tDecoderInit(&dc1, ctbEntry.pBuf, nData);
+  metaDecodeEntry(&dc1, &ctbEntry);
 
   /* get stbEntry*/
   tdbTbGet(pMeta->pUidIdx, &ctbEntry.ctbEntry.suid, sizeof(tb_uid_t), &pVal, &nVal);
   tdbTbGet(pMeta->pTbDb, &((STbDbKey){.uid = ctbEntry.ctbEntry.suid, .version = *(int64_t *)pVal}), sizeof(STbDbKey),
            (void **)&stbEntry.pBuf, &nVal);
   tdbFree(pVal);
-  tDecoderInit(&dc, stbEntry.pBuf, nVal);
-  metaDecodeEntry(&dc, &stbEntry);
-  tDecoderClear(&dc);
+  tDecoderInit(&dc2, stbEntry.pBuf, nVal);
+  metaDecodeEntry(&dc2, &stbEntry);
 
   SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
   SSchema *       pColumn = NULL;
@@ -638,6 +637,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   // save to uid.idx
   tdbTbUpsert(pMeta->pUidIdx, &ctbEntry.uid, sizeof(tb_uid_t), &version, sizeof(version), &pMeta->txn);
 
+  tDecoderClear(&dc1);
+  tDecoderClear(&dc2);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbTbcClose(pTbDbc);
@@ -645,6 +646,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   return 0;
 
 _err:
+  tDecoderClear(&dc1);
+  tDecoderClear(&dc2);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbTbcClose(pTbDbc);

@@ -19,7 +19,6 @@
 static void *dmStatusThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
-
   setThreadName("dnode-status");
 
   while (1) {
@@ -40,7 +39,6 @@ static void *dmStatusThreadFp(void *param) {
 static void *dmMonitorThreadFp(void *param) {
   SDnodeMgmt *pMgmt = param;
   int64_t     lastTime = taosGetTimestampMs();
-
   setThreadName("dnode-monitor");
 
   while (1) {
@@ -103,11 +101,9 @@ void dmStopMonitorThread(SDnodeMgmt *pMgmt) {
 static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SDnodeMgmt *pMgmt = pInfo->ahandle;
   int32_t     code = -1;
-  tmsg_t      msgType = pMsg->msgType;
-  bool        isRequest = msgType & 1u;
-  dTrace("msg:%p, will be processed in dnode-mgmt queue, type:%s", pMsg, TMSG_INFO(msgType));
+  dTrace("msg:%p, will be processed in dnode queue, type:%s", pMsg, TMSG_INFO(pMsg->msgType));
 
-  switch (msgType) {
+  switch (pMsg->msgType) {
     case TDMT_DND_CONFIG_DNODE:
       code = dmProcessConfigReq(pMgmt, pMsg);
       break;
@@ -149,7 +145,7 @@ static void dmProcessMgmtQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
   }
 
-  if (isRequest) {
+  if (IsReq(pMsg)) {
     if (code != 0 && terrno != 0) code = terrno;
     SRpcMsg rsp = {
         .code = code,

@@ -553,7 +553,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
 
   pInfo->pageIndex += 1;
 
-  blockDataUpdateTsWindow(pInfo->binfo.pRes);
+  blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
   pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
   return pInfo->binfo.pRes;
 }
@@ -614,7 +614,7 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  int32_t code = createDiskbasedBuf(&pInfo->pBuf, 4096, 4096 * 256, pTaskInfo->id.str, "/tmp/");
+  int32_t code = createDiskbasedBuf(&pInfo->pBuf, 4096, 4096 * 256, pTaskInfo->id.str, TD_TMP_DIR_PATH);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

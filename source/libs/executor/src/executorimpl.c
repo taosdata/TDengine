@@ -1903,7 +1903,7 @@ void doFilter(const SNode* pFilterNode, SSDataBlock* pBlock, SArray* pColMatchIn
   filterFreeInfo(filter);
 
   extractQualifiedTupleByFilterResult(pBlock, rowRes, keep);
-  blockDataUpdateTsWindow(pBlock);
+  blockDataUpdateTsWindow(pBlock, 0);
 }
 
 void extractQualifiedTupleByFilterResult(SSDataBlock* pBlock, const int8_t* rowRes, bool keep) {
@@ -2072,7 +2072,7 @@ int32_t doCopyToSDataBlock(SExecTaskInfo* pTaskInfo, SSDataBlock* pBlock, SExprI
   }
 
   qDebug("%s result generated, rows:%d, groupId:%"PRIu64, GET_TASKID(pTaskInfo), pBlock->info.rows, pBlock->info.groupId);
-  blockDataUpdateTsWindow(pBlock);
+  blockDataUpdateTsWindow(pBlock, 0);
   return 0;
 }
 
@@ -2797,7 +2797,9 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
   }
 
   pRes->info.rows = numOfRows;
-  blockDataUpdateTsWindow(pRes);
+
+  // todo move this to time window aggregator, since the primary timestamp may not be known by exchange operator.
+  blockDataUpdateTsWindow(pRes, 0);
 
   int64_t el = taosGetTimestampUs() - startTs;
 
@@ -4057,7 +4059,7 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
     defaultBufsz = defaultPgsz * 4;
   }
 
-  int32_t code = createDiskbasedBuf(&pAggSup->pResultBuf, defaultPgsz, defaultBufsz, pKey, "/tmp/");
+  int32_t code = createDiskbasedBuf(&pAggSup->pResultBuf, defaultPgsz, defaultBufsz, pKey, TD_TMP_DIR_PATH);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }

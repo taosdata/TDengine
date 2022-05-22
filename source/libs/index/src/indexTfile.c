@@ -141,7 +141,6 @@ void tfileCacheDestroy(TFileCache* tcache) {
     TFileReader* p = *reader;
     indexInfo("drop table cache suid: %" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName,
               p->header.colType);
-
     tfileReaderUnRef(p);
     reader = taosHashIterate(tcache->tableCache, reader);
   }

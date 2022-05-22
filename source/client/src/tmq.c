@@ -202,7 +202,12 @@ tmq_conf_t* tmq_conf_new() {
 }
 
 void tmq_conf_destroy(tmq_conf_t* conf) {
-  if (conf) taosMemoryFree(conf);
+  if (conf) {
+    if (conf->ip) taosMemoryFree(conf->ip);
+    if (conf->user) taosMemoryFree(conf->user);
+    if (conf->pass) taosMemoryFree(conf->pass);
+    taosMemoryFree(conf);
+  }
 }
 
 tmq_conf_res_t tmq_conf_set(tmq_conf_t* conf, const char* key, const char* value) {
@@ -497,6 +502,7 @@ int32_t tmqHandleAllDelayedTask(tmq_t* tmq) {
     } else {
       ASSERT(0);
     }
+    taosFreeQitem(pTaskType);
   }
   taosFreeQall(qall);
   return 0;
@@ -954,8 +960,12 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqClientVg*    pVg = pParam->pVg;
   SMqClientTopic* pTopic = pParam->pTopic;
   tmq_t*          tmq = pParam->tmq;
+  int32_t         vgId = pParam->vgId;
+  int32_t         epoch = pParam->epoch;
+  taosMemoryFree(pParam);
   if (code != 0) {
-    tscWarn("msg discard from vg %d, epoch %d, code:%x", pParam->vgId, pParam->epoch, code);
+    tscWarn("msg discard from vg %d, epoch %d, code:%x", vgId, epoch, code);
+    if (pMsg->pData) taosMemoryFree(pMsg->pData);
     goto CREATE_MSG_FAIL;
   }
 
@@ -963,19 +973,21 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   int32_t tmqEpoch = atomic_load_32(&tmq->epoch);
   if (msgEpoch < tmqEpoch) {
     // do not write into queue since updating epoch reset
-    tscWarn("msg discard from vg %d since from earlier epoch, rsp epoch %d, current epoch %d", pParam->vgId, msgEpoch,
+    tscWarn("msg discard from vg %d since from earlier epoch, rsp epoch %d, current epoch %d", vgId, msgEpoch,
             tmqEpoch);
     tsem_post(&tmq->rspSem);
+    taosMemoryFree(pMsg->pData);
     return 0;
   }
 
   if (msgEpoch != tmqEpoch) {
-    tscWarn("mismatch rsp from vg %d, epoch %d, current epoch %d", pParam->vgId, msgEpoch, tmqEpoch);
+    tscWarn("mismatch rsp from vg %d, epoch %d, current epoch %d", vgId, msgEpoch, tmqEpoch);
   }
 
   SMqPollRspWrapper* pRspWrapper = taosAllocateQitem(sizeof(SMqPollRspWrapper), DEF_QITEM);
   if (pRspWrapper == NULL) {
-    tscWarn("msg discard from vg %d, epoch %d since out of memory", pParam->vgId, pParam->epoch);
+    taosMemoryFree(pMsg->pData);
+    tscWarn("msg discard from vg %d, epoch %d since out of memory", vgId, epoch);
     goto CREATE_MSG_FAIL;
   }
 
@@ -986,6 +998,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
   memcpy(&pRspWrapper->msg, pMsg->pData, sizeof(SMqRspHead));
 
   tDecodeSMqDataBlkRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &pRspWrapper->msg);
+  taosMemoryFree(pMsg->pData);
 
   tscDebug("consumer %ld recv poll: vg %d, req offset %ld, rsp offset %ld", tmq->consumerId, pVg->vgId,
            pRspWrapper->msg.reqOffset, pRspWrapper->msg.rspOffset);
@@ -995,7 +1008,7 @@ int32_t tmqPollCb(void* param, const SDataBuf* pMsg, int32_t code) {
 
   return 0;
 CREATE_MSG_FAIL:
-  if (pParam->epoch == tmq->epoch) {
+  if (epoch == tmq->epoch) {
     atomic_store_32(&pVg->vgStatus, TMQ_VG_STATUS__IDLE);
   }
   tsem_post(&tmq->rspSem);
@@ -1088,6 +1101,7 @@ bool tmqUpdateEp(tmq_t* tmq, int32_t epoch, SMqAskEpRsp* pRsp) {
 int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
   SMqAskEpCbParam* pParam = (SMqAskEpCbParam*)param;
   tmq_t*           tmq = pParam->tmq;
+  int8_t           async = pParam->async;
   pParam->code = code;
   if (code != 0) {
     tscError("consumer %ld get topic endpoint error, not ready, wait:%d", tmq->consumerId, pParam->async);
@@ -1104,7 +1118,7 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
     goto END;
   }
 
-  if (!pParam->async) {
+  if (!async) {
     SMqAskEpRsp rsp;
     tDecodeSMqAskEpRsp(POINTER_SHIFT(pMsg->pData, sizeof(SMqRspHead)), &rsp);
     /*printf("rsp epoch %ld sz %ld\n", rsp.epoch, rsp.topics->size);*/
@@ -1125,13 +1139,14 @@ int32_t tmqAskEpCb(void* param, const SDataBuf* pMsg, int32_t code) {
 
     taosWriteQitem(tmq->mqueue, pWrapper);
     tsem_post(&tmq->rspSem);
-    taosMemoryFree(pParam);
   }
 
 END:
   /*atomic_store_8(&tmq->epStatus, 0);*/
-  if (!pParam->async) {
+  if (!async) {
     tsem_post(&pParam->rspSem);
+  } else {
+    taosMemoryFree(pParam);
   }
   return code;
 }
@@ -1279,7 +1294,6 @@ SMqRspObj* tmqBuildRspFromWrapper(SMqPollRspWrapper* pWrapper) {
     setResSchemaInfo(&pRspObj->resInfo, pWrapper->topicHandle->schema.pSchema, pWrapper->topicHandle->schema.nCols);
   }
 
-  taosFreeQitem(pWrapper);
   return pRspObj;
 }
 
@@ -1401,6 +1415,7 @@ SMqRspObj* tmqHandleAllRsp(tmq_t* tmq, int64_t waitTime, bool pollIfReset) {
         }
         // build rsp
         SMqRspObj* pRsp = tmqBuildRspFromWrapper(pollRspWrapper);
+        taosFreeQitem(pollRspWrapper);
         return pRsp;
       } else {
         /*printf("epoch mismatch\n");*/

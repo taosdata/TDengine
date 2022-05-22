@@ -19,60 +19,29 @@
 static inline void qmSendRsp(SRpcMsg *pMsg, int32_t code) {
   SRpcMsg rsp = {
       .code = code,
-      .info = pMsg->info,
       .pCont = pMsg->info.rsp,
       .contLen = pMsg->info.rspLen,
+      .info = pMsg->info,
   };
   tmsgSendRsp(&rsp);
 }
 
-static void qmProcessMonitorQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SQnodeMgmt *pMgmt = pInfo->ahandle;
+  int32_t     code = -1;
+  dTrace("msg:%p, get from qnode queue", pMsg);
 
-  dTrace("msg:%p, get from qnode-monitor queue", pMsg);
-  SRpcMsg *pRpc = pMsg;
-  int32_t  code = -1;
-
-  if (pMsg->msgType == TDMT_MON_QM_INFO) {
-    code = qmProcessGetMonitorInfoReq(pMgmt, pMsg);
-  } else {
-    terrno = TSDB_CODE_MSG_NOT_PROCESSED;
+  switch (pMsg->msgType) {
+    case TDMT_MON_QM_INFO:
+      code = qmProcessGetMonitorInfoReq(pMgmt, pMsg);
+      break;
+    default:
+      code = qndProcessQueryMsg(pMgmt->pQnode, pMsg);
+      break;
   }
 
-  if (pRpc->msgType & 1U) {
+  if (IsReq(pMsg) && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
-    qmSendRsp(pMsg, code);
-  }
-
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-  rpcFreeCont(pRpc->pCont);
-  taosFreeQitem(pMsg);
-}
-
-static void qmProcessQueryQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pInfo->ahandle;
-
-  dTrace("msg:%p, get from qnode-query queue", pMsg);
-  SRpcMsg *pRpc = pMsg;
-  int32_t  code = qndProcessQueryMsg(pMgmt->pQnode, pRpc);
-
-  if (pRpc->msgType & 1U && code != 0) {
-    qmSendRsp(pMsg, code);
-  }
-
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
-  rpcFreeCont(pMsg->pCont);
-  taosFreeQitem(pMsg);
-}
-
-static void qmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
-  SQnodeMgmt *pMgmt = pInfo->ahandle;
-
-  dTrace("msg:%p, get from qnode-fetch queue", pMsg);
-  SRpcMsg *pRpc = pMsg;
-  int32_t  code = qndProcessFetchMsg(pMgmt->pQnode, pRpc);
-
-  if (pRpc->msgType & 1U && code != 0) {
     qmSendRsp(pMsg, code);
   }
 
@@ -82,7 +51,7 @@ static void qmProcessFetchQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 }
 
 static int32_t qmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
-  dTrace("msg:%p, put into worker %s", pMsg, pWorker->name);
+  dTrace("msg:%p, put into worker %s, type:%s", pMsg, pWorker->name, TMSG_INFO(pMsg->msgType));
   taosWriteQitem(pWorker->queue, pMsg);
   return 0;
 }
@@ -101,9 +70,7 @@ int32_t qmPutNodeMsgToMonitorQueue(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 
 static int32_t qmPutRpcMsgToWorker(SQnodeMgmt *pMgmt, SSingleWorker *pWorker, SRpcMsg *pRpc) {
   SRpcMsg *pMsg = taosAllocateQitem(sizeof(SRpcMsg), RPC_QITEM);
-  if (pMsg == NULL) {
-    return -1;
-  }
+  if (pMsg == NULL) return -1;
 
   dTrace("msg:%p, create and put into worker:%s, type:%s", pMsg, pWorker->name, TMSG_INFO(pRpc->msgType));
   memcpy(pMsg, pRpc, sizeof(SRpcMsg));
@@ -141,7 +108,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
       .min = tsNumOfVnodeQueryThreads,
       .max = tsNumOfVnodeQueryThreads,
       .name = "qnode-query",
-      .fp = (FItem)qmProcessQueryQueue,
+      .fp = (FItem)qmProcessQueue,
       .param = pMgmt,
   };
 
@@ -154,7 +121,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
       .min = tsNumOfQnodeFetchThreads,
       .max = tsNumOfQnodeFetchThreads,
       .name = "qnode-fetch",
-      .fp = (FItem)qmProcessFetchQueue,
+      .fp = (FItem)qmProcessQueue,
       .param = pMgmt,
   };
 
@@ -167,7 +134,7 @@ int32_t qmStartWorker(SQnodeMgmt *pMgmt) {
       .min = 1,
       .max = 1,
       .name = "qnode-monitor",
-      .fp = (FItem)qmProcessMonitorQueue,
+      .fp = (FItem)qmProcessQueue,
       .param = pMgmt,
   };
   if (tSingleWorkerInit(&pMgmt->monitorWorker, &mCfg) != 0) {
