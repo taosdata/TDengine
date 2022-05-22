@@ -41,7 +41,7 @@ class TqMetaUpdateAppendTest : public ::testing::Test {
   void TearDown() override { tqStoreClose(pMeta); }
 
   STqMetaStore* pMeta;
-  const char*   pathName = "/tmp/tq_test";
+  const char*   pathName = TD_TMP_DIR_PATH "tq_test";
 };
 
 TEST_F(TqMetaUpdateAppendTest, copyPutTest) {

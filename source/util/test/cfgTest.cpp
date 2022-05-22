@@ -59,7 +59,7 @@ TEST_F(CfgTest, 02_Basic) {
   EXPECT_EQ(cfgAddInt64(pConfig, "test_int64", 2, 0, 16, 0), 0);
   EXPECT_EQ(cfgAddFloat(pConfig, "test_float", 3, 0, 16, 0), 0);
   EXPECT_EQ(cfgAddString(pConfig, "test_string", "4", 0), 0);
-  EXPECT_EQ(cfgAddDir(pConfig, "test_dir", "/tmp", 0), 0);
+  EXPECT_EQ(cfgAddDir(pConfig, "test_dir", TD_TMP_DIR_PATH, 0), 0);
 
   EXPECT_EQ(cfgGetSize(pConfig), 6);
 
@@ -126,7 +126,7 @@ TEST_F(CfgTest, 02_Basic) {
   EXPECT_EQ(pItem->stype, CFG_STYPE_DEFAULT);
   EXPECT_EQ(pItem->dtype, CFG_DTYPE_DIR);
   EXPECT_STREQ(pItem->name, "test_dir");
-  EXPECT_STREQ(pItem->str, "/tmp");
+  EXPECT_STREQ(pItem->str, TD_TMP_DIR_PATH);
 
   cfgCleanup(pConfig);
 }

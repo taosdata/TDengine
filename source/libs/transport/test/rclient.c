@@ -161,7 +161,7 @@ int main(int argc, char *argv[]) {
     }
   }
 
-  const char *path = "/tmp/transport/client";
+  const char *path = TD_TMP_DIR_PATH "transport/client";
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
