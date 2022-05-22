@@ -709,7 +709,7 @@ void udfdPipeRead(uv_stream_t *client, ssize_t nread, const uv_buf_t *buf) {
   }
 
   if (nread < 0) {
-    fnDebug("Receive error %s", uv_err_name(nread));
+    fnError("Receive error %s", uv_err_name(nread));
     if (nread == UV_EOF) {
       // TODO check more when close
     } else {
