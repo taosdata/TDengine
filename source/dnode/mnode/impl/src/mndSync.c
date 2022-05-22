@@ -142,6 +142,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     SRpcMsg *pApplyMsg = (SRpcMsg *)pMsg;
     pApplyMsg->info.node = pFsm->data;
     mndProcessApplyMsg(pApplyMsg);
+    sdbUpdateVer(pMnode->pSdb, 1);
 
     if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
       tsem_post(&pMgmt->syncSem);
@@ -263,7 +264,6 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   }
 
   if (code != 0) return code;
-  tsem_wait(&pMgmt->syncSem);
   return pMgmt->errCode;
 #endif
 }
