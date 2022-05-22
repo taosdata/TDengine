@@ -125,24 +125,11 @@ _OVER:
 
 }
 
-int32_t mndSyncEqMsg(const SMsgCb* msgcb, SRpcMsg *pMsg) {
-  int32_t ret = 0;
-  if (msgcb->queueFps[SYNC_QUEUE] != NULL) {
-    tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
-  } else {
-    mError("mndSyncEqMsg queue is NULL, SYNC_QUEUE:%d", SYNC_QUEUE);
-  }
-  return ret;
-}
+int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
 
-int32_t mndSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  int32_t ret = 0;
-  pMsg->info.noResp = 1;
-  tmsgSendReq(pEpSet, pMsg);
-  return ret;
-}
+int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
-void mndSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
   if (pFsm->FpGetSnapshot != NULL) {
     SSnapshot snapshot;
@@ -163,26 +150,26 @@ void mndSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMe
   }
 }
 
-void mndSyncPreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+void mndSyncPreCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   // strict consistent, do nothing
 }
 
-void mndSyncRollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+void mndSyncRollBackMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   // strict consistent, do nothing
 }
 
-int32_t mndSyncGetSnapshotCb(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   // snapshot
   return 0;
 }
 
-SSyncFSM *syncMnodeMakeFsm(SMnode *pMnode) {
-  SSyncFSM *pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
+SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
+  SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
-  pFsm->FpCommitCb = mndSyncCommitCb;
-  pFsm->FpPreCommitCb = mndSyncPreCommitCb;
-  pFsm->FpRollBackCb = mndSyncRollBackCb;
-  pFsm->FpGetSnapshot = mndSyncGetSnapshotCb;
+  pFsm->FpCommitCb = mndSyncCommitMsg;
+  pFsm->FpPreCommitCb = mndSyncPreCommitMsg;
+  pFsm->FpRollBackCb = mndSyncRollBackMsg;
+  pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   return pFsm;
 }
 
@@ -195,18 +182,11 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
-  if (mndRestoreWal(pMnode) < 0) {
-    mError("failed to restore wal since %s", terrstr());
-    return -1;
-  }
-
   if (pMnode->selfId == 1) {
     pMgmt->state = TAOS_SYNC_STATE_LEADER;
   }
-  
-  // pMgmt->pSyncNode = NULL;
-  SSyncInfo syncInfo;
-  syncInfo.vgId = 1;
+
+  SSyncInfo syncInfo = {.vgId = 1};
   SSyncCfg *pCfg = &(syncInfo.syncCfg);
   pCfg->replicaNum = pMnode->replica;
   pCfg->myIndex = pMnode->selfIndex;
@@ -216,9 +196,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   }
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s/sync", pMnode->path);
   syncInfo.pWal = pMnode->syncMgmt.pWal;
-
-  syncInfo.pFsm = syncMnodeMakeFsm(pMnode);
-  syncInfo.FpSendMsg = mndSendMsg;
+  syncInfo.pFsm = mndSyncMakeFsm(pMnode);
+  syncInfo.FpSendMsg = mndSyncSendMsg;
   syncInfo.FpEqMsg = mndSyncEqMsg;
 
   pMnode->syncMgmt.sync = syncOpen(&syncInfo);

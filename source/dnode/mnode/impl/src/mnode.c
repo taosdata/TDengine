@@ -343,25 +343,18 @@ int32_t mndStart(SMnode *pMnode) {
 
 void mndStop(SMnode *pMnode) { 
   syncStop(pMnode->syncMgmt.sync); 
-  return mndCleanupTimer(pMnode); 
+  return mndCleanupTimer(pMnode);
 }
 
 int32_t mndProcessApplyMsg(SRpcMsg *pMsg) {
-
   SSdbRaw *pRaw = pMsg->pCont;
-  SMnode *pMnode = pMsg->info.node;
-  int32_t code = sdbWriteWithoutFree(pMnode->pSdb, pRaw);
-  rpcFreeCont(pMsg->pCont);
-
-  return code;
+  SMnode  *pMnode = pMsg->info.node;
+  return sdbWriteWithoutFree(pMnode->pSdb, pRaw);
 }
-
-#include "syncTools.h"
 
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   void   *ahandle = pMsg->info.ahandle;
-
   int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
   
   if (syncEnvIsStart()) {

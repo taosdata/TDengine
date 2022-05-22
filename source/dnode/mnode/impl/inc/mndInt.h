@@ -19,6 +19,7 @@
 #include "mndDef.h"
 
 #include "sdb.h"
+#include "syncTools.h"
 #include "tcache.h"
 #include "tdatablock.h"
 #include "tglobal.h"
@@ -31,12 +32,14 @@
 extern "C" {
 #endif
 
+// clang-format off
 #define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
 #define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
 #define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
 #define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
 #define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
 #define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+// clang-format on
 
 #define SYSTABLE_SCH_TABLE_NAME_LEN ((TSDB_TABLE_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
 #define SYSTABLE_SCH_DB_NAME_LEN    ((TSDB_DB_NAME_LEN - 1) + VARSTR_HEADER_SIZE)
@@ -75,9 +78,7 @@ typedef struct {
   int32_t    errCode;
   sem_t      syncSem;
   SWal      *pWal;
-  //SSyncNode *pSyncNode;
-  int64_t  sync;
-
+  int64_t    sync;
   ESyncState state;
 } SSyncMgmt;
 

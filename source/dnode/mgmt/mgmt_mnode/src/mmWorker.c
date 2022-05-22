@@ -59,32 +59,17 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 static void mmProcessSyncQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
   pMsg->info.node = pMgmt->pMnode;
-
   mndProcessSyncMsg(pMsg);
-  return;
 }
 
 static void mmProcessApplyQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
-  int32_t     code = -1;
-  tmsg_t      msgType = pMsg->msgType;
-  bool        isRequest = msgType & 1U;
-  dTrace("msg:%p, get from mnode-query queue", pMsg);
+  dTrace("msg:%p, get from mnode-apply queue", pMsg);
 
   pMsg->info.node = pMgmt->pMnode;
-  
   mndProcessApplyMsg(pMsg);
 
-  /*
-  if (isRequest) {
-    if (pMsg->info.handle != NULL && code != 0) {
-      if (code != 0 && terrno != 0) code = terrno;
-      mmSendRsp(pMsg, code);
-    }
-  }
-  */
-
-  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  dTrace("msg:%p, is freed", pMsg);
   rpcFreeCont(pMsg->pCont);
   taosFreeQitem(pMsg);
 }
