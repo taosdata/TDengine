@@ -310,6 +310,8 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
         taosArrayDestroy(desc.subDesc);
         desc.subDesc = NULL;
       }
+    } else {
+      desc.subDesc = NULL;
     }
 
     releaseRequest(*rid);
