@@ -50,10 +50,15 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   if (sub != NULL) {
     *sub = '\0';
   }
-  strcpy(name, filepath);
+  char* end = strrchr(filepath, TD_DIRSEP[0]);
+  if (end == NULL) {
+    end = filepath;
+  }
+
+  strcpy(name, end);
 
   if (len != NULL) {
-    *len = (int32_t)strlen(filepath);
+    *len = (int32_t)strlen(end);
   }
 
   return 0;
@@ -68,9 +73,32 @@ int32_t tsem_wait(tsem_t* sem) {
 }
 
 int32_t tsem_timewait(tsem_t* sem, int64_t nanosecs) {
-  int ret = 0;
+  struct timespec ts, rel;
+  FILETIME ft_before, ft_after;
+  int rc;
 
-  return ret;
+  rel.tv_sec = 0;
+  rel.tv_nsec = nanosecs;
+
+  GetSystemTimeAsFileTime(&ft_before);
+  errno = 0;
+  rc = sem_timedwait(&sem, pthread_win32_getabstime_np(&ts, &rel));
+
+  /* This should have timed out */
+  assert(errno == ETIMEDOUT);
+  assert(rc != 0);
+  GetSystemTimeAsFileTime(&ft_after);
+  // We specified a non-zero wait. Time must advance.
+  if (ft_before.dwLowDateTime == ft_after.dwLowDateTime && ft_before.dwHighDateTime == ft_after.dwHighDateTime)
+    {
+      printf("nanoseconds: %d, rc: %d, errno: %d. before filetime: %d, %d; after filetime: %d, %d\n",
+          nanosecs, rc, errno,
+          (int)ft_before.dwLowDateTime, (int)ft_before.dwHighDateTime,
+          (int)ft_after.dwLowDateTime, (int)ft_after.dwHighDateTime);
+      printf("time must advance during sem_timedwait.");
+      return 1;
+    }
+  return 0;
 }
 
 #elif defined(_TD_DARWIN_64)

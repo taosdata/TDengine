@@ -13,7 +13,7 @@
 
 class MndTestStb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_stb", 9034); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "mnode_test_stb", 9034); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -277,7 +277,8 @@ void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const c
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
   req.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
-  req.verInBlock = verInBlock;
+  req.tagVer = verInBlock;
+  req.colVer = verInBlock;
 
   SField field = {0};
   field.bytes = bytes;
@@ -343,7 +344,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     EXPECT_EQ(metaRsp.precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(metaRsp.tableType, TSDB_SUPER_TABLE);
     EXPECT_EQ(metaRsp.sversion, 1);
-    EXPECT_EQ(metaRsp.tversion, 0);
+    EXPECT_EQ(metaRsp.tversion, 1);
     EXPECT_GT(metaRsp.suid, 0);
     EXPECT_GT(metaRsp.tuid, 0);
     EXPECT_EQ(metaRsp.vgId, 0);

@@ -40,8 +40,8 @@ typedef struct STable        STable;
 
 int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable);
-int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
-                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
+int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
+                           SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
 // tsdbCommit ================
 
@@ -79,13 +79,14 @@ struct STsdb {
 struct STable {
   uint64_t  tid;
   uint64_t  uid;
-  STSchema *pSchema;
+  STSchema *pSchema;       // latest schema
+  STSchema *pCacheSchema;  // cached cache
 };
 
 #define TABLE_TID(t) (t)->tid
 #define TABLE_UID(t) (t)->uid
 
-int     tsdbPrepareCommit(STsdb *pTsdb);
+int tsdbPrepareCommit(STsdb *pTsdb);
 typedef enum {
   TSDB_FILE_HEAD = 0,  // .head
   TSDB_FILE_DATA,      // .data
@@ -179,8 +180,17 @@ struct STsdbFS {
 int tsdbLockRepo(STsdb *pTsdb);
 int tsdbUnlockRepo(STsdb *pTsdb);
 
-static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) {
-  return pTable->pSchema;
+static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STsdb *pTsdb, STable *pTable, bool lock, bool copy,
+                                                     int32_t version) {
+  if ((version < 0) || (schemaVersion(pTable->pSchema) == version)) {
+    return pTable->pSchema;
+  }
+
+  if (!pTable->pCacheSchema || (schemaVersion(pTable->pCacheSchema) != version)) {
+    taosMemoryFreeClear(pTable->pCacheSchema);
+    pTable->pCacheSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
+  }
+  return pTable->pCacheSchema;
 }
 
 // tsdbMemTable.h

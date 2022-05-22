@@ -16,15 +16,15 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-static std::string dir = "/tmp/json";
-static std::string logDir = "/tmp/log";
+static std::string dir = TD_TMP_DIR_PATH "json";
+static std::string logDir = TD_TMP_DIR_PATH "log";
 
 static void initLog() {
   const char*   defaultLogFileNamePrefix = "taoslog";
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
-  sDebugFlag = 143;
+  idxDebugFlag = 143;
   strcpy(tsLogDir, logDir.c_str());
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);

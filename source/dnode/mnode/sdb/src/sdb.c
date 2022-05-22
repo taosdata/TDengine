@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 
 static int32_t sdbCreateDir(SSdb *pSdb);
 
@@ -31,11 +31,9 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   char path[PATH_MAX + 100] = {0};
   snprintf(path, sizeof(path), "%s%sdata", pOption->path, TD_DIRSEP);
   pSdb->currDir = strdup(path);
-  snprintf(path, sizeof(path), "%s%ssync", pOption->path, TD_DIRSEP);
-  pSdb->syncDir = strdup(path);
   snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = strdup(path);
-  if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
+  if (pSdb->currDir == NULL || pSdb->tmpDir == NULL) {
     sdbCleanup(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to init sdb since %s", terrstr());
@@ -55,8 +53,10 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   pSdb->curVer = -1;
+  pSdb->curTerm = -1;
   pSdb->lastCommitVer = -1;
   pSdb->pMnode = pOption->pMnode;
+  taosThreadMutexInit(&pSdb->filelock, NULL);
   mDebug("sdb init successfully");
   return pSdb;
 }
@@ -70,11 +70,8 @@ void sdbCleanup(SSdb *pSdb) {
     taosMemoryFreeClear(pSdb->currDir);
   }
 
-  if (pSdb->syncDir != NULL) {
-    taosMemoryFreeClear(pSdb->syncDir);
-  }
-
   if (pSdb->tmpDir != NULL) {
+    taosRemoveDir(pSdb->tmpDir);
     taosMemoryFreeClear(pSdb->tmpDir);
   }
 
@@ -105,6 +102,7 @@ void sdbCleanup(SSdb *pSdb) {
     mDebug("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
+  taosThreadMutexDestroy(&pSdb->filelock);
   taosMemoryFree(pSdb);
   mDebug("sdb is cleaned up");
 }
@@ -149,12 +147,6 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
     return -1;
   }
 
-  if (taosMkDir(pSdb->syncDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->syncDir, terrstr());
-    return -1;
-  }
-
   if (taosMkDir(pSdb->tmpDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", pSdb->tmpDir, terrstr());
@@ -164,4 +156,10 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-int64_t sdbUpdateVer(SSdb *pSdb, int32_t val) { return atomic_add_fetch_64(&pSdb->curVer, val); }
+void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
+
+int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
+
+void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
+
+int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }

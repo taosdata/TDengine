@@ -132,6 +132,7 @@ typedef enum EOperatorType {
   OP_TYPE_MOD,
   // unary arithmetic operator
   OP_TYPE_MINUS,
+  OP_TYPE_ASSIGN,
 
   // bit operator
   OP_TYPE_BIT_AND,
@@ -233,6 +234,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TAG_CONDITIONS 1024
 
 #define TSDB_MAX_JSON_TAG_LEN 16384
+#define TSDB_MAX_JSON_KEY_LEN 256
 
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
@@ -245,7 +247,7 @@ typedef enum ELogicConditionType {
 #define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       512
+#define TSDB_SHOW_SQL_LEN       1024
 #define TSDB_SLOW_QUERY_SQL_LEN 512
 #define TSDB_SHOW_SUBQUERY_LEN  1000
 
@@ -332,9 +334,12 @@ typedef enum ELogicConditionType {
 #define TSDB_DB_STREAM_MODE_OFF         0
 #define TSDB_DB_STREAM_MODE_ON          1
 #define TSDB_DEFAULT_DB_STREAM_MODE     0
-#define TSDB_DB_SINGLE_STABLE_ON        0
-#define TSDB_DB_SINGLE_STABLE_OFF       1
-#define TSDB_DEFAULT_DB_SINGLE_STABLE   0
+#define TSDB_DB_SINGLE_STABLE_ON        1
+#define TSDB_DB_SINGLE_STABLE_OFF       0
+#define TSDB_DEFAULT_DB_SINGLE_STABLE   TSDB_DB_SINGLE_STABLE_OFF
+#define TSDB_DB_SCHEMALESS_ON           1
+#define TSDB_DB_SCHEMALESS_OFF          0
+#define TSDB_DEFAULT_DB_SCHEMALESS      TSDB_DB_SCHEMALESS_OFF
 
 #define TSDB_MIN_ROLLUP_FILE_FACTOR     0
 #define TSDB_MAX_ROLLUP_FILE_FACTOR     1
@@ -426,11 +431,11 @@ enum {
 };
 
 #define DEFAULT_HANDLE 0
-#define MNODE_HANDLE   -1
-#define QNODE_HANDLE   -2
-#define SNODE_HANDLE   -3
-#define VNODE_HANDLE   -4
-#define BNODE_HANDLE   -5
+#define MNODE_HANDLE   1
+#define QNODE_HANDLE   -1
+#define SNODE_HANDLE   -2
+#define VNODE_HANDLE   -3
+#define BNODE_HANDLE   -4
 
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN  48

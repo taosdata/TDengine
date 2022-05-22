@@ -633,7 +633,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       continue;
     }
 
-    char *input = colDataGetData(pInput[0].columnData, i);
+    char *input = colDataGetData(pInputData, i);
     int32_t len = varDataLen(input);
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
     trimFn(input, output, type, charLen);
@@ -707,6 +707,7 @@ int32_t substrFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOu
 
 int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput) {
   int16_t inputType  = GET_PARAM_TYPE(&pInput[0]);
+  int16_t inputLen   = GET_PARAM_BYTES(&pInput[0]);
   int16_t outputType = GET_PARAM_TYPE(&pOutput[0]);
   int64_t outputLen  = GET_PARAM_BYTES(&pOutput[0]);
 
@@ -718,15 +719,15 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       colDataAppendNULL(pOutput->columnData, i);
       continue;
     }
+
     char *input = colDataGetData(pInput[0].columnData, i);
 
     switch(outputType) {
       case TSDB_DATA_TYPE_BIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(output, varDataVal(input), varDataLen(input));
-          *(int64_t *)output = taosStr2Int64(output, NULL, 10);
+          *(int64_t *)output = taosStr2Int64(varDataVal(input), NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          char *newBuf = taosMemoryCalloc(1, outputLen * TSDB_NCHAR_SIZE + 1);
+          char *newBuf = taosMemoryCalloc(1, inputLen);
           int32_t len  = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
           if (len < 0) {
             taosMemoryFree(newBuf);
@@ -742,10 +743,9 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
       }
       case TSDB_DATA_TYPE_UBIGINT: {
         if (inputType == TSDB_DATA_TYPE_BINARY) {
-          memcpy(output, varDataVal(input), varDataLen(input));
-          *(uint64_t *)output = taosStr2UInt64(output, NULL, 10);
+          *(uint64_t *)output = taosStr2UInt64(varDataVal(input), NULL, 10);
         } else if (inputType == TSDB_DATA_TYPE_NCHAR) {
-          char *newBuf = taosMemoryCalloc(1, outputLen * TSDB_NCHAR_SIZE + 1);
+          char *newBuf = taosMemoryCalloc(1, inputLen);
           int32_t len = taosUcs4ToMbs((TdUcs4 *)varDataVal(input), varDataLen(input), newBuf);
           if (len < 0) {
             taosMemoryFree(newBuf);
@@ -824,7 +824,7 @@ int32_t castFunction(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutp
         }
         //for constant conversion, need to set proper length of pOutput description
         if (len < outputLen) {
-          pOutput->columnData->info.bytes = len;
+          pOutput->columnData->info.bytes = len + VARSTR_HEADER_SIZE;
         }
         break;
       }
@@ -893,7 +893,7 @@ int32_t toISO8601Function(SScalarParam *pInput, int32_t inputNum, SScalarParam *
         memmove(tzInfo + fracLen, tzInfo, strlen(tzInfo));
       }
 
-      char tmp[32];
+      char tmp[32] = {0};
       sprintf(tmp, ".%s", fraction);
       memcpy(tzInfo, tmp, fracLen);
       len += fracLen;
@@ -925,10 +925,9 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
     if (ret != TSDB_CODE_SUCCESS) {
       colDataAppendNULL(pOutput->columnData, i);
-      continue;
+    } else {
+      colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
     }
-
-    colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
   }
 
   pOutput->numOfRows = pInput->numOfRows;

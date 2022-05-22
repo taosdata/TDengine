@@ -190,6 +190,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   }
   return pool;
 }
+
 void transDestroyAsyncPool(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
@@ -233,7 +234,7 @@ void transCtxCleanup(STransCtx* ctx) {
 
   STransCtxVal* iter = taosHashIterate(ctx->args, NULL);
   while (iter) {
-    iter->freeFunc(iter->val);
+    ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
 
@@ -245,6 +246,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
+    dst->freeFunc = src->freeFunc;
     src->args = NULL;
     return;
   }
@@ -257,7 +259,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
 
     STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
     if (dVal) {
-      dVal->freeFunc(dVal->val);
+      dst->freeFunc(dVal->val);
     }
     taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
     iter = taosHashIterate(src->args, iter);
@@ -444,5 +446,28 @@ int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_
   heapInsert(queue->heap, &task->node);
   uv_timer_start(queue->timer, transDQTimeout, timeoutMs, 0);
   return 0;
+}
+
+void transPrintEpSet(SEpSet* pEpSet) {
+  if (pEpSet == NULL) {
+    tTrace("NULL epset");
+    return;
+  }
+  tTrace("epset begin  inUse: %d", pEpSet->inUse);
+  for (int i = 0; i < pEpSet->numOfEps; i++) {
+    tTrace("ip: %s, port: %d", pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
+  }
+  tTrace("epset end");
+}
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
 }
 #endif

@@ -698,7 +698,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL
 SELECT TAIL(field_name, k, offset_val) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
-**功能说明**：返回跳过最后 offset_value 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 `order by ts desc LIMIT k OFFSET offset_val`。
+**功能说明**：返回跳过最后 offset_val 个，然后取连续 k 个记录，不忽略 NULL 值。offset_val 可以不输入。此时返回最后的 k 个记录。当有 offset_val 输入的情况下，该函数功能等效于 `order by ts desc LIMIT k OFFSET offset_val`。
 
 **参数范围**：k: [1,100] offset_val: [0,100]。
 
@@ -1765,6 +1765,8 @@ SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2
 - 支持的时间单位 time_unit 如下：
           1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
 - 如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
+
+**支持的版本**：2.6.0.0 及以后的版本。
 
 **示例**：
 

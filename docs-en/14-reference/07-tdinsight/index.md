@@ -61,7 +61,7 @@ sudo yum install \
 
 ## Automated deployment of TDinsight
 
-We provide an installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) script to allow users to configure the installation automatically and quickly.
+We provide an installation script [`TDinsight.sh`](https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh) to allow users to configure the installation automatically and quickly.
 
 You can download the script via `wget` or other tools:
 
@@ -233,33 +233,33 @@ The default username/password is `admin`. Grafana will require a password change
 
 Point to the **Configurations** -> **Data Sources** menu, and click the **Add data source** button.
 
-![Add data source button](./assets/howto-add-datasource-button.png)
+![TDengine Database TDinsight Add data source button](./assets/howto-add-datasource-button.webp)
 
 Search for and select **TDengine**.
 
-![Add datasource](./assets/howto-add-datasource-tdengine.png)
+![TDengine Database TDinsight Add datasource](./assets/howto-add-datasource-tdengine.webp)
 
 Configure the TDengine datasource.
 
-![Datasource Configuration](./assets/howto-add-datasource.png)
+![TDengine Database TDinsight Datasource Configuration](./assets/howto-add-datasource.webp)
 
 Save and test. It will report 'TDengine Data source is working' under normal circumstances.
 
-![datasource test](./assets/howto-add-datasource-test.png)
+![TDengine Database TDinsight datasource test](./assets/howto-add-datasource-test.webp)
 
 ### Importing dashboards
 
 Point to **+** / **Create** - **import** (or `/dashboard/import` url).
 
-![Import Dashboard and Configuration](./assets/import_dashboard.png)
+![TDengine Database TDinsight Import Dashboard and Configuration](./assets/import_dashboard.webp)
 
 Type the dashboard ID `15167` in the **Import via grafana.com** location and **Load**.
 
-![Import via grafana.com](./assets/import-dashboard-15167.png)
+![TDengine Database TDinsight Import via grafana.com](./assets/import-dashboard-15167.webp)
 
 Once the import is complete, the full page view of TDinsight is shown below.
 
-![show](./assets/TDinsight-full.png)
+![TDengine Database TDinsight show](./assets/TDinsight-full.webp)
 
 ## TDinsight dashboard details
 
@@ -269,7 +269,7 @@ Details of the metrics are as follows.
 
 ### Cluster Status
 
-![tdinsight-mnodes-overview](./assets/TDinsight-1-cluster-status.png)
+![TDengine Database TDinsight mnodes overview](./assets/TDinsight-1-cluster-status.webp)
 
 This section contains the current information and status of the cluster, the alert information is also here (from left to right, top to bottom).
 
@@ -289,7 +289,7 @@ This section contains the current information and status of the cluster, the ale
 
 ### DNodes Status
 
-![tdinsight-mnodes-overview](./assets/TDinsight-2-dnodes.png)
+![TDengine Database TDinsight mnodes overview](./assets/TDinsight-2-dnodes.webp)
 
 - **DNodes Status**: simple table view of `show dnodes`.
 - **DNodes Lifetime**: the time elapsed since the dnode was created.
@@ -298,14 +298,14 @@ This section contains the current information and status of the cluster, the ale
 
 ### MNode Overview
 
-![tdinsight-mnodes-overview](./assets/TDinsight-3-mnodes.png)
+![TDengine Database TDinsight mnodes overview](./assets/TDinsight-3-mnodes.webp)
 
-1. **MNodes Status**: a simple table view of `show mnodes`. 2.
+1. **MNodes Status**: a simple table view of `show mnodes`.
 2. **MNodes Number**: similar to `DNodes Number`, the number of MNodes changes.
 
 ### Request
 
-![tdinsight-requests](./assets/TDinsight-4-requests.png)
+![TDengine Database TDinsight tdinsight requests](./assets/TDinsight-4-requests.webp)
 
 1. **Requests Rate(Inserts per Second)**: average number of inserts per second.
 2. **Requests (Selects)**: number of query requests and change rate (count of second).
@@ -313,46 +313,46 @@ This section contains the current information and status of the cluster, the ale
 
 ### Database
 
-![tdinsight-database](./assets/TDinsight-5-database.png)
+![TDengine Database TDinsight database](./assets/TDinsight-5-database.webp)
 
 Database usage, repeated for each value of the variable `$database` i.e. multiple rows per database.
 
-1. **STables**: number of super tables. 2.
-2. **Total Tables**: number of all tables. 3.
-3. **Sub Tables**: the number of all super table sub-tables. 4.
+1. **STables**: number of super tables.
+2. **Total Tables**: number of all tables.
+3. **Sub Tables**: the number of all super table subtables.
 4. **Tables**: graph of all normal table numbers over time.
 5. **Tables Number Foreach VGroups**: The number of tables contained in each VGroups.
 
 ### DNode Resource Usage
 
-![dnode-usage](./assets/TDinsight-6-dnode-usage.png)
+![TDengine Database TDinsight dnode usage](./assets/TDinsight-6-dnode-usage.webp)
 
 Data node resource usage display with repeated multiple rows for the variable `$fqdn` i.e., each data node. Includes.
 
 1. **Uptime**: the time elapsed since the dnode was created.
-2. **Has MNodes?**: whether the current dnode is a mnode. 3.
-3. **CPU Cores**: the number of CPU cores. 4.
-4. **VNodes Number**: the number of VNodes in the current dnode. 5.
-5. **VNodes Masters**: the number of vnodes in the master role. 6.
+2. **Has MNodes?**: whether the current dnode is a mnode.
+3. **CPU Cores**: the number of CPU cores.
+4. **VNodes Number**: the number of VNodes in the current dnode.
+5. **VNodes Masters**: the number of vnodes in the master role.
 6. **Current CPU Usage of taosd**: CPU usage rate of taosd processes.
 7. **Current Memory Usage of taosd**: memory usage of taosd processes.
 8. **Disk Used**: The total disk usage percentage of the taosd data directory.
-9. **CPU Usage**: Process and system CPU usage. 10.
+9. **CPU Usage**: Process and system CPU usage.
 10. **RAM Usage**: Time series view of RAM usage metrics.
 11. **Disk Used**: Disks used at each level of multi-level storage (default is level0).
 12. **Disk Increasing Rate per Minute**: Percentage increase or decrease in disk usage per minute.
-13. **Disk IO**: Disk IO rate. 14.
+13. **Disk IO**: Disk IO rate.
 14. **Net IO**: Network IO, the aggregate network IO rate in addition to the local network.
 
 ### Login History
 
-![Login History](./assets/TDinsight-7-login-history.png)
+![TDengine Database TDinsight Login History](./assets/TDinsight-7-login-history.webp)
 
 Currently, only the number of logins per minute is reported.
 
 ### Monitoring taosAdapter
 
-![taosadapter](./assets/TDinsight-8-taosadapter.png)
+![TDengine Database TDinsight monitor taosadapter](./assets/TDinsight-8-taosadapter.webp)
 
 Support monitoring taosAdapter request statistics and status details. Includes.
 
@@ -376,7 +376,7 @@ TDinsight installed via the `TDinsight.sh` script can be cleaned up using the co
 To completely uninstall TDinsight during a manual installation, you need to clean up the following.
 
 1. the TDinsight Dashboard in Grafana.
-2. the Data Source in Grafana. 3.
+2. the Data Source in Grafana.
 3. remove the `tdengine-datasource` plugin from the plugin installation directory.
 
 ## Integrated Docker Example

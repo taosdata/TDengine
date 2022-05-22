@@ -45,6 +45,17 @@ void voteGrantedDestroy(SVotesGranted *pVotesGranted) {
   }
 }
 
+void voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pSyncNode) {
+  pVotesGranted->replicas = &(pSyncNode->replicasId);
+  pVotesGranted->replicaNum = pSyncNode->replicaNum;
+  voteGrantedClearVotes(pVotesGranted);
+
+  pVotesGranted->term = 0;
+  pVotesGranted->quorum = pSyncNode->quorum;
+  pVotesGranted->toLeader = false;
+  pVotesGranted->pSyncNode = pSyncNode;
+}
+
 bool voteGrantedMajority(SVotesGranted *pVotesGranted) {
   bool ret = pVotesGranted->votes >= pVotesGranted->quorum;
   return ret;
@@ -79,7 +90,7 @@ void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
 }
 
 cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
   if (pVotesGranted != NULL) {
@@ -168,6 +179,13 @@ void votesRespondDestory(SVotesRespond *pVotesRespond) {
   }
 }
 
+void votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pSyncNode) {
+  pVotesRespond->replicas = &(pSyncNode->replicasId);
+  pVotesRespond->replicaNum = pSyncNode->replicaNum;
+  pVotesRespond->term = 0;
+  pVotesRespond->pSyncNode = pSyncNode;
+}
+
 bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {
   bool ret = false;
   for (int i = 0; i < pVotesRespond->replicaNum; ++i) {
@@ -202,7 +220,7 @@ void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {
 }
 
 cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
   if (pVotesRespond != NULL) {

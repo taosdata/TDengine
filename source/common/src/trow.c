@@ -341,18 +341,19 @@ int32_t tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType, int8
 bool tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode) {
   int32_t nBytes = (bitmapMode == 0 ? numOfBits / TD_VTYPE_PARTS : numOfBits / TD_VTYPE_PARTS_I);
   uint8_t vTypeByte = tdVTypeByte[bitmapMode][TD_VTYPE_NORM];
+  uint8_t *qBitmap = (uint8_t*)pBitmap;
   for (int i = 0; i < nBytes; ++i) {
-    if (*((uint8_t *)pBitmap) != vTypeByte) {
+    if (*qBitmap != vTypeByte) {
       return false;
     }
-    pBitmap = POINTER_SHIFT(pBitmap, i);
+    qBitmap = (uint8_t *)POINTER_SHIFT(pBitmap, i);
   }
 
   int32_t nLeft = numOfBits - nBytes * (bitmapMode == 0 ? TD_VTYPE_BITS : TD_VTYPE_BITS_I);
 
   for (int j = 0; j < nLeft; ++j) {
     uint8_t vType;
-    tdGetBitmapValType(pBitmap, j, &vType, bitmapMode);
+    tdGetBitmapValType(qBitmap, j, &vType, bitmapMode);
     if (vType != TD_VTYPE_NORM) {
       return false;
     }
@@ -604,6 +605,10 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
  * @param pCols
  */
 int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge) {
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
+  printf("%s:%d ts: %" PRIi64 " sver:%d maxCols:%" PRIi16 " nCols:%" PRIi16 ", nRows:%d\n", __func__, __LINE__,
+         TD_ROW_KEY(pRow), TD_ROW_SVER(pRow), pCols->maxCols, pCols->numOfCols, pCols->numOfRows);
+#endif
   if (TD_IS_TP_ROW(pRow)) {
     return tdAppendTpRowToDataCol(pRow, pSchema, pCols, isMerge);
   } else if (TD_IS_KV_ROW(pRow)) {
@@ -923,7 +928,7 @@ void tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag) {
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pSchema);
   tdSTSRowIterReset(&iter, row);
-  printf("%s >>>", tag);
+  printf("%s >>>type:%d,sver:%d ", tag, (int32_t)TD_ROW_TYPE(row), (int32_t)TD_ROW_SVER(row));
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
     SCellVal  sVal = {255, NULL};
@@ -1190,9 +1195,9 @@ bool tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, 
 }
 
 static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
+  if (*(col_id_t *)key1 > ((SKvRowIdx *)key2)->colId) {
     return 1;
-  } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
+  } else if (*(col_id_t *)key1 < ((SKvRowIdx *)key2)->colId) {
     return -1;
   } else {
     return 0;

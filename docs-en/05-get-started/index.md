@@ -10,7 +10,7 @@ import AptGetInstall from "./\_apt_get_install.mdx";
 
 ## Quick Install
 
-The full package of TDengine includes the server(taosd), taosAdapter for connecting with third-party systems and providing a RESTful interface, client driver(taosc), command-line program(CLI, taos) and some tools. For the current version, the server taosd and taosAdapter can only be installed and run on Linux systems. In the future taosd and taosAdapter will also be supported on Windows, macOS and other systems. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to the connectors of multiple languages, [RESTful interface](/reference/rest-api) is also provided by [taosAdapter](/reference/taosadapter) in TDengine. Prior to version 2.4.0.0, however, there is no taosAdapter, the RESTful interface is provided by the built-in HTTP service of taosd.
+The full package of TDengine includes the server(taosd), taosAdapter for connecting with third-party systems and providing a RESTful interface, client driver(taosc), command-line program(CLI, taos) and some tools. For the current version, the server taosd and taosAdapter can only be installed and run on Linux systems. In the future taosd and taosAdapter will also be supported on Windows, macOS and other systems. The client driver taosc and TDengine CLI can be installed and run on Windows or Linux. In addition to connectors for multiple languages, TDengine also provides a [RESTful interface](/reference/rest-api) through [taosAdapter](/reference/taosadapter). Prior to version 2.4.0.0, taosAdapter did not exist and the RESTful interface was provided by the built-in HTTP service of taosd.
 
 TDengine supports X64/ARM64/MIPS64/Alpha64 hardware platforms, and will support ARM32, RISC-V and other CPU architectures in the future.
 
@@ -130,7 +130,7 @@ After TDengine server is running，execute `taosBenchmark` (previously named tao
 taosBenchmark
 ```
 
-This command will create a super table "meters" under database "test". Under "meters", 10000 tables are created with names from "d0" to "d9999". Each table has 10000 rows and each row has four columns (ts, current, voltage, phase). Time stamp is starting from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999". Each table has tags "location" and "groupId". groupId is set 1 to 10 randomly, and location is set to "beijing" or "shanghai".
+This command will create a super table "meters" under database "test". Under "meters", 10000 tables are created with names from "d0" to "d9999". Each table has 10000 rows and each row has four columns (ts, current, voltage, phase). Time stamp is starting from "2017-07-14 10:40:00 000" to "2017-07-14 10:40:09 999". Each table has tags "location" and "groupId". groupId is set 1 to 10 randomly, and location is set to "California.SanFrancisco" or "California.SanDiego".
 
 This command will insert 100 million rows into the database quickly. Time to insert depends on the hardware configuration, it only takes a dozen seconds for a regular PC server.            
 
@@ -152,10 +152,10 @@ query the average, maximum, minimum of 100 million rows:
 taos> select avg(current), max(voltage), min(phase) from test.meters;
 ```
 
-query the total number of rows with location="beijing":
+query the total number of rows with location="California.SanFrancisco":
 
 ```sql
-taos> select count(*) from test.meters where location="beijing";
+taos> select count(*) from test.meters where location="California.SanFrancisco";
 ```
 
 query the average, maximum, minimum of all rows with groupId=10:

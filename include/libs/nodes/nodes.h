@@ -59,10 +59,10 @@ extern "C" {
   for (SListCell* cell = (NULL != (list) ? (list)->pHead : NULL); \
        (NULL != cell ? (node = &(cell->pNode), true) : (node = NULL, false)); cell = cell->pNext)
 
-#define DESTORY_LIST(list)  \
-  do {                      \
-    nodesDestroyList(list); \
-    list = NULL;            \
+#define DESTORY_LIST(list)    \
+  do {                        \
+    nodesDestroyList((list)); \
+    (list) = NULL;            \
   } while (0)
 
 typedef enum ENodeType {
@@ -96,6 +96,7 @@ typedef enum ENodeType {
   QUERY_NODE_EXPLAIN_OPTIONS,
   QUERY_NODE_STREAM_OPTIONS,
   QUERY_NODE_TOPIC_OPTIONS,
+  QUERY_NODE_LEFT_VALUE,
 
   // Statement nodes are used in parser and planner module.
   QUERY_NODE_SET_OPERATOR,
@@ -130,6 +131,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_MNODE_STMT,
   QUERY_NODE_CREATE_TOPIC_STMT,
   QUERY_NODE_DROP_TOPIC_STMT,
+  QUERY_NODE_DROP_CGROUP_STMT,
   QUERY_NODE_ALTER_LOCAL_STMT,
   QUERY_NODE_EXPLAIN_STMT,
   QUERY_NODE_DESCRIBE_STMT,
@@ -211,6 +213,8 @@ typedef enum ENodeType {
   QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_INTERVAL,
   QUERY_NODE_PHYSICAL_PLAN_FILL,
   QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW,
+  QUERY_NODE_PHYSICAL_PLAN_STREAM_FINAL_SESSION_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW,
   QUERY_NODE_PHYSICAL_PLAN_PARTITION,
   QUERY_NODE_PHYSICAL_PLAN_DISPATCH,
@@ -241,7 +245,6 @@ typedef struct SNodeList {
 
 #define SNodeptr void*
 
-int32_t  nodesNodeSize(ENodeType type);
 SNodeptr nodesMakeNode(ENodeType type);
 void     nodesDestroyNode(SNodeptr pNode);
 

@@ -81,6 +81,7 @@ typedef struct SValueNode {
   char*     literal;
   bool      isDuration;
   bool      translate;
+  bool      notReserved;
   int16_t   placeholderNo;
   union {
     bool     b;
@@ -92,6 +93,10 @@ typedef struct SValueNode {
   int64_t typeData;
   char    unit;
 } SValueNode;
+
+typedef struct SLeftValueNode {
+  ENodeType type;
+} SLeftValueNode;
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
@@ -127,6 +132,7 @@ typedef struct STableNode {
   char      tableName[TSDB_TABLE_NAME_LEN];
   char      tableAlias[TSDB_TABLE_NAME_LEN];
   uint8_t   precision;
+  bool      singleTable;
 } STableNode;
 
 struct STableMeta;
@@ -236,7 +242,9 @@ typedef struct SSelectStmt {
   bool        isTimeOrderQuery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
-  bool        hasNonstdSQLFunc;
+  bool        hasIndefiniteRowsFunc;
+  bool        hasSelectFunc;
+  bool        hasSelectValFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -314,21 +322,22 @@ typedef enum EQueryExecMode {
 } EQueryExecMode;
 
 typedef struct SQuery {
-  ENodeType      type;
-  EQueryExecMode execMode;
-  bool           haveResultSet;
-  SNode*         pRoot;
-  int32_t        numOfResCols;
-  SSchema*       pResSchema;
-  int8_t         precision;
-  SCmdMsgInfo*   pCmdMsg;
-  int32_t        msgType;
-  SArray*        pDbList;
-  SArray*        pTableList;
-  bool           showRewrite;
-  int32_t        placeholderNum;
-  SArray*        pPlaceholderValues;
-  SNode*         pPrepareRoot;
+  ENodeType               type;
+  EQueryExecMode          execMode;
+  bool                    haveResultSet;
+  SNode*                  pRoot;
+  int32_t                 numOfResCols;
+  SSchema*                pResSchema;
+  int8_t                  precision;
+  SCmdMsgInfo*            pCmdMsg;
+  int32_t                 msgType;
+  SArray*                 pDbList;
+  SArray*                 pTableList;
+  bool                    showRewrite;
+  int32_t                 placeholderNum;
+  SArray*                 pPlaceholderValues;
+  SNode*                  pPrepareRoot;
+  struct SParseMetaCache* pMetaCache;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);

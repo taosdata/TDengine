@@ -44,6 +44,8 @@ TEST_F(ParserSelectTest, constant) {
       "timestamp '2022-02-09 17:30:20', true, false, 15s FROM t1");
 
   run("SELECT 123 + 45 FROM t1 WHERE 2 - 1");
+
+  run("SELECT * FROM t1 WHERE -2");
 }
 
 TEST_F(ParserSelectTest, expression) {
@@ -74,6 +76,12 @@ TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
   useDb("root", "test");
 
   run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
+}
+
+TEST_F(ParserSelectTest, aggFunc) {
+  useDb("root", "test");
+
+  run("SELECT LEASTSQUARES(c1, -1, 1) FROM t1");
 }
 
 TEST_F(ParserSelectTest, multiResFunc) {
@@ -121,13 +129,13 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }
 
-TEST_F(ParserSelectTest, nonstdFunc) {
+TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
   useDb("root", "test");
 
   run("SELECT DIFF(c1) FROM t1");
 }
 
-TEST_F(ParserSelectTest, nonstdFuncSemanticCheck) {
+TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   useDb("root", "test");
 
   run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
@@ -139,6 +147,14 @@ TEST_F(ParserSelectTest, nonstdFuncSemanticCheck) {
   run("SELECT DIFF(c1), CSUM(c1) FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);
 
   // run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)");
+}
+
+TEST_F(ParserSelectTest, useDefinedFunc) {
+  useDb("root", "test");
+
+  run("SELECT udf1(c1) FROM t1");
+
+  run("SELECT udf2(c1) FROM t1 GROUP BY c2");
 }
 
 TEST_F(ParserSelectTest, groupBy) {

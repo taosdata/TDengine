@@ -1,13 +1,8 @@
 system sh/stop_dnodes.sh
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c wallevel -v 2
-system sh/cfg.sh -n dnode1 -c numOfMnodes -v 1
-system sh/cfg.sh -n dnode1 -c mnodeEqualVnodeNum -v 4
 
 print ========= start dnode1 as master
 system sh/exec.sh -n dnode1 -s start
-sleep 2000
 sql connect
 
 print ======== step1 

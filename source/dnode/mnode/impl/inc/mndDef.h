@@ -54,6 +54,11 @@ typedef enum {
 } EAuthOp;
 
 typedef enum {
+  TRN_STEP_LOG = 1,
+  TRN_STEP_ACTION = 2,
+} ETrnStep;
+
+typedef enum {
   TRN_STAGE_PREPARE = 0,
   TRN_STAGE_REDO_LOG = 1,
   TRN_STAGE_REDO_ACTION = 2,
@@ -67,30 +72,34 @@ typedef enum {
 
 typedef enum {
   TRN_TYPE_BASIC_SCOPE = 1000,
-  TRN_TYPE_CREATE_USER = 1001,
-  TRN_TYPE_ALTER_USER = 1002,
-  TRN_TYPE_DROP_USER = 1003,
-  TRN_TYPE_CREATE_FUNC = 1004,
-  TRN_TYPE_DROP_FUNC = 1005,
+  TRN_TYPE_CREATE_ACCT = 1001,
+  TRN_TYPE_CREATE_CLUSTER = 1002,
+  TRN_TYPE_CREATE_USER = 1003,
+  TRN_TYPE_ALTER_USER = 1004,
+  TRN_TYPE_DROP_USER = 1005,
+  TRN_TYPE_CREATE_FUNC = 1006,
+  TRN_TYPE_DROP_FUNC = 1007,
 
-  TRN_TYPE_CREATE_SNODE = 1006,
-  TRN_TYPE_DROP_SNODE = 1007,
-  TRN_TYPE_CREATE_QNODE = 1008,
-  TRN_TYPE_DROP_QNODE = 1009,
-  TRN_TYPE_CREATE_BNODE = 1010,
-  TRN_TYPE_DROP_BNODE = 1011,
-  TRN_TYPE_CREATE_MNODE = 1012,
-  TRN_TYPE_DROP_MNODE = 1013,
-  TRN_TYPE_CREATE_TOPIC = 1014,
-  TRN_TYPE_DROP_TOPIC = 1015,
-  TRN_TYPE_SUBSCRIBE = 1016,
-  TRN_TYPE_REBALANCE = 1017,
-  TRN_TYPE_COMMIT_OFFSET = 1018,
-  TRN_TYPE_CREATE_STREAM = 1019,
-  TRN_TYPE_DROP_STREAM = 1020,
-  TRN_TYPE_ALTER_STREAM = 1021,
-  TRN_TYPE_CONSUMER_LOST = 1022,
-  TRN_TYPE_CONSUMER_RECOVER = 1023,
+  TRN_TYPE_CREATE_SNODE = 1010,
+  TRN_TYPE_DROP_SNODE = 1011,
+  TRN_TYPE_CREATE_QNODE = 1012,
+  TRN_TYPE_DROP_QNODE = 10013,
+  TRN_TYPE_CREATE_BNODE = 1014,
+  TRN_TYPE_DROP_BNODE = 1015,
+  TRN_TYPE_CREATE_MNODE = 1016,
+  TRN_TYPE_DROP_MNODE = 1017,
+
+  TRN_TYPE_CREATE_TOPIC = 1020,
+  TRN_TYPE_DROP_TOPIC = 1021,
+  TRN_TYPE_SUBSCRIBE = 1022,
+  TRN_TYPE_REBALANCE = 1023,
+  TRN_TYPE_COMMIT_OFFSET = 1024,
+  TRN_TYPE_CREATE_STREAM = 1025,
+  TRN_TYPE_DROP_STREAM = 1026,
+  TRN_TYPE_ALTER_STREAM = 1027,
+  TRN_TYPE_CONSUMER_LOST = 1028,
+  TRN_TYPE_CONSUMER_RECOVER = 1029,
+  TRN_TYPE_DROP_CGROUP = 1030,
   TRN_TYPE_BASIC_SCOPE_END,
 
   TRN_TYPE_GLOBAL_SCOPE = 2000,
@@ -121,6 +130,11 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
+  TRN_EXEC_PARALLEL = 0,
+  TRN_EXEC_ONE_BY_ONE = 1,
+} ETrnExecType;
+
+typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -148,6 +162,7 @@ typedef struct {
   ETrnStage      stage;
   ETrnPolicy     policy;
   ETrnType       type;
+  ETrnExecType   parallel;
   int32_t        code;
   int32_t        failedTimes;
   SRpcHandleInfo rpcInfo;
@@ -196,9 +211,8 @@ typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
-  ESyncState role;
-  int32_t    roleTerm;
-  int64_t    roleTime;
+  ESyncState state;
+  int64_t    stateStartTime;
   SDnodeObj* pDnode;
 } SMnodeObj;
 
@@ -328,6 +342,7 @@ typedef struct {
   int64_t   compStorage;
   int64_t   pointsWritten;
   int8_t    compact;
+  int8_t    isTsma;
   int8_t    replica;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
@@ -364,7 +379,6 @@ typedef struct {
   int64_t  updateTime;
   int64_t  uid;
   int64_t  dbUid;
-  int32_t  version;
   int32_t  tagVer;
   int32_t  colVer;
   int32_t  nextColId;
@@ -587,7 +601,8 @@ typedef struct {
   int8_t         status;
   int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
   int32_t        fixedSinkVgId;  // 0 for shuffle
-  int64_t        smaId;          // 0 for unused
+  SVgObj         fixedSinkVg;
+  int64_t        smaId;  // 0 for unused
   int8_t         trigger;
   int32_t        triggerParam;
   int64_t        waterMark;

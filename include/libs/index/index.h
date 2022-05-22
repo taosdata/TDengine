@@ -16,9 +16,11 @@
 #ifndef _TD_INDEX_H_
 #define _TD_INDEX_H_
 
+#include "nodes.h"
 #include "os.h"
 #include "taoserror.h"
 #include "tarray.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -189,6 +191,17 @@ void        indexTermDestroy(SIndexTerm* p);
  */
 void indexInit();
 
+/* index filter */
+typedef struct SIndexMetaArg {
+  void*    metaHandle;
+  uint64_t suid;
+} SIndexMetaArg;
+
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+
+SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
+
+int32_t doFilterTag(const SNode* pFilterNode, SIndexMetaArg* metaArg, SArray* result);
 /*
  * destory index env
  *

@@ -72,11 +72,6 @@ void generateInformationSchema(MockCatalogService* mcs) {
     builder.done();
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_streams", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
     ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_tables", TSDB_SYSTEM_TABLE, 2)
                                  .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
                                  .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
@@ -104,6 +99,11 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
   {
     ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "trans", TSDB_SYSTEM_TABLE, 1)
                                  .addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "streams", TSDB_SYSTEM_TABLE, 1)
+                                 .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
     builder.done();
   }
 }
@@ -154,6 +154,13 @@ void generateTestST1(MockCatalogService* mcs) {
   builder.done();
   mcs->createSubTable("test", "st1", "st1s1", 1);
   mcs->createSubTable("test", "st1", "st1s2", 2);
+  mcs->createSubTable("test", "st1", "st1s3", 1);
+}
+
+void generateFunctions(MockCatalogService* mcs) {
+  mcs->createFunction("udf1", TSDB_FUNC_TYPE_SCALAR, TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 0);
+  mcs->createFunction("udf2", TSDB_FUNC_TYPE_AGGREGATE, TSDB_DATA_TYPE_DOUBLE, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
+                      8);
 }
 
 }  // namespace
@@ -162,17 +169,17 @@ int32_t __catalogGetHandle(const char* clusterId, struct SCatalog** catalogHandl
 
 int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, void* pRpc, const SEpSet* pMgmtEps, const SName* pTableName,
                               STableMeta** pTableMeta) {
-  return mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
+  return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
 int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void* pRpc, const SEpSet* pMgmtEps,
                                     const SName* pTableName, SVgroupInfo* vgInfo) {
-  return mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
+  return g_mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
 int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const SName* pTableName,
                                     SArray** pVgList) {
-  return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
+  return g_mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
 
 int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId,
@@ -195,8 +202,13 @@ int32_t __catalogChkAuth(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, con
   return 0;
 }
 
+int32_t __catalogGetUdfInfo(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const char* funcName,
+                            SFuncInfo* pInfo) {
+  return g_mockCatalogService->catalogGetUdfInfo(funcName, pInfo);
+}
+
 void initMetaDataEnv() {
-  mockCatalogService.reset(new MockCatalogService());
+  g_mockCatalogService.reset(new MockCatalogService());
 
   static Stub stub;
   stub.set(catalogGetHandle, __catalogGetHandle);
@@ -208,6 +220,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetDBVgInfo, __catalogGetDBVgInfo);
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   stub.set(catalogChkAuth, __catalogChkAuth);
+  stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;
@@ -251,11 +264,12 @@ void initMetaDataEnv() {
 }
 
 void generateMetaData() {
-  generateInformationSchema(mockCatalogService.get());
-  generatePerformanceSchema(mockCatalogService.get());
-  generateTestT1(mockCatalogService.get());
-  generateTestST1(mockCatalogService.get());
-  mockCatalogService->showTables();
+  generateInformationSchema(g_mockCatalogService.get());
+  generatePerformanceSchema(g_mockCatalogService.get());
+  generateTestT1(g_mockCatalogService.get());
+  generateTestST1(g_mockCatalogService.get());
+  generateFunctions(g_mockCatalogService.get());
+  g_mockCatalogService->showTables();
 }
 
-void destroyMetaDataEnv() { mockCatalogService.reset(); }
+void destroyMetaDataEnv() { g_mockCatalogService.reset(); }

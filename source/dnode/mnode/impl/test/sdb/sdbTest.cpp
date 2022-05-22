@@ -31,7 +31,7 @@ class MndTestSdb : public ::testing::Test {
     tsLogEmbedded = 1;
     tsAsyncLog = 0;
 
-    const char *path = "/tmp/td";
+    const char *path = TD_TMP_DIR_PATH "td";
     taosRemoveDir(path);
     taosMkDir(path);
     tstrncpy(tsLogDir, path, PATH_MAX);
@@ -385,7 +385,7 @@ TEST_F(MndTestSdb, 01_Write_Str) {
   mnode.v100 = 100;
   mnode.v200 = 200;
   opt.pMnode = &mnode;
-  opt.path = "/tmp/mnode_test_sdb";
+  opt.path = TD_TMP_DIR_PATH "mnode_test_sdb";
   taosRemoveDir(opt.path);
 
   SSdbTable strTable1;
@@ -492,10 +492,9 @@ TEST_F(MndTestSdb, 01_Write_Str) {
 
   ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
   ASSERT_EQ(sdbGetMaxId(pSdb, SDB_USER), -1);
-  ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 2 );
-  ASSERT_EQ(sdbUpdateVer(pSdb, 0), -1);
-  ASSERT_EQ(sdbUpdateVer(pSdb, 1), 0);
-  ASSERT_EQ(sdbUpdateVer(pSdb, -1), -1);
+  ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 2);
+  sdbSetApplyIndex(pSdb, -1);
+  ASSERT_EQ(sdbGetApplyIndex(pSdb), -1);
   ASSERT_EQ(mnode.insertTimes, 2);
   ASSERT_EQ(mnode.deleteTimes, 0);
 
@@ -537,9 +536,6 @@ TEST_F(MndTestSdb, 01_Write_Str) {
 
     ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 3);
     ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 4);
-    ASSERT_EQ(sdbUpdateVer(pSdb, 0), -1);
-    ASSERT_EQ(sdbUpdateVer(pSdb, 1), 0);
-    ASSERT_EQ(sdbUpdateVer(pSdb, -1), -1);
     ASSERT_EQ(mnode.insertTimes, 3);
     ASSERT_EQ(mnode.deleteTimes, 0);
 
@@ -704,8 +700,9 @@ TEST_F(MndTestSdb, 01_Write_Str) {
   }
 
   // write version
-  ASSERT_EQ(sdbUpdateVer(pSdb, 1), 0);
-  ASSERT_EQ(sdbUpdateVer(pSdb, 1), 1);
+  sdbSetApplyIndex(pSdb, 0);
+  sdbSetApplyIndex(pSdb, 1);
+  ASSERT_EQ(sdbGetApplyIndex(pSdb), 1);
   ASSERT_EQ(sdbWriteFile(pSdb), 0);
   ASSERT_EQ(sdbWriteFile(pSdb), 0);
 
@@ -730,7 +727,7 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   mnode.v100 = 100;
   mnode.v200 = 200;
   opt.pMnode = &mnode;
-  opt.path = "/tmp/mnode_test_sdb";
+  opt.path = TD_TMP_DIR_PATH "mnode_test_sdb";
 
   SSdbTable strTable1;
   memset(&strTable1, 0, sizeof(SSdbTable));
@@ -775,7 +772,7 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
   ASSERT_EQ(sdbGetMaxId(pSdb, SDB_USER), -1);
   ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 5);
-  ASSERT_EQ(sdbUpdateVer(pSdb, 0), 1);
+  ASSERT_EQ(sdbGetApplyIndex(pSdb), 1);
   ASSERT_EQ(mnode.insertTimes, 4);
   ASSERT_EQ(mnode.deleteTimes, 0);
 
@@ -898,7 +895,35 @@ TEST_F(MndTestSdb, 01_Read_Str) {
     ASSERT_EQ(code, TSDB_CODE_SDB_OBJ_CREATING);
   }
 
+  {
+    SSdbIter *pReader = NULL;
+    SSdbIter *pWritter = NULL;
+    void     *pBuf = NULL;
+    int32_t   len = 0;
+    int32_t   code = 0;
+
+    code = sdbStartRead(pSdb, &pReader);
+    ASSERT_EQ(code, 0);
+    code = sdbStartWrite(pSdb, &pWritter);
+    ASSERT_EQ(code, 0);
+
+    while (sdbDoRead(pSdb, pReader, &pBuf, &len) == 0) {
+      if (pBuf != NULL && len != 0) {
+        sdbDoWrite(pSdb, pWritter, pBuf, len);
+        taosMemoryFree(pBuf);
+      } else {
+        break;
+      }
+    }
+
+    sdbStopRead(pSdb, pReader);
+    sdbStopWrite(pSdb, pWritter, true);
+  }
+
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_CONSUMER), 1);
+  ASSERT_EQ(sdbGetTableVer(pSdb, SDB_CONSUMER), 4);
+
   sdbCleanup(pSdb);
-  ASSERT_EQ(mnode.insertTimes, 5);
-  ASSERT_EQ(mnode.deleteTimes, 5);
+  ASSERT_EQ(mnode.insertTimes, 9);
+  ASSERT_EQ(mnode.deleteTimes, 9);
 }

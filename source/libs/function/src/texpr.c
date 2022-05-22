@@ -36,12 +36,7 @@ void tExprTreeDestroy(tExprNode *pNode, void (*fp)(void *)) {
 
   if (pNode->nodeType == TEXPR_BINARYEXPR_NODE || pNode->nodeType == TEXPR_UNARYEXPR_NODE) {
     doExprTreeDestroy(&pNode, fp);
-  } else if (pNode->nodeType == TEXPR_VALUE_NODE) {
-    taosVariantDestroy(pNode->pVal);
-  } else if (pNode->nodeType == TEXPR_COL_NODE) {
-    taosMemoryFreeClear(pNode->pSchema);
   }
-
   taosMemoryFree(pNode);
 }
 
@@ -49,15 +44,6 @@ static void doExprTreeDestroy(tExprNode **pExpr, void (*fp)(void *)) {
   if (*pExpr == NULL) {
     return;
   }
-
-  int32_t type = (*pExpr)->nodeType;
-  if (type == TEXPR_VALUE_NODE) {
-    taosVariantDestroy((*pExpr)->pVal);
-    taosMemoryFree((*pExpr)->pVal);
-  } else if (type == TEXPR_COL_NODE) {
-    taosMemoryFree((*pExpr)->pSchema);
-  }
-
   taosMemoryFree(*pExpr);
   *pExpr = NULL;
 }

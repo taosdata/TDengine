@@ -61,9 +61,10 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 // STag
 int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag);
 void    tTagFree(STag *pTag);
-void    tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, int32_t *nData);
-int32_t tEncodeTag(SEncoder *pEncoder, STag *pTag);
-int32_t tDecodeTag(SDecoder *pDecoder, const STag **ppTag);
+int32_t tTagSet(STag *pTag, SSchema *pSchema, int32_t nCols, int iCol, uint8_t *pData, uint32_t nData, STag **ppTag);
+void    tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, uint32_t *nData);
+int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
+int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 
 // STRUCT =================
 struct STColumn {
@@ -313,8 +314,9 @@ typedef struct {
   SDataCol *cols;
 } SDataCols;
 
-static FORCE_INLINE bool tdDataColsIsBitmapI(SDataCols *pCols) { return pCols->bitmapMode != 0; }
-static FORCE_INLINE void tdDataColsSetBitmapI(SDataCols *pCols) { pCols->bitmapMode = 1; }
+static FORCE_INLINE bool tdDataColsIsBitmapI(SDataCols *pCols) { return pCols->bitmapMode != TSDB_BITMODE_DEFAULT; }
+static FORCE_INLINE void tdDataColsSetBitmapI(SDataCols *pCols) { pCols->bitmapMode = TSDB_BITMODE_ONE_BIT; }
+static FORCE_INLINE bool tdIsBitmapModeI(int8_t bitmapMode) { return bitmapMode != TSDB_BITMODE_DEFAULT; }
 
 #define keyCol(pCols)              (&((pCols)->cols[0]))                    // Key column
 #define dataColsTKeyAt(pCols, idx) ((TKEY *)(keyCol(pCols)->pData))[(idx)]  // the idx row of column-wised data

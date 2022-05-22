@@ -84,8 +84,8 @@ static int  tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols
 static void tsdbResetCommitTable(SCommitH *pCommith);
 static void tsdbCloseCommitFile(SCommitH *pCommith, bool hasError);
 static bool tsdbCanAddSubBlock(SCommitH *pCommith, SBlock *pBlock, SMergeInfo *pInfo);
-static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
-                                      TSKEY maxKey, int maxRows, int8_t update);
+static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter,
+                                      SDataCols *pTarget, TSKEY maxKey, int maxRows, int8_t update);
 int         tsdbWriteBlockIdx(SDFile *pHeadf, SArray *pIdxA, void **ppBuf);
 
 int tsdbApplyRtnOnFSet(STsdb *pRepo, SDFileSet *pSet, SRtn *pRtn) {
@@ -301,7 +301,8 @@ static void tsdbSeekCommitIter(SCommitH *pCommith, TSKEY key) {
     SCommitIter *pIter = pCommith->iters + i;
     if (pIter->pTable == NULL || pIter->pIter == NULL) continue;
 
-    tsdbLoadDataFromCache(pIter->pTable, pIter->pIter, key - 1, INT32_MAX, NULL, NULL, 0, true, NULL);
+    tsdbLoadDataFromCache(TSDB_COMMIT_REPO(pCommith), pIter->pTable, pIter->pIter, key - 1, INT32_MAX, NULL, NULL, 0,
+                          true, NULL);
   }
 }
 
@@ -465,7 +466,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
     pTbData = (STbData *)pNode->pData;
 
     pCommitIter = pCommith->iters + i;
-    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 1);  // TODO: schema version
+    pTSchema = metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, -1);
 
     if (pTSchema) {
       pCommitIter->pIter = tSkipListCreateIter(pTbData->pData);
@@ -474,7 +475,8 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
       pCommitIter->pTable = (STable *)taosMemoryMalloc(sizeof(STable));
       pCommitIter->pTable->uid = pTbData->uid;
       pCommitIter->pTable->tid = pTbData->uid;
-      pCommitIter->pTable->pSchema = pTSchema;  // metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
+      pCommitIter->pTable->pSchema = pTSchema;
+      pCommitIter->pTable->pCacheSchema = NULL;
     }
   }
   tSkipListDestroyIter(pSlIter);
@@ -489,6 +491,7 @@ static void tsdbDestroyCommitIters(SCommitH *pCommith) {
     tSkipListDestroyIter(pCommith->iters[i].pIter);
     if (pCommith->iters[i].pTable) {
       tdFreeSchema(pCommith->iters[i].pTable->pSchema);
+      tdFreeSchema(pCommith->iters[i].pTable->pCacheSchema);
       taosMemoryFreeClear(pCommith->iters[i].pTable);
     }
   }
@@ -913,7 +916,7 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
   while (bidx < nBlocks) {
     if (!pTSchema && !tsdbCommitIsSameFile(pCommith, bidx)) {
       // Set commit table
-      pTSchema = metaGetTbTSchema(REPO_META(pTsdb), pIdx->uid, 1);  // TODO: schema version
+      pTSchema = metaGetTbTSchema(REPO_META(pTsdb), pIdx->uid, -1);  // TODO: schema version
       if (!pTSchema) {
         terrno = TSDB_CODE_OUT_OF_MEMORY;
         return -1;
@@ -947,7 +950,7 @@ static int tsdbMoveBlkIdx(SCommitH *pCommith, SBlockIdx *pIdx) {
 }
 
 static int tsdbSetCommitTable(SCommitH *pCommith, STable *pTable) {
-  STSchema *pSchema = tsdbGetTableSchemaImpl(pTable, false, false, -1);
+  STSchema *pSchema = tsdbGetTableSchemaImpl(TSDB_COMMIT_REPO(pCommith), pTable, false, false, -1);
 
   pCommith->pTable = pTable;
 
@@ -1138,6 +1141,9 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
       memcpy(tptr, pDataCol->pData, flen);
       if (tBitmaps > 0) {
         bptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        if (isSuper && !tdDataColsIsBitmapI(pDataCols)) {
+          tdMergeBitmap((uint8_t *)pDataCol->pBitmap, rowsToWrite, (uint8_t *)pDataCol->pBitmap);
+        }
         memcpy(bptr, pDataCol->pBitmap, tBitmaps);
         tBitmapsLen = tBitmaps;
         flen += tBitmapsLen;
@@ -1251,8 +1257,8 @@ static int tsdbCommitMemData(SCommitH *pCommith, SCommitIter *pIter, TSKEY keyLi
   SBlock     block;
 
   while (true) {
-    tsdbLoadDataFromCache(pIter->pTable, pIter->pIter, keyLimit, defaultRows, pCommith->pDataCols, NULL, 0,
-                          pCfg->update, &mInfo);
+    tsdbLoadDataFromCache(TSDB_COMMIT_REPO(pCommith), pIter->pTable, pIter->pIter, keyLimit, defaultRows,
+                          pCommith->pDataCols, NULL, 0, pCfg->update, &mInfo);
 
     if (pCommith->pDataCols->numOfRows <= 0) break;
 
@@ -1295,8 +1301,9 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
   SSkipListIterator titer = *(pIter->pIter);
   if (tsdbLoadBlockDataCols(&(pCommith->readh), pBlock, NULL, &colId, 1, false) < 0) return -1;
 
-  tsdbLoadDataFromCache(pIter->pTable, &titer, keyLimit, INT32_MAX, NULL, pCommith->readh.pDCols[0]->cols[0].pData,
-                        pCommith->readh.pDCols[0]->numOfRows, pCfg->update, &mInfo);
+  tsdbLoadDataFromCache(TSDB_COMMIT_REPO(pCommith), pIter->pTable, &titer, keyLimit, INT32_MAX, NULL,
+                        pCommith->readh.pDCols[0]->cols[0].pData, pCommith->readh.pDCols[0]->numOfRows, pCfg->update,
+                        &mInfo);
 
   if (mInfo.nOperations == 0) {
     // no new data to insert (all updates denied)
@@ -1310,9 +1317,9 @@ static int tsdbMergeMemData(SCommitH *pCommith, SCommitIter *pIter, int bidx) {
     *(pIter->pIter) = titer;
   } else if (tsdbCanAddSubBlock(pCommith, pBlock, &mInfo)) {
     // Add a sub-block
-    tsdbLoadDataFromCache(pIter->pTable, pIter->pIter, keyLimit, INT32_MAX, pCommith->pDataCols,
-                          pCommith->readh.pDCols[0]->cols[0].pData, pCommith->readh.pDCols[0]->numOfRows, pCfg->update,
-                          &mInfo);
+    tsdbLoadDataFromCache(TSDB_COMMIT_REPO(pCommith), pIter->pTable, pIter->pIter, keyLimit, INT32_MAX,
+                          pCommith->pDataCols, pCommith->readh.pDCols[0]->cols[0].pData,
+                          pCommith->readh.pDCols[0]->numOfRows, pCfg->update, &mInfo);
     if (pBlock->last) {
       pDFile = TSDB_COMMIT_LAST_FILE(pCommith);
     } else {
@@ -1417,8 +1424,8 @@ static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols 
 
   int biter = 0;
   while (true) {
-    tsdbLoadAndMergeFromCache(pCommith->readh.pDCols[0], &biter, pIter, pCommith->pDataCols, keyLimit, defaultRows,
-                              pCfg->update);
+    tsdbLoadAndMergeFromCache(TSDB_COMMIT_REPO(pCommith), pCommith->readh.pDCols[0], &biter, pIter, pCommith->pDataCols,
+                              keyLimit, defaultRows, pCfg->update);
 
     if (pCommith->pDataCols->numOfRows == 0) break;
 
@@ -1442,8 +1449,8 @@ static int tsdbMergeBlockData(SCommitH *pCommith, SCommitIter *pIter, SDataCols 
   return 0;
 }
 
-static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter, SDataCols *pTarget,
-                                      TSKEY maxKey, int maxRows, int8_t update) {
+static void tsdbLoadAndMergeFromCache(STsdb *pTsdb, SDataCols *pDataCols, int *iter, SCommitIter *pCommitIter,
+                                      SDataCols *pTarget, TSKEY maxKey, int maxRows, int8_t update) {
   TSKEY     key1 = INT64_MAX;
   TSKEY     key2 = INT64_MAX;
   TSKEY     lastKey = TSKEY_INITIAL_VAL;
@@ -1484,7 +1491,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       ++(*iter);
     } else if (key1 > key2) {
       if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
-        pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, TD_ROW_SVER(row));
+        pSchema = tsdbGetTableSchemaImpl(pTsdb, pCommitIter->pTable, false, false, TD_ROW_SVER(row));
         ASSERT(pSchema != NULL);
       }
 
@@ -1503,13 +1510,16 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       tSkipListIterNext(pCommitIter->pIter);
     } else {
       if (lastKey != key1) {
+        if (lastKey != TSKEY_INITIAL_VAL) {
+          ++pTarget->numOfRows;
+        }
         lastKey = key1;
-        ++pTarget->numOfRows;
       }
 
       // copy disk data
       for (int i = 0; i < pDataCols->numOfCols; ++i) {
         SCellVal sVal = {0};
+        // no duplicated TS keys in pDataCols from file
         if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
           TASSERT(0);
         }
@@ -1521,7 +1531,7 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       if (TD_SUPPORT_UPDATE(update)) {
         // copy mem data(Multi-Version)
         if (pSchema == NULL || schemaVersion(pSchema) != TD_ROW_SVER(row)) {
-          pSchema = tsdbGetTableSchemaImpl(pCommitIter->pTable, false, false, TD_ROW_SVER(row));
+          pSchema = tsdbGetTableSchemaImpl(pTsdb, pCommitIter->pTable, false, false, TD_ROW_SVER(row));
           ASSERT(pSchema != NULL);
         }
 

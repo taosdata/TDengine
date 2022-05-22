@@ -6,7 +6,7 @@ title: collectd writing
 import CollectD from "../14-reference/_collectd.mdx"
 
 
-collectd is a daemon used to collect system performance metric data. collectd provides various storage mechanisms to store different values. It periodically counts system performance statistics number while the system is running and storing information. You can use this information to help identify current system performance bottlenecks and predict future system load.
+collectd is a daemon used to collect system performance metric data. collectd provides various storage mechanisms to store different values. It periodically counts system performance statistics while the system is running and storing information. You can use this information to help identify current system performance bottlenecks and predict future system load.
 
 You can write the data collected by collectd to TDengine by simply modifying the configuration of collectd to the domain name (or IP address) and corresponding port of the server running taosAdapter. It can take full advantage of TDengine's efficient storage query performance and clustering capability for time-series data.
 

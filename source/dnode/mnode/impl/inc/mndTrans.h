@@ -22,6 +22,13 @@
 extern "C" {
 #endif
 
+typedef enum {
+  TRANS_START_FUNC_TEST = 1,
+  TRANS_STOP_FUNC_TEST = 2,
+  TRANS_START_FUNC_MQ_REB = 3,
+  TRANS_STOP_FUNC_TEST_MQ_REB = 4,
+} ETrnFunc;
+
 typedef struct {
   SEpSet  epSet;
   tmsg_t  msgType;
@@ -33,12 +40,17 @@ typedef struct {
   void   *pCont;
 } STransAction;
 
-typedef enum {
-  TEST_TRANS_START_FUNC = 1,
-  TEST_TRANS_STOP_FUNC = 2,
-  MQ_REB_TRANS_START_FUNC = 3,
-  MQ_REB_TRANS_STOP_FUNC = 4,
-} ETrnFuncType;
+typedef struct {
+  SSdbRaw *pRaw;
+} STransLog;
+
+typedef struct {
+  ETrnStep stepType;
+  STransAction redoAction;
+  STransAction undoAction;
+  STransLog    redoLog;
+  STransLog    undoLog;
+} STransStep;
 
 typedef void (*TransCbFp)(SMnode *pMnode, void *param, int32_t paramLen);
 
@@ -55,8 +67,9 @@ int32_t mndTransAppendCommitlog(STrans *pTrans, SSdbRaw *pRaw);
 int32_t mndTransAppendRedoAction(STrans *pTrans, STransAction *pAction);
 int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
-void    mndTransSetCb(STrans *pTrans, ETrnFuncType startFunc, ETrnFuncType stopFunc, void *param, int32_t paramLen);
+void    mndTransSetCb(STrans *pTrans, ETrnFunc startFunc, ETrnFunc stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
+void    mndTransSetExecOneByOne(STrans *pTrans);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransProcessRsp(SRpcMsg *pRsp);

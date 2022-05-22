@@ -113,6 +113,8 @@ static void vmProcessWriteQueue(SQueueInfo *pInfo, STaosQall *qall, int32_t numO
     SRpcMsg *pMsg = *(SRpcMsg **)taosArrayGet(pArray, i);
     SRpcMsg  rsp = {.info = pMsg->info};
 
+    vnodePreprocessReq(pVnode->pImpl, pMsg);
+
     int32_t ret = syncPropose(vnodeGetSyncHandle(pVnode->pImpl), pMsg, false);
     if (ret == TAOS_SYNC_PROPOSE_NOT_LEADER) {
       dTrace("msg:%p, is redirect since not leader, vgId:%d ", pMsg, pVnode->vgId);

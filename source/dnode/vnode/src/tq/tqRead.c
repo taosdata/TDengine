@@ -83,20 +83,30 @@ bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
 
 int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
                             int32_t* pNumOfRows, int16_t* pNumOfCols) {
-  /*int32_t         sversion = pHandle->pBlock->sversion;*/
-  // TODO set to real sversion
   *pUid = 0;
 
-  int32_t sversion = 1;
+  // TODO set to real sversion
+  /*int32_t sversion = 1;*/
+  int32_t sversion = htonl(pHandle->pBlock->sversion);
   if (pHandle->sver != sversion || pHandle->cachedSchemaUid != pHandle->msgIter.suid) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
     if (pHandle->pSchema == NULL) {
-      tqError("cannot found schema for table: %ld, version %d", pHandle->msgIter.suid, pHandle->sver);
+      tqWarn("cannot found tsschema for table: uid: %ld (suid: %ld), version %d, possibly dropped table",
+             pHandle->msgIter.uid, pHandle->msgIter.suid, pHandle->sver);
+      /*ASSERT(0);*/
+      terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
       return -1;
     }
 
     // this interface use suid instead of uid
     pHandle->pSchemaWrapper = metaGetTableSchema(pHandle->pVnodeMeta, pHandle->msgIter.suid, sversion, true);
+    if (pHandle->pSchemaWrapper == NULL) {
+      tqWarn("cannot found schema wrapper for table: suid: %ld, version %d, possibly dropped table",
+             pHandle->msgIter.suid, pHandle->sver);
+      /*ASSERT(0);*/
+      terrno = TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND;
+      return -1;
+    }
     pHandle->sver = sversion;
     pHandle->cachedSchemaUid = pHandle->msgIter.suid;
   }

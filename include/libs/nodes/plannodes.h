@@ -31,6 +31,7 @@ typedef struct SLogicNode {
   SNodeList*         pChildren;
   struct SLogicNode* pParent;
   int32_t            optimizedFlag;
+  uint8_t            precision;
 } SLogicNode;
 
 typedef enum EScanType { SCAN_TYPE_TAG = 1, SCAN_TYPE_TABLE, SCAN_TYPE_SYSTEM_TABLE, SCAN_TYPE_STREAM } EScanType;
@@ -54,12 +55,17 @@ typedef struct SScanLogicNode {
   int64_t            sliding;
   int8_t             intervalUnit;
   int8_t             slidingUnit;
+  SNode*             pTagCond;
+  int8_t             triggerType;
+  int64_t            watermark;
+  int16_t            tsColId;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
   SLogicNode node;
   EJoinType  joinType;
   SNode*     pOnConditions;
+  bool       isSingleTableJoin;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {
@@ -213,6 +219,9 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  int8_t         triggerType;
+  int64_t        watermark;
+  int16_t        tsColId;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;
@@ -295,6 +304,8 @@ typedef struct SSessionWinodwPhysiNode {
   int64_t          gap;
 } SSessionWinodwPhysiNode;
 
+typedef SSessionWinodwPhysiNode SStreamSessionWinodwPhysiNode;
+
 typedef struct SStateWinodwPhysiNode {
   SWinodwPhysiNode window;
   SNode*           pStateKey;
@@ -343,6 +354,7 @@ typedef struct SSubplan {
   SNodeList*     pParents;      // the data destination subplan, get data from current subplan
   SPhysiNode*    pNode;         // physical plan of current subplan
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
+  SNode*         pTagCond;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

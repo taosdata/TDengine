@@ -84,15 +84,16 @@ typedef struct {
 } SStreamCheckpoint;
 
 static FORCE_INLINE SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
-  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosMemoryCalloc(1, sizeof(SStreamDataSubmit));
+  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
   if (pDataSubmit == NULL) return NULL;
-  pDataSubmit->data = pReq;
   pDataSubmit->dataRef = (int32_t*)taosMemoryMalloc(sizeof(int32_t));
-  if (pDataSubmit->data == NULL) goto FAIL;
+  if (pDataSubmit->dataRef == NULL) goto FAIL;
+  pDataSubmit->data = pReq;
   *pDataSubmit->dataRef = 1;
+  pDataSubmit->type = STREAM_INPUT__DATA_SUBMIT;
   return pDataSubmit;
 FAIL:
-  taosMemoryFree(pDataSubmit);
+  taosFreeQitem(pDataSubmit);
   return NULL;
 }
 
@@ -107,7 +108,6 @@ static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) 
   if (ref == 0) {
     taosMemoryFree(pDataSubmit->data);
     taosMemoryFree(pDataSubmit->dataRef);
-    // taosFreeQitem(pDataSubmit);
   }
 }
 
@@ -115,16 +115,11 @@ int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
 void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
 
 typedef struct {
-  void* inputHandle;
-  void* executor;
-} SStreamRunner;
-
-typedef struct {
   int8_t parallelizable;
   char*  qmsg;
   // followings are not applicable to encoder and decoder
-  int8_t         numOfRunners;
-  SStreamRunner* runners;
+  void* inputHandle;
+  void* executor;
 } STaskExec;
 
 typedef struct {
@@ -147,6 +142,7 @@ typedef void FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 typedef struct {
   int64_t         stbUid;
+  char            stbFullName[TSDB_TABLE_FNAME_LEN];
   SSchemaWrapper* pSchemaWrapper;
   // not applicable to encoder and decoder
   void*     vnode;
@@ -320,17 +316,15 @@ int32_t streamEnqueueDataSubmit(SStreamTask* pTask, SStreamDataSubmit* input);
 int32_t streamEnqueueDataBlk(SStreamTask* pTask, SStreamDataBlock* input);
 int32_t streamDequeueOutput(SStreamTask* pTask, void** output);
 
-int32_t streamExecTask(SStreamTask* pTask, SMsgCb* pMsgCb, const void* input, int32_t inputType, int32_t workId);
-
 int32_t streamTaskRun(SStreamTask* pTask);
 
 int32_t streamTaskHandleInput(SStreamTask* pTask, void* data);
 
 int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb);
-int32_t streamTaskProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
-int32_t streamTaskProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchRsp* pRsp);
-int32_t streamTaskProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
-int32_t streamTaskProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
+int32_t streamProcessDispatchReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessDispatchRsp(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamDispatchRsp* pRsp);
+int32_t streamProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg);
+int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp);
 
 #ifdef __cplusplus
 }

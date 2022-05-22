@@ -23,20 +23,18 @@ target_link_libraries(
     PUBLIC os
 )
 
-if(NOT TD_WINDOWS)
-    add_executable(sdbDump sdbDump.c)
-    target_link_libraries(
-        sdbDump
-        PUBLIC dnode
-        PUBLIC mnode
-        PUBLIC sdb
-        PUBLIC os
-    )
-    target_include_directories(
-        sdbDump
-        PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
-        PRIVATE "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
-        PRIVATE "${TD_SOURCE_DIR}/source/dnode/mnode/sdb/inc"
-        PRIVATE "${TD_SOURCE_DIR}/source/dnode/mgmt/node_mgmt/inc"
-    )
-ENDIF ()
+add_executable(sdbDump sdbDump.c)
+target_link_libraries(
+    sdbDump
+    PUBLIC dnode
+    PUBLIC mnode
+    PUBLIC sdb
+    PUBLIC os
+)
+target_include_directories(
+    sdbDump
+    PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
+    PRIVATE "${TD_SOURCE_DIR}/source/dnode/mnode/impl/inc"
+    PRIVATE "${TD_SOURCE_DIR}/source/dnode/mnode/sdb/inc"
+    PRIVATE "${TD_SOURCE_DIR}/source/dnode/mgmt/node_mgmt/inc"
+)

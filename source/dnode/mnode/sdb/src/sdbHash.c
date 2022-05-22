@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 
 static void sdbCheckRow(SSdb *pSdb, SSdbRow *pRow);
 

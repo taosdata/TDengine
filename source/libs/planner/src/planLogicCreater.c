@@ -321,6 +321,7 @@ static int32_t createJoinLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect
   }
 
   pJoin->joinType = pJoinTable->joinType;
+  pJoin->isSingleTableJoin = pJoinTable->table.singleTable;
 
   int32_t code = TSDB_CODE_SUCCESS;
 

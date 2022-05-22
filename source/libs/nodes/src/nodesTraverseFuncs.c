@@ -517,6 +517,7 @@ static EDealRes dispatchPhysiPlan(SNode* pNode, ETraversalOrder order, FNodeWalk
       res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       res = walkWindowPhysi((SWinodwPhysiNode*)pNode, order, walker, pContext);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW: {

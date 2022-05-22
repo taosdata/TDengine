@@ -39,6 +39,7 @@ typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInf
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunctionCtx *pSourceCtx);
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv getEnv;
@@ -50,6 +51,7 @@ typedef struct SFuncExecFuncs {
   FExecInit init;
   FExecProcess process;
   FExecFinalize finalize;
+  FExecCombine combine;
 } SFuncExecFuncs;
 
 typedef struct SFileBlockInfo {
@@ -59,55 +61,8 @@ typedef struct SFileBlockInfo {
 #define TSDB_BLOCK_DIST_STEP_ROWS 8
 #define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
-#define FUNCTION_TYPE_SCALAR       1
-#define FUNCTION_TYPE_AGG          2
-
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 16
-
-#define FUNCTION_INVALID_ID  -1
-#define FUNCTION_COUNT        0
-#define FUNCTION_SUM          1
-#define FUNCTION_AVG          2
-#define FUNCTION_MIN          3
-#define FUNCTION_MAX          4
-#define FUNCTION_STDDEV       5
-#define FUNCTION_PERCT        6
-#define FUNCTION_APERCT       7
-#define FUNCTION_FIRST        8
-#define FUNCTION_LAST         9
-#define FUNCTION_LAST_ROW     10
-#define FUNCTION_TOP          11
-#define FUNCTION_BOTTOM       12
-#define FUNCTION_SPREAD       13
-#define FUNCTION_TWA          14
-#define FUNCTION_LEASTSQR     15
-
-#define FUNCTION_TS           16
-#define FUNCTION_TS_DUMMY     17
-#define FUNCTION_TAG_DUMMY    18
-#define FUNCTION_TS_COMP      19
-
-#define FUNCTION_TAG          20
-#define FUNCTION_PRJ          21
-
-#define FUNCTION_TAGPRJ       22
-#define FUNCTION_ARITHM       23
-#define FUNCTION_DIFF         24
-
-#define FUNCTION_FIRST_DST    25
-#define FUNCTION_LAST_DST     26
-#define FUNCTION_STDDEV_DST   27
-#define FUNCTION_INTERP       28
-
-#define FUNCTION_RATE         29
-#define FUNCTION_IRATE        30
-#define FUNCTION_TID_TAG      31
-#define FUNCTION_DERIVATIVE   32
-#define FUNCTION_BLKINFO      33
-
-
-#define FUNCTION_COV          38
 
 typedef struct SResultRowEntryInfo {
   bool     initialized:1;     // output buffer has been initialized
@@ -178,10 +133,9 @@ typedef struct SqlFunctionCtx {
   char                  *pOutput;       // final result output buffer, point to sdata->data
   int32_t                numOfParams;
   SFunctParam           *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
-  int64_t               *ptsList;       // corresponding timestamp array list
+  int64_t               *ptsList;       // corresponding timestamp array list, todo remove it
   SColumnInfoData       *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   int32_t                offset;
-  SVariant               tag;
   struct  SResultRowEntryInfo *resultInfo;
   SSubsidiaryResInfo     subsidiaries;
   SPoint1                start;
@@ -208,9 +162,6 @@ enum {
 typedef struct tExprNode {
   int32_t nodeType;
   union {
-    SSchema            *pSchema;// column node
-    struct SVariant    *pVal;   // value node
-
     struct {// function node
       char              functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
       int32_t           functionId;
@@ -253,46 +204,22 @@ struct SScalarParam {
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
                           bool isSuperTable);
 
-bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
-
 void resetResultRowEntryResult(SqlFunctionCtx* pCtx, int32_t num);
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
 int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock);
 bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// fill api
-struct SFillInfo;
-struct SFillColInfo;
-
 typedef struct SPoint {
   int64_t key;
   void *  val;
 } SPoint;
-
-//void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
-//void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
-//void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-//struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const SValueNode* val);
-//bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
-//
-//struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-//                                     SInterval* pInterval, int32_t fillType,
-//                                     struct SFillColInfo* pCol, const char* id);
-//
-//void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
-//int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
-//int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
 int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // udf api
 struct SUdfInfo;
-
-void qAddUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
-void qRemoveUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 
 /**
  * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf

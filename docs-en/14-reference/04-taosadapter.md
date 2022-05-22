@@ -24,21 +24,21 @@ taosAdapter provides the following features.
 
 ## taosAdapter architecture diagram
 
-![taosAdapter Architecture](taosAdapter-architecture.png)
+![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
 ## taosAdapter Deployment Method
 
 ### Install taosAdapter
 
-taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TAOSData official website](https://taosdata.com/en/all-downloads/) to download the TDengine server installation package (taosAdapter is included in v2.4.0.0 and later version). If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD.md) documentation.
+taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TDengine official website](https://tdengine.com/all-downloads/) to download the TDengine server installation package (taosAdapter is included in v2.4.0.0 and later version). If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine server package on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD.md) documentation.
 
-### start/stop taosAdapter
+### Start/Stop taosAdapter
 
 On Linux systems, the taosAdapter service is managed by `systemd` by default. You can use the command `systemctl start taosadapter` to start the taosAdapter service and use the command `systemctl stop taosadapter` to stop the taosAdapter service.
 
 ### Remove taosAdapter
 
-Use the command `rmtaos` to remove the TDengine server software if you use tar.gz package or use package management command like rpm or apt to remove the TDengine server, including taosAdapter.
+Use the command `rmtaos` to remove the TDengine server software if you use tar.gz package. If you installed using a .deb or .rpm package, use the corresponding command, for your package manager, like apt or rpm to remove the TDengine server, including taosAdapter.
 
 ### Upgrade taosAdapter
 
@@ -153,8 +153,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 
 ## Feature List
 
-- Compatible with RESTful interfaces
-  [https://www.taosdata.com/cn/documentation/connector#restful](https://www.taosdata.com/cn/documentation/connector#restful)
+- Compatible with RESTful interfaces [REST API](/reference/rest-api/)
 - Compatible with InfluxDB v1 write interface
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writes
@@ -187,7 +186,7 @@ You can use any client that supports the http protocol to write data to or query
 
 ### InfluxDB
 
-You can use any client that supports the http protocol to access the Restful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
+You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /influxdb/v1/write
@@ -204,7 +203,7 @@ Note: InfluxDB token authorization is not supported at present. Only Basic autho
 
 ### OpenTSDB
 
-You can use any client that supports the http protocol to access the Restful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine.
+You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine.
 
 ```text
 /opentsdb/v1/put/json/:db
@@ -241,7 +240,7 @@ node_export is an exporter of hardware and OS metrics exposed by the \*NIX kerne
 
 ## Memory usage optimization methods
 
-taosAdapter will monitor its memory usage during operation and adjust it with two thresholds. Valid values range from -1 to 100 integers in percent of the system's physical memory.
+taosAdapter will monitor its memory usage during operation and adjust it with two thresholds. Valid values are integers between 1 to 100, and represent a percentage of the system's physical memory.
 
 - pauseQueryMemoryThreshold
 - pauseAllMemoryThreshold
@@ -277,7 +276,7 @@ Corresponding configuration parameter
   monitor.pauseQueryMemoryThreshold memory threshold for no more queries Environment variable `TAOS_MONITOR_PAUSE_QUERY_MEMORY_THRESHOLD` (default 70)
 ```
 
-You can adjust it according to the specific application scenario and operation strategy, and it is recommended to use operation monitoring software to monitor system memory status timely. The load balancer can also check the taosAdapter running status through this interface.
+You should adjust this parameter based on your specific application scenario and operation strategy. We recommend using monitoring software to monitor system memory status. The load balancer can also check the taosAdapter running status through this interface.
 
 ## taosAdapter Monitoring Metrics
 
@@ -326,7 +325,7 @@ You can also adjust the level of the taosAdapter log output by setting the `--lo
 
 ## How to migrate from older TDengine versions to taosAdapter
 
-In TDengine server 2.2.x.x or earlier, the TDengine server process (taosd) contains an embedded HTTP service. As mentioned earlier, taosAdapter is a standalone software managed using `systemd` and has its process ID. And there are some configuration parameters and behaviors that are different between the two. See the following table for details.
+In TDengine server 2.2.x.x or earlier, the TDengine server process (taosd) contains an embedded HTTP service. As mentioned earlier, taosAdapter is a standalone software managed using `systemd` and has its own process ID. There are some configuration parameters and behaviors that are different between the two. See the following table for details.
 
 | **#** | **embedded httpd** | **taosAdapter** | **comment** |
 | ----- | ------------------- | ------------------------------------ | ------------------------------------------------------------------ ------------------------------------------------------------------------ |

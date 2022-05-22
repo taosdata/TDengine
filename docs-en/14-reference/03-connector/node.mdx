@@ -14,7 +14,6 @@ import NodeInfluxLine from "../../07-develop/03-insert-data/_js_line.mdx";
 import NodeOpenTSDBTelnet from "../../07-develop/03-insert-data/_js_opts_telnet.mdx";
 import NodeOpenTSDBJson from "../../07-develop/03-insert-data/_js_opts_json.mdx";
 import NodeQuery from "../../07-develop/04-query-data/_js.mdx";
-import NodeAsyncQuery from "../../07-develop/04-query-data/_js_async.mdx";
 
 `td2.0-connector` and `td2.0-rest-connector` are the official Node.js language connectors for TDengine. Node.js developers can develop applications to access TDengine instance data.
 
@@ -78,7 +77,7 @@ Manually install the following tools.
 - Install [Python](https://www.python.org/downloads/) 2.7 (`v3.x.x` is not supported) and execute `npm config set python python2.7`.
 - Go to the `cmd` command-line interface, `npm config set msvs_version 2017`
 
-Refer to Microsoft's Node.js User Manual [Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows- environment. md#compiling-native-addon-modules).
+Refer to Microsoft's Node.js User Manual [Microsoft's Node.js Guidelines for Windows](https://github.com/Microsoft/nodejs-guidelines/blob/master/windows-environment.md#compiling-native-addon-modules).
 
 If using ARM64 Node.js on Windows 10 ARM, you must add "Visual C++ compilers and libraries for ARM64" and "Visual C++ ATL for ARM64".
 
@@ -189,13 +188,7 @@ let cursor = conn.cursor();
 
 ### Query data
 
-#### Synchronous queries
-
 <NodeQuery />
-
-#### asynchronous query
-
-<NodeAsyncQuery />
 
 ## More Sample Programs
 

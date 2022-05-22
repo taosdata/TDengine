@@ -40,10 +40,7 @@
 
 namespace {
 
-extern "C" int32_t ctgGetTableMetaFromCache(struct SCatalog *pCatalog, const SName *pTableName, STableMeta **pTableMeta,
-                                            bool *inCache, int32_t flag, uint64_t *dbId);
 extern "C" int32_t ctgdGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
-extern "C" int32_t ctgActUpdateTbl(SCtgMetaAction *action);
 extern "C" int32_t ctgdEnableDebug(char *option);
 extern "C" int32_t ctgdGetStatNum(char *option, void *res);
 
@@ -52,7 +49,7 @@ void ctgTestSetRspCTableMeta();
 void ctgTestSetRspSTableMeta();
 void ctgTestSetRspMultiSTableMeta();
 
-extern "C" SCatalogMgmt gCtgMgmt;
+//extern "C" SCatalogMgmt gCtgMgmt;
 
 enum {
   CTGT_RSP_VGINFO = 1,
@@ -859,8 +856,12 @@ void *ctgTestGetCtableMetaThread(void *param) {
   strcpy(cn.dbname, "db1");
   strcpy(cn.tname, ctgTestCTablename);
 
+  SCtgTbMetaCtx ctx = {0};
+  ctx.pName = &cn;
+  ctx.flag = CTG_FLAG_UNKNOWN_STB;
+
   while (!ctgTestStop) {
-    code = ctgGetTableMetaFromCache(pCtg, &cn, &tbMeta, &inCache, 0, NULL);
+    code = ctgReadTbMetaFromCache(pCtg, &ctx, &tbMeta);
     if (code || !inCache) {
       assert(0);
     }
@@ -886,9 +887,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
   int32_t          n = 0;
   STableMetaOutput *output = NULL;
 
-  SCtgMetaAction action = {0};
+  SCtgCacheOperation operation = {0};
   
-  action.act = CTG_ACT_UPDATE_TBL;
+  operation.opId = CTG_OP_UPDATE_TB_META;
 
   while (!ctgTestStop) {
     output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
@@ -897,9 +898,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
     SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
     msg->pCtg = pCtg;
     msg->output = output;
-    action.data = msg;
+    operation.data = msg;
 
-    code = ctgActUpdateTbl(&action);
+    code = ctgOpUpdateTbMeta(&operation);
     if (code) {
       assert(0);
     }

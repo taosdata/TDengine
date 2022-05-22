@@ -32,9 +32,6 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from mnode queue", pMsg);
 
   switch (pMsg->msgType) {
-    case TDMT_DND_ALTER_MNODE:
-      code = mmProcessAlterReq(pMgmt, pMsg);
-      break;
     case TDMT_MON_MM_INFO:
       code = mmProcessGetMonitorInfoReq(pMgmt, pMsg);
       break;
@@ -43,13 +40,30 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     default:
       pMsg->info.node = pMgmt->pMnode;
-      code = mndProcessMsg(pMsg);
+      code = mndProcessRpcMsg(pMsg);
   }
 
   if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     if (code != 0 && terrno != 0) code = terrno;
     mmSendRsp(pMsg, code);
   }
+
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
+}
+
+static void mmProcessSyncQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
+  SMnodeMgmt *pMgmt = pInfo->ahandle;
+  dTrace("msg:%p, get from mnode-sync queue", pMsg);
+
+  pMsg->info.node = pMgmt->pMnode;
+
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
+
+  int32_t code = mndProcessSyncMsg(pMsg);
 
   dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
   rpcFreeCont(pMsg->pCont);
@@ -105,7 +119,17 @@ int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
+  int32_t code = -1;
+  if (mmAcquire(pMgmt) == 0) {
+    code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
+    mmRelease(pMgmt);
+  }
+
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
+  return code;
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
@@ -149,7 +173,7 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
       .min = 1,
       .max = 1,
       .name = "mnode-sync",
-      .fp = (FItem)mmProcessQueue,
+      .fp = (FItem)mmProcessSyncQueue,
       .param = pMgmt,
   };
   if (tSingleWorkerInit(&pMgmt->syncWorker, &sCfg) != 0) {
@@ -174,6 +198,11 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 }
 
 void mmStopWorker(SMnodeMgmt *pMgmt) {
+  taosThreadRwlockWrlock(&pMgmt->lock);
+  pMgmt->stopped = 1;
+  taosThreadRwlockUnlock(&pMgmt->lock);
+  while (pMgmt->refCount > 0) taosMsleep(10);
+
   tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);

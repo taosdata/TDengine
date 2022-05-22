@@ -13,7 +13,7 @@
 
 class MndTestAcct : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/acctTest", 9012); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "acctTest", 9012); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;

@@ -75,6 +75,7 @@ int32_t GetSnapshotCb(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 
 void initFsm() {
   pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
+  memset(pFsm, 0, sizeof(*pFsm));
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
@@ -160,6 +161,8 @@ SyncClientRequest *step1(const SRpcMsg *pMsg) {
 }
 
 int main(int argc, char **argv) {
+  sprintf(tsTempDir, "%s", ".");
+
   // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;

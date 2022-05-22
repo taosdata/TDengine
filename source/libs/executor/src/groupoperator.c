@@ -110,8 +110,10 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
   return true;
 }
 
-static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
+static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex) {
   SColumnDataAgg* pColAgg = NULL;
+
+  size_t numOfGroupCols = taosArrayGetSize(pGroupCols);
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
     SColumn*         pCol = taosArrayGet(pGroupCols, i);
@@ -208,7 +210,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
     // Compare with the previous row of this column, and do not set the output buffer again if they are identical.
     if (!pInfo->isInit) {
-      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       pInfo->isInit = true;
       num++;
       continue;
@@ -223,7 +225,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
     // The first row of a new block does not belongs to the previous existed group
     if (j == 0) {
       num++;
-      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+      recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
       continue;
     }
 
@@ -238,7 +240,7 @@ static void doHashGroupbyAgg(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
     // assign the group keys or user input constant values if required
     doAssignGroupKeys(pCtx, pOperator->numOfExprs, pBlock->info.rows, rowIndex);
-    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     num = 1;
   }
 
@@ -269,25 +271,35 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
-      pOperator->status = OP_EXEC_DONE;
+
+    size_t rows = pRes->info.rows;
+    if (rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
+      doSetOperatorCompleted(pOperator);
     }
+
+    pOperator->resultInfo.totalRows += rows;
     return (pRes->info.rows == 0)? NULL:pRes;
   }
 
-  int32_t        order = TSDB_ORDER_ASC;
+  int32_t order = TSDB_ORDER_ASC;
+  int32_t scanFlag = MAIN_SCAN;
+
+  int64_t st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
 
+    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
+    if (code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, code);
+    }
+
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, scanFlag, true);
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->pScalarExprInfo != NULL) {
@@ -297,7 +309,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
       }
     }
 
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfExprs);
     doHashGroupbyAgg(pOperator, pBlock);
   }
 
@@ -309,9 +320,24 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   //    updateNumOfRowsInResultRows(pInfo->binfo.pCtx, pOperator->numOfExprs, &pInfo->binfo.resultRowInfo,
   //    pInfo->binfo.rowCellInfoOffset);
   //  }
-
+#if 0
+  if(pOperator->fpSet.encodeResultRow){
+    char *result = NULL;
+    int32_t length = 0;
+    pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
+    SAggSupporter* pSup = &pInfo->aggSup;
+    taosHashClear(pSup->pResultRowHashTable);
+    pInfo->binfo.resultRowInfo.size = 0;
+    pOperator->fpSet.decodeResultRow(pOperator, result);
+    if(result){
+      taosMemoryFree(result);
+    }
+  }
+#endif
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   while(1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
@@ -319,7 +345,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
     bool hasRemain = hashRemainDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       break;
     }
 
@@ -328,11 +354,14 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     }
   }
 
-  return (pRes->info.rows == 0)? NULL:pRes;
+  size_t rows = pRes->info.rows;
+  pOperator->resultInfo.totalRows += rows;
+
+  return (rows == 0)? NULL:pRes;
 }
 
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
-    SNode* pCondition, SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
+    SNode* pCondition, SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo) {
   SGroupbyOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupbyOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -382,7 +411,7 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
 
   int32_t numOfGroupCols = taosArrayGetSize(pInfo->pGroupCols);
   for (int32_t j = 0; j < pBlock->info.rows; ++j) {
-    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j, numOfGroupCols);
+    recordNewGroupKeys(pInfo->pGroupCols, pInfo->pGroupColVals, pBlock, j);
     int32_t len = buildGroupKeys(pInfo->keyBuf, pInfo->pGroupColVals);
 
     SDataGroupInfo* pGInfo = NULL;
@@ -425,7 +454,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           memcpy(data + (*columnLen), src, varDataTLen(src));
           int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
           ASSERT(v > 0);
-          printf("len:%d\n", v);
 
           contentLen = varDataTLen(src);
         }
@@ -476,16 +504,13 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
 
     int32_t *rows = (int32_t*) pPage;
     if (*rows >= pInfo->rowCapacity) {
+      // release buffer
+      releaseBufPage(pInfo->pBuf, pPage);
+
       // add a new page for current group
       int32_t pageId = 0;
       pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
       taosArrayPush(p->pPageList, &pageId);
-
-//      // number of rows
-//      *(int32_t*) pPage = 0;
-//
-//      uint64_t* groupId = (pPage + sizeof(int32_t));
-//      *groupId = 0;
       memset(pPage, 0, getBufPageSize(pInfo->pBuf));
     }
   }
@@ -538,7 +563,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     // try next group data
     pInfo->pGroupIter = taosHashIterate(pInfo->pGroupSet, pInfo->pGroupIter);
     if (pInfo->pGroupIter == NULL) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       return NULL;
     }
 
@@ -552,9 +577,12 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
 
   pInfo->pageIndex += 1;
+  releaseBufPage(pInfo->pBuf, page);
 
   blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
   pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
+
+  pOperator->resultInfo.totalRows += pInfo->binfo.pRes->info.rows;
   return pInfo->binfo.pRes;
 }
 
@@ -571,18 +599,19 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
     return buildPartitionResult(pOperator);
   }
 
+  int64_t st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
 
     doHashPartition(pOperator, pBlock);
   }
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   pOperator->status = OP_RES_TO_RETURN;
   blockDataEnsureCapacity(pRes, 4096);
@@ -599,7 +628,7 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
-                                           SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
+                                           SExecTaskInfo* pTaskInfo) {
   SPartitionOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SPartitionOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -614,7 +643,11 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  int32_t code = createDiskbasedBuf(&pInfo->pBuf, 4096, 4096 * 256, pTaskInfo->id.str, "/tmp/");
+  uint32_t defaultPgsz  = 0;
+  uint32_t defaultBufsz = 0;
+  getBufferPgSize(pResultBlock->info.rowSize, &defaultPgsz, &defaultBufsz);
+
+  int32_t code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, TD_TMP_DIR_PATH);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -627,13 +660,14 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   }
 
   pOperator->name         = "PartitionOperator";
-  pOperator->blocking = true;
+  pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
   pInfo->binfo.pRes       = pResultBlock;
-  pOperator->numOfExprs  = numOfCols;
+  pOperator->numOfExprs   = numOfCols;
   pOperator->pExpr        = pExprInfo;
   pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, NULL, destroyPartitionOperatorInfo,
                                          NULL, NULL, NULL);
