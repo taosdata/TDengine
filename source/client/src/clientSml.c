@@ -63,10 +63,6 @@ for (int i = 1; i < keyLen; ++i) {      \
 
 #define TS              "_ts"
 #define TS_LEN          3
-#define TAG             "_tag"
-#define TAG_LEN         4
-#define TAG_VALUE       "NULL"
-#define TAG_VALUE_LEN   4
 #define VALUE           "value"
 #define VALUE_LEN       5
 
@@ -263,7 +259,7 @@ static int32_t smlBuildColumnDescription(SSmlKv* field, char* buf, int32_t bufSi
   memcpy(tname, field->key, field->keyLen);
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_NCHAR) {
     int32_t bytes = field->length > CHAR_SAVE_LENGTH ? (2*field->length) : CHAR_SAVE_LENGTH;
-    int out = snprintf(buf, bufSize,"`%s` %s(%d)",
+    int out = snprintf(buf, bufSize, "`%s` %s(%d)",
                        tname, tDataTypes[field->type].name, bytes);
     *outBytes = out;
   } else {
@@ -397,6 +393,12 @@ static int32_t smlApplySchemaAction(SSmlHandle* info, SSchemaAction* action) {
       for(int i = 0; i < taosArrayGetSize(cols); i++){
         SSmlKv *kv = (SSmlKv *)taosArrayGetP(cols, i);
         smlBuildColumnDescription(kv, pos, freeBytes, &outBytes);
+        pos += outBytes; freeBytes -= outBytes;
+        *pos = ','; ++pos; --freeBytes;
+      }
+      if(taosArrayGetSize(cols) == 0){
+        outBytes = snprintf(pos, freeBytes,"`%s` %s(%d)",
+                            tsSmlTagName, tDataTypes[TSDB_DATA_TYPE_NCHAR].name, CHAR_SAVE_LENGTH);
         pos += outBytes; freeBytes -= outBytes;
         *pos = ','; ++pos; --freeBytes;
       }
@@ -724,9 +726,6 @@ static int64_t smlGetTimeValue(const char *value, int32_t len, int8_t type) {
   if(value + len != endPtr){
     return -1;
   }
-  if(tsInt64 == 0){
-    return taosGetTimestampNs();
-  }
   double ts = tsInt64;
   switch (type) {
     case TSDB_TIME_PRECISION_HOURS:
@@ -792,8 +791,8 @@ static int8_t smlGetTsTypeByPrecision(int8_t precision) {
 }
 
 static int64_t smlParseInfluxTime(SSmlHandle* info, const char* data, int32_t len){
-  if(len == 0){
-    return taosGetTimestamp(TSDB_TIME_PRECISION_NANO);
+  if(len == 0 || (len == 1 && data[0] == '0')){
+    return taosGetTimestampNs();
   }
 
   int8_t tsType = smlGetTsTypeByPrecision(info->precision);
@@ -814,6 +813,9 @@ static int64_t smlParseOpenTsdbTime(SSmlHandle* info, const char* data, int32_t 
   if(!data){
     smlBuildInvalidDataMsg(&info->msgBuf, "timestamp can not be null", NULL);
     return -1;
+  }
+  if(len == 1 && data[0] == '0'){
+    return taosGetTimestampNs();
   }
   int8_t tsType = smlGetTsTypeByLen(len);
   if (tsType == -1) {
@@ -1112,14 +1114,6 @@ static int32_t smlParseTelnetString(SSmlHandle *info, const char* sql, SSmlTable
 
 static int32_t smlParseCols(const char* data, int32_t len, SArray *cols, char *childTableName, bool isTag, SHashObj *dumplicateKey, SSmlMsgBuf *msg){
   if(isTag && len == 0){
-    SSmlKv *kv = (SSmlKv *)taosMemoryCalloc(sizeof(SSmlKv), 1);
-    if(!kv) return TSDB_CODE_OUT_OF_MEMORY;
-    kv->key = TAG;
-    kv->keyLen = TAG_LEN;
-    kv->value = TAG_VALUE;
-    kv->length = TAG_VALUE_LEN;
-    kv->type = TSDB_DATA_TYPE_NCHAR;
-    if(cols) taosArrayPush(cols, &kv);
     return TSDB_CODE_SUCCESS;
   }
 

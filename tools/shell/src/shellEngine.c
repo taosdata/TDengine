@@ -742,6 +742,7 @@ void shellReadHistory() {
   int32_t read_size = 0;
   while ((read_size = taosGetLineFile(pFile, &line)) != -1) {
     line[read_size - 1] = '\0';
+    taosMemoryFree(pHistory->hist[pHistory->hend]);
     pHistory->hist[pHistory->hend] = strdup(line);
 
     pHistory->hend = (pHistory->hend + 1) % SHELL_MAX_HISTORY_SIZE;
@@ -763,12 +764,23 @@ void shellWriteHistory() {
   for (int32_t i = pHistory->hstart; i != pHistory->hend;) {
     if (pHistory->hist[i] != NULL) {
       taosFprintfFile(pFile, "%s\n", pHistory->hist[i]);
-      taosMemoryFreeClear(pHistory->hist[i]);
+      taosMemoryFree(pHistory->hist[i]);
+      pHistory->hist[i] = NULL;
     }
     i = (i + 1) % SHELL_MAX_HISTORY_SIZE;
   }
   taosFsyncFile(pFile);
   taosCloseFile(&pFile);
+}
+
+void shellCleanupHistory() {
+  SShellHistory *pHistory = &shell.history;
+  for (int32_t i = 0; i < SHELL_MAX_HISTORY_SIZE; ++i) {
+    if (pHistory->hist[i] != NULL) {
+      taosMemoryFree(pHistory->hist[i]);
+      pHistory->hist[i] = NULL;
+    }
+  }
 }
 
 void shellPrintError(TAOS_RES *tres, int64_t st) {
@@ -971,6 +983,7 @@ int32_t shellExecute() {
 
     taos_close(shell.conn);
     shellWriteHistory();
+    shellCleanupHistory();
     return 0;
   }
 
@@ -996,5 +1009,6 @@ int32_t shellExecute() {
     taosThreadClear(&shell.pid);
   }
 
+  shellCleanupHistory();
   return 0;
 }
