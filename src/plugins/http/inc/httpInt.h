@@ -175,7 +175,7 @@ typedef struct HttpThread {
   EpollFd         pollFd;
   int32_t         numOfContexts;
   int32_t         threadId;
-  char            label[HTTP_LABEL_SIZE << 1];
+  char            label[HTTP_LABEL_SIZE << 2];
   bool (*processData)(HttpContext *pContext);
 } HttpThread;
 
