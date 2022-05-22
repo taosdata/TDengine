@@ -272,9 +272,26 @@ void validateFst() {
   }
   delete m;
 }
+static std::string logDir = "/tmp/log";
+
+static void initLog() {
+  const char*   defaultLogFileNamePrefix = "taoslog";
+  const int32_t maxLogFileNum = 10;
+
+  tsAsyncLog = 0;
+  sDebugFlag = 143;
+  strcpy(tsLogDir, logDir.c_str());
+  taosRemoveDir(tsLogDir);
+  taosMkDir(tsLogDir);
+
+  if (taosInitLog(defaultLogFileNamePrefix, maxLogFileNum) < 0) {
+    printf("failed to open log file in directory:%s\n", tsLogDir);
+  }
+}
 class IndexEnv : public ::testing::Test {
  protected:
   virtual void SetUp() {
+    initLog();
     taosRemoveDir(path);
     opts = indexOptsCreate();
     int ret = indexOpen(opts, path, &index);
@@ -804,7 +821,7 @@ class IndexObj {
   }
 
   ~IndexObj() {
-    indexCleanUp();
+    // indexCleanUp();
     indexClose(idx);
   }
 
@@ -817,7 +834,10 @@ class IndexObj {
 
 class IndexEnv2 : public ::testing::Test {
  protected:
-  virtual void SetUp() { index = new IndexObj(); }
+  virtual void SetUp() {
+    initLog();
+    index = new IndexObj();
+  }
   virtual void TearDown() { delete index; }
   IndexObj*    index;
 };
@@ -884,9 +904,32 @@ TEST_F(IndexEnv2, testIndexOpen) {
     SArray* result = (SArray*)taosArrayInit(1, sizeof(uint64_t));
     index->Search(mq, result);
     std::cout << "target size: " << taosArrayGetSize(result) << std::endl;
-    assert(taosArrayGetSize(result) == 400);
+    EXPECT_EQ(400, taosArrayGetSize(result));
     taosArrayDestroy(result);
     indexMultiTermQueryDestroy(mq);
+  }
+}
+TEST_F(IndexEnv2, testEmptyIndexOpen) {
+  std::string path = "/tmp/test";
+  if (index->Init(path) != 0) {
+    std::cout << "failed to init index" << std::endl;
+    exit(1);
+  }
+
+  int targetSize = 1;
+  {
+    std::string colName("tag1"), colVal("Hello");
+
+    SIndexTerm*      term = indexTermCreate(0, ADD_VALUE, TSDB_DATA_TYPE_BINARY, colName.c_str(), colName.size(),
+                                       colVal.c_str(), colVal.size());
+    SIndexMultiTerm* terms = indexMultiTermCreate();
+    indexMultiTermAdd(terms, term);
+    for (size_t i = 0; i < targetSize; i++) {
+      int tableId = i;
+      int ret = index->Put(terms, tableId);
+      assert(ret == 0);
+    }
+    indexMultiTermDestroy(terms);
   }
 }
 
