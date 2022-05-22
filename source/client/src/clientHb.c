@@ -45,7 +45,7 @@ static int32_t hbProcessUserAuthInfoRsp(void *value, int32_t valueLen, struct SC
     catalogUpdateUserAuthInfo(pCatalog, rsp);
   }
 
-  tFreeSUserAuthBatchRsp(&batchRsp);
+  taosArrayDestroy(batchRsp.pArray);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -285,6 +285,7 @@ int32_t hbBuildQueryDesc(SQueryHbReqBasic *hbBasic, STscObj *pObj) {
     int64_t     *rid = pIter;
     SRequestObj *pRequest = acquireRequest(*rid);
     if (NULL == pRequest) {
+      pIter = taosHashIterate(pObj->pRequests, pIter);
       continue;
     }
 
@@ -393,6 +394,10 @@ int32_t hbGetExpiredUserInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, S
 
   tscDebug("hb got %d expired users, valueLen:%d", userNum, kv.valueLen);
 
+  if (NULL == req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  }
+  
   taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
 
   return TSDB_CODE_SUCCESS;
@@ -428,6 +433,10 @@ int32_t hbGetExpiredDBInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SCl
 
   tscDebug("hb got %d expired db, valueLen:%d", dbNum, kv.valueLen);
 
+  if (NULL == req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  }
+
   taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
 
   return TSDB_CODE_SUCCESS;
@@ -461,6 +470,10 @@ int32_t hbGetExpiredStbInfo(SClientHbKey *connKey, struct SCatalog *pCatalog, SC
   };
 
   tscDebug("hb got %d expired stb, valueLen:%d", stbNum, kv.valueLen);
+
+  if (NULL == req->info) {
+    req->info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  }
 
   taosHashPut(req->info, &kv.key, sizeof(kv.key), &kv, sizeof(kv));
 
@@ -510,16 +523,6 @@ static FORCE_INLINE void hbMgrInitHandle() {
   hbMgrInitMqHbHandle();
 }
 
-void hbFreeReq(void *req) {
-  SClientHbReq *pReq = (SClientHbReq *)req;
-  tFreeReqKvHash(pReq->info);
-}
-
-void hbClearClientHbReq(SClientHbReq *pReq) {
-  pReq->query = NULL;
-  pReq->info = NULL;
-}
-
 SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   SClientHbBatchReq *pBatchReq = taosMemoryCalloc(1, sizeof(SClientHbBatchReq));
   if (pBatchReq == NULL) {
@@ -534,6 +537,8 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
   while (pIter != NULL) {
     SClientHbReq *pOneReq = pIter;
 
+    pOneReq = taosArrayPush(pBatchReq->reqs, pOneReq);
+
     SHbConnInfo *info = taosHashGet(pAppHbMgr->connInfo, &pOneReq->connKey, sizeof(SClientHbKey));
     if (info) {
       code = (*clientHbMgr.reqHandle[pOneReq->connKey.connType])(&pOneReq->connKey, info->param, pOneReq);
@@ -543,8 +548,7 @@ SClientHbBatchReq *hbGatherAllInfo(SAppHbMgr *pAppHbMgr) {
       }
     }
 
-    taosArrayPush(pBatchReq->reqs, pOneReq);
-    hbClearClientHbReq(pOneReq);
+    //hbClearClientHbReq(pOneReq);
 
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
@@ -564,6 +568,11 @@ void hbClearReqInfo(SAppHbMgr *pAppHbMgr) {
 
     tFreeReqKvHash(pOneReq->info);
     taosHashClear(pOneReq->info);
+
+    if (pOneReq->query) {
+      taosArrayDestroy(pOneReq->query->queryDesc);
+      taosMemoryFreeClear(pOneReq->query);
+    }
 
     pIter = taosHashIterate(pAppHbMgr->activeInfo, pIter);
   }
@@ -595,8 +604,8 @@ static void *hbThreadFunc(void *param) {
       void *buf = taosMemoryMalloc(tlen);
       if (buf == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        tFreeClientHbBatchReq(pReq, false);
-        hbClearReqInfo(pAppHbMgr);
+        tFreeClientHbBatchReq(pReq);
+        //hbClearReqInfo(pAppHbMgr);
         break;
       }
 
@@ -605,8 +614,8 @@ static void *hbThreadFunc(void *param) {
 
       if (pInfo == NULL) {
         terrno = TSDB_CODE_TSC_OUT_OF_MEMORY;
-        tFreeClientHbBatchReq(pReq, false);
-        hbClearReqInfo(pAppHbMgr);
+        tFreeClientHbBatchReq(pReq);
+        //hbClearReqInfo(pAppHbMgr);
         taosMemoryFree(buf);
         break;
       }
@@ -622,8 +631,8 @@ static void *hbThreadFunc(void *param) {
       int64_t       transporterId = 0;
       SEpSet        epSet = getEpSet_s(&pAppInstInfo->mgmtEp);
       asyncSendMsgToServer(pAppInstInfo->pTransporter, &epSet, &transporterId, pInfo);
-      tFreeClientHbBatchReq(pReq, false);
-      hbClearReqInfo(pAppHbMgr);
+      tFreeClientHbBatchReq(pReq);
+      //hbClearReqInfo(pAppHbMgr);
 
       atomic_add_fetch_32(&pAppHbMgr->reportCnt, 1);
     }
@@ -649,6 +658,9 @@ static int32_t hbCreateThread() {
 }
 
 static void hbStopThread() {
+  if (0 == atomic_load_8(&clientHbMgr.inited)) {
+    return;
+  }
   if (atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 0, 1)) {
     tscDebug("hb thread already stopped");
     return;
@@ -712,8 +724,7 @@ void appHbMgrCleanup(void) {
     void *pIter = taosHashIterate(pTarget->activeInfo, NULL);
     while (pIter != NULL) {
       SClientHbReq *pOneReq = pIter;
-      hbFreeReq(pOneReq);
-      taosHashCleanup(pOneReq->info);
+      tFreeClientHbReq(pOneReq);
       pIter = taosHashIterate(pTarget->activeInfo, pIter);
     }
     taosHashCleanup(pTarget->activeInfo);
@@ -745,13 +756,13 @@ int hbMgrInit() {
   hbMgrInitHandle();
 
   // init backgroud thread
-  /*hbCreateThread();*/
+  hbCreateThread();
 
   return 0;
 }
 
 void hbMgrCleanUp() {
-  // hbStopThread();
+  hbStopThread();
 
   // destroy all appHbMgr
   int8_t old = atomic_val_compare_exchange_8(&clientHbMgr.inited, 1, 0);
@@ -773,7 +784,7 @@ int hbRegisterConnImpl(SAppHbMgr *pAppHbMgr, SClientHbKey connKey, SHbConnInfo *
   }
   SClientHbReq hbReq = {0};
   hbReq.connKey = connKey;
-  hbReq.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
+  //hbReq.info = taosHashInit(64, hbKeyHashFunc, 1, HASH_ENTRY_LOCK);
 
   taosHashPut(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey), &hbReq, sizeof(SClientHbReq));
 
@@ -814,8 +825,7 @@ int hbRegisterConn(SAppHbMgr *pAppHbMgr, int64_t tscRefId, int64_t clusterId, in
 void hbDeregisterConn(SAppHbMgr *pAppHbMgr, SClientHbKey connKey) {
   SClientHbReq *pReq = taosHashGet(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   if (pReq) {
-    hbFreeReq(pReq);
-    taosHashCleanup(pReq->info);
+    tFreeClientHbReq(pReq);
     taosHashRemove(pAppHbMgr->activeInfo, &connKey, sizeof(SClientHbKey));
   }
 

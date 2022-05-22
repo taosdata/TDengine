@@ -1352,6 +1352,9 @@ typedef struct {
 
 typedef struct {
   int32_t code;
+  char    tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t sversion;
+  int32_t tversion;
 } SResReadyRsp;
 
 typedef struct {
@@ -1984,19 +1987,16 @@ static FORCE_INLINE void tFreeClientHbReq(void* pReq) {
   if (req->info) {
     tFreeReqKvHash(req->info);
     taosHashCleanup(req->info);
+    req->info = NULL;
   }
 }
 
 int32_t tSerializeSClientHbBatchReq(void* buf, int32_t bufLen, const SClientHbBatchReq* pReq);
 int32_t tDeserializeSClientHbBatchReq(void* buf, int32_t bufLen, SClientHbBatchReq* pReq);
 
-static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq, bool deep) {
+static FORCE_INLINE void tFreeClientHbBatchReq(void* pReq) {
   SClientHbBatchReq* req = (SClientHbBatchReq*)pReq;
-  if (deep) {
-    taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
-  } else {
-    taosArrayDestroy(req->reqs);
-  }
+  taosArrayDestroyEx(req->reqs, tFreeClientHbReq);
   taosMemoryFree(pReq);
 }
 
@@ -2020,6 +2020,7 @@ static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
 
 int32_t tSerializeSClientHbBatchRsp(void* buf, int32_t bufLen, const SClientHbBatchRsp* pBatchRsp);
 int32_t tDeserializeSClientHbBatchRsp(void* buf, int32_t bufLen, SClientHbBatchRsp* pBatchRsp);
+void tFreeSClientHbBatchRsp(SClientHbBatchRsp *pBatchRsp);
 
 static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
   if (tEncodeI32(pEncoder, pKv->key) < 0) return -1;
@@ -2520,11 +2521,9 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
   buf = taosDecodeFixedI64(buf, &pRsp->rspOffset);
   buf = taosDecodeFixedI32(buf, &pRsp->skipLogNum);
   buf = taosDecodeFixedI32(buf, &pRsp->blockNum);
-  pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
-  pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(void*));
-  pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
-  pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
   if (pRsp->blockNum != 0) {
+    pRsp->blockData = taosArrayInit(pRsp->blockNum, sizeof(void*));
+    pRsp->blockDataLen = taosArrayInit(pRsp->blockNum, sizeof(int32_t));
     buf = taosDecodeFixedI8(buf, &pRsp->withTbName);
     buf = taosDecodeFixedI8(buf, &pRsp->withSchema);
     buf = taosDecodeFixedI8(buf, &pRsp->withTag);
@@ -2537,14 +2536,20 @@ static FORCE_INLINE void* tDecodeSMqDataBlkRsp(const void* buf, SMqDataBlkRsp* p
       taosArrayPush(pRsp->blockDataLen, &bLen);
       taosArrayPush(pRsp->blockData, &data);
       if (pRsp->withSchema) {
+        pRsp->blockSchema = taosArrayInit(pRsp->blockNum, sizeof(void*));
         SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
         buf = taosDecodeSSchemaWrapper(buf, pSW);
         taosArrayPush(pRsp->blockSchema, &pSW);
+      } else {
+        pRsp->blockSchema = NULL;
       }
       if (pRsp->withTbName) {
+        pRsp->blockTbName = taosArrayInit(pRsp->blockNum, sizeof(void*));
         char* name = NULL;
         buf = taosDecodeString(buf, &name);
         taosArrayPush(pRsp->blockTbName, &name);
+      } else {
+        pRsp->blockTbName = NULL;
       }
     }
   }
@@ -2588,18 +2593,6 @@ static FORCE_INLINE void* tDecodeSMqAskEpRsp(void* buf, SMqAskEpRsp* pRsp) {
 static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
   taosArrayDestroyEx(pRsp->topics, (void (*)(void*))tDeleteSMqSubTopicEp);
 }
-
-typedef struct {
-  int64_t streamId;
-  int32_t taskId;
-  int32_t sourceVg;
-  int64_t sourceVer;
-  SArray* data;  // SArray<SSDataBlock>
-} SStreamDispatchReq;
-
-typedef struct {
-  int8_t inputStatus;
-} SStreamDispatchRsp;
 
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {

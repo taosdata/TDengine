@@ -2076,8 +2076,14 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
         }
 #endif
         if (TD_SUPPORT_UPDATE(pCfg->update)) {
+          if (lastKeyAppend != key) {
+            if (lastKeyAppend != TSKEY_INITIAL_VAL) {
+              ++curRow;
+            }
+            lastKeyAppend = key;
+          }
+          // load data from file firstly
           numOfRows = doCopyRowsFromFileBlock(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, curRow, pos, pos);
-          lastKeyAppend = key;
 
           if (rv1 != TD_ROW_SVER(row1)) {
             rv1 = TD_ROW_SVER(row1);
@@ -2087,7 +2093,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           }
 
           // still assign data into current row
-          mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
+          numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
                              pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastKeyAppend);
 
           if (cur->win.skey == TSKEY_INITIAL_VAL) {
@@ -2099,7 +2105,6 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           cur->mixBlock = true;
 
           moveToNextRowInMem(pCheckInfo);
-          ++curRow;
 
           pos += step;
         } else {
@@ -2770,7 +2775,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
     win->ekey = key;
     if (rv != TD_ROW_SVER(row)) {
-      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 1);
+      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, TD_ROW_SVER(row));
       rv = TD_ROW_SVER(row);
     }
     numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, maxRowsToRead, &curRows, row, NULL, numOfCols, pCheckInfo->tableId,

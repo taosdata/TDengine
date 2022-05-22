@@ -1077,7 +1077,7 @@ void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {
 
 SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
-  if (tlen == 0) return NULL;
+  // if (tlen == 0) return NULL;    // nCols == 0 means no tags
 
   tlen += TD_KV_ROW_HEAD_SIZE;
 
@@ -1087,8 +1087,10 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   kvRowSetNCols(row, pBuilder->nCols);
   kvRowSetLen(row, tlen);
 
-  memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
-  memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+  if(pBuilder->nCols > 0){
+    memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
+    memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+  }
 
   return row;
 }

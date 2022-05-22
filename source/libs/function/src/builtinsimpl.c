@@ -543,7 +543,7 @@ bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 }
 
 bool getAvgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(double);
+  pEnv->calcMemSize = sizeof(SAvgRes);
   return true;
 }
 
@@ -1975,99 +1975,6 @@ int32_t lastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   char* in = GET_ROWCELL_INTERBUF(pResInfo);
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
-
-  return pResInfo->numOfRes;
-}
-
-bool getUniqueFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(SUniqueInfo) + UNIQUE_MAX_RESULT_SIZE;
-  return true;
-}
-
-bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
-  if (!functionSetup(pCtx, pResInfo)) {
-    return false;
-  }
-
-  SUniqueInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-  pInfo->numOfPoints = 0;
-  pInfo->colType = pCtx->resDataInfo.type;
-  pInfo->colBytes = pCtx->resDataInfo.bytes;
-  if (pInfo->pHash != NULL) {
-    taosHashClear(pInfo->pHash);
-  } else {
-    pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-  }
-  return true;
-}
-
-static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
-  int32_t hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
-
-  SUniqueItem *pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
-  if (pHashItem == NULL) {
-    int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
-    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + pInfo->numOfPoints * size);
-    pItem->timestamp = ts;
-    memcpy(pItem->data, data, pInfo->colBytes);
-
-    taosHashPut(pInfo->pHash, data, hashKeyBytes, (char *)pItem, sizeof(SUniqueItem*));
-    pInfo->numOfPoints++;
-  } else if (pHashItem->timestamp > ts) {
-    pHashItem->timestamp = ts;
-  }
-
-}
-
-int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SUniqueInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
-
-  SInputColumnInfoData* pInput = &pCtx->input;
-  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
-
-  SColumnInfoData* pInputCol = pInput->pData[0];
-  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
-  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
-
-  int32_t startOffset = pCtx->offset;
-  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
-    char* data = colDataGetData(pInputCol, i);
-    doUniqueAdd(pInfo, data, tsList[i], colDataIsNull_s(pInputCol, i));
-
-    if (sizeof(SUniqueInfo) + pInfo->numOfPoints * (sizeof(SUniqueItem) + pInfo->colBytes) >= UNIQUE_MAX_RESULT_SIZE) {
-      taosHashCleanup(pInfo->pHash);
-      return 0;
-    }
-  }
-
-  //taosqsort(pInfo->pItems, pInfo->numOfPoints, POINTER_BYTES, NULL, tailCompFn);
-
-  //for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
-  //  int32_t pos = startOffset + i;
-  //  STailItem *pItem = pInfo->pItems[i];
-  //  if (pItem->isNull) {
-  //    colDataAppendNULL(pOutput, pos);
-  //  } else {
-  //    colDataAppend(pOutput, pos, pItem->data, false);
-  //  }
-  //}
-
-  pResInfo->numOfRes = pInfo->numOfPoints;
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
-  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
-  SUniqueInfo*    pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
-  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
-  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
-
-  for (int32_t i = 0; i < pResInfo->numOfRes; ++i) {
-    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + i * (sizeof(SUniqueItem) + pInfo->colBytes));
-    colDataAppend(pCol, i, pItem->data, false);
-    //TODO: handle ts output
-  }
 
   return pResInfo->numOfRes;
 }
@@ -3659,3 +3566,92 @@ int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   return pEntryInfo->numOfRes;
 }
+
+bool getUniqueFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SUniqueInfo) + UNIQUE_MAX_RESULT_SIZE;
+  return true;
+}
+
+bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;
+  }
+
+  SUniqueInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pInfo->numOfPoints = 0;
+  pInfo->colType = pCtx->resDataInfo.type;
+  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  if (pInfo->pHash != NULL) {
+    taosHashClear(pInfo->pHash);
+  } else {
+    pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  }
+  return true;
+}
+
+static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
+  int32_t hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
+
+  SUniqueItem *pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
+  if (pHashItem == NULL) {
+    int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + pInfo->numOfPoints * size);
+    pItem->timestamp = ts;
+    memcpy(pItem->data, data, pInfo->colBytes);
+
+    taosHashPut(pInfo->pHash, data, hashKeyBytes, (char *)pItem, sizeof(SUniqueItem*));
+    pInfo->numOfPoints++;
+  } else if (pHashItem->timestamp > ts) {
+    pHashItem->timestamp = ts;
+  }
+
+}
+
+int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SUniqueInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+    char* data = colDataGetData(pInputCol, i);
+    doUniqueAdd(pInfo, data, tsList[i], colDataIsNull_s(pInputCol, i));
+
+    if (sizeof(SUniqueInfo) + pInfo->numOfPoints * (sizeof(SUniqueItem) + pInfo->colBytes) >= UNIQUE_MAX_RESULT_SIZE) {
+      taosHashCleanup(pInfo->pHash);
+      return 0;
+    }
+  }
+
+  for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + i * (sizeof(SUniqueItem) + pInfo->colBytes));
+    colDataAppend(pOutput, i, pItem->data, false);
+    if (pTsOutput != NULL) {
+      colDataAppendInt64(pTsOutput, i, &pItem->timestamp);
+    }
+  }
+
+  return pInfo->numOfPoints;
+}
+
+int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SUniqueInfo*    pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  for (int32_t i = 0; i < pResInfo->numOfRes; ++i) {
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + i * (sizeof(SUniqueItem) + pInfo->colBytes));
+    colDataAppend(pCol, i, pItem->data, false);
+    //TODO: handle ts output
+  }
+
+  return pResInfo->numOfRes;
+}
+

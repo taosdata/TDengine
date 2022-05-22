@@ -477,6 +477,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
       pCommitIter->pTable->pSchema = pTSchema;  // metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
     }
   }
+  tSkipListDestroyIter(pSlIter);
 
   return 0;
 }
