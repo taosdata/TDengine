@@ -88,11 +88,9 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
     def opentstb_telnet_ts_check(self):
         self._remote._logger.info(f' Running ---- {sys._getframe().f_code.co_name}()')
         self.tdCom.cleanTb()
-        # TODO commit out
-        # input_sql = f'{self.tdCom.get_long_name(length=10, mode="letters")} 0 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
-        # print(input_sql)
-        # stb_name = input_sql.split(" ")[0]
-        # self.tdCom.check_res(input_sql, stb_name, ts=0)
+        input_sql = f'{self.tdCom.get_long_name(length=10, mode="letters")} 0 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
+        stb_name = input_sql.split(" ")[0]
+        self.tdCom.check_res(input_sql, stb_name, ts=0)
         input_sql = f'{self.tdCom.get_long_name(length=10, mode="letters")} 1626006833640 127 t0=127 t1=32767I16 t2=2147483647I32 t3=9223372036854775807 t4=11.12345027923584F32 t5=22.123456789F64'
         stb_name = input_sql.split(" ")[0]
         self.tdCom.check_res(input_sql, stb_name, ts_type=TDSmlTimestampType.MILLI_SECOND.value)
@@ -1018,7 +1016,7 @@ class TestOpentsdbTelnetLineTaoscInsert(TDCase):
         self.tdSql.checkEqual(self.tdSql.query_row, 6)
 
     def test(self):
-        self.opentstb_telnet_ts_check()
+        self.blank_tag_insert_check()
 
     def run(self) -> bool:
         # self.test()
