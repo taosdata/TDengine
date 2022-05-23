@@ -41,11 +41,6 @@ void showDB(TAOS* pConn) {
     printf("%s\n", str);
   }
 }
-
-void queryCallback(void *param, TAOS_RES *, int code) {
-  printf("this is a callback\n");
-
-}
 }  // namespace
 
 int main(int argc, char** argv) {
@@ -737,29 +732,6 @@ TEST(testCase, agg_query_tables) {
 
   taos_free_result(pRes);
   taos_close(pConn);
-}
-
-# endif
-
-TEST(testCase, agg_query_tables) {
-  TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
-  ASSERT_NE(pConn, nullptr);
-
-  taos_query_a(pConn, "use abc1", NULL, NULL);
-  getchar();
-
-  taos_close(pConn);
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to use db, reason:%s\n", taos_errstr(pRes));
-//    taos_free_result(pRes);
-//    ASSERT_TRUE(false);
-//  }
-//  taos_free_result(pRes);
-//
-//  pRes = taos_query(pConn, "select tbname from st1");
-//  if (taos_errno(pRes) != 0) {
-//    printf("failed to select from table, reas");
-//  }
 }
 
 #pragma GCC diagnostic pop
