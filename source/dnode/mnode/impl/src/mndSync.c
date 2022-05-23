@@ -152,9 +152,10 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
 }
 
 void mndSyncStart(SMnode *pMnode) {
-  syncSetMsgCb(pMnode->syncMgmt.sync, &pMnode->msgCb);
-  syncStart(pMnode->syncMgmt.sync);
-  mDebug("sync:%" PRId64 " is started", pMnode->syncMgmt.sync);
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
+  syncStart(pMgmt->sync);
+  mDebug("sync:%" PRId64 " is started", pMgmt->sync);
 }
 
 void mndSyncStop(SMnode *pMnode) {}

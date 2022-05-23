@@ -435,8 +435,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   }
 
   return ret;
-
-  return 0;
 }
 
 int32_t mndProcessMsg(SRpcMsg *pMsg) {

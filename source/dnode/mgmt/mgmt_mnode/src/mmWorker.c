@@ -111,7 +111,10 @@ int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  return mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
+  if (mmAcquire(pMgmt) != 0) return -1;
+  int32_t code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
+  mmRelease(pMgmt);
+  return code;
 }
 
 int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
@@ -180,6 +183,11 @@ int32_t mmStartWorker(SMnodeMgmt *pMgmt) {
 }
 
 void mmStopWorker(SMnodeMgmt *pMgmt) {
+  taosThreadRwlockWrlock(&pMgmt->lock);
+  pMgmt->stopped = 1;
+  taosThreadRwlockUnlock(&pMgmt->lock);
+  while (pMgmt->refCount > 0) taosMsleep(10);
+
   tSingleWorkerCleanup(&pMgmt->monitorWorker);
   tSingleWorkerCleanup(&pMgmt->queryWorker);
   tSingleWorkerCleanup(&pMgmt->readWorker);
