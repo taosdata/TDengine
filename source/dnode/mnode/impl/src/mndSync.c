@@ -27,43 +27,37 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
 
-  SSnapshot snapshot = {0};
-  (*pFsm->FpGetSnapshot)(pFsm, &snapshot);
-
-  if (cbMeta.index > snapshot.lastApplyIndex) {
-    mTrace("ver:%" PRId64 ", apply raw:%p to sdb, role:%s", cbMeta.index, pRaw, syncStr(cbMeta.state));
-    sdbWriteWithoutFree(pSdb, pRaw);
-    sdbSetApplyIndex(pSdb, cbMeta.index);
-    if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-      tsem_post(&pMgmt->syncSem);
-    }
-  } else {
-    mTrace("ver:%" PRId64 ", already apply raw:%p to sdb, last:%" PRId64, cbMeta.index, pRaw, snapshot.lastApplyIndex);
+  mTrace("ver:%" PRId64 ", apply raw:%p to sdb, role:%s", cbMeta.index, pRaw, syncStr(cbMeta.state));
+  sdbWriteWithoutFree(pSdb, pRaw);
+  sdbSetApplyIndex(pSdb, cbMeta.index);
+  sdbSetApplyTerm(pSdb, cbMeta.term);
+  if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
+    tsem_post(&pMgmt->syncSem);
   }
 }
 
-static void mndSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  // strict consistent, do nothing
-}
-
-static void mndSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  // strict consistent, do nothing
-}
-
-static int32_t mndSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
   pSnapshot->lastApplyIndex = sdbGetApplyIndex(pMnode->pSdb);
   pSnapshot->lastApplyTerm = sdbGetApplyTerm(pMnode->pSdb);
   return 0;
 }
 
+void mndRestoreFinish(struct SSyncFSM *pFsm) {
+  SMnode *pMnode = pFsm->data;
+  mndTransPullup(pMnode);
+  pMnode->syncMgmt.restored = true;
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
   pFsm->FpCommitCb = mndSyncCommitMsg;
-  pFsm->FpPreCommitCb = mndSyncPreCommitMsg;
-  pFsm->FpRollBackCb = mndSyncRollBackMsg;
+  pFsm->FpPreCommitCb = NULL;
+  pFsm->FpRollBackCb = NULL;
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
+  pFsm->FpRestoreFinish = mndRestoreFinish;
+  pFsm->FpRestoreSnapshot = NULL;
   return pFsm;
 }
 
@@ -152,21 +146,8 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
 }
 
 void mndSyncStart(SMnode *pMnode) {
-  SSdb   *pSdb = pMnode->pSdb;
-  int64_t lastApplyIndex = sdbGetApplyIndex(pSdb);
-
   syncSetMsgCb(pMnode->syncMgmt.sync, &pMnode->msgCb);
   syncStart(pMnode->syncMgmt.sync);
-
-  int64_t applyIndex = sdbGetApplyIndex(pSdb);
-  mndTransPullup(pMnode);
-  mDebug("pullup trans finished, applyIndex:%" PRId64, applyIndex);
-  if (applyIndex != lastApplyIndex) {
-    mInfo("sdb restored from %" PRId64 " to %" PRId64 ", write file", lastApplyIndex, applyIndex);
-    sdbWriteFile(pSdb);
-  }
-
-  pMnode->syncMgmt.restored = true;
   mDebug("sync:%" PRId64 " is started", pMnode->syncMgmt.sync);
 }
 

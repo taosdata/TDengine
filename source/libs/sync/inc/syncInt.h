@@ -147,6 +147,11 @@ typedef struct SSyncNode {
   // tools
   SSyncRespMgr* pSyncRespMgr;
 
+  // restore state
+  bool       restoreFinish;
+  sem_t      restoreSem;
+  SSnapshot* pSnapshot;
+
 } SSyncNode;
 
 // open/close --------------
