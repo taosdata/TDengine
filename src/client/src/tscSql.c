@@ -64,7 +64,7 @@ static SSqlObj *taosConnectImpl(const char *ip, const char *user, const char *pa
   }
   SRpcCorEpSet corMgmtEpSet;
 
-  char secretEncrypt[TSDB_PASS_LEN] = {0};
+  char secretEncrypt[32] = {0};
   int  secretEncryptLen = 0;
   if (auth == NULL) {
     if (!validPassword(pass)) {
