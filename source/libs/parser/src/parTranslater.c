@@ -292,8 +292,8 @@ static bool isScanPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
-static bool isNonstandardSQLFunc(const SNode* pNode) {
-  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsNonstandardSQLFunc(((SFunctionNode*)pNode)->funcId));
+static bool isIndefiniteRowsFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsIndefiniteRowsFunc(((SFunctionNode*)pNode)->funcId));
 }
 
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
@@ -818,7 +818,7 @@ static EDealRes haveAggOrNonstdFunction(SNode* pNode, void* pContext) {
   if (isAggFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
-  } else if (isNonstandardSQLFunc(pNode)) {
+  } else if (isIndefiniteRowsFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -863,6 +863,15 @@ static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
   return hasInvalidFunc;
 }
 
+static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
+                               .pRpc = pCxt->pParseCxt->pTransporter,
+                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
+                               .pErrBuf = pCxt->msgBuf.buf,
+                               .errBufLen = pCxt->msgBuf.len};
+  return fmGetFuncInfo(&param, pFunc);
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   SNode* pParam = NULL;
   FOREACH(pParam, pFunc->pParameterList) {
@@ -871,12 +880,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
     }
   }
 
-  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
-                               .pRpc = pCxt->pParseCxt->pTransporter,
-                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
-                               .pErrBuf = pCxt->msgBuf.buf,
-                               .errBufLen = pCxt->msgBuf.len};
-  pCxt->errCode = fmGetFuncInfo(&param, pFunc);
+  pCxt->errCode = getFuncInfo(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsAggFunc(pFunc->funcId)) {
     if (beforeHaving(pCxt->currClause)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
@@ -884,7 +888,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
     if (hasInvalidFuncNesting(pFunc->pParameterList)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
     }
-    if (pCxt->pCurrStmt->hasNonstdSQLFunc) {
+    if (pCxt->pCurrStmt->hasIndefiniteRowsFunc) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
     }
 
@@ -911,14 +915,15 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
       }
     }
   }
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsNonstandardSQLFunc(pFunc->funcId)) {
-    if (SQL_CLAUSE_SELECT != pCxt->currClause || pCxt->pCurrStmt->hasNonstdSQLFunc || pCxt->pCurrStmt->hasAggFuncs) {
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+    if (SQL_CLAUSE_SELECT != pCxt->currClause || pCxt->pCurrStmt->hasIndefiniteRowsFunc ||
+        pCxt->pCurrStmt->hasAggFuncs) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
     }
     if (hasInvalidFuncNesting(pFunc->pParameterList)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
     }
-    pCxt->pCurrStmt->hasNonstdSQLFunc = true;
+    pCxt->pCurrStmt->hasIndefiniteRowsFunc = true;
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -1002,7 +1007,7 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    translateFunction(pCxt, pFunc);
+    pCxt->errCode == getFuncInfo(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     *pNode = (SNode*)pFunc;
@@ -1072,7 +1077,7 @@ static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SNodeList* pList
 }
 
 static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
-  if (isAggFunc(*pNode)) {
+  if (isAggFunc(*pNode) || isIndefiniteRowsFunc(*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -1109,7 +1114,7 @@ static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
     pCxt->existAggFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (isNonstandardSQLFunc(pNode)) {
+  if (isIndefiniteRowsFunc(pNode)) {
     pCxt->existNonstdFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -1951,7 +1956,7 @@ static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType d
     nodesDestroyNode(pFunc);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (DEAL_RES_ERROR == translateFunction(pCxt, pFunc)) {
+  if (TSDB_CODE_SUCCESS != getFuncInfo(pCxt, pFunc)) {
     nodesClearList(pFunc->pParameterList);
     pFunc->pParameterList = NULL;
     nodesDestroyNode(pFunc);
@@ -4084,10 +4089,11 @@ static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SS
 }
 
 static int32_t createValueFromFunction(STranslateContext* pCxt, SFunctionNode* pFunc, SValueNode** pVal) {
-  if (DEAL_RES_ERROR == translateFunction(pCxt, pFunc)) {
-    return pCxt->errCode;
+  int32_t code = getFuncInfo(pCxt, pFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = scalarCalculateConstants((SNode*)pFunc, (SNode**)pVal);
   }
-  return scalarCalculateConstants((SNode*)pFunc, (SNode**)pVal);
+  return code;
 }
 
 static SDataType schemaToDataType(SSchema* pSchema) {
