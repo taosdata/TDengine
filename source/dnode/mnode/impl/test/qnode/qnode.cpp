@@ -18,11 +18,11 @@ class MndTestQnode : public ::testing::Test {
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_qnode1", 9014);
+    test.Init(TD_TMP_DIR_PATH "mnode_test_qnode1", 9014);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9014";
 
-    // server2.Start("/tmp/mnode_test_qnode2", fqdn, 9015, firstEp);
+    // server2.Start(TD_TMP_DIR_PATH "mnode_test_qnode2", fqdn, 9015, firstEp);
     taosMsleep(300);
   }
 

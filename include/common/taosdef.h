@@ -86,6 +86,11 @@ typedef enum {
   TSDB_RETENTION_MAX = 3
 } ERetentionLevel;
 
+typedef enum {
+  TSDB_BITMODE_DEFAULT = 0,  // 2 bits
+  TSDB_BITMODE_ONE_BIT = 1,  // 1 bit
+} EBitmapMode;
+
 extern char *qtypeStr[];
 
 #define TSDB_PORT_HTTP 11

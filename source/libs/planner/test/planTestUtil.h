@@ -37,8 +37,9 @@ class PlannerTestBase : public testing::Test {
   std::unique_ptr<PlannerTestBaseImpl> impl_;
 };
 
-extern int32_t g_skipSql;
-
-extern void setDumpModule(const char* pModule);
+extern void    setDumpModule(const char* pModule);
+extern void    setSkipSqlNum(const char* pNum);
+extern void    setLogLevel(const char* pLogLevel);
+extern int32_t getLogLevel();
 
 #endif  // PLAN_TEST_UTIL_H

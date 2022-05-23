@@ -90,6 +90,15 @@ static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, Iterat
 // static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
+static void indexPost(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_post(&pIdx->sem);
+}
+static void indexWait(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_wait(&pIdx->sem);
+}
+
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadOnce(&isInit, indexInit);
   SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
@@ -107,6 +116,8 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   sIdx->cVersion = 1;
   sIdx->path = tstrdup(path);
   taosThreadMutexInit(&sIdx->mtx, NULL);
+  tsem_init(&sIdx->sem, 0, 0);
+  // taosThreadCondInit(&sIdx->finished, NULL);
 
   sIdx->refId = indexAddRef(sIdx);
   indexAcquireRef(sIdx->refId);
@@ -124,16 +135,8 @@ END:
 
 void indexDestroy(void* handle) {
   SIndex* sIdx = handle;
-  void*   iter = taosHashIterate(sIdx->colObj, NULL);
-  while (iter) {
-    IndexCache** pCache = iter;
-    if (*pCache) {
-      indexCacheUnRef(*pCache);
-    }
-    iter = taosHashIterate(sIdx->colObj, iter);
-  }
-  taosHashCleanup(sIdx->colObj);
   taosThreadMutexDestroy(&sIdx->mtx);
+  tsem_destroy(&sIdx->sem);
   indexTFileDestroy(sIdx->tindex);
   taosMemoryFree(sIdx->path);
   taosMemoryFree(sIdx);
@@ -141,6 +144,20 @@ void indexDestroy(void* handle) {
 }
 void indexClose(SIndex* sIdx) {
   indexReleaseRef(sIdx->refId);
+  bool ref = 0;
+  if (sIdx->colObj != NULL) {
+    void* iter = taosHashIterate(sIdx->colObj, NULL);
+    while (iter) {
+      IndexCache** pCache = iter;
+      indexCacheForceToMerge((void*)(*pCache));
+      indexWait((void*)(sIdx));
+      iter = taosHashIterate(sIdx->colObj, iter);
+      indexCacheUnRef(*pCache);
+    }
+    taosHashCleanup(sIdx->colObj);
+    sIdx->colObj = NULL;
+  }
+  // taosMsleep(1000 * 5);
   indexRemoveRef(sIdx->refId);
 }
 int64_t indexAddRef(void* p) {
@@ -451,6 +468,18 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   }
   // handle flush
   Iterate* cacheIter = indexCacheIteratorCreate(pCache);
+  if (cacheIter == NULL) {
+    indexError("%p immtable is empty, ignore merge opera", pCache);
+    indexCacheDestroyImm(pCache);
+    tfileReaderUnRef(pReader);
+    if (sIdx->quit) {
+      indexPost(sIdx);
+      // indexCacheBroadcast(pCache);
+    }
+    indexReleaseRef(sIdx->refId);
+    return 0;
+  }
+
   Iterate* tfileIter = tfileIteratorCreate(pReader);
   if (tfileIter == NULL) {
     indexWarn("empty tfile reader iterator");
@@ -506,7 +535,11 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   } else {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
+  if (sIdx->quit) {
+    indexPost(sIdx);
+  }
   indexReleaseRef(sIdx->refId);
+
   return ret;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {
@@ -563,10 +596,11 @@ int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
   bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(key->colType, TSDB_DATA_TYPE_JSON);
 
   char* p = buf;
-  SERIALIZE_MEM_TO_BUF(buf, key, suid);
+  char  tbuf[65] = {0};
+  indexInt2str((int64_t)key->suid, tbuf, 0);
+
+  SERIALIZE_STR_VAR_TO_BUF(buf, tbuf, strlen(tbuf));
   SERIALIZE_VAR_TO_BUF(buf, '_', char);
-  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
-  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
   if (hasJson) {
     SERIALIZE_STR_VAR_TO_BUF(buf, JSON_COLUMN, strlen(JSON_COLUMN));
   } else {

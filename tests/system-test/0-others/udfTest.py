@@ -14,7 +14,7 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor())
+        tdSql.init(conn.cursor(), logSql)
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))

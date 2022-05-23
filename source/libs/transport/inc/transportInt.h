@@ -21,18 +21,14 @@
 #endif
 #include "lz4.h"
 #include "os.h"
-#include "rpcCache.h"
-#include "rpcHead.h"
-#include "rpcLog.h"
 #include "taoserror.h"
-#include "tglobal.h"
 #include "thash.h"
-#include "tidpool.h"
-#include "tmsg.h"
 #include "tref.h"
+#include "tmsg.h"
+#include "transLog.h"
 #include "trpc.h"
-#include "ttimer.h"
 #include "tutil.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {

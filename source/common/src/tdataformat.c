@@ -895,7 +895,7 @@ SDataCols *tdNewDataCols(int maxCols, int maxRows) {
   pCols->maxCols = maxCols;
   pCols->numOfRows = 0;
   pCols->numOfCols = 0;
-  // pCols->bitmapMode = 0; // calloc already set 0
+  pCols->bitmapMode = TSDB_BITMODE_DEFAULT;
 
   if (maxCols > 0) {
     pCols->cols = (SDataCol *)taosMemoryCalloc(maxCols, sizeof(SDataCol));
@@ -939,7 +939,7 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
 #endif
 
   pCols->numOfRows = 0;
-  pCols->bitmapMode = 0;
+  pCols->bitmapMode = TSDB_BITMODE_DEFAULT;
   pCols->numOfCols = schemaNCols(pSchema);
 
   for (i = 0; i < schemaNCols(pSchema); ++i) {
@@ -1117,7 +1117,7 @@ void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {
 
 SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
-  if (tlen == 0) return NULL;
+  // if (tlen == 0) return NULL;    // nCols == 0 means no tags
 
   tlen += TD_KV_ROW_HEAD_SIZE;
 
@@ -1127,8 +1127,10 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   kvRowSetNCols(row, pBuilder->nCols);
   kvRowSetLen(row, tlen);
 
-  memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
-  memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+  if(pBuilder->nCols > 0){
+    memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
+    memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+  }
 
   return row;
 }

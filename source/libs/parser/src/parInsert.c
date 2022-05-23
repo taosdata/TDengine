@@ -827,7 +827,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
 
   SKVRow row = tdGetKVRowFromBuilder(&pCxt->tagsBuilder);
   if (NULL == row) {
-    return buildInvalidOperationMsg(&pCxt->msg, "tag value expected");
+    return buildInvalidOperationMsg(&pCxt->msg, "out of memory");
   }
   tdSortKVRowByColIdx(row);
 
@@ -1085,6 +1085,10 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
 
     // no data in the sql string anymore.
     if (sToken.n == 0) {
+      if (sToken.type && pCxt->pSql[0]) {
+        return buildSyntaxErrMsg(&pCxt->msg, "invalid charactor in SQL", sToken.z);
+      }
+      
       if (0 == pCxt->totalNum && (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {
         return buildInvalidOperationMsg(&pCxt->msg, "no data in sql");
       }
@@ -1347,7 +1351,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   SKVRow row = tdGetKVRowFromBuilder(&tagBuilder);
   if (NULL == row) {
     tdDestroyKVRowBuilder(&tagBuilder);
-    return buildInvalidOperationMsg(&pBuf, "tag value expected");
+    return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
   tdSortKVRowByColIdx(row);
 
@@ -1696,7 +1700,7 @@ static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedD
 
   *row = tdGetKVRowFromBuilder(tagsBuilder);
   if (*row == NULL) {
-    return TSDB_CODE_SML_INVALID_DATA;
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
   tdSortKVRowByColIdx(*row);
   return TSDB_CODE_SUCCESS;
