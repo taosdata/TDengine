@@ -223,9 +223,6 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
     terrno = TSDB_CODE_TDB_TABLE_ALREADY_EXIST;
     metaReaderClear(&mr);
     return -1;
-  } else {
-    pReq->uid = tGenIdPI64();
-    pReq->ctime = taosGetTimestampMs();
   }
   metaReaderClear(&mr);
 
