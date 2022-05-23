@@ -53,6 +53,7 @@ static void mndSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta c
 static int32_t mndSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
   SMnode *pMnode = pFsm->data;
   pSnapshot->lastApplyIndex = sdbGetApplyIndex(pMnode->pSdb);
+  pSnapshot->lastApplyTerm = sdbGetApplyTerm(pMnode->pSdb);
   return 0;
 }
 

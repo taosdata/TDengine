@@ -312,6 +312,8 @@ int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
  */
 void    sdbSetApplyIndex(SSdb *pSdb, int64_t index);
 int64_t sdbGetApplyIndex(SSdb *pSdb);
+void    sdbSetApplyTerm(SSdb *pSdb, int64_t term);
+int64_t sdbGetApplyTerm(SSdb *pSdb);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
@@ -340,6 +342,7 @@ typedef struct SSdb {
   char          *tmpDir;
   int64_t        lastCommitVer;
   int64_t        curVer;
+  int64_t        curTerm;
   int64_t        tableVer[SDB_MAX];
   int64_t        maxId[SDB_MAX];
   EKeyType       keyTypes[SDB_MAX];

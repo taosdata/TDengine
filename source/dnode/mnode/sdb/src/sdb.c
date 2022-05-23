@@ -53,6 +53,7 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   pSdb->curVer = -1;
+  pSdb->curTerm = -1;
   pSdb->lastCommitVer = -1;
   pSdb->pMnode = pOption->pMnode;
   mDebug("sdb init successfully");
@@ -159,3 +160,7 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
 void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
 
 int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
+
+void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
+
+int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }
