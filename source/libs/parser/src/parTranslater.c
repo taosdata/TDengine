@@ -646,12 +646,13 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
       }
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
-        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + VARSTR_HEADER_SIZE + 1);
+        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
         if (NULL == pVal->datum.p) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
-        varDataSetLen(pVal->datum.p, targetDt.bytes);
-        strncpy(varDataVal(pVal->datum.p), pVal->literal, targetDt.bytes);
+        int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, pVal->node.resType.bytes);
+        varDataSetLen(pVal->datum.p, len);
+        strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -662,19 +663,18 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
-        int32_t bytes = targetDt.bytes * TSDB_NCHAR_SIZE;
-        pVal->datum.p = taosMemoryCalloc(1, bytes + VARSTR_HEADER_SIZE + 1);
+        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
         if (NULL == pVal->datum.p) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           ;
         }
 
-        int32_t output = 0;
-        if (!taosMbsToUcs4(pVal->literal, pVal->node.resType.bytes, (TdUcs4*)varDataVal(pVal->datum.p), bytes,
-                           &output)) {
+        int32_t len = 0;
+        if (!taosMbsToUcs4(pVal->literal, pVal->node.resType.bytes, (TdUcs4*)varDataVal(pVal->datum.p),
+                           targetDt.bytes - VARSTR_HEADER_SIZE, &len)) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
-        varDataSetLen(pVal->datum.p, output);
+        varDataSetLen(pVal->datum.p, len);
         break;
       }
       case TSDB_DATA_TYPE_JSON:
@@ -690,8 +690,20 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t calcTypeBytes(SDataType dt) {
+  if (TSDB_DATA_TYPE_BINARY == dt.type) {
+    return dt.bytes + VARSTR_HEADER_SIZE;
+  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
+    return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  } else {
+    return dt.bytes;
+  }
+}
+
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
-  return translateValueImpl(pCxt, pVal, pVal->node.resType);
+  SDataType dt = pVal->node.resType;
+  dt.bytes = calcTypeBytes(dt);
+  return translateValueImpl(pCxt, pVal, dt);
 }
 
 static bool isMultiResFunc(SNode* pNode) {
@@ -2341,16 +2353,6 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
   buildAlterDbReq(pCxt, pStmt, &alterReq);
 
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
-}
-
-static int32_t calcTypeBytes(SDataType dt) {
-  if (TSDB_DATA_TYPE_BINARY == dt.type) {
-    return dt.bytes + VARSTR_HEADER_SIZE;
-  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
-    return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-  } else {
-    return dt.bytes;
-  }
 }
 
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
@@ -4088,18 +4090,8 @@ static int32_t createValueFromFunction(STranslateContext* pCxt, SFunctionNode* p
   return scalarCalculateConstants((SNode*)pFunc, (SNode**)pVal);
 }
 
-static int32_t colDataBytesToValueDataBytes(uint8_t type, int32_t bytes) {
-  if (TSDB_DATA_TYPE_VARCHAR == type || TSDB_DATA_TYPE_BINARY == type || TSDB_DATA_TYPE_VARBINARY == type) {
-    return bytes - VARSTR_HEADER_SIZE;
-  } else if (TSDB_DATA_TYPE_NCHAR == type) {
-    return (bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-  }
-  return bytes;
-}
-
 static SDataType schemaToDataType(SSchema* pSchema) {
   SDataType dt = {.type = pSchema->type, .bytes = pSchema->bytes, .precision = 0, .scale = 0};
-  dt.bytes = colDataBytesToValueDataBytes(pSchema->type, pSchema->bytes);
   return dt;
 }
 

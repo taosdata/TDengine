@@ -599,14 +599,17 @@ typedef struct SRewritePrecalcExprsCxt {
 static EDealRes collectAndRewrite(SRewritePrecalcExprsCxt* pCxt, SNode** pNode) {
   SNode* pExpr = nodesCloneNode(*pNode);
   if (NULL == pExpr) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     return DEAL_RES_ERROR;
   }
   if (nodesListAppend(pCxt->pPrecalcExprs, pExpr)) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     nodesDestroyNode(pExpr);
     return DEAL_RES_ERROR;
   }
   SColumnNode* pCol = (SColumnNode*)nodesMakeNode(QUERY_NODE_COLUMN);
   if (NULL == pCol) {
+    pCxt->errCode = TSDB_CODE_OUT_OF_MEMORY;
     nodesDestroyNode(pExpr);
     return DEAL_RES_ERROR;
   }
@@ -624,16 +627,45 @@ static EDealRes collectAndRewrite(SRewritePrecalcExprsCxt* pCxt, SNode** pNode) 
   return DEAL_RES_IGNORE_CHILD;
 }
 
+static int32_t rewriteValueToOperator(SRewritePrecalcExprsCxt* pCxt, SNode** pNode) {
+  SOperatorNode* pOper = (SOperatorNode*)nodesMakeNode(QUERY_NODE_OPERATOR);
+  if (NULL == pOper) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  pOper->pLeft = nodesMakeNode(QUERY_NODE_LEFT_VALUE);
+  if (NULL == pOper->pLeft) {
+    nodesDestroyNode(pOper);
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  SValueNode* pVal = (SValueNode*)*pNode;
+  pOper->node.resType = pVal->node.resType;
+  strcpy(pOper->node.aliasName, pVal->node.aliasName);
+  pOper->opType = OP_TYPE_ASSIGN;
+  pOper->pRight = *pNode;
+  *pNode = (SNode*)pOper;
+  return TSDB_CODE_SUCCESS;
+}
+
 static EDealRes doRewritePrecalcExprs(SNode** pNode, void* pContext) {
   SRewritePrecalcExprsCxt* pCxt = (SRewritePrecalcExprsCxt*)pContext;
   switch (nodeType(*pNode)) {
+    case QUERY_NODE_VALUE: {
+      if (((SValueNode*)*pNode)->notReserved) {
+        break;
+      }
+      pCxt->errCode = rewriteValueToOperator(pCxt, pNode);
+      if (TSDB_CODE_SUCCESS != pCxt->errCode) {
+        return DEAL_RES_ERROR;
+      }
+      return collectAndRewrite(pCxt, pNode);
+    }
     case QUERY_NODE_OPERATOR:
     case QUERY_NODE_LOGIC_CONDITION: {
-      return collectAndRewrite(pContext, pNode);
+      return collectAndRewrite(pCxt, pNode);
     }
     case QUERY_NODE_FUNCTION: {
       if (fmIsScalarFunc(((SFunctionNode*)(*pNode))->funcId)) {
-        return collectAndRewrite(pContext, pNode);
+        return collectAndRewrite(pCxt, pNode);
       }
     }
     default:
@@ -677,9 +709,8 @@ static int32_t rewritePrecalcExprs(SPhysiPlanContext* pCxt, SNodeList* pList, SN
   }
   SRewritePrecalcExprsCxt cxt = {.errCode = TSDB_CODE_SUCCESS, .pPrecalcExprs = *pPrecalcExprs};
   nodesRewriteExprs(*pRewrittenList, doRewritePrecalcExprs, &cxt);
-  if (0 == LIST_LENGTH(cxt.pPrecalcExprs)) {
-    nodesDestroyList(cxt.pPrecalcExprs);
-    *pPrecalcExprs = NULL;
+  if (0 == LIST_LENGTH(cxt.pPrecalcExprs) || TSDB_CODE_SUCCESS != cxt.errCode) {
+    DESTORY_LIST(*pPrecalcExprs);
   }
   return cxt.errCode;
 }
