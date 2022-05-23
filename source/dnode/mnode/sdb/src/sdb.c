@@ -156,4 +156,6 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-int64_t sdbUpdateVer(SSdb *pSdb, int32_t val) { return atomic_add_fetch_64(&pSdb->curVer, val); }
+void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
+
+int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }

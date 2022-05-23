@@ -493,9 +493,8 @@ TEST_F(MndTestSdb, 01_Write_Str) {
   ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
   ASSERT_EQ(sdbGetMaxId(pSdb, SDB_USER), -1);
   ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 2 );
-  ASSERT_EQ(sdbUpdateVer(pSdb, 0), -1);
-  ASSERT_EQ(sdbUpdateVer(pSdb, 1), 0);
-  ASSERT_EQ(sdbUpdateVer(pSdb, -1), -1);
+  sdbSetApplyIndex(pSdb, -1);
+  ASSERT_EQ(sdbGetApplyIndex(pSdb), -1);
   ASSERT_EQ(mnode.insertTimes, 2);
   ASSERT_EQ(mnode.deleteTimes, 0);
 
@@ -537,9 +536,6 @@ TEST_F(MndTestSdb, 01_Write_Str) {
 
     ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 3);
     ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 4);
-    ASSERT_EQ(sdbUpdateVer(pSdb, 0), -1);
-    ASSERT_EQ(sdbUpdateVer(pSdb, 1), 0);
-    ASSERT_EQ(sdbUpdateVer(pSdb, -1), -1);
     ASSERT_EQ(mnode.insertTimes, 3);
     ASSERT_EQ(mnode.deleteTimes, 0);
 
@@ -704,8 +700,9 @@ TEST_F(MndTestSdb, 01_Write_Str) {
   }
 
   // write version
-  ASSERT_EQ(sdbUpdateVer(pSdb, 1), 0);
-  ASSERT_EQ(sdbUpdateVer(pSdb, 1), 1);
+  sdbSetApplyIndex(pSdb, 0);
+  sdbSetApplyIndex(pSdb, 1);
+  ASSERT_EQ(sdbGetApplyIndex(pSdb), 1);
   ASSERT_EQ(sdbWriteFile(pSdb), 0);
   ASSERT_EQ(sdbWriteFile(pSdb), 0);
 
@@ -775,7 +772,7 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
   ASSERT_EQ(sdbGetMaxId(pSdb, SDB_USER), -1);
   ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 5);
-  ASSERT_EQ(sdbUpdateVer(pSdb, 0), 1);
+  ASSERT_EQ(sdbGetApplyIndex(pSdb), 1);
   ASSERT_EQ(mnode.insertTimes, 4);
   ASSERT_EQ(mnode.deleteTimes, 0);
 

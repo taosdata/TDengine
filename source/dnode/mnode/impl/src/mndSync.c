@@ -128,38 +128,35 @@ int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
 void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SyncIndex beginIndex = SYNC_INDEX_INVALID;
-  if (pFsm->FpGetSnapshot != NULL) {
-    SSnapshot snapshot = {0};
-    pFsm->FpGetSnapshot(pFsm, &snapshot);
-    beginIndex = snapshot.lastApplyIndex;
-  }
+  SMnode    *pMnode = pFsm->data;
+  SSdb      *pSdb = pMnode->pSdb;
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  SyncIndex  lastApply = sdbGetApplyIndex(pSdb);
+  SSdbRaw   *pRaw = pMsg->pCont;
 
-  if (cbMeta.index > beginIndex) {
-    SMnode    *pMnode = pFsm->data;
-    SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-
-    SRpcMsg *pApplyMsg = (SRpcMsg *)pMsg;
-    pApplyMsg->info.node = pFsm->data;
-    mndProcessApplyMsg(pApplyMsg);
-    sdbUpdateVer(pMnode->pSdb, 1);
-
+  if (cbMeta.index > lastApply) {
+    mTrace("ver:%" PRId64 ", apply raw:%p to sdb, role:%s", cbMeta.index, pRaw, syncStr(cbMeta.state));
+    sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
     if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
       tsem_post(&pMgmt->syncSem);
     }
+  } else {
+    mTrace("ver:%" PRId64 ", already apply raw:%p to sdb, last:%" PRId64, cbMeta.index, pRaw, lastApply);
   }
 }
 
-void mndSyncPreCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+static void mndSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   // strict consistent, do nothing
 }
 
-void mndSyncRollBackMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+static void mndSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   // strict consistent, do nothing
 }
 
-int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
-  // snapshot
+static int32_t mndSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+  SMnode *pMnode = pFsm->data;
+  pSnapshot->lastApplyIndex = sdbGetApplyIndex(pMnode->pSdb);
   return 0;
 }
 
@@ -182,23 +179,25 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
-  SSyncInfo syncInfo = {.vgId = 1};
-  SSyncCfg *pCfg = &(syncInfo.syncCfg);
+  SSyncInfo syncInfo = {.vgId = 1, .FpSendMsg = mndSyncSendMsg, .FpEqMsg = mndSyncEqMsg};
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
+  syncInfo.pWal = pMgmt->pWal;
+  syncInfo.pFsm = mndSyncMakeFsm(pMnode);
+
+  SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
   pCfg->myIndex = pMnode->selfIndex;
   for (int32_t i = 0; i < pMnode->replica; ++i) {
-    SNodeInfo *pNodeInfo = &pCfg->nodeInfo[i];
-    tstrncpy(pNodeInfo->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNodeInfo->nodeFqdn));
-    pNodeInfo->nodePort = pMnode->replicas[i].port;
+    SNodeInfo *pNode = &pCfg->nodeInfo[i];
+    tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = pMnode->replicas[i].port;
   }
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
-  syncInfo.pWal = pMnode->syncMgmt.pWal;
-  syncInfo.pFsm = mndSyncMakeFsm(pMnode);
-  syncInfo.FpSendMsg = mndSyncSendMsg;
-  syncInfo.FpEqMsg = mndSyncEqMsg;
 
-  pMnode->syncMgmt.sync = syncOpen(&syncInfo);
-  ASSERT(pMnode->syncMgmt.sync > 0);
+  pMgmt->sync = syncOpen(&syncInfo);
+  if (pMgmt->sync <= 0) {
+    mError("failed to open sync since %s", terrstr());
+    return -1;
+  }
 
   return 0;
 }
@@ -207,16 +206,6 @@ void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   tsem_destroy(&pMgmt->syncSem);
   mndCloseWal(pMnode);
-}
-
-static int32_t mndSyncApplyCb(struct SSyncFSM *fsm, SyncIndex index, const SSyncBuffer *buf, void *pData) {
-  SMnode    *pMnode = pData;
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-
-  pMgmt->errCode = 0;
-  tsem_post(&pMgmt->syncSem);
-
-  return 0;
 }
 
 int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
