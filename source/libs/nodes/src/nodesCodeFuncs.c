@@ -78,6 +78,8 @@ const char* nodesNodeName(ENodeType type) {
       return "TableOptions";
     case QUERY_NODE_INDEX_OPTIONS:
       return "IndexOptions";
+    case QUERY_NODE_LEFT_VALUE:
+      return "LeftValue";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -2175,7 +2177,7 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes);
+      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
       if (TSDB_DATA_TYPE_NCHAR == pNode->node.resType.type) {
         char* buf = taosMemoryCalloc(1, pNode->node.resType.bytes * 2 + VARSTR_HEADER_SIZE + 1);
         if (NULL == buf) {
@@ -3019,6 +3021,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return downstreamSourceNodeToJson(pObj, pJson);
+    case QUERY_NODE_LEFT_VALUE:
+      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -3130,6 +3134,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToSlotDescNode(pJson, pObj);
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return jsonToDownstreamSourceNode(pJson, pObj);
+    case QUERY_NODE_LEFT_VALUE:
+      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:

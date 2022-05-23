@@ -81,6 +81,7 @@ typedef struct SValueNode {
   char*     literal;
   bool      isDuration;
   bool      translate;
+  bool      notReserved;
   int16_t   placeholderNo;
   union {
     bool     b;
@@ -92,6 +93,10 @@ typedef struct SValueNode {
   int64_t typeData;
   char    unit;
 } SValueNode;
+
+typedef struct SLeftValueNode {
+  ENodeType type;
+} SLeftValueNode;
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR

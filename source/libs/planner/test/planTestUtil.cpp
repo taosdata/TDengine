@@ -14,6 +14,7 @@
  */
 
 #include "planTestUtil.h"
+#include <getopt.h>
 
 #include <algorithm>
 #include <array>

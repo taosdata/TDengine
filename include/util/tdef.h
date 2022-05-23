@@ -132,6 +132,7 @@ typedef enum EOperatorType {
   OP_TYPE_MOD,
   // unary arithmetic operator
   OP_TYPE_MINUS,
+  OP_TYPE_ASSIGN,
 
   // bit operator
   OP_TYPE_BIT_AND,

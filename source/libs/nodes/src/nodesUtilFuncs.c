@@ -79,6 +79,8 @@ int32_t nodesNodeSize(ENodeType type) {
       return sizeof(SStreamOptions);
     case QUERY_NODE_TOPIC_OPTIONS:
       return sizeof(STopicOptions);
+    case QUERY_NODE_LEFT_VALUE:
+      return sizeof(SLeftValueNode);
     case QUERY_NODE_SET_OPERATOR:
       return sizeof(SSetOperator);
     case QUERY_NODE_SELECT_STMT:
