@@ -284,6 +284,8 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
     tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
   }
   pTSchema = tdGetSchemaFromBuilder(&sb);
+  pTSchema->version = sver;
+
   tdDestroyTSchemaBuilder(&sb);
 
   taosMemoryFree(pSW->pSchema);
