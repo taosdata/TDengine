@@ -113,7 +113,7 @@ void tdigestCompress(TDigest *t) {
     if (t->num_buffered_pts <= 0)
         return;
 
-    unmerged_centroids = (SCentroid*)malloc(sizeof(SCentroid) * t->num_buffered_pts);
+    unmerged_centroids = (SCentroid*)taosMemoryMalloc(sizeof(SCentroid) * t->num_buffered_pts);
     for (i = 0; i < num_unmerged; i++) {
         SPt *p = t->buffered_pts + i;
         SCentroid *c = &unmerged_centroids[i];
@@ -126,7 +126,7 @@ void tdigestCompress(TDigest *t) {
 
     qsort(unmerged_centroids, num_unmerged, sizeof(SCentroid), cmpCentroid);
     memset(&args, 0, sizeof(SMergeArgs));
-    args.centroids = (SCentroid*)malloc((size_t)(sizeof(SCentroid) * t->size));
+    args.centroids = (SCentroid*)taosMemoryMalloc((size_t)(sizeof(SCentroid) * t->size));
     memset(args.centroids, 0, (size_t)(sizeof(SCentroid) * t->size));
 
     args.t = t;
@@ -154,7 +154,7 @@ void tdigestCompress(TDigest *t) {
         mergeCentroid(&args, &unmerged_centroids[i++]);
         assert(args.idx < t->size);
     }
-    free((void*)unmerged_centroids);
+    taosMemoryFree((void*)unmerged_centroids);
 
     while (j < t->num_centroids) {
         mergeCentroid(&args, &t->centroids[j++]);
@@ -171,7 +171,7 @@ void tdigestCompress(TDigest *t) {
     }
 
     memcpy(t->centroids, args.centroids, sizeof(SCentroid) * t->num_centroids);
-    free((void*)args.centroids);
+    taosMemoryFree((void*)args.centroids);
 }
 
 void tdigestAdd(TDigest* t, double x, int64_t w) {
