@@ -96,6 +96,7 @@ extern char *qtypeStr[];
 #define TSDB_PORT_HTTP 11
 
 #undef TD_DEBUG_PRINT_ROW
+#undef TD_DEBUG_PRINT_TSDB_READ_DCOLS
 
 #ifdef __cplusplus
 }
