@@ -74,7 +74,7 @@ void setBoundColumnInfo(SParsedDataColInfo* pColList, SSchema* pSchema, col_id_t
       default:
         break;
     }
-    pColList->boundColumns[i] = i + PRIMARYKEY_TIMESTAMP_COL_ID;
+    pColList->boundColumns[i] = i + pSchema[i].colId;
   }
   pColList->allNullLen += pColList->flen;
   pColList->boundNullLen = pColList->allNullLen;  // default set allNullLen
