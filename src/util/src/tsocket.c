@@ -447,6 +447,15 @@ int32_t taosKeepTcpAlive(SOCKET sockFd) {
     return -1;
   }
 
+  struct timeval tv;
+  tv.tv_sec = 1;
+  tv.tv_usec = 500000;
+  if (taosSetSockOpt(sockFd, SOL_SOCKET, SO_SNDTIMEO, (void *)&tv, sizeof(tv)) < 0) {
+    uError("setsockopt SO_SNDTIMEO failed: %d (%s)", errno, strerror(errno));
+    taosCloseSocket(sockFd);
+    return -1;
+  }
+
   return 0;
 }
 
