@@ -15,6 +15,7 @@
 
 #include "filter.h"
 #include "functionMgt.h"
+#include "index.h"
 #include "planInt.h"
 
 #define OPTIMIZE_FLAG_MASK(n) (1 << n)
@@ -430,10 +431,6 @@ static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, 
   }
   return code;
 }
-
-typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
-
-static SIdxFltStatus idxGetFltStatus(SNode* pFilterNode) { return SFLT_ACCURATE_INDEX; }
 
 static int32_t cpdApplyTagIndex(SScanLogicNode* pScan, SNode** pTagCond, SNode** pOtherCond) {
   int32_t       code = TSDB_CODE_SUCCESS;
