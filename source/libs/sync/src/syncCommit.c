@@ -143,8 +143,12 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
                 pSyncNode->pFsm->FpRestoreFinish(pSyncNode->pFsm);
               }
               pSyncNode->restoreFinish = true;
+              sInfo("==syncMaybeAdvanceCommitIndex== restoreFinish set true %p vgId:%d", pSyncNode, pSyncNode->vgId);
 
+              /*
               tsem_post(&pSyncNode->restoreSem);
+              sInfo("==syncMaybeAdvanceCommitIndex== RestoreFinish tsem_post %p", pSyncNode);
+              */
             }
           }
 

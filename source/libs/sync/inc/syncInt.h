@@ -149,7 +149,7 @@ typedef struct SSyncNode {
 
   // restore state
   bool       restoreFinish;
-  sem_t      restoreSem;
+  //sem_t      restoreSem;
   SSnapshot* pSnapshot;
 
 } SSyncNode;
