@@ -115,9 +115,6 @@ int32_t streamDataBlockEncode(void** buf, const SStreamDataBlock* pOutput);
 void*   streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput);
 
 typedef struct {
-} SStreamRunner;
-
-typedef struct {
   int8_t parallelizable;
   char*  qmsg;
   // followings are not applicable to encoder and decoder
