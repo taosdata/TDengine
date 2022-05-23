@@ -57,10 +57,10 @@ The first step is to create subscription using `taos_subscribe`.
 ```c
 TAOS_SUB* tsub = NULL;
 if (async) {
-　　// create an asynchronized subscription, the callback function will be called every 1s
+　　// create an asynchronous subscription, the callback function will be called every 1s
 　　tsub = taos_subscribe(taos, restart, topic, sql, subscribe_callback, &blockFetch, 1000);
 } else {
-　　// create an synchronized subscription, need to call 'taos_consume' manually
+　　// create an synchronous subscription, need to call 'taos_consume' manually
 　　tsub = taos_subscribe(taos, restart, topic, sql, NULL, NULL, 0);
 }
 ```
@@ -153,7 +153,7 @@ The second parameter `keep` is used to specify whether to keep the subscription 
 
 Now let's see the effect of the above sample code, assuming below prerequisites have been done.
 
-- The sample code has been downloaded to local system 示
+- The sample code has been downloaded to local system
 - TDengine has been installed and launched properly on same system
 - The database, STable, sub tables required in the sample code have been ready
 

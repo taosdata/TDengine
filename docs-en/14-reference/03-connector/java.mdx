@@ -254,7 +254,7 @@ In the above example, a connection is established to `taosdemo.com`, port is 603
 The configuration parameters in properties are as follows.
 
 - TSDBDriver.PROPERTY_KEY_USER: Login TDengine user name, default value 'root'.
-- TSDBDriver.PROPERTY_KEY_PASSWORD: user login password, default value 'tasdata'.
+- TSDBDriver.PROPERTY_KEY_PASSWORD: user login password, default value 'taosdata'.
 - TSDBDriver.PROPERTY_KEY_BATCH_LOAD: true: pull the result set in batch when executing query; false: pull the result set row by row. The default value is: false.
 - TSDBDriver.PROPERTY_KEY_BATCH_ERROR_IGNORE: true: when executing executeBatch of Statement, if there is a SQL execution failure in the middle, continue to execute the following sq. false: no longer execute any statement after the failed SQL. The default value is: false.
 - TSDBDriver.PROPERTY_KEY_CONFIG_DIR: Only works when using JDBC native connection. Client configuration file directory path, default value `/etc/taos` on Linux OS, default value `C:/TDengine/cfg` on Windows OS.
@@ -742,7 +742,7 @@ Example usage is as follows.
     //query or insert
     // ...
 
-    connection.close(); // put back to conneciton pool
+    connection.close(); // put back to connection pool
 }
 ```
 
@@ -774,7 +774,7 @@ public static void main(String[] args) throws Exception {
     //query or insert
     // ...
 
-    connection.close(); // put back to conneciton pool
+    connection.close(); // put back to connection pool
 }
 ```
 

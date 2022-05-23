@@ -73,7 +73,7 @@ taos --dump-config
 | Attribute     | Description                                                                                                                     |
 | ------------- | ------------------------------------------------------------------------------------------------------------------------------- |
 | Applicable    | Server Only                                                                                                                     |
-| Meaning       | The port for external access after `taosd` is started 号                                                                        |
+| Meaning       | The port for external access after `taosd` is started                                                                           |
 | Default Value | 6030                                                                                                                            |
 | Note          | REST service is provided by `taosd` before 2.4.0.0 but by `taosAdapter` after 2.4.0.0, the default port of REST service is 6041 |
 
@@ -90,8 +90,8 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | TCP      | 6041         | REST connection between client and server        | Prior to 2.4.0.0: serverPort+11; After 2.4.0.0 refer to [taosAdapter](/reference/taosadapter/) |
 | TCP      | 6042         | Service Port of Arbitrator                       | The parameter of Arbitrator                                                                    |
 | TCP      | 6043         | Service Port of TaosKeeper                       | The parameter of TaosKeeper                                                                    |
-| TCP      | 6044         | Data access port for StatsD                      | efer to [taosAdapter](/reference/taosadapter/)                                                 |
-| UDP      | 6045         | Data access for statsd                           | efer to [taosAdapter](/reference/taosadapter/)                                                 |
+| TCP      | 6044         | Data access port for StatsD                      | refer to [taosAdapter](/reference/taosadapter/)                                                 |
+| UDP      | 6045         | Data access for statsd                           | refer to [taosAdapter](/reference/taosadapter/)                                                 |
 | TCP      | 6060         | Port of Monitoring Service in Enterprise version |                                                                                                |
 | UDP      | 6030-6034    | Communication between client and server          | serverPort                                                                                     |
 | UDP      | 6035-6039    | Communication among server nodes in cluster      | serverPort                                                                                     |
@@ -120,7 +120,7 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | Attribute     | Description                                                         |
 | ------------- | ------------------------------------------------------------------- |
 | Applicable    | Server and Client                                                   |
-| Meaning       | TCP is used forcely                                                 |
+| Meaning       | TCP is used by force                                                |
 | Value Range   | 0: disabled 1: enabled                                              |
 | Default Value | 0                                                                   |
 | Note          | It's suggested to configure to enable if network is not good enough |
@@ -133,7 +133,7 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Applicable    | Server Only                                                                                                                                                                         |
 | Meaning       | The switch for monitoring inside server. The workload of the hosts, including CPU, memory, disk, network, TTP requests, are collected and stored in a system builtin database `LOG` |
-| Value Range   | 0: monitoring disabled, 1: monitoring enabled 务.                                                                                                                                   |
+| Value Range   | 0: monitoring disabled, 1: monitoring enabled                                                                                                                                       |
 | Default Value | 0                                                                                                                                                                                   |
 
 ### monitorInterval
@@ -159,13 +159,13 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 
 ### queryBufferSize
 
-| Attribute     | Description                                                                             |
-| ------------- | --------------------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                             |
-| Meaning       | The total memory size reserved for all queries                                          |
-| Unit          | MB                                                                                      |
-| Default Value | 无                                                                                      |
-| Note          | It can be estimated by "maximum number of concurrent quries" _ "number of tables" _ 170 |
+| Attribute     | Description                                                                              |
+| ------------- | ---------------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                              |
+| Meaning       | The total memory size reserved for all queries                                           |
+| Unit          | MB                                                                                       |
+| Default Value | None                                                                                     |
+| Note          | It can be estimated by "maximum number of concurrent queries" _ "number of tables" _ 170 |
 
 ### ratioOfQueryCores
 
@@ -197,7 +197,7 @@ TDengine uses continuous 13 ports, both TCP and TCP, from the port specified by 
 | Default Value | TimeZone configured in the host |
 
 :::info
-To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored TDengie. The timestamp generated from any timezones at same time is same in Unix timestamp. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
+To handle the data insertion and data query from multiple timezones, Unix Timestamp is used and stored TDengine. The timestamp generated from any timezones at same time is same in Unix timestamp. To make sure the time on client side can be converted to Unix timestamp correctly, the timezone must be set properly.
 
 On Linux system, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below.
 
@@ -240,7 +240,7 @@ To avoid the problems of using time strings, Unix timestamp can be used directly
 | Default Value | Locale configured in host |
 
 :::info
-A specific type "nchar" is provied in TDengine to store non-ASCII characters such as Chinese, Japanese, Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
+A specific type "nchar" is provided in TDengine to store non-ASCII characters such as Chinese, Japanese, Korean. The characters to be stored in nchar type are firstly encoded in UCS4-LE before sending to server side. To store non-ASCII characters correctly, the encoding format of the client side needs to be set properly.
 
 The characters input on the client side are encoded using the default system encoding, which is UTF-8 on Linux, or GB18030 or GBK on some systems in Chinese, POSIX in docker, CP936 on Windows in Chinese. The encoding of the operating system in use must be set correctly so that the characters in nchar type can be converted to UCS4-LE.
 
@@ -250,11 +250,11 @@ The locale definition standard on Linux is: <Language\>\_<Region\>.<charset\>, f
 
 ### charset
 
-| Attribute     | Description                  |
-| ------------- | ---------------------------- |
-| Applicable    | Server and Client            |
-| Meaning       | Character                    |
-| Default Value | charset set in the system 系 |
+| Attribute     | Description               |
+| ------------- | ------------------------- |
+| Applicable    | Server and Client         |
+| Meaning       | Character                 |
+| Default Value | charset set in the system |
 
 :::info
 On Linux, if `charset` is not set in `taos.cfg`, when `taos` is started, the charset is obtained from system locale. If obtaining charset from system locale fails, `taos` would fail to start. So on Linux system, if system locale is set properly, it's not necessary to set `charset` in `taos.cfg`. For example:
@@ -346,12 +346,12 @@ charset CP936
 
 ### walLevel
 
-| Attribute     | Description                                                  |
-| ------------- | ------------------------------------------------------------ |
-| Applicable    | Server Only                                                  |
-| Meaning       | WAL level                                                    |
+| Attribute     | Description                                                                        |
+| ------------- | ---------------------------------------------------------------------------------- |
+| Applicable    | Server Only                                                                        |
+| Meaning       | WAL level                                                                          |
 | Value Range   | 0: wal disabled <br/> 1: wal enabled without fsync <br/> 2: wal enabled with fsync |
-| Default Value | 1                                                            |
+| Default Value | 1                                                                                  |
 
 ### fsync
 
@@ -430,12 +430,12 @@ charset CP936
 
 ### quorum
 
-| Attribute     | Description                                                                                   |
-| ------------- | --------------------------------------------------------------------------------------------- |
-| Applicable    | Server Only                                                                                   |
-| Meaning       | The number of required confirmations for data replication in case of multiple replications 多 |
-| Value Range   | 1,2                                                                                           |
-| Default Value | 1                                                                                             |
+| Attribute     | Description                                                                                |
+| ------------- | ------------------------------------------------------------------------------------------ |
+| Applicable    | Server Only                                                                                |
+| Meaning       | The number of required confirmations for data replication in case of multiple replications |
+| Value Range   | 1,2                                                                                        |
+| Default Value | 1                                                                                          |
 
 ### role
 
@@ -552,7 +552,7 @@ charset CP936
 | Meaning       | The expiration time for dnode online status, once it's reached before receiving status from a node, the dnode becomes offline |
 | Unit          | second                                                                                                                        |
 | Value Range   | 5-7200000                                                                                                                     |
-| Default Value | 86400\*10（10 天）                                                                                                            |
+| Default Value | 86400\*10 (i.e. 10 days)                                                                                                      |
 
 ## Performance Optimization Parameters
 
@@ -569,7 +569,7 @@ charset CP936
 | Attribute     | Description                                                                                   |
 | ------------- | --------------------------------------------------------------------------------------------- |
 | Applicable    | Server Only                                                                                   |
-| Meaning       | Maximum number of query threads 量                                                            |
+| Meaning       | Maximum number of query threads                                                               |
 | Value Range   | 0: Only one query thread <br/> 1: Same as number of CPU cores <br/> 2: two times of CPU cores |
 | Default Value | 1                                                                                             |
 | Note          | This value can be a float number, 0.5 means half of the CPU cores                             |
@@ -700,7 +700,7 @@ charset CP936
 | Default Value | 0.0000000000000001                                          |
 | Note          | The fractional part lower than this value will be discarded |
 
-## Continuous Query Prameters
+## Continuous Query Parameters
 
 ### stream
 
@@ -961,7 +961,7 @@ The parameters described in this section are only application in versions prior 
 | ------------- | ----------------------- |
 | Applicable    | Client Only             |
 | Meaning       | Log level of jni module |
-| Value Range   | 同上                    |
+| Value Range   | Same as debugFlag       |
 | Default Value |                         |
 
 ### odbcDebugFlag
@@ -1100,12 +1100,12 @@ If the length of value exceeds `maxBinaryDisplayWidth`, then the actual display 
 
 ### maxRegexStringLen
 
-| Attribute     | Description                                                 |
-| ------------- | ----------------------------------------------------------- |
-| Meaning       | Maximum length of regular expression 正则表达式最大允许长度 |
-| Value Range   | [128, 16384]                                                |
-| Default Value | 128                                                         |
-| Note          | From version 2.3.0.0                                        |
+| Attribute     | Description                          |
+| ------------- | ------------------------------------ |
+| Meaning       | Maximum length of regular expression |
+| Value Range   | [128, 16384]                         |
+| Default Value | 128                                  |
+| Note          | From version 2.3.0.0                 |
 
 ## Other Parameters
 
