@@ -25,7 +25,10 @@ extern "C" {
 int32_t mndInitSync(SMnode *pMnode);
 void    mndCleanupSync(SMnode *pMnode);
 bool    mndIsMaster(SMnode *pMnode);
+bool    mndIsRestored(SMnode *pMnode);
 int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw);
+void    mndSyncStart(SMnode *pMnode);
+void    mndSyncStop(SMnode *pMnode);
 
 #ifdef __cplusplus
 }

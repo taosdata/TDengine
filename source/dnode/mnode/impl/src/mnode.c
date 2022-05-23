@@ -86,7 +86,7 @@ static void *mndThreadFp(void *param) {
     lastTime++;
     taosMsleep(100);
     if (pMnode->stopped) break;
-    if (!mndIsMaster(pMnode)) continue;
+    if (!mndIsMaster(pMnode) || !mndIsRestored(pMnode)) continue;
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);
@@ -337,13 +337,12 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
 }
 
 int32_t mndStart(SMnode *pMnode) {
-  syncSetMsgCb(pMnode->syncMgmt.sync, &pMnode->msgCb);
-  syncStart(pMnode->syncMgmt.sync);
+  mndSyncStart(pMnode);
   return mndInitTimer(pMnode);
 }
 
-void mndStop(SMnode *pMnode) { 
-  syncStop(pMnode->syncMgmt.sync); 
+void mndStop(SMnode *pMnode) {
+  mndSyncStop(pMnode);
   return mndCleanupTimer(pMnode);
 }
 
@@ -357,7 +356,7 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   void   *ahandle = pMsg->info.ahandle;
   int32_t ret = TAOS_SYNC_PROPOSE_OTHER_ERROR;
-  
+
   if (syncEnvIsStart()) {
     SSyncNode *pSyncNode = syncNodeAcquire(pMnode->syncMgmt.sync);
     assert(pSyncNode != NULL);
@@ -444,7 +443,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
 
   return ret;
 
-
   return 0;
 }
 
@@ -454,7 +452,7 @@ int32_t mndProcessMsg(SRpcMsg *pMsg) {
   mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
 
   if (IsReq(pMsg)) {
-    if (!mndIsMaster(pMnode)) {
+    if (!mndIsMaster(pMnode) || !mndIsRestored(pMnode)) {
       terrno = TSDB_CODE_APP_NOT_READY;
       mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
       return -1;
@@ -514,7 +512,7 @@ int64_t mndGenerateUid(char *name, int32_t len) {
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {
-  if (!mndIsMaster(pMnode)) return -1;
+  if (!mndIsMaster(pMnode) || !mndIsRestored(pMnode)) return -1;
 
   SSdb   *pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();

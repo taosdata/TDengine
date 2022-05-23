@@ -682,16 +682,6 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   }
 
   mDebug("trans:%d, sync finished", pTrans->id);
-
-// do it in state machine commit cb
-#if 0
-  code = sdbWriteWithout(pMnode->pSdb, pRaw);
-  if (code != 0) {
-    mError("trans:%d, failed to write sdb since %s", pTrans->id, terrstr());
-    return -1;
-  }
-#endif
-
   return 0;
 }
 

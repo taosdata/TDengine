@@ -68,7 +68,6 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
 
 int32_t mndInitSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  tsem_init(&pMgmt->syncSem, 0, 0);
 
   char path[PATH_MAX + 20] = {0};
   snprintf(path, sizeof(path), "%s%swal", pMnode->path, TD_DIRSEP);
@@ -102,6 +101,7 @@ int32_t mndInitSync(SMnode *pMnode) {
     pNode->nodePort = pMnode->replicas[i].port;
   }
 
+  tsem_init(&pMgmt->syncSem, 0, 0);
   pMgmt->sync = syncOpen(&syncInfo);
   if (pMgmt->sync <= 0) {
     mError("failed to open sync since %s", terrstr());
@@ -146,8 +146,30 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   return pMgmt->errCode;
 }
 
+void mndSyncStart(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  int64_t lastApplyIndex = sdbGetApplyIndex(pSdb);
+
+  syncSetMsgCb(pMnode->syncMgmt.sync, &pMnode->msgCb);
+  syncStart(pMnode->syncMgmt.sync);
+
+  int64_t applyIndex = sdbGetApplyIndex(pSdb);
+  mndTransPullup(pMnode);
+  mDebug("pullup trans finished, applyIndex:%" PRId64, applyIndex);
+  if (applyIndex != lastApplyIndex) {
+    mInfo("sdb restored from %" PRId64 " to %" PRId64 ", write file", lastApplyIndex, applyIndex);
+    sdbWriteFile(pSdb);
+  }
+
+  pMnode->syncMgmt.restored = true;
+}
+
+void mndSyncStop(SMnode *pMnode) { syncStop(pMnode->syncMgmt.sync); }
+
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   pMgmt->state = syncGetMyRole(pMgmt->sync);
   return pMgmt->state == TAOS_SYNC_STATE_LEADER;
 }
+
+bool mndIsRestored(SMnode *pMnode) { return pMnode->syncMgmt.restored; }

@@ -75,9 +75,10 @@ typedef struct {
 } STelemMgmt;
 
 typedef struct {
-  int32_t    errCode;
-  sem_t      syncSem;
   SWal      *pWal;
+  int32_t    errCode;
+  bool       restored;
+  sem_t      syncSem;
   int64_t    sync;
   ESyncState state;
 } SSyncMgmt;
