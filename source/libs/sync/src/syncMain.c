@@ -242,7 +242,7 @@ int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
   return ret;
 }
 
-void syncSetMsgCb(int64_t rid, const SMsgCb *msgcb) {
+void syncSetMsgCb(int64_t rid, const SMsgCb* msgcb) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     sTrace("syncSetQ get pSyncNode is NULL, rid:%ld", rid);
@@ -492,6 +492,15 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->pSyncRespMgr = syncRespMgrCreate(NULL, 0);
   assert(pSyncNode->pSyncRespMgr != NULL);
 
+  // restore state
+  pSyncNode->restoreFinish = false;
+  pSyncNode->pSnapshot = NULL;
+  if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
+    pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
+    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, pSyncNode->pSnapshot);
+  }
+  tsem_init(&(pSyncNode->restoreSem), 0, 0);
+
   // start in syncNodeStart
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
@@ -511,6 +520,8 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     // use this now
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
+
+    tsem_wait(&pSyncNode->restoreSem);
     return;
   }
 
@@ -520,6 +531,8 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   // ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
+
+  tsem_wait(&pSyncNode->restoreSem);
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -555,6 +568,12 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   if (pSyncNode->pFsm != NULL) {
     taosMemoryFree(pSyncNode->pFsm);
   }
+
+  if (pSyncNode->pSnapshot != NULL) {
+    taosMemoryFree(pSyncNode->pSnapshot);
+  }
+
+  tsem_destroy(&pSyncNode->restoreSem);
 
   // free memory in syncFreeNode
   // taosMemoryFree(pSyncNode);

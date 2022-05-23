@@ -102,7 +102,6 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           SRpcMsg rpcMsg;
           syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-          // if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
           if (pSyncNode->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
             SFsmCbMeta cbMeta;
             cbMeta.index = pEntry->index;
@@ -110,9 +109,17 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             cbMeta.code = 0;
             cbMeta.state = pSyncNode->state;
             cbMeta.seqNum = pEntry->seqNum;
-			cbMeta.term = pEntry->term;
-			cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
-            pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
+            cbMeta.term = pEntry->term;
+            cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
+
+            bool needExecute = true;
+            if (pSyncNode->pSnapshot != NULL && cbMeta.index <= pSyncNode->pSnapshot->lastApplyIndex) {
+              needExecute = false;
+            }
+
+            if (needExecute) {
+              pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
+            }
           }
 
           // config change
@@ -126,6 +133,16 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
               syncNodeBecomeLeader(pSyncNode);
             } else {
               syncNodeBecomeFollower(pSyncNode);
+            }
+          }
+
+          // restore finish
+          if (pEntry->index == pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore)) {
+            if (pSyncNode->restoreFinish == false) {
+              pSyncNode->pFsm->FpRestoreFinish(pSyncNode->pFsm);
+              pSyncNode->restoreFinish = true;
+
+              tsem_post(&pSyncNode->restoreSem);
             }
           }
 

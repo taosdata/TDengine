@@ -36,8 +36,8 @@ typedef struct SSyncIO {
   STaosQueue *pMsgQ;
   STaosQset * pQset;
   TdThread    consumerTid;
-  void       *serverRpc;
-  void       *clientRpc;
+  void *      serverRpc;
+  void *      clientRpc;
   SEpSet      myAddr;
   SMsgCb      msgcb;
 
