@@ -24,26 +24,62 @@ static int vnodeProcessDropTbReq(SVnode *pVnode, int64_t version, void *pReq, in
 static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, int32_t len, SRpcMsg *pRsp);
 static int vnodeProcessCreateTSmaReq(SVnode *pVnode, int64_t version, void *pReq, int len, SRpcMsg *pRsp);
 
-int vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version) {
-#if 0
-  SRpcMsg *pMsg;
-  SRpcMsg  *pRpc;
+int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
+  SDecoder dc = {0};
 
-  *version = pVnode->state.processed;
-  for (int i = 0; i < taosArrayGetSize(pMsgs); i++) {
-    pMsg = *(SRpcMsg **)taosArrayGet(pMsgs, i);
-    pRpc = pMsg;
+  switch (pMsg->msgType) {
+    case TDMT_VND_CREATE_TABLE: {
+      int64_t ctime = taosGetTimestampMs();
+      int32_t nReqs;
 
-    // set request version
-    if (walWrite(pVnode->pWal, pVnode->state.processed++, pRpc->msgType, pRpc->pCont, pRpc->contLen) < 0) {
-      vError("vnode:%d  write wal error since %s", TD_VID(pVnode), terrstr());
-      return -1;
-    }
+      tDecoderInit(&dc, (uint8_t *)pMsg->pCont + sizeof(SMsgHead), pMsg->contLen - sizeof(SMsgHead));
+      tStartDecode(&dc);
+
+      tDecodeI32v(&dc, &nReqs);
+      for (int32_t iReq = 0; iReq < nReqs; iReq++) {
+        tb_uid_t uid = tGenIdPI64();
+        tStartDecode(&dc);
+
+        tDecodeI32v(&dc, NULL);
+        *(int64_t *)(dc.data + dc.pos) = uid;
+        *(int64_t *)(dc.data + dc.pos + 8) = ctime;
+
+        tEndDecode(&dc);
+      }
+
+      tEndDecode(&dc);
+      tDecoderClear(&dc);
+    } break;
+    case TDMT_VND_SUBMIT: {
+      SSubmitMsgIter msgIter = {0};
+      SSubmitReq    *pSubmitReq = (SSubmitReq *)pMsg->pCont;
+      SSubmitBlk    *pBlock = NULL;
+      int64_t        ctime = taosGetTimestampMs();
+
+      tInitSubmitMsgIter(pSubmitReq, &msgIter);
+
+      for (;;) {
+        tGetSubmitMsgNext(&msgIter, &pBlock);
+        if (pBlock == NULL) break;
+
+        if (msgIter.schemaLen > 0) {
+          tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
+          tStartDecode(&dc);
+
+          tDecodeI32v(&dc, NULL);
+          *(int64_t *)(dc.data + dc.pos) = tGenIdPI64();
+          *(int64_t *)(dc.data + dc.pos + 8) = ctime;
+
+          tEndDecode(&dc);
+          tDecoderClear(&dc);
+        }
+      }
+
+    } break;
+    default:
+      break;
   }
 
-  walFsync(pVnode->pWal, false);
-
-#endif
   return 0;
 }
 
@@ -675,7 +711,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
     goto _exit;
   }
 
-  for (int i = 0;;) {
+  for (;;) {
     tGetSubmitMsgNext(&msgIter, &pBlock);
     if (pBlock == NULL) break;
 

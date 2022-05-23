@@ -72,12 +72,20 @@ static int32_t udfSpawnUdfd(SUdfdData* pData) {
   char path[PATH_MAX] = {0};
   if (tsProcPath == NULL) {
     path[0] = '.';
+  #ifdef WINDOWS
+    GetModuleFileName(NULL, path, PATH_MAX);
+    taosDirName(path);
+  #endif
   } else {
     strncpy(path, tsProcPath, strlen(tsProcPath));
     taosDirName(path);
   }
 #ifdef WINDOWS
-  strcat(path, "udfd.exe");
+  if (strlen(path)==0) {
+    strcat(path, "udfd.exe");
+  } else {
+    strcat(path, "\\udfd.exe");
+  }
 #else
   strcat(path, "/udfd");
 #endif
