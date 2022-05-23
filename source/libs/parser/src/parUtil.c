@@ -330,7 +330,7 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
   // set json NULL data
   uint8_t jsonNULL = TSDB_DATA_TYPE_NULL;
   int     jsonIndex = startColId + 1;
-  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
+  if (!json || strtrim((char*)json) == 0 ||strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
     tdAddColToKVRow(kvRowBuilder, jsonIndex, &jsonNULL, CHAR_BYTES);
     return TSDB_CODE_SUCCESS;
   }
