@@ -866,8 +866,7 @@ static char* parseTagDatatoJson(void* p) {
     if (j == 0) {
       if (*val == TSDB_DATA_TYPE_NULL) {
         string = taosMemoryCalloc(1, 8);
-        sprintf(varDataVal(string), "%s", TSDB_DATA_NULL_STR_L);
-        varDataSetLen(string, strlen(varDataVal(string)));
+        sprintf(string, "%s", TSDB_DATA_NULL_STR_L);
         goto end;
       }
       continue;
