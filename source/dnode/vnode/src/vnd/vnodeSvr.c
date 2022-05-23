@@ -55,6 +55,7 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
       SSubmitReq    *pSubmitReq = (SSubmitReq *)pMsg->pCont;
       SSubmitBlk    *pBlock = NULL;
       int64_t        ctime = taosGetTimestampMs();
+      tb_uid_t       uid;
 
       tInitSubmitMsgIter(pSubmitReq, &msgIter);
 
@@ -63,12 +64,15 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
         if (pBlock == NULL) break;
 
         if (msgIter.schemaLen > 0) {
+          uid = tGenIdPI64();
+
           tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
           tStartDecode(&dc);
 
           tDecodeI32v(&dc, NULL);
-          *(int64_t *)(dc.data + dc.pos) = tGenIdPI64();
+          *(int64_t *)(dc.data + dc.pos) = uid;
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
+          pBlock->uid = htobe64(uid);
 
           tEndDecode(&dc);
           tDecoderClear(&dc);
