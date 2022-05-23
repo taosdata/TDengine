@@ -368,6 +368,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                   ths->restoreFinish = true;
 
                   tsem_post(&ths->restoreSem);
+                  sInfo("==syncNodeOnAppendEntriesCb== RestoreFinish tsem_post");
                 }
               }
 

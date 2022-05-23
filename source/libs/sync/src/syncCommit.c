@@ -145,6 +145,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
               pSyncNode->restoreFinish = true;
 
               tsem_post(&pSyncNode->restoreSem);
+              sInfo("==syncMaybeAdvanceCommitIndex== RestoreFinish tsem_post");
             }
           }
 
