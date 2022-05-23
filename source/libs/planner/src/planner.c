@@ -18,6 +18,13 @@
 #include "planInt.h"
 #include "scalar.h"
 
+static void dumpQueryPlan(SQueryPlan* pPlan) {
+  char* pStr = NULL;
+  nodesNodeToString(pPlan, false, &pStr, NULL);
+  planDebugL("Query Plan: %s", pStr);
+  taosMemoryFree(pStr);
+}
+
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
   SLogicNode*      pLogicNode = NULL;
   SLogicSubplan*   pLogicSubplan = NULL;
@@ -35,6 +42,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    dumpQueryPlan(*pPlan);
   }
 
   nodesDestroyNode(pLogicNode);

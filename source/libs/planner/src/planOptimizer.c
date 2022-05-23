@@ -313,22 +313,53 @@ static EDealRes cpdIsPrimaryKeyCondImpl(SNode* pNode, void* pContext) {
 }
 
 static bool cpdIsPrimaryKeyCond(SNode* pNode) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
+    return false;
+  }
   bool isPrimaryKeyCond = false;
   nodesWalkExpr(pNode, cpdIsPrimaryKeyCondImpl, &isPrimaryKeyCond);
   return isPrimaryKeyCond;
 }
 
-static int32_t cpdPartitionScanLogicCond(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
+static EDealRes cpdIsTagCondImpl(SNode* pNode, void* pContext) {
+  if (QUERY_NODE_COLUMN == nodeType(pNode)) {
+    *((bool*)pContext) = ((COLUMN_TYPE_TAG == ((SColumnNode*)pNode)->colType) ? true : false);
+    return *((bool*)pContext) ? DEAL_RES_CONTINUE : DEAL_RES_END;
+  }
+  return DEAL_RES_CONTINUE;
+}
+
+static bool cpdIsTagCond(SNode* pNode) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pNode)) {
+    return false;
+  }
+  bool isTagCond = false;
+  nodesWalkExpr(pNode, cpdIsTagCondImpl, &isTagCond);
+  return isTagCond;
+}
+
+static int32_t cpdPartitionScanLogicCond(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pTagCond,
+                                         SNode** pOtherCond) {
   SLogicConditionNode* pLogicCond = (SLogicConditionNode*)pScan->node.pConditions;
+
+  if (LOGIC_COND_TYPE_AND != pLogicCond->condType) {
+    *pPrimaryKeyCond = NULL;
+    *pOtherCond = pScan->node.pConditions;
+    pScan->node.pConditions = NULL;
+    return TSDB_CODE_SUCCESS;
+  }
 
   int32_t code = TSDB_CODE_SUCCESS;
 
   SNodeList* pPrimaryKeyConds = NULL;
+  SNodeList* pTagConds = NULL;
   SNodeList* pOtherConds = NULL;
   SNode*     pCond = NULL;
   FOREACH(pCond, pLogicCond->pParameterList) {
     if (cpdIsPrimaryKeyCond(pCond)) {
       code = nodesListMakeAppend(&pPrimaryKeyConds, nodesCloneNode(pCond));
+    } else if (cpdIsTagCond(pScan->node.pConditions)) {
+      code = nodesListMakeAppend(&pTagConds, nodesCloneNode(pCond));
     } else {
       code = nodesListMakeAppend(&pOtherConds, nodesCloneNode(pCond));
     }
@@ -338,9 +369,13 @@ static int32_t cpdPartitionScanLogicCond(SScanLogicNode* pScan, SNode** pPrimary
   }
 
   SNode* pTempPrimaryKeyCond = NULL;
+  SNode* pTempTagCond = NULL;
   SNode* pTempOtherCond = NULL;
   if (TSDB_CODE_SUCCESS == code) {
     code = cpdMergeConds(&pTempPrimaryKeyCond, &pPrimaryKeyConds);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = cpdMergeConds(&pTempTagCond, &pTagConds);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = cpdMergeConds(&pTempOtherCond, &pOtherConds);
@@ -348,27 +383,32 @@ static int32_t cpdPartitionScanLogicCond(SScanLogicNode* pScan, SNode** pPrimary
 
   if (TSDB_CODE_SUCCESS == code) {
     *pPrimaryKeyCond = pTempPrimaryKeyCond;
+    *pTagCond = pTempTagCond;
     *pOtherCond = pTempOtherCond;
     nodesDestroyNode(pScan->node.pConditions);
     pScan->node.pConditions = NULL;
   } else {
     nodesDestroyList(pPrimaryKeyConds);
+    nodesDestroyList(pTagConds);
     nodesDestroyList(pOtherConds);
     nodesDestroyNode(pTempPrimaryKeyCond);
+    nodesDestroyNode(pTempTagCond);
     nodesDestroyNode(pTempOtherCond);
   }
 
   return code;
 }
 
-static int32_t cpdPartitionScanCond(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pOtherCond) {
-  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pScan->node.pConditions) &&
-      LOGIC_COND_TYPE_AND == ((SLogicConditionNode*)pScan->node.pConditions)->condType) {
-    return cpdPartitionScanLogicCond(pScan, pPrimaryKeyCond, pOtherCond);
+static int32_t cpdPartitionScanCond(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, SNode** pTagCond,
+                                    SNode** pOtherCond) {
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pScan->node.pConditions)) {
+    return cpdPartitionScanLogicCond(pScan, pPrimaryKeyCond, pTagCond, pOtherCond);
   }
 
   if (cpdIsPrimaryKeyCond(pScan->node.pConditions)) {
     *pPrimaryKeyCond = pScan->node.pConditions;
+  } else if (cpdIsTagCond(pScan->node.pConditions)) {
+    *pTagCond = pScan->node.pConditions;
   } else {
     *pOtherCond = pScan->node.pConditions;
   }
@@ -391,6 +431,36 @@ static int32_t cpdCalcTimeRange(SScanLogicNode* pScan, SNode** pPrimaryKeyCond, 
   return code;
 }
 
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+
+static SIdxFltStatus idxGetFltStatus(SNode* pFilterNode) { return SFLT_ACCURATE_INDEX; }
+
+static int32_t cpdApplyTagIndex(SScanLogicNode* pScan, SNode** pTagCond, SNode** pOtherCond) {
+  int32_t       code = TSDB_CODE_SUCCESS;
+  SIdxFltStatus idxStatus = idxGetFltStatus(*pTagCond);
+  switch (idxStatus) {
+    case SFLT_NOT_INDEX:
+      code = cpdCondAppend(pOtherCond, pTagCond);
+      break;
+    case SFLT_COARSE_INDEX:
+      pScan->pTagCond = nodesCloneNode(*pTagCond);
+      if (NULL == pScan->pTagCond) {
+        code = TSDB_CODE_OUT_OF_MEMORY;
+        break;
+      }
+      code = cpdCondAppend(pOtherCond, pTagCond);
+      break;
+    case SFLT_ACCURATE_INDEX:
+      pScan->pTagCond = *pTagCond;
+      *pTagCond = NULL;
+      break;
+    default:
+      code = TSDB_CODE_FAILED;
+      break;
+  }
+  return code;
+}
+
 static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* pScan) {
   if (NULL == pScan->node.pConditions || OPTIMIZE_FLAG_TEST_MASK(pScan->node.optimizedFlag, OPTIMIZE_FLAG_CPD) ||
       TSDB_SYSTEM_TABLE == pScan->pMeta->tableType) {
@@ -398,10 +468,14 @@ static int32_t cpdOptimizeScanCondition(SOptimizeContext* pCxt, SScanLogicNode* 
   }
 
   SNode*  pPrimaryKeyCond = NULL;
+  SNode*  pTagCond = NULL;
   SNode*  pOtherCond = NULL;
-  int32_t code = cpdPartitionScanCond(pScan, &pPrimaryKeyCond, &pOtherCond);
+  int32_t code = cpdPartitionScanCond(pScan, &pPrimaryKeyCond, &pTagCond, &pOtherCond);
   if (TSDB_CODE_SUCCESS == code && NULL != pPrimaryKeyCond) {
     code = cpdCalcTimeRange(pScan, &pPrimaryKeyCond, &pOtherCond);
+  }
+  if (TSDB_CODE_SUCCESS == code && NULL != pTagCond) {
+    code = cpdApplyTagIndex(pScan, &pTagCond, &pOtherCond);
   }
   if (TSDB_CODE_SUCCESS == code) {
     pScan->node.pConditions = pOtherCond;
@@ -618,30 +692,6 @@ static bool cpdContainPrimaryKeyEqualCond(SJoinLogicNode* pJoin, SNode* pCond) {
   }
 }
 
-// static int32_t cpdCheckOpCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SNode* pOnCond) {
-//   if (!cpdIsPrimaryKeyEqualCond(pJoin, pOnCond)) {
-//     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
-//   }
-//   return TSDB_CODE_SUCCESS;
-// }
-
-// static int32_t cpdCheckLogicCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin, SLogicConditionNode* pOnCond) {
-//   if (LOGIC_COND_TYPE_AND != pOnCond->condType) {
-//     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
-//   }
-//   bool   hasPrimaryKeyEqualCond = false;
-//   SNode* pCond = NULL;
-//   FOREACH(pCond, pOnCond->pParameterList) {
-//     if (cpdIsPrimaryKeyEqualCond(pJoin, pCond)) {
-//       hasPrimaryKeyEqualCond = true;
-//     }
-//   }
-//   if (!hasPrimaryKeyEqualCond) {
-//     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
-//   }
-//   return TSDB_CODE_SUCCESS;
-// }
-
 static int32_t cpdCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
   if (NULL == pJoin->pOnConditions) {
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_NOT_SUPPORT_CROSS_JOIN);
@@ -650,11 +700,6 @@ static int32_t cpdCheckJoinOnCond(SOptimizeContext* pCxt, SJoinLogicNode* pJoin)
     return generateUsageErrMsg(pCxt->pPlanCxt->pMsg, pCxt->pPlanCxt->msgLen, TSDB_CODE_PLAN_EXPECTED_TS_EQUAL);
   }
   return TSDB_CODE_SUCCESS;
-  // if (QUERY_NODE_LOGIC_CONDITION == nodeType(pJoin->pOnConditions)) {
-  //   return cpdCheckLogicCond(pCxt, pJoin, (SLogicConditionNode*)pJoin->pOnConditions);
-  // } else {
-  //   return cpdCheckOpCond(pCxt, pJoin, pJoin->pOnConditions);
-  // }
 }
 
 static int32_t cpdPushJoinCondition(SOptimizeContext* pCxt, SJoinLogicNode* pJoin) {
