@@ -109,8 +109,11 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
 
 int64_t taosCopyFile(const char *from, const char *to) {
 #ifdef WINDOWS
-  assert(0);
-  return -1;
+  if (CopyFile(from, to, 0)) {
+    return 1;
+  } else {
+    return -1;
+  }
 #else
   char    buffer[4096];
   int64_t size = 0;
@@ -236,7 +239,7 @@ int32_t taosDevInoFile(TdFilePtr pFile, int64_t *stDev, int64_t *stIno) {
 
 void autoDelFileListAdd(const char *path) { return; }
 
-TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {
+TdFilePtr taosOpenFile(const char *path, int32_t tdFileOptions) {  
   int   fd = -1;
   FILE *fp = NULL;
   if (tdFileOptions & TD_FILE_STREAM) {
@@ -343,7 +346,11 @@ int64_t taosReadFile(TdFilePtr pFile, void *buf, int64_t count) {
   char   *tbuf = (char *)buf;
 
   while (leftbytes > 0) {
+  #ifdef WINDOWS
+    readbytes = _read(pFile->fd, (void *)tbuf, (uint32_t)leftbytes);
+  #else
     readbytes = read(pFile->fd, (void *)tbuf, (uint32_t)leftbytes);
+  #endif
     if (readbytes < 0) {
       if (errno == EINTR) {
         continue;
@@ -379,10 +386,10 @@ int64_t taosPReadFile(TdFilePtr pFile, void *buf, int64_t count, int64_t offset)
 #endif
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
 #ifdef WINDOWS
-  size_t pos = lseek(pFile->fd, 0, SEEK_CUR);
-  lseek(pFile->fd, offset, SEEK_SET);
-  int64_t ret = read(pFile->fd, buf, count);
-  lseek(pFile->fd, pos, SEEK_SET);
+  size_t pos = _lseek(pFile->fd, 0, SEEK_CUR);
+  _lseek(pFile->fd, offset, SEEK_SET);
+  int64_t ret = _read(pFile->fd, buf, count);
+  _lseek(pFile->fd, pos, SEEK_SET);
 #else
   int64_t ret = pread(pFile->fd, buf, count, offset);
 #endif
@@ -428,7 +435,11 @@ int64_t taosLSeekFile(TdFilePtr pFile, int64_t offset, int32_t whence) {
   taosThreadRwlockRdlock(&(pFile->rwlock));
 #endif
   assert(pFile->fd >= 0);  // Please check if you have closed the file.
+#ifdef WINDOWS
+  int64_t ret = _lseek(pFile->fd, offset, whence);
+#else
   int64_t ret = lseek(pFile->fd, offset, whence);
+#endif
 #if FILE_WITH_LOCK
   taosThreadRwlockUnlock(&(pFile->rwlock));
 #endif
@@ -567,12 +578,12 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
 #ifdef WINDOWS
 
-  lseek(pFileIn->fd, (int32_t)(*offset), 0);
+  _lseek(pFileIn->fd, (int32_t)(*offset), 0);
   int64_t writeLen = 0;
   uint8_t buffer[_SEND_FILE_STEP_] = {0};
 
   for (int64_t len = 0; len < (size - _SEND_FILE_STEP_); len += _SEND_FILE_STEP_) {
-    size_t rlen = read(pFileIn->fd, (void *)buffer, _SEND_FILE_STEP_);
+    size_t rlen = _read(pFileIn->fd, (void *)buffer, _SEND_FILE_STEP_);
     if (rlen <= 0) {
       return writeLen;
     } else if (rlen < _SEND_FILE_STEP_) {
@@ -586,7 +597,7 @@ int64_t taosFSendFile(TdFilePtr pFileOut, TdFilePtr pFileIn, int64_t *offset, in
 
   int64_t remain = size - writeLen;
   if (remain > 0) {
-    size_t rlen = read(pFileIn->fd, (void *)buffer, (size_t)remain);
+    size_t rlen = _read(pFileIn->fd, (void *)buffer, (size_t)remain);
     if (rlen <= 0) {
       return writeLen;
     } else {
