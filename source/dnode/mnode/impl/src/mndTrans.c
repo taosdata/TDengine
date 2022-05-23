@@ -1343,19 +1343,35 @@ _OVER:
   return code;
 }
 
-void mndTransPullup(SMnode *pMnode) {
-  STrans *pTrans = NULL;
-  void   *pIter = NULL;
+static int32_t mndCompareTransId(int32_t *pTransId1, int32_t *pTransId2) { return *pTransId1 >= *pTransId2 ? 1 : 0; }
 
+void mndTransPullup(SMnode *pMnode) {
+  SSdb   *pSdb = pMnode->pSdb;
+  SArray *pArray = taosArrayInit(sdbGetSize(pSdb, SDB_TRANS), sizeof(int32_t));
+  if (pArray == NULL) return;
+
+  void *pIter = NULL;
   while (1) {
+    STrans *pTrans = NULL;
     pIter = sdbFetch(pMnode->pSdb, SDB_TRANS, pIter, (void **)&pTrans);
     if (pIter == NULL) break;
+    taosArrayPush(pArray, &pTrans->id);
+    sdbRelease(pSdb, pTrans);
+  }
 
-    mndTransExecute(pMnode, pTrans);
-    sdbRelease(pMnode->pSdb, pTrans);
+  taosArraySort(pArray, (__compar_fn_t)mndCompareTransId);
+
+  for (int32_t i = 0; i < taosArrayGetSize(pArray); ++i) {
+    int32_t *pTransId = taosArrayGet(pArray, i);
+    STrans  *pTrans = mndAcquireTrans(pMnode, *pTransId);
+    if (pTrans != NULL) {
+      mndTransExecute(pMnode, pTrans);
+    }
+    mndReleaseTrans(pMnode, pTrans);
   }
 
   sdbWriteFile(pMnode->pSdb);
+  taosArrayDestroy(pArray);
 }
 
 static int32_t mndRetrieveTrans(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
