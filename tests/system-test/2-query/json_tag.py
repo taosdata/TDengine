@@ -130,17 +130,17 @@ class TDTestCase:
 
         # test select json tag
         tdSql.query("select * from jsons1")
-        tdSql.checkRows(9)
+        tdSql.checkRows(8)
         tdSql.query("select jtag from jsons1")
-        tdSql.checkRows(13)
+        tdSql.checkRows(7)
         # tdSql.query("select jtag from jsons1 where jtag is null")
         # tdSql.checkRows(5)
         # tdSql.query("select jtag from jsons1 where jtag is not null")
         # tdSql.checkRows(8)
 
         # test jtag is NULL
-        tdSql.query("select jtag from jsons1_9")
-        tdSql.checkData(0, 0, None)
+        #tdSql.query("select jtag from jsons1_9")
+        #tdSql.checkData(0, 0, None)
 
         # test select json tag->'key', value is string
         tdSql.query("select jtag->'tag1' from jsons1_1")

@@ -1089,7 +1089,7 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
   }else if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI || opType == OP_TYPE_DIV ||
              opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
     printf("1result:%f,except:%f\n", *((double *)colDataGetData(column, 0)), exceptValue);
-    ASSERT_TRUE(abs(*((double *)colDataGetData(column, 0)) - exceptValue) < 1e-15);
+    ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < DBL_EPSILON);
   }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
     printf("2result:%ld,except:%f\n", *((int64_t *)colDataGetData(column, 0)), exceptValue);
     ASSERT_EQ(*((int64_t *)colDataGetData(column, 0)), exceptValue);
