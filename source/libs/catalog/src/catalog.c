@@ -1087,9 +1087,12 @@ int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion **users, uint32_
   uint32_t i = 0;
   SCtgUserAuth *pAuth = taosHashIterate(pCtg->userCache, NULL);
   while (pAuth != NULL) {
-    void *key = taosHashGetKey(pAuth, NULL);
-    strncpy((*users)[i].user, key, sizeof((*users)[i].user));
+    size_t len = 0;
+    void *key = taosHashGetKey(pAuth, &len);
+    strncpy((*users)[i].user, key, len);
+    (*users)[i].user[len] = 0;
     (*users)[i].version = pAuth->version;
+    ++i;
     pAuth = taosHashIterate(pCtg->userCache, pAuth);
   }
 
