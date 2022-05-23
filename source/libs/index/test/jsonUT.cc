@@ -16,8 +16,8 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-static std::string dir = "/tmp/json";
-static std::string logDir = "/tmp/log";
+static std::string dir = TD_TMP_DIR_PATH "json";
+static std::string logDir = TD_TMP_DIR_PATH "log";
 
 static void initLog() {
   const char*   defaultLogFileNamePrefix = "taoslog";

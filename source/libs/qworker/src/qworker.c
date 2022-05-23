@@ -528,20 +528,18 @@ int32_t qwDropTask(QW_FPARAMS_DEF) {
 }
 
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  qTaskInfo_t *taskHandle = &ctx->taskHandle;
+  qTaskInfo_t taskHandle = ctx->taskHandle;
 
-  if (TASK_TYPE_TEMP == ctx->taskType) {
+  if (TASK_TYPE_TEMP == ctx->taskType && taskHandle) {
     if (ctx->explain) {
       SExplainExecInfo *execInfo = NULL;
       int32_t           resNum = 0;
-      QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
+      QW_ERR_RET(qGetExplainExecInfo(taskHandle, &resNum, &execInfo));
 
       SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
       connInfo.ahandle = NULL;
       QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
     }
-
-    qwFreeTaskHandle(QW_FPARAMS(), taskHandle);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -554,16 +552,21 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
   uint64_t       useconds = 0;
   int32_t        i = 0;
   int32_t        execNum = 0;
-  qTaskInfo_t   *taskHandle = &ctx->taskHandle;
+  qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
 
   while (true) {
     QW_TASK_DLOG("start to execTask, loopIdx:%d", i++);
 
-    code = qExecTask(*taskHandle, &pRes, &useconds);
-    if (code) {
-      QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
-      QW_ERR_RET(code);
+    pRes = NULL;
+
+    // if *taskHandle is NULL, it's killed right now
+    if (taskHandle) {
+      code = qExecTask(taskHandle, &pRes, &useconds);
+      if (code) {
+        QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        QW_ERR_RET(code);
+      }
     }
 
     ++execNum;
@@ -716,6 +719,20 @@ int32_t qwGetResFromSink(QW_FPARAMS_DEF, SQWTaskCtx *ctx, int32_t *dataLen, void
   }
 
   return TSDB_CODE_SUCCESS;
+}
+
+
+void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx) {
+  char dbFName[TSDB_DB_FNAME_LEN];
+  char tbName[TSDB_TABLE_NAME_LEN];
+  
+  qGetQueriedTableSchemaVersion(pTaskInfo, dbFName, tbName, &ctx->tbInfo.sversion, &ctx->tbInfo.tversion);
+
+  if (dbFName[0] && tbName[0]) {
+    sprintf(ctx->tbInfo.tbFName, "%s.%s", dbFName, tbName);
+  } else {
+    ctx->tbInfo.tbFName[0] = 0;
+  }
 }
 
 int32_t qwHandlePrePhaseEvents(QW_FPARAMS_DEF, int8_t phase, SQWPhaseInput *input, SQWPhaseOutput *output) {
@@ -899,6 +916,11 @@ _return:
     qwUpdateTaskStatus(QW_FPARAMS(), JOB_TASK_STATUS_PARTIAL_SUCCEED);
   }
 
+  if (readyConnection) {
+    qwBuildAndSendReadyRsp(readyConnection, code, ctx ? &ctx->tbInfo : NULL);
+    QW_TASK_DLOG("ready msg rsped, handle:%p, code:%x - %s", readyConnection->handle, code, tstrerror(code));
+  }
+
   if (ctx) {
     QW_UPDATE_RSP_CODE(ctx, code);
 
@@ -908,11 +930,6 @@ _return:
 
     QW_UNLOCK(QW_WRITE, &ctx->lock);
     qwReleaseTaskCtx(mgmt, ctx);
-  }
-
-  if (readyConnection) {
-    qwBuildAndSendReadyRsp(readyConnection, code);
-    QW_TASK_DLOG("ready msg rsped, handle:%p, code:%x - %s", readyConnection->handle, code, tstrerror(code));
   }
 
   if (code) {
@@ -975,6 +992,7 @@ int32_t qwProcessQuery(QW_FPARAMS_DEF, SQWMsg *qwMsg, int8_t taskType, int8_t ex
   atomic_store_ptr(&ctx->sinkHandle, sinkHandle);
 
   if (pTaskInfo && sinkHandle) {
+    qwSaveTbVersionInfo(pTaskInfo, ctx);
     QW_ERR_JRET(qwExecTask(QW_FPARAMS(), ctx, NULL));
   }
 
@@ -1047,7 +1065,7 @@ _return:
   }
 
   if (needRsp) {
-    qwBuildAndSendReadyRsp(&qwMsg->connInfo, code);
+    qwBuildAndSendReadyRsp(&qwMsg->connInfo, code, NULL);
     QW_TASK_DLOG("ready msg rsped, handle:%p, code:%x - %s", qwMsg->connInfo.handle, code, tstrerror(code));
   }
 
@@ -1150,8 +1168,7 @@ int32_t qwProcessFetch(QW_FPARAMS_DEF, SQWMsg *qwMsg) {
   QW_ERR_JRET(qwGetResFromSink(QW_FPARAMS(), ctx, &dataLen, &rsp, &sOutput));
 
   if (NULL == rsp) {
-    atomic_store_ptr(&ctx->dataConnInfo.handle, qwMsg->connInfo.handle);
-    atomic_store_ptr(&ctx->dataConnInfo.ahandle, qwMsg->connInfo.ahandle);
+    ctx->dataConnInfo = qwMsg->connInfo;
 
     QW_SET_EVENT_RECEIVED(ctx, QW_EVENT_FETCH);
   } else {

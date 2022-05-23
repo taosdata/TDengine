@@ -53,10 +53,10 @@ int metaOpenIdx(SMeta *pMeta) {
 #endif
 
 #ifdef USE_INVERTED_INDEX
-  SIndexOpts opts;
-  if (indexOpen(&opts, pMeta->path, &pMeta->pIdx->pIdx) != 0) {
-    return -1;
-  }
+  // SIndexOpts opts;
+  // if (indexOpen(&opts, pMeta->path, &pMeta->pIdx->pIdx) != 0) {
+  //  return -1;
+  //}
 
 #endif
   return 0;
@@ -71,36 +71,37 @@ void metaCloseIdx(SMeta *pMeta) { /* TODO */
 #endif
 
 #ifdef USE_INVERTED_INDEX
-  SIndexOpts opts;
-  if (indexClose(pMeta->pIdx->pIdx) != 0) {
-    return -1;
-  }
+  // SIndexOpts opts;
+  // if (indexClose(pMeta->pIdx->pIdx) != 0) {
+  //  return -1;
+  //}
+  // return 0;
 
 #endif
 }
 
 int metaSaveTableToIdx(SMeta *pMeta, const STbCfg *pTbCfg) {
 #ifdef USE_INVERTED_INDEX
-  if (pTbCfgs->type == META_CHILD_TABLE) {
-    char    buf[8] = {0};
-    int16_t colId = (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId;
-    sprintf(buf, "%d", colId);  // colname
+  // if (pTbCfgs->type == META_CHILD_TABLE) {
+  //  char    buf[8] = {0};
+  //  int16_t colId = (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId;
+  //  sprintf(buf, "%d", colId);  // colname
 
-    char *pTagVal = (char *)tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId);
+  //  char *pTagVal = (char *)tdGetKVRowValOfCol(pTbCfg->ctbCfg.pTag, (kvRowColIdx(pTbCfg->ctbCfg.pTag))[0].colId);
 
-    tb_uid_t         suid = pTbCfg->ctbCfg.suid;  // super id
-    tb_uid_t         tuid = 0;                    // child table uid
-    SIndexMultiTerm *terms = indexMultiTermCreate();
-    SIndexTerm      *term =
-        indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_BINARY, buf, strlen(buf), pTagVal, strlen(pTagVal), tuid);
-    indexMultiTermAdd(terms, term);
+  //  tb_uid_t         suid = pTbCfg->ctbCfg.suid;  // super id
+  //  tb_uid_t         tuid = 0;                    // child table uid
+  //  SIndexMultiTerm *terms = indexMultiTermCreate();
+  //  SIndexTerm      *term =
+  //      indexTermCreate(suid, ADD_VALUE, TSDB_DATA_TYPE_BINARY, buf, strlen(buf), pTagVal, strlen(pTagVal), tuid);
+  //  indexMultiTermAdd(terms, term);
 
-    int ret = indexPut(pMeta->pIdx->pIdx, terms);
-    indexMultiTermDestroy(terms);
-    return ret;
-  } else {
-    return DB_DONOTINDEX;
-  }
+  //  int ret = indexPut(pMeta->pIdx->pIdx, terms);
+  //  indexMultiTermDestroy(terms);
+  //  return ret;
+  //} else {
+  //  return DB_DONOTINDEX;
+  //}
 #endif
   // TODO
   return 0;

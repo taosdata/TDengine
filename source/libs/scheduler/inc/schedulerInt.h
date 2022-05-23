@@ -39,12 +39,6 @@ enum {
   SCH_WRITE,
 };
 
-typedef enum {
-  SCH_RES_TYPE_QUERY,
-  SCH_RES_TYPE_FETCH,
-} SCH_RES_TYPE;
-
-
 typedef struct SSchTrans {
   void *transInst;
   void *transHandle;
@@ -197,7 +191,7 @@ typedef struct SSchJob {
   int32_t          errCode;
   SArray          *errList;    // SArray<SQueryErrorInfo>
   SRWLatch         resLock;
-  SCH_RES_TYPE     resType;
+  void            *queryRes;
   void            *resData;         //TODO free it or not
   int32_t          resNumOfRows;
   const char      *sql;

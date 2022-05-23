@@ -241,7 +241,7 @@ alter_table_clause(A) ::=
 alter_table_clause(A) ::= 
   full_table_name(B) RENAME TAG column_name(C) column_name(D).                    { A = createAlterTableRenameCol(pCxt, B, TSDB_ALTER_TABLE_UPDATE_TAG_NAME, &C, &D); }
 alter_table_clause(A) ::=
-  full_table_name(B) SET TAG column_name(C) NK_EQ literal(D).                     { A = createAlterTableSetTag(pCxt, B, &C, releaseRawExprNode(pCxt, D)); }
+  full_table_name(B) SET TAG column_name(C) NK_EQ signed_literal(D).              { A = createAlterTableSetTag(pCxt, B, &C, D); }
 
 %type multi_create_clause                                                         { SNodeList* }
 %destructor multi_create_clause                                                   { nodesDestroyList($$); }
@@ -448,7 +448,7 @@ agg_func_opt(A) ::= AGGREGATE.                                                  
 %type bufsize_opt                                                                 { int32_t }
 %destructor bufsize_opt                                                           { }
 bufsize_opt(A) ::= .                                                              { A = 0; }
-bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                         { A = strtol(B.z, NULL, 10); }
+bufsize_opt(A) ::= BUFSIZE NK_INTEGER(B).                                         { A = taosStr2Int32(B.z, NULL, 10); }
 
 /************************************************ create/drop stream **************************************************/
 cmd ::= CREATE STREAM not_exists_opt(E) stream_name(A)

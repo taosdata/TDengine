@@ -17,21 +17,26 @@
 #include "ttime.h"
 
 #define DEFAULT_FALSE_POSITIVE 0.01
-#define DEFAULT_BUCKET_SIZE 1024
-#define ROWS_PER_MILLISECOND 1
-#define MAX_NUM_SCALABLE_BF 120
-#define MIN_NUM_SCALABLE_BF 10
-#define DEFAULT_PREADD_BUCKET 1
-#define MAX_INTERVAL MILLISECOND_PER_MINUTE
-#define MIN_INTERVAL (MILLISECOND_PER_SECOND * 10)
+#define DEFAULT_BUCKET_SIZE    1024
+#define ROWS_PER_MILLISECOND   1
+#define MAX_NUM_SCALABLE_BF    100000
+#define MIN_NUM_SCALABLE_BF    10
+#define DEFAULT_PREADD_BUCKET  1
+#define MAX_INTERVAL           MILLISECOND_PER_MINUTE
+#define MIN_INTERVAL           (MILLISECOND_PER_SECOND * 10)
+#define DEFAULT_EXPECTED_ENTRIES    10000
+
+static int64_t adjustExpEntries(int64_t entries) {
+  return TMIN(DEFAULT_EXPECTED_ENTRIES, entries);
+}
 
 static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
-  if (pInfo->numSBFs < count ) {
+  if (pInfo->numSBFs < count) {
     count = pInfo->numSBFs;
   }
   for (uint64_t i = 0; i < count; ++i) {
-    SScalableBf *tsSBF = tScalableBfInit(pInfo->interval * ROWS_PER_MILLISECOND,
-                                         DEFAULT_FALSE_POSITIVE);
+    int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
+    SScalableBf *tsSBF = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
     taosArrayPush(pInfo->pTsSBFs, &tsSBF);
   }
 }
@@ -39,9 +44,9 @@ static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
 static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
   if (count < pInfo->numSBFs - 1) {
     for (uint64_t i = 0; i < count; ++i) {
-      SScalableBf *pTsSBFs = taosArrayGetP(pInfo->pTsSBFs, i);
+      SScalableBf *pTsSBFs = taosArrayGetP(pInfo->pTsSBFs, 0);
       tScalableBfDestroy(pTsSBFs);
-      taosArrayRemove(pInfo->pTsSBFs, i);
+      taosArrayRemove(pInfo->pTsSBFs, 0);
     }
   } else {
     taosArrayClearP(pInfo->pTsSBFs, (FDelete)tScalableBfDestroy);
@@ -67,7 +72,7 @@ static int64_t adjustInterval(int64_t interval, int32_t precision) {
   return val;
 }
 
-static int64_t adjustWatermark(int64_t interval, int32_t watermark) {
+static int64_t adjustWatermark(int64_t interval, int64_t watermark) {
   if (watermark <= 0 || watermark > MAX_NUM_SCALABLE_BF * interval) {
     watermark = MAX_NUM_SCALABLE_BF * interval;
   } else if (watermark < MIN_NUM_SCALABLE_BF * interval) {
@@ -76,7 +81,7 @@ static int64_t adjustWatermark(int64_t interval, int32_t watermark) {
   return watermark;
 }
 
-SUpdateInfo *updateInfoInitP(SInterval* pInterval, int64_t watermark) {
+SUpdateInfo *updateInfoInitP(SInterval *pInterval, int64_t watermark) {
   return updateInfoInit(pInterval->interval, pInterval->precision, watermark);
 }
 
@@ -93,7 +98,7 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
 
   uint64_t bfSize = (uint64_t)(pInfo->watermark / pInfo->interval);
 
-  pInfo->pTsSBFs = taosArrayInit(bfSize, sizeof(SScalableBf));
+  pInfo->pTsSBFs = taosArrayInit(bfSize, sizeof(void *));
   if (pInfo->pTsSBFs == NULL) {
     updateInfoDestroy(pInfo);
     return NULL;
@@ -108,14 +113,14 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
   }
 
   TSKEY dumy = 0;
-  for(uint64_t i=0; i < DEFAULT_BUCKET_SIZE; ++i) {
+  for (uint64_t i = 0; i < DEFAULT_BUCKET_SIZE; ++i) {
     taosArrayPush(pInfo->pTsBuckets, &dumy);
   }
   pInfo->numBuckets = DEFAULT_BUCKET_SIZE;
   return pInfo;
 }
 
-static SScalableBf* getSBf(SUpdateInfo *pInfo, TSKEY ts) {
+static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   if (ts <= 0) {
     return NULL;
   }
@@ -131,24 +136,24 @@ static SScalableBf* getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   }
   SScalableBf *res = taosArrayGetP(pInfo->pTsSBFs, index);
   if (res == NULL) {
-    res = tScalableBfInit(pInfo->interval * ROWS_PER_MILLISECOND,
-                          DEFAULT_FALSE_POSITIVE);
+    int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
+    res = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
     taosArrayPush(pInfo->pTsSBFs, &res);
   }
   return res;
 }
 
 bool updateInfoIsUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts) {
-  int32_t res = TSDB_CODE_FAILED;
-  uint64_t index = ((uint64_t)tableId) % pInfo->numBuckets;
-  SScalableBf* pSBf = getSBf(pInfo, ts);
+  int32_t      res = TSDB_CODE_FAILED;
+  uint64_t     index = ((uint64_t)tableId) % pInfo->numBuckets;
+  SScalableBf *pSBf = getSBf(pInfo, ts);
   // pSBf may be a null pointer
   if (pSBf) {
     res = tScalableBfPut(pSBf, &ts, sizeof(TSKEY));
   }
 
   TSKEY maxTs = *(TSKEY *)taosArrayGet(pInfo->pTsBuckets, index);
-  if (maxTs < ts ) {
+  if (maxTs < ts) {
     taosArraySet(pInfo->pTsBuckets, index, &ts);
     return false;
   }
@@ -159,7 +164,7 @@ bool updateInfoIsUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts) {
     return false;
   }
 
-  //check from tsdb api
+  // check from tsdb api
   return true;
 }
 
@@ -174,7 +179,7 @@ void updateInfoDestroy(SUpdateInfo *pInfo) {
     SScalableBf *pSBF = taosArrayGetP(pInfo->pTsSBFs, i);
     tScalableBfDestroy(pSBF);
   }
-  
+
   taosArrayDestroy(pInfo->pTsSBFs);
   taosMemoryFree(pInfo);
 }

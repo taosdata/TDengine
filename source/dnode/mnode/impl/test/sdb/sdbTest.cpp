@@ -31,7 +31,7 @@ class MndTestSdb : public ::testing::Test {
     tsLogEmbedded = 1;
     tsAsyncLog = 0;
 
-    const char *path = "/tmp/td";
+    const char *path = TD_TMP_DIR_PATH "td";
     taosRemoveDir(path);
     taosMkDir(path);
     tstrncpy(tsLogDir, path, PATH_MAX);
@@ -385,7 +385,7 @@ TEST_F(MndTestSdb, 01_Write_Str) {
   mnode.v100 = 100;
   mnode.v200 = 200;
   opt.pMnode = &mnode;
-  opt.path = "/tmp/mnode_test_sdb";
+  opt.path = TD_TMP_DIR_PATH "mnode_test_sdb";
   taosRemoveDir(opt.path);
 
   SSdbTable strTable1;
@@ -730,7 +730,7 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   mnode.v100 = 100;
   mnode.v200 = 200;
   opt.pMnode = &mnode;
-  opt.path = "/tmp/mnode_test_sdb";
+  opt.path = TD_TMP_DIR_PATH "mnode_test_sdb";
 
   SSdbTable strTable1;
   memset(&strTable1, 0, sizeof(SSdbTable));

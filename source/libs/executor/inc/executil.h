@@ -42,11 +42,8 @@
 #define GET_TASKID(_t)  (((SExecTaskInfo*)(_t))->id.str)
 
 typedef struct SGroupResInfo {
-  int32_t totalGroup;
-  int32_t currentGroup;
   int32_t index;
-  SArray* pRows;      // SArray<SResultRowPosition*>
-  bool    ordered;
+  SArray* pRows;      // SArray<SResKeyPos>
   int32_t position;
 } SGroupResInfo;
 
@@ -80,18 +77,12 @@ typedef struct SResultRowInfo {
   SResultRowPosition cur;
 } SResultRowInfo;
 
-struct STaskAttr;
-struct STaskRuntimeEnv;
-struct SUdfInfo;
 struct SqlFunctionCtx;
-
-int32_t getOutputInterResultBufSize(struct STaskAttr* pQueryAttr);
 
 size_t getResultRowSize(struct SqlFunctionCtx* pCtx, int32_t numOfOutput);
 int32_t initResultRowInfo(SResultRowInfo* pResultRowInfo, int32_t size);
 void    cleanupResultRowInfo(SResultRowInfo* pResultRowInfo);
 
-void    resetResultRowInfo(struct STaskRuntimeEnv* pRuntimeEnv, SResultRowInfo* pResultRowInfo);
 int32_t numOfClosedResultRows(SResultRowInfo* pResultRowInfo);
 void    closeAllResultRows(SResultRowInfo* pResultRowInfo);
 
@@ -99,9 +90,7 @@ void    initResultRow(SResultRow *pResultRow);
 void    closeResultRow(SResultRow* pResultRow);
 bool    isResultRowClosed(SResultRow* pResultRow);
 
-struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset);
-
-int32_t getRowNumForMultioutput(struct STaskAttr* pQueryAttr, bool topBottomQuery, bool stable);
+struct SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, const int32_t* offset);
 
 static FORCE_INLINE SResultRow *getResultRow(SDiskbasedBuf* pBuf, SResultRowInfo *pResultRowInfo, int32_t slot) {
   ASSERT(pResultRowInfo != NULL && slot >= 0 && slot < pResultRowInfo->size);
@@ -118,39 +107,13 @@ static FORCE_INLINE SResultRow *getResultRowByPos(SDiskbasedBuf* pBuf, SResultRo
   return pRow;
 }
 
-static FORCE_INLINE char* getPosInResultPage(struct STaskAttr* pQueryAttr, SFilePage* page, int32_t rowOffset,
-                                             int32_t offset) {
-  assert(rowOffset >= 0 && pQueryAttr != NULL);
-
-  // int32_t numOfRows = (int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-  return ((char *)page->data);  
-
-}
-
-static FORCE_INLINE char* getPosInResultPage_rv(SFilePage* page, int32_t rowOffset, int32_t offset) {
-  assert(rowOffset >= 0);
-
-  int32_t numOfRows = 1;//(int32_t)getRowNumForMultioutput(pQueryAttr, pQueryAttr->topBotQuery, pQueryAttr->stableQuery);
-  return (char*) page + rowOffset + offset * numOfRows;
-}
-
-typedef struct {
-  SArray* pResult;     // SArray<SResPair>
-  int32_t colId;
-} SStddevInterResult;
-
 void    initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order);
 void    initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayList);
 
 void    cleanupGroupResInfo(SGroupResInfo* pGroupResInfo);
-bool    hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo);
-bool    hasRemainData(SGroupResInfo* pGroupResInfo);
+bool    hashRemainDataInGroupInfo(SGroupResInfo* pGroupResInfo);
 
 bool    incNextGroup(SGroupResInfo* pGroupResInfo);
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo);
-
-int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, struct STaskRuntimeEnv *pRuntimeEnv, int32_t* offset);
-
-//int32_t initUdfInfo(struct SUdfInfo* pUdfInfo);
 
 #endif  // TDENGINE_QUERYUTIL_H

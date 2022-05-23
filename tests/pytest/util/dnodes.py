@@ -264,7 +264,7 @@ class TDDnode:
             cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
-            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+            valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             cmd = "nohup %s %s -c %s 2>&1 & " % (
                 valgrindCmdline, binPath, self.cfgDir)
@@ -325,7 +325,7 @@ class TDDnode:
             cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
-            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+            valgrindCmdline = "valgrind  --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             cmd = "nohup %s %s -c %s 2>&1 & " % (
                 valgrindCmdline, binPath, self.cfgDir)
