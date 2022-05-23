@@ -834,7 +834,7 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void *pTrans, const SEpSet* pMgm
     int32_t  tbType = 0;
     uint64_t suid = 0;
     char     stbName[TSDB_TABLE_FNAME_LEN];
-    ctgGetTbSverFromCache(pCtg, &name, &sver, &tbType, &suid, stbName);
+    ctgReadTbSverFromCache(pCtg, &name, &sver, &tbType, &suid, stbName);
     if (sver >= 0 && sver < pTb->sver) {
       switch (tbType) {
         case TSDB_CHILD_TABLE: {
