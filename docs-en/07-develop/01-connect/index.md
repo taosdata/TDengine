@@ -33,7 +33,7 @@ Either way, same or similar APIs are provided by connectors to access database o
 Key differences：
 
 1. With REST connection, it's not necessary to install TDengine client driver (taosc), it's more friendly for cross-platform with the cost of 30% performance downgrade. When taosc has an upgrade, application does not need to make changes. 
-2. With native connection, full compatibility of TDengine can be utilized, like [Parameter Binding](/reference/connector/cpp#Parameter Binding-api), [Subscription](reference/connector/cpp#Subscription), etc. But taosc has to be installed, some platforms may not be supported.
+2. With native connection, full compatibility of TDengine can be utilized, like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc. But taosc has to be installed, some platforms may not be supported.
 
 ## Install Client Driver taosc
 
