@@ -146,7 +146,8 @@ bool fmIsBuiltinFunc(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
-bool fmIsNonstandardSQLFunc(int32_t funcId);
+bool fmIsVectorFunc(int32_t funcId);
+bool fmIsIndefiniteRowsFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
 bool fmIsSelectFunc(int32_t funcId);

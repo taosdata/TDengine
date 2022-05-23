@@ -479,7 +479,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
       SMqTopicObj topicObj = {0};
       memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
       topicObj.refConsumerCnt = pTopic->refConsumerCnt - consumerNum;
-      if (mndSetTopicRedoLogs(pMnode, pTrans, &topicObj) != 0) goto REB_FAIL;
+      if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto REB_FAIL;
     }
   }
 
