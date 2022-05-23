@@ -109,11 +109,15 @@ int32_t mndInitSync(SMnode *pMnode) {
     return -1;
   }
 
+  mDebug("mnode sync is opened, id:%" PRId64, pMgmt->sync);
   return 0;
 }
 
 void mndCleanupSync(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  syncStop(pMgmt->sync);
+  mDebug("sync:%" PRId64 " is stopped", pMgmt->sync);
+
   tsem_destroy(&pMgmt->syncSem);
   if (pMgmt->pWal != NULL) {
     walClose(pMgmt->pWal);
@@ -163,9 +167,10 @@ void mndSyncStart(SMnode *pMnode) {
   }
 
   pMnode->syncMgmt.restored = true;
+  mDebug("sync:%" PRId64 " is started", pMnode->syncMgmt.sync);
 }
 
-void mndSyncStop(SMnode *pMnode) { syncStop(pMnode->syncMgmt.sync); }
+void mndSyncStop(SMnode *pMnode) {}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
