@@ -139,7 +139,9 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           // restore finish
           if (pEntry->index == pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore)) {
             if (pSyncNode->restoreFinish == false) {
-              pSyncNode->pFsm->FpRestoreFinish(pSyncNode->pFsm);
+              if (pSyncNode->pFsm->FpRestoreFinish != NULL) {
+                pSyncNode->pFsm->FpRestoreFinish(pSyncNode->pFsm);
+              }
               pSyncNode->restoreFinish = true;
 
               tsem_post(&pSyncNode->restoreSem);

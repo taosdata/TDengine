@@ -362,7 +362,9 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               // restore finish
               if (pEntry->index == ths->pLogStore->getLastIndex(ths->pLogStore)) {
                 if (ths->restoreFinish == false) {
-                  ths->pFsm->FpRestoreFinish(ths->pFsm);
+                  if (ths->pFsm->FpRestoreFinish != NULL) {
+                    ths->pFsm->FpRestoreFinish(ths->pFsm);
+                  }
                   ths->restoreFinish = true;
 
                   tsem_post(&ths->restoreSem);
