@@ -13,10 +13,11 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include "indexoperator.h"
-#include "executorimpl.h"
 #include "index.h"
+#include "indexInt.h"
 #include "nodes.h"
+#include "querynodes.h"
+#include "scalar.h"
 #include "tdatablock.h"
 
 // clang-format off
@@ -69,9 +70,9 @@ typedef int32_t (*sif_func_t)(SIFParam *left, SIFParam *rigth, SIFParam *output)
 static sif_func_t sifNullFunc = NULL;
 // typedef struct SIFWalkParm
 // construct tag filter operator later
-static void destroyTagFilterOperatorInfo(void *param) {
-  STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param;
-}
+// static void destroyTagFilterOperatorInfo(void *param) {
+//  STagFilterOperatorInfo *pInfo = (STagFilterOperatorInfo *)param;
+//}
 
 static void sifFreeParam(SIFParam *param) {
   if (param == NULL) return;
@@ -178,13 +179,13 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
     case QUERY_NODE_NODE_LIST: {
       SNodeListNode *nl = (SNodeListNode *)node;
       if (LIST_LENGTH(nl->pNodeList) <= 0) {
-        qError("invalid length for node:%p, length: %d", node, LIST_LENGTH(nl->pNodeList));
+        indexError("invalid length for node:%p, length: %d", node, LIST_LENGTH(nl->pNodeList));
         SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
       }
       SIF_ERR_RET(scalarGenerateSetFromList((void **)&param->pFilter, node, nl->dataType.type));
       if (taosHashPut(ctx->pRes, &node, POINTER_BYTES, param, sizeof(*param))) {
         taosHashCleanup(param->pFilter);
-        qError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
+        indexError("taosHashPut nodeList failed, size:%d", (int32_t)sizeof(*param));
         SIF_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
       }
       break;
@@ -194,7 +195,7 @@ static int32_t sifInitParam(SNode *node, SIFParam *param, SIFCtx *ctx) {
     case QUERY_NODE_LOGIC_CONDITION: {
       SIFParam *res = (SIFParam *)taosHashGet(ctx->pRes, &node, POINTER_BYTES);
       if (NULL == res) {
-        qError("no result for node, type:%d, node:%p", nodeType(node), node);
+        indexError("no result for node, type:%d, node:%p", nodeType(node), node);
         SIF_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
       }
       *param = *res;
@@ -210,7 +211,7 @@ static int32_t sifInitOperParams(SIFParam **params, SOperatorNode *node, SIFCtx 
   int32_t code = 0;
   int32_t nParam = sifGetOperParamNum(node->opType);
   if (NULL == node->pLeft || (nParam == 2 && NULL == node->pRight)) {
-    qError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
+    indexError("invalid operation node, left: %p, rigth: %p", node->pLeft, node->pRight);
     SIF_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
   }
   SIFParam *paramList = taosMemoryCalloc(nParam, sizeof(SIFParam));
@@ -232,7 +233,7 @@ static int32_t sifInitParamList(SIFParam **params, SNodeList *nodeList, SIFCtx *
   int32_t   code = 0;
   SIFParam *tParams = taosMemoryCalloc(nodeList->length, sizeof(SIFParam));
   if (tParams == NULL) {
-    qError("failed to calloc, nodeList: %p", nodeList);
+    indexError("failed to calloc, nodeList: %p", nodeList);
     SIF_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
@@ -252,7 +253,7 @@ _return:
   SIF_RET(code);
 }
 static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *output) {
-  qError("index-filter not support buildin function");
+  indexError("index-filter not support buildin function");
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
@@ -390,8 +391,8 @@ _return:
 
 static int32_t sifExecLogic(SLogicConditionNode *node, SIFCtx *ctx, SIFParam *output) {
   if (NULL == node->pParameterList || node->pParameterList->length <= 0) {
-    qError("invalid logic parameter list, list:%p, paramNum:%d", node->pParameterList,
-           node->pParameterList ? node->pParameterList->length : 0);
+    indexError("invalid logic parameter list, list:%p, paramNum:%d", node->pParameterList,
+               node->pParameterList ? node->pParameterList->length : 0);
     return TSDB_CODE_QRY_INVALID_INPUT;
   }
 
@@ -485,7 +486,7 @@ EDealRes sifCalcWalker(SNode *node, void *context) {
     return sifWalkOper(node, ctx);
   }
 
-  qError("invalid node type for index filter calculating, type:%d", nodeType(node));
+  indexError("invalid node type for index filter calculating, type:%d", nodeType(node));
   ctx->code = TSDB_CODE_QRY_INVALID_INPUT;
   return DEAL_RES_ERROR;
 }
@@ -509,7 +510,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
   SIFCtx  ctx = {.code = 0, .noExec = false};
   ctx.pRes = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
-    qError("index-filter failed to taosHashInit");
+    indexError("index-filter failed to taosHashInit");
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
@@ -519,7 +520,7 @@ static int32_t sifCalculate(SNode *pNode, SIFParam *pDst) {
   if (pDst) {
     SIFParam *res = (SIFParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
     if (res == NULL) {
-      qError("no valid res in hash, node:(%p), type(%d)", (void *)&pNode, nodeType(pNode));
+      indexError("no valid res in hash, node:(%p), type(%d)", (void *)&pNode, nodeType(pNode));
       SIF_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
     }
     taosArrayAddAll(pDst->result, res->result);
@@ -539,7 +540,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
   SIFCtx ctx = {.code = 0, .noExec = true};
   ctx.pRes = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
   if (NULL == ctx.pRes) {
-    qError("index-filter failed to taosHashInit");
+    indexError("index-filter failed to taosHashInit");
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
 
@@ -549,7 +550,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
 
   SIFParam *res = (SIFParam *)taosHashGet(ctx.pRes, (void *)&pNode, POINTER_BYTES);
   if (res == NULL) {
-    qError("no valid res in hash, node:(%p), type(%d)", (void *)&pNode, nodeType(pNode));
+    indexError("no valid res in hash, node:(%p), type(%d)", (void *)&pNode, nodeType(pNode));
     SIF_ERR_RET(TSDB_CODE_QRY_APP_ERROR);
   }
   *status = res->status;
