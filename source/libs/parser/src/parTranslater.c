@@ -292,8 +292,8 @@ static bool isScanPseudoColumnFunc(const SNode* pNode) {
   return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsScanPseudoColumnFunc(((SFunctionNode*)pNode)->funcId));
 }
 
-static bool isNonstandardSQLFunc(const SNode* pNode) {
-  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsNonstandardSQLFunc(((SFunctionNode*)pNode)->funcId));
+static bool isIndefiniteRowsFunc(const SNode* pNode) {
+  return (QUERY_NODE_FUNCTION == nodeType(pNode) && fmIsIndefiniteRowsFunc(((SFunctionNode*)pNode)->funcId));
 }
 
 static bool isDistinctOrderBy(STranslateContext* pCxt) {
@@ -646,12 +646,13 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
       }
       case TSDB_DATA_TYPE_VARCHAR:
       case TSDB_DATA_TYPE_VARBINARY: {
-        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + VARSTR_HEADER_SIZE + 1);
+        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
         if (NULL == pVal->datum.p) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
         }
-        varDataSetLen(pVal->datum.p, targetDt.bytes);
-        strncpy(varDataVal(pVal->datum.p), pVal->literal, targetDt.bytes);
+        int32_t len = TMIN(targetDt.bytes - VARSTR_HEADER_SIZE, pVal->node.resType.bytes);
+        varDataSetLen(pVal->datum.p, len);
+        strncpy(varDataVal(pVal->datum.p), pVal->literal, len);
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
@@ -662,19 +663,18 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         break;
       }
       case TSDB_DATA_TYPE_NCHAR: {
-        int32_t bytes = targetDt.bytes * TSDB_NCHAR_SIZE;
-        pVal->datum.p = taosMemoryCalloc(1, bytes + VARSTR_HEADER_SIZE + 1);
+        pVal->datum.p = taosMemoryCalloc(1, targetDt.bytes + 1);
         if (NULL == pVal->datum.p) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_OUT_OF_MEMORY);
           ;
         }
 
-        int32_t output = 0;
-        if (!taosMbsToUcs4(pVal->literal, pVal->node.resType.bytes, (TdUcs4*)varDataVal(pVal->datum.p), bytes,
-                           &output)) {
+        int32_t len = 0;
+        if (!taosMbsToUcs4(pVal->literal, pVal->node.resType.bytes, (TdUcs4*)varDataVal(pVal->datum.p),
+                           targetDt.bytes - VARSTR_HEADER_SIZE, &len)) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
-        varDataSetLen(pVal->datum.p, output);
+        varDataSetLen(pVal->datum.p, len);
         break;
       }
       case TSDB_DATA_TYPE_JSON:
@@ -690,8 +690,20 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
   return DEAL_RES_CONTINUE;
 }
 
+static int32_t calcTypeBytes(SDataType dt) {
+  if (TSDB_DATA_TYPE_BINARY == dt.type) {
+    return dt.bytes + VARSTR_HEADER_SIZE;
+  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
+    return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
+  } else {
+    return dt.bytes;
+  }
+}
+
 static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal) {
-  return translateValueImpl(pCxt, pVal, pVal->node.resType);
+  SDataType dt = pVal->node.resType;
+  dt.bytes = calcTypeBytes(dt);
+  return translateValueImpl(pCxt, pVal, dt);
 }
 
 static bool isMultiResFunc(SNode* pNode) {
@@ -806,7 +818,7 @@ static EDealRes haveAggOrNonstdFunction(SNode* pNode, void* pContext) {
   if (isAggFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
-  } else if (isNonstandardSQLFunc(pNode)) {
+  } else if (isIndefiniteRowsFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
   }
@@ -851,6 +863,15 @@ static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
   return hasInvalidFunc;
 }
 
+static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
+                               .pRpc = pCxt->pParseCxt->pTransporter,
+                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
+                               .pErrBuf = pCxt->msgBuf.buf,
+                               .errBufLen = pCxt->msgBuf.len};
+  return fmGetFuncInfo(&param, pFunc);
+}
+
 static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc) {
   SNode* pParam = NULL;
   FOREACH(pParam, pFunc->pParameterList) {
@@ -859,12 +880,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
     }
   }
 
-  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
-                               .pRpc = pCxt->pParseCxt->pTransporter,
-                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
-                               .pErrBuf = pCxt->msgBuf.buf,
-                               .errBufLen = pCxt->msgBuf.len};
-  pCxt->errCode = fmGetFuncInfo(&param, pFunc);
+  pCxt->errCode = getFuncInfo(pCxt, pFunc);
   if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsAggFunc(pFunc->funcId)) {
     if (beforeHaving(pCxt->currClause)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_ILLEGAL_USE_AGG_FUNCTION);
@@ -872,7 +888,7 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
     if (hasInvalidFuncNesting(pFunc->pParameterList)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
     }
-    if (pCxt->pCurrStmt->hasNonstdSQLFunc) {
+    if (pCxt->pCurrStmt->hasIndefiniteRowsFunc) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
     }
 
@@ -899,14 +915,15 @@ static EDealRes translateFunction(STranslateContext* pCxt, SFunctionNode* pFunc)
       }
     }
   }
-  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsNonstandardSQLFunc(pFunc->funcId)) {
-    if (SQL_CLAUSE_SELECT != pCxt->currClause || pCxt->pCurrStmt->hasNonstdSQLFunc || pCxt->pCurrStmt->hasAggFuncs) {
+  if (TSDB_CODE_SUCCESS == pCxt->errCode && fmIsIndefiniteRowsFunc(pFunc->funcId)) {
+    if (SQL_CLAUSE_SELECT != pCxt->currClause || pCxt->pCurrStmt->hasIndefiniteRowsFunc ||
+        pCxt->pCurrStmt->hasAggFuncs) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
     }
     if (hasInvalidFuncNesting(pFunc->pParameterList)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_AGG_FUNC_NESTING);
     }
-    pCxt->pCurrStmt->hasNonstdSQLFunc = true;
+    pCxt->pCurrStmt->hasIndefiniteRowsFunc = true;
   }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
@@ -990,7 +1007,7 @@ static EDealRes rewriteColToSelectValFunc(STranslateContext* pCxt, SNode** pNode
   strcpy(pFunc->node.aliasName, ((SExprNode*)*pNode)->aliasName);
   pCxt->errCode = nodesListMakeAppend(&pFunc->pParameterList, *pNode);
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
-    translateFunction(pCxt, pFunc);
+    pCxt->errCode == getFuncInfo(pCxt, pFunc);
   }
   if (TSDB_CODE_SUCCESS == pCxt->errCode) {
     *pNode = (SNode*)pFunc;
@@ -1060,7 +1077,7 @@ static int32_t checkExprListForGroupBy(STranslateContext* pCxt, SNodeList* pList
 }
 
 static EDealRes rewriteColsToSelectValFuncImpl(SNode** pNode, void* pContext) {
-  if (isAggFunc(*pNode)) {
+  if (isAggFunc(*pNode) || isIndefiniteRowsFunc(*pNode)) {
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isScanPseudoColumnFunc(*pNode) || QUERY_NODE_COLUMN == nodeType(*pNode)) {
@@ -1097,7 +1114,7 @@ static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
     pCxt->existAggFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
-  if (isNonstandardSQLFunc(pNode)) {
+  if (isIndefiniteRowsFunc(pNode)) {
     pCxt->existNonstdFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
@@ -1939,7 +1956,7 @@ static int32_t createCastFunc(STranslateContext* pCxt, SNode* pExpr, SDataType d
     nodesDestroyNode(pFunc);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  if (DEAL_RES_ERROR == translateFunction(pCxt, pFunc)) {
+  if (TSDB_CODE_SUCCESS != getFuncInfo(pCxt, pFunc)) {
     nodesClearList(pFunc->pParameterList);
     pFunc->pParameterList = NULL;
     nodesDestroyNode(pFunc);
@@ -2341,16 +2358,6 @@ static int32_t translateAlterDatabase(STranslateContext* pCxt, SAlterDatabaseStm
   buildAlterDbReq(pCxt, pStmt, &alterReq);
 
   return buildCmdMsg(pCxt, TDMT_MND_ALTER_DB, (FSerializeFunc)tSerializeSAlterDbReq, &alterReq);
-}
-
-static int32_t calcTypeBytes(SDataType dt) {
-  if (TSDB_DATA_TYPE_BINARY == dt.type) {
-    return dt.bytes + VARSTR_HEADER_SIZE;
-  } else if (TSDB_DATA_TYPE_NCHAR == dt.type) {
-    return dt.bytes * TSDB_NCHAR_SIZE + VARSTR_HEADER_SIZE;
-  } else {
-    return dt.bytes;
-  }
 }
 
 static int32_t columnDefNodeToField(SNodeList* pList, SArray** pArray) {
@@ -4082,24 +4089,15 @@ static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SS
 }
 
 static int32_t createValueFromFunction(STranslateContext* pCxt, SFunctionNode* pFunc, SValueNode** pVal) {
-  if (DEAL_RES_ERROR == translateFunction(pCxt, pFunc)) {
-    return pCxt->errCode;
+  int32_t code = getFuncInfo(pCxt, pFunc);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = scalarCalculateConstants((SNode*)pFunc, (SNode**)pVal);
   }
-  return scalarCalculateConstants((SNode*)pFunc, (SNode**)pVal);
-}
-
-static int32_t colDataBytesToValueDataBytes(uint8_t type, int32_t bytes) {
-  if (TSDB_DATA_TYPE_VARCHAR == type || TSDB_DATA_TYPE_BINARY == type || TSDB_DATA_TYPE_VARBINARY == type) {
-    return bytes - VARSTR_HEADER_SIZE;
-  } else if (TSDB_DATA_TYPE_NCHAR == type) {
-    return (bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
-  }
-  return bytes;
+  return code;
 }
 
 static SDataType schemaToDataType(SSchema* pSchema) {
   SDataType dt = {.type = pSchema->type, .bytes = pSchema->bytes, .precision = 0, .scale = 0};
-  dt.bytes = colDataBytesToValueDataBytes(pSchema->type, pSchema->bytes);
   return dt;
 }
 
