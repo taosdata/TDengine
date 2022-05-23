@@ -718,7 +718,11 @@ bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
 
   bzero((char *)&serverAdd, sizeof(serverAdd));
   serverAdd.sin_family = AF_INET;
+#ifdef WINDOWS
+  serverAdd.sin_addr.s_addr = INADDR_ANY;
+#else
   serverAdd.sin_addr.s_addr = ip;
+#endif
   serverAdd.sin_port = (uint16_t)htons(port);
 
   if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
@@ -882,6 +886,16 @@ void taosBlockSIGPIPE() {
 }
 
 uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+      printf("WSAStartup failed: %d\n", iResult);
+      return 1;
+  }
+#endif
   struct addrinfo hints = {0};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -899,12 +913,12 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, strerror(errno));
+      printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
     } else {
-      // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+      printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
     }
 #else
-    // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+    printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
     return 0xFFFFFFFF;
   }
