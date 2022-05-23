@@ -34,7 +34,7 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    - quorum: [Description](/reference/config/#quorum)
    - maxVgroupsPerDb: [Description](/reference/config/#maxvgroupsperdb)
    - comp: [Description](/reference/config/#comp)
-   - precision: [Description](reference/config/#precision)
+   - precision: [Description](/reference/config/#precision)
 6. Please be noted that all of the parameters mentioned in this section can be configured in configuration file `taosd.cfg` at server side and used by default,  can be override if they are specified in `create database` statement.
    
 :::

@@ -528,20 +528,18 @@ int32_t qwDropTask(QW_FPARAMS_DEF) {
 }
 
 int32_t qwHandleTaskComplete(QW_FPARAMS_DEF, SQWTaskCtx *ctx) {
-  qTaskInfo_t *taskHandle = &ctx->taskHandle;
+  qTaskInfo_t taskHandle = ctx->taskHandle;
 
-  if (TASK_TYPE_TEMP == ctx->taskType) {
+  if (TASK_TYPE_TEMP == ctx->taskType && taskHandle) {
     if (ctx->explain) {
       SExplainExecInfo *execInfo = NULL;
       int32_t           resNum = 0;
-      QW_ERR_RET(qGetExplainExecInfo(ctx->taskHandle, &resNum, &execInfo));
+      QW_ERR_RET(qGetExplainExecInfo(taskHandle, &resNum, &execInfo));
 
       SRpcHandleInfo connInfo = ctx->ctrlConnInfo;
       connInfo.ahandle = NULL;
       QW_ERR_RET(qwBuildAndSendExplainRsp(&connInfo, execInfo, resNum));
     }
-
-    qwFreeTaskHandle(QW_FPARAMS(), taskHandle);
   }
 
   return TSDB_CODE_SUCCESS;
@@ -554,16 +552,21 @@ int32_t qwExecTask(QW_FPARAMS_DEF, SQWTaskCtx *ctx, bool *queryEnd) {
   uint64_t       useconds = 0;
   int32_t        i = 0;
   int32_t        execNum = 0;
-  qTaskInfo_t   *taskHandle = &ctx->taskHandle;
+  qTaskInfo_t    taskHandle = ctx->taskHandle;
   DataSinkHandle sinkHandle = ctx->sinkHandle;
 
   while (true) {
     QW_TASK_DLOG("start to execTask, loopIdx:%d", i++);
 
-    code = qExecTask(*taskHandle, &pRes, &useconds);
-    if (code) {
-      QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
-      QW_ERR_RET(code);
+    pRes = NULL;
+
+    // if *taskHandle is NULL, it's killed right now
+    if (taskHandle) {
+      code = qExecTask(taskHandle, &pRes, &useconds);
+      if (code) {
+        QW_TASK_ELOG("qExecTask failed, code:%x - %s", code, tstrerror(code));
+        QW_ERR_RET(code);
+      }
     }
 
     ++execNum;

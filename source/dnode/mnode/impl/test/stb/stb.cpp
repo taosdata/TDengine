@@ -13,7 +13,7 @@
 
 class MndTestStb : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_stb", 9034); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "mnode_test_stb", 9034); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;

@@ -76,9 +76,14 @@ target_link_libraries(
     #PUBLIC scalar
     PUBLIC transport
     PUBLIC stream
+    PUBLIC index
 )
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
-
+if (${BUILD_WITH_INVERTEDINDEX})
+  add_definitions(-DUSE_INVERTED_INDEX) 
+endif(${BUILD_WITH_INVERTEDINDEX})
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})
+
+

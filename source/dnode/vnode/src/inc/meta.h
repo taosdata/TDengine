@@ -17,6 +17,7 @@
 #define _TD_VNODE_META_H_
 
 #include "vnodeInt.h"
+#include "index.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -61,16 +62,20 @@ static FORCE_INLINE tb_uid_t metaGenerateUid(SMeta* pMeta) { return tGenIdPI64()
 struct SMeta {
   TdThreadRwlock lock;
 
-  char*     path;
-  SVnode*   pVnode;
-  TDB*      pEnv;
-  TXN       txn;
-  TTB*      pTbDb;
-  TTB*      pSkmDb;
-  TTB*      pUidIdx;
-  TTB*      pNameIdx;
-  TTB*      pCtbIdx;
-  TTB*      pTagIdx;
+  char*   path;
+  SVnode* pVnode;
+  TDB*    pEnv;
+  TXN     txn;
+  TTB*    pTbDb;
+  TTB*    pSkmDb;
+  TTB*    pUidIdx;
+  TTB*    pNameIdx;
+  TTB*    pCtbIdx;
+#ifdef USE_INVERTED_INDEX
+  void* pTagIvtIdx;
+#else
+  TTB* pTagIdx;
+#endif
   TTB*      pTtlIdx;
   TTB*      pSmaIdx;
   SMetaIdx* pIdx;
