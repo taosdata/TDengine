@@ -4680,13 +4680,6 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
     return code;
   }
 
-  SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
-  if (getNumOfTags(pTableMeta) == 1 && pTagsSchema->type == TSDB_DATA_TYPE_JSON &&
-     (pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG ||
-     pStmt->alterType ==  TSDB_ALTER_TABLE_DROP_TAG ||
-     pStmt->alterType ==  TSDB_ALTER_TABLE_UPDATE_TAG_BYTES)) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
-  }
   if (pStmt->dataType.type == TSDB_DATA_TYPE_JSON && pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
   }
@@ -4700,6 +4693,13 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
   }
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
+    SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
+    if (getNumOfTags(pTableMeta) == 1 && pTagsSchema->type == TSDB_DATA_TYPE_JSON &&
+        (pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG ||
+         pStmt->alterType ==  TSDB_ALTER_TABLE_DROP_TAG ||
+         pStmt->alterType ==  TSDB_ALTER_TABLE_UPDATE_TAG_BYTES)) {
+      return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
+    }
     return TSDB_CODE_SUCCESS;
   } else if (TSDB_CHILD_TABLE != pTableMeta->tableType && TSDB_NORMAL_TABLE != pTableMeta->tableType) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE);
