@@ -13,71 +13,62 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#define _DEFAULT_SOURCE
 #include "vnd.h"
 
+static int32_t   vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg);
+static int32_t   vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg);
+static SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode);
+static void      vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta);
+static void      vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta);
+static void      vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta);
+static int32_t   vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
+
 int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
-  SSyncInfo syncInfo;
-  syncInfo.vgId = pVnode->config.vgId;
-  SSyncCfg *pCfg = &(syncInfo.syncCfg);
-  pCfg->replicaNum = pVnode->config.syncCfg.replicaNum;
-  pCfg->myIndex = pVnode->config.syncCfg.myIndex;
-  memcpy(pCfg->nodeInfo, pVnode->config.syncCfg.nodeInfo, sizeof(pCfg->nodeInfo));
+  SSyncInfo syncInfo = {
+      .vgId = pVnode->config.vgId,
+      .syncCfg = pVnode->config.syncCfg,
+      .pWal = pVnode->pWal,
+      .msgcb = NULL,
+      .FpSendMsg = vnodeSyncSendMsg,
+      .FpEqMsg = vnodeSyncEqMsg,
+  };
 
-  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s/sync", path);
-  syncInfo.pWal = pVnode->pWal;
-
-  syncInfo.pFsm = syncVnodeMakeFsm(pVnode);
-  syncInfo.msgcb = NULL;
-  syncInfo.FpSendMsg = vnodeSyncSendMsg;
-  syncInfo.FpEqMsg = vnodeSyncEqMsg;
+  snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", path, TD_DIRSEP);
+  syncInfo.pFsm = vnodeSyncMakeFsm(pVnode);
 
   pVnode->sync = syncOpen(&syncInfo);
-  assert(pVnode->sync > 0);
+  if (pVnode->sync <= 0) {
+    vError("vgId:%d, failed to open sync since %s", pVnode->config.vgId, terrstr());
+    return -1;
+  }
 
-  // for test
   setPingTimerMS(pVnode->sync, 3000);
   setElectTimerMS(pVnode->sync, 500);
   setHeartbeatTimerMS(pVnode->sync, 100);
-
   return 0;
 }
 
-int32_t vnodeSyncStart(SVnode *pVnode) {
+void vnodeSyncStart(SVnode *pVnode) {
+  syncSetMsgCb(pVnode->sync, &pVnode->msgCb);
   syncStart(pVnode->sync);
-  return 0;
 }
 
-void vnodeSyncClose(SVnode *pVnode) {
-  // stop by ref id
-  syncStop(pVnode->sync);
-}
-
-void vnodeSyncSetMsgCb(SVnode *pVnode) { syncSetMsgCb(pVnode->sync, &pVnode->msgCb); }
+void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
 int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
 
-int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) {
-  pMsg->info.noResp = 1;
-  return tmsgSendReq(pEpSet, pMsg);
-}
+int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
-int32_t vnodeSyncGetSnapshotCb(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
-  SVnode *pVnode = (SVnode *)(pFsm->data);
-  vnodeGetSnapshot(pVnode, pSnapshot);
-
-  /*
-  pSnapshot->data = NULL;
-  pSnapshot->lastApplyIndex = 0;
-  pSnapshot->lastApplyTerm = 0;
-  */
-
+int32_t vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) {
+  vnodeGetSnapshot(pFsm->data, pSnapshot);
   return 0;
 }
 
-void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   SyncIndex beginIndex = SYNC_INDEX_INVALID;
   if (pFsm->FpGetSnapshot != NULL) {
-    SSnapshot snapshot;
+    SSnapshot snapshot = {0};
     pFsm->FpGetSnapshot(pFsm, &snapshot);
     beginIndex = snapshot.lastApplyIndex;
   }
@@ -128,7 +119,7 @@ void vnodeSyncCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cb
   }
 }
 
-void vnodeSyncPreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+void vnodeSyncPreCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
            "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, cbMeta.index,
@@ -136,19 +127,19 @@ void vnodeSyncPreCommitCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
-void vnodeSyncRollBackCb(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
+void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
            pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
   syncRpcMsgLog2(logBuf, (SRpcMsg *)pMsg);
 }
 
-SSyncFSM *syncVnodeMakeFsm(SVnode *pVnode) {
-  SSyncFSM *pFsm = (SSyncFSM *)taosMemoryMalloc(sizeof(SSyncFSM));
+SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
+  SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pVnode;
-  pFsm->FpCommitCb = vnodeSyncCommitCb;
-  pFsm->FpPreCommitCb = vnodeSyncPreCommitCb;
-  pFsm->FpRollBackCb = vnodeSyncRollBackCb;
-  pFsm->FpGetSnapshot = vnodeSyncGetSnapshotCb;
+  pFsm->FpCommitCb = vnodeSyncCommitMsg;
+  pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
+  pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
+  pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
   return pFsm;
 }

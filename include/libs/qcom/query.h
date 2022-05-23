@@ -57,6 +57,12 @@ typedef struct SIndexMeta {
 
 } SIndexMeta;
 
+typedef struct STbVerInfo {
+  char tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t sversion;
+  int32_t tversion;
+} STbVerInfo;
+
 /*
  * ASSERT(sizeof(SCTableMeta) == 24)
  * ASSERT(tableType == TSDB_CHILD_TABLE)
@@ -182,19 +188,23 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define SET_META_TYPE_TABLE(t)      (t) = META_TYPE_TABLE
 #define SET_META_TYPE_BOTH_TABLE(t) (t) = META_TYPE_BOTH_TABLE
 
-#define NEED_CLIENT_RM_TBLMETA_ERROR(_code) \
-  ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_VND_TB_NOT_EXIST)
+#define NEED_CLIENT_RM_TBLMETA_ERROR(_code)                                                   \
+  ((_code) == TSDB_CODE_PAR_TABLE_NOT_EXIST || (_code) == TSDB_CODE_VND_TB_NOT_EXIST ||       \
+   (_code) == TSDB_CODE_PAR_INVALID_COLUMNS_NUM || (_code) == TSDB_CODE_PAR_INVALID_COLUMN || \
+   (_code) == TSDB_CODE_PAR_TAGS_NOT_MATCHED)
 #define NEED_CLIENT_REFRESH_VG_ERROR(_code) \
   ((_code) == TSDB_CODE_VND_HASH_MISMATCH || (_code) == TSDB_CODE_VND_INVALID_VGROUP_ID)
 #define NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code) ((_code) == TSDB_CODE_TDB_TABLE_RECREATED)
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
+#define NEED_CLIENT_RM_TBLMETA_REQ(_type) ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_VND_CREATE_STB \
+  || (_type) == TDMT_VND_DROP_TABLE || (_type) == TDMT_VND_DROP_STB)
 
 #define NEED_SCHEDULER_RETRY_ERROR(_code) \
   ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)
 
-#define REQUEST_MAX_TRY_TIMES 5
+#define REQUEST_MAX_TRY_TIMES 1
 
 #define qFatal(...)                                                                           \
   do {                                                                                        \
@@ -220,23 +230,23 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
       taosPrintLog("QRY ", DEBUG_INFO, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
     }                                                                                  \
   } while (0)
-#define qDebug(...)                                               \
-  do {                                                            \
-    if (qDebugFlag & DEBUG_DEBUG) {                               \
-      taosPrintLog("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                             \
+#define qDebug(...)                                                                     \
+  do {                                                                                  \
+    if (qDebugFlag & DEBUG_DEBUG) {                                                     \
+      taosPrintLog("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                   \
   } while (0)
-#define qTrace(...)                                               \
-  do {                                                            \
-    if (qDebugFlag & DEBUG_TRACE) {                               \
-      taosPrintLog("QRY ", DEBUG_TRACE, qDebugFlag, __VA_ARGS__); \
-    }                                                             \
+#define qTrace(...)                                                                     \
+  do {                                                                                  \
+    if (qDebugFlag & DEBUG_TRACE) {                                                     \
+      taosPrintLog("QRY ", DEBUG_TRACE, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                   \
   } while (0)
-#define qDebugL(...)                                                     \
-  do {                                                                   \
-    if (qDebugFlag & DEBUG_DEBUG) {                                      \
-      taosPrintLongString("QRY ", DEBUG_DEBUG, qDebugFlag, __VA_ARGS__); \
-    }                                                                    \
+#define qDebugL(...)                                                                           \
+  do {                                                                                         \
+    if (qDebugFlag & DEBUG_DEBUG) {                                                            \
+      taosPrintLongString("QRY ", DEBUG_DEBUG, tsLogEmbedded ? 255 : qDebugFlag, __VA_ARGS__); \
+    }                                                                                          \
   } while (0)
 
 #define QRY_ERR_RET(c)                \

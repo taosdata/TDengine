@@ -1,0 +1,84 @@
+### Configuring taosAdapter
+
+To configure taosAdapter to receive collectd data.
+
+- Enable the configuration item in the taosAdapter configuration file (default location is /etc/taos/taosadapter.toml)
+
+```
+...
+[opentsdb_telnet]
+enable = true
+maxTCPConnections = 250
+tcpKeepAlive = false
+dbs = ["opentsdb_telnet", "collectd", "icinga2", "tcollector"]
+ports = [6046, 6047, 6048, 6049]
+user = "root"
+password = "taosdata"
+...
+```
+
+The default database name written by taosAdapter is `collectd`. You can also modify the taosAdapter configuration file dbs entry to specify a different name. user and password are the values configured by the actual TDengine. After changing the configuration file, you need to restart the taosAdapter.
+
+- You can also enable the taosAdapter to receive collectd data by using the taosAdapter command-line parameters or by setting environment variables.
+
+### Configure collectd
+#collectd
+collectd uses a plugin mechanism to write the collected monitoring data to different data storage software in various forms. tdengine supports both direct collection plugins and write_tsdb plugins.
+
+#### is configured to receive data from the direct collection plugin
+
+Modify the relevant configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
+
+```text
+LoadPlugin network
+<Plugin network>
+         Server "<taosAdapter's host>" "<port for collectd direct>"
+</Plugin>
+```
+
+where <taosAdapter's host\> fills in the server's domain name or IP address running taosAdapter. <port for collectd direct\> fills in the port that taosAdapter uses to receive collectd data (default is 6045).
+
+An example is as follows.
+
+```text
+LoadPlugin network
+<Plugin network
+         Server "127.0.0.1" "6045"
+</Plugin>
+```
+
+#### Configure write_tsdb plugin data
+
+Modify the relevant configuration items in the collectd configuration file (default location /etc/collectd/collectd.conf).
+
+```text
+LoadPlugin write_tsdb
+<Plugin write_tsdb>
+        <Node>
+                Host "<taosAdapter's host>"
+                Port "<port for collectd write_tsdb plugin>"
+                ...
+        </Node>
+</Plugin>
+```
+
+Where <taosAdapter's host\> fills in the server's domain name or IP address running taosAdapter. <port for collectd write_tsdb plugin\> Fill in the data that taosAdapter uses to receive the collectd write_tsdb plugin (default is 6047).
+
+```text
+LoadPlugin write_tsdb
+<Plugin write_tsdb>
+        <Node>
+                Host "127.0.0.1"
+                Port "6047"
+                HostTags "status=production"
+                StoreRates false
+                AlwaysAppendDS false
+        </Node
+</Plugin>
+```
+
+Then restart collectd.
+
+```
+systemctl restart collectd
+```

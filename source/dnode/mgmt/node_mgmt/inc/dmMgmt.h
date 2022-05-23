@@ -134,10 +134,9 @@ SMgmtWrapper *dmAcquireWrapper(SDnode *pDnode, EDndNodeType nType);
 int32_t       dmMarkWrapper(SMgmtWrapper *pWrapper);
 void          dmReleaseWrapper(SMgmtWrapper *pWrapper);
 SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
-
-void dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
-void dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
-void dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
+void          dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
+void          dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
+void          dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
 
 // dmNodes.c
 int32_t dmOpenNode(SMgmtWrapper *pWrapper);

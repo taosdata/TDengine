@@ -300,9 +300,25 @@ void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock)
     if (fmIsScanPseudoColumnFunc(functionId)) {
       setTbNameColData(pTableScanInfo->readHandle.meta, pBlock, pColInfoData, functionId);
     } else {  // these are tags
-      const char* p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
+      const char* p = NULL;
+      if(pColInfoData->info.type == TSDB_DATA_TYPE_JSON){
+        const uint8_t *tmp = mr.me.ctbEntry.pTags;
+        char *data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+        if(data == NULL){
+          qError("doTagScan calloc error:%d", kvRowLen(tmp) + 1);
+          return;
+        }
+        *data = TSDB_DATA_TYPE_JSON;
+        memcpy(data+1, tmp, kvRowLen(tmp));
+        p = data;
+      }else{
+        p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
+      }
       for (int32_t i = 0; i < pBlock->info.rows; ++i) {
         colDataAppend(pColInfoData, i, p, (p == NULL));
+      }
+      if(pColInfoData->info.type == TSDB_DATA_TYPE_JSON){
+        taosMemoryFree((void*)p);
       }
     }
   }
@@ -673,7 +689,7 @@ static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool inverti
     }
     pDataBlock->info.rows = size;
     pDataBlock->info.type = STREAM_REPROCESS;
-    blockDataUpdateTsWindow(pDataBlock);
+    blockDataUpdateTsWindow(pDataBlock, 0);
     taosArrayClear(pInfo->tsArray);
     return pDataBlock;
   }
@@ -883,7 +899,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
       rows = pBlockInfo->rows;
       doFilter(pInfo->pCondition, pInfo->pRes, NULL);
-      blockDataUpdateTsWindow(pInfo->pRes);
+      blockDataUpdateTsWindow(pInfo->pRes, 0);
 
       break;
     }
@@ -956,9 +972,10 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
   }
 
   pInfo->primaryTsIndex = 0;                           // TODO(liuyao) get it from physical plan
-  pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, 10000); // TODO(liuyao) get watermark from physical plan
-  if (pInfo->pUpdateInfo == NULL) {
-    goto _error;
+  if (pSTInfo->interval.interval > 0) {
+    pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, 10000); // TODO(liuyao) get watermark from physical plan
+  } else {
+    pInfo->pUpdateInfo = NULL;
   }
 
   pInfo->readHandle     = *pHandle;
@@ -973,7 +990,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
 
   size_t childKeyBufSize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
   initCatchSupporter(&pInfo->childAggSup, 1024, childKeyBufSize,
-      "StreamFinalInterval", "/tmp/"); // TODO(liuyao) get row size from phy plan
+      "StreamFinalInterval", TD_TMP_DIR_PATH); // TODO(liuyao) get row size from phy plan
 
   pOperator->name       = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;
@@ -1587,8 +1604,21 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(str, mr.me.name);
         colDataAppend(pDst, count, str, false);
       } else { // it is a tag value
-        const char* p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
-        colDataAppend(pDst, count, p, (p == NULL));
+        if(pDst->info.type == TSDB_DATA_TYPE_JSON){
+          const uint8_t *tmp = mr.me.ctbEntry.pTags;
+          char *data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+          if(data == NULL){
+            qError("doTagScan calloc error:%d", kvRowLen(tmp) + 1);
+            return NULL;
+          }
+          *data = TSDB_DATA_TYPE_JSON;
+          memcpy(data+1, tmp, kvRowLen(tmp));
+          colDataAppend(pDst, count, data, false);
+          taosMemoryFree(data);
+        }else{
+          const char* p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
+          colDataAppend(pDst, count, p, (p == NULL));
+        }
       }
     }
 

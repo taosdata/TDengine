@@ -821,15 +821,36 @@ int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void *pTrans, const SEpSet* pMgm
   int32_t tbNum = taosArrayGetSize(pTables);
   for (int32_t i = 0; i < tbNum; ++i) {
     STbSVersion* pTb = (STbSVersion*)taosArrayGet(pTables, i);
+    if (NULL == pTb->tbFName || 0 == pTb->tbFName[0]) {
+      continue;
+    }
+    
     tNameFromString(&name, pTb->tbFName, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
     if (CTG_IS_SYS_DBNAME(name.dbname)) {
       continue;
     }
 
-    ctgReadTbSverFromCache(pCtg, &name, &sver);
+    int32_t  tbType = 0;
+    uint64_t suid = 0;
+    char     stbName[TSDB_TABLE_FNAME_LEN];
+    ctgGetTbSverFromCache(pCtg, &name, &sver, &tbType, &suid, stbName);
     if (sver >= 0 && sver < pTb->sver) {
-      catalogRemoveTableMeta(pCtg, &name); //TODO REMOVE STB FROM CACHE
+      switch (tbType) {
+        case TSDB_CHILD_TABLE: {
+          SName stb = name;
+          strcpy(stb.tname, stbName);
+          catalogRemoveTableMeta(pCtg, &stb);
+          break;
+        }
+        case TSDB_SUPER_TABLE:
+        case TSDB_NORMAL_TABLE:
+          catalogRemoveTableMeta(pCtg, &name);
+          break;
+        default:
+          ctgError("ignore table type %d", tbType);
+          break;
+      }
     }
   }
 

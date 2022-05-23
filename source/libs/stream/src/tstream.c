@@ -68,7 +68,7 @@ static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMs
 
     // get groupId, compute hash value
     uint32_t hashValue = MurmurHash3_32(ctbName, strlen(ctbName));
-    //
+
     // get node
     // TODO: optimize search process
     SArray* vgInfo = pTask->shuffleDispatcher.dbInfo.pVgroupInfos;
@@ -152,13 +152,13 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
 
   // exec
   while (1) {
-    SSDataBlock* output;
+    SSDataBlock* output = NULL;
     uint64_t     ts = 0;
     if (qExecTask(exec, &output, &ts) < 0) {
       ASSERT(false);
     }
     if (output == NULL) break;
-    taosArrayPush(pRes, &output);
+    taosArrayPush(pRes, output);
   }
 
   // destroy
@@ -189,7 +189,7 @@ int32_t streamTaskExec2(SStreamTask* pTask, SMsgCb* pMsgCb) {
         taosFreeQitem(data);
 
         if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
+          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
           resQ->type = STREAM_INPUT__DATA_BLOCK;
           resQ->blocks = pRes;
           taosWriteQitem(pTask->outputQ, resQ);
@@ -209,7 +209,7 @@ int32_t streamTaskExec2(SStreamTask* pTask, SMsgCb* pMsgCb) {
         taosFreeQitem(data);
 
         if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
+          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
           resQ->type = STREAM_INPUT__DATA_BLOCK;
           resQ->blocks = pRes;
           taosWriteQitem(pTask->outputQ, resQ);
@@ -231,7 +231,7 @@ int32_t streamTaskExec2(SStreamTask* pTask, SMsgCb* pMsgCb) {
         taosFreeQitem(data);
 
         if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
+          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
           resQ->type = STREAM_INPUT__DATA_BLOCK;
           resQ->blocks = pRes;
           taosWriteQitem(pTask->outputQ, resQ);
@@ -253,7 +253,7 @@ int32_t streamTaskExec2(SStreamTask* pTask, SMsgCb* pMsgCb) {
         taosFreeQitem(data);
 
         if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(void**), DEF_QITEM);
+          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
           resQ->type = STREAM_INPUT__DATA_BLOCK;
           resQ->blocks = pRes;
           taosWriteQitem(pTask->outputQ, resQ);
@@ -392,12 +392,14 @@ int32_t streamTaskEnqueue(SStreamTask* pTask, SStreamDispatchReq* pReq, SRpcMsg*
   // 1.2 enqueue
   pBlock->type = STREAM_DATA_TYPE_SSDATA_BLOCK;
   pBlock->sourceVg = pReq->sourceVg;
-  pBlock->sourceVer = pReq->sourceVer;
+  /*pBlock->sourceVer = pReq->sourceVer;*/
   taosWriteQitem(pTask->inputQ, pBlock);
 
   // 1.3 rsp by input status
   SStreamDispatchRsp* pCont = rpcMallocCont(sizeof(SStreamDispatchRsp));
   pCont->inputStatus = status;
+  pCont->streamId = pReq->streamId;
+  pCont->taskId = pReq->sourceTaskId;
   pRsp->pCont = pCont;
   pRsp->contLen = sizeof(SStreamDispatchRsp);
   tmsgSendRsp(pRsp);
@@ -439,12 +441,12 @@ int32_t streamTaskProcessRunReq(SStreamTask* pTask, SMsgCb* pMsgCb) {
   return 0;
 }
 
-int32_t streamTaskProcessRecoverReq(SStreamTask* pTask, char* msg) {
+int32_t streamTaskProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskRecoverReq* pReq, SRpcMsg* pMsg) {
   //
   return 0;
 }
 
-int32_t streamTaskProcessRecoverRsp(SStreamTask* pTask, char* msg) {
+int32_t streamTaskProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp) {
   //
   return 0;
 }

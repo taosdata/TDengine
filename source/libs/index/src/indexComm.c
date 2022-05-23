@@ -22,6 +22,29 @@
 #include "ttypes.h"
 #include "tvariant.h"
 
+#define INDEX_DATA_BOOL_NULL      0x02
+#define INDEX_DATA_TINYINT_NULL   0x80
+#define INDEX_DATA_SMALLINT_NULL  0x8000
+#define INDEX_DATA_INT_NULL       0x80000000L
+#define INDEX_DATA_BIGINT_NULL    0x8000000000000000L
+#define INDEX_DATA_TIMESTAMP_NULL TSDB_DATA_BIGINT_NULL
+
+#define INDEX_DATA_FLOAT_NULL    0x7FF00000           // it is an NAN
+#define INDEX_DATA_DOUBLE_NULL   0x7FFFFF0000000000L  // an NAN
+#define INDEX_DATA_NCHAR_NULL    0xFFFFFFFF
+#define INDEX_DATA_BINARY_NULL   0xFF
+#define INDEX_DATA_JSON_NULL     0xFFFFFFFF
+#define INDEX_DATA_JSON_null     0xFFFFFFFE
+#define INDEX_DATA_JSON_NOT_NULL 0x01
+
+#define INDEX_DATA_UTINYINT_NULL  0xFF
+#define INDEX_DATA_USMALLINT_NULL 0xFFFF
+#define INDEX_DATA_UINT_NULL      0xFFFFFFFF
+#define INDEX_DATA_UBIGINT_NULL   0xFFFFFFFFFFFFFFFFL
+
+#define INDEX_DATA_NULL_STR   "NULL"
+#define INDEX_DATA_NULL_STR_L "null"
+
 char JSON_COLUMN[] = "JSON";
 char JSON_VALUE_DELIM = '&';
 
@@ -372,7 +395,7 @@ int32_t indexConvertDataToStr(void* src, int8_t type, void** dst) {
       tlen = taosEncodeBinary(NULL, varDataVal(src), varDataLen(src));
       *dst = taosMemoryCalloc(1, tlen + 1);
       tlen = taosEncodeBinary(dst, varDataVal(src), varDataLen(src));
-      *dst = (char*) * dst - tlen;
+      *dst = (char*)*dst - tlen;
       break;
     }
     case TSDB_DATA_TYPE_VARCHAR: {  // TSDB_DATA_TYPE_BINARY

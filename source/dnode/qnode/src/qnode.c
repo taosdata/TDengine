@@ -43,44 +43,49 @@ void qndClose(SQnode *pQnode) {
 int32_t qndGetLoad(SQnode *pQnode, SQnodeLoad *pLoad) { return 0; }
 
 int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
-  qTrace("message in qnode query queue is processing");
+  int32_t     code = -1;
   SReadHandle handle = {.pMsgCb = &pQnode->msgCb};
+  qTrace("message in qnode queue is processing");
 
   switch (pMsg->msgType) {
-    case TDMT_VND_QUERY: {
-      return qWorkerProcessQueryMsg(&handle, pQnode->pQuery, pMsg);
-    }
+    case TDMT_VND_QUERY:
+      code = qWorkerProcessQueryMsg(&handle, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_QUERY_CONTINUE:
-      return qWorkerProcessCQueryMsg(&handle, pQnode->pQuery, pMsg);
-    default:
-      qError("unknown msg type:%d in query queue", pMsg->msgType);
-      return TSDB_CODE_VND_APP_ERROR;
-  }
-}
-
-int32_t qndProcessFetchMsg(SQnode *pQnode, SRpcMsg *pMsg) {
-  qTrace("message in fetch queue is processing");
-  switch (pMsg->msgType) {
+      code = qWorkerProcessCQueryMsg(&handle, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_FETCH:
-      return qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessFetchMsg(pQnode, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_FETCH_RSP:
-      return qWorkerProcessFetchRsp(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessFetchRsp(pQnode, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_RES_READY:
-      return qWorkerProcessReadyMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessReadyMsg(pQnode, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_TASKS_STATUS:
-      return qWorkerProcessStatusMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessStatusMsg(pQnode, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_CANCEL_TASK:
-      return qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_DROP_TASK:
-      return qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg);
+      code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg);
+      break;
     case TDMT_VND_TABLE_META:
-      // return vnodeGetTableMeta(pQnode, pMsg);
+      // code =  vnodeGetTableMeta(pQnode, pMsg);
+      // break;
     case TDMT_VND_CONSUME:
-      // return tqProcessConsumeReq(pQnode->pTq, pMsg);
+      // code =  tqProcessConsumeReq(pQnode->pTq, pMsg);
+      // break;
     case TDMT_VND_QUERY_HEARTBEAT:
-      return qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg);      
+      code = qWorkerProcessHbMsg(pQnode, pQnode->pQuery, pMsg);
+      break;
     default:
-      qError("unknown msg type:%d in fetch queue", pMsg->msgType);
-      return TSDB_CODE_VND_APP_ERROR;
+      qError("unknown msg type:%d in qnode queue", pMsg->msgType);
+      terrno = TSDB_CODE_VND_APP_ERROR;
   }
+
+  if (code == 0) return TSDB_CODE_ACTION_IN_PROGRESS;
+  return code;
 }

@@ -20,11 +20,11 @@
 static void tsdbResetReadTable(SReadH *pReadh);
 static void tsdbResetReadFile(SReadH *pReadh);
 static int  tsdbLoadBlockOffset(SReadH *pReadh, SBlock *pBlock);
-static int  tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols);
+static int  tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, int8_t bitmapMode);
 static int  tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32_t len, int32_t bitmapLen, int8_t comp,
                                          int numOfRows, int numOfBitmaps, int maxPoints, char *buffer, int bufferSize);
 static int  tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, const int16_t *colIds,
-                                      int numOfColIds);
+                                      int numOfColIds, int8_t bitmapMode);
 static int  tsdbLoadColData(SReadH *pReadh, SDFile *pDFile, SBlock *pBlock, SBlockCol *pBlockCol, SDataCol *pDataCol);
 
 int tsdbInitReadH(SReadH *pReadh, STsdb *pRepo) {
@@ -266,10 +266,11 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
     }
   }
 
-  if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[0]) < 0) return -1;
+  
+  if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[0], TSDB_BITMODE_ONE_BIT) < 0) return -1;
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
-    if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1]) < 0) return -1;
+    if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1], TSDB_BITMODE_DEFAULT) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
                         TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
@@ -309,10 +310,10 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     }
   }
 
-  if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[0], colIds, numOfColsIds) < 0) return -1;
+  if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[0], colIds, numOfColsIds, TSDB_BITMODE_ONE_BIT) < 0) return -1;
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
-    if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds) < 0) return -1;
+    if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds, TSDB_BITMODE_DEFAULT) < 0) return -1;
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
                         TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
@@ -543,14 +544,14 @@ static void tsdbResetReadFile(SReadH *pReadh) {
   tsdbCloseDFileSet(TSDB_READ_FSET(pReadh));
 }
 
-static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols) {
+static int tsdbLoadBlockDataImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, int8_t bitmapMode) {
   ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
 
   SDFile *pDFile = (pBlock->last) ? TSDB_READ_LAST_FILE(pReadh) : TSDB_READ_DATA_FILE(pReadh);
 
   tdResetDataCols(pDataCols);
 
-  if (tsdbIsSupBlock(pBlock)) {
+  if (tdIsBitmapModeI(bitmapMode)) {
     tdDataColsSetBitmapI(pDataCols);
   }
 
@@ -730,7 +731,7 @@ static int tsdbCheckAndDecodeColumnData(SDataCol *pDataCol, void *content, int32
 }
 
 static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *pDataCols, const int16_t *colIds,
-                                     int numOfColIds) {
+                                     int numOfColIds, int8_t bitmapMode) {
   ASSERT(pBlock->numOfSubBlocks == 0 || pBlock->numOfSubBlocks == 1);
   ASSERT(colIds[0] == PRIMARYKEY_TIMESTAMP_COL_ID);
 
@@ -739,7 +740,7 @@ static int tsdbLoadBlockDataColsImpl(SReadH *pReadh, SBlock *pBlock, SDataCols *
 
   tdResetDataCols(pDataCols);
 
-  if (tsdbIsSupBlock(pBlock)) {
+  if (tdIsBitmapModeI(bitmapMode)) {
     tdDataColsSetBitmapI(pDataCols);
   }
 

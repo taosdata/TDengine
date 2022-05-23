@@ -70,7 +70,7 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeSSchemaWrapperEx(pCoder, &pME->ntbEntry.schema) < 0) return -1;
   } else if (pME->type == TSDB_TSMA_TABLE) {
     pME->smaEntry.tsma = tDecoderMalloc(pCoder, sizeof(STSma));
-    if(!pME->smaEntry.tsma) {
+    if (!pME->smaEntry.tsma) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return -1;
     }
