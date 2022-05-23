@@ -185,6 +185,19 @@ static int32_t translateApercentile(SFunctionNode* pFunc, char* pErrBuf, int32_t
   if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
+  SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, 1);
+  if (nodeType(pParamNode) != QUERY_NODE_VALUE) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+  
+  SValueNode* pValue = (SValueNode*)pParamNode;
+  if (pValue->datum.i < 0 || pValue->datum.i > 100) {
+    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  pValue->notReserved = true;
+  
   if (3 == paraNum) {
     SNode* pPara3 = nodesListGetNode(pFunc->pParameterList, 2);
     if (QUERY_NODE_VALUE != nodeType(pPara3) || !validAperventileAlgo((SValueNode*)pPara3)) {
