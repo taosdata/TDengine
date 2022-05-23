@@ -126,7 +126,7 @@ STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 void    tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList);
 int32_t tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 int32_t tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList);
+int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
@@ -174,20 +174,20 @@ typedef struct {
 } STableKeyInfo;
 
 struct SMetaEntry {
-  int64_t     version;
-  int8_t      type;
-  tb_uid_t    uid;
-  const char *name;
+  int64_t  version;
+  int8_t   type;
+  tb_uid_t uid;
+  char    *name;
   union {
     struct {
       SSchemaWrapper schema;
       SSchemaWrapper schemaTag;
     } stbEntry;
     struct {
-      int64_t        ctime;
-      int32_t        ttlDays;
-      tb_uid_t       suid;
-      const uint8_t *pTags;
+      int64_t  ctime;
+      int32_t  ttlDays;
+      tb_uid_t suid;
+      uint8_t *pTags;
     } ctbEntry;
     struct {
       int64_t        ctime;

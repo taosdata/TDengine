@@ -204,7 +204,7 @@ TEST_F(ParserInitialATest, alterTable) {
     }
   };
 
-  auto setAlterTagFunc = [&](const char* pTbname, const char* pTagName, const uint8_t* pNewVal, uint32_t bytes) {
+  auto setAlterTagFunc = [&](const char* pTbname, const char* pTagName, uint8_t* pNewVal, uint32_t bytes) {
     memset(&expect, 0, sizeof(SVAlterTbReq));
     expect.tbName = strdup(pTbname);
     expect.action = TSDB_ALTER_TABLE_UPDATE_TAG_VAL;
@@ -215,7 +215,7 @@ TEST_F(ParserInitialATest, alterTable) {
     expect.pTagVal = pNewVal;
   };
 
-  auto setAlterOptionsFunc = [&](const char* pTbname, int32_t ttl, const char* pComment = nullptr) {
+  auto setAlterOptionsFunc = [&](const char* pTbname, int32_t ttl, char* pComment = nullptr) {
     memset(&expect, 0, sizeof(SVAlterTbReq));
     expect.tbName = strdup(pTbname);
     expect.action = TSDB_ALTER_TABLE_UPDATE_OPTIONS;
@@ -240,7 +240,7 @@ TEST_F(ParserInitialATest, alterTable) {
     void*          pBuf = POINTER_SHIFT(pVgData->pData, sizeof(SMsgHead));
     SVAlterTbReq   req = {0};
     SDecoder       coder = {0};
-    tDecoderInit(&coder, (const uint8_t*)pBuf, pVgData->size);
+    tDecoderInit(&coder, (uint8_t*)pBuf, pVgData->size);
     ASSERT_EQ(tDecodeSVAlterTbReq(&coder, &req), TSDB_CODE_SUCCESS);
 
     ASSERT_EQ(std::string(req.tbName), std::string(expect.tbName));
@@ -274,7 +274,7 @@ TEST_F(ParserInitialATest, alterTable) {
   setAlterOptionsFunc("t1", 10, nullptr);
   run("ALTER TABLE t1 TTL 10");
 
-  setAlterOptionsFunc("t1", -1, "test");
+  setAlterOptionsFunc("t1", -1, (char*)"test");
   run("ALTER TABLE t1 COMMENT 'test'");
 
   setAlterColFunc("t1", TSDB_ALTER_TABLE_ADD_COLUMN, "cc1", TSDB_DATA_TYPE_BIGINT);
@@ -290,7 +290,7 @@ TEST_F(ParserInitialATest, alterTable) {
   run("ALTER TABLE t1 RENAME COLUMN c1 cc1");
 
   int32_t val = 10;
-  setAlterTagFunc("st1s1", "tag1", (const uint8_t*)&val, sizeof(val));
+  setAlterTagFunc("st1s1", "tag1", (uint8_t*)&val, sizeof(val));
   run("ALTER TABLE st1s1 SET TAG tag1=10");
 
   // todo
