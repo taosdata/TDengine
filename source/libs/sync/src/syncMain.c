@@ -499,7 +499,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
     pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
     pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, pSyncNode->pSnapshot);
   }
-  tsem_init(&(pSyncNode->restoreSem), 0, 0);
+  //tsem_init(&(pSyncNode->restoreSem), 0, 0);
 
   // start in syncNodeStart
   // start raft
@@ -521,7 +521,19 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
 
+    /*
+    sInfo("==syncNodeStart== RestoreFinish begin 1 replica tsem_wait %p", pSyncNode);
     tsem_wait(&pSyncNode->restoreSem);
+    sInfo("==syncNodeStart== RestoreFinish end 1 replica tsem_wait %p", pSyncNode);
+    */
+
+    /*
+    while (pSyncNode->restoreFinish != true) {
+      taosMsleep(10);
+    }
+    */
+
+    sInfo("==syncNodeStart== restoreFinish ok 1 replica %p vgId:%d", pSyncNode, pSyncNode->vgId);
     return;
   }
 
@@ -532,7 +544,18 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   // ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
 
+  /*
+  sInfo("==syncNodeStart== RestoreFinish begin multi replica tsem_wait %p", pSyncNode);
   tsem_wait(&pSyncNode->restoreSem);
+  sInfo("==syncNodeStart== RestoreFinish end multi replica tsem_wait %p", pSyncNode);
+  */
+
+  /*
+  while (pSyncNode->restoreFinish != true) {
+    taosMsleep(10);
+  }
+  */
+  sInfo("==syncNodeStart== restoreFinish ok multi replica %p vgId:%d", pSyncNode, pSyncNode->vgId);
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -573,7 +596,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     taosMemoryFree(pSyncNode->pSnapshot);
   }
 
-  tsem_destroy(&pSyncNode->restoreSem);
+  //tsem_destroy(&pSyncNode->restoreSem);
 
   // free memory in syncFreeNode
   // taosMemoryFree(pSyncNode);
