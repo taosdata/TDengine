@@ -341,18 +341,19 @@ int32_t tdSetBitmapValTypeN(void *pBitmap, int16_t nEle, TDRowValT valType, int8
 bool tdIsBitmapBlkNorm(const void *pBitmap, int32_t numOfBits, int8_t bitmapMode) {
   int32_t nBytes = (bitmapMode == 0 ? numOfBits / TD_VTYPE_PARTS : numOfBits / TD_VTYPE_PARTS_I);
   uint8_t vTypeByte = tdVTypeByte[bitmapMode][TD_VTYPE_NORM];
+  uint8_t *qBitmap = (uint8_t*)pBitmap;
   for (int i = 0; i < nBytes; ++i) {
-    if (*((uint8_t *)pBitmap) != vTypeByte) {
+    if (*qBitmap != vTypeByte) {
       return false;
     }
-    pBitmap = POINTER_SHIFT(pBitmap, i);
+    qBitmap = (uint8_t *)POINTER_SHIFT(pBitmap, i);
   }
 
   int32_t nLeft = numOfBits - nBytes * (bitmapMode == 0 ? TD_VTYPE_BITS : TD_VTYPE_BITS_I);
 
   for (int j = 0; j < nLeft; ++j) {
     uint8_t vType;
-    tdGetBitmapValType(pBitmap, j, &vType, bitmapMode);
+    tdGetBitmapValType(qBitmap, j, &vType, bitmapMode);
     if (vType != TD_VTYPE_NORM) {
       return false;
     }

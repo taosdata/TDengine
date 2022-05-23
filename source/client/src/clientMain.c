@@ -146,10 +146,10 @@ void taos_free_result(TAOS_RES *res) {
     SMqRspObj *pRsp = (SMqRspObj *)res;
     if (pRsp->rsp.blockData) taosArrayDestroyP(pRsp->rsp.blockData, taosMemoryFree);
     if (pRsp->rsp.blockDataLen) taosArrayDestroy(pRsp->rsp.blockDataLen);
-    if (pRsp->rsp.blockSchema) taosArrayDestroy(pRsp->rsp.blockSchema);
-    if (pRsp->rsp.blockTbName) taosArrayDestroy(pRsp->rsp.blockTbName);
     if (pRsp->rsp.blockTags) taosArrayDestroy(pRsp->rsp.blockTags);
     if (pRsp->rsp.blockTagSchema) taosArrayDestroy(pRsp->rsp.blockTagSchema);
+    if (pRsp->rsp.withTbName) taosArrayDestroyP(pRsp->rsp.blockTbName, taosMemoryFree);
+    if (pRsp->rsp.withSchema) taosArrayDestroyP(pRsp->rsp.blockSchema, (FDelete)tDeleteSSchemaWrapper);
     pRsp->resInfo.pRspMsg = NULL;
     doFreeReqResultInfo(&pRsp->resInfo);
   }
@@ -565,10 +565,32 @@ const char *taos_get_server_info(TAOS *taos) {
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   if (taos == NULL || sql == NULL) {
-    // todo directly call fp
+    fp(param, NULL, TSDB_CODE_INVALID_PARA);
+    return;
   }
 
-  taos_query_l(taos, sql, (int32_t)strlen(sql));
+  SRequestObj* pRequest = NULL;
+  int32_t      retryNum = 0;
+  int32_t      code = 0;
+
+  size_t sqlLen = strlen(sql);
+
+  while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
+    pRequest = launchQuery(taos, sql, sqlLen);
+    if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
+      break;
+    }
+
+    code = refreshMeta(taos, pRequest);
+    if (code) {
+      pRequest->code = code;
+      break;
+    }
+
+    destroyRequest(pRequest);
+  }
+
+  fp(param, pRequest, code);
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {

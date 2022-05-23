@@ -22,15 +22,13 @@
 #include "lz4.h"
 #include "os.h"
 #include "taoserror.h"
-#include "tglobal.h"
 #include "thash.h"
-#include "tidpool.h"
+#include "tref.h"
 #include "tmsg.h"
 #include "transLog.h"
-#include "tref.h"
 #include "trpc.h"
-#include "ttimer.h"
 #include "tutil.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {

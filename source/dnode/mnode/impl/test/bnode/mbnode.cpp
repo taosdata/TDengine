@@ -18,11 +18,11 @@ class MndTestBnode : public ::testing::Test {
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_bnode1", 9018);
+    test.Init(TD_TMP_DIR_PATH "mnode_test_bnode1", 9018);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9018";
 
-    server2.Start("/tmp/mnode_test_bnode2", 9019);
+    server2.Start(TD_TMP_DIR_PATH "mnode_test_bnode2", 9019);
     taosMsleep(300);
   }
 

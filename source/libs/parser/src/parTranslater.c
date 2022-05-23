@@ -4446,8 +4446,10 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
 
   pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
   pReq->nTagVal = pStmt->pVal->node.resType.bytes;
-  char* pVal = nodesGetValueFromNode(pStmt->pVal);
-  pReq->pTagVal = IS_VAR_DATA_TYPE(pStmt->pVal->node.resType.type) ? pVal + VARSTR_HEADER_SIZE : pVal;
+  if (TSDB_DATA_TYPE_NCHAR == pStmt->pVal->node.resType.type) {
+    pReq->nTagVal = pReq->nTagVal * TSDB_NCHAR_SIZE;
+  }
+  pReq->pTagVal = nodesGetValueFromNode(pStmt->pVal);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -4471,6 +4473,9 @@ static int32_t buildAddColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, S
 
 static int32_t buildDropColReq(STranslateContext* pCxt, SAlterTableStmt* pStmt, STableMeta* pTableMeta,
                                SVAlterTbReq* pReq) {
+  if (2 == getNumOfColumns(pTableMeta)) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_DROP_COL);
+  }
   SSchema* pSchema = getColSchema(pTableMeta, pStmt->colName);
   if (NULL == pSchema) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COLUMN, pStmt->colName);

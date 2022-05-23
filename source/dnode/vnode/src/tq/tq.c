@@ -57,6 +57,9 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
 void tqClose(STQ* pTq) {
   if (pTq) {
     taosMemoryFreeClear(pTq->path);
+    taosHashCleanup(pTq->execs);
+    taosHashCleanup(pTq->pStreamTasks);
+    taosHashCleanup(pTq->pushMgr);
     taosMemoryFree(pTq);
   }
   // TODO
@@ -409,9 +412,9 @@ int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsu
       pTopic->buffer.output[j].status = 0;
       STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
       SReadHandle    handle = {
-          .reader = pReadHandle,
-          .meta = pTq->pVnode->pMeta,
-          .pMsgCb = &pTq->pVnode->msgCb,
+             .reader = pReadHandle,
+             .meta = pTq->pVnode->pMeta,
+             .pMsgCb = &pTq->pVnode->msgCb,
       };
       pTopic->buffer.output[j].pReadHandle = pReadHandle;
       pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
@@ -597,6 +600,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
           SSDataBlock block = {0};
           if (tqRetrieveDataBlock(&block.pDataBlock, pReader, &block.info.groupId, &block.info.uid, &block.info.rows,
                                   &block.info.numOfCols) < 0) {
+            if (terrno == TSDB_CODE_TQ_TABLE_SCHEMA_NOT_FOUND) continue;
             ASSERT(0);
           }
           int32_t            dataStrLen = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(&block);
@@ -1000,10 +1004,10 @@ int32_t tqExpandTask(STQ* pTq, SStreamTask* pTask, int32_t parallel) {
     for (int32_t i = 0; i < parallel; i++) {
       STqReadHandle* pStreamReader = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
       SReadHandle    handle = {
-          .reader = pStreamReader,
-          .meta = pTq->pVnode->pMeta,
-          .pMsgCb = &pTq->pVnode->msgCb,
-          .vnode = pTq->pVnode,
+             .reader = pStreamReader,
+             .meta = pTq->pVnode->pMeta,
+             .pMsgCb = &pTq->pVnode->msgCb,
+             .vnode = pTq->pVnode,
       };
       pTask->exec.runners[i].inputHandle = pStreamReader;
       pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, &handle);

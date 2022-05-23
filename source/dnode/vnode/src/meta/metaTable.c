@@ -165,7 +165,9 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   ret = tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
   ASSERT(ret == 0);
 
-  tDecoderInit(&dc, pData, nData);
+  oStbEntry.pBuf = taosMemoryMalloc(nData);
+  memcpy(oStbEntry.pBuf, pData, nData);
+  tDecoderInit(&dc, oStbEntry.pBuf, nData);
   metaDecodeEntry(&dc, &oStbEntry);
 
   nStbEntry.version = version;
@@ -193,6 +195,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // update uid index
   tdbTbcUpsert(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &version, sizeof(version), 0);
 
+  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   metaULock(pMeta);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
@@ -420,7 +423,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   // get table entry
   SDecoder dc = {0};
-  tDecoderInit(&dc, pData, nData);
+  entry.pBuf = taosMemoryMalloc(nData);
+  memcpy(entry.pBuf, pData, nData);
+  tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
   ASSERT(ret == 0);
 
@@ -562,7 +567,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   // search table.db
   TBC     *pTbDbc = NULL;
-  SDecoder dc = {0};
+  SDecoder dc1 = {0};
+  SDecoder dc2 = {0};
 
   /* get ctbEntry */
   tdbTbcOpen(pMeta->pTbDb, &pTbDbc, &pMeta->txn);
@@ -572,18 +578,16 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   ctbEntry.pBuf = taosMemoryMalloc(nData);
   memcpy(ctbEntry.pBuf, pData, nData);
-  tDecoderInit(&dc, ctbEntry.pBuf, nData);
-  metaDecodeEntry(&dc, &ctbEntry);
-  tDecoderClear(&dc);
+  tDecoderInit(&dc1, ctbEntry.pBuf, nData);
+  metaDecodeEntry(&dc1, &ctbEntry);
 
   /* get stbEntry*/
   tdbTbGet(pMeta->pUidIdx, &ctbEntry.ctbEntry.suid, sizeof(tb_uid_t), &pVal, &nVal);
   tdbTbGet(pMeta->pTbDb, &((STbDbKey){.uid = ctbEntry.ctbEntry.suid, .version = *(int64_t *)pVal}), sizeof(STbDbKey),
            (void **)&stbEntry.pBuf, &nVal);
   tdbFree(pVal);
-  tDecoderInit(&dc, stbEntry.pBuf, nVal);
-  metaDecodeEntry(&dc, &stbEntry);
-  tDecoderClear(&dc);
+  tDecoderInit(&dc2, stbEntry.pBuf, nVal);
+  metaDecodeEntry(&dc2, &stbEntry);
 
   SSchemaWrapper *pTagSchema = &stbEntry.stbEntry.schemaTag;
   SSchema        *pColumn = NULL;
@@ -638,6 +642,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   // save to uid.idx
   tdbTbUpsert(pMeta->pUidIdx, &ctbEntry.uid, sizeof(tb_uid_t), &version, sizeof(version), &pMeta->txn);
 
+  tDecoderClear(&dc1);
+  tDecoderClear(&dc2);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbTbcClose(pTbDbc);
@@ -645,6 +651,8 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   return 0;
 
 _err:
+  tDecoderClear(&dc1);
+  tDecoderClear(&dc2);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbTbcClose(pTbDbc);
@@ -817,16 +825,27 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   pTagData = tdGetKVRowValOfCol((const SKVRow)pCtbEntry->ctbEntry.pTags, pTagColumn->colId);
 
   // update tag index
+#ifdef USE_INVERTED_INDEX
+  tb_uid_t suid = pCtbEntry->ctbEntry.suid;
+  tb_uid_t tuid = pCtbEntry->uid;
+
+  SIndexMultiTerm *tmGroup = indexMultiTermCreate();
+
+  SIndexTerm *tm = indexTermCreate(suid, ADD_VALUE, pTagColumn->type, pTagColumn->name, sizeof(pTagColumn->name),
+                                   pTagData, pTagData == NULL ? 0 : strlen(pTagData));
+  indexMultiTermAdd(tmGroup, tm);
+  int ret = indexPut((SIndex *)pMeta->pTagIvtIdx, tmGroup, tuid);
+  indexMultiTermDestroy(tmGroup);
+#else
   if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, pTagColumn->type, pCtbEntry->uid,
                           &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }
   tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
   metaDestroyTagIdxKey(pTagIdxKey);
-
+#endif
   tDecoderClear(&dc);
   tdbFree(pData);
-
   return 0;
 }
 
