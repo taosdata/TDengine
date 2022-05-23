@@ -211,7 +211,9 @@ TAOS *taos_connect_internal(const char *ip, const char *user, const char *pass, 
       } else {
         printf("taos connect failed, reason: %s.\n\n", tstrerror(terrno));
       }
+      int32_t lastError = terrno;
       taos_free_result(pSql);
+      if (terrno != lastError) terrno = lastError;
       taos_close(pObj);
       return NULL;
     }
