@@ -173,8 +173,7 @@ typedef struct {
 } STqExec;
 
 struct STQ {
-  char* path;
-  // STqMetaStore* tqMeta;
+  char*     path;
   SHashObj* pushMgr;  // consumerId -> STqExec*
   SHashObj* execs;    // subKey -> STqExec
   SHashObj* pStreamTasks;
