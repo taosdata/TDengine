@@ -36,31 +36,42 @@ static void     walFreeObj(void *pWal);
 int64_t walGetSeq() { return (int64_t)atomic_load_32(&tsWal.seq); }
 
 int32_t walInit() {
-  int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 1);
-  if (old == 1) return 0;
-
-  tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
-
-  int32_t code = walCreateThread();
-  if (code != 0) {
-    wError("failed to init wal module since %s", tstrerror(code));
-    atomic_store_8(&tsWal.inited, 0);
-    return code;
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tsWal.inited, 0, 2);
+    if (old != 2) break;
   }
 
-  wInfo("wal module is initialized, rsetId:%d", tsWal.refSetId);
+  if (old == 0) {
+    tsWal.refSetId = taosOpenRef(TSDB_MIN_VNODES, walFreeObj);
+
+    int32_t code = walCreateThread();
+    if (code != 0) {
+      wError("failed to init wal module since %s", tstrerror(code));
+      atomic_store_8(&tsWal.inited, 0);
+      return code;
+    }
+
+    wInfo("wal module is initialized, rsetId:%d", tsWal.refSetId);
+    atomic_store_8(&tsWal.inited, 1);
+  }
+
   return 0;
 }
 
 void walCleanUp() {
-  int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 2);
-  if (old != 1) {
-    return;
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 2);
+    if (old != 2) break;
   }
-  walStopThread();
-  taosCloseRef(tsWal.refSetId);
-  wInfo("wal module is cleaned up");
-  atomic_store_8(&tsWal.inited, 0);
+
+  if (old == 1) {
+    walStopThread();
+    taosCloseRef(tsWal.refSetId);
+    wInfo("wal module is cleaned up");
+    atomic_store_8(&tsWal.inited, 0);
+  }
 }
 
 SWal *walOpen(const char *path, SWalCfg *pCfg) {

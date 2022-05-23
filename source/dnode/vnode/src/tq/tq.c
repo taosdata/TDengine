@@ -16,22 +16,34 @@
 #include "tq.h"
 
 int32_t tqInit() {
-  int8_t old = atomic_val_compare_exchange_8(&tqMgmt.inited, 0, 1);
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 0, 2);
+    if (old != 2) break;
+  }
+
   if (old == 0) {
     tqMgmt.timer = taosTmrInit(10000, 100, 10000, "TQ");
     if (tqMgmt.timer == NULL) {
       atomic_store_8(&tqMgmt.inited, 0);
       return -1;
     }
+    atomic_store_8(&tqMgmt.inited, 1);
   }
   return 0;
 }
 
 void tqCleanUp() {
-  int8_t old = atomic_val_compare_exchange_8(&tqMgmt.inited, 1, 2);
-  if (old != 1) return;
-  taosTmrCleanUp(tqMgmt.timer);
-  atomic_store_8(&tqMgmt.inited, 0);
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 1, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 1) {
+    taosTmrCleanUp(tqMgmt.timer);
+    atomic_store_8(&tqMgmt.inited, 0);
+  }
 }
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {

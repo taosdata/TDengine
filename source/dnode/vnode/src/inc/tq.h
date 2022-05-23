@@ -104,7 +104,7 @@ typedef struct {
   tmr_h  timer;
 } STqMgmt;
 
-static STqMgmt tqMgmt;
+static STqMgmt tqMgmt = {0};
 
 // init once
 int  tqInit();
