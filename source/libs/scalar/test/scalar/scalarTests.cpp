@@ -1089,7 +1089,7 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
   }else if(opType == OP_TYPE_ADD || opType == OP_TYPE_SUB || opType == OP_TYPE_MULTI || opType == OP_TYPE_DIV ||
              opType == OP_TYPE_MOD || opType == OP_TYPE_MINUS){
     printf("1result:%f,except:%f\n", *((double *)colDataGetData(column, 0)), exceptValue);
-    ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < DBL_EPSILON);
+    ASSERT_TRUE(fabs(*((double *)colDataGetData(column, 0)) - exceptValue) < 0.0001);
   }else if(opType == OP_TYPE_BIT_AND || opType == OP_TYPE_BIT_OR){
     printf("2result:%ld,except:%f\n", *((int64_t *)colDataGetData(column, 0)), exceptValue);
     ASSERT_EQ(*((int64_t *)colDataGetData(column, 0)), exceptValue);
@@ -1107,8 +1107,10 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
 
 TEST(columnTest, json_column_arith_op) {
   scltInitLogFile();
-  char *rightv= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
+  char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
 
+  char rightv[256] = {0};
+  memcpy(rightv, rightvTmp, strlen(rightvTmp));
   SKVRowBuilder kvRowBuilder;
   tdInitKVRowBuilder(&kvRowBuilder);
   parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
@@ -1189,8 +1191,10 @@ void *prepareNchar(char* rightData){
 
 TEST(columnTest, json_column_logic_op) {
   scltInitLogFile();
-  char *rightv= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
+  char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
 
+  char rightv[256] = {0};
+  memcpy(rightv, rightvTmp, strlen(rightvTmp));
   SKVRowBuilder kvRowBuilder;
   tdInitKVRowBuilder(&kvRowBuilder);
   parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
