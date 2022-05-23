@@ -132,7 +132,7 @@ typedef struct SSchLevel {
   int32_t         taskSucceed;
   int32_t         taskNum;
   int32_t         taskLaunchedNum;
-  SHashObj       *flowCtrl;      // key is ep, element is SSchFlowControl
+  int32_t         taskDoneNum;
   SArray         *subTasks;      // Element is SQueryTask
 } SSchLevel;
 
@@ -175,11 +175,13 @@ typedef struct SSchJob {
   SArray          *levels;    // starting from 0. SArray<SSchLevel>
   SNodeList       *subPlans;  // subplan pointer copied from DAG, no need to free it in scheduler
 
+  SArray          *dataSrcTasks; // SArray<SQueryTask*>
   int32_t          levelIdx;
   SEpSet           dataSrcEps;
   SHashObj        *execTasks; // executing tasks, key:taskid, value:SQueryTask*
   SHashObj        *succTasks; // succeed tasks, key:taskid, value:SQueryTask*
   SHashObj        *failTasks; // failed tasks, key:taskid, value:SQueryTask*
+  SHashObj        *flowCtrl;  // key is ep, element is SSchFlowControl
 
   SExplainCtx     *explainCtx;
   int8_t           status;  
@@ -200,7 +202,7 @@ typedef struct SSchJob {
 
 extern SSchedulerMgmt schMgmt;
 
-#define SCH_TASK_READY_TO_LUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
+#define SCH_TASK_READY_FOR_LAUNCH(readyNum, task) ((readyNum) >= taosArrayGetSize((task)->children))
 
 #define SCH_TASK_ID(_task) ((_task) ? (_task)->taskId : -1)
 #define SCH_SET_TASK_LASTMSG_TYPE(_task, _type) do { if(_task) { atomic_store_32(&(_task)->lastMsgType, _type); } } while (0)
@@ -223,7 +225,7 @@ extern SSchedulerMgmt schMgmt;
 
 #define SCH_SET_JOB_NEED_FLOW_CTRL(_job) (_job)->attr.needFlowCtrl = true
 #define SCH_JOB_NEED_FLOW_CTRL(_job) ((_job)->attr.needFlowCtrl)
-#define SCH_TASK_NEED_FLOW_CTRL(_job, _task) (SCH_IS_DATA_SRC_QRY_TASK(_task) && SCH_JOB_NEED_FLOW_CTRL(_job) && SCH_IS_LEAF_TASK(_job, _task) && SCH_IS_LEVEL_UNFINISHED((_task)->level))
+#define SCH_TASK_NEED_FLOW_CTRL(_job, _task) (SCH_IS_DATA_SRC_QRY_TASK(_task) && SCH_JOB_NEED_FLOW_CTRL(_job) && SCH_IS_LEVEL_UNFINISHED((_task)->level))
 
 #define SCH_SET_JOB_TYPE(_job, type) (_job)->attr.queryJob = ((type) != SUBPLAN_TYPE_MODIFY)
 #define SCH_IS_QUERY_JOB(_job) ((_job)->attr.queryJob) 
@@ -261,7 +263,7 @@ int32_t schLaunchTask(SSchJob *job, SSchTask *task);
 int32_t schBuildAndSendMsg(SSchJob *job, SSchTask *task, SQueryNodeAddr *addr, int32_t msgType);
 SSchJob *schAcquireJob(int64_t refId);
 int32_t schReleaseJob(int64_t refId);
-void schFreeFlowCtrl(SSchLevel *pLevel);
+void schFreeFlowCtrl(SSchJob *pJob);
 int32_t schCheckJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel);
 int32_t schDecTaskFlowQuota(SSchJob *pJob, SSchTask *pTask);
 int32_t schCheckIncTaskFlowQuota(SSchJob *pJob, SSchTask *pTask, bool *enough);

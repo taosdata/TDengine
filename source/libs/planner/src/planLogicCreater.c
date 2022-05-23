@@ -418,7 +418,7 @@ static SColumnNode* createColumnByExpr(const char* pStmtName, SExprNode* pExpr) 
 }
 
 static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect, SLogicNode** pLogicNode) {
-  if (!pSelect->hasAggFuncs && NULL == pSelect->pGroupByList) {
+  if (!pSelect->hasAggFuncs && !pSelect->hasIndefiniteRowsFunc && NULL == pSelect->pGroupByList) {
     return TSDB_CODE_SUCCESS;
   }
 
@@ -442,8 +442,8 @@ static int32_t createAggLogicNode(SLogicPlanContext* pCxt, SSelectStmt* pSelect,
     code = rewriteExprForSelect(pAgg->pGroupKeys, pSelect, SQL_CLAUSE_GROUP_BY);
   }
 
-  if (TSDB_CODE_SUCCESS == code && pSelect->hasAggFuncs) {
-    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsAggFunc, &pAgg->pAggFuncs);
+  if (TSDB_CODE_SUCCESS == code && (pSelect->hasAggFuncs || pSelect->hasIndefiniteRowsFunc)) {
+    code = nodesCollectFuncs(pSelect, SQL_CLAUSE_GROUP_BY, fmIsVectorFunc, &pAgg->pAggFuncs);
   }
 
   // rewrite the expression in subsequent clauses

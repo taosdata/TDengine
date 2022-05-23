@@ -171,7 +171,6 @@ void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
     oldReader->remove = true;
     tfileReaderUnRef(oldReader);
   }
-
   taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
   tfileReaderRef(reader);
   return;
@@ -499,15 +498,15 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResult* tr) {
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
-
+  int             ret = 0;
   if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
-    return tfSearch[1][qtype](reader, term, tr);
+    ret = tfSearch[1][qtype](reader, term, tr);
   } else {
-    return tfSearch[0][qtype](reader, term, tr);
+    ret = tfSearch[0][qtype](reader, term, tr);
   }
 
   tfileReaderUnRef(reader);
-  return 0;
+  return ret;
 }
 
 TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t colType) {
