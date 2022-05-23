@@ -141,5 +141,6 @@ SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
+  pFsm->FpRestoreFinish = NULL;
   return pFsm;
 }
