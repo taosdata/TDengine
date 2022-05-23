@@ -66,22 +66,18 @@ static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
 }
 
 static int32_t getUdfInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
-  SFuncInfo* pInfo = NULL;
-  int32_t    code = catalogGetUdfInfo(pParam->pCtg, pParam->pRpc, pParam->pMgmtEps, pFunc->functionName, &pInfo);
+  SFuncInfo funcInfo = {0};
+  int32_t    code = catalogGetUdfInfo(pParam->pCtg, pParam->pRpc, pParam->pMgmtEps, pFunc->functionName, &funcInfo);
   if (TSDB_CODE_SUCCESS != code) {
     return code;
   }
-  if (NULL == pInfo) {
-    snprintf(pParam->pErrBuf, pParam->errBufLen, "Invalid function name: %s", pFunc->functionName);
-    return TSDB_CODE_FUNC_INVALID_FUNTION;
-  }
+
   pFunc->funcType = FUNCTION_TYPE_UDF;
-  pFunc->funcId = TSDB_FUNC_TYPE_AGGREGATE == pInfo->funcType ? FUNC_AGGREGATE_UDF_ID : FUNC_SCALAR_UDF_ID;
-  pFunc->node.resType.type = pInfo->outputType;
-  pFunc->node.resType.bytes = pInfo->outputLen;
-  pFunc->udfBufSize = pInfo->bufSize;
-  tFreeSFuncInfo(pInfo);
-  taosMemoryFree(pInfo);
+  pFunc->funcId = TSDB_FUNC_TYPE_AGGREGATE == funcInfo.funcType ? FUNC_AGGREGATE_UDF_ID : FUNC_SCALAR_UDF_ID;
+  pFunc->node.resType.type = funcInfo.outputType;
+  pFunc->node.resType.bytes = funcInfo.outputLen;
+  pFunc->udfBufSize = funcInfo.bufSize;
+  tFreeSFuncInfo(&funcInfo);
   return TSDB_CODE_SUCCESS;
 }
 
