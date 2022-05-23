@@ -346,12 +346,6 @@ void mndStop(SMnode *pMnode) {
   return mndCleanupTimer(pMnode);
 }
 
-int32_t mndProcessApplyMsg(SRpcMsg *pMsg) {
-  SSdbRaw *pRaw = pMsg->pCont;
-  SMnode  *pMnode = pMsg->info.node;
-  return sdbWriteWithoutFree(pMnode->pSdb, pRaw);
-}
-
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
   void   *ahandle = pMsg->info.ahandle;
