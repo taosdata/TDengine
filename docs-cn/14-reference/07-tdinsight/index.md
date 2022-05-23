@@ -3,9 +3,9 @@ title: TDinsight - 基于Grafana的TDengine零依赖监控解决方案
 sidebar_label: TDinsight
 ---
 
-TDinsight 是使用 [TDengine] 原生监控数据库和 [Grafana] 对 TDengine 进行监控的解决方案。
+TDinsight 是使用内置监控数据库和 [Grafana] 对 TDengine 进行监控的解决方案。
 
-TDengine 启动后，会自动创建一个监测数据库 log，并自动将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库，并对重要的系统操作（比如登录、创建、删除数据库等）以及各种错误报警信息进行记录。通过 [Grafana] 和 [TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases)，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，同时还支持 vnode、dnode、mnode 节点状态异常告警，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 Grafana 服务器并通过 `TDinsight.sh` 安装脚本自动安装 TDengine 数据源插件及部署 TDinsight 可视化面板。
+TDengine 启动后，会自动创建一个监测数据库 `log`，并自动将服务器的 CPU、内存、硬盘空间、带宽、请求数、磁盘读写速度、慢查询等信息定时写入该数据库，并对重要的系统操作（比如登录、创建、删除数据库等）以及各种错误报警信息进行记录。通过 [Grafana] 和 [TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases)，TDinsight 将集群状态、节点信息、插入及查询请求、资源使用情况等进行可视化展示，同时还支持 vnode、dnode、mnode 节点状态异常告警，为开发者实时监控 TDengine 集群运行状态提供了便利。本文将指导用户安装 Grafana 服务器并通过 `TDinsight.sh` 安装脚本自动安装 TDengine 数据源插件及部署 TDinsight 可视化面板。
 
 ## 系统要求
 
@@ -68,6 +68,7 @@ sudo yum install \
 ```bash
 wget https://github.com/taosdata/grafanaplugin/releases/latest/download/TDinsight.sh
 chmod +x TDinsight.sh
+./TDinsight.sh
 ```
 
 这个脚本会自动下载最新的[Grafana TDengine 数据源插件](https://github.com/taosdata/grafanaplugin/releases/latest) 和 [TDinsight 仪表盘](https://grafana.com/grafana/dashboards/15167) ，将命令行选项中的可配置参数转为 [Grafana Provisioning](https://grafana.com/docs/grafana/latest/administration/provisioning/) 配置文件，以进行自动化部署及更新等操作。利用该脚本提供的告警设置选项，你还可以获得内置的阿里云短信告警通知支持。
@@ -76,13 +77,13 @@ chmod +x TDinsight.sh
 
 下面是 TDinsight.sh 的用法说明：
 
-```bash
+```text
 Usage:
    ./TDinsight.sh
    ./TDinsight.sh -h|--help
    ./TDinsight.sh -n <ds-name> -a <api-url> -u <user> -p <password>
 
-Install and configure TDinsight dashboard in Grafana on ubuntu 18.04/20.04 system.
+Install and configure TDinsight dashboard in Grafana on Ubuntu 18.04/20.04 system.
 
 -h, -help,          --help                  Display help
 
@@ -92,29 +93,29 @@ Install and configure TDinsight dashboard in Grafana on ubuntu 18.04/20.04 syste
 
 -P, --grafana-provisioning-dir <dir>        Grafana provisioning directory, [default: /etc/grafana/provisioning/]
 -G, --grafana-plugins-dir <dir>             Grafana plugins directory, [default: /var/lib/grafana/plugins]
--O, --grafana-org-id <number>               Grafana orgnization id. [default: 1]
+-O, --grafana-org-id <number>               Grafana organization id. [default: 1]
 
 -n, --tdengine-ds-name <string>             TDengine datasource name, no space. [default: TDengine]
 -a, --tdengine-api <url>                    TDengine REST API endpoint. [default: http://127.0.0.1:6041]
 -u, --tdengine-user <string>                TDengine user name. [default: root]
 -p, --tdengine-password <string>            TDengine password. [default: taosdata]
 
--i, --tdinsight-uid <string>                Replace with a non-space ascii code as the dashboard id. [default: tdinsight]
+-i, --tdinsight-uid <string>                Replace with a non-space ASCII code as the dashboard id. [default: tdinsight]
 -t, --tdinsight-title <string>              Dashboard title. [default: TDinsight]
 -e, --tdinsight-editable                    If the provisioning dashboard could be editable. [default: false]
 
 -E, --external-notifier <string>            Apply external notifier uid to TDinsight dashboard.
 
 Aliyun SMS as Notifier:
--s, --sms-enabled                           To enable tdengine-datasource plugin builtin aliyun sms webhook.
+-s, --sms-enabled                           To enable tdengine-datasource plugin builtin Aliyun SMS webhook.
 -N, --sms-notifier-name <string>            Provisioning notifier name.[default: TDinsight Builtin SMS]
 -U, --sms-notifier-uid <string>             Provisioning notifier uid, use lowercase notifier name by default.
 -D, --sms-notifier-is-default               Set notifier as default.
--I, --sms-access-key-id <string>            Aliyun sms access key id
--K, --sms-access-key-secret <string>        Aliyun sms access key secret
+-I, --sms-access-key-id <string>            Aliyun SMS access key id
+-K, --sms-access-key-secret <string>        Aliyun SMS access key secret
 -S, --sms-sign-name <string>                Sign name
 -C, --sms-template-code <string>            Template code
--T, --sms-template-param <string>           Template param, a escaped json string like '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
+-T, --sms-template-param <string>           Template param, a escaped JSON string like '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
 -B, --sms-phone-numbers <string>            Comma-separated numbers list, eg "189xxxxxxxx,132xxxxxxxx"
 -L, --sms-listen-addr <string>              [default: 127.0.0.1:9100]
 ```
@@ -145,7 +146,7 @@ Aliyun SMS as Notifier:
 | -C     | --sms-template-code        | SMS_TEMPLATE_CODE            | 模板代码                                                                    |
 | -T     | --sms-template-param       | SMS_TEMPLATE_PARAM           | 模板参数的 JSON 模板                                                        |
 | -B     | --sms-phone-numbers        | SMS_PHONE_NUMBERS            | 逗号分隔的手机号列表，例如`"189xxxxxxxx,132xxxxxxxx"`                       |
-| -L     | --sms-listen-addr          | SMS_LISTEN_ADDR              | 内置 sms webhook 监听地址，默认为`127.0.0.1:9100`                           |
+| -L     | --sms-listen-addr          | SMS_LISTEN_ADDR              | 内置 SMS webhook 监听地址，默认为`127.0.0.1:9100`                           |
 
 假设您在主机 `tdengine` 上启动 TDengine 数据库，HTTP API 端口为 `6041`，用户为 `root1`，密码为 `pass5ord`。执行脚本：
 
@@ -207,14 +208,14 @@ sudo grafana-cli \
   plugins install tdengine-datasource
 ```
 
-### 配置 Grafana
-
-将以下设置添加到配置文件 `/etc/grafana/grafana.ini`，以启用未签名插件。
+:::note
+3.1.6 和更早版本插件需要在配置文件 `/etc/grafana/grafana.ini` 中添加如下设置，以启用未签名插件。
 
 ```ini
 [plugins]
 allow_loading_unsigned_plugins = tdengine-datasource
 ```
+:::
 
 ### 启动 Grafana 服务
 
@@ -262,7 +263,7 @@ sudo systemctl enable grafana-server
 
 ## TDinsight 仪表盘详细信息
 
-TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes, vnodes](https://www.taosdata.com/cn/documentation/architecture#cluster)或数据库的使用情况和状态。
+TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mnodes, vnodes](https://www.taosdata.com/cn/documentation/architecture#cluster)或数据库的使用情况和状态。
 
 指标详情如下：
 
@@ -281,7 +282,7 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes
 - **Connections** - 当前连接个数。
 - **DNodes/MNodes/VGroups/VNodes**：每种资源的总数和存活数。
 - **DNodes/MNodes/VGroups/VNodes Alive Percent**：每种资源的存活数/总数的比例，启用告警规则，并在资源存活率（1 分钟内平均健康资源比例）不足 100%时触发。
-- **Messuring Points Used**：启用告警规则的测点数用量（社区版无数据，默认情况下是健康的）。
+- **Measuring Points Used**：启用告警规则的测点数用量（社区版无数据，默认情况下是健康的）。
 - **Grants Expire Time**：启用告警规则的企业版过期时间（社区版无数据，默认情况是健康的）。
 - **Error Rate**：启用警报的集群总合错误率（每秒平均错误数）。
 - **Variables**：`show variables` 表格展示。
@@ -349,18 +350,18 @@ TDinsight 仪表盘旨在提供 TDengine 相关资源使用情况[dnodes, mdodes
 
 目前只报告每分钟登录次数。
 
-### TaosAdapter
+### 监控 taosAdapter
 
-![taosadapter](./assets/TDinsight-8-taosadaper.png)
+![taosadapter](./assets/TDinsight-8-taosadapter.png)
 
-包含 taosAdapter 请求统计和状态详情。包括：
+支持监控 taosAdapter 请求统计和状态详情。包括：
 
 1. **http_request**: 包含总请求数，请求失败数以及正在处理的请求数
 2. **top 3 request endpoint**: 按终端分组，请求排名前三的数据
 3. **Memory Used**: taosAdapter 内存使用情况
 4. **latency_quantile(ms)**: (1, 2, 5, 9, 99)阶段的分位数
 5. **top 3 failed request endpoint**: 按终端分组，请求失败排名前三的数据
-6. **CPU Used**: taosAdapter cpu 使用情况
+6. **CPU Used**: taosAdapter CPU 使用情况
 
 ## 升级
 
@@ -388,7 +389,7 @@ cd grafanaplugin
 根据需要在 `docker-compose.yml` 文件中修改：
 
 ```yaml
-version: "3.7"
+version: '3.7'
 
 services:
   grafana:
@@ -406,7 +407,7 @@ services:
       SMS_ACCESS_KEY_SECRET: ${SMS_ACCESS_KEY_SECRET}
       SMS_SIGN_NAME: ${SMS_SIGN_NAME}
       SMS_TEMPLATE_CODE: ${SMS_TEMPLATE_CODE}
-      SMS_TEMPLATE_PARAM: "${SMS_TEMPLATE_PARAM}"
+      SMS_TEMPLATE_PARAM: '${SMS_TEMPLATE_PARAM}'
       SMS_PHONE_NUMBERS: $SMS_PHONE_NUMBERS
       SMS_LISTEN_ADDR: ${SMS_LISTEN_ADDR}
     ports:

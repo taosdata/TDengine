@@ -8,74 +8,74 @@ title: TDengine Go Connector
 import Tabs from '@theme/Tabs';
 import TabItem from '@theme/TabItem';
 
-import Preparition from "./_preparition.mdx"
-import GoInsert from "../../04-develop/03-insert-data/_go_sql.mdx"
-import GoInfluxLine from "../../04-develop/03-insert-data/_go_line.mdx"
-import GoOpenTSDBTelnet from "../../04-develop/03-insert-data/_go_opts_telnet.mdx"
-import GoOpenTSDBJson from "../../04-develop/03-insert-data/_go_opts_json.mdx"
-import GoQuery from "../../04-develop/04-query-data/_go.mdx"
+import Preparation from "./_preparation.mdx"
+import GoInsert from "../../07-develop/03-insert-data/_go_sql.mdx"
+import GoInfluxLine from "../../07-develop/03-insert-data/_go_line.mdx"
+import GoOpenTSDBTelnet from "../../07-develop/03-insert-data/_go_opts_telnet.mdx"
+import GoOpenTSDBJson from "../../07-develop/03-insert-data/_go_opts_json.mdx"
+import GoQuery from "../../07-develop/04-query-data/_go.mdx"
 
-`driver-go` 是 TDengine 的官方 Go 语言连接器，实现了 Go 语言[ database/sql ](https://golang.org/pkg/database/sql/) 包的接口。Go 开发人员可以通过它开发存取 TDengine 集群数据的应用软件。
+`driver-go` is the official Go language connector for TDengine, which implements the interface to the Go language [database/sql](https://golang.org/pkg/database/sql/) package. Go developers can use it to develop applications that access TDengine cluster data.
 
-`driver-go` 提供两种建立连接的方式。一种是**原生连接**，它通过 TDengine 客户端驱动程序（taosc）原生连接 TDengine 运行实例，支持数据写入、查询、订阅、schemaless 接口和参数绑定接口等功能。另外一种是 **REST 连接**，它通过 taosAdapter 提供的 REST 接口连接 TDengine 运行实例。REST 连接实现的功能特性集合和原生连接有少量不同。
+`driver-go` provides two ways to establish connections. One is **native connection**, which connects to TDengine instances natively through the TDengine client driver (taosc), supporting data writing, querying, subscriptions, schemaless writing, and bind interface. The other is the **REST connection**, which connects to TDengine instances via the REST interface provided by taosAdapter. The set of features implemented by the REST connection differs slightly from the native connection.
 
-本文介绍如何安装 `driver-go`，并通过 `driver-go` 连接 TDengine 集群、进行数据查询、数据写入等基本操作。
+This article describes how to install `driver-go` and connect to TDengine clusters and perform basic operations such as data query and data writing through `driver-go`.
 
-`driver-go` 的源码托管在 [GitHub](https://github.com/taosdata/driver-go)。
+The source code of `driver-go` is hosted on [GitHub](https://github.com/taosdata/driver-go).
 
-## 支持的平台
+## Supported Platforms
 
-原生连接支持的平台和 TDengine 客户端驱动支持的平台一致。
-REST 连接支持所有能运行 Go 的平台。
+Native connections are supported on the same platforms as the TDengine client driver.
+REST connections are supported on all platforms that can run Go.
 
-## 版本支持
+## Version support
 
-请参考[版本支持列表](/reference/connector#版本支持)
+Please refer to [version support list](/reference/connector#version-support)
 
-## 支持的功能特性
+## Supported features
 
-### 原生连接
+### Native connections
 
-“原生连接”指连接器通过 TDengine 客户端驱动（taosc）直接与 TDengine 运行实例建立的连接。支持的功能特性有：
+A "native connection" is established by the connector directly to the TDengine instance via the TDengine client driver (taosc). The supported functional features are:
 
-* 普通查询
-* 连续查询
-* 订阅
-* schemaless 接口
-* 参数绑定接口
+* Normal queries
+* Continuous queries
+* Subscriptions
+* schemaless interface
+* parameter binding interface
 
-### REST 连接
+### REST connection
 
-"REST 连接"指连接器通过 taosAdapter 组件提供的 REST API 与 TDengine 运行实例建立的连接。支持的功能特性有：
+A "REST connection" is a connection between the application and the TDengine instance via the REST API provided by the taosAdapter component. The following features are supported:
 
-* 普通查询
-* 连续查询
+* General queries
+* Continuous queries
 
-## 安装步骤
+## Installation steps
 
-### 安装前准备
+### Pre-installation
 
-* 安装 Go 开发环境（Go 1.14 及以上，GCC 4.8.5 及以上）
-* 如果使用原生连接器，请安装 TDengine 客户端驱动，具体步骤请参考[安装客户端驱动](/reference/connector#安装客户端驱动)
+* Install Go development environment (Go 1.14 and above, GCC 4.8.5 and above)
+* If you use the native connector, please install the TDengine client driver. Please refer to [Install Client Driver](/reference/connector#Install Client Driver) for specific steps
 
-配置好环境变量，检查命令：
+Configure the environment variables and check the command.
 
-* ```go env```
-* ```gcc -v```
+* ```go env``
+* ```gcc -v``
 
-### 使用 go get 安装
+### Use go get to install
 
-`go get -u github.com/taosdata/driver-go/v2@develop`
+``go get -u github.com/taosdata/driver-go/v2@develop``
 
-### 使用 go mod 管理
+### Manage with go mod
 
-1. 使用 `go mod` 命令初始化项目：
+1. Initialize the project with the `go mod` command.
 
-  ```text
+  ``text
   go mod init taos-demo
-  ```
+  ``` text
 
-2. 引入 taosSql ：
+2. Introduce taosSql
 
   ```go
   import (
@@ -84,46 +84,47 @@ REST 连接支持所有能运行 Go 的平台。
   )
   ```
 
-3. 使用 `go mod tidy` 更新依赖包：
+3. Update the dependency packages with `go mod tidy`.
 
   ```text
   go mod tidy
-  ```
+  ``` 4.
 
-4. 使用 `go run taos-demo` 运行程序或使用 `go build` 命令编译出二进制文件。
+4. Run the program with `go run taos-demo` or compile the binary with the `go build` command.
 
   ```text
   go run taos-demo
   go build
   ```
 
-## 建立连接
+## Create a connection
 
-### 数据源名称（DSN）
+### Data source name (DSN)
 
-数据源名称具有通用格式，例如 [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php)，但没有类型前缀（方括号表示可选）：
+Data source names have a standard format, e.g. [PEAR DB](http://pear.php.net/manual/en/package.database.db.intro-dsn.php), but no type prefix (square brackets indicate optionally):
 
 ``` text
-[username[:password]@][protocol[(address)]]/[dbname][?param1=value1&...&paramN=valueN]
+[username[:password]@][protocol[(address)]]/[dbname][?param1=value1&... &paramN=valueN]
 ```
 
-完整形式的 DSN：
+DSN in full form.
 
 ```text
 username:password@protocol(address)/dbname?param=value
 ```
-### 使用连接器进行连接
+
+### Connecting via connector
 
 <Tabs defaultValue="native">
-<TabItem value="native" label="原生连接">
+<TabItem value="native" label="native connection">
 
-_taosSql_ 通过 cgo 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用 [`database/sql`](https://golang.org/pkg/database/sql/) 的接口。
+_taosSql_ implements Go's `database/sql/driver` interface via cgo. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver.
 
-使用 `taosSql` 作为 `driverName` 并且使用一个正确的 [DSN](#DSN) 作为 `dataSourceName`，DSN 支持的参数：
+Use `taosSql` as `driverName` and use a correct [DSN](#DSN) as `dataSourceName`, DSN supports the following parameters.
 
-* configPath 指定 taos.cfg 目录
+* configPath specifies the `taos.cfg` directory
 
-示例：
+Example.
 
 ```go
 package main
@@ -136,9 +137,9 @@ import (
 )
 
 func main() {
-    var taosUri = "root:taosdata/tcp(localhost:6030)/"
+    var taosUri = "root:taosdata@tcp(localhost:6030)/"
     taos, err := sql.Open("taosSql", taosUri)
-    if err != nil {
+    if err ! = nil {
         fmt.Println("failed to connect TDengine, err:", err)
         return
     }
@@ -146,16 +147,16 @@ func main() {
 ```
 
 </TabItem>
-<TabItem value="rest" label="REST 连接">
+<TabItem value="rest" label="REST connection">
 
-_taosRestful_ 通过 `http client` 实现了 Go 的 `database/sql/driver` 接口。只需要引入驱动就可以使用[`database/sql`](https://golang.org/pkg/database/sql/)的接口。
+_taosRestful_ implements Go's `database/sql/driver` interface via `http client`. You can use the [`database/sql`](https://golang.org/pkg/database/sql/) interface by simply introducing the driver.
 
-使用 `taosRestful` 作为 `driverName` 并且使用一个正确的 [DSN](#DSN) 作为 `dataSourceName`，DSN 支持的参数：
+Use `taosRestful` as `driverName` and use a correct [DSN](#DSN) as `dataSourceName` with the following parameters supported by the DSN.
 
-* `disableCompression` 是否接受压缩数据，默认为 true 不接受压缩数据，如果传输数据使用 gzip 压缩设置为 false。
-* `readBufferSize` 读取数据的缓存区大小默认为 4K（4096），当查询结果数据量多时可以适当调大该值。
+* `disableCompression` whether to accept compressed data, default is true do not accept compressed data, set to false if transferring data using gzip compression.
+* `readBufferSize` The default size of the buffer for reading data is 4K (4096), which can be adjusted upwards when the query result has a lot of data.
 
-示例：
+Example.
 
 ```go
 package main
@@ -168,9 +169,9 @@ import (
 )
 
 func main() {
-    var taosUri = "root:taosdata/http(localhost:6041)/"
+    var taosUri = "root:taosdata@http(localhost:6041)/"
     taos, err := sql.Open("taosRestful", taosUri)
-    if err != nil {
+    if err ! = nil {
         fmt.Println("failed to connect TDengine, err:", err)
         return
     }
@@ -179,42 +180,42 @@ func main() {
 </TabItem>
 </Tabs>
 
-## 使用示例
+## Usage examples
 
-### 写入数据
+### Write data
 
-#### SQL 写入
+#### SQL Write
 
 <GoInsert />
 
-#### InfluxDB 行协议写入
+#### InfluxDB line protocol write
 
 <GoInfluxLine />
 
-#### OpenTSDB Telnet 行协议写入
+#### OpenTSDB Telnet line protocol write
 
 <GoOpenTSDBTelnet />
 
-#### OpenTSDB JSON 行协议写入
+#### OpenTSDB JSON line protocol write
 
 <GoOpenTSDBJson />
 
-### 查询数据
+### Query data
 
 <GoQuery />
 
-### 更多示例程序
+### More sample programs
 
-* [示例程序](https://github.com/taosdata/TDengine/tree/develop/examples/go)
-* [视频教程](https://www.taosdata.com/blog/2020/11/11/1951.html)。
+* [sample program](https://github.com/taosdata/TDengine/tree/develop/examples/go)
+* [Video tutorial](https://www.taosdata.com/blog/2020/11/11/1951.html).
 
-## 使用限制
+## Usage limitations
 
-由于 REST 接口无状态所以 `use db` 语法不会生效，需要将 db 名称放到 SQL 语句中，如：`create table if not exists tb1 (ts timestamp, a int)`改为`create table if not exists test.tb1 (ts timestamp, a int)`否则将报错`[0x217] Database not specified or available`。
+Since the REST interface is stateless, the `use db` syntax will not work. You need to put the db name into the SQL command, e.g. `create table if not exists tb1 (ts timestamp, a int)` to `create table if not exists test.tb1 (ts timestamp, a int)` otherwise it will report the error `[0x217] Database not specified or available`.
 
-也可以将 db 名称放到 DSN 中，将 `root:taosdata@http(localhost:6041)/` 改为 `root:taosdata@http(localhost:6041)/test`，此方法在 TDengine 2.4.0.5 版本的 taosAdapter 开始支持。当指定的 db 不存在时执行 `create database` 语句不会报错，而执行针对该 db 的其他查询或写入操作会报错。
+You can also put the db name in the DSN by changing `root:taosdata@http(localhost:6041)/` to `root:taosdata@http(localhost:6041)/test`. This method is supported by taosAdapter in TDengine 2.4.0.5. is supported since TDengine 2.4.0.5. Executing the `create database` statement when the specified db does not exist will not report an error while executing other queries or writing against that db will report an error.
 
-完整示例如下：
+The complete example is as follows.
 
 ```go
 package main
@@ -264,148 +265,148 @@ func main() {
 }
 ```
 
-## 常见问题
+## Frequently Asked Questions
 
-1. 无法找到包 `github.com/taosdata/driver-go/v2/taosRestful`
+1. Cannot find the package `github.com/taosdata/driver-go/v2/taosRestful`
 
-  将 `go.mod` 中 require 块对`github.com/taosdata/driver-go/v2`的引用改为`github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
+  Change the `github.com/taosdata/driver-go/v2` line in the require block of the `go.mod` file to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
 
-2. database/sql 中 stmt（参数绑定）相关接口崩溃
+2. bind interface in database/sql crashes
 
-  REST 不支持参数绑定相关接口，建议使用`db.Exec`和`db.Query`。
+  REST does not support parameter binding related interface. It is recommended to use `db.Exec` and `db.Query`.
 
-3. 使用 `use db` 语句后执行其他语句报错 `[0x217] Database not specified or available`
+3. error `[0x217] Database not specified or available` after executing other statements with `use db` statement
 
-  在 REST 接口中 SQL 语句的执行无上下文关联，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+  The execution of SQL command in the REST interface is not contextual, so using `use db` statement will not work, see the usage restrictions section above.
 
-4. 使用 taosSql 不报错使用 taosRestful 报错 `[0x217] Database not specified or available`
+4. use `taosSql` without error but use `taosRestful` with error `[0x217] Database not specified or available`
 
-  因为 REST 接口无状态，使用 `use db` 语句不会生效，解决办法见上方使用限制章节。
+  Because the REST interface is stateless, using the `use db` statement will not take effect. See the usage restrictions section above.
 
-5. 升级 `github.com/taosdata/driver-go/v2/taosRestful`
+5. Upgrade `github.com/taosdata/driver-go/v2/taosRestful`
 
-  将 `go.mod` 文件中对 `github.com/taosdata/driver-go/v2` 的引用改为 `github.com/taosdata/driver-go/v2 develop`，之后执行 `go mod tidy`。
+  Change the `github.com/taosdata/driver-go/v2` line in the `go.mod` file to `github.com/taosdata/driver-go/v2 develop`, then execute `go mod tidy`.
 
-6. `readBufferSize` 参数调大后无明显效果
+6. `readBufferSize` parameter has no significant effect after being increased
 
-  `readBufferSize` 调大后会减少获取结果时 `syscall` 的调用。如果查询结果的数据量不大，修改该参数不会带来明显提升，如果该参数修改过大，瓶颈会在解析 JSON 数据。如果需要优化查询速度，需要根据实际情况调整该值来达到查询效果最优。
+  If you increase `readBufferSize` will reduce the number of `syscall` calls when fetching results. If the query result is smaller, modifying this parameter will not improve significantly. If you increase the parameter value too much, the bottleneck will be parsing JSON data. If you need to optimize the query speed, you must adjust the value according to the actual situation to achieve the best query result.
 
-7. `disableCompression` 参数设置为 `false` 时查询效率降低
+7. `disableCompression` parameter is set to `false` when the query efficiency is reduced
 
-  当 `disableCompression` 参数设置为 `false` 时查询结果会使用 `gzip` 压缩后传输，拿到数据后要先进行 `gzip` 解压。
+  When set `disableCompression` parameter to `false`, the query result will be compressed by `gzip` and then transmitted, so you have to decompress the data by `gzip` after getting it.
 
-8. `go get` 命令无法获取包，或者获取包超时
+8. `go get` command can't get the package, or timeout to get the package
 
-  设置 Go 代理 `go env -w GOPROXY=https://goproxy.cn,direct`。
+  Set Go proxy `go env -w GOPROXY=https://goproxy.cn,direct`.
 
-## 常用 API
+## Common APIs
 
 ### database/sql API
 
 * `sql.Open(DRIVER_NAME string, dataSourceName string) *DB`
 
-  该 API 用来打开 DB，返回一个类型为 \*DB 的对象。
+  Use This API to open a DB, returning an object of type \*DB.
 
 :::info
-该 API 成功创建的时候，并没有做权限等检查，只有在真正执行 Query 或者 Exec 的时候才能真正的去创建连接，并同时检查 user/password/host/port 是不是合法。
+This API is created successfully without checking permissions, but only when you execute a Query or Exec, and check if user/password/host/port is legal.
 :::
 
-* `func (db *DB) Exec(query string, args ...interface{}) (Result, error)`
+* `func (db *DB) Exec(query string, args . .interface{}) (Result, error)`
 
-  `sql.Open` 内置的方法，用来执行非查询相关 SQL。
+  `sql.Open` built-in method to execute non-query related SQL.
 
-* `func (db *DB) Query(query string, args ...interface{}) (*Rows, error)`
+* `func (db *DB) Query(query string, args ... . interface{}) (*Rows, error)`
 
-  `sql.Open` 内置的方法，用来执行查询语句。
+  `sql.Open` Built-in method to execute query statements.
 
-### 高级功能（af）API
+### Advanced functions (af) API
 
-`af` 包封装了连接管理、订阅、schemaless、参数绑定等 TDengine 高级功能。
+The `af` package encapsulates TDengine advanced functions such as connection management, subscriptions, schemaless, parameter binding, etc.
 
-#### 连接管理
+#### Connection management
 
 * `af.Open(host, user, pass, db string, port int) (*Connector, error)`
 
-  该 API 通过 cgo 创建与 taosd 的连接。
+  This API creates a connection to taosd via cgo.
 
 * `func (conn *Connector) Close() error`
 
-  关闭与 taosd 的连接。
+  Closes the connection.
 
-#### 订阅
+#### Subscribe to
 
 * `func (conn *Connector) Subscribe(restart bool, topic string, sql string, interval time.Duration) (Subscriber, error)`
 
-  订阅数据。
+  Subscribe to data.
 
 * `func (s *taosSubscriber) Consume() (driver.Rows, error)`
 
-  消费订阅数据，返回 `database/sql/driver` 包的 `Rows` 结构。
+  Consume the subscription data, returning the `Rows` structure of the `database/sql/driver` package.
 
 * `func (s *taosSubscriber) Unsubscribe(keepProgress bool)`
 
-  取消订阅数据。
+  Unsubscribe from data.
 
 #### schemaless
 
 * `func (conn *Connector) InfluxDBInsertLines(lines []string, precision string) error`
 
-  写入 influxDB 行协议。
+  Write to influxDB line protocol.
 
 * `func (conn *Connector) OpenTSDBInsertTelnetLines(lines []string) error`
 
-  写入 OpenTDSB telnet 协议数据。
+  Write OpenTDSB telnet protocol data.
 
 * `func (conn *Connector) OpenTSDBInsertJsonPayload(payload string) error`
 
-  写入 OpenTSDB JSON 协议数据。
+  Writes OpenTSDB JSON protocol data.
 
-#### 参数绑定
+#### parameter binding
 
 * `func (conn *Connector) StmtExecute(sql string, params *param.Param) (res driver.Result, err error)`
 
-  参数绑定单行插入。
+  Parameter bound single row insert.
 
 * `func (conn *Connector) StmtQuery(sql string, params *param.Param) (rows driver.Rows, err error)`
 
-  参数绑定查询，返回 `database/sql/driver` 包的 `Rows` 结构。
+  Parameter bound query that returns the `Rows` structure of the `database/sql/driver` package.
 
-* `func (conn *Connector) InsertStmt() *insertstmt.InsertStmt`
+* `func (conn *Connector) InsertStmt() *insertstmt.
 
-  初始化参数。
+  Initialize the parameters.
 
 * `func (stmt *InsertStmt) Prepare(sql string) error`
 
-  参数绑定预处理 SQL 语句。
+  Parameter binding preprocessing SQL statement.
 
 * `func (stmt *InsertStmt) SetTableName(name string) error`
 
-  参数绑定设置表名。
+  Bind the set table name parameter.
 
 * `func (stmt *InsertStmt) SetSubTableName(name string) error`
 
-  参数绑定设置子表名。
+  Parameter binding to set the sub table name.
 
 * `func (stmt *InsertStmt) BindParam(params []*param.Param, bindType *param.ColumnType) error`
 
-  参数绑定多行数据。
+  Parameter bind multiple rows of data.
 
 * `func (stmt *InsertStmt) AddBatch() error`
 
-  添加到参数绑定批处理。
+  Add to a parameter-bound batch.
 
 * `func (stmt *InsertStmt) Execute() error`
 
-  执行参数绑定。
+  Execute a parameter binding.
 
 * `func (stmt *InsertStmt) GetAffectedRows() int`
 
-  获取参数绑定插入受影响行数。
+  Gets the number of affected rows inserted by the parameter binding.
 
 * `func (stmt *InsertStmt) Close() error`
 
-  结束参数绑定。
+  Closes the parameter binding.
 
-## API 参考
+## API Reference
 
-全部 API 见 [driver-go 文档](https://pkg.go.dev/github.com/taosdata/driver-go/v2)
+Full API see [driver-go documentation](https://pkg.go.dev/github.com/taosdata/driver-go/v2)

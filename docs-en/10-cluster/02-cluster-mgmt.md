@@ -6,7 +6,7 @@ title: Manage DNODEs
 It has been introduced that how to deploy and start a cluster from scratch. Once a cluster is ready, the dnode status in the cluster can be shown at any time, new dnode can be added to scale out the cluster, an existing dnode can be removed, even load balance can be performed manually.\
 
 :::note
-All the commands to be introduced in this chapter need to be run after login TDengine, sometimes it's necessary to use root privilege.
+All the commands to be introduced in this chapter need to be run through TDengine CLI, sometimes it's necessary to use root privilege.
 
 :::
 
@@ -67,7 +67,7 @@ Query OK, 8 row(s) in set (0.001154s)
 
 ## Add DNODE
 
-Launch TDengine CLI `taos` and execute to add the end point of a new dnode into the EPI (end point) list of the cluster. "fqdn:port" must be quoted using double quotes.
+Launch TDengine CLI `taos` and execute the command below to add the end point of a new dnode into the EPI (end point) list of the cluster. "fqdn:port" must be quoted using double quotes.
 
 ```sql
 CREATE DNODE "fqdn:port";
@@ -100,7 +100,7 @@ Query OK, 2 row(s) in set (0.001316s)
 
 ## Drop DNODE
 
-Launch TDengine CLI `taos` and execute command below to drop or remove a dndoe from the cluster. In the command, `dnodeId` can be gotten from `show dnodes`.
+Launch TDengine CLI `taos` and execute the command below to drop or remove a dnode from the cluster. In the command, `dnodeId` can be gotten from `show dnodes`.
 
 ```sql
 DROP DNODE "fqdn:port";
@@ -155,7 +155,7 @@ ALTER DNODE <source-dnodeId> BALANCE "VNODE:<vgId>-DNODE:<dest-dnodeId>";
 
 In the above command, `source-dnodeId` is the original dnodeId where the vnode resides, `dest-dnodeId` specifies the target dnode. vgId (vgroup ID) can be shown by `SHOW VGROUPS `.
 
-Firstly `show vgroups` is executed to show the vgrup distribution.
+Firstly `show vgroups` is executed to show the vgroup distribution.
 
 ```
 taos> show vgroups;
@@ -202,11 +202,11 @@ taos> show vgroups;
 Query OK, 8 row(s) in set (0.001242s)
 ```
 
-It can be seen from above output that vgId 18 has been moved from dndoe 3 to dnode 1.
+It can be seen from above output that vgId 18 has been moved from dnode 3 to dnode 1.
 
 :::note
 
-- Manual load balancing can only be performed when the automatic load balancing is disabled, i.e. `balance` is set to 0 只.
+- Manual load balancing can only be performed when the automatic load balancing is disabled, i.e. `balance` is set to 0.
 - Only vnode in normal state, i.e. master or slave, can be moved. vnode can't moved when its in status offline, unsynced or syncing.
 - Before moving a vnode, it's necessary to make sure the target dnode has enough resources: CPU, memory and disk.
 

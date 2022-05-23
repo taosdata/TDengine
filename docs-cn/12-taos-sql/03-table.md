@@ -37,8 +37,8 @@ CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
 ```
 
-以指定的超级表为模板，指定一部分 TAGS 列的值来创建数据表（没被指定的 TAGS 列会设为空值）。  
- 说明：从 2.0.17.0 版本开始支持这种方式。在之前的版本中，不允许指定 TAGS 列，而必须显式给出所有 TAGS 列的取值。
+以指定的超级表为模板，指定一部分 TAGS 列的值来创建数据表（没被指定的 TAGS 列会设为空值）。
+说明：从 2.0.17.0 版本开始支持这种方式。在之前的版本中，不允许指定 TAGS 列，而必须显式给出所有 TAGS 列的取值。
 
 ### 批量创建数据表
 
@@ -63,7 +63,7 @@ DROP TABLE [IF EXISTS] tb_name;
 ## 显示当前数据库下的所有数据表信息
 
 ```
-SHOW TABLES [LIKE tb_name_wildcar];
+SHOW TABLES [LIKE tb_name_wildchar];
 ```
 
 显示当前数据库下的所有数据表信息。
@@ -75,7 +75,6 @@ SHOW CREATE TABLE tb_name;
 ```
 
 常用于数据库迁移。对一个已经存在的数据表，返回其创建语句；在另一个集群中执行该语句，就能得到一个结构完全相同的数据表。
-
 
 ## 获取表的结构信息
 
@@ -112,12 +111,13 @@ ALTER TABLE tb_name DROP COLUMN field_name;
 ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ```
 
-如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）  
- 如果表是通过超级表创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构。
+如果数据列的类型是可变长格式（BINARY 或 NCHAR），那么可以使用此指令修改其宽度（只能改大，不能改小）。（2.1.3.0 版本新增）
+如果表是通过超级表创建，更改表结构的操作只能对超级表进行。同时针对超级表的结构更改对所有通过该结构创建的表生效。对于不是通过超级表创建的表，可以直接修改表结构。
 
- ### 修改子表标签值
+### 修改子表标签值
 
 ```
 ALTER TABLE tb_name SET TAG tag_name=new_tag_value;
 ```
+
 如果表是通过超级表创建，可以使用此指令修改其标签值

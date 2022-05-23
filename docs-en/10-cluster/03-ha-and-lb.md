@@ -7,7 +7,7 @@ title: High Availability and Load Balancing
 
 High availability of vnode and mnode can be achieved through replicas in TDengine.
 
-The number of vnodes is associated with each DB, there can be multiple DBs in a TDengine cluster. For the purpose of operation, different number of replicas can be configured properly for each DB. When creating a database, the parameter `replica` is used to specify the number of replicas, the default value is 1. With single replica, the reliability of the system can't be guaranteed. Whenever one node is down, data service would be unavailable. The number of dnodes in the cluster must NOT be lower than the number of replicas set for any DB, otherwise the `create table` operation would fail with error "more dnodes are needed". Below SQL statement is used to create a database named as "demo" with 3 replicas.
+The number of vnodes is associated with each DB, there can be multiple DBs in a TDengine cluster. For the purpose of operation, different number of replicas can be configured properly for each DB. When creating a database, the parameter `replica` is used to specify the number of replicas, the default value is 1. With single replica, the high availability of the system can't be guaranteed. Whenever one node is down, data service would be unavailable. The number of dnodes in the cluster must NOT be lower than the number of replicas set for any DB, otherwise the `create table` operation would fail with error "more dnodes are needed". Below SQL statement is used to create a database named as "demo" with 3 replicas.
 
 ```sql
 CREATE DATABASE demo replica 3;
@@ -40,7 +40,7 @@ If high availability is important for your system, both vnode and mnode must be 
 
 Load balance will be triggered in 3 cades without manual intervention.
 
-- When a new dnode is joined in the cluster, automatic load balancing may be triggered, some data from some dnodes may be transferred to the new dnode automatically.当
+- When a new dnode is joined in the cluster, automatic load balancing may be triggered, some data from some dnodes may be transferred to the new dnode automatically.
 - When a dnode is removed from the cluster, the data from this dnode will be transferred to other dnodes automatically.
 - When a dnode is too hot, i.e. too much data has been stored in it, automatic load balancing may be triggered to migrate some vnodes from this dnode to other dnodes.
 - :::tip

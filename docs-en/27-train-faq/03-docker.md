@@ -1,83 +1,84 @@
 ---
-title: 通过 Docker 快速体验 TDengine
+sidebar_label: TDengine in Docker
+title: Deploy TDengine in Docker
 ---
 
-虽然并不推荐在生产环境中通过 Docker 来部署 TDengine 服务，但 Docker 工具能够很好地屏蔽底层操作系统的环境差异，很适合在开发测试或初次体验时用于安装运行 TDengine 的工具集。特别是，借助 Docker，能够比较方便地在 macOS 和 Windows 系统上尝试 TDengine，而无需安装虚拟机或额外租用 Linux 服务器。另外，从 2.0.14.0 版本开始，TDengine 提供的镜像已经可以同时支持 X86-64、X86、arm64、arm32 平台，像 NAS、树莓派、嵌入式开发板之类可以运行 docker 的非主流计算机也可以基于本文档轻松体验 TDengine。
+Even though it's not recommended to deploy TDengine using docker in production system, docker is still very useful in development environment, especially when your host is not Linux. From version 2.0.14.0, the official image of TDengine can support X86-64, X86, arm64, and rm32 .
 
-下文通过 Step by Step 风格的介绍，讲解如何通过 Docker 快速建立 TDengine 的单节点运行环境，以支持开发和测试。
+In this chapter a simple step by step guide of using TDengine in docker is introduced.
 
-## 下载 Docker
+## Install Docker
 
-Docker 工具自身的下载请参考 [Docker 官网文档](https://docs.docker.com/get-docker/)。
+The installation of docker please refer to [Get Docker](https://docs.docker.com/get-docker/).
 
-安装完毕后可以在命令行终端查看 Docker 版本。如果版本号正常输出，则说明 Docker 环境已经安装成功。
+After docker is installed, you can check whether Docker is installed properly by displaying Docker version.
 
 ```bash
 $ docker -v
 Docker version 20.10.3, build 48d30b5
 ```
 
-## 使用 Docker 在容器中运行 TDengine
+## Launch TDengine in Docker
 
-### 在 Docker 容器中运行 TDengine server
+### Launch TDengine Server
 
 ```bash
 $ docker run -d -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
 526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd
 ```
 
-这条命令，启动一个运行了 TDengine server 的 docker 容器，并且将容器的 6030 到 6049 端口映射到宿主机的 6030 到 6049 端口上。如果宿主机已经运行了 TDengine server 并占用了相同端口，需要映射容器的端口到不同的未使用端口段。（详情参见 [TDengine 2.0 端口说明](/train-faq/faq#port）。为了支持 TDengine 客户端操作 TDengine server 服务， TCP 和 UDP 端口都需要打开。
+In the above command, a docker container is started to run TDengine server, the port range 6030-6049 of the container is mapped to host port range 6030-6049. If port range 6030-6049 has been occupied on the host, please change to an available host port range. Regarding the requirements about ports on the host, please refer to [Port Configuration](/reference/config/#serverport).
 
-- **docker run**：通过 Docker 运行一个容器
-- **-d**：让容器在后台运行
-- **-p**：指定映射端口。注意：如果不是用端口映射，依然可以进入 Docker 容器内部使用 TDengine 服务或进行应用开发，只是不能对容器外部提供服务
-- **tdengine/tdengine**：拉取的 TDengine 官方发布的应用镜像
-- **526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd**：这个返回的长字符是容器 ID，我们也可以通过容器 ID 来查看对应的容器
+- **docker run**: Launch a docker container
+- **-d**: the container will run in background mode
+- **-p**: port mapping
+- **tdengine/tdengine**: The image from which to launch the container
+- **526aa188da767ae94b244226a2b2eec2b5f17dd8eff592893d9ec0cd0f3a1ccd**: the container ID if successfully launched.
 
-进一步，还可以使用 docker run 命令启动运行 TDengine server 的 docker 容器，并使用 `--name` 命令行参数将容器命名为 `tdengine`，使用 `--hostname` 指定 hostname 为 `tdengine-server`，通过 `-v` 挂载本地目录到容器，实现宿主机与容器内部的数据同步，防止容器删除后，数据丢失。
+Furthermore, `--name` can be used with `docker run` to specify name for the container, `--hostname` can be used to specify hostname for the container, `-v` can be used to mount local volumes to the container so that the data generated inside the container can be persisted to disk on the host.
 
 ```bash
 docker run -d --name tdengine --hostname="tdengine-server" -v ~/work/taos/log:/var/log/taos -v ~/work/taos/data:/var/lib/taos  -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine
 ```
 
-- **--name tdengine**：设置容器名称，我们可以通过容器名称来访问对应的容器
-- **--hostname=tdengine-server**：设置容器内 Linux 系统的 hostname，我们可以通过映射 hostname 和 IP 来解决容器 IP 可能变化的问题。
-- **-v**：设置宿主机文件目录映射到容器内目录，避免容器删除后数据丢失。
+- **--name tdengine**: specify the name of the container, the name can be used to specify the container later
+- **--hostname=tdengine-server**: specify the hostname inside the container, the hostname can be used inside the container without worrying the container IP may vary
+- **-v**: volume mapping between host and container
 
-### 使用 docker ps 命令确认容器是否已经正确运行
+### Check the container
 
 ```bash
 docker ps
 ```
 
-输出示例如下：
+The output is like below:
 
 ```
 CONTAINER ID   IMAGE               COMMAND   CREATED          STATUS          ···
 c452519b0f9b   tdengine/tdengine   "taosd"   14 minutes ago   Up 14 minutes   ···
 ```
 
-- **docker ps**：列出所有正在运行状态的容器信息。
-- **CONTAINER ID**：容器 ID。
-- **IMAGE**：使用的镜像。
-- **COMMAND**：启动容器时运行的命令。
-- **CREATED**：容器创建时间。
-- **STATUS**：容器状态。UP 表示运行中。
+- **docker ps**: List all the containers
+- **CONTAINER ID**: Container ID
+- **IMAGE**: The image used for the container
+- **COMMAND**: The command used when launching the container
+- **CREATED**: When the container was created
+- **STATUS**: Status of the container
 
-### 通过 docker exec 命令，进入到 docker 容器中去做开发
+### Access TDengine inside container
 
 ```bash
 $ docker exec -it tdengine /bin/bash
 root@tdengine-server:~/TDengine-server-2.4.0.4#
 ```
 
-- **docker exec**：通过 docker exec 命令进入容器，如果退出，容器不会停止。
-- **-i**：进入交互模式。
-- **-t**：指定一个终端。
-- **tdengine**：容器名称，需要根据 docker ps 指令返回的值进行修改。
-- **/bin/bash**：载入容器后运行 bash 来进行交互。
+- **docker exec**: Attach to the container
+- **-i**: Interactive mode
+- **-t**: Use terminal
+- **tdengine**: Container name, up to the output of `docker ps`
+- **/bin/bash**: The command to execute once the container is attached
 
-进入容器后，执行 taos shell 客户端程序。
+Inside the container, start TDengine CLI `taos`
 
 ```bash
 root@tdengine-server:~/TDengine-server-2.4.0.4# taos
@@ -88,13 +89,13 @@ Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 taos>
 ```
 
-TDengine 终端成功连接服务端，打印出了欢迎消息和版本信息。如果失败，会有错误信息打印出来。
+The above example is for a successful connection. If `taos` fails to connect to the server side, error information would be shown.
 
-在 TDengine 终端中，可以通过 SQL 命令来创建/删除数据库、表、超级表等，并可以进行插入和查询操作。具体可以参考 [TAOS SQL 说明文档](/taos-sql/)。
+In TDengine CLI, SQL commands can be executed to create/drop databases, tables, STables, and insert or query data. For details please refer to [TAOS SQL](/taos-sql/).
 
-### 在宿主机访问 Docker 容器中的 TDengine server
+### Access TDengine from host
 
-在使用了 -p 命令行参数映射了正确的端口启动了 TDengine Docker 容器后，就在宿主机使用 taos shell 命令即可访问运行在 Docker 容器中的 TDengine。
+If `-p` used to map ports properly between host and container, it's also able to access TDengine in container from the host as long as `firstEp` is configured correctly for the client on host.
 
 ```
 $ taos
@@ -105,61 +106,59 @@ Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
 taos>
 ```
 
-也可以在宿主机使用 curl 通过 RESTful 端口访问 Docker 容器内的 TDengine server。
+It's also able to access the REST interface provided by TDengine in container from the host.
 
 ```
 curl -u root:taosdata -d 'show databases' 127.0.0.1:6041/rest/sql
 ```
 
-输出示例如下：
+Output is like below:
 
 ```
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep0,keep1,keep(D)","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep0,keep1,keep(D)",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["test","2021-08-18 06:01:11.021",10000,4,1,1,10,"3650,3650,3650",16,6,100,4096,1,3000,2,0,"ms",0,"ready"],["log","2021-08-18 05:51:51.065",4,1,1,1,10,"30,30,30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":2}
 ```
 
-这条命令，通过 REST API 访问 TDengine server，这时连接的是本机的 6041 端口，可见连接成功。
+For details of REST API please refer to [REST API]](/reference/rest-api/).
 
-TDengine REST API 详情请参考[官方文档](/reference/rest-api/)。
+### Run TDengine server and taosAdapter inside container
 
-### 使用 Docker 容器运行 TDengine server 和 taosAdapter
+From version 2.4.0.0, in the TDengine Docker image, `taosAdapter` is enabled by default, but can be disabled using environment variable `TAOS_DISABLE_ADAPTER=true` . `taosAdapter` can also be run alone without `taosd` when launching a container.
 
-在 TDegnine 2.4.0.0 之后版本的 Docker 容器，开始提供一个独立运行的组件 taosAdapter，代替之前版本 TDengine 中 taosd 进程中内置的 http server。taosAdapter 支持通过 RESTful 接口对 TDengine server 的数据写入和查询能力，并提供和 InfluxDB/OpenTSDB 兼容的数据摄取接口，允许 InfluxDB/OpenTSDB 应用程序无缝移植到 TDengine。在新版本 Docker 镜像中，默认启用了 taosAdapter，也可以使用 docker run 命令中设置 TAOS_DISABLE_ADAPTER=true 来禁用 taosAdapter；也可以在 docker run 命令中单独使用 taosAdapter，而不运行 taosd 。
+For the port mapping of `taosAdapter`, please refer to [taosAdapter](/reference/taosadapter/).
 
-注意：如果容器中运行 taosAdapter，需要根据需要映射其他端口，具体端口默认配置和修改方法请参考[taosAdapter 文档](/reference/taosadapter/)。
-
-使用 docker 运行 TDengine 2.4.0.4 版本镜像（taosd + taosAdapter）：
+- Run both `taosd` and `taosAdapter` (by default) in docker container:
 
 ```bash
 docker run -d --name tdengine-all -p 6030-6049:6030-6049 -p 6030-6049:6030-6049/udp tdengine/tdengine:2.4.0.4
 ```
 
-使用 docker 运行 TDengine 2.4.0.4 版本镜像（仅 taosAdapter，需要设置 firstEp 配置项 或 TAOS_FIRST_EP 环境变量）：
+- Run `taosAdapter` only in docker container, `TAOS_FIRST_EP` environment variable needs to be used to specify the container name in which `taosd` is running:
 
 ```bash
 docker run -d --name tdengine-taosa -p 6041-6049:6041-6049 -p 6041-6049:6041-6049/udp -e TAOS_FIRST_EP=tdengine-all tdengine/tdengine:2.4.0.4 taosadapter
 ```
 
-使用 docker 运行 TDengine 2.4.0.4 版本镜像（仅 taosd）：
+- Run `taosd` only in docker container:
 
 ```bash
 docker run -d --name tdengine-taosd -p 6030-6042:6030-6042 -p 6030-6042:6030-6042/udp -e TAOS_DISABLE_ADAPTER=true tdengine/tdengine:2.4.0.4
 ```
 
-使用 curl 命令验证 RESTful 接口可以正常工作：
+- Verify the REST interface:
 
 ```bash
 curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0.1:6041/rest/sql
 ```
 
-输出示例如下：
+Below is an example output:
 
 ```
 {"status":"succ","head":["name","created_time","ntables","vgroups","replica","quorum","days","keep","cache(MB)","blocks","minrows","maxrows","wallevel","fsync","comp","cachelast","precision","update","status"],"column_meta":[["name",8,32],["created_time",9,8],["ntables",4,4],["vgroups",4,4],["replica",3,2],["quorum",3,2],["days",3,2],["keep",8,24],["cache(MB)",4,4],["blocks",4,4],["minrows",4,4],["maxrows",4,4],["wallevel",2,1],["fsync",4,4],["comp",2,1],["cachelast",2,1],["precision",8,3],["update",2,1],["status",8,10]],"data":[["log","2021-12-28 09:18:55.765",10,1,1,1,10,"30",1,3,100,4096,1,3000,2,0,"us",0,"ready"]],"rows":1}
 ```
 
-### 应用示例：在宿主机使用 taosBenchmark 写入数据到 Docker 容器中的 TDengine server
+### Use taosBenchmark on host to access TDengine server in container
 
-1. 在宿主机命令行界面执行 taosBenchmark （曾命名为 taosdemo）写入数据到 Docker 容器中的 TDengine server
+1. Run `taosBenchmark`, named as `taosdemo` previously, on the host:
 
    ```bash
    $ taosBenchmark
@@ -209,24 +208,11 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0
            Press enter key to continue or Ctrl-C to stop
    ```
 
-   回车后，该命令将在数据库 test 下面自动创建一张超级表 meters，该超级表下有 1 万张表，表名为 "d0" 到 "d9999"，每张表有 1 万条记录，每条记录有 (ts, current, voltage, phase) 四个字段，时间戳从 "2017-07-14 10:40:00 000" 到 "2017-07-14 10:40:09 999"，每张表带有标签 location 和 groupId，groupId 被设置为 1 到 10， location 被设置为 "beijing" 或者 "shanghai"。
+   Once the execution is finished, a database `test` is created, a STable `meters` is created in database `test`, 10,000 sub tables are created using `meters` as template, named as "d0" to "d9999", while 10,000 rows are inserted into each table, so totally 100,000,000 rows are inserted.
 
-   最后共插入 1 亿条记录。
+2. Check the data
 
-2. 进入 TDengine 终端，查看 taosBenchmark 生成的数据。
-
-   - **进入命令行。**
-
-   ```bash
-   $ root@c452519b0f9b:~/TDengine-server-2.4.0.4# taos
-
-   Welcome to the TDengine shell from Linux, Client Version:2.4.0.4
-   Copyright (c) 2020 by TAOS Data, Inc. All rights reserved.
-
-   taos>
-   ```
-
-   - **查看数据库。**
+   - **Check database**
 
    ```bash
    $ taos> show databases;
@@ -236,7 +222,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0
 
    ```
 
-   - **查看超级表。**
+   - **Check STable**
 
    ```bash
    $ taos> use test;
@@ -250,7 +236,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0
 
    ```
 
-   - **查看表，限制输出十条。**
+   - **Check Tables**
 
    ```bash
    $ taos> select * from test.t0 limit 10;
@@ -273,7 +259,7 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0
 
    ```
 
-   - **查看 d0 表的标签值。**
+   - **Check tag values of table d0**
 
    ```bash
    $ taos> select groupid, location from test.d0;
@@ -283,48 +269,17 @@ curl -H 'Authorization: Basic cm9vdDp0YW9zZGF0YQ==' -d 'show databases;' 127.0.0
    Query OK, 1 row(s) in set (0.003490s)
    ```
 
-### 应用示例：使用数据收集代理软件写入 TDengine
+### Access TDengine from 3rd party tools
 
-taosAdapter 支持多个数据收集代理软件（如 Telegraf、StatsD、collectd 等），这里仅模拟 StasD 写入数据，在宿主机执行命令如下：
+A lot of 3rd party tools can be used to write data into TDengine through `taosAdapter` , for details please refer to [3rd party tools](/third-party/).
 
-```
-echo "foo:1|c" | nc -u -w0 127.0.0.1 6044
-```
+There is nothing different from the 3rd party side to access TDengine server inside a container, as long as the end point is specified correctly, the end point should be the FQDN and the mapped port of the host.
 
-然后可以使用 taos shell 查询 taosAdapter 自动创建的数据库 statsd 和 超级表 foo 中的内容：
-
-```
-taos> show databases;
-              name              |      created_time       |   ntables   |   vgroups   | replica | quorum |  days  |           keep           |  cache(MB)  |   blocks    |   minrows   |   maxrows   | wallevel |    fsync    | comp | cachelast | precision | update |   status   |
-====================================================================================================================================================================================================================================================================================
- log                            | 2021-12-28 09:18:55.765 |          12 |           1 |       1 |      1 |     10 | 30                       |           1 |           3 |         100 |        4096 |        1 |        3000 |    2 |         0 | us        |      0 | ready      |
- statsd                         | 2021-12-28 09:21:48.841 |           1 |           1 |       1 |      1 |     10 | 3650                     |          16 |           6 |         100 |        4096 |        1 |        3000 |    2 |         0 | ns        |      2 | ready      |
-Query OK, 2 row(s) in set (0.002112s)
-
-taos> use statsd;
-Database changed.
-
-taos> show stables;
-              name              |      created_time       | columns |  tags  |   tables    |
-============================================================================================
- foo                            | 2021-12-28 09:21:48.894 |       2 |      1 |           1 |
-Query OK, 1 row(s) in set (0.001160s)
-
-taos> select * from foo;
-              ts               |         value         |         metric_type          |
-=======================================================================================
- 2021-12-28 09:21:48.840820836 |                     1 | counter                      |
-Query OK, 1 row(s) in set (0.001639s)
-
-taos>
-```
-
-可以看到模拟数据已经被写入到 TDengine 中。
-
-## 停止正在 Docker 中运行的 TDengine 服务
+## Stop TDengine inside container
 
 ```bash
 docker stop tdengine
 ```
 
-- **docker stop**：通过 docker stop 停止指定的正在运行中的 docker 镜像。
+- **docker stop**: stop a container
+- **tdengine**: container name

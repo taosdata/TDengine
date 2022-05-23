@@ -1,6 +1,5 @@
 ---
-sidebar_label: Import
-title: Import Data
+title: Data Import
 ---
 
 There are multiple ways of importing data provided byTDengine: import with script, import from data file, import using `taosdump`.
@@ -11,7 +10,7 @@ TDengine CLI `taos` supports `source <filename>` command for executing the SQL s
 
 ## Import from Data File
 
-In TDengine CLI, data can be imported from a CSV file into an existing table. The data in single CSV must belong to same table and must be consistent with the schema of that table. The SQL statement is as below:也
+In TDengine CLI, data can be imported from a CSV file into an existing table. The data in single CSV must belong to same table and must be consistent with the schema of that table. The SQL statement is as below:
 
 ```sql
 insert into tb1 file 'path/data.csv';

@@ -76,7 +76,7 @@ ALTER STable stb_name DROP COLUMN field_name;
 ALTER STable stb_name MODIFY COLUMN field_name data_type(length);
 ```
 
-This command can be used to change (or incerase, more specifically) the length of a column of variable length types, like BINARY or NCHAR.
+This command can be used to change (or increase, more specifically) the length of a column of variable length types, like BINARY or NCHAR.
 
 ## Change Tags of A STable
 
@@ -110,7 +110,7 @@ The tag name will be changed automatically from all the sub tables crated using 
 ALTER STable stb_name MODIFY TAG tag_name data_type(length);
 ```
 
-This command can be used to change (or incerase, more specifically) the length of a tag of variable length types, like BINARY or NCHAR.
+This command can be used to change (or increase, more specifically) the length of a tag of variable length types, like BINARY or NCHAR.
 
 :::note
 Changing tag value can be applied to only sub tables. All other tag operations, like add tag, remove tag, however, can be applied to only STable. If a new tag is added for a STable, the tag will be added with NULL value for all its sub tables.

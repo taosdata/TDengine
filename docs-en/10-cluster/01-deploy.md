@@ -1,5 +1,5 @@
 ---
-title: Deploy
+title: Deployment
 ---
 
 ## Prerequisites
@@ -106,9 +106,9 @@ Then on the first dnode, execute `show dnodes` in `taos` to show whether the sec
 SHOW DNODES;
 ```
 
-If the status of the newly added dnode is offlie, please check:
+If the status of the newly added dnode is offline, please check:
 
 - Whether the `taosd` process is running properly or not
-- In the log file `taosdlog.0` to see whether the fqdn and port are correct or not 查
+- In the log file `taosdlog.0` to see whether the fqdn and port are correct or not
 
 The above process can be repeated to add more dnodes in the cluster.

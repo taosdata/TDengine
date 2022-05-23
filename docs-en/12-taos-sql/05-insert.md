@@ -1,5 +1,4 @@
 ---
-sidebar_label: Insert
 title: Insert
 ---
 
@@ -79,7 +78,7 @@ It's not necessary to provide values for all tag when creating tables automatica
 INSERT INTO d21001 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.196', 10.15, 217, 0.33);
 ```
 
-Multiple rows can also be inserted into same table in single SQL statement using this way.自
+Multiple rows can also be inserted into same table in single SQL statement using this way.
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
@@ -106,7 +105,7 @@ Then data in this file can be inserted by below SQL statement:
 INSERT INTO d1001 FILE '/tmp/csvfile.csv';
 ```
 
-## CreateTables Automatically and Insert Rows From File
+## Create Tables Automatically and Insert Rows From File
 
 From version 2.1.5.0, tables can be automatically created using a super table as template when inserting data from a CSV file, Like below:
 
@@ -114,7 +113,7 @@ From version 2.1.5.0, tables can be automatically created using a super table as
 INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile.csv';
 ```
 
-Multiple tables can be automatically created and inserted in single SQL statement, like below:也
+Multiple tables can be automatically created and inserted in single SQL statement, like below:
 
 ```sql
 INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile_21001.csv'

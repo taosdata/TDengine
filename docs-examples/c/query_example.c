@@ -128,7 +128,7 @@ int main() {
   }
   TAOS_RES *res = taos_query(taos, "SELECT * FROM meters LIMIT 2");
   if (taos_errno(res) != 0) {
-    printf("failed to exeuce taos_query. error: %s\n", taos_errstr(res));
+    printf("failed to execute taos_query. error: %s\n", taos_errstr(res));
     exit(EXIT_FAILURE);
   }
   printResult(res);

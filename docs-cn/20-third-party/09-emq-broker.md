@@ -35,7 +35,7 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
     CREATE TABLE sensor_data (ts timestamp, temperature float, humidity float, volume float, PM10 float, pm25 float, SO2 float, NO2 float, CO float, sensor_id NCHAR(255), area TINYINT, coll_time timestamp);
 ```
 
-注：表结构以博客[数据传输、存储、展现，EMQ X + TDengine 搭建 MQTT 物联网数据可视化平台](https://www.taosdata.com/blog/2020/08/04/1722.html)为例。后续操作均以此博客场景为例进行，请你根据实际应用场景进行修改。
+注：表结构以博客[数据传输、存储、展现，EMQX + TDengine 搭建 MQTT 物联网数据可视化平台](https://www.taosdata.com/blog/2020/08/04/1722.html)为例。后续操作均以此博客场景为例进行，请你根据实际应用场景进行修改。
 
 ## 配置 EMQX 规则
 
@@ -188,5 +188,5 @@ node mock.js
 ![img](./emqx/check-result-in-taos.png)
 
 TDengine 详细使用方法请参考 [TDengine 官方文档](https://docs.taosdata.com/)。
-EMQX 详细使用方法请参考 [EMQ 官方文档](https://www.emqx.io/docs/zh/v4.4/rule/rule-engine.html)。
+EMQX 详细使用方法请参考 [EMQX 官方文档](https://www.emqx.io/docs/zh/v4.4/rule/rule-engine.html)。
 
