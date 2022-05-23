@@ -743,9 +743,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   mDebug("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
 
-  if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) {
-    goto _OVER;
-  }
+  if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
 
   if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
 

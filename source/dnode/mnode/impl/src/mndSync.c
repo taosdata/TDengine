@@ -156,7 +156,6 @@ void mndSyncStop(SMnode *pMnode) {}
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   pMgmt->state = syncGetMyRole(pMgmt->sync);
-  return pMgmt->state == TAOS_SYNC_STATE_LEADER;
-}
 
-bool mndIsRestored(SMnode *pMnode) { return pMnode->syncMgmt.restored; }
+  return (pMgmt->state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
+}

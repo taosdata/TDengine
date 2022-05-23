@@ -14,14 +14,37 @@
  */
 
 #include "tq.h"
-#include "tqueue.h"
 
 int32_t tqInit() {
-  //
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 0, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 0) {
+    tqMgmt.timer = taosTmrInit(10000, 100, 10000, "TQ");
+    if (tqMgmt.timer == NULL) {
+      atomic_store_8(&tqMgmt.inited, 0);
+      return -1;
+    }
+    atomic_store_8(&tqMgmt.inited, 1);
+  }
   return 0;
 }
 
-void tqCleanUp() {}
+void tqCleanUp() {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 1, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 1) {
+    taosTmrCleanUp(tqMgmt.timer);
+    atomic_store_8(&tqMgmt.inited, 0);
+  }
+}
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
@@ -32,9 +55,9 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
-  /*if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {*/
-  /*ASSERT(0);*/
-  /*}*/
+  if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {
+    ASSERT(0);
+  }
 
   pTq->execs = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
 
@@ -51,11 +74,45 @@ void tqClose(STQ* pTq) {
     taosHashCleanup(pTq->execs);
     taosHashCleanup(pTq->pStreamTasks);
     taosHashCleanup(pTq->pushMgr);
+    tdbClose(pTq->pTdb);
     taosMemoryFree(pTq);
   }
   // TODO
 }
 
+int32_t tEncodeSTqExec(SEncoder* pEncoder, const STqExec* pExec) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pExec->subKey) < 0) return -1;
+  if (tEncodeI64(pEncoder, pExec->consumerId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pExec->epoch) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->subType) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withTbName) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withSchema) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withTag) < 0) return -1;
+  if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tEncodeCStr(pEncoder, pExec->qmsg) < 0) return -1;
+    // TODO encode modified exec
+  }
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSTqExec(SDecoder* pDecoder, STqExec* pExec) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pExec->subKey) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pExec->consumerId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pExec->epoch) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->subType) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withTbName) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withSchema) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withTag) < 0) return -1;
+  if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tDecodeCStrAlloc(pDecoder, &pExec->qmsg) < 0) return -1;
+    // TODO decode modified exec
+  }
+  tEndDecode(pDecoder);
+  return 0;
+}
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   void* pIter = NULL;
   while (1) {
@@ -214,7 +271,7 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
     if (taosHashGetSize(pTq->pStreamTasks) == 0) return 0;
 
     if (tdUpdateExpireWindow(pTq->pVnode->pSma, msg, ver) != 0) {
-      // TODO error handle
+      // TODO handle sma error
     }
     void* data = taosMemoryMalloc(msgLen);
     if (data == NULL) {
@@ -230,134 +287,6 @@ int tqPushMsg(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_t ver) 
 
 int tqCommit(STQ* pTq) {
   // do nothing
-  /*return tqStorePersist(pTq->tqMeta);*/
-  return 0;
-}
-
-int32_t tqGetTopicHandleSize(const STqTopic* pTopic) {
-  return strlen(pTopic->topicName) + strlen(pTopic->sql) + strlen(pTopic->physicalPlan) + strlen(pTopic->qmsg) +
-         sizeof(int64_t) * 3;
-}
-
-int32_t tqGetConsumerHandleSize(const STqConsumer* pConsumer) {
-  int     num = taosArrayGetSize(pConsumer->topics);
-  int32_t sz = 0;
-  for (int i = 0; i < num; i++) {
-    STqTopic* pTopic = taosArrayGet(pConsumer->topics, i);
-    sz += tqGetTopicHandleSize(pTopic);
-  }
-  return sz;
-}
-
-static FORCE_INLINE int32_t tEncodeSTqTopic(void** buf, const STqTopic* pTopic) {
-  int32_t tlen = 0;
-  tlen += taosEncodeString(buf, pTopic->topicName);
-  /*tlen += taosEncodeString(buf, pTopic->sql);*/
-  /*tlen += taosEncodeString(buf, pTopic->physicalPlan);*/
-  tlen += taosEncodeString(buf, pTopic->qmsg);
-  /*tlen += taosEncodeFixedI64(buf, pTopic->persistedOffset);*/
-  /*tlen += taosEncodeFixedI64(buf, pTopic->committedOffset);*/
-  /*tlen += taosEncodeFixedI64(buf, pTopic->currentOffset);*/
-  return tlen;
-}
-
-static FORCE_INLINE const void* tDecodeSTqTopic(const void* buf, STqTopic* pTopic) {
-  buf = taosDecodeStringTo(buf, pTopic->topicName);
-  /*buf = taosDecodeString(buf, &pTopic->sql);*/
-  /*buf = taosDecodeString(buf, &pTopic->physicalPlan);*/
-  buf = taosDecodeString(buf, &pTopic->qmsg);
-  /*buf = taosDecodeFixedI64(buf, &pTopic->persistedOffset);*/
-  /*buf = taosDecodeFixedI64(buf, &pTopic->committedOffset);*/
-  /*buf = taosDecodeFixedI64(buf, &pTopic->currentOffset);*/
-  return buf;
-}
-
-static FORCE_INLINE int32_t tEncodeSTqConsumer(void** buf, const STqConsumer* pConsumer) {
-  int32_t sz;
-
-  int32_t tlen = 0;
-  tlen += taosEncodeFixedI64(buf, pConsumer->consumerId);
-  tlen += taosEncodeFixedI32(buf, pConsumer->epoch);
-  tlen += taosEncodeString(buf, pConsumer->cgroup);
-  sz = taosArrayGetSize(pConsumer->topics);
-  tlen += taosEncodeFixedI32(buf, sz);
-  for (int32_t i = 0; i < sz; i++) {
-    STqTopic* pTopic = taosArrayGet(pConsumer->topics, i);
-    tlen += tEncodeSTqTopic(buf, pTopic);
-  }
-  return tlen;
-}
-
-static FORCE_INLINE const void* tDecodeSTqConsumer(const void* buf, STqConsumer* pConsumer) {
-  int32_t sz;
-
-  buf = taosDecodeFixedI64(buf, &pConsumer->consumerId);
-  buf = taosDecodeFixedI32(buf, &pConsumer->epoch);
-  buf = taosDecodeStringTo(buf, pConsumer->cgroup);
-  buf = taosDecodeFixedI32(buf, &sz);
-  pConsumer->topics = taosArrayInit(sz, sizeof(STqTopic));
-  if (pConsumer->topics == NULL) return NULL;
-  for (int32_t i = 0; i < sz; i++) {
-    STqTopic pTopic;
-    buf = tDecodeSTqTopic(buf, &pTopic);
-    taosArrayPush(pConsumer->topics, &pTopic);
-  }
-  return buf;
-}
-
-int tqSerializeConsumer(const STqConsumer* pConsumer, STqSerializedHead** ppHead) {
-  int32_t sz = tEncodeSTqConsumer(NULL, pConsumer);
-
-  if (sz > (*ppHead)->ssize) {
-    void* tmpPtr = taosMemoryRealloc(*ppHead, sizeof(STqSerializedHead) + sz);
-    if (tmpPtr == NULL) {
-      taosMemoryFree(*ppHead);
-      terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
-      return -1;
-    }
-    *ppHead = tmpPtr;
-    (*ppHead)->ssize = sz;
-  }
-
-  void* ptr = (*ppHead)->content;
-  void* abuf = ptr;
-  tEncodeSTqConsumer(&abuf, pConsumer);
-
-  return 0;
-}
-
-int32_t tqDeserializeConsumer(STQ* pTq, const STqSerializedHead* pHead, STqConsumer** ppConsumer) {
-  const void* str = pHead->content;
-  *ppConsumer = taosMemoryCalloc(1, sizeof(STqConsumer));
-  if (*ppConsumer == NULL) {
-    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
-    return -1;
-  }
-  if (tDecodeSTqConsumer(str, *ppConsumer) == NULL) {
-    terrno = TSDB_CODE_TQ_OUT_OF_MEMORY;
-    return -1;
-  }
-  STqConsumer* pConsumer = *ppConsumer;
-  int32_t      sz = taosArrayGetSize(pConsumer->topics);
-  for (int32_t i = 0; i < sz; i++) {
-    STqTopic* pTopic = taosArrayGet(pConsumer->topics, i);
-    pTopic->pReadhandle = walOpenReadHandle(pTq->pWal);
-    if (pTopic->pReadhandle == NULL) {
-      ASSERT(false);
-    }
-    for (int j = 0; j < TQ_BUFFER_SIZE; j++) {
-      pTopic->buffer.output[j].status = 0;
-      STqReadHandle* pReadHandle = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
-      SReadHandle    handle = {
-             .reader = pReadHandle,
-             .meta = pTq->pVnode->pMeta,
-             .pMsgCb = &pTq->pVnode->msgCb,
-      };
-      pTopic->buffer.output[j].pReadHandle = pReadHandle;
-      pTopic->buffer.output[j].task = qCreateStreamExecTaskInfo(pTopic->qmsg, &handle);
-    }
-  }
-
   return 0;
 }
 
