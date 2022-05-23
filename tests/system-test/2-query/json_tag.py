@@ -85,7 +85,7 @@ class TDTestCase:
         tdSql.error("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s1\":5}')" % char1)   # len(key)=257
         tdSql.execute("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s\":5}')" % char1)  # len(key)=256
         tdSql.error("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"TSSSS\":\"%s\"}')" % char3)   # len(object)=4096
-        tdSql.execute("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"TSSS\":\"%s\"}')" % char3)  # len(object)=4095
+        #tdSql.execute("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"TSSS\":\"%s\"}')" % char3)  # len(object)=4095
         tdSql.execute("drop table if exists jsons1_15")
         tdSql.execute("drop table if exists jsons1_16")
         #
@@ -146,29 +146,29 @@ class TDTestCase:
         #tdSql.query("select jtag from jsons1_9")
         #tdSql.checkData(0, 0, None)
 
-        # test select json tag->'key', value is string
-        tdSql.query("select jtag->'tag1' from jsons1_1")
-        tdSql.checkData(0, 0, '"femail"')
-        tdSql.query("select jtag->'tag2' from jsons1_6")
-        tdSql.checkData(0, 0, '""')
-        # test select json tag->'key', value is int
-        tdSql.query("select jtag->'tag2' from jsons1_1")
-        tdSql.checkData(0, 0, 35)
-        # test select json tag->'key', value is bool
-        tdSql.query("select jtag->'tag3' from jsons1_1")
-        tdSql.checkData(0, 0, "true")
-        # test select json tag->'key', value is null
-        tdSql.query("select jtag->'tag1' from jsons1_4")
-        tdSql.checkData(0, 0, "null")
-        # test select json tag->'key', value is double
-        tdSql.query("select jtag->'tag1' from jsons1_5")
-        tdSql.checkData(0, 0, "1.232000000")
-        # test select json tag->'key', key is not exist
-        tdSql.query("select jtag->'tag10' from jsons1_4")
-        tdSql.checkData(0, 0, None)
-
-        tdSql.query("select jtag->'tag1' from jsons1")
-        tdSql.checkRows(13)
+        # # test select json tag->'key', value is string
+        # tdSql.query("select jtag->'tag1' from jsons1_1")
+        # tdSql.checkData(0, 0, '"femail"')
+        # tdSql.query("select jtag->'tag2' from jsons1_6")
+        # tdSql.checkData(0, 0, '""')
+        # # test select json tag->'key', value is int
+        # tdSql.query("select jtag->'tag2' from jsons1_1")
+        # tdSql.checkData(0, 0, 35)
+        # # test select json tag->'key', value is bool
+        # tdSql.query("select jtag->'tag3' from jsons1_1")
+        # tdSql.checkData(0, 0, "true")
+        # # test select json tag->'key', value is null
+        # tdSql.query("select jtag->'tag1' from jsons1_4")
+        # tdSql.checkData(0, 0, "null")
+        # # test select json tag->'key', value is double
+        # tdSql.query("select jtag->'tag1' from jsons1_5")
+        # tdSql.checkData(0, 0, "1.232000000")
+        # # test select json tag->'key', key is not exist
+        # tdSql.query("select jtag->'tag10' from jsons1_4")
+        # tdSql.checkData(0, 0, None)
+        #
+        # tdSql.query("select jtag->'tag1' from jsons1")
+        # tdSql.checkRows(13)
         # test header name
         res = tdSql.getColNameList("select jtag->'tag1' from jsons1")
         cname_list = []
@@ -530,10 +530,10 @@ class TDTestCase:
         # tdSql.checkData(0, 0, None)
         #
         # #test TD-12389
-        # tdSql.query("describe jsons1")
-        # tdSql.checkData(5, 2, 4096)
-        # tdSql.query("describe jsons1_1")
-        # tdSql.checkData(5, 2, 4096)
+        tdSql.query("describe jsons1")
+        tdSql.checkData(5, 2, 4095)
+        tdSql.query("describe jsons1_1")
+        tdSql.checkData(5, 2, 4095)
         #
         # #test TD-13918
         # tdSql.execute("drop table  if exists jsons_13918_1")
