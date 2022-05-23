@@ -924,7 +924,7 @@ void tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag) {
   STSRowIter iter = {0};
   tdSTSRowIterInit(&iter, pSchema);
   tdSTSRowIterReset(&iter, row);
-  printf("%s >>>", tag);
+  printf("%s >>>type:%d,sver:%d ", tag, (int32_t)TD_ROW_TYPE(row), (int32_t)TD_ROW_SVER(row));
   for (int i = 0; i < pSchema->numOfCols; ++i) {
     STColumn *stCol = pSchema->columns + i;
     SCellVal  sVal = {255, NULL};

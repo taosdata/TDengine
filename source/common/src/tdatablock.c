@@ -1538,7 +1538,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
   int32_t     msgLen = sizeof(SSubmitReq);
   int32_t     numOfBlks = 0;
   SRowBuilder rb = {0};
-  tdSRowInit(&rb, 0);  // TODO: use the latest version
+  tdSRowInit(&rb, pTSchema->version);  // TODO: use the latest version
 
   for (int32_t i = 0; i < sz; ++i) {
     SSDataBlock* pDataBlock = taosArrayGet(pDataBlocks, i);
