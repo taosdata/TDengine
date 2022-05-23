@@ -464,8 +464,8 @@ void taosFillSetInputDataBlock(SFillInfo* pFillInfo, const SSDataBlock* pInput) 
         pFillInfo->interval.slidingUnit,
         pFillInfo->precision);
       numOfRes += 1;
-      if(numOfRes < numOfRows) {
-        // reset current Key
+      if(numOfRes < numOfRows || pFillInfo->currentKey < lastKey) {
+        // set currentKey max
         pFillInfo->currentKey = tsList[0];
       }
     }
