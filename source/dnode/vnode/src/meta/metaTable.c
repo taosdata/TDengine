@@ -605,31 +605,39 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   if (iCol == 0) {
     // TODO : need to update tag index
   }
-
   ctbEntry.version = version;
-  SKVRowBuilder kvrb = {0};
-  const SKVRow  pOldTag = (const SKVRow)ctbEntry.ctbEntry.pTags;
-  SKVRow        pNewTag = NULL;
+  if(pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON){
+    ctbEntry.ctbEntry.pTags = taosMemoryMalloc(pAlterTbReq->nTagVal);
+    if(ctbEntry.ctbEntry.pTags == NULL){
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      goto _err;
+    }
+    memcpy((void*)ctbEntry.ctbEntry.pTags, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+  }else{
+    SKVRowBuilder kvrb = {0};
+    const SKVRow  pOldTag = (const SKVRow)ctbEntry.ctbEntry.pTags;
+    SKVRow        pNewTag = NULL;
 
-  tdInitKVRowBuilder(&kvrb);
-  for (int32_t i = 0; i < pTagSchema->nCols; i++) {
-    SSchema *pCol = &pTagSchema->pSchema[i];
-    if (iCol == i) {
-      tdAddColToKVRow(&kvrb, pCol->colId, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
-    } else {
-      void *p = tdGetKVRowValOfCol(pOldTag, pCol->colId);
-      if (p) {
-        if (IS_VAR_DATA_TYPE(pCol->type)) {
-          tdAddColToKVRow(&kvrb, pCol->colId, p, varDataTLen(p));
-        } else {
-          tdAddColToKVRow(&kvrb, pCol->colId, p, pCol->bytes);
+    tdInitKVRowBuilder(&kvrb);
+    for (int32_t i = 0; i < pTagSchema->nCols; i++) {
+      SSchema *pCol = &pTagSchema->pSchema[i];
+      if (iCol == i) {
+        tdAddColToKVRow(&kvrb, pCol->colId, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+      } else {
+        void *p = tdGetKVRowValOfCol(pOldTag, pCol->colId);
+        if (p) {
+          if (IS_VAR_DATA_TYPE(pCol->type)) {
+            tdAddColToKVRow(&kvrb, pCol->colId, p, varDataTLen(p));
+          } else {
+            tdAddColToKVRow(&kvrb, pCol->colId, p, pCol->bytes);
+          }
         }
       }
     }
-  }
 
-  ctbEntry.ctbEntry.pTags = tdGetKVRowFromBuilder(&kvrb);
-  tdDestroyKVRowBuilder(&kvrb);
+    ctbEntry.ctbEntry.pTags = tdGetKVRowFromBuilder(&kvrb);
+    tdDestroyKVRowBuilder(&kvrb);
+  }
 
   // save to table.db
   metaSaveToTbDb(pMeta, &ctbEntry);
@@ -639,6 +647,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
+  if (ctbEntry.ctbEntry.pTags) taosMemoryFree((void*)ctbEntry.ctbEntry.pTags);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbTbcClose(pTbDbc);
