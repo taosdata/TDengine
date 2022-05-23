@@ -35,8 +35,8 @@ class TDTestCase:
     def run(self):
         tdSql.prepare()
         print("============== STEP 1 ===== prepare data & validate json string")
-        # tdSql.error("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json, tagint int)")
-        # tdSql.error("create table if not exists jsons1(ts timestamp, data json) tags(tagint int)")
+        tdSql.error("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json, tagint int)")
+        tdSql.error("create table if not exists jsons1(ts timestamp, data json) tags(tagint int)")
         tdSql.execute("create table if not exists jsons1(ts timestamp, dataInt int, dataBool bool, dataStr nchar(50), dataStrBin binary(150)) tags(jtag json)")
         tdSql.execute("insert into jsons1_1 using jsons1 tags('{\"tag1\":\"fff\",\"tag2\":5, \"tag3\":true}') values(1591060618000, 1, false, 'json1', '你是') (1591060608000, 23, true, '等等', 'json')")
         tdSql.execute("insert into jsons1_2 using jsons1 tags('{\"tag1\":5,\"tag2\":\"beijing\"}') values (1591060628000, 2, true, 'json2', 'sss')")
@@ -47,58 +47,62 @@ class TDTestCase:
         tdSql.execute("insert into jsons1_7 using jsons1 tags('{\"tag1\":\"收到货\",\"tag2\":\"\",\"tag3\":null}') values(1591062628000, 2, NULL, '你就会', 'dws')")
 
         # test duplicate key using the first one. elimate empty key
-        #tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')")
+        tdSql.execute("CREATE TABLE if not exists jsons1_8 using jsons1 tags('{\"tag1\":null, \"tag1\":true, \"tag1\":45, \"1tag$\":2, \" \":90, \"\":32}')")
         #tdSql.query("select jtag from jsons1_8")
         #tdSql.checkData(0, 0, '{"tag1":null,"1tag$":2," ":90}')
 
-        # # test empty json string, save as jtag is NULL
-        # tdSql.execute("insert into jsons1_9  using jsons1 tags('\t') values (1591062328000, 24, NULL, '你就会', '2sdw')")
-        # tdSql.execute("CREATE TABLE if not exists jsons1_10 using jsons1 tags('')")
-        # tdSql.execute("CREATE TABLE if not exists jsons1_11 using jsons1 tags(' ')")
-        # tdSql.execute("CREATE TABLE if not exists jsons1_12 using jsons1 tags('{}')")
-        # tdSql.execute("CREATE TABLE if not exists jsons1_13 using jsons1 tags('null')")
+        # test empty json string, save as jtag is NULL
+        tdSql.execute("insert into jsons1_9  using jsons1 tags('\t') values (1591062328000, 24, NULL, '你就会', '2sdw')")
+        tdSql.execute("CREATE TABLE if not exists jsons1_10 using jsons1 tags('')")
+        tdSql.execute("CREATE TABLE if not exists jsons1_11 using jsons1 tags(' ')")
+        tdSql.execute("CREATE TABLE if not exists jsons1_12 using jsons1 tags('{}')")
+        tdSql.execute("CREATE TABLE if not exists jsons1_13 using jsons1 tags('null')")
+
+        # test invalidate json
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('\"efwewf\"')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('3333')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('33.33')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('false')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('[1,true]')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{222}')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"fe\"}')")
         #
-        # # test invalidate json
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('\"efwewf\"')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('3333')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('33.33')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('false')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('[1,true]')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{222}')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"fe\"}')")
+        # test invalidate json key, key must can be printed assic char
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"tag1\":[1,true]}')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"tag1\":{}}')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"。loc\":\"fff\"}')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"\t\":\"fff\"}')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"试试\":\"fff\"}')")
+
+        # test invalidate json value, value number can not be inf,nan TD-12166
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"k\":1.8e308}')")
+        tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"k\":-1.8e308}')")
         #
-        # # test invalidate json key, key must can be printed assic char
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"tag1\":[1,true]}')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"tag1\":{}}')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"。loc\":\"fff\"}')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"\t\":\"fff\"}')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"试试\":\"fff\"}')")
+        #test length limit
+        char1= ''.join(['abcd']*64)
+        char3= ''.join(['abcd']*1021)
+        print(len(char3))   # 4084
+        tdSql.error("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s1\":5}')" % char1)   # len(key)=257
+        tdSql.execute("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s\":5}')" % char1)  # len(key)=256
+        tdSql.error("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"TSSSS\":\"%s\"}')" % char3)   # len(object)=4096
+        tdSql.execute("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"TSSS\":\"%s\"}')" % char3)  # len(object)=4095
+        tdSql.execute("drop table if exists jsons1_15")
+        tdSql.execute("drop table if exists jsons1_16")
         #
-        # # test invalidate json value, value number can not be inf,nan TD-12166
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"k\":1.8e308}')")
-        # tdSql.error("CREATE TABLE if not exists jsons1_14 using jsons1 tags('{\"k\":-1.8e308}')")
+        print("============== STEP 2 ===== alter table json tag")
+        tdSql.error("ALTER STABLE jsons1 add tag tag2 nchar(20)")
+        tdSql.error("ALTER STABLE jsons1 drop tag jtag")
+        tdSql.error("ALTER TABLE jsons1 MODIFY TAG jtag nchar(128)")
         #
-        # #test length limit
-        # char1= ''.join(['abcd']*64)
-        # char3= ''.join(['abcd']*1022)
-        # print(len(char3))   # 4088
-        # tdSql.error("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s1\":5}')" % char1)   # len(key)=257
-        # tdSql.execute("CREATE TABLE if not exists  jsons1_15 using  jsons1 tags('{\"%s\":5}')" % char1)  # len(key)=256
-        # tdSql.error("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"TS\":\"%s\"}')" % char3)   # len(object)=4097
-        # tdSql.execute("CREATE TABLE if not exists  jsons1_16 using  jsons1 tags('{\"T\":\"%s\"}')" % char3)  # len(object)=4096
-        # tdSql.execute("drop table if exists jsons1_15")
-        # tdSql.execute("drop table if exists jsons1_16")
-        #
-        # print("============== STEP 2 ===== alter table json tag")
-        # tdSql.error("ALTER STABLE jsons1 add tag tag2 nchar(20)")
-        # tdSql.error("ALTER STABLE jsons1 drop tag jtag")
-        # tdSql.error("ALTER TABLE jsons1 MODIFY TAG jtag nchar(128)")
-        #
-        # tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag='{\"tag1\":\"femail\",\"tag2\":35,\"tag3\":true}'")
+        tdSql.execute("ALTER TABLE jsons1_1 SET TAG jtag='{\"tag1\":\"femail\",\"tag2\":35,\"tag3\":true}'")
         # tdSql.query("select jtag from jsons1_1")
         # tdSql.checkData(0, 0, '{"tag1":"femail","tag2":35,"tag3":true}')
-        # tdSql.execute("ALTER TABLE jsons1 CHANGE TAG jtag jtag_new")
-        # tdSql.execute("ALTER TABLE jsons1 CHANGE TAG jtag_new jtag")
+        tdSql.execute("ALTER TABLE jsons1 rename TAG jtag jtag_new")
+        tdSql.execute("ALTER TABLE jsons1 rename TAG jtag_new jtag")
+
+        tdSql.execute("create table st(ts timestamp, i int) tags(t int)")
+        tdSql.error("ALTER STABLE st add tag jtag json")
+        tdSql.error("ALTER STABLE st add column jtag json")
         #
         # print("============== STEP 3 ===== query table")
         # # test error syntax
