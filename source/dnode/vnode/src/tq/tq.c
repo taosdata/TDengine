@@ -14,14 +14,25 @@
  */
 
 #include "tq.h"
-#include "tqueue.h"
 
 int32_t tqInit() {
-  //
+  int8_t old = atomic_val_compare_exchange_8(&tqMgmt.inited, 0, 1);
+  if (old == 0) {
+    tqMgmt.timer = taosTmrInit(10000, 100, 10000, "TQ");
+    if (tqMgmt.timer == NULL) {
+      atomic_store_8(&tqMgmt.inited, 0);
+      return -1;
+    }
+  }
   return 0;
 }
 
-void tqCleanUp() {}
+void tqCleanUp() {
+  int8_t old = atomic_val_compare_exchange_8(&tqMgmt.inited, 1, 2);
+  if (old != 1) return;
+  taosTmrCleanUp(tqMgmt.timer);
+  atomic_store_8(&tqMgmt.inited, 0);
+}
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
@@ -32,9 +43,9 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
-  /*if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {*/
-  /*ASSERT(0);*/
-  /*}*/
+  if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {
+    ASSERT(0);
+  }
 
   pTq->execs = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
 
@@ -51,11 +62,45 @@ void tqClose(STQ* pTq) {
     taosHashCleanup(pTq->execs);
     taosHashCleanup(pTq->pStreamTasks);
     taosHashCleanup(pTq->pushMgr);
+    tdbClose(pTq->pTdb);
     taosMemoryFree(pTq);
   }
   // TODO
 }
 
+int32_t tEncodeSTqExec(SEncoder* pEncoder, const STqExec* pExec) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pExec->subKey) < 0) return -1;
+  if (tEncodeI64(pEncoder, pExec->consumerId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pExec->epoch) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->subType) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withTbName) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withSchema) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withTag) < 0) return -1;
+  if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tEncodeCStr(pEncoder, pExec->qmsg) < 0) return -1;
+    // TODO encode modified exec
+  }
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSTqExec(SDecoder* pDecoder, STqExec* pExec) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pExec->subKey) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pExec->consumerId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pExec->epoch) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->subType) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withTbName) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withSchema) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withTag) < 0) return -1;
+  if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tDecodeCStrAlloc(pDecoder, &pExec->qmsg) < 0) return -1;
+    // TODO decode modified exec
+  }
+  tEndDecode(pDecoder);
+  return 0;
+}
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   void* pIter = NULL;
   while (1) {

@@ -14,17 +14,17 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "tcompare.h"
 #include "os.h"
 #include "taoserror.h"
+#include "tcompare.h"
 #include "tref.h"
 #include "walInt.h"
 
 typedef struct {
-  int8_t    stop;
-  int8_t    inited;
-  uint32_t  seq;
-  int32_t   refSetId;
+  int8_t   stop;
+  int8_t   inited;
+  uint32_t seq;
+  int32_t  refSetId;
   TdThread thread;
 } SWalMgmt;
 
@@ -53,13 +53,14 @@ int32_t walInit() {
 }
 
 void walCleanUp() {
-  int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 0);
-  if (old == 0) {
+  int8_t old = atomic_val_compare_exchange_8(&tsWal.inited, 1, 2);
+  if (old != 1) {
     return;
   }
   walStopThread();
   taosCloseRef(tsWal.refSetId);
   wInfo("wal module is cleaned up");
+  atomic_store_8(&tsWal.inited, 0);
 }
 
 SWal *walOpen(const char *path, SWalCfg *pCfg) {
@@ -126,7 +127,6 @@ SWal *walOpen(const char *path, SWalCfg *pCfg) {
   }
 
   if (walCheckAndRepairIdx(pWal) < 0) {
-
   }
 
   wDebug("vgId:%d, wal:%p is opened, level:%d fsyncPeriod:%d", pWal->cfg.vgId, pWal, pWal->cfg.level,
