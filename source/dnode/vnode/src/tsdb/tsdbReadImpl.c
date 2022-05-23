@@ -306,20 +306,20 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
   }
 
   if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[0], TSDB_BITMODE_ONE_BIT) < 0) return -1;
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
   printTsdbLoadBlkData(pReadh, pReadh->pDCols[0], iBlock, __func__, __LINE__);
 #endif
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataImpl(pReadh, iBlock, pReadh->pDCols[1], TSDB_BITMODE_DEFAULT) < 0) return -1;
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
     printTsdbLoadBlkData(pReadh, pReadh->pDCols[1], iBlock, __func__, __LINE__);
 #endif
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
                         TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
     printTsdbLoadBlkData(pReadh, pReadh->pDCols[0], iBlock, " === MERGE === ", __LINE__);
 #endif
   }
@@ -333,7 +333,7 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
     }
     tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
     ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
     printTsdbLoadBlkData(pReadh, pReadh->pDCols[0], iBlock, " === UPDATE FILTER === ", __LINE__);
 #endif
   }
@@ -347,23 +347,23 @@ int tsdbLoadBlockData(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo) {
 
 static void printTsdbLoadBlkDataCols(SReadH *readh, SDataCols *pDCols, SBlock *pBlock, const int16_t *colIds,
                                      int numOfColsIds, const char *tag, int32_t ln) {
-  printf("ausp:%s:%d:%" PRIi64 " ================\n", tag, ln, taosGetSelfPthreadId());
+  printf("%s:%d:%" PRIi64 " ================\n", tag, ln, taosGetSelfPthreadId());
   if (pBlock) {
     SDFile *pHeadf = TSDB_READ_HEAD_FILE(readh);
-    printf("ausp:%s:%d:%" PRIi64 ":%p:%d %s\n", tag, ln, taosGetSelfPthreadId(), pBlock, (int32_t)pBlock->len,
+    printf("%s:%d:%" PRIi64 ":%p:%d %s\n", tag, ln, taosGetSelfPthreadId(), pBlock, (int32_t)pBlock->len,
            pHeadf->f.aname);
     SDFile *pDFile = pBlock->last ? TSDB_READ_LAST_FILE(readh) : TSDB_READ_DATA_FILE(readh);
-    printf("ausp:%s:%d:%" PRIi64 ":%p:%d %s\n", tag, ln, taosGetSelfPthreadId(), pBlock, (int32_t)pBlock->len,
+    printf("%s:%d:%" PRIi64 ":%p:%d %s\n", tag, ln, taosGetSelfPthreadId(), pBlock, (int32_t)pBlock->len,
            pDFile->f.aname);
   }
 
   int rows = pDCols->numOfRows;
   for (int r = 0; r < rows; ++r) {
     if (pBlock) {
-      printf("ausp:%s:%d:%" PRIi64 ":%p:%d  rows[%d][%d] ", tag, ln, taosGetSelfPthreadId(), pBlock,
-             (int32_t)pBlock->len, rows, r);
+      printf("%s:%d:%" PRIi64 ":%p:%d  rows[%d][%d] ", tag, ln, taosGetSelfPthreadId(), pBlock, (int32_t)pBlock->len,
+             rows, r);
     } else {
-      printf("ausp:%s:%d:%" PRIi64 ":%s rows[%d][%d] ", tag, ln, taosGetSelfPthreadId(), "=== merge === ", rows, r);
+      printf("%s:%d:%" PRIi64 ":%s rows[%d][%d] ", tag, ln, taosGetSelfPthreadId(), "=== merge === ", rows, r);
     }
 
     int      nDataCols = pDCols->numOfCols;
@@ -409,21 +409,21 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
 
   if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[0], colIds, numOfColsIds, TSDB_BITMODE_ONE_BIT) < 0)
     return -1;
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
   printTsdbLoadBlkDataCols(pReadh, pReadh->pDCols[0], iBlock, colIds, numOfColsIds, __func__, __LINE__);
 #endif
   for (int i = 1; i < pBlock->numOfSubBlocks; i++) {
     iBlock++;
     if (tsdbLoadBlockDataColsImpl(pReadh, iBlock, pReadh->pDCols[1], colIds, numOfColsIds, TSDB_BITMODE_DEFAULT) < 0)
       return -1;
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
     printTsdbLoadBlkDataCols(pReadh, pReadh->pDCols[1], iBlock, colIds, numOfColsIds, __func__, __LINE__);
 #endif
     // TODO: use the real maxVersion to replace the UINT64_MAX to support Multi-Version
     if (tdMergeDataCols(pReadh->pDCols[0], pReadh->pDCols[1], pReadh->pDCols[1]->numOfRows, NULL,
                         TD_SUPPORT_UPDATE(update), TD_VER_MAX) < 0)
       return -1;
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
     printTsdbLoadBlkDataCols(pReadh, pReadh->pDCols[0], NULL, colIds, numOfColsIds, __func__, __LINE__);
 #endif
   }
@@ -437,7 +437,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
     }
     tsdbSwapDataCols(pReadh->pDCols[0], pReadh->pDCols[1]);
     ASSERT(pReadh->pDCols[0]->bitmapMode != 0);
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
     printTsdbLoadBlkDataCols(pReadh, pReadh->pDCols[0], NULL, colIds, numOfColsIds,
                              " === update filter === ", __LINE__);
 #endif
@@ -451,7 +451,7 @@ int tsdbLoadBlockDataCols(SReadH *pReadh, SBlock *pBlock, SBlockInfo *pBlkInfo, 
         tdDataColsSetBitmapI(pReadh->pDCols[0]);
       }
     }
-#ifdef TD_DEBUG_PRINT_TSDB_READ_DCOLS
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
     printTsdbLoadBlkDataCols(pReadh, pReadh->pDCols[0], NULL, colIds, numOfColsIds, " === merge bitmap === ", __LINE__);
 #endif
   }
