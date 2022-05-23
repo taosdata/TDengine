@@ -64,6 +64,9 @@ typedef struct STaskInfo {
   SSubQueryMsg  *msg;
 } STaskInfo;
 
+typedef void (*schedulerCallback)(SQueryResult* pResult, void* param, int32_t code);
+
+
 int32_t schedulerInit(SSchedulerCfg *cfg);
 
 /**

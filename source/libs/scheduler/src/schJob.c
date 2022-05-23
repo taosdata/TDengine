@@ -39,8 +39,8 @@ int32_t schInitTask(SSchJob *pJob, SSchTask *pTask, SSubplan *pPlan, SSchLevel *
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray *pNodeList, const char *sql,
-                   int64_t startTs, bool syncSchedule) {
+int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *pTrans, SArray *pNodeList, const char *sql,
+                   SSchResInfo *pRes, int64_t startTs, bool syncSchedule) {
   int32_t  code = 0;
   int64_t  refId = -1;
   SSchJob *pJob = taosMemoryCalloc(1, sizeof(SSchJob));
@@ -51,8 +51,9 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *transport, SArray 
 
   pJob->attr.explainMode = pDag->explainInfo.mode;
   pJob->attr.syncSchedule = syncSchedule;
-  pJob->transport = transport;
+  pJob->pTrans = pTrans;
   pJob->sql = sql;
+  pJob->userRes = pRes;
 
   if (pNodeList != NULL) {
     pJob->nodeList = taosArrayDup(pNodeList);
@@ -1228,8 +1229,8 @@ void schFreeJobImpl(void *job) {
   schCloseJobRef();
 }
 
-int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
-                              int64_t startTs, bool sync) {
+int32_t schExecJobImpl(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
+                              SSchResInfo *pRes, int64_t startTs, bool sync) {
   qDebug("QID:0x%" PRIx64 " job started", pDag->queryId);
 
   if (pNodeList == NULL || taosArrayGetSize(pNodeList) <= 0) {
@@ -1238,7 +1239,7 @@ int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pDag, int
 
   int32_t  code = 0;
   SSchJob *pJob = NULL;
-  SCH_ERR_JRET(schInitJob(&pJob, pDag, transport, pNodeList, sql, startTs, sync));
+  SCH_ERR_JRET(schInitJob(&pJob, pDag, pTrans, pNodeList, sql, pRes, startTs, sync));
 
   SCH_ERR_JRET(schLaunchJob(pJob));
 
@@ -1261,8 +1262,36 @@ _return:
   SCH_RET(code);
 }
 
-int32_t schExecStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
-                             bool syncSchedule) {
+int32_t schExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
+                         int64_t startTs, SSchResInfo *pRes, bool sync) {
+  int32_t code = 0;
+  
+  *pJob = 0;
+  
+  if (EXPLAIN_MODE_STATIC == pDag->explainInfo.mode) {
+    SCH_ERR_RET(schExecStaticExplainJob(pTrans, pNodeList, pDag, pJob, sql, pRes, sync));
+  } else {
+    SCH_ERR_JRET(schExecJobImpl(pTrans, pNodeList, pDag, pJob, sql, pRes, startTs, sync));
+  }
+
+_return:
+
+  if (*pJob) {
+    SSchJob *job = schAcquireJob(*pJob);
+
+    pRes->code = atomic_load_32(&job->errCode);
+    pRes->numOfRows = job->resNumOfRows;
+    pRes->res = job->queryRes;
+    job->queryRes = NULL;
+
+    schReleaseJob(*pJob);
+  }
+
+  return code;
+}
+
+int32_t schExecStaticExplainJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
+                             SSchResInfo *pRes, bool sync) {
   qDebug("QID:0x%" PRIx64 " job started", pDag->queryId);
 
   int32_t  code = 0;
@@ -1277,7 +1306,8 @@ int32_t schExecStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDa
   pJob->attr.explainMode = pDag->explainInfo.mode;
   pJob->queryId = pDag->queryId;
   pJob->subPlans = pDag->pSubplans;
-
+  pJob->userRes = pRes;
+  
   SCH_ERR_JRET(qExecStaticExplain(pDag, (SRetrieveTableRsp **)&pJob->resData));
 
   int64_t refId = taosAddRef(schMgmt.jobRef, pJob);

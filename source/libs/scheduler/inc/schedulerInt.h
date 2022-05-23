@@ -40,8 +40,8 @@ enum {
 };
 
 typedef struct SSchTrans {
-  void *transInst;
-  void *transHandle;
+  void *pTrans;
+  void *pHandle;
 } SSchTrans;
 
 typedef struct SSchHbTrans {
@@ -74,12 +74,17 @@ typedef struct SSchJobStat {
 
 } SSchJobStat;
 
-typedef struct SSchedulerStat {
+typedef struct SSchStat {
   SSchApiStat      api;
   SSchRuntimeStat  runtime;
   SSchJobStat      job;
-} SSchedulerStat;
+} SSchStat;
 
+typedef struct SSchResInfo {
+  SQueryResult queryRes;
+  schedulerCallback userFp; 
+  void* userParam;
+} SSchResInfo;
 
 typedef struct SSchedulerMgmt {
   uint64_t        taskId; // sequential taksId
@@ -89,7 +94,7 @@ typedef struct SSchedulerMgmt {
   bool            exit;
   int32_t         jobRef;
   int32_t         jobNum;
-  SSchedulerStat  stat;
+  SSchStat        stat;
   SHashObj       *hbConnections;
 } SSchedulerMgmt;
 
@@ -170,7 +175,7 @@ typedef struct SSchJob {
   SSchJobAttr      attr;
   int32_t          levelNum;
   int32_t          taskNum;
-  void            *transport;
+  void            *pTrans;
   SArray          *nodeList;   // qnode/vnode list, SArray<SQueryNodeAddr>
   SArray          *levels;    // starting from 0. SArray<SSchLevel>
   SNodeList       *subPlans;  // subplan pointer copied from DAG, no need to free it in scheduler
@@ -196,6 +201,7 @@ typedef struct SSchJob {
   void            *queryRes;
   void            *resData;         //TODO free it or not
   int32_t          resNumOfRows;
+  SSchResInfo      userRes;
   const char      *sql;
   SQueryProfileSummary summary;
 } SSchJob;
@@ -292,7 +298,7 @@ int32_t schUpdateTaskExecNodeHandle(SSchTask *pTask, void *handle, int32_t rspCo
 void schFreeRpcCtxVal(const void *arg);
 int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *brokenVal, bool isHb);
 int32_t schRecordTaskExecNode(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr, void *handle);
-int32_t schExecStaticExplain(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
+int32_t schExecStaticExplainJob(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
                              bool syncSchedule);
 int32_t schExecJobImpl(void *transport, SArray *pNodeList, SQueryPlan *pDag, int64_t *job, const char *sql,
                               int64_t startTs, bool sync);
