@@ -138,6 +138,7 @@ static void udfdCtrlReadCb(uv_stream_t *q, ssize_t nread, const uv_buf_t *buf);
 static int32_t udfdUvInit();
 static void udfdCloseWalkCb(uv_handle_t *handle, void *arg);
 static int32_t udfdRun();
+static void udfdConnectMnodeThreadFunc(void* args);
 
 void udfdProcessRequest(uv_work_t *req) {
   SUvUdfWork *uvUdf = (SUvUdfWork *)(req->data);
@@ -870,6 +871,23 @@ static int32_t udfdRun() {
   return 0;
 }
 
+void udfdConnectMnodeThreadFunc(void* args) {
+  int32_t retryMnodeTimes = 0;
+  int32_t code = 0;
+  while (retryMnodeTimes++ <= TSDB_MAX_REPLICA) {
+    uv_sleep(100 * (1 << retryMnodeTimes));
+    code = udfdConnectToMnode();
+    if (code == 0) {
+      break;
+    }
+    fnError("udfd can not connect to mnode, code: %s. retry", tstrerror(code));
+  }
+
+  if (code != 0) {
+    fnError("udfd can not connect to mnode");
+  }
+}
+
 int main(int argc, char *argv[]) {
   if (!taosCheckSystemIsSmallEnd()) {
     printf("failed to start since on non-small-end machines\n");
@@ -902,30 +920,18 @@ int main(int argc, char *argv[]) {
     return -3;
   }
 
-  int32_t retryMnodeTimes = 0;
-  int32_t code = 0;
-  while (retryMnodeTimes++ <= TSDB_MAX_REPLICA) {
-    uv_sleep(100 * (1 << retryMnodeTimes));
-    code = udfdConnectToMnode();
-    if (code == 0) {
-      break;
-    }
-    fnError("can not connect to mnode, code: %s. retry", tstrerror(code));
-  }
-
-  if (code != 0) {
-    fnError("failed to start since can not connect to mnode");
-    return -4;
-  }
-
   if (udfdUvInit() != 0) {
     fnError("uv init failure");
     return -5;
   }
 
+  uv_thread_t mnodeConnectThread;
+  uv_thread_create(&mnodeConnectThread, udfdConnectMnodeThreadFunc, NULL);
+
   udfdRun();
 
   removeListeningPipe();
+  uv_thread_join(&mnodeConnectThread);
   udfdCloseClientRpc();
 
   return 0;

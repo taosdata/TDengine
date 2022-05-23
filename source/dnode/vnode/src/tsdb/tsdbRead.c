@@ -1638,9 +1638,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    // pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
-    // TODO: use the real schemaVersion
-    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
+    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
   }
 
 #ifdef TD_DEBUG_PRINT_ROW
@@ -1657,9 +1655,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   if (row2) {
     isRow2DataRow = TD_IS_TP_ROW(row2);
     if (pSchema2 == NULL) {
-      // pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
-      // TODO: use the real schemaVersion
-      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
+      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
     }
     if (isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);

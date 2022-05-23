@@ -278,12 +278,13 @@ STSchema *metaGetTbTSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver) {
   pSW = metaGetTableSchema(pMeta, quid, sver, 0);
   if (!pSW) return NULL;
 
-  tdInitTSchemaBuilder(&sb, 0);
+  tdInitTSchemaBuilder(&sb, sver);
   for (int i = 0; i < pSW->nCols; i++) {
     pSchema = pSW->pSchema + i;
     tdAddColToSchema(&sb, pSchema->type, pSchema->flags, pSchema->colId, pSchema->bytes);
   }
   pTSchema = tdGetSchemaFromBuilder(&sb);
+
   tdDestroyTSchemaBuilder(&sb);
 
   taosMemoryFree(pSW->pSchema);
