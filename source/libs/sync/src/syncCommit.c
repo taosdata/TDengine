@@ -110,6 +110,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             cbMeta.code = 0;
             cbMeta.state = pSyncNode->state;
             cbMeta.seqNum = pEntry->seqNum;
+			cbMeta.term = pEntry->term;
+			cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
             pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
           }
 

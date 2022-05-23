@@ -78,6 +78,8 @@ typedef struct SFsmCbMeta {
   int32_t    code;
   ESyncState state;
   uint64_t   seqNum;
+  SyncTerm   term;
+  SyncTerm   currentTerm;
 } SFsmCbMeta;
 
 typedef struct SSyncFSM {

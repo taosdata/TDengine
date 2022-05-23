@@ -332,6 +332,8 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 cbMeta.code = 0;
                 cbMeta.state = ths->state;
                 cbMeta.seqNum = pEntry->seqNum;
+                cbMeta.term = pEntry->term;
+                cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                 ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
               }
 

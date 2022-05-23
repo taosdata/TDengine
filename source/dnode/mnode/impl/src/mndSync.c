@@ -139,14 +139,32 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
     SMnode    *pMnode = pFsm->data;
     SSyncMgmt *pMgmt = &pMnode->syncMgmt;
 
-    SRpcMsg *pApplyMsg = (SRpcMsg *)pMsg;
-    pApplyMsg->info.node = pFsm->data;
-    mndProcessApplyMsg(pApplyMsg);
-    sdbUpdateVer(pMnode->pSdb, 1);
+	if (cbMeta.term < cbMeta.currentTerm) {
+		// restoring
 
-    if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-      tsem_post(&pMgmt->syncSem);
-    }
+    	SRpcMsg *pApplyMsg = (SRpcMsg *)pMsg;
+    	pApplyMsg->info.node = pFsm->data;
+    	mndProcessApplyMsg(pApplyMsg);
+		//sdbUpdateVer(pMnode->pSdb, 1); ==> sdbSetVer(cbMeta.index, cbMeta.term);
+		
+		// mndTransPullup(pMnode);
+
+	} else if (cbMeta.term == cbMeta.currentTerm) {
+		// restore finish
+
+    	SRpcMsg *pApplyMsg = (SRpcMsg *)pMsg;
+    	pApplyMsg->info.node = pFsm->data;
+    	mndProcessApplyMsg(pApplyMsg);
+    	
+		//sdbUpdateVer(pMnode->pSdb, 1); ==> sdbSetVer(cbMeta.index, cbMeta.term);
+
+    	if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
+    	  tsem_post(&pMgmt->syncSem);
+    	}
+	} else {
+		ASSERT(0);
+	}
+
   }
 }
 
