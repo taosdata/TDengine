@@ -32,7 +32,7 @@ We will explain how to migrate OpenTSDB applications to TDengine quickly, secure
 The following figure (Figure 1) shows the system's overall architecture for a typical DevOps application scenario.
 
 **Figure 1. Typical architecture in a DevOps scenario**
-Figure 1. [IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](/img/IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.jpg "Figure 1. Typical architecture in a DevOps scenario")
+![IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](/img/IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.jpg "Figure 1. Typical architecture in a DevOps scenario")
 
 In this application scenario, there are Agent tools deployed in the application environment to collect machine metrics, network metrics, and application metrics. Data collectors to aggregate information collected by agents, systems for persistent data storage and management, and tools for monitoring data visualization (e.g., Grafana, etc.).
 
@@ -75,7 +75,7 @@ After writing the data to TDengine properly, you can adapt Grafana to visualize 
 TDengine provides two sets of Dashboard templates by default, and users only need to import the templates from the Grafana directory into Grafana to activate their use.
 
 **Importing Grafana Templates** Figure 2.
-! [](/img/IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.jpg "Figure 2. Importing a Grafana Template")
+![](/img/IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.jpg "Figure 2. Importing a Grafana Template")
 
 After the above steps, you completed the migration to replace OpenTSDB with TDengine. You can see that the whole process is straightforward, there is no need to write any code, and only some configuration files need to be adjusted to meet the migration work.
 
@@ -88,7 +88,7 @@ In most DevOps scenarios, if you have a small OpenTSDB cluster (3 or fewer nodes
 Suppose your application is particularly complex, or the application domain is not a DevOps scenario. You can continue reading subsequent chapters for a more comprehensive and in-depth look at the advanced topics of migrating an OpenTSDB application to TDengine.
 
 **Figure 3. System architecture after migration**
-! [IT-DevOps-Solutions-Immigrate-TDengine-Arch](/img/IT-DevOps-Solutions-Immigrate-TDengine-Arch.jpg "Figure 3. System architecture after migration completion")
+![IT-DevOps-Solutions-Immigrate-TDengine-Arch](/img/IT-DevOps-Solutions-Immigrate-TDengine-Arch.jpg "Figure 3. System architecture after migration completion")
 
 ## Migration evaluation and strategy for other scenarios
 
@@ -96,7 +96,7 @@ Suppose your application is particularly complex, or the application domain is n
 
 This chapter describes the differences between OpenTSDB and TDengine at the system functionality level. After reading this chapter, you can fully evaluate whether you can migrate some complex OpenTSDB-based applications to TDengine, and what you should pay attention to after migration.
 
-TDengine currently only supports Grafana for visual kanban rendering, so if your application uses front-end kanban boards other than Grafana (e.g., [TSDash](https://github.com/facebook/tsdash), [Status Wolf](https://github) .com/box/StatusWolf), etc.). You cannot directly migrate those front-end kanbans to TDengine, and the front-end kanban will need to be ported to Grafana to work correctly.
+TDengine currently only supports Grafana for visual kanban rendering, so if your application uses front-end kanban boards other than Grafana (e.g., [TSDash](https://github.com/facebook/tsdash), [Status Wolf](https://github.com/box/StatusWolf), etc.). You cannot directly migrate those front-end kanbans to TDengine, and the front-end kanban will need to be ported to Grafana to work correctly.
 
 TDengine version 2.3.0.x only supports collectd and StatsD as data collection aggregation software but will provide more data collection aggregation software in the future. If you use other data aggregators on the collection side, your application needs to be ported to these two data aggregation systems to write data correctly.
 In addition to the two data aggregator software protocols mentioned above, TDengine also supports writing data directly via InfluxDB's line protocol and OpenTSDB's data writing protocol, JSON format. You can rewrite the logic on the data push side to write data using the line protocols supported by TDengine.
