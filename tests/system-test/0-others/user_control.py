@@ -244,6 +244,7 @@ class TDTestCase:
         if user is None:
             user = self.root_user
         with taos_connect(user=user.name, passwd=user.passwd) as use:
+            time.sleep(2)
             use.query("use db")
             use.query("show tables")
             if check_priv == PRIVILEGES_ALL:
@@ -398,6 +399,7 @@ class TDTestCase:
 
         tdLog.printNoPrefix("==========step 1.18: revoke all from all = nothing")
         self.revoke_user(user=self.users[2], priv=PRIVILEGES_ALL)
+        time.sleep(3)
         self.__user_check(user=self.users[2], check_priv=None)
 
     def __grant_err(self):
