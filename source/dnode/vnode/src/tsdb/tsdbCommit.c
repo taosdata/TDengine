@@ -477,6 +477,7 @@ static int tsdbCreateCommitIters(SCommitH *pCommith) {
       pCommitIter->pTable->pSchema = pTSchema;  // metaGetTbTSchema(REPO_META(pRepo), pTbData->uid, 0);
     }
   }
+  tSkipListDestroyIter(pSlIter);
 
   return 0;
 }
@@ -1137,6 +1138,9 @@ int tsdbWriteBlockImpl(STsdb *pRepo, STable *pTable, SDFile *pDFile, SDFile *pDF
       memcpy(tptr, pDataCol->pData, flen);
       if (tBitmaps > 0) {
         bptr = POINTER_SHIFT(pBlockData, lsize + flen);
+        if (isSuper && !tdDataColsIsBitmapI(pDataCols)) {
+          tdMergeBitmap((uint8_t *)pDataCol->pBitmap, rowsToWrite, (uint8_t *)pDataCol->pBitmap);
+        }
         memcpy(bptr, pDataCol->pBitmap, tBitmaps);
         tBitmapsLen = tBitmaps;
         flen += tBitmapsLen;
@@ -1502,13 +1506,16 @@ static void tsdbLoadAndMergeFromCache(SDataCols *pDataCols, int *iter, SCommitIt
       tSkipListIterNext(pCommitIter->pIter);
     } else {
       if (lastKey != key1) {
+        if (lastKey != TSKEY_INITIAL_VAL) {
+          ++pTarget->numOfRows;
+        }
         lastKey = key1;
-        ++pTarget->numOfRows;
       }
 
       // copy disk data
       for (int i = 0; i < pDataCols->numOfCols; ++i) {
         SCellVal sVal = {0};
+        // no duplicated TS keys in pDataCols from file
         if (tdGetColDataOfRow(&sVal, pDataCols->cols + i, *iter, pDataCols->bitmapMode) < 0) {
           TASSERT(0);
         }

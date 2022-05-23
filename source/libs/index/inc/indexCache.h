@@ -63,7 +63,10 @@ typedef struct CacheTerm {
 
 IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type);
 
+void indexCacheForceToMerge(void* cache);
 void indexCacheDestroy(void* cache);
+void indexCacheBroadcast(void* cache);
+void indexCacheWait(void* cache);
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache);
 void     indexCacheIteratorDestroy(Iterate* iiter);

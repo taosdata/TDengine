@@ -562,10 +562,10 @@ static int32_t mndProcessMCreateSmaReq(SRpcMsg *pReq) {
   }
 
   code = mndCreateSma(pMnode, pReq, &createReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("sma:%s, failed to create since %s", createReq.name, terrstr(terrno));
   }
 
@@ -706,10 +706,10 @@ static int32_t mndProcessMDropSmaReq(SRpcMsg *pReq) {
   }
 
   code = mndDropSma(pMnode, pReq, pDb, pSma);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("sma:%s, failed to drop since %s", dropReq.name, terrstr());
   }
 

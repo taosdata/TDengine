@@ -60,7 +60,7 @@ static void registerRequest(SRequestObj *pRequest) {
 static void deregisterRequest(SRequestObj *pRequest) {
   assert(pRequest != NULL);
 
-  STscObj *         pTscObj = pRequest->pTscObj;
+  STscObj          *pTscObj = pRequest->pTscObj;
   SInstanceSummary *pActivity = &pTscObj->pAppInfo->summary;
 
   int32_t currentInst = atomic_sub_fetch_64((int64_t *)&pActivity->currentRequests, 1);
@@ -313,7 +313,7 @@ int taos_options_imp(TSDB_OPTION option, const char *str) {
     return 0;
   }
 
-  SConfig *    pCfg = taosGetCfg();
+  SConfig     *pCfg = taosGetCfg();
   SConfigItem *pItem = NULL;
 
   switch (option) {
