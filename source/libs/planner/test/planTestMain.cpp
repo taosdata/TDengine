@@ -25,7 +25,7 @@ class PlannerEnv : public testing::Environment {
   virtual void SetUp() {
     initMetaDataEnv();
     generateMetaData();
-    initLog("/tmp/td");
+    initLog(TD_TMP_DIR_PATH "td");
   }
 
   virtual void TearDown() { destroyMetaDataEnv(); }

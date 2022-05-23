@@ -1697,7 +1697,7 @@ int32_t tDecodeSRSmaParam(SDecoder* pCoder, SRSmaParam* pRSmaParam);
 
 // TDMT_VND_CREATE_STB ==============
 typedef struct SVCreateStbReq {
-  const char*    name;
+  char*          name;
   tb_uid_t       suid;
   int8_t         rollup;
   SSchemaWrapper schema;
@@ -1710,8 +1710,8 @@ int tDecodeSVCreateStbReq(SDecoder* pCoder, SVCreateStbReq* pReq);
 
 // TDMT_VND_DROP_STB ==============
 typedef struct SVDropStbReq {
-  const char* name;
-  tb_uid_t    suid;
+  char*    name;
+  tb_uid_t suid;
 } SVDropStbReq;
 
 int32_t tEncodeSVDropStbReq(SEncoder* pCoder, const SVDropStbReq* pReq);
@@ -1720,16 +1720,16 @@ int32_t tDecodeSVDropStbReq(SDecoder* pCoder, SVDropStbReq* pReq);
 // TDMT_VND_CREATE_TABLE ==============
 #define TD_CREATE_IF_NOT_EXISTS 0x1
 typedef struct SVCreateTbReq {
-  int32_t     flags;
-  tb_uid_t    uid;
-  int64_t     ctime;
-  const char* name;
-  int32_t     ttl;
-  int8_t      type;
+  int32_t  flags;
+  tb_uid_t uid;
+  int64_t  ctime;
+  char*    name;
+  int32_t  ttl;
+  int8_t   type;
   union {
     struct {
-      tb_uid_t       suid;
-      const uint8_t* pTag;
+      tb_uid_t suid;
+      uint8_t* pTag;
     } ctb;
     struct {
       SSchemaWrapper schema;
@@ -1777,8 +1777,8 @@ int32_t tDeserializeSVCreateTbBatchRsp(void* buf, int32_t bufLen, SVCreateTbBatc
 
 // TDMT_VND_DROP_TABLE =================
 typedef struct {
-  const char* name;
-  int8_t      igNotExists;
+  char*  name;
+  int8_t igNotExists;
 } SVDropTbReq;
 
 typedef struct {
@@ -1809,9 +1809,9 @@ int32_t tDecodeSVDropTbBatchRsp(SDecoder* pCoder, SVDropTbBatchRsp* pRsp);
 
 // TDMT_VND_ALTER_TABLE =====================
 typedef struct {
-  const char* tbName;
-  int8_t      action;
-  const char* colName;
+  char*  tbName;
+  int8_t action;
+  char*  colName;
   // TSDB_ALTER_TABLE_ADD_COLUMN
   int8_t  type;
   int8_t  flags;
@@ -1820,17 +1820,17 @@ typedef struct {
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES
   int32_t colModBytes;
   // TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME
-  const char* colNewName;
+  char* colNewName;
   // TSDB_ALTER_TABLE_UPDATE_TAG_VAL
-  const char*    tagName;
-  int8_t         isNull;
-  uint32_t       nTagVal;
-  const uint8_t* pTagVal;
+  char*    tagName;
+  int8_t   isNull;
+  uint32_t nTagVal;
+  uint8_t* pTagVal;
   // TSDB_ALTER_TABLE_UPDATE_OPTIONS
-  int8_t      updateTTL;
-  int32_t     newTTL;
-  int8_t      updateComment;
-  const char* newComment;
+  int8_t  updateTTL;
+  int32_t newTTL;
+  int8_t  updateComment;
+  char*   newComment;
 } SVAlterTbReq;
 
 int32_t tEncodeSVAlterTbReq(SEncoder* pEncoder, const SVAlterTbReq* pReq);
@@ -2020,7 +2020,7 @@ static FORCE_INLINE void tFreeClientHbBatchRsp(void* pRsp) {
 
 int32_t tSerializeSClientHbBatchRsp(void* buf, int32_t bufLen, const SClientHbBatchRsp* pBatchRsp);
 int32_t tDeserializeSClientHbBatchRsp(void* buf, int32_t bufLen, SClientHbBatchRsp* pBatchRsp);
-void tFreeSClientHbBatchRsp(SClientHbBatchRsp *pBatchRsp);
+void    tFreeSClientHbBatchRsp(SClientHbBatchRsp* pBatchRsp);
 
 static FORCE_INLINE int32_t tEncodeSKv(SEncoder* pEncoder, const SKv* pKv) {
   if (tEncodeI32(pEncoder, pKv->key) < 0) return -1;
@@ -2255,20 +2255,20 @@ int32_t tSerializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 int32_t tDeserializeSMDropSmaReq(void* buf, int32_t bufLen, SMDropSmaReq* pReq);
 
 typedef struct {
-  int8_t      version;       // for compatibility(default 0)
-  int8_t      intervalUnit;  // MACRO: TIME_UNIT_XXX
-  int8_t      slidingUnit;   // MACRO: TIME_UNIT_XXX
-  int8_t      timezoneInt;   // sma data expired if timezone changes.
-  char        indexName[TSDB_INDEX_NAME_LEN];
-  int32_t     exprLen;
-  int32_t     tagsFilterLen;
-  int64_t     indexUid;
-  tb_uid_t    tableUid;  // super/child/common table uid
-  int64_t     interval;
-  int64_t     offset;  // use unit by precision of DB
-  int64_t     sliding;
-  const char* expr;  // sma expression
-  const char* tagsFilter;
+  int8_t   version;       // for compatibility(default 0)
+  int8_t   intervalUnit;  // MACRO: TIME_UNIT_XXX
+  int8_t   slidingUnit;   // MACRO: TIME_UNIT_XXX
+  int8_t   timezoneInt;   // sma data expired if timezone changes.
+  char     indexName[TSDB_INDEX_NAME_LEN];
+  int32_t  exprLen;
+  int32_t  tagsFilterLen;
+  int64_t  indexUid;
+  tb_uid_t tableUid;  // super/child/common table uid
+  int64_t  interval;
+  int64_t  offset;  // use unit by precision of DB
+  int64_t  sliding;
+  char*    expr;  // sma expression
+  char*    tagsFilter;
 } STSma;  // Time-range-wise SMA
 
 typedef STSma SVCreateTSmaReq;
@@ -2596,12 +2596,12 @@ static FORCE_INLINE void tDeleteSMqAskEpRsp(SMqAskEpRsp* pRsp) {
 
 #define TD_AUTO_CREATE_TABLE 0x1
 typedef struct {
-  int64_t        suid;
-  int64_t        uid;
-  int32_t        sver;
-  uint32_t       nData;
-  const uint8_t* pData;
-  SVCreateTbReq  cTbReq;
+  int64_t       suid;
+  int64_t       uid;
+  int32_t       sver;
+  uint32_t      nData;
+  uint8_t*      pData;
+  SVCreateTbReq cTbReq;
 } SVSubmitBlk;
 
 typedef struct {

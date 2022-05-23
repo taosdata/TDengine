@@ -165,7 +165,9 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   ret = tdbTbcGet(pTbDbc, NULL, NULL, &pData, &nData);
   ASSERT(ret == 0);
 
-  tDecoderInit(&dc, pData, nData);
+  oStbEntry.pBuf = taosMemoryMalloc(nData);
+  memcpy(oStbEntry.pBuf, pData, nData);
+  tDecoderInit(&dc, oStbEntry.pBuf, nData);
   metaDecodeEntry(&dc, &oStbEntry);
 
   nStbEntry.version = version;
@@ -193,6 +195,7 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   // update uid index
   tdbTbcUpsert(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &version, sizeof(version), 0);
 
+  if (oStbEntry.pBuf) taosMemoryFree(oStbEntry.pBuf);
   metaULock(pMeta);
   tDecoderClear(&dc);
   tdbTbcClose(pTbDbc);
@@ -420,7 +423,9 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
 
   // get table entry
   SDecoder dc = {0};
-  tDecoderInit(&dc, pData, nData);
+  entry.pBuf = taosMemoryMalloc(nData);
+  memcpy(entry.pBuf, pData, nData);
+  tDecoderInit(&dc, entry.pBuf, nData);
   ret = metaDecodeEntry(&dc, &entry);
   ASSERT(ret == 0);
 
@@ -820,16 +825,27 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   pTagData = tdGetKVRowValOfCol((const SKVRow)pCtbEntry->ctbEntry.pTags, pTagColumn->colId);
 
   // update tag index
+#ifdef USE_INVERTED_INDEX
+  tb_uid_t suid = pCtbEntry->ctbEntry.suid;
+  tb_uid_t tuid = pCtbEntry->uid;
+
+  SIndexMultiTerm *tmGroup = indexMultiTermCreate();
+
+  SIndexTerm *tm = indexTermCreate(suid, ADD_VALUE, pTagColumn->type, pTagColumn->name, sizeof(pTagColumn->name),
+                                   pTagData, pTagData == NULL ? 0 : strlen(pTagData));
+  indexMultiTermAdd(tmGroup, tm);
+  int ret = indexPut((SIndex *)pMeta->pTagIvtIdx, tmGroup, tuid);
+  indexMultiTermDestroy(tmGroup);
+#else
   if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, pTagColumn->type, pCtbEntry->uid,
                           &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }
   tdbTbInsert(pMeta->pTagIdx, pTagIdxKey, nTagIdxKey, NULL, 0, &pMeta->txn);
   metaDestroyTagIdxKey(pTagIdxKey);
-
+#endif
   tDecoderClear(&dc);
   tdbFree(pData);
-
   return 0;
 }
 

@@ -855,7 +855,7 @@ SDataCols *tdNewDataCols(int maxCols, int maxRows) {
   pCols->maxCols = maxCols;
   pCols->numOfRows = 0;
   pCols->numOfCols = 0;
-  // pCols->bitmapMode = 0; // calloc already set 0
+  pCols->bitmapMode = TSDB_BITMODE_DEFAULT;
 
   if (maxCols > 0) {
     pCols->cols = (SDataCol *)taosMemoryCalloc(maxCols, sizeof(SDataCol));
@@ -899,7 +899,7 @@ int tdInitDataCols(SDataCols *pCols, STSchema *pSchema) {
 #endif
 
   pCols->numOfRows = 0;
-  pCols->bitmapMode = 0;
+  pCols->bitmapMode = TSDB_BITMODE_DEFAULT;
   pCols->numOfCols = schemaNCols(pSchema);
 
   for (i = 0; i < schemaNCols(pSchema); ++i) {

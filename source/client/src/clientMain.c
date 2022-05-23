@@ -565,10 +565,32 @@ const char *taos_get_server_info(TAOS *taos) {
 
 void taos_query_a(TAOS *taos, const char *sql, __taos_async_fn_t fp, void *param) {
   if (taos == NULL || sql == NULL) {
-    // todo directly call fp
+    fp(param, NULL, TSDB_CODE_INVALID_PARA);
+    return;
   }
 
-  taos_query_l(taos, sql, (int32_t)strlen(sql));
+  SRequestObj* pRequest = NULL;
+  int32_t      retryNum = 0;
+  int32_t      code = 0;
+
+  size_t sqlLen = strlen(sql);
+
+  while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
+    pRequest = launchQuery(taos, sql, sqlLen);
+    if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
+      break;
+    }
+
+    code = refreshMeta(taos, pRequest);
+    if (code) {
+      pRequest->code = code;
+      break;
+    }
+
+    destroyRequest(pRequest);
+  }
+
+  fp(param, pRequest, code);
 }
 
 void taos_fetch_rows_a(TAOS_RES *res, __taos_async_fn_t fp, void *param) {

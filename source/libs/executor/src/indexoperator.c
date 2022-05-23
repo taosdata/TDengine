@@ -19,38 +19,11 @@
 #include "nodes.h"
 #include "tdatablock.h"
 
-typedef struct SIFCtx {
-  int32_t   code;
-  SHashObj *pRes;    /* element is SScalarParam */
-  bool      noExec;  // true: just iterate condition tree, and add hint to executor plan
-  // SIdxFltStatus st;
-} SIFCtx;
-
-#define SIF_ERR_RET(c)                \
-  do {                                \
-    int32_t _code = c;                \
-    if (_code != TSDB_CODE_SUCCESS) { \
-      terrno = _code;                 \
-      return _code;                   \
-    }                                 \
-  } while (0)
-#define SIF_RET(c)                    \
-  do {                                \
-    int32_t _code = c;                \
-    if (_code != TSDB_CODE_SUCCESS) { \
-      terrno = _code;                 \
-    }                                 \
-    return _code;                     \
-  } while (0)
-#define SIF_ERR_JRET(c)              \
-  do {                               \
-    code = c;                        \
-    if (code != TSDB_CODE_SUCCESS) { \
-      terrno = code;                 \
-      goto _return;                  \
-    }                                \
-  } while (0)
-
+// clang-format off
+#define SIF_ERR_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; return _code; } } while (0)
+#define SIF_RET(c) do { int32_t _code = c; if (_code != TSDB_CODE_SUCCESS) { terrno = _code; } return _code; } while (0)
+#define SIF_ERR_JRET(c) do { code = c; if (code != TSDB_CODE_SUCCESS) { terrno = code; goto _return; } } while (0)
+// clang-format on
 typedef struct SIFParam {
   SHashObj *pFilter;
 
@@ -64,6 +37,13 @@ typedef struct SIFParam {
   char          dbName[TSDB_DB_NAME_LEN];
   char          colName[TSDB_COL_NAME_LEN];
 } SIFParam;
+
+typedef struct SIFCtx {
+  int32_t   code;
+  SHashObj *pRes;    /* element is SIFParam */
+  bool      noExec;  // true: just iterate condition tree, and add hint to executor plan
+  // SIdxFltStatus st;
+} SIFCtx;
 
 static int32_t sifGetFuncFromSql(EOperatorType src, EIndexQueryType *dst) {
   if (src == OP_TYPE_GREATER_THAN) {

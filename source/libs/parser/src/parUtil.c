@@ -169,6 +169,8 @@ static char* getSyntaxErrFormat(int32_t errCode) {
              "And, cannot be mixed with other non scalar functions or columns.";
     case TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY:
       return "Window query not supported, since the result of subquery not include valid timestamp column";
+    case TSDB_CODE_PAR_INVALID_DROP_COL:
+      return "No columns can be dropped";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
