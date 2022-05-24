@@ -3408,6 +3408,7 @@ void tscInitQueryInfo(SQueryInfo* pQueryInfo) {
 
   pQueryInfo->slimit.limit   = -1;
   pQueryInfo->slimit.offset  = 0;
+  pQueryInfo->offsetAdd      = 0;
   pQueryInfo->pUpstream      = taosArrayInit(4, POINTER_BYTES);
   pQueryInfo->window         = TSWINDOW_INITIALIZER;
   pQueryInfo->multigroupResult = true;
@@ -3899,6 +3900,7 @@ SSqlObj* createSubqueryObj(SSqlObj* pSql, int16_t tableIndex, __async_cb_func_t 
   pNewQueryInfo->range        = pQueryInfo->range;
   pNewQueryInfo->limit        = pQueryInfo->limit;
   pNewQueryInfo->slimit       = pQueryInfo->slimit;
+  pNewQueryInfo->offsetAdd    = pQueryInfo->offsetAdd;
   pNewQueryInfo->order        = pQueryInfo->order;
   pNewQueryInfo->tsBuf        = NULL;
   pNewQueryInfo->fillType     = pQueryInfo->fillType;
