@@ -138,7 +138,7 @@ static void vmGenerateVnodeCfg(SCreateVnodeReq *pCreate, SVnodeCfg *pCfg) {
   pCfg->dbId = pCreate->dbUid;
   pCfg->szPage = pCreate->pageSize * 1024;
   pCfg->szCache = pCreate->pages;
-  pCfg->szBuf = pCreate->buffer * 1024 * 1024;
+  pCfg->szBuf = (uint64_t)pCreate->buffer * 1024 * 1024;
   pCfg->isWeak = true;
   pCfg->tsdbCfg.compression = pCreate->compression;
   pCfg->tsdbCfg.precision = pCreate->precision;

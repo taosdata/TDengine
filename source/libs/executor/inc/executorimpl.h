@@ -86,43 +86,12 @@ typedef struct STableQueryInfo {
 //  SVariant       tag;
 } STableQueryInfo;
 
-typedef enum {
-  QUERY_PROF_BEFORE_OPERATOR_EXEC = 0,
-  QUERY_PROF_AFTER_OPERATOR_EXEC,
-  QUERY_PROF_QUERY_ABORT
-} EQueryProfEventType;
-
-typedef struct {
-  EQueryProfEventType eventType;
-  int64_t             eventTime;
-
-  union {
-    uint8_t operatorType;  // for operator event
-    int32_t abortCode;     // for query abort event
-  };
-} SQueryProfEvent;
-
-typedef struct {
-  uint8_t operatorType;
-  int64_t sumSelfTime;
-  int64_t sumRunTimes;
-} SOperatorProfResult;
-
 typedef struct SLimit {
   int64_t limit;
   int64_t offset;
 } SLimit;
 
-typedef struct SFileBlockLoadRecorder {
-  uint64_t totalRows;
-  uint64_t totalCheckedRows;
-  uint32_t totalBlocks;
-  uint32_t loadBlocks;
-  uint32_t loadBlockStatis;
-  uint32_t skipBlocks;
-  uint32_t filterOutBlocks;
-  uint64_t elapsedTime;
-} SFileBlockLoadRecorder;
+typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 
 typedef struct STaskCostInfo {
   int64_t created;
@@ -152,8 +121,8 @@ typedef struct STaskCostInfo {
 } STaskCostInfo;
 
 typedef struct SOperatorCostInfo {
-  uint64_t openCost;
-  uint64_t totalCost;
+  double   openCost;
+  double   totalCost;
 } SOperatorCostInfo;
 
 // The basic query information extracted from the SQueryInfo tree to support the
@@ -200,7 +169,7 @@ typedef bool (*__optr_decode_fn_t)(struct SOperatorInfo* pOperator, struct SAggS
 typedef int32_t (*__optr_open_fn_t)(struct SOperatorInfo* pOptr);
 typedef SSDataBlock* (*__optr_fn_t)(struct SOperatorInfo* pOptr);
 typedef void (*__optr_close_fn_t)(void* param, int32_t num);
-typedef int32_t (*__optr_get_explain_fn_t)(struct SOperatorInfo* pOptr, void** pOptrExplain);
+typedef int32_t (*__optr_explain_fn_t)(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
 
 typedef struct STaskIdInfo {
   uint64_t queryId;  // this is also a request id
@@ -264,14 +233,14 @@ enum {
 };
 
 typedef struct SOperatorFpSet {
-  __optr_open_fn_t        _openFn;          // DO NOT invoke this function directly
-  __optr_fn_t             getNextFn;
-  __optr_fn_t             getStreamResFn;  // execute the aggregate in the stream model, todo remove it
-  __optr_fn_t             cleanupFn;       // call this function to release the allocated resources ASAP
-  __optr_close_fn_t       closeFn;
-  __optr_encode_fn_t      encodeResultRow;
-  __optr_decode_fn_t      decodeResultRow;
-  __optr_get_explain_fn_t getExplainFn;
+  __optr_open_fn_t     _openFn;          // DO NOT invoke this function directly
+  __optr_fn_t          getNextFn;
+  __optr_fn_t          getStreamResFn;  // execute the aggregate in the stream model, todo remove it
+  __optr_fn_t          cleanupFn;       // call this function to release the allocated resources ASAP
+  __optr_close_fn_t    closeFn;
+  __optr_encode_fn_t   encodeResultRow;
+  __optr_decode_fn_t   decodeResultRow;
+  __optr_explain_fn_t  getExplainFn;
 } SOperatorFpSet;
 
 typedef struct SOperatorInfo {
@@ -656,7 +625,7 @@ typedef struct SJoinOperatorInfo {
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
     __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_encode_fn_t encode,
-    __optr_decode_fn_t decode, __optr_get_explain_fn_t explain);
+    __optr_decode_fn_t decode, __optr_explain_fn_t explain);
 
 int32_t operatorDummyOpenFn(SOperatorInfo* pOperator);
 void    operatorDummyCloseFn(void* param, int32_t numOfCols);
@@ -775,10 +744,6 @@ bool    isTaskKilled(SExecTaskInfo* pTaskInfo);
 int32_t checkForQueryBuf(size_t numOfTables);
 
 void setTaskKilled(SExecTaskInfo* pTaskInfo);
-
-void publishOperatorProfEvent(SOperatorInfo* operatorInfo, EQueryProfEventType eventType);
-void publishQueryAbortEvent(SExecTaskInfo* pTaskInfo, int32_t code);
-
 void queryCostStatis(SExecTaskInfo* pTaskInfo);
 
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);

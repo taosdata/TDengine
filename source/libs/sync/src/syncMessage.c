@@ -210,6 +210,7 @@ void syncTimeoutFromRpcMsg(const SRpcMsg* pRpcMsg, SyncTimeout* pMsg) {
 
 SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncTimeout* pMsg = syncTimeoutDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
@@ -436,6 +437,7 @@ void syncPingFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPing* pMsg) {
 
 SyncPing* syncPingFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncPing* pMsg = syncPingDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
@@ -695,6 +697,7 @@ void syncPingReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncPingReply* pMsg) {
 
 SyncPingReply* syncPingReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncPingReply* pMsg = syncPingReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
@@ -861,6 +864,7 @@ void syncClientRequestFromRpcMsg(const SRpcMsg* pRpcMsg, SyncClientRequest* pMsg
 // step 3. RpcMsg => SyncClientRequest, from queue
 SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncClientRequest* pMsg = syncClientRequestDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
@@ -986,6 +990,7 @@ void syncRequestVoteFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVote* pMsg) {
 
 SyncRequestVote* syncRequestVoteFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncRequestVote* pMsg = syncRequestVoteDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1134,6 +1139,7 @@ void syncRequestVoteReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncRequestVoteReply
 
 SyncRequestVoteReply* syncRequestVoteReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncRequestVoteReply* pMsg = syncRequestVoteReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1281,6 +1287,7 @@ void syncAppendEntriesFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntries* pMsg
 
 SyncAppendEntries* syncAppendEntriesFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncAppendEntries* pMsg = syncAppendEntriesDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
@@ -1444,6 +1451,7 @@ void syncAppendEntriesReplyFromRpcMsg(const SRpcMsg* pRpcMsg, SyncAppendEntriesR
 
 SyncAppendEntriesReply* syncAppendEntriesReplyFromRpcMsg2(const SRpcMsg* pRpcMsg) {
   SyncAppendEntriesReply* pMsg = syncAppendEntriesReplyDeserialize2(pRpcMsg->pCont, pRpcMsg->contLen);
+  assert(pMsg != NULL);
   return pMsg;
 }
 
