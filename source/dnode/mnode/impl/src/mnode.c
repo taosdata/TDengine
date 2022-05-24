@@ -329,12 +329,6 @@ void mndClose(SMnode *pMnode) {
   }
 }
 
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
-  mDebug("start to alter mnode");
-  mDebug("mnode is altered");
-  return 0;
-}
-
 int32_t mndStart(SMnode *pMnode) {
   mndSyncStart(pMnode);
   return mndInitTimer(pMnode);
