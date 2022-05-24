@@ -86,7 +86,6 @@ static void *mndThreadFp(void *param) {
     lastTime++;
     taosMsleep(100);
     if (pMnode->stopped) break;
-    if (!mndIsMaster(pMnode) || !mndIsRestored(pMnode)) continue;
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);
@@ -436,8 +435,6 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   }
 
   return ret;
-
-  return 0;
 }
 
 int32_t mndProcessMsg(SRpcMsg *pMsg) {
@@ -446,7 +443,8 @@ int32_t mndProcessMsg(SRpcMsg *pMsg) {
   mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
 
   if (IsReq(pMsg)) {
-    if (!mndIsMaster(pMnode) || !mndIsRestored(pMnode)) {
+    if (!mndIsMaster(pMnode) && pMsg->msgType != TDMT_MND_TRANS_TIMER && pMsg->msgType != TDMT_MND_MQ_TIMER &&
+        pMsg->msgType != TDMT_MND_TELEM_TIMER) {
       terrno = TSDB_CODE_APP_NOT_READY;
       mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
       return -1;
@@ -506,7 +504,7 @@ int64_t mndGenerateUid(char *name, int32_t len) {
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {
-  if (!mndIsMaster(pMnode) || !mndIsRestored(pMnode)) return -1;
+  if (!mndIsMaster(pMnode)) return -1;
 
   SSdb   *pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();
