@@ -55,6 +55,19 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pOption->msgCb = pMgmt->msgCb;
+#if 1
+  pOption->replica = 1;
+  pOption->selfIndex = 0;
+  SReplica *pReplica = &pOption->replicas[0];
+  for (int32_t i = 0; i < pMgmt->replica; ++i) {
+    if (pMgmt->replicas[i].id == pMgmt->pData->dnodeId) {
+      pReplica->id = pMgmt->replicas[i].id;
+      pReplica->port = pMgmt->replicas[i].port;
+      memcpy(pReplica->fqdn, pMgmt->replicas[i].fqdn, TSDB_FQDN_LEN);
+    }
+  }
+  pMgmt->selfIndex = pOption->selfIndex;
+#else
   pOption->replica = pMgmt->replica;
   pOption->selfIndex = -1;
   memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
@@ -64,6 +77,7 @@ static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
     }
   }
   pMgmt->selfIndex = pOption->selfIndex;
+#endif
   pOption->deploy = false;
 }
 

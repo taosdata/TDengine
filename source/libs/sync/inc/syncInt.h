@@ -148,8 +148,8 @@ typedef struct SSyncNode {
   SSyncRespMgr* pSyncRespMgr;
 
   // restore state
-  bool       restoreFinish;
-  //sem_t      restoreSem;
+  bool restoreFinish;
+  // sem_t      restoreSem;
   SSnapshot* pSnapshot;
 
 } SSyncNode;

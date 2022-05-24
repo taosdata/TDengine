@@ -90,6 +90,10 @@ typedef struct SSyncFSM {
   void (*FpRestoreFinish)(struct SSyncFSM* pFsm);
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
   int32_t (*FpRestoreSnapshot)(struct SSyncFSM* pFsm, const SSnapshot* snapshot);
+
+  void* (*FpSnapshotRead)(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* iter, char** ppBuf, int32_t* len);
+  int32_t (*FpSnapshotApply)(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len);
+
 } SSyncFSM;
 
 // abstract definition of log store in raft
