@@ -43,7 +43,6 @@ class TDTestCase:
         for num_col in NUM_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{num_col}",
                     f"log( {tbname}.{num_col},  {tbname}.{num_col})",
                 )
             )
@@ -145,7 +144,6 @@ class TDTestCase:
                         (
                             self.__single_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
                             self.__single_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
-                            self.__single_sql(select_claus, join_tb),
                         )
                     )
         __no_join_tblist = self.__tb_liast
