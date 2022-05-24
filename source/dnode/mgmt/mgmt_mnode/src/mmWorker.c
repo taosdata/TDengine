@@ -99,39 +99,15 @@ static inline int32_t mmPutRpcMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pRpc)
 }
 
 int32_t mmPutRpcMsgToQueryQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t code = -1;
-  if (mmAcquire(pMgmt) == 0) {
-    mmPutRpcMsgToWorker(&pMgmt->queryWorker, pMsg);
-    mmRelease(pMgmt);
-  } else {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
-  return code;
+  return mmPutRpcMsgToWorker(&pMgmt->queryWorker, pMsg);
 }
 
 int32_t mmPutRpcMsgToWriteQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t code = -1;
-  if (mmAcquire(pMgmt) == 0) {
-    code = mmPutRpcMsgToWorker(&pMgmt->writeWorker, pMsg);
-    mmRelease(pMgmt);
-  } else {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
-  return code;
+  return mmPutRpcMsgToWorker(&pMgmt->writeWorker, pMsg);
 }
 
 int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  int32_t code = -1;
-  if (mmAcquire(pMgmt) == 0) {
-    code = mmPutRpcMsgToWorker(&pMgmt->readWorker, pMsg);
-    mmRelease(pMgmt);
-  } else {
-    rpcFreeCont(pMsg->pCont);
-    pMsg->pCont = NULL;
-  }
-  return code;
+  return mmPutRpcMsgToWorker(&pMgmt->readWorker, pMsg);
 }
 
 int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
@@ -139,7 +115,9 @@ int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   if (mmAcquire(pMgmt) == 0) {
     code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
     mmRelease(pMgmt);
-  } else {
+  }
+
+  if (code != 0) {
     rpcFreeCont(pMsg->pCont);
     pMsg->pCont = NULL;
   }
