@@ -64,7 +64,7 @@ void    tTagFree(STag *pTag);
 int32_t tTagSet(STag *pTag, SSchema *pSchema, int32_t nCols, int iCol, uint8_t *pData, uint32_t nData, STag **ppTag);
 void    tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, uint32_t *nData);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
-int32_t tDecodeTag(SDecoder *pDecoder, const STag **ppTag);
+int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
 
 // STRUCT =================
 struct STColumn {

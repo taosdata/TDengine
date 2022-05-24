@@ -13,6 +13,7 @@ target_sources(
     "src/vnd/vnodeModule.c"
     "src/vnd/vnodeSvr.c"
     "src/vnd/vnodeSync.c"
+    "src/vnd/vnodeSnapshot.c"
 
     # meta
     "src/meta/metaOpen.c"
@@ -22,6 +23,7 @@ target_sources(
     "src/meta/metaQuery.c"
     "src/meta/metaCommit.c"
     "src/meta/metaEntry.c"
+    "src/meta/metaSnapshot.c"
 
     # sma
     "src/sma/sma.c"
@@ -44,6 +46,7 @@ target_sources(
     "src/tsdb/tsdbReadImpl.c"
     # "src/tsdb/tsdbSma.c"
     "src/tsdb/tsdbWrite.c"
+    "src/tsdb/tsdbSnapshot.c"
 
     # tq
     "src/tq/tq.c"

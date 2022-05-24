@@ -646,9 +646,7 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
   return tEncodeBinary(pEncoder, (const uint8_t *)pTag, pTag->len);
 }
 
-int32_t tDecodeTag(SDecoder *pDecoder, const STag **ppTag) {
-  return tDecodeBinary(pDecoder, (const uint8_t **)ppTag, NULL);
-}
+int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) { return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL); }
 
 #if 1  // ===================================================================================================================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
@@ -1127,7 +1125,7 @@ SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
   kvRowSetNCols(row, pBuilder->nCols);
   kvRowSetLen(row, tlen);
 
-  if(pBuilder->nCols > 0){
+  if (pBuilder->nCols > 0) {
     memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
     memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
   }
