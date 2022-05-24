@@ -1871,11 +1871,9 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
   // global aggregation may be the upstream for parent query
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   // reset stable limit
-  if (pQueryInfo->offsetAdd > 0){
-    ASSERT(pQueryInfo->limit.limit > pQueryInfo->offsetAdd);
-    pQueryInfo->limit.limit -= pQueryInfo->offsetAdd;
-    pQueryInfo->limit.offset = pQueryInfo->offsetAdd;
-    pQueryInfo->offsetAdd = 0;
+  if (tscOrderedProjectionQueryOnSTable(pQueryInfo, 0)) {
+    pQueryInfo->limit.limit = pQueryInfo->clauseLimit;
+    pQueryInfo->limit.offset = pQueryInfo->prjOffset;
   }
     
   if (pQueryInfo->pQInfo == NULL) {
