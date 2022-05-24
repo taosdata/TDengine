@@ -160,6 +160,8 @@ SyncClientRequest *step1(const SRpcMsg *pMsg) {
 }
 
 int main(int argc, char **argv) {
+  sprintf(tsTempDir, "%s", ".");
+
   // taosInitLog((char *)"syncTest.log", 100000, 10);
   tsAsyncLog = 0;
   sDebugFlag = 143 + 64;

@@ -110,6 +110,7 @@ static void mmClose(SMnodeMgmt *pMgmt) {
   if (pMgmt->pMnode != NULL) {
     mmStopWorker(pMgmt);
     mndClose(pMgmt->pMnode);
+    taosThreadRwlockDestroy(&pMgmt->lock);
     pMgmt->pMnode = NULL;
   }
 
@@ -119,6 +120,11 @@ static void mmClose(SMnodeMgmt *pMgmt) {
 static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   if (walInit() != 0) {
     dError("failed to init wal since %s", terrstr());
+    return -1;
+  }
+
+  if (syncInit() != 0) {
+    dError("failed to init sync since %s", terrstr());
     return -1;
   }
 
@@ -137,6 +143,7 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   pMgmt->msgCb.queueFps[WRITE_QUEUE] = (PutToQueueFp)mmPutRpcMsgToWriteQueue;
   pMgmt->msgCb.queueFps[SYNC_QUEUE] = (PutToQueueFp)mmPutRpcMsgToSyncQueue;
   pMgmt->msgCb.mgmt = pMgmt;
+  taosThreadRwlockInit(&pMgmt->lock, NULL);
 
   bool deployed = false;
   if (mmReadFile(pMgmt, &deployed) != 0) {
@@ -205,4 +212,23 @@ SMgmtFunc mmGetMgmtFunc() {
   mgmtFunc.getHandlesFp = mmGetMsgHandles;
 
   return mgmtFunc;
+}
+
+int32_t mmAcquire(SMnodeMgmt *pMgmt) {
+  int32_t code = 0;
+
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  if (pMgmt->stopped) {
+    code = -1;
+  } else {
+    atomic_add_fetch_32(&pMgmt->refCount, 1);
+  }
+  taosThreadRwlockUnlock(&pMgmt->lock);
+  return code;
+}
+
+void mmRelease(SMnodeMgmt *pMgmt) {
+  taosThreadRwlockRdlock(&pMgmt->lock);
+  atomic_sub_fetch_32(&pMgmt->refCount, 1);
+  taosThreadRwlockUnlock(&pMgmt->lock);
 }

@@ -13,7 +13,6 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#include <stdint.h>
 #include "sync.h"
 #include "syncAppendEntries.h"
 #include "syncAppendEntriesReply.h"
@@ -55,14 +54,17 @@ static void syncFreeNode(void* param);
 // ---------------------------------
 
 int32_t syncInit() {
-  int32_t ret;
-  tsNodeRefId = taosOpenRef(200, syncFreeNode);
-  if (tsNodeRefId < 0) {
-    sError("failed to init node ref");
-    syncCleanUp();
-    ret = -1;
-  } else {
-    ret = syncEnvStart();
+  int32_t ret = 0;
+
+  if (!syncEnvIsStart()) {
+    tsNodeRefId = taosOpenRef(200, syncFreeNode);
+    if (tsNodeRefId < 0) {
+      sError("failed to init node ref");
+      syncCleanUp();
+      ret = -1;
+    } else {
+      ret = syncEnvStart();
+    }
   }
 
   return ret;
@@ -240,7 +242,7 @@ int32_t syncGetAndDelRespRpc(int64_t rid, uint64_t index, SRpcMsg* msg) {
   return ret;
 }
 
-void syncSetMsgCb(int64_t rid, const SMsgCb *msgcb) {
+void syncSetMsgCb(int64_t rid, const SMsgCb* msgcb) {
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
     sTrace("syncSetQ get pSyncNode is NULL, rid:%ld", rid);
@@ -490,6 +492,15 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
   pSyncNode->pSyncRespMgr = syncRespMgrCreate(NULL, 0);
   assert(pSyncNode->pSyncRespMgr != NULL);
 
+  // restore state
+  pSyncNode->restoreFinish = false;
+  pSyncNode->pSnapshot = NULL;
+  if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
+    pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
+    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, pSyncNode->pSnapshot);
+  }
+  //tsem_init(&(pSyncNode->restoreSem), 0, 0);
+
   // start in syncNodeStart
   // start raft
   // syncNodeBecomeFollower(pSyncNode);
@@ -509,6 +520,20 @@ void syncNodeStart(SSyncNode* pSyncNode) {
     // use this now
     syncNodeAppendNoop(pSyncNode);
     syncMaybeAdvanceCommitIndex(pSyncNode);  // maybe only one replica
+
+    /*
+    sInfo("==syncNodeStart== RestoreFinish begin 1 replica tsem_wait %p", pSyncNode);
+    tsem_wait(&pSyncNode->restoreSem);
+    sInfo("==syncNodeStart== RestoreFinish end 1 replica tsem_wait %p", pSyncNode);
+    */
+
+    /*
+    while (pSyncNode->restoreFinish != true) {
+      taosMsleep(10);
+    }
+    */
+
+    sInfo("==syncNodeStart== restoreFinish ok 1 replica %p vgId:%d", pSyncNode, pSyncNode->vgId);
     return;
   }
 
@@ -518,6 +543,19 @@ void syncNodeStart(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   // ret = syncNodeStartPingTimer(pSyncNode);
   assert(ret == 0);
+
+  /*
+  sInfo("==syncNodeStart== RestoreFinish begin multi replica tsem_wait %p", pSyncNode);
+  tsem_wait(&pSyncNode->restoreSem);
+  sInfo("==syncNodeStart== RestoreFinish end multi replica tsem_wait %p", pSyncNode);
+  */
+
+  /*
+  while (pSyncNode->restoreFinish != true) {
+    taosMsleep(10);
+  }
+  */
+  sInfo("==syncNodeStart== restoreFinish ok multi replica %p vgId:%d", pSyncNode, pSyncNode->vgId);
 }
 
 void syncNodeStartStandBy(SSyncNode* pSyncNode) {
@@ -553,6 +591,12 @@ void syncNodeClose(SSyncNode* pSyncNode) {
   if (pSyncNode->pFsm != NULL) {
     taosMemoryFree(pSyncNode->pFsm);
   }
+
+  if (pSyncNode->pSnapshot != NULL) {
+    taosMemoryFree(pSyncNode->pSnapshot);
+  }
+
+  //tsem_destroy(&pSyncNode->restoreSem);
 
   // free memory in syncFreeNode
   // taosMemoryFree(pSyncNode);

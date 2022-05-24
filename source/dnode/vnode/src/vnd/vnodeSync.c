@@ -56,7 +56,13 @@ void vnodeSyncStart(SVnode *pVnode) {
 
 void vnodeSyncClose(SVnode *pVnode) { syncStop(pVnode->sync); }
 
-int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
+int32_t vnodeSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { 
+  int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+  }
+  return code;
+}
 
 int32_t vnodeSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
@@ -141,5 +147,6 @@ SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
+  pFsm->FpRestoreFinish = NULL;
   return pFsm;
 }
