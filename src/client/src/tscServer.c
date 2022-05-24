@@ -1966,12 +1966,10 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
   // reset stable limit
   if (pQueryInfo->offsetAdd > 0){
-    ASSERT(pQueryInfo->limit.limit > pQueryInfo->offsetAdd);
-    pQueryInfo->limit.limit -= pQueryInfo->offsetAdd;
-    pQueryInfo->limit.offset = pQueryInfo->offsetAdd;
+    pQueryInfo->limit.limit = pQueryInfo->clauseLimit;
+    pQueryInfo->limit.offset = pQueryInfo->prjOffset;
     pQueryInfo->offsetAdd = 0;
   }
-
 
   if (pQueryInfo->pQInfo == NULL) {
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
