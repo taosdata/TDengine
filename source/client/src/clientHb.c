@@ -140,8 +140,10 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     STscObj *pTscObj = (STscObj *)acquireTscObj(pRsp->connKey.tscRid);
     if (NULL == pTscObj) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
-    } else {
-      updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
+    } else {      
+      if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
+        updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
+      }
       pTscObj->connId = pRsp->query->connId;
 
       if (pRsp->query->killRid) {
