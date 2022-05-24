@@ -143,15 +143,9 @@ class TDTestCase:
                     having_claus = self.__group_condition( col=select_claus, having=f"{select_claus} is not null")
                     sqls.extend(
                         (
-                            self.__single_sql(select_claus, join_tb, where_claus, group_claus),
-                            self.__single_sql(select_claus, join_tb, where_claus, having_claus),
                             self.__single_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
                             self.__single_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
-                            self.__single_sql(select_claus, join_tb, where_claus),
-                            self.__single_sql(select_claus, join_tb, having_claus),
-                            self.__single_sql(select_claus, join_tb, group_claus),
                             self.__single_sql(select_claus, join_tb),
-
                         )
                     )
         __no_join_tblist = self.__tb_liast
@@ -163,11 +157,7 @@ class TDTestCase:
                     having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
                     sqls.extend(
                         (
-                            self.__single_sql(select_claus, join_tb, where_claus, group_claus),
                             self.__single_sql(select_claus, join_tb, where_claus, having_claus),
-                            self.__single_sql(select_claus, join_tb, where_claus),
-                            self.__single_sql(select_claus, join_tb, group_claus),
-                            self.__single_sql(select_claus, join_tb, having_claus),
                             self.__single_sql(select_claus, join_tb),
                         )
                     )
