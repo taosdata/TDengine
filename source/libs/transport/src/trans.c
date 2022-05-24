@@ -29,7 +29,7 @@ void (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleas
 
 static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   *ip = taosGetIpv4FromFqdn(localFqdn);
-  if (*ip == 0xFFFFFFF) {
+  if (*ip == 0xFFFFFFFF) {
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
   }
   return terrno;
