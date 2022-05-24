@@ -53,8 +53,10 @@ int32_t schInitJob(SSchJob **pSchJob, SQueryPlan *pDag, void *pTrans, SArray *pN
   pJob->attr.syncSchedule = syncSchedule;
   pJob->pTrans = pTrans;
   pJob->sql = sql;
-  pJob->userRes = *pRes;
-
+  if (pRes) {
+    pJob->userRes = *pRes;
+  }
+  
   if (pNodeList != NULL) {
     pJob->nodeList = taosArrayDup(pNodeList);
   }
@@ -1393,7 +1395,9 @@ int32_t schExecStaticExplainJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDa
   pJob->attr.explainMode = pDag->explainInfo.mode;
   pJob->queryId = pDag->queryId;
   pJob->subPlans = pDag->pSubplans;
-  pJob->userRes = *pRes;
+  if (pRes) {
+    pJob->userRes = *pRes;
+  }
   
   SCH_ERR_JRET(qExecStaticExplain(pDag, (SRetrieveTableRsp **)&pJob->resData));
 
