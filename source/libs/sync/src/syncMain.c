@@ -513,7 +513,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
     pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
     pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, pSyncNode->pSnapshot);
   }
-  //tsem_init(&(pSyncNode->restoreSem), 0, 0);
+  // tsem_init(&(pSyncNode->restoreSem), 0, 0);
 
   // start in syncNodeStart
   // start raft
@@ -610,7 +610,7 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     taosMemoryFree(pSyncNode->pSnapshot);
   }
 
-  //tsem_destroy(&pSyncNode->restoreSem);
+  // tsem_destroy(&pSyncNode->restoreSem);
 
   // free memory in syncFreeNode
   // taosMemoryFree(pSyncNode);
