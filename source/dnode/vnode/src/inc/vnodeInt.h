@@ -69,8 +69,10 @@ typedef struct STsdbSnapshotReader STsdbSnapshotReader;
 #define VNODE_RSMA2_DIR "rsma2"
 
 // vnd.h
-void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
-void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+void*   vnodeBufPoolMalloc(SVBufPool* pPool, int size);
+void    vnodeBufPoolFree(SVBufPool* pPool, void* p);
+int32_t vnodeRealloc(void** pp, int32_t size);
+void    vnodeFree(void* p);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
