@@ -78,6 +78,8 @@ typedef struct SFsmCbMeta {
   int32_t    code;
   ESyncState state;
   uint64_t   seqNum;
+  SyncTerm   term;
+  SyncTerm   currentTerm;
 } SFsmCbMeta;
 
 typedef struct SSyncFSM {
@@ -85,6 +87,7 @@ typedef struct SSyncFSM {
   void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
   void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
+  void (*FpRestoreFinish)(struct SSyncFSM* pFsm);
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
   int32_t (*FpRestoreSnapshot)(struct SSyncFSM* pFsm, const SSnapshot* snapshot);
 } SSyncFSM;
@@ -116,7 +119,6 @@ typedef struct SSyncLogStore {
   SyncIndex (*getCommitIndex)(struct SSyncLogStore* pLogStore);
 
 } SSyncLogStore;
-
 
 typedef struct SSyncInfo {
   SyncGroupId vgId;

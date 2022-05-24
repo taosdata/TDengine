@@ -18,14 +18,16 @@ if(USE_TD_MEMORY)
     add_definitions(-DUSE_TD_MEMORY) 
 endif ()
 if(BUILD_ADDR2LINE)
-    target_include_directories(
-        os
-        PUBLIC "${TD_SOURCE_DIR}/contrib/libdwarf/src/lib/libdwarf"
-    )
+    if(NOT TD_WINDOWS)
+        target_include_directories(
+            os
+            PUBLIC "${TD_SOURCE_DIR}/contrib/libdwarf/src/lib/libdwarf"
+        )
+        target_link_libraries(
+            os PUBLIC addr2line dl z
+        )
+    endif()
     add_definitions(-DUSE_ADDR2LINE)
-    target_link_libraries(
-        os PUBLIC addr2line dl z
-    )
 endif ()
 if(CHECK_STR2INT_ERROR)
     add_definitions(-DTD_CHECK_STR_TO_INT_ERROR)

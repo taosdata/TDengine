@@ -40,7 +40,7 @@ typedef struct TFileHeader {
 } TFileHeader;
 #pragma pack(pop)
 
-#define TFILE_HEADER_SIZE (sizeof(TFileHeader))
+#define TFILE_HEADER_SIZE   (sizeof(TFileHeader))
 #define TFILE_HEADER_NO_FST (TFILE_HEADER_SIZE - sizeof(int32_t))
 
 typedef struct TFileValue {

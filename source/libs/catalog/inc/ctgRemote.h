@@ -13,23 +13,23 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _INDEX_OPERATOR_H
-#define _INDEX_OPERATOR_H
+#ifndef _TD_CATALOG_REMOTE_H_
+#define _TD_CATALOG_REMOTE_H_
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-#include "nodes.h"
-#include "tglobal.h"
 
-typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+typedef struct SCtgTaskCallbackParam {
+  uint64_t                queryId;
+  int64_t                 refId;
+  uint64_t                taskId;
+  int32_t                 reqType;
+} SCtgTaskCallbackParam;
 
-SIdxFltStatus idxGetFltStatus(SNode *pFilterNode);
-// construct tag filter operator later
-int32_t doFilterTag(const SNode *pFilterNode, SArray *result);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif /*INDEX_OPERATOR_*/
+#endif /*_TD_CATALOG_REMOTE_H_*/

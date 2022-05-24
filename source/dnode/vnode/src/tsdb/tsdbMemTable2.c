@@ -38,7 +38,7 @@ struct SMemTable {
 
 struct SMemSkipListNode {
   int8_t            level;
-  SMemSkipListNode *forwards[1]; // Windows does not allow 0 
+  SMemSkipListNode *forwards[1];  // Windows does not allow 0
 };
 
 struct SMemSkipList {
@@ -46,7 +46,7 @@ struct SMemSkipList {
   int8_t           maxLevel;
   int8_t           level;
   int32_t          size;
-  SMemSkipListNode pHead[1]; // Windows does not allow 0 
+  SMemSkipListNode pHead[1];  // Windows does not allow 0
 };
 
 struct SMemData {
@@ -217,7 +217,7 @@ int32_t tsdbInsertData2(SMemTable *pMemTb, int64_t version, const SVSubmitBlk *p
     if (tDecodeIsEnd(&dc)) break;
 
     // decode row
-    if (tDecodeBinary(&dc, (const uint8_t **)&tRow.pRow, &tRow.szRow) < 0) {
+    if (tDecodeBinary(&dc, (uint8_t **)&tRow.pRow, &tRow.szRow) < 0) {
       terrno = TSDB_CODE_INVALID_MSG;
       return -1;
     }
@@ -273,7 +273,7 @@ static FORCE_INLINE int32_t tsdbEncodeRow(SEncoder *pEncoder, const STsdbRow *pR
 
 static FORCE_INLINE int32_t tsdbDecodeRow(SDecoder *pDecoder, STsdbRow *pRow) {
   if (tDecodeI64(pDecoder, &pRow->version) < 0) return -1;
-  if (tDecodeBinary(pDecoder, (const uint8_t **)&pRow->pRow, &pRow->szRow) < 0) return -1;
+  if (tDecodeBinary(pDecoder, (uint8_t **)&pRow->pRow, &pRow->szRow) < 0) return -1;
   return 0;
 }
 
