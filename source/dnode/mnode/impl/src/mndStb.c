@@ -743,9 +743,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   mDebug("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
 
-  if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) {
-    goto _OVER;
-  }
+  if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
 
   if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
 
@@ -827,10 +825,10 @@ static int32_t mndProcessMCreateStbReq(SRpcMsg *pReq) {
   }
 
   code = mndCreateStb(pMnode, pReq, &createReq, pDb);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to create since %s", createReq.name, terrstr());
   }
 
@@ -1334,10 +1332,10 @@ static int32_t mndProcessMAlterStbReq(SRpcMsg *pReq) {
   }
 
   code = mndAlterStb(pMnode, pReq, &alterReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to alter since %s", alterReq.name, terrstr());
   }
 
@@ -1475,10 +1473,10 @@ static int32_t mndProcessMDropStbReq(SRpcMsg *pReq) {
   }
 
   code = mndDropStb(pMnode, pReq, pDb, pStb);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("stb:%s, failed to drop since %s", dropReq.name, terrstr());
   }
 
@@ -1642,6 +1640,8 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
 
     if (pStbVersion->sversion != metaRsp.sversion) {
       taosArrayPush(batchMetaRsp.pArray, &metaRsp);
+    } else {
+      tFreeSTableMetaRsp(&metaRsp);
     }
   }
 
@@ -1660,6 +1660,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
   }
 
   tSerializeSTableMetaBatchRsp(pRsp, rspLen, &batchMetaRsp);
+  tFreeSTableMetaBatchRsp(&batchMetaRsp);
   *ppRsp = pRsp;
   *pRspLen = rspLen;
   return 0;

@@ -1638,9 +1638,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    // pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
-    // TODO: use the real schemaVersion
-    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
+    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
   }
 
 #ifdef TD_DEBUG_PRINT_ROW
@@ -1657,9 +1655,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   if (row2) {
     isRow2DataRow = TD_IS_TP_ROW(row2);
     if (pSchema2 == NULL) {
-      // pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
-      // TODO: use the real schemaVersion
-      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
+      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
     }
     if (isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
@@ -1732,6 +1728,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
+          *lastRowKey = rowKey;
           ++nResult;
         } else if (update) {
           mergeOption = 2;
@@ -1739,8 +1736,6 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           mergeOption = 0;
           break;
         }
-
-        *lastRowKey = rowKey;
       }
     } else {
       // TODO: use STSRowIter
@@ -1753,6 +1748,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
+          *lastRowKey = rowKey;
           ++nResult;
         } else if (update) {
           mergeOption = 2;
@@ -1760,7 +1756,6 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           mergeOption = 0;
           break;
         }
-        *lastRowKey = rowKey;
       } else {
         SKvRowIdx* pColIdx = tdKvRowColIdxAt(row, chosen_itr - 1);
         colId = pColIdx->colId;
@@ -1965,7 +1960,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
   SDataCols* pCols = pTsdbReadHandle->rhelper.pDCols[0];
   assert(pCols->cols[0].type == TSDB_DATA_TYPE_TIMESTAMP && pCols->cols[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
          cur->pos >= 0 && cur->pos < pBlock->numOfRows);
-
+  // Even Multi-Version supported, the records with duplicated TSKEY would be merged inside of tsdbLoadData interface.
   TSKEY* tsArray = pCols->cols[0].pData;
   assert(pCols->numOfRows == pBlock->numOfRows && tsArray[0] == pBlock->keyFirst &&
          tsArray[pBlock->numOfRows - 1] == pBlock->keyLast);
@@ -1995,6 +1990,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
 
   int32_t pos = cur->pos;
   cur->win = TSWINDOW_INITIALIZER;
+  bool adjustPos = false;
 
   // no data in buffer, load data from file directly
   if (pCheckInfo->iiter == NULL && pCheckInfo->iter == NULL) {
@@ -2014,6 +2010,13 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
       TSKEY key = TD_ROW_KEY(row1);
       if ((key > pTsdbReadHandle->window.ekey && ascScan) || (key < pTsdbReadHandle->window.ekey && !ascScan)) {
         break;
+      }
+
+      if (adjustPos) {
+        if (key == lastKeyAppend) {
+          pos -= step;
+        }
+        adjustPos = false;
       }
 
       if (((pos > endPos || tsArray[pos] > pTsdbReadHandle->window.ekey) && ascScan) ||
@@ -2107,7 +2110,9 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           moveToNextRowInMem(pCheckInfo);
 
           pos += step;
+          adjustPos = true;
         } else {
+          // discard the memory record
           moveToNextRowInMem(pCheckInfo);
         }
       } else if ((key > tsArray[pos] && ascScan) || (key < tsArray[pos] && !ascScan)) {

@@ -31,6 +31,12 @@
 extern "C" {
 #endif
 
+#ifdef WINDOWS
+#define TD_TMP_DIR_PATH "C:\\Windows\\Temp\\"
+#else
+#define TD_TMP_DIR_PATH "/tmp/"
+#endif
+
 typedef struct TdDir *TdDirPtr;
 typedef struct TdDirEntry *TdDirEntryPtr;
 

@@ -782,13 +782,11 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
 
   int32_t scanFlag = MAIN_SCAN;
 
+  int64_t st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
     if (pBlock == NULL) {
       break;
     }
@@ -821,6 +819,8 @@ static int32_t doOpenIntervalAgg(SOperatorInfo* pOperator) {
   closeAllResultRows(&pInfo->binfo.resultRowInfo);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, pInfo->order);
   OPTR_SET_OPENED(pOperator);
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -946,10 +946,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
     if (pBlock == NULL) {
       break;
     }
@@ -998,7 +995,10 @@ static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
       doSetOperatorCompleted(pOperator);
     }
 
-    return pBlock->info.rows == 0 ? NULL : pBlock;
+    size_t rows = pBlock->info.rows;
+    pOperator->resultInfo.totalRows += rows;
+
+    return (rows == 0)? NULL:pBlock;
   }
 }
 
@@ -1092,10 +1092,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
 
   SArray* pUpdated = NULL;
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
     if (pBlock == NULL) {
       break;
     }
@@ -1181,6 +1178,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
   pInfo->invertible = allInvertible(pInfo->binfo.pCtx, numOfCols);
+  pInfo->invertible = false; // Todo(liuyao): Dependent TSDB API
 
   //  pInfo->pTableQueryInfo = initTableQueryInfo(pTableGroupInfo);
   if (code != TSDB_CODE_SUCCESS /* || pInfo->pTableQueryInfo == NULL*/) {
@@ -1425,9 +1423,7 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
@@ -1472,9 +1468,7 @@ static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
@@ -1702,12 +1696,11 @@ static SSDataBlock* doStreamFinalIntervalAgg(SOperatorInfo* pOperator) {
   }
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
+
     setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, pInfo->order, MAIN_SCAN, true);
     if (pBlock->info.type == STREAM_REPROCESS) {
       doClearWindows(&pInfo->aggSup, &pInfo->binfo, &pInfo->interval,

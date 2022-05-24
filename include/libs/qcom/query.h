@@ -198,6 +198,8 @@ extern int32_t (*queryProcessMsgRsp[TDMT_MAX])(void* output, char* msg, int32_t 
 #define NEED_CLIENT_HANDLE_ERROR(_code)                                          \
   (NEED_CLIENT_RM_TBLMETA_ERROR(_code) || NEED_CLIENT_REFRESH_VG_ERROR(_code) || \
    NEED_CLIENT_REFRESH_TBLMETA_ERROR(_code))
+#define NEED_CLIENT_RM_TBLMETA_REQ(_type) ((_type) == TDMT_VND_CREATE_TABLE || (_type) == TDMT_VND_CREATE_STB \
+  || (_type) == TDMT_VND_DROP_TABLE || (_type) == TDMT_VND_DROP_STB)
 
 #define NEED_SCHEDULER_RETRY_ERROR(_code) \
   ((_code) == TSDB_CODE_RPC_REDIRECT || (_code) == TSDB_CODE_RPC_NETWORK_UNAVAIL)

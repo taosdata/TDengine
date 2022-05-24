@@ -48,7 +48,7 @@ void Testbase::Init(const char* path, int16_t port) {
   strcpy(tsDataDir, path);
   taosRemoveDir(path);
   taosMkDir(path);
-  InitLog("/tmp/td");
+  InitLog(TD_TMP_DIR_PATH "td");
 
   server.Start();
   client.Init("root", "taosdata");

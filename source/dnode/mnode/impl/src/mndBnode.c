@@ -304,10 +304,10 @@ static int32_t mndProcessCreateBnodeReq(SRpcMsg *pReq) {
   }
 
   code = mndCreateBnode(pMnode, pReq, pDnode, &createReq);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("bnode:%d, failed to create since %s", createReq.dnodeId, terrstr());
   }
 
@@ -414,10 +414,10 @@ static int32_t mndProcessDropBnodeReq(SRpcMsg *pReq) {
   }
 
   code = mndDropBnode(pMnode, pReq, pObj);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("bnode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
   }
 

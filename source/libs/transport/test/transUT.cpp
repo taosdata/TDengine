@@ -43,7 +43,7 @@ static void processResp(void *parent, SRpcMsg *pMsg, SEpSet *pEpSet);
 class Client {
  public:
   void Init(int nThread) {
-    memcpy(tsTempDir, "/tmp", strlen("/tmp"));
+    memcpy(tsTempDir, TD_TMP_DIR_PATH, strlen(TD_TMP_DIR_PATH));
     memset(&rpcInit_, 0, sizeof(rpcInit_));
     rpcInit_.localPort = 0;
     rpcInit_.label = (char *)label;
@@ -105,7 +105,7 @@ class Client {
 class Server {
  public:
   Server() {
-    memcpy(tsTempDir, "/tmp", strlen("/tmp"));
+    memcpy(tsTempDir, TD_TMP_DIR_PATH, strlen(TD_TMP_DIR_PATH));
     memset(&rpcInit_, 0, sizeof(rpcInit_));
 
     memcpy(rpcInit_.localFqdn, "localhost", strlen("localhost"));
@@ -219,7 +219,7 @@ static void initEnv() {
   tsLogEmbedded = 1;
   tsAsyncLog = 0;
 
-  std::string path = "/tmp/transport";
+  std::string path = TD_TMP_DIR_PATH "transport";
   // taosRemoveDir(path.c_str());
   taosMkDir(path.c_str());
 

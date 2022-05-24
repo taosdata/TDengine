@@ -160,7 +160,7 @@ int main(int argc, char *argv[]) {
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
 
-  const char *path = "/tmp/transport/server";
+  const char *path = TD_TMP_DIR_PATH "transport/server";
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);

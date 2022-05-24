@@ -137,7 +137,6 @@ SMgmtInputOpt dmBuildMgmtInputOpt(SMgmtWrapper *pWrapper);
 void          dmSetStatus(SDnode *pDnode, EDndRunStatus stype);
 void          dmProcessServerStartupStatus(SDnode *pDnode, SRpcMsg *pMsg);
 void          dmProcessNetTestReq(SDnode *pDnode, SRpcMsg *pMsg);
-void          dmProcessFetchRsp(SRpcMsg *pMsg);
 
 // dmNodes.c
 int32_t dmOpenNode(SMgmtWrapper *pWrapper);

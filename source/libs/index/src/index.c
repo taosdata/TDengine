@@ -29,7 +29,7 @@
 #include "lucene++/Lucene_c.h"
 #endif
 
-#define INDEX_NUM_OF_THREADS 4
+#define INDEX_NUM_OF_THREADS 1
 #define INDEX_QUEUE_SIZE     200
 
 #define INDEX_DATA_BOOL_NULL      0x02
@@ -90,6 +90,15 @@ static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, Iterat
 // static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
 
+static void indexPost(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_post(&pIdx->sem);
+}
+static void indexWait(void* idx) {
+  SIndex* pIdx = idx;
+  tsem_wait(&pIdx->sem);
+}
+
 int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   taosThreadOnce(&isInit, indexInit);
   SIndex* sIdx = taosMemoryCalloc(1, sizeof(SIndex));
@@ -107,6 +116,7 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   sIdx->cVersion = 1;
   sIdx->path = tstrdup(path);
   taosThreadMutexInit(&sIdx->mtx, NULL);
+  tsem_init(&sIdx->sem, 0, 0);
 
   sIdx->refId = indexAddRef(sIdx);
   indexAcquireRef(sIdx->refId);
@@ -124,22 +134,28 @@ END:
 
 void indexDestroy(void* handle) {
   SIndex* sIdx = handle;
-  void*   iter = taosHashIterate(sIdx->colObj, NULL);
-  while (iter) {
-    IndexCache** pCache = iter;
-    if (*pCache) {
-      indexCacheUnRef(*pCache);
-    }
-    iter = taosHashIterate(sIdx->colObj, iter);
-  }
-  taosHashCleanup(sIdx->colObj);
   taosThreadMutexDestroy(&sIdx->mtx);
+  tsem_destroy(&sIdx->sem);
   indexTFileDestroy(sIdx->tindex);
   taosMemoryFree(sIdx->path);
   taosMemoryFree(sIdx);
   return;
 }
 void indexClose(SIndex* sIdx) {
+  bool ref = 0;
+  if (sIdx->colObj != NULL) {
+    void* iter = taosHashIterate(sIdx->colObj, NULL);
+    while (iter) {
+      IndexCache** pCache = iter;
+      indexCacheForceToMerge((void*)(*pCache));
+      indexInfo("%s wait to merge", (*pCache)->colName);
+      indexWait((void*)(sIdx));
+      iter = taosHashIterate(sIdx->colObj, iter);
+      indexCacheUnRef(*pCache);
+    }
+    taosHashCleanup(sIdx->colObj);
+    sIdx->colObj = NULL;
+  }
   indexReleaseRef(sIdx->refId);
   indexRemoveRef(sIdx->refId);
 }
@@ -451,6 +467,18 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   }
   // handle flush
   Iterate* cacheIter = indexCacheIteratorCreate(pCache);
+  if (cacheIter == NULL) {
+    indexError("%p immtable is empty, ignore merge opera", pCache);
+    indexCacheDestroyImm(pCache);
+    tfileReaderUnRef(pReader);
+    if (sIdx->quit) {
+      indexPost(sIdx);
+      // indexCacheBroadcast(pCache);
+    }
+    indexReleaseRef(sIdx->refId);
+    return 0;
+  }
+
   Iterate* tfileIter = tfileIteratorCreate(pReader);
   if (tfileIter == NULL) {
     indexWarn("empty tfile reader iterator");
@@ -506,7 +534,11 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   } else {
     indexInfo("success to merge , time cost: %" PRId64 "ms", cost / 1000);
   }
+  if (sIdx->quit) {
+    indexPost(sIdx);
+  }
   indexReleaseRef(sIdx->refId);
+
   return ret;
 }
 void iterateValueDestroy(IterateValue* value, bool destroy) {
@@ -521,8 +553,29 @@ void iterateValueDestroy(IterateValue* value, bool destroy) {
   taosMemoryFree(value->colVal);
   value->colVal = NULL;
 }
+
+static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
+  ICacheKey key = {.suid = cache->suid, .colName = cache->colName, .nColName = strlen(cache->colName)};
+  int64_t   ver = CACHE_VERSION(cache);
+  taosThreadMutexLock(&sIdx->mtx);
+  TFileReader* trd = tfileCacheGet(((IndexTFile*)sIdx->tindex)->cache, &key);
+  if (trd != NULL) {
+    if (ver < trd->header.version) {
+      ver = trd->header.version + 1;
+    } else {
+      ver += 1;
+    }
+    indexInfo("header: %d, ver: %" PRId64 "", trd->header.version, ver);
+    tfileReaderUnRef(trd);
+  } else {
+    indexInfo("not found reader base %p", trd);
+  }
+  taosThreadMutexUnlock(&sIdx->mtx);
+  return ver;
+}
 static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
-  int32_t version = CACHE_VERSION(cache);
+  int64_t version = indexGetAvaialbleVer(sIdx, cache);
+  indexInfo("file name version: %" PRId64 "", version);
   uint8_t colType = cache->type;
 
   TFileWriter* tw = tfileWriterOpen(sIdx->path, cache->suid, version, cache->colName, colType);
@@ -542,6 +595,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   if (reader == NULL) {
     return -1;
   }
+  indexInfo("success to create tfile, reopen it, %s", reader->ctx->file.buf);
 
   TFileHeader* header = &reader->header;
   ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
@@ -563,10 +617,11 @@ int32_t indexSerialCacheKey(ICacheKey* key, char* buf) {
   bool hasJson = INDEX_TYPE_CONTAIN_EXTERN_TYPE(key->colType, TSDB_DATA_TYPE_JSON);
 
   char* p = buf;
-  SERIALIZE_MEM_TO_BUF(buf, key, suid);
+  char  tbuf[65] = {0};
+  indexInt2str((int64_t)key->suid, tbuf, 0);
+
+  SERIALIZE_STR_VAR_TO_BUF(buf, tbuf, strlen(tbuf));
   SERIALIZE_VAR_TO_BUF(buf, '_', char);
-  // SERIALIZE_MEM_TO_BUF(buf, key, colType);
-  // SERIALIZE_VAR_TO_BUF(buf, '_', char);
   if (hasJson) {
     SERIALIZE_STR_VAR_TO_BUF(buf, JSON_COLUMN, strlen(JSON_COLUMN));
   } else {

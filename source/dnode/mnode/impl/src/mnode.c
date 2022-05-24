@@ -86,7 +86,6 @@ static void *mndThreadFp(void *param) {
     lastTime++;
     taosMsleep(100);
     if (pMnode->stopped) break;
-    if (!mndIsMaster(pMnode)) continue;
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);
@@ -336,9 +335,77 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   return 0;
 }
 
-int32_t mndStart(SMnode *pMnode) { return mndInitTimer(pMnode); }
+int32_t mndStart(SMnode *pMnode) {
+  mndSyncStart(pMnode);
+  return mndInitTimer(pMnode);
+}
 
-void mndStop(SMnode *pMnode) { return mndCleanupTimer(pMnode); }
+void mndStop(SMnode *pMnode) {
+  mndSyncStop(pMnode);
+  return mndCleanupTimer(pMnode);
+}
+
+int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
+  SMnode    *pMnode = pMsg->info.node;
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  int32_t    code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+
+  if (!syncEnvIsStart()) {
+    mError("failed to process sync msg:%p type:%s since syncEnv stop", pMsg, TMSG_INFO(pMsg->msgType));
+    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  }
+
+  SSyncNode *pSyncNode = syncNodeAcquire(pMgmt->sync);
+  if (pSyncNode == NULL) {
+    mError("failed to process sync msg:%p type:%s since syncNode is null", pMsg, TMSG_INFO(pMsg->msgType));
+    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  }
+
+  char  logBuf[512];
+  char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
+  snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
+  syncRpcMsgLog2(logBuf, pMsg);
+  taosMemoryFree(syncNodeStr);
+
+  if (pMsg->msgType == TDMT_VND_SYNC_TIMEOUT) {
+    SyncTimeout *pSyncMsg = syncTimeoutFromRpcMsg2(pMsg);
+    code = syncNodeOnTimeoutCb(pSyncNode, pSyncMsg);
+    syncTimeoutDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_VND_SYNC_PING) {
+    SyncPing *pSyncMsg = syncPingFromRpcMsg2(pMsg);
+    code = syncNodeOnPingCb(pSyncNode, pSyncMsg);
+    syncPingDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_VND_SYNC_PING_REPLY) {
+    SyncPingReply *pSyncMsg = syncPingReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnPingReplyCb(pSyncNode, pSyncMsg);
+    syncPingReplyDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_VND_SYNC_CLIENT_REQUEST) {
+    SyncClientRequest *pSyncMsg = syncClientRequestFromRpcMsg2(pMsg);
+    code = syncNodeOnClientRequestCb(pSyncNode, pSyncMsg);
+    syncClientRequestDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE) {
+    SyncRequestVote *pSyncMsg = syncRequestVoteFromRpcMsg2(pMsg);
+    code = syncNodeOnRequestVoteCb(pSyncNode, pSyncMsg);
+    syncRequestVoteDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_VND_SYNC_REQUEST_VOTE_REPLY) {
+    SyncRequestVoteReply *pSyncMsg = syncRequestVoteReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnRequestVoteReplyCb(pSyncNode, pSyncMsg);
+    syncRequestVoteReplyDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES) {
+    SyncAppendEntries *pSyncMsg = syncAppendEntriesFromRpcMsg2(pMsg);
+    code = syncNodeOnAppendEntriesCb(pSyncNode, pSyncMsg);
+    syncAppendEntriesDestroy(pSyncMsg);
+  } else if (pMsg->msgType == TDMT_VND_SYNC_APPEND_ENTRIES_REPLY) {
+    SyncAppendEntriesReply *pSyncMsg = syncAppendEntriesReplyFromRpcMsg2(pMsg);
+    code = syncNodeOnAppendEntriesReplyCb(pSyncNode, pSyncMsg);
+    syncAppendEntriesReplyDestroy(pSyncMsg);
+  } else {
+    mError("failed to process msg:%p since invalid type:%s", pMsg, TMSG_INFO(pMsg->msgType));
+    code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  }
+
+  return code;
+}
 
 int32_t mndProcessMsg(SRpcMsg *pMsg) {
   SMnode *pMnode = pMsg->info.node;
@@ -346,7 +413,8 @@ int32_t mndProcessMsg(SRpcMsg *pMsg) {
   mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
 
   if (IsReq(pMsg)) {
-    if (!mndIsMaster(pMnode)) {
+    if (!mndIsMaster(pMnode) && pMsg->msgType != TDMT_MND_TRANS_TIMER && pMsg->msgType != TDMT_MND_MQ_TIMER &&
+        pMsg->msgType != TDMT_MND_TELEM_TIMER) {
       terrno = TSDB_CODE_APP_NOT_READY;
       mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
       return -1;
@@ -367,7 +435,7 @@ int32_t mndProcessMsg(SRpcMsg *pMsg) {
   }
 
   int32_t code = (*fp)(pMsg);
-  if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     terrno = code;
     mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
   } else if (code != 0) {

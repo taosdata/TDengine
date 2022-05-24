@@ -128,7 +128,8 @@ static SConnObj *mndCreateConn(SMnode *pMnode, const char *user, int8_t connType
 }
 
 static void mndFreeConn(SConnObj *pConn) {
-  taosMemoryFreeClear(pConn->pQueries);
+  taosArrayDestroyEx(pConn->pQueries, tFreeClientHbQueryDesc);
+  
   mTrace("conn:%u, is destroyed, data:%p", pConn->id, pConn);
 }
 
@@ -396,6 +397,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
   if (NULL == hbRsp.info) {
     mError("taosArrayInit %d rsp kv failed", kvNum);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
+    tFreeClientHbRsp(&hbRsp);
     return -1;
   }
 
@@ -453,6 +455,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
 
   SClientHbBatchReq batchReq = {0};
   if (tDeserializeSClientHbBatchReq(pReq->pCont, pReq->contLen, &batchReq) != 0) {
+    taosArrayDestroyEx(batchReq.reqs, tFreeClientHbReq);
     terrno = TSDB_CODE_INVALID_MSG;
     return -1;
   }
@@ -479,18 +482,7 @@ static int32_t mndProcessHeartBeatReq(SRpcMsg *pReq) {
   void   *buf = rpcMallocCont(tlen);
   tSerializeSClientHbBatchRsp(buf, tlen, &batchRsp);
 
-  int32_t rspNum = (int32_t)taosArrayGetSize(batchRsp.rsps);
-  for (int32_t i = 0; i < rspNum; ++i) {
-    SClientHbRsp *rsp = taosArrayGet(batchRsp.rsps, i);
-    int32_t       kvNum = (rsp->info) ? taosArrayGetSize(rsp->info) : 0;
-    for (int32_t n = 0; n < kvNum; ++n) {
-      SKv *kv = taosArrayGet(rsp->info, n);
-      taosMemoryFreeClear(kv->value);
-    }
-    taosArrayDestroy(rsp->info);
-  }
-
-  taosArrayDestroy(batchRsp.rsps);
+  tFreeClientHbBatchRsp(&batchRsp);
   pReq->info.rspLen = tlen;
   pReq->info.rsp = buf;
 
