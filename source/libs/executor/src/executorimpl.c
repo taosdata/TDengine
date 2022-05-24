@@ -2719,8 +2719,9 @@ static void* setAllSourcesCompleted(SOperatorInfo* pOperator, int64_t startTs) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  int64_t              el = taosGetTimestampUs() - startTs;
+  int64_t el = taosGetTimestampUs() - startTs;
   SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
+
   pLoadInfo->totalElapsed += el;
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
@@ -2921,6 +2922,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
              pLoadInfo->totalSize);
     }
 
+    pOperator->resultInfo.totalRows += pRes->info.rows;
     return pExchangeInfo->pResult;
   }
 }
@@ -2930,10 +2932,10 @@ static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
     return TSDB_CODE_SUCCESS;
   }
 
+  int64_t st = taosGetTimestampUs();
+
   SExchangeInfo* pExchangeInfo = pOperator->info;
-  if (pExchangeInfo->seqLoadData) {
-    // do nothing for sequentially load data
-  } else {
+  if (!pExchangeInfo->seqLoadData) {
     int32_t code = prepareConcurrentlyLoad(pOperator);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2941,6 +2943,7 @@ static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   }
 
   OPTR_SET_OPENED(pOperator);
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2968,15 +2971,6 @@ static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
   } else {
     return concurrentlyLoadRemoteData(pOperator);
   }
-
-#if 0
-  _error:
-  taosMemoryFreeClear(pMsg);
-  taosMemoryFreeClear(pMsgSendInfo);
-
-  terrno = pTaskInfo->code;
-  return NULL;
-#endif
 }
 
 static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo) {
@@ -3005,12 +2999,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, const SNodeList* p
                                           SExecTaskInfo* pTaskInfo) {
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-
   if (pInfo == NULL || pOperator == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    goto _error;
   }
 
   size_t numOfSources = LIST_LENGTH(pSources);
@@ -3035,18 +3025,17 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, const SNodeList* p
 
   tsem_init(&pInfo->ready, 0, 0);
 
-  pOperator->name = "ExchangeOperator";
+  pOperator->name         = "ExchangeOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfExprs = pBlock->info.numOfCols;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfExprs   = pBlock->info.numOfCols;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, NULL,
                                          destroyExchangeOperatorInfo, NULL, NULL, NULL);
   pInfo->pTransporter = pTransporter;
-
   return pOperator;
 
 _error:
