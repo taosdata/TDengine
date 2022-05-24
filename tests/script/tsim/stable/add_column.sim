@@ -120,7 +120,7 @@ endi
 if $data[1][1] != 1 then
   return -1
 endi
-if $data[2][2] != 2 then
+if $data[1][2] != 2 then
   return -1
 endi
 if $data[1][3] != 3 then
