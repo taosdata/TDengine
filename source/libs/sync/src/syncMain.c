@@ -320,8 +320,10 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
   int32_t    ret = TAOS_SYNC_PROPOSE_SUCCESS;
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
+    rpcFreeCont(pMsg->pCont);
     return TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
+
   assert(rid == pSyncNode->rid);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
