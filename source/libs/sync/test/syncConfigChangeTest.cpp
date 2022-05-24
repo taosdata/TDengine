@@ -73,9 +73,7 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
   return 0;
 }
 
-void FpRestoreFinishCb(struct SSyncFSM* pFsm) {
-  sTrace("==callback== ==FpRestoreFinishCb==");
-}
+void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb=="); }
 
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
@@ -83,7 +81,7 @@ SSyncFSM* createFsm() {
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
   pFsm->FpGetSnapshot = GetSnapshotCb;
-  pFsm->FpRestoreFinish = FpRestoreFinishCb;
+  pFsm->FpRestoreFinishCb = RestoreFinishCb;
   return pFsm;
 }
 

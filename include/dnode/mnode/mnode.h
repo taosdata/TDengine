@@ -29,6 +29,7 @@ extern "C" {
 typedef struct SMnode SMnode;
 
 typedef struct {
+  bool     isStandBy;
   bool     deploy;
   int8_t   replica;
   int8_t   selfIndex;
