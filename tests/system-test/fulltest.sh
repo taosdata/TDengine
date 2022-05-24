@@ -12,7 +12,7 @@ python3 ./test.py -f 0-others/udfTest.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 
-#python3 ./test.py -f 2-query/between.py
+python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
 python3 ./test.py -f 2-query/ltrim.py
@@ -25,10 +25,8 @@ python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/cast.py
 python3 ./test.py -f 2-query/concat.py
 python3 ./test.py -f 2-query/concat_ws.py
-# python3 ./test.py -f 2-query/union.py
-# python3 ./test.py -f 2-query/union2.py
-# python3 ./test.py -f 2-query/union3.py
-# python3 ./test.py -f 2-query/union4.py
+python3 ./test.py -f 2-query/union.py
+
 
 python3 ./test.py -f 2-query/timezone.py
 python3 ./test.py -f 2-query/Now.py
@@ -42,7 +40,7 @@ python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
 # python3 ./test.py -f 2-query/diff.py
 python3 ./test.py -f 2-query/Timediff.py
-#python3 ./test.py -f 2-query/cast.py
+python3 ./test.py -f 2-query/cast.py
 
 
 python3 ./test.py -f 2-query/abs.py
