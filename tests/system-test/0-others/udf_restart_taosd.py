@@ -621,9 +621,7 @@ class TDTestCase:
 
     def restart_taosd_query_udf(self):
 
-        self.create_udf_function()
-
-        for i in range(5):
+        for i in range(3):
             tdLog.info("  this is %d_th restart taosd " %i)
             tdSql.execute("use db ")
             tdSql.query("select count(*) from stb1")
@@ -643,13 +641,9 @@ class TDTestCase:
         self.prepare_data()
         self.create_udf_function()
         self.basic_udf_query()
-        self.loop_kill_udfd()
-        tdSql.execute(" drop function udf1 ")
-        tdSql.execute(" drop function udf2 ")
-        self.create_udf_function()
-        time.sleep(2)
-        self.basic_udf_query()
-        self.test_function_name()
+        self.multi_cols_udf()
+        self.restart_taosd_query_udf()
+       
         
 
     def stop(self):

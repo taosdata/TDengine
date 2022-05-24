@@ -83,11 +83,11 @@ bool tqNextDataBlockFilterOut(STqReadHandle* pHandle, SHashObj* filterOutUids) {
 
 int32_t tqRetrieveDataBlock(SArray** ppCols, STqReadHandle* pHandle, uint64_t* pGroupId, uint64_t* pUid,
                             int32_t* pNumOfRows, int16_t* pNumOfCols) {
-  /*int32_t         sversion = pHandle->pBlock->sversion;*/
-  // TODO set to real sversion
   *pUid = 0;
 
-  int32_t sversion = 1;
+  // TODO set to real sversion
+  /*int32_t sversion = 1;*/
+  int32_t sversion = htonl(pHandle->pBlock->sversion);
   if (pHandle->sver != sversion || pHandle->cachedSchemaUid != pHandle->msgIter.suid) {
     pHandle->pSchema = metaGetTbTSchema(pHandle->pVnodeMeta, pHandle->msgIter.uid, sversion);
     if (pHandle->pSchema == NULL) {
