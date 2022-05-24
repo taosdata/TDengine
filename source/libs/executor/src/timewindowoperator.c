@@ -943,6 +943,7 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
   }
 
   int32_t order = TSDB_ORDER_ASC;
+  int64_t st = taosGetTimestampUs();
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
   while (1) {
@@ -957,6 +958,8 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
     doStateWindowAggImpl(pOperator, pInfo, pBlock);
   }
 
+  pOperator->cost.openCost = (taosGetTimestampUs() - st)/1000.0;
+
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pBInfo->resultRowInfo);
 
@@ -967,7 +970,10 @@ static SSDataBlock* doStateWindowAgg(SOperatorInfo* pOperator) {
     doSetOperatorCompleted(pOperator);
   }
 
-  return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
+  size_t rows = pBInfo->pRes->info.rows;
+  pOperator->resultInfo.totalRows += rows;
+
+  return (rows == 0)? NULL : pBInfo->pRes;
 }
 
 static SSDataBlock* doBuildIntervalResult(SOperatorInfo* pOperator) {
@@ -1419,7 +1425,9 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     return pBInfo->pRes;
   }
 
-  int32_t        order = TSDB_ORDER_ASC;
+  int64_t st = taosGetTimestampUs();
+  int32_t order = TSDB_ORDER_ASC;
+
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -1435,6 +1443,8 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     doSessionWindowAggImpl(pOperator, pInfo, pBlock);
   }
 
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+
   // restore the value
   pOperator->status = OP_RES_TO_RETURN;
   closeAllResultRows(&pBInfo->resultRowInfo);
@@ -1446,7 +1456,10 @@ static SSDataBlock* doSessionWindowAgg(SOperatorInfo* pOperator) {
     doSetOperatorCompleted(pOperator);
   }
 
-  return pBInfo->pRes->info.rows == 0 ? NULL : pBInfo->pRes;
+  size_t rows = pBInfo->pRes->info.rows;
+  pOperator->resultInfo.totalRows += rows;
+
+  return (rows == 0)? NULL : pBInfo->pRes;
 }
 
 static SSDataBlock* doAllIntervalAgg(SOperatorInfo* pOperator) {

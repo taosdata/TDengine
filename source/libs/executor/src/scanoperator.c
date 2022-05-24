@@ -1640,7 +1640,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
 
     count += 1;
     if (++pInfo->curPos >= pInfo->pTableGroups->numOfTables) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
     }
   }
 
@@ -1652,6 +1652,8 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   }
 
   pRes->info.rows = count;
+  pOperator->resultInfo.totalRows += count;
+
   return (pRes->info.rows == 0) ? NULL : pInfo->pRes;
 }
 
