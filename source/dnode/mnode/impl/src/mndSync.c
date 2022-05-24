@@ -53,12 +53,12 @@ void* mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* it
   /*
   SMnode *pMnode = pFsm->data;
   SSdbIter *pIter;
-  if (iter == NULL) {
+  if (iter == NULL) { 
     pIter = sdbIterInit(pMnode->sdb)
   } else {
     pIter = iter;
   }
-  pIter = sdbIterRead(pIter);
+  pIter = sdbIterRead(pIter, ppBuf, len); 
   return pIter;
   */
 
