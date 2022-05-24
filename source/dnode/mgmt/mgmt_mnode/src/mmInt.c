@@ -39,54 +39,44 @@ static int32_t mmRequire(const SMgmtInputOpt *pInput, bool *required) {
 }
 
 static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInput, SMnodeOpt *pOption) {
+  pOption->standby = false;
+  pOption->deploy = true;
   pOption->msgCb = pMgmt->msgCb;
   pOption->replica = 1;
   pOption->selfIndex = 0;
+
   SReplica *pReplica = &pOption->replicas[0];
   pReplica->id = 1;
   pReplica->port = tsServerPort;
   tstrncpy(pReplica->fqdn, tsLocalFqdn, TSDB_FQDN_LEN);
-  pOption->deploy = true;
-
-  pMgmt->selfIndex = pOption->selfIndex;
-  pMgmt->replica = pOption->replica;
-  memcpy(&pMgmt->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
 }
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
   pOption->msgCb = pMgmt->msgCb;
+  pOption->deploy = false;
+  pOption->standby = false;
 
-  if (pMgmt->replica > 1) {
+  if (pMgmt->replica > 0) {
+    pOption->standby = true;
     pOption->replica = 1;
     pOption->selfIndex = 0;
     SReplica *pReplica = &pOption->replicas[0];
     for (int32_t i = 0; i < pMgmt->replica; ++i) {
-      if (pMgmt->replicas[i].id == pMgmt->pData->dnodeId) {
-        pReplica->id = pMgmt->replicas[i].id;
-        pReplica->port = pMgmt->replicas[i].port;
-        memcpy(pReplica->fqdn, pMgmt->replicas[i].fqdn, TSDB_FQDN_LEN);
-      }
+      if (pMgmt->replicas[i].id != pMgmt->pData->dnodeId) continue;
+      pReplica->id = pMgmt->replicas[i].id;
+      pReplica->port = pMgmt->replicas[i].port;
+      memcpy(pReplica->fqdn, pMgmt->replicas[i].fqdn, TSDB_FQDN_LEN);
     }
-    pMgmt->selfIndex = pOption->selfIndex;
-    pOption->isStandBy = 1;
-  } else {
-    pOption->replica = pMgmt->replica;
-    pOption->selfIndex = -1;
-    memcpy(&pOption->replicas, pMgmt->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
-    for (int32_t i = 0; i < pOption->replica; ++i) {
-      if (pOption->replicas[i].id == pMgmt->pData->dnodeId) {
-        pOption->selfIndex = i;
-      }
-    }
-    pMgmt->selfIndex = pOption->selfIndex;
   }
-  pOption->deploy = false;
 }
 
-static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
+static int32_t mmBuildOptionForAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
   pOption->msgCb = pMgmt->msgCb;
+  pOption->standby = false;
+  pOption->deploy = false;
   pOption->replica = pCreate->replica;
   pOption->selfIndex = -1;
+
   for (int32_t i = 0; i < pCreate->replica; ++i) {
     SReplica *pReplica = &pOption->replicas[i];
     pReplica->id = pCreate->replicas[i].id;
@@ -101,27 +91,17 @@ static int32_t mmBuildOptionFromReq(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCre
     dError("failed to build mnode options since %s", terrstr());
     return -1;
   }
-  pOption->deploy = true;
 
-  pMgmt->selfIndex = pOption->selfIndex;
-  pMgmt->replica = pOption->replica;
-  memcpy(&pMgmt->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   return 0;
 }
 
 int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pMsg) {
   SMnodeOpt option = {0};
-  if (mmBuildOptionFromReq(pMgmt, &option, pMsg) != 0) {
+  if (mmBuildOptionForAlter(pMgmt, &option, pMsg) != 0) {
     return -1;
   }
 
   if (mndAlter(pMgmt->pMnode, &option) != 0) {
-    return -1;
-  }
-
-  bool deployed = true;
-  if (mmWriteFile(pMgmt, pMsg, deployed) != 0) {
-    dError("failed to write mnode file since %s", terrstr());
     return -1;
   }
 
@@ -199,7 +179,8 @@ static int32_t mmOpen(SMgmtInputOpt *pInput, SMgmtOutputOpt *pOutput) {
   }
   tmsgReportStartup("mnode-worker", "initialized");
 
-  if (!deployed) {
+  if (!deployed || pMgmt->replica > 0) {
+    pMgmt->replica = 0;
     deployed = true;
     if (mmWriteFile(pMgmt, NULL, deployed) != 0) {
       dError("failed to write mnode file since %s", terrstr());

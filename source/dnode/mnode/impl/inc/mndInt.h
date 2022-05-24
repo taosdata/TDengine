@@ -79,7 +79,7 @@ typedef struct {
   sem_t      syncSem;
   int64_t    sync;
   ESyncState state;
-  bool       isStandBy;
+  bool       standby;
   bool       restored;
   int32_t    errCode;
 } SSyncMgmt;
