@@ -812,7 +812,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes haveAggOrNonstdFunction(SNode* pNode, void* pContext) {
+static EDealRes haveVectorFunction(SNode* pNode, void* pContext) {
   if (isAggFunc(pNode)) {
     *((bool*)pContext) = true;
     return DEAL_RES_END;
@@ -857,7 +857,7 @@ static int32_t rewriteCountStar(STranslateContext* pCxt, SFunctionNode* pCount) 
 
 static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
   bool hasInvalidFunc = false;
-  nodesWalkExprs(pParameterList, haveAggOrNonstdFunction, &hasInvalidFunc);
+  nodesWalkExprs(pParameterList, haveVectorFunction, &hasInvalidFunc);
   return hasInvalidFunc;
 }
 
@@ -1042,6 +1042,7 @@ static EDealRes doCheckExprForGroupBy(SNode** pNode, void* pContext) {
       return generateDealNodeErrMsg(pCxt->pTranslateCxt, getGroupByErrorCode(pCxt->pTranslateCxt));
     } else {
       pCxt->hasSelectValFunc = true;
+      pCxt->pTranslateCxt->pCurrStmt->hasSelectValFunc = true;
       return rewriteColToSelectValFunc(pCxt->pTranslateCxt, pNode);
     }
   }
@@ -1096,7 +1097,7 @@ typedef struct CheckAggColCoexistCxt {
   STranslateContext* pTranslateCxt;
   bool               existAggFunc;
   bool               existCol;
-  bool               existNonstdFunc;
+  bool               existIndefiniteRowsFunc;
   int32_t            selectFuncNum;
   bool               existOtherAggFunc;
 } CheckAggColCoexistCxt;
@@ -1113,7 +1114,7 @@ static EDealRes doCheckAggColCoexist(SNode* pNode, void* pContext) {
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isIndefiniteRowsFunc(pNode)) {
-    pCxt->existNonstdFunc = true;
+    pCxt->existIndefiniteRowsFunc = true;
     return DEAL_RES_IGNORE_CHILD;
   }
   if (isScanPseudoColumnFunc(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
@@ -1129,7 +1130,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   CheckAggColCoexistCxt cxt = {.pTranslateCxt = pCxt,
                                .existAggFunc = false,
                                .existCol = false,
-                               .existNonstdFunc = false,
+                               .existIndefiniteRowsFunc = false,
                                .selectFuncNum = 0,
                                .existOtherAggFunc = false};
   nodesWalkExprs(pSelect->pProjectionList, doCheckAggColCoexist, &cxt);
@@ -1142,7 +1143,7 @@ static int32_t checkAggColCoexist(STranslateContext* pCxt, SSelectStmt* pSelect)
   if ((cxt.selectFuncNum > 1 || cxt.existAggFunc || NULL != pSelect->pWindow) && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_SINGLE_GROUP);
   }
-  if (cxt.existNonstdFunc && cxt.existCol) {
+  if (cxt.existIndefiniteRowsFunc && cxt.existCol) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_NOT_ALLOWED_FUNC);
   }
   return TSDB_CODE_SUCCESS;
@@ -4079,9 +4080,7 @@ static int32_t addValToKVRow(STranslateContext* pCxt, SValueNode* pVal, const SS
     return parseJsontoTagData(pVal->literal, pBuilder, &pCxt->msgBuf, pSchema->colId);
   }
 
-  if (pVal->node.resType.type == TSDB_DATA_TYPE_NULL) {
-    // todo
-  } else {
+  if (pVal->node.resType.type != TSDB_DATA_TYPE_NULL) {
     tdAddColToKVRow(pBuilder, pSchema->colId, nodesGetValueFromNode(pVal),
                     IS_VAR_DATA_TYPE(pSchema->type) ? varDataTLen(pVal->datum.p) : TYPE_BYTES[pSchema->type]);
   }
@@ -4452,14 +4451,15 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
   }
 
   pReq->isNull = (TSDB_DATA_TYPE_NULL == pStmt->pVal->node.resType.type);
-  if(pStmt->pVal->node.resType.type == TSDB_DATA_TYPE_JSON){
+  if (pStmt->pVal->node.resType.type == TSDB_DATA_TYPE_JSON) {
     SKVRowBuilder kvRowBuilder = {0};
-    int32_t code = tdInitKVRowBuilder(&kvRowBuilder);
+    int32_t       code = tdInitKVRowBuilder(&kvRowBuilder);
 
     if (TSDB_CODE_SUCCESS != code) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    if (pStmt->pVal->literal && strlen(pStmt->pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
+    if (pStmt->pVal->literal &&
+        strlen(pStmt->pVal->literal) > (TSDB_MAX_JSON_TAG_LEN - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE) {
       return buildSyntaxErrMsg(&pCxt->msgBuf, "json string too long than 4095", pStmt->pVal->literal);
     }
 
@@ -4477,7 +4477,7 @@ static int32_t buildUpdateTagValReq(STranslateContext* pCxt, SAlterTableStmt* pS
     pReq->pTagVal = row;
     pStmt->pVal->datum.p = row;  // for free
     tdDestroyKVRowBuilder(&kvRowBuilder);
-  }else{
+  } else {
     pReq->nTagVal = pStmt->pVal->node.resType.bytes;
     if (TSDB_DATA_TYPE_NCHAR == pStmt->pVal->node.resType.type) {
       pReq->nTagVal = pReq->nTagVal * TSDB_NCHAR_SIZE;
@@ -4688,16 +4688,16 @@ static int32_t rewriteAlterTable(STranslateContext* pCxt, SQuery* pQuery) {
     return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_COL_JSON);
   }
 
-  if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType ==  TSDB_ALTER_TABLE_DROP_TAG) {
-    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE, "can not drop tag if there is only one tag");
+  if (getNumOfTags(pTableMeta) == 1 && pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG) {
+    return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_INVALID_ALTER_TABLE,
+                                "can not drop tag if there is only one tag");
   }
 
   if (TSDB_SUPER_TABLE == pTableMeta->tableType) {
     SSchema* pTagsSchema = getTableTagSchema(pTableMeta);
     if (getNumOfTags(pTableMeta) == 1 && pTagsSchema->type == TSDB_DATA_TYPE_JSON &&
-        (pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG ||
-         pStmt->alterType ==  TSDB_ALTER_TABLE_DROP_TAG ||
-         pStmt->alterType ==  TSDB_ALTER_TABLE_UPDATE_TAG_BYTES)) {
+        (pStmt->alterType == TSDB_ALTER_TABLE_ADD_TAG || pStmt->alterType == TSDB_ALTER_TABLE_DROP_TAG ||
+         pStmt->alterType == TSDB_ALTER_TABLE_UPDATE_TAG_BYTES)) {
       return generateSyntaxErrMsg(&pCxt->msgBuf, TSDB_CODE_PAR_ONLY_ONE_JSON_TAG);
     }
     return TSDB_CODE_SUCCESS;
