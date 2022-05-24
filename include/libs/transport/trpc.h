@@ -28,7 +28,7 @@ extern "C" {
 #define TAOS_CONN_CLIENT 1
 #define IsReq(pMsg)      (pMsg->msgType & 1U)
 
-extern int tsRpcHeadSize;
+extern int32_t tsRpcHeadSize;
 
 typedef struct {
   uint32_t clientIp;
@@ -69,10 +69,10 @@ typedef struct SRpcInit {
   char     localFqdn[TSDB_FQDN_LEN];
   uint16_t localPort;     // local port
   char *   label;         // for debug purpose
-  int      numOfThreads;  // number of threads to handle connections
-  int      sessions;      // number of sessions allowed
+  int32_t  numOfThreads;  // number of threads to handle connections
+  int32_t  sessions;      // number of sessions allowed
   int8_t   connType;      // TAOS_CONN_UDP, TAOS_CONN_TCPC, TAOS_CONN_TCPS
-  int      idleTime;      // milliseconds, 0 means idle timer is disabled
+  int32_t  idleTime;      // milliseconds, 0 means idle timer is disabled
 
   // the following is for client app ecurity only
   char *user;  // user name
@@ -108,9 +108,9 @@ int32_t rpcInit();
 void    rpcCleanup();
 void *  rpcOpen(const SRpcInit *pRpc);
 void    rpcClose(void *);
-void *  rpcMallocCont(int contLen);
+void *  rpcMallocCont(int32_t contLen);
 void    rpcFreeCont(void *pCont);
-void *  rpcReallocCont(void *ptr, int contLen);
+void *  rpcReallocCont(void *ptr, int32_t contLen);
 
 // Because taosd supports multi-process mode
 // These functions should not be used on the server side
@@ -121,10 +121,10 @@ void rpcRegisterBrokenLinkArg(SRpcMsg *msg);
 void rpcReleaseHandle(void *handle, int8_t type);  // just release client conn to rpc instance, no close sock
 
 // These functions will not be called in the child process
-void rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
-void rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
-int  rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
-void rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+void    rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
+void    rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
+int32_t rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
+void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
 
 #ifdef __cplusplus
 }

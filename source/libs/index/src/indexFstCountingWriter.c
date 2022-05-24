@@ -97,6 +97,7 @@ WriterCtx* writerCtxCreate(WriterType type, const char* path, bool readOnly, int
       int64_t file_size;
       taosStatFile(path, &file_size, NULL);
       ctx->file.size = (int)file_size;
+
     } else {
       // ctx->file.pFile = open(path, O_RDONLY, S_IRWXU | S_IRWXG | S_IRWXO);
       ctx->file.pFile = taosOpenFile(path, TD_FILE_READ);
