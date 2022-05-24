@@ -92,6 +92,8 @@
 #./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
+./test.sh -f tsim/stable/add_column.sim
+./test.sh -f tsim/stable/drop_column.sim
 
 
 # --- for multi process mode
