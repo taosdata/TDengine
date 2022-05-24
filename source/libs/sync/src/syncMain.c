@@ -157,6 +157,18 @@ ESyncState syncGetMyRole(int64_t rid) {
   return state;
 }
 
+bool syncIsRestoreFinish(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+  assert(rid == pSyncNode->rid);
+  bool b = pSyncNode->restoreFinish;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return b;
+}
+
 const char* syncGetMyRoleStr(int64_t rid) {
   const char* s = syncUtilState2String(syncGetMyRole(rid));
   return s;
@@ -308,8 +320,10 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
   int32_t    ret = TAOS_SYNC_PROPOSE_SUCCESS;
   SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
   if (pSyncNode == NULL) {
+    rpcFreeCont(pMsg->pCont);
     return TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
+
   assert(rid == pSyncNode->rid);
 
   if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {

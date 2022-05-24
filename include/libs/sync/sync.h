@@ -146,6 +146,7 @@ int32_t     syncGetVgId(int64_t rid);
 int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
+bool        syncIsRestoreFinish(int64_t rid);
 
 #ifdef __cplusplus
 }
