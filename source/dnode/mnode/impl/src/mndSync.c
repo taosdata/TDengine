@@ -17,7 +17,13 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
+int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { 
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId = htonl(pHead->vgId);
+
+  return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); 
+}
 
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 

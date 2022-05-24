@@ -920,6 +920,17 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
 }
 
 void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
+  bool hit = false;
+  for (int i = 0; i < newConfig->replicaNum; ++i) {
+    if (strcmp(pSyncNode->myNodeInfo.nodeFqdn, (newConfig->nodeInfo)[i].nodeFqdn) == 0 &&
+        pSyncNode->myNodeInfo.nodePort == (newConfig->nodeInfo)[i].nodePort) {
+      newConfig->myIndex = i;
+      hit = true;
+      break;
+    }
+  }
+  ASSERT(hit == true);
+
   pSyncNode->pRaftCfg->cfg = *newConfig;
   int32_t ret = raftCfgPersist(pSyncNode->pRaftCfg);
   ASSERT(ret == 0);
