@@ -1298,11 +1298,11 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
   for (int col = 1; col < point->fieldNum; ++col) {
     TAOS_SML_KV* kv = point->fields + col;
     int32_t      len = 0;
-    retLen = converToStr(sql + sqlLen, kv->type, kv->value, kv->length, &len);
-    if (retLen >= kv->length || retLen == TSDB_CODE_TSC_INVALID_VALUE) {
+    if (freeBytes - sqlLen <= kv->length) {
       tscError("SML:0x%" PRIx64 " no free space for converToStr", info->id);
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
+    converToStr(sql + sqlLen, kv->type, kv->value, kv->length, &len);
     sqlLen += len;
     retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, ",");
     if (retLen >= freeBytes - sqlLen) {
