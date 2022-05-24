@@ -23,6 +23,8 @@ struct SVSnapshotReader {
   int8_t               isTsdbEnd;
   SMetaSnapshotReader *pMetaReader;
   STsdbSnapshotReader *pTsdbReader;
+  void                *pData;
+  int32_t              nData;
 };
 
 int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever) {
@@ -61,6 +63,7 @@ _err:
 
 int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader) {
   if (pReader) {
+    vnodeFree(pReader->pData);
     tsdbSnapshotReaderClose(pReader->pTsdbReader);
     metaSnapshotReaderClose(pReader->pMetaReader);
     taosMemoryFree(pReader);
@@ -68,11 +71,11 @@ int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader) {
   return 0;
 }
 
-int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, void **ppData, uint32_t *nData) {
+int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData) {
   int32_t code = 0;
 
   if (!pReader->isMetaEnd) {
-    code = metaSnapshotRead(pReader->pMetaReader, ppData, nData);
+    code = metaSnapshotRead(pReader->pMetaReader, &pReader->pData, &pReader->pData);
     if (code) {
       if (code == TSDB_CODE_VND_READ_END) {
         pReader->isMetaEnd = 1;
@@ -80,14 +83,23 @@ int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, void **ppData, uint32_t *nD
         return code;
       }
     } else {
+      *ppData = pReader->pData;
+      *nData = pReader->nData;
       return code;
     }
   }
 
   if (!pReader->isTsdbEnd) {
-    code = tsdbSnapshotRead(pReader->pTsdbReader, ppData, nData);
+    code = tsdbSnapshotRead(pReader->pTsdbReader, &pReader->pData, pReader->nData);
     if (code) {
+      if (code == TSDB_CODE_VND_READ_END) {
+        pReader->isTsdbEnd = 1;
+      } else {
+        return code;
+      }
     } else {
+      *ppData = pReader->pData;
+      *nData = pReader->nData;
       return code;
     }
   }
