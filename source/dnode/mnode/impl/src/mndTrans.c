@@ -563,7 +563,7 @@ STrans *mndTransCreate(SMnode *pMnode, ETrnPolicy policy, ETrnType type, const S
   pTrans->policy = policy;
   pTrans->type = type;
   pTrans->createdTime = taosGetTimestampMs();
-  pTrans->rpcInfo = pReq->info;
+  if (pReq != NULL) pTrans->rpcInfo = pReq->info;
   pTrans->redoLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->undoLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));
   pTrans->commitLogs = taosArrayInit(TRANS_ARRAY_SIZE, sizeof(void *));

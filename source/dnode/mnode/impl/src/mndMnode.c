@@ -110,7 +110,33 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("mnode:%d, will be created while deploy sdb, raw:%p", mnodeObj.id, pRaw);
+
+#if 0
   return sdbWrite(pMnode->pSdb, pRaw);
+#else
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_DNODE, NULL);
+  if (pTrans == NULL) {
+    mError("mnode:%d, failed to create since %s", mnodeObj.id, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create mnode:%d", pTrans->id, mnodeObj.id);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+#endif
 }
 
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pObj) {

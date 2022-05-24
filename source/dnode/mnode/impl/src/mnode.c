@@ -153,8 +153,14 @@ static int32_t mndInitSdb(SMnode *pMnode) {
   return 0;
 }
 
-static int32_t mndDeploySdb(SMnode *pMnode) { return sdbDeploy(pMnode->pSdb); }
-static int32_t mndReadSdb(SMnode *pMnode) { return sdbReadFile(pMnode->pSdb); }
+static int32_t mndOpenSdb(SMnode *pMnode) {
+  if (!pMnode->deploy) {
+    return sdbReadFile(pMnode->pSdb);
+  } else {
+    // return sdbDeploy(pMnode->pSdb);;
+    return 0;
+  }
+}
 
 static void mndCleanupSdb(SMnode *pMnode) {
   if (pMnode->pSdb) {
@@ -176,7 +182,7 @@ static int32_t mndAllocStep(SMnode *pMnode, char *name, MndInitFp initFp, MndCle
   return 0;
 }
 
-static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
+static int32_t mndInitSteps(SMnode *pMnode) {
   if (mndAllocStep(pMnode, "mnode-sdb", mndInitSdb, mndCleanupSdb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-trans", mndInitTrans, mndCleanupTrans) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-cluster", mndInitCluster, mndCleanupCluster) != 0) return -1;
@@ -201,11 +207,7 @@ static int32_t mndInitSteps(SMnode *pMnode, bool deploy) {
   if (mndAllocStep(pMnode, "mnode-perfs", mndInitPerfs, mndCleanupPerfs) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-db", mndInitDb, mndCleanupDb) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-func", mndInitFunc, mndCleanupFunc) != 0) return -1;
-  if (deploy) {
-    if (mndAllocStep(pMnode, "mnode-sdb-deploy", mndDeploySdb, NULL) != 0) return -1;
-  } else {
-    if (mndAllocStep(pMnode, "mnode-sdb-read", mndReadSdb, NULL) != 0) return -1;
-  }
+  if (mndAllocStep(pMnode, "mnode-sdb", mndOpenSdb, NULL) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-profile", mndInitProfile, mndCleanupProfile) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-show", mndInitShow, mndCleanupShow) != 0) return -1;
   if (mndAllocStep(pMnode, "mnode-query", mndInitQuery, mndCleanupQuery) != 0) return -1;
@@ -280,6 +282,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
   (void)taosParseTime(timestr, &pMnode->checkTime, (int32_t)strlen(timestr), TSDB_TIME_PRECISION_MILLI, 0);
   mndSetOptions(pMnode, pOption);
 
+  pMnode->deploy = pOption->deploy;
   pMnode->pSteps = taosArrayInit(24, sizeof(SMnodeStep));
   if (pMnode->pSteps == NULL) {
     taosMemoryFree(pMnode);
@@ -297,7 +300,7 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  code = mndInitSteps(pMnode, pOption->deploy);
+  code = mndInitSteps(pMnode);
   if (code != 0) {
     code = terrno;
     mError("failed to open mnode since %s", terrstr());
@@ -332,6 +335,9 @@ void mndClose(SMnode *pMnode) {
 
 int32_t mndStart(SMnode *pMnode) {
   mndSyncStart(pMnode);
+  if (pMnode->deploy && sdbDeploy(pMnode->pSdb) != 0) {
+    return -1;
+  }
   return mndInitTimer(pMnode);
 }
 
