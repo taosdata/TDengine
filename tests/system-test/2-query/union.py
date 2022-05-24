@@ -112,7 +112,6 @@ class TDTestCase:
         return [
             ["ct1", "ct2"],
             ["ct1", "t1"],
-            ["ct2", "ct4"],
             ["ct4", "t1"],
             # ["ct1", "ct2", "ct4"],
             # ["ct1", "ct2", "t1"],
@@ -125,7 +124,6 @@ class TDTestCase:
     def __tb_liast(self):
         return [
             "ct1",
-            "ct2",
             "ct4",
             "t1",
         ]
