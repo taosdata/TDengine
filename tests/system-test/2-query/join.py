@@ -161,6 +161,7 @@ class TDTestCase:
                             self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True),  ),
                         )
                     )
+        return list(filter(None, sqls))
 
     def __join_check(self,):
         for sql in self.__sqls_list:
