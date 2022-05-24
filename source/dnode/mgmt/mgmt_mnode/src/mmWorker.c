@@ -61,6 +61,11 @@ static void mmProcessSyncQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from mnode-sync queue", pMsg);
 
   pMsg->info.node = pMgmt->pMnode;
+
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
+
   int32_t code = mndProcessSyncMsg(pMsg);
 
   dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
