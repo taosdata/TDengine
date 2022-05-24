@@ -167,6 +167,8 @@ typedef struct SQueryInfo {
   bool               globalMerge;
   bool               multigroupResult;
   bool               isStddev;
+  
+  int64_t offsetAdd; // addition add offset
 } SQueryInfo;
 
 /**

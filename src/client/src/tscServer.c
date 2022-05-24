@@ -1870,6 +1870,14 @@ int tscProcessRetrieveGlobalMergeRsp(SSqlObj *pSql) {
 
   // global aggregation may be the upstream for parent query
   SQueryInfo *pQueryInfo = tscGetQueryInfo(pCmd);
+  // reset stable limit
+  if (pQueryInfo->offsetAdd > 0){
+    ASSERT(pQueryInfo->limit.limit > pQueryInfo->offsetAdd);
+    pQueryInfo->limit.limit -= pQueryInfo->offsetAdd;
+    pQueryInfo->limit.offset = pQueryInfo->offsetAdd;
+    pQueryInfo->offsetAdd = 0;
+  }
+    
   if (pQueryInfo->pQInfo == NULL) {
     STableGroupInfo tableGroupInfo = {.numOfTables = 1, .pGroupList = taosArrayInit(1, POINTER_BYTES),};
     tableGroupInfo.map = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);

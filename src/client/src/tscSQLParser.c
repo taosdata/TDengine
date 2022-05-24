@@ -7547,6 +7547,7 @@ int32_t validateLimitNode(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, SSqlNode* pSqlN
         pQueryInfo->vgroupLimit = pQueryInfo->limit.limit + pQueryInfo->limit.offset;
         pQueryInfo->limit.limit += pQueryInfo->limit.offset;
       }
+      pQueryInfo->offsetAdd = pQueryInfo->limit.offset;
       pQueryInfo->limit.offset = 0;
     }
   } else {
