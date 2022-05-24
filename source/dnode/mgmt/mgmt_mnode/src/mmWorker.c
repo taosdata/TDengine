@@ -58,8 +58,14 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
 static void mmProcessSyncQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
+  dTrace("msg:%p, get from mnode-sync queue", pMsg);
+
   pMsg->info.node = pMgmt->pMnode;
-  mndProcessSyncMsg(pMsg);
+  int32_t code = mndProcessSyncMsg(pMsg);
+
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }
 
 static int32_t mmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {

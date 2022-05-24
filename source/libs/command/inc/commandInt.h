@@ -60,7 +60,7 @@ extern "C" {
 #define EXPLAIN_GROUPS_FORMAT "groups=%d"
 #define EXPLAIN_WIDTH_FORMAT "width=%d"
 #define EXPLAIN_FUNCTIONS_FORMAT "functions=%d"
-#define EXPLAIN_EXECINFO_FORMAT "cost=%" PRIu64 "..%" PRIu64 " rows=%" PRIu64
+#define EXPLAIN_EXECINFO_FORMAT "cost=%.3f..%.3f rows=%" PRIu64
 
 typedef struct SExplainGroup {
   int32_t   nodeNum;

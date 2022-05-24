@@ -318,11 +318,8 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
   sTrace("syncPropose msgType:%d ", pMsg->msgType);
 
   int32_t    ret = TAOS_SYNC_PROPOSE_SUCCESS;
-  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
-  if (pSyncNode == NULL) {
-    rpcFreeCont(pMsg->pCont);
-    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
-  }
+  SSyncNode* pSyncNode = taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) return TAOS_SYNC_PROPOSE_OTHER_ERROR;
 
   assert(rid == pSyncNode->rid);
 
@@ -335,14 +332,13 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
     SyncClientRequest* pSyncMsg = syncClientRequestBuild2(pMsg, seqNum, isWeak, pSyncNode->vgId);
     SRpcMsg            rpcMsg;
     syncClientRequest2RpcMsg(pSyncMsg, &rpcMsg);
-    if (pSyncNode->FpEqMsg != NULL) {
-      pSyncNode->FpEqMsg(pSyncNode->msgcb, &rpcMsg);
+
+    if (pSyncNode->FpEqMsg != NULL && (*pSyncNode->FpEqMsg)(pSyncNode->msgcb, &rpcMsg) == 0) {
+      ret = TAOS_SYNC_PROPOSE_SUCCESS;
     } else {
       sTrace("syncPropose pSyncNode->FpEqMsg is NULL");
     }
     syncClientRequestDestroy(pSyncMsg);
-    ret = TAOS_SYNC_PROPOSE_SUCCESS;
-
   } else {
     sTrace("syncPropose not leader, %s", syncUtilState2String(pSyncNode->state));
     ret = TAOS_SYNC_PROPOSE_NOT_LEADER;

@@ -141,6 +141,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
     terrno = TSDB_CODE_APP_ERROR;
   }
 
+  rpcFreeCont(rsp.pCont);
   if (code != 0) return code;
   return pMgmt->errCode;
 }
