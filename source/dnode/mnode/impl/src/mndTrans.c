@@ -768,6 +768,12 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
+  if (taosArrayGetSize(pTrans->commitLogs) <= 0) {
+    terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    return -1;
+  }
+
   mDebug("trans:%d, prepare transaction", pTrans->id);
   if (mndTransSync(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -1080,6 +1086,8 @@ static bool mndTransPerformRedoLogStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
+  if (!mndIsMaster(pMnode)) return false;
+
   bool    continueExec = true;
   int32_t code = mndTransExecuteRedoActions(pMnode, pTrans);
 
@@ -1169,6 +1177,8 @@ static bool mndTransPerformUndoLogStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
+  if (!mndIsMaster(pMnode)) return false;
+
   bool    continueExec = true;
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 

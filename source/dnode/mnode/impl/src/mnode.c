@@ -86,7 +86,6 @@ static void *mndThreadFp(void *param) {
     lastTime++;
     taosMsleep(100);
     if (pMnode->stopped) break;
-    if (!mndIsMaster(pMnode)) continue;
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);
@@ -346,7 +345,8 @@ int32_t mndProcessMsg(SRpcMsg *pMsg) {
   mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
 
   if (IsReq(pMsg)) {
-    if (!mndIsMaster(pMnode)) {
+    if (!mndIsMaster(pMnode) && pMsg->msgType != TDMT_MND_TRANS_TIMER && pMsg->msgType != TDMT_MND_MQ_TIMER &&
+        pMsg->msgType != TDMT_MND_TELEM_TIMER) {
       terrno = TSDB_CODE_APP_NOT_READY;
       mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
       return -1;

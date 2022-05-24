@@ -82,7 +82,7 @@ typedef struct {
   do {                               \
     SEncoder coder = {0};            \
     tEncoderInit(&coder, NULL, 0);   \
-    if ((E)(&coder, S) == 0) {       \
+    if ((E)(&coder, S) >= 0) {       \
       SIZE = coder.pos;              \
       RET = 0;                       \
     } else {                         \

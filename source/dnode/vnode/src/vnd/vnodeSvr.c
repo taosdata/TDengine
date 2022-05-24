@@ -55,6 +55,7 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
       SSubmitReq    *pSubmitReq = (SSubmitReq *)pMsg->pCont;
       SSubmitBlk    *pBlock = NULL;
       int64_t        ctime = taosGetTimestampMs();
+      tb_uid_t       uid;
 
       tInitSubmitMsgIter(pSubmitReq, &msgIter);
 
@@ -63,12 +64,15 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
         if (pBlock == NULL) break;
 
         if (msgIter.schemaLen > 0) {
+          uid = tGenIdPI64();
+
           tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
           tStartDecode(&dc);
 
           tDecodeI32v(&dc, NULL);
-          *(int64_t *)(dc.data + dc.pos) = tGenIdPI64();
+          *(int64_t *)(dc.data + dc.pos) = uid;
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
+          pBlock->uid = htobe64(uid);
 
           tEndDecode(&dc);
           tDecoderClear(&dc);
@@ -142,13 +146,6 @@ int vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg
                               pMsg->contLen - sizeof(SMsgHead)) < 0) {
       }
     } break;
-#if 0
-    case TDMT_VND_TASK_WRITE_EXEC: {
-      if (tqProcessTaskExec(pVnode->pTq, POINTER_SHIFT(pMsg->pCont, sizeof(SMsgHead)), pMsg->contLen - sizeof(SMsgHead),
-                            0) < 0) {
-      }
-    } break;
-#endif
     case TDMT_VND_ALTER_VNODE:
       break;
     default:
@@ -231,17 +228,6 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
     case TDMT_VND_TASK_RECOVER_RSP:
       return tqProcessTaskRecoverRsp(pVnode->pTq, pMsg);
 
-#if 0
-    case TDMT_VND_TASK_PIPE_EXEC:
-    case TDMT_VND_TASK_MERGE_EXEC:
-      return tqProcessTaskExec(pVnode->pTq, msgstr, msgLen, 0);
-    case TDMT_VND_STREAM_TRIGGER:{
-      // refactor, avoid double free
-      int code = tqProcessStreamTrigger(pVnode->pTq, pMsg->pCont, pMsg->contLen, 0);
-      pMsg->pCont = NULL;
-      return code;
-    }
-#endif
     case TDMT_VND_QUERY_HEARTBEAT:
       return qWorkerProcessHbMsg(pVnode, pVnode->pQuery, pMsg);
     default:
