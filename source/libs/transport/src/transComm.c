@@ -233,7 +233,7 @@ void transCtxCleanup(STransCtx* ctx) {
 
   STransCtxVal* iter = taosHashIterate(ctx->args, NULL);
   while (iter) {
-    iter->freeFunc(iter->val);
+    ctx->freeFunc(iter->val);
     iter = taosHashIterate(ctx->args, iter);
   }
 
@@ -257,7 +257,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
 
     STransCtxVal* dVal = taosHashGet(dst->args, key, klen);
     if (dVal) {
-      dVal->freeFunc(dVal->val);
+      dst->freeFunc(dVal->val);
     }
     taosHashPut(dst->args, key, klen, sVal, sizeof(*sVal));
     iter = taosHashIterate(src->args, iter);
