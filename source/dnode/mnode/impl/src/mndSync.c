@@ -17,13 +17,7 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { 
-  int32_t code = tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); 
-  if (code != 0) {
-    rpcFreeCont(pMsg->pCont);
-  }
-  return code;
-}
+int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
 
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
@@ -33,7 +27,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
 
-  mTrace("ver:%" PRId64 ", apply raw:%p to sdb, role:%s", cbMeta.index, pRaw, syncStr(cbMeta.state));
+  mTrace("raw:%p, apply to sdb, ver:%" PRId64 " role:%s", pRaw, cbMeta.index, syncStr(cbMeta.state));
   sdbWriteWithoutFree(pSdb, pRaw);
   sdbSetApplyIndex(pSdb, cbMeta.index);
   sdbSetApplyTerm(pSdb, cbMeta.term);

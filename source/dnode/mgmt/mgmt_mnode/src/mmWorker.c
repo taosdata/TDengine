@@ -111,9 +111,16 @@ int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  if (mmAcquire(pMgmt) != 0) return -1;
-  int32_t code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
-  mmRelease(pMgmt);
+  int32_t code = -1;
+  if (mmAcquire(pMgmt) == 0) {
+    code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
+    mmRelease(pMgmt);
+  }
+
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
   return code;
 }
 
