@@ -40,7 +40,7 @@ void schFreeFlowCtrl(SSchJob *pJob) {
   pJob->flowCtrl = NULL;
 }
 
-int32_t schCheckJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
+int32_t schChkJobNeedFlowCtrl(SSchJob *pJob, SSchLevel *pLevel) {
   if (!SCH_IS_QUERY_JOB(pJob)) {
     SCH_JOB_DLOG("job no need flow ctrl, queryJob:%d", SCH_IS_QUERY_JOB(pJob));
     return TSDB_CODE_SUCCESS;

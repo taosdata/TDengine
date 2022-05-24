@@ -335,6 +335,9 @@ IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, in
   taosThreadCondInit(&cache->finished, NULL);
 
   indexCacheRef(cache);
+  if (idx != NULL) {
+    indexAcquireRef(idx->refId);
+  }
   return cache;
 }
 void indexCacheDebug(IndexCache* cache) {
@@ -426,13 +429,16 @@ void indexCacheDestroy(void* cache) {
   if (pCache == NULL) {
     return;
   }
+
   indexMemUnRef(pCache->mem);
   indexMemUnRef(pCache->imm);
   taosMemoryFree(pCache->colName);
 
   taosThreadMutexDestroy(&pCache->mtx);
   taosThreadCondDestroy(&pCache->finished);
-
+  if (pCache->index != NULL) {
+    indexReleaseRef(((SIndex*)pCache->index)->refId);
+  }
   taosMemoryFree(pCache);
 }
 

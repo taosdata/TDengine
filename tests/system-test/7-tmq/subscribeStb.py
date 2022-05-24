@@ -360,7 +360,7 @@ class TDTestCase:
                          'replica':    1,        \
                          'stbName':    'stb1',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
+                         'rowsPerTbl': 50000,    \
                          'batchNum':   13,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
@@ -391,13 +391,13 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
         
-        time.sleep(2)
+        time.sleep(5)
         tdLog.info("drop som child table of stb1")
         dropTblNum = 4
-        tdSql.query("drop table if exists %s.%s_9"%(parameterDict["dbName"], parameterDict["stbName"]))
-        tdSql.query("drop table if exists %s.%s_8"%(parameterDict["dbName"], parameterDict["stbName"]))
-        tdSql.query("drop table if exists %s.%s_7"%(parameterDict["dbName"], parameterDict["stbName"]))
+        tdSql.query("drop table if exists %s.%s_1"%(parameterDict["dbName"], parameterDict["stbName"]))
+        tdSql.query("drop table if exists %s.%s_2"%(parameterDict["dbName"], parameterDict["stbName"]))
         tdSql.query("drop table if exists %s.%s_3"%(parameterDict["dbName"], parameterDict["stbName"]))
+        tdSql.query("drop table if exists %s.%s_4"%(parameterDict["dbName"], parameterDict["stbName"]))
 
         tdLog.info("drop some child tables, then start to check consume result")
         expectRows = 1
@@ -1380,14 +1380,6 @@ class TDTestCase:
         self.tmqCase3(cfgPath, buildPath)
         self.tmqCase4(cfgPath, buildPath)
         self.tmqCase5(cfgPath, buildPath)
-        #self.tmqCase6(cfgPath, buildPath)
-        #self.tmqCase7(cfgPath, buildPath)
-        #self.tmqCase8(cfgPath, buildPath)
-        #self.tmqCase9(cfgPath, buildPath)
-        #self.tmqCase10(cfgPath, buildPath)        
-        #self.tmqCase11(cfgPath, buildPath)
-        #self.tmqCase12(cfgPath, buildPath)
-        #self.tmqCase13(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()

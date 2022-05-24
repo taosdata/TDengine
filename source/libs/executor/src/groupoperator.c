@@ -269,25 +269,35 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
-      pOperator->status = OP_EXEC_DONE;
+
+    size_t rows = pRes->info.rows;
+    if (rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
+      doSetOperatorCompleted(pOperator);
     }
+
+    pOperator->resultInfo.totalRows += rows;
     return (pRes->info.rows == 0)? NULL:pRes;
   }
 
-  int32_t        order = TSDB_ORDER_ASC;
+  int32_t order = TSDB_ORDER_ASC;
+  int32_t scanFlag = MAIN_SCAN;
+
+  int64_t st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
 
+    int32_t code = getTableScanInfo(pOperator, &order, &scanFlag);
+    if (code != TSDB_CODE_SUCCESS) {
+      longjmp(pTaskInfo->env, code);
+    }
+
     // the pDataBlock are always the same one, no need to call this again
-    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, MAIN_SCAN, true);
+    setInputDataBlock(pOperator, pInfo->binfo.pCtx, pBlock, order, scanFlag, true);
 
     // there is an scalar expression that needs to be calculated right before apply the group aggregation.
     if (pInfo->pScalarExprInfo != NULL) {
@@ -297,7 +307,6 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
       }
     }
 
-    //    setTagValue(pOperator, pRuntimeEnv->current->pTable, pInfo->binfo.pCtx, pOperator->numOfExprs);
     doHashGroupbyAgg(pOperator, pBlock);
   }
 
@@ -313,13 +322,15 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
 
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
+
   while(1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
     doFilter(pInfo->pCondition, pRes, NULL);
 
     bool hasRemain = hashRemainDataInGroupInfo(&pInfo->groupResInfo);
     if (!hasRemain) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       break;
     }
 
@@ -328,7 +339,10 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
     }
   }
 
-  return (pRes->info.rows == 0)? NULL:pRes;
+  size_t rows = pRes->info.rows;
+  pOperator->resultInfo.totalRows += rows;
+
+  return (rows == 0)? NULL:pRes;
 }
 
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
@@ -538,7 +552,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     // try next group data
     pInfo->pGroupIter = taosHashIterate(pInfo->pGroupSet, pInfo->pGroupIter);
     if (pInfo->pGroupIter == NULL) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       return NULL;
     }
 
@@ -555,6 +569,8 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
 
   blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
   pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
+
+  pOperator->resultInfo.totalRows += pInfo->binfo.pRes->info.rows;
   return pInfo->binfo.pRes;
 }
 
@@ -571,18 +587,19 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
     return buildPartitionResult(pOperator);
   }
 
+  int64_t st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
     if (pBlock == NULL) {
       break;
     }
 
     doHashPartition(pOperator, pBlock);
   }
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   pOperator->status = OP_RES_TO_RETURN;
   blockDataEnsureCapacity(pRes, 4096);
@@ -627,13 +644,14 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   }
 
   pOperator->name         = "PartitionOperator";
-  pOperator->blocking = true;
+  pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
   pInfo->binfo.pRes       = pResultBlock;
-  pOperator->numOfExprs  = numOfCols;
+  pOperator->numOfExprs   = numOfCols;
   pOperator->pExpr        = pExprInfo;
   pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, NULL, destroyPartitionOperatorInfo,
                                          NULL, NULL, NULL);

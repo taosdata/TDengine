@@ -674,10 +674,13 @@ class IndexObj {
     // opt
     numOfWrite = 0;
     numOfRead = 0;
-    indexInit();
+    // indexInit();
   }
-  int Init(const std::string& dir) {
-    taosRemoveDir(dir.c_str());
+  int Init(const std::string& dir, bool remove = true) {
+    if (remove) {
+      taosRemoveDir(dir.c_str());
+      taosMkDir(dir.c_str());
+    }
     taosMkDir(dir.c_str());
     int ret = indexOpen(&opts, dir.c_str(), &idx);
     if (ret != 0) {
@@ -838,8 +841,11 @@ class IndexEnv2 : public ::testing::Test {
     initLog();
     index = new IndexObj();
   }
-  virtual void TearDown() { delete index; }
-  IndexObj*    index;
+  virtual void TearDown() {
+    // taosMsleep(500);
+    delete index;
+  }
+  IndexObj* index;
 };
 TEST_F(IndexEnv2, testIndexOpen) {
   std::string path = TD_TMP_DIR_PATH "test";
@@ -951,6 +957,8 @@ static void single_write_and_search(IndexObj* idx) {
   target = idx->SearchOne("tag2", "Test");
 }
 static void multi_write_and_search(IndexObj* idx) {
+  idx->PutOne("tag1", "Hello");
+  idx->PutOne("tag2", "Test");
   int target = idx->SearchOne("tag1", "Hello");
   target = idx->SearchOne("tag2", "Test");
   idx->WriteMultiMillonData("tag1", "hello world test", 100 * 100);
@@ -992,16 +1000,16 @@ TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
   }
 }
 
-// TEST_F(IndexEnv2, testIndex_restart) {
-//  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
-//  if (index->Init(path) != 0) {
-//  }
-//  index->SearchOneTarget("tag1", "Hello", 10);
-//  index->SearchOneTarget("tag2", "Test", 10);
-//}
+TEST_F(IndexEnv2, testIndex_restart) {
+  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
+  if (index->Init(path, false) != 0) {
+  }
+  index->SearchOneTarget("tag1", "Hello", 10);
+  index->SearchOneTarget("tag2", "Test", 10);
+}
 // TEST_F(IndexEnv2, testIndex_restart1) {
 //  std::string path = TD_TMP_DIR_PATH "cache_and_tfile";
-//  if (index->Init(path) != 0) {
+//  if (index->Init(path, false) != 0) {
 //  }
 //  index->ReadMultiMillonData("tag1", "coding");
 //  index->SearchOneTarget("tag1", "Hello", 10);
@@ -1018,16 +1026,16 @@ TEST_F(IndexEnv2, testIndex_MultiWrite_and_MultiRead) {
 //  std::cout << "reader sz: " << index->SearchOne("tag1", "Hello") << std::endl;
 //  assert(3 == index->SearchOne("tag1", "Hello"));
 //}
-// TEST_F(IndexEnv2, testIndexMultiTag) {
-//  std::string path = TD_TMP_DIR_PATH "multi_tag";
-//  if (index->Init(path) != 0) {
-//  }
-//  int64_t st = taosGetTimestampUs();
-//  int32_t num = 1000 * 10000;
-//  index->WriteMultiMillonData("tag1", "xxxxxxxxxxxxxxx", num);
-//  std::cout << "numOfRow: " << num << "\ttime cost:" << taosGetTimestampUs() - st << std::endl;
-//  // index->WriteMultiMillonData("tag2", "xxxxxxxxxxxxxxxxxxxxxxxxx", 100 * 10000);
-//}
+TEST_F(IndexEnv2, testIndexMultiTag) {
+  std::string path = TD_TMP_DIR_PATH "multi_tag";
+  if (index->Init(path) != 0) {
+  }
+  int64_t st = taosGetTimestampUs();
+  int32_t num = 100 * 100;
+  index->WriteMultiMillonData("tag1", "xxxxxxxxxxxxxxx", num);
+  std::cout << "numOfRow: " << num << "\ttime cost:" << taosGetTimestampUs() - st << std::endl;
+  // index->WriteMultiMillonData("tag2", "xxxxxxxxxxxxxxxxxxxxxxxxx", 100 * 10000);
+}
 TEST_F(IndexEnv2, testLongComVal1) {
   std::string path = TD_TMP_DIR_PATH "long_colVal";
   if (index->Init(path) != 0) {
