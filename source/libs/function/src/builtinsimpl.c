@@ -1808,7 +1808,7 @@ int32_t percentileFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 bool getApercentileFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   int32_t bytesHist   = (int32_t)(sizeof(SAPercentileInfo) + sizeof(SHistogramInfo) + sizeof(SHistBin) * (MAX_HISTOGRAM_BIN + 1));
   int32_t bytesDigest = (int32_t)(sizeof(SAPercentileInfo) + TDIGEST_SIZE(COMPRESSION));
-  pEnv->calcMemSize = MAX(bytesHist, bytesDigest);
+  pEnv->calcMemSize = TMAX(bytesHist, bytesDigest);
   return true;
 }
 

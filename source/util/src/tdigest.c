@@ -97,8 +97,8 @@ static void mergeCentroid(SMergeArgs *args, SCentroid *merge) {
         c->mean += (merge->mean - c->mean) * merge->weight / c->weight;
 
         if (merge->weight > 0) {
-            args->min = MIN(merge->mean, args->min);
-            args->max = MAX(merge->mean, args->max);
+            args->min = TMIN(merge->mean, args->min);
+            args->max = TMAX(merge->mean, args->max);
         }
     }
 }
@@ -162,12 +162,12 @@ void tdigestCompress(TDigest *t) {
     }
 
     if (t->total_weight > 0) {
-        t->min = MIN(t->min, args.min);
+        t->min = TMIN(t->min, args.min);
         if (args.centroids[args.idx].weight <= 0) {
             args.idx--;
         }
         t->num_centroids = args.idx + 1;
-        t->max = MAX(t->max, args.max);
+        t->max = TMAX(t->max, args.max);
     }
 
     memcpy(t->centroids, args.centroids, sizeof(SCentroid) * t->num_centroids);
@@ -234,7 +234,7 @@ double tdigestCDF(TDigest *t, double x) {
                     + a->weight
                     * INTERPOLATE(x, a->mean - left, a->mean + right))
                     / t->total_weight;
-            return MAX(cdf, 0.0);
+            return TMAX(cdf, 0.0);
         }
 
         weight_so_far += a->weight;
