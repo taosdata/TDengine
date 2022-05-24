@@ -689,7 +689,7 @@ static SSDataBlock* getUpdateDataBlock(SStreamBlockScanInfo* pInfo, bool inverti
     }
     pDataBlock->info.rows = size;
     pDataBlock->info.type = STREAM_REPROCESS;
-    blockDataUpdateTsWindow(pDataBlock);
+    blockDataUpdateTsWindow(pDataBlock, 0);
     taosArrayClear(pInfo->tsArray);
     return pDataBlock;
   }
@@ -899,7 +899,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       }
       rows = pBlockInfo->rows;
       doFilter(pInfo->pCondition, pInfo->pRes, NULL);
-      blockDataUpdateTsWindow(pInfo->pRes);
+      blockDataUpdateTsWindow(pInfo->pRes, 0);
 
       break;
     }
@@ -972,9 +972,10 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
   }
 
   pInfo->primaryTsIndex = 0;                           // TODO(liuyao) get it from physical plan
-  pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, 10000); // TODO(liuyao) get watermark from physical plan
-  if (pInfo->pUpdateInfo == NULL) {
-    goto _error;
+  if (pSTInfo->interval.interval > 0) {
+    pInfo->pUpdateInfo = updateInfoInitP(&pSTInfo->interval, 10000); // TODO(liuyao) get watermark from physical plan
+  } else {
+    pInfo->pUpdateInfo = NULL;
   }
 
   pInfo->readHandle     = *pHandle;
@@ -989,7 +990,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
 
   size_t childKeyBufSize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
   initCatchSupporter(&pInfo->childAggSup, 1024, childKeyBufSize,
-      "StreamFinalInterval", "/tmp/"); // TODO(liuyao) get row size from phy plan
+      "StreamFinalInterval", TD_TMP_DIR_PATH); // TODO(liuyao) get row size from phy plan
 
   pOperator->name       = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;

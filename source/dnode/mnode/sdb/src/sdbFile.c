@@ -20,6 +20,7 @@
 
 #define SDB_TABLE_SIZE   24
 #define SDB_RESERVE_SIZE 512
+#define SDB_FILE_VER     1
 
 static int32_t sdbRunDeployFp(SSdb *pSdb) {
   mDebug("start to deploy sdb");
@@ -39,7 +40,32 @@ static int32_t sdbRunDeployFp(SSdb *pSdb) {
 }
 
 static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
-  int32_t ret = taosReadFile(pFile, &pSdb->curVer, sizeof(int64_t));
+  int64_t sver = 0;
+  int32_t ret = taosReadFile(pFile, &sver, sizeof(int64_t));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (ret != sizeof(int64_t)) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+  if (sver != SDB_FILE_VER) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+
+  ret = taosReadFile(pFile, &pSdb->curVer, sizeof(int64_t));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (ret != sizeof(int64_t)) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+
+  ret = taosReadFile(pFile, &pSdb->curTerm, sizeof(int64_t));
   if (ret < 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
@@ -96,7 +122,18 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
 }
 
 static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
+  int64_t sver = SDB_FILE_VER;
+  if (taosWriteFile(pFile, &sver, sizeof(int64_t)) != sizeof(int64_t)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
   if (taosWriteFile(pFile, &pSdb->curVer, sizeof(int64_t)) != sizeof(int64_t)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosWriteFile(pFile, &pSdb->curTerm, sizeof(int64_t)) != sizeof(int64_t)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -160,6 +197,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   if (sdbReadFileHead(pSdb, pFile) != 0) {
     mError("failed to read file:%s head since %s", file, terrstr());
     pSdb->curVer = -1;
+    pSdb->curTerm = -1;
     taosMemoryFree(pRaw);
     taosCloseFile(&pFile);
     return -1;
@@ -234,8 +272,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   char curfile[PATH_MAX] = {0};
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
-  mDebug("start to write file:%s, current ver:%" PRId64 ", commit ver:%" PRId64, curfile, pSdb->curVer,
-         pSdb->lastCommitVer);
+  mDebug("start to write file:%s, current ver:%" PRId64 " term:%" PRId64 ", commit ver:%" PRId64, curfile, pSdb->curVer,
+         pSdb->curTerm, pSdb->lastCommitVer);
 
   TdFilePtr pFile = taosOpenFile(tmpfile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -256,7 +294,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
 
     mTrace("write %s to file, total %d rows", sdbTableName(i), sdbGetSize(pSdb, i));
 
-    SHashObj *hash = pSdb->hashObjs[i];
+    SHashObj       *hash = pSdb->hashObjs[i];
     TdThreadRwlock *pLock = &pSdb->locks[i];
     taosThreadRwlockWrlock(pLock);
 
@@ -328,7 +366,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     mError("failed to write file:%s since %s", curfile, tstrerror(code));
   } else {
     pSdb->lastCommitVer = pSdb->curVer;
-    mDebug("write file:%s successfully, ver:%" PRId64, curfile, pSdb->lastCommitVer);
+    mDebug("write file:%s successfully, ver:%" PRId64 " term:%" PRId64, curfile, pSdb->lastCommitVer, pSdb->curTerm);
   }
 
   terrno = code;

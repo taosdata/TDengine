@@ -295,14 +295,14 @@ static void uvHandleReq(SSrvConn* pConn) {
     // no ref here
   }
 
-  // if pHead->noResp = 1,
+  // pHead->noResp = 1,
   // 1. server application should not send resp on handle
   // 2. once send out data, cli conn released to conn pool immediately
   // 3. not mixed with persist
 
   transMsg.info.handle = (void*)uvAcquireExHandle(pConn->refId);
-  tTrace("server handle %p conn: %p translated to app, refId: %" PRIu64 "", transMsg.info.handle, pConn, pConn->refId);
   transMsg.info.refId = pConn->refId;
+  tTrace("server handle %p conn: %p translated to app, refId: %" PRIu64 "", transMsg.info.handle, pConn, pConn->refId);
   assert(transMsg.info.handle != NULL);
   if (pHead->noResp == 1) {
     transMsg.info.refId = -1;
@@ -469,6 +469,8 @@ static void uvStartSendResp(SSrvMsg* smsg) {
 
   if (pConn->broken == true) {
     // persist by
+    transFreeMsg(smsg->msg.pCont);
+    taosMemoryFree(smsg);
     transUnrefSrvHandle(pConn);
     return;
   }

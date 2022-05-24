@@ -14,10 +14,10 @@
 class MndTestTrans1 : public ::testing::Test {
  protected:
   static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_trans1", 9013);
+    test.Init(TD_TMP_DIR_PATH "mnode_test_trans1", 9013);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9013";
-    // server2.Start("/tmp/mnode_test_trans2", fqdn, 9020, firstEp);
+    // server2.Start(TD_TMP_DIR_PATH "mnode_test_trans2", fqdn, 9020, firstEp);
   }
 
   static void TearDownTestSuite() {
@@ -26,7 +26,7 @@ class MndTestTrans1 : public ::testing::Test {
   }
 
   static void KillThenRestartServer() {
-    char      file[PATH_MAX] = "/tmp/mnode_test_trans1/mnode/data/sdb.data";
+    char      file[PATH_MAX] = TD_TMP_DIR_PATH "mnode_test_trans1/mnode/data/sdb.data";
     TdFilePtr pFile = taosOpenFile(file, TD_FILE_READ);
     int32_t   size = 3 * 1024 * 1024;
     void*     buffer = taosMemoryMalloc(size);

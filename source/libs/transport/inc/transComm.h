@@ -12,31 +12,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef USE_UV
+#ifndef _TD_TRANSPORT_COMM_H
+#define _TD_TRANSPORT_COMM_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <uv.h>
-#include "lz4.h"
 #include "os.h"
-#include "osSocket.h"
-#include "rpcCache.h"
-#include "rpcHead.h"
-#include "rpcLog.h"
 #include "taoserror.h"
-#include "tglobal.h"
-#include "thash.h"
 #include "theap.h"
-#include "tidpool.h"
-#include "tmd5.h"
-#include "tmempool.h"
-#include "tmsg.h"
+#include "transLog.h"
 #include "transportInt.h"
-#include "tref.h"
 #include "trpc.h"
-#include "ttimer.h"
 #include "tutil.h"
 
 typedef void* queue[2];
@@ -105,30 +94,9 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-#define TRANS_RETRY_COUNT_LIMIT 20  // retry count limit
+#define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
 #define TRANS_RETRY_INTERVAL    15  // ms retry interval
 #define TRANS_CONN_TIMEOUT      3   // connect timeout
-
-typedef struct {
-  SRpcInfo* pRpc;     // associated SRpcInfo
-  SEpSet    epSet;    // ip list provided by app
-  void*     ahandle;  // handle provided by app
-  // struct SRpcConn* pConn;     // pConn allocated
-  tmsg_t   msgType;  // message type
-  uint8_t* pCont;    // content provided by app
-  int32_t  contLen;  // content length
-  // int32_t  code;     // error code
-  // int16_t  numOfTry;  // number of try for different servers
-  // int8_t   oldInUse;  // server EP inUse passed by app
-  // int8_t   redirect;  // flag to indicate redirect
-  int8_t   connType;  // connection type
-  int64_t  rid;       // refId returned by taosAddRef
-  SRpcMsg* pRsp;      // for synchronous API
-  tsem_t*  pSem;      // for synchronous API
-  char*    ip;
-  uint32_t port;
-  // SEpSet*          pSet;      // for synchronous API
-} SRpcReqContext;
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
@@ -193,12 +161,7 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
 #define RPC_RESERVE_SIZE                (sizeof(STranConnCtx))
 
-#define RPC_MSG_OVERHEAD           (sizeof(SRpcHead) + sizeof(SRpcDigest))
-#define rpcHeadFromCont(cont)      ((SRpcHead*)((char*)cont - sizeof(SRpcHead)))
-#define rpcContFromHead(msg)       (msg + sizeof(SRpcHead))
-#define rpcMsgLenFromCont(contLen) (contLen + sizeof(SRpcHead))
-#define rpcContLenFromMsg(msgLen)  (msgLen - sizeof(SRpcHead))
-#define rpcIsReq(type)             (type & 1U)
+#define rpcIsReq(type) (type & 1U)
 
 #define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
 
@@ -209,15 +172,14 @@ typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } Co
 #define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
 #define transIsReq(type)             (type & 1U)
 
-int       rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-void      rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-int32_t   rpcCompressRpcMsg(char* pCont, int32_t contLen);
-SRpcHead* rpcDecompressRpcMsg(SRpcHead* pHead);
-
-int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
-bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
+// int  rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
+//// int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen);
+//
+// int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
+// bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
 void transFreeMsg(void* msg);
 
@@ -365,4 +327,4 @@ void transThreadOnce();
 }
 #endif
 
-#endif
+#endif  // _TD_TRANSPORT_COMM_H

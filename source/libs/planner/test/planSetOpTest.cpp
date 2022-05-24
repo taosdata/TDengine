@@ -23,7 +23,12 @@ class PlanSetOpTest : public PlannerTestBase {};
 TEST_F(PlanSetOpTest, unionAll) {
   useDb("root", "test");
 
+  // sql 1: single UNION ALL operator
   run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20");
+  // sql 2: multi UNION ALL operator
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 "
+      "UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 20 "
+      "UNION ALL SELECT c1, c2 FROM t1 WHERE c1 > 30");
 }
 
 TEST_F(PlanSetOpTest, unionAllSubquery) {
@@ -44,7 +49,12 @@ TEST_F(PlanSetOpTest, unionAllWithSubquery) {
 TEST_F(PlanSetOpTest, union) {
   useDb("root", "test");
 
+  // single UNION operator
   run("SELECT c1, c2 FROM t1 WHERE c1 > 10 UNION SELECT c1, c2 FROM t1 WHERE c1 > 20");
+  // multi UNION operator
+  run("SELECT c1, c2 FROM t1 WHERE c1 > 10 "
+      "UNION SELECT c1, c2 FROM t1 WHERE c1 > 20 "
+      "UNION SELECT c1, c2 FROM t1 WHERE c1 > 30");
 }
 
 TEST_F(PlanSetOpTest, unionContainJoin) {
@@ -61,4 +71,13 @@ TEST_F(PlanSetOpTest, unionSubquery) {
   useDb("root", "test");
 
   run("SELECT * FROM (SELECT c1, c2 FROM t1 UNION SELECT c1, c2 FROM t1)");
+}
+
+TEST_F(PlanSetOpTest, bug001) {
+  useDb("root", "test");
+
+  run("SELECT c2 FROM t1 WHERE c1 IS NOT NULL GROUP BY c2 "
+      "UNION "
+      "SELECT 'abcdefghijklmnopqrstuvwxyz' FROM t1 "
+      "WHERE 'abcdefghijklmnopqrstuvwxyz' IS NOT NULL GROUP BY 'abcdefghijklmnopqrstuvwxyz'");
 }

@@ -169,6 +169,10 @@ static char* getSyntaxErrFormat(int32_t errCode) {
              "And, cannot be mixed with other non scalar functions or columns.";
     case TSDB_CODE_PAR_NOT_ALLOWED_WIN_QUERY:
       return "Window query not supported, since the result of subquery not include valid timestamp column";
+    case TSDB_CODE_PAR_INVALID_DROP_COL:
+      return "No columns can be dropped";
+    case TSDB_CODE_PAR_INVALID_COL_JSON:
+      return "Only tag can be json type";
     case TSDB_CODE_OUT_OF_MEMORY:
       return "Out of memory";
     default:
@@ -326,7 +330,7 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
   // set json NULL data
   uint8_t jsonNULL = TSDB_DATA_TYPE_NULL;
   int     jsonIndex = startColId + 1;
-  if (!json || strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
+  if (!json || strtrim((char*)json) == 0 ||strcasecmp(json, TSDB_DATA_NULL_STR_L) == 0) {
     tdAddColToKVRow(kvRowBuilder, jsonIndex, &jsonNULL, CHAR_BYTES);
     return TSDB_CODE_SUCCESS;
   }
@@ -358,12 +362,12 @@ int parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* p
       retCode = buildSyntaxErrMsg(pMsgBuf, "json key not validate", jsonKey);
       goto end;
     }
-    //    if(strlen(jsonKey) > TSDB_MAX_JSON_KEY_LEN){
-    //      tscError("json key too long error");
-    //      retCode =  tscSQLSyntaxErrMsg(errMsg, "json key too long, more than 256", NULL);
-    //      goto end;
-    //    }
     size_t keyLen = strlen(jsonKey);
+    if(keyLen > TSDB_MAX_JSON_KEY_LEN){
+      qError("json key too long error");
+      retCode =  buildSyntaxErrMsg(pMsgBuf, "json key too long, more than 256", jsonKey);
+      goto end;
+    }
     if (keyLen == 0 || taosHashGet(keyHash, jsonKey, keyLen) != NULL) {
       continue;
     }

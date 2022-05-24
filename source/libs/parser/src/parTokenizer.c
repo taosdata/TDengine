@@ -704,6 +704,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
 
   if (t0.type == TK_NK_SEMI) {
     t0.n = 0;
+    t0.type = 0;
     return t0;
   }
 
