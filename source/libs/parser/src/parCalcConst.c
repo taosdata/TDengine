@@ -189,11 +189,18 @@ static int32_t calcConstProject(SNode* pProject, SNode** pNew) {
   return code;
 }
 
-static int32_t calcConstProjections(SCalcConstContext* pCxt, SNodeList* pProjections, bool subquery) {
+static bool isUselessCol(bool hasSelectValFunc, SExprNode* pProj) {
+  if (hasSelectValFunc && QUERY_NODE_FUNCTION == nodeType(pProj) && fmIsSelectFunc(((SFunctionNode*)pProj)->funcId)) {
+    return false;
+  }
+  return NULL == ((SExprNode*)pProj)->pAssociation;
+}
+
+static int32_t calcConstProjections(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
   SNode* pProj = NULL;
-  WHERE_EACH(pProj, pProjections) {
-    if (subquery && NULL == ((SExprNode*)pProj)->pAssociation) {
-      ERASE_NODE(pProjections);
+  WHERE_EACH(pProj, pSelect->pProjectionList) {
+    if (subquery && isUselessCol(pSelect->hasSelectValFunc, (SExprNode*)pProj)) {
+      ERASE_NODE(pSelect->pProjectionList);
       continue;
     }
     SNode*  pNew = NULL;
@@ -226,7 +233,7 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
-  int32_t code = calcConstProjections(pCxt, pSelect->pProjectionList, subquery);
+  int32_t code = calcConstProjections(pCxt, pSelect, subquery);
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstFromTable(pCxt, pSelect);
   }
