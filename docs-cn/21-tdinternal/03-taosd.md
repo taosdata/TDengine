@@ -9,7 +9,7 @@ title: taosd的设计
 
 taosd 包含 rpc，dnode，vnode，tsdb，query，cq，sync，wal，mnode，http，monitor 等模块，具体如下图：
 
-![modules.png](/img/architecture/modules.png)
+![modules.png](./modules.png)
 
 taosd 的启动入口是 dnode 模块，dnode 然后启动其他模块，包括可选配置的 http，monitor 模块。taosc 或 dnode 之间交互的消息都是通过 rpc 模块进行，dnode 模块根据接收到的消息类型，将消息分发到 vnode 或 mnode 的消息队列，或由 dnode 模块自己消费。dnode 的工作线程（worker）消费消息队列里的消息，交给 mnode 或 vnode 进行处理。下面对各个模块做简要说明。
 
@@ -44,13 +44,13 @@ RPC 模块还提供数据压缩功能，如果数据包的字节数超过系统�
 
 taosd 的消息消费由 dnode 通过读写线程池进行控制，是系统的中枢。该模块内的结构体图如下：
 
-![dnode.png](/img/architecture/dnode.png)
+![dnode.png](./dnode.png)
 
 ## VNODE 模块
 
 vnode 是一独立的数据存储查询逻辑单元，但因为一个 vnode 只能容许一个 DB ，因此 vnode 内部没有 account，DB，user 等概念。为实现更好的模块化、封装以及未来的扩展，它有很多子模块，包括负责存储的 TSDB，负责查询的 query，负责数据复制的 sync，负责数据库日志的的 WAL，负责连续查询的 cq（continuous query），负责事件触发的流计算的 event 等模块，这些子模块只与 vnode 模块发生关系，与其他模块没有任何调用关系。模块图如下：
 
-![vnode.png](/img/architecture/vnode.png)
+![vnode.png](./vnode.png)
 
 vnode 模块向下，与 dnodeVRead，dnodeVWrite 发生互动，向上，与子模块发生互动。它主要的功能有：
 
