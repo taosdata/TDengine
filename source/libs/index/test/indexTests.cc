@@ -279,7 +279,7 @@ static void initLog() {
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
-  sDebugFlag = 143;
+  idxDebugFlag = 143;
   strcpy(tsLogDir, logDir.c_str());
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);
@@ -387,7 +387,7 @@ class TFileObj {
     std::string path(path_);
     int         colId = 2;
     char        buf[64] = {0};
-    sprintf(buf, "%" PRIu64 "-%d-%d.tindex", header.suid, colId_, header.version);
+    sprintf(buf, "%" PRIu64 "-%d-%" PRId64 ".tindex", header.suid, colId_, header.version);
     path.append("/").append(buf);
 
     fileName_ = path;

@@ -54,9 +54,9 @@ static SArray* tfileGetFileList(const char* path);
 static int     tfileRmExpireFile(SArray* result);
 static void    tfileDestroyFileName(void* elem);
 static int     tfileCompare(const void* a, const void* b);
-static int     tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version);
-static void    tfileGenFileName(char* filename, uint64_t suid, const char* col, int version);
-static void    tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int32_t version);
+static int     tfileParseFileName(const char* filename, uint64_t* suid, char* col, int64_t* version);
+static void    tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version);
+static void    tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int64_t version);
 /*
  * search from  tfile
  */
@@ -509,7 +509,7 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResul
   return ret;
 }
 
-TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t colType) {
+TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* colName, uint8_t colType) {
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
   // indexInfo("open write file name %s", fullname);
@@ -526,7 +526,7 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const c
 
   return tfileWriterCreate(wcx, &tfh);
 }
-TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const char* colName) {
+TFileReader* tfileReaderOpen(char* path, uint64_t suid, int64_t version, const char* colName) {
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
@@ -1019,7 +1019,7 @@ void tfileReaderUnRef(TFileReader* reader) {
 static SArray* tfileGetFileList(const char* path) {
   char     buf[128] = {0};
   uint64_t suid;
-  uint32_t version;
+  int64_t  version;
   SArray*  files = taosArrayInit(4, sizeof(void*));
 
   TdDirPtr pDir = taosOpenDir(path);
@@ -1059,19 +1059,19 @@ static int tfileCompare(const void* a, const void* b) {
   return strcmp(as, bs);
 }
 
-static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version) {
-  if (3 == sscanf(filename, "%" PRIu64 "-%[^-]-%d.tindex", suid, col, version)) {
+static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, int64_t* version) {
+  if (3 == sscanf(filename, "%" PRIu64 "-%[^-]-%" PRId64 ".tindex", suid, col, version)) {
     // read suid & colid & version  success
     return 0;
   }
   return -1;
 }
 // tfile name suid-colId-version.tindex
-static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int version) {
-  sprintf(filename, "%" PRIu64 "-%s-%d.tindex", suid, col, version);
+static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version) {
+  sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version);
   return;
 }
-static void tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int32_t version) {
+static void tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int64_t version) {
   char filename[128] = {0};
   tfileGenFileName(filename, suid, col, version);
   sprintf(fullname, "%s/%s", path, filename);

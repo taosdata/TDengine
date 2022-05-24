@@ -923,7 +923,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    tError("invalid ip/port, reason: %s", terrstr());
+    tError("invalid ip/port, %d:%d, reason: %s", srv->ip, srv->port, terrstr());
     goto End;
   }
   if (false == addHandleToAcceptloop(srv)) {

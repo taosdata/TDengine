@@ -567,7 +567,7 @@ static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
 
   if (rd != NULL) {
     ver += MAX(ver, rd->header.version) + 1;
-    indexInfo("header: %d, ver: %" PRId64 "", rd->header.version, ver);
+    indexInfo("header: %" PRId64 ", ver: %" PRId64 "", rd->header.version, ver);
   }
   return ver;
 }

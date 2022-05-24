@@ -79,9 +79,10 @@ uint16_t tsTelemPort = 80;
 
 // schemaless
 char tsSmlTagName[TSDB_COL_NAME_LEN] = "_tag_null";
-char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = ""; //user defined child table name can be specified in tag value.
-                                                     //If set to empty system will generate table name using MD5 hash.
-bool tsSmlDataFormat = true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
+char tsSmlChildTableName[TSDB_TABLE_NAME_LEN] = "";  // user defined child table name can be specified in tag value.
+                                                     // If set to empty system will generate table name using MD5 hash.
+bool tsSmlDataFormat =
+    true;  // true means that the name and order of cols in each line are the same(only for influx protocol)
 
 // query
 int32_t tsQueryPolicy = 1;
@@ -302,6 +303,7 @@ static int32_t taosAddServerLogCfg(SConfig *pCfg) {
   if (cfgAddInt32(pCfg, "qDebugFlag", qDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "wDebugFlag", wDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "sDebugFlag", sDebugFlag, 0, 255, 0) != 0) return -1;
+  if (cfgAddInt32(pCfg, "idxDebugFlag", idxDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "tsdbDebugFlag", tsdbDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "tqDebugFlag", tqDebugFlag, 0, 255, 0) != 0) return -1;
   if (cfgAddInt32(pCfg, "fsDebugFlag", fsDebugFlag, 0, 255, 0) != 0) return -1;
@@ -479,6 +481,7 @@ static void taosSetClientLogCfg(SConfig *pCfg) {
   rpcDebugFlag = cfgGetItem(pCfg, "rpcDebugFlag")->i32;
   tmrDebugFlag = cfgGetItem(pCfg, "tmrDebugFlag")->i32;
   jniDebugFlag = cfgGetItem(pCfg, "jniDebugFlag")->i32;
+  idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
 }
 
 static void taosSetServerLogCfg(SConfig *pCfg) {
@@ -493,6 +496,7 @@ static void taosSetServerLogCfg(SConfig *pCfg) {
   fsDebugFlag = cfgGetItem(pCfg, "fsDebugFlag")->i32;
   fnDebugFlag = cfgGetItem(pCfg, "fnDebugFlag")->i32;
   smaDebugFlag = cfgGetItem(pCfg, "smaDebugFlag")->i32;
+  idxDebugFlag = cfgGetItem(pCfg, "idxDebugFlag")->i32;
 }
 
 static int32_t taosSetClientCfg(SConfig *pCfg) {
