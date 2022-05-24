@@ -381,6 +381,35 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
 
+      // basic analyze output
+      if (EXPLAIN_MODE_ANALYZE == ctx->mode) {
+        EXPLAIN_ROW_NEW(level + 1, "I/O: ");
+
+        int32_t nodeNum = taosArrayGetSize(pResNode->pExecInfo);
+        for (int32_t i = 0; i < nodeNum; ++i) {
+          SExplainExecInfo *     execInfo = taosArrayGet(pResNode->pExecInfo, i);
+          STableScanAnalyzeInfo *pScanInfo = (STableScanAnalyzeInfo *)execInfo->verboseInfo;
+
+          EXPLAIN_ROW_APPEND("total_blocks=%d", pScanInfo->totalBlocks);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+          EXPLAIN_ROW_APPEND("load_blocks=%d", pScanInfo->loadBlocks);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+          EXPLAIN_ROW_APPEND("load_block_SMAs=%d", pScanInfo->loadBlockStatis);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+          EXPLAIN_ROW_APPEND("total_rows=%" PRIu64, pScanInfo->totalRows);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+
+          EXPLAIN_ROW_APPEND("check_rows=%" PRIu64, pScanInfo->totalCheckedRows);
+          EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
+        }
+
+        EXPLAIN_ROW_END();
+        QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
+      }
+
       if (verbose) {
         EXPLAIN_ROW_NEW(level + 1, EXPLAIN_OUTPUT_FORMAT);
         EXPLAIN_ROW_APPEND(EXPLAIN_COLUMNS_FORMAT,
@@ -390,8 +419,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
-        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT, pTblScanNode->scanRange.skey,
-                        pTblScanNode->scanRange.ekey);
+        EXPLAIN_ROW_NEW(level + 1, EXPLAIN_TIMERANGE_FORMAT, pTblScanNode->scanRange.skey, pTblScanNode->scanRange.ekey);
         EXPLAIN_ROW_END();
         QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level + 1));
 
@@ -637,6 +665,7 @@ int32_t qExplainResNodeToRowsImpl(SExplainResNode *pResNode, SExplainCtx *ctx, i
       EXPLAIN_ROW_APPEND(EXPLAIN_FUNCTIONS_FORMAT, pIntNode->window.pFuncs->length);
       EXPLAIN_ROW_APPEND(EXPLAIN_BLANK_FORMAT);
       EXPLAIN_ROW_APPEND(EXPLAIN_WIDTH_FORMAT, pIntNode->window.node.pOutputDataBlockDesc->totalRowSize);
+      EXPLAIN_ROW_APPEND(EXPLAIN_RIGHT_PARENTHESIS_FORMAT);
       EXPLAIN_ROW_END();
       QRY_ERR_RET(qExplainResAppendRow(ctx, tbuf, tlen, level));
 

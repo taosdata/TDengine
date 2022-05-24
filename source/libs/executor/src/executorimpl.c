@@ -125,6 +125,8 @@ static void destroySysTableScannerOperatorInfo(void* param, int32_t numOfOutput)
 
 void doSetOperatorCompleted(SOperatorInfo* pOperator) {
   pOperator->status = OP_EXEC_DONE;
+
+  pOperator->cost.totalCost = (taosGetTimestampUs() - pOperator->pTaskInfo->cost.start * 1000)/1000.0;
   if (pOperator->pTaskInfo != NULL) {
     setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
   }
@@ -138,7 +140,7 @@ int32_t operatorDummyOpenFn(SOperatorInfo* pOperator) {
 
 SOperatorFpSet createOperatorFpSet(__optr_open_fn_t openFn, __optr_fn_t nextFn, __optr_fn_t streamFn,
                                    __optr_fn_t cleanup, __optr_close_fn_t closeFn, __optr_encode_fn_t encode,
-                                   __optr_decode_fn_t decode, __optr_get_explain_fn_t explain) {
+                                   __optr_decode_fn_t decode, __optr_explain_fn_t explain) {
   SOperatorFpSet fpSet = {
       ._openFn = openFn,
       .getNextFn = nextFn,
@@ -2136,102 +2138,6 @@ int32_t doFillTimeIntervalGapsInResults(struct SFillInfo* pFillInfo, SSDataBlock
   return pBlock->info.rows;
 }
 
-void publishOperatorProfEvent(SOperatorInfo* pOperator, EQueryProfEventType eventType) {
-  SQueryProfEvent event = {0};
-
-  event.eventType = eventType;
-  event.eventTime = taosGetTimestampUs();
-  event.operatorType = pOperator->operatorType;
-  //    if (pQInfo->summary.queryProfEvents) {
-  //      taosArrayPush(pQInfo->summary.queryProfEvents, &event);
-  //    }
-}
-
-void publishQueryAbortEvent(SExecTaskInfo* pTaskInfo, int32_t code) {
-  SQueryProfEvent event;
-  event.eventType = QUERY_PROF_QUERY_ABORT;
-  event.eventTime = taosGetTimestampUs();
-  event.abortCode = code;
-
-  if (pTaskInfo->cost.queryProfEvents) {
-    taosArrayPush(pTaskInfo->cost.queryProfEvents, &event);
-  }
-}
-
-typedef struct {
-  uint8_t operatorType;
-  int64_t beginTime;
-  int64_t endTime;
-  int64_t selfTime;
-  int64_t descendantsTime;
-} SOperatorStackItem;
-
-static void doOperatorExecProfOnce(SOperatorStackItem* item, SQueryProfEvent* event, SArray* opStack,
-                                   SHashObj* profResults) {
-  item->endTime = event->eventTime;
-  item->selfTime = (item->endTime - item->beginTime) - (item->descendantsTime);
-
-  for (int32_t j = 0; j < taosArrayGetSize(opStack); ++j) {
-    SOperatorStackItem* ancestor = taosArrayGet(opStack, j);
-    ancestor->descendantsTime += item->selfTime;
-  }
-
-  uint8_t              operatorType = item->operatorType;
-  SOperatorProfResult* result = taosHashGet(profResults, &operatorType, sizeof(operatorType));
-  if (result != NULL) {
-    result->sumRunTimes++;
-    result->sumSelfTime += item->selfTime;
-  } else {
-    SOperatorProfResult opResult;
-    opResult.operatorType = operatorType;
-    opResult.sumSelfTime = item->selfTime;
-    opResult.sumRunTimes = 1;
-    taosHashPut(profResults, &(operatorType), sizeof(operatorType), &opResult, sizeof(opResult));
-  }
-}
-
-void calculateOperatorProfResults(void) {
-  //  if (pQInfo->summary.queryProfEvents == NULL) {
-  //    // qDebug("QInfo:0x%"PRIx64" query prof events array is null", pQInfo->qId);
-  //    return;
-  //  }
-  //
-  //  if (pQInfo->summary.operatorProfResults == NULL) {
-  //    // qDebug("QInfo:0x%"PRIx64" operator prof results hash is null", pQInfo->qId);
-  //    return;
-  //  }
-
-  SArray* opStack = taosArrayInit(32, sizeof(SOperatorStackItem));
-  if (opStack == NULL) {
-    return;
-  }
-#if 0
-  size_t    size = taosArrayGetSize(pQInfo->summary.queryProfEvents);
-  SHashObj* profResults = pQInfo->summary.operatorProfResults;
-
-  for (int i = 0; i < size; ++i) {
-    SQueryProfEvent* event = taosArrayGet(pQInfo->summary.queryProfEvents, i);
-    if (event->eventType == QUERY_PROF_BEFORE_OPERATOR_EXEC) {
-      SOperatorStackItem opItem;
-      opItem.operatorType = event->operatorType;
-      opItem.beginTime = event->eventTime;
-      opItem.descendantsTime = 0;
-      taosArrayPush(opStack, &opItem);
-    } else if (event->eventType == QUERY_PROF_AFTER_OPERATOR_EXEC) {
-      SOperatorStackItem* item = taosArrayPop(opStack);
-      assert(item->operatorType == event->operatorType);
-      doOperatorExecProfOnce(item, event, opStack, profResults);
-    } else if (event->eventType == QUERY_PROF_QUERY_ABORT) {
-      SOperatorStackItem* item;
-      while ((item = taosArrayPop(opStack)) != NULL) {
-        doOperatorExecProfOnce(item, event, opStack, profResults);
-      }
-    }
-  }
-#endif
-  taosArrayDestroy(opStack);
-}
-
 void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   STaskCostInfo* pSummary = &pTaskInfo->cost;
 
@@ -2264,15 +2170,6 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo) {
   // qDebug("QInfo:0x%"PRIx64" :cost summary: winResPool size:%.2f Kb, numOfWin:%"PRId64", tableInfoSize:%.2f Kb,
   // hashTable:%.2f Kb", pQInfo->qId, pSummary->winInfoSize/1024.0,
   //      pSummary->numOfTimeWindows, pSummary->tableInfoSize/1024.0, pSummary->hashSize/1024.0);
-
-  if (pSummary->operatorProfResults) {
-    SOperatorProfResult* opRes = taosHashIterate(pSummary->operatorProfResults, NULL);
-    while (opRes != NULL) {
-      // qDebug("QInfo:0x%" PRIx64 " :cost summary: operator : %d, exec times: %" PRId64 ", self time: %" PRId64,
-      //             pQInfo->qId, opRes->operatorType, opRes->sumRunTimes, opRes->sumSelfTime);
-      opRes = taosHashIterate(pSummary->operatorProfResults, opRes);
-    }
-  }
 }
 
 // static void updateOffsetVal(STaskRuntimeEnv *pRuntimeEnv, SDataBlockInfo *pBlockInfo) {
@@ -3523,14 +3420,13 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   SOptrBasicInfo* pInfo = &pAggInfo->binfo;
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
+  int64_t st = taosGetTimestampUs();
+
   int32_t order = TSDB_ORDER_ASC;
   int32_t scanFlag = MAIN_SCAN;
 
   while (1) {
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
     if (pBlock == NULL) {
       break;
     }
@@ -3576,6 +3472,8 @@ static int32_t doOpenAggregateOptr(SOperatorInfo* pOperator) {
   closeAllResultRows(&pAggInfo->binfo.resultRowInfo);
   initGroupedResultInfo(&pAggInfo->groupResInfo, pAggInfo->aggSup.pResultRowHashTable, 0);
   OPTR_SET_OPENED(pOperator);
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - st)/1000.0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -3590,6 +3488,7 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
   pTaskInfo->code = pOperator->fpSet._openFn(pOperator);
   if (pTaskInfo->code != TSDB_CODE_SUCCESS) {
+    doSetOperatorCompleted(pOperator);
     return NULL;
   }
 
@@ -3599,7 +3498,10 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
     doSetOperatorCompleted(pOperator);
   }
 
-  return (blockDataGetNumOfRows(pInfo->pRes) != 0) ? pInfo->pRes : NULL;
+  size_t rows = blockDataGetNumOfRows(pInfo->pRes);//pInfo->pRes : NULL;
+  pOperator->resultInfo.totalRows += rows;
+
+  return (rows == 0)? NULL:pInfo->pRes;
 }
 
 void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasicInfo* pInfo, char** result,
@@ -3825,22 +3727,25 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
   }
 #endif
 
+  int64_t st = 0;
   int32_t order = 0;
   int32_t scanFlag = 0;
+
+  if (pOperator->cost.openCost == 0) {
+    st = taosGetTimestampUs();
+  }
 
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
     // The downstream exec may change the value of the newgroup, so use a local variable instead.
-    publishOperatorProfEvent(downstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = downstream->fpSet.getNextFn(downstream);
-    publishOperatorProfEvent(downstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
     if (pBlock == NULL) {
-      setTaskStatus(pOperator->pTaskInfo, TASK_COMPLETED);
+      doSetOperatorCompleted(pOperator);
       break;
     }
 
+#if 0
     // Return result of the previous group in the firstly.
     if (false) {
       if (pRes->info.rows > 0) {
@@ -3850,6 +3755,7 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
         initCtxOutputBuffer(pInfo->pCtx, pOperator->numOfExprs);
       }
     }
+#endif
 
     // the pDataBlock are always the same one, no need to call this again
     int32_t code = getTableScanInfo(pOperator->pDownstream[0], &order, &scanFlag);
@@ -3875,8 +3781,14 @@ static SSDataBlock* doProjectOperation(SOperatorInfo* pOperator) {
 
   pProjectInfo->curOutput += pInfo->pRes->info.rows;
 
-  //  copyTsColoum(pRes, pInfo->pCtx, pOperator->numOfExprs);
-  return (pInfo->pRes->info.rows > 0) ? pInfo->pRes : NULL;
+  size_t rows = pInfo->pRes->info.rows;
+  pOperator->resultInfo.totalRows += rows;
+
+  if (pOperator->cost.openCost == 0) {
+    pOperator->cost.openCost = (taosGetTimestampUs() - st)/ 1000.0;
+  }
+
+  return (rows > 0)? pInfo->pRes:NULL;
 }
 
 static void doHandleRemainBlockForNewGroupImpl(SFillOperatorInfo* pInfo, SResultInfo* pResultInfo, bool* newgroup,
@@ -3933,10 +3845,7 @@ static SSDataBlock* doFill(SOperatorInfo* pOperator) {
 
   SOperatorInfo* pDownstream = pOperator->pDownstream[0];
   while (1) {
-    publishOperatorProfEvent(pDownstream, QUERY_PROF_BEFORE_OPERATOR_EXEC);
     SSDataBlock* pBlock = pDownstream->fpSet.getNextFn(pDownstream);
-    publishOperatorProfEvent(pDownstream, QUERY_PROF_AFTER_OPERATOR_EXEC);
-
     if (*newgroup) {
       assert(pBlock != NULL);
     }
@@ -5213,16 +5122,21 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
     }
   }
 
-  (*pRes)[*resNum].numOfRows = operatorInfo->resultInfo.totalRows;
-  (*pRes)[*resNum].startupCost = operatorInfo->cost.openCost;
-  (*pRes)[*resNum].totalCost = operatorInfo->cost.totalCost;
+  SExplainExecInfo* pInfo = &(*pRes)[*resNum];
+
+  pInfo->numOfRows = operatorInfo->resultInfo.totalRows;
+  pInfo->startupCost = operatorInfo->cost.openCost;
+  pInfo->totalCost = operatorInfo->cost.totalCost;
 
   if (operatorInfo->fpSet.getExplainFn) {
-    int32_t code = (*operatorInfo->fpSet.getExplainFn)(operatorInfo, &(*pRes)->verboseInfo);
+    int32_t code = operatorInfo->fpSet.getExplainFn(operatorInfo, &pInfo->verboseInfo, &pInfo->verboseLen);
     if (code) {
-      qError("operator getExplainFn failed, error:%s", tstrerror(code));
+      qError("%s operator getExplainFn failed, code:%s", GET_TASKID(operatorInfo->pTaskInfo), tstrerror(code));
       return code;
     }
+  } else {
+    pInfo->verboseLen = 0;
+    pInfo->verboseInfo = NULL;
   }
 
   ++(*resNum);

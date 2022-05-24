@@ -253,8 +253,11 @@ static int32_t loadDataBlock(SOperatorInfo* pOperator, STableScanInfo* pTableSca
     addTagPseudoColumnData(pTableScanInfo, pBlock);
   }
 
-  // todo record the filter time cost
+  int64_t st = taosGetTimestampMs();
   doFilter(pTableScanInfo->pFilterNode, pBlock, pTableScanInfo->pColMatchInfo);
+
+  int64_t et = taosGetTimestampMs();
+  pTableScanInfo->readRecorder.filterTime += (et - st);
 
   if (pBlock->info.rows == 0) {
     pCost->filterOutBlocks += 1;
@@ -347,6 +350,8 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
   STableScanInfo* pTableScanInfo = pOperator->info;
   SSDataBlock*    pBlock = pTableScanInfo->pResBlock;
 
+  int64_t st = taosGetTimestampUs();
+
   while (tsdbNextDataBlock(pTableScanInfo->dataReader)) {
     if (isTaskKilled(pOperator->pTaskInfo)) {
       longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_QUERY_CANCELLED);
@@ -366,6 +371,10 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       continue;
     }
 
+    pOperator->resultInfo.totalRows = pTableScanInfo->readRecorder.totalRows;
+    pTableScanInfo->readRecorder.elapsedTime += (taosGetTimestampUs() - st)/1000.0;
+
+    pOperator->cost.totalCost = pTableScanInfo->readRecorder.elapsedTime;
     return pBlock;
   }
 
@@ -452,6 +461,15 @@ SInterval extractIntervalInfo(const STableScanPhysiNode* pTableScanNode) {
   return interval;
 }
 
+static int32_t getTableScannerExecInfo(struct SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
+  SFileBlockLoadRecorder* pRecorder = taosMemoryCalloc(1, sizeof(SFileBlockLoadRecorder));
+  STableScanInfo* pTableScanInfo = pOptr->info;
+  *pRecorder = pTableScanInfo->readRecorder;
+  *pOptrExplain = pRecorder;
+  *len = sizeof(SFileBlockLoadRecorder);
+  return 0;
+}
+
 static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   STableScanInfo* pTableScanInfo = (STableScanInfo*)param;
   taosMemoryFree(pTableScanInfo->pResBlock);
@@ -509,14 +527,10 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->numOfExprs   = numOfCols;
   pOperator->pTaskInfo    = pTaskInfo;
 
-  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo, NULL, NULL, NULL);
-
-  static int32_t cost = 0;
+  pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo, NULL, NULL, getTableScannerExecInfo);
 
   // for non-blocking operator, the open cost is always 0
   pOperator->cost.openCost = 0;
-  pOperator->cost.totalCost = ++cost;
-  pOperator->resultInfo.totalRows = ++cost;
 
   return pOperator;
 }
@@ -1603,18 +1617,20 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         STR_TO_VARSTR(str, mr.me.name);
         colDataAppend(pDst, count, str, false);
       } else { // it is a tag value
-        if(pDst->info.type == TSDB_DATA_TYPE_JSON){
-          const uint8_t *tmp = mr.me.ctbEntry.pTags;
-          char *data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
-          if(data == NULL){
-            qError("doTagScan calloc error:%d", kvRowLen(tmp) + 1);
-            return NULL;
+        if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
+          const uint8_t* tmp = mr.me.ctbEntry.pTags;
+          // TODO opt perf by realloc memory
+          char* data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+          if (data == NULL) {
+            qError("%s failed to malloc memory, size:%d", GET_TASKID(pTaskInfo), kvRowLen(tmp) + 1);
+            longjmp(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
           }
+
           *data = TSDB_DATA_TYPE_JSON;
-          memcpy(data+1, tmp, kvRowLen(tmp));
+          memcpy(data + 1, tmp, kvRowLen(tmp));
           colDataAppend(pDst, count, data, false);
           taosMemoryFree(data);
-        }else{
+        } else {
           const char* p = metaGetTableTagVal(&mr.me, pExprInfo[j].base.pParam[0].pCol->colId);
           colDataAppend(pDst, count, p, (p == NULL));
         }
