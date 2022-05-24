@@ -960,6 +960,8 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
 
   syncIndexMgrUpdate(pSyncNode->pNextIndex, pSyncNode);
   syncIndexMgrUpdate(pSyncNode->pMatchIndex, pSyncNode);
+  voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
+  votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
   syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
 }
