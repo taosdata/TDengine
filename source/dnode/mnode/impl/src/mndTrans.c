@@ -681,6 +681,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
+  sdbFreeRaw(pRaw);
   mDebug("trans:%d, sync finished", pTrans->id);
   return 0;
 }
