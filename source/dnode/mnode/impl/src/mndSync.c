@@ -121,7 +121,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
   pCfg->myIndex = pMnode->selfIndex;
-  mInfo("start to open mnode sync, replica:%d myIndex:%d", pCfg->replicaNum, pCfg->myIndex);
+  mInfo("start to open mnode sync, replica:%d myIndex:%d standBy:%d", pCfg->replicaNum, pCfg->myIndex,
+        pMgmt->isStandBy);
   for (int32_t i = 0; i < pMnode->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
@@ -201,7 +202,7 @@ bool mndIsMaster(SMnode *pMnode) {
 
 int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   SSyncCfg cfg = {.replicaNum = pOption->replica, .myIndex = pOption->selfIndex};
-  mInfo("start to alter mnode sync, replica:%d myIndex:%d", cfg.replicaNum, cfg.myIndex);
+  mInfo("start to alter mnode sync, replica:%d myIndex:%d standBy:%d", cfg.replicaNum, cfg.myIndex, pOption->isStandBy);
   for (int32_t i = 0; i < pOption->replica; ++i) {
     SNodeInfo *pNode = &cfg.nodeInfo[i];
     tstrncpy(pNode->nodeFqdn, pOption->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
@@ -210,5 +211,6 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   }
 
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  pMgmt->isStandBy = pOption->isStandBy;
   return syncReconfig(pMgmt->sync, &cfg);
 }

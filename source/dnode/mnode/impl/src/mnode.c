@@ -263,6 +263,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
   pMnode->selfId = pOption->replicas[pOption->selfIndex].id;
+  pMnode->syncMgmt.isStandBy = pOption->isStandBy;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
