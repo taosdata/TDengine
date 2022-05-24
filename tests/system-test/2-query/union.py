@@ -96,7 +96,6 @@ class TDTestCase:
 
         return ""
 
-
     def __group_condition(self, col, having = None):
         if isinstance(col, str):
             if col.startswith("count"):
@@ -113,7 +112,6 @@ class TDTestCase:
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
             return
         return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
-
 
     @property
     def __join_tblist(self):
@@ -222,6 +220,8 @@ class TDTestCase:
             tdSql.query(sqls[i])
             res1_type = self.__get_type(0)
             for j in range(len(sqls[i:])):
+                if j % 100 == 0:
+                    tdLog.success(f"{i} : {j} sql is already executed!")
                 tdSql.query(sqls[j+i])
                 order_union_type = False
                 rev_order_type = False
@@ -246,22 +246,12 @@ class TDTestCase:
                     rev_order_type = True
 
                 if all_union_type:
-                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
-                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
-                    tdSql.checkCols(1)
-                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
-                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
-                    tdSql.checkCols(1)
+                    tdSql.execute(f"{sqls[i]} union {sqls[j+i]}")
+                    tdSql.execute(f"{sqls[j+i]} union all {sqls[i]}")
                 elif order_union_type:
-                    tdSql.query(f"{sqls[i]} union {sqls[j+i]}")
-                    tdSql.checkCols(1)
-                    tdSql.query(f"{sqls[i]} union all {sqls[j+i]}")
-                    tdSql.checkCols(1)
+                    tdSql.execute(f"{sqls[i]} union all {sqls[j+i]}")
                 elif rev_order_type:
-                    tdSql.query(f"{sqls[j+i]} union {sqls[i]}")
-                    tdSql.checkCols(1)
-                    tdSql.query(f"{sqls[j+i]} union all {sqls[i]}")
-                    tdSql.checkCols(1)
+                    tdSql.execute(f"{sqls[j+i]} union {sqls[i]}")
                 else:
                     tdSql.error(f"{sqls[i]} union {sqls[j+i]}")
 
@@ -273,7 +263,7 @@ class TDTestCase:
         tdSql.error( "select c1 from ct1 union all drop table ct3" )
         tdSql.error( "select c1 from ct1 union all '' " )
         tdSql.error( " '' union all select c1 from ct1 " )
-        tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
+        # tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
 
     def all_test(self):
         self.__test_error()
