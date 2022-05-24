@@ -22,17 +22,15 @@ int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
 void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SMnode    *pMnode = pFsm->data;
-  SSdb      *pSdb = pMnode->pSdb;
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  SSdbRaw   *pRaw = pMsg->pCont;
+  SMnode  *pMnode = pFsm->data;
+  SSdbRaw *pRaw = pMsg->pCont;
 
   mTrace("raw:%p, apply to sdb, ver:%" PRId64 " role:%s", pRaw, cbMeta.index, syncStr(cbMeta.state));
-  sdbWriteWithoutFree(pSdb, pRaw);
-  sdbSetApplyIndex(pSdb, cbMeta.index);
-  sdbSetApplyTerm(pSdb, cbMeta.term);
+  sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+  sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
+  sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);
   if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-    tsem_post(&pMgmt->syncSem);
+    tsem_post(&pMnode->syncMgmt.syncSem);
   }
 }
 
@@ -49,20 +47,15 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   pMnode->syncMgmt.restored = true;
 }
 
-void* mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* iter, char** ppBuf, int32_t* len) {
-  /*
-  SMnode *pMnode = pFsm->data;
-  SSdbIter *pIter;
-  if (iter == NULL) { 
-    pIter = sdbIterInit(pMnode->sdb)
-  } else {
-    pIter = iter;
-  }
-  pIter = sdbIterRead(pIter, ppBuf, len); 
-  return pIter;
-  */
+void *mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *snapshot, void *iter, char **ppBuf, int32_t *len) {
+  SMnode   *pMnode = pFsm->data;
+  SSdbIter *pIter = iter;
 
-  return NULL;
+  if (iter == NULL) {
+    pIter = sdbIterInit(pMnode->pSdb);
+  }
+
+  return sdbIterRead(pMnode->pSdb, pIter, ppBuf, len);
 }
 
 int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len) {
