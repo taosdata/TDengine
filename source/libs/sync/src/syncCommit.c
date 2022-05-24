@@ -139,8 +139,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           // restore finish
           if (pEntry->index == pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore)) {
             if (pSyncNode->restoreFinish == false) {
-              if (pSyncNode->pFsm->FpRestoreFinish != NULL) {
-                pSyncNode->pFsm->FpRestoreFinish(pSyncNode->pFsm);
+              if (pSyncNode->pFsm->FpRestoreFinishCb != NULL) {
+                pSyncNode->pFsm->FpRestoreFinishCb(pSyncNode->pFsm);
               }
               pSyncNode->restoreFinish = true;
               sInfo("==syncMaybeAdvanceCommitIndex== restoreFinish set true %p vgId:%d", pSyncNode, pSyncNode->vgId);

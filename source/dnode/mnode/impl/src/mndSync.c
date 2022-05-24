@@ -49,15 +49,46 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   pMnode->syncMgmt.restored = true;
 }
 
+void* mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* iter, char** ppBuf, int32_t* len) {
+  /*
+  SMnode *pMnode = pFsm->data;
+  SSdbIter *pIter;
+  if (iter == NULL) { 
+    pIter = sdbIterInit(pMnode->sdb)
+  } else {
+    pIter = iter;
+  }
+  pIter = sdbIterRead(pIter, ppBuf, len); 
+  return pIter;
+  */
+
+  return NULL;
+}
+
+int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len) {
+  SMnode *pMnode = pFsm->data;
+  sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
+  return 0;
+}
+  
+void mndReConfig(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
+
   pFsm->FpCommitCb = mndSyncCommitMsg;
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
+
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
-  pFsm->FpRestoreFinish = mndRestoreFinish;
-  pFsm->FpRestoreSnapshot = NULL;
+  pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpSnapshotRead = mndSnapshotRead;
+  pFsm->FpSnapshotApply = mndSnapshotApply;
+  pFsm->FpReConfigCb = mndReConfig;
+  
   return pFsm;
 }
 
