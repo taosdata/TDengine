@@ -643,13 +643,7 @@ class TDTestCase:
         self.prepare_data()
         self.create_udf_function()
         self.basic_udf_query()
-        self.loop_kill_udfd()
-        tdSql.execute(" drop function udf1 ")
-        tdSql.execute(" drop function udf2 ")
-        self.create_udf_function()
-        time.sleep(2)
-        self.basic_udf_query()
-        self.test_function_name()
+        self.unexpected_create()
         
 
     def stop(self):
