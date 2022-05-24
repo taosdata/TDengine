@@ -55,7 +55,7 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   pMnode->syncMgmt.restored = true;
 }
 
-void* mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* iter, char** ppBuf, int32_t* len) {
+int32_t mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf, int32_t* len) {
   /*
   SMnode *pMnode = pFsm->data;
   SSdbIter *pIter;
@@ -68,10 +68,10 @@ void* mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* it
   return pIter;
   */
 
-  return NULL;
+  return 0;
 }
 
-int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len) {
+int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len) {
   SMnode *pMnode = pFsm->data;
   sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
   return 0;
