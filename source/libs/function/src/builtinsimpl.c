@@ -28,11 +28,14 @@
 #define TAIL_MAX_POINTS_NUM      100
 #define TAIL_MAX_OFFSET          100
 
+#define UNIQUE_MAX_RESULT_SIZE (1024*1024*10)
+
 #define HLL_BUCKET_BITS 14 // The bits of the bucket
 #define HLL_DATA_BITS (64-HLL_BUCKET_BITS)
 #define HLL_BUCKETS (1<<HLL_BUCKET_BITS)
 #define HLL_BUCKET_MASK (HLL_BUCKETS-1)
 #define HLL_ALPHA_INF 0.721347520444481703680 // constant for 0.5/ln(2)
+
 
 typedef struct SSumRes {
   union {
@@ -197,6 +200,20 @@ typedef struct STailInfo {
   STailItem **pItems;
 } STailInfo;
 
+typedef struct SUniqueItem {
+  int64_t timestamp;
+  bool    isNull;
+  char    data[];
+} SUniqueItem;
+
+typedef struct SUniqueInfo {
+  int32_t   numOfPoints;
+  uint8_t   colType;
+  int16_t   colBytes;
+  SHashObj  *pHash;
+  char      pItems[];
+} SUniqueInfo;
+
 #define SET_VAL(_info, numOfElem, res) \
   do {                                 \
     if ((numOfElem) <= 0) {            \
@@ -215,6 +232,18 @@ typedef struct STailInfo {
       __ctx->fpSet.process(__ctx);                                 \
     }                                                              \
   } while (0);
+
+#define DO_UPDATE_SUBSID_RES(ctx, ts)                          \
+  do {                                                         \
+    for (int32_t _i = 0; _i < (ctx)->subsidiaries.num; ++_i) { \
+      SqlFunctionCtx* __ctx = (ctx)->subsidiaries.pCtx[_i];    \
+      if (__ctx->functionId == FUNCTION_TS_DUMMY) {            \
+        __ctx->tag.i = (ts);                                   \
+        __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;              \
+      }                                                        \
+      __ctx->fpSet.process(__ctx);                             \
+    }                                                          \
+  } while (0)
 
 #define UPDATE_DATA(ctx, left, right, num, sign, _ts) \
   do {                                                \
@@ -514,7 +543,7 @@ bool getSumFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
 }
 
 bool getAvgFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
-  pEnv->calcMemSize = sizeof(double);
+  pEnv->calcMemSize = sizeof(SAvgRes);
   return true;
 }
 
@@ -747,50 +776,6 @@ bool getMinmaxFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SMinmaxResInfo);
   return true;
 }
-
-#define GET_TS_LIST(x)    ((TSKEY*)((x)->ptsList))
-#define GET_TS_DATA(x, y) (GET_TS_LIST(x)[(y)])
-
-#define DO_UPDATE_TAG_COLUMNS_WITHOUT_TS(ctx)                      \
-  do {                                                             \
-    for (int32_t _i = 0; _i < (ctx)->tagInfo.numOfTagCols; ++_i) { \
-      SqlFunctionCtx* __ctx = (ctx)->tagInfo.pTagCtxList[_i];      \
-      __ctx->fpSet.process(__ctx);                                 \
-    }                                                              \
-  } while (0);
-
-#define DO_UPDATE_SUBSID_RES(ctx, ts)                          \
-  do {                                                         \
-    for (int32_t _i = 0; _i < (ctx)->subsidiaries.num; ++_i) { \
-      SqlFunctionCtx* __ctx = (ctx)->subsidiaries.pCtx[_i];    \
-      if (__ctx->functionId == FUNCTION_TS_DUMMY) {            \
-        __ctx->tag.i = (ts);                                   \
-        __ctx->tag.nType = TSDB_DATA_TYPE_BIGINT;              \
-      }                                                        \
-      __ctx->fpSet.process(__ctx);                             \
-    }                                                          \
-  } while (0)
-
-#define UPDATE_DATA(ctx, left, right, num, sign, _ts) \
-  do {                                                \
-    if (((left) < (right)) ^ (sign)) {                \
-      (left) = (right);                               \
-      DO_UPDATE_SUBSID_RES(ctx, _ts);                 \
-      (num) += 1;                                     \
-    }                                                 \
-  } while (0)
-
-#define LOOPCHECK_N(val, _col, ctx, _t, _nrow, _start, sign, num)        \
-  do {                                                                   \
-    _t* d = (_t*)((_col)->pData);                                        \
-    for (int32_t i = (_start); i < (_nrow) + (_start); ++i) {            \
-      if (((_col)->hasNull) && colDataIsNull_f((_col)->nullbitmap, i)) { \
-        continue;                                                        \
-      }                                                                  \
-      TSKEY ts = (ctx)->ptsList != NULL ? GET_TS_DATA(ctx, i) : 0;       \
-      UPDATE_DATA(ctx, val, d[i], num, sign, ts);                        \
-    }                                                                    \
-  } while (0)
 
 static void saveTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
 static void copyTupleData(SqlFunctionCtx* pCtx, int32_t rowIndex, const SSDataBlock* pSrcBlock, STuplePos* pPos);
@@ -2106,7 +2091,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     default:
       ASSERT(0);
   }
-  }
+}
 
 int32_t diffFunction(SqlFunctionCtx* pCtx) {
   SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
@@ -3581,3 +3566,92 @@ int32_t tailFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
   return pEntryInfo->numOfRes;
 }
+
+bool getUniqueFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
+  pEnv->calcMemSize = sizeof(SUniqueInfo) + UNIQUE_MAX_RESULT_SIZE;
+  return true;
+}
+
+bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
+  if (!functionSetup(pCtx, pResInfo)) {
+    return false;
+  }
+
+  SUniqueInfo* pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  pInfo->numOfPoints = 0;
+  pInfo->colType = pCtx->resDataInfo.type;
+  pInfo->colBytes = pCtx->resDataInfo.bytes;
+  if (pInfo->pHash != NULL) {
+    taosHashClear(pInfo->pHash);
+  } else {
+    pInfo->pHash = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+  }
+  return true;
+}
+
+static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
+  int32_t hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
+
+  SUniqueItem *pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
+  if (pHashItem == NULL) {
+    int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + pInfo->numOfPoints * size);
+    pItem->timestamp = ts;
+    memcpy(pItem->data, data, pInfo->colBytes);
+
+    taosHashPut(pInfo->pHash, data, hashKeyBytes, (char *)pItem, sizeof(SUniqueItem*));
+    pInfo->numOfPoints++;
+  } else if (pHashItem->timestamp > ts) {
+    pHashItem->timestamp = ts;
+  }
+
+}
+
+int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SUniqueInfo*         pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+
+  SInputColumnInfoData* pInput = &pCtx->input;
+  TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
+
+  SColumnInfoData* pInputCol = pInput->pData[0];
+  SColumnInfoData* pTsOutput = pCtx->pTsOutput;
+  SColumnInfoData* pOutput = (SColumnInfoData*)pCtx->pOutput;
+
+  int32_t startOffset = pCtx->offset;
+  for (int32_t i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; ++i) {
+    char* data = colDataGetData(pInputCol, i);
+    doUniqueAdd(pInfo, data, tsList[i], colDataIsNull_s(pInputCol, i));
+
+    if (sizeof(SUniqueInfo) + pInfo->numOfPoints * (sizeof(SUniqueItem) + pInfo->colBytes) >= UNIQUE_MAX_RESULT_SIZE) {
+      taosHashCleanup(pInfo->pHash);
+      return 0;
+    }
+  }
+
+  for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + i * (sizeof(SUniqueItem) + pInfo->colBytes));
+    colDataAppend(pOutput, i, pItem->data, false);
+    if (pTsOutput != NULL) {
+      colDataAppendInt64(pTsOutput, i, &pItem->timestamp);
+    }
+  }
+
+  return pInfo->numOfPoints;
+}
+
+int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+  SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
+  SUniqueInfo*    pInfo = GET_ROWCELL_INTERBUF(GET_RES_INFO(pCtx));
+  int32_t        slotId = pCtx->pExpr->base.resSchema.slotId;
+  SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
+
+  for (int32_t i = 0; i < pResInfo->numOfRes; ++i) {
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + i * (sizeof(SUniqueItem) + pInfo->colBytes));
+    colDataAppend(pCol, i, pItem->data, false);
+    //TODO: handle ts output
+  }
+
+  return pResInfo->numOfRes;
+}
+

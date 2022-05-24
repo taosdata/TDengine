@@ -182,6 +182,11 @@ int32_t sclCopyValueNodeValue(SValueNode *pNode, void **res) {
 
 int32_t sclInitParam(SNode* node, SScalarParam *param, SScalarCtx *ctx, int32_t *rowNum) {
   switch (nodeType(node)) {
+    case QUERY_NODE_LEFT_VALUE: {
+      SSDataBlock* pb = taosArrayGetP(ctx->pBlockList, 0);
+      param->numOfRows = pb->info.rows;
+      break;
+    }
     case QUERY_NODE_VALUE: {
       SValueNode *valueNode = (SValueNode *)node;
 
@@ -845,7 +850,7 @@ EDealRes sclWalkTarget(SNode* pNode, SScalarCtx *ctx) {
 }
 
 EDealRes sclCalcWalker(SNode* pNode, void* pContext) {
-  if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)) {
+  if (QUERY_NODE_VALUE == nodeType(pNode) || QUERY_NODE_NODE_LIST == nodeType(pNode) || QUERY_NODE_COLUMN == nodeType(pNode)|| QUERY_NODE_LEFT_VALUE == nodeType(pNode)) {
     return DEAL_RES_CONTINUE;
   }
 
@@ -899,7 +904,7 @@ int32_t scalarCalculate(SNode *pNode, SArray *pBlockList, SScalarParam *pDst) {
   }
 
   int32_t code = 0;
-  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst->param};
+  SScalarCtx ctx = {.code = 0, .pBlockList = pBlockList, .param = pDst ? pDst->param : NULL};
 
   // TODO: OPT performance
   ctx.pRes = taosHashInit(SCL_DEFAULT_OP_NUM, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);

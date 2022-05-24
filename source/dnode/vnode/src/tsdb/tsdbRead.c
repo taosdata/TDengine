@@ -425,6 +425,12 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
       rowLen += pCond->colList[i].bytes;
     }
 
+    // make sure the output SSDataBlock size be less than 2MB.
+    int32_t TWOMB = 2 * 1024 * 1024;
+    if (pReadHandle->outputCapacity * rowLen > TWOMB) {
+      pReadHandle->outputCapacity = TWOMB / rowLen;
+    }
+
     // allocate buffer in order to load data blocks from file
     pReadHandle->suppInfo.pstatis = taosMemoryCalloc(pCond->numOfCols, sizeof(SColumnDataAgg));
     if (pReadHandle->suppInfo.pstatis == NULL) {
@@ -1302,20 +1308,22 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
 
   if ((ascScan && (key != TSKEY_INITIAL_VAL && key <= binfo.window.ekey)) ||
       (!ascScan && (key != TSKEY_INITIAL_VAL && key >= binfo.window.skey))) {
-    if ((ascScan && (key != TSKEY_INITIAL_VAL && key < binfo.window.skey)) ||
-        (!ascScan && (key != TSKEY_INITIAL_VAL && key > binfo.window.ekey))) {
+
+    bool cacheDataInFileBlockHole = (ascScan && (key != TSKEY_INITIAL_VAL && key < binfo.window.skey)) ||
+                                    (!ascScan && (key != TSKEY_INITIAL_VAL && key > binfo.window.ekey));
+    if (cacheDataInFileBlockHole) {
       // do not load file block into buffer
       int32_t step = ascScan ? 1 : -1;
 
-      TSKEY maxKey =
-          ASCENDING_TRAVERSE(pTsdbReadHandle->order) ? (binfo.window.skey - step) : (binfo.window.ekey - step);
+      TSKEY maxKey = ascScan ? (binfo.window.skey - step) : (binfo.window.ekey - step);
       cur->rows =
           tsdbReadRowsFromCache(pCheckInfo, maxKey, pTsdbReadHandle->outputCapacity, &cur->win, pTsdbReadHandle);
       pTsdbReadHandle->realNumOfRows = cur->rows;
 
       // update the last key value
       pCheckInfo->lastKey = cur->win.ekey + step;
-      if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
+
+      if (!ascScan) {
         TSWAP(cur->win.skey, cur->win.ekey);
       }
 
@@ -1334,18 +1342,16 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
     /*
      * no data in cache, only load data from file
      * during the query processing, data in cache will not be checked anymore.
-     *
      * Here the buffer is not enough, so only part of file block can be loaded into memory buffer
      */
-    assert(pTsdbReadHandle->outputCapacity >= binfo.rows);
     int32_t endPos = getEndPosInDataBlock(pTsdbReadHandle, &binfo);
 
-    if ((cur->pos == 0 && endPos == binfo.rows - 1 && ascScan) ||
-        (cur->pos == (binfo.rows - 1) && endPos == 0 && (!ascScan))) {
+    bool wholeBlockReturned = ((abs(cur->pos - endPos) + 1) == binfo.rows);
+    if (wholeBlockReturned) {
       pTsdbReadHandle->realNumOfRows = binfo.rows;
 
       cur->rows = binfo.rows;
-      cur->win = binfo.window;
+      cur->win  = binfo.window;
       cur->mixBlock = false;
       cur->blockCompleted = true;
 
@@ -1356,12 +1362,24 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
         cur->lastKey = binfo.window.skey - 1;
         cur->pos = -1;
       }
-    } else {  // partially copy to dest buffer
+    } else { // partially copy to dest buffer
+      // make sure to only load once
+      bool firstTimeExtract = ((cur->pos == 0 && ascScan) || (cur->pos == binfo.rows -1 && (!ascScan)));
+      if (pTsdbReadHandle->outputCapacity < binfo.rows && firstTimeExtract) {
+        code = doLoadFileDataBlock(pTsdbReadHandle, pBlock, pCheckInfo, cur->slot);
+        if (code != TSDB_CODE_SUCCESS) {
+          return code;
+        }
+      }
+
       copyAllRemainRowsFromFileBlock(pTsdbReadHandle, pCheckInfo, &binfo, endPos);
       cur->mixBlock = true;
     }
 
-    assert(cur->blockCompleted);
+    if (pTsdbReadHandle->outputCapacity >= binfo.rows) {
+      ASSERT(cur->blockCompleted);
+    }
+
     if (cur->rows == binfo.rows) {
       tsdbDebug("%p whole file block qualified, brange:%" PRId64 "-%" PRId64 ", rows:%d, lastKey:%" PRId64 ", %s",
                 pTsdbReadHandle, cur->win.skey, cur->win.ekey, cur->rows, cur->lastKey, pTsdbReadHandle->idStr);
@@ -1620,9 +1638,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   int32_t numOfColsOfRow1 = 0;
 
   if (pSchema1 == NULL) {
-    // pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
-    // TODO: use the real schemaVersion
-    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
+    pSchema1 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row1));
   }
 
 #ifdef TD_DEBUG_PRINT_ROW
@@ -1639,9 +1655,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
   if (row2) {
     isRow2DataRow = TD_IS_TP_ROW(row2);
     if (pSchema2 == NULL) {
-      // pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
-      // TODO: use the real schemaVersion
-      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, 1);
+      pSchema2 = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), uid, TD_ROW_SVER(row2));
     }
     if (isRow2DataRow) {
       numOfColsOfRow2 = schemaNCols(pSchema2);
@@ -1714,6 +1728,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
+          *lastRowKey = rowKey;
           ++nResult;
         } else if (update) {
           mergeOption = 2;
@@ -1721,8 +1736,6 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           mergeOption = 0;
           break;
         }
-
-        *lastRowKey = rowKey;
       }
     } else {
       // TODO: use STSRowIter
@@ -1735,6 +1748,7 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           if (*lastRowKey != TSKEY_INITIAL_VAL) {
             ++(*curRow);
           }
+          *lastRowKey = rowKey;
           ++nResult;
         } else if (update) {
           mergeOption = 2;
@@ -1742,7 +1756,6 @@ static int32_t mergeTwoRowFromMem(STsdbReadHandle* pTsdbReadHandle, int32_t capa
           mergeOption = 0;
           break;
         }
-        *lastRowKey = rowKey;
       } else {
         SKvRowIdx* pColIdx = tdKvRowColIdxAt(row, chosen_itr - 1);
         colId = pColIdx->colId;
@@ -1858,15 +1871,14 @@ static void copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, STa
   SDataCols* pCols = pTsdbReadHandle->rhelper.pDCols[0];
   TSKEY*     tsArray = pCols->cols[0].pData;
 
-  int32_t step = ASCENDING_TRAVERSE(pTsdbReadHandle->order) ? 1 : -1;
-  int32_t numOfCols = (int32_t)(QH_GET_NUM_OF_COLS(pTsdbReadHandle));
+  bool ascScan = ASCENDING_TRAVERSE(pTsdbReadHandle->order);
 
-  int32_t pos = cur->pos;
+  int32_t step = ascScan? 1 : -1;
 
   int32_t start = cur->pos;
   int32_t end = endPos;
 
-  if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
+  if (!ascScan) {
     TSWAP(start, end);
   }
 
@@ -1876,11 +1888,11 @@ static void copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, STa
   // the time window should always be ascending order: skey <= ekey
   cur->win = (STimeWindow){.skey = tsArray[start], .ekey = tsArray[end]};
   cur->mixBlock = (numOfRows != pBlockInfo->rows);
-  cur->lastKey = tsArray[endPos] + step;
-  cur->blockCompleted = true;
+  cur->lastKey  = tsArray[endPos] + step;
+  cur->blockCompleted = (ascScan? (endPos == pBlockInfo->rows - 1):(endPos == 0));
 
   // The value of pos may be -1 or pBlockInfo->rows, and it is invalid in both cases.
-  pos = endPos + step;
+  int32_t pos = endPos + step;
   updateInfoAfterMerge(pTsdbReadHandle, pCheckInfo, numOfRows, pos);
   doCheckGeneratedBlockRange(pTsdbReadHandle);
 
@@ -1892,20 +1904,44 @@ static void copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, STa
 int32_t getEndPosInDataBlock(STsdbReadHandle* pTsdbReadHandle, SDataBlockInfo* pBlockInfo) {
   // NOTE: reverse the order to find the end position in data block
   int32_t endPos = -1;
-  int32_t order = ASCENDING_TRAVERSE(pTsdbReadHandle->order) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
+  bool    ascScan = ASCENDING_TRAVERSE(pTsdbReadHandle->order);
+  int32_t order = ascScan? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
 
   SQueryFilePos* cur = &pTsdbReadHandle->cur;
   SDataCols*     pCols = pTsdbReadHandle->rhelper.pDCols[0];
 
-  if (ASCENDING_TRAVERSE(pTsdbReadHandle->order) && pTsdbReadHandle->window.ekey >= pBlockInfo->window.ekey) {
-    endPos = pBlockInfo->rows - 1;
-    cur->mixBlock = (cur->pos != 0);
-  } else if (!ASCENDING_TRAVERSE(pTsdbReadHandle->order) && pTsdbReadHandle->window.ekey <= pBlockInfo->window.skey) {
-    endPos = 0;
-    cur->mixBlock = (cur->pos != pBlockInfo->rows - 1);
+  if (pTsdbReadHandle->outputCapacity >= pBlockInfo->rows) {
+    if (ascScan && pTsdbReadHandle->window.ekey >= pBlockInfo->window.ekey) {
+      endPos = pBlockInfo->rows - 1;
+      cur->mixBlock = (cur->pos != 0);
+    } else if ((!ascScan) && pTsdbReadHandle->window.ekey <= pBlockInfo->window.skey) {
+      endPos = 0;
+      cur->mixBlock = (cur->pos != pBlockInfo->rows - 1);
+    } else {
+      assert(pCols->numOfRows > 0);
+      endPos = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pTsdbReadHandle->window.ekey, order);
+      cur->mixBlock = true;
+    }
   } else {
-    assert(pCols->numOfRows > 0);
-    endPos = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pTsdbReadHandle->window.ekey, order);
+    if (ascScan && pTsdbReadHandle->window.ekey >= pBlockInfo->window.ekey) {
+      endPos = TMIN(cur->pos + pTsdbReadHandle->outputCapacity - 1, pBlockInfo->rows - 1);
+    } else if ((!ascScan) && pTsdbReadHandle->window.ekey <= pBlockInfo->window.skey) {
+      endPos = TMAX(cur->pos - pTsdbReadHandle->outputCapacity + 1, 0);
+    } else {
+      ASSERT(pCols->numOfRows > 0);
+      endPos = doBinarySearchKey(pCols->cols[0].pData, pCols->numOfRows, pTsdbReadHandle->window.ekey, order);
+
+      // current data is more than the capacity
+      int32_t size = abs(cur->pos - endPos) + 1;
+      if (size > pTsdbReadHandle->outputCapacity) {
+        int32_t delta = size - pTsdbReadHandle->outputCapacity;
+        if (ascScan) {
+          endPos -= delta;
+        } else {
+          endPos += delta;
+        }
+      }
+    }
     cur->mixBlock = true;
   }
 
@@ -1924,7 +1960,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
   SDataCols* pCols = pTsdbReadHandle->rhelper.pDCols[0];
   assert(pCols->cols[0].type == TSDB_DATA_TYPE_TIMESTAMP && pCols->cols[0].colId == PRIMARYKEY_TIMESTAMP_COL_ID &&
          cur->pos >= 0 && cur->pos < pBlock->numOfRows);
-
+  // Even Multi-Version supported, the records with duplicated TSKEY would be merged inside of tsdbLoadData interface.
   TSKEY* tsArray = pCols->cols[0].pData;
   assert(pCols->numOfRows == pBlock->numOfRows && tsArray[0] == pBlock->keyFirst &&
          tsArray[pBlock->numOfRows - 1] == pBlock->keyLast);
@@ -1954,6 +1990,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
 
   int32_t pos = cur->pos;
   cur->win = TSWINDOW_INITIALIZER;
+  bool adjustPos = false;
 
   // no data in buffer, load data from file directly
   if (pCheckInfo->iiter == NULL && pCheckInfo->iter == NULL) {
@@ -1973,6 +2010,13 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
       TSKEY key = TD_ROW_KEY(row1);
       if ((key > pTsdbReadHandle->window.ekey && ascScan) || (key < pTsdbReadHandle->window.ekey && !ascScan)) {
         break;
+      }
+
+      if (adjustPos) {
+        if (key == lastKeyAppend) {
+          pos -= step;
+        }
+        adjustPos = false;
       }
 
       if (((pos > endPos || tsArray[pos] > pTsdbReadHandle->window.ekey) && ascScan) ||
@@ -2035,8 +2079,14 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
         }
 #endif
         if (TD_SUPPORT_UPDATE(pCfg->update)) {
+          if (lastKeyAppend != key) {
+            if (lastKeyAppend != TSKEY_INITIAL_VAL) {
+              ++curRow;
+            }
+            lastKeyAppend = key;
+          }
+          // load data from file firstly
           numOfRows = doCopyRowsFromFileBlock(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, curRow, pos, pos);
-          lastKeyAppend = key;
 
           if (rv1 != TD_ROW_SVER(row1)) {
             rv1 = TD_ROW_SVER(row1);
@@ -2046,7 +2096,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           }
 
           // still assign data into current row
-          mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
+          numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
                              pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastKeyAppend);
 
           if (cur->win.skey == TSKEY_INITIAL_VAL) {
@@ -2058,10 +2108,11 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           cur->mixBlock = true;
 
           moveToNextRowInMem(pCheckInfo);
-          ++curRow;
 
           pos += step;
+          adjustPos = true;
         } else {
+          // discard the memory record
           moveToNextRowInMem(pCheckInfo);
         }
       } else if ((key > tsArray[pos] && ascScan) || (key < tsArray[pos] && !ascScan)) {
@@ -2369,7 +2420,7 @@ static int32_t createDataBlocksInfo(STsdbReadHandle* pTsdbReadHandle, int32_t nu
 
 static int32_t getFirstFileDataBlock(STsdbReadHandle* pTsdbReadHandle, bool* exists);
 
-static int32_t getDataBlockRv(STsdbReadHandle* pTsdbReadHandle, STableBlockInfo* pNext, bool* exists) {
+static int32_t getDataBlock(STsdbReadHandle* pTsdbReadHandle, STableBlockInfo* pNext, bool* exists) {
   int32_t        step = ASCENDING_TRAVERSE(pTsdbReadHandle->order) ? 1 : -1;
   SQueryFilePos* cur = &pTsdbReadHandle->cur;
 
@@ -2478,7 +2529,7 @@ static int32_t getFirstFileDataBlock(STsdbReadHandle* pTsdbReadHandle, bool* exi
   cur->fid = pTsdbReadHandle->pFileGroup->fid;
 
   STableBlockInfo* pBlockInfo = &pTsdbReadHandle->pDataBlockInfo[cur->slot];
-  return getDataBlockRv(pTsdbReadHandle, pBlockInfo, exists);
+  return getDataBlock(pTsdbReadHandle, pBlockInfo, exists);
 }
 
 static bool isEndFileDataBlock(SQueryFilePos* cur, int32_t numOfBlocks, bool ascTrav) {
@@ -2643,7 +2694,7 @@ static int32_t getDataBlocksInFiles(STsdbReadHandle* pTsdbReadHandle, bool* exis
     } else {
       moveToNextDataBlockInCurrentFile(pTsdbReadHandle);
       STableBlockInfo* pNext = &pTsdbReadHandle->pDataBlockInfo[cur->slot];
-      return getDataBlockRv(pTsdbReadHandle, pNext, exists);
+      return getDataBlock(pTsdbReadHandle, pNext, exists);
     }
   }
 }
@@ -2729,7 +2780,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
 
     win->ekey = key;
     if (rv != TD_ROW_SVER(row)) {
-      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, 1);
+      pSchema = metaGetTbTSchema(REPO_META(pTsdbReadHandle->pTsdb), pCheckInfo->tableId, TD_ROW_SVER(row));
       rv = TD_ROW_SVER(row);
     }
     numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, maxRowsToRead, &curRows, row, NULL, numOfCols, pCheckInfo->tableId,

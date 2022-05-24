@@ -131,6 +131,7 @@ typedef struct SQWTaskCtx {
   void     *taskHandle;
   void     *sinkHandle;
   SSubplan *plan;
+  STbVerInfo tbInfo;
 } SQWTaskCtx;
 
 typedef struct SQWSchStatus {

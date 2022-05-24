@@ -69,9 +69,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->user) {
     memcpy(pRpc->user, pInit->user, strlen(pInit->user));
   }
-  if (pInit->secret) {
-    memcpy(pRpc->secret, pInit->secret, strlen(pInit->secret));
-  }
   return pRpc;
 }
 void rpcClose(void* arg) {
@@ -97,7 +94,9 @@ void rpcFreeCont(void* cont) {
   if (cont == NULL) {
     return;
   }
+
   taosMemoryFree((char*)cont - TRANS_MSG_OVERHEAD);
+  tTrace("free mem: %p", (char*)cont - TRANS_MSG_OVERHEAD);
 }
 void* rpcReallocCont(void* ptr, int contLen) {
   if (ptr == NULL) {

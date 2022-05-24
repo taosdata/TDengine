@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-p *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -116,7 +115,7 @@ TFileCache* tfileCacheCreate(const char* path) {
       continue;
     }
     TFileHeader* header = &reader->header;
-    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = strlen(header->colName)};
+    ICacheKey    key = {.suid = header->suid, .colName = header->colName, .nColName = (int32_t)strlen(header->colName)};
 
     char    buf[128] = {0};
     int32_t sz = indexSerialCacheKey(&key, buf);
@@ -141,7 +140,6 @@ void tfileCacheDestroy(TFileCache* tcache) {
     TFileReader* p = *reader;
     indexInfo("drop table cache suid: %" PRIu64 ", colName: %s, colType: %d", p->header.suid, p->header.colName,
               p->header.colType);
-
     tfileReaderUnRef(p);
     reader = taosHashIterate(tcache->tableCache, reader);
   }
@@ -153,10 +151,13 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
   char    buf[128] = {0};
   int32_t sz = indexSerialCacheKey(key, buf);
   assert(sz < sizeof(buf));
+  indexInfo("Try to get key: %s", buf);
   TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
-  if (reader == NULL) {
+  if (reader == NULL || *reader == NULL) {
+    indexInfo("failed to  get key: %s", buf);
     return NULL;
   }
+  indexInfo("Get key: %s file: %s", buf, (*reader)->ctx->file.buf);
   tfileReaderRef(*reader);
 
   return *reader;
@@ -166,13 +167,13 @@ void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   int32_t sz = indexSerialCacheKey(key, buf);
   // remove last version index reader
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
-  if (p != NULL) {
+  if (p != NULL && *p != NULL) {
     TFileReader* oldReader = *p;
     taosHashRemove(tcache->tableCache, buf, sz);
+    indexInfo("found %s, remove file %s", buf, oldReader->ctx->file.buf);
     oldReader->remove = true;
     tfileReaderUnRef(oldReader);
   }
-
   taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
   tfileReaderRef(reader);
   return;
@@ -182,7 +183,6 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
   if (reader == NULL) {
     return NULL;
   }
-
   reader->ctx = ctx;
 
   if (0 != tfileReaderVerify(reader)) {
@@ -204,6 +204,7 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
     tfileReaderDestroy(reader);
     return NULL;
   }
+  reader->remove = false;
 
   return reader;
 }
@@ -230,7 +231,7 @@ static int32_t tfSearchTerm(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
     indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, found table info in tindex, time cost: %" PRIu64 "us",
               tem->suid, tem->colName, tem->colVal, cost);
 
-    ret = tfileReaderLoadTableIds((TFileReader*)reader, offset, tr->total);
+    ret = tfileReaderLoadTableIds((TFileReader*)reader, (int32_t)offset, tr->total);
     cost = taosGetTimestampUs() - et;
     indexInfo("index: %" PRIu64 ", col: %s, colVal: %s, load all table info, time cost: %" PRIu64 "us", tem->suid,
               tem->colName, tem->colVal, cost);
@@ -500,15 +501,15 @@ static int32_t tfSearchCompareFunc_JSON(void* reader, SIndexTerm* tem, SIdxTempR
 int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResult* tr) {
   SIndexTerm*     term = query->term;
   EIndexQueryType qtype = query->qType;
-
+  int             ret = 0;
   if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
-    return tfSearch[1][qtype](reader, term, tr);
+    ret = tfSearch[1][qtype](reader, term, tr);
   } else {
-    return tfSearch[0][qtype](reader, term, tr);
+    ret = tfSearch[0][qtype](reader, term, tr);
   }
 
   tfileReaderUnRef(reader);
-  return 0;
+  return ret;
 }
 
 TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t colType) {
@@ -538,7 +539,7 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
     indexError("failed to open readonly file: %s, reason: %s", fullname, terrstr());
     return NULL;
   }
-  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
+  indexTrace("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
@@ -890,7 +891,7 @@ static int tfileWriteFooter(TFileWriter* write) {
   char  buf[sizeof(tfileMagicNumber) + 1] = {0};
   void* pBuf = (void*)buf;
   taosEncodeFixedU64((void**)(void*)&pBuf, tfileMagicNumber);
-  int nwrite = write->ctx->write(write->ctx, buf, strlen(buf));
+  int nwrite = write->ctx->write(write->ctx, buf, (int32_t)strlen(buf));
 
   indexInfo("tfile write footer size: %d", write->ctx->size(write->ctx));
   assert(nwrite == sizeof(tfileMagicNumber));

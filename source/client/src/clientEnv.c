@@ -91,7 +91,6 @@ static bool clientRpcRfp(int32_t code) {
   }
 }
 
-
 // TODO refactor
 void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   SRpcInit rpcInit;
@@ -105,10 +104,6 @@ void *openTransporter(const char *user, const char *auth, int32_t numOfThread) {
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.user = (char *)user;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
-  rpcInit.ckey = "key";
-  rpcInit.spi = 1;
-  rpcInit.secret = (char *)auth;
-
   void *pDnodeConn = rpcOpen(&rpcInit);
   if (pDnodeConn == NULL) {
     tscError("failed to init connection to server");

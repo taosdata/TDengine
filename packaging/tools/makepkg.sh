@@ -33,7 +33,7 @@ defaultPasswd="taosdata"
 
 # create compressed install file.
 build_dir="${compile_dir}/build"
-code_dir="${top_dir}/src"
+code_dir="${top_dir}"
 release_dir="${top_dir}/release"
 
 #package_name='linux'
@@ -43,8 +43,8 @@ else
   install_dir="${release_dir}/${productName}-server-${version}"
 fi
 
-if [ -d ${top_dir}/src/kit/taos-tools/packaging/deb ]; then
-  cd ${top_dir}/src/kit/taos-tools/packaging/deb
+if [ -d ${top_dir}/tools/taos-tools/packaging/deb ]; then
+  cd ${top_dir}/tools/taos-tools/packaging/deb
   [ -z "$taos_tools_ver" ] && taos_tools_ver="0.1.0"
 
   taostools_ver=$(git describe --tags | sed -e 's/ver-//g' | awk -F '-' '{print $1}')
@@ -94,7 +94,7 @@ else
 fi
 
 lib_files="${build_dir}/lib/libtaos.so.${version}"
-header_files="${code_dir}/inc/taos.h ${code_dir}/inc/taosdef.h ${code_dir}/inc/taoserror.h"
+header_files="${code_dir}/include/client/taos.h ${code_dir}/include/common/taosdef.h ${code_dir}/include/util/taoserror.h"
 
 if [ "$dbName" != "taos" ]; then
   cfg_dir="${top_dir}/../enterprise/packaging/cfg"
@@ -103,7 +103,7 @@ else
 fi
 
 install_files="${script_dir}/install.sh"
-nginx_dir="${code_dir}/../../enterprise/src/plugins/web"
+nginx_dir="${top_dir}/../enterprise/src/plugins/web"
 
 init_file_deb=${script_dir}/../deb/taosd
 init_file_rpm=${script_dir}/../rpm/taosd
@@ -162,8 +162,8 @@ if [ -n "${taostools_bin_files}" ]; then
         && cp ${taostools_bin_files} ${taostools_install_dir}/bin \
         && chmod a+x ${taostools_install_dir}/bin/* || :
 
-    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh ]; then
-        cp ${top_dir}/src/kit/taos-tools/packaging/tools/install-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/install-taostools.sh \
             ${taostools_install_dir}/ > /dev/null \
             && chmod a+x ${taostools_install_dir}/install-taostools.sh \
             || echo -e "failed to copy install-taostools.sh"
@@ -171,8 +171,8 @@ if [ -n "${taostools_bin_files}" ]; then
         echo -e "install-taostools.sh not found"
     fi
 
-    if [ -f ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
-        cp ${top_dir}/src/kit/taos-tools/packaging/tools/uninstall-taostools.sh \
+    if [ -f ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh ]; then
+        cp ${top_dir}/tools/taos-tools/packaging/tools/uninstall-taostools.sh \
             ${taostools_install_dir}/ > /dev/null \
             && chmod a+x ${taostools_install_dir}/uninstall-taostools.sh \
             || echo -e "failed to copy uninstall-taostools.sh"
@@ -288,7 +288,7 @@ if [[ $dbName == "taos" ]]; then
     cp -r ${examples_dir}/go ${install_dir}/examples
     cp -r ${examples_dir}/nodejs ${install_dir}/examples
     cp -r ${examples_dir}/C# ${install_dir}/examples
-    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../src/kit/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
+    mkdir -p ${install_dir}/examples/taosbenchmark-json && cp ${examples_dir}/../tools/taos-tools/example/* ${install_dir}/examples/taosbenchmark-json
   fi
 fi
 

@@ -81,6 +81,7 @@ typedef struct SValueNode {
   char*     literal;
   bool      isDuration;
   bool      translate;
+  bool      notReserved;
   int16_t   placeholderNo;
   union {
     bool     b;
@@ -92,6 +93,10 @@ typedef struct SValueNode {
   int64_t typeData;
   char    unit;
 } SValueNode;
+
+typedef struct SLeftValueNode {
+  ENodeType type;
+} SLeftValueNode;
 
 typedef struct SOperatorNode {
   SExprNode     node;  // QUERY_NODE_OPERATOR
@@ -236,6 +241,7 @@ typedef struct SSelectStmt {
   bool        isTimeOrderQuery;
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
+  bool        hasIndefiniteRowsFunc;
 } SSelectStmt;
 
 typedef enum ESetOperatorType { SET_OP_TYPE_UNION_ALL = 1, SET_OP_TYPE_UNION } ESetOperatorType;
@@ -349,9 +355,6 @@ bool nodesIsArithmeticOp(const SOperatorNode* pOp);
 bool nodesIsComparisonOp(const SOperatorNode* pOp);
 bool nodesIsJsonOp(const SOperatorNode* pOp);
 bool nodesIsRegularOp(const SOperatorNode* pOp);
-
-bool nodesIsTimeorderQuery(const SNode* pQuery);
-bool nodesIsTimelineQuery(const SNode* pQuery);
 
 void*   nodesGetValueFromNode(SValueNode* pNode);
 int32_t nodesSetValueNodeValue(SValueNode* pNode, void* value);

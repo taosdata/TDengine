@@ -567,6 +567,7 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
+#endif
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -605,7 +606,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 10000000; i += 20) {
+  for(int32_t i = 0; i < 100000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -625,7 +626,7 @@ TEST(testCase, projection_query_tables) {
 
   printf("start to insert next table\n");
 
-  for(int32_t i = 0; i < 10000000; i += 20) {
+  for(int32_t i = 0; i < 100000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu2 values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -691,8 +692,6 @@ TEST(testCase, projection_query_stables) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-
-#endif
 
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);

@@ -15,9 +15,9 @@
 
 //#define _DEFAULT_SOURCE
 #include "os.h"
-#include "rpcLog.h"
 #include "tglobal.h"
 #include "tqueue.h"
+#include "transLog.h"
 #include "trpc.h"
 
 int         msgSize = 128;
@@ -123,7 +123,6 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp = processRequestMsg;
   rpcInit.sessions = 1000;
   rpcInit.idleTime = 2 * 1500;
-  rpcInit.afp = retrieveAuthInfo;
 
   rpcDebugFlag = 131;
 
@@ -161,7 +160,7 @@ int main(int argc, char *argv[]) {
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
 
-  const char *path = "/tmp/transport/server";
+  const char *path = TD_TMP_DIR_PATH "transport/server";
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);

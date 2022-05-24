@@ -922,7 +922,8 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   }
 }
 
-char *getJsonValue(char *json, char *key){    //todo
+char *getJsonValue(char *json, char *key){      //todo
+  json++;     // jump type
   int16_t cols = kvRowNCols(json);
   for (int i = 0; i < cols; ++i) {
     SColIdx *pColIdx = kvRowColIdxAt(json, i);
@@ -1332,6 +1333,22 @@ void vectorMathMinus(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pO
   doReleaseVec(pLeftCol,  leftConvert);
 }
 
+void vectorAssign(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {
+  SColumnInfoData *pOutputCol = pOut->columnData;
+
+  pOut->numOfRows = pLeft->numOfRows;
+
+  if (colDataIsNull_s(pRight->columnData, 0)) {
+    for (int32_t i = 0; i < pOut->numOfRows; ++i) {
+      colDataAppend(pOutputCol, i, NULL, true);
+    }
+  } else {
+    for (int32_t i = 0; i < pOut->numOfRows; ++i) {
+      colDataAppend(pOutputCol, i, colDataGetData(pRight->columnData, 0), false);
+    }
+  }
+}
+
 void vectorConcat(SScalarParam* pLeft, SScalarParam* pRight, void *out, int32_t _ord) {
 #if 0
   int32_t len = pLeft->bytes + pRight->bytes;
@@ -1690,6 +1707,8 @@ _bin_scalar_fn_t getBinScalarOperatorFn(int32_t binFunctionId) {
       return vectorMathRemainder;
     case OP_TYPE_MINUS:
       return vectorMathMinus;
+    case OP_TYPE_ASSIGN:
+      return vectorAssign;
     case OP_TYPE_GREATER_THAN:
       return vectorGreater;
     case OP_TYPE_GREATER_EQUAL:

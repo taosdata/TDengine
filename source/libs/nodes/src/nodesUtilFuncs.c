@@ -79,6 +79,8 @@ int32_t nodesNodeSize(ENodeType type) {
       return sizeof(SStreamOptions);
     case QUERY_NODE_TOPIC_OPTIONS:
       return sizeof(STopicOptions);
+    case QUERY_NODE_LEFT_VALUE:
+      return sizeof(SLeftValueNode);
     case QUERY_NODE_SET_OPERATOR:
       return sizeof(SSetOperator);
     case QUERY_NODE_SELECT_STMT:
@@ -1117,6 +1119,7 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
 bool nodesIsJsonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_JSON_GET_VALUE:
+    case OP_TYPE_JSON_CONTAINS:
       return true;
     default:
       break;
@@ -1136,10 +1139,6 @@ bool nodesIsRegularOp(const SOperatorNode* pOp) {
   }
   return false;
 }
-
-bool nodesIsTimeorderQuery(const SNode* pQuery) { return false; }
-
-bool nodesIsTimelineQuery(const SNode* pQuery) { return false; }
 
 typedef struct SCollectColumnsCxt {
   int32_t         errCode;

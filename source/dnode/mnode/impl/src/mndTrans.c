@@ -768,6 +768,12 @@ int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans) {
     return -1;
   }
 
+  if (taosArrayGetSize(pTrans->commitLogs) <= 0) {
+    terrno = TSDB_CODE_MND_TRANS_CLOG_IS_NULL;
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    return -1;
+  }
+
   mDebug("trans:%d, prepare transaction", pTrans->id);
   if (mndTransSync(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -994,9 +1000,6 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgSent = 0;
       pAction->msgReceived = 0;
       pAction->errCode = terrno;
-      if (terrno == TSDB_CODE_INVALID_PTR || terrno == TSDB_CODE_NODE_OFFLINE) {
-        rpcFreeCont(rpcMsg.pCont);
-      }
       mError("trans:%d, action:%d not send since %s", pTrans->id, action, terrstr());
       return -1;
     }
@@ -1038,13 +1041,13 @@ static int32_t mndTransExecuteActions(SMnode *pMnode, STrans *pTrans, SArray *pA
     }
   } else {
     mDebug("trans:%d, %d of %d actions executed", pTrans->id, numOfReceived, numOfActions);
-    return TSDB_CODE_MND_ACTION_IN_PROGRESS;
+    return TSDB_CODE_ACTION_IN_PROGRESS;
   }
 }
 
 static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->redoActions);
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to execute redoActions since:%s, code:0x%x", terrstr(), terrno);
   }
   return code;
@@ -1052,7 +1055,7 @@ static int32_t mndTransExecuteRedoActions(SMnode *pMnode, STrans *pTrans) {
 
 static int32_t mndTransExecuteUndoActions(SMnode *pMnode, STrans *pTrans) {
   int32_t code = mndTransExecuteActions(pMnode, pTrans, pTrans->undoActions);
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("failed to execute undoActions since %s", terrstr());
   }
   return code;
@@ -1083,6 +1086,8 @@ static bool mndTransPerformRedoLogStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
+  if (!mndIsMaster(pMnode)) return false;
+
   bool    continueExec = true;
   int32_t code = mndTransExecuteRedoActions(pMnode, pTrans);
 
@@ -1091,7 +1096,7 @@ static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
     pTrans->stage = TRN_STAGE_COMMIT;
     mDebug("trans:%d, stage from redoAction to commit", pTrans->id);
     continueExec = true;
-  } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mDebug("trans:%d, stage keep on redoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {
@@ -1172,6 +1177,8 @@ static bool mndTransPerformUndoLogStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
+  if (!mndIsMaster(pMnode)) return false;
+
   bool    continueExec = true;
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);
 
@@ -1179,7 +1186,7 @@ static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
     pTrans->stage = TRN_STAGE_UNDO_LOG;
     mDebug("trans:%d, stage from undoAction to undoLog", pTrans->id);
     continueExec = true;
-  } else if (code == TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  } else if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
     mDebug("trans:%d, stage keep on undoAction since %s", pTrans->id, tstrerror(code));
     continueExec = false;
   } else {

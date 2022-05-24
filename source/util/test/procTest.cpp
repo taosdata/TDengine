@@ -38,9 +38,9 @@ class UtilTesProc : public ::testing::Test {
     head.noResp = 3;
     head.persistHandle = 4;
 
-    taosRemoveDir("/tmp/td");
-    taosMkDir("/tmp/td");
-    tstrncpy(tsLogDir, "/tmp/td", PATH_MAX);
+    taosRemoveDir(TD_TMP_DIR_PATH "td");
+    taosMkDir(TD_TMP_DIR_PATH "td");
+    tstrncpy(tsLogDir, TD_TMP_DIR_PATH "td", PATH_MAX);
     if (taosInitLog("taosdlog", 1) != 0) {
       printf("failed to init log file\n");
     }

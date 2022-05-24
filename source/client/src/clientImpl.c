@@ -13,11 +13,13 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "cJSON.h"
 #include "clientInt.h"
 #include "clientLog.h"
 #include "command.h"
 #include "scheduler.h"
 #include "tdatablock.h"
+#include "tdataformat.h"
 #include "tdef.h"
 #include "tglobal.h"
 #include "tmsgtype.h"
@@ -187,7 +189,8 @@ int32_t parseSql(SRequestObj* pRequest, bool topicQuery, SQuery** pQuery, SStmtC
       setResSchemaInfo(&pRequest->body.resInfo, (*pQuery)->pResSchema, (*pQuery)->numOfResCols);
       setResPrecision(&pRequest->body.resInfo, (*pQuery)->precision);
     }
-
+  }
+  if (TSDB_CODE_SUCCESS == code || NEED_CLIENT_HANDLE_ERROR(code)) {
     TSWAP(pRequest->dbList, (*pQuery)->pDbList);
     TSWAP(pRequest->tableList, (*pQuery)->pTableList);
   }
@@ -268,7 +271,7 @@ void setResSchemaInfo(SReqResultInfo* pResInfo, const SSchema* pSchema, int32_t 
 
     if (pSchema[i].type == TSDB_DATA_TYPE_VARCHAR) {
       pResInfo->userFields[i].bytes -= VARSTR_HEADER_SIZE;
-    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR) {
+    } else if (pSchema[i].type == TSDB_DATA_TYPE_NCHAR || pSchema[i].type == TSDB_DATA_TYPE_JSON) {
       pResInfo->userFields[i].bytes = (pResInfo->userFields[i].bytes - VARSTR_HEADER_SIZE) / TSDB_NCHAR_SIZE;
     }
 
@@ -296,6 +299,8 @@ int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList
     if (pRequest->body.queryJob != 0) {
       schedulerFreeJob(pRequest->body.queryJob);
     }
+
+    *pRes = res.res;
 
     pRequest->code = code;
     terrno = code;
@@ -325,7 +330,7 @@ int32_t getQueryPlan(SRequestObj* pRequest, SQuery* pQuery, SArray** pNodeList) 
 int32_t validateSversion(SRequestObj* pRequest, void* res) {
   SArray* pArray = NULL;
   int32_t code = 0;
-  
+
   if (TDMT_VND_SUBMIT == pRequest->type) {
     SSubmitRsp* pRsp = (SSubmitRsp*)res;
     if (pRsp->nBlocks <= 0) {
@@ -337,14 +342,34 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       return TSDB_CODE_OUT_OF_MEMORY;
     }
-    
+
     for (int32_t i = 0; i < pRsp->nBlocks; ++i) {
-      SSubmitBlkRsp *blk = pRsp->pBlocks + i;
-      STbSVersion tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
+      SSubmitBlkRsp* blk = pRsp->pBlocks + i;
+      if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
+        continue;
+      }
+      
+      STbSVersion    tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
       taosArrayPush(pArray, &tbSver);
     }
   } else if (TDMT_VND_QUERY == pRequest->type) {
+    SArray* pTbArray = (SArray*)res;
+    int32_t tbNum = taosArrayGetSize(pTbArray);
+    if (tbNum <= 0) {
+      return TSDB_CODE_SUCCESS;
+    }
 
+    pArray = taosArrayInit(tbNum, sizeof(STbSVersion));
+    if (NULL == pArray) {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+
+    for (int32_t i = 0; i < tbNum; ++i) {
+      STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
+      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion};
+      taosArrayPush(pArray, &tbSver);
+    }
   }
 
   SCatalog* pCatalog = NULL;
@@ -362,14 +387,14 @@ _return:
 }
 
 void freeRequestRes(SRequestObj* pRequest, void* res) {
-  if (NULL == res) {
+  if (NULL == pRequest || NULL == res) {
     return;
   }
-  
+
   if (TDMT_VND_SUBMIT == pRequest->type) {
     tFreeSSubmitRsp((SSubmitRsp*)res);
   } else if (TDMT_VND_QUERY == pRequest->type) {
-
+    taosArrayDestroy((SArray*)res);
   }
 }
 
@@ -410,12 +435,13 @@ SRequestObj* launchQueryImpl(SRequestObj* pRequest, SQuery* pQuery, int32_t code
 
   if (NULL != pRequest && TSDB_CODE_SUCCESS != code) {
     pRequest->code = terrno;
-    freeRequestRes(pRequest, pRes);
-    pRes = NULL;
   }
 
   if (res) {
     *res = pRes;
+  } else {
+    freeRequestRes(pRequest, pRes);
+    pRes = NULL;
   }
 
   return pRequest;
@@ -478,12 +504,30 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
   return code;
 }
 
+int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
+  SCatalog* pCatalog = NULL;
+  int32_t tbNum = taosArrayGetSize(tbList);
+  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
+  }
+  
+  for (int32_t i = 0; i < tbNum; ++i) {
+    SName* pTbName = taosArrayGet(tbList, i);
+    catalogRemoveTableMeta(pCatalog, pTbName);
+  }
+
+  return TSDB_CODE_SUCCESS;
+}
+
+
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
   int32_t      retryNum = 0;
   int32_t      code = 0;
 
-  while (retryNum++ < REQUEST_MAX_TRY_TIMES) {
+  do {
+    destroyRequest(pRequest);
     pRequest = launchQuery(pTscObj, sql, sqlLen);
     if (pRequest == NULL || TSDB_CODE_SUCCESS == pRequest->code || !NEED_CLIENT_HANDLE_ERROR(pRequest->code)) {
       break;
@@ -494,10 +538,12 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
       pRequest->code = code;
       break;
     }
+  } while (retryNum++ < REQUEST_MAX_TRY_TIMES);
 
-    destroyRequest(pRequest);
+  if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
+    removeMeta(pTscObj, pRequest->tableList);
   }
-
+  
   return pRequest;
 }
 
@@ -805,6 +851,94 @@ static int32_t doPrepareResPtr(SReqResultInfo* pResInfo) {
   return TSDB_CODE_SUCCESS;
 }
 
+static char* parseTagDatatoJson(void* p) {
+  char*  string = NULL;
+  cJSON* json = cJSON_CreateObject();
+  if (json == NULL) {
+    goto end;
+  }
+
+  int16_t nCols = kvRowNCols(p);
+  char    tagJsonKey[256] = {0};
+  for (int j = 0; j < nCols; ++j) {
+    SColIdx* pColIdx = kvRowColIdxAt(p, j);
+    char*    val = (char*)(kvRowColVal(p, pColIdx));
+    if (j == 0) {
+      if (*val == TSDB_DATA_TYPE_NULL) {
+        string = taosMemoryCalloc(1, 8);
+        sprintf(string, "%s", TSDB_DATA_NULL_STR_L);
+        goto end;
+      }
+      continue;
+    }
+
+    // json key  encode by binary
+    memset(tagJsonKey, 0, sizeof(tagJsonKey));
+    memcpy(tagJsonKey, varDataVal(val), varDataLen(val));
+    // json value
+    val += varDataTLen(val);
+    char* realData = POINTER_SHIFT(val, CHAR_BYTES);
+    char  type = *val;
+    if (type == TSDB_DATA_TYPE_NULL) {
+      cJSON* value = cJSON_CreateNull();
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_NCHAR) {
+      cJSON* value = NULL;
+      if (varDataLen(realData) > 0) {
+        char*   tagJsonValue = taosMemoryCalloc(varDataLen(realData), 1);
+        int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(realData), varDataLen(realData), tagJsonValue);
+        if (length < 0) {
+          tscError("charset:%s to %s. val:%s convert json value failed.", DEFAULT_UNICODE_ENCODEC, tsCharset, val);
+          taosMemoryFree(tagJsonValue);
+          goto end;
+        }
+        value = cJSON_CreateString(tagJsonValue);
+        taosMemoryFree(tagJsonValue);
+        if (value == NULL) {
+          goto end;
+        }
+      } else if (varDataLen(realData) == 0) {
+        value = cJSON_CreateString("");
+      } else {
+        ASSERT(0);
+      }
+
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_DOUBLE) {
+      double jsonVd = *(double*)(realData);
+      cJSON* value = cJSON_CreateNumber(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+      //    }else if(type == TSDB_DATA_TYPE_BIGINT){
+      //      int64_t jsonVd = *(int64_t*)(realData);
+      //      cJSON* value = cJSON_CreateNumber((double)jsonVd);
+      //      if (value == NULL)
+      //      {
+      //        goto end;
+      //      }
+      //      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else if (type == TSDB_DATA_TYPE_BOOL) {
+      char   jsonVd = *(char*)(realData);
+      cJSON* value = cJSON_CreateBool(jsonVd);
+      if (value == NULL) {
+        goto end;
+      }
+      cJSON_AddItemToObject(json, tagJsonKey, value);
+    } else {
+      ASSERT(0);
+    }
+  }
+  string = cJSON_PrintUnformatted(json);
+end:
+  cJSON_Delete(json);
+  return string;
+}
+
 static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int32_t numOfCols, int32_t* colLength) {
   for (int32_t i = 0; i < numOfCols; ++i) {
     int32_t type = pResultInfo->fields[i].type;
@@ -835,9 +969,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
 
       pResultInfo->pCol[i].pData = pResultInfo->convertBuf[i];
       pResultInfo->row[i] = pResultInfo->pCol[i].pData;
-    }
-
-    if (type == TSDB_DATA_TYPE_JSON) {
+    } else if (type == TSDB_DATA_TYPE_JSON && colLength[i] > 0) {
       char* p = taosMemoryRealloc(pResultInfo->convertBuf[i], colLength[i]);
       if (p == NULL) {
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -857,15 +989,9 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
             sprintf(varDataVal(dst), "%s", TSDB_DATA_NULL_STR_L);
             varDataSetLen(dst, strlen(varDataVal(dst)));
           } else if (jsonInnerType == TSDB_DATA_TYPE_JSON) {
-            int32_t length =
-                taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData), varDataVal(dst));
-
-            if (length <= 0) {
-              tscError("charset:%s to %s. val:%s convert failed.", DEFAULT_UNICODE_ENCODEC, tsCharset,
-                       varDataVal(jsonInnerData));
-              length = 0;
-            }
-            varDataSetLen(dst, length);
+            char* jsonString = parseTagDatatoJson(jsonInnerData);
+            STR_TO_VARSTR(dst, jsonString);
+            taosMemoryFree(jsonString);
           } else if (jsonInnerType == TSDB_DATA_TYPE_NCHAR) {  // value -> "value"
             *(char*)varDataVal(dst) = '\"';
             int32_t length = taosUcs4ToMbs((TdUcs4*)varDataVal(jsonInnerData), varDataLen(jsonInnerData),
@@ -876,7 +1002,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
               length = 0;
             }
             varDataSetLen(dst, length + CHAR_BYTES * 2);
-            *(char*)(varDataVal(dst), length + CHAR_BYTES) = '\"';
+            *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
           } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
             double jsonVd = *(double*)(jsonInnerData);
             sprintf(varDataVal(dst), "%.9lf", jsonVd);
@@ -1022,7 +1148,6 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   SRpcInit           rpcInit = {0};
   char               pass[TSDB_PASSWORD_LEN + 1] = {0};
 
-  taosEncryptPass_c((uint8_t*)("_pwd"), strlen("_pwd"), pass);
   rpcInit.label = "CHK";
   rpcInit.numOfThreads = 1;
   rpcInit.cfp = NULL;
@@ -1030,9 +1155,6 @@ TSDB_SERVER_STATUS taos_check_server_status(const char* fqdn, int port, char* de
   rpcInit.connType = TAOS_CONN_CLIENT;
   rpcInit.idleTime = tsShellActivityTimer * 1000;
   rpcInit.user = "_dnd";
-  rpcInit.ckey = "_key";
-  rpcInit.spi = 1;
-  rpcInit.secret = pass;
 
   clientRpc = rpcOpen(&rpcInit);
   if (clientRpc == NULL) {

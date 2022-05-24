@@ -17,7 +17,6 @@ serverName="taosd"
 clientName="taos"
 uninstallScript="rmtaos"
 configFile="taos.cfg"
-tarName="taos.tar.gz"
 
 osType=Linux
 pagMode=full
@@ -243,12 +242,6 @@ function install_examples() {
 
 function update_TDengine() {
     # Start to update
-    if [ ! -e ${tarName} ]; then
-        echo "File ${tarName} does not exist"
-        exit 1
-    fi
-    tar -zxf ${tarName}
-
     echo -e "${GREEN}Start to update ${productName} client...${NC}"
     # Stop the client shell if running
     if pidof ${clientName} &> /dev/null; then
@@ -271,18 +264,10 @@ function update_TDengine() {
 
     echo
     echo -e "\033[44;32;1m${productName} client is updated successfully!${NC}"
-
-    rm -rf $(tar -tf ${tarName})
 }
 
 function install_TDengine() {
   # Start to install
-  if [ ! -e ${tarName} ]; then
-    echo "File ${tarName} does not exist"
-    exit 1
-  fi
-  tar -zxf ${tarName}
-
   echo -e "${GREEN}Start to install ${productName} client...${NC}"
 
   install_main_path

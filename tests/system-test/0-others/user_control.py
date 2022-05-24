@@ -1,17 +1,36 @@
+from tabnanny import check
 import taos
-import sys
+import time
 import inspect
 import traceback
+from dataclasses  import dataclass
 
 from util.log import *
 from util.sql import *
 from util.cases import *
 from util.dnodes import *
 
-
 PRIVILEGES_ALL      = "ALL"
 PRIVILEGES_READ     = "READ"
 PRIVILEGES_WRITE    = "WRITE"
+
+WEIGHT_ALL      = 5
+WEIGHT_READ     = 2
+WEIGHT_WRITE    = 3
+
+PRIMARY_COL = "ts"
+
+INT_COL     = "c1"
+BINT_COL    = "c2"
+SINT_COL    = "c3"
+TINT_COL    = "c4"
+FLOAT_COL   = "c5"
+DOUBLE_COL  = "c6"
+BOOL_COL    = "c7"
+
+BINARY_COL  = "c8"
+NCHAR_COL   = "c9"
+TS_COL      = "c10"
 
 class TDconnect:
     def __init__(self,
@@ -81,6 +100,7 @@ class TDconnect:
             self.cursor.close()
             self._conn.close()
 
+
 def taos_connect(
     host    = "127.0.0.1",
     port    = 6030,
@@ -98,6 +118,15 @@ def taos_connect(
         config=config
     )
 
+
+@dataclass
+class User:
+    name        : str   = None
+    passwd      : str   = None
+    db_set      : set   = None
+    priv        : str   = None
+    priv_weight : int   = 0
+
 class TDTestCase:
 
     def init(self, conn, logSql):
@@ -107,6 +136,22 @@ class TDTestCase:
     @property
     def __user_list(self):
         return  [f"user_test{i}" for i in range(self.users_count) ]
+
+    def __users(self):
+        self.users = []
+        self.root_user = User()
+        self.root_user.name = "root"
+        self.root_user.passwd = "taosdata"
+        self.root_user.db_set = set("*")
+        self.root_user.priv = PRIVILEGES_ALL
+        self.root_user.priv_weight = WEIGHT_ALL
+        for i in range(self.users_count):
+            user = User()
+            user.name = f"user_test{i}"
+            user.passwd = f"taosdata{i}"
+            user.db_set = set()
+            self.users.append(user)
+        return self.users
 
     @property
     def __passwd_list(self):
@@ -189,9 +234,210 @@ class TDTestCase:
         for sql in sqls:
             tdSql.error(sql)
 
-
-    def grant_user_privileges(self, privilege,  dbname=None, user_name="root"):
+    def __grant_user_privileges(self, privilege,  dbname=None, user_name="root"):
         return f"GRANT {privilege} ON {self.__priv_level(dbname)} TO {user_name} "
+
+    def __revoke_user_privileges(self, privilege,  dbname=None, user_name="root"):
+        return f"REVOKE {privilege} ON {self.__priv_level(dbname)} FROM {user_name} "
+
+    def __user_check(self, user:User=None, check_priv=PRIVILEGES_ALL):
+        if user is None:
+            user = self.root_user
+        with taos_connect(user=user.name, passwd=user.passwd) as use:
+            time.sleep(2)
+            use.query("use db")
+            use.query("show tables")
+            if check_priv == PRIVILEGES_ALL:
+                use.query("select * from ct1")
+                use.query("insert into t1 (ts) values (now())")
+            elif check_priv == PRIVILEGES_READ:
+                use.query("select * from ct1")
+                use.error("insert into t1 (ts) values (now())")
+            elif check_priv == PRIVILEGES_WRITE:
+                use.error("select * from ct1")
+                use.query("insert into t1 (ts) values (now())")
+            elif check_priv is None:
+                use.error("select * from ct1")
+                use.error("insert into t1 (ts) values (now())")
+
+    def __change_user_priv(self, user: User, pre_priv, invoke=False):
+        if user.priv == pre_priv and invoke :
+            return
+        if user.name == "root":
+            return
+
+        if pre_priv.upper() == PRIVILEGES_ALL:
+            pre_weight = -5 if invoke else 5
+        elif pre_priv.upper() == PRIVILEGES_READ:
+            pre_weight = -2 if invoke else 2
+        elif pre_priv.upper() == PRIVILEGES_WRITE:
+            pre_weight = -3 if invoke else 3
+        else:
+            return
+        pre_weight += user.priv_weight
+
+        if pre_weight >= 5:
+            user.priv = PRIVILEGES_ALL
+            user.priv_weight = 5
+        elif pre_weight == 3:
+            user.priv = PRIVILEGES_WRITE
+            user.priv_weight = pre_weight
+        elif pre_weight == 2:
+            user.priv_weight = pre_weight
+            user.priv = PRIVILEGES_READ
+        elif pre_weight in [1, -1]:
+            return
+        elif pre_weight <= 0:
+            user.priv_weight = 0
+            user.priv = ""
+
+        return user
+
+    def grant_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None):
+        if not user:
+            user = self.root_user
+        sql = self.__grant_user_privileges(privilege=priv, dbname=dbname, user_name=user.name)
+        tdLog.info(sql)
+        if (user not in self.users and user.name != "root") or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
+            tdSql.error(sql)
+        tdSql.query(sql)
+        self.__change_user_priv(user=user, pre_priv=priv)
+        user.db_set.add(dbname)
+        time.sleep(1)
+
+    def revoke_user(self, user: User = None, priv=PRIVILEGES_ALL, dbname=None):
+        sql = self.__revoke_user_privileges(privilege=priv, dbname=dbname, user_name=user.name)
+        tdLog.info(sql)
+        if user is None or priv not in (PRIVILEGES_ALL, PRIVILEGES_READ, PRIVILEGES_WRITE):
+            tdSql.error(sql)
+        tdSql.query(sql)
+        self.__change_user_priv(user=user, pre_priv=priv, invoke=True)
+        if user.name != "root":
+            user.db_set.discard(dbname) if dbname else user.db_set.clear()
+        time.sleep(1)
+
+    def test_priv_change_current(self):
+        tdLog.printNoPrefix("==========step 1.0: if do not grant, can not read/write")
+        self.__user_check(user=self.root_user)
+        self.__user_check(user=self.users[0], check_priv=None)
+
+        tdLog.printNoPrefix("==========step 1.1: grant read, can read, can not write")
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
+        self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
+
+        tdLog.printNoPrefix("==========step 1.2: grant write, can write")
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+        self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
+
+        tdLog.printNoPrefix("==========step 1.3: grant all, can write and read")
+        self.grant_user(user=self.users[2])
+        self.__user_check(user=self.users[2], check_priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.4:  grant read to write = all ")
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_WRITE)
+        self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.5:  revoke write from all = read ")
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
+        self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
+
+        tdLog.printNoPrefix("==========step 1.6: grant write to read = all")
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_READ)
+        self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.7:  revoke read from all = write ")
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
+        self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
+
+        tdLog.printNoPrefix("==========step 1.8: grant read to all = all")
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_ALL)
+        self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.9: grant write to all = all")
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_ALL)
+        self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.10: grant all to read = all")
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
+        self.__user_check(user=self.users[0], check_priv=PRIVILEGES_ALL)
+
+        tdLog.printNoPrefix("==========step 1.11: grant all to write = all")
+        self.grant_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+        self.__user_check(user=self.users[1], check_priv=PRIVILEGES_ALL)
+
+        ### init user
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
+
+        tdLog.printNoPrefix("==========step 1.12: revoke read from write = no change")
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_READ)
+        self.__user_check(user=self.users[1], check_priv=PRIVILEGES_WRITE)
+
+        tdLog.printNoPrefix("==========step 1.13: revoke write from read = no change")
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_WRITE)
+        self.__user_check(user=self.users[0], check_priv=PRIVILEGES_READ)
+
+        tdLog.printNoPrefix("==========step 1.14: revoke read from read = nothing")
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_READ)
+        self.__user_check(user=self.users[0], check_priv=None)
+
+        tdLog.printNoPrefix("==========step 1.15: revoke write from write = nothing")
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+        self.__user_check(user=self.users[1], check_priv=None)
+
+        ### init user
+        self.grant_user(user=self.users[0], priv=PRIVILEGES_READ)
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_WRITE)
+
+        tdLog.printNoPrefix("==========step 1.16: revoke all from write = nothing")
+        self.revoke_user(user=self.users[1], priv=PRIVILEGES_ALL)
+        self.__user_check(user=self.users[1], check_priv=None)
+
+        tdLog.printNoPrefix("==========step 1.17: revoke all from read = nothing")
+        self.revoke_user(user=self.users[0], priv=PRIVILEGES_ALL)
+        self.__user_check(user=self.users[0], check_priv=None)
+
+        tdLog.printNoPrefix("==========step 1.18: revoke all from all = nothing")
+        self.revoke_user(user=self.users[2], priv=PRIVILEGES_ALL)
+        time.sleep(3)
+        self.__user_check(user=self.users[2], check_priv=None)
+
+    def __grant_err(self):
+        return [
+            self.__grant_user_privileges(privilege=self.__privilege[0], user_name="") ,
+            self.__grant_user_privileges(privilege=self.__privilege[0], user_name="*") ,
+            self.__grant_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
+            self.__grant_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
+            self.__grant_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
+            self.__grant_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
+            f"GRANT {self.__privilege[0]} ON * TO {self.__user_list[0]}" ,
+            f"GRANT {self.__privilege[0]} ON db.t1 TO {self.__user_list[0]}" ,
+        ]
+
+    def __revoke_err(self):
+        return [
+            self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="") ,
+            self.__revoke_user_privileges(privilege=self.__privilege[0], user_name="*") ,
+            self.__revoke_user_privileges(privilege=self.__privilege[1], dbname="not_exist_db", user_name=self.__user_list[0]),
+            self.__revoke_user_privileges(privilege="any_priv", user_name=self.__user_list[0]),
+            self.__revoke_user_privileges(privilege="", dbname="db", user_name=self.__user_list[0]) ,
+            self.__revoke_user_privileges(privilege=" ".join(self.__privilege), user_name=self.__user_list[0]) ,
+            f"REVOKE {self.__privilege[0]} ON * FROM {self.__user_list[0]}" ,
+            f"REVOKE {self.__privilege[0]} ON db.t1 FROM {self.__user_list[0]}" ,
+        ]
+
+    def test_grant_err(self):
+        for sql in self.__grant_err():
+            tdSql.error(sql)
+
+    def test_revoke_err(self):
+        for sql in self.__revoke_err():
+            tdSql.error(sql)
+
+    def test_change_priv(self):
+        self.test_grant_err()
+        self.test_revoke_err()
+        self.test_priv_change_current()
 
     def test_user_create(self):
         self.create_user_current()
@@ -217,7 +463,6 @@ class TDTestCase:
             tdLog.exit(f"connect failed, user: {user} and pass: {passwd} do not match!")
         else:
             tdLog.info("connect successfully, user and pass matched!")
-
 
     def login_err(self, user, passwd):
         login_except, _ = self.user_login(user, passwd)
@@ -253,7 +498,112 @@ class TDTestCase:
         self.drop_user_error()
         self.drop_user_current()
 
+    def __create_tb(self):
+
+        tdLog.printNoPrefix("==========step1:create table")
+        create_stb_sql  =  f'''create table stb1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            ) tags (t1 int)
+            '''
+        create_ntb_sql = f'''create table t1(
+                ts timestamp, {INT_COL} int, {BINT_COL} bigint, {SINT_COL} smallint, {TINT_COL} tinyint,
+                 {FLOAT_COL} float, {DOUBLE_COL} double, {BOOL_COL} bool,
+                 {BINARY_COL} binary(16), {NCHAR_COL} nchar(32), {TS_COL} timestamp
+            )
+            '''
+        tdSql.execute(create_stb_sql)
+        tdSql.execute(create_ntb_sql)
+
+        for i in range(4):
+            tdSql.execute(f'create table ct{i+1} using stb1 tags ( {i+1} )')
+            { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2}
+
+    def __insert_data(self, rows):
+        now_time = int(datetime.datetime.timestamp(datetime.datetime.now()) * 1000)
+        for i in range(rows):
+            tdSql.execute(
+                f"insert into ct1 values ( { now_time - i * 1000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct4 values ( { now_time - i * 7776000000 }, {i}, {11111 * i}, {111 * i % 32767 }, {11 * i % 127}, {1.11*i}, {1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+            tdSql.execute(
+                f"insert into ct2 values ( { now_time - i * 7776000000 }, {-i},  {-11111 * i}, {-111 * i % 32767 }, {-11 * i % 127}, {-1.11*i}, {-1100.0011*i}, {i%2}, 'binary{i}', 'nchar_测试_{i}', { now_time + 1 * i } )"
+            )
+        tdSql.execute(
+            f'''insert into ct1 values
+            ( { now_time - rows * 5 }, 0, 0, 0, 0, 0, 0, 0, 'binary0', 'nchar_测试_0', { now_time + 8 } )
+            ( { now_time + 10000 }, { rows }, -99999, -999, -99, -9.99, -99.99, 1, 'binary9', 'nchar_测试_9', { now_time + 9 } )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct4 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time +  7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000}, {pow(2,31)-pow(2,15)}, {pow(2,63)-pow(2,30)}, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000}
+                )
+            (
+                { now_time + 2592000000 }, {pow(2,31)-pow(2,16)}, {pow(2,63)-pow(2,31)}, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000}
+                )
+            '''
+        )
+
+        tdSql.execute(
+            f'''insert into ct2 values
+            ( { now_time - rows * 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3888000000 + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7776000000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            (
+                { now_time + 5184000000 }, { -1 * pow(2,31) + pow(2,15) }, { -1 * pow(2,63) + pow(2,30) }, -32766, -126,
+                { -1 * 3.2 * pow(10,38) }, { -1.2 * pow(10,308) }, { rows % 2 }, "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 2592000000 }, { -1 * pow(2,31) + pow(2,16) }, { -1 * pow(2,63) + pow(2,31) }, -32767, -127,
+                { - 3.3 * pow(10,38) }, { -1.3 * pow(10,308) }, { (rows-1) % 2 }, "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
+            '''
+        )
+
+        for i in range(rows):
+            insert_data = f'''insert into t1 values
+                ( { now_time - i * 3600000 }, {i}, {i * 11111}, { i % 32767 }, { i % 127}, { i * 1.11111 }, { i * 1000.1111 }, { i % 2},
+                "binary_{i}", "nchar_测试_{i}", { now_time - 1000 * i } )
+                '''
+            tdSql.execute(insert_data)
+        tdSql.execute(
+            f'''insert into t1 values
+            ( { now_time + 10800000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - (( rows // 2 ) * 60 + 30) * 60000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time - rows * 3600000 }, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL )
+            ( { now_time + 7200000 }, { pow(2,31) - pow(2,15) }, { pow(2,63) - pow(2,30) }, 32767, 127,
+                { 3.3 * pow(10,38) }, { 1.3 * pow(10,308) }, { rows % 2 },
+                "binary_limit-1", "nchar_测试_limit-1", { now_time - 86400000 }
+                )
+            (
+                { now_time + 3600000 } , { pow(2,31) - pow(2,16) }, { pow(2,63) - pow(2,31) }, 32766, 126,
+                { 3.2 * pow(10,38) }, { 1.2 * pow(10,308) }, { (rows-1) % 2 },
+                "binary_limit-2", "nchar_测试_limit-2", { now_time - 172800000 }
+                )
+            '''
+        )
+
     def run(self):
+        tdSql.prepare()
+        self.__create_tb()
+        self.rows = 10
+        self.users_count = 5
+        self.__insert_data(self.rows)
+        self.users = self.__users()
+
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
         # 默认只有 root 用户
         tdLog.printNoPrefix("==========step0: init, user list only has root account")
@@ -264,7 +614,6 @@ class TDTestCase:
         # root用户权限
         # 创建用户测试
         tdLog.printNoPrefix("==========step1: create user test")
-        self.users_count = 5
         self.test_user_create()
 
         # 查看用户
@@ -275,6 +624,9 @@ class TDTestCase:
         # 密码登录认证
         self.login_currrent(self.__user_list[0], self.__passwd_list[0])
         self.login_err(self.__user_list[0], f"new{self.__passwd_list[0]}")
+
+        # 用户权限设置
+        self.test_change_priv()
 
         # 修改密码
         tdLog.printNoPrefix("==========step3: alter user pass test")

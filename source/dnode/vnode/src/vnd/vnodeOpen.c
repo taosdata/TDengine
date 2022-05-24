@@ -77,7 +77,8 @@ SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb) {
   pVnode->path = (char *)&pVnode[1];
   strcpy(pVnode->path, path);
   pVnode->config = info.config;
-  pVnode->state = info.state;
+  pVnode->state.committed = info.state.committed;
+  pVnode->state.applied = info.state.committed;
   pVnode->pTfs = pTfs;
   pVnode->msgCb = msgCb;
 
@@ -180,8 +181,6 @@ void vnodeClose(SVnode *pVnode) {
 
 // start the sync timer after the queue is ready
 int32_t vnodeStart(SVnode *pVnode) {
-  vnodeSyncSetQ(pVnode, NULL);
-  vnodeSyncSetRpc(pVnode, NULL);
   vnodeSyncStart(pVnode);
   return 0;
 }

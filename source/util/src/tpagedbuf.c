@@ -187,9 +187,6 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     }
   } else {  // NOTE: the size may be -1, the this recycle page has not been flushed to disk yet.
     size = pg->length;
-    if (size == -1) {
-      printf("----\n");
-    }
   }
 
   ASSERT(size > 0 || (pg->offset == -1 && pg->length == -1));
