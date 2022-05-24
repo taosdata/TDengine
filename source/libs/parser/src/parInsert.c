@@ -701,7 +701,7 @@ static int32_t parseBoundColumns(SInsertParseContext* pCxt, SParsedDataColInfo* 
     }
     lastColIdx = index;
     pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
+    pColList->boundColumns[pColList->numOfBound] = index;
     ++pColList->numOfBound;
     switch (pSchema[t].type) {
       case TSDB_DATA_TYPE_BINARY:
@@ -815,7 +815,7 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
       return buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and tag values");
     }
 
-    SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i] - 1];  // colId starts with 1
+    SSchema* pTagSchema = &pSchema[pCxt->tags.boundColumns[i]];
     param.schema = pTagSchema;
     CHECK_CODE(
         parseValueToken(&pCxt->pSql, &sToken, pTagSchema, precision, tmpTokenBuf, KvRowAppend, &param, &pCxt->msg));
@@ -903,7 +903,7 @@ static int32_t parseUsingClause(SInsertParseContext* pCxt, SName* name, char* tb
   if (TK_NK_LP != sToken.type) {
     return buildSyntaxErrMsg(&pCxt->msg, "( is expected", sToken.z);
   }
-  CHECK_CODE(parseTagsClause(pCxt, pCxt->pTableMeta->schema, getTableInfo(pCxt->pTableMeta).precision, name->tname));
+  CHECK_CODE(parseTagsClause(pCxt, pTagsSchema, getTableInfo(pCxt->pTableMeta).precision, name->tname));
   NEXT_VALID_TOKEN(pCxt->pSql, sToken);
   if (TK_NK_COMMA == sToken.type) {
     return generateSyntaxErrMsg(&pCxt->msg, TSDB_CODE_PAR_TAGS_NOT_MATCHED);
@@ -929,7 +929,7 @@ static int parseOneRow(SInsertParseContext* pCxt, STableDataBlocks* pDataBlocks,
   // 1. set the parsed value from sql string
   for (int i = 0; i < spd->numOfBound; ++i) {
     NEXT_TOKEN_WITH_PREV(pCxt->pSql, sToken);
-    SSchema* pSchema = &schema[spd->boundColumns[i] - 1];
+    SSchema* pSchema = &schema[spd->boundColumns[i]];
 
     if (sToken.type == TK_NK_QUESTION) {
       isParseBindParam = true;
@@ -1088,7 +1088,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       if (sToken.type && pCxt->pSql[0]) {
         return buildSyntaxErrMsg(&pCxt->msg, "invalid charactor in SQL", sToken.z);
       }
-      
+
       if (0 == pCxt->totalNum && (!TSDB_QUERY_HAS_TYPE(pCxt->pOutput->insertType, TSDB_QUERY_TYPE_STMT_INSERT))) {
         return buildInvalidOperationMsg(&pCxt->msg, "no data in sql");
       }
@@ -1337,7 +1337,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
       continue;
     }
 
-    SSchema* pTagSchema = &pSchema[tags->boundColumns[c] - 1];  // colId starts with 1
+    SSchema* pTagSchema = &pSchema[tags->boundColumns[c]];
     param.schema = pTagSchema;
 
     int32_t colLen = pTagSchema->bytes;
@@ -1384,7 +1384,7 @@ int32_t qBindStmtColsValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBuf, in
     tdSRowResetBuf(pBuilder, row);
 
     for (int c = 0; c < spd->numOfBound; ++c) {
-      SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
+      SSchema* pColSchema = &pSchema[spd->boundColumns[c]];
 
       if (bind[c].num != rowNum) {
         return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
@@ -1467,7 +1467,7 @@ int32_t qBindStmtSingleColValue(void* pBlock, TAOS_MULTI_BIND* bind, char* msgBu
       tdSRowGetBuf(pBuilder, row);
     }
 
-    SSchema* pColSchema = &pSchema[spd->boundColumns[colIdx] - 1];
+    SSchema* pColSchema = &pSchema[spd->boundColumns[colIdx]];
 
     if (bind->num != rowNum) {
       return buildInvalidOperationMsg(&pBuf, "row number in each bind param should be the same");
@@ -1539,7 +1539,7 @@ int32_t buildBoundFields(SParsedDataColInfo* boundInfo, SSchema* pSchema, int32_
     }
 
     for (int32_t i = 0; i < boundInfo->numOfBound; ++i) {
-      SSchema* pTagSchema = &pSchema[boundInfo->boundColumns[i] - 1];
+      SSchema* pTagSchema = &pSchema[boundInfo->boundColumns[i]];
       strcpy((*fields)[i].name, pTagSchema->name);
       (*fields)[i].type = pTagSchema->type;
       (*fields)[i].bytes = pTagSchema->bytes;
@@ -1638,7 +1638,7 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
     }
     lastColIdx = index;
     pColList->cols[index].valStat = VAL_STAT_HAS;
-    pColList->boundColumns[pColList->numOfBound] = index + PRIMARYKEY_TIMESTAMP_COL_ID;
+    pColList->boundColumns[pColList->numOfBound] = index;
     ++pColList->numOfBound;
     switch (pSchema[t].type) {
       case TSDB_DATA_TYPE_BINARY:
@@ -1688,7 +1688,7 @@ static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedD
 
   SKvParam param = {.builder = tagsBuilder};
   for (int i = 0; i < tags->numOfBound; ++i) {
-    SSchema* pTagSchema = &pSchema[tags->boundColumns[i] - 1];  // colId starts with 1
+    SSchema* pTagSchema = &pSchema[tags->boundColumns[i]];
     param.schema = pTagSchema;
     SSmlKv* kv = taosArrayGetP(cols, i);
     if (IS_VAR_DATA_TYPE(kv->type)) {
