@@ -23,6 +23,11 @@ int32_t sendReq(const SEpSet *pEpSet, SRpcMsg *pMsg) {
   return -1;
 }
 
+int32_t putToQueue(void *pMgmt, SRpcMsg *pMsg) {
+  terrno = TSDB_CODE_INVALID_PTR;
+  return -1;
+}
+
 class MndTestTrans2 : public ::testing::Test {
  protected:
   static void InitLog() {
@@ -55,6 +60,9 @@ class MndTestTrans2 : public ::testing::Test {
     msgCb.reportStartupFp = reportStartup;
     msgCb.sendReqFp = sendReq;
     msgCb.sendRspFp = sendRsp;
+    msgCb.queueFps[SYNC_QUEUE] = putToQueue;
+    msgCb.queueFps[WRITE_QUEUE] = putToQueue;
+     msgCb.queueFps[READ_QUEUE] = putToQueue;
     msgCb.mgmt = (SMgmtWrapper *)(&msgCb);  // hack
     tmsgSetDefault(&msgCb);
 
@@ -77,6 +85,7 @@ class MndTestTrans2 : public ::testing::Test {
   static void SetUpTestSuite() {
     InitLog();
     walInit();
+    syncInit();
     InitMnode();
   }
 
