@@ -342,25 +342,19 @@ SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType typ
   CHECK_OUT_OF_MEM(cond);
   cond->condType = type;
   cond->pParameterList = nodesMakeList();
-  if ((QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1) && type != ((SLogicConditionNode*)pParam1)->condType) ||
-      (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2) && type != ((SLogicConditionNode*)pParam2)->condType)) {
-    nodesListAppend(cond->pParameterList, pParam1);
-    nodesListAppend(cond->pParameterList, pParam2);
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1) && type == ((SLogicConditionNode*)pParam1)->condType) {
+    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam1)->pParameterList);
+    ((SLogicConditionNode*)pParam1)->pParameterList = NULL;
+    nodesDestroyNode(pParam1);
   } else {
-    if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1)) {
-      nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam1)->pParameterList);
-      ((SLogicConditionNode*)pParam1)->pParameterList = NULL;
-      nodesDestroyNode(pParam1);
-    } else {
-      nodesListAppend(cond->pParameterList, pParam1);
-    }
-    if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2)) {
-      nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam2)->pParameterList);
-      ((SLogicConditionNode*)pParam2)->pParameterList = NULL;
-      nodesDestroyNode(pParam2);
-    } else {
-      nodesListAppend(cond->pParameterList, pParam2);
-    }
+    nodesListAppend(cond->pParameterList, pParam1);
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2) && type == ((SLogicConditionNode*)pParam2)->condType) {
+    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam2)->pParameterList);
+    ((SLogicConditionNode*)pParam2)->pParameterList = NULL;
+    nodesDestroyNode(pParam2);
+  } else {
+    nodesListAppend(cond->pParameterList, pParam2);
   }
   return (SNode*)cond;
 }

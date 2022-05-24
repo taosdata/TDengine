@@ -233,45 +233,45 @@ class PlannerTestBaseImpl {
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PARSER == module) {
       if (res_.prepareAst_.empty()) {
-        cout << "syntax tree : " << endl;
+        cout << "+++++++++++++++++++++syntax tree : " << endl;
         cout << res_.ast_ << endl;
       } else {
-        cout << "prepare syntax tree : " << endl;
+        cout << "+++++++++++++++++++++prepare syntax tree : " << endl;
         cout << res_.prepareAst_ << endl;
-        cout << "bound syntax tree : " << endl;
+        cout << "+++++++++++++++++++++bound syntax tree : " << endl;
         cout << res_.boundAst_ << endl;
-        cout << "syntax tree : " << endl;
+        cout << "+++++++++++++++++++++syntax tree : " << endl;
         cout << res_.ast_ << endl;
       }
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_LOGIC == module) {
-      cout << "raw logic plan : " << endl;
+      cout << "+++++++++++++++++++++raw logic plan : " << endl;
       cout << res_.rawLogicPlan_ << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_OPTIMIZED == module) {
-      cout << "optimized logic plan : " << endl;
+      cout << "+++++++++++++++++++++optimized logic plan : " << endl;
       cout << res_.optimizedLogicPlan_ << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SPLIT == module) {
-      cout << "split logic plan : " << endl;
+      cout << "+++++++++++++++++++++split logic plan : " << endl;
       cout << res_.splitLogicPlan_ << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SCALED == module) {
-      cout << "scaled logic plan : " << endl;
+      cout << "+++++++++++++++++++++scaled logic plan : " << endl;
       cout << res_.scaledLogicPlan_ << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_PHYSICAL == module) {
-      cout << "physical plan : " << endl;
+      cout << "+++++++++++++++++++++physical plan : " << endl;
       cout << res_.physiPlan_ << endl;
     }
 
     if (DUMP_MODULE_ALL == module || DUMP_MODULE_SUBPLAN == module) {
-      cout << "physical subplan : " << endl;
+      cout << "+++++++++++++++++++++physical subplan : " << endl;
       for (const auto& subplan : res_.physiSubplans_) {
         cout << subplan << endl;
       }

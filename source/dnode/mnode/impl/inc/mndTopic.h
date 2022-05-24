@@ -35,7 +35,7 @@ int32_t mndDropTopicByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 
 const char *mndTopicGetShowName(const char topic[TSDB_TOPIC_FNAME_LEN]);
 
-int32_t mndSetTopicRedoLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
+int32_t mndSetTopicCommitLogs(SMnode *pMnode, STrans *pTrans, SMqTopicObj *pTopic);
 
 #ifdef __cplusplus
 }

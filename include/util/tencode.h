@@ -82,7 +82,7 @@ typedef struct {
   do {                               \
     SEncoder coder = {0};            \
     tEncoderInit(&coder, NULL, 0);   \
-    if ((E)(&coder, S) == 0) {       \
+    if ((E)(&coder, S) >= 0) {       \
       SIZE = coder.pos;              \
       RET = 0;                       \
     } else {                         \
@@ -317,7 +317,7 @@ static FORCE_INLINE int32_t tDecodeI16v(SDecoder* pCoder, int16_t* val) {
   if (tDecodeU16v(pCoder, &tval) < 0) {
     return -1;
   }
-  *val = ZIGZAGD(int16_t, tval);
+  if (val) *val = ZIGZAGD(int16_t, tval);
   return 0;
 }
 
@@ -331,7 +331,7 @@ static FORCE_INLINE int32_t tDecodeI32v(SDecoder* pCoder, int32_t* val) {
   if (tDecodeU32v(pCoder, &tval) < 0) {
     return -1;
   }
-  *val = ZIGZAGD(int32_t, tval);
+  if (val) *val = ZIGZAGD(int32_t, tval);
   return 0;
 }
 
@@ -345,7 +345,7 @@ static FORCE_INLINE int32_t tDecodeI64v(SDecoder* pCoder, int64_t* val) {
   if (tDecodeU64v(pCoder, &tval) < 0) {
     return -1;
   }
-  *val = ZIGZAGD(int64_t, tval);
+  if (val) *val = ZIGZAGD(int64_t, tval);
   return 0;
 }
 
