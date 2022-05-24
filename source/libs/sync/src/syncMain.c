@@ -157,6 +157,18 @@ ESyncState syncGetMyRole(int64_t rid) {
   return state;
 }
 
+bool syncIsRestoreFinish(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return false;
+  }
+  assert(rid == pSyncNode->rid);
+  bool b = pSyncNode->restoreFinish;
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return b;
+}
+
 const char* syncGetMyRoleStr(int64_t rid) {
   const char* s = syncUtilState2String(syncGetMyRole(rid));
   return s;
