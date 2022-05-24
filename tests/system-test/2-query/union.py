@@ -35,7 +35,6 @@ class TDTestCase:
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
-                    f"substr( {tbname}.{char_col}, 1 )",
                     f"count( {tbname}.{char_col} )",
                     f"cast( {tbname}.{char_col} as nchar(3) )",
                 )
@@ -46,7 +45,6 @@ class TDTestCase:
                 (
                     f"{tbname}.{num_col}",
                     f"log( {tbname}.{num_col},  {tbname}.{num_col})",
-                    f"sin( {tbname}.{num_col} )",
                 )
             )
 
@@ -114,10 +112,8 @@ class TDTestCase:
     def __join_tblist(self):
         return [
             ["ct1", "ct2"],
-            ["ct1", "ct4"],
             ["ct1", "t1"],
             ["ct2", "ct4"],
-            ["ct2", "t1"],
             ["ct4", "t1"],
             # ["ct1", "ct2", "ct4"],
             # ["ct1", "ct2", "t1"],
