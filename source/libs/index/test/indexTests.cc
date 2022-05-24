@@ -794,10 +794,10 @@ class IndexObj {
     }
     int sz = taosArrayGetSize(result);
     indexMultiTermQueryDestroy(mq);
-    taosArrayDestroy(result);
     assert(sz == 1);
     uint64_t* ret = (uint64_t*)taosArrayGet(result, 0);
     assert(val = *ret);
+    taosArrayDestroy(result);
 
     return sz;
   }

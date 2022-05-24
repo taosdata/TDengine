@@ -74,9 +74,10 @@ typedef struct TFileReader {
 } TFileReader;
 
 typedef struct IndexTFile {
-  char*        path;
-  TFileCache*  cache;
-  TFileWriter* tw;
+  char*         path;
+  TFileCache*   cache;
+  TFileWriter*  tw;
+  TdThreadMutex mtx;
 } IndexTFile;
 
 typedef struct TFileWriterOpt {

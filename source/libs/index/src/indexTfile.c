@@ -151,13 +151,10 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
   char    buf[128] = {0};
   int32_t sz = indexSerialCacheKey(key, buf);
   assert(sz < sizeof(buf));
-  indexInfo("Try to get key: %s", buf);
   TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
   if (reader == NULL || *reader == NULL) {
-    indexInfo("failed to  get key: %s", buf);
     return NULL;
   }
-  indexInfo("Get key: %s file: %s", buf, (*reader)->ctx->file.buf);
   tfileReaderRef(*reader);
 
   return *reader;
@@ -657,7 +654,7 @@ IndexTFile* indexTFileCreate(const char* path) {
     tfileCacheDestroy(cache);
     return NULL;
   }
-
+  taosThreadMutexInit(&tfile->mtx, NULL);
   tfile->cache = cache;
   return tfile;
 }
@@ -665,6 +662,7 @@ void indexTFileDestroy(IndexTFile* tfile) {
   if (tfile == NULL) {
     return;
   }
+  taosThreadMutexDestroy(&tfile->mtx);
   tfileCacheDestroy(tfile->cache);
   taosMemoryFree(tfile);
 }
@@ -680,7 +678,10 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* result
 
   SIndexTerm* term = query->term;
   ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
+
+  taosThreadMutexLock(&pTfile->mtx);
   TFileReader* reader = tfileCacheGet(pTfile->cache, &key);
+  taosThreadMutexUnlock(&pTfile->mtx);
   if (reader == NULL) {
     return 0;
   }
@@ -780,8 +781,13 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName) {
   if (tf == NULL) {
     return NULL;
   }
-  ICacheKey key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
-  return tfileCacheGet(tf->cache, &key);
+  TFileReader* rd = NULL;
+  ICacheKey    key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
+
+  taosThreadMutexLock(&tf->mtx);
+  rd = tfileCacheGet(tf->cache, &key);
+  taosThreadMutexUnlock(&tf->mtx);
+  return rd;
 }
 
 static int tfileUidCompare(const void* a, const void* b) {
