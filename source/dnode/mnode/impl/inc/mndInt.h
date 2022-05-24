@@ -76,11 +76,12 @@ typedef struct {
 
 typedef struct {
   SWal      *pWal;
-  int32_t    errCode;
-  bool       restored;
   sem_t      syncSem;
   int64_t    sync;
   ESyncState state;
+  bool       standby;
+  bool       restored;
+  int32_t    errCode;
 } SSyncMgmt;
 
 typedef struct {
