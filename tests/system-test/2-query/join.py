@@ -164,16 +164,18 @@ class TDTestCase:
         return list(filter(None, sqls))
 
     def __join_check(self,):
+        tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         for sql in self.__sqls_list:
             tdSql.query(sql)
+            tdLog.success(f"{sql} executed success !")
 
     def __join_check_old(self, tblist, checkrows, join_flag=True):
         query_conditions = self.__query_condition(tblist[0])
         join_condition = self.__join_condition(tb_list=tblist) if join_flag else " "
         for condition in query_conditions:
             where_condition =  self.__where_condition(col=condition, tbname=tblist[0])
-            group_having = self.__group_condition(tbname=tblist[0], col=condition, having=f"{condition} is not null " )
-            group_no_having= self.__group_condition(tbname=tblist[0], col=condition )
+            group_having = self.__group_condition(col=condition, having=f"{condition} is not null " )
+            group_no_having= self.__group_condition(col=condition )
             groups = ["", group_having, group_no_having]
             for group_condition in groups:
                 if where_condition:
