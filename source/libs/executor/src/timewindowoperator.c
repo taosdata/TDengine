@@ -1178,6 +1178,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
 
   initExecTimeWindowInfo(&pInfo->twAggSup.timeWindowData, &pInfo->win);
   pInfo->invertible = allInvertible(pInfo->binfo.pCtx, numOfCols);
+  pInfo->invertible = false; // Todo(liuyao): Dependent TSDB API
 
   //  pInfo->pTableQueryInfo = initTableQueryInfo(pTableGroupInfo);
   if (code != TSDB_CODE_SUCCESS /* || pInfo->pTableQueryInfo == NULL*/) {

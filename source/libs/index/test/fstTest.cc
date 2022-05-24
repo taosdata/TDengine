@@ -15,7 +15,7 @@
 #include "tutil.h"
 void* callback(void* s) { return s; }
 
-static std::string fileName = "/tmp/tindex.tindex";
+static std::string fileName = TD_TMP_DIR_PATH "tindex.tindex";
 class FstWriter {
  public:
   FstWriter() {
@@ -48,7 +48,7 @@ class FstWriter {
 
 class FstReadMemory {
  public:
-  FstReadMemory(int32_t size, const std::string& fileName = "/tmp/tindex.tindex") {
+  FstReadMemory(int32_t size, const std::string& fileName = TD_TMP_DIR_PATH "tindex.tindex") {
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;

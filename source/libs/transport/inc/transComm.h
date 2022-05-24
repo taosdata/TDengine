@@ -20,22 +20,12 @@ extern "C" {
 #endif
 
 #include <uv.h>
-#include "lz4.h"
 #include "os.h"
-#include "osSocket.h"
 #include "taoserror.h"
-#include "tglobal.h"
-#include "thash.h"
 #include "theap.h"
-#include "tidpool.h"
-#include "tmd5.h"
-#include "tmempool.h"
-#include "tmsg.h"
 #include "transLog.h"
 #include "transportInt.h"
-#include "tref.h"
 #include "trpc.h"
-#include "ttimer.h"
 #include "tutil.h"
 
 typedef void* queue[2];
@@ -104,30 +94,9 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-#define TRANS_RETRY_COUNT_LIMIT 20  // retry count limit
+#define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
 #define TRANS_RETRY_INTERVAL    15  // ms retry interval
 #define TRANS_CONN_TIMEOUT      3   // connect timeout
-
-typedef struct {
-  SRpcInfo* pRpc;     // associated SRpcInfo
-  SEpSet    epSet;    // ip list provided by app
-  void*     ahandle;  // handle provided by app
-  // struct SRpcConn* pConn;     // pConn allocated
-  tmsg_t   msgType;  // message type
-  uint8_t* pCont;    // content provided by app
-  int32_t  contLen;  // content length
-  // int32_t  code;     // error code
-  // int16_t  numOfTry;  // number of try for different servers
-  // int8_t   oldInUse;  // server EP inUse passed by app
-  // int8_t   redirect;  // flag to indicate redirect
-  int8_t   connType;  // connection type
-  int64_t  rid;       // refId returned by taosAddRef
-  SRpcMsg* pRsp;      // for synchronous API
-  tsem_t*  pSem;      // for synchronous API
-  char*    ip;
-  uint32_t port;
-  // SEpSet*          pSet;      // for synchronous API
-} SRpcReqContext;
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;

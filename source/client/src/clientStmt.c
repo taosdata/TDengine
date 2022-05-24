@@ -47,8 +47,14 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
       }
       break;
     case STMT_EXECUTE:
-      if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS)) {
-        code = TSDB_CODE_TSC_STMT_API_ERROR;
+      if (STMT_TYPE_QUERY == pStmt->sql.type) {
+        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(BIND) && STMT_STATUS_NE(BIND_COL)) {
+          code = TSDB_CODE_TSC_STMT_API_ERROR;
+        }
+      } else {
+        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS)) {
+          code = TSDB_CODE_TSC_STMT_API_ERROR;
+        }
       }
       break;
     default:
@@ -794,6 +800,7 @@ int stmtExec(TAOS_STMT* stmt) {
     if (code) {
       pStmt->exec.pRequest->code = code;
     } else {
+      tFreeSSubmitRsp(pRsp);
       STMT_ERR_RET(stmtResetStmt(pStmt));
       STMT_ERR_RET(TSDB_CODE_NEED_RETRY);
     }
@@ -811,11 +818,13 @@ _return:
   if (TSDB_CODE_SUCCESS == code && autoCreateTbl) {
     if (NULL == pRsp) {
       tscError("no submit resp got for auto create table");
-      STMT_ERR_RET(TSDB_CODE_TSC_APP_ERROR);
+      code = TSDB_CODE_TSC_APP_ERROR;
+    } else {
+      code = stmtUpdateTableUid(pStmt, pRsp);
     }
-
-    STMT_ERR_RET(stmtUpdateTableUid(pStmt, pRsp));
   }
+  
+  tFreeSSubmitRsp(pRsp);
 
   ++pStmt->sql.runTimes;
 

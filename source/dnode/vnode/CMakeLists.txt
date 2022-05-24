@@ -48,7 +48,6 @@ target_sources(
     # tq
     "src/tq/tq.c"
     "src/tq/tqCommit.c"
-    "src/tq/tqMetaStore.c"
     "src/tq/tqOffset.c"
     "src/tq/tqPush.c"
     "src/tq/tqRead.c"
@@ -76,9 +75,14 @@ target_link_libraries(
     #PUBLIC scalar
     PUBLIC transport
     PUBLIC stream
+    PUBLIC index
 )
 target_compile_definitions(vnode PUBLIC -DMETA_REFACT)
-
+if (${BUILD_WITH_INVERTEDINDEX})
+  add_definitions(-DUSE_INVERTED_INDEX) 
+endif(${BUILD_WITH_INVERTEDINDEX})
 if(${BUILD_TEST})
     add_subdirectory(test)
 endif(${BUILD_TEST})
+
+
