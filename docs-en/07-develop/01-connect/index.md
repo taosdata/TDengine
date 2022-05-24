@@ -19,25 +19,24 @@ import InstallOnLinux from "../../14-reference/03-connector/\_windows_install.md
 import VerifyLinux from "../../14-reference/03-connector/\_verify_linux.mdx";
 import VerifyWindows from "../../14-reference/03-connector/\_verify_windows.mdx";
 
-Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details, please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple programming languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduce how to install and use connectors. For details about the connectors, please refer to [Connectors](/reference/connector/)
+Any application programs running on any kind of platforms can access TDengine through the REST API provided by TDengine. For the details, please refer to [REST API](/reference/rest-api/). Besides, application programs can use the connectors of multiple programming languages to access TDengine, including C/C++, Java, Python, Go, Node.js, C#, and Rust. This chapter describes how to establish connection to TDengine and briefly introduces how to install and use connectors. For details about the connectors, please refer to [Connectors](/reference/connector/)
 
 ## Establish Connection
 
 There are two ways for a connector to establish connections to TDengine:
 
-1. Connection through the REST API provided by taosAdapter component, this way is called "REST connection" hereinafter.
+1. Connection through the REST API provided by the taosAdapter component, this way is called "REST connection" hereinafter.
 2. Connection through the TDengine client driver (taosc), this way is called "Native connection" hereinafter.
-
-Either way, same or similar APIs are provided by connectors to access database or execute SQL statements, no obvious difference can be observed.
 
 Key differences：
 
-1. With REST connection, it's not necessary to install TDengine client driver (taosc), it's more friendly for cross-platform with the cost of 30% performance downgrade. When taosc has an upgrade, application does not need to make changes. 
-2. With native connection, full compatibility of TDengine can be utilized, like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc. But taosc has to be installed, some platforms may not be supported.
+1. The TDengine client driver (taosc) has the highest performance with all the features of TDengine like [Parameter Binding](/reference/connector/cpp#parameter-binding-api), [Subscription](/reference/connector/cpp#subscription-and-consumption-api), etc.
+2. The TDengine client driver (taosc) is not supported across all platforms, and applications built on taosc may need to be modified when updating taosc to newere versions.
+3. The REST connection is more accessible with cross-platform support, however it results in a 30% performance downgrade.
 
 ## Install Client Driver taosc
 
-If choosing to use native connection and the application is not on the same host as TDengine server, TDengine client driver taosc needs to be installed on the host where the application is. If choosing to use REST connection or the application is on the same host as server side, this step can be skipped. It's better to use same version of taosc as the server.
+If you are choosing to use native connection and the application is not on the same host as TDengine server, the TDengine client driver taosc needs to be installed on the application host. If choosing to use the REST connection or the application is on the same host as TDengine server, this step can be skipped. It's better to use same version of taosc as the server.
 
 ### Install
 
