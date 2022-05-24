@@ -450,7 +450,7 @@ int32_t schHandleLinkBrokenCallback(void *param, const SDataBuf *pMsg, int32_t c
 
   if (head->isHbParam) {
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
-    SSchTrans            trans = {.transInst = hbParam->transport, .transHandle = NULL};
+    SSchTrans            trans = {.pTrans = hbParam->pTrans, .pHandle = NULL};
     SCH_ERR_RET(schUpdateHbConnection(&hbParam->nodeEpId, &trans));
 
     SCH_ERR_RET(schBuildAndSendHbMsg(&hbParam->nodeEpId));
@@ -556,7 +556,7 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
 
   param->nodeEpId.nodeId = addr->nodeId;
   memcpy(&param->nodeEpId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
-  param->transport = pJob->pTrans;
+  param->pTrans = pJob->pTrans;
 
   *pParam = param;
 
@@ -638,7 +638,7 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   SCH_ERR_JRET(schGetCallbackFp(TDMT_VND_QUERY_HEARTBEAT, &fp));
 
   param->nodeEpId = epId;
-  param->transport = pJob->pTrans;
+  param->pTrans = pJob->pTrans;
 
   pMsgSendInfo->param = param;
   pMsgSendInfo->fp = fp;
@@ -1208,7 +1208,7 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
   SCH_SET_TASK_LASTMSG_TYPE(pTask, msgType);
 
-  SSchTrans trans = {.transInst = pJob->pTrans, .transHandle = SCH_GET_TASK_HANDLE(pTask)};
+  SSchTrans trans = {.pTrans = pJob->pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
   SCH_ERR_JRET(schAsyncSendMsg(pJob, pTask, &trans, &epSet, msgType, msg, msgSize, persistHandle,
                                (rpcCtx.args ? &rpcCtx : NULL)));
 
