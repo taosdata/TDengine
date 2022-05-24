@@ -40,8 +40,6 @@ class TDTestCase:
                 )
             )
             query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
         for num_col in NUM_COL:
             query_condition.extend(
                 (
@@ -63,19 +61,6 @@ class TDTestCase:
             join_condition += f" {join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
 
         return join_condition
-
-    # def __join_condition(self, tb_list, filter=PRIMARY_COL):
-    #     # sourcery skip: flip-comparison
-    #     if 1 == len(tb_list):
-    #         join_filter = f"{tb_list[0]}.{filter} = {tb_list[0]}.{filter} "
-    #     elif 2 == len(tb_list):
-    #         join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
-    #     else:
-    #         join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
-    #         for i in range(1, len(tb_list)-1 ):
-    #             join_filter += f"and {tb_list[i]}.{filter} = {tb_list[i+1]}.{filter}"
-
-    #     return join_filter
 
     def __where_condition(self, col=None, tbname=None, query_conditon=None):
         if query_conditon and isinstance(query_conditon, str):
@@ -201,23 +186,6 @@ class TDTestCase:
     def __join_current(self, sql, checkrows):
         tdSql.query(sql=sql)
         # tdSql.checkRows(checkrows)
-
-
-    def __test_current(self):
-        # sourcery skip: extract-duplicate-method, inline-immediately-returned-variable
-        tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tblist_1 = ["ct1", "ct2"]
-        self.__join_check(tblist_1, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_1} over==========")
-        tblist_2 = ["ct2", "ct4"]
-        self.__join_check(tblist_2, self.rows)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_2} over==========")
-        tblist_3 = ["t1", "ct4"]
-        self.__join_check(tblist_3, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_3} over==========")
-        tblist_4 = ["t1", "ct1"]
-        self.__join_check(tblist_4, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_4} over==========")
 
     def __test_error(self):
         # sourcery skip: extract-duplicate-method, move-assign-in-block
