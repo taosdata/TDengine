@@ -269,15 +269,20 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   if (pOperator->status == OP_RES_TO_RETURN) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
-    if (pRes->info.rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
+
+    size_t rows = pRes->info.rows;
+    if (rows == 0 || !hashRemainDataInGroupInfo(&pInfo->groupResInfo)) {
       doSetOperatorCompleted(pOperator);
     }
+
+    pOperator->resultInfo.totalRows += rows;
     return (pRes->info.rows == 0)? NULL:pRes;
   }
 
   int32_t order = TSDB_ORDER_ASC;
   int32_t scanFlag = MAIN_SCAN;
 
+  int64_t st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -316,6 +321,8 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   while(1) {
     doBuildResultDatablock(pOperator, &pInfo->binfo, &pInfo->groupResInfo, pInfo->aggSup.pResultBuf);
@@ -545,7 +552,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
     // try next group data
     pInfo->pGroupIter = taosHashIterate(pInfo->pGroupSet, pInfo->pGroupIter);
     if (pInfo->pGroupIter == NULL) {
-      pOperator->status = OP_EXEC_DONE;
+      doSetOperatorCompleted(pOperator);
       return NULL;
     }
 
@@ -562,6 +569,8 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
 
   blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
   pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
+
+  pOperator->resultInfo.totalRows += pInfo->binfo.pRes->info.rows;
   return pInfo->binfo.pRes;
 }
 
@@ -578,6 +587,7 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
     return buildPartitionResult(pOperator);
   }
 
+  int64_t st = taosGetTimestampUs();
   SOperatorInfo* downstream = pOperator->pDownstream[0];
 
   while (1) {
@@ -588,6 +598,8 @@ static SSDataBlock* hashPartition(SOperatorInfo* pOperator) {
 
     doHashPartition(pOperator, pBlock);
   }
+
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
 
   pOperator->status = OP_RES_TO_RETURN;
   blockDataEnsureCapacity(pRes, 4096);
@@ -632,13 +644,14 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   }
 
   pOperator->name         = "PartitionOperator";
-  pOperator->blocking = true;
+  pOperator->blocking     = true;
   pOperator->status       = OP_NOT_OPENED;
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_PARTITION;
   pInfo->binfo.pRes       = pResultBlock;
-  pOperator->numOfExprs  = numOfCols;
+  pOperator->numOfExprs   = numOfCols;
   pOperator->pExpr        = pExprInfo;
   pOperator->info         = pInfo;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, hashPartition, NULL, NULL, destroyPartitionOperatorInfo,
                                          NULL, NULL, NULL);
