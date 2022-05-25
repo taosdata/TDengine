@@ -3822,6 +3822,12 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
+#ifndef TD_ENTERPRISE
+      if (numOfParams > 1) {
+        return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), "Multiparams UDF is only supported in enterprise version.");
+      }
+#endif
+
       if (numOfParams != pUdfInfo->numOfParams) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
