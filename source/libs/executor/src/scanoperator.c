@@ -806,7 +806,7 @@ static SSDataBlock* getDataFromCatch(SStreamBlockScanInfo* pInfo) {
       SSDataBlock* pDB = createOneDataBlock(pInfo->pRes, false);
       blockDataFromBuf(pDB, buf);
       SSDataBlock* pSub = blockDataExtractBlock(pDB, pos->rowId, 1);
-      blockDataMerge(pInfo->pRes, pSub, NULL);
+      blockDataMerge(pInfo->pRes, pSub);
       blockDataDestroy(pDB);
       blockDataDestroy(pSub);
     }
@@ -1046,8 +1046,9 @@ static void destroySysScanOperator(void* param, int32_t numOfOutput) {
   blockDataDestroy(pInfo->pRes);
 
   const char* name = tNameGetTableName(&pInfo->name);
-  if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0) {
+  if (strncasecmp(name, TSDB_INS_TABLE_USER_TABLES, TSDB_TABLE_FNAME_LEN) == 0 || pInfo->pCur != NULL) {
     metaCloseTbCursor(pInfo->pCur);
+    pInfo->pCur = NULL;
   }
 
   taosArrayDestroy(pInfo->scanCols);
