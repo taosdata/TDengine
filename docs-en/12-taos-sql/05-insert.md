@@ -69,7 +69,7 @@ INSERT INTO d1001 VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-
 If it's not sure whether the table already exists, the table can be created automatically while inserting using below SQL statement. To use this functionality, a STable must be used as template and tag values must be provided.
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
+INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:32.272', 10.2, 219, 0.32);
 ```
 
 It's not necessary to provide values for all tag when creating tables automatically, the tags without values provided will be set to NULL.
@@ -81,7 +81,7 @@ INSERT INTO d21001 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:33.
 Multiple rows can also be inserted into same table in single SQL statement using this way.
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
+INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) VALUES ('2021-07-13 14:06:34.630', 10.2, 219, 0.32) ('2021-07-13 14:06:35.779', 10.15, 217, 0.33)
             d21002 USING meters (groupId) TAGS (2) VALUES ('2021-07-13 14:06:34.255', 10.15, 217, 0.33)
             d21003 USING meters (groupId) TAGS (2) (ts, current, phase) VALUES ('2021-07-13 14:06:34.255', 10.27, 0.31);
 ```
@@ -110,13 +110,13 @@ INSERT INTO d1001 FILE '/tmp/csvfile.csv';
 From version 2.1.5.0, tables can be automatically created using a super table as template when inserting data from a CSV file, Like below:
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile.csv';
+INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile.csv';
 ```
 
 Multiple tables can be automatically created and inserted in single SQL statement, like below:
 
 ```sql
-INSERT INTO d21001 USING meters TAGS ('Beijing.Chaoyang', 2) FILE '/tmp/csvfile_21001.csv'
+INSERT INTO d21001 USING meters TAGS ('California.SanFrancisco', 2) FILE '/tmp/csvfile_21001.csv'
             d21002 USING meters (groupId) TAGS (2) FILE '/tmp/csvfile_21002.csv';
 ```
 
@@ -146,7 +146,7 @@ Query OK, 0 row(s) in set (0.000946s)
 Then, try to create table d1001 automatically when inserting data into it.
 
 ```sql
-INSERT INTO d1001 USING meters TAGS('Beijing.Chaoyang', 2) VALUES('a');
+INSERT INTO d1001 USING meters TAGS('California.SanFrancisco', 2) VALUES('a');
 ```
 
 The output shows the value to be inserted is invalid. But `SHOW TABLES` proves that the table has been created automatically by the `INSERT` statement.

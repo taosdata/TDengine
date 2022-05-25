@@ -39,15 +39,15 @@ The result includes both data columns and tag columns for super table.
 taos> SELECT * FROM meters;
            ts            |       current        |   voltage   |        phase         |            location            |   groupid   |
 =====================================================================================================================================
- 2018-10-03 14:38:05.500 |             11.80000 |         221 |              0.28000 | Beijing.Haidian                |           2 |
- 2018-10-03 14:38:16.600 |             13.40000 |         223 |              0.29000 | Beijing.Haidian                |           2 |
- 2018-10-03 14:38:05.000 |             10.80000 |         223 |              0.29000 | Beijing.Haidian                |           3 |
- 2018-10-03 14:38:06.500 |             11.50000 |         221 |              0.35000 | Beijing.Haidian                |           3 |
- 2018-10-03 14:38:04.000 |             10.20000 |         220 |              0.23000 | Beijing.Chaoyang               |           3 |
- 2018-10-03 14:38:16.650 |             10.30000 |         218 |              0.25000 | Beijing.Chaoyang               |           3 |
- 2018-10-03 14:38:05.000 |             10.30000 |         219 |              0.31000 | Beijing.Chaoyang               |           2 |
- 2018-10-03 14:38:15.000 |             12.60000 |         218 |              0.33000 | Beijing.Chaoyang               |           2 |
- 2018-10-03 14:38:16.800 |             12.30000 |         221 |              0.31000 | Beijing.Chaoyang               |           2 |
+ 2018-10-03 14:38:05.500 |             11.80000 |         221 |              0.28000 | California.LoSangeles                |           2 |
+ 2018-10-03 14:38:16.600 |             13.40000 |         223 |              0.29000 | California.LoSangeles                |           2 |
+ 2018-10-03 14:38:05.000 |             10.80000 |         223 |              0.29000 | California.LoSangeles                |           3 |
+ 2018-10-03 14:38:06.500 |             11.50000 |         221 |              0.35000 | California.LoSangeles                |           3 |
+ 2018-10-03 14:38:04.000 |             10.20000 |         220 |              0.23000 | California.SanFrancisco               |           3 |
+ 2018-10-03 14:38:16.650 |             10.30000 |         218 |              0.25000 | California.SanFrancisco               |           3 |
+ 2018-10-03 14:38:05.000 |             10.30000 |         219 |              0.31000 | California.SanFrancisco               |           2 |
+ 2018-10-03 14:38:15.000 |             12.60000 |         218 |              0.33000 | California.SanFrancisco               |           2 |
+ 2018-10-03 14:38:16.800 |             12.30000 |         221 |              0.31000 | California.SanFrancisco               |           2 |
 Query OK, 9 row(s) in set (0.002022s)
 ```
 
@@ -102,8 +102,8 @@ Starting from version 2.0.14, tag columns can be selected together with data col
 taos> SELECT location, groupid, current FROM d1001 LIMIT 2;
             location            |   groupid   |       current        |
 ======================================================================
- Beijing.Chaoyang               |           2 |             10.30000 |
- Beijing.Chaoyang               |           2 |             12.60000 |
+ California.SanFrancisco               |           2 |             10.30000 |
+ California.SanFrancisco               |           2 |             12.60000 |
 Query OK, 2 row(s) in set (0.003112s)
 ```
 
@@ -271,10 +271,10 @@ Only filter on `TAGS` are allowed in the `where` clause for above two query stat
 taos> SELECT TBNAME, location FROM meters;
              tbname             |            location            |
 ==================================================================
- d1004                          | Beijing.Haidian                |
- d1003                          | Beijing.Haidian                |
- d1002                          | Beijing.Chaoyang               |
- d1001                          | Beijing.Chaoyang               |
+ d1004                          | California.LoSangeles                |
+ d1003                          | California.LoSangeles                |
+ d1002                          | California.SanFrancisco               |
+ d1001                          | California.SanFrancisco               |
 Query OK, 4 row(s) in set (0.000881s)
 
 taos> SELECT COUNT(tbname) FROM meters WHERE groupId > 2;
@@ -323,7 +323,7 @@ Logical operations in below table can be used in `where` clause to filter the re
 - For timestamp column, only one condition can be used; for other columns or tags, `OR` keyword can be used to combine multiple logical operators. For example, `((value > 20 AND value < 30) OR (value < 12))`.
   - From version 2.3.0.0, multiple conditions can be used on timestamp column, but the result set can only contain single time range.
 - From version 2.0.17.0, operator `BETWEEN AND` can be used in where clause, for example `WHERE col2 BETWEEN 1.5 AND 3.25` means the filter condition is equal to "1.5 ≤ col2 ≤ 3.25".
-- From version 2.1.4.0, operator `IN` can be used in where clause. For example, `WHERE city IN ('Beijing', 'Shanghai')`. For bool type, both `{true, false}` and `{0, 1}` are allowed, but integers other than 0 or 1 are not allowed. FLOAT and DOUBLE types are impacted by floating precision, only values that match the condition within the tolerance will be selected. Non-primary key column of timestamp type can be used with `IN`.
+- From version 2.1.4.0, operator `IN` can be used in where clause. For example, `WHERE city IN ('California.SanFrancisco', 'California.SanDieo')`. For bool type, both `{true, false}` and `{0, 1}` are allowed, but integers other than 0 or 1 are not allowed. FLOAT and DOUBLE types are impacted by floating precision, only values that match the condition within the tolerance will be selected. Non-primary key column of timestamp type can be used with `IN`.
 - From version 2.3.0.0, regular expression is supported in where clause with keyword `match` or `nmatch`, the regular expression is case insensitive.
 
 ## Regular Expression

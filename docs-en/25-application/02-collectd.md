@@ -17,7 +17,7 @@ The new version of TDengine supports multiple data protocols and can accept data
 
 This article introduces how to quickly build an IT DevOps visualization system based on TDengine + collectd / StatsD + Grafana without writing even a single line of code but by simply modifying a few lines of configuration files. The architecture is shown in the following figure.
 
-![IT-DevOps-Solutions-Collectd-StatsD.png](/img/IT-DevOps-Solutions-Collectd-StatsD.png)
+![IT-DevOps-Solutions-Collectd-StatsD.webp](./IT-DevOps-Solutions-Collectd-StatsD.webp)
 
 ## Installation Steps
 
@@ -83,19 +83,19 @@ Click on the gear icon on the left and select `Plugins`, you should find the TDe
 Download the dashboard json from `https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json`, click the plus icon on the left and select Import, follow the instructions to import the JSON file. After that, you can see
 The dashboard can be seen in the following screen.
 
-![IT-DevOps-Solutions-collectd-dashboard.png](/img/IT-DevOps-Solutions-collectd-dashboard.png)
+![IT-DevOps-Solutions-collectd-dashboard.webp](./IT-DevOps-Solutions-collectd-dashboard.webp)
 
 #### import collectd dashboard
 
 Download the dashboard json file from `https://github.com/taosdata/grafanaplugin/blob/master/examples/collectd/grafana/dashboards/collect-metrics-with-tdengine-v0.1.0.json`. Download the dashboard json file, click the plus icon on the left side and select `Import`, and follow the interface prompts to select the JSON file to import. After that, you can see
 dashboard with the following interface.
 
-![IT-DevOps-Solutions-collectd-dashboard.png](/img/IT-DevOps-Solutions-collectd-dashboard.png)
+![IT-DevOps-Solutions-collectd-dashboard.webp](./IT-DevOps-Solutions-collectd-dashboard.webp)
 
 #### Importing the StatsD dashboard
 
 Download the dashboard json from `https://github.com/taosdata/grafanaplugin/blob/master/examples/statsd/dashboards/statsd-with-tdengine-v0.1.0.json`. Click on the plus icon on the left and select `Import`, and follow the interface prompts to import the JSON file. You will then see the dashboard in the following screen.
-![IT-DevOps-Solutions-statsd-dashboard.png](/img/IT-DevOps-Solutions-statsd-dashboard.png)
+![IT-DevOps-Solutions-statsd-dashboard.webp](./IT-DevOps-Solutions-statsd-dashboard.webp)
 
 ## Wrap-up
 
