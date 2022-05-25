@@ -57,9 +57,9 @@ class TDTestCase:
                     f"sqrt( {tbname}.{num_col} )",
                     f"tan( {tbname}.{num_col} )",
                     f"cast( {tbname}.{num_col} as timestamp)",
-                    ( f"{num_col} + {any_col}" for any_col in ALL_COL )
                 )
             )
+            [ query_condition.append(f"{num_col} + {any_col}") for any_col in ALL_COL ]
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
@@ -98,7 +98,6 @@ class TDTestCase:
             elif query_conditon.startswith("min"):
                 query_conditon = query_conditon[4:-1]
 
-
         if query_conditon:
             return f" where {query_conditon} is not null"
         if col in NUM_COL:
@@ -131,7 +130,7 @@ class TDTestCase:
 
 
     @property
-    def __tb_liast(self):
+    def __tb_list(self):
         return [
             "ct1",
             "ct4",
@@ -140,7 +139,7 @@ class TDTestCase:
 
     def sql_list(self):
         sqls = []
-        __no_join_tblist = self.__tb_liast
+        __no_join_tblist = self.__tb_list
         for tb in __no_join_tblist:
                 select_claus_list = self.__query_condition(tb)
                 for select_claus in select_claus_list:
