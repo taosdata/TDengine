@@ -71,64 +71,71 @@ _err:
 }
 
 int metaDropSTable(SMeta *pMeta, int64_t verison, SVDropStbReq *pReq) {
-  TBC        *pNameIdxc = NULL;
-  TBC        *pUidIdxc = NULL;
-  TBC        *pCtbIdxc = NULL;
-  SCtbIdxKey *pCtbIdxKey;
-  const void *pKey = NULL;
-  int         nKey;
-  const void *pData = NULL;
-  int         nData;
-  int         c, ret;
+  void *pKey = NULL;
+  int   nKey = 0;
+  void *pData = NULL;
+  int   nData = 0;
+  int   c = 0;
+  int   rc = 0;
 
-  // prepare uid idx cursor
-  tdbTbcOpen(pMeta->pUidIdx, &pUidIdxc, &pMeta->txn);
-  ret = tdbTbcMoveTo(pUidIdxc, &pReq->suid, sizeof(tb_uid_t), &c);
-  if (ret < 0 || c != 0) {
-    terrno = TSDB_CODE_VND_TB_NOT_EXIST;
-    tdbTbcClose(pUidIdxc);
-    goto _err;
+  // check if super table exists
+  rc = tdbTbGet(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pData, &nData);
+  if (rc < 0 || *(tb_uid_t *)pData != pReq->suid) {
+    terrno = TSDB_CODE_VND_TABLE_NOT_EXIST;
+    return -1;
   }
 
-  // prepare name idx cursor
-  tdbTbcOpen(pMeta->pNameIdx, &pNameIdxc, &pMeta->txn);
-  ret = tdbTbcMoveTo(pNameIdxc, pReq->name, strlen(pReq->name) + 1, &c);
-  if (ret < 0 || c != 0) {
-    ASSERT(0);
-  }
+  // drop all child tables
+  TBC    *pCtbIdxc = NULL;
+  SArray *pArray = taosArrayInit(8, sizeof(tb_uid_t));
 
-  tdbTbcDelete(pUidIdxc);
-  tdbTbcDelete(pNameIdxc);
-  tdbTbcClose(pUidIdxc);
-  tdbTbcClose(pNameIdxc);
-
-  // loop to drop each child table
   tdbTbcOpen(pMeta->pCtbIdx, &pCtbIdxc, &pMeta->txn);
-  ret = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
-  if (ret < 0 || (c < 0 && tdbTbcMoveToNext(pCtbIdxc) < 0)) {
+  rc = tdbTbcMoveTo(pCtbIdxc, &(SCtbIdxKey){.suid = pReq->suid, .uid = INT64_MIN}, sizeof(SCtbIdxKey), &c);
+  if (rc < 0) {
     tdbTbcClose(pCtbIdxc);
-    goto _exit;
+    metaWLock(pMeta);
+    goto _drop_super_table;
   }
 
   for (;;) {
-    tdbTbcGet(pCtbIdxc, &pKey, &nKey, NULL, NULL);
-    pCtbIdxKey = (SCtbIdxKey *)pKey;
+    rc = tdbTbcNext(pCtbIdxc, &pKey, &nKey, NULL, NULL);
+    if (rc < 0) break;
 
-    if (pCtbIdxKey->suid > pReq->suid) break;
+    if (((SCtbIdxKey *)pKey)->suid < pReq->suid) {
+      continue;
+    } else if (((SCtbIdxKey *)pKey)->suid > pReq->suid) {
+      break;
+    }
 
-    // drop the child table (TODO)
-
-    if (tdbTbcMoveToNext(pCtbIdxc) < 0) break;
+    taosArrayPush(pArray, &(((SCtbIdxKey *)pKey)->uid));
   }
 
+  tdbTbcClose(pCtbIdxc);
+
+  metaWLock(pMeta);
+
+  for (int32_t iChild = 0; iChild < taosArrayGetSize(pArray); iChild++) {
+    tb_uid_t uid = *(tb_uid_t *)taosArrayGet(pArray, iChild);
+    metaDropTableByUid(pMeta, uid);
+  }
+
+  taosArrayDestroy(pArray);
+
+  // drop super table
+_drop_super_table:
+  tdbTbGet(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), &pData, &nData);
+  tdbTbDelete(pMeta->pTbDb, &(STbDbKey){.version = *(int64_t *)pData, .uid = pReq->suid}, sizeof(STbDbKey),
+              &pMeta->txn);
+  tdbTbDelete(pMeta->pNameIdx, pReq->name, strlen(pReq->name) + 1, &pMeta->txn);
+  tdbTbDelete(pMeta->pUidIdx, &pReq->suid, sizeof(tb_uid_t), &pMeta->txn);
+
+  metaULock(pMeta);
+
 _exit:
+  tdbFree(pKey);
+  tdbFree(pData);
   metaDebug("vgId:%d  super table %s uid:%" PRId64 " is dropped", TD_VID(pMeta->pVnode), pReq->name, pReq->suid);
   return 0;
-
-_err:
-  metaError("vgId:%d failed to drop super table %s uid:%" PRId64 " since %s", TD_VID(pMeta->pVnode), pReq->name,
-            pReq->suid, tstrerror(terrno));
-  return -1;
 }
 
 int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
@@ -608,14 +615,14 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     // TODO : need to update tag index
   }
   ctbEntry.version = version;
-  if(pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON){
+  if (pTagSchema->nCols == 1 && pTagSchema->pSchema[0].type == TSDB_DATA_TYPE_JSON) {
     ctbEntry.ctbEntry.pTags = taosMemoryMalloc(pAlterTbReq->nTagVal);
-    if(ctbEntry.ctbEntry.pTags == NULL){
+    if (ctbEntry.ctbEntry.pTags == NULL) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
-    memcpy((void*)ctbEntry.ctbEntry.pTags, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
-  }else{
+    memcpy((void *)ctbEntry.ctbEntry.pTags, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+  } else {
     SKVRowBuilder kvrb = {0};
     const SKVRow  pOldTag = (const SKVRow)ctbEntry.ctbEntry.pTags;
     SKVRow        pNewTag = NULL;
@@ -649,7 +656,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
 
   tDecoderClear(&dc1);
   tDecoderClear(&dc2);
-  if (ctbEntry.ctbEntry.pTags) taosMemoryFree((void*)ctbEntry.ctbEntry.pTags);
+  if (ctbEntry.ctbEntry.pTags) taosMemoryFree((void *)ctbEntry.ctbEntry.pTags);
   if (ctbEntry.pBuf) taosMemoryFree(ctbEntry.pBuf);
   if (stbEntry.pBuf) tdbFree(stbEntry.pBuf);
   tdbTbcClose(pTbDbc);
