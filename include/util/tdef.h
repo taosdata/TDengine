@@ -132,6 +132,7 @@ typedef enum EOperatorType {
   OP_TYPE_MOD,
   // unary arithmetic operator
   OP_TYPE_MINUS,
+  OP_TYPE_ASSIGN,
 
   // bit operator
   OP_TYPE_BIT_AND,
@@ -233,6 +234,7 @@ typedef enum ELogicConditionType {
 #define TSDB_MAX_TAG_CONDITIONS 1024
 
 #define TSDB_MAX_JSON_TAG_LEN 16384
+#define TSDB_MAX_JSON_KEY_LEN 256
 
 #define TSDB_AUTH_LEN          16
 #define TSDB_PASSWORD_LEN      32
@@ -426,11 +428,11 @@ enum {
 };
 
 #define DEFAULT_HANDLE 0
-#define MNODE_HANDLE   -1
-#define QNODE_HANDLE   -2
-#define SNODE_HANDLE   -3
-#define VNODE_HANDLE   -4
-#define BNODE_HANDLE   -5
+#define MNODE_HANDLE   1
+#define QNODE_HANDLE   -1
+#define SNODE_HANDLE   -2
+#define VNODE_HANDLE   -3
+#define BNODE_HANDLE   -4
 
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN  48

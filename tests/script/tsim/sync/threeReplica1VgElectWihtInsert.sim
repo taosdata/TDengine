@@ -155,28 +155,13 @@ while $i < $tbNum
   sql create table $ctb using stb tags( $i )
   $ntb = $ntbPrefix . $i
   sql create table $ntb (ts timestamp, c1 int, c2 float, c3 binary(10))
-  
-#  $x = 0
-#  while $x < $rowNum
-#    $binary = ' . binary
-#    $binary = $binary . $i
-#    $binary = $binary . '
-#
-#    sql insert into $ctb values ($tstart , $i , $x , $binary )
-#    sql insert into $ntb values ($tstart , 999 , 999 , 'binary-ntb' )
-#    $tstart = $tstart + 1
-#    $x = $x + 1
-#  endw
-  
-#  print ====> insert rows: $rowNum into $ctb and $ntb
-
   $i = $i + 1
-#  $tstart = 1640966400000
 endw
 
 $totalTblNum = $tbNum * 2
-print  ====>totalTblNum:$totalTblNum
+sleep 1000
 sql show tables
+print ====> expect $totalTblNum and infinsert $rows  in fact 
 if $rows != $totalTblNum then 
   return -1
 endi
@@ -222,6 +207,9 @@ endi
 $dnodeId = dnode . $dnodeId
 print ====> stop $dnodeId
 system sh/exec.sh -n $dnodeId -s stop -x SIGINT
+sleep 1000
+print ====> start $dnodeId
+system sh/exec.sh -n $dnodeId -s start
 
 $loop_cnt = 0
 check_vg_ready_2:
@@ -245,7 +233,7 @@ if $data[0][4] == LEADER then
    if $data[0][8] != FOLLOWER then
      goto check_vg_ready_2
    endi
-   print ---- vgroup $data[0][0] leader switch to dnode $data[0][3] 
+   print ---- vgroup $dnodeId leader switch to dnode $data[0][3] 
   goto vg_ready_2
 elif $data[0][6] == LEADER then
    if $data[0][4] != FOLLOWER then
@@ -254,7 +242,7 @@ elif $data[0][6] == LEADER then
    if $data[0][8] != FOLLOWER then
      goto check_vg_ready_2
    endi    
-   print ---- vgroup $data[0][0] leader switch to dnode $data[0][5] 
+   print ---- vgroup $dnodeId leader switch to dnode $data[0][5] 
   goto vg_ready_2
 elif $data[0][8] == LEADER then
    if $data[0][4] != FOLLOWER then
@@ -263,7 +251,7 @@ elif $data[0][8] == LEADER then
    if $data[0][6] != FOLLOWER then
      goto check_vg_ready_2
    endi    
-   print ---- vgroup $data[0][0] leader switch to dnode $data[0][7] 
+   print ---- vgroup $dnodeId leader switch to dnode $data[0][7] 
   goto vg_ready_2
 else 
   goto check_vg_ready_2
@@ -272,8 +260,6 @@ vg_ready_2:
 
 $switch_loop_cnt = $switch_loop_cnt + 1
 if $switch_loop_cnt < 3 then
-  print ====> start $dnodeId
-  system sh/exec.sh -n $dnodeId -s start
   goto switch_leader_loop
 endi
 

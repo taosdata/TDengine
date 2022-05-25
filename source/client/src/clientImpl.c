@@ -866,8 +866,7 @@ static char* parseTagDatatoJson(void* p) {
     if (j == 0) {
       if (*val == TSDB_DATA_TYPE_NULL) {
         string = taosMemoryCalloc(1, 8);
-        sprintf(varDataVal(string), "%s", TSDB_DATA_NULL_STR_L);
-        varDataSetLen(string, strlen(varDataVal(string)));
+        sprintf(string, "%s", TSDB_DATA_NULL_STR_L);
         goto end;
       }
       continue;
@@ -1003,7 +1002,7 @@ static int32_t doConvertUCS4(SReqResultInfo* pResultInfo, int32_t numOfRows, int
               length = 0;
             }
             varDataSetLen(dst, length + CHAR_BYTES * 2);
-            *(char*)(varDataVal(dst), length + CHAR_BYTES) = '\"';
+            *(char*)POINTER_SHIFT(varDataVal(dst), length + CHAR_BYTES) = '\"';
           } else if (jsonInnerType == TSDB_DATA_TYPE_DOUBLE) {
             double jsonVd = *(double*)(jsonInnerData);
             sprintf(varDataVal(dst), "%.9lf", jsonVd);

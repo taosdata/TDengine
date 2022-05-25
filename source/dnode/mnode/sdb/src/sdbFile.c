@@ -65,6 +65,16 @@ static int32_t sdbReadFileHead(SSdb *pSdb, TdFilePtr pFile) {
     return -1;
   }
 
+  ret = taosReadFile(pFile, &pSdb->curTerm, sizeof(int64_t));
+  if (ret < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+  if (ret != sizeof(int64_t)) {
+    terrno = TSDB_CODE_FILE_CORRUPTED;
+    return -1;
+  }
+
   for (int32_t i = 0; i < SDB_TABLE_SIZE; ++i) {
     int64_t maxId = 0;
     ret = taosReadFile(pFile, &maxId, sizeof(int64_t));
@@ -119,6 +129,11 @@ static int32_t sdbWriteFileHead(SSdb *pSdb, TdFilePtr pFile) {
   }
 
   if (taosWriteFile(pFile, &pSdb->curVer, sizeof(int64_t)) != sizeof(int64_t)) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  if (taosWriteFile(pFile, &pSdb->curTerm, sizeof(int64_t)) != sizeof(int64_t)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     return -1;
   }
@@ -182,6 +197,7 @@ int32_t sdbReadFile(SSdb *pSdb) {
   if (sdbReadFileHead(pSdb, pFile) != 0) {
     mError("failed to read file:%s head since %s", file, terrstr());
     pSdb->curVer = -1;
+    pSdb->curTerm = -1;
     taosMemoryFree(pRaw);
     taosCloseFile(&pFile);
     return -1;
@@ -256,8 +272,8 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
   char curfile[PATH_MAX] = {0};
   snprintf(curfile, sizeof(curfile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
 
-  mDebug("start to write file:%s, current ver:%" PRId64 ", commit ver:%" PRId64, curfile, pSdb->curVer,
-         pSdb->lastCommitVer);
+  mDebug("start to write file:%s, current ver:%" PRId64 " term:%" PRId64 ", commit ver:%" PRId64, curfile, pSdb->curVer,
+         pSdb->curTerm, pSdb->lastCommitVer);
 
   TdFilePtr pFile = taosOpenFile(tmpfile, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_TRUNC);
   if (pFile == NULL) {
@@ -350,7 +366,7 @@ static int32_t sdbWriteFileImp(SSdb *pSdb) {
     mError("failed to write file:%s since %s", curfile, tstrerror(code));
   } else {
     pSdb->lastCommitVer = pSdb->curVer;
-    mDebug("write file:%s successfully, ver:%" PRId64, curfile, pSdb->lastCommitVer);
+    mDebug("write file:%s successfully, ver:%" PRId64 " term:%" PRId64, curfile, pSdb->lastCommitVer, pSdb->curTerm);
   }
 
   terrno = code;
@@ -375,4 +391,67 @@ int32_t sdbDeploy(SSdb *pSdb) {
   }
 
   return 0;
+}
+
+SSdbIter *sdbIterInit(SSdb *pSdb) {
+  char datafile[PATH_MAX] = {0};
+  char tmpfile[PATH_MAX] = {0};
+  snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
+  snprintf(tmpfile, sizeof(datafile), "%s%ssdb.data", pSdb->tmpDir, TD_DIRSEP);
+
+  if (taosCopyFile(datafile, tmpfile) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to copy file %s to %s since %s", datafile, tmpfile, terrstr());
+    return NULL;
+  }
+
+  SSdbIter *pIter = taosMemoryCalloc(1, sizeof(SSdbIter));
+  if (pIter == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pIter->file = taosOpenFile(tmpfile, TD_FILE_READ);
+  if (pIter->file == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to read snapshot file:%s since %s", tmpfile, terrstr());
+    taosMemoryFree(pIter);
+    return NULL;
+  }
+
+  mDebug("start to read snapshot file:%s, iter:%p", tmpfile, pIter);
+  return pIter;
+}
+
+SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *pIter, char **ppBuf, int32_t *buflen) {
+  const int32_t maxlen = 100;
+
+  char *pBuf = taosMemoryCalloc(1, maxlen);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t readlen = taosReadFile(pIter->file, pBuf, maxlen);
+  if (readlen == 0) {
+    mTrace("read snapshot to the end, readlen:%" PRId64, pIter->readlen);
+    taosMemoryFree(pBuf);
+    taosCloseFile(&pIter->file);
+    taosMemoryFree(pIter);
+    pIter = NULL;
+  } else if (readlen < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to read snapshot since %s, readlen:%" PRId64, terrstr(), pIter->readlen);
+    taosMemoryFree(pBuf);
+    taosCloseFile(&pIter->file);
+    taosMemoryFree(pIter);
+    pIter = NULL;
+  } else {
+    pIter->readlen += readlen;
+    mTrace("read snapshot, readlen:%" PRId64, pIter->readlen);
+    *ppBuf = pBuf;
+    *buflen = readlen;
+  }
+
+  return pIter;
 }

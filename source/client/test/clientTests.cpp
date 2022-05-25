@@ -567,7 +567,6 @@ TEST(testCase, insert_test) {
   taos_free_result(pRes);
   taos_close(pConn);
 }
-#endif
 
 TEST(testCase, projection_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -606,7 +605,7 @@ TEST(testCase, projection_query_tables) {
   }
   taos_free_result(pRes);
 
-  for(int32_t i = 0; i < 100000; i += 20) {
+  for(int32_t i = 0; i < 1000000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -626,7 +625,7 @@ TEST(testCase, projection_query_tables) {
 
   printf("start to insert next table\n");
 
-  for(int32_t i = 0; i < 100000; i += 20) {
+  for(int32_t i = 0; i < 1000000; i += 20) {
     char sql[1024] = {0};
     sprintf(sql,
             "insert into tu2 values(now+%da, %d)(now+%da, %d)(now+%da, %d)(now+%da, %d)"
@@ -693,6 +692,8 @@ TEST(testCase, projection_query_stables) {
   taos_close(pConn);
 }
 
+#endif
+
 TEST(testCase, agg_query_tables) {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   ASSERT_NE(pConn, nullptr);
@@ -705,7 +706,7 @@ TEST(testCase, agg_query_tables) {
   }
   taos_free_result(pRes);
 
-  pRes = taos_query(pConn, "select tbname from st1");
+  pRes = taos_query(pConn, "explain analyze select count(*) from tu interval(1s)");
   if (taos_errno(pRes) != 0) {
     printf("failed to select from table, reason:%s\n", taos_errstr(pRes));
     taos_free_result(pRes);

@@ -1,6 +1,5 @@
 /*
  * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
-p *
  * This program is free software: you can use, redistribute, and/or modify
  * it under the terms of the GNU Affero General Public License, version 3
  * or later ("AGPL"), as published by the Free Software Foundation.
@@ -152,10 +151,13 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
   char    buf[128] = {0};
   int32_t sz = indexSerialCacheKey(key, buf);
   assert(sz < sizeof(buf));
+  indexInfo("Try to get key: %s", buf);
   TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
-  if (reader == NULL) {
+  if (reader == NULL || *reader == NULL) {
+    indexInfo("failed to  get key: %s", buf);
     return NULL;
   }
+  indexInfo("Get key: %s file: %s", buf, (*reader)->ctx->file.buf);
   tfileReaderRef(*reader);
 
   return *reader;
@@ -165,9 +167,10 @@ void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   int32_t sz = indexSerialCacheKey(key, buf);
   // remove last version index reader
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
-  if (p != NULL) {
+  if (p != NULL && *p != NULL) {
     TFileReader* oldReader = *p;
     taosHashRemove(tcache->tableCache, buf, sz);
+    indexInfo("found %s, remove file %s", buf, oldReader->ctx->file.buf);
     oldReader->remove = true;
     tfileReaderUnRef(oldReader);
   }
@@ -180,7 +183,6 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
   if (reader == NULL) {
     return NULL;
   }
-
   reader->ctx = ctx;
 
   if (0 != tfileReaderVerify(reader)) {
@@ -202,6 +204,7 @@ TFileReader* tfileReaderCreate(WriterCtx* ctx) {
     tfileReaderDestroy(reader);
     return NULL;
   }
+  reader->remove = false;
 
   return reader;
 }
@@ -536,7 +539,7 @@ TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const c
     indexError("failed to open readonly file: %s, reason: %s", fullname, terrstr());
     return NULL;
   }
-  indexInfo("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
+  indexTrace("open read file name:%s, file size: %d", wc->file.buf, wc->file.size);
 
   TFileReader* reader = tfileReaderCreate(wc);
   return reader;
