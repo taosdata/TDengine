@@ -13,24 +13,24 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_MNODE_H_
-#define _TD_MND_MNODE_H_
+#include "tsdb.h"
 
-#include "mndInt.h"
+struct STsdbSnapshotReader {
+  STsdb* pTsdb;
+  // TODO
+};
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
-int32_t    mndInitMnode(SMnode *pMnode);
-void       mndCleanupMnode(SMnode *pMnode);
-SMnodeObj *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId);
-void       mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj);
-bool       mndIsMnode(SMnode *pMnode, int32_t dnodeId);
-void       mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
-
-#ifdef __cplusplus
+int32_t tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever) {
+  // TODO
+  return 0;
 }
-#endif
 
-#endif /*_TD_MND_MNODE_H_*/
+int32_t tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader) {
+  // TODO
+  return 0;
+}
+
+int32_t tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData) {
+  // TODO
+  return 0;
+}

@@ -913,12 +913,12 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
     } else {
-      printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
     }
 #else
-    printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
     return 0xFFFFFFFF;
   }

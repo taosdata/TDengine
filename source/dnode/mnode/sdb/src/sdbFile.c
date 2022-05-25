@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 #include "tchecksum.h"
 #include "wal.h"
 

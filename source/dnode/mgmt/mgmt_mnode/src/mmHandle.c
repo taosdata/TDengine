@@ -124,22 +124,6 @@ int32_t mmProcessDropReq(const SMgmtInputOpt *pInput, SRpcMsg *pMsg) {
   return 0;
 }
 
-int32_t mmProcessAlterReq(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  SDAlterMnodeReq alterReq = {0};
-  if (tDeserializeSDCreateMnodeReq(pMsg->pCont, pMsg->contLen, &alterReq) != 0) {
-    terrno = TSDB_CODE_INVALID_MSG;
-    return -1;
-  }
-
-  if (pMgmt->pData->dnodeId != 0 && alterReq.dnodeId != pMgmt->pData->dnodeId) {
-    terrno = TSDB_CODE_INVALID_OPTION;
-    dError("failed to alter mnode since %s, input:%d cur:%d", terrstr(), alterReq.dnodeId, pMgmt->pData->dnodeId);
-    return -1;
-  } else {
-    return mmAlter(pMgmt, &alterReq);
-  }
-}
-
 SArray *mmGetMsgHandles() {
   int32_t code = -1;
   SArray *pArray = taosArrayInit(64, sizeof(SMgmtHandle));
