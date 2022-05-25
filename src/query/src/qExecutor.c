@@ -8872,6 +8872,15 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
   for (int32_t i = 0; i < pQueryMsg->numOfOutput; ++i) {
     param->pExpr[i] = pExprMsg;
 
+#ifndef TD_ENTERPRISE
+    pExprMsg->numOfColumns     = 1;
+
+    pExprMsg->colInfo[0].colIndex = htons(pExprMsg->colInfo[0].colIndex);
+    pExprMsg->colInfo[0].colId = htons(pExprMsg->colInfo[0].colId);
+    pExprMsg->colInfo[0].flag  = htons(pExprMsg->colInfo[0].flag);
+    pExprMsg->colBytes[0]      = htons(pExprMsg->colBytes[0]);
+    pExprMsg->colType[0]       = htons(pExprMsg->colType[0]);
+#else
     pExprMsg->numOfColumns = htons(pExprMsg->numOfColumns);
 
     param->pExpr[i]->colInfo = (SColIndex *)calloc(pExprMsg->numOfColumns, sizeof(SColIndex));
@@ -8881,6 +8890,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       code = TSDB_CODE_QRY_OUT_OF_MEMORY;
       goto _cleanup;
     }
+#endif
 
     pExprMsg->resType       = htons(pExprMsg->resType);
     pExprMsg->resBytes      = htons(pExprMsg->resBytes);
@@ -8892,6 +8902,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     pExprMsg->flist.numOfFilters  = htons(pExprMsg->flist.numOfFilters);
 
     pMsg += sizeof(SSqlExpr);
+
+#ifdef TD_ENTERPRISE
     SColIndex *colInfo = (SColIndex *)pMsg;
 
     for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
@@ -8915,6 +8927,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     }
 
     pMsg += sizeof(int16_t) * pExprMsg->numOfColumns;
+#endif
 
     for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
       pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
@@ -8930,9 +8943,11 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
 
     int16_t functionId = pExprMsg->functionId;
     if (functionId == TSDB_FUNC_TAG || functionId == TSDB_FUNC_TAGPRJ || functionId == TSDB_FUNC_TAG_DUMMY) {
-      if (!TSDB_COL_IS_TAG(pExprMsg->colInfo[0].flag)) {  // ignore the column  index check for arithmetic expression.
-        code = TSDB_CODE_QRY_INVALID_MSG;
-        goto _cleanup;
+      for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
+        if (!TSDB_COL_IS_TAG(pExprMsg->colInfo[n].flag)) {  // ignore the column  index check for arithmetic expression.
+          code = TSDB_CODE_QRY_INVALID_MSG;
+          goto _cleanup;
+        }
       }
     }
 
@@ -8951,6 +8966,15 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     for (int32_t i = 0; i < pQueryMsg->secondStageOutput; ++i) {
       param->pSecExpr[i] = pExprMsg;
 
+#ifndef TD_ENTERPRISE
+      pExprMsg->numOfColumns     = 1;
+
+      pExprMsg->colInfo[i].colIndex = htons(pExprMsg->colInfo[i].colIndex);
+      pExprMsg->colInfo[i].colId = htons(pExprMsg->colInfo[i].colId);
+      pExprMsg->colInfo[i].flag  = htons(pExprMsg->colInfo[i].flag);
+      pExprMsg->colBytes[i]      = htons(pExprMsg->colBytes[i]);
+      pExprMsg->colType[i]       = htons(pExprMsg->colType[i]);
+#else
       pExprMsg->numOfColumns = htons(pExprMsg->numOfColumns);
 
       param->pSecExpr[i]->colInfo = (SColIndex *)calloc(pExprMsg->numOfColumns, sizeof(SColIndex));
@@ -8960,6 +8984,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
         code = TSDB_CODE_QRY_OUT_OF_MEMORY;
         goto _cleanup;
       }
+#endif
 
       pExprMsg->resType       = htons(pExprMsg->resType);
       pExprMsg->resBytes      = htons(pExprMsg->resBytes);
@@ -8968,6 +8993,8 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       pExprMsg->numOfParams = htons(pExprMsg->numOfParams);
 
       pMsg += sizeof(SSqlExpr);
+
+#ifdef TD_ENTERPRISE
       SColIndex *colInfo = (SColIndex *)pMsg;
 
       for (int32_t n = 0; n < pExprMsg->numOfColumns; ++n) {
@@ -8991,6 +9018,7 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
       }
 
       pMsg += sizeof(int16_t) * pExprMsg->numOfColumns;
+#endif
 
       for (int32_t j = 0; j < pExprMsg->numOfParams; ++j) {
         pExprMsg->param[j].nType = htonl(pExprMsg->param[j].nType);
@@ -9134,8 +9162,10 @@ int32_t convertQueryMsg(SQueryTableMsg *pQueryMsg, SQueryParam* param) {
     param->pUdfInfo->bufSize = htonl(*(int32_t*)pMsg);
     pMsg += sizeof(int32_t);
 
+#ifdef TD_ENTERPRISE
     param->pUdfInfo->numOfParams = htonl(*(int32_t*)pMsg);
     pMsg += sizeof(int32_t);
+#endif
 
     param->pUdfInfo->content = malloc(pQueryMsg->udfContentLen);
     memcpy(param->pUdfInfo->content, pMsg, pQueryMsg->udfContentLen);
@@ -10152,6 +10182,7 @@ void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
       tVariantDestroy(&pExprInfo[i].base.param[j]);
     }
 
+#ifdef TD_ENTERPRISE
     if (pExprInfo[i].base.colInfo) {
       tfree(pExprInfo[i].base.colInfo);
     }
@@ -10163,6 +10194,7 @@ void* destroyQueryFuncExpr(SExprInfo* pExprInfo, int32_t numOfExpr) {
     if (pExprInfo[i].base.colBytes) {
       tfree(pExprInfo[i].base.colBytes);
     }
+#endif
   }
 
   tfree(pExprInfo);

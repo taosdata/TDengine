@@ -528,7 +528,9 @@ int32_t handleUserDefinedFunc(SSqlObj* pSql, struct SSqlInfo* pInfo) {
 
       pMsg->funcType = htonl(createInfo->type);
       pMsg->bufSize = htonl(createInfo->bufSize);
+#ifdef TD_ENTERPRISE
       pMsg->numOfParams = htonl(createInfo->numOfParams);
+#endif
 
       pMsg->outputType = createInfo->output.type;
       pMsg->outputLen = htons(createInfo->output.bytes);
@@ -2014,9 +2016,11 @@ static int32_t handleAggTypeExpr(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t 
   pExprInfo->base.resType    = pExpr->resultType;
 
   pExprInfo->base.numOfColumns = 1;
+#ifdef TD_ENTERPRISE
   pExprInfo->base.colInfo = (SColIndex *)calloc(1, sizeof(SColIndex));
   pExprInfo->base.colType = (int16_t *)calloc(1, sizeof(int16_t));
   pExprInfo->base.colBytes = (int16_t *)calloc(1, sizeof(int16_t));
+#endif
 
   pExprInfo->base.functionId = TSDB_FUNC_SCALAR_EXPR;
   pExprInfo->base.numOfParams = 1;
@@ -3822,9 +3826,11 @@ int32_t addExprAndResultField(SSqlCmd* pCmd, SQueryInfo* pQueryInfo, int32_t col
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
 
+#ifdef TD_ENTERPRISE
       if (numOfParams != pUdfInfo->numOfParams) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg2);
       }
+#endif
 
       int16_t    prevTableIndex = -1;
       int32_t    inter, prevInter = -1;

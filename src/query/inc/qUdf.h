@@ -40,7 +40,9 @@ typedef struct SUdfInfo {
   int16_t resBytes;    // result byte
   int32_t contLen;     // content length
   int32_t bufSize;     // interbuf size
+#ifdef TD_ENTERPRISE
   int32_t numOfParams; // number of parameters
+#endif
   char   *name;        // function name
   void   *handle;      // handle loaded in mem
   void   *funcs[TSDB_UDF_FUNC_MAX_NUM];     // function ptr

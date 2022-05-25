@@ -45,9 +45,14 @@ typedef struct SResPair {
 typedef struct SSqlExpr {
   char       aliasName[TSDB_COL_NAME_LEN];  // as aliasName
   char       token[TSDB_COL_NAME_LEN];      // original token
-  SColIndex *colInfo;        // columns
-  uint64_t   uid;            // table uid, todo refactor use the pointer
 
+#ifdef TD_ENTERPRISE
+  SColIndex *colInfo;        // columns
+#else
+  SColIndex  colInfo[1];
+#endif
+
+  uint64_t   uid;            // table uid, todo refactor use the pointer
   int16_t    numOfColumns;
 
   int16_t    functionId;     // function id in aAgg array
@@ -56,8 +61,13 @@ typedef struct SSqlExpr {
   int32_t    resBytes;       // length of return value
   int32_t    interBytes;     // inter result buffer size
 
+#ifdef TD_ENTERPRISE
   int16_t   *colType;        // table column type
   int16_t   *colBytes;       // table column bytes,it should be int32_t, because it is too small for globale merge stage, pQueryAttr->interBytesForGlobal
+#else
+  int16_t    colType[1];
+  int16_t    colBytes[1];
+#endif
 
   int16_t    numOfParams;    // argument value of each function
   tVariant   param[3];       // parameters are not more than 3

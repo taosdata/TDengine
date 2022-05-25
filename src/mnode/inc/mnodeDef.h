@@ -222,7 +222,9 @@ typedef struct SFuncObj {
   char              cont[TSDB_FUNC_CODE_LEN];
   int32_t           funcType;
   int32_t           bufSize;
+#ifdef TD_ENTERPRISE
   int32_t           numOfParams;
+#endif
   int64_t           createdTime;
   uint8_t           resType;
   int16_t           resBytes;

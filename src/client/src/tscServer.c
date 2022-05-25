@@ -709,7 +709,9 @@ static int32_t tscEstimateQueryMsgSize(SSqlObj *pSql) {
 
   size_t  numOfExprs = tscNumOfExprs(pQueryInfo);
   int32_t exprSize = (int32_t)(sizeof(SSqlExpr) * numOfExprs * 2);
+#ifdef TD_ENTERPRISE
   exprSize += (sizeof(SColIndex) + 2 * sizeof(int16_t)) * TSDB_FUNC_PARAMS_NUM * numOfExprs * 2;
+#endif
 
   int32_t tsBufSize = (pQueryInfo->tsBuf != NULL) ? pQueryInfo->tsBuf->fileSize : 0;
   int32_t sqlLen = (int32_t) strlen(pSql->sqlstr) + 1;
@@ -879,6 +881,8 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   }
 
   SSqlExpr* pSqlExpr = (SSqlExpr *)(*pMsg);
+
+#ifdef TD_ENTERPRISE
   (*pMsg) += sizeof(SSqlExpr);
   SColIndex* pIndex = (SColIndex *)(*pMsg);
 
@@ -905,6 +909,17 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   (*pMsg) += sizeof(int16_t) * pExpr->numOfColumns;
 
   pSqlExpr->numOfColumns = htons(pExpr->numOfColumns);
+#else
+  SColIndex* pIndex = pSqlExpr->colInfo;
+
+  pIndex[0].colId         = htons(pExpr->colInfo[0].colId);
+  pIndex[0].colIndex      = htons(pExpr->colInfo[0].colIndex);
+  pIndex[0].flag          = htons(pExpr->colInfo[0].flag);
+
+  pSqlExpr->colType[0]     = htons(pExpr->colType[0]);
+  pSqlExpr->colBytes[0]    = htons(pExpr->colBytes[0]);
+#endif
+
   pSqlExpr->uid         = htobe64(pExpr->uid);
   pSqlExpr->resType     = htons(pExpr->resType);
   pSqlExpr->resBytes    = htons(pExpr->resBytes);
@@ -913,6 +928,10 @@ static int32_t serializeSqlExpr(SSqlExpr* pExpr, STableMetaInfo* pTableMetaInfo,
   pSqlExpr->numOfParams = htons(pExpr->numOfParams);
   pSqlExpr->resColId    = htons(pExpr->resColId);
   pSqlExpr->flist.numOfFilters = htons(pExpr->flist.numOfFilters);
+
+#ifndef TD_ENTERPRISE
+  (*pMsg) += sizeof(SSqlExpr);
+#endif
 
   for (int32_t j = 0; j < pExpr->numOfParams; ++j) { // todo add log
     pSqlExpr->param[j].nType = htonl(pExpr->param[j].nType);
@@ -1187,8 +1206,10 @@ int tscBuildQueryMsg(SSqlObj *pSql, SSqlInfo *pInfo) {
       *(int32_t*) pMsg = htonl(pUdfInfo->bufSize);
       pMsg += sizeof(pUdfInfo->bufSize);
 
+#ifdef TD_ENTERPRISE
       *(int32_t*) pMsg = htonl(pUdfInfo->numOfParams);
       pMsg += sizeof(pUdfInfo->numOfParams);
+#endif
 
       pQueryMsg->udfContentLen = htonl(pUdfInfo->contLen);
       memcpy(pMsg, pUdfInfo->content, pUdfInfo->contLen);
@@ -2383,7 +2404,9 @@ int tscProcessRetrieveFuncRsp(SSqlObj* pSql) {
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
       pUdfInfo->bufSize  = htonl(pFunc->bufSize);
+#ifdef TD_ENTERPRISE
       pUdfInfo->numOfParams  = htonl(pFunc->numOfParams);
+#endif
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
       memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);
@@ -2555,7 +2578,9 @@ int tscProcessMultiTableMetaRsp(SSqlObj *pSql) {
       pUdfInfo->funcType = htonl(pFunc->funcType);
       pUdfInfo->contLen  = htonl(pFunc->len);
       pUdfInfo->bufSize  = htonl(pFunc->bufSize);
+#ifdef TD_ENTERPRISE
       pUdfInfo->numOfParams  = htonl(pFunc->numOfParams);
+#endif
 
       pUdfInfo->content = malloc(pUdfInfo->contLen);
       memcpy(pUdfInfo->content, pFunc->content, pUdfInfo->contLen);

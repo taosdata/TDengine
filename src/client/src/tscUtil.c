@@ -2494,6 +2494,7 @@ void* sqlExprDestroy(SExprInfo* pExpr) {
     tExprTreeDestroy(pExpr->pExpr, NULL);
   }
 
+#ifdef TD_ENTERPRISE
   if (p->colInfo) {
     tfree(p->colInfo);
   }
@@ -2505,6 +2506,7 @@ void* sqlExprDestroy(SExprInfo* pExpr) {
   if (p->colBytes) {
     tfree(p->colBytes);
   }
+#endif
 
   tfree(pExpr);
   return NULL;
@@ -2583,6 +2585,7 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
   int16_t columnIndex = p->numOfColumns;
   p->functionId = functionId;
 
+#ifdef TD_ENTERPRISE
   if (p->numOfColumns == 0) {
     p->colInfo = calloc(TSDB_FUNC_PARAMS_NUM, sizeof(SColIndex));
     p->colType = calloc(TSDB_FUNC_PARAMS_NUM, sizeof(int16_t));
@@ -2606,6 +2609,7 @@ SExprInfo* tscExprCreate(STableMetaInfo* pTableMetaInfo, int16_t functionId, SCo
       return NULL;
     }
   }
+#endif
 
   // set the correct columnIndex index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
@@ -2674,6 +2678,7 @@ static void tscExprAppendColInfoImpl(STableMetaInfo* pTableMetaInfo, SExprInfo* 
     return;
   }
 
+#ifdef TD_ENTERPRISE
   if (p->numOfColumns == 0) {
     p->colInfo = calloc(TSDB_FUNC_PARAMS_NUM, sizeof(SColIndex));
     p->colType = calloc(TSDB_FUNC_PARAMS_NUM, sizeof(int16_t));
@@ -2695,6 +2700,7 @@ static void tscExprAppendColInfoImpl(STableMetaInfo* pTableMetaInfo, SExprInfo* 
       return;
     }
   }
+#endif
 
   // set the correct columnIndex index
   if (pColIndex->columnIndex == TSDB_TBNAME_COLUMN_INDEX) {
@@ -2922,6 +2928,7 @@ void tscExprAssign(SExprInfo* dst, const SExprInfo* src) {
 
   *dst = *src;
 
+#ifdef TD_ENTERPRISE
   if (dst->base.numOfColumns > 0) {
     dst->base.colInfo = (SColIndex *)calloc(dst->base.numOfColumns, sizeof(SColIndex));
     dst->base.colType = (int16_t *)calloc(dst->base.numOfColumns, sizeof(int16_t));
@@ -2939,6 +2946,7 @@ void tscExprAssign(SExprInfo* dst, const SExprInfo* src) {
       memcpy(dst->base.colBytes, src->base.colBytes, dst->base.numOfColumns * sizeof(int16_t));
     }
   }
+#endif
 
   if (src->base.flist.numOfFilters > 0) {
     dst->base.flist.filterInfo = calloc(src->base.flist.numOfFilters, sizeof(SColumnFilterInfo));
@@ -5093,12 +5101,14 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
 
     if (pSource->base.functionId != TSDB_FUNC_SCALAR_EXPR) {  // this should be switched to projection query
       pse->numOfColumns = 1;
+#ifdef TD_ENTERPRISE
       pse->colInfo = calloc(pse->numOfColumns, sizeof(SColIndex));
       pse->colType = calloc(pse->numOfColumns, sizeof(int16_t));
       pse->colBytes = calloc(pse->numOfColumns, sizeof(int16_t));
       if (pse->colInfo == NULL || pse->colType == NULL || pse->colBytes == NULL) {
         goto _cleanup;
       }
+#endif
 
       pse->numOfParams = 0;      // no params for projection query
       pse->functionId  = TSDB_FUNC_PRJ;
@@ -5143,6 +5153,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
       pse->colType[0]  = pse->resType;
       pse->colBytes[0] = pse->resBytes;
     } else {  // arithmetic expression
+#ifdef TD_ENTERPRISE
       if (pSource->base.numOfColumns > 0) {
         pse->numOfColumns = pSource->base.numOfColumns;
 
@@ -5159,6 +5170,13 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
           pse->colBytes[n] = pSource->base.colBytes[n];
         }
       }
+#else
+      pse->numOfColumns = 1;
+
+      pse->colInfo[0].colId = pSource->base.colInfo[0].colId;
+      pse->colType[0]  = pSource->base.colType[0];
+      pse->colBytes[0] = pSource->base.colBytes[0];
+#endif
 
       pse->functionId = pSource->base.functionId;
       pse->numOfParams = pSource->base.numOfParams;
@@ -5175,6 +5193,7 @@ int32_t createProjectionExpr(SQueryInfo* pQueryInfo, STableMetaInfo* pTableMetaI
 
   return TSDB_CODE_SUCCESS;
 
+#ifdef TD_ENTERPRISE
 _cleanup:
   for (int32_t j = 0; j < i; j++) {
     if ((*pExpr)[j]->base.colInfo) {
@@ -5191,6 +5210,7 @@ _cleanup:
 
     tfree((*pExpr)[j]);
   }
+#endif
 
   tfree(pExpr);
   return TSDB_CODE_TSC_OUT_OF_MEMORY;
@@ -5211,6 +5231,7 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
 
     tscExprAssign(&pQueryAttr->pExpr3[i], pExpr);
 
+#ifdef TD_ENTERPRISE
     if (pse->colInfo == NULL || pse->colType == NULL || pse->colBytes == NULL) {
       for (int32_t j = 0; j < i; j++) {
         if (pQueryAttr->pExpr3[j].base.colInfo) {
@@ -5230,6 +5251,7 @@ static int32_t createGlobalAggregateExpr(SQueryAttr* pQueryAttr, SQueryInfo* pQu
 
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
+#endif
 
     pse->colInfo[0].colId = pExpr->base.resColId;
     pse->colInfo[0].colIndex = i;

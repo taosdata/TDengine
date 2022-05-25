@@ -248,7 +248,9 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
   pFunc->resBytes    = outputLen;
   pFunc->funcType    = funcType;
   pFunc->bufSize     = bufSize;
+#ifdef TD_ENTERPRISE
   pFunc->numOfParams = numOfParams;
+#endif
   pFunc->sig  = 0;
   pFunc->type = 1; //lua script, refactor
 
@@ -344,11 +346,13 @@ static int32_t mnodeGetFuncMeta(STableMetaMsg *pMeta, SShowObj *pShow, void *pCo
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
 
+#ifdef TD_ENTERPRISE
   pShow->bytes[cols] = 4;
   pSchema[cols].type = TSDB_DATA_TYPE_INT;
   strcpy(pSchema[cols].name, "params");
   pSchema[cols].bytes = htons(pShow->bytes[cols]);
   cols++;
+#endif
 
   pMeta->numOfColumns = htons(cols);
   strcpy(pMeta->tableFname, "show funcs");
@@ -426,9 +430,11 @@ static int32_t mnodeRetrieveFuncs(SShowObj *pShow, char *data, int32_t rows, voi
     *(int32_t *)pWrite = pFunc->bufSize;
     cols++;
 
+#ifdef TD_ENTERPRISE
     pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
     *(int32_t *)pWrite = pFunc->numOfParams;
     cols++;
+#endif
 
     numOfRows++;
     mnodeDecFuncRef(pFunc);
@@ -445,7 +451,11 @@ static int32_t mnodeProcessCreateFuncMsg(SMnodeMsg *pMsg) {
   pCreate->outputLen     = htons(pCreate->outputLen);
   pCreate->funcType      = htonl(pCreate->funcType);
   pCreate->bufSize       = htonl(pCreate->bufSize);
+#ifdef TD_ENTERPRISE
   pCreate->numOfParams   = htonl(pCreate->numOfParams);
+#else
+  pCreate->numOfParams   = 1;
+#endif
 
   return mnodeCreateFunc(pMsg->pUser->pAcct, pCreate->name, pCreate->codeLen, pCreate->code, pCreate->path, pCreate->outputType, pCreate->outputLen, pCreate->funcType, pCreate->bufSize, pCreate->numOfParams, pMsg);
 }
@@ -492,7 +502,9 @@ static int32_t mnodeProcessRetrieveFuncImplMsg(SMnodeMsg *pMsg) {
     pFuncInfo->resType = pFuncObj->resType;
     pFuncInfo->resBytes = htons(pFuncObj->resBytes);
     pFuncInfo->bufSize  = htonl(pFuncObj->bufSize);
+#ifdef TD_ENTERPRISE
     pFuncInfo->numOfParams = htonl(pFuncObj->numOfParams);
+#endif
     
     pOutput += sizeof(SFunctionInfoMsg) + pFuncObj->contLen;
     name =(tstr *)((char *)name + sizeof(*name) + htons(name->len));

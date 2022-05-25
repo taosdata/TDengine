@@ -644,7 +644,9 @@ typedef struct {
   int8_t  resType;
   int16_t resBytes;
   int32_t bufSize;
+#ifdef TD_ENTERPRISE
   int32_t numOfParams;
+#endif
   int32_t len;
   char    content[];
 } SFunctionInfoMsg;
