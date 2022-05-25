@@ -45,6 +45,17 @@ void voteGrantedDestroy(SVotesGranted *pVotesGranted) {
   }
 }
 
+void voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pSyncNode) {
+  pVotesGranted->replicas = &(pSyncNode->replicasId);
+  pVotesGranted->replicaNum = pSyncNode->replicaNum;
+  voteGrantedClearVotes(pVotesGranted);
+
+  pVotesGranted->term = 0;
+  pVotesGranted->quorum = pSyncNode->quorum;
+  pVotesGranted->toLeader = false;
+  pVotesGranted->pSyncNode = pSyncNode;
+}
+
 bool voteGrantedMajority(SVotesGranted *pVotesGranted) {
   bool ret = pVotesGranted->votes >= pVotesGranted->quorum;
   return ret;
@@ -166,6 +177,13 @@ void votesRespondDestory(SVotesRespond *pVotesRespond) {
   if (pVotesRespond != NULL) {
     taosMemoryFree(pVotesRespond);
   }
+}
+
+void votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pSyncNode) {
+  pVotesRespond->replicas = &(pSyncNode->replicasId);
+  pVotesRespond->replicaNum = pSyncNode->replicaNum;
+  pVotesRespond->term = 0;
+  pVotesRespond->pSyncNode = pSyncNode;
 }
 
 bool votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId) {

@@ -360,8 +360,8 @@ class TDTestCase:
                          'replica':    1,        \
                          'stbName':    'stb1',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 50000,    \
-                         'batchNum':   13,       \
+                         'rowsPerTbl': 20000,    \
+                         'batchNum':   50,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
@@ -391,7 +391,7 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
         
-        time.sleep(5)
+        time.sleep(3)
         tdLog.info("drop som child table of stb1")
         dropTblNum = 4
         tdSql.query("drop table if exists %s.%s_1"%(parameterDict["dbName"], parameterDict["stbName"]))
@@ -1375,11 +1375,11 @@ class TDTestCase:
         cfgPath = buildPath + "/../sim/psim/cfg"
         tdLog.info("cfgPath: %s" % cfgPath)
 
-        self.tmqCase1(cfgPath, buildPath)
-        self.tmqCase2(cfgPath, buildPath) 
-        # self.tmqCase3(cfgPath, buildPath)
-        # self.tmqCase4(cfgPath, buildPath)
-        # self.tmqCase5(cfgPath, buildPath)
+        # self.tmqCase1(cfgPath, buildPath)
+        # self.tmqCase2(cfgPath, buildPath) 
+        self.tmqCase3(cfgPath, buildPath)
+        self.tmqCase4(cfgPath, buildPath)
+        self.tmqCase5(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()
