@@ -32,7 +32,7 @@ We will explain how to migrate OpenTSDB applications to TDengine quickly, secure
 The following figure (Figure 1) shows the system's overall architecture for a typical DevOps application scenario.
 
 **Figure 1. Typical architecture in a DevOps scenario**
-![IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](/img/IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.jpg "Figure 1. Typical architecture in a DevOps scenario")
+![IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Arch.webp "Figure 1. Typical architecture in a DevOps scenario")
 
 In this application scenario, there are Agent tools deployed in the application environment to collect machine metrics, network metrics, and application metrics. Data collectors to aggregate information collected by agents, systems for persistent data storage and management, and tools for monitoring data visualization (e.g., Grafana, etc.).
 
@@ -75,7 +75,7 @@ After writing the data to TDengine properly, you can adapt Grafana to visualize 
 TDengine provides two sets of Dashboard templates by default, and users only need to import the templates from the Grafana directory into Grafana to activate their use.
 
 **Importing Grafana Templates** Figure 2.
-![](/img/IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.jpg "Figure 2. Importing a Grafana Template")
+![](./IT-DevOps-Solutions-Immigrate-OpenTSDB-Dashboard.webp "Figure 2. Importing a Grafana Template")
 
 After the above steps, you completed the migration to replace OpenTSDB with TDengine. You can see that the whole process is straightforward, there is no need to write any code, and only some configuration files need to be adjusted to meet the migration work.
 
@@ -88,7 +88,7 @@ In most DevOps scenarios, if you have a small OpenTSDB cluster (3 or fewer nodes
 Suppose your application is particularly complex, or the application domain is not a DevOps scenario. You can continue reading subsequent chapters for a more comprehensive and in-depth look at the advanced topics of migrating an OpenTSDB application to TDengine.
 
 **Figure 3. System architecture after migration**
-![IT-DevOps-Solutions-Immigrate-TDengine-Arch](/img/IT-DevOps-Solutions-Immigrate-TDengine-Arch.jpg "Figure 3. System architecture after migration completion")
+![IT-DevOps-Solutions-Immigrate-TDengine-Arch](./IT-DevOps-Solutions-Immigrate-TDengine-Arch.webp "Figure 3. System architecture after migration completion")
 
 ## Migration evaluation and strategy for other scenarios
 
