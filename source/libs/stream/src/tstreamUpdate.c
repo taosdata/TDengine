@@ -127,7 +127,10 @@ static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   if (pInfo->minTS < 0) {
     pInfo->minTS = (TSKEY)(ts / pInfo->interval * pInfo->interval);
   }
-  uint64_t index = (uint64_t)((ts - pInfo->minTS) / pInfo->interval);
+  int64_t index = (int64_t)((ts - pInfo->minTS) / pInfo->interval);
+  if (index < 0) {
+    return NULL;
+  }
   if (index >= pInfo->numSBFs) {
     uint64_t count = index + 1 - pInfo->numSBFs;
     windowSBfDelete(pInfo, count);

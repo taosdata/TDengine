@@ -745,7 +745,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = countFunction,
     .finalizeFunc = functionFinalize,
-    .invertFunc   = countInvertFunction
+    .invertFunc   = countInvertFunction,
+    .combineFunc = combineFunction,
   },
   {
     .name = "sum",
@@ -757,7 +758,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = functionSetup,
     .processFunc  = sumFunction,
     .finalizeFunc = functionFinalize,
-    .invertFunc   = sumInvertFunction
+    .invertFunc   = sumInvertFunction,
+    .combineFunc = sumCombine,
   },
   {
     .name = "min",
@@ -768,7 +770,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = minFunction,
-    .finalizeFunc = minmaxFunctionFinalize
+    .finalizeFunc = minmaxFunctionFinalize,
+    .combineFunc = minCombine
   },
   {
     .name = "max",
@@ -779,7 +782,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getMinmaxFuncEnv,
     .initFunc     = minmaxFunctionSetup,
     .processFunc  = maxFunction,
-    .finalizeFunc = minmaxFunctionFinalize
+    .finalizeFunc = minmaxFunctionFinalize,
+    .combineFunc = maxCombine
   },
   {
     .name = "stddev",
@@ -790,7 +794,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = stddevFunctionSetup,
     .processFunc  = stddevFunction,
     .finalizeFunc = stddevFinalize,
-    .invertFunc   = stddevInvertFunction
+    .invertFunc   = stddevInvertFunction,
+    .combineFunc  = stddevCombine,
   },
   {
     .name = "leastsquares",
@@ -801,7 +806,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = leastSQRFunctionSetup,
     .processFunc  = leastSQRFunction,
     .finalizeFunc = leastSQRFinalize,
-    .invertFunc   = leastSQRInvertFunction
+    .invertFunc   = leastSQRInvertFunction,
   },
   {
     .name = "avg",
@@ -812,7 +817,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .initFunc     = avgFunctionSetup,
     .processFunc  = avgFunction,
     .finalizeFunc = avgFinalize,
-    .invertFunc   = avgInvertFunction
+    .invertFunc   = avgInvertFunction,
+    .combineFunc  = avgCombine,
   },
   {
     .name = "percentile",
@@ -894,7 +900,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
-    .finalizeFunc = functionFinalize
+    .finalizeFunc = functionFinalize,
+    .combineFunc = firstCombine,
   },
   {
     .name = "last",
@@ -904,7 +911,8 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
-    .finalizeFunc = lastFinalize
+    .finalizeFunc = lastFinalize,
+    .combineFunc  = lastCombine,
   },
   {
     .name = "histogram",

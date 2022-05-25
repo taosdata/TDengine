@@ -251,6 +251,8 @@ int32_t nodesNodeSize(ENodeType type) {
       return sizeof(SFillPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       return sizeof(SSessionWinodwPhysiNode);
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+      return sizeof(SStreamSessionWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return sizeof(SStateWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -664,6 +666,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
