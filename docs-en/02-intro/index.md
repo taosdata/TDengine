@@ -54,7 +54,7 @@ With TDengine, the total cost of ownership of your time-series data platform can
 ## Technical Ecosystem
 This is how TDengine would be situated, in a typical time-series data processing platform:
 
-![TDengine Technical Ecosystem ](eco_system.png)
+![TDengine Technical Ecosystem ](eco_system.webp)
 
 <center>Figure 1. TDengine Technical Ecosystem</center>
 
