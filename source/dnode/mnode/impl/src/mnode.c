@@ -263,6 +263,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
   pMnode->selfId = pOption->replicas[pOption->selfIndex].id;
+  pMnode->syncMgmt.standby = pOption->standby;
 }
 
 SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
@@ -327,12 +328,6 @@ void mndClose(SMnode *pMnode) {
     taosMemoryFreeClear(pMnode);
     mDebug("mnode is closed");
   }
-}
-
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
-  mDebug("start to alter mnode");
-  mDebug("mnode is altered");
-  return 0;
 }
 
 int32_t mndStart(SMnode *pMnode) {

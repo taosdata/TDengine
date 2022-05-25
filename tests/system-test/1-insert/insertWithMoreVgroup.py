@@ -294,7 +294,7 @@ class TDTestCase:
         return
 
     def test_case3(self):
-        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 8, 1*10000)
+        self.taosBenchCreate("127.0.0.1","no","db1", "stb1", 1, 1, 1*10)
         # self.taosBenchCreate("test209","no","db2", "stb2", 1, 8, 1*10000)
 
         # self.taosBenchCreate("chenhaoran02","no","db1", "stb1", 1, 8, 1*10000)
@@ -349,17 +349,17 @@ class TDTestCase:
     # run case   
     def run(self):
 
-        # create database and tables。
-        self.test_case1()
-        tdLog.debug(" LIMIT test_case1 ............ [OK]")
+        # # create database and tables。
+        # self.test_case1()
+        # tdLog.debug(" LIMIT test_case1 ............ [OK]")
 
     #    # taosBenchmark ： create database and table 
     #     self.test_case2()
     #     tdLog.debug(" LIMIT test_case2 ............ [OK]")
 
-        # # taosBenchmark：create database/table and insert data
-        # self.test_case3()
-        # tdLog.debug(" LIMIT test_case3 ............ [OK]")
+        # taosBenchmark：create database/table and insert data
+        self.test_case3()
+        tdLog.debug(" LIMIT test_case3 ............ [OK]")
 
 
         # # test qnode

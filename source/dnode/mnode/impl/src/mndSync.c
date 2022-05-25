@@ -17,22 +17,26 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
+int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { 
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId = htonl(pHead->vgId);
+
+  return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); 
+}
 
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
 void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SMnode    *pMnode = pFsm->data;
-  SSdb      *pSdb = pMnode->pSdb;
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  SSdbRaw   *pRaw = pMsg->pCont;
+  SMnode  *pMnode = pFsm->data;
+  SSdbRaw *pRaw = pMsg->pCont;
 
   mTrace("raw:%p, apply to sdb, ver:%" PRId64 " role:%s", pRaw, cbMeta.index, syncStr(cbMeta.state));
-  sdbWriteWithoutFree(pSdb, pRaw);
-  sdbSetApplyIndex(pSdb, cbMeta.index);
-  sdbSetApplyTerm(pSdb, cbMeta.term);
+  sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+  sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
+  sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);
   if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-    tsem_post(&pMgmt->syncSem);
+    tsem_post(&pMnode->syncMgmt.syncSem);
   }
 }
 
@@ -49,15 +53,41 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   pMnode->syncMgmt.restored = true;
 }
 
+void *mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *snapshot, void *iter, char **ppBuf, int32_t *len) {
+  SMnode   *pMnode = pFsm->data;
+  SSdbIter *pIter = iter;
+
+  if (iter == NULL) {
+    pIter = sdbIterInit(pMnode->pSdb);
+  }
+
+  return sdbIterRead(pMnode->pSdb, pIter, ppBuf, len);
+}
+
+int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len) {
+  SMnode *pMnode = pFsm->data;
+  sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
+  return 0;
+}
+  
+void mndReConfig(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+
+}
+
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
+
   pFsm->FpCommitCb = mndSyncCommitMsg;
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
+
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
-  pFsm->FpRestoreFinish = mndRestoreFinish;
-  pFsm->FpRestoreSnapshot = NULL;
+  pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpSnapshotRead = mndSnapshotRead;
+  pFsm->FpSnapshotApply = mndSnapshotApply;
+  pFsm->FpReConfigCb = mndReConfig;
+  
   return pFsm;
 }
 
@@ -90,10 +120,13 @@ int32_t mndInitSync(SMnode *pMnode) {
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
   pCfg->myIndex = pMnode->selfIndex;
+  mInfo("start to open mnode sync, replica:%d myindex:%d standby:%d", pCfg->replicaNum, pCfg->myIndex,
+        pMgmt->standby);
   for (int32_t i = 0; i < pMnode->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodePort = pMnode->replicas[i].port;
+    mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
@@ -149,7 +182,11 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
-  syncStart(pMgmt->sync);
+  if (pMgmt->standby) {
+    syncStartStandBy(pMgmt->sync);
+  } else {
+    syncStart(pMgmt->sync);
+  }
   mDebug("sync:%" PRId64 " is started", pMgmt->sync);
 }
 
@@ -160,4 +197,19 @@ bool mndIsMaster(SMnode *pMnode) {
   pMgmt->state = syncGetMyRole(pMgmt->sync);
 
   return (pMgmt->state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
+}
+
+int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
+  SSyncCfg cfg = {.replicaNum = pOption->replica, .myIndex = pOption->selfIndex};
+  mInfo("start to alter mnode sync, replica:%d myindex:%d standby:%d", cfg.replicaNum, cfg.myIndex, pOption->standby);
+  for (int32_t i = 0; i < pOption->replica; ++i) {
+    SNodeInfo *pNode = &cfg.nodeInfo[i];
+    tstrncpy(pNode->nodeFqdn, pOption->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = pOption->replicas[i].port;
+    mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
+  }
+
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  pMgmt->standby = pOption->standby;
+  return syncReconfig(pMgmt->sync, &cfg);
 }

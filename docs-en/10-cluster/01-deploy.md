@@ -6,15 +6,15 @@ title: Deployment
 
 ### Step 1
 
-The FQDN of all hosts need to be setup properly, all the FQDNs need to be configured in the /etc/hosts of each host. It must be guaranteed that each FQDN can be accessed (by ping, for example) from any other hosts.
+The FQDN of all hosts needs to be setup properly, all the FQDNs need to be configured in the /etc/hosts of each host. It must be confirmed that each FQDN can be accessed (by ping, for example) from any other hosts.
 
-On each host command `hostname -f` can be executed to get the hostname. `ping` command can be executed on each host to check whether any other host is accessible from it. If any host is not accessible, the network configuration, like /etc/hosts or DNS configuration, need to be checked and revised to make any two hosts accessible to each other.
+On each host the command `hostname -f` can be executed to get the hostname. `ping` command can be executed on each host to check whether any other host is accessible from it. If any host is not accessible, the network configuration, like /etc/hosts or DNS configuration, need to be checked and revised to make any two hosts accessible to each other.
 
 :::note
 
-- The host where the client program runs also needs to configured properly for FQDN, to make sure all hosts for client or server can be accessed from any other. In other words, the hosts where the client is running are also considered as a part of the cluster.
+- The host where the client program runs also needs to be configured properly for FQDN, to make sure all hosts for client or server can be accessed from any other. In other words, the hosts where the client is running are also considered as a part of the cluster.
 
-- It's suggested to disable the firewall for all hosts in the cluster. At least TCP/UDP for port 6030~6042 need to be open if firewall is enabled.
+- It's suggested to disable the firewall for all hosts in the cluster. At least TCP/UDP for port 6030~6042 need to be open if a firewall is enabled.
 
 :::
 
@@ -28,7 +28,7 @@ Now it's time to install TDengine on all hosts without starting `taosd`, the ver
 
 ### Step 4
 
-Now each physical node (referred to as `dnode` hereinafter, it's abbreviation for "data node") of TDengine need to be configured properly. Please be noted that one dnode doesn't stand for one host, multiple TDengine nodes can be started on single host as long as they are configured properly without conflicting. More specifically each instance of the configuration file `taos.cfg` stands for a dnode. Assuming the first dnode of TDengine cluster is "h1.taosdata.com:6030", its `taos.cfg` is configured as following.
+Now each physical node (referred to as `dnode` hereinafter, it's abbreviation for "data node") of TDengine needs to be configured properly. Please note that one dnode doesn't stand for one host, multiple TDengine nodes can be started on single host as long as they are configured properly without conflicting. More specifically each instance of the configuration file `taos.cfg` stands for a dnode. Assuming the first dnode of TDengine cluster is "h1.taosdata.com:6030", its `taos.cfg` is configured as following.
 
 ```c
 // firstEp is the end point to connect to when any dnode starts
@@ -44,9 +44,9 @@ serverPort            6030
 #arbitrator            ha.taosdata.com:6042
 ```
 
-`firstEp` and `fqdn` must be configured properly. In `taos.cfg` of all dnodes in TDengine cluster, `firstEp` must be configured to point to same address, i.e. the first dnode of the cluster. `fqdn` and `serverPort` compose the address of each node itself. If you want to start multiple TDengine dnodes on a single host, please also make sure all other configurations like `dataDir`, `logDir`, and other resources related parameters are not conflicting.
+`firstEp` and `fqdn` must be configured properly. In `taos.cfg` of all dnodes in TDengine cluster, `firstEp` must be configured to point to same address, i.e. the first dnode of the cluster. `fqdn` and `serverPort` compose the address of each node itself. If you want to start multiple TDengine dnodes on a single host, please make sure all other configurations like `dataDir`, `logDir`, and other resources related parameters are not conflicting.
 
-For all the dnodes in a TDengine cluster, below parameters must be configured as exactly same, any node whose configuration is different from dnodes already in the cluster can't join the cluster.
+For all the dnodes in a TDengine cluster, the below parameters must be configured exactly the same, any node whose configuration is different from dnodes already in the cluster can't join the cluster.
 
 | **#** | **Parameter**      | **Definition**                                                                    |
 | ----- | ------------------ | --------------------------------------------------------------------------------- |
@@ -61,7 +61,7 @@ For all the dnodes in a TDengine cluster, below parameters must be configured as
 | 9     | maxVgroupsPerDb    | Maximum number vgroups that can be used by each DB                                |
 
 :::note
-Prior to version 2.0.19.0, besides the above parameters, `locale` and `charset` must be configured as same too for each dnode.
+Prior to version 2.0.19.0, besides the above parameters, `locale` and `charset` must also be configured the same for each dnode.
 
 :::
 
@@ -92,7 +92,7 @@ From the above output, it is shown that the end point of the started dnode is "h
 
 There are a few steps necessary to add other dnodes in the cluster.
 
-Firstly, start `taosd` as instructed in [Get Started](/get-started/), assuming it's for the second dnode. Before starting `taosd`, please making sure the configuration is correct, especially `firstEp`, `FQDN` and `serverPort`, `firstEp` must be same as the dnode shown in the section "Start First DNODE", i.e. "h1.taosdata.com" in this example.
+First, start `taosd` as instructed in [Get Started](/get-started/), assuming it's for the second dnode. Before starting `taosd`, please making sure the configuration is correct, especially `firstEp`, `FQDN` and `serverPort`, `firstEp` must be same as the dnode shown in the section "Start First DNODE", i.e. "h1.taosdata.com" in this example.
 
 Then, on the first dnode, use TDengine CLI `taos` to execute below command to add the end point of the dnode in the cluster. In the command "fqdn:port" should be quoted using double quotes.
 
@@ -109,6 +109,6 @@ SHOW DNODES;
 If the status of the newly added dnode is offline, please check:
 
 - Whether the `taosd` process is running properly or not
-- In the log file `taosdlog.0` to see whether the fqdn and port are correct or not
+- In the log file `taosdlog.0` to see whether the fqdn and port are correct
 
 The above process can be repeated to add more dnodes in the cluster.

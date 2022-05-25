@@ -44,12 +44,9 @@ extern "C" {
   }
 
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
-
 #define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
-
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
-
-#define SDB_GET_INT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
+#define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
 
 #define SDB_GET_RESERVE(pRaw, dataPos, valLen, pos) \
   {                                                 \
@@ -66,11 +63,8 @@ extern "C" {
   }
 
 #define SDB_SET_INT64(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt64, int64_t)
-
 #define SDB_SET_INT32(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt32, int32_t)
-
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
-
 #define SDB_SET_INT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)     \
@@ -355,6 +349,14 @@ typedef struct SSdb {
   SdbEncodeFp    encodeFps[SDB_MAX];
   SdbDecodeFp    decodeFps[SDB_MAX];
 } SSdb;
+
+typedef struct SSdbIter {
+  TdFilePtr file;
+  int64_t   readlen;
+} SSdbIter;
+
+SSdbIter *sdbIterInit(SSdb *pSdb);
+SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *iter, char **ppBuf, int32_t *len);
 
 #ifdef __cplusplus
 }
