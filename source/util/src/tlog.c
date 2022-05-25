@@ -226,7 +226,7 @@ static void *taosThreadToOpenNewFile(void *param) {
   tsLogObj.logHandle->pFile = pFile;
   tsLogObj.lines = 0;
   tsLogObj.openInProgress = 0;
-  taosSsleep(10);
+  taosSsleep(20);
   taosCloseLogByFd(pOldFile);
 
   uInfo("   new log file:%d is opened", tsLogObj.flag);

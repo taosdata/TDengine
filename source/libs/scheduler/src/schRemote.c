@@ -565,8 +565,9 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
 
 int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
   int32_t code = 0;
-  memcpy(&pDst->brokenVal, &pSrc->brokenVal, sizeof(pSrc->brokenVal));
+  memcpy(pDst, pSrc, sizeof(SRpcCtx));
   pDst->brokenVal.val = NULL;
+  pDst->args = NULL;
 
   SCH_ERR_RET(schCloneSMsgSendInfo(pSrc->brokenVal.val, &pDst->brokenVal.val));
 
@@ -589,7 +590,7 @@ int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
 
     if (taosHashPut(pDst->args, msgType, sizeof(*msgType), &dst, sizeof(dst))) {
       qError("taosHashPut msg %d to rpcCtx failed", *msgType);
-      (*dst.freeFunc)(dst.val);
+      (*pSrc->freeFunc)(dst.val);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
@@ -643,13 +644,14 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   pMsgSendInfo->param = param;
   pMsgSendInfo->fp = fp;
 
-  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo, .freeFunc = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   SCH_ERR_JRET(schMakeBrokenLinkVal(pJob, pTask, &pCtx->brokenVal, true));
+  pCtx->freeFunc = schFreeRpcCtxVal;
 
   return TSDB_CODE_SUCCESS;
 
@@ -911,7 +913,6 @@ int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *
   brokenVal->msgType = msgType;
   brokenVal->val = pMsgSendInfo;
   brokenVal->clone = schCloneSMsgSendInfo;
-  brokenVal->freeFunc = schFreeRpcCtxVal;
 
   return TSDB_CODE_SUCCESS;
 
@@ -938,7 +939,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, TDMT_VND_EXPLAIN, &pExplainMsgSendInfo));
 
   int32_t    msgType = TDMT_VND_RES_READY_RSP;
-  SRpcCtxVal ctxVal = {.val = pReadyMsgSendInfo, .clone = schCloneSMsgSendInfo, .freeFunc = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pReadyMsgSendInfo, .clone = schCloneSMsgSendInfo};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -952,6 +953,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   }
 
   SCH_ERR_JRET(schMakeBrokenLinkVal(pJob, pTask, &pCtx->brokenVal, false));
+  pCtx->freeFunc = schFreeRpcCtxVal;
 
   return TSDB_CODE_SUCCESS;
 
