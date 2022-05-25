@@ -16,7 +16,7 @@ IT 运维监测数据通常都是对时间特性比较敏感的数据，例如�
 
 本文介绍不需要写一行代码，通过简单修改几行配置文件，就可以快速搭建一个基于 TDengine + Telegraf + Grafana 的 IT 运维系统。架构如下图：
 
-![IT-DevOps-Solutions-Telegraf.png](/img/IT-DevOps-Solutions-Telegraf.png)
+![IT-DevOps-Solutions-Telegraf.webp](./IT-DevOps-Solutions-Telegraf.webp)
 
 ## 安装步骤
 
@@ -75,7 +75,7 @@ sudo systemctl start telegraf
 点击左侧齿轮图标并选择 `Plugins`，应该可以找到 TDengine data source 插件图标。
 点击左侧加号图标并选择 `Import`，从 `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json` 下载 dashboard JSON 文件后导入。之后可以看到如下界面的仪表盘：
 
-![IT-DevOps-Solutions-telegraf-dashboard.png](/img/IT-DevOps-Solutions-telegraf-dashboard.png)
+![IT-DevOps-Solutions-telegraf-dashboard.webp]./IT-DevOps-Solutions-telegraf-dashboard.webp)
 
 ## 总结
 
