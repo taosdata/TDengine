@@ -16,6 +16,7 @@
 #include "tsdb.h"
 
 struct STsdbSnapshotReader {
+  STsdb* pTsdb;
   // TODO
 };
 
