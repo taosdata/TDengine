@@ -1,0 +1,3 @@
+# setup env in case
+target_host: wintest
+settings: []
