@@ -28,7 +28,10 @@ class HiveMQTest(TDCase):
     def run_container(self):
         pass
 
-    def start_container(self):
+    def send_test_data(self):
+        pass
+
+    def check_data_indb(self):
         pass
 
     def init(self):
@@ -42,7 +45,8 @@ class HiveMQTest(TDCase):
         # self.install_mosquitto()
         # self.install_openjdk_11()
         # self.install_maven()
-        self.compile_plugin()
+        # self.compile_plugin() # /tmp/hivemq-tdengine-extension/target/hivemq-tdengine-extension-0.0.3-distribution.zip
+        self.run_container()
 
     def desc(self) -> str:
         return "Test HiveMQ TDengine Extension"
