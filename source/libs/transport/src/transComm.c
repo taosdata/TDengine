@@ -245,6 +245,7 @@ void transCtxMerge(STransCtx* dst, STransCtx* src) {
   if (dst->args == NULL) {
     dst->args = src->args;
     dst->brokenVal = src->brokenVal;
+    dst->freeFunc = src->freeFunc;
     src->args = NULL;
     return;
   }
