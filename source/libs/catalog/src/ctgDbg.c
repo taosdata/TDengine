@@ -25,9 +25,9 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   ASSERT(*(int32_t*)param == 1);
   taosMemoryFree(param);
 
-  ctgDebug("async call result: %s", tstrerror(code));
+  qDebug("async call result: %s", tstrerror(code));
   if (NULL == pResult) {
-    ctgDebug("empty meta result");
+    qDebug("empty meta result");
     return;
   }
 
@@ -36,25 +36,24 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
   if (pResult->pTableMeta && taosArrayGetSize(pResult->pTableMeta) > 0) {
     num = taosArrayGetSize(pResult->pTableMeta);
     for (int32_t i = 0; i < num; ++i) {
-      STableMeta *p = taosArrayGet(pResult->pTableMeta, i);
+      STableMeta *p = *(STableMeta **)taosArrayGet(pResult->pTableMeta, i);
       STableComInfo *c = &p->tableInfo;
       
       if (TSDB_CHILD_TABLE == p->tableType) {
-        ctgDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64, p->tableType, p->vgId, p->uid, p->suid);
-        return;
+        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64, p->tableType, p->vgId, p->uid, p->suid);
       } else {
-        ctgDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
          p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision, c->numOfColumns, c->rowSize);
       }
       
       int32_t colNum = c->numOfColumns + c->numOfTags;
       for (int32_t j = 0; j < colNum; ++j) {
         SSchema *s = &p->schema[j];
-        ctgDebug("[%d] name:%s, type:%d, colId:%d, bytes:%d", j, s->name, s->type, s->colId, s->bytes);
+        qDebug("[%d] name:%s, type:%d, colId:%d, bytes:%d", j, s->name, s->type, s->colId, s->bytes);
       }
     }
   } else {
-    ctgDebug("empty table meta");
+    qDebug("empty table meta");
   }
 
   if (pResult->pDbVgroup && taosArrayGetSize(pResult->pDbVgroup) > 0) {
@@ -62,14 +61,65 @@ void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
     for (int32_t i = 0; i < num; ++i) {
       SArray *pDb = *(SArray**)taosArrayGet(pResult->pDbVgroup, i);
       int32_t vgNum = taosArrayGetSize(pDb);
+      qDebug("db %d vgInfo:", i);
       for (int32_t j = 0; j < vgNum; ++j) {
         SVgroupInfo* pInfo = taosArrayGet(pDb, j);
-        ctgDebug(param, ...);
+        qDebug("vg %d info: vgId:%d", j, pInfo->vgId);
       }
     }
   } else {
-    ctgDebug("empty db vgroup");
+    qDebug("empty db vgroup");
   }
+
+  if (pResult->pTableHash && taosArrayGetSize(pResult->pTableHash) > 0) {
+    num = taosArrayGetSize(pResult->pTableHash);
+    for (int32_t i = 0; i < num; ++i) {
+      SVgroupInfo* pInfo = taosArrayGet(pResult->pTableHash, i);
+      qDebug("table %d vg info: vgId:%d", i, pInfo->vgId);
+    }
+  } else {
+    qDebug("empty table hash vgroup");
+  }
+
+  if (pResult->pUdfList && taosArrayGetSize(pResult->pUdfList) > 0) {
+    num = taosArrayGetSize(pResult->pUdfList);
+    for (int32_t i = 0; i < num; ++i) {
+      SFuncInfo* pInfo = taosArrayGet(pResult->pUdfList, i);
+      qDebug("udf %d info: name:%s, funcType:%d", i, pInfo->name, pInfo->funcType);
+    }
+  } else {
+    qDebug("empty udf info");
+  }
+
+  if (pResult->pDbCfg && taosArrayGetSize(pResult->pDbCfg) > 0) {
+    num = taosArrayGetSize(pResult->pDbCfg);
+    for (int32_t i = 0; i < num; ++i) {
+      SDbCfgInfo* pInfo = taosArrayGet(pResult->pDbCfg, i);
+      qDebug("db %d info: numOFVgroups:%d, numOfStables:%d", i, pInfo->numOfVgroups, pInfo->numOfStables);
+    }
+  } else {
+    qDebug("empty db cfg info");
+  }  
+
+  if (pResult->pUser && taosArrayGetSize(pResult->pUser) > 0) {
+    num = taosArrayGetSize(pResult->pUser);
+    for (int32_t i = 0; i < num; ++i) {
+      bool* auth = taosArrayGet(pResult->pUser, i);
+      qDebug("user auth %d info: %d", i, *auth);
+    }
+  } else {
+    qDebug("empty user auth info");
+  }   
+
+  if (pResult->pQnodeList && taosArrayGetSize(pResult->pQnodeList) > 0) {
+    num = taosArrayGetSize(pResult->pQnodeList);
+    for (int32_t i = 0; i < num; ++i) {
+      SQueryNodeAddr* qaddr = taosArrayGet(pResult->pQnodeList, i);
+      qDebug("qnode %d info: id:%d", i, qaddr->nodeId);
+    }
+  } else {
+    qDebug("empty qnode info");
+  }     
 }
 
 int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId) {
