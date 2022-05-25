@@ -1463,7 +1463,9 @@ void ctgUpdateThreadFuncUnexpectedStopped(void) {
 
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
+#ifdef WINDOWS
   atexit(ctgUpdateThreadFuncUnexpectedStopped);
+#endif
   qInfo("catalog update thread started");
 
   CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
