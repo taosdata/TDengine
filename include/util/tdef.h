@@ -428,11 +428,11 @@ enum {
 };
 
 #define DEFAULT_HANDLE 0
-#define MNODE_HANDLE   -1
-#define QNODE_HANDLE   -2
-#define SNODE_HANDLE   -3
-#define VNODE_HANDLE   -4
-#define BNODE_HANDLE   -5
+#define MNODE_HANDLE   1
+#define QNODE_HANDLE   -1
+#define SNODE_HANDLE   -2
+#define VNODE_HANDLE   -3
+#define BNODE_HANDLE   -4
 
 #define TSDB_CONFIG_OPTION_LEN 16
 #define TSDB_CONIIG_VALUE_LEN  48

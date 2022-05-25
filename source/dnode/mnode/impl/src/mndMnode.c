@@ -39,14 +39,16 @@ static int32_t  mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *p
 static void     mndCancelGetNextMnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitMnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_MNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultMnode,
-                     .encodeFp = (SdbEncodeFp)mndMnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndMnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndMnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndMnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndMnodeActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_MNODE,
+      .keyType = SDB_KEY_INT32,
+      .deployFp = (SdbDeployFp)mndCreateDefaultMnode,
+      .encodeFp = (SdbEncodeFp)mndMnodeActionEncode,
+      .decodeFp = (SdbDecodeFp)mndMnodeActionDecode,
+      .insertFp = (SdbInsertFp)mndMnodeActionInsert,
+      .updateFp = (SdbUpdateFp)mndMnodeActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndMnodeActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MNODE, mndProcessCreateMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);

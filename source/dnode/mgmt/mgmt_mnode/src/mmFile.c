@@ -53,43 +53,45 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed) {
   *pDeployed = deployed->valueint;
 
   cJSON *mnodes = cJSON_GetObjectItem(root, "mnodes");
-  if (!mnodes || mnodes->type != cJSON_Array) {
-    dError("failed to read %s since nodes not found", file);
-    goto _OVER;
-  }
-
-  pMgmt->replica = cJSON_GetArraySize(mnodes);
-  if (pMgmt->replica <= 0 || pMgmt->replica > TSDB_MAX_REPLICA) {
-    dError("failed to read %s since mnodes size %d invalid", file, pMgmt->replica);
-    goto _OVER;
-  }
-
-  for (int32_t i = 0; i < pMgmt->replica; ++i) {
-    cJSON *node = cJSON_GetArrayItem(mnodes, i);
-    if (node == NULL) break;
-
-    SReplica *pReplica = &pMgmt->replicas[i];
-
-    cJSON *id = cJSON_GetObjectItem(node, "id");
-    if (!id || id->type != cJSON_Number) {
-      dError("failed to read %s since id not found", file);
+  if (mnodes != NULL) {
+    if (!mnodes || mnodes->type != cJSON_Array) {
+      dError("failed to read %s since nodes not found", file);
       goto _OVER;
     }
-    pReplica->id = id->valueint;
 
-    cJSON *fqdn = cJSON_GetObjectItem(node, "fqdn");
-    if (!fqdn || fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
-      dError("failed to read %s since fqdn not found", file);
+    pMgmt->replica = cJSON_GetArraySize(mnodes);
+    if (pMgmt->replica <= 0 || pMgmt->replica > TSDB_MAX_REPLICA) {
+      dError("failed to read %s since mnodes size %d invalid", file, pMgmt->replica);
       goto _OVER;
     }
-    tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
 
-    cJSON *port = cJSON_GetObjectItem(node, "port");
-    if (!port || port->type != cJSON_Number) {
-      dError("failed to read %s since port not found", file);
-      goto _OVER;
+    for (int32_t i = 0; i < pMgmt->replica; ++i) {
+      cJSON *node = cJSON_GetArrayItem(mnodes, i);
+      if (node == NULL) break;
+
+      SReplica *pReplica = &pMgmt->replicas[i];
+
+      cJSON *id = cJSON_GetObjectItem(node, "id");
+      if (!id || id->type != cJSON_Number) {
+        dError("failed to read %s since id not found", file);
+        goto _OVER;
+      }
+      pReplica->id = id->valueint;
+
+      cJSON *fqdn = cJSON_GetObjectItem(node, "fqdn");
+      if (!fqdn || fqdn->type != cJSON_String || fqdn->valuestring == NULL) {
+        dError("failed to read %s since fqdn not found", file);
+        goto _OVER;
+      }
+      tstrncpy(pReplica->fqdn, fqdn->valuestring, TSDB_FQDN_LEN);
+
+      cJSON *port = cJSON_GetObjectItem(node, "port");
+      if (!port || port->type != cJSON_Number) {
+        dError("failed to read %s since port not found", file);
+        goto _OVER;
+      }
+      pReplica->port = port->valueint;
     }
-    pReplica->port = port->valueint;
   }
 
   code = 0;
@@ -122,21 +124,23 @@ int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pMsg, bool deployed) {
   char   *content = taosMemoryCalloc(1, maxLen + 1);
 
   len += snprintf(content + len, maxLen - len, "{\n");
-  len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
 
   int8_t replica = (pMsg != NULL ? pMsg->replica : pMgmt->replica);
-  for (int32_t i = 0; i < replica; ++i) {
-    SReplica *pReplica = &pMgmt->replicas[i];
-    if (pMsg != NULL) {
-      pReplica = &pMsg->replicas[i];
-    }
-    len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
-    len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
-    len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
-    if (i < replica - 1) {
-      len += snprintf(content + len, maxLen - len, "  },{\n");
-    } else {
-      len += snprintf(content + len, maxLen - len, "  }],\n");
+  if (replica > 0) {
+    len += snprintf(content + len, maxLen - len, "  \"mnodes\": [{\n");
+    for (int32_t i = 0; i < replica; ++i) {
+      SReplica *pReplica = &pMgmt->replicas[i];
+      if (pMsg != NULL) {
+        pReplica = &pMsg->replicas[i];
+      }
+      len += snprintf(content + len, maxLen - len, "    \"id\": %d,\n", pReplica->id);
+      len += snprintf(content + len, maxLen - len, "    \"fqdn\": \"%s\",\n", pReplica->fqdn);
+      len += snprintf(content + len, maxLen - len, "    \"port\": %u\n", pReplica->port);
+      if (i < replica - 1) {
+        len += snprintf(content + len, maxLen - len, "  },{\n");
+      } else {
+        len += snprintf(content + len, maxLen - len, "  }],\n");
+      }
     }
   }
 

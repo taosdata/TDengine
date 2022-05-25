@@ -37,6 +37,7 @@ typedef struct SBuiltinFuncDefinition {
   FScalarExecProcess sprocessFunc;
   FExecFinalize finalizeFunc;
   FExecProcess invertFunc;
+  FExecCombine combineFunc;
 } SBuiltinFuncDefinition;
 
 extern const SBuiltinFuncDefinition funcMgtBuiltins[];
