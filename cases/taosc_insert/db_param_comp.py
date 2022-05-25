@@ -38,12 +38,13 @@ class TestComp(TDCase):
         self.tdSql.query(f'show {dbname}.vgroups')
         db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
         # print(db_vnode_kv_dict)
+        
         data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
-        # print(data)
+        
         self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['compression']))
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
-        # param_list
+        
         param_value_list = [0, 1, 2]
         for param_value in param_value_list:
             dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -53,7 +54,7 @@ class TestComp(TDCase):
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
             self.tdSql.query(f'show {dbname}.vgroups')
             db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
-            # print(db_vnode_kv_dict)
+            
             data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
             # print(data)
             self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['compression']))
