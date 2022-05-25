@@ -199,9 +199,8 @@ typedef struct {
   int32_t    id;
   int64_t    createdTime;
   int64_t    updateTime;
-  ESyncState role;
-  int32_t    roleTerm;
-  int64_t    roleTime;
+  ESyncState state;
+  int64_t    stateStartTime;
   SDnodeObj* pDnode;
 } SMnodeObj;
 

@@ -196,9 +196,8 @@ void mndSyncStop(SMnode *pMnode) {}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  pMgmt->state = syncGetMyRole(pMgmt->sync);
-
-  return (pMgmt->state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
+  ESyncState state = syncGetMyRole(pMgmt->sync);
+  return (state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
 }
 
 int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {

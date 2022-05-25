@@ -42,6 +42,8 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
   pOption->standby = false;
   pOption->deploy = true;
   pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
+
   pOption->replica = 1;
   pOption->selfIndex = 0;
 
@@ -52,9 +54,10 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
 }
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  pOption->msgCb = pMgmt->msgCb;
   pOption->deploy = false;
   pOption->standby = false;
+  pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
 
   if (pMgmt->replica > 0) {
     pOption->standby = true;
@@ -71,9 +74,11 @@ static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
 }
 
 static int32_t mmBuildOptionForAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
-  pOption->msgCb = pMgmt->msgCb;
   pOption->standby = false;
   pOption->deploy = false;
+  pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
+
   pOption->replica = pCreate->replica;
   pOption->selfIndex = -1;
 

@@ -77,28 +77,6 @@ void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj) {
   sdbRelease(pMnode->pSdb, pObj);
 }
 
-void mndUpdateMnodeRole(SMnode *pMnode) {
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-  while (1) {
-    SMnodeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
-
-    ESyncState lastRole = pObj->role;
-    if (pObj->id == 1) {
-      pObj->role = TAOS_SYNC_STATE_LEADER;
-    } else {
-      pObj->role = TAOS_SYNC_STATE_CANDIDATE;
-    }
-    if (pObj->role != lastRole) {
-      pObj->roleTime = taosGetTimestampMs();
-    }
-
-    sdbRelease(pSdb, pObj);
-  }
-}
-
 static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   SMnodeObj mnodeObj = {0};
   mnodeObj.id = 1;
@@ -209,7 +187,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
     return -1;
   }
 
-  pObj->role = TAOS_SYNC_STATE_FOLLOWER;
+  pObj->state = TAOS_SYNC_STATE_ERROR;
   return 0;
 }
 
@@ -253,7 +231,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     if (pObj->pDnode == NULL) {
       mError("mnode:%d, no corresponding dnode exists", pObj->id);
     } else {
-      if (pObj->role == TAOS_SYNC_STATE_LEADER) {
+      if (pObj->state == TAOS_SYNC_STATE_LEADER) {
         pEpSet->inUse = pEpSet->numOfEps;
       }
       addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
@@ -581,7 +559,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (pMnode->selfId == dropReq.dnodeId) {
+  if (pMnode->selfDnodeId == dropReq.dnodeId) {
     terrno = TSDB_CODE_MND_CANT_DROP_MASTER;
     goto _OVER;
   }
@@ -652,10 +630,11 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    // const char *roles = syncStr(syncGetMyRole(pMnode->syncMgmt.sync));
-    const char *roles = syncStr(TAOS_SYNC_STATE_FOLLOWER);
-    if (pObj->id == pMnode->selfId) {
+    const char *roles = NULL;
+    if (pObj->id == pMnode->selfDnodeId) {
       roles = syncStr(TAOS_SYNC_STATE_LEADER);
+    } else {
+      roles = syncStr(pObj->state);
     }
     char *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
