@@ -36,7 +36,6 @@ typedef struct SMnodeMgmt {
   SSingleWorker  monitorWorker;
   SReplica       replicas[TSDB_MAX_REPLICA];
   int8_t         replica;
-  int8_t         selfIndex;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
@@ -47,7 +46,6 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
 int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pMsg, bool deployed);
 
 // mmInt.c
-int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pMsg);
 int32_t mmAcquire(SMnodeMgmt *pMgmt);
 void    mmRelease(SMnodeMgmt *pMgmt);
 

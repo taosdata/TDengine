@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndAcct.h"
 #include "mndShow.h"
+#include "mndTrans.h"
 
 #define ACCT_VER_NUMBER   1
 #define ACCT_RESERVE_SIZE 128
@@ -31,14 +32,16 @@ static int32_t  mndProcessAlterAcctReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropAcctReq(SRpcMsg *pReq);
 
 int32_t mndInitAcct(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_ACCT,
-                     .keyType = SDB_KEY_BINARY,
-                     .deployFp = mndCreateDefaultAcct,
-                     .encodeFp = (SdbEncodeFp)mndAcctActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndAcctActionDecode,
-                     .insertFp = (SdbInsertFp)mndAcctActionInsert,
-                     .updateFp = (SdbUpdateFp)mndAcctActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndAcctActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_ACCT,
+      .keyType = SDB_KEY_BINARY,
+      .deployFp = mndCreateDefaultAcct,
+      .encodeFp = (SdbEncodeFp)mndAcctActionEncode,
+      .decodeFp = (SdbDecodeFp)mndAcctActionDecode,
+      .insertFp = (SdbInsertFp)mndAcctActionInsert,
+      .updateFp = (SdbUpdateFp)mndAcctActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndAcctActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_ACCT, mndProcessCreateAcctReq);
   mndSetMsgHandle(pMnode, TDMT_MND_ALTER_ACCT, mndProcessAlterAcctReq);
@@ -56,25 +59,52 @@ static int32_t mndCreateDefaultAcct(SMnode *pMnode) {
   acctObj.updateTime = acctObj.createdTime;
   acctObj.acctId = 1;
   acctObj.status = 0;
-  acctObj.cfg = (SAcctCfg){.maxUsers = INT32_MAX,
-                           .maxDbs = INT32_MAX,
-                           .maxStbs = INT32_MAX,
-                           .maxTbs = INT32_MAX,
-                           .maxTimeSeries = INT32_MAX,
-                           .maxStreams = INT32_MAX,
-                           .maxFuncs = INT32_MAX,
-                           .maxConsumers = INT32_MAX,
-                           .maxConns = INT32_MAX,
-                           .maxTopics = INT32_MAX,
-                           .maxStorage = INT64_MAX,
-                           .accessState = TSDB_VN_ALL_ACCCESS};
+  acctObj.cfg = (SAcctCfg){
+      .maxUsers = INT32_MAX,
+      .maxDbs = INT32_MAX,
+      .maxStbs = INT32_MAX,
+      .maxTbs = INT32_MAX,
+      .maxTimeSeries = INT32_MAX,
+      .maxStreams = INT32_MAX,
+      .maxFuncs = INT32_MAX,
+      .maxConsumers = INT32_MAX,
+      .maxConns = INT32_MAX,
+      .maxTopics = INT32_MAX,
+      .maxStorage = INT64_MAX,
+      .accessState = TSDB_VN_ALL_ACCCESS,
+  };
 
   SSdbRaw *pRaw = mndAcctActionEncode(&acctObj);
   if (pRaw == NULL) return -1;
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("acct:%s, will be created while deploy sdb, raw:%p", acctObj.acct, pRaw);
+#if 0
   return sdbWrite(pMnode->pSdb, pRaw);
+#else
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_ACCT, NULL);
+  if (pTrans == NULL) {
+    mError("acct:%s, failed to create since %s", acctObj.acct, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create acct:%s", pTrans->id, acctObj.acct);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+#endif
 }
 
 static SSdbRaw *mndAcctActionEncode(SAcctObj *pAcct) {
