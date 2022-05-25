@@ -6,7 +6,7 @@ The computing and storage resources need to be planned if using TDengine to buil
 
 ## Memory Requirement of Server Side
 
-The number of vgroups created for each database is same as the number of CPU cores by default and can be configured by parameter `maxVgroupsPerDb`, each vnode in a vgroup stores one replica. Each vnode consumes fixed size of memory, i.e. `blocks` \* `cache`. Besides, some memory is required for tag values associated with each table. A fixed amount of memory is required for each cluster. So, the memory required for each DB can be calculated using below formula:
+The number of vgroups created for each database is the same as the number of CPU cores by default and can be configured by parameter `maxVgroupsPerDb`, each vnode in a vgroup stores one replica. Each vnode consumes a fixed size of memory, i.e. `blocks` \* `cache`. Besides, some memory is required for tag values associated with each table. A fixed amount of memory is required for each cluster. So, the memory required for each DB can be calculated using the formula below:
 
 ```
 Database Memory Size = maxVgroupsPerDb * replica * (blocks * cache + 10MB) + numOfTables * (tagSizePerTable + 0.5KB)
@@ -14,7 +14,7 @@ Database Memory Size = maxVgroupsPerDb * replica * (blocks * cache + 10MB) + num
 
 For example, assuming the default value of `maxVgroupPerDB` is 64, the default value of `cache` 16M, the default value of `blocks` is 6, there are 100,000 tables in a DB, the replica number is 1, total length of tag values is 256 bytes, the total memory required for this DB is: 64 \* 1 \* (16 \* 6 + 10) + 100000 \* (0.25 + 0.5) / 1000 = 6792M.
 
-In real operation of TDengine, we are more concerned about the memory used by each TDengine server process `taosd`.
+In the real operation of TDengine, we are more concerned about the memory used by each TDengine server process `taosd`.
 
 ```
     taosd_memory = vnode_memory + mnode_memory + query_memory
@@ -25,26 +25,26 @@ In the above formula:
 1. "vnode_memory" of a `taosd` process is the memory used by all vnodes hosted by this `taosd` process. It can be roughly calculated by firstly adding up the total memory of all DBs whose memory usage can be derived according to the formula mentioned previously then dividing by number of dnodes and multiplying the number of replicas.
 
 ```
-    vnode_memory = sum(Database memory) / number_of_dnodes \* replica
+    vnode_memory = sum(Database memory) / number_of_dnodes * replica
 ```
 
 2. "mnode_memory" of a `taosd` process is the memory consumed by a mnode. If there is one (and only one) mnode hosted in a `taosd` process, the memory consumed by "mnode" is "0.2KB \* the total number of tables in the cluster".
 
 3. "query_memory" is the memory used when processing query requests. Each ongoing query consumes at least "0.2 KB \* total number of involved tables".
 
-Please be noted that the above formulas can only be used to estimate the minimum memory requirement, instead of maximum memory usage. In a real production environment, it's better to preserve some redundance beyond the estimated minimum memory requirement. If memory is abundant, it's suggested to increase the value of parameter `blocks` to speed up data insertion and data query.
+Please note that the above formulas can only be used to estimate the minimum memory requirement, instead of maximum memory usage. In a real production environment, it's better to reserve some redundance beyond the estimated minimum memory requirement. If memory is abundant, it's suggested to increase the value of parameter `blocks` to speed up data insertion and data query.
 
 ## Memory Requirement of Client Side
 
-The client programs use TDengine client driver `taosc` to connect to the server side, there is also memory requirement for a client program.
+For the client programs using TDengine client driver `taosc` to connect to the server side there is a memory requirement as well.
 
-The memory consumed by a client program is mainly about the SQL statements for data insertion, caching of table metadata, and some internal use. Assuming maximum number of tables is N (the memory consumed by the metadata of each table is 256 bytes), maximum number of threads for parallel insertion is T, maximum length of a SQL statement is S (normally 1 MB), the memory required by a client program can be estimated using below formula:
+The memory consumed by a client program is mainly about the SQL statements for data insertion, caching of table metadata, and some internal use. Assuming maximum number of tables is N (the memory consumed by the metadata of each table is 256 bytes), maximum number of threads for parallel insertion is T, maximum length of a SQL statement is S (normally 1 MB), the memory required by a client program can be estimated using the below formula:
 
 ```
 M = (T * S * 3 + (N / 4096) + 100)
 ```
 
-For example, if the number of parallel data insertion threads is 100, total number of tables is 10,000,000, then minimum memory requirement of a client program is:
+For example, if the number of parallel data insertion threads is 100, total number of tables is 10,000,000, then the minimum memory requirement of a client program is:
 
 ```
 100 * 3 + (10000000 / 4096) + 100 = 2741 (MBytes)
@@ -56,10 +56,10 @@ So, at least 3GB needs to be reserved for such a client.
 
 The CPU resources required depend on two aspects:
 
-- **Data Insertion** Each dnode of TDengine can process at least 10,000 insertion requests in one second, while each insertion request can have multiple rows. The computing resource consumed between inserting 1 row one time and inserting 10 rows one time is very small. So, the more the rows to insert one time, the higher the efficiency. Inserting in bach also exposes requirement for the client side which needs to cache rows and insert in batch once the cached rows reaches a threshold.
+- **Data Insertion** Each dnode of TDengine can process at least 10,000 insertion requests in one second, while each insertion request can have multiple rows. The computing resource consumed between inserting 1 row one time and inserting 10 rows one time is very small. So, the more the rows to insert one time, the higher the efficiency. Inserting in bach also exposes requirements for the client side which needs to cache rows and insert in batch once the cached rows reaches a threshold.
 - **Data Query** High efficiency query is provided in TDengine, but it's hard to estimate the CPU resource required because the queries used in different use cases and the frequency of queries vary significantly. It can only be verified with the query statements, query frequency, data size to be queried, etc provided by user.
 
-In short words, the CPU resource required for data insertion can be estimated but it's hard to do so for query use cases. In real operation, it's suggested to control CPU usage below 50%. If this threshold is exceeded, it's a reminder for system operator to add more nodes in the cluster to expand resources.
+In short, the CPU resource required for data insertion can be estimated but it's hard to do so for query use cases. In real operation, it's suggested to control CPU usage below 50%. If this threshold is exceeded, it's a reminder for system operator to add more nodes in the cluster to expand resources.
 
 ## Disk Requirement
 
@@ -69,14 +69,14 @@ The compression ratio in TDengine is much higher than that in RDBMS. In most cas
 Raw DataSize = numOfTables * rowSizePerTable * rowsPerTable
 ```
 
-For example, there are 10,000,000 meters, while each meter collects data every 15 minutes and the data size of each collection si 128 bytes, so the raw data size of one year is: 10000000 \* 128 \* 24 \* 60 / 15 \* 365 = 44.8512(TB). Assuming compression ratio is 5, the actual disk size is: 44.851 / 5 = 8.97024(TB).
+For example, there are 10,000,000 meters, while each meter collects data every 15 minutes and the data size of each collection is 128 bytes, so the raw data size of one year is: 10000000 \* 128 \* 24 \* 60 / 15 \* 365 = 44.8512(TB). Assuming compression ratio is 5, the actual disk size is: 44.851 / 5 = 8.97024(TB).
 
 Parameter `keep` can be used to set how long the data will be kept on disk. To further reduce storage cost, multiple storage levels can be enabled in TDengine, with the coldest data stored on the cheapest storage device, and this is transparent to application programs.
 
-To increase the performance, multiple disks can be setup for parallel data reading or data inserting. Please be noted that expensive disk array is not necessary because replications are used in TDengine to provide high availability.
+To increase the performance, multiple disks can be setup for parallel data reading or data inserting. Please note that an expensive disk array is not necessary because replications are used in TDengine to provide high availability.
 
 ## Number of Hosts
 
-A host can be either physical or virtual. The total memory, total CPU, total disk required can be estimated according to the formulas mentioned previously. Then, according to the system resources that a single host can provide, assuming all hosts are same in resources, the number of hosts can be derived easily.
+A host can be either physical or virtual. The total memory, total CPU, total disk required can be estimated according to the formulas mentioned previously. Then, according to the system resources that a single host can provide, assuming all hosts have the same resources, the number of hosts can be derived easily.
 
 **Quick Estimation for CPU, Memory and Disk** Please refer to [Resource Estimate](https://www.taosdata.com/config/config.html).
