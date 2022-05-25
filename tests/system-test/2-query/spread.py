@@ -190,11 +190,14 @@ class TDTestCase:
 
     def spread_check(self):
         sqls = self.sql_list()
+        tdLog.printNoPrefix("===step 1: curent case, must return query OK")
         for i in range(len(sqls)):
+            tdLog.info("sql: ", sqls[i])
             tdSql.query(sqls[i])
 
     def __test_error(self):
 
+        tdLog.printNoPrefix("===step 0: err case, must return err")
         tdSql.error( "show tables union show tables" )
         tdSql.error( "create table errtb1 union all create table errtb2" )
         tdSql.error( "drop table ct1 union all drop table ct3" )
