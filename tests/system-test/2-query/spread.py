@@ -57,7 +57,7 @@ class TDTestCase:
                     f"sqrt( {tbname}.{num_col} )",
                     f"tan( {tbname}.{num_col} )",
                     f"cast( {tbname}.{num_col} as timestamp)",
-                    ( f"{num_col} + {any_col}" for any_col in ALL_COL ])
+                    ( f"{num_col} + {any_col}" for any_col in ALL_COL )
                 )
             )
         for char_col in CHAR_COL:
@@ -195,15 +195,23 @@ class TDTestCase:
             tdLog.info(f"sql: {sqls[i]}")
             tdSql.query(sqls[i])
 
+    def __test_current(self):
+        tdSql.query("select spread(ts) from ct1")
+        tdSql.checkRows(1)
+        tdSql.query("select spread(c1) from ct2")
+        tdSql.checkRows(self.rows)
+
+        self.spread_check()
+
     def __test_error(self):
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
-        tdSql.error( "show tables union show tables" )
-        tdSql.error( "create table errtb1 union all create table errtb2" )
-        tdSql.error( "drop table ct1 union all drop table ct3" )
-        tdSql.error( "select c1 from ct1 union all drop table ct3" )
-        tdSql.error( "select c1 from ct1 union all '' " )
-        tdSql.error( " '' union all select c1 from ct1 " )
+        tdSql.error( "select spread() from ct1" )
+        tdSql.error( "select spread(1, 2) from ct2" )
+        tdSql.error( f"select spread({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
+        tdSql.error( f"select spread({BOOLEAN_COL[0]}) from t1" )
+        tdSql.error( f"select spread({CHAR_COL[0]}) from stb1" )
+
         tdSql.error( ''' select spread(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
                     from ct1
                     where ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null
@@ -213,8 +221,7 @@ class TDTestCase:
 
     def all_test(self):
         self.__test_error()
-        self.spread_check()
-
+        self.__test_current()
 
     def __create_tb(self):
 
