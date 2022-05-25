@@ -565,7 +565,7 @@ static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
   taosThreadMutexUnlock(&tf->mtx);
 
   if (rd != NULL) {
-    ver += MAX(ver, rd->header.version) + 1;
+    ver = (ver > rd->header.version ? ver : rd->header.verion) + 1;
     indexInfo("header: %" PRId64 ", ver: %" PRId64 "", rd->header.version, ver);
   }
   tfileReaderUnRef(rd);
