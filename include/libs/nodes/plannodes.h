@@ -31,6 +31,7 @@ typedef struct SLogicNode {
   SNodeList*         pChildren;
   struct SLogicNode* pParent;
   int32_t            optimizedFlag;
+  uint8_t            precision;
 } SLogicNode;
 
 typedef enum EScanType { SCAN_TYPE_TAG = 1, SCAN_TYPE_TABLE, SCAN_TYPE_SYSTEM_TABLE, SCAN_TYPE_STREAM } EScanType;
@@ -61,6 +62,7 @@ typedef struct SJoinLogicNode {
   SLogicNode node;
   EJoinType  joinType;
   SNode*     pOnConditions;
+  bool       isSingleTableJoin;
 } SJoinLogicNode;
 
 typedef struct SAggLogicNode {

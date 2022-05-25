@@ -696,6 +696,7 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLastRow;
+  int8_t  schemaless;
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
