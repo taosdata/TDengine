@@ -39,6 +39,7 @@ typedef bool (*FExecInit)(struct SqlFunctionCtx *pCtx, struct SResultRowEntryInf
 typedef int32_t (*FExecProcess)(struct SqlFunctionCtx *pCtx);
 typedef int32_t (*FExecFinalize)(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 typedef int32_t (*FScalarExecProcess)(SScalarParam *pInput, int32_t inputNum, SScalarParam *pOutput);
+typedef int32_t (*FExecCombine)(struct SqlFunctionCtx *pDestCtx, struct SqlFunctionCtx *pSourceCtx);
 
 typedef struct SScalarFuncExecFuncs {
   FExecGetEnv getEnv;
@@ -50,6 +51,7 @@ typedef struct SFuncExecFuncs {
   FExecInit init;
   FExecProcess process;
   FExecFinalize finalize;
+  FExecCombine combine;
 } SFuncExecFuncs;
 
 typedef struct SFileBlockInfo {

@@ -296,6 +296,8 @@ typedef struct SSessionWinodwPhysiNode {
   int64_t          gap;
 } SSessionWinodwPhysiNode;
 
+typedef SSessionWinodwPhysiNode SStreamSessionWinodwPhysiNode;
+
 typedef struct SStateWinodwPhysiNode {
   SWinodwPhysiNode window;
   SNode*           pStateKey;

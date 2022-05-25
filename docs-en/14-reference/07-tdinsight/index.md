@@ -233,33 +233,33 @@ The default username/password is `admin`. Grafana will require a password change
 
 Point to the **Configurations** -> **Data Sources** menu, and click the **Add data source** button.
 
-![Add data source button](./assets/howto-add-datasource-button.png)
+![Add data source button](./assets/howto-add-datasource-button.webp)
 
 Search for and select **TDengine**.
 
-![Add datasource](./assets/howto-add-datasource-tdengine.png)
+![Add datasource](./assets/howto-add-datasource-tdengine.webp)
 
 Configure the TDengine datasource.
 
-![Datasource Configuration](./assets/howto-add-datasource.png)
+![Datasource Configuration](./assets/howto-add-datasource.webp)
 
 Save and test. It will report 'TDengine Data source is working' under normal circumstances.
 
-![datasource test](./assets/howto-add-datasource-test.png)
+![datasource test](./assets/howto-add-datasource-test.webp)
 
 ### Importing dashboards
 
 Point to **+** / **Create** - **import** (or `/dashboard/import` url).
 
-![Import Dashboard and Configuration](./assets/import_dashboard.png)
+![Import Dashboard and Configuration](./assets/import_dashboard.webp)
 
 Type the dashboard ID `15167` in the **Import via grafana.com** location and **Load**.
 
-![Import via grafana.com](./assets/import-dashboard-15167.png)
+![Import via grafana.com](./assets/import-dashboard-15167.webp)
 
 Once the import is complete, the full page view of TDinsight is shown below.
 
-![show](./assets/TDinsight-full.png)
+![show](./assets/TDinsight-full.webp)
 
 ## TDinsight dashboard details
 
@@ -269,7 +269,7 @@ Details of the metrics are as follows.
 
 ### Cluster Status
 
-![tdinsight-mnodes-overview](./assets/TDinsight-1-cluster-status.png)
+![tdinsight-mnodes-overview](./assets/TDinsight-1-cluster-status.webp)
 
 This section contains the current information and status of the cluster, the alert information is also here (from left to right, top to bottom).
 
@@ -289,7 +289,7 @@ This section contains the current information and status of the cluster, the ale
 
 ### DNodes Status
 
-![tdinsight-mnodes-overview](./assets/TDinsight-2-dnodes.png)
+![tdinsight-mnodes-overview](./assets/TDinsight-2-dnodes.webp)
 
 - **DNodes Status**: simple table view of `show dnodes`.
 - **DNodes Lifetime**: the time elapsed since the dnode was created.
@@ -298,14 +298,14 @@ This section contains the current information and status of the cluster, the ale
 
 ### MNode Overview
 
-![tdinsight-mnodes-overview](./assets/TDinsight-3-mnodes.png)
+![tdinsight-mnodes-overview](./assets/TDinsight-3-mnodes.webp)
 
 1. **MNodes Status**: a simple table view of `show mnodes`. 2.
 2. **MNodes Number**: similar to `DNodes Number`, the number of MNodes changes.
 
 ### Request
 
-![tdinsight-requests](./assets/TDinsight-4-requests.png)
+![tdinsight-requests](./assets/TDinsight-4-requests.webp)
 
 1. **Requests Rate(Inserts per Second)**: average number of inserts per second.
 2. **Requests (Selects)**: number of query requests and change rate (count of second).
@@ -313,7 +313,7 @@ This section contains the current information and status of the cluster, the ale
 
 ### Database
 
-![tdinsight-database](./assets/TDinsight-5-database.png)
+![tdinsight-database](./assets/TDinsight-5-database.webp)
 
 Database usage, repeated for each value of the variable `$database` i.e. multiple rows per database.
 
@@ -325,7 +325,7 @@ Database usage, repeated for each value of the variable `$database` i.e. multipl
 
 ### DNode Resource Usage
 
-![dnode-usage](./assets/TDinsight-6-dnode-usage.png)
+![dnode-usage](./assets/TDinsight-6-dnode-usage.webp)
 
 Data node resource usage display with repeated multiple rows for the variable `$fqdn` i.e., each data node. Includes.
 
@@ -346,13 +346,13 @@ Data node resource usage display with repeated multiple rows for the variable `$
 
 ### Login History
 
-![Login History](./assets/TDinsight-7-login-history.png)
+![Login History](./assets/TDinsight-7-login-history.webp)
 
 Currently, only the number of logins per minute is reported.
 
 ### Monitoring taosAdapter
 
-![taosadapter](./assets/TDinsight-8-taosadapter.png)
+![taosadapter](./assets/TDinsight-8-taosadapter.webp)
 
 Support monitoring taosAdapter request statistics and status details. Includes.
 
