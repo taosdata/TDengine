@@ -199,7 +199,11 @@ class TDTestCase:
         tdSql.query("select spread(ts) from ct1")
         tdSql.checkRows(1)
         tdSql.query("select spread(c1) from ct2")
-        tdSql.checkRows(self.rows)
+        tdSql.checkRows(1)
+        tdSql.query("select spread(c1) from ct4 group by c1")
+        tdSql.checkRows(self.rows + 3)
+        tdSql.query("select spread(c1) from ct4 group by c7")
+        tdSql.checkRows(3)
 
         self.spread_check()
 
