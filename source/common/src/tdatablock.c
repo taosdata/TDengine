@@ -321,7 +321,7 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     pColumnInfoData->nullbitmap = tmp;
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
 
-    if (pColumnInfoData->pData) {
+    if (pSource->pData) {
       int32_t newSize = numOfRows * pColumnInfoData->info.bytes;
       tmp = taosMemoryRealloc(pColumnInfoData->pData, newSize);
       if (tmp == NULL) {
