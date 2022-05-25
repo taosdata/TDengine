@@ -2801,7 +2801,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   return numOfRows;
 }
 
-int32_t getAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
+int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
   SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, uid);
 
   while (1) {
