@@ -34,6 +34,7 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "vnode.h"
+#include "index.h"
 
 #define IS_MAIN_SCAN(runtime)          ((runtime)->scanFlag == MAIN_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)
@@ -4894,9 +4895,23 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
 
 int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo,
                            uint64_t queryId, uint64_t taskId, SNode* pTagCond) {
-  int32_t code = 0;
+  int32_t code = TSDB_CODE_SUCCESS;
   if (tableType == TSDB_SUPER_TABLE) {
-    code = tsdbQueryAllTable(metaHandle, tableUid, pGroupInfo, pTagCond);
+    SArray* res = taosArrayInit(8, sizeof(STableKeyInfo));
+
+    int32_t ret = ;
+    if(pTagCond){
+      code = doFilterTag(pTagCond, res);
+    }else{
+      code = tsdbGetAllTableList(metaHandle, tableUid, res);
+    }
+    if (code != TSDB_CODE_SUCCESS) {
+      return code;
+    }
+
+    pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
+    pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
+    taosArrayPush(pGroupInfo->pGroupList, &res);
   } else {  // Create one table group.
     code = tsdbGetOneTableGroup(metaHandle, tableUid, 0, pGroupInfo);
   }

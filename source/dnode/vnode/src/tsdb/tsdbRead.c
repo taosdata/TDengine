@@ -14,7 +14,6 @@
  */
 
 #include "tsdb.h"
-#include "index.h"
 
 #define EXTRA_BYTES                2
 #define ASCENDING_TRAVERSE(o)      (o == TSDB_ORDER_ASC)
@@ -2804,7 +2803,7 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   return numOfRows;
 }
 
-static int32_t getAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
+int32_t getAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
   SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, uid);
 
   while (1) {
