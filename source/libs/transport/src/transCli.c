@@ -695,7 +695,7 @@ static void cliHandleUpdate(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   pThrd->useDefaultEpSet = true;
   pThrd->defaultEpSet = pCtx->epSet;
 
-  tsem_post(pCtx->pSem);
+  // tsem_post(pCtx->pSem);
   destroyCmsg(pMsg);
 }
 
@@ -1092,8 +1092,8 @@ void transSetDefaultEpSet(void* ahandle, const SEpSet* dst) {
     STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
     pCtx->hThrdIdx = i;
     pCtx->epSet = *dst;
-    pCtx->pSem = taosMemoryCalloc(1, sizeof(tsem_t));
-    tsem_init(pCtx->pSem, 0, 0);
+    // pCtx->pSem = taosMemoryCalloc(1, sizeof(tsem_t));
+    // tsem_init(pCtx->pSem, 0, 0);
 
     SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
     cliMsg->ctx = pCtx;
@@ -1104,10 +1104,10 @@ void transSetDefaultEpSet(void* ahandle, const SEpSet* dst) {
 
     tsem_t* pSem = pCtx->pSem;
     transSendAsync(thrd->asyncPool, &(cliMsg->q));
+    // tsem_wait(pSem);
 
-    tsem_wait(pSem);
-    tsem_destroy(pSem);
-    taosMemoryFree(pSem);
+    // tsem_destroy(pSem);
+    // taosMemoryFree(pSem);
   }
 }
 #endif
