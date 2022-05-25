@@ -57,7 +57,7 @@ class TDTestCase:
                     f"sqrt( {tbname}.{num_col} )",
                     f"tan( {tbname}.{num_col} )",
                     f"cast( {tbname}.{num_col} as timestamp)",
-                    [ f"{num_col} + {any_col}" for any_col in ALL_COL ]
+                    ( f"{num_col} + {any_col}" for any_col in ALL_COL ])
                 )
             )
         for char_col in CHAR_COL:
@@ -203,6 +203,7 @@ class TDTestCase:
         tdSql.error( "drop table ct1 union all drop table ct3" )
         tdSql.error( "select c1 from ct1 union all drop table ct3" )
         tdSql.error( "select c1 from ct1 union all '' " )
+        tdSql.error( " '' union all select c1 from ct1 " )
         tdSql.error( " '' union all select c1 from ct1 " )
         # tdSql.error( "select c1 from ct1 union select c1 from ct2 union select c1 from ct4 ")
 
