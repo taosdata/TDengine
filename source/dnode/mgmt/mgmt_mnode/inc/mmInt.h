@@ -36,7 +36,6 @@ typedef struct SMnodeMgmt {
   SSingleWorker  monitorWorker;
   SReplica       replicas[TSDB_MAX_REPLICA];
   int8_t         replica;
-  int8_t         selfIndex;
   bool           stopped;
   int32_t        refCount;
   TdThreadRwlock lock;
