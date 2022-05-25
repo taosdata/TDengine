@@ -126,7 +126,7 @@ class TDTestCase:
     def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
             return
-        return f"select spread({select_clause}) from {from_clause} {where_condition} {group_condition}"
+        return f"select hyperloglog({select_clause}) from {from_clause} {where_condition} {group_condition}"
 
     @property
     def __tb_list(self):
