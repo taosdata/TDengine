@@ -31,6 +31,7 @@ static int32_t  mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj);
 static int32_t  mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pObj);
 static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOld, SMnodeObj *pNew);
 static int32_t  mndProcessCreateMnodeReq(SRpcMsg *pReq);
+static int32_t  mndProcessAlterMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessCreateMnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessAlterMnodeRsp(SRpcMsg *pRsp);
@@ -51,6 +52,7 @@ int32_t mndInitMnode(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MNODE, mndProcessCreateMnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_ALTER_MNODE, mndProcessAlterMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_MNODE_RSP, mndProcessCreateMnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_ALTER_MNODE_RSP, mndProcessAlterMnodeRsp);
@@ -657,4 +659,53 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void mndCancelGetNextMnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {
+  SMnode          *pMnode = pReq->info.node;
+  SDAlterMnodeReq alterReq = {0};
+
+  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (alterReq.dnodeId != pMnode->selfDnodeId) {
+    terrno = TSDB_CODE_INVALID_OPTION;
+    mError("failed to alter mnode since %s, input:%d cur:%d", terrstr(), alterReq.dnodeId, pMnode->selfDnodeId);
+    return -1;
+  }
+
+  SSyncCfg cfg = {.replicaNum = alterReq.replica, .myIndex = -1};
+  for (int32_t i = 0; i < alterReq.replica; ++i) {
+    SNodeInfo *pNode = &cfg.nodeInfo[i];
+    tstrncpy(pNode->nodeFqdn, alterReq.replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = alterReq.replicas[i].port;
+    if (alterReq.replicas[i].id == pMnode->selfDnodeId) cfg.myIndex = i;
+  }
+
+  if (cfg.myIndex == -1) {
+    mError("failed to alter mnode since myindex is -1");
+    return -1;
+  } else {
+    mInfo("start to alter mnode sync, replica:%d myindex:%d", cfg.replicaNum, cfg.myIndex);
+    for (int32_t i = 0; i < alterReq.replica; ++i) {
+      SNodeInfo *pNode = &cfg.nodeInfo[i];
+      mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
+    }
+  }
+
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  pMgmt->standby = 0;
+  int32_t code = syncReconfig(pMgmt->sync, &cfg);
+  if (code != 0) {
+    mError("failed to alter mnode sync since %s", terrstr());
+    return code;
+  } else {
+    pMgmt->errCode = 0;
+    tsem_wait(&pMgmt->syncSem);
+    mInfo("alter mnode sync result:%s", tstrerror(pMgmt->errCode));
+    terrno = pMgmt->errCode;
+    return pMgmt->errCode;
+  }
 }

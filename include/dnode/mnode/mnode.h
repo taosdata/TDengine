@@ -56,15 +56,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption);
 void mndClose(SMnode *pMnode);
 
 /**
- * @brief Close a mnode.
- *
- * @param pMnode The mnode object to close.
- * @param pOption Options of the mnode.
- * @return int32_t 0 for success, -1 for failure.
- */
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
-
-/**
  * @brief Start mnode
  *
  * @param pMnode The mnode object.

@@ -74,14 +74,13 @@ int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char
   sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
   return 0;
 }
-  
-void mndReConfig(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
-  mInfo("mndReConfig cbMeta.code:%d, cbMeta.currentTerm:%ld, cbMeta.term:%ld, cbMeta.index:%ld", cbMeta.code, cbMeta.currentTerm, cbMeta.term, cbMeta.index);
-  if (cbMeta.code == 0) {
-    // config change success
-  } else {
-    // config change failed
-  }
+
+void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+  mInfo("mndReConfig cbMeta.code:%d, cbMeta.currentTerm:%" PRId64 ", cbMeta.term:%" PRId64 ", cbMeta.index:%" PRId64,
+        cbMeta.code, cbMeta.currentTerm, cbMeta.term, cbMeta.index);
+  SMnode *pMnode = pFsm->data;
+  pMnode->syncMgmt.errCode = cbMeta.code;
+  tsem_post(&pMnode->syncMgmt.syncSem);
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
@@ -206,19 +205,4 @@ bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   ESyncState state = syncGetMyRole(pMgmt->sync);
   return (state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
-}
-
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
-  SSyncCfg cfg = {.replicaNum = pOption->replica, .myIndex = pOption->selfIndex};
-  mInfo("start to alter mnode sync, replica:%d myindex:%d standby:%d", cfg.replicaNum, cfg.myIndex, pOption->standby);
-  for (int32_t i = 0; i < pOption->replica; ++i) {
-    SNodeInfo *pNode = &cfg.nodeInfo[i];
-    tstrncpy(pNode->nodeFqdn, pOption->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
-    pNode->nodePort = pOption->replicas[i].port;
-    mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
-  }
-
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  pMgmt->standby = pOption->standby;
-  return syncReconfig(pMgmt->sync, &cfg);
 }

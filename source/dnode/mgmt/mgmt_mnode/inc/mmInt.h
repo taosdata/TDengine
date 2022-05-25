@@ -46,7 +46,6 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
 int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pMsg, bool deployed);
 
 // mmInt.c
-int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pMsg);
 int32_t mmAcquire(SMnodeMgmt *pMgmt);
 void    mmRelease(SMnodeMgmt *pMgmt);
 
