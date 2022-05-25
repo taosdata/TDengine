@@ -558,17 +558,17 @@ static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
   ICacheKey key = {.suid = cache->suid, .colName = cache->colName, .nColName = strlen(cache->colName)};
   int64_t   ver = CACHE_VERSION(cache);
 
-  TFileReader* rd = tfileCacheGet(((IndexTFile*)sIdx->tindex)->cache, &key);
-  IndexTFile*  tf = (IndexTFile*)(sIdx->tindex);
+  IndexTFile* tf = (IndexTFile*)(sIdx->tindex);
 
   taosThreadMutexLock(&tf->mtx);
-  tfileCacheGet(tf->cache, &key);
+  TFileReader* rd = tfileCacheGet(tf->cache, &key);
   taosThreadMutexUnlock(&tf->mtx);
 
   if (rd != NULL) {
     ver += MAX(ver, rd->header.version) + 1;
     indexInfo("header: %" PRId64 ", ver: %" PRId64 "", rd->header.version, ver);
   }
+  tfileReaderUnRef(rd);
   return ver;
 }
 static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {

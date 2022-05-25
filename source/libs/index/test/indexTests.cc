@@ -953,8 +953,8 @@ TEST_F(IndexEnv2, testIndex_TrigeFlush) {
 }
 
 static void single_write_and_search(IndexObj* idx) {
-  int target = idx->SearchOne("tag1", "Hello");
-  target = idx->SearchOne("tag2", "Test");
+  // int target = idx->SearchOne("tag1", "Hello");
+  // target = idx->SearchOne("tag2", "Test");
 }
 static void multi_write_and_search(IndexObj* idx) {
   idx->PutOne("tag1", "Hello");

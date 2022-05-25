@@ -165,11 +165,11 @@ void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   // remove last version index reader
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL && *p != NULL) {
-    TFileReader* oldReader = *p;
+    TFileReader* oldRdr = *p;
     taosHashRemove(tcache->tableCache, buf, sz);
-    indexInfo("found %s, remove file %s", buf, oldReader->ctx->file.buf);
-    oldReader->remove = true;
-    tfileReaderUnRef(oldReader);
+    indexInfo("found %s, should remove file %s", buf, oldRdr->ctx->file.buf);
+    oldRdr->remove = true;
+    tfileReaderUnRef(oldRdr);
   }
   taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
   tfileReaderRef(reader);
@@ -212,6 +212,12 @@ void tfileReaderDestroy(TFileReader* reader) {
   // T_REF_INC(reader);
   fstDestroy(reader->fst);
   writerCtxDestroy(reader->ctx, reader->remove);
+  if (reader->remove) {
+    indexInfo("%s is removed", reader->ctx->file.buf);
+  } else {
+    indexInfo("%s is not removed", reader->ctx->file.buf);
+  }
+
   taosMemoryFree(reader);
 }
 static int32_t tfSearchTerm(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
