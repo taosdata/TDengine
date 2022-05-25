@@ -518,8 +518,7 @@ class TDDnodes:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
-        binPath = os.path.dirname(os.path.realpath(__file__))
-        binPath = binPath + "/../../../debug/"
+        binPath = self.dnodes[0].getPath() + "/../../../"
         tdLog.debug("binPath %s" % (binPath))
         binPath = os.path.realpath(binPath)
         tdLog.debug("binPath real path %s" % (binPath))
@@ -546,7 +545,6 @@ class TDDnodes:
 
         for i in range(len(self.dnodes)):
             self.dnodes[i].init(self.path)
-        print(self.path)
         self.sim = TDSimClient(self.path)
 
     def setTestCluster(self, value):
