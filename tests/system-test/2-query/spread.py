@@ -192,7 +192,7 @@ class TDTestCase:
         sqls = self.sql_list()
         tdLog.printNoPrefix("===step 1: curent case, must return query OK")
         for i in range(len(sqls)):
-            tdLog.info("sql: ", sqls[i])
+            tdLog.info(f"sql: {sqls[i]}")
             tdSql.query(sqls[i])
 
     def __test_error(self):
