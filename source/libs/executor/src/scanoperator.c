@@ -790,7 +790,7 @@ static SSDataBlock* getDataFromCatch(SStreamBlockScanInfo* pInfo) {
       SSDataBlock* pDB = createOneDataBlock(pInfo->pRes, false);
       blockDataFromBuf(pDB, buf);
       SSDataBlock* pSub = blockDataExtractBlock(pDB, pos->rowId, 1);
-      blockDataMerge(pInfo->pRes, pSub, NULL);
+      blockDataMerge(pInfo->pRes, pSub);
       blockDataDestroy(pDB);
       blockDataDestroy(pSub);
     }
