@@ -65,6 +65,8 @@ typedef struct SShellArguments {
   char*              netTestRole;
 } SShellArguments;
 
+typedef enum WS_ACTION_TYPE_S { WS_CONN, WS_QUERY, WS_FETCH, WS_FETCH_BLOCK } WS_ACTION_TYPE;
+
 /**************** Function declarations ****************/
 extern void  shellParseArgument(int argc, char* argv[], SShellArguments* arguments);
 extern void  shellInit(SShellArguments* args);
@@ -88,6 +90,9 @@ void         exitShell();
 int          shellDumpResult(TAOS_RES* con, char* fname, int* error_no, bool printMode);
 void         shellGetGrantInfo(void* con);
 int          isCommentLine(char* line);
+int          wsclient_handshake();
+int          wsclient_conn();
+void         wsclient_query(char* command);
 
 /**************** Global variable declarations ****************/
 extern char            PROMPT_HEADER[];
