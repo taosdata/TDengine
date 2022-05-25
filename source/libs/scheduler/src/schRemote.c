@@ -565,8 +565,9 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
 
 int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
   int32_t code = 0;
-  memcpy(&pDst->brokenVal, &pSrc->brokenVal, sizeof(pSrc->brokenVal));
+  memcpy(pDst, pSrc, sizeof(SRpcCtx));
   pDst->brokenVal.val = NULL;
+  pDst->args = NULL;
 
   SCH_ERR_RET(schCloneSMsgSendInfo(pSrc->brokenVal.val, &pDst->brokenVal.val));
 
@@ -589,7 +590,7 @@ int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
 
     if (taosHashPut(pDst->args, msgType, sizeof(*msgType), &dst, sizeof(dst))) {
       qError("taosHashPut msg %d to rpcCtx failed", *msgType);
-      (*dst.freeFunc)(dst.val);
+      (*pSrc->freeFunc)(dst.val);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
@@ -912,7 +913,6 @@ int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *
   brokenVal->msgType = msgType;
   brokenVal->val = pMsgSendInfo;
   brokenVal->clone = schCloneSMsgSendInfo;
-  brokenVal->freeFunc = schFreeRpcCtxVal;
 
   return TSDB_CODE_SUCCESS;
 
