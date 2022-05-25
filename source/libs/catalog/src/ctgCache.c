@@ -1457,10 +1457,13 @@ _return:
   CTG_RET(code);
 }
 
+void ctgUpdateThreadFuncUnexpectedStopped(void) {
+  CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+}
 
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
-
+  atexit(ctgUpdateThreadFuncUnexpectedStopped);
   qInfo("catalog update thread started");
 
   CTG_LOCK(CTG_READ, &gCtgMgmt.lock);

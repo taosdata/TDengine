@@ -582,8 +582,13 @@ void hbClearReqInfo(SAppHbMgr *pAppHbMgr) {
   }
 }
 
+void hbThreadFuncUnexpectedStopped(void) {
+  atomic_store_8(&clientHbMgr.threadStop, 2);
+}
+
 static void *hbThreadFunc(void *param) {
   setThreadName("hb");
+  atexit(hbThreadFuncUnexpectedStopped);
   while (1) {
     int8_t threadStop = atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 1, 2);
     if (1 == threadStop) {
