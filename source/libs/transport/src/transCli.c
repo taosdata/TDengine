@@ -122,7 +122,7 @@ static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd);
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd);
 static void cliHandleUpdate(SCliMsg* pMsg, SCliThrdObj* pThrd);
 static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrdObj* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease,
-                                                                      cliHandleUpdate};
+                                                                      NULL, cliHandleUpdate};
 
 static void cliSendQuit(SCliThrdObj* thrd);
 static void destroyUserdata(STransMsg* userdata);

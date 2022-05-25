@@ -146,7 +146,7 @@ static void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
-                                                                       uvHandleRegister};
+                                                                       uvHandleRegister, NULL};
 
 static int32_t exHandlesMgt;
 
