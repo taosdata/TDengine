@@ -1458,7 +1458,7 @@ _return:
 }
 
 void ctgUpdateThreadFuncUnexpectedStopped(void) {
-  if (CTG_IS_LOCKED(&gCtgMgmt.lock) == TD_RWLATCH_WRITE_FLAG_COPY) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 }
 
 void* ctgUpdateThreadFunc(void* param) {
