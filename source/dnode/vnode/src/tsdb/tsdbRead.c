@@ -146,8 +146,6 @@ typedef struct STableGroupSupporter {
   SSchema*   pTagSchema;
 } STableGroupSupporter;
 
-int32_t tsdbQueryTableList(void* pMeta, SArray* pRes, void* filterInfo);
-
 static STimeWindow updateLastrowForEachGroup(STableGroupInfo* groupList);
 static int32_t     checkForCachedLastRow(STsdbReadHandle* pTsdbReadHandle, STableGroupInfo* groupList);
 static int32_t     checkForCachedLast(STsdbReadHandle* pTsdbReadHandle);
@@ -3875,32 +3873,6 @@ SArray* createTableGroup(SArray* pTableList, SSchemaWrapper* pTagSchema, SColInd
 //  return TSDB_CODE_SUCCESS;
 //}
 
-int32_t tsdbQueryAllTable(void* pMeta, uint64_t uid, STableGroupInfo* pGroupInfo, SNode* pTagCond) {
-  // NOTE: not add ref count for super table
-  SArray* res = taosArrayInit(8, sizeof(STableKeyInfo));
-
-  int32_t ret = TSDB_CODE_SUCCESS;
-  if(pTagCond){
-    ret = doFilterTag(pTagCond, res);
-  }else{
-    ret = getAllTableList(pMeta, uid, res);
-  }
-  if (ret != TSDB_CODE_SUCCESS) {
-    return ret;
-  }
-
-  pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
-  pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
-  taosArrayPush(pGroupInfo->pGroupList, &res);
-
-  return ret;
-}
-
-int32_t tsdbQueryTableList(void* pMeta, SArray* pRes, void* filterInfo) {
-  // impl later
-
-  return TSDB_CODE_SUCCESS;
-}
 int32_t tsdbGetOneTableGroup(void* pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo* pGroupInfo) {
   SMetaReader mr = {0};
 
