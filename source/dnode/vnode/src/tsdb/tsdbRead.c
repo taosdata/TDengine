@@ -14,6 +14,7 @@
  */
 
 #include "tsdb.h"
+#include "index.h"
 
 #define EXTRA_BYTES                2
 #define ASCENDING_TRAVERSE(o)      (o == TSDB_ORDER_ASC)
@@ -3875,74 +3876,25 @@ SArray* createTableGroup(SArray* pTableList, SSchemaWrapper* pTagSchema, SColInd
 //  return TSDB_CODE_SUCCESS;
 //}
 
-int32_t tsdbQuerySTableByTagCond(void* pMeta, uint64_t uid, TSKEY skey, const char* pTagCond, size_t len,
-                                 int16_t tagNameRelType, const char* tbnameCond, STableGroupInfo* pGroupInfo,
-                                 SColIndex* pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId) {
-  SMetaReader mr = {0};
-
-  metaReaderInit(&mr, (SMeta*)pMeta, 0);
-
-  if (metaGetTableEntryByUid(&mr, uid) < 0) {
-    tsdbError("%p failed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
-    metaReaderClear(&mr);
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    goto _error;
-  } else {
-    tsdbDebug("%p succeed to get stable, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId, reqId);
-  }
-
-  if (mr.me.type != TSDB_SUPER_TABLE) {
-    tsdbError("%p query normal tag not allowed, uid:%" PRIu64 ", TID:0x%" PRIx64 " QID:0x%" PRIx64, pMeta, uid, taskId,
-              reqId);
-    terrno = TSDB_CODE_OPS_NOT_SUPPORT;  // basically, this error is caused by invalid sql issued by client
-    metaReaderClear(&mr);
-    goto _error;
-  }
-
-  metaReaderClear(&mr);
-
+int32_t tsdbQueryAllTable(void* pMeta, uint64_t uid, STableGroupInfo* pGroupInfo, SNode* pTagCond) {
   // NOTE: not add ref count for super table
-  SArray*         res = taosArrayInit(8, sizeof(STableKeyInfo));
-  SSchemaWrapper* pTagSchema = metaGetTableSchema(pMeta, uid, 1, true);
-
-  // no tags and tbname condition, all child tables of this stable are involved
-  if (tbnameCond == NULL && (pTagCond == NULL || len == 0)) {
-    int32_t ret = getAllTableList(pMeta, uid, res);
-    if (ret != TSDB_CODE_SUCCESS) {
-      goto _error;
-    }
-
-    pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
-    pGroupInfo->pGroupList = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
-
-    tsdbDebug("%p no table name/tag condition, all tables qualified, numOfTables:%u, group:%zu, TID:0x%" PRIx64
-              " QID:0x%" PRIx64,
-              pMeta, pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList), taskId, reqId);
-
-    taosArrayDestroy(res);
-    return ret;
-  }
+  SArray* res = taosArrayInit(8, sizeof(STableKeyInfo));
 
   int32_t ret = TSDB_CODE_SUCCESS;
-
-  SFilterInfo* filterInfo = NULL;
-  ret = filterInitFromNode((SNode*)pTagCond, &filterInfo, 0);
+  if(pTagCond){
+    ret = doFilterTag(pTagCond, res);
+  }else{
+    ret = getAllTableList(pMeta, uid, res);
+  }
   if (ret != TSDB_CODE_SUCCESS) {
-    terrno = ret;
     return ret;
   }
-  ret = tsdbQueryTableList(pMeta, res, filterInfo);
+
   pGroupInfo->numOfTables = (uint32_t)taosArrayGetSize(res);
-  pGroupInfo->pGroupList = createTableGroup(res, pTagSchema, pColIndex, numOfCols, skey);
+  pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
+  taosArrayPush(pGroupInfo->pGroupList, &res);
 
-  // tsdbDebug("%p stable tid:%d, uid:%" PRIu64 " query, numOfTables:%u, belong to %" PRIzu " groups", tsdb,
-  //          pTable->tableId, pTable->uid, pGroupInfo->numOfTables, taosArrayGetSize(pGroupInfo->pGroupList));
-
-  taosArrayDestroy(res);
   return ret;
-
-_error:
-  return terrno;
 }
 
 int32_t tsdbQueryTableList(void* pMeta, SArray* pRes, void* filterInfo) {

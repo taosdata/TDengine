@@ -103,9 +103,7 @@ tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STab
                                 void *pMemRef);
 int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
 bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
-int32_t      tsdbQuerySTableByTagCond(void *pMeta, uint64_t uid, TSKEY skey, const char *pTagCond, size_t len,
-                                      int16_t tagNameRelType, const char *tbnameCond, STableGroupInfo *pGroupInfo,
-                                      SColIndex *pColIndex, int32_t numOfCols, uint64_t reqId, uint64_t taskId);
+int32_t      tsdbQueryAllTable(void* pMeta, uint64_t uid, STableGroupInfo* pGroupInfo, SNode* pTagCond);
 int64_t      tsdbGetNumOfRowsInMemTable(tsdbReaderT *pHandle);
 bool         tsdbNextDataBlock(tsdbReaderT pTsdbReadHandle);
 void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockInfo *pBlockInfo);
