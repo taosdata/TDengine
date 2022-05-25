@@ -12,8 +12,8 @@ The memory space used by TDengine cache is fixed in size, according to the confi
 
 Memory pool is divided into blocks and data is stored in row format in memory and each block follows FIFO policy. The size of each block is determined by configuration parameter `cache`, the number of blocks for each vnode is determined by `blocks`. For each vnode, the total cache size is `cache * blocks`.  A cache block needs to ensure that each table can store at least dozens of records to be efficient.
 
-`last_row` function can be used to retrieve the last row of a table or a STable to quickly show the current state of devices on monitoring screen. For example the below SQL statement retrieves the latest voltage of all meters in Chaoyang district of Beijing.
+`last_row` function can be used to retrieve the last row of a table or a STable to quickly show the current state of devices on monitoring screen. For example the below SQL statement retrieves the latest voltage of all meters in San Francisco of California.
 
 ```sql
-select last_row(voltage) from meters where location='Beijing.Chaoyang';
+select last_row(voltage) from meters where location='California.SanFrancisco';
 ```
