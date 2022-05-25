@@ -55,25 +55,33 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   }
 }
 
-void *mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *snapshot, void *iter, char **ppBuf, int32_t *len) {
-  SMnode   *pMnode = pFsm->data;
-  SSdbIter *pIter = iter;
-
-  if (iter == NULL) {
-    pIter = sdbIterInit(pMnode->pSdb);
+int32_t mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf, int32_t* len) {
+  /*
+  SMnode *pMnode = pFsm->data;
+  SSdbIter *pIter;
+  if (iter == NULL) { 
+    pIter = sdbIterInit(pMnode->sdb)
+  } else {
+    pIter = iter;
   }
+  */
 
-  return sdbIterRead(pMnode->pSdb, pIter, ppBuf, len);
+  return 0;
 }
 
-int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len) {
+int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len) {
   SMnode *pMnode = pFsm->data;
   sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
   return 0;
 }
   
 void mndReConfig(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
-
+  mInfo("mndReConfig cbMeta.code:%d, cbMeta.currentTerm:%ld, cbMeta.term:%ld, cbMeta.index:%ld", cbMeta.code, cbMeta.currentTerm, cbMeta.term, cbMeta.index);
+  if (cbMeta.code == 0) {
+    // config change success
+  } else {
+    // config change failed
+  }
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
