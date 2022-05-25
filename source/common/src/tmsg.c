@@ -3318,9 +3318,11 @@ int32_t tSerializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
   if (tEncodeI32(&encoder, pRsp->numOfPlans) < 0) return -1;
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
     SExplainExecInfo *info = &pRsp->subplanInfo[i];
-    if (tEncodeU64(&encoder, info->startupCost) < 0) return -1;
-    if (tEncodeU64(&encoder, info->totalCost) < 0) return -1;
+    if (tEncodeDouble(&encoder, info->startupCost) < 0) return -1;
+    if (tEncodeDouble(&encoder, info->totalCost) < 0) return -1;
     if (tEncodeU64(&encoder, info->numOfRows) < 0) return -1;
+    if (tEncodeU32(&encoder, info->verboseLen) < 0) return -1;
+    if (tEncodeBinary(&encoder, info->verboseInfo, info->verboseLen) < 0) return -1;
   }
 
   tEndEncode(&encoder);
@@ -3341,9 +3343,11 @@ int32_t tDeserializeSExplainRsp(void *buf, int32_t bufLen, SExplainRsp *pRsp) {
     if (pRsp->subplanInfo == NULL) return -1;
   }
   for (int32_t i = 0; i < pRsp->numOfPlans; ++i) {
-    if (tDecodeU64(&decoder, &pRsp->subplanInfo[i].startupCost) < 0) return -1;
-    if (tDecodeU64(&decoder, &pRsp->subplanInfo[i].totalCost) < 0) return -1;
+    if (tDecodeDouble(&decoder, &pRsp->subplanInfo[i].startupCost) < 0) return -1;
+    if (tDecodeDouble(&decoder, &pRsp->subplanInfo[i].totalCost) < 0) return -1;
     if (tDecodeU64(&decoder, &pRsp->subplanInfo[i].numOfRows) < 0) return -1;
+    if (tDecodeU32(&decoder, &pRsp->subplanInfo[i].verboseLen) < 0) return -1;
+    if (tDecodeBinary(&decoder, (uint8_t**) &pRsp->subplanInfo[i].verboseInfo, &pRsp->subplanInfo[i].verboseLen) < 0) return -1;
   }
 
   tEndDecode(&decoder);
@@ -3817,7 +3821,7 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
 
 STSchema *tdGetSTSChemaFromSSChema(SSchema **pSchema, int32_t nCols) {
   STSchemaBuilder schemaBuilder = {0};
-  if (tdInitTSchemaBuilder(&schemaBuilder, 0) < 0) {
+  if (tdInitTSchemaBuilder(&schemaBuilder, 1) < 0) {
     return NULL;
   }
 

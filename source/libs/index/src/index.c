@@ -29,7 +29,7 @@
 #include "lucene++/Lucene_c.h"
 #endif
 
-#define INDEX_NUM_OF_THREADS 4
+#define INDEX_NUM_OF_THREADS 1
 #define INDEX_QUEUE_SIZE     200
 
 #define INDEX_DATA_BOOL_NULL      0x02
@@ -117,7 +117,6 @@ int indexOpen(SIndexOpts* opts, const char* path, SIndex** index) {
   sIdx->path = tstrdup(path);
   taosThreadMutexInit(&sIdx->mtx, NULL);
   tsem_init(&sIdx->sem, 0, 0);
-  // taosThreadCondInit(&sIdx->finished, NULL);
 
   sIdx->refId = indexAddRef(sIdx);
   indexAcquireRef(sIdx->refId);
@@ -143,13 +142,13 @@ void indexDestroy(void* handle) {
   return;
 }
 void indexClose(SIndex* sIdx) {
-  indexReleaseRef(sIdx->refId);
   bool ref = 0;
   if (sIdx->colObj != NULL) {
     void* iter = taosHashIterate(sIdx->colObj, NULL);
     while (iter) {
       IndexCache** pCache = iter;
       indexCacheForceToMerge((void*)(*pCache));
+      indexInfo("%s wait to merge", (*pCache)->colName);
       indexWait((void*)(sIdx));
       iter = taosHashIterate(sIdx->colObj, iter);
       indexCacheUnRef(*pCache);
@@ -157,7 +156,7 @@ void indexClose(SIndex* sIdx) {
     taosHashCleanup(sIdx->colObj);
     sIdx->colObj = NULL;
   }
-  // taosMsleep(1000 * 5);
+  indexReleaseRef(sIdx->refId);
   indexRemoveRef(sIdx->refId);
 }
 int64_t indexAddRef(void* p) {
@@ -554,8 +553,29 @@ void iterateValueDestroy(IterateValue* value, bool destroy) {
   taosMemoryFree(value->colVal);
   value->colVal = NULL;
 }
+
+static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
+  ICacheKey key = {.suid = cache->suid, .colName = cache->colName, .nColName = strlen(cache->colName)};
+  int64_t   ver = CACHE_VERSION(cache);
+  taosThreadMutexLock(&sIdx->mtx);
+  TFileReader* trd = tfileCacheGet(((IndexTFile*)sIdx->tindex)->cache, &key);
+  if (trd != NULL) {
+    if (ver < trd->header.version) {
+      ver = trd->header.version + 1;
+    } else {
+      ver += 1;
+    }
+    indexInfo("header: %d, ver: %" PRId64 "", trd->header.version, ver);
+    tfileReaderUnRef(trd);
+  } else {
+    indexInfo("not found reader base %p", trd);
+  }
+  taosThreadMutexUnlock(&sIdx->mtx);
+  return ver;
+}
 static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
-  int32_t version = CACHE_VERSION(cache);
+  int64_t version = indexGetAvaialbleVer(sIdx, cache);
+  indexInfo("file name version: %" PRId64 "", version);
   uint8_t colType = cache->type;
 
   TFileWriter* tw = tfileWriterOpen(sIdx->path, cache->suid, version, cache->colName, colType);
@@ -575,6 +595,7 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   if (reader == NULL) {
     return -1;
   }
+  indexInfo("success to create tfile, reopen it, %s", reader->ctx->file.buf);
 
   TFileHeader* header = &reader->header;
   ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};

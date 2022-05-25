@@ -262,7 +262,7 @@ void dumpCluster(SSdb *pSdb, SJson *json) {
 }
 
 void dumpTrans(SSdb *pSdb, SJson *json) {
-    void  *pIter = NULL;
+  void  *pIter = NULL;
   SJson *items = tjsonCreateObject();
   tjsonAddItemToObject(json, "transactions", items);
 
@@ -294,6 +294,7 @@ void dumpTrans(SSdb *pSdb, SJson *json) {
 void dumpHeader(SSdb *pSdb, SJson *json) {
   tjsonAddIntegerToObject(json, "sver", 1);
   tjsonAddStringToObject(json, "curVer", i642str(pSdb->curVer));
+  tjsonAddStringToObject(json, "curTerm", i642str(pSdb->curTerm));
 
   SJson *maxIdsJson = tjsonCreateObject();
   tjsonAddItemToObject(json, "maxIds", maxIdsJson);

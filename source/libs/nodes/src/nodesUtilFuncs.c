@@ -79,6 +79,8 @@ int32_t nodesNodeSize(ENodeType type) {
       return sizeof(SStreamOptions);
     case QUERY_NODE_TOPIC_OPTIONS:
       return sizeof(STopicOptions);
+    case QUERY_NODE_LEFT_VALUE:
+      return sizeof(SLeftValueNode);
     case QUERY_NODE_SET_OPERATOR:
       return sizeof(SSetOperator);
     case QUERY_NODE_SELECT_STMT:
@@ -249,6 +251,8 @@ int32_t nodesNodeSize(ENodeType type) {
       return sizeof(SFillPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       return sizeof(SSessionWinodwPhysiNode);
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+      return sizeof(SStreamSessionWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return sizeof(SStateWinodwPhysiNode);
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -662,6 +666,7 @@ void nodesDestroyNode(SNodeptr pNode) {
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       destroyWinodwPhysiNode((SWinodwPhysiNode*)pNode);
       break;
     case QUERY_NODE_PHYSICAL_PLAN_DISPATCH:
@@ -1117,6 +1122,7 @@ bool nodesIsComparisonOp(const SOperatorNode* pOp) {
 bool nodesIsJsonOp(const SOperatorNode* pOp) {
   switch (pOp->opType) {
     case OP_TYPE_JSON_GET_VALUE:
+    case OP_TYPE_JSON_CONTAINS:
       return true;
     default:
       break;

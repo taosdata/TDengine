@@ -44,12 +44,9 @@ extern "C" {
   }
 
 #define SDB_GET_INT64(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt64, int64_t)
-
 #define SDB_GET_INT32(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt32, int32_t)
-
 #define SDB_GET_INT16(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt16, int16_t)
-
-#define SDB_GET_INT8(pData, dataPos, val, pos) SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
+#define SDB_GET_INT8(pData, dataPos, val, pos)  SDB_GET_VAL(pData, dataPos, val, pos, sdbGetRawInt8, int8_t)
 
 #define SDB_GET_RESERVE(pRaw, dataPos, valLen, pos) \
   {                                                 \
@@ -66,11 +63,8 @@ extern "C" {
   }
 
 #define SDB_SET_INT64(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt64, int64_t)
-
 #define SDB_SET_INT32(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt32, int32_t)
-
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
-
 #define SDB_SET_INT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)     \
@@ -304,13 +298,16 @@ int32_t sdbGetMaxId(SSdb *pSdb, ESdbType type);
 int64_t sdbGetTableVer(SSdb *pSdb, ESdbType type);
 
 /**
- * @brief Update the version of sdb
+ * @brief Update the index of sdb
  *
  * @param pSdb The sdb object.
- * @param val The update value of the version.
- * @return int32_t The current version of sdb
+ * @param index The update value of the apply index.
+ * @return int32_t The current index of sdb
  */
-int64_t sdbUpdateVer(SSdb *pSdb, int32_t val);
+void    sdbSetApplyIndex(SSdb *pSdb, int64_t index);
+int64_t sdbGetApplyIndex(SSdb *pSdb);
+void    sdbSetApplyTerm(SSdb *pSdb, int64_t term);
+int64_t sdbGetApplyTerm(SSdb *pSdb);
 
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen);
 void     sdbFreeRaw(SSdbRaw *pRaw);
@@ -339,6 +336,7 @@ typedef struct SSdb {
   char          *tmpDir;
   int64_t        lastCommitVer;
   int64_t        curVer;
+  int64_t        curTerm;
   int64_t        tableVer[SDB_MAX];
   int64_t        maxId[SDB_MAX];
   EKeyType       keyTypes[SDB_MAX];
@@ -351,6 +349,14 @@ typedef struct SSdb {
   SdbEncodeFp    encodeFps[SDB_MAX];
   SdbDecodeFp    decodeFps[SDB_MAX];
 } SSdb;
+
+typedef struct SSdbIter {
+  TdFilePtr file;
+  int64_t   readlen;
+} SSdbIter;
+
+SSdbIter *sdbIterInit(SSdb *pSdb);
+SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *iter, char **ppBuf, int32_t *len);
 
 #ifdef __cplusplus
 }

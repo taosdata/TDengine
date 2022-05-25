@@ -54,6 +54,7 @@ typedef struct SScanLogicNode {
   int64_t            sliding;
   int8_t             intervalUnit;
   int8_t             slidingUnit;
+  SNode*             pTagCond;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -295,6 +296,8 @@ typedef struct SSessionWinodwPhysiNode {
   int64_t          gap;
 } SSessionWinodwPhysiNode;
 
+typedef SSessionWinodwPhysiNode SStreamSessionWinodwPhysiNode;
+
 typedef struct SStateWinodwPhysiNode {
   SWinodwPhysiNode window;
   SNode*           pStateKey;
@@ -343,6 +346,7 @@ typedef struct SSubplan {
   SNodeList*     pParents;      // the data destination subplan, get data from current subplan
   SPhysiNode*    pNode;         // physical plan of current subplan
   SDataSinkNode* pDataSink;     // data of the subplan flow into the datasink
+  SNode*         pTagCond;
 } SSubplan;
 
 typedef enum EExplainMode { EXPLAIN_MODE_DISABLE = 1, EXPLAIN_MODE_STATIC, EXPLAIN_MODE_ANALYZE } EExplainMode;

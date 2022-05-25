@@ -342,25 +342,19 @@ SNode* createLogicConditionNode(SAstCreateContext* pCxt, ELogicConditionType typ
   CHECK_OUT_OF_MEM(cond);
   cond->condType = type;
   cond->pParameterList = nodesMakeList();
-  if ((QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1) && type != ((SLogicConditionNode*)pParam1)->condType) ||
-      (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2) && type != ((SLogicConditionNode*)pParam2)->condType)) {
-    nodesListAppend(cond->pParameterList, pParam1);
-    nodesListAppend(cond->pParameterList, pParam2);
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1) && type == ((SLogicConditionNode*)pParam1)->condType) {
+    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam1)->pParameterList);
+    ((SLogicConditionNode*)pParam1)->pParameterList = NULL;
+    nodesDestroyNode(pParam1);
   } else {
-    if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam1)) {
-      nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam1)->pParameterList);
-      ((SLogicConditionNode*)pParam1)->pParameterList = NULL;
-      nodesDestroyNode(pParam1);
-    } else {
-      nodesListAppend(cond->pParameterList, pParam1);
-    }
-    if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2)) {
-      nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam2)->pParameterList);
-      ((SLogicConditionNode*)pParam2)->pParameterList = NULL;
-      nodesDestroyNode(pParam2);
-    } else {
-      nodesListAppend(cond->pParameterList, pParam2);
-    }
+    nodesListAppend(cond->pParameterList, pParam1);
+  }
+  if (QUERY_NODE_LOGIC_CONDITION == nodeType(pParam2) && type == ((SLogicConditionNode*)pParam2)->condType) {
+    nodesListAppendList(cond->pParameterList, ((SLogicConditionNode*)pParam2)->pParameterList);
+    ((SLogicConditionNode*)pParam2)->pParameterList = NULL;
+    nodesDestroyNode(pParam2);
+  } else {
+    nodesListAppend(cond->pParameterList, pParam2);
   }
   return (SNode*)cond;
 }
@@ -974,9 +968,9 @@ SNode* createAlterTableModifyOptions(SAstCreateContext* pCxt, SNode* pRealTable,
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
-SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
-                                    const SToken* pColName, SDataType dataType) {
-  if (NULL == pRealTable) {
+SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName,
+                                    SDataType dataType) {
+  if (NULL == pRealTable || !checkColumnName(pCxt, pColName)) {
     return NULL;
   }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
@@ -987,8 +981,8 @@ SNode* createAlterTableAddModifyCol(SAstCreateContext* pCxt, SNode* pRealTable, 
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
-SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, const SToken* pColName) {
-  if (NULL == pRealTable) {
+SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pColName) {
+  if (NULL == pRealTable || !checkColumnName(pCxt, pColName)) {
     return NULL;
   }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
@@ -998,9 +992,9 @@ SNode* createAlterTableDropCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
-SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType,
-                                 const SToken* pOldColName, const SToken* pNewColName) {
-  if (NULL == pRealTable) {
+SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int8_t alterType, SToken* pOldColName,
+                                 SToken* pNewColName) {
+  if (NULL == pRealTable || !checkColumnName(pCxt, pOldColName) || !checkColumnName(pCxt, pNewColName)) {
     return NULL;
   }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
@@ -1011,8 +1005,8 @@ SNode* createAlterTableRenameCol(SAstCreateContext* pCxt, SNode* pRealTable, int
   return createAlterTableStmtFinalize(pRealTable, pStmt);
 }
 
-SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, const SToken* pTagName, SNode* pVal) {
-  if (NULL == pRealTable) {
+SNode* createAlterTableSetTag(SAstCreateContext* pCxt, SNode* pRealTable, SToken* pTagName, SNode* pVal) {
+  if (NULL == pRealTable || !checkColumnName(pCxt, pTagName)) {
     return NULL;
   }
   SAlterTableStmt* pStmt = nodesMakeNode(QUERY_NODE_ALTER_TABLE_STMT);
