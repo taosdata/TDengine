@@ -52,10 +52,10 @@ At most 4096 (or 1024 prior to version 2.1.7.0) columns are allowed in a STable.
 A specific table needs to be created for each data collection point. Similar to RDBMS, table name and schema are required to create a table. Beside, one or more tags can be created for each table. To create a table, a STable needs to be used as template and the values need to be specified for the tags. For example, for the meters in [Table 1](/tdinternal/arch#model_table1), the table can be created using below SQL statement.
 
 ```sql
-CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
+CREATE TABLE d1001 USING meters TAGS ("California.SanFrancisco", 2);
 ```
 
-In the above SQL statement, "d1001" is the table name, "meters" is the STable name, followed by the value of tag "Location" and the value of tag "groupId", which are "Beijing.Chaoyang" and "2" respectively in the example. The tag values can be updated after the table is created. Please refer to [Tables](/taos-sql/table) for details.
+In the above SQL statement, "d1001" is the table name, "meters" is the STable name, followed by the value of tag "Location" and the value of tag "groupId", which are "California.SanFrancisco" and "2" respectively in the example. The tag values can be updated after the table is created. Please refer to [Tables](/taos-sql/table) for details.
 
 In TDengine system, it's recommended to create a table for a data collection point via STable. A table created via STable is called subtable in some parts of the TDengine documentation. All SQL commands applied on regular tables can be applied on subtables.
 
@@ -70,10 +70,10 @@ It's suggested to use the global unique ID of a data collection point as the tab
 In some circumstances, it's unknown whether the table already exists when inserting rows. The table can be created automatically using the SQL statement below, and nothing will happen if the table already exist.
 
 ```sql
-INSERT INTO d1001 USING meters TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
+INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES (now, 10.2, 219, 0.32);
 ```
 
-In the above SQL statement, a row with value `(now, 10.2, 219, 0.32)` will be inserted into table "d1001". If table "d1001" doesn't exist, it will be created automatically using STable "meters" as template with tag value `"Beijing.Chaoyang", 2`.
+In the above SQL statement, a row with value `(now, 10.2, 219, 0.32)` will be inserted into table "d1001". If table "d1001" doesn't exist, it will be created automatically using STable "meters" as template with tag value `"California.SanFrancisco", 2`.
 
 For more details please refer to [Create Table Automatically](/taos-sql/insert#automatically-create-table-when-inserting).
 
