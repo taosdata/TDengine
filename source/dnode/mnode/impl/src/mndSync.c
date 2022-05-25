@@ -49,8 +49,10 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
-  mndTransPullup(pMnode);
-  pMnode->syncMgmt.restored = true;
+  if (!pMnode->deploy) {
+    mndTransPullup(pMnode);
+    pMnode->syncMgmt.restored = true;
+  }
 }
 
 void *mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *snapshot, void *iter, char **ppBuf, int32_t *len) {

@@ -1080,7 +1080,7 @@ static bool mndTransPerformRedoLogStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformRedoActionStage(SMnode *pMnode, STrans *pTrans) {
-  if (!mndIsMaster(pMnode)) return false;
+  if (!pMnode->deploy && !mndIsMaster(pMnode)) return false;
 
   bool    continueExec = true;
   int32_t code = mndTransExecuteRedoActions(pMnode, pTrans);
@@ -1171,7 +1171,7 @@ static bool mndTransPerformUndoLogStage(SMnode *pMnode, STrans *pTrans) {
 }
 
 static bool mndTransPerformUndoActionStage(SMnode *pMnode, STrans *pTrans) {
-  if (!mndIsMaster(pMnode)) return false;
+  if (!pMnode->deploy && !mndIsMaster(pMnode)) return false;
 
   bool    continueExec = true;
   int32_t code = mndTransExecuteUndoActions(pMnode, pTrans);

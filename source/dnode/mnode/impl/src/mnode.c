@@ -335,8 +335,9 @@ void mndClose(SMnode *pMnode) {
 
 int32_t mndStart(SMnode *pMnode) {
   mndSyncStart(pMnode);
-  if (pMnode->deploy && sdbDeploy(pMnode->pSdb) != 0) {
-    return -1;
+  if (pMnode->deploy) {
+    if (sdbDeploy(pMnode->pSdb) != 0) return -1;
+    pMnode->syncMgmt.restored = true;
   }
   return mndInitTimer(pMnode);
 }
@@ -414,8 +415,7 @@ int32_t mndProcessMsg(SRpcMsg *pMsg) {
   mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
 
   if (IsReq(pMsg)) {
-    if (!mndIsMaster(pMnode) && pMsg->msgType != TDMT_MND_TRANS_TIMER && pMsg->msgType != TDMT_MND_MQ_TIMER &&
-        pMsg->msgType != TDMT_MND_TELEM_TIMER) {
+    if (!mndIsMaster(pMnode)) {
       terrno = TSDB_CODE_APP_NOT_READY;
       mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
       return -1;
