@@ -4899,7 +4899,6 @@ int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t tableUi
   if (tableType == TSDB_SUPER_TABLE) {
     SArray* res = taosArrayInit(8, sizeof(STableKeyInfo));
 
-    int32_t ret = ;
     if(pTagCond){
       code = doFilterTag(pTagCond, res);
     }else{
