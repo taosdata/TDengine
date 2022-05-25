@@ -75,7 +75,7 @@ int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32
   int32_t code = 0;
 
   if (!pReader->isMetaEnd) {
-    code = metaSnapshotRead(pReader->pMetaReader, &pReader->pData, &pReader->pData);
+    code = metaSnapshotRead(pReader->pMetaReader, &pReader->pData, &pReader->nData);
     if (code) {
       if (code == TSDB_CODE_VND_READ_END) {
         pReader->isMetaEnd = 1;
@@ -90,7 +90,7 @@ int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32
   }
 
   if (!pReader->isTsdbEnd) {
-    code = tsdbSnapshotRead(pReader->pTsdbReader, &pReader->pData, pReader->nData);
+    code = tsdbSnapshotRead(pReader->pTsdbReader, &pReader->pData, &pReader->nData);
     if (code) {
       if (code == TSDB_CODE_VND_READ_END) {
         pReader->isTsdbEnd = 1;
