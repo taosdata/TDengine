@@ -13,24 +13,33 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_MNODE_H_
-#define _TD_MND_MNODE_H_
+#include "vnd.h"
 
-#include "mndInt.h"
+int32_t vnodeRealloc(void** pp, int32_t size) {
+  uint8_t* p = NULL;
+  int32_t  csize = 0;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+  if (*pp) {
+    p = (uint8_t*)(*pp) - sizeof(int32_t);
+    csize = *(int32_t*)p;
+  }
 
-int32_t    mndInitMnode(SMnode *pMnode);
-void       mndCleanupMnode(SMnode *pMnode);
-SMnodeObj *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId);
-void       mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj);
-bool       mndIsMnode(SMnode *pMnode, int32_t dnodeId);
-void       mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet);
+  if (csize >= size) {
+    return 0;
+  }
 
-#ifdef __cplusplus
+  p = (uint8_t*)taosMemoryRealloc(p, size);
+  if (p == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+  *(int32_t*)p = size;
+  *pp = p + sizeof(int32_t);
+
+  return 0;
 }
-#endif
 
-#endif /*_TD_MND_MNODE_H_*/
+void vnodeFree(void* p) {
+  if (p) {
+    taosMemoryFree(((uint8_t*)p) - sizeof(int32_t));
+  }
+}
