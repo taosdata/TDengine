@@ -148,9 +148,11 @@ if __name__ == "__main__":
                 tdDnodes.deploy(1,{})
             tdDnodes.startWin(1)
         else:
-            remote_conn = Connection("root@%s"%host)
-            with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
-                remote_conn.run("python3 ./test.py")
+            # remote_conn = Connection("root@%s"%host)
+            # with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
+            #     remote_conn.run("python3 ./test.py")
+            os.system("docker exec -d tdengine_test bash -c \"cd ~/TDinternal/community/tests/pytest && python3 ./test.py\"")
+            time.sleep(2)
         tdDnodes.init(deployPath)
         conn = taos.connect(
             host="%s" % (host),
