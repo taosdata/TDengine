@@ -77,16 +77,14 @@ void schFreeRpcCtx(SRpcCtx *pCtx) {
   while (pIter) {
     SRpcCtxVal *ctxVal = (SRpcCtxVal *)pIter;
 
-    (*ctxVal->freeFunc)(ctxVal->val);
+    (*pCtx->freeFunc)(ctxVal->val);
 
     pIter = taosHashIterate(pCtx->args, pIter);
   }
 
   taosHashCleanup(pCtx->args);
 
-  if (pCtx->brokenVal.freeFunc) {
-    (*pCtx->brokenVal.freeFunc)(pCtx->brokenVal.val);
-  }
+  (*pCtx->freeFunc)(pCtx->brokenVal.val);
 }
 
 
