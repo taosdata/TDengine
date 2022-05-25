@@ -55,7 +55,8 @@
 ./test.sh -f tsim/bnode/basic1.sim
 
 # ---- mnode
-./test.sh -f tsim/mnode/basic1.sim
+#./test.sh -f tsim/mnode/basic1.sim
+#./test.sh -f tsim/mnode/basic2.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
@@ -66,6 +67,8 @@
 # ---- stream
 ./test.sh -f tsim/stream/basic0.sim
 ./test.sh -f tsim/stream/basic1.sim
+./test.sh -f tsim/stream/session0.sim
+./test.sh -f tsim/stream/session1.sim
 
 # ---- transaction
  ./test.sh -f tsim/trans/lossdata1.sim
@@ -92,6 +95,9 @@
 #./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
+./test.sh -f tsim/stable/column_add.sim
+#./test.sh -f tsim/stable/column_drop.sim
+#./test.sh -f tsim/stable/column_modify.sim
 
 
 # --- for multi process mode
@@ -104,7 +110,7 @@
 ./test.sh -f tsim/tmq/basic3.sim -m
 ./test.sh -f tsim/stable/vnode3.sim -m
 ./test.sh -f tsim/qnode/basic1.sim -m
-./test.sh -f tsim/mnode/basic1.sim -m
+#./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
 ./test.sh -f tsim/sma/tsmaCreateInsertData.sim

@@ -110,7 +110,33 @@ static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("mnode:%d, will be created while deploy sdb, raw:%p", mnodeObj.id, pRaw);
+
+#if 0
   return sdbWrite(pMnode->pSdb, pRaw);
+#else
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_DNODE, NULL);
+  if (pTrans == NULL) {
+    mError("mnode:%d, failed to create since %s", mnodeObj.id, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create mnode:%d", pTrans->id, mnodeObj.id);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+#endif
 }
 
 static SSdbRaw *mndMnodeActionEncode(SMnodeObj *pObj) {
@@ -626,15 +652,16 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    const char *roles = syncStr(pObj->role);
-    char       *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
+    // const char *roles = syncStr(syncGetMyRole(pMnode->syncMgmt.sync));
+    const char *roles = syncStr(TAOS_SYNC_STATE_FOLLOWER);
+    if (pObj->id == pMnode->selfId) {
+      roles = syncStr(TAOS_SYNC_STATE_LEADER);
+    }
+    char *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)b2, false);
-
-    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
-    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->roleTime, false);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);

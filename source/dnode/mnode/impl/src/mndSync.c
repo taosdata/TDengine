@@ -49,8 +49,10 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
-  mndTransPullup(pMnode);
-  pMnode->syncMgmt.restored = true;
+  if (!pMnode->deploy) {
+    mndTransPullup(pMnode);
+    pMnode->syncMgmt.restored = true;
+  }
 }
 
 int32_t mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf, int32_t* len) {
@@ -128,8 +130,8 @@ int32_t mndInitSync(SMnode *pMnode) {
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
   pCfg->myIndex = pMnode->selfIndex;
-  mInfo("start to open mnode sync, replica:%d myIndex:%d standBy:%d", pCfg->replicaNum, pCfg->myIndex,
-        pMgmt->isStandBy);
+  mInfo("start to open mnode sync, replica:%d myindex:%d standby:%d", pCfg->replicaNum, pCfg->myIndex,
+        pMgmt->standby);
   for (int32_t i = 0; i < pMnode->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
@@ -190,7 +192,7 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
-  if (pMgmt->isStandBy) {
+  if (pMgmt->standby) {
     syncStartStandBy(pMgmt->sync);
   } else {
     syncStart(pMgmt->sync);
@@ -209,7 +211,7 @@ bool mndIsMaster(SMnode *pMnode) {
 
 int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   SSyncCfg cfg = {.replicaNum = pOption->replica, .myIndex = pOption->selfIndex};
-  mInfo("start to alter mnode sync, replica:%d myIndex:%d standBy:%d", cfg.replicaNum, cfg.myIndex, pOption->isStandBy);
+  mInfo("start to alter mnode sync, replica:%d myindex:%d standby:%d", cfg.replicaNum, cfg.myIndex, pOption->standby);
   for (int32_t i = 0; i < pOption->replica; ++i) {
     SNodeInfo *pNode = &cfg.nodeInfo[i];
     tstrncpy(pNode->nodeFqdn, pOption->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
@@ -218,6 +220,6 @@ int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
   }
 
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  pMgmt->isStandBy = pOption->isStandBy;
+  pMgmt->standby = pOption->standby;
   return syncReconfig(pMgmt->sync, &cfg);
 }

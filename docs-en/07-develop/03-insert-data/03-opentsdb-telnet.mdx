@@ -15,16 +15,16 @@ import CTelnet from "./_c_opts_telnet.mdx";
 
 ## Introduction
 
-A single line of text is used in OpenTSDB line protocol to represent one row of data. OpenTSDB employs single column data model, so one line can only contains single data column. There can be multiple tags. Each line contains 4 parts as below:
+A single line of text is used in OpenTSDB line protocol to represent one row of data. OpenTSDB employs single column data model, so one line can only contain a single data column. There can be multiple tags. Each line contains 4 parts as below:
 
 ```
 <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
 ```
 
-- `metric` will be used as STable name.
-- `timestamp` is the timestamp of current row of data. The time precision will be determined automatically based on the length of the timestamp. second and millisecond time precision are supported.\
+- `metric` will be used as the STable name.
+- `timestamp` is the timestamp of current row of data. The time precision will be determined automatically based on the length of the timestamp. Second and millisecond time precision are supported.
 - `value` is a metric which must be a numeric value, the corresponding column name is "value".
-- The last part is tag sets separated by space, all tags will be converted to nchar type automatically.
+- The last part is the tag set separated by spaces, all tags will be converted to nchar type automatically.
 
 For example:
 

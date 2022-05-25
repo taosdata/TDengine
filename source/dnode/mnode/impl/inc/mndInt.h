@@ -79,7 +79,7 @@ typedef struct {
   sem_t      syncSem;
   int64_t    sync;
   ESyncState state;
-  bool       isStandBy;
+  bool       standby;
   bool       restored;
   int32_t    errCode;
 } SSyncMgmt;
@@ -93,6 +93,7 @@ typedef struct SMnode {
   int32_t       selfId;
   int64_t       clusterId;
   TdThread      thread;
+  bool          deploy;
   bool          stopped;
   int8_t        replica;
   int8_t        selfIndex;
