@@ -1458,7 +1458,7 @@ _return:
 }
 
 void ctgUpdateThreadFuncUnexpectedStopped(void) {
-  CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock)) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 }
 
 void* ctgUpdateThreadFunc(void* param) {
@@ -1497,7 +1497,7 @@ void* ctgUpdateThreadFunc(void* param) {
     ctgdShowClusterCache(pCtg);
   }
 
-  CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock)) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 
   qInfo("catalog update thread stopped");
   
