@@ -166,6 +166,7 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     streamDataSubmitRefDec((SStreamDataSubmit*)data);
   } else {
     taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
+    taosFreeQitem(data);
   }
   return 0;
 }
@@ -186,7 +187,7 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
 
         streamTaskExecImpl(pTask, data, pRes);
 
-        taosFreeQitem(data);
+        /*taosFreeQitem(data);*/
 
         if (taosArrayGetSize(pRes) != 0) {
           SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
@@ -206,7 +207,7 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
 
         streamTaskExecImpl(pTask, data, pRes);
 
-        taosFreeQitem(data);
+        /*taosFreeQitem(data);*/
 
         if (taosArrayGetSize(pRes) != 0) {
           SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
@@ -228,7 +229,7 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
 
         streamTaskExecImpl(pTask, data, pRes);
 
-        taosFreeQitem(data);
+        /*taosFreeQitem(data);*/
 
         if (taosArrayGetSize(pRes) != 0) {
           SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
