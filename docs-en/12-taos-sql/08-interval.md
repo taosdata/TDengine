@@ -10,7 +10,7 @@ Window related clauses are used to divide the data set to be queried into subset
 
 `INTERVAL` clause is used to generate time windows of same time interval, `SLIDING` is used to specify the time step for which the time window moves forward. The query is performed on one time window each time, and the time window moves forward with time. When defining continuous query both the size of time window and the step of forward sliding time need to be specified. As shown in the figure blow, [t0s, t0e] ，[t1s , t1e]， [t2s, t2e] are respectively the time range of three time windows on which continuous queries are executed. The time step for which time window moves forward is marked by `sliding time`. Query, filter and aggregate operations are executed on each time window respectively. When the time step specified by `SLIDING` is same as the time interval specified by `INTERVAL`, the sliding time window is actually a flip time window.
 
-![Time Window](/img/sql/timewindow-1.png)
+![Time Window](./timewindow-1.webp)
 
 `INTERVAL` and `SLIDING` should be used with aggregate functions and selection functions. Below SQL statement is illegal because no aggregate or selection function is used with `INTERVAL`.
 
@@ -30,7 +30,7 @@ When the time length specified by `SLIDING` is same as that specified by `INTERV
 
 In case of using integer, bool, or string to represent the device status at a moment, the continuous rows with same status belong to same status window. Once the status changes, the status window closes. As shown in the following figure，there are two status windows according to status, [2019-04-28 14:22:07，2019-04-28 14:22:10] and [2019-04-28 14:22:11，2019-04-28 14:22:12]. Status window is not applicable to STable for now.
 
-![Status Window](/img/sql/timewindow-3.png)
+![Status Window](./timewindow-3.webp)
 
 `STATE_WINDOW` is used to specify the column based on which to define status window, for example：
 
@@ -46,7 +46,7 @@ SELECT COUNT(*), FIRST(ts) FROM temp_tb_1 SESSION(ts, tol_val);
 
 The primary key, i.e. timestamp, is used to determine which session window the row belongs to. If the time interval between two adjacent rows is within the time range specified by `tol_val`, they belong to same session window; otherwise they belong to two different time windows. As shown in the figure below, if the limit of time interval for session window is specified as 12 seconds, then the 6 rows in the figure constitutes 2 time windows, [2019-04-28 14:22:10，2019-04-28 14:22:30] and [2019-04-28 14:23:10，2019-04-28 14:23:30], because the time difference between 2019-04-28 14:22:30 and 2019-04-28 14:23:10 is 40 seconds, which exceeds the time interval limit of 12 seconds.
 
-![Session Window](/img/sql/timewindow-2.png)
+![Session Window](./timewindow-2.webp)
 
 If the time interval between two continuous rows are within the time interval specified by `tol_value` they belong to the same session window; otherwise a new session window is started automatically. Session window is not supported on STable for now.
 
