@@ -27,6 +27,15 @@
 extern "C" {
 #endif
 
+// clang-format off
+#define mFatal(...) { if (mDebugFlag & DEBUG_FATAL) { taosPrintLog("MND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}
+#define mError(...) { if (mDebugFlag & DEBUG_ERROR) { taosPrintLog("MND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}
+#define mWarn(...)  { if (mDebugFlag & DEBUG_WARN)  { taosPrintLog("MND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}
+#define mInfo(...)  { if (mDebugFlag & DEBUG_INFO)  { taosPrintLog("MND ", DEBUG_INFO, 255, __VA_ARGS__); }}
+#define mDebug(...) { if (mDebugFlag & DEBUG_DEBUG) { taosPrintLog("MND ", DEBUG_DEBUG, mDebugFlag, __VA_ARGS__); }}
+#define mTrace(...) { if (mDebugFlag & DEBUG_TRACE) { taosPrintLog("MND ", DEBUG_TRACE, mDebugFlag, __VA_ARGS__); }}
+// clang-format on
+
 #define SDB_GET_VAL(pData, dataPos, val, pos, func, type) \
   {                                                       \
     if (func(pRaw, dataPos, val) != 0) {                  \
@@ -65,7 +74,7 @@ extern "C" {
 #define SDB_SET_INT64(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt64, int64_t)
 #define SDB_SET_INT32(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt32, int32_t)
 #define SDB_SET_INT16(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt16, int16_t)
-#define SDB_SET_INT8(pRaw, dataPos, val, pos) SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
+#define SDB_SET_INT8(pRaw, dataPos, val, pos)  SDB_SET_VAL(pRaw, dataPos, val, pos, sdbSetRawInt8, int8_t)
 
 #define SDB_SET_BINARY(pRaw, dataPos, val, valLen, pos)     \
   {                                                         \
@@ -89,8 +98,16 @@ extern "C" {
   }
 
 typedef struct SMnode  SMnode;
+typedef struct SSdb    SSdb;
 typedef struct SSdbRaw SSdbRaw;
 typedef struct SSdbRow SSdbRow;
+typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
+typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
+typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
+typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
+typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
+typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
+typedef bool (*sdbTraverseFp)(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3);
 
 typedef enum {
   SDB_KEY_BINARY = 1,
@@ -130,14 +147,47 @@ typedef enum {
   SDB_MAX = 20
 } ESdbType;
 
-typedef struct SSdb SSdb;
-typedef int32_t (*SdbInsertFp)(SSdb *pSdb, void *pObj);
-typedef int32_t (*SdbUpdateFp)(SSdb *pSdb, void *pSrcObj, void *pDstObj);
-typedef int32_t (*SdbDeleteFp)(SSdb *pSdb, void *pObj, bool callFunc);
-typedef int32_t (*SdbDeployFp)(SMnode *pMnode);
-typedef SSdbRow *(*SdbDecodeFp)(SSdbRaw *pRaw);
-typedef SSdbRaw *(*SdbEncodeFp)(void *pObj);
-typedef bool (*sdbTraverseFp)(SMnode *pMnode, void *pObj, void *p1, void *p2, void *p3);
+typedef struct SSdbRaw {
+  int8_t  type;
+  int8_t  status;
+  int8_t  sver;
+  int8_t  reserved;
+  int32_t dataLen;
+  char    pData[];
+} SSdbRaw;
+
+typedef struct SSdbRow {
+  ESdbType   type;
+  ESdbStatus status;
+  int32_t    refCount;
+  char       pObj[];
+} SSdbRow;
+
+typedef struct SSdb {
+  SMnode        *pMnode;
+  char          *currDir;
+  char          *syncDir;
+  char          *tmpDir;
+  int64_t        lastCommitVer;
+  int64_t        curVer;
+  int64_t        curTerm;
+  int64_t        tableVer[SDB_MAX];
+  int64_t        maxId[SDB_MAX];
+  EKeyType       keyTypes[SDB_MAX];
+  SHashObj      *hashObjs[SDB_MAX];
+  TdThreadRwlock locks[SDB_MAX];
+  SdbInsertFp    insertFps[SDB_MAX];
+  SdbUpdateFp    updateFps[SDB_MAX];
+  SdbDeleteFp    deleteFps[SDB_MAX];
+  SdbDeployFp    deployFps[SDB_MAX];
+  SdbEncodeFp    encodeFps[SDB_MAX];
+  SdbDecodeFp    decodeFps[SDB_MAX];
+} SSdb;
+
+typedef struct SSdbIter {
+  TdFilePtr file;
+  int64_t   readlen;
+} SSdbIter;
 
 typedef struct {
   ESdbType    sdbType;
@@ -328,35 +378,13 @@ int32_t  sdbGetRawTotalSize(SSdbRaw *pRaw);
 
 SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
-
-typedef struct SSdb {
-  SMnode        *pMnode;
-  char          *currDir;
-  char          *syncDir;
-  char          *tmpDir;
-  int64_t        lastCommitVer;
-  int64_t        curVer;
-  int64_t        curTerm;
-  int64_t        tableVer[SDB_MAX];
-  int64_t        maxId[SDB_MAX];
-  EKeyType       keyTypes[SDB_MAX];
-  SHashObj      *hashObjs[SDB_MAX];
-  TdThreadRwlock locks[SDB_MAX];
-  SdbInsertFp    insertFps[SDB_MAX];
-  SdbUpdateFp    updateFps[SDB_MAX];
-  SdbDeleteFp    deleteFps[SDB_MAX];
-  SdbDeployFp    deployFps[SDB_MAX];
-  SdbEncodeFp    encodeFps[SDB_MAX];
-  SdbDecodeFp    decodeFps[SDB_MAX];
-} SSdb;
-
-typedef struct SSdbIter {
-  TdFilePtr file;
-  int64_t   readlen;
-} SSdbIter;
+void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
 SSdbIter *sdbIterInit(SSdb *pSdb);
 SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *iter, char **ppBuf, int32_t *len);
+
+const char *sdbTableName(ESdbType type);
+void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 
 #ifdef __cplusplus
 }
