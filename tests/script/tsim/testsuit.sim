@@ -77,3 +77,9 @@ run  sma/tsmaCreateInsertData.sim
 run  sma/rsmaCreateInsertQuery.sim
 run  valgrind/checkError.sim
 run  bnode/basic1.sim
+run  sync/3Replica1VgElect.sim
+run  sync/3Replica5VgElect.sim
+run  sync/oneReplica1VgElect.sim
+run  sync/oneReplica5VgElect.sim
+
+
