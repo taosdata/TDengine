@@ -208,6 +208,7 @@ class TDTestCase:
         tdSql.query("select spread(c1) from ct4 group by c7")
         tdSql.checkRows(3)
         tdSql.query("select spread(ct2.c1) from ct4 join ct2 on ct4.ts=ct2.ts")
+        tdSql.checkRows(1)
 
         self.spread_check()
 
