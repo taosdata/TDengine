@@ -125,6 +125,7 @@ void    rpcSendRedirectRsp(void *pConn, const SEpSet *pEpSet);
 void    rpcSendRequestWithCtx(void *thandle, const SEpSet *pEpSet, SRpcMsg *pMsg, int64_t *rid, SRpcCtx *ctx);
 int32_t rpcGetConnInfo(void *thandle, SRpcConnInfo *pInfo);
 void    rpcSendRecv(void *shandle, SEpSet *pEpSet, SRpcMsg *pReq, SRpcMsg *pRsp);
+void    rpcSetDefaultEpSet(void *thandle, const SEpSet *dst);
 
 #ifdef __cplusplus
 }

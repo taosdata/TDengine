@@ -95,8 +95,8 @@ typedef void* queue[2];
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
 #define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
-#define TRANS_RETRY_INTERVAL    15  // ms retry interval
-#define TRANS_CONN_TIMEOUT      3   // connect timeout
+#define TRANS_RETRY_INTERVAL    15   // ms retry interval
+#define TRANS_CONN_TIMEOUT      3    // connect timeout
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
@@ -155,7 +155,7 @@ typedef struct {
 
 #pragma pack(pop)
 
-typedef enum { Normal, Quit, Release, Register } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -231,6 +231,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransM
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
+void transSetDefaultEpSet(void* shandle, const SEpSet* dst);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);

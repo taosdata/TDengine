@@ -63,7 +63,11 @@ typedef struct SCliThrdObj {
   SDelayQueue*  delayQueue;
   uint64_t      nextTimeout;  // next timeout
   void*         pTransInst;   //
-  bool          quit;
+
+  bool   useDefaultEpSet;
+  SEpSet defaultEpSet;
+
+  bool quit;
 } SCliThrdObj;
 
 typedef struct SCliObj {
@@ -116,7 +120,9 @@ static void cliHandleExcept(SCliConn* conn);
 static void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd);
 static void cliHandleQuit(SCliMsg* pMsg, SCliThrdObj* pThrd);
 static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd);
-static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrdObj* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease};
+static void cliHandleUpdate(SCliMsg* pMsg, SCliThrdObj* pThrd);
+static void (*cliAsyncHandle[])(SCliMsg* pMsg, SCliThrdObj* pThrd) = {cliHandleReq, cliHandleQuit, cliHandleRelease,
+                                                                      cliHandleUpdate};
 
 static void cliSendQuit(SCliThrdObj* thrd);
 static void destroyUserdata(STransMsg* userdata);
@@ -683,6 +689,15 @@ static void cliHandleRelease(SCliMsg* pMsg, SCliThrdObj* pThrd) {
     transUnrefCliHandle(conn);
   }
 }
+static void cliHandleUpdate(SCliMsg* pMsg, SCliThrdObj* pThrd) {
+  STransConnCtx* pCtx = pMsg->ctx;
+
+  pThrd->useDefaultEpSet = true;
+  pThrd->defaultEpSet = pCtx->epSet;
+
+  tsem_post(pCtx->pSem);
+  destroyCmsg(pMsg);
+}
 
 SCliConn* cliGetConn(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   SCliConn* conn = NULL;
@@ -711,6 +726,10 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
 
   STransConnCtx* pCtx = pMsg->ctx;
   STrans*        pTransInst = pThrd->pTransInst;
+
+  if (pThrd->useDefaultEpSet) {
+    pCtx->epSet = pThrd->defaultEpSet;
+  }
 
   SCliConn* conn = cliGetConn(pMsg, pThrd);
   if (conn != NULL) {
@@ -1067,4 +1086,28 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pReq, STransM
   taosMemoryFree(pSem);
 }
 
+void transSetDefaultEpSet(void* ahandle, const SEpSet* dst) {
+  STrans* pTransInst = ahandle;
+  for (int i = 0; i < pTransInst->numOfThreads; i++) {
+    STransConnCtx* pCtx = taosMemoryCalloc(1, sizeof(STransConnCtx));
+    pCtx->hThrdIdx = i;
+    pCtx->epSet = *dst;
+    pCtx->pSem = taosMemoryCalloc(1, sizeof(tsem_t));
+    tsem_init(pCtx->pSem, 0, 0);
+
+    SCliMsg* cliMsg = taosMemoryCalloc(1, sizeof(SCliMsg));
+    cliMsg->ctx = pCtx;
+    cliMsg->type = Update;
+
+    SCliThrdObj* thrd = ((SCliObj*)pTransInst->tcphandle)->pThreadObj[i];
+    tDebug("send update epset at thread:%d, threadID:%" PRId64 "", i, thrd->thread);
+
+    tsem_t* pSem = pCtx->pSem;
+    transSendAsync(thrd->asyncPool, &(cliMsg->q));
+
+    tsem_wait(pSem);
+    tsem_destroy(pSem);
+    taosMemoryFree(pSem);
+  }
+}
 #endif
