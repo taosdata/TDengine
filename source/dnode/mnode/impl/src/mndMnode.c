@@ -31,6 +31,7 @@ static int32_t  mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj);
 static int32_t  mndMnodeActionDelete(SSdb *pSdb, SMnodeObj *pObj);
 static int32_t  mndMnodeActionUpdate(SSdb *pSdb, SMnodeObj *pOld, SMnodeObj *pNew);
 static int32_t  mndProcessCreateMnodeReq(SRpcMsg *pReq);
+static int32_t  mndProcessAlterMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessDropMnodeReq(SRpcMsg *pReq);
 static int32_t  mndProcessCreateMnodeRsp(SRpcMsg *pRsp);
 static int32_t  mndProcessAlterMnodeRsp(SRpcMsg *pRsp);
@@ -51,6 +52,7 @@ int32_t mndInitMnode(SMnode *pMnode) {
   };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_MNODE, mndProcessCreateMnodeReq);
+  mndSetMsgHandle(pMnode, TDMT_DND_ALTER_MNODE, mndProcessAlterMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_MNODE, mndProcessDropMnodeReq);
   mndSetMsgHandle(pMnode, TDMT_DND_CREATE_MNODE_RSP, mndProcessCreateMnodeRsp);
   mndSetMsgHandle(pMnode, TDMT_DND_ALTER_MNODE_RSP, mndProcessAlterMnodeRsp);
@@ -75,28 +77,6 @@ SMnodeObj *mndAcquireMnode(SMnode *pMnode, int32_t mnodeId) {
 void mndReleaseMnode(SMnode *pMnode, SMnodeObj *pObj) {
   SSdb *pSdb = pMnode->pSdb;
   sdbRelease(pMnode->pSdb, pObj);
-}
-
-void mndUpdateMnodeRole(SMnode *pMnode) {
-  SSdb *pSdb = pMnode->pSdb;
-  void *pIter = NULL;
-  while (1) {
-    SMnodeObj *pObj = NULL;
-    pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
-    if (pIter == NULL) break;
-
-    ESyncState lastRole = pObj->role;
-    if (pObj->id == 1) {
-      pObj->role = TAOS_SYNC_STATE_LEADER;
-    } else {
-      pObj->role = TAOS_SYNC_STATE_CANDIDATE;
-    }
-    if (pObj->role != lastRole) {
-      pObj->roleTime = taosGetTimestampMs();
-    }
-
-    sdbRelease(pSdb, pObj);
-  }
 }
 
 static int32_t mndCreateDefaultMnode(SMnode *pMnode) {
@@ -209,7 +189,7 @@ static int32_t mndMnodeActionInsert(SSdb *pSdb, SMnodeObj *pObj) {
     return -1;
   }
 
-  pObj->role = TAOS_SYNC_STATE_FOLLOWER;
+  pObj->state = TAOS_SYNC_STATE_ERROR;
   return 0;
 }
 
@@ -253,7 +233,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     if (pObj->pDnode == NULL) {
       mError("mnode:%d, no corresponding dnode exists", pObj->id);
     } else {
-      if (pObj->role == TAOS_SYNC_STATE_LEADER) {
+      if (pObj->state == TAOS_SYNC_STATE_LEADER) {
         pEpSet->inUse = pEpSet->numOfEps;
       }
       addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
@@ -581,7 +561,7 @@ static int32_t mndProcessDropMnodeReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (pMnode->selfId == dropReq.dnodeId) {
+  if (pMnode->selfDnodeId == dropReq.dnodeId) {
     terrno = TSDB_CODE_MND_CANT_DROP_MASTER;
     goto _OVER;
   }
@@ -652,10 +632,11 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    // const char *roles = syncStr(syncGetMyRole(pMnode->syncMgmt.sync));
-    const char *roles = syncStr(TAOS_SYNC_STATE_FOLLOWER);
-    if (pObj->id == pMnode->selfId) {
+    const char *roles = NULL;
+    if (pObj->id == pMnode->selfDnodeId) {
       roles = syncStr(TAOS_SYNC_STATE_LEADER);
+    } else {
+      roles = syncStr(pObj->state);
     }
     char *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
@@ -678,4 +659,53 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void mndCancelGetNextMnode(SMnode *pMnode, void *pIter) {
   SSdb *pSdb = pMnode->pSdb;
   sdbCancelFetch(pSdb, pIter);
+}
+
+static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {
+  SMnode          *pMnode = pReq->info.node;
+  SDAlterMnodeReq alterReq = {0};
+
+  if (tDeserializeSDCreateMnodeReq(pReq->pCont, pReq->contLen, &alterReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  if (alterReq.dnodeId != pMnode->selfDnodeId) {
+    terrno = TSDB_CODE_INVALID_OPTION;
+    mError("failed to alter mnode since %s, input:%d cur:%d", terrstr(), alterReq.dnodeId, pMnode->selfDnodeId);
+    return -1;
+  }
+
+  SSyncCfg cfg = {.replicaNum = alterReq.replica, .myIndex = -1};
+  for (int32_t i = 0; i < alterReq.replica; ++i) {
+    SNodeInfo *pNode = &cfg.nodeInfo[i];
+    tstrncpy(pNode->nodeFqdn, alterReq.replicas[i].fqdn, sizeof(pNode->nodeFqdn));
+    pNode->nodePort = alterReq.replicas[i].port;
+    if (alterReq.replicas[i].id == pMnode->selfDnodeId) cfg.myIndex = i;
+  }
+
+  if (cfg.myIndex == -1) {
+    mError("failed to alter mnode since myindex is -1");
+    return -1;
+  } else {
+    mInfo("start to alter mnode sync, replica:%d myindex:%d", cfg.replicaNum, cfg.myIndex);
+    for (int32_t i = 0; i < alterReq.replica; ++i) {
+      SNodeInfo *pNode = &cfg.nodeInfo[i];
+      mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
+    }
+  }
+
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  pMgmt->standby = 0;
+  int32_t code = syncReconfig(pMgmt->sync, &cfg);
+  if (code != 0) {
+    mError("failed to alter mnode sync since %s", terrstr());
+    return code;
+  } else {
+    pMgmt->errCode = 0;
+    tsem_wait(&pMgmt->syncSem);
+    mInfo("alter mnode sync result:%s", tstrerror(pMgmt->errCode));
+    terrno = pMgmt->errCode;
+    return pMgmt->errCode;
+  }
 }

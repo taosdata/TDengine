@@ -264,7 +264,7 @@ static void mndSetOptions(SMnode *pMnode, const SMnodeOpt *pOption) {
   pMnode->selfIndex = pOption->selfIndex;
   memcpy(&pMnode->replicas, pOption->replicas, sizeof(SReplica) * TSDB_MAX_REPLICA);
   pMnode->msgCb = pOption->msgCb;
-  pMnode->selfId = pOption->replicas[pOption->selfIndex].id;
+  pMnode->selfDnodeId = pOption->dnodeId;
   pMnode->syncMgmt.standby = pOption->standby;
 }
 
@@ -318,7 +318,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption) {
     return NULL;
   }
 
-  mndUpdateMnodeRole(pMnode);
   mDebug("mnode open successfully ");
   return pMnode;
 }
@@ -519,16 +518,17 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SMonMnodeDesc desc = {0};
     desc.mnode_id = pObj->id;
     tstrncpy(desc.mnode_ep, pObj->pDnode->ep, sizeof(desc.mnode_ep));
-    tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
-    // tstrncpy(desc.role, syncStr(pObj->role), sizeof(desc.role));
-    taosArrayPush(pClusterInfo->mnodes, &desc);
-    sdbRelease(pSdb, pObj);
 
-    if (pObj->id == pMnode->selfId) {
+    if (pObj->id == pMnode->selfDnodeId) {
       pClusterInfo->first_ep_dnode_id = pObj->id;
       tstrncpy(pClusterInfo->first_ep, pObj->pDnode->ep, sizeof(pClusterInfo->first_ep));
-      pClusterInfo->master_uptime = (ms - pObj->roleTime) / (86400000.0f);
+      pClusterInfo->master_uptime = (ms - pObj->stateStartTime) / (86400000.0f);
+      tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
+    } else {
+      tstrncpy(desc.role, syncStr(pObj->state), sizeof(desc.role));
     }
+    taosArrayPush(pClusterInfo->mnodes, &desc);
+    sdbRelease(pSdb, pObj);
   }
 
   // vgroup info
@@ -581,6 +581,6 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
-  pLoad->syncState = pMnode->syncMgmt.state;
+  pLoad->syncState = syncGetMyRole(pMnode->syncMgmt.sync);
   return 0;
 }

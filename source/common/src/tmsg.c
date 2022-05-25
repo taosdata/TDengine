@@ -891,6 +891,9 @@ int32_t tSerializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
     if (tEncodeI64(&encoder, pload->pointsWritten) < 0) return -1;
   }
 
+  // mnode loads
+  if (tEncodeI32(&encoder, pReq->mload.syncState) < 0) return -1;
+
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -945,6 +948,8 @@ int32_t tDeserializeSStatusReq(void *buf, int32_t bufLen, SStatusReq *pReq) {
       return -1;
     }
   }
+
+  if (tDecodeI32(&decoder, &pReq->mload.syncState) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);
