@@ -17,22 +17,26 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); }
+int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { 
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = htonl(pHead->contLen);
+  pHead->vgId = htonl(pHead->vgId);
+
+  return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); 
+}
 
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
 void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SMnode    *pMnode = pFsm->data;
-  SSdb      *pSdb = pMnode->pSdb;
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  SSdbRaw   *pRaw = pMsg->pCont;
+  SMnode  *pMnode = pFsm->data;
+  SSdbRaw *pRaw = pMsg->pCont;
 
   mTrace("raw:%p, apply to sdb, ver:%" PRId64 " role:%s", pRaw, cbMeta.index, syncStr(cbMeta.state));
-  sdbWriteWithoutFree(pSdb, pRaw);
-  sdbSetApplyIndex(pSdb, cbMeta.index);
-  sdbSetApplyTerm(pSdb, cbMeta.term);
+  sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+  sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
+  sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);
   if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-    tsem_post(&pMgmt->syncSem);
+    tsem_post(&pMnode->syncMgmt.syncSem);
   }
 }
 
@@ -45,19 +49,54 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
-  mndTransPullup(pMnode);
-  pMnode->syncMgmt.restored = true;
+  if (!pMnode->deploy) {
+    mndTransPullup(pMnode);
+    pMnode->syncMgmt.restored = true;
+  }
+}
+
+int32_t mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf, int32_t* len) {
+  /*
+  SMnode *pMnode = pFsm->data;
+  SSdbIter *pIter;
+  if (iter == NULL) { 
+    pIter = sdbIterInit(pMnode->sdb)
+  } else {
+    pIter = iter;
+  }
+  */
+
+  return 0;
+}
+
+int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len) {
+  SMnode *pMnode = pFsm->data;
+  sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
+  return 0;
+}
+
+void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+  mInfo("mndReConfig cbMeta.code:%d, cbMeta.currentTerm:%" PRId64 ", cbMeta.term:%" PRId64 ", cbMeta.index:%" PRId64,
+        cbMeta.code, cbMeta.currentTerm, cbMeta.term, cbMeta.index);
+  SMnode *pMnode = pFsm->data;
+  pMnode->syncMgmt.errCode = cbMeta.code;
+  tsem_post(&pMnode->syncMgmt.syncSem);
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
   pFsm->data = pMnode;
+
   pFsm->FpCommitCb = mndSyncCommitMsg;
   pFsm->FpPreCommitCb = NULL;
   pFsm->FpRollBackCb = NULL;
+
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
-  pFsm->FpRestoreFinish = mndRestoreFinish;
-  pFsm->FpRestoreSnapshot = NULL;
+  pFsm->FpRestoreFinishCb = mndRestoreFinish;
+  pFsm->FpSnapshotRead = mndSnapshotRead;
+  pFsm->FpSnapshotApply = mndSnapshotApply;
+  pFsm->FpReConfigCb = mndReConfig;
+  
   return pFsm;
 }
 
@@ -90,10 +129,13 @@ int32_t mndInitSync(SMnode *pMnode) {
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
   pCfg->myIndex = pMnode->selfIndex;
+  mInfo("start to open mnode sync, replica:%d myindex:%d standby:%d", pCfg->replicaNum, pCfg->myIndex,
+        pMgmt->standby);
   for (int32_t i = 0; i < pMnode->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
     pNode->nodePort = pMnode->replicas[i].port;
+    mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
   }
 
   tsem_init(&pMgmt->syncSem, 0, 0);
@@ -149,7 +191,11 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
-  syncStart(pMgmt->sync);
+  if (pMgmt->standby) {
+    syncStartStandBy(pMgmt->sync);
+  } else {
+    syncStart(pMgmt->sync);
+  }
   mDebug("sync:%" PRId64 " is started", pMgmt->sync);
 }
 
@@ -157,7 +203,6 @@ void mndSyncStop(SMnode *pMnode) {}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  pMgmt->state = syncGetMyRole(pMgmt->sync);
-
-  return (pMgmt->state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
+  ESyncState state = syncGetMyRole(pMgmt->sync);
+  return (state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
 }

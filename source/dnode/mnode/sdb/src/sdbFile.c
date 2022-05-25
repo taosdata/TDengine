@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 #include "tchecksum.h"
 #include "wal.h"
 
@@ -391,4 +391,67 @@ int32_t sdbDeploy(SSdb *pSdb) {
   }
 
   return 0;
+}
+
+SSdbIter *sdbIterInit(SSdb *pSdb) {
+  char datafile[PATH_MAX] = {0};
+  char tmpfile[PATH_MAX] = {0};
+  snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);
+  snprintf(tmpfile, sizeof(datafile), "%s%ssdb.data", pSdb->tmpDir, TD_DIRSEP);
+
+  if (taosCopyFile(datafile, tmpfile) != 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to copy file %s to %s since %s", datafile, tmpfile, terrstr());
+    return NULL;
+  }
+
+  SSdbIter *pIter = taosMemoryCalloc(1, sizeof(SSdbIter));
+  if (pIter == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  pIter->file = taosOpenFile(tmpfile, TD_FILE_READ);
+  if (pIter->file == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to read snapshot file:%s since %s", tmpfile, terrstr());
+    taosMemoryFree(pIter);
+    return NULL;
+  }
+
+  mDebug("start to read snapshot file:%s, iter:%p", tmpfile, pIter);
+  return pIter;
+}
+
+SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *pIter, char **ppBuf, int32_t *buflen) {
+  const int32_t maxlen = 100;
+
+  char *pBuf = taosMemoryCalloc(1, maxlen);
+  if (pBuf == NULL) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
+
+  int32_t readlen = taosReadFile(pIter->file, pBuf, maxlen);
+  if (readlen == 0) {
+    mTrace("read snapshot to the end, readlen:%" PRId64, pIter->readlen);
+    taosMemoryFree(pBuf);
+    taosCloseFile(&pIter->file);
+    taosMemoryFree(pIter);
+    pIter = NULL;
+  } else if (readlen < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    mError("failed to read snapshot since %s, readlen:%" PRId64, terrstr(), pIter->readlen);
+    taosMemoryFree(pBuf);
+    taosCloseFile(&pIter->file);
+    taosMemoryFree(pIter);
+    pIter = NULL;
+  } else {
+    pIter->readlen += readlen;
+    mTrace("read snapshot, readlen:%" PRId64, pIter->readlen);
+    *ppBuf = pBuf;
+    *buflen = readlen;
+  }
+
+  return pIter;
 }

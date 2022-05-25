@@ -96,7 +96,8 @@ struct STQ {
   SHashObj* pStreamTasks;
   SVnode*   pVnode;
   SWal*     pWal;
-  TDB*      pTdb;
+  TDB*      pMetaStore;
+  TTB*      pExecStore;
 };
 
 typedef struct {

@@ -219,6 +219,16 @@ typedef struct {
 
 #define GET_FORWARD_DIRECTION_FACTOR(ord) (((ord) == TSDB_ORDER_ASC) ? QUERY_ASC_FORWARD_STEP : QUERY_DESC_FORWARD_STEP)
 
+#define SORT_QSORT_T 0x1
+#define SORT_SPILLED_MERGE_SORT_T 0x2
+typedef struct SSortExecInfo {
+  int32_t sortMethod;
+  int32_t sortBuffer;
+  int32_t loops;       // loop count
+  int32_t writeBytes;  // write io bytes
+  int32_t readBytes;   // read io bytes
+} SSortExecInfo;
+
 #ifdef __cplusplus
 }
 #endif

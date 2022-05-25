@@ -549,11 +549,16 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   // print the statistics information
   {
     SDiskbasedBufStatis* ps = &pBuf->statis;
-    uDebug(
-        "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f "
-        "Kb\n",
-        ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
-        ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
+    if (ps->loadPages == 0) {
+      uDebug(
+          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages)",
+          ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages);
+    } else {
+      uDebug(
+          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f Kb",
+          ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
+          ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
+    }
   }
 
   taosRemoveFile(pBuf->path);

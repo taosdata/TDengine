@@ -98,7 +98,6 @@ static int32_t getExprFunctionId(SExprInfo* pExprInfo) {
 }
 
 static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes);
-static bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 
 static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pSDataBlock);
 
@@ -937,7 +936,7 @@ int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
+bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
   struct SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
   // in case of timestamp column, always generated results.
@@ -1748,8 +1747,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
   SResultRow* pRow = doSetResultOutBufByKey(pSup->pResultBuf, pResultRowInfo, (char*)&tid, sizeof(tid), true, groupId,
                                             pTaskInfo, false, pSup);
 
-  ASSERT(pDataBlock->info.numOfCols == numOfExprs);
-  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfExprs; ++i) {
     struct SResultRowEntryInfo* pEntry = getResultCell(pRow, i, rowCellInfoOffset);
     cleanupResultRowEntry(pEntry);
 
@@ -1757,7 +1755,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
     pCtx[i].scanFlag = stage;
   }
 
-  initCtxOutputBuffer(pCtx, pDataBlock->info.numOfCols);
+  initCtxOutputBuffer(pCtx, numOfExprs);
 }
 
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity, int32_t numOfInputRows) {
@@ -4660,6 +4658,19 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     pOptr =
         createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW == type) {
+    SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
+
+    STimeWindowAggSupp as = {.waterMark = pSessionNode->window.watermark,
+                             .calTrigger = pSessionNode->window.triggerType};
+
+    SExprInfo*   pExprInfo = createExprInfo(pSessionNode->window.pFuncs, NULL, &num);
+    SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
+    int32_t      tsSlotId = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
+
+    pOptr =
+        createStreamSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as, pTaskInfo);
+
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     SPartitionPhysiNode* pPartNode = (SPartitionPhysiNode*)pPhyNode;
     SArray*              pColList = extractPartitionColInfo(pPartNode->pPartitionKeys);
@@ -5151,15 +5162,37 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, size_t keyBufSize, const char* pKey,
-                           const char* pDir) {
+int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
+    const char* pDir) {
   pCatchSup->keySize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
   pCatchSup->pKeyBuf = taosMemoryCalloc(1, pCatchSup->keySize);
-  int32_t pageSize = rowSize * 32;
-  int32_t bufSize = pageSize * 4096;
-  createDiskbasedBuf(&pCatchSup->pDataBuf, pageSize, bufSize, pKey, pDir);
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pCatchSup->pWindowHashTable = taosHashInit(10000, hashFn, true, HASH_NO_LOCK);
-  ;
-  return TSDB_CODE_SUCCESS;
+  if (pCatchSup->pKeyBuf == NULL || pCatchSup->pWindowHashTable == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t pageSize = rowSize * 32;
+  int32_t bufSize = pageSize * 4096;
+  return createDiskbasedBuf(&pCatchSup->pDataBuf, pageSize, bufSize, pKey, pDir);
+}
+
+int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
+  pSup->keySize = sizeof(int64_t) + sizeof(TSKEY);
+  pSup->pKeyBuf = taosMemoryCalloc(1, pSup->keySize);
+  pSup->pResultRows = taosArrayInit(1024, sizeof(SResultWindowInfo));
+  if (pSup->pKeyBuf == NULL || pSup->pResultRows == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t pageSize = 4096;
+  while (pageSize < pSup->resultRowSize * 4) {
+    pageSize <<= 1u;
+  }
+  // at least four pages need to be in buffer
+  int32_t bufSize = 4096 * 256;
+  if (bufSize <= pageSize) {
+    bufSize = pageSize * 4;
+  }
+  return createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, "/tmp/");
 }

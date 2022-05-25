@@ -32,9 +32,6 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from mnode queue", pMsg);
 
   switch (pMsg->msgType) {
-    case TDMT_DND_ALTER_MNODE:
-      code = mmProcessAlterReq(pMgmt, pMsg);
-      break;
     case TDMT_MON_MM_INFO:
       code = mmProcessGetMonitorInfoReq(pMgmt, pMsg);
       break;
@@ -61,6 +58,11 @@ static void mmProcessSyncQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from mnode-sync queue", pMsg);
 
   pMsg->info.node = pMgmt->pMnode;
+
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
+
   int32_t code = mndProcessSyncMsg(pMsg);
 
   dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
