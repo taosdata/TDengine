@@ -860,7 +860,7 @@ static SCliThrdObj* createThrdObj() {
   pThrd->timer.data = pThrd;
 
   pThrd->pool = createConnPool(4);
-
+  pThrd->useDefaultEpSet = false;
   transDQCreate(pThrd->loop, &pThrd->delayQueue);
 
   pThrd->quit = false;
