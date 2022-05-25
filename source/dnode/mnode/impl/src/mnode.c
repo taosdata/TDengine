@@ -519,11 +519,12 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     SMonMnodeDesc desc = {0};
     desc.mnode_id = pObj->id;
     tstrncpy(desc.mnode_ep, pObj->pDnode->ep, sizeof(desc.mnode_ep));
-    tstrncpy(desc.role, syncStr(pObj->role), sizeof(desc.role));
+    tstrncpy(desc.role, syncStr(TAOS_SYNC_STATE_LEADER), sizeof(desc.role));
+    // tstrncpy(desc.role, syncStr(pObj->role), sizeof(desc.role));
     taosArrayPush(pClusterInfo->mnodes, &desc);
     sdbRelease(pSdb, pObj);
 
-    if (pObj->role == TAOS_SYNC_STATE_LEADER) {
+    if (pObj->id == pMnode->selfId) {
       pClusterInfo->first_ep_dnode_id = pObj->id;
       tstrncpy(pClusterInfo->first_ep, pObj->pDnode->ep, sizeof(pClusterInfo->first_ep));
       pClusterInfo->master_uptime = (ms - pObj->roleTime) / (86400000.0f);

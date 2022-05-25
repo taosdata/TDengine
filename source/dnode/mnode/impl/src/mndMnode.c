@@ -652,8 +652,12 @@ static int32_t mndRetrieveMnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, b1, false);
 
-    const char *roles = syncStr(syncGetMyRole(pMnode->syncMgmt.sync));
-    char       *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
+    // const char *roles = syncStr(syncGetMyRole(pMnode->syncMgmt.sync));
+    const char *roles = syncStr(TAOS_SYNC_STATE_FOLLOWER);
+    if (pObj->id == pMnode->selfId) {
+      roles = syncStr(TAOS_SYNC_STATE_LEADER);
+    }
+    char *b2 = taosMemoryCalloc(1, 12 + VARSTR_HEADER_SIZE);
     STR_WITH_MAXSIZE_TO_VARSTR(b2, roles, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);

@@ -45,14 +45,68 @@ endi
 print =============== create mnode 2
 sql create mnode on dnode 2
 sql show mnodes
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+
+if $rows != 2 then 
+  return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != LEADER then 
+  return -1
+endi
+if $data(2)[0] != 2 then 
+  return -1
+endi
+if $data(2)[2] != FOLLOWER then 
+  return -1
+endi
+
+print =============== create user
+sql create user user1 PASS 'user1'
+sql show users
 if $rows != 2 then 
   return -1
 endi
 
-return
-sql create mnode on dnode 3
+#sql create database db
+#sql show databases
+#if $rows != 3 then 
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+sleep 100
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+
+sql connect
+
 sql show mnodes
-if $rows != 3 then 
+if $rows != 2 then 
+  return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != LEADER then 
   return -1
 endi
 
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+#sql show databases
+#if $rows != 3 then 
+#  return -1
+#endi
+
+return
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
