@@ -760,6 +760,7 @@ void taosSetAllDebugFlag(int32_t flag) {
   fsDebugFlag = flag;
   fnDebugFlag = flag;
   smaDebugFlag = flag;
+  idxDebugFlag = flag;
 
   uInfo("all debug flag are set to %d", flag);
 }

@@ -31,8 +31,9 @@ static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
   *ip = taosGetIpv4FromFqdn(localFqdn);
   if (*ip == 0xFFFFFFFF) {
     terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    return -1;
   }
-  return terrno;
+  return 0;
 }
 void* rpcOpen(const SRpcInit* pInit) {
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
