@@ -770,7 +770,7 @@ _return:
   }
 
   ctgPutUpdateUserToQueue(pCtg, pOut, false);
-  pTask->msgCtx.out = NULL;
+  taosMemoryFreeClear(pTask->msgCtx.out);
 
   ctgHandleTaskEnd(pTask, code);
 

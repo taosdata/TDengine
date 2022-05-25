@@ -715,8 +715,6 @@ int32_t ctgPutUpdateUserToQueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syn
   action.data = msg;
 
   CTG_ERR_JRET(ctgPushAction(pCtg, &action));
-
-  taosMemoryFree(pAuth);
   
   return TSDB_CODE_SUCCESS;
   

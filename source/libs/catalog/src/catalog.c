@@ -327,31 +327,28 @@ int32_t ctgChkAuth(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const c
     return TSDB_CODE_SUCCESS;
   }
 
-  SGetUserAuthRsp* authRsp = taosMemoryCalloc(1, sizeof(SGetUserAuthRsp));
-  if (NULL == authRsp) {
-    CTG_ERR_RET(TSDB_CODE_OUT_OF_MEMORY);
-  }
-  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(CTG_PARAMS_LIST(), user, authRsp, NULL));
+  SGetUserAuthRsp authRsp = {0};
+  CTG_ERR_RET(ctgGetUserDbAuthFromMnode(CTG_PARAMS_LIST(), user, &authRsp, NULL));
   
-  if (authRsp->superAuth) {
+  if (authRsp.superAuth) {
     *pass = true;
     goto _return;
   }
 
-  if (authRsp->createdDbs && taosHashGet(authRsp->createdDbs, dbFName, strlen(dbFName))) {
+  if (authRsp.createdDbs && taosHashGet(authRsp.createdDbs, dbFName, strlen(dbFName))) {
     *pass = true;
     goto _return;
   }
 
-  if (type == AUTH_TYPE_READ && authRsp->readDbs && taosHashGet(authRsp->readDbs, dbFName, strlen(dbFName))) {
+  if (type == AUTH_TYPE_READ && authRsp.readDbs && taosHashGet(authRsp.readDbs, dbFName, strlen(dbFName))) {
     *pass = true;
-  } else if (type == AUTH_TYPE_WRITE && authRsp->writeDbs && taosHashGet(authRsp->writeDbs, dbFName, strlen(dbFName))) {
+  } else if (type == AUTH_TYPE_WRITE && authRsp.writeDbs && taosHashGet(authRsp.writeDbs, dbFName, strlen(dbFName))) {
     *pass = true;
   }
 
 _return:
 
-  ctgPutUpdateUserToQueue(pCtg, authRsp, false);
+  ctgPutUpdateUserToQueue(pCtg, &authRsp, false);
 
   return TSDB_CODE_SUCCESS;
 }
