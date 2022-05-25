@@ -128,13 +128,14 @@ class TDTestCase:
             return
         return f"select spread({select_clause}) from {from_clause} {where_condition} {group_condition}"
 
-
     @property
     def __tb_list(self):
         return [
             "ct1",
             "ct4",
             "t1",
+            "ct2",
+            "stb1",
         ]
 
     def sql_list(self):
@@ -149,6 +150,9 @@ class TDTestCase:
                     sqls.extend(
                         (
                             self.__single_sql(select_claus, tb, where_claus, having_claus),
+                            self.__single_sql(select_claus, tb,),
+                            self.__single_sql(select_claus, tb, where_condition=where_claus),
+                            self.__single_sql(select_claus, tb, group_condition=group_claus),
                         )
                     )
 
