@@ -231,6 +231,12 @@ int32_t mnodeCreateFunc(SAcctObj *pAcct, char *name, int32_t codeLen, char *code
     return TSDB_CODE_MND_INVALID_FUNC_PARAMS;
   }
 
+#ifndef TD_ENTERPRISE
+  if (numOfParams > 1) {
+    return TSDB_CODE_MND_INVALID_FUNC_PARAMS;
+  }
+#endif
+
   SFuncObj *pFunc = mnodeGetFunc(name);
   if (pFunc != NULL) {
     mDebug("func:%s, is already there", name);
