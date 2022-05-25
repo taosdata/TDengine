@@ -189,6 +189,7 @@ static int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, con
   const char* msg1 = "name too long";
   const char* msg2 = "invalid database name";
   const char* msg3 = "db is not specified";
+  const char* msg4 = "invalid table name";
 
   int32_t code = TSDB_CODE_SUCCESS;
   char*   p = strnchr(pTableName->z, TS_PATH_DELIMITER[0], pTableName->n, true);
@@ -207,6 +208,10 @@ static int32_t createSName(SName* pName, SToken* pTableName, int32_t acctId, con
     }
 
     int32_t tbLen = pTableName->n - dbLen - 1;
+    if (tbLen <= 0) {
+      return buildInvalidOperationMsg(pMsgBuf, msg4);
+    }
+
     char    tbname[TSDB_TABLE_FNAME_LEN] = {0};
     strncpy(tbname, p + 1, tbLen);
     /*tbLen = */ strdequote(tbname);
