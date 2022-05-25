@@ -617,16 +617,18 @@ static int vnodeDebugPrintSingleSubmitMsg(SMeta *pMeta, SSubmitBlk *pBlock, SSub
   STSchema      *pSchema = NULL;
   tb_uid_t       suid = 0;
   STSRow        *row = NULL;
+  int32_t        rv = -1;
 
   tInitSubmitBlkIter(msgIter, pBlock, &blkIter);
   if (blkIter.row == NULL) return 0;
-  if (!pSchema || (suid != msgIter->suid)) {
+  if (!pSchema || (suid != msgIter->suid) || rv != TD_ROW_SVER(blkIter.row)) {
     if (pSchema) {
       taosMemoryFreeClear(pSchema);
     }
-    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, 1);  // TODO: use the real schema
+    pSchema = metaGetTbTSchema(pMeta, msgIter->suid, TD_ROW_SVER(blkIter.row));  // TODO: use the real schema
     if (pSchema) {
       suid = msgIter->suid;
+      rv = TD_ROW_SVER(blkIter.row);
     }
   }
   if (!pSchema) {

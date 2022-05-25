@@ -622,18 +622,14 @@ typedef struct SSortedMergeOperatorInfo {
 
 typedef struct SSortOperatorInfo {
   SOptrBasicInfo binfo;
-  uint32_t     sortBufSize;  // max buffer size for in-memory sort
+  uint32_t     sortBufSize;    // max buffer size for in-memory sort
   SArray*      pSortInfo;
   SSortHandle* pSortHandle;
   SArray*      pColMatchInfo;  // for index map from table scan output
   int32_t      bufPageSize;
 
-  // TODO extact struct
-  int64_t  startTs;       // sort start time
-  uint64_t sortElapsed;   // sort elapsed time, time to flush to disk not included.
-  uint64_t totalSize;     // total load bytes from remote
-  uint64_t totalRows;     // total number of rows
-  uint64_t totalElapsed;  // total elapsed time
+  int64_t      startTs;       // sort start time
+  uint64_t     sortElapsed;   // sort elapsed time, time to flush to disk not included.
 } SSortOperatorInfo;
 
 typedef struct STagFilterOperatorInfo {
