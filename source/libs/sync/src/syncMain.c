@@ -377,7 +377,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
     assert(pSyncNode->pRaftCfg != NULL);
     pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
 
-    char *seralized = raftCfg2Str(pSyncNode->pRaftCfg);
+    char* seralized = raftCfg2Str(pSyncNode->pRaftCfg);
     sInfo("syncNodeOpen update config :%s", seralized);
     taosMemoryFree(seralized);
 

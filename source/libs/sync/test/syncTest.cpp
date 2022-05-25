@@ -49,7 +49,7 @@ void test4() {
   logTest((char*)__FUNCTION__);
 }
 
-int main(int argc, char **argv) {
+int main(int argc, char** argv) {
   // taosInitLog("tmp/syncTest.log", 100);
   tsAsyncLog = 0;
 
