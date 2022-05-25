@@ -126,6 +126,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
   syncInfo.pWal = pMgmt->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
+  syncInfo.isStandBy = pMgmt->standby;
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
@@ -192,11 +193,17 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
+
+  syncStart(pMgmt->sync);
+
+#if 0
   if (pMgmt->standby) {
     syncStartStandBy(pMgmt->sync);
   } else {
     syncStart(pMgmt->sync);
   }
+#endif
+
   mDebug("sync:%" PRId64 " is started", pMgmt->sync);
 }
 
