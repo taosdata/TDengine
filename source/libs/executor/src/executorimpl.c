@@ -98,7 +98,6 @@ static int32_t getExprFunctionId(SExprInfo* pExprInfo) {
 }
 
 static void doSetTagValueToResultBuf(char* output, const char* val, int16_t type, int16_t bytes);
-static bool functionNeedToExecute(SqlFunctionCtx* pCtx);
 
 static void setBlockStatisInfo(SqlFunctionCtx* pCtx, SExprInfo* pExpr, SSDataBlock* pSDataBlock);
 
@@ -937,7 +936,7 @@ int32_t setGroupResultOutputBuf(SOptrBasicInfo* binfo, int32_t numOfCols, char* 
   return TSDB_CODE_SUCCESS;
 }
 
-static bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
+bool functionNeedToExecute(SqlFunctionCtx* pCtx) {
   struct SResultRowEntryInfo* pResInfo = GET_RES_INFO(pCtx);
 
   // in case of timestamp column, always generated results.
@@ -2719,8 +2718,9 @@ static void* setAllSourcesCompleted(SOperatorInfo* pOperator, int64_t startTs) {
   SExchangeInfo* pExchangeInfo = pOperator->info;
   SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  int64_t              el = taosGetTimestampUs() - startTs;
+  int64_t el = taosGetTimestampUs() - startTs;
   SLoadRemoteDataInfo* pLoadInfo = &pExchangeInfo->loadInfo;
+
   pLoadInfo->totalElapsed += el;
 
   size_t totalSources = taosArrayGetSize(pExchangeInfo->pSources);
@@ -2921,6 +2921,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
              pLoadInfo->totalSize);
     }
 
+    pOperator->resultInfo.totalRows += pRes->info.rows;
     return pExchangeInfo->pResult;
   }
 }
@@ -2930,10 +2931,10 @@ static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
     return TSDB_CODE_SUCCESS;
   }
 
+  int64_t st = taosGetTimestampUs();
+
   SExchangeInfo* pExchangeInfo = pOperator->info;
-  if (pExchangeInfo->seqLoadData) {
-    // do nothing for sequentially load data
-  } else {
+  if (!pExchangeInfo->seqLoadData) {
     int32_t code = prepareConcurrentlyLoad(pOperator);
     if (code != TSDB_CODE_SUCCESS) {
       return code;
@@ -2941,6 +2942,7 @@ static int32_t prepareLoadRemoteData(SOperatorInfo* pOperator) {
   }
 
   OPTR_SET_OPENED(pOperator);
+  pOperator->cost.openCost = (taosGetTimestampUs() - st) / 1000.0;
   return TSDB_CODE_SUCCESS;
 }
 
@@ -2968,15 +2970,6 @@ static SSDataBlock* doLoadRemoteData(SOperatorInfo* pOperator) {
   } else {
     return concurrentlyLoadRemoteData(pOperator);
   }
-
-#if 0
-  _error:
-  taosMemoryFreeClear(pMsg);
-  taosMemoryFreeClear(pMsgSendInfo);
-
-  terrno = pTaskInfo->code;
-  return NULL;
-#endif
 }
 
 static int32_t initDataSource(int32_t numOfSources, SExchangeInfo* pInfo) {
@@ -3005,12 +2998,8 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, const SNodeList* p
                                           SExecTaskInfo* pTaskInfo) {
   SExchangeInfo* pInfo = taosMemoryCalloc(1, sizeof(SExchangeInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
-
   if (pInfo == NULL || pOperator == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-    terrno = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    goto _error;
   }
 
   size_t numOfSources = LIST_LENGTH(pSources);
@@ -3035,18 +3024,17 @@ SOperatorInfo* createExchangeOperatorInfo(void* pTransporter, const SNodeList* p
 
   tsem_init(&pInfo->ready, 0, 0);
 
-  pOperator->name = "ExchangeOperator";
+  pOperator->name         = "ExchangeOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_EXCHANGE;
-  pOperator->blocking = false;
-  pOperator->status = OP_NOT_OPENED;
-  pOperator->info = pInfo;
-  pOperator->numOfExprs = pBlock->info.numOfCols;
-  pOperator->pTaskInfo = pTaskInfo;
+  pOperator->blocking     = false;
+  pOperator->status       = OP_NOT_OPENED;
+  pOperator->info         = pInfo;
+  pOperator->numOfExprs   = pBlock->info.numOfCols;
+  pOperator->pTaskInfo    = pTaskInfo;
 
   pOperator->fpSet = createOperatorFpSet(prepareLoadRemoteData, doLoadRemoteData, NULL, NULL,
                                          destroyExchangeOperatorInfo, NULL, NULL, NULL);
   pInfo->pTransporter = pTransporter;
-
   return pOperator;
 
 _error:
@@ -4671,6 +4659,19 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
     pOptr =
         createSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as, pTaskInfo);
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW == type) {
+    SSessionWinodwPhysiNode* pSessionNode = (SSessionWinodwPhysiNode*)pPhyNode;
+
+    STimeWindowAggSupp as = {.waterMark = pSessionNode->window.watermark,
+                             .calTrigger = pSessionNode->window.triggerType};
+
+    SExprInfo*   pExprInfo = createExprInfo(pSessionNode->window.pFuncs, NULL, &num);
+    SSDataBlock* pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
+    int32_t      tsSlotId = ((SColumnNode*)pSessionNode->window.pTspk)->slotId;
+
+    pOptr =
+        createStreamSessionAggOperatorInfo(ops[0], pExprInfo, num, pResBlock, pSessionNode->gap, tsSlotId, &as, pTaskInfo);
+
   } else if (QUERY_NODE_PHYSICAL_PLAN_PARTITION == type) {
     SPartitionPhysiNode* pPartNode = (SPartitionPhysiNode*)pPhyNode;
     SArray*              pColList = extractPartitionColInfo(pPartNode->pPartitionKeys);
@@ -5162,15 +5163,37 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, size_t keyBufSize, const char* pKey,
-                           const char* pDir) {
+int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
+    const char* pDir) {
   pCatchSup->keySize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
   pCatchSup->pKeyBuf = taosMemoryCalloc(1, pCatchSup->keySize);
-  int32_t pageSize = rowSize * 32;
-  int32_t bufSize = pageSize * 4096;
-  createDiskbasedBuf(&pCatchSup->pDataBuf, pageSize, bufSize, pKey, pDir);
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
   pCatchSup->pWindowHashTable = taosHashInit(10000, hashFn, true, HASH_NO_LOCK);
-  ;
-  return TSDB_CODE_SUCCESS;
+  if (pCatchSup->pKeyBuf == NULL || pCatchSup->pWindowHashTable == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t pageSize = rowSize * 32;
+  int32_t bufSize = pageSize * 4096;
+  return createDiskbasedBuf(&pCatchSup->pDataBuf, pageSize, bufSize, pKey, pDir);
+}
+
+int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
+  pSup->keySize = sizeof(int64_t) + sizeof(TSKEY);
+  pSup->pKeyBuf = taosMemoryCalloc(1, pSup->keySize);
+  pSup->pResultRows = taosArrayInit(1024, sizeof(SResultWindowInfo));
+  if (pSup->pKeyBuf == NULL || pSup->pResultRows == NULL) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  int32_t pageSize = 4096;
+  while (pageSize < pSup->resultRowSize * 4) {
+    pageSize <<= 1u;
+  }
+  // at least four pages need to be in buffer
+  int32_t bufSize = 4096 * 256;
+  if (bufSize <= pageSize) {
+    bufSize = pageSize * 4;
+  }
+  return createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, "/tmp/");
 }

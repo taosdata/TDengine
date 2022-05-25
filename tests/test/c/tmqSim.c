@@ -321,9 +321,16 @@ int32_t saveConsumeResult(SThreadInfo* pInfo) {
   TAOS* pConn = taos_connect(NULL, "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
+  int64_t now = taosGetTimestampMs();
+
   // schema: ts timestamp, consumerid int, consummsgcnt bigint, checkresult int
-  sprintf(sqlStr, "insert into %s.consumeresult values (now, %d, %" PRId64 ", %" PRId64 ", %d)", g_stConfInfo.cdbName,
-          pInfo->consumerId, pInfo->consumeMsgCnt, pInfo->consumeRowCnt, pInfo->checkresult);
+  sprintf(sqlStr, "insert into %s.consumeresult values (%"PRId64", %d, %" PRId64 ", %" PRId64 ", %d)", 
+                   g_stConfInfo.cdbName,
+                   now,
+                   pInfo->consumerId, 
+                   pInfo->consumeMsgCnt, 
+                   pInfo->consumeRowCnt, 
+                   pInfo->checkresult);
 
   char tmpString[128];
   taosFprintfFile(g_fp, "%s, consume id %d result: %s\n", getCurrentTimeString(tmpString), pInfo->consumerId ,sqlStr);
