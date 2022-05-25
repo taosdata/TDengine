@@ -1155,10 +1155,19 @@ int wsclient_handshake() {
     key_nonce[i] = rand() & 0xff;
   }
   base64_encode(key_nonce, 16, websocket_key, 256);
-  snprintf(request_header, 1024,
-           "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
-           "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
-           args.host, args.port, websocket_key);
+  if (args.token) {
+    snprintf(request_header, 1024,
+             "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
+             "%s:%d\r\nSec-WebSocket-Key: "
+             "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
+             args.token, args.host, args.port, websocket_key);
+  } else {
+    snprintf(request_header, 1024,
+             "GET /rest/ws HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: %s:%d\r\nSec-WebSocket-Key: "
+             "%s\r\nSec-WebSocket-Version: 13\r\n\r\n",
+             args.host, args.port, websocket_key);
+  }
+
   ssize_t n = send(args.socket, request_header, strlen(request_header), 0);
   if (n == 0) {
     fprintf(stderr, "web socket handshake error\n");
