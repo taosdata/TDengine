@@ -137,7 +137,7 @@ static int32_t createDataBlock(size_t defaultSize, int32_t rowSize, int32_t star
   }
   memset(dataBuf->pData, 0, sizeof(SSubmitBlk));
 
-  dataBuf->pTableMeta = pTableMeta;
+  dataBuf->pTableMeta = tableMetaDup(pTableMeta);
 
   SParsedDataColInfo* pColInfo = &dataBuf->boundColumnInfo;
   SSchema*            pSchema = getTableColumnSchema(dataBuf->pTableMeta);
