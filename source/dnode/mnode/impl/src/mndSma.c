@@ -492,7 +492,6 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
   streamObj.createdBy = STREAM_CREATED_BY__SMA;
-  streamObj.fixedSinkVgId = smaObj.dstVgId;
   streamObj.smaId = smaObj.uid;
 
   if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
@@ -500,6 +499,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
     return -1;
   }
   smaObj.dstVgId = streamObj.fixedSinkVg.vgId;
+  streamObj.fixedSinkVgId = smaObj.dstVgId;
 
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_SMA, pReq);
