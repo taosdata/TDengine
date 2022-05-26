@@ -1120,12 +1120,12 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     NEXT_TOKEN(pCxt->pSql, sToken);
 
     SName name;
-    createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
-    tNameExtractFullName(&name, tbFName);
+    CHECK_CODE(createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
 
+    tNameExtractFullName(&name, tbFName);
     CHECK_CODE(taosHashPut(pCxt->pTableNameHashObj, tbFName, strlen(tbFName), &name, sizeof(SName)));
 
-    // USING cluase
+    // USING clause
     if (TK_USING == sToken.type) {
       CHECK_CODE(parseUsingClause(pCxt, &name, tbFName));
       NEXT_TOKEN(pCxt->pSql, sToken);

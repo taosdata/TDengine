@@ -456,7 +456,7 @@ static int32_t mndProcessCreateStreamReq(SRpcMsg *pReq) {
     goto CREATE_STREAM_OVER;
   }
 
-  pDb = mndAcquireDbByStream(pMnode, createStreamReq.name);
+  pDb = mndAcquireDb(pMnode, createStreamReq.sourceDB);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto CREATE_STREAM_OVER;
