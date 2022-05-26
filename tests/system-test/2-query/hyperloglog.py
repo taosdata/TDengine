@@ -57,9 +57,9 @@ class TDTestCase:
                     f"sqrt( {tbname}.{num_col} )",
                     f"tan( {tbname}.{num_col} )",
                     f"cast( {tbname}.{num_col} as timestamp)",
-                )
+                ),
+                (f"{num_col} + {any_col}" for any_col in ALL_COL)
             )
-            [ query_condition.append(f"{num_col} + {any_col}") for any_col in ALL_COL ]
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
@@ -199,13 +199,13 @@ class TDTestCase:
             tdSql.query(sqls[i])
 
     def __test_current(self):
-        tdSql.query("select spread(ts) from ct1")
-        tdSql.checkRows(1)
-        tdSql.query("select spread(c1) from ct2")
-        tdSql.checkRows(1)
-        tdSql.query("select spread(c1) from ct4 group by c1")
+        tdSql.query("select hyperloglog(ts) from ct1")
+        tdSql.checkRows(self.rows)
+        tdSql.query("select hyperloglog(c1) from ct2")
+        tdSql.checkRows(self.rows + 2)
+        tdSql.query("select hyperloglog(c1) from ct4 group by c1")
         tdSql.checkRows(self.rows + 3)
-        tdSql.query("select spread(c1) from ct4 group by c7")
+        tdSql.query("select hyperloglog(c1) from ct4 group by c7")
         tdSql.checkRows(3)
         tdSql.query("select spread(ct2.c1) from ct4 join ct2 on ct4.ts=ct2.ts")
         tdSql.checkRows(1)

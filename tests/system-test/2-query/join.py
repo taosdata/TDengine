@@ -36,7 +36,7 @@ class TDTestCase:
             query_condition.extend(
                 (
                     f"{tbname}.{char_col}",
-                    f"upper( {tbname}.{char_col} )",
+                    # f"upper( {tbname}.{char_col} )",
                 )
             )
             query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
@@ -106,11 +106,11 @@ class TDTestCase:
     @property
     def __join_tblist(self):
         return [
-            ["ct1", "ct2"],
+            # ["ct1", "ct2"],
             ["ct1", "ct4"],
             ["ct1", "t1"],
             ["ct2", "ct4"],
-            ["ct2", "t1"],
+            # ["ct2", "t1"],
             ["ct4", "t1"],
             # ["ct1", "ct2", "ct4"],
             # ["ct1", "ct2", "t1"],
