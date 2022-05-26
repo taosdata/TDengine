@@ -401,13 +401,12 @@ typedef struct SStreamBlockScanInfo {
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
-  SReadHandle readHandle;
-
   SRetrieveMetaTableRsp* pRsp;
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
 
+  SReadHandle         readHandle;
   int32_t             accountId;
   bool                showRewrite;
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
