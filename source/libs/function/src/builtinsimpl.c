@@ -503,7 +503,7 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
   }
 
   //check for overflow
-  if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
+  if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
     GET_RES_INFO(pCtx)->isNullRes = 1;
   }
 
