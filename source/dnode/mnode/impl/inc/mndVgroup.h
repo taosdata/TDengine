@@ -30,6 +30,7 @@ SSdbRaw *mndVgroupActionEncode(SVgObj *pVgroup);
 SEpSet   mndGetVgroupEpset(SMnode *pMnode, const SVgObj *pVgroup);
 int32_t  mndGetVnodesNum(SMnode *pMnode, int32_t dnodeId);
 
+int32_t mndAllocSmaVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj *pVgroup);
 int32_t mndAllocVgroup(SMnode *pMnode, SDbObj *pDb, SVgObj **ppVgroups);
 SArray *mndBuildDnodesArray(SMnode *pMnode);
 int32_t mndAddVnodeToVgroup(SMnode *pMnode, SVgObj *pVgroup, SArray *pArray);
