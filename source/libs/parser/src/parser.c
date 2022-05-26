@@ -19,7 +19,7 @@
 #include "parInt.h"
 #include "parToken.h"
 
-bool isInsertSql(const char* pStr, size_t length) {
+bool qIsInsertSql(const char* pStr, size_t length) {
   if (NULL == pStr) {
     return false;
   }
@@ -169,7 +169,7 @@ static void rewriteExprAlias(SNode* pRoot) {
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
     code = parseInsertSql(pCxt, pQuery);
   } else {
     code = parseSqlIntoAst(pCxt, pQuery);
@@ -182,6 +182,18 @@ void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema) {
   return extractResultSchema(pRoot, numOfCols, pSchema);
+}
+
+int32_t qSetSTableIdForRSma(SNode* pStmt, int64_t uid) {
+  if (QUERY_NODE_SELECT_STMT == nodeType(pStmt)) {
+    SNode* pTable = ((SSelectStmt*)pStmt)->pFromTable;
+    if (QUERY_NODE_REAL_TABLE == nodeType(pTable)) {
+      ((SRealTableNode*)pTable)->pMeta->uid = uid;
+      ((SRealTableNode*)pTable)->pMeta->suid = uid;
+      return TSDB_CODE_SUCCESS;
+    }
+  }
+  return TSDB_CODE_FAILED;
 }
 
 int32_t qStmtBindParams(SQuery* pQuery, TAOS_MULTI_BIND* pParams, int32_t colIdx) {

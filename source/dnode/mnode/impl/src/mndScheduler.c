@@ -28,18 +28,25 @@
 #include "mndTrans.h"
 #include "mndUser.h"
 #include "mndVgroup.h"
+#include "parser.h"
 #include "tcompare.h"
 #include "tname.h"
 #include "tuuid.h"
 
 extern bool tsStreamSchedV;
 
-int32_t mndConvertRSmaTask(const char* ast, int8_t triggerType, int64_t watermark, char** pStr, int32_t* pLen) {
+int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int64_t watermark, char** pStr,
+                           int32_t* pLen) {
   SNode*      pAst = NULL;
   SQueryPlan* pPlan = NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   if (nodesStringToNode(ast, &pAst) < 0) {
+    terrno = TSDB_CODE_QRY_INVALID_INPUT;
+    goto END;
+  }
+
+  if (qSetSTableIdForRSma(pAst, uid) < 0) {
     terrno = TSDB_CODE_QRY_INVALID_INPUT;
     goto END;
   }
@@ -230,11 +237,14 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
   taosArrayPush(tasks, &pTask);
 
   pTask->nodeId = pStream->fixedSinkVgId;
+#if 0
   SVgObj* pVgroup = mndAcquireVgroup(pMnode, pStream->fixedSinkVgId);
   if (pVgroup == NULL) {
     return -1;
   }
   pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+#endif
+  pTask->epSet = mndGetVgroupEpset(pMnode, &pStream->fixedSinkVg);
   // source
   pTask->sourceType = TASK_SOURCE__MERGE;
   pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
@@ -256,7 +266,8 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
   // dispatch
   pTask->dispatchType = TASK_DISPATCH__NONE;
 
-  mndPersistTaskDeployReq(pTrans, pTask, &pTask->epSet, TDMT_VND_TASK_DEPLOY, pVgroup->vgId);
+  /*mndPersistTaskDeployReq(pTrans, pTask, &pTask->epSet, TDMT_VND_TASK_DEPLOY, pVgroup->vgId);*/
+  mndPersistTaskDeployReq(pTrans, pTask, &pTask->epSet, TDMT_VND_TASK_DEPLOY, pStream->fixedSinkVg.vgId);
 
   return 0;
 }

@@ -388,25 +388,26 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
   req.rollup = pStb->ast1Len > 0 ? 1 : 0;
-  req.schema.nCols = pStb->numOfColumns;
-  req.schema.sver = pStb->version;
-  req.schema.tagVer = pStb->tagVer;
-  req.schema.colVer = pStb->colVer;
-  req.schema.pSchema = pStb->pColumns;
+  // todo
+  req.schemaRow.nCols = pStb->numOfColumns;
+  req.schemaRow.version = pStb->version;
+  req.schemaRow.pSchema = pStb->pColumns;
   req.schemaTag.nCols = pStb->numOfTags;
-  req.schemaTag.sver = 1;
+  req.schemaTag.version = pStb->tagVer;
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {
     req.pRSmaParam.xFilesFactor = pStb->xFilesFactor;
     req.pRSmaParam.delay = pStb->delay;
     if (pStb->ast1Len > 0) {
-      if (mndConvertRSmaTask(pStb->pAst1, 0, 0, &req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len) != TSDB_CODE_SUCCESS) {
+      if (mndConvertRSmaTask(pStb->pAst1, pStb->uid, 0, 0, &req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len) !=
+          TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
     if (pStb->ast2Len > 0) {
-      if (mndConvertRSmaTask(pStb->pAst2, 0, 0, &req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len) != TSDB_CODE_SUCCESS) {
+      if (mndConvertRSmaTask(pStb->pAst2, pStb->uid, 0, 0, &req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len) !=
+          TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
