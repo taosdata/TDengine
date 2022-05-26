@@ -363,28 +363,32 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                     break;
                   }
                 }
-                ASSERT(hit == true);
 
+                SReConfigCbMeta cbMeta = {0};
                 bool isDrop;
-                syncNodeUpdateConfig(ths, &newSyncCfg, &isDrop);
 
-                // change isStandBy to normal
-                if (!isDrop) {
-                  if (ths->state == TAOS_SYNC_STATE_LEADER) {
-                    syncNodeBecomeLeader(ths);
-                  } else {
-                    syncNodeBecomeFollower(ths);
+                // I am in newConfig
+                if (hit) {
+                  syncNodeUpdateConfig(ths, &newSyncCfg, &isDrop);
+
+                  // change isStandBy to normal
+                  if (!isDrop) {
+                    if (ths->state == TAOS_SYNC_STATE_LEADER) {
+                      syncNodeBecomeLeader(ths);
+                    } else {
+                      syncNodeBecomeFollower(ths);
+                    }
                   }
+
+                  char* sOld = syncCfg2Str(&oldSyncCfg);
+                  char* sNew = syncCfg2Str(&newSyncCfg);
+                  sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
+                  taosMemoryFree(sOld);
+                  taosMemoryFree(sNew);
                 }
 
-                char* sOld = syncCfg2Str(&oldSyncCfg);
-                char* sNew = syncCfg2Str(&newSyncCfg);
-                sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
-                taosMemoryFree(sOld);
-                taosMemoryFree(sNew);
-
-                if (ths->pFsm->FpReConfigCb != NULL) {
-                  SReConfigCbMeta cbMeta = {0};
+                // always call FpReConfigCb
+                if (ths->pFsm->FpReConfigCb != NULL) {     
                   cbMeta.code = 0;
                   cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                   cbMeta.index = pEntry->index;

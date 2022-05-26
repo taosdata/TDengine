@@ -141,7 +141,10 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
                 break;
               }
             }
-            ASSERT(hit == true);
+
+            if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+              ASSERT(hit == true);
+            }
 
             bool isDrop;
             syncNodeUpdateConfig(pSyncNode, &newSyncCfg, &isDrop);
