@@ -47,10 +47,10 @@ class TDTestCase:
                     paths.append(os.path.join(root, tool))
                     break
         if (len(paths) == 0):
-            tdLog.exit("taos not found!")
+            tdLog.exit("%s not found!" % tool)
             return
         else:
-            tdLog.info("taos found in %s" % paths[0])
+            tdLog.info("%s found in %s" %(tool,paths[0]))
             return paths[0]
 
     def shellrun(self, cmd):
@@ -63,6 +63,8 @@ class TDTestCase:
         if expect not in result:
             print(f"{expect} not in {result} with command: {cmd}")
             assert False
+        else:
+            print(f"pass command: {cmd}")
 
     def run(self):
         binPath = self.getPath()
@@ -78,6 +80,12 @@ class TDTestCase:
         self.checkresult("insert into test.tb2 values (now, 'beijing', 1.23, 18)", "Update OK")
         self.checkresult("insert into test.tb2 values (now, 'beijing', 1.23, 18)", "Update OK")
         self.checkresult("select * from test.stb", "Query OK, 4 row(s) in set")
+        taosBenchmark = self.getPath(tool="taosBenchmark")
+        cmd = "%s -n 100 -t 100 -y" %taosBenchmark
+        tdLog.info("%s" % cmd)
+        os.system("%s" % cmd)
+        self.checkresult("select * from test.meters", "Query OK, 10000 row(s) in set")
+        self.checkresult("select * from test.meters","Notice: The result shows only the first 100 rows")
 
     def stop(self):
         tdSql.close()
