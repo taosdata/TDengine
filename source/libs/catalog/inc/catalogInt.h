@@ -171,7 +171,7 @@ typedef struct SCtgJob {
   uint64_t         queryId;
   SCatalog*        pCtg; 
   void*            pTrans; 
-  const SEpSet*    pMgmtEps;
+  SEpSet           pMgmtEps;
   void*            userParam;
   catalogCallback  userFp;
   int32_t          tbMetaNum;

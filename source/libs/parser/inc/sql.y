@@ -180,6 +180,7 @@ db_options(A) ::= db_options(B) WAL NK_INTEGER(C).                              
 db_options(A) ::= db_options(B) VGROUPS NK_INTEGER(C).                            { A = setDatabaseOption(pCxt, B, DB_OPTION_VGROUPS, &C); }
 db_options(A) ::= db_options(B) SINGLE_STABLE NK_INTEGER(C).                      { A = setDatabaseOption(pCxt, B, DB_OPTION_SINGLE_STABLE, &C); }
 db_options(A) ::= db_options(B) RETENTIONS retention_list(C).                     { A = setDatabaseOption(pCxt, B, DB_OPTION_RETENTIONS, C); }
+db_options(A) ::= db_options(B) SCHEMALESS NK_INTEGER(C).                         { A = setDatabaseOption(pCxt, B, DB_OPTION_SCHEMALESS, &C); }
 
 alter_db_options(A) ::= alter_db_option(B).                                       { A = createAlterDatabaseOptions(pCxt); A = setAlterDatabaseOption(pCxt, A, &B); }
 alter_db_options(A) ::= alter_db_options(B) alter_db_option(C).                   { A = setAlterDatabaseOption(pCxt, B, &C); }
@@ -407,6 +408,7 @@ cmd ::= CREATE TOPIC not_exists_opt(A)
 cmd ::= CREATE TOPIC not_exists_opt(A)
   topic_name(B) topic_options(D) AS db_name(C).                                   { pCxt->pRootNode = createCreateTopicStmt(pCxt, A, &B, NULL, &C, D); }
 cmd ::= DROP TOPIC exists_opt(A) topic_name(B).                                   { pCxt->pRootNode = createDropTopicStmt(pCxt, A, &B); }
+cmd ::= DROP CGROUP exists_opt(A) cgroup_name(B) ON topic_name(C).                { pCxt->pRootNode = createDropCGroupStmt(pCxt, A, &B, &C); }
 
 topic_options(A) ::= .                                                            { A = createTopicOptions(pCxt); }
 topic_options(A) ::= topic_options(B) WITH TABLE.                                 { ((STopicOptions*)B)->withTable = true; A = B; }
@@ -564,6 +566,10 @@ topic_name(A) ::= NK_ID(B).                                                     
 %type stream_name                                                                 { SToken }
 %destructor stream_name                                                           { }
 stream_name(A) ::= NK_ID(B).                                                      { A = B; }
+
+%type cgroup_name                                                                 { SToken }
+%destructor cgroup_name                                                           { }
+cgroup_name(A) ::= NK_ID(B).                                                      { A = B; }
 
 /************************************************ expression **********************************************************/
 expression(A) ::= literal(B).                                                     { A = B; }

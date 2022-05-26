@@ -265,7 +265,7 @@ Below is an example output:
    $ taos> select groupid, location from test.d0;
       groupid   |     location     |
    =================================
-              0 | shanghai         |
+              0 | California.SanDieo         |
    Query OK, 1 row(s) in set (0.003490s)
    ```
 

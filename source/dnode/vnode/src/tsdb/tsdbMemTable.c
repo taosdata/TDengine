@@ -20,7 +20,8 @@ static void     tsdbFreeTbData(STbData *pTbData);
 static char    *tsdbGetTsTupleKey(const void *data);
 static int      tsdbTbDataComp(const void *arg1, const void *arg2);
 static char    *tsdbTbDataGetUid(const void *arg);
-static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row, bool merge);
+static int tsdbAppendTableRowToCols(STsdb *pTsdb, STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row,
+                                    bool merge);
 
 int tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable) {
   STsdbMemTable *pMemTable;
@@ -88,8 +89,8 @@ void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable) {
  *
  * The function tries to procceed AS MUCH AS POSSIBLE.
  */
-int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
-                          TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
+int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
+                          SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo) {
   ASSERT(maxRowsToRead > 0 && nFilterKeys >= 0);
   if (pIter == NULL) return 0;
   STSchema *pSchema = NULL;
@@ -222,12 +223,12 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
             if (lastKey != TSKEY_INITIAL_VAL) {
               ++pCols->numOfRows;
             }
-            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
           }
           lastKey = rowKey;
         } else {
           if (keepDup) {
-            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, true);
           } else {
             // discard
           }
@@ -249,7 +250,7 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
         if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
         pMergeInfo->rowsDeleteSucceed++;
         pMergeInfo->nOperations++;
-        tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+        tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
       } else {
         if (keepDup) {
           if (pCols && pMergeInfo->nOperations >= pCols->maxPoints) break;
@@ -262,11 +263,11 @@ int tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey
               if (lastKey != TSKEY_INITIAL_VAL) {
                 ++pCols->numOfRows;
               }
-              tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, false);
+              tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, false);
             }
             lastKey = rowKey;
           } else {
-            tsdbAppendTableRowToCols(pTable, pCols, &pSchema, row, true);
+            tsdbAppendTableRowToCols(pTsdb, pTable, pCols, &pSchema, row, true);
           }
         } else {
           pMergeInfo->keyFirst = TMIN(pMergeInfo->keyFirst, fKey);
@@ -321,7 +322,7 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
     return -1;
   }
   strcat(pRsp->tblFName, mr.me.name);
-  
+
   if (mr.me.type == TSDB_NORMAL_TABLE) {
     sverNew = mr.me.ntbEntry.schema.sver;
   } else {
@@ -431,10 +432,12 @@ static char *tsdbTbDataGetUid(const void *arg) {
   STbData *pTbData = (STbData *)arg;
   return (char *)(&(pTbData->uid));
 }
-static int tsdbAppendTableRowToCols(STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row, bool merge) {
+
+static int tsdbAppendTableRowToCols(STsdb *pTsdb, STable *pTable, SDataCols *pCols, STSchema **ppSchema, STSRow *row,
+                                    bool merge) {
   if (pCols) {
     if (*ppSchema == NULL || schemaVersion(*ppSchema) != TD_ROW_SVER(row)) {
-      *ppSchema = tsdbGetTableSchemaImpl(pTable, false, false, TD_ROW_SVER(row));
+      *ppSchema = tsdbGetTableSchemaImpl(pTsdb, pTable, false, false, TD_ROW_SVER(row));
       if (*ppSchema == NULL) {
         ASSERT(false);
         return -1;

@@ -1747,8 +1747,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
   SResultRow* pRow = doSetResultOutBufByKey(pSup->pResultBuf, pResultRowInfo, (char*)&tid, sizeof(tid), true, groupId,
                                             pTaskInfo, false, pSup);
 
-  ASSERT(pDataBlock->info.numOfCols == numOfExprs);
-  for (int32_t i = 0; i < pDataBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < numOfExprs; ++i) {
     struct SResultRowEntryInfo* pEntry = getResultCell(pRow, i, rowCellInfoOffset);
     cleanupResultRowEntry(pEntry);
 
@@ -1756,7 +1755,7 @@ void setFunctionResultOutput(SOptrBasicInfo* pInfo, SAggSupporter* pSup, int32_t
     pCtx[i].scanFlag = stage;
   }
 
-  initCtxOutputBuffer(pCtx, pDataBlock->info.numOfCols);
+  initCtxOutputBuffer(pCtx, numOfExprs);
 }
 
 void updateOutputBuf(SOptrBasicInfo* pBInfo, int32_t* bufCapacity, int32_t numOfInputRows) {

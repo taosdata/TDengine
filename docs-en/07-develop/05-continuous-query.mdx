@@ -34,8 +34,8 @@ In this section the use case of meters will be used to introduce how to use cont
 
 ```sql
 create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
-create table D1001 using meters tags ("Beijing.Chaoyang", 2);
-create table D1002 using meters tags ("Beijing.Haidian", 2);
+create table D1001 using meters tags ("California.SanFrancisco", 2);
+create table D1002 using meters tags ("California.LoSangeles", 2);
 ```
 
 The SQL statement below retrieves the average voltage for a one minute time window, with each time window moving forward by 30 seconds.
