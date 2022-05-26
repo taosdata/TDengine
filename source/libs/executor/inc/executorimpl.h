@@ -94,10 +94,8 @@ typedef struct SLimit {
 typedef struct STableScanAnalyzeInfo SFileBlockLoadRecorder;
 
 typedef struct STaskCostInfo {
-  int64_t created;
-  int64_t start;
-  int64_t end;
-
+  int64_t  created;
+  int64_t  start;
   uint64_t loadStatisTime;
   uint64_t loadFileBlockTime;
   uint64_t loadDataInCacheTime;
@@ -185,7 +183,7 @@ typedef struct SExecTaskInfo {
   STaskCostInfo    cost;
   int64_t          owner;  // if it is in execution
   int32_t          code;
-  uint64_t         totalRows;            // total number of rows
+//  uint64_t         totalRows;            // total number of rows
   struct {
     char          *tablename;
     char          *dbname;
