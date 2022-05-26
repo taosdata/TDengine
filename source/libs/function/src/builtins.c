@@ -231,12 +231,26 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, 1);
-  if (nodeType(pParamNode) != QUERY_NODE_VALUE) {
+  uint8_t para1Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
+  uint8_t para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+  if (!IS_NUMERIC_TYPE(para1Type) || !IS_INTEGER_TYPE(para2Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SValueNode* pValue = (SValueNode*)pParamNode;
+  //param0
+  SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
+  if (nodeType(pParamNode0) != QUERY_NODE_COLUMN) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "The first parameter of TOP/BOTTOM function can only be column");
+  }
+
+  //param1
+  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+  if (nodeType(pParamNode1) != QUERY_NODE_VALUE) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SValueNode* pValue = (SValueNode*)pParamNode1;
   if (pValue->node.resType.type != TSDB_DATA_TYPE_BIGINT) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
@@ -247,6 +261,7 @@ static int32_t translateTop(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   pValue->notReserved = true;
 
+  //set result type
   SDataType* pType = &((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType;
   pFunc->node.resType = (SDataType){.bytes = pType->bytes, .type = pType->type};
   return TSDB_CODE_SUCCESS;
@@ -276,7 +291,7 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
@@ -288,7 +303,7 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param1
+  // param1
   if (2 == numOfParams) {
     SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
     if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
@@ -317,7 +332,7 @@ static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t le
 
   for (int32_t i = 0; i < numOfParams; ++i) {
     SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
-    if (i > 0) { //param1 & param2
+    if (i > 0) {  // param1 & param2
       if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
         return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
       }
@@ -333,7 +348,6 @@ static int32_t translateLeastSQR(SFunctionNode* pFunc, char* pErrBuf, int32_t le
     }
   }
 
-
   pFunc->node.resType = (SDataType){.bytes = 64, .type = TSDB_DATA_TYPE_BINARY};
   return TSDB_CODE_SUCCESS;
 }
@@ -344,7 +358,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
@@ -356,7 +370,7 @@ static int32_t translateHistogram(SFunctionNode* pFunc, char* pErrBuf, int32_t l
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param1 ~ param3
+  // param1 ~ param3
   for (int32_t i = 1; i < numOfParams; ++i) {
     SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
     if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -399,13 +413,13 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param1 & param2
+  // param1 & param2
   for (int32_t i = 1; i < numOfParams; ++i) {
     SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
     if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -423,7 +437,7 @@ static int32_t translateStateCount(SFunctionNode* pFunc, char* pErrBuf, int32_t 
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //set result type
+  // set result type
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
@@ -434,13 +448,13 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
   if (!IS_NUMERIC_TYPE(colType)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param1, param2 & param3
+  // param1, param2 & param3
   for (int32_t i = 1; i < numOfParams; ++i) {
     SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
     if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -458,11 +472,12 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  if (numOfParams == 4 && ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
+  if (numOfParams == 4 &&
+      ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 3))->resType.type != TSDB_DATA_TYPE_BIGINT) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //set result type
+  // set result type
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_BIGINT].bytes, .type = TSDB_DATA_TYPE_BIGINT};
   return TSDB_CODE_SUCCESS;
 }
@@ -503,7 +518,7 @@ static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   SNode* pParaNode0 = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN != nodeType(pParaNode0)) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
@@ -512,7 +527,7 @@ static int32_t translateMavg(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   uint8_t colType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 0))->resType.type;
 
-  //param1
+  // param1
   SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
   if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -539,7 +554,7 @@ static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   SNode* pParamNode0 = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN != nodeType(pParamNode0)) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
@@ -549,7 +564,7 @@ static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t    colType = pCol->resType.type;
 
-  //param1
+  // param1
   SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
   if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -567,7 +582,7 @@ static int32_t translateSample(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //set result type
+  // set result type
   if (IS_VAR_DATA_TYPE(colType)) {
     pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
   } else {
@@ -583,7 +598,7 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  //param0
+  // param0
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
   if (QUERY_NODE_COLUMN != nodeType(pPara)) {
     return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
@@ -592,7 +607,7 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   SExprNode* pCol = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
   uint8_t    colType = pCol->resType.type;
 
-  //param1 & param2
+  // param1 & param2
   for (int32_t i = 1; i < numOfParams; ++i) {
     SNode* pParamNode = nodesListGetNode(pFunc->pParameterList, i);
     if (QUERY_NODE_VALUE != nodeType(pParamNode)) {
@@ -613,7 +628,7 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     }
   }
 
-  //set result type
+  // set result type
   if (IS_VAR_DATA_TYPE(colType)) {
     pFunc->node.resType = (SDataType){.bytes = pCol->resType.bytes, .type = colType};
   } else {
@@ -745,19 +760,32 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  uint8_t    para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if (!IS_VAR_DATA_TYPE(pPara1->resType.type) || !IS_INTEGER_TYPE(para2Type)) {
+  SExprNode* pPara0 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 1);
+
+  uint8_t para1Type = p1->resType.type;
+  if (!IS_VAR_DATA_TYPE(pPara0->resType.type) || !IS_INTEGER_TYPE(para1Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
+  if (((SValueNode*)p1)->datum.i < 1) {
+    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   if (3 == numOfParams) {
-    uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-    if (!IS_INTEGER_TYPE(para3Type)) {
+    SExprNode* p2 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    uint8_t para2Type = p2->resType.type;
+    if (!IS_INTEGER_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    int64_t v = ((SValueNode*)p1)->datum.i;
+    if (v < 0 || v > INT16_MAX) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
 
-  pFunc->node.resType = (SDataType){.bytes = pPara1->resType.bytes, .type = pPara1->resType.type};
+  pFunc->node.resType = (SDataType){.bytes = pPara0->resType.bytes, .type = pPara0->resType.type};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -978,7 +1006,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "top",
     .type = FUNCTION_TYPE_TOP,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
     .translateFunc = translateTop,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,
@@ -988,7 +1016,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
   {
     .name = "bottom",
     .type = FUNCTION_TYPE_BOTTOM,
-    .classification = FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
+    .classification = FUNC_MGT_AGG_FUNC | FUNC_MGT_SELECT_FUNC | FUNC_MGT_INDEFINITE_ROWS_FUNC,
     .translateFunc = translateBottom,
     .getEnvFunc   = getTopBotFuncEnv,
     .initFunc     = functionSetup,

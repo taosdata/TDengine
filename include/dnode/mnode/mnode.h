@@ -29,6 +29,7 @@ extern "C" {
 typedef struct SMnode SMnode;
 
 typedef struct {
+  int32_t  dnodeId;
   bool     standby;
   bool     deploy;
   int8_t   replica;
@@ -53,15 +54,6 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption);
  * @param pMnode The mnode object to close.
  */
 void mndClose(SMnode *pMnode);
-
-/**
- * @brief Close a mnode.
- *
- * @param pMnode The mnode object to close.
- * @param pOption Options of the mnode.
- * @return int32_t 0 for success, -1 for failure.
- */
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
 
 /**
  * @brief Start mnode

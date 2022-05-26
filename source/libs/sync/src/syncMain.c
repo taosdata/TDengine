@@ -100,6 +100,21 @@ void syncStart(int64_t rid) {
   if (pSyncNode == NULL) {
     return;
   }
+
+  if (pSyncNode->pRaftCfg->isStandBy) {
+    syncNodeStartStandBy(pSyncNode);
+  } else {
+    syncNodeStart(pSyncNode);
+  }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
+void syncStartNormal(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return;
+  }
   syncNodeStart(pSyncNode);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -349,7 +364,9 @@ int32_t syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak) {
 }
 
 // open/close --------------
-SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
+SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
+  SSyncInfo* pSyncInfo = (SSyncInfo*)pOldSyncInfo;
+
   SSyncNode* pSyncNode = (SSyncNode*)taosMemoryMalloc(sizeof(SSyncNode));
   assert(pSyncNode != NULL);
   memset(pSyncNode, 0, sizeof(SSyncNode));
@@ -361,11 +378,25 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pSyncInfo) {
       sError("failed to create dir:%s since %s", pSyncInfo->path, terrstr());
       return NULL;
     }
+  }
 
+  snprintf(pSyncNode->configPath, sizeof(pSyncNode->configPath), "%s/raft_config.json", pSyncInfo->path);
+  if (!taosCheckExistFile(pSyncNode->configPath)) {
     // create raft config file
-    snprintf(pSyncNode->configPath, sizeof(pSyncNode->configPath), "%s/raft_config.json", pSyncInfo->path);
-    ret = syncCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), pSyncNode->configPath);
+    ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), pSyncInfo->isStandBy, pSyncNode->configPath);
     assert(ret == 0);
+
+  } else {
+    // update syncCfg by raft_config.json
+    pSyncNode->pRaftCfg = raftCfgOpen(pSyncNode->configPath);
+    assert(pSyncNode->pRaftCfg != NULL);
+    pSyncInfo->syncCfg = pSyncNode->pRaftCfg->cfg;
+
+    char* seralized = raftCfg2Str(pSyncNode->pRaftCfg);
+    sInfo("syncNodeOpen update config :%s", seralized);
+    taosMemoryFree(seralized);
+
+    raftCfgClose(pSyncNode->pRaftCfg);
   }
 
   // init by SSyncInfo
@@ -962,6 +993,9 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
   syncIndexMgrUpdate(pSyncNode->pMatchIndex, pSyncNode);
   voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
   votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
+
+  pSyncNode->pRaftCfg->isStandBy = 0;
+  raftCfgPersist(pSyncNode->pRaftCfg);
 
   syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
 }

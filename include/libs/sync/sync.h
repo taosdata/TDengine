@@ -98,8 +98,18 @@ typedef struct SSyncFSM {
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
-  void* (*FpSnapshotRead)(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* iter, char** ppBuf, int32_t* len);
-  int32_t (*FpSnapshotApply)(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len);
+
+  // if (*ppIter == NULL)
+  //   *ppIter = new iter;
+  // else
+  //   *ppIter.next();
+  //
+  // if success, return 0. else return error code
+  int32_t (*FpSnapshotRead)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf,
+                            int32_t* len);
+
+  // apply data into fsm
+  int32_t (*FpSnapshotApply)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len);
 
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta);
 
@@ -136,6 +146,7 @@ typedef struct SSyncLogStore {
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
+  bool        isStandBy;
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
@@ -150,7 +161,6 @@ int32_t     syncInit();
 void        syncCleanUp();
 int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
-void        syncStartStandBy(int64_t rid);
 void        syncStop(int64_t rid);
 int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
@@ -162,6 +172,10 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+
+// to be moved to static
+void syncStartNormal(int64_t rid);
+void syncStartStandBy(int64_t rid);
 
 #ifdef __cplusplus
 }

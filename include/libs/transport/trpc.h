@@ -89,19 +89,18 @@ typedef struct SRpcInit {
 typedef struct {
   void *val;
   int32_t (*clone)(void *src, void **dst);
-  void (*freeFunc)(const void *arg);
 } SRpcCtxVal;
 
 typedef struct {
   int32_t msgType;
   void *  val;
   int32_t (*clone)(void *src, void **dst);
-  void (*freeFunc)(const void *arg);
 } SRpcBrokenlinkVal;
 
 typedef struct {
   SHashObj *        args;
   SRpcBrokenlinkVal brokenVal;
+  void (*freeFunc)(const void *arg);
 } SRpcCtx;
 
 int32_t rpcInit();

@@ -292,7 +292,7 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** pRes) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
-  SQueryResult res = {.code = 0, .numOfRows = 0, .msgSize = ERROR_MSG_BUF_DEFAULT_SIZE, .msg = pRequest->msgBuf};
+  SQueryResult res = {.code = 0, .numOfRows = 0};
   int32_t      code = schedulerExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
                                        pRequest->metric.start, &res);
   if (code != TSDB_CODE_SUCCESS) {

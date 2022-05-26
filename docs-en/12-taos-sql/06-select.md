@@ -96,7 +96,7 @@ Query OK, 1 row(s) in set (0.000849s)
 
 ## Tags
 
-Starting from version 2.0.14, tag columns can be selected together with data columns when querying sub tables. Please be noted that, however, wildcard \* doesn't represent any tag column, that means tag columns must be specified explicitly like below example.
+Starting from version 2.0.14, tag columns can be selected together with data columns when querying sub tables. Please note that, however, wildcard \* doesn't represent any tag column, that means tag columns must be specified explicitly like the example below.
 
 ```
 taos> SELECT location, groupid, current FROM d1001 LIMIT 2;
@@ -109,7 +109,7 @@ Query OK, 2 row(s) in set (0.003112s)
 
 ## Get distinct values
 
-`DISTINCT` keyword can be used to get all the unique values of tag columns from a super table, it can also be used to get all the unique values of data columns from a table or sub table.
+`DISTINCT` keyword can be used to get all the unique values of tag columns from a super table, it can also be used to get all the unique values of data columns from a table or subtable.
 
 ```sql
 SELECT DISTINCT tag_name [, tag_name ...] FROM stb_name;
@@ -120,7 +120,7 @@ SELECT DISTINCT col_name [, col_name ...] FROM tb_name;
 
 1. Configuration parameter `maxNumOfDistinctRes` in `taos.cfg` is used to control the number of rows to output. The minimum configurable value is 100,000, the maximum configurable value is 100,000,000, the default value is 1000,000. If the actual number of rows exceeds the value of this parameter, only the number of rows specified by this parameter will be output.
 2. It can't be guaranteed that the results selected by using `DISTINCT` on columns of `FLOAT` or `DOUBLE` are exactly unique because of the precision nature of floating numbers.
-3. `DISTINCT` can't be used in the sub-query of a nested query statement, and can't be used together with aggregate functions, `GROUP BY` or `JOIN` in same SQL statement.
+3. `DISTINCT` can't be used in the sub-query of a nested query statement, and can't be used together with aggregate functions, `GROUP BY` or `JOIN` in the same SQL statement.
 
 :::
 
@@ -197,7 +197,7 @@ taos> SELECT SERVER_VERSION();
 Query OK, 1 row(s) in set (0.000077s)
 ```
 
-Below statement is used to check the server status. One integer, like `1`, is returned if the server status is OK, otherwise an error code is returned. This way is compatible with the status check for TDengine from connection pool or 3rd party tools, and can avoid the problem of losing connection from connection pool when using wrong heartbeat checking SQL statement.
+Below statement is used to check the server status. One integer, like `1`, is returned if the server status is OK, otherwise an error code is returned. This is compatible with the status check for TDengine from connection pool or 3rd party tools, and can avoid the problem of losing the connection from a connection pool when using the wrong heartbeat checking SQL statement.
 
 ```
 taos> SELECT SERVER_STATUS();
@@ -248,12 +248,12 @@ summary:
 
 ## Special Keywords in TAOS SQL
 
-- `TBNAME`： it is treated as a special tag when selecting on a super table, representing the name of sub-tables in that super table.
+- `TBNAME`： it is treated as a special tag when selecting on a super table, representing the name of subtables in that super table.
 - `_c0`: represents the first column of a table or super table.
 
 ## Tips
 
-To get all the sub tables and corresponding tag values from a super table:
+To get all the subtables and corresponding tag values from a super table:
 
 ```SQL
 SELECT TBNAME, location FROM meters;
@@ -271,8 +271,8 @@ Only filter on `TAGS` are allowed in the `where` clause for above two query stat
 taos> SELECT TBNAME, location FROM meters;
              tbname             |            location            |
 ==================================================================
- d1004                          | California.LoSangeles                |
- d1003                          | California.LoSangeles                |
+ d1004                          | California.LosAngeles                |
+ d1003                          | California.LosAngeles                |
  d1002                          | California.SanFrancisco               |
  d1001                          | California.SanFrancisco               |
 Query OK, 4 row(s) in set (0.000881s)
@@ -285,10 +285,10 @@ Query OK, 1 row(s) in set (0.001091s)
 ```
 
 - Wildcard \* can be used to get all columns, or specific column names can be specified. Arithmetic operation can be performed on columns of number types, columns can be renamed in the result set.
-- Arithmetic operation on columns can't be used in where clause. For example, `where a*2>6;` is not allowed but `where a>6/2;` can be used instead for same purpose.
+- Arithmetic operation on columns can't be used in where clause. For example, `where a*2>6;` is not allowed but `where a>6/2;` can be used instead for the same purpose.
 - Arithmetic operation on columns can't be used as the objectives of select statement. For example, `select min(2*a) from t;` is not allowed but `select 2*min(a) from t;` can be used instead.
 - Logical operation can be used in `WHERE` clause to filter numeric values, wildcard can be used to filter string values.
-- Result set are arranged in ascending order of the first column, i.e. timestamp, but it can be controlled to output as descending order of timestamp. If `order by` is used on other columns, the result may be not as expected. By the way, \_c0 is used to represent the first column, i.e. timestamp.
+- Result sets are arranged in ascending order of the first column, i.e. timestamp, but it can be controlled to output as descending order of timestamp. If `order by` is used on other columns, the result may not be as expected. By the way, \_c0 is used to represent the first column, i.e. timestamp.
 - `LIMIT` parameter is used to control the number of rows to output. `OFFSET` parameter is used to specify from which row to output. `LIMIT` and `OFFSET` are executed after `ORDER BY` in the query execution. A simple tip is that `LIMIT 5 OFFSET 2` can be abbreviated as `LIMIT 2, 5`.
 - What is controlled by `LIMIT` is the number of rows in each group when `GROUP BY` is used.
 - `SLIMIT` parameter is used to control the number of groups when `GROUP BY` is used. Similar to `LIMIT`, `SLIMIT 5 OFFSET 2` can be abbreviated as `SLIMIT 2, 5`.
@@ -296,7 +296,7 @@ Query OK, 1 row(s) in set (0.001091s)
 
 ## Where
 
-Logical operations in below table can be used in `where` clause to filter the resulting rows.
+Logical operations in below table can be used in the `where` clause to filter the resulting rows.
 
 | **Operation** | **Note**                 | **Applicable Data Types**                 |
 | ------------- | ------------------------ | ----------------------------------------- |
@@ -314,7 +314,7 @@ Logical operations in below table can be used in `where` clause to filter the re
 
 **Explanations**:
 
-- Operator `<\>` is equal to `!=`, please be noted that this operator can't be used on the first column of any table, i.e.timestamp column.
+- Operator `<\>` is equal to `!=`, please note that this operator can't be used on the first column of any table, i.e.timestamp column.
 - Operator `like` is used together with wildcards to match strings
   - '%' matches 0 or any number of characters, '\_' matches any single ASCII character.
   - `\_` is used to match the \_ in the string.
@@ -323,8 +323,8 @@ Logical operations in below table can be used in `where` clause to filter the re
 - For timestamp column, only one condition can be used; for other columns or tags, `OR` keyword can be used to combine multiple logical operators. For example, `((value > 20 AND value < 30) OR (value < 12))`.
   - From version 2.3.0.0, multiple conditions can be used on timestamp column, but the result set can only contain single time range.
 - From version 2.0.17.0, operator `BETWEEN AND` can be used in where clause, for example `WHERE col2 BETWEEN 1.5 AND 3.25` means the filter condition is equal to "1.5 ≤ col2 ≤ 3.25".
-- From version 2.1.4.0, operator `IN` can be used in where clause. For example, `WHERE city IN ('California.SanFrancisco', 'California.SanDieo')`. For bool type, both `{true, false}` and `{0, 1}` are allowed, but integers other than 0 or 1 are not allowed. FLOAT and DOUBLE types are impacted by floating precision, only values that match the condition within the tolerance will be selected. Non-primary key column of timestamp type can be used with `IN`.
-- From version 2.3.0.0, regular expression is supported in where clause with keyword `match` or `nmatch`, the regular expression is case insensitive.
+- From version 2.1.4.0, operator `IN` can be used in the where clause. For example, `WHERE city IN ('California.SanFrancisco', 'California.SanDiego')`. For bool type, both `{true, false}` and `{0, 1}` are allowed, but integers other than 0 or 1 are not allowed. FLOAT and DOUBLE types are impacted by floating precision, only values that match the condition within the tolerance will be selected. Non-primary key column of timestamp type can be used with `IN`.
+- From version 2.3.0.0, regular expression is supported in the where clause with keyword `match` or `nmatch`, the regular expression is case insensitive.
 
 ## Regular Expression
 
@@ -342,11 +342,11 @@ The regular expression being used must be compliant with POSIX specification, pl
 
 Regular expression can be used against only table names, i.e. `tbname`, and tags of binary/nchar types, but can't be used against data columns.
 
-The maximum length of regular expression string is 128 bytes. Configuration parameter `maxRegexStringLen` can be used to set the maximum allowed regular expression. It's a configuration parameter on client side, and will take in effect after restarting the client.
+The maximum length of regular expression string is 128 bytes. Configuration parameter `maxRegexStringLen` can be used to set the maximum allowed regular expression. It's a configuration parameter on the client side, and will take effect after restarting the client.
 
 ## JOIN
 
-From version 2.2.0.0, inner join is fully supported in TDengine. More specifically, the inner join between table and table, that between STable and STable, and that between sub query and sub query are supported.
+From version 2.2.0.0, inner join is fully supported in TDengine. More specifically, the inner join between table and table, between STable and STable, and between sub query and sub query are supported.
 
 Only primary key, i.e. timestamp, can be used in the join operation between table and table. For example:
 
@@ -369,7 +369,7 @@ Similary, join operation can be performed on the result set of multiple sub quer
 :::note
 Restrictions on join operation:
 
-- The number of tables or STables in single join operation can't exceed 10.
+- The number of tables or STables in a single join operation can't exceed 10.
 - `FILL` is not allowed in the query statement that includes JOIN operation.
 - Arithmetic operation is not allowed on the result set of join operation.
 - `GROUP BY` is not allowed on a part of tables that participate in join operation.
@@ -382,7 +382,7 @@ Restrictions on join operation:
 
 Nested query is also called sub query, that means in a single SQL statement the result of inner query can be used as the data source of the outer query.
 
-From 2.2.0.0, unassociated sub query can be used in the `FROM` clause. unassociated means the sub query doesn't use the parameters in the parent query. More specifically, in the `tb_name_list` of `SELECT` statement, an independent SELECT statement can be used. So a complete nested query looks like:
+From 2.2.0.0, unassociated sub query can be used in the `FROM` clause. Unassociated means the sub query doesn't use the parameters in the parent query. More specifically, in the `tb_name_list` of `SELECT` statement, an independent SELECT statement can be used. So a complete nested query looks like:
 
 ```SQL
 SELECT ... FROM (SELECT ... FROM ...) ...;
@@ -414,7 +414,7 @@ UNION ALL SELECT ...
 [UNION ALL SELECT ...]
 ```
 
-`UNION ALL` operator can be used to combine the result set from multiple select statements as long as the result set of these select statements have exactly same columns. `UNION ALL` doesn't remove redundant rows from multiple result sets. In single SQL statement, at most 100 `UNION ALL` can be supported.
+`UNION ALL` operator can be used to combine the result set from multiple select statements as long as the result set of these select statements have exactly the same columns. `UNION ALL` doesn't remove redundant rows from multiple result sets. In a single SQL statement, at most 100 `UNION ALL` can be supported.
 
 ### Examples
 
