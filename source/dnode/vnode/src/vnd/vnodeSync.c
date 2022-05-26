@@ -30,6 +30,7 @@ int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
       .msgcb = NULL,
+      .isStandBy = 0,
       .FpSendMsg = vnodeSyncSendMsg,
       .FpEqMsg = vnodeSyncEqMsg,
   };

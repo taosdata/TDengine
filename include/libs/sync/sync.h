@@ -80,6 +80,7 @@ typedef struct SFsmCbMeta {
   uint64_t   seqNum;
   SyncTerm   term;
   SyncTerm   currentTerm;
+  uint64_t   flag;
 } SFsmCbMeta;
 
 typedef struct SReConfigCbMeta {

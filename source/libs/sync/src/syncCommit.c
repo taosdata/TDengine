@@ -111,6 +111,7 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             cbMeta.seqNum = pEntry->seqNum;
             cbMeta.term = pEntry->term;
             cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
+            cbMeta.flag = 0x1;
 
             bool needExecute = true;
             if (pSyncNode->pSnapshot != NULL && cbMeta.index <= pSyncNode->pSnapshot->lastApplyIndex) {

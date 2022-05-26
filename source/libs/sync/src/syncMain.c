@@ -941,12 +941,13 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   int   len = 256;
   char* s = (char*)taosMemoryMalloc(len);
   snprintf(s, len,
-           "syncNode2SimpleStr vgId:%d currentTerm:%lu, commitIndex:%ld, state:%d %s, electTimerLogicClock:%lu, "
+           "syncNode2SimpleStr vgId:%d currentTerm:%lu, commitIndex:%ld, state:%d %s, isStandBy:%d, "
+           "electTimerLogicClock:%lu, "
            "electTimerLogicClockUser:%lu, "
            "electTimerMS:%d",
            pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex, pSyncNode->state,
-           syncUtilState2String(pSyncNode->state), pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser,
-           pSyncNode->electTimerMS);
+           syncUtilState2String(pSyncNode->state), pSyncNode->pRaftCfg->isStandBy, pSyncNode->electTimerLogicClock,
+           pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS);
   return s;
 }
 
