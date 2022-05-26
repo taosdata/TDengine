@@ -48,7 +48,8 @@ int32_t stmtSwitchStatus(STscStmt* pStmt, STMT_STATUS newStatus) {
       break;
     case STMT_EXECUTE:
       if (STMT_TYPE_QUERY == pStmt->sql.type) {
-        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(BIND) && STMT_STATUS_NE(BIND_COL)) {
+        if (STMT_STATUS_NE(ADD_BATCH) && STMT_STATUS_NE(FETCH_FIELDS) && STMT_STATUS_NE(BIND) &&
+            STMT_STATUS_NE(BIND_COL)) {
           code = TSDB_CODE_TSC_STMT_API_ERROR;
         }
       } else {
@@ -229,22 +230,6 @@ int32_t stmtParseSql(STscStmt* pStmt) {
   } else if (pStmt->sql.pQuery->pPrepareRoot) {
     pStmt->sql.type = STMT_TYPE_QUERY;
   }
-
-/*  
-  switch (nodeType(pStmt->sql.pQuery->pRoot)) {
-    case QUERY_NODE_VNODE_MODIF_STMT:
-      if (0 == pStmt->sql.type) {
-        pStmt->sql.type = STMT_TYPE_INSERT;
-      }
-      break;
-    case QUERY_NODE_SELECT_STMT:
-      pStmt->sql.type = STMT_TYPE_QUERY;
-      break;
-    default:
-      tscError("not supported stmt type %d", nodeType(pStmt->sql.pQuery->pRoot));
-      STMT_ERR_RET(TSDB_CODE_TSC_STMT_CLAUSE_ERROR);
-  }
-*/
 
   return TSDB_CODE_SUCCESS;
 }
@@ -823,7 +808,7 @@ _return:
       code = stmtUpdateTableUid(pStmt, pRsp);
     }
   }
-  
+
   tFreeSSubmitRsp(pRsp);
 
   ++pStmt->sql.runTimes;
@@ -861,7 +846,7 @@ int stmtIsInsert(TAOS_STMT* stmt, int* insert) {
   if (pStmt->sql.type) {
     *insert = (STMT_TYPE_INSERT == pStmt->sql.type || STMT_TYPE_MULTI_INSERT == pStmt->sql.type);
   } else {
-    *insert = isInsertSql(pStmt->sql.sqlStr, 0);
+    *insert = qIsInsertSql(pStmt->sql.sqlStr, 0);
   }
 
   return TSDB_CODE_SUCCESS;
