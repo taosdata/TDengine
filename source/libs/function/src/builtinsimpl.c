@@ -517,6 +517,11 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
     }
   }
 
+  //check for overflow
+  if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
+  }
+
 _sum_over:
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
@@ -828,6 +833,9 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (IS_INTEGER_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
   } else {
+    if (isinf(pAvgRes->sum.dsum) || isnan(pAvgRes->sum.dsum)) {
+      GET_RES_INFO(pCtx)->isNullRes = 1;
+    }
     pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
   }
 
