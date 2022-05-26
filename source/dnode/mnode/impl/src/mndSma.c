@@ -358,7 +358,7 @@ static int32_t mndSetCreateSmaVgroupRedoLogs(SMnode *pMnode, STrans *pTrans, SVg
   SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
   if (pVgRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
-  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_READY) != 0) return -1;
+  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_CREATING) != 0) return -1;
   return 0;
 }
 
