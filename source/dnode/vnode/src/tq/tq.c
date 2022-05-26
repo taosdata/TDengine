@@ -829,27 +829,15 @@ FAIL:
 }
 
 int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* pReq) {
-  void* pIter = NULL;
-  bool  failed = false;
+  void*              pIter = NULL;
+  bool               failed = false;
+  SStreamDataSubmit* pSubmit = NULL;
 
-  SStreamDataSubmit* pSubmit = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+  pSubmit = streamDataSubmitNew(pReq);
   if (pSubmit == NULL) {
     failed = true;
-    goto SET_TASK_FAIL;
-  }
-  pSubmit->dataRef = taosMemoryMalloc(sizeof(int32_t));
-  if (pSubmit->dataRef == NULL) {
-    failed = true;
-    goto SET_TASK_FAIL;
   }
 
-  pSubmit->type = STREAM_INPUT__DATA_SUBMIT;
-  /*pSubmit->sourceVer = ver;*/
-  /*pSubmit->sourceVg = pTq->pVnode->config.vgId;*/
-  pSubmit->data = pReq;
-  *pSubmit->dataRef = 1;
-
-SET_TASK_FAIL:
   while (1) {
     pIter = taosHashIterate(pTq->pStreamTasks, pIter);
     if (pIter == NULL) break;
@@ -864,7 +852,9 @@ SET_TASK_FAIL:
       }
 
       streamDataSubmitRefInc(pSubmit);
-      taosWriteQitem(pTask->inputQ, pSubmit);
+      SStreamDataSubmit* pSubmitClone = taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
+      memcpy(pSubmitClone, pSubmit, sizeof(SStreamDataSubmit));
+      taosWriteQitem(pTask->inputQ, pSubmitClone);
 
       int8_t execStatus = atomic_load_8(&pTask->status);
       if (execStatus == TASK_STATUS__IDLE || execStatus == TASK_STATUS__CLOSING) {
@@ -887,18 +877,12 @@ SET_TASK_FAIL:
     }
   }
 
-  if (!failed) {
+  if (pSubmit) {
     streamDataSubmitRefDec(pSubmit);
-    return 0;
-  } else {
-    if (pSubmit) {
-      if (pSubmit->dataRef) {
-        taosMemoryFree(pSubmit->dataRef);
-      }
-      taosFreeQitem(pSubmit);
-    }
-    return -1;
+    taosFreeQitem(pSubmit);
   }
+
+  return failed ? -1 : 0;
 }
 
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg) {

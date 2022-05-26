@@ -84,15 +84,16 @@ typedef struct {
 } SStreamCheckpoint;
 
 static FORCE_INLINE SStreamDataSubmit* streamDataSubmitNew(SSubmitReq* pReq) {
-  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosMemoryCalloc(1, sizeof(SStreamDataSubmit));
+  SStreamDataSubmit* pDataSubmit = (SStreamDataSubmit*)taosAllocateQitem(sizeof(SStreamDataSubmit), DEF_QITEM);
   if (pDataSubmit == NULL) return NULL;
-  pDataSubmit->data = pReq;
   pDataSubmit->dataRef = (int32_t*)taosMemoryMalloc(sizeof(int32_t));
-  if (pDataSubmit->data == NULL) goto FAIL;
+  if (pDataSubmit->dataRef == NULL) goto FAIL;
+  pDataSubmit->data = pReq;
   *pDataSubmit->dataRef = 1;
+  pDataSubmit->type = STREAM_INPUT__DATA_SUBMIT;
   return pDataSubmit;
 FAIL:
-  taosMemoryFree(pDataSubmit);
+  taosFreeQitem(pDataSubmit);
   return NULL;
 }
 
@@ -107,7 +108,6 @@ static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) 
   if (ref == 0) {
     taosMemoryFree(pDataSubmit->data);
     taosMemoryFree(pDataSubmit->dataRef);
-    taosFreeQitem(pDataSubmit);
   }
 }
 

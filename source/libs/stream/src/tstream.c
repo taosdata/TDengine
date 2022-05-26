@@ -166,11 +166,31 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
   // destroy
   if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
     streamDataSubmitRefDec((SStreamDataSubmit*)data);
+    taosFreeQitem(data);
   } else {
     taosArrayDestroyEx(((SStreamDataBlock*)data)->blocks, (FDelete)tDeleteSSDataBlock);
     taosFreeQitem(data);
   }
   return 0;
+}
+
+static SArray* streamExecForQall(SStreamTask* pTask, SArray* pRes) {
+  while (1) {
+    void* data = NULL;
+    taosGetQitem(pTask->inputQAll, &data);
+    if (data == NULL) break;
+
+    streamTaskExecImpl(pTask, data, pRes);
+
+    if (taosArrayGetSize(pRes) != 0) {
+      SStreamDataBlock* qRes = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
+      qRes->type = STREAM_INPUT__DATA_BLOCK;
+      qRes->blocks = pRes;
+      taosWriteQitem(pTask->outputQ, qRes);
+      return taosArrayInit(0, sizeof(SSDataBlock));
+    }
+  }
+  return pRes;
 }
 
 // TODO: handle version
@@ -182,88 +202,21 @@ int32_t streamExec(SStreamTask* pTask, SMsgCb* pMsgCb) {
     void*  exec = pTask->exec.executor;
     if (execStatus == TASK_STATUS__IDLE) {
       // first run, from qall, handle failure from last exec
-      while (1) {
-        void* data = NULL;
-        taosGetQitem(pTask->inputQAll, &data);
-        if (data == NULL) break;
+      pRes = streamExecForQall(pTask, pRes);
+      if (pRes == NULL) goto FAIL;
 
-        streamTaskExecImpl(pTask, data, pRes);
-
-        /*taosFreeQitem(data);*/
-
-        if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
-          resQ->type = STREAM_INPUT__DATA_BLOCK;
-          resQ->blocks = pRes;
-          taosWriteQitem(pTask->outputQ, resQ);
-          pRes = taosArrayInit(0, sizeof(SSDataBlock));
-          if (pRes == NULL) goto FAIL;
-        }
-      }
       // second run, from inputQ
       taosReadAllQitems(pTask->inputQ, pTask->inputQAll);
-      while (1) {
-        void* data = NULL;
-        taosGetQitem(pTask->inputQAll, &data);
-        if (data == NULL) break;
+      pRes = streamExecForQall(pTask, pRes);
+      if (pRes == NULL) goto FAIL;
 
-        streamTaskExecImpl(pTask, data, pRes);
-
-        /*taosFreeQitem(data);*/
-
-        if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
-          resQ->type = STREAM_INPUT__DATA_BLOCK;
-          resQ->blocks = pRes;
-          taosWriteQitem(pTask->outputQ, resQ);
-          pRes = taosArrayInit(0, sizeof(SSDataBlock));
-          if (pRes == NULL) goto FAIL;
-        }
-      }
       // set status closing
       atomic_store_8(&pTask->status, TASK_STATUS__CLOSING);
-      // third run, make sure all inputQ is cleared
+
+      // third run, make sure inputQ and qall are cleared
       taosReadAllQitems(pTask->inputQ, pTask->inputQAll);
-      while (1) {
-        void* data = NULL;
-        taosGetQitem(pTask->inputQAll, &data);
-        if (data == NULL) break;
-
-        streamTaskExecImpl(pTask, data, pRes);
-
-        /*taosFreeQitem(data);*/
-
-        if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
-          resQ->type = STREAM_INPUT__DATA_BLOCK;
-          resQ->blocks = pRes;
-          taosWriteQitem(pTask->outputQ, resQ);
-          pRes = taosArrayInit(0, sizeof(SSDataBlock));
-          if (pRes == NULL) goto FAIL;
-        }
-      }
-      // set status closing
-      atomic_store_8(&pTask->status, TASK_STATUS__CLOSING);
-      // third run, make sure all inputQ is cleared
-      taosReadAllQitems(pTask->inputQ, pTask->inputQAll);
-      while (1) {
-        void* data = NULL;
-        taosGetQitem(pTask->inputQAll, &data);
-        if (data == NULL) break;
-
-        streamTaskExecImpl(pTask, data, pRes);
-
-        taosFreeQitem(data);
-
-        if (taosArrayGetSize(pRes) != 0) {
-          SStreamDataBlock* resQ = taosAllocateQitem(sizeof(SStreamDataBlock), DEF_QITEM);
-          resQ->type = STREAM_INPUT__DATA_BLOCK;
-          resQ->blocks = pRes;
-          taosWriteQitem(pTask->outputQ, resQ);
-          pRes = taosArrayInit(0, sizeof(SSDataBlock));
-          if (pRes == NULL) goto FAIL;
-        }
-      }
+      pRes = streamExecForQall(pTask, pRes);
+      if (pRes == NULL) goto FAIL;
 
       atomic_store_8(&pTask->status, TASK_STATUS__IDLE);
       break;
