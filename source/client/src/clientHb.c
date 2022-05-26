@@ -140,7 +140,7 @@ static int32_t hbQueryHbRspHandle(SAppHbMgr *pAppHbMgr, SClientHbRsp *pRsp) {
     STscObj *pTscObj = (STscObj *)acquireTscObj(pRsp->connKey.tscRid);
     if (NULL == pTscObj) {
       tscDebug("tscObj rid %" PRIx64 " not exist", pRsp->connKey.tscRid);
-    } else {
+    } else {      
       if (pRsp->query->totalDnodes > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &pRsp->query->epSet)) {
         updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &pRsp->query->epSet);
       }
@@ -582,8 +582,15 @@ void hbClearReqInfo(SAppHbMgr *pAppHbMgr) {
   }
 }
 
+void hbThreadFuncUnexpectedStopped(void) {
+  atomic_store_8(&clientHbMgr.threadStop, 2);
+}
+
 static void *hbThreadFunc(void *param) {
   setThreadName("hb");
+#ifdef WINDOWS
+  atexit(hbThreadFuncUnexpectedStopped);
+#endif
   while (1) {
     int8_t threadStop = atomic_val_compare_exchange_8(&clientHbMgr.threadStop, 1, 2);
     if (1 == threadStop) {

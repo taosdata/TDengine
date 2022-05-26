@@ -50,10 +50,15 @@ int32_t taosGetAppName(char* name, int32_t* len) {
   if (sub != NULL) {
     *sub = '\0';
   }
-  strcpy(name, filepath);
+  char* end = strrchr(filepath, TD_DIRSEP[0]);
+  if (end == NULL) {
+    end = filepath;
+  }
+
+  strcpy(name, end);
 
   if (len != NULL) {
-    *len = (int32_t)strlen(filepath);
+    *len = (int32_t)strlen(end);
   }
 
   return 0;

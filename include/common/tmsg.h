@@ -695,6 +695,7 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLastRow;
+  int8_t  schemaless;
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
@@ -1273,7 +1274,6 @@ int32_t tSerializeSCreateDropMQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnod
 int32_t tDeserializeSCreateDropMQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
 typedef struct {
-  int32_t  dnodeId;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SDCreateMnodeReq, SDAlterMnodeReq;
@@ -1646,8 +1646,8 @@ _err:
   return NULL;
 }
 
-// this message is sent from mnode to mnode(read thread to write thread), so there is no need for serialization or
-// deserialization
+// this message is sent from mnode to mnode(read thread to write thread),
+// so there is no need for serialization or deserialization
 typedef struct {
   SHashObj* rebSubHash;  // SHashObj<key, SMqRebSubscribe>
 } SMqDoRebalanceMsg;

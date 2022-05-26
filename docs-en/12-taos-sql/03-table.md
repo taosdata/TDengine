@@ -12,12 +12,12 @@ CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_nam
 
 :::info
 
-1. The first column of a table must be in TIMESTAMP type, and it will be set as primary key automatically
-2. The maximum length of table name is 192 bytes.
-3. The maximum length of each row is 16k bytes, please be notes that the extra 2 bytes used by each BINARY/NCHAR column are also counted in.
-4. The name of sub-table can only be consisted of English characters, digits and underscore, and can't be started with digit. Table names are case insensitive.
-5. The maximum length in bytes must be specified when using BINARY or NCHAR type.
-6. Escape character "\`" can be used to avoid the conflict between table names and reserved keywords, above rules will be bypassed when using escape character on table names, but the upper limit for name length is still valid. The table names specified using escape character are case sensitive. Only ASCII visible characters can be used with escape character.
+1. The first column of a table must be of TIMESTAMP type, and it will be set as the primary key automatically
+2. The maximum length of the table name is 192 bytes.
+3. The maximum length of each row is 16k bytes, please note that the extra 2 bytes used by each BINARY/NCHAR column are also counted.
+4. The name of the subtable can only consist of English characters, digits and underscore, and can't start with a digit. Table names are case insensitive.
+5. The maximum length in bytes must be specified when using BINARY or NCHAR types.
+6. Escape character "\`" can be used to avoid the conflict between table names and reserved keywords, above rules will be bypassed when using escape character on table names, but the upper limit for the name length is still valid. The table names specified using escape character are case sensitive. Only ASCII visible characters can be used with escape character.
    For example \`aBc\` and \`abc\` are different table names but `abc` and `aBc` are same table names because they are both converted to `abc` internally.
 
 :::
@@ -28,9 +28,9 @@ CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_nam
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name TAGS (tag_value1, ...);
 ```
 
-The above command creates a subtable using the specified super table as template and the specified tab values.
+The above command creates a subtable using the specified super table as a template and the specified tag values.
 
-### Create Subtable Using STable As Template With A Part of Tags
+### Create Subtable Using STable As Template With A Subset of Tags
 
 ```
 CREATE TABLE [IF NOT EXISTS] tb_name USING stb_name (tag_name1, ...) TAGS (tag_value1, ...);
@@ -44,11 +44,11 @@ The tags for which no value is specified will be set to NULL.
 CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF NOT EXISTS] tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
 ```
 
-This way can be used to create a lot of tables in a single SQL statement to accelerate the speed of the creating tables.
+This can be used to create a lot of tables in a single SQL statement to accelerate the speed of the creating tables.
 
 :::info
 
-- Creating tables in batch must use super table as template.
+- Creating tables in batch must use a super table as a template.
 - The length of single statement is suggested to be between 1,000 and 3,000 bytes for best performance.
 
 :::
@@ -71,7 +71,7 @@ SHOW TABLES [LIKE tb_name_wildcard];
 SHOW CREATE TABLE tb_name;
 ```
 
-This way is useful when migrating the data in one TDengine cluster to another one because it can be used to create exactly same tables in the target database.
+This is useful when migrating the data in one TDengine cluster to another one because it can be used to create the exact same tables in the target database.
 
 ## Show Table Definition
 
@@ -90,7 +90,7 @@ ALTER TABLE tb_name ADD COLUMN field_name data_type;
 :::info
 
 1. The maximum number of columns is 4096, the minimum number of columns is 2.
-2. The maximum length of column name is 64 bytes.
+2. The maximum length of a column name is 64 bytes.
 
 :::
 
@@ -101,7 +101,7 @@ ALTER TABLE tb_name DROP COLUMN field_name;
 ```
 
 :::note
-If a table is created using a super table as template, the table definition can only be changed on the corresponding super table, but the change will be automatically applied to all the sub tables created using this super table as template. For tables created in normal way, the table definition can be changed directly on the table.
+If a table is created using a super table as template, the table definition can only be changed on the corresponding super table, and the change will be automatically applied to all the subtables created using this super table as template. For tables created in the normal way, the table definition can be changed directly on the table.
 
 :::
 
@@ -111,10 +111,10 @@ If a table is created using a super table as template, the table definition can 
 ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ```
 
-The the type of a column is variable length, like BINARY or NCHAR, this way can be used to change (or increase) the length of the column.
+The type of a column is variable length, like BINARY or NCHAR, this can be used to change (or increase) the length of the column.
 
 :::note
-If a table is created using a super table as template, the table definition can only be changed on the corresponding super table, but the change will be automatically applied to all the sub tables created using this super table as template. For tables created in normal way, the table definition can be changed directly on the table.
+If a table is created using a super table as template, the table definition can only be changed on the corresponding super table, and the change will be automatically applied to all the subtables created using this super table as template. For tables created in the normal way, the table definition can be changed directly on the table.
 
 :::
 

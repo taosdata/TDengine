@@ -158,7 +158,9 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
       ASSERT(false);
     }
     if (output == NULL) break;
-    taosArrayPush(pRes, output);
+    // TODO: do we need free memory?
+    SSDataBlock* outputCopy = createOneDataBlock(output, true);
+    taosArrayPush(pRes, outputCopy);
   }
 
   // destroy
@@ -503,6 +505,7 @@ int32_t tEncodeSStreamTask(SEncoder* pEncoder, const SStreamTask* pTask) {
 
   if (pTask->sinkType == TASK_SINK__TABLE) {
     if (tEncodeI64(pEncoder, pTask->tbSink.stbUid) < 0) return -1;
+    if (tEncodeCStr(pEncoder, pTask->tbSink.stbFullName) < 0) return -1;
     if (tEncodeSSchemaWrapper(pEncoder, pTask->tbSink.pSchemaWrapper) < 0) return -1;
   } else if (pTask->sinkType == TASK_SINK__SMA) {
     if (tEncodeI64(pEncoder, pTask->smaSink.smaId) < 0) return -1;
@@ -549,6 +552,7 @@ int32_t tDecodeSStreamTask(SDecoder* pDecoder, SStreamTask* pTask) {
 
   if (pTask->sinkType == TASK_SINK__TABLE) {
     if (tDecodeI64(pDecoder, &pTask->tbSink.stbUid) < 0) return -1;
+    if (tDecodeCStrTo(pDecoder, pTask->tbSink.stbFullName) < 0) return -1;
     pTask->tbSink.pSchemaWrapper = taosMemoryCalloc(1, sizeof(SSchemaWrapper));
     if (pTask->tbSink.pSchemaWrapper == NULL) return -1;
     if (tDecodeSSchemaWrapper(pDecoder, pTask->tbSink.pSchemaWrapper) < 0) return -1;

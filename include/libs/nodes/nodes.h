@@ -131,6 +131,7 @@ typedef enum ENodeType {
   QUERY_NODE_DROP_MNODE_STMT,
   QUERY_NODE_CREATE_TOPIC_STMT,
   QUERY_NODE_DROP_TOPIC_STMT,
+  QUERY_NODE_DROP_CGROUP_STMT,
   QUERY_NODE_ALTER_LOCAL_STMT,
   QUERY_NODE_EXPLAIN_STMT,
   QUERY_NODE_DESCRIBE_STMT,
@@ -243,7 +244,6 @@ typedef struct SNodeList {
 
 #define SNodeptr void*
 
-int32_t  nodesNodeSize(ENodeType type);
 SNodeptr nodesMakeNode(ENodeType type);
 void     nodesDestroyNode(SNodeptr pNode);
 
