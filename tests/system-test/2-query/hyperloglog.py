@@ -210,7 +210,7 @@ class TDTestCase:
         tdSql.query("select hyperloglog(ct2.c1) from ct4 join ct2 on ct4.ts=ct2.ts")
         tdSql.checkRows(1)
         tdSql.checkData(0, 0, self.rows + 2)
-        tdSql.query("select hyperloglog(c1), c1 from stb1")
+        tdSql.query("select hyperloglog(c1), c1 from stb1 group by c1")
         for i in range(tdSql.queryRows):
             tdSql.checkData(i, 0, 1) if  tdSql.queryResult[i][1] else tdSql.checkData(i,0, None)
 
