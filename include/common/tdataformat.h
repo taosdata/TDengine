@@ -34,6 +34,8 @@ typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
+typedef struct SColData      SColData;
+typedef struct SColBatch     SColBatch;
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
@@ -122,6 +124,20 @@ struct STagVal {
   int8_t   type;
   uint32_t nData;
   uint8_t *pData;
+};
+
+struct SColData {
+  int8_t   type;
+  int8_t   flags;
+  int16_t  cid;
+  uint32_t nData;
+  uint8_t *pData;
+};
+
+struct SColBatch {
+  tb_uid_t  uid;
+  uint16_t  nCols;
+  SColData *aColData;
 };
 
 #if 1  //================================================================================================================================================
