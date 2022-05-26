@@ -184,9 +184,10 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
 
   i++;
 
-  while (str[i]) {
-    if ((str[i] >= '0' && str[i] <= '9') || str[i] == ':') {
-      ++i;
+  int32_t j = i;
+  while (str[j]) {
+    if ((str[j] >= '0' && str[j] <= '9') || str[j] == ':') {
+      ++j;
       continue;
     }
 
