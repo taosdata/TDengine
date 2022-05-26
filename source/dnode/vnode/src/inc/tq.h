@@ -20,9 +20,9 @@
 
 #include "executor.h"
 #include "os.h"
-#include "tcache.h"
 #include "thash.h"
 #include "tmsg.h"
+#include "tqueue.h"
 #include "trpc.h"
 #include "ttimer.h"
 #include "wal.h"
@@ -86,6 +86,9 @@ typedef struct {
   qTaskInfo_t    task[5];
 } STqExec;
 
+int32_t tEncodeSTqExec(SEncoder* pEncoder, const STqExec* pExec);
+int32_t tDecodeSTqExec(SDecoder* pDecoder, STqExec* pExec);
+
 struct STQ {
   char*     path;
   SHashObj* pushMgr;  // consumerId -> STqExec*
@@ -93,7 +96,8 @@ struct STQ {
   SHashObj* pStreamTasks;
   SVnode*   pVnode;
   SWal*     pWal;
-  // TDB*      pTdb;
+  TDB*      pMetaStore;
+  TTB*      pExecStore;
 };
 
 typedef struct {
@@ -101,7 +105,7 @@ typedef struct {
   tmr_h  timer;
 } STqMgmt;
 
-static STqMgmt tqMgmt;
+static STqMgmt tqMgmt = {0};
 
 // init once
 int  tqInit();

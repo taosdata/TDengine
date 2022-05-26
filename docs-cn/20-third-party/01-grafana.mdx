@@ -64,15 +64,15 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 用户可以直接通过 http://localhost:3000 的网址，登录 Grafana 服务器（用户名/密码：admin/admin），通过左侧 `Configuration -> Data Sources` 可以添加数据源，如下图所示：
 
-![img](/img/connections/add_datasource1.jpg)
+![img](./add_datasource1.webp)
 
 点击 `Add data source` 可进入新增数据源页面，在查询框中输入 TDengine 可选择添加，如下图所示：
 
-![img](/img/connections/add_datasource2.jpg)
+![img](./add_datasource2.webp)
 
 进入数据源配置页面，按照默认提示修改相应配置即可：
 
-![img](/img/connections/add_datasource3.jpg)
+![img](./add_datasource3.webp)
 
 - Host： TDengine 集群中提供 REST 服务 （在 2.4 之前由 taosd 提供， 从 2.4 开始由 taosAdapter 提供）的组件所在服务器的 IP 地址与 TDengine REST 服务的端口号(6041)，默认 http://localhost:6041。
 - User：TDengine 用户名。
@@ -80,13 +80,13 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 点击 `Save & Test` 进行测试，成功会有如下提示：
 
-![img](/img/connections/add_datasource4.jpg)
+![img](./add_datasource4.webp)
 
 ### 创建 Dashboard
 
 回到主界面创建 Dashboard，点击 Add Query 进入面板查询页面：
 
-![img](/img/connections/create_dashboard1.jpg)
+![img](./create_dashboard1.webp)
 
 如上图所示，在 Query 中选中 `TDengine` 数据源，在下方查询框可输入相应 SQL 进行查询，具体说明如下：
 
@@ -96,7 +96,7 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 按照默认提示查询当前 TDengine 部署所在服务器指定间隔系统内存平均使用量如下：
 
-![img](/img/connections/create_dashboard2.jpg)
+![img](./create_dashboard2.webp)
 
 > 关于如何使用 Grafana 创建相应的监测界面以及更多有关使用 Grafana 的信息，请参考 Grafana 官方的[文档](https://grafana.com/docs/)。
 

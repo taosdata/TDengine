@@ -34,7 +34,7 @@ if (${BUILD_WITH_INVERTEDINDEX})
 endif(${BUILD_WITH_INVERTEDINDEX})
 
 
-#if (${BUILD_TEST})
-#  add_subdirectory(test)
-#endif(${BUILD_TEST})
+if (${BUILD_TEST})
+  add_subdirectory(test)
+endif(${BUILD_TEST})
 

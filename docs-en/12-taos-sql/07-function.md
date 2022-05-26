@@ -4,7 +4,7 @@ title: Functions
 
 ## Aggregate Functions
 
-Aggregate query is supported in TDengine by following aggregate functions and selection functions.
+Aggregate queries are supported in TDengine by the following aggregate functions and selection functions.
 
 ### COUNT
 
@@ -12,11 +12,11 @@ Aggregate query is supported in TDengine by following aggregate functions and se
 SELECT COUNT([*|field_name]) FROM tb_name [WHERE clause];
 ```
 
-**Description**:Get the number of rows or the number of non-null values in a table or a super table.
+**Description**: Get the number of rows or the number of non-null values in a table or a super table.
 
-**Return value type**:Long integer INT64
+**Return value type**: Long integer INT64
 
-**Applicable column types**:All
+**Applicable column types**: All
 
 **Applicable table types**: table, super table, sub table
 
@@ -47,13 +47,13 @@ Query OK, 1 row(s) in set (0.001075s)
 SELECT AVG(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**:Get the average value of a column in a table or STable
+**Description**: Get the average value of a column in a table or STable
 
-**Return value type**:Double precision floating number
+**Return value type**: Double precision floating number
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **Examples**:
 
@@ -77,13 +77,13 @@ Query OK, 1 row(s) in set (0.000943s)
 SELECT TWA(field_name) FROM tb_name WHERE clause;
 ```
 
-**Description**:Time weighted average on a specific column within a time range
+**Description**: Time weighted average on a specific column within a time range
 
-**Return value type**:Double precision floating number
+**Return value type**: Double precision floating number
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **More explanations**:
 
@@ -95,13 +95,13 @@ SELECT TWA(field_name) FROM tb_name WHERE clause;
 SELECT IRATE(field_name) FROM tb_name WHERE clause;
 ```
 
-**Description**:instantaneous rate on a specific column. The last two samples in the specified time range are used to calculate instantaneous rate. If the last sample value is smaller, then only the last sample value is used instead of the difference between the last two sample values.
+**Description**: instantaneous rate on a specific column. The last two samples in the specified time range are used to calculate instantaneous rate. If the last sample value is smaller, then only the last sample value is used instead of the difference between the last two sample values.
 
-**Return value type**:Double precision floating number
+**Return value type**: Double precision floating number
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **More explanations**:
 
@@ -113,13 +113,13 @@ SELECT IRATE(field_name) FROM tb_name WHERE clause;
 SELECT SUM(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**:The sum of a specific column in a table or STable
+**Description**: The sum of a specific column in a table or STable
 
-**Return value type**:Double precision floating number or long integer
+**Return value type**: Double precision floating number or long integer
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **Examples**:
 
@@ -143,13 +143,13 @@ Query OK, 1 row(s) in set (0.000980s)
 SELECT STDDEV(field_name) FROM tb_name [WHERE clause];
 ```
 
-**Description**:Standard deviation of a specific column in a table or STable
+**Description**: Standard deviation of a specific column in a table or STable
 
-**Return value type**:Double precision floating number
+**Return value type**: Double precision floating number
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable (starting from version 2.0.15.1)
+**Applicable table types**: table, STable (starting from version 2.0.15.1)
 
 **Examples**:
 
@@ -261,7 +261,7 @@ Query OK, 1 row(s) in set (0.008388s)
 
 ## Selection Functions
 
-When any selective function is used, timestamp column or tag columns including `tbname` can be specified to show that the selected value are from which rows.
+When any select function is used, timestamp column or tag columns including `tbname` can be specified to show that the selected value are from which rows.
 
 ### MIN
 
@@ -269,13 +269,13 @@ When any selective function is used, timestamp column or tag columns including `
 SELECT MIN(field_name) FROM {tb_name | stb_name} [WHERE clause];
 ```
 
-**Description**:The minimum value of a specific column in a table or STable
+**Description**: The minimum value of a specific column in a table or STable
 
-**Return value type**:Same as the data type of the column being operated
+**Return value type**: Same as the data type of the column being operated
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **Examples**:
 
@@ -299,13 +299,13 @@ Query OK, 1 row(s) in set (0.000950s)
 SELECT MAX(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**:The maximum value of a specific column of a table or STable
+**Description**: The maximum value of a specific column of a table or STable
 
-**Return value type**:Same as the data type of the column being operated
+**Return value type**: Same as the data type of the column being operated
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **Examples**:
 
@@ -329,13 +329,13 @@ Query OK, 1 row(s) in set (0.000987s)
 SELECT FIRST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**:The first non-null value of a specific column in a table or STable
+**Description**: The first non-null value of a specific column in a table or STable
 
-**Return value type**:Same as the column being operated
+**Return value type**: Same as the column being operated
 
-**Applicable column types**:Any data type
+**Applicable column types**: Any data type
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **More explanations**:
 
@@ -365,13 +365,13 @@ Query OK, 1 row(s) in set (0.001023s)
 SELECT LAST(field_name) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**:The last non-NULL value of a specific column in a table or STable
+**Description**: The last non-NULL value of a specific column in a table or STable
 
-**Return value type**:Same as the column being operated
+**Return value type**: Same as the column being operated
 
-**Applicable column types**:Any data type
+**Applicable column types**: Any data type
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **More explanations**:
 
@@ -403,11 +403,11 @@ SELECT TOP(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 
 **Description**: The greatest _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
 
-**Return value type**:Same as the column being operated
+**Return value type**: Same as the column being operated
 
-**Applicable column types**:Data types except for timestamp, binary, nchar and bool
+**Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
-**Applicable table types**:table, STable
+**Applicable table types**: table, STable
 
 **More explanations**:
 
@@ -440,9 +440,9 @@ Query OK, 2 row(s) in set (0.000810s)
 SELECT BOTTOM(field_name, K) FROM { tb_name | stb_name } [WHERE clause];
 ```
 
-**Description**:The least _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
+**Description**: The least _k_ values of a specific column in a table or STable. If a value has multiple occurrences in the column but counting all of them in will exceed the upper limit _k_, then a part of them will be returned randomly.
 
-**Return value type**:Same as the column being operated
+**Return value type**: Same as the column being operated
 
 **Applicable column types**: Data types except for timestamp, binary, nchar and bool
 
@@ -584,7 +584,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
 
 **Description**: The value that matches the specified timestamp range is returned, if existing; or an interpolation value is returned.
 
-**Return value type**: same as the column being operated
+**Return value type**: Same as the column being operated
 
 **Applicable column types**: Numeric data types
 
@@ -608,7 +608,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } [WHERE where_condition] [ 
  taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:40:00','2017-7-14 18:40:00') FILL(LINEAR);
 ```
 
-- Get an original data every 5 seconds, no interpolation, between "2017-07-14 18:00:00" and "2017-07-14 19:00:00:
+- Get original data every 5 seconds, no interpolation, between "2017-07-14 18:00:00" and "2017-07-14 19:00:00:
 
 ```
  taos> SELECT INTERP(current) FROM t1 RANGE('2017-7-14 18:00:00','2017-7-14 19:00:00') EVERY(5s);
@@ -662,7 +662,7 @@ SELECT INTERP(field_name) FROM { tb_name | stb_name } WHERE ts='timestamp' [FILL
  Query OK, 1 row(s) in set (0.002652s)
 ```
 
-If there is not any data corresponding to the specified timestamp, an interpolation value is returned if interpolation policy is specified by `FILL` parameter; or nothing is returned\
+If there is no data corresponding to the specified timestamp, an interpolation value is returned if interpolation policy is specified by `FILL` parameter; or nothing is returned.
 
 ```
  taos> SELECT INTERP(*) FROM meters WHERE tbname IN ('d636') AND ts='2017-7-14 18:40:00.005';
@@ -819,7 +819,7 @@ SELECT DERIVATIVE(field_name, time_interval, ignore_negative) FROM tb_name [WHER
 
 **More explanations**:
 
-- It is available from version 2.1.3.0, the number of result rows is the number of total rows in the time range subtracted by one, no output for the first row.\
+- It is available from version 2.1.3.0, the number of result rows is the number of total rows in the time range subtracted by one, no output for the first row.
 - It can be used together with `GROUP BY tbname` against a STable.
 
 **Examples**:
@@ -882,7 +882,7 @@ SELECT CEIL(field_name) FROM { tb_name | stb_name } [WHERE clause];
 
 **Applicable table types**: table, STable
 
-**Applicable nested query**: inner query and outer query
+**Applicable nested query**: Inner query and outer query
 
 **More explanations**:
 

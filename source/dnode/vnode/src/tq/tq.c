@@ -14,14 +14,83 @@
  */
 
 #include "tq.h"
-#include "tqueue.h"
+#include "tdbInt.h"
 
 int32_t tqInit() {
-  //
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 0, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 0) {
+    tqMgmt.timer = taosTmrInit(10000, 100, 10000, "TQ");
+    if (tqMgmt.timer == NULL) {
+      atomic_store_8(&tqMgmt.inited, 0);
+      return -1;
+    }
+    atomic_store_8(&tqMgmt.inited, 1);
+  }
   return 0;
 }
 
-void tqCleanUp() {}
+void tqCleanUp() {
+  int8_t old;
+  while (1) {
+    old = atomic_val_compare_exchange_8(&tqMgmt.inited, 1, 2);
+    if (old != 2) break;
+  }
+
+  if (old == 1) {
+    taosTmrCleanUp(tqMgmt.timer);
+    atomic_store_8(&tqMgmt.inited, 0);
+  }
+}
+
+int tqExecKeyCompare(const void* pKey1, int32_t kLen1, const void* pKey2, int32_t kLen2) {
+  return strcmp(pKey1, pKey2);
+}
+
+int32_t tqStoreExec(STQ* pTq, const char* key, const STqExec* pExec) {
+  int32_t code;
+  int32_t vlen;
+  tEncodeSize(tEncodeSTqExec, pExec, vlen, code);
+  ASSERT(code == 0);
+
+  void* buf = taosMemoryCalloc(1, vlen);
+  if (buf == NULL) {
+    ASSERT(0);
+  }
+
+  SEncoder encoder;
+  tEncoderInit(&encoder, buf, vlen);
+
+  if (tEncodeSTqExec(&encoder, pExec) < 0) {
+    ASSERT(0);
+  }
+
+  TXN txn;
+
+  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbBegin(pTq->pMetaStore, &txn) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbTbUpsert(pTq->pExecStore, key, (int)strlen(key), buf, vlen, &txn) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbCommit(pTq->pMetaStore, &txn) < 0) {
+    ASSERT(0);
+  }
+
+  tEncoderClear(&encoder);
+  taosMemoryFree(buf);
+  return 0;
+}
 
 STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   STQ* pTq = taosMemoryMalloc(sizeof(STQ));
@@ -32,15 +101,72 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
   pTq->path = strdup(path);
   pTq->pVnode = pVnode;
   pTq->pWal = pWal;
-  /*if (tdbOpen(path, 4096, 1, &pTq->pTdb) < 0) {*/
-  /*ASSERT(0);*/
-  /*}*/
 
   pTq->execs = taosHashInit(64, MurmurHash3_32, true, HASH_ENTRY_LOCK);
 
   pTq->pStreamTasks = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), true, HASH_NO_LOCK);
 
   pTq->pushMgr = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), true, HASH_ENTRY_LOCK);
+
+  if (tdbOpen(path, 16 * 1024, 1, &pTq->pMetaStore) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbTbOpen("exec", -1, -1, tqExecKeyCompare, pTq->pMetaStore, &pTq->pExecStore) < 0) {
+    ASSERT(0);
+  }
+
+  TXN txn;
+
+  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, 0) < 0) {
+    ASSERT(0);
+  }
+
+  /*if (tdbBegin(pTq->pMetaStore, &txn) < 0) {*/
+  /*ASSERT(0);*/
+  /*}*/
+
+  TBC* pCur;
+  if (tdbTbcOpen(pTq->pExecStore, &pCur, &txn) < 0) {
+    ASSERT(0);
+  }
+
+  void* pKey;
+  int   kLen;
+  void* pVal;
+  int   vLen;
+
+  tdbTbcMoveToFirst(pCur);
+  SDecoder decoder;
+  while (tdbTbcNext(pCur, &pKey, &kLen, &pVal, &vLen) == 0) {
+    STqExec exec;
+    tDecoderInit(&decoder, (uint8_t*)pVal, vLen);
+    tDecodeSTqExec(&decoder, &exec);
+    exec.pWalReader = walOpenReadHandle(pTq->pVnode->pWal);
+    if (exec.subType == TOPIC_SUB_TYPE__TABLE) {
+      for (int32_t i = 0; i < 5; i++) {
+        exec.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
+
+        SReadHandle handle = {
+            .reader = exec.pExecReader[i],
+            .meta = pTq->pVnode->pMeta,
+            .pMsgCb = &pTq->pVnode->msgCb,
+        };
+        exec.task[i] = qCreateStreamExecTaskInfo(exec.qmsg, &handle);
+        ASSERT(exec.task[i]);
+      }
+    } else {
+      for (int32_t i = 0; i < 5; i++) {
+        exec.pExecReader[i] = tqInitSubmitMsgScanner(pTq->pVnode->pMeta);
+      }
+      exec.pDropTbUid = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
+    }
+    taosHashPut(pTq->execs, pKey, kLen, &exec, sizeof(STqExec));
+  }
+
+  if (tdbTxnClose(&txn) < 0) {
+    ASSERT(0);
+  }
 
   return pTq;
 }
@@ -51,11 +177,43 @@ void tqClose(STQ* pTq) {
     taosHashCleanup(pTq->execs);
     taosHashCleanup(pTq->pStreamTasks);
     taosHashCleanup(pTq->pushMgr);
+    tdbClose(pTq->pMetaStore);
     taosMemoryFree(pTq);
   }
   // TODO
 }
 
+int32_t tEncodeSTqExec(SEncoder* pEncoder, const STqExec* pExec) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeCStr(pEncoder, pExec->subKey) < 0) return -1;
+  if (tEncodeI64(pEncoder, pExec->consumerId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pExec->epoch) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->subType) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withTbName) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withSchema) < 0) return -1;
+  if (tEncodeI8(pEncoder, pExec->withTag) < 0) return -1;
+  if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tEncodeCStr(pEncoder, pExec->qmsg) < 0) return -1;
+  }
+  tEndEncode(pEncoder);
+  return pEncoder->pos;
+}
+
+int32_t tDecodeSTqExec(SDecoder* pDecoder, STqExec* pExec) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeCStrTo(pDecoder, pExec->subKey) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pExec->consumerId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pExec->epoch) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->subType) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withTbName) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withSchema) < 0) return -1;
+  if (tDecodeI8(pDecoder, &pExec->withTag) < 0) return -1;
+  if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
+    if (tDecodeCStrAlloc(pDecoder, &pExec->qmsg) < 0) return -1;
+  }
+  tEndDecode(pDecoder);
+  return 0;
+}
 int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
   void* pIter = NULL;
   while (1) {
@@ -499,6 +657,25 @@ int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen) {
 
   int32_t code = taosHashRemove(pTq->execs, pReq->subKey, strlen(pReq->subKey));
   ASSERT(code == 0);
+
+  TXN txn;
+
+  if (tdbTxnOpen(&txn, 0, tdbDefaultMalloc, tdbDefaultFree, NULL, TDB_TXN_WRITE | TDB_TXN_READ_UNCOMMITTED) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbBegin(pTq->pMetaStore, &txn) < 0) {
+    ASSERT(0);
+  }
+
+  if (tdbTbDelete(pTq->pExecStore, pReq->subKey, (int)strlen(pReq->subKey), &txn) < 0) {
+    /*ASSERT(0);*/
+  }
+
+  if (tdbCommit(pTq->pMetaStore, &txn) < 0) {
+    ASSERT(0);
+  }
+
   return 0;
 }
 
@@ -547,22 +724,22 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen) {
       pExec->pDropTbUid = taosHashInit(64, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BIGINT), false, HASH_NO_LOCK);
     }
     taosHashPut(pTq->execs, req.subKey, strlen(req.subKey), pExec, sizeof(STqExec));
+
+    if (tqStoreExec(pTq, req.subKey, pExec) < 0) {
+      // TODO
+    }
     return 0;
   } else {
-    /*if (req.newConsumerId != -1) {*/
-    /*taosWLockLatch(&pExec->lock);*/
-    ASSERT(pExec->consumerId == req.oldConsumerId);
+    /*ASSERT(pExec->consumerId == req.oldConsumerId);*/
     // TODO handle qmsg and exec modification
     atomic_store_32(&pExec->epoch, -1);
     atomic_store_64(&pExec->consumerId, req.newConsumerId);
     atomic_add_fetch_32(&pExec->epoch, 1);
-    /*taosWUnLockLatch(&pExec->lock);*/
+
+    if (tqStoreExec(pTq, req.subKey, pExec) < 0) {
+      // TODO
+    }
     return 0;
-    /*} else {*/
-    // TODO
-    /*taosHashRemove(pTq->tqMetaNew, req.subKey, strlen(req.subKey));*/
-    /*return 0;*/
-    /*}*/
   }
 }
 
@@ -571,7 +748,8 @@ void tqTableSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data) {
   SVnode*       pVnode = (SVnode*)vnode;
 
   ASSERT(pTask->tbSink.pTSchema);
-  SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid, pVnode->config.vgId);
+  SSubmitReq* pReq = tdBlockToSubmit(pRes, pTask->tbSink.pTSchema, true, pTask->tbSink.stbUid,
+                                     pTask->tbSink.stbFullName, pVnode->config.vgId);
   /*tPrintFixedSchemaSubmitReq(pReq, pTask->tbSink.pTSchema);*/
   // build write msg
   SRpcMsg msg = {

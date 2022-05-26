@@ -31,7 +31,7 @@ target_include_directories(
     PUBLIC "${TD_SOURCE_DIR}/include/dnode/mnode"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/../../inc"
 )
-# add_test(
-#     NAME transTest2
-#     COMMAND transTest2
-# )
+#add_test(
+#    NAME transTest2
+#    COMMAND transTest2
+#)
