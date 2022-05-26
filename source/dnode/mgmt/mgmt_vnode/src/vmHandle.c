@@ -183,7 +183,7 @@ int32_t vmProcessCreateVnodeReq(SVnodeMgmt *pMgmt, SRpcMsg *pMsg) {
     return -1;
   }
 
-  dDebug("vgId:%d, create vnode req is received", createReq.vgId);
+  dDebug("vgId:%d, create vnode req is received, tsma:%d", createReq.vgId, createReq.isTsma);
 
   SVnodeCfg vnodeCfg = {0};
   vmGenerateVnodeCfg(&createReq, &vnodeCfg);
