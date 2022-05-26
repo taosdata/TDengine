@@ -55,84 +55,44 @@ class TDTestCase:
 
         tdSql.query("select bottom(col1, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
-
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
         tdSql.query("select bottom(col2, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
 
         tdSql.query("select bottom(col3, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
 
         tdSql.query("select bottom(col4, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
-
-        tdSql.query("select bottom(col5, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 0.1)
-        tdSql.checkData(1, 1, 1.1)
-
-        tdSql.query("select bottom(col6, 2) from test")
-        tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 0.1)
-        tdSql.checkData(1, 1, 1.1)
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
 
         tdSql.query("select bottom(col11, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
 
         tdSql.query("select bottom(col12, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
 
         tdSql.query("select bottom(col13, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
 
         tdSql.query("select bottom(col14, 2) from test")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 1, 1)
-        tdSql.checkData(1, 1, 2)
-
-        tdSql.query("select ts,bottom(col1, 2),ts from test1")
+        tdSql.checkEqual(tdSql.queryResult,[(2,),(1,)])
+        tdSql.query("select ts,bottom(col1, 2) from test1")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
-        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
-        tdSql.checkData(1, 0, "2018-09-17 09:00:00.001")
-        tdSql.checkData(1, 3, "2018-09-17 09:00:00.001")
-
-
         tdSql.query("select ts,bottom(col1, 2),ts from test group by tbname")
         tdSql.checkRows(2)
-        tdSql.checkData(0, 0, "2018-09-17 09:00:00.000")
-        tdSql.checkData(0, 1, "2018-09-17 09:00:00.000")
-        tdSql.checkData(1, 0, "2018-09-17 09:00:00.001")
-        tdSql.checkData(1, 3, "2018-09-17 09:00:00.001")
-                   
-        #TD-2457 bottom + interval + order by
-        tdSql.error('select top(col2,1) from test interval(1y) order by col2;')
+        
+        tdSql.query('select bottom(col2,1) from test interval(1y) order by col2')
+        tdSql.checkData(0,0,1)
 
-        #TD-2563 top + super_table + interval 
-        tdSql.execute("create table meters(ts timestamp, c int) tags (d int)") 
-        tdSql.execute("create table t1 using meters tags (1)") 
-        sql = 'insert into t1 values '       
-        for i in range(20000):
-            sql = sql + '(%d, %d)' % (self.ts + i , i % 47)
-            if i % 2000 == 0:
-                tdSql.execute(sql)
-                sql = 'insert into t1 values ' 
-        tdSql.execute(sql)
-        tdSql.query('select bottom(c,1) from meters interval(10a)')
-        tdSql.checkData(0,1,0)
+        tdSql.error('select * from test where bottom(col2,1)=1')
+        
 
     def stop(self):
         tdSql.close()
