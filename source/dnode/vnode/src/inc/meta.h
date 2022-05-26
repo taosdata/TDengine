@@ -16,8 +16,8 @@
 #ifndef _TD_VNODE_META_H_
 #define _TD_VNODE_META_H_
 
-#include "vnodeInt.h"
 #include "index.h"
+#include "vnodeInt.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -64,6 +64,8 @@ struct SMeta {
 
   char*   path;
   SVnode* pVnode;
+  int64_t aVersion;
+  int64_t cVersion;
   TDB*    pEnv;
   TXN     txn;
   TTB*    pTbDb;

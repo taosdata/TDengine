@@ -107,3 +107,8 @@ int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32
   code = TSDB_CODE_VND_READ_END;
   return code;
 }
+
+int32_t vnodeRollback(SVnode *pVnode, int64_t ver) {
+  // TODO
+  return 0;
+}

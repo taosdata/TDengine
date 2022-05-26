@@ -102,6 +102,7 @@ SArray*         metaGetSmaTbUids(SMeta* pMeta);
 int32_t         metaSnapshotReaderOpen(SMeta* pMeta, SMetaSnapshotReader** ppReader, int64_t sver, int64_t ever);
 int32_t         metaSnapshotReaderClose(SMetaSnapshotReader* pReader);
 int32_t         metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* nData);
+int32_t         metaRollback(STsdb* pTsdb, int64_t ver);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -122,6 +123,7 @@ int32_t      tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STa
 int32_t      tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
 int32_t      tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
 int32_t      tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
+int32_t      tsdbRollback(STsdb* pTsdb, int64_t ver);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);

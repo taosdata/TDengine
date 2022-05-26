@@ -16,21 +16,51 @@
 #include "tsdb.h"
 
 struct STsdbSnapshotReader {
-  STsdb* pTsdb;
-  // TODO
+  STsdb*     pTsdb;
+  int64_t    sver;
+  int64_t    ever;
+  SFSIter    iter;
+  SDFileSet* pSet;
+  SReadH     rh;
 };
 
 int32_t tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever) {
-  // TODO
-  return 0;
+  int32_t              code = 0;
+  STsdbSnapshotReader* pTsdbReader = NULL;
+
+  pTsdbReader = (STsdbSnapshotReader*)taosMemoryCalloc(1, sizeof(*pTsdbReader));
+  if (pTsdbReader == NULL) {
+    code = TSDB_CODE_OUT_OF_MEMORY;
+    goto _err;
+  }
+  pTsdbReader->pTsdb = pTsdb;
+  pTsdbReader->sver = sver;
+  pTsdbReader->ever = ever;
+  tsdbFSIterInit(&pTsdbReader->iter, pTsdb->fs, TSDB_FS_ITER_FORWARD);
+  tsdbInitReadH(&pTsdbReader->rh, pTsdb);
+
+  *ppReader = pTsdbReader;
+  return code;
+
+_err:
+  *ppReader = NULL;
+  return code;
 }
 
 int32_t tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader) {
-  // TODO
+  if (pReader) {
+    tsdbDestroyReadH(&pReader->rh);
+    taosMemoryFree(pReader);
+  }
   return 0;
 }
 
 int32_t tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData) {
+  // TODO
+  return 0;
+}
+
+int32_t tsdbRollback(STsdb* pTsdb, int64_t ver) {
   // TODO
   return 0;
 }

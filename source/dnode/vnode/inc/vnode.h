@@ -68,6 +68,7 @@ void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
 int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever);
 int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
 int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
+int32_t vnodeRollback(SVnode *pVnode, int64_t ver);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove

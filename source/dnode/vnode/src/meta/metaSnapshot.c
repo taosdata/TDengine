@@ -91,3 +91,8 @@ int32_t metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* 
   *nDatap = nData;
   return code;
 }
+
+int32_t metaRollback(STsdb* pTsdb, int64_t ver) {
+  // TODO
+  return 0;
+}
