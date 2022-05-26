@@ -808,9 +808,14 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
       (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
   int32_t para2Bytes = pFunc->node.resType.bytes;
+  if (IS_VAR_DATA_TYPE(para2Type)) {
+    para2Bytes -= VARSTR_HEADER_SIZE;
+  }
   if (para2Bytes <= 0 || para2Bytes > 1000) {  // cast dst var type length limits to 1000
-    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "CAST function converted length should be in range [0, 1000]");
   }
   return TSDB_CODE_SUCCESS;
 }
