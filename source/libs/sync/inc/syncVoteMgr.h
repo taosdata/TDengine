@@ -42,6 +42,7 @@ typedef struct SVotesGranted {
 
 SVotesGranted *voteGrantedCreate(SSyncNode *pSyncNode);
 void           voteGrantedDestroy(SVotesGranted *pVotesGranted);
+void           voteGrantedUpdate(SVotesGranted *pVotesGranted, SSyncNode *pSyncNode);
 bool           voteGrantedMajority(SVotesGranted *pVotesGranted);
 void           voteGrantedVote(SVotesGranted *pVotesGranted, SyncRequestVoteReply *pMsg);
 void           voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term);
@@ -65,6 +66,7 @@ typedef struct SVotesRespond {
 
 SVotesRespond *votesRespondCreate(SSyncNode *pSyncNode);
 void           votesRespondDestory(SVotesRespond *pVotesRespond);
+void           votesRespondUpdate(SVotesRespond *pVotesRespond, SSyncNode *pSyncNode);
 bool           votesResponded(SVotesRespond *pVotesRespond, const SRaftId *pRaftId);
 void           votesRespondAdd(SVotesRespond *pVotesRespond, const SyncRequestVoteReply *pMsg);
 void           votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term);

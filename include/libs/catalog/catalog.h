@@ -64,7 +64,7 @@ typedef struct SCatalogReq {
 } SCatalogReq;
 
 typedef struct SMetaData {
-  SArray    *pTableMeta;  // SArray<STableMeta>
+  SArray    *pTableMeta;  // SArray<STableMeta*>
   SArray    *pDbVgroup;   // SArray<SArray<SVgroupInfo>*>
   SArray    *pTableHash;  // SArray<SVgroupInfo>
   SArray    *pUdfList;    // SArray<SFuncInfo>
@@ -248,6 +248,8 @@ int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, void * pTransporter, const
  */
 int32_t catalogGetAllMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
 
+int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId);
+
 int32_t catalogGetQnodeList(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
 
 int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion **stables, uint32_t *num);
@@ -265,6 +267,9 @@ int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, co
 int32_t catalogChkAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass);
 
 int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
+
+
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId);
 
 
 /**

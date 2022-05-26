@@ -58,14 +58,16 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
 static void    mndCancelGetNextDnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitDnode(SMnode *pMnode) {
-  SSdbTable table = {.sdbType = SDB_DNODE,
-                     .keyType = SDB_KEY_INT32,
-                     .deployFp = (SdbDeployFp)mndCreateDefaultDnode,
-                     .encodeFp = (SdbEncodeFp)mndDnodeActionEncode,
-                     .decodeFp = (SdbDecodeFp)mndDnodeActionDecode,
-                     .insertFp = (SdbInsertFp)mndDnodeActionInsert,
-                     .updateFp = (SdbUpdateFp)mndDnodeActionUpdate,
-                     .deleteFp = (SdbDeleteFp)mndDnodeActionDelete};
+  SSdbTable table = {
+      .sdbType = SDB_DNODE,
+      .keyType = SDB_KEY_INT32,
+      .deployFp = (SdbDeployFp)mndCreateDefaultDnode,
+      .encodeFp = (SdbEncodeFp)mndDnodeActionEncode,
+      .decodeFp = (SdbDecodeFp)mndDnodeActionDecode,
+      .insertFp = (SdbInsertFp)mndDnodeActionInsert,
+      .updateFp = (SdbUpdateFp)mndDnodeActionUpdate,
+      .deleteFp = (SdbDeleteFp)mndDnodeActionDelete,
+  };
 
   mndSetMsgHandle(pMnode, TDMT_MND_CREATE_DNODE, mndProcessCreateDnodeReq);
   mndSetMsgHandle(pMnode, TDMT_MND_DROP_DNODE, mndProcessDropDnodeReq);
@@ -90,13 +92,40 @@ static int32_t mndCreateDefaultDnode(SMnode *pMnode) {
   dnodeObj.updateTime = dnodeObj.createdTime;
   dnodeObj.port = pMnode->replicas[0].port;
   memcpy(&dnodeObj.fqdn, pMnode->replicas[0].fqdn, TSDB_FQDN_LEN);
+  snprintf(dnodeObj.ep, TSDB_EP_LEN, "%s:%u", dnodeObj.fqdn, dnodeObj.port);
 
   SSdbRaw *pRaw = mndDnodeActionEncode(&dnodeObj);
   if (pRaw == NULL) return -1;
   if (sdbSetRawStatus(pRaw, SDB_STATUS_READY) != 0) return -1;
 
   mDebug("dnode:%d, will be created while deploy sdb, raw:%p", dnodeObj.id, pRaw);
+
+#if 0
   return sdbWrite(pMnode->pSdb, pRaw);
+#else
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_DNODE, NULL);
+  if (pTrans == NULL) {
+    mError("dnode:%s, failed to create since %s", dnodeObj.ep, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+#endif
 }
 
 static SSdbRaw *mndDnodeActionEncode(SDnodeObj *pDnode) {
@@ -350,6 +379,15 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     mndReleaseVgroup(pMnode, pVgroup);
   }
 
+  SMnodeObj *pObj = mndAcquireMnode(pMnode, pDnode->id);
+  if (pObj != NULL) {
+    if (pObj->state != statusReq.mload.syncState) {
+      pObj->state = statusReq.mload.syncState;
+      pObj->stateStartTime = taosGetTimestampMs();
+    }
+    mndReleaseMnode(pMnode, pObj);
+  }
+
   int64_t curMs = taosGetTimestampMs();
   bool    online = mndIsDnodeOnline(pMnode, pDnode, curMs);
   bool    dnodeChanged = (statusReq.dnodeVer != sdbGetTableVer(pMnode->pSdb, SDB_DNODE));
@@ -448,13 +486,13 @@ static int32_t mndCreateDnode(SMnode *pMnode, SRpcMsg *pReq, SCreateDnodeReq *pC
   }
   mDebug("trans:%d, used to create dnode:%s", pTrans->id, dnodeObj.ep);
 
-  SSdbRaw *pRedoRaw = mndDnodeActionEncode(&dnodeObj);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+  SSdbRaw *pCommitRaw = mndDnodeActionEncode(&dnodeObj);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_READY);
+  sdbSetRawStatus(pCommitRaw, SDB_STATUS_READY);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -524,13 +562,13 @@ static int32_t mndDropDnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode) {
   }
   mDebug("trans:%d, used to drop dnode:%d", pTrans->id, pDnode->id);
 
-  SSdbRaw *pRedoRaw = mndDnodeActionEncode(pDnode);
-  if (pRedoRaw == NULL || mndTransAppendRedolog(pTrans, pRedoRaw) != 0) {
-    mError("trans:%d, failed to append redo log since %s", pTrans->id, terrstr());
+  SSdbRaw *pCommitRaw = mndDnodeActionEncode(pDnode);
+  if (pCommitRaw == NULL || mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) {
+    mError("trans:%d, failed to append commit log since %s", pTrans->id, terrstr());
     mndTransDrop(pTrans);
     return -1;
   }
-  sdbSetRawStatus(pRedoRaw, SDB_STATUS_DROPPED);
+  sdbSetRawStatus(pCommitRaw, SDB_STATUS_DROPPED);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) {
     mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
@@ -701,7 +739,7 @@ static int32_t mndRetrieveDnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pB
     colDataAppend(pColInfo, numOfRows, (const char *)&pDnode->id, false);
 
     char buf[tListLen(pDnode->ep) + VARSTR_HEADER_SIZE] = {0};
-    STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep,   pShow->pMeta->pSchemas[cols].bytes);
+    STR_WITH_MAXSIZE_TO_VARSTR(buf, pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, buf, false);

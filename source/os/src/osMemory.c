@@ -37,6 +37,49 @@ typedef struct TdMemoryInfo {
 
 #ifdef WINDOWS
 #define tstrdup(str) _strdup(str)
+
+int32_t taosBackTrace(void **buffer, int32_t size) {
+  int32_t frame = 0;
+  return frame;
+}
+
+#ifdef USE_ADDR2LINE
+#include <DbgHelp.h>
+#pragma comment(lib, "dbghelp.lib")
+
+void taosPrintBackTrace() {
+	#define MAX_STACK_FRAMES 20
+	
+	void *pStack[MAX_STACK_FRAMES];
+ 
+	HANDLE process = GetCurrentProcess();
+	SymInitialize(process, NULL, TRUE);
+	WORD frames = CaptureStackBackTrace(1, MAX_STACK_FRAMES, pStack, NULL);
+ 
+  char buf_tmp[1024];
+	for (WORD i = 0; i < frames; ++i) {
+		DWORD64 address = (DWORD64)(pStack[i]);
+ 
+		DWORD64 displacementSym = 0;
+		char buffer[sizeof(SYMBOL_INFO) + MAX_SYM_NAME * sizeof(TCHAR)];
+		PSYMBOL_INFO pSymbol = (PSYMBOL_INFO)buffer;
+		pSymbol->SizeOfStruct = sizeof(SYMBOL_INFO);
+		pSymbol->MaxNameLen = MAX_SYM_NAME;
+ 
+		DWORD displacementLine = 0;
+		IMAGEHLP_LINE64 line;
+		//SymSetOptions(SYMOPT_LOAD_LINES);
+		line.SizeOfStruct = sizeof(IMAGEHLP_LINE64);
+ 
+		if (SymFromAddr(process, address, &displacementSym, pSymbol) && SymGetLineFromAddr64(process, address, &displacementLine, &line)) {
+      snprintf(buf_tmp,sizeof(buf_tmp),"BackTrace %08" PRId64 " %s:%d %s\n", taosGetSelfPthreadId(), line.FileName, line.LineNumber, pSymbol->Name);
+		} else {
+			snprintf(buf_tmp,sizeof(buf_tmp),"BackTrace error: %d\n",GetLastError());
+		}
+    write(1,buf_tmp,strlen(buf_tmp));
+	}
+}
+#endif
 #else
 #define tstrdup(str) strdup(str)
 

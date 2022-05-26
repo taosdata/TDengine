@@ -121,13 +121,13 @@ TEST_F(ParserSelectTest, selectFunc) {
   run("SELECT MAX(c1), c2 FROM t1 STATE_WINDOW(c3)");
 }
 
-TEST_F(ParserSelectTest, nonstdFunc) {
+TEST_F(ParserSelectTest, IndefiniteRowsFunc) {
   useDb("root", "test");
 
   run("SELECT DIFF(c1) FROM t1");
 }
 
-TEST_F(ParserSelectTest, nonstdFuncSemanticCheck) {
+TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   useDb("root", "test");
 
   run("SELECT DIFF(c1), c2 FROM t1", TSDB_CODE_PAR_NOT_ALLOWED_FUNC, PARSER_STAGE_TRANSLATE);

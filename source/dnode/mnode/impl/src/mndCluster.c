@@ -16,6 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "mndCluster.h"
 #include "mndShow.h"
+#include "mndTrans.h"
 
 #define CLUSTER_VER_NUMBE    1
 #define CLUSTER_RESERVE_SIZE 64
@@ -177,7 +178,32 @@ static int32_t mndCreateDefaultCluster(SMnode *pMnode) {
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("cluster:%" PRId64 ", will be created while deploy sdb, raw:%p", clusterObj.id, pRaw);
+#if 0
   return sdbWrite(pMnode->pSdb, pRaw);
+#else
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_CLUSTER, NULL);
+  if (pTrans == NULL) {
+    mError("cluster:%" PRId64 ", failed to create since %s", clusterObj.id, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create cluster:%" PRId64, pTrans->id, clusterObj.id);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+#endif
 }
 
 static int32_t mndRetrieveClusters(SRpcMsg *pMsg, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {

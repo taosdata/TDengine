@@ -46,6 +46,7 @@ psim/
 pysim/
 *.out
 *DS_Store
+tests/script/api/batchprepare
 
 # Doxygen Generated files
 html/

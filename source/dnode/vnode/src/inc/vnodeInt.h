@@ -47,15 +47,17 @@
 extern "C" {
 #endif
 
-typedef struct SVnodeInfo   SVnodeInfo;
-typedef struct SMeta        SMeta;
-typedef struct SSma         SSma;
-typedef struct STsdb        STsdb;
-typedef struct STQ          STQ;
-typedef struct SVState      SVState;
-typedef struct SVBufPool    SVBufPool;
-typedef struct SQWorker     SQHandle;
-typedef struct STsdbKeepCfg STsdbKeepCfg;
+typedef struct SVnodeInfo          SVnodeInfo;
+typedef struct SMeta               SMeta;
+typedef struct SSma                SSma;
+typedef struct STsdb               STsdb;
+typedef struct STQ                 STQ;
+typedef struct SVState             SVState;
+typedef struct SVBufPool           SVBufPool;
+typedef struct SQWorker            SQHandle;
+typedef struct STsdbKeepCfg        STsdbKeepCfg;
+typedef struct SMetaSnapshotReader SMetaSnapshotReader;
+typedef struct STsdbSnapshotReader STsdbSnapshotReader;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -67,8 +69,10 @@ typedef struct STsdbKeepCfg STsdbKeepCfg;
 #define VNODE_RSMA2_DIR "rsma2"
 
 // vnd.h
-void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
-void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+void*   vnodeBufPoolMalloc(SVBufPool* pPool, int size);
+void    vnodeBufPoolFree(SVBufPool* pPool, void* p);
+int32_t vnodeRealloc(void** pp, int32_t size);
+void    vnodeFree(void* p);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
@@ -95,6 +99,9 @@ STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
 STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
 SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*         metaGetSmaTbUids(SMeta* pMeta);
+int32_t         metaSnapshotReaderOpen(SMeta* pMeta, SMetaSnapshotReader** ppReader, int64_t sver, int64_t ever);
+int32_t         metaSnapshotReaderClose(SMetaSnapshotReader* pReader);
+int32_t         metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* nData);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -104,7 +111,7 @@ int          tsdbOpen(SVnode* pVnode, STsdb** ppTsdb, const char* dir, STsdbKeep
 int          tsdbClose(STsdb** pTsdb);
 int          tsdbBegin(STsdb* pTsdb);
 int          tsdbCommit(STsdb* pTsdb);
-int          tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, const SSubmitReq* pMsg);
+int          tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
 int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
 int          tsdbInsertTableData(STsdb* pTsdb, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkRsp* pRsp);
 tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
@@ -112,6 +119,9 @@ tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableG
 tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                                  void* pMemRef);
 int32_t      tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo);
+int32_t      tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
+int32_t      tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
+int32_t      tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
@@ -123,11 +133,7 @@ int32_t tqProcessVgChangeReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessVgDeleteReq(STQ* pTq, char* msg, int32_t msgLen);
 int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId);
 int32_t tqProcessTaskDeploy(STQ* pTq, char* msg, int32_t msgLen);
-#if 0
-int32_t tqProcessTaskExec(STQ* pTq, char* msg, int32_t msgLen, int32_t workerId);
-int32_t tqProcessStreamTrigger(STQ* pTq, void* data, int32_t dataLen, int32_t workerId);
-#endif
-int32_t tqProcessStreamTriggerNew(STQ* pTq, SSubmitReq* data);
+int32_t tqProcessStreamTrigger(STQ* pTq, SSubmitReq* data);
 int32_t tqProcessTaskRunReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskDispatchReq(STQ* pTq, SRpcMsg* pMsg);
 int32_t tqProcessTaskRecoverReq(STQ* pTq, SRpcMsg* pMsg);

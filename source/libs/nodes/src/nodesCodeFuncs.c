@@ -78,6 +78,8 @@ const char* nodesNodeName(ENodeType type) {
       return "TableOptions";
     case QUERY_NODE_INDEX_OPTIONS:
       return "IndexOptions";
+    case QUERY_NODE_LEFT_VALUE:
+      return "LeftValue";
     case QUERY_NODE_SET_OPERATOR:
       return "SetOperator";
     case QUERY_NODE_SELECT_STMT:
@@ -228,6 +230,8 @@ const char* nodesNodeName(ENodeType type) {
       return "PhysiFill";
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
       return "PhysiSessionWindow";
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
+      return "PhysiStreamSessionWindow";
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return "PhysiStateWindow";
     case QUERY_NODE_PHYSICAL_PLAN_PARTITION:
@@ -490,6 +494,7 @@ static const char* jkScanLogicPlanScanCols = "ScanCols";
 static const char* jkScanLogicPlanScanPseudoCols = "ScanPseudoCols";
 static const char* jkScanLogicPlanTableMetaSize = "TableMetaSize";
 static const char* jkScanLogicPlanTableMeta = "TableMeta";
+static const char* jkScanLogicPlanTagCond = "TagCond";
 
 static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   const SScanLogicNode* pNode = (const SScanLogicNode*)pObj;
@@ -506,6 +511,9 @@ static int32_t logicScanNodeToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkScanLogicPlanTableMeta, tableMetaToJson, pNode->pMeta);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkScanLogicPlanTagCond, nodeToJson, pNode->pTagCond);
   }
 
   return code;
@@ -527,6 +535,9 @@ static int32_t jsonToLogicScanNode(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonMakeObject(pJson, jkScanLogicPlanTableMeta, jsonToTableMeta, (void**)&pNode->pMeta, objSize);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkScanLogicPlanTagCond, &pNode->pTagCond);
   }
 
   return code;
@@ -1775,6 +1786,7 @@ static const char* jkSubplanDbFName = "DbFName";
 static const char* jkSubplanNodeAddr = "NodeAddr";
 static const char* jkSubplanRootNode = "RootNode";
 static const char* jkSubplanDataSink = "DataSink";
+static const char* jkSubplanTagCond = "TagCond";
 
 static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   const SSubplan* pNode = (const SSubplan*)pObj;
@@ -1800,6 +1812,9 @@ static int32_t subplanToJson(const void* pObj, SJson* pJson) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = tjsonAddObject(pJson, jkSubplanDataSink, nodeToJson, pNode->pDataSink);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSubplanTagCond, nodeToJson, pNode->pTagCond);
   }
 
   return code;
@@ -1830,6 +1845,9 @@ static int32_t jsonToSubplan(const SJson* pJson, void* pObj) {
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = jsonToNodeObject(pJson, jkSubplanDataSink, (SNode**)&pNode->pDataSink);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSubplanTagCond, (SNode**)&pNode->pTagCond);
   }
 
   return code;
@@ -2175,7 +2193,7 @@ static int32_t jsonToDatum(const SJson* pJson, void* pObj) {
         code = TSDB_CODE_OUT_OF_MEMORY;
         break;
       }
-      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes);
+      varDataSetLen(pNode->datum.p, pNode->node.resType.bytes - VARSTR_HEADER_SIZE);
       if (TSDB_DATA_TYPE_NCHAR == pNode->node.resType.type) {
         char* buf = taosMemoryCalloc(1, pNode->node.resType.bytes * 2 + VARSTR_HEADER_SIZE + 1);
         if (NULL == buf) {
@@ -2509,6 +2527,29 @@ static int32_t jsonToOrderByExprNode(const SJson* pJson, void* pObj) {
     ;
   }
 
+  return code;
+}
+
+static const char* jkSessionWindowTsPrimaryKey = "TsPrimaryKey";
+static const char* jkSessionWindowGap = "Gap";
+
+static int32_t sessionWindowNodeToJson(const void* pObj, SJson* pJson) {
+  const SSessionWindowNode * pNode = (const SSessionWindowNode*)pObj;
+
+  int32_t code = tjsonAddObject(pJson, jkSessionWindowTsPrimaryKey, nodeToJson, pNode->pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = tjsonAddObject(pJson, jkSessionWindowGap, nodeToJson, pNode->pGap);
+  }
+  return code;
+}
+
+static int32_t jsonToSessionWindowNode(const SJson* pJson, void* pObj) {
+  SSessionWindowNode* pNode = (SSessionWindowNode*)pObj;
+
+  int32_t code = jsonToNodeObject(pJson, jkSessionWindowTsPrimaryKey, (SNode **)&pNode->pCol);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = jsonToNodeObject(pJson, jkSessionWindowGap, (SNode **)&pNode->pGap);
+  }
   return code;
 }
 
@@ -2999,8 +3040,9 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       return orderByExprNodeToJson(pObj, pJson);
     case QUERY_NODE_LIMIT:
     case QUERY_NODE_STATE_WINDOW:
-    case QUERY_NODE_SESSION_WINDOW:
       break;
+    case QUERY_NODE_SESSION_WINDOW:
+      return sessionWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_INTERVAL_WINDOW:
       return intervalWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_NODE_LIST:
@@ -3019,6 +3061,8 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
       break;
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return downstreamSourceNodeToJson(pObj, pJson);
+    case QUERY_NODE_LEFT_VALUE:
+      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to serialize.
     case QUERY_NODE_SET_OPERATOR:
       return setOperatorToJson(pObj, pJson);
     case QUERY_NODE_SELECT_STMT:
@@ -3078,6 +3122,7 @@ static int32_t specificNodeToJson(const void* pObj, SJson* pJson) {
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return physiFillNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       return physiSessionWindowNodeToJson(pObj, pJson);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return physiStateWindowNodeToJson(pObj, pJson);
@@ -3116,6 +3161,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToTempTableNode(pJson, pObj);
     case QUERY_NODE_ORDER_BY_EXPR:
       return jsonToOrderByExprNode(pJson, pObj);
+    case QUERY_NODE_SESSION_WINDOW:
+      return jsonToSessionWindowNode(pJson, pObj);
     case QUERY_NODE_INTERVAL_WINDOW:
       return jsonToIntervalWindowNode(pJson, pObj);
     case QUERY_NODE_NODE_LIST:
@@ -3130,6 +3177,8 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
       return jsonToSlotDescNode(pJson, pObj);
     case QUERY_NODE_DOWNSTREAM_SOURCE:
       return jsonToDownstreamSourceNode(pJson, pObj);
+    case QUERY_NODE_LEFT_VALUE:
+      return TSDB_CODE_SUCCESS;  // SLeftValueNode has no fields to deserialize.
     case QUERY_NODE_SET_OPERATOR:
       return jsonToSetOperator(pJson, pObj);
     case QUERY_NODE_SELECT_STMT:
@@ -3176,6 +3225,7 @@ static int32_t jsonToSpecificNode(const SJson* pJson, void* pObj) {
     case QUERY_NODE_PHYSICAL_PLAN_FILL:
       return jsonToPhysiFillNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW:
+    case QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW:
       return jsonToPhysiSessionWindowNode(pJson, pObj);
     case QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW:
       return jsonToPhysiStateWindowNode(pJson, pObj);

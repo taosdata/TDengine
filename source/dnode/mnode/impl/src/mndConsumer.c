@@ -419,7 +419,9 @@ static int32_t mndProcessSubscribeReq(SRpcMsg *pMsg) {
     SMqTopicObj topicObj = {0};
     memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
     topicObj.refConsumerCnt = pTopic->refConsumerCnt + 1;
-    if (mndSetTopicRedoLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
+    mInfo("subscribe topic %s by consumer %ld cgroup %s, refcnt %d", pTopic->name, consumerId, cgroup,
+          topicObj.refConsumerCnt);
+    if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto SUBSCRIBE_OVER;
 
     mndReleaseTopic(pMnode, pTopic);
   }

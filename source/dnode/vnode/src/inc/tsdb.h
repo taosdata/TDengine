@@ -40,8 +40,8 @@ typedef struct STable        STable;
 
 int  tsdbMemTableCreate(STsdb *pTsdb, STsdbMemTable **ppMemTable);
 void tsdbMemTableDestroy(STsdb *pTsdb, STsdbMemTable *pMemTable);
-int  tsdbLoadDataFromCache(STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead, SDataCols *pCols,
-                           TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
+int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter, TSKEY maxKey, int maxRowsToRead,
+                           SDataCols *pCols, TKEY *filterKeys, int nFilterKeys, bool keepDup, SMergeInfo *pMergeInfo);
 
 // tsdbCommit ================
 
@@ -179,7 +179,14 @@ struct STsdbFS {
 int tsdbLockRepo(STsdb *pTsdb);
 int tsdbUnlockRepo(STsdb *pTsdb);
 
-static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STable *pTable, bool lock, bool copy, int32_t version) {
+static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STsdb *pTsdb, STable *pTable, bool lock, bool copy,
+                                                     int32_t version) {
+
+  if ((version != -1) && (schemaVersion(pTable->pSchema) != version)) {
+    taosMemoryFreeClear(pTable->pSchema);
+    pTable->pSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
+  }
+
   return pTable->pSchema;
 }
 

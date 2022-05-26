@@ -401,12 +401,14 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
     req.pRSmaParam.xFilesFactor = pStb->xFilesFactor;
     req.pRSmaParam.delay = pStb->delay;
     if (pStb->ast1Len > 0) {
-      if (mndConvertRSmaTask(pStb->pAst1, 0, 0, &req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len) != TSDB_CODE_SUCCESS) {
+      if (mndConvertRSmaTask(pStb->pAst1, pStb->uid, 0, 0, &req.pRSmaParam.qmsg1, &req.pRSmaParam.qmsg1Len) !=
+          TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
     if (pStb->ast2Len > 0) {
-      if (mndConvertRSmaTask(pStb->pAst2, 0, 0, &req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len) != TSDB_CODE_SUCCESS) {
+      if (mndConvertRSmaTask(pStb->pAst2, pStb->uid, 0, 0, &req.pRSmaParam.qmsg2, &req.pRSmaParam.qmsg2Len) !=
+          TSDB_CODE_SUCCESS) {
         return NULL;
       }
     }
@@ -743,9 +745,7 @@ static int32_t mndCreateStb(SMnode *pMnode, SRpcMsg *pReq, SMCreateStbReq *pCrea
 
   mDebug("trans:%d, used to create stb:%s", pTrans->id, pCreate->name);
 
-  if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) {
-    goto _OVER;
-  }
+  if (mndBuildStbFromReq(pMnode, &stbObj, pCreate, pDb) != 0) goto _OVER;
 
   if (mndAddStbToTrans(pMnode, pTrans, pDb, &stbObj) < 0) goto _OVER;
 

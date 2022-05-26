@@ -32,7 +32,7 @@ SRaftCfg *raftCfgOpen(const char *path) {
   int  len = taosReadFile(pCfg->pFile, buf, sizeof(buf));
   assert(len > 0);
 
-  int32_t ret = syncCfgFromStr(buf, &(pCfg->cfg));
+  int32_t ret = raftCfgFromStr(buf, pCfg);
   assert(ret == 0);
 
   return pCfg;
@@ -48,7 +48,7 @@ int32_t raftCfgClose(SRaftCfg *pRaftCfg) {
 int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
   assert(pRaftCfg != NULL);
 
-  char *s = syncCfg2Str(&(pRaftCfg->cfg));
+  char *s = raftCfg2Str(pRaftCfg);
   taosLSeekFile(pRaftCfg->pFile, 0, SEEK_SET);
   int64_t ret = taosWriteFile(pRaftCfg->pFile, s, strlen(s) + 1);
   assert(ret == strlen(s) + 1);
@@ -76,9 +76,12 @@ cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
     }
   }
 
+  return pRoot;
+  /*
   cJSON *pJson = cJSON_CreateObject();
   cJSON_AddItemToObject(pJson, "SSyncCfg", pRoot);
   return pJson;
+  */
 }
 
 char *syncCfg2Str(SSyncCfg *pSyncCfg) {
@@ -90,7 +93,8 @@ char *syncCfg2Str(SSyncCfg *pSyncCfg) {
 
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg) {
   memset(pSyncCfg, 0, sizeof(SSyncCfg));
-  cJSON *pJson = cJSON_GetObjectItem(pRoot, "SSyncCfg");
+  // cJSON *pJson = cJSON_GetObjectItem(pRoot, "SSyncCfg");
+  const cJSON *pJson = pRoot;
 
   cJSON *pReplicaNum = cJSON_GetObjectItem(pJson, "replicaNum");
   assert(cJSON_IsNumber(pReplicaNum));
@@ -133,27 +137,62 @@ int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg) {
 }
 
 cJSON *raftCfg2Json(SRaftCfg *pRaftCfg) {
-  cJSON *pJson = syncCfg2Json(&(pRaftCfg->cfg));
+  cJSON *pRoot = cJSON_CreateObject();
+  cJSON_AddItemToObject(pRoot, "SSyncCfg", syncCfg2Json(&(pRaftCfg->cfg)));
+  cJSON_AddNumberToObject(pRoot, "isStandBy", pRaftCfg->isStandBy);
+
+  cJSON *pJson = cJSON_CreateObject();
+  cJSON_AddItemToObject(pJson, "RaftCfg", pRoot);
   return pJson;
 }
 
 char *raftCfg2Str(SRaftCfg *pRaftCfg) {
-  char *s = syncCfg2Str(&(pRaftCfg->cfg));
-  return s;
+  cJSON *pJson = raftCfg2Json(pRaftCfg);
+  char * serialized = cJSON_Print(pJson);
+  cJSON_Delete(pJson);
+  return serialized;
 }
 
-int32_t syncCfgCreateFile(SSyncCfg *pCfg, const char *path) {
+int32_t raftCfgCreateFile(SSyncCfg *pCfg, int8_t isStandBy, const char *path) {
   assert(pCfg != NULL);
 
   TdFilePtr pFile = taosOpenFile(path, TD_FILE_CREATE | TD_FILE_WRITE);
   assert(pFile != NULL);
 
-  char *  s = syncCfg2Str(pCfg);
+  SRaftCfg raftCfg;
+  raftCfg.cfg = *pCfg;
+  raftCfg.isStandBy = isStandBy;
+  char *  s = raftCfg2Str(&raftCfg);
   int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
   assert(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosCloseFile(&pFile);
+  return 0;
+}
+
+int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg) {
+  // memset(pRaftCfg, 0, sizeof(SRaftCfg));
+  cJSON *pJson = cJSON_GetObjectItem(pRoot, "RaftCfg");
+
+  cJSON *pJsonIsStandBy = cJSON_GetObjectItem(pJson, "isStandBy");
+  pRaftCfg->isStandBy = cJSON_GetNumberValue(pJsonIsStandBy);
+
+  cJSON * pJsonSyncCfg = cJSON_GetObjectItem(pJson, "SSyncCfg");
+  int32_t code = syncCfgFromJson(pJsonSyncCfg, &(pRaftCfg->cfg));
+  ASSERT(code == 0);
+
+  return code;
+}
+
+int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg) {
+  cJSON *pRoot = cJSON_Parse(s);
+  assert(pRoot != NULL);
+
+  int32_t ret = raftCfgFromJson(pRoot, pRaftCfg);
+  assert(ret == 0);
+
+  cJSON_Delete(pRoot);
   return 0;
 }
 

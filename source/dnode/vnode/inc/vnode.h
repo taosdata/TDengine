@@ -39,9 +39,10 @@ extern "C" {
 #endif
 
 // vnode
-typedef struct SVnode    SVnode;
-typedef struct STsdbCfg  STsdbCfg;  // todo: remove
-typedef struct SVnodeCfg SVnodeCfg;
+typedef struct SVnode           SVnode;
+typedef struct STsdbCfg         STsdbCfg;  // todo: remove
+typedef struct SVnodeCfg        SVnodeCfg;
+typedef struct SVSnapshotReader SVSnapshotReader;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -51,7 +52,7 @@ int32_t vnodeCreate(const char *path, SVnodeCfg *pCfg, STfs *pTfs);
 void    vnodeDestroy(const char *path, STfs *pTfs);
 SVnode *vnodeOpen(const char *path, STfs *pTfs, SMsgCb msgCb);
 void    vnodeClose(SVnode *pVnode);
-int32_t vnodePreprocessWriteReqs(SVnode *pVnode, SArray *pMsgs, int64_t *version);
+int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessWriteReq(SVnode *pVnode, SRpcMsg *pMsg, int64_t version, SRpcMsg *pRsp);
 int32_t vnodeProcessCMsg(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
 int32_t vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp);
@@ -59,13 +60,14 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
-
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
-
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
+int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever);
+int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
+int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove
@@ -126,7 +128,7 @@ STqReadHandle *tqInitSubmitMsgScanner(SMeta *pMeta);
 void    tqReadHandleSetColIdList(STqReadHandle *pReadHandle, SArray *pColIdList);
 int32_t tqReadHandleSetTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 int32_t tqReadHandleAddTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
-int32_t tqReadHandleRemoveTbUidList(STqReadHandle* pHandle, const SArray* tbUidList);
+int32_t tqReadHandleRemoveTbUidList(STqReadHandle *pHandle, const SArray *tbUidList);
 
 int32_t tqReadHandleSetMsg(STqReadHandle *pHandle, SSubmitReq *pMsg, int64_t ver);
 bool    tqNextDataBlock(STqReadHandle *pHandle);
@@ -174,20 +176,20 @@ typedef struct {
 } STableKeyInfo;
 
 struct SMetaEntry {
-  int64_t     version;
-  int8_t      type;
-  tb_uid_t    uid;
-  const char *name;
+  int64_t  version;
+  int8_t   type;
+  tb_uid_t uid;
+  char    *name;
   union {
     struct {
       SSchemaWrapper schema;
       SSchemaWrapper schemaTag;
     } stbEntry;
     struct {
-      int64_t        ctime;
-      int32_t        ttlDays;
-      tb_uid_t       suid;
-      const uint8_t *pTags;
+      int64_t  ctime;
+      int32_t  ttlDays;
+      tb_uid_t suid;
+      uint8_t *pTags;
     } ctbEntry;
     struct {
       int64_t        ctime;

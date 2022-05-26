@@ -11,7 +11,7 @@ import TabItem from '@theme/TabItem';
 
 'taos-jdbcdriver' is TDengine's official Java language connector, which allows Java developers to develop applications that access the TDengine database. 'taos-jdbcdriver' implements the interface of the JDBC driver standard and provides two forms of connectors. One is to connect to a TDengine instance natively through the TDengine client driver (taosc), which supports functions including data writing, querying, subscription, schemaless writing, and bind interface. And the other is to connect to a TDengine instance through the REST interface provided by taosAdapter (2.4.0.0 and later). REST connections implement has a slight differences to compare the set of features implemented and native connections.
 
-![tdengine-connector](tdengine-jdbc-connector.png)
+![tdengine-connector](tdengine-jdbc-connector.webp)
 
 The preceding diagram shows two ways for a Java app to access TDengine via connector:
 
@@ -206,10 +206,10 @@ The configuration parameters in the URL are as follows.
 - Unlike the native connection method, the REST interface is stateless. When using the JDBC REST connection, you need to specify the database name of the table and super table in SQL. For example.
 
 ```sql
-INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('beijing') VALUES(now, 24.6);
+INSERT INTO test.t1 USING test.weather (ts, temperature) TAGS('California.SanFrancisco') VALUES(now, 24.6);
 ```
 
-- Starting from taos-jdbcdriver-2.0.36 and TDengine 2.2.0.0, if dbname is specified in the URL, JDBC REST connections will use `/rest/sql/dbname` as the URL for REST requests by default, and there is no need to specify dbname in SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/test`, then the SQL can be executed: insert into t1 using weather(ts, temperature) tags('beijing') values(now, 24.6);
+- Starting from taos-jdbcdriver-2.0.36 and TDengine 2.2.0.0, if dbname is specified in the URL, JDBC REST connections will use `/rest/sql/dbname` as the URL for REST requests by default, and there is no need to specify dbname in SQL. For example, if the URL is `jdbc:TAOS-RS://127.0.0.1:6041/test`, then the SQL can be executed: insert into t1 using weather(ts, temperature) tags('California.SanFrancisco') values(now, 24.6);
 
 :::
 
@@ -565,7 +565,7 @@ public class ParameterBindingDemo {
                 // set table name
                 pstmt.setTableName("t5_" + i);
                 // set tags
-                pstmt.setTagNString(0, "Beijing-abc");
+                pstmt.setTagNString(0, "California-abc");
 
                 // set columns
                 ArrayList<Long> tsList = new ArrayList<>();
@@ -576,7 +576,7 @@ public class ParameterBindingDemo {
 
                 ArrayList<String> f1List = new ArrayList<>();
                 for (int j = 0; j < numOfRow; j++) {
-                    f1List.add("Beijing-abc");
+                    f1List.add("California-abc");
                 }
                 pstmt.setNString(1, f1List, BINARY_COLUMN_SIZE);
 
@@ -635,7 +635,7 @@ public class SchemalessInsertTest {
     private static final String host = "127.0.0.1";
     private static final String lineDemo = "st,t1=3i64,t2=4f64,t3=\"t3\" c1=3i64,c3=L\"passit\",c2=false,c4=4f64 1626006833639000000";
     private static final String telnetDemo = "stb0_0 1626006833 4 host=host0 interface=eth0";
-    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"Beijing\", \"id\": \"d1001\"}}";
+    private static final String jsonDemo = "{\"metric\": \"meter_current\",\"timestamp\": 1346846400,\"value\": 10.3, \"tags\": {\"groupid\": 2, \"location\": \"California.SanFrancisco\", \"id\": \"d1001\"}}";
 
     public static void main(String[] args) throws SQLException {
         final String url = "jdbc:TAOS://" + host + ":6030/?user=root&password=taosdata";

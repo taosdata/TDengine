@@ -24,19 +24,21 @@ extern "C" {
 #endif
 
 typedef struct SMnodeMgmt {
-  SDnodeData   *pData;
-  SMnode       *pMnode;
-  SMsgCb        msgCb;
-  const char   *path;
-  const char   *name;
-  SSingleWorker queryWorker;
-  SSingleWorker readWorker;
-  SSingleWorker writeWorker;
-  SSingleWorker syncWorker;
-  SSingleWorker monitorWorker;
-  SReplica      replicas[TSDB_MAX_REPLICA];
-  int8_t        replica;
-  int8_t        selfIndex;
+  SDnodeData    *pData;
+  SMnode        *pMnode;
+  SMsgCb         msgCb;
+  const char    *path;
+  const char    *name;
+  SSingleWorker  queryWorker;
+  SSingleWorker  readWorker;
+  SSingleWorker  writeWorker;
+  SSingleWorker  syncWorker;
+  SSingleWorker  monitorWorker;
+  SReplica       replicas[TSDB_MAX_REPLICA];
+  int8_t         replica;
+  bool           stopped;
+  int32_t        refCount;
+  TdThreadRwlock lock;
 } SMnodeMgmt;
 
 // mmFile.c
@@ -44,7 +46,8 @@ int32_t mmReadFile(SMnodeMgmt *pMgmt, bool *pDeployed);
 int32_t mmWriteFile(SMnodeMgmt *pMgmt, SDCreateMnodeReq *pMsg, bool deployed);
 
 // mmInt.c
-int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pMsg);
+int32_t mmAcquire(SMnodeMgmt *pMgmt);
+void    mmRelease(SMnodeMgmt *pMgmt);
 
 // mmHandle.c
 SArray *mmGetMsgHandles();
