@@ -324,10 +324,10 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   if(pRsp->tblFName) strcat(pRsp->tblFName, mr.me.name);
 
   if (mr.me.type == TSDB_NORMAL_TABLE) {
-    sverNew = mr.me.ntbEntry.schema.sver;
+    sverNew = mr.me.ntbEntry.schemaRow.version;
   } else {
     metaGetTableEntryByUid(&mr, mr.me.ctbEntry.suid);
-    sverNew = mr.me.stbEntry.schema.sver;
+    sverNew = mr.me.stbEntry.schemaRow.version;
   }
   metaReaderClear(&mr);
 

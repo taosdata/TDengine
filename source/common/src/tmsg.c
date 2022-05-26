@@ -3801,7 +3801,7 @@ int tEncodeSVCreateStbReq(SEncoder *pCoder, const SVCreateStbReq *pReq) {
   if (tEncodeCStr(pCoder, pReq->name) < 0) return -1;
   if (tEncodeI64(pCoder, pReq->suid) < 0) return -1;
   if (tEncodeI8(pCoder, pReq->rollup) < 0) return -1;
-  if (tEncodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
+  if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaRow) < 0) return -1;
   if (tEncodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
   if (pReq->rollup) {
     if (tEncodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
@@ -3817,7 +3817,7 @@ int tDecodeSVCreateStbReq(SDecoder *pCoder, SVCreateStbReq *pReq) {
   if (tDecodeCStr(pCoder, &pReq->name) < 0) return -1;
   if (tDecodeI64(pCoder, &pReq->suid) < 0) return -1;
   if (tDecodeI8(pCoder, &pReq->rollup) < 0) return -1;
-  if (tDecodeSSchemaWrapper(pCoder, &pReq->schema) < 0) return -1;
+  if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaRow) < 0) return -1;
   if (tDecodeSSchemaWrapper(pCoder, &pReq->schemaTag) < 0) return -1;
   if (pReq->rollup) {
     if (tDecodeSRSmaParam(pCoder, &pReq->pRSmaParam) < 0) return -1;
@@ -3866,7 +3866,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
     if (tEncodeBinary(pCoder, pReq->ctb.pTag, kvRowLen(pReq->ctb.pTag)) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
-    if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schema) < 0) return -1;
+    if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
     ASSERT(0);
   }
@@ -3892,7 +3892,7 @@ int tDecodeSVCreateTbReq(SDecoder *pCoder, SVCreateTbReq *pReq) {
     if (tDecodeI64(pCoder, &pReq->ctb.suid) < 0) return -1;
     if (tDecodeBinary(pCoder, &pReq->ctb.pTag, &len) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
-    if (tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schema) < 0) return -1;
+    if (tDecodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {
     ASSERT(0);
   }
