@@ -4434,7 +4434,7 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 }
 
 static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                      STableListInfo* pTableGroupInfo, uint64_t queryId, uint64_t taskId, SNode* pTagNode);
+                                      STableListInfo* pTableGroupInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond);
 
 static int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo, SNode* pTagCond);
 static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo);
@@ -4473,16 +4473,6 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
-      int32_t  code = getTableList(pHandle->meta, pTableScanNode->scan.tableType, pTableScanNode->scan.uid, pTableListInfo, pTagCond);
-      if (code != TSDB_CODE_SUCCESS) {
-        return NULL;
-      }
-
-      if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
-        qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
-        return NULL;
-      }
-
       tsdbReaderT pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
       if (pDataReader == NULL && terrno != 0) {
         return NULL;
@@ -4505,19 +4495,11 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       int32_t numOfCols = 0;
 
-      int32_t  code = getTableList(pHandle->meta, pTableScanNode->scan.tableType, pTableScanNode->scan.uid, pTableListInfo, pTagCond);
-      if (code != TSDB_CODE_SUCCESS) {
-        return NULL;
-      }
-
-      if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
-        qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
-        return NULL;
-      }
-
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
+      } else {
+        getTableList(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableListInfo, pTagCond);
       }
 
       if (pDataReader == NULL && terrno != 0) {
@@ -4915,6 +4897,7 @@ int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid,
       if (code != TSDB_CODE_SUCCESS) {
         qError("doFilterTag error:%d", code);
         taosArrayDestroy(res);
+        terrno = code;
         return code;
       }
       for(int i = 0; i < taosArrayGetSize(res); i++){
@@ -4946,14 +4929,29 @@ SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
 }
 
 tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                               STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId, SNode* pTagNode) {
-  SQueryTableDataCond cond = {0};
-  int32_t code = initQueryTableDataCond(&cond, pTableScanNode);
+                               STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond) {
+  int32_t  code = getTableList(pHandle->meta, pTableScanNode->scan.tableType, pTableScanNode->scan.uid, pTableListInfo, pTagCond);
   if (code != TSDB_CODE_SUCCESS) {
-    return NULL;
+    goto _error;
+  }
+
+  if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
+    code = 0;
+    qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
+    goto _error;
+  }
+
+  SQueryTableDataCond cond = {0};
+  code = initQueryTableDataCond(&cond, pTableScanNode);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
   }
 
   return tsdbQueryTables(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
+
+_error:
+  terrno = code;
+  return NULL;
 }
 
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
