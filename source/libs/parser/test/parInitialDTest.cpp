@@ -19,7 +19,7 @@ using namespace std;
 
 namespace ParserTest {
 
-class ParserInitialDTest : public ParserTestBase {};
+class ParserInitialDTest : public ParserDdlTest {};
 
 // todo delete
 // todo desc
@@ -29,7 +29,37 @@ class ParserInitialDTest : public ParserTestBase {};
 TEST_F(ParserInitialDTest, dropBnode) {
   useDb("root", "test");
 
-  run("drop bnode on dnode 1");
+  run("DROP BNODE ON DNODE 1");
+}
+
+// DROP CGROUP [ IF EXISTS ] cgroup_name ON topic_name
+TEST_F(ParserInitialDTest, dropCGroup) {
+  useDb("root", "test");
+
+  SMDropCgroupReq expect = {0};
+
+  auto setDropCgroupReqFunc = [&](const char* pTopicName, const char* pCGroupName, int8_t igNotExists = 0) {
+    memset(&expect, 0, sizeof(SMDropCgroupReq));
+    snprintf(expect.topic, sizeof(expect.topic), "0.%s", pTopicName);
+    strcpy(expect.cgroup, pCGroupName);
+    expect.igNotExists = igNotExists;
+  };
+
+  setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
+    ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_DROP_CGROUP_STMT);
+    SMDropCgroupReq req = {0};
+    ASSERT_TRUE(TSDB_CODE_SUCCESS == tDeserializeSMDropCgroupReq(pQuery->pCmdMsg->pMsg, pQuery->pCmdMsg->msgLen, &req));
+
+    ASSERT_EQ(std::string(req.topic), std::string(expect.topic));
+    ASSERT_EQ(std::string(req.cgroup), std::string(expect.cgroup));
+    ASSERT_EQ(req.igNotExists, expect.igNotExists);
+  });
+
+  setDropCgroupReqFunc("tp1", "cg1");
+  run("DROP CGROUP cg1 ON tp1");
+
+  setDropCgroupReqFunc("tp1", "cg1", 1);
+  run("DROP CGROUP IF EXISTS cg1 ON tp1");
 }
 
 // todo drop database

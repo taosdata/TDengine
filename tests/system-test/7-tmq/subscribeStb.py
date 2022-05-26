@@ -1377,9 +1377,9 @@ class TDTestCase:
 
         self.tmqCase1(cfgPath, buildPath)
         self.tmqCase2(cfgPath, buildPath) 
-        self.tmqCase3(cfgPath, buildPath)
-        self.tmqCase4(cfgPath, buildPath)
-        self.tmqCase5(cfgPath, buildPath)
+        # self.tmqCase3(cfgPath, buildPath)
+        # self.tmqCase4(cfgPath, buildPath)
+        # self.tmqCase5(cfgPath, buildPath)
 
     def stop(self):
         tdSql.close()

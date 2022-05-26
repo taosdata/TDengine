@@ -29,10 +29,10 @@ OpenTSDB 行协议同样采用一行字符串来表示一行数据。OpenTSDB �
 例如：
 
 ```txt
-meters.current 1648432611250 11.3 location=Beijing.Haidian groupid=3
+meters.current 1648432611250 11.3 location=California.LosAngeles groupid=3
 ```
 
-参考[OpenTSDB Telnet API文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
+参考[OpenTSDB Telnet API 文档](http://opentsdb.net/docs/build/html/api_telnet/put.html)。
 
 ## 示例代码
 
@@ -76,9 +76,9 @@ Query OK, 2 row(s) in set (0.002544s)
 taos> select tbname, * from `meters.current`;
              tbname             |           ts            |           value           | groupid |            location            |
 ==================================================================================================================================
- t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | Beijing.Haidian                |
- t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.250 |              11.300000000 | 3       | Beijing.Haidian                |
- t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.249 |              10.300000000 | 2       | Beijing.Chaoyang               |
- t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.250 |              12.600000000 | 2       | Beijing.Chaoyang               |
+ t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.249 |              10.800000000 | 3       | California.LosAngeles                |
+ t_0e7bcfa21a02331c06764f275... | 2022-03-28 09:56:51.250 |              11.300000000 | 3       | California.LosAngeles                |
+ t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.249 |              10.300000000 | 2       | California.SanFrancisco               |
+ t_7e7b26dd860280242c6492a16... | 2022-03-28 09:56:51.250 |              12.600000000 | 2       | California.SanFrancisco               |
 Query OK, 4 row(s) in set (0.005399s)
 ```

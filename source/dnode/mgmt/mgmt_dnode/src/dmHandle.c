@@ -75,8 +75,9 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   (*pMgmt->getVnodeLoadsFp)(&vinfo);
   req.pVloads = vinfo.pVloads;
 
-  SMonMloadInfo minfo = {0};
+   SMonMloadInfo minfo = {0};
   (*pMgmt->getMnodeLoadsFp)(&minfo);
+  req.mload = minfo.load;
 
   int32_t contLen = tSerializeSStatusReq(NULL, 0, &req);
   void   *pHead = rpcMallocCont(contLen);

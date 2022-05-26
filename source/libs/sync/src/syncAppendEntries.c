@@ -357,13 +357,23 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 } else {
                   syncNodeBecomeFollower(ths);
                 }
+
+                // maybe newSyncCfg.myIndex is updated in syncNodeUpdateConfig
+                if (ths->pFsm->FpReConfigCb != NULL) {
+                  SReConfigCbMeta cbMeta = {0};
+                  cbMeta.code = 0;
+                  cbMeta.currentTerm = ths->pRaftStore->currentTerm;
+                  cbMeta.index = pEntry->index;
+                  cbMeta.term = pEntry->term;
+                  ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
+                }
               }
 
               // restore finish
               if (pEntry->index == ths->pLogStore->getLastIndex(ths->pLogStore)) {
                 if (ths->restoreFinish == false) {
-                  if (ths->pFsm->FpRestoreFinish != NULL) {
-                    ths->pFsm->FpRestoreFinish(ths->pFsm);
+                  if (ths->pFsm->FpRestoreFinishCb != NULL) {
+                    ths->pFsm->FpRestoreFinishCb(ths->pFsm);
                   }
                   ths->restoreFinish = true;
                   sInfo("==syncNodeOnAppendEntriesCb== restoreFinish set true %p vgId:%d", ths, ths->vgId);
