@@ -57,9 +57,9 @@ class TDTestCase:
                     f"sqrt( {tbname}.{num_col} )",
                     f"tan( {tbname}.{num_col} )",
                     f"cast( {tbname}.{num_col} as timestamp)",
-                ),
-                (f"{num_col} + {any_col}" for any_col in ALL_COL)
+                )
             )
+            query_condition.extend((f"{num_col} + {any_col}" for any_col in ALL_COL))
         for char_col in CHAR_COL:
             query_condition.extend(
                 (
