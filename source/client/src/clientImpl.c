@@ -745,12 +745,12 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
     pRequest->metric.rsp = taosGetTimestampUs();
 
-    STscObj* pTscObj = pRequest->pTscObj;
-    if (pEpSet) {
-      if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
-        updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
-      }
-    }
+    //STscObj* pTscObj = pRequest->pTscObj;
+    //if (pEpSet) {
+    //  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
+    //    updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
+    //  }
+    //}
 
     /*
      * There is not response callback function for submit response.
