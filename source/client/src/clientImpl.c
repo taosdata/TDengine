@@ -413,7 +413,7 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
 
     for (int32_t i = 0; i < tbNum; ++i) {
       STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
-      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion};
+      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};
       taosArrayPush(pArray, &tbSver);
     }
   }
