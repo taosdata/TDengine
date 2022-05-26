@@ -708,7 +708,7 @@ SHashNode *doCreateHashNode(const void *key, size_t keyLen, const void *pData, s
   pNewNode->removed = 0;
   pNewNode->next = NULL;
 
-  memcpy(GET_HASH_NODE_DATA(pNewNode), pData, dsize);
+  if (pData) memcpy(GET_HASH_NODE_DATA(pNewNode), pData, dsize);
   memcpy(GET_HASH_NODE_KEY(pNewNode), key, keyLen);
 
   return pNewNode;
@@ -774,7 +774,7 @@ static void *taosHashReleaseNode(SHashObj *pHashObj, void *p, int *slot) {
         ASSERT(prevNode->next != prevNode);
       } else {
         pe->next = pOld->next;
-        SHashNode* x = pe->next;
+        SHashNode *x = pe->next;
         if (x != NULL) {
           ASSERT(x->next != x);
         }

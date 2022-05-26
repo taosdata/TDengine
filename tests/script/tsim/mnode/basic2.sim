@@ -6,15 +6,6 @@ system sh/exec.sh -n dnode2 -s start
 sql connect
 
 print =============== show dnodes
-sql show dnodes;
-if $rows != 1 then 
-  return -1
-endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
 sql show mnodes;
 if $rows != 1 then 
   return -1
@@ -30,35 +21,11 @@ endi
 
 print =============== create dnodes
 sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
 sleep 2000
 
 sql show dnodes;
-if $rows != 2 then 
-  return -1
-endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
-if $data10 != 2 then 
-  return -1
-endi
-
-print $data02
-if $data02 != 0 then 
-  return -1
-endi
-
-if $data12 != 0 then 
-  return -1
-endi
-
-if $data04 != ready then 
-  return -1
-endi
-
-if $data14 != ready then 
+if $rows != 3 then 
   return -1
 endi
 
@@ -78,7 +45,68 @@ endi
 print =============== create mnode 2
 sql create mnode on dnode 2
 sql show mnodes
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+
+if $rows != 2 then 
+  return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != LEADER then 
+  return -1
+endi
+if $data(2)[0] != 2 then 
+  return -1
+endi
+if $data(2)[2] == LEADER then 
+  return -1
+endi
+
+print =============== create user
+sql create user user1 PASS 'user1'
+sql show users
 if $rows != 2 then 
   return -1
 endi
 
+#sql create database db
+#sql show databases
+#if $rows != 3 then 
+#  return -1
+#endi
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+sleep 100
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+
+sql connect
+
+sql show mnodes
+if $rows != 2 then 
+  return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != LEADER then 
+  return -1
+endi
+
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+#sql show databases
+#if $rows != 3 then 
+#  return -1
+#endi
+
+return
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop

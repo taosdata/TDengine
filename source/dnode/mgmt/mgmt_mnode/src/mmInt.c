@@ -42,6 +42,8 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
   pOption->standby = false;
   pOption->deploy = true;
   pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
+
   pOption->replica = 1;
   pOption->selfIndex = 0;
 
@@ -52,9 +54,10 @@ static void mmBuildOptionForDeploy(SMnodeMgmt *pMgmt, const SMgmtInputOpt *pInpu
 }
 
 static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
-  pOption->msgCb = pMgmt->msgCb;
   pOption->deploy = false;
   pOption->standby = false;
+  pOption->msgCb = pMgmt->msgCb;
+  pOption->dnodeId = pMgmt->pData->dnodeId;
 
   if (pMgmt->replica > 0) {
     pOption->standby = true;
@@ -68,44 +71,6 @@ static void mmBuildOptionForOpen(SMnodeMgmt *pMgmt, SMnodeOpt *pOption) {
       memcpy(pReplica->fqdn, pMgmt->replicas[i].fqdn, TSDB_FQDN_LEN);
     }
   }
-}
-
-static int32_t mmBuildOptionForAlter(SMnodeMgmt *pMgmt, SMnodeOpt *pOption, SDCreateMnodeReq *pCreate) {
-  pOption->msgCb = pMgmt->msgCb;
-  pOption->standby = false;
-  pOption->deploy = false;
-  pOption->replica = pCreate->replica;
-  pOption->selfIndex = -1;
-
-  for (int32_t i = 0; i < pCreate->replica; ++i) {
-    SReplica *pReplica = &pOption->replicas[i];
-    pReplica->id = pCreate->replicas[i].id;
-    pReplica->port = pCreate->replicas[i].port;
-    memcpy(pReplica->fqdn, pCreate->replicas[i].fqdn, TSDB_FQDN_LEN);
-    if (pReplica->id == pMgmt->pData->dnodeId) {
-      pOption->selfIndex = i;
-    }
-  }
-
-  if (pOption->selfIndex == -1) {
-    dError("failed to build mnode options since %s", terrstr());
-    return -1;
-  }
-
-  return 0;
-}
-
-int32_t mmAlter(SMnodeMgmt *pMgmt, SDAlterMnodeReq *pMsg) {
-  SMnodeOpt option = {0};
-  if (mmBuildOptionForAlter(pMgmt, &option, pMsg) != 0) {
-    return -1;
-  }
-
-  if (mndAlter(pMgmt->pMnode, &option) != 0) {
-    return -1;
-  }
-
-  return 0;
 }
 
 static void mmClose(SMnodeMgmt *pMgmt) {

@@ -78,7 +78,6 @@ typedef struct {
   SWal      *pWal;
   sem_t      syncSem;
   int64_t    sync;
-  ESyncState state;
   bool       standby;
   bool       restored;
   int32_t    errCode;
@@ -90,9 +89,10 @@ typedef struct {
 } SGrantInfo;
 
 typedef struct SMnode {
-  int32_t       selfId;
+  int32_t       selfDnodeId;
   int64_t       clusterId;
   TdThread      thread;
+  bool          deploy;
   bool          stopped;
   int8_t        replica;
   int8_t        selfIndex;

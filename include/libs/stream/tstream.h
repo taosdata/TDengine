@@ -107,7 +107,7 @@ static FORCE_INLINE void streamDataSubmitRefDec(SStreamDataSubmit* pDataSubmit) 
   if (ref == 0) {
     taosMemoryFree(pDataSubmit->data);
     taosMemoryFree(pDataSubmit->dataRef);
-    // taosFreeQitem(pDataSubmit);
+    taosFreeQitem(pDataSubmit);
   }
 }
 
