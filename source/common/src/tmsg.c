@@ -2917,6 +2917,8 @@ int32_t tSerializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *pR
     if (tEncodeI8(&encoder, pRetension->freqUnit) < 0) return -1;
     if (tEncodeI8(&encoder, pRetension->keepUnit) < 0) return -1;
   }
+
+  if (tEncodeI8(&encoder, pReq->isTsma) < 0) return -1;
   tEndEncode(&encoder);
 
   int32_t tlen = encoder.pos;
@@ -2978,6 +2980,8 @@ int32_t tDeserializeSCreateVnodeReq(void *buf, int32_t bufLen, SCreateVnodeReq *
       return -1;
     }
   }
+
+  if (tDecodeI8(&decoder, &pReq->isTsma) < 0) return -1;
 
   tEndDecode(&decoder);
   tDecoderClear(&decoder);

@@ -829,33 +829,14 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
-    if (pInfo->scanMode == STREAM_SCAN_FROM_UPDATERES) {
-      SSDataBlock* pDB = getDataFromCatch(pInfo);
-      if (pDB != NULL) {
-        return pDB;
-      } else {
-        pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-      }
-    }
-
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
       pOperator->status = OP_EXEC_DONE;
       return NULL;
     }
 
-    int32_t      current = pInfo->validBlockIndex++;
-    SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
-    if (pBlock->info.type == STREAM_REPROCESS) {
-      pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
-    } else {
-      int32_t code = catchDatablock(pBlock, &pInfo->childAggSup, pInfo->primaryTsIndex, 0);
-      if (code != TDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        longjmp(pTaskInfo->env, code);
-      }
-    }
-    return pBlock;
+    int32_t current = pInfo->validBlockIndex++;
+    return taosArrayGetP(pInfo->pBlockLists, current);
   } else {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);

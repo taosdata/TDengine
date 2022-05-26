@@ -196,12 +196,14 @@ static const SSysDbTableSchema vgroupsSchema[] = {
     {.name = "status", .bytes = 12 + VARSTR_HEADER_SIZE, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "nfiles", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
     {.name = "file_size", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
+    {.name = "tsma", .bytes = 1, .type = TSDB_DATA_TYPE_TINYINT},
 };
 
 static const SSysDbTableSchema smaSchema[] = {
     {.name = "sma_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
     {.name = "create_time", .bytes = 8, .type = TSDB_DATA_TYPE_TIMESTAMP},
     {.name = "stable_name", .bytes = SYSTABLE_SCH_TABLE_NAME_LEN, .type = TSDB_DATA_TYPE_VARCHAR},
+    {.name = "vgroup_id", .bytes = 4, .type = TSDB_DATA_TYPE_INT},
 };
 
 static const SSysDbTableSchema transSchema[] = {
