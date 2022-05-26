@@ -926,11 +926,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    */
   tmsg_t msgType = pCtx->msgType;
   if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
-      ((pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && msgType == TDMT_MND_CONNECT)) {
+      (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL)) {
     pMsg->sent = 0;
     pMsg->st = taosGetTimestampUs();
     pCtx->retryCount += 1;
-    if (msgType == TDMT_MND_CONNECT && pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (pCtx->retryCount < pEpSet->numOfEps) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
 
