@@ -1264,7 +1264,7 @@ SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, 
   for (int32_t i = 0; i < numOfChild; i++) {
     SSDataBlock* chRes = createOneDataBlock(pResBlock, false);
     SOperatorInfo* pChildOp = createIntervalOperatorInfo(NULL, pExprInfo, numOfCols,
-        chRes, pInterval, primaryTsSlotId, pTwAggSupp, NULL, pTaskInfo);
+        chRes, pInterval, primaryTsSlotId, pTwAggSupp, pTaskInfo);
     if (pChildOp && chRes) {
       taosArrayPush(pInfo->pChildren, &pChildOp);
       continue;
