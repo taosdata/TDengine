@@ -141,9 +141,38 @@ void syncStop(int64_t rid) {
   taosRemoveRef(tsNodeRefId, rid);
 }
 
+int32_t syncSetStandby(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+    return -1;
+  }
+
+  // state change
+  pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // reset elect timer, long enough
+  int32_t electMS = TIMER_MAX_MS;
+  int32_t ret = syncNodeRestartElectTimer(pSyncNode, electMS);
+  ASSERT(ret == 0);
+
+  pSyncNode->pRaftCfg->isStandBy = 1;
+  raftCfgPersist(pSyncNode->pRaftCfg);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+}
+
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   int32_t ret = 0;
   char*   configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
+  sInfo("==syncReconfig== newconfig:%s", configChange);
+
   SRpcMsg rpcMsg = {0};
   rpcMsg.msgType = TDMT_VND_SYNC_CONFIG_CHANGE;
   rpcMsg.info.noResp = 1;

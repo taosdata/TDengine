@@ -166,6 +166,7 @@ void        syncCleanUp();
 int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
+int32_t     syncSetStandby(int64_t rid);
 int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);

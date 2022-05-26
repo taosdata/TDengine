@@ -77,13 +77,23 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
 
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb=="); }
 
+void ReConfigCb(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+  sTrace("==callback== ==ReConfigCb== flag:0x%lX, isDrop:%d, index:%ld, code:%d, currentTerm:%lu, term:%lu", cbMeta.flag, cbMeta.isDrop, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term);
+}
+
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
+
   pFsm->FpGetSnapshot = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
+  pFsm->FpSnapshotApply = NULL;
+  pFsm->FpSnapshotRead = NULL;
+
+  pFsm->FpReConfigCb = ReConfigCb;
+
   return pFsm;
 }
 
@@ -183,7 +193,7 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
 
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
-  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE + DEBUG_INFO;
   if (argc != 7) {
     usage(argv[0]);
     exit(-1);
@@ -229,7 +239,7 @@ int main(int argc, char** argv) {
   assert(pSyncNode != NULL);
 
   if (isConfigChange) {
-    configChange(rid, 3, myIndex);
+    configChange(rid, 2, myIndex);
   }
 
   //---------------------------
