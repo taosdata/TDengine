@@ -3938,6 +3938,21 @@ static void destroyOperatorInfo(SOperatorInfo* pOperator) {
   taosMemoryFreeClear(pOperator);
 }
 
+int32_t getBufferPgSize(int32_t rowSize, uint32_t* defaultPgsz, uint32_t* defaultBufsz) {
+  *defaultPgsz = 4096;
+  while (*defaultPgsz < rowSize * 4) {
+    *defaultPgsz <<= 1u;
+  }
+
+  // at least four pages need to be in buffer
+  *defaultBufsz = 4096 * 256;
+  if ((*defaultBufsz) <= (*defaultPgsz)) {
+    (*defaultBufsz) = (*defaultPgsz) * 4;
+  }
+
+  return 0;
+}
+
 int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t numOfOutput, size_t keyBufSize,
                          const char* pKey) {
   _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
@@ -3950,18 +3965,11 @@ int32_t doInitAggInfoSup(SAggSupporter* pAggSup, SqlFunctionCtx* pCtx, int32_t n
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  uint32_t defaultPgsz = 4096;
-  while (defaultPgsz < pAggSup->resultRowSize * 4) {
-    defaultPgsz <<= 1u;
-  }
+  uint32_t defaultPgsz  = 0;
+  uint32_t defaultBufsz = 0;
+  getBufferPgSize(pAggSup->resultRowSize, &defaultPgsz, &defaultBufsz);
 
-  // at least four pages need to be in buffer
-  int32_t defaultBufsz = 4096 * 256;
-  if (defaultBufsz <= defaultPgsz) {
-    defaultBufsz = defaultPgsz * 4;
-  }
-
-  int32_t code = createDiskbasedBuf(&pAggSup->pResultBuf, defaultPgsz, defaultBufsz, pKey, TD_TMP_DIR_PATH);
+  int32_t  code = createDiskbasedBuf(&pAggSup->pResultBuf, defaultPgsz, defaultBufsz, pKey, TD_TMP_DIR_PATH);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
