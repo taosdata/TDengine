@@ -1141,29 +1141,64 @@ static int doSmlInsertOneDataPoint(TAOS* taos, TAOS_SML_DATA_POINT* point, SSmlL
   uint8_t precision = tableMeta->tableInfo.precision;
   free(tableMeta);
 
-  char* sql = malloc(TSDB_MAX_SQL_LEN + 1);
-  int   freeBytes = TSDB_MAX_SQL_LEN;
+  char* sql = malloc(tsMaxSQLStringLen + 1);
+  if (sql == NULL) {
+    tscError("SML:0x%" PRIx64 " failed to allocate memory for sql", info->id);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  int   freeBytes = tsMaxSQLStringLen;
   int   sqlLen = 0;
+  int   retLen;
   sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "insert into %s(", point->childTableName);
   for (int col = 0; col < point->fieldNum; ++col) {
     TAOS_SML_KV* kv = point->fields + col;
-    sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%s,", kv->key);
+    retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, "%s,", kv->key);
+    if (retLen >= freeBytes - sqlLen) {
+      tscError("SML:0x%" PRIx64 " no free space for building sql key", info->id);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    sqlLen += retLen;
   }
   --sqlLen;
-  sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
+  retLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ") values (");
+  if (retLen >= freeBytes - sqlLen) {
+    tscError("SML:0x%" PRIx64 " no free space for building sql", info->id);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  sqlLen += retLen;
   TAOS_SML_KV* tsField = point->fields + 0;
   int64_t      ts = *(int64_t*)(tsField->value);
   ts = convertTimePrecision(ts, TSDB_TIME_PRECISION_NANO, precision);
-  sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, "%" PRId64 ",", ts);
+  retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, "%" PRId64 ",", ts);
+  if (retLen >= freeBytes - sqlLen) {
+    tscError("SML:0x%" PRIx64 " no free space for building timestamp", info->id);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  sqlLen += retLen;
   for (int col = 1; col < point->fieldNum; ++col) {
     TAOS_SML_KV* kv = point->fields + col;
     int32_t      len = 0;
+
+    if (freeBytes - sqlLen <= kv->length) {
+      tscError("SML:0x%" PRIx64 " no free space for converToStr", info->id);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
     converToStr(sql + sqlLen, kv->type, kv->value, kv->length, &len);
     sqlLen += len;
-    sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ",");
+    retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, ",");
+    if (retLen >= freeBytes - sqlLen) {
+      tscError("SML:0x%" PRIx64 " no free space for building sql comma", info->id);
+      return TSDB_CODE_TSC_OUT_OF_MEMORY;
+    }
+    sqlLen += retLen;
   }
   --sqlLen;
-  sqlLen += snprintf(sql + sqlLen, freeBytes - sqlLen, ")");
+  retLen = snprintf(sql + sqlLen, freeBytes - sqlLen, ")");
+  if (retLen >= freeBytes - sqlLen) {
+    tscError("SML:0x%" PRIx64 " no free space for building the last right parenthesis", info->id);
+    return TSDB_CODE_TSC_OUT_OF_MEMORY;
+  }
+  sqlLen += retLen;
   sql[sqlLen] = 0;
 
   tscDebug("SML:0x%" PRIx64 " insert child table table %s of super table %s sql: %s", info->id,

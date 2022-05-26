@@ -35,7 +35,7 @@ CREATE DATABASE [IF NOT EXISTS] db_name [KEEP keep] [DAYS days] [UPDATE 1];
    - maxVgroupsPerDb: [Description](/reference/config/#maxvgroupsperdb)
    - comp: [Description](/reference/config/#comp)
    - precision: [Description](/reference/config/#precision)
-6. Please be noted that all of the parameters mentioned in this section can be configured in configuration file `taosd.cfg` at server side and used by default,  can be override if they are specified in `create database` statement.
+6. Please note that all of the parameters mentioned in this section can be configured in configuration file `taosd.cfg` at server side and used by default, the default parameters can be overriden if they are specified in `create database` statement.
    
 :::
 
@@ -69,7 +69,7 @@ All data in the database will be deleted too. This command must be used with cau
 
 ## Change Database Configuration
 
-Some examples are shown below to demonstrate how to change the configuration of a database. Please be noted that some configuration parameters can be changed after the database is created, but some others can't, for details of the configuration parameters of database please refer to [Configuration Parameters](/reference/config/).
+Some examples are shown below to demonstrate how to change the configuration of a database. Please note that some configuration parameters can be changed after the database is created, but some others can't, for details of the configuration parameters of database please refer to [Configuration Parameters](/reference/config/).
 
 ```
 ALTER DATABASE db_name COMP 2;
@@ -124,4 +124,4 @@ SHOW DATABASES;
 SHOW CREATE DATABASE db_name;
 ```
 
-This command is useful when migrating the data from one TDengine cluster to another one. Firstly this command can be used to get the CREATE statement, which in turn can be used in another TDengine to create an exactly same database.
+This command is useful when migrating the data from one TDengine cluster to another one. This command can be used to get the CREATE statement, which can be used in another TDengine to create the exact same database.
