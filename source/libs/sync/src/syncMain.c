@@ -100,6 +100,21 @@ void syncStart(int64_t rid) {
   if (pSyncNode == NULL) {
     return;
   }
+
+  if (pSyncNode->pRaftCfg->isStandBy) {
+    syncNodeStartStandBy(pSyncNode);
+  } else {
+    syncNodeStart(pSyncNode);
+  }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
+void syncStartNormal(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return;
+  }
   syncNodeStart(pSyncNode);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -368,7 +383,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   snprintf(pSyncNode->configPath, sizeof(pSyncNode->configPath), "%s/raft_config.json", pSyncInfo->path);
   if (!taosCheckExistFile(pSyncNode->configPath)) {
     // create raft config file
-    ret = syncCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), pSyncNode->configPath);
+    ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), pSyncInfo->isStandBy, pSyncNode->configPath);
     assert(ret == 0);
 
   } else {
@@ -978,6 +993,9 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
   syncIndexMgrUpdate(pSyncNode->pMatchIndex, pSyncNode);
   voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
   votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
+
+  pSyncNode->pRaftCfg->isStandBy = 0;
+  raftCfgPersist(pSyncNode->pRaftCfg);
 
   syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
 }
