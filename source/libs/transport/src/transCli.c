@@ -734,7 +734,7 @@ void cliHandleReq(SCliMsg* pMsg, SCliThrdObj* pThrd) {
   STransConnCtx* pCtx = pMsg->ctx;
   STrans*        pTransInst = pThrd->pTransInst;
 
-  cliMayCvtFqdnToIp(&pCtx->epSet, &pCtx->cvtAddr);
+  cliMayCvtFqdnToIp(&pCtx->epSet, &pThrd->cvtAddr);
 
   SCliConn* conn = cliGetConn(pMsg, pThrd);
   if (conn != NULL) {
