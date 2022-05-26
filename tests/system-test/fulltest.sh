@@ -63,6 +63,7 @@ python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 #python3 ./test.py -f 2-query/nestedQuery.py
 python3 ./test.py -f 2-query/avg.py
 python3 ./test.py -f 2-query/elapsed.py
+python3 ./test.py -f 2-query/csum.py
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
