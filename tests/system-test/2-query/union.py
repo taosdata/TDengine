@@ -196,8 +196,8 @@ class TDTestCase:
         for i in range(len(sqls)):
             tdSql.query(sqls[i])
             res1_type = self.__get_type(0)
-            if i % 3 == 0:
-                    tdLog.success(f"{i} : sql is already executing!")
+            # if i % 5 == 0:
+            #         tdLog.success(f"{i} : sql is already executing!")
             for j in range(len(sqls[i:])):
                 tdSql.query(sqls[j+i])
                 order_union_type = False

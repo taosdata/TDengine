@@ -152,8 +152,8 @@ class TDTestCase:
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         for i in range(len(self.__sqls_list)):
             tdSql.query(self.__sqls_list[i])
-            if i % 10 == 0 :
-                tdLog.success(f"{i} sql is already executed success !")
+            # if i % 10 == 0 :
+            #     tdLog.success(f"{i} sql is already executed success !")
 
     def __join_check_old(self, tblist, checkrows, join_flag=True):
         query_conditions = self.__query_condition(tblist[0])
