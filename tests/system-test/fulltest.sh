@@ -28,6 +28,8 @@ python3 ./test.py -f 2-query/cast.py
 #python3 ./test.py -f 2-query/concat.py
 #python3 ./test.py -f 2-query/concat_ws.py
 python3 ./test.py -f 2-query/check_tsdb.py
+python3 ./test.py -f 2-query/spread.py
+python3 ./test.py -f 2-query/hyperloglog.py
 
 
 python3 ./test.py -f 2-query/timezone.py
