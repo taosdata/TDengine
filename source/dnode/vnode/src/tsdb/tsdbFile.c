@@ -25,7 +25,7 @@ static const char *TSDB_FNAME_SUFFIX[] = {
     "meta",  // TSDB_FILE_META
 };
 
-static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char* dname, char *fname);
+static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, const char *dname, char *fname);
 // static int   tsdbRollBackMFile(SMFile *pMFile);
 static int   tsdbEncodeDFInfo(void **buf, SDFInfo *pInfo);
 static void *tsdbDecodeDFInfo(void *buf, SDFInfo *pInfo);
@@ -447,4 +447,97 @@ static void tsdbGetFilename(int vid, int fid, uint32_t ver, TSDB_FILE_T ftype, c
       snprintf(fname, TSDB_FILENAME_LEN, "vnode/vnode%d/tsdb/%s-ver%" PRIu32, vid, TSDB_FNAME_SUFFIX[ftype], ver);
     }
   }
+}
+
+int tsdbOpenDFile(SDFile *pDFile, int flags) {
+  ASSERT(!TSDB_FILE_OPENED(pDFile));
+
+  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), flags);
+  if (pDFile->pFile == NULL) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return 0;
+}
+
+void tsdbCloseDFile(SDFile *pDFile) {
+  if (TSDB_FILE_OPENED(pDFile)) {
+    taosCloseFile(&pDFile->pFile);
+    TSDB_FILE_SET_CLOSED(pDFile);
+  }
+}
+
+int64_t tsdbSeekDFile(SDFile *pDFile, int64_t offset, int whence) {
+  // ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t loffset = taosLSeekFile(TSDB_FILE_PFILE(pDFile), offset, whence);
+  if (loffset < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return loffset;
+}
+
+int64_t tsdbWriteDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t nwrite = taosWriteFile(pDFile->pFile, buf, nbyte);
+  if (nwrite < nbyte) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return nwrite;
+}
+
+void tsdbUpdateDFileMagic(SDFile *pDFile, void *pCksm) {
+  pDFile->info.magic = taosCalcChecksum(pDFile->info.magic, (uint8_t *)(pCksm), sizeof(TSCKSUM));
+}
+
+int tsdbAppendDFile(SDFile *pDFile, void *buf, int64_t nbyte, int64_t *offset) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t toffset;
+
+  if ((toffset = tsdbSeekDFile(pDFile, 0, SEEK_END)) < 0) {
+    return -1;
+  }
+
+  ASSERT(pDFile->info.size == toffset);
+
+  if (offset) {
+    *offset = toffset;
+  }
+
+  if (tsdbWriteDFile(pDFile, buf, nbyte) < 0) {
+    return -1;
+  }
+
+  pDFile->info.size += nbyte;
+
+  return (int)nbyte;
+}
+
+int64_t tsdbReadDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
+  ASSERT(TSDB_FILE_OPENED(pDFile));
+
+  int64_t nread = taosReadFile(pDFile->pFile, buf, nbyte);
+  if (nread < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  return nread;
+}
+
+int tsdbCopyDFile(SDFile *pSrc, SDFile *pDest) {
+  if (tfsCopyFile(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
+    terrno = TAOS_SYSTEM_ERROR(errno);
+    return -1;
+  }
+
+  tsdbSetDFileInfo(pDest, TSDB_FILE_INFO(pSrc));
+  return 0;
 }
