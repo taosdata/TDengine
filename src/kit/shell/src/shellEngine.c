@@ -114,6 +114,7 @@ void shellInit(SShellArguments *_args) {
       fflush(stdout);
       exit(EXIT_FAILURE);
     }
+  }
 
     /* Read history TODO : release resources here*/
     read_history();
@@ -147,7 +148,7 @@ void shellInit(SShellArguments *_args) {
       exit(EXIT_SUCCESS);
     }
 #endif
-  }
+  
   return;
 }
 
