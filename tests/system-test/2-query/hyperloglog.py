@@ -200,9 +200,9 @@ class TDTestCase:
 
     def __test_current(self):
         tdSql.query("select hyperloglog(ts) from ct1")
-        tdSql.checkRows(self.rows)
+        tdSql.checkRows(1)
         tdSql.query("select hyperloglog(c1) from ct2")
-        tdSql.checkRows(self.rows + 2)
+        tdSql.checkRows(1)
         tdSql.query("select hyperloglog(c1) from ct4 group by c1")
         tdSql.checkRows(self.rows + 3)
         tdSql.query("select hyperloglog(c1) from ct4 group by c7")
