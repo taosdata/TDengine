@@ -182,7 +182,7 @@ struct SMetaEntry {
   char    *name;
   union {
     struct {
-      SSchemaWrapper schema;
+      SSchemaWrapper schemaRow;
       SSchemaWrapper schemaTag;
     } stbEntry;
     struct {
@@ -195,7 +195,7 @@ struct SMetaEntry {
       int64_t        ctime;
       int32_t        ttlDays;
       int32_t        ncid;  // next column id
-      SSchemaWrapper schema;
+      SSchemaWrapper schemaRow;
     } ntbEntry;
     struct {
       STSma *tsma;

@@ -388,13 +388,12 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.name = (char *)tNameGetTableName(&name);
   req.suid = pStb->uid;
   req.rollup = pStb->ast1Len > 0 ? 1 : 0;
-  req.schema.nCols = pStb->numOfColumns;
-  req.schema.sver = pStb->version;
-  req.schema.tagVer = pStb->tagVer;
-  req.schema.colVer = pStb->colVer;
-  req.schema.pSchema = pStb->pColumns;
+  // todo
+  req.schemaRow.nCols = pStb->numOfColumns;
+  req.schemaRow.version = pStb->version;
+  req.schemaRow.pSchema = pStb->pColumns;
   req.schemaTag.nCols = pStb->numOfTags;
-  req.schemaTag.sver = 1;
+  req.schemaTag.version = pStb->tagVer;
   req.schemaTag.pSchema = pStb->pTags;
 
   if (req.rollup) {
