@@ -98,9 +98,8 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
     for (int32_t i = 0; i < epSet.numOfEps; ++i) {
       dDebug("index:%d, mnode ep:%s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
     }
-  } else {
-    dmProcessStatusRsp(pMgmt, &rpcRsp);
   }
+  dmProcessStatusRsp(pMgmt, &rpcRsp);
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
