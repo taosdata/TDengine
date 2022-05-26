@@ -440,6 +440,7 @@ int32_t schHandleExplainCallback(void *param, const SDataBuf *pMsg, int32_t code
 int32_t schHandleDropCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:%" PRIx64 ",TID:%" PRIx64 " drop task rsp received, code:%x", pParam->queryId, pParam->taskId, code);
+  taosMemoryFreeClear(param);
   return TSDB_CODE_SUCCESS;
 }
 
