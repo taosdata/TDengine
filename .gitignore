@@ -110,3 +110,4 @@ contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
 sql
+debug*/

@@ -23,13 +23,10 @@ python3 ./test.py -f 2-query/length.py
 python3 ./test.py -f 2-query/char_length.py
 python3 ./test.py -f 2-query/upper.py
 python3 ./test.py -f 2-query/lower.py
-python3 ./test.py -f 2-query/join.py
+#python3 ./test.py -f 2-query/join.py
 python3 ./test.py -f 2-query/cast.py
-python3 ./test.py -f 2-query/concat.py
-python3 ./test.py -f 2-query/concat_ws.py
-python3 ./test.py -f 2-query/union.py
-python3 ./test.py -f 2-query/spread.py
-
+#python3 ./test.py -f 2-query/concat.py
+#python3 ./test.py -f 2-query/concat_ws.py
 python3 ./test.py -f 2-query/check_tsdb.py
 
 
@@ -63,7 +60,6 @@ python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 python3 ./test.py -f 2-query/nestedQuery.py
-
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py

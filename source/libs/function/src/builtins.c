@@ -998,10 +998,10 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_APERCENTILE,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentile,
-    .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = minmaxFunctionSetup,
-    .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = apercentileFunctionSetup,
+    .processFunc  = apercentileFunction,
+    .finalizeFunc = apercentileFinalize
   },
   {
     .name = "top",

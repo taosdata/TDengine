@@ -401,13 +401,12 @@ typedef struct SStreamBlockScanInfo {
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
-  SReadHandle readHandle;
-
   SRetrieveMetaTableRsp* pRsp;
   SRetrieveTableReq      req;
   SEpSet                 epSet;
   tsem_t                 ready;
 
+  SReadHandle         readHandle;
   int32_t             accountId;
   bool                showRewrite;
   SNode*              pCondition;  // db_name filter condition, to discard data that are not in current database
@@ -466,6 +465,7 @@ typedef struct SStreamFinalIntervalOperatorInfo {
   SAggSupporter      aggSup;             // aggregate supporter
   int32_t            order;              // current SSDataBlock scan order
   STimeWindowAggSupp twAggSup;
+  SArray*            pChildren;
 } SStreamFinalIntervalOperatorInfo;
 
 typedef struct SAggOperatorInfo {
@@ -582,6 +582,7 @@ typedef struct SStreamSessionAggOperatorInfo {
   SSDataBlock*         pDelRes;
   SHashObj*            pStDeleted;
   void*                pDelIterator;
+  SArray*              pChildren;       // cache for children's result;
 } SStreamSessionAggOperatorInfo;
 
 typedef struct STimeSliceOperatorInfo {
@@ -723,7 +724,7 @@ SOperatorInfo* createIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* 
                                           STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamFinalIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                           SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
-                                          STimeWindowAggSupp *pTwAggSupp, const STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo);
+                                          STimeWindowAggSupp *pTwAggSupp, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createStreamIntervalOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
 
                                                 SSDataBlock* pResBlock, SInterval* pInterval, int32_t primaryTsSlotId,
@@ -798,7 +799,7 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
     int32_t startPos, TSKEY ekey, __block_search_fn_t searchFn, STableQueryInfo* item,
     int32_t order);
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
-int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
+int32_t initCacheSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
     const char* pDir);
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey);
 SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
