@@ -928,7 +928,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
    */
   tmsg_t msgType = pCtx->msgType;
   if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
-      (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL)) {
+      (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
+       pResp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pResp->code == TSDB_CODE_SYN_NOT_LEADER)) {
     pMsg->sent = 0;
     pMsg->st = taosGetTimestampUs();
     pCtx->retryCount += 1;
