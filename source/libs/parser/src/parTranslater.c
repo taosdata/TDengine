@@ -46,8 +46,9 @@ typedef struct SFullDatabaseName {
   char fullDbName[TSDB_DB_FNAME_LEN];
 } SFullDatabaseName;
 
-static int32_t translateSubquery(STranslateContext* pCxt, SNode* pNode);
-static int32_t translateQuery(STranslateContext* pCxt, SNode* pNode);
+static int32_t  translateSubquery(STranslateContext* pCxt, SNode* pNode);
+static int32_t  translateQuery(STranslateContext* pCxt, SNode* pNode);
+static EDealRes translateValue(STranslateContext* pCxt, SValueNode* pVal);
 
 static bool afterGroupBy(ESqlClause clause) { return clause > SQL_CLAUSE_GROUP_BY; }
 
@@ -542,17 +543,18 @@ static EDealRes translateColumn(STranslateContext* pCxt, SColumnNode** pCol) {
   return res;
 }
 
-static int32_t parseTimeFromValueNode(SValueNode* pVal) {
-  if (IS_SIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
-    return TSDB_CODE_SUCCESS;
-  } else if (IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
-    pVal->datum.i = pVal->datum.u;
-    return TSDB_CODE_SUCCESS;
-  } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
-    pVal->datum.i = pVal->datum.d;
-    return TSDB_CODE_SUCCESS;
-  } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
-    pVal->datum.i = pVal->datum.b;
+static int32_t parseTimeFromValueNode(STranslateContext* pCxt, SValueNode* pVal) {
+  if (IS_NUMERIC_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
+    if (DEAL_RES_ERROR == translateValue(pCxt, pVal)) {
+      return pCxt->errCode;
+    }
+    if (IS_UNSIGNED_NUMERIC_TYPE(pVal->node.resType.type)) {
+      pVal->datum.i = pVal->datum.u;
+    } else if (IS_FLOAT_TYPE(pVal->node.resType.type)) {
+      pVal->datum.i = pVal->datum.d;
+    } else if (TSDB_DATA_TYPE_BOOL == pVal->node.resType.type) {
+      pVal->datum.i = pVal->datum.b;
+    }
     return TSDB_CODE_SUCCESS;
   } else if (IS_VAR_DATA_TYPE(pVal->node.resType.type) || TSDB_DATA_TYPE_TIMESTAMP == pVal->node.resType.type) {
     if (TSDB_CODE_SUCCESS == taosParseTime(pVal->literal, &pVal->datum.i, pVal->node.resType.bytes,
@@ -588,62 +590,52 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         *(bool*)&pVal->typeData = pVal->datum.b;
         break;
       case TSDB_DATA_TYPE_TINYINT: {
-        char* endPtr = NULL;
-        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
         *(int8_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_SMALLINT: {
-        char* endPtr = NULL;
-        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
         *(int16_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_INT: {
-        char* endPtr = NULL;
-        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
         *(int32_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_BIGINT: {
-        char* endPtr = NULL;
-        pVal->datum.i = taosStr2Int64(pVal->literal, &endPtr, 10);
+        pVal->datum.i = taosStr2Int64(pVal->literal, NULL, 10);
         *(int64_t*)&pVal->typeData = pVal->datum.i;
         break;
       }
       case TSDB_DATA_TYPE_UTINYINT: {
-        char* endPtr = NULL;
-        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
         *(uint8_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_USMALLINT: {
-        char* endPtr = NULL;
-        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
         *(uint16_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_UINT: {
-        char* endPtr = NULL;
-        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
         *(uint32_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_UBIGINT: {
-        char* endPtr = NULL;
-        pVal->datum.u = taosStr2UInt64(pVal->literal, &endPtr, 10);
+        pVal->datum.u = taosStr2UInt64(pVal->literal, NULL, 10);
         *(uint64_t*)&pVal->typeData = pVal->datum.u;
         break;
       }
       case TSDB_DATA_TYPE_FLOAT: {
-        char* endPtr = NULL;
-        pVal->datum.d = taosStr2Double(pVal->literal, &endPtr);
+        pVal->datum.d = taosStr2Double(pVal->literal, NULL);
         *(float*)&pVal->typeData = pVal->datum.d;
         break;
       }
       case TSDB_DATA_TYPE_DOUBLE: {
-        char* endPtr = NULL;
-        pVal->datum.d = taosStr2Double(pVal->literal, &endPtr);
+        pVal->datum.d = taosStr2Double(pVal->literal, NULL);
         *(double*)&pVal->typeData = pVal->datum.d;
         break;
       }
@@ -659,7 +651,7 @@ static EDealRes translateValueImpl(STranslateContext* pCxt, SValueNode* pVal, SD
         break;
       }
       case TSDB_DATA_TYPE_TIMESTAMP: {
-        if (TSDB_CODE_SUCCESS != parseTimeFromValueNode(pVal)) {
+        if (TSDB_CODE_SUCCESS != parseTimeFromValueNode(pCxt, pVal)) {
           return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, pVal->literal);
         }
         *(int64_t*)&pVal->typeData = pVal->datum.i;
@@ -2799,6 +2791,7 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
   int32_t    code = getDBCfg(pCxt, pStmt->dbName, &dbCfg);
   int32_t    num = taosArrayGetSize(dbCfg.pRetensions);
   if (TSDB_CODE_SUCCESS != code || num < 2) {
+    taosArrayDestroy(dbCfg.pRetensions);
     return code;
   }
   for (int32_t i = 1; i < num; ++i) {
@@ -3951,7 +3944,7 @@ typedef struct SVgroupCreateTableBatch {
 
 static void destroyCreateTbReq(SVCreateTbReq* pReq) {
   taosMemoryFreeClear(pReq->name);
-  taosMemoryFreeClear(pReq->ntb.schema.pSchema);
+  taosMemoryFreeClear(pReq->ntb.schemaRow.pSchema);
 }
 
 static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* pStmt, const SVgroupInfo* pVgroupInfo,
@@ -3964,10 +3957,10 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   SVCreateTbReq req = {0};
   req.type = TD_NORMAL_TABLE;
   req.name = strdup(pStmt->tableName);
-  req.ntb.schema.nCols = LIST_LENGTH(pStmt->pCols);
-  req.ntb.schema.sver = 1;
-  req.ntb.schema.pSchema = taosMemoryCalloc(req.ntb.schema.nCols, sizeof(SSchema));
-  if (NULL == req.name || NULL == req.ntb.schema.pSchema) {
+  req.ntb.schemaRow.nCols = LIST_LENGTH(pStmt->pCols);
+  req.ntb.schemaRow.version = 1;
+  req.ntb.schemaRow.pSchema = taosMemoryCalloc(req.ntb.schemaRow.nCols, sizeof(SSchema));
+  if (NULL == req.name || NULL == req.ntb.schemaRow.pSchema) {
     destroyCreateTbReq(&req);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -3977,7 +3970,7 @@ static int32_t buildNormalTableBatchReq(int32_t acctId, const SCreateTableStmt* 
   SNode*   pCol;
   col_id_t index = 0;
   FOREACH(pCol, pStmt->pCols) {
-    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.schema.pSchema + index);
+    toSchema((SColumnDefNode*)pCol, index + 1, req.ntb.schemaRow.pSchema + index);
     ++index;
   }
   pBatch->info = *pVgroupInfo;
@@ -4031,7 +4024,7 @@ static void destroyCreateTbReqBatch(SVgroupCreateTableBatch* pTbBatch) {
     taosMemoryFreeClear(pTableReq->name);
 
     if (pTableReq->type == TSDB_NORMAL_TABLE) {
-      taosMemoryFreeClear(pTableReq->ntb.schema.pSchema);
+      taosMemoryFreeClear(pTableReq->ntb.schemaRow.pSchema);
     } else if (pTableReq->type == TSDB_CHILD_TABLE) {
       taosMemoryFreeClear(pTableReq->ctb.pTag);
     }

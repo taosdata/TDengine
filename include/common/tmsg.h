@@ -300,9 +300,7 @@ typedef struct SSchema {
 
 typedef struct {
   int32_t  nCols;
-  int32_t  sver;
-  int32_t  tagVer;
-  int32_t  colVer;
+  int32_t  version;
   SSchema* pSchema;
 } SSchemaWrapper;
 
@@ -310,9 +308,7 @@ static FORCE_INLINE SSchemaWrapper* tCloneSSchemaWrapper(const SSchemaWrapper* p
   SSchemaWrapper* pSW = (SSchemaWrapper*)taosMemoryMalloc(sizeof(SSchemaWrapper));
   if (pSW == NULL) return pSW;
   pSW->nCols = pSchemaWrapper->nCols;
-  pSW->sver = pSchemaWrapper->sver;
-  pSW->tagVer = pSchemaWrapper->tagVer;
-  pSW->colVer = pSchemaWrapper->colVer;
+  pSW->version = pSchemaWrapper->version;
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     taosMemoryFree(pSW);
@@ -367,9 +363,7 @@ static FORCE_INLINE int32_t tDecodeSSchema(SDecoder* pDecoder, SSchema* pSchema)
 static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWrapper* pSW) {
   int32_t tlen = 0;
   tlen += taosEncodeVariantI32(buf, pSW->nCols);
-  tlen += taosEncodeVariantI32(buf, pSW->sver);
-  tlen += taosEncodeVariantI32(buf, pSW->tagVer);
-  tlen += taosEncodeVariantI32(buf, pSW->colVer);
+  tlen += taosEncodeVariantI32(buf, pSW->version);
   for (int32_t i = 0; i < pSW->nCols; i++) {
     tlen += taosEncodeSSchema(buf, &pSW->pSchema[i]);
   }
@@ -378,9 +372,7 @@ static FORCE_INLINE int32_t taosEncodeSSchemaWrapper(void** buf, const SSchemaWr
 
 static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapper* pSW) {
   buf = taosDecodeVariantI32(buf, &pSW->nCols);
-  buf = taosDecodeVariantI32(buf, &pSW->sver);
-  buf = taosDecodeVariantI32(buf, &pSW->tagVer);
-  buf = taosDecodeVariantI32(buf, &pSW->colVer);
+  buf = taosDecodeVariantI32(buf, &pSW->version);
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) {
     return NULL;
@@ -394,9 +386,7 @@ static FORCE_INLINE void* taosDecodeSSchemaWrapper(const void* buf, SSchemaWrapp
 
 static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSchemaWrapper* pSW) {
   if (tEncodeI32v(pEncoder, pSW->nCols) < 0) return -1;
-  if (tEncodeI32v(pEncoder, pSW->sver) < 0) return -1;
-  if (tEncodeI32v(pEncoder, pSW->tagVer) < 0) return -1;
-  if (tEncodeI32v(pEncoder, pSW->colVer) < 0) return -1;
+  if (tEncodeI32v(pEncoder, pSW->version) < 0) return -1;
   for (int32_t i = 0; i < pSW->nCols; i++) {
     if (tEncodeSSchema(pEncoder, &pSW->pSchema[i]) < 0) return -1;
   }
@@ -406,9 +396,7 @@ static FORCE_INLINE int32_t tEncodeSSchemaWrapper(SEncoder* pEncoder, const SSch
 
 static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWrapper* pSW) {
   if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pSW->tagVer) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pSW->colVer) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->version) < 0) return -1;
 
   pSW->pSchema = (SSchema*)taosMemoryCalloc(pSW->nCols, sizeof(SSchema));
   if (pSW->pSchema == NULL) return -1;
@@ -421,9 +409,7 @@ static FORCE_INLINE int32_t tDecodeSSchemaWrapper(SDecoder* pDecoder, SSchemaWra
 
 static FORCE_INLINE int32_t tDecodeSSchemaWrapperEx(SDecoder* pDecoder, SSchemaWrapper* pSW) {
   if (tDecodeI32v(pDecoder, &pSW->nCols) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pSW->sver) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pSW->tagVer) < 0) return -1;
-  if (tDecodeI32v(pDecoder, &pSW->colVer) < 0) return -1;
+  if (tDecodeI32v(pDecoder, &pSW->version) < 0) return -1;
 
   pSW->pSchema = (SSchema*)tDecoderMalloc(pDecoder, pSW->nCols * sizeof(SSchema));
   if (pSW->pSchema == NULL) return -1;
@@ -469,7 +455,8 @@ int32_t tDeserializeSMDropStbReq(void* buf, int32_t bufLen, SMDropStbReq* pReq);
 typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
-  int32_t verInBlock;
+  int32_t tagVer;
+  int32_t colVer;
   int32_t numOfFields;
   SArray* pFields;
   int32_t ttl;
@@ -1023,6 +1010,10 @@ typedef struct {
   SReplica replicas[TSDB_MAX_REPLICA];
   int32_t  numOfRetensions;
   SArray*  pRetensions;  // SRetention
+
+  // for tsma
+  int8_t isTsma;
+
 } SCreateVnodeReq;
 
 int32_t tSerializeSCreateVnodeReq(void* buf, int32_t bufLen, SCreateVnodeReq* pReq);
@@ -1713,7 +1704,7 @@ typedef struct SVCreateStbReq {
   char*          name;
   tb_uid_t       suid;
   int8_t         rollup;
-  SSchemaWrapper schema;
+  SSchemaWrapper schemaRow;
   SSchemaWrapper schemaTag;
   SRSmaParam     pRSmaParam;
 } SVCreateStbReq;
@@ -1745,7 +1736,7 @@ typedef struct SVCreateTbReq {
       uint8_t* pTag;
     } ctb;
     struct {
-      SSchemaWrapper schema;
+      SSchemaWrapper schemaRow;
     } ntb;
   };
 } SVCreateTbReq;
