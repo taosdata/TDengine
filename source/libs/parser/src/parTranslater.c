@@ -3800,7 +3800,7 @@ static const char* getSysTableName(ENodeType type) {
     case QUERY_NODE_SHOW_INDEXES_STMT:
       return TSDB_INS_TABLE_USER_INDEXES;
     case QUERY_NODE_SHOW_STREAMS_STMT:
-      return TSDB_INS_TABLE_USER_STREAMS;
+      return TSDB_PERFS_TABLE_STREAMS;
     case QUERY_NODE_SHOW_BNODES_STMT:
       return TSDB_INS_TABLE_BNODES;
     case QUERY_NODE_SHOW_SNODES_STMT:
