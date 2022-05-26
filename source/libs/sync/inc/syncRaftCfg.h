@@ -31,6 +31,7 @@ typedef struct SRaftCfg {
   SSyncCfg  cfg;
   TdFilePtr pFile;
   char      path[TSDB_FILENAME_LEN * 2];
+  int8_t    isStandBy;
 } SRaftCfg;
 
 SRaftCfg *raftCfgOpen(const char *path);
@@ -42,10 +43,12 @@ char *  syncCfg2Str(SSyncCfg *pSyncCfg);
 int32_t syncCfgFromJson(const cJSON *pRoot, SSyncCfg *pSyncCfg);
 int32_t syncCfgFromStr(const char *s, SSyncCfg *pSyncCfg);
 
-cJSON *raftCfg2Json(SRaftCfg *pRaftCfg);
-char * raftCfg2Str(SRaftCfg *pRaftCfg);
+cJSON * raftCfg2Json(SRaftCfg *pRaftCfg);
+char *  raftCfg2Str(SRaftCfg *pRaftCfg);
+int32_t raftCfgFromJson(const cJSON *pRoot, SRaftCfg *pRaftCfg);
+int32_t raftCfgFromStr(const char *s, SRaftCfg *pRaftCfg);
 
-int32_t syncCfgCreateFile(SSyncCfg *pCfg, const char *path);
+int32_t raftCfgCreateFile(SSyncCfg *pCfg, int8_t isStandBy, const char *path);
 
 // for debug ----------------------
 void syncCfgPrint(SSyncCfg *pCfg);
