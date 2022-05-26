@@ -921,6 +921,8 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STransConnCtx* pCtx = pMsg->ctx;
   SEpSet*        pEpSet = &pCtx->epSet;
+  transPrintEpSet(pEpSet);
+
   /*
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
@@ -972,7 +974,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->pRsp = NULL;
   } else {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    pTransInst->cfp(pTransInst->parent, pResp, pEpSet);
+    if (pResp->code != 0) {
+      pTransInst->cfp(pTransInst->parent, pResp, NULL);
+    } else {
+      pTransInst->cfp(pTransInst->parent, pResp, pEpSet);
+    }
   }
   return 0;
 }

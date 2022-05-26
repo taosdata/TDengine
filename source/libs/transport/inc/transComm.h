@@ -318,6 +318,7 @@ void transDQDestroy(SDelayQueue* queue);
 
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
+void transPrintEpSet(SEpSet* pEpSet);
 /*
  * init global func
  */
