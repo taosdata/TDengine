@@ -1630,7 +1630,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
 }
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
-                            int32_t vgId) {
+                            const char* stbFullName, int32_t vgId) {
   SSubmitReq* ret = NULL;
 
   // cal size
@@ -1646,10 +1646,12 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 
     if (createTb) {
       SVCreateTbReq createTbReq = {0};
-      createTbReq.name = "a";
+      char*         cname = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+      snprintf(cname, TSDB_TABLE_FNAME_LEN, "%s:%ld", stbFullName, pDataBlock->info.groupId);
+      createTbReq.name = cname;
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
-      createTbReq.ctb.suid = htobe64(suid);
+      createTbReq.ctb.suid = suid;
 
       SKVRowBuilder kvRowBuilder = {0};
       if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
@@ -1662,6 +1664,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       int32_t code;
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
       if (code < 0) return NULL;
+      taosMemoryFree(cname);
     }
 
     cap += sizeof(SSubmitBlk) + schemaLen + rows * maxLen;
@@ -1697,7 +1700,9 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     int32_t schemaLen = 0;
     if (createTb) {
       SVCreateTbReq createTbReq = {0};
-      createTbReq.name = "a";
+      char*         cname = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+      snprintf(cname, TSDB_TABLE_FNAME_LEN, "%s:%ld", stbFullName, pDataBlock->info.groupId);
+      createTbReq.name = cname;
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
