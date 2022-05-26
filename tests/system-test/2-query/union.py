@@ -152,7 +152,7 @@ class TDTestCase:
                     having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
                     sqls.extend(
                         (
-                            self.__single_sql(select_claus, join_tb, where_claus, having_claus),
+                            self.__single_sql(select_claus, tb, where_claus, having_claus),
                         )
                     )
 
