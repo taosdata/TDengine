@@ -148,9 +148,10 @@ void rpcReleaseHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*transReleaseHandle[type])(handle);
 }
-void rpcSetDefaultEpSet(void* thandle, const SEpSet* dst) {
+
+void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
   // later
-  transSetDefaultEpSet(thandle, dst);
+  transSetDefaultAddr(thandle, ip, fqdn);
 }
 
 int32_t rpcInit() {
