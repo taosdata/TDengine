@@ -333,7 +333,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 cbMeta.seqNum = pEntry->seqNum;
                 cbMeta.term = pEntry->term;
                 cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-                ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+                cbMeta.flag = 9;
 
                 bool needExecute = true;
                 if (ths->pSnapshot != NULL && cbMeta.index <= ths->pSnapshot->lastApplyIndex) {
