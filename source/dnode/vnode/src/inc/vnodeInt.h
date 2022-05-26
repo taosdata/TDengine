@@ -47,15 +47,17 @@
 extern "C" {
 #endif
 
-typedef struct SVnodeInfo   SVnodeInfo;
-typedef struct SMeta        SMeta;
-typedef struct SSma         SSma;
-typedef struct STsdb        STsdb;
-typedef struct STQ          STQ;
-typedef struct SVState      SVState;
-typedef struct SVBufPool    SVBufPool;
-typedef struct SQWorker     SQHandle;
-typedef struct STsdbKeepCfg STsdbKeepCfg;
+typedef struct SVnodeInfo          SVnodeInfo;
+typedef struct SMeta               SMeta;
+typedef struct SSma                SSma;
+typedef struct STsdb               STsdb;
+typedef struct STQ                 STQ;
+typedef struct SVState             SVState;
+typedef struct SVBufPool           SVBufPool;
+typedef struct SQWorker            SQHandle;
+typedef struct STsdbKeepCfg        STsdbKeepCfg;
+typedef struct SMetaSnapshotReader SMetaSnapshotReader;
+typedef struct STsdbSnapshotReader STsdbSnapshotReader;
 
 #define VNODE_META_DIR  "meta"
 #define VNODE_TSDB_DIR  "tsdb"
@@ -67,8 +69,10 @@ typedef struct STsdbKeepCfg STsdbKeepCfg;
 #define VNODE_RSMA2_DIR "rsma2"
 
 // vnd.h
-void* vnodeBufPoolMalloc(SVBufPool* pPool, int size);
-void  vnodeBufPoolFree(SVBufPool* pPool, void* p);
+void*   vnodeBufPoolMalloc(SVBufPool* pPool, int size);
+void    vnodeBufPoolFree(SVBufPool* pPool, void* p);
+int32_t vnodeRealloc(void** pp, int32_t size);
+void    vnodeFree(void* p);
 
 // meta
 typedef struct SMCtbCursor SMCtbCursor;
@@ -95,6 +99,9 @@ STSma*          metaGetSmaInfoByIndex(SMeta* pMeta, int64_t indexUid);
 STSmaWrapper*   metaGetSmaInfoByTable(SMeta* pMeta, tb_uid_t uid, bool deepCopy);
 SArray*         metaGetSmaIdsByTable(SMeta* pMeta, tb_uid_t uid);
 SArray*         metaGetSmaTbUids(SMeta* pMeta);
+int32_t         metaSnapshotReaderOpen(SMeta* pMeta, SMetaSnapshotReader** ppReader, int64_t sver, int64_t ever);
+int32_t         metaSnapshotReaderClose(SMetaSnapshotReader* pReader);
+int32_t         metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* nData);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -112,6 +119,9 @@ tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableG
 tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
                                  void* pMemRef);
 int32_t      tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo);
+int32_t      tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
+int32_t      tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
+int32_t      tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);

@@ -132,6 +132,7 @@ typedef struct STableNode {
   char      tableName[TSDB_TABLE_NAME_LEN];
   char      tableAlias[TSDB_TABLE_NAME_LEN];
   uint8_t   precision;
+  bool      singleTable;
 } STableNode;
 
 struct STableMeta;
@@ -242,6 +243,7 @@ typedef struct SSelectStmt {
   bool        hasAggFuncs;
   bool        hasRepeatScanFuncs;
   bool        hasIndefiniteRowsFunc;
+  bool        hasSelectFunc;
   bool        hasSelectValFunc;
 } SSelectStmt;
 

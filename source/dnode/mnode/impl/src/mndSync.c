@@ -31,7 +31,8 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   SMnode  *pMnode = pFsm->data;
   SSdbRaw *pRaw = pMsg->pCont;
 
-  mTrace("raw:%p, apply to sdb, ver:%" PRId64 " role:%s", pRaw, cbMeta.index, syncStr(cbMeta.state));
+  mTrace("raw:%p, apply to sdb, ver:%" PRId64 " term:%" PRId64 " role:%s", pRaw, cbMeta.index, cbMeta.term,
+         syncStr(cbMeta.state));
   sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
   sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);

@@ -176,11 +176,11 @@ static int32_t calcConstProject(SNode* pProject, SNode** pNew) {
   }
 
   int32_t code = scalarCalculateConstants(pProject, pNew);
-  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE == nodeType(pNew) && NULL != pAssociation) {
+  if (TSDB_CODE_SUCCESS == code && QUERY_NODE_VALUE == nodeType(*pNew) && NULL != pAssociation) {
     int32_t size = taosArrayGetSize(pAssociation);
     for (int32_t i = 0; i < size; ++i) {
-      SNode** pCol = taosArrayGet(pAssociation, i);
-      *pCol = nodesCloneNode(pNew);
+      SNode** pCol = taosArrayGetP(pAssociation, i);
+      *pCol = nodesCloneNode(*pNew);
       if (NULL == *pCol) {
         return TSDB_CODE_OUT_OF_MEMORY;
       }
@@ -233,9 +233,9 @@ static int32_t calcConstGroupBy(SCalcConstContext* pCxt, SSelectStmt* pSelect) {
 }
 
 static int32_t calcConstSelect(SCalcConstContext* pCxt, SSelectStmt* pSelect, bool subquery) {
-  int32_t code = calcConstProjections(pCxt, pSelect, subquery);
+  int32_t code = calcConstFromTable(pCxt, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = calcConstFromTable(pCxt, pSelect);
+    code = calcConstProjections(pCxt, pSelect, subquery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = calcConstSelectCondition(pCxt, pSelect, &pSelect->pWhere);

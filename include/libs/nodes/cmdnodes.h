@@ -50,6 +50,7 @@ typedef struct SDatabaseOptions {
   int32_t     numOfVgroups;
   int8_t      singleStable;
   SNodeList*  pRetentions;
+  int8_t      schemaless;
 } SDatabaseOptions;
 
 typedef struct SCreateDatabaseStmt {
@@ -259,6 +260,13 @@ typedef struct SDropTopicStmt {
   char      topicName[TSDB_TABLE_NAME_LEN];
   bool      ignoreNotExists;
 } SDropTopicStmt;
+
+typedef struct SDropCGroupStmt {
+  ENodeType type;
+  char      topicName[TSDB_TABLE_NAME_LEN];
+  char      cgroup[TSDB_CGROUP_LEN];
+  bool      ignoreNotExists;
+} SDropCGroupStmt;
 
 typedef struct SAlterLocalStmt {
   ENodeType type;

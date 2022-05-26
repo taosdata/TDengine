@@ -660,8 +660,7 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char
-      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char    offsetUnit;
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -696,6 +695,7 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLastRow;
+  int8_t  schemaless;
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
@@ -1274,7 +1274,6 @@ int32_t tSerializeSCreateDropMQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnod
 int32_t tDeserializeSCreateDropMQSBNodeReq(void* buf, int32_t bufLen, SMCreateQnodeReq* pReq);
 
 typedef struct {
-  int32_t  dnodeId;
   int8_t   replica;
   SReplica replicas[TSDB_MAX_REPLICA];
 } SDCreateMnodeReq, SDAlterMnodeReq;

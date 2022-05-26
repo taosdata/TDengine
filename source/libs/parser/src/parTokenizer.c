@@ -53,6 +53,7 @@ static SKeyword keywordTable[] = {
     {"CACHE",         TK_CACHE},
     {"CACHELAST",     TK_CACHELAST},
     {"CAST",          TK_CAST},
+    {"CGROUP",        TK_CGROUP},
     {"CLUSTER",       TK_CLUSTER},
     {"COLUMN",        TK_COLUMN},
     {"COMMENT",       TK_COMMENT},
@@ -156,6 +157,7 @@ static SKeyword keywordTable[] = {
     {"REVOKE",        TK_REVOKE},
     {"ROLLUP",        TK_ROLLUP},
     {"SCHEMA",        TK_SCHEMA},
+    {"SCHEMALESS",    TK_SCHEMALESS},
     {"SCORES",        TK_SCORES},
     {"SELECT",        TK_SELECT},
     {"SESSION",       TK_SESSION},
@@ -605,12 +607,12 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
       return i;
     }
-    case '[': {
-      for (i = 1; z[i] && z[i - 1] != ']'; i++) {
-      }
-      *tokenId = TK_NK_ID;
-      return i;
-    }
+    // case '[': {
+    //   for (i = 1; z[i] && z[i - 1] != ']'; i++) {
+    //   }
+    //   *tokenId = TK_NK_ID;
+    //   return i;
+    // }
     case 'T':
     case 't':
     case 'F':

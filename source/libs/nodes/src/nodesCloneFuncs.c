@@ -191,6 +191,7 @@ static SNode* tableNodeCopy(const STableNode* pSrc, STableNode* pDst) {
   COPY_CHAR_ARRAY_FIELD(tableName);
   COPY_CHAR_ARRAY_FIELD(tableAlias);
   COPY_SCALAR_FIELD(precision);
+  COPY_SCALAR_FIELD(singleTable);
   return (SNode*)pDst;
 }
 
@@ -326,6 +327,7 @@ static SNode* logicScanCopy(const SScanLogicNode* pSrc, SScanLogicNode* pDst) {
   COPY_SCALAR_FIELD(sliding);
   COPY_SCALAR_FIELD(intervalUnit);
   COPY_SCALAR_FIELD(slidingUnit);
+  CLONE_NODE_FIELD(pTagCond);
   return (SNode*)pDst;
 }
 
@@ -333,6 +335,7 @@ static SNode* logicJoinCopy(const SJoinLogicNode* pSrc, SJoinLogicNode* pDst) {
   COPY_BASE_OBJECT_FIELD(node, logicNodeCopy);
   COPY_SCALAR_FIELD(joinType);
   CLONE_NODE_FIELD(pOnConditions);
+  COPY_SCALAR_FIELD(isSingleTableJoin);
   return (SNode*)pDst;
 }
 
