@@ -1000,7 +1000,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
   pInfo->interval = pSTInfo->interval;
   pInfo->sessionSup = (SessionWindowSupporter){.pStreamAggSup = NULL, .gap = -1};
 
-  initCatchSupporter(&pInfo->childAggSup, 1024, "StreamFinalInterval",
+  initCacheSupporter(&pInfo->childAggSup, 1024, "StreamFinalInterval",
                      "/tmp/");  // TODO(liuyao) get row size from phy plan
 
   pOperator->name = "StreamBlockScanOperator";
