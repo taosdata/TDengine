@@ -74,10 +74,29 @@ class TestVgroups(TDCase):
         res = self.tdSql.query_data
         if input_function in ["acos", "asin", "atan", "cos", "log", "pow", "sin", "sqrt", "tan"]:
             self.tdSql.checkEqual(res[1][1], "DOUBLE")
-            self.tdSql.checkEqual(res[1][1], "DOUBLE")
+            self.tdSql.checkEqual(res[2][1], "DOUBLE")
+        elif input_function in ["lower", "ltrim", "rtrim", "upper"]:
+            self.tdSql.checkEqual(res[1][1], "VARCHAR")
+            self.tdSql.checkEqual(res[2][1], "NCHAR")
+            self.tdSql.checkEqual(res[3][1], "NCHAR")
+        elif input_function in ["char_length", "length"]:
+            self.tdSql.checkEqual(res[1][1], "INT")
+            self.tdSql.checkEqual(res[2][1], "INT")
+            self.tdSql.checkEqual(res[3][1], "INT")
+        elif input_function in ["concat", "concat_ws"]:
+            self.tdSql.checkEqual(self.tdSql.query_data[1][1], "VARCHAR")
+            self.tdSql.checkEqual(self.tdSql.query_data[2][1], "VARCHAR")
+            self.tdSql.checkEqual(self.tdSql.query_data[3][1], "NCHAR")
+            self.tdSql.checkEqual(self.tdSql.query_data[4][1], "VARCHAR")
+        elif input_function in ["substr"]:
+            self.tdSql.checkEqual(res[1][1], "VARCHAR")
+            self.tdSql.checkEqual(res[2][1], "VARCHAR")
+            self.tdSql.checkEqual(res[3][1], "NCHAR")
+            self.tdSql.checkEqual(res[4][1], "NCHAR")
         else:
             self.tdSql.checkEqual(res[1][1], "INT")
             self.tdSql.checkEqual(res[2][1], "DOUBLE")
+            
 
     def check_stream(self, sql1, sql2, expected_count):
         self.check_stream_res(sql1, expected_count)
@@ -109,7 +128,8 @@ class TestVgroups(TDCase):
         self.case_name = sys._getframe().f_code.co_name
         self.write_latency(self.case_name)
         math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
-        string_function_list = ["char_length", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
+        string_function_list = ["lower", "ltrim", "rtrim", "substr", "upper"]
+        # string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
         for math_function in math_function_list:
             if math_function in ["log", "pow"]:
                 self.tdSql.execute(f'create stream {math_function}_stream into output_{math_function}_stb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_stb;')
@@ -120,11 +140,12 @@ class TestVgroups(TDCase):
             if string_function == "concat":
                 self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;')
             elif string_function == "concat_ws":
-                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(Null, c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;')
+                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;')
             elif string_function == "substr":
-                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1) from scalar_stb;')
+                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;')
             else:
-                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4) from scalar_stb;')
+                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;')
+            self.check_stream_field_type(f"describe output_{string_function}_stb", string_function)
 
         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
@@ -134,6 +155,16 @@ class TestVgroups(TDCase):
                 self.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb;', 3)
             else:
                 self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 3)
+        for string_function in string_function_list:
+            if string_function == "concat":
+                self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;', 3)
+            elif string_function == "concat_ws":
+                self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;', 3)
+            elif string_function == "substr":
+                self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;', 3)
+            else:
+                self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', 3)
+        
         self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei", Null, "Bigdata");')
         for math_function in math_function_list:
             if math_function == "log" or math_function == "pow":
@@ -141,10 +172,15 @@ class TestVgroups(TDCase):
             else:
                 self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 4)
         
-        string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
-        # for string_function in string_function_list:
-        #     self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4) from scalar_stb;')
-
+        for string_function in string_function_list:
+            if string_function == "concat":
+                self.check_stream(f'select `{string_function}(c3, c4)`, `{string_function}(c3, c5)`, `{string_function}(c4, c5)`, `{string_function}(c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;', 4)
+            elif string_function == "concat_ws":
+                self.check_stream(f'select `{string_function}("aND", c3, c4)`, `{string_function}("and", c3, c5)`, `{string_function}("And", c4, c5)`, `{string_function}("AND", c3, c4, c5)` from output_{string_function}_stb;', f'select {string_function}("aND", c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;', 4)
+            elif string_function == "substr":
+                self.check_stream(f'select `{string_function}(c3, 2)`, `{string_function}(c3, 2, 2)`, `{string_function}(c4, 5, 1)`, `{string_function}(c5, 3, 4)` from output_{string_function}_stb;', f'select {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1), {string_function}(c5, 3, 4) from scalar_stb;', 4)
+            else:
+                self.check_stream(f'select `{string_function}(c3)`, `{string_function}(c4)`, `{string_function}(c5)` from output_{string_function}_stb;', f'select {string_function}(c3), {string_function}(c4), {string_function}(c5) from scalar_stb;', 4)
 
     def run(self) -> bool:
         self.prepare_stream_data()
