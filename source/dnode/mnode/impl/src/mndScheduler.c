@@ -229,11 +229,14 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
   taosArrayPush(tasks, &pTask);
 
   pTask->nodeId = pStream->fixedSinkVgId;
+#if 0
   SVgObj* pVgroup = mndAcquireVgroup(pMnode, pStream->fixedSinkVgId);
   if (pVgroup == NULL) {
     return -1;
   }
   pTask->epSet = mndGetVgroupEpset(pMnode, pVgroup);
+#endif
+  pTask->epSet = mndGetVgroupEpset(pMnode, &pStream->fixedSinkVg);
   // source
   pTask->sourceType = TASK_SOURCE__MERGE;
   pTask->inputType = TASK_INPUT_TYPE__DATA_BLOCK;
@@ -254,7 +257,8 @@ int32_t mndAddFixedSinkToStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStr
   // dispatch
   pTask->dispatchType = TASK_DISPATCH__NONE;
 
-  mndPersistTaskDeployReq(pTrans, pTask, &pTask->epSet, TDMT_VND_TASK_DEPLOY, pVgroup->vgId);
+  /*mndPersistTaskDeployReq(pTrans, pTask, &pTask->epSet, TDMT_VND_TASK_DEPLOY, pVgroup->vgId);*/
+  mndPersistTaskDeployReq(pTrans, pTask, &pTask->epSet, TDMT_VND_TASK_DEPLOY, pStream->fixedSinkVg.vgId);
 
   return 0;
 }

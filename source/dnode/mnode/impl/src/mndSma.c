@@ -295,9 +295,9 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
 }
 
 static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma, int32_t *pContLen) {
-  SEncoder       encoder = {0};
-  int32_t        contLen;
-  SName name = {0};
+  SEncoder encoder = {0};
+  int32_t  contLen;
+  SName    name = {0};
   tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   SVDropTSmaReq req = {0};
@@ -482,14 +482,6 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
     memcpy(smaObj.ast, pCreate->ast, smaObj.astLen);
   }
 
-  SVgObj smaVgObj = {0};
-  if (mndAllocSmaVgroup(pMnode, pDb, &smaVgObj) != 0) {
-    mError("sma:%s, failed to create since %s", smaObj.name, terrstr());
-    return -1;
-  }
-
-  smaObj.dstVgId = smaVgObj.vgId;
-
   SStreamObj streamObj = {0};
   tstrncpy(streamObj.name, pCreate->name, TSDB_STREAM_FNAME_LEN);
   tstrncpy(streamObj.sourceDb, pDb->name, TSDB_DB_FNAME_LEN);
@@ -502,7 +494,12 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.createdBy = STREAM_CREATED_BY__SMA;
   streamObj.fixedSinkVgId = smaObj.dstVgId;
   streamObj.smaId = smaObj.uid;
-  /*streamObj.physicalPlan = "";*/
+
+  if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
+    mError("sma:%s, failed to create since %s", smaObj.name, terrstr());
+    return -1;
+  }
+  smaObj.dstVgId = streamObj.fixedSinkVg.vgId;
 
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_SMA, pReq);
@@ -512,11 +509,11 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   mndTransSetDbInfo(pTrans, pDb);
 
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
-  if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &smaVgObj) != 0) goto _OVER;
+  if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
-  if (mndSetCreateSmaVgroupCommitLogs(pMnode, pTrans, &smaVgObj) != 0) goto _OVER;
+  if (mndSetCreateSmaVgroupCommitLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetCreateSmaRedoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
-  if (mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &smaVgObj) != 0) goto _OVER;
+  if (mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, STREAM_TRIGGER_AT_ONCE, 0, pTrans) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -656,7 +653,7 @@ static int32_t mndSetDropSmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *
   return 0;
 }
 
-static int32_t mndSetDropSmaVgroupRedoLogs(SMnode *pMnode, STrans *pTrans,  SVgObj *pVgroup) {
+static int32_t mndSetDropSmaVgroupRedoLogs(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup) {
   SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
   if (pVgRaw == NULL) return -1;
   if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
