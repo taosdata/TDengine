@@ -227,6 +227,7 @@ typedef struct SQWorkerMgmt {
 
 #define QW_ELOG(_param, ...) qError("QW:%p " _param, mgmt, __VA_ARGS__)
 #define QW_DLOG(_param, ...) qDebug("QW:%p " _param, mgmt, __VA_ARGS__)
+#define QW_TLOG(_param, ...) qTrace("QW:%p " _param, mgmt, __VA_ARGS__)
 
 #define QW_DUMP(_param, ...)                      \
   do {                                           \

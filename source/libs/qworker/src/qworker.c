@@ -1409,7 +1409,7 @@ void qwProcessHbTimerEvent(void *param, void *tmrId) {
     SQWSchStatus *sch = (SQWSchStatus *)pIter;
     if (NULL == sch->hbConnInfo.handle) {
       uint64_t *sId = taosHashGetKey(pIter, NULL);
-      QW_DLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
+      QW_TLOG("cancel send hb to sch %" PRIx64 " cause of no connection handle", *sId);
       pIter = taosHashIterate(mgmt->schHash, pIter);
       continue;
     }

@@ -344,7 +344,7 @@ TEST_F(MndTestStb, 01_Create_Show_Meta_Drop_Restart_Stb) {
     EXPECT_EQ(metaRsp.precision, TSDB_TIME_PRECISION_MILLI);
     EXPECT_EQ(metaRsp.tableType, TSDB_SUPER_TABLE);
     EXPECT_EQ(metaRsp.sversion, 1);
-    EXPECT_EQ(metaRsp.tversion, 0);
+    EXPECT_EQ(metaRsp.tversion, 1);
     EXPECT_GT(metaRsp.suid, 0);
     EXPECT_GT(metaRsp.tuid, 0);
     EXPECT_EQ(metaRsp.vgId, 0);
