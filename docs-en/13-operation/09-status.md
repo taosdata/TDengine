@@ -3,7 +3,7 @@ sidebar_label: Connections & Tasks
 title: Manage Connections and Query Tasks
 ---
 
-System operator can use TDengine CLI to show the connections, ongoing queries, stream computing, and can close connection or stop ongoing query task or stream computing.
+A system operator can use TDengine CLI to show the connections, ongoing queries, stream computing, and can close connection or stop ongoing query task or stream computing.
 
 ## Show Connections
 
@@ -51,4 +51,4 @@ The first column of the output is stream ID, which is composed of the connection
 KILL STREAM <stream-id>;
 ```
 
-The the above SQL command, `stream-id` is from the first column of the output of `SHOW STREAMS`.
+The above SQL command, `stream-id` is from the first column of the output of `SHOW STREAMS`.
