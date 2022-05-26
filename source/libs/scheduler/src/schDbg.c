@@ -13,27 +13,30 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef _TD_MND_SCHEDULER_H_
-#define _TD_MND_SCHEDULER_H_
+#include "query.h"
+#include "schedulerInt.h"
 
-#include "mndInt.h"
+tsem_t schdRspSem;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
+void schdExecCallback(SQueryResult* pResult, void* param, int32_t code) {
+  if (code) {
+    pResult->code = code;
+  }
+  
+  *(SQueryResult*)param = *pResult;
 
-int32_t mndInitScheduler(SMnode* pMnode);
-void    mndCleanupScheduler(SMnode* pMnode);
+  taosMemoryFree(pResult);
 
-int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscribeObj* pSub);
-
-int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream);
-
-int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int64_t watermark, char** pStr,
-                           int32_t* pLen);
-
-#ifdef __cplusplus
+  tsem_post(&schdRspSem);
 }
-#endif
 
-#endif /*_TD_MND_SCHEDULER_H_ */
+void schdFetchCallback(void* pResult, void* param, int32_t code) {
+  SSchdFetchParam* fParam = (SSchdFetchParam*)param;
+
+  *fParam->pData = pResult;
+  *fParam->code = code;
+
+  tsem_post(&schdRspSem);
+}
+
+

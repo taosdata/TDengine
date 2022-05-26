@@ -72,11 +72,6 @@ void generateInformationSchema(MockCatalogService* mcs) {
     builder.done();
   }
   {
-    ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_streams", TSDB_SYSTEM_TABLE, 1)
-                                 .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
-    builder.done();
-  }
-  {
     ITableBuilder& builder = mcs->createTableBuilder("information_schema", "user_tables", TSDB_SYSTEM_TABLE, 2)
                                  .addColumn("db_name", TSDB_DATA_TYPE_BINARY, TSDB_DB_NAME_LEN)
                                  .addColumn("table_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
@@ -104,6 +99,11 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
   {
     ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "trans", TSDB_SYSTEM_TABLE, 1)
                                  .addColumn("id", TSDB_DATA_TYPE_INT);
+    builder.done();
+  }
+  {
+    ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "streams", TSDB_SYSTEM_TABLE, 1)
+        .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
     builder.done();
   }
 }
