@@ -88,6 +88,9 @@ typedef struct SReConfigCbMeta {
   SyncIndex index;
   SyncTerm  term;
   SyncTerm  currentTerm;
+  SSyncCfg  oldCfg;
+  bool      isDrop;
+  uint64_t  flag;
 } SReConfigCbMeta;
 
 typedef struct SSyncFSM {

@@ -951,21 +951,9 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   return s;
 }
 
-void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
-  bool hit = false;
-  for (int i = 0; i < newConfig->replicaNum; ++i) {
-    if (strcmp(pSyncNode->myNodeInfo.nodeFqdn, (newConfig->nodeInfo)[i].nodeFqdn) == 0 &&
-        pSyncNode->myNodeInfo.nodePort == (newConfig->nodeInfo)[i].nodePort) {
-      newConfig->myIndex = i;
-      hit = true;
-      break;
-    }
-  }
-  ASSERT(hit == true);
-
+void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDrop) {
   pSyncNode->pRaftCfg->cfg = *newConfig;
-  int32_t ret = raftCfgPersist(pSyncNode->pRaftCfg);
-  ASSERT(ret == 0);
+  int32_t ret = 0;
 
   // init internal
   pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
@@ -995,9 +983,22 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
   voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
   votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
-  pSyncNode->pRaftCfg->isStandBy = 0;
-  raftCfgPersist(pSyncNode->pRaftCfg);
+  // isDrop
+  *isDrop = true;
+  for (int i = 0; i < newConfig->replicaNum; ++i) {
+    if (strcmp((newConfig->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
+        (newConfig->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
+      *isDrop = false;
+      break;
+    }
+  }
 
+  if (!(*isDrop)) {
+    // change isStandBy to normal
+    pSyncNode->pRaftCfg->isStandBy = 0;
+  }
+
+  raftCfgPersist(pSyncNode->pRaftCfg);
   syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
 }
 
