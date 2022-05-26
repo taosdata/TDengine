@@ -833,15 +833,6 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
   size_t total = taosArrayGetSize(pInfo->pBlockLists);
   if (pInfo->blockType == STREAM_DATA_TYPE_SSDATA_BLOCK) {
-    if (pInfo->scanMode == STREAM_SCAN_FROM_UPDATERES) {
-      SSDataBlock* pDB = getDataFromCatch(pInfo);
-      if (pDB != NULL) {
-        return pDB;
-      } else {
-       pInfo->scanMode = STREAM_SCAN_FROM_READERHANDLE;
-      }
-    }
-
     if (pInfo->validBlockIndex >= total) {
       doClearBufferedBlocks(pInfo);
       pOperator->status = OP_EXEC_DONE;
@@ -849,17 +840,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
     }
 
     int32_t current = pInfo->validBlockIndex++;
-    SSDataBlock* pBlock = taosArrayGetP(pInfo->pBlockLists, current);
-    if (pBlock->info.type == STREAM_REPROCESS) {
-      pInfo->scanMode = STREAM_SCAN_FROM_UPDATERES;
-    } else {
-      int32_t code = catchDatablock(pBlock, &pInfo->childAggSup, pInfo->primaryTsIndex, 0);
-      if (code != TDB_CODE_SUCCESS) {
-        pTaskInfo->code = code;
-        longjmp(pTaskInfo->env, code);
-      }
-    }
-    return pBlock;
+    return taosArrayGetP(pInfo->pBlockLists, current);
   } else {
     if (pInfo->scanMode == STREAM_SCAN_FROM_RES) {
       blockDataDestroy(pInfo->pUpdateRes);
@@ -1023,7 +1004,7 @@ SOperatorInfo* createStreamScanOperatorInfo(void* streamReadHandle, void* pDataR
   pInfo->interval       = pSTInfo->interval;
   pInfo->sessionSup     = (SessionWindowSupporter){.pStreamAggSup = NULL, .gap = -1};
 
-  initCatchSupporter(&pInfo->childAggSup, 1024, "StreamFinalInterval", "/tmp/"); // TODO(liuyao) get row size from phy plan
+  initCacheSupporter(&pInfo->childAggSup, 1024, "StreamFinalInterval", "/tmp/"); // TODO(liuyao) get row size from phy plan
 
   pOperator->name       = "StreamBlockScanOperator";
   pOperator->operatorType = QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN;

@@ -5162,7 +5162,7 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t initCatchSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
+int32_t initCacheSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
     const char* pDir) {
   pCatchSup->keySize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
   pCatchSup->pKeyBuf = taosMemoryCalloc(1, pCatchSup->keySize);
