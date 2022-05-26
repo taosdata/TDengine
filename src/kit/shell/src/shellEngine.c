@@ -1386,7 +1386,7 @@ cJSON *wsclient_parse_response() {
 }
 
 TAOS_FIELD *wsclient_print_header(cJSON *query, int *pcols, int *pprecison) {
-  TAOS_FIELD *fields;
+  TAOS_FIELD *fields = NULL;
   cJSON      *fields_count = cJSON_GetObjectItem(query, "fields_count");
   if (cJSON_IsNumber(fields_count)) {
     *pcols = (int)fields_count->valueint;
