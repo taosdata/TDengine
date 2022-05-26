@@ -1,7 +1,7 @@
 # setup env in case
 # where to run test (can be different from where starting the case, the driver machine)
 target_host: wintest
-# public and shared resources that case can use for free.
+# public and shared resources that case can use for free. this configuration was not used yet.
 share_env:
   taosd:
     host: winest
@@ -10,4 +10,11 @@ share_env:
     host: wintest
     port: 6041
 
-settings: [ ]
+settings:
+  - name: taospy
+    spec:
+      config:
+        firstEP: wintest:6030
+
+
+

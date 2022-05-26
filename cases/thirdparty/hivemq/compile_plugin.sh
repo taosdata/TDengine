@@ -13,3 +13,9 @@ else
   cd hivemq-tdengine-extension
   mv clean package
 fi
+
+cd target
+if [ -d /root/hivemq-tdengine-extension ]; then
+  rm -rf /root/hivemq-tdengine-extension
+fi
+unzip *.zip -d ~/
