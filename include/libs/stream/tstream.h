@@ -142,6 +142,7 @@ typedef void FTbSink(SStreamTask* pTask, void* vnode, int64_t ver, void* data);
 
 typedef struct {
   int64_t         stbUid;
+  char            stbFullName[TSDB_TABLE_FNAME_LEN];
   SSchemaWrapper* pSchemaWrapper;
   // not applicable to encoder and decoder
   void*     vnode;
