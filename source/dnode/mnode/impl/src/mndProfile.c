@@ -379,7 +379,7 @@ static int32_t mndProcessQueryHeartBeat(SMnode *pMnode, SRpcMsg *pMsg, SClientHb
     }
 
     rspBasic->connId = pConn->id;
-    rspBasic->totalDnodes = 1;   // TODO
+    rspBasic->totalDnodes = mndGetDnodeSize(pMnode);
     rspBasic->onlineDnodes = 1;  // TODO
     mndGetMnodeEpSet(pMnode, &rspBasic->epSet);
     mndReleaseConn(pMnode, pConn);

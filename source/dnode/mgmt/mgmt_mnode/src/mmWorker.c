@@ -32,9 +32,6 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   dTrace("msg:%p, get from mnode queue", pMsg);
 
   switch (pMsg->msgType) {
-    case TDMT_DND_ALTER_MNODE:
-      code = mmProcessAlterReq(pMgmt, pMsg);
-      break;
     case TDMT_MON_MM_INFO:
       code = mmProcessGetMonitorInfoReq(pMgmt, pMsg);
       break;
@@ -58,8 +55,19 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
 
 static void mmProcessSyncQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
   SMnodeMgmt *pMgmt = pInfo->ahandle;
+  dTrace("msg:%p, get from mnode-sync queue", pMsg);
+
   pMsg->info.node = pMgmt->pMnode;
-  mndProcessSyncMsg(pMsg);
+
+  SMsgHead *pHead = pMsg->pCont;
+  pHead->contLen = ntohl(pHead->contLen);
+  pHead->vgId = ntohl(pHead->vgId);
+
+  int32_t code = mndProcessSyncMsg(pMsg);
+
+  dTrace("msg:%p, is freed, code:0x%x", pMsg, code);
+  rpcFreeCont(pMsg->pCont);
+  taosFreeQitem(pMsg);
 }
 
 static int32_t mmPutNodeMsgToWorker(SSingleWorker *pWorker, SRpcMsg *pMsg) {
@@ -111,9 +119,16 @@ int32_t mmPutRpcMsgToReadQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
 }
 
 int32_t mmPutRpcMsgToSyncQueue(SMnodeMgmt *pMgmt, SRpcMsg *pMsg) {
-  if (mmAcquire(pMgmt) != 0) return -1;
-  int32_t code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
-  mmRelease(pMgmt);
+  int32_t code = -1;
+  if (mmAcquire(pMgmt) == 0) {
+    code = mmPutRpcMsgToWorker(&pMgmt->syncWorker, pMsg);
+    mmRelease(pMgmt);
+  }
+
+  if (code != 0) {
+    rpcFreeCont(pMsg->pCont);
+    pMsg->pCont = NULL;
+  }
   return code;
 }
 

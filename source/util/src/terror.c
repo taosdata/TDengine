@@ -272,6 +272,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_EXIST,       "Consumer not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_CONSUMER_NOT_READY,       "Consumer waiting for rebalance")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_TOPIC_SUBSCRIBED,         "Topic subscribed cannot be dropped")
 
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_ALREADY_EXIST,     "Stream already exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_STREAM_NOT_EXIST,         "Stream not exist")
+TAOS_DEFINE_ERROR(TSDB_CODE_MND_INVALID_STREAM_OPTION,    "Invalid stream option")
+
 // mnode-sma
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_ALREADY_EXIST,        "SMA already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_MND_SMA_NOT_EXIST,            "SMA does not exist")
@@ -311,6 +315,7 @@ TAOS_DEFINE_ERROR(TSDB_CODE_VND_TABLE_NOT_EXIST,          "Table does not exists
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_INVALID_TABLE_ACTION,     "Invalid table action")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_COL_ALREADY_EXISTS,       "Table column already exists")
 TAOS_DEFINE_ERROR(TSDB_CODE_VND_TABLE_COL_NOT_EXISTS,     "Table column not exists")
+TAOS_DEFINE_ERROR(TSDB_CODE_VND_READ_END,                 "Read end")
 
 
 // tsdb

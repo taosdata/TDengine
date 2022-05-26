@@ -87,6 +87,11 @@ void schtInitLogFile() {
 
 }
 
+void schtQueryCb(SQueryResult* pResult, void* param, int32_t code) {
+  assert(TSDB_CODE_SUCCESS == code);
+  *(int32_t*)param = 1;
+}
+
 
 void schtBuildQueryDag(SQueryPlan *dag) {
   uint64_t qId = schtQueryId;
@@ -485,6 +490,7 @@ void* schtRunJobThread(void *aa) {
   SHashObj *execTasks = NULL;
   SDataBuf dataBuf = {0};
   uint32_t jobFinished = 0;
+  int32_t queryDone = 0;
 
   while (!schtTestStop) {
     schtBuildQueryDag(&dag);
@@ -496,7 +502,8 @@ void* schtRunJobThread(void *aa) {
     qnodeAddr.port = 6031;
     taosArrayPush(qnodeList, &qnodeAddr);
 
-    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &queryJobRefId);
+    queryDone = 0;
+    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &queryJobRefId, "select * from tb", 0, schtQueryCb, &queryDone);
     assert(code == 0);
 
     pJob = schAcquireJob(queryJobRefId);
@@ -595,6 +602,14 @@ void* schtRunJobThread(void *aa) {
       pIter = taosHashIterate(execTasks, pIter);
     }  
 
+    while (true) {
+      if (queryDone) {
+        break;
+      }
+    
+      taosUsleep(10000);
+    }
+
     atomic_store_32(&schtStartFetch, 1);
 
     void *data = NULL;  
@@ -667,8 +682,9 @@ TEST(queryTest, normalCase) {
   schtSetPlanToString();
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
-  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+
+  int32_t queryDone = 0;
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
   ASSERT_EQ(code, 0);
 
   
@@ -718,6 +734,14 @@ TEST(queryTest, normalCase) {
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }  
 
+  while (true) {
+    if (queryDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
+  
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
 
@@ -773,8 +797,9 @@ TEST(queryTest, readyFirstCase) {
   schtSetPlanToString();
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
-  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+
+  int32_t queryDone = 0;  
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
   ASSERT_EQ(code, 0);
 
   
@@ -824,6 +849,13 @@ TEST(queryTest, readyFirstCase) {
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }    
 
+  while (true) {
+    if (queryDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
 
 
   TdThreadAttr thattr;
@@ -885,16 +917,17 @@ TEST(queryTest, flowCtrlCase) {
   schtSetPlanToString();
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
-  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+
+  int32_t queryDone = 0;  
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
   ASSERT_EQ(code, 0);
 
   
   SSchJob *pJob = schAcquireJob(job);
 
-  bool queryDone = false;
+  bool qDone = false;
   
-  while (!queryDone) {
+  while (!qDone) {
     void *pIter = taosHashIterate(pJob->execTasks, NULL);
     if (NULL == pIter) {
       break;
@@ -915,7 +948,7 @@ TEST(queryTest, flowCtrlCase) {
         code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
         ASSERT_EQ(code, 0);
       } else {
-        queryDone = true;
+        qDone = true;
         break;
       }
       
@@ -923,6 +956,13 @@ TEST(queryTest, flowCtrlCase) {
     }    
   }
 
+  while (true) {
+    if (queryDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);

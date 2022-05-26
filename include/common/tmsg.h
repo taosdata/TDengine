@@ -660,8 +660,7 @@ typedef struct {
   int32_t tz;  // query client timezone
   char    intervalUnit;
   char    slidingUnit;
-  char
-      offsetUnit;  // TODO Remove it, the offset is the number of precision tickle, and it must be a immutable duration.
+  char    offsetUnit;
   int8_t  precision;
   int64_t interval;
   int64_t sliding;
@@ -696,6 +695,7 @@ typedef struct {
   int8_t  replications;
   int8_t  strict;
   int8_t  cacheLastRow;
+  int8_t  schemaless;
   int8_t  ignoreExist;
   int32_t numOfRetensions;
   SArray* pRetensions;  // SRetention
@@ -950,6 +950,7 @@ typedef struct {
   int32_t     numOfCores;
   int32_t     numOfSupportVnodes;
   char        dnodeEp[TSDB_EP_LEN];
+  SMnodeLoad  mload;
   SClusterCfg clusterCfg;
   SArray*     pVloads;  // array of SVnodeLoad
 } SStatusReq;
@@ -1210,9 +1211,10 @@ typedef struct {
 } SRetrieveMetaTableRsp;
 
 typedef struct SExplainExecInfo {
-  uint64_t startupCost;
-  uint64_t totalCost;
+  double   startupCost;
+  double   totalCost;
   uint64_t numOfRows;
+  uint32_t verboseLen;
   void*    verboseInfo;
 } SExplainExecInfo;
 
@@ -1220,6 +1222,18 @@ typedef struct {
   int32_t           numOfPlans;
   SExplainExecInfo* subplanInfo;
 } SExplainRsp;
+
+typedef struct STableScanAnalyzeInfo {
+  uint64_t totalRows;
+  uint64_t totalCheckedRows;
+  uint32_t totalBlocks;
+  uint32_t loadBlocks;
+  uint32_t loadBlockStatis;
+  uint32_t skipBlocks;
+  uint32_t filterOutBlocks;
+  double   elapsedTime;
+  uint64_t filterTime;
+} STableScanAnalyzeInfo;
 
 int32_t tSerializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);
 int32_t tDeserializeSExplainRsp(void* buf, int32_t bufLen, SExplainRsp* pRsp);

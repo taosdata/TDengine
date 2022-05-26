@@ -69,7 +69,6 @@ void taosGetTmpfilePath(const char *inputTmpDir, const char *fileNamePrefix, cha
   }
 
   strcpy(tmpPath + len, tdengineTmpFileNamePrefix);
-  strcat(tmpPath, tdengineTmpFileNamePrefix);
   if (strlen(tmpPath) + strlen(fileNamePrefix) + strlen("-%d-%s") < PATH_MAX) {
     strcat(tmpPath, fileNamePrefix);
     strcat(tmpPath, "-%d-%s");

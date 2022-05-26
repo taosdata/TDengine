@@ -82,14 +82,39 @@ typedef struct SFsmCbMeta {
   SyncTerm   currentTerm;
 } SFsmCbMeta;
 
+typedef struct SReConfigCbMeta {
+  int32_t   code;
+  SyncIndex index;
+  SyncTerm  term;
+  SyncTerm  currentTerm;
+} SReConfigCbMeta;
+
 typedef struct SSyncFSM {
   void* data;
+
   void (*FpCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
   void (*FpPreCommitCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
-  void (*FpRestoreFinish)(struct SSyncFSM* pFsm);
+
+  void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
-  int32_t (*FpRestoreSnapshot)(struct SSyncFSM* pFsm, const SSnapshot* snapshot);
+
+  // if (*ppIter == NULL)
+  //   *ppIter = new iter;
+  // else
+  //   *ppIter.next();
+  //
+  // if success, return 0. else return error code
+  int32_t (*FpSnapshotRead)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf,
+                            int32_t* len);
+
+  // apply data into fsm
+  int32_t (*FpSnapshotApply)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len);
+
+  void (*FpReConfigCb)(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta);
+
+  // int32_t (*FpRestoreSnapshot)(struct SSyncFSM* pFsm, const SSnapshot* snapshot);
+
 } SSyncFSM;
 
 // abstract definition of log store in raft
@@ -146,6 +171,7 @@ int32_t     syncGetVgId(int64_t rid);
 int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
+bool        syncIsRestoreFinish(int64_t rid);
 
 #ifdef __cplusplus
 }

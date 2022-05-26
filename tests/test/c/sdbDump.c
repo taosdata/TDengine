@@ -16,7 +16,7 @@
 #define _DEFAULT_SOURCE
 #include "dmMgmt.h"
 #include "mndInt.h"
-#include "sdbInt.h"
+#include "sdb.h"
 #include "tconfig.h"
 #include "tjson.h"
 

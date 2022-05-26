@@ -154,6 +154,7 @@ void generateTestST1(MockCatalogService* mcs) {
   builder.done();
   mcs->createSubTable("test", "st1", "st1s1", 1);
   mcs->createSubTable("test", "st1", "st1s2", 2);
+  mcs->createSubTable("test", "st1", "st1s3", 1);
 }
 
 }  // namespace
