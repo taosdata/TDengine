@@ -6,7 +6,7 @@ description: Install, Uninstall, Start, Stop and Upgrade
 import Tabs from "@theme/Tabs";
 import TabItem from "@theme/TabItem";
 
-TDengine community version provides dev and rpm package for users to choose based on the system environment. deb supports Debian, Ubuntu and systems derived from them. rpm supports CentOS, RHEL, SUSE and systems derived from them. Furthermore, tar.gz package is provided for enterprise customers.
+TDengine community version provides dev and rpm packages for users to choose based on the system environment. deb supports Debian, Ubuntu and systems derived from them. rpm supports CentOS, RHEL, SUSE and systems derived from them. Furthermore, tar.gz package is provided for enterprise customers.
 
 ## Install
 
@@ -14,7 +14,7 @@ TDengine community version provides dev and rpm package for users to choose base
 <TabItem label="Install Deb" value="debinst">
 
 1. Download deb package from official website, for example TDengine-server-2.4.0.7-Linux-x64.deb
-2. In the directory where the package is located, execute below command
+2. In the directory where the package is located, execute the command below
 
 ```bash
 $ sudo dpkg -i TDengine-server-2.4.0.7-Linux-x64.deb
@@ -46,7 +46,7 @@ TDengine is installed successfully!
 <TabItem label="Install RPM" value="rpminst">
 
 1. Download rpm package from official website, for example TDengine-server-2.4.0.7-Linux-x64.rpm；
-2. In the directory where the package is located, execute below command
+2. In the directory where the package is located, execute the command below
 
 ```
 $ sudo rpm -ivh TDengine-server-2.4.0.7-Linux-x64.rpm
@@ -77,7 +77,7 @@ TDengine is installed successfully!
 <TabItem label="Install tar.gz" value="tarinst">
 
 1. Download the tar.gz package, for example TDengine-server-2.4.0.7-Linux-x64.tar.gz；
-   2、In the directory where the package is located, firstly decompress the file, then switch to the sub-directory generated in decompressing, i.e. "TDengine-enterprise-server-2.4.0.7/" in this example, and execute the `install.sh` script.
+2. In the directory where the package is located, first decompress the file, then switch to the sub-directory generated in decompressing, i.e. "TDengine-enterprise-server-2.4.0.7/" in this example, and execute the `install.sh` script.
 
 ```bash
 $ tar xvzf TDengine-enterprise-server-2.4.0.7-Linux-x64.tar.gz
@@ -132,7 +132,7 @@ Some configuration will be prompted for users to provide when install.sh is exec
 </Tabs>
 
 :::note
-When installing on the first node in the cluster, when "Enter FQDN:" is prompted, nothing needs to be provided. When installing on following nodes, when "Enter FQDN:" is prompted, the end point of the first dnode in the cluster can be input if it has been already up; or just ignore it and configure later after installation is done.
+When installing on the first node in the cluster, when "Enter FQDN:" is prompted, nothing needs to be provided. When installing on following nodes, when "Enter FQDN:" is prompted, the end point of the first dnode in the cluster can be input if it is already up; or just ignore it and configure later after installation is done.
 
 :::
 
@@ -181,14 +181,14 @@ taosKeeper is removed successfully!
 
 :::note
 
-- It's strongly suggested not to use multiple kinds of installation packages on single host TDengine
-- After deb package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as below command and then reinstalling.
+- It's strongly suggested not to use multiple kinds of installation packages on a single host TDengine
+- After deb package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as in the command below and then reinstalling.
 
 ```bash
    $ sudo rm -f /var/lib/dpkg/info/tdengine*
 ```
 
-- After rpm package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as below command and then reinstalling.
+- After rpm package is installed, if the installation directory is removed manually so that uninstall or reinstall can't succeed, it can be resolved by cleaning up TDengine package information as in the command below and then reinstalling.
 
 ```bash
    $ sudo rpm -e --noscripts tdengine
@@ -228,14 +228,14 @@ During the installation process:
 
 :::note
 
-- When TDengine is uninstalled, the configuration /etc/taos/taos.cfg, data directory /var/lib/taos, log directory /var/log/taos are kept. They can be deleted manually with caution because data can't be recovered once
+- When TDengine is uninstalled, the configuration /etc/taos/taos.cfg, data directory /var/lib/taos, log directory /var/log/taos are kept. They can be deleted manually with caution because data can't be recovered
 - When reinstalling TDengine, if the default configuration file /etc/taos/taos.cfg exists, it will be kept and the configuration file in the installation package will be renamed to taos.cfg.orig and stored at /usr/local/taos/cfg to be used as configuration sample. Otherwise the configuration file in the installation package will be installed to /etc/taos/taos.cfg and used.
 
 ## Start and Stop
 
-Linux system services `systemd`, `systemctl` or `service` is used to start, stop and restart TDengine. The server process of TDengine is `taosd`, which is started automatically after the Linux system is started. System operator can use `systemd`, `systemctl` or `service` to start, stop or restart TDengine server.
+Linux system services `systemd`, `systemctl` or `service` are used to start, stop and restart TDengine. The server process of TDengine is `taosd`, which is started automatically after the Linux system is started. System operators can use `systemd`, `systemctl` or `service` to start, stop or restart TDengine server.
 
-For example, if using `systemctl` , the commands to start, stop, restart and check TDengine server are as below:
+For example, if using `systemctl` , the commands to start, stop, restart and check TDengine server are below:
 
 - Start server：`systemctl start taosd`
 
@@ -263,12 +263,12 @@ Active: inactive (dead)
 
 There are two aspects in upgrade operation: upgrade installation package and upgrade a running server.
 
-Upgrading package should follow the steps mentioned previously to firstly uninstall old version then install new version.
+Upgrading package should follow the steps mentioned previously to first uninstall the old version then install the new version.
 
-Upgrading a running server is much more complex. Firstly please check the version number of old version and new version. The version number of TDengine consists of 4 sections, only the first 3 section match can the old version be upgraded to the new version. The steps of upgrading a running server are as below:
+Upgrading a running server is much more complex. First please check the version number of the old version and the new version. The version number of TDengine consists of 4 sections, only if the first 3 section match can the old version be upgraded to the new version. The steps of upgrading a running server are as below:
 
 - Stop inserting data
-- Make sure all data persisted into disk
+- Make sure all data are persisted into disk
 - Stop the cluster of TDengine
 - Uninstall old version and install new version
 - Start the cluster of TDengine
@@ -277,6 +277,7 @@ Upgrading a running server is much more complex. Firstly please check the versio
 - Restore business data
 
 :::warning
+
 TDengine doesn't guarantee any lower version is compatible with the data generated by a higher version, so it's never recommended to downgrade the version.
 
 :::

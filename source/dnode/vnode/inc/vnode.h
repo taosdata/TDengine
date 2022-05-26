@@ -39,9 +39,10 @@ extern "C" {
 #endif
 
 // vnode
-typedef struct SVnode    SVnode;
-typedef struct STsdbCfg  STsdbCfg;  // todo: remove
-typedef struct SVnodeCfg SVnodeCfg;
+typedef struct SVnode           SVnode;
+typedef struct STsdbCfg         STsdbCfg;  // todo: remove
+typedef struct SVnodeCfg        SVnodeCfg;
+typedef struct SVSnapshotReader SVSnapshotReader;
 
 extern const SVnodeCfg vnodeCfgDefault;
 
@@ -59,13 +60,14 @@ int32_t vnodeProcessQueryMsg(SVnode *pVnode, SRpcMsg *pMsg);
 int32_t vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo);
 int32_t vnodeGetLoad(SVnode *pVnode, SVnodeLoad *pLoad);
 int32_t vnodeValidateTableHash(SVnode *pVnode, char *tableFName);
-
 int32_t vnodeStart(SVnode *pVnode);
 void    vnodeStop(SVnode *pVnode);
-
 int64_t vnodeGetSyncHandle(SVnode *pVnode);
 void    vnodeGetSnapshot(SVnode *pVnode, SSnapshot *pSnapshot);
 void    vnodeGetInfo(SVnode *pVnode, const char **dbname, int32_t *vgId);
+int32_t vnodeSnapshotReaderOpen(SVnode *pVnode, SVSnapshotReader **ppReader, int64_t sver, int64_t ever);
+int32_t vnodeSnapshotReaderClose(SVSnapshotReader *pReader);
+int32_t vnodeSnapshotRead(SVSnapshotReader *pReader, const void **ppData, uint32_t *nData);
 
 // meta
 typedef struct SMeta       SMeta;  // todo: remove

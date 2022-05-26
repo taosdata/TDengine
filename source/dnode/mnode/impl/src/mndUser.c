@@ -78,7 +78,33 @@ static int32_t mndCreateDefaultUser(SMnode *pMnode, char *acct, char *user, char
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("user:%s, will be created while deploy sdb, raw:%p", userObj.user, pRaw);
+
+#if 0
   return sdbWrite(pMnode->pSdb, pRaw);
+#else
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_USER, NULL);
+  if (pTrans == NULL) {
+    mError("user:%s, failed to create since %s", userObj.user, terrstr());
+    return -1;
+  }
+  mDebug("trans:%d, used to create user:%s", pTrans->id, userObj.user);
+
+  if (mndTransAppendCommitlog(pTrans, pRaw) != 0) {
+    mError("trans:%d, failed to commit redo log since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+  sdbSetRawStatus(pRaw, SDB_STATUS_READY);
+
+  if (mndTransPrepare(pMnode, pTrans) != 0) {
+    mError("trans:%d, failed to prepare since %s", pTrans->id, terrstr());
+    mndTransDrop(pTrans);
+    return -1;
+  }
+
+  mndTransDrop(pTrans);
+  return 0;
+#endif
 }
 
 static int32_t mndCreateDefaultUsers(SMnode *pMnode) {

@@ -58,14 +58,14 @@ In summary, for a STable, its subtables can be aggregated by a simple query on t
 
 ### Example 1
 
-In TDengine CLI `taos`, use below SQL to get the average voltage of all the meters in BeiJing grouped by location.
+In TDengine CLI `taos`, use below SQL to get the average voltage of all the meters in California grouped by location.
 
 ```
 taos> SELECT AVG(voltage) FROM meters GROUP BY location;
        avg(voltage)        |            location            |
 =============================================================
-             222.000000000 | Beijing.Haidian                |
-             219.200000000 | Beijing.Chaoyang               |
+             222.000000000 | California.LoSangeles                |
+             219.200000000 | California.SanFrancisco               |
 Query OK, 2 row(s) in set (0.002136s)
 ```
 
@@ -96,10 +96,10 @@ taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
 Query OK, 2 row(s) in set (0.000883s)
 ```
 
-Down sampling can also be used for STable. For example, the below SQL statement can be used to get the sum of current from all meters in BeiJing.
+Down sampling can also be used for STable. For example, the below SQL statement can be used to get the sum of current from all meters in California.
 
 ```
-taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s);
+taos> SELECT SUM(current) FROM meters where location like "California%" INTERVAL(1s);
            ts            |       sum(current)        |
 ======================================================
  2018-10-03 14:38:04.000 |              10.199999809 |

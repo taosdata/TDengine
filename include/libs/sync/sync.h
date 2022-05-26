@@ -98,8 +98,18 @@ typedef struct SSyncFSM {
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
   int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
-  void* (*FpSnapshotRead)(struct SSyncFSM* pFsm, const SSnapshot* snapshot, void* iter, char** ppBuf, int32_t* len);
-  int32_t (*FpSnapshotApply)(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len);
+
+  // if (*ppIter == NULL)
+  //   *ppIter = new iter;
+  // else
+  //   *ppIter.next();
+  //
+  // if success, return 0. else return error code
+  int32_t (*FpSnapshotRead)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf,
+                            int32_t* len);
+
+  // apply data into fsm
+  int32_t (*FpSnapshotApply)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len);
 
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta);
 

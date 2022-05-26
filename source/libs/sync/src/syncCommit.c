@@ -134,6 +134,16 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             } else {
               syncNodeBecomeFollower(pSyncNode);
             }
+
+            // maybe newSyncCfg.myIndex is updated in syncNodeUpdateConfig
+            if (pSyncNode->pFsm->FpReConfigCb != NULL) {
+              SReConfigCbMeta cbMeta = {0};
+              cbMeta.code = 0;
+              cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
+              cbMeta.index = pEntry->index;
+              cbMeta.term = pEntry->term;
+              pSyncNode->pFsm->FpReConfigCb(pSyncNode->pFsm, newSyncCfg, cbMeta);
+            }
           }
 
           // restore finish
