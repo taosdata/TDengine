@@ -18,23 +18,25 @@
 #include "tconfig.h"
 #include "tnettest.h"
 
-pthread_t     pid;
+pthread_t pid;
 static tsem_t cancelSem;
 
-void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) { tsem_post(&cancelSem); }
+void shellQueryInterruptHandler(int32_t signum, void *sigInfo, void *context) {
+  tsem_post(&cancelSem);
+}
 
 void *cancelHandler(void *arg) {
   setThreadName("cancelHandler");
 
-  while (1) {
+  while(1) {
     if (tsem_wait(&cancelSem) != 0) {
       taosMsleep(10);
       continue;
     }
 
 #ifdef LINUX
-    int64_t  rid = atomic_val_compare_exchange_64(&result, result, 0);
-    SSqlObj *pSql = taosAcquireRef(tscObjRef, rid);
+    int64_t rid = atomic_val_compare_exchange_64(&result, result, 0);
+    SSqlObj* pSql = taosAcquireRef(tscObjRef, rid);
     taos_stop_query(pSql);
     taosReleaseRef(tscObjRef, rid);
 #else
@@ -42,7 +44,6 @@ void *cancelHandler(void *arg) {
     exit(0);
 #endif
   }
-
   return NULL;
 }
 
@@ -69,30 +70,29 @@ int checkVersion() {
 // Global configurations
 SShellArguments args = {.host = NULL,
 #ifndef TD_WINDOWS
-                        .password = NULL,
+  .password = NULL,
 #endif
-                        .user = NULL,
-                        .database = NULL,
-                        .timezone = NULL,
-                        .restful = false,
-                        .token = NULL,
-                        .base64_buf = NULL,
-                        .is_raw_time = false,
-                        .is_use_passwd = false,
-                        .dump_config = false,
-                        .file = "\0",
-                        .dir = "\0",
-                        .threadNum = 5,
-                        .commands = NULL,
-                        .pktLen = 1000,
-                        .pktNum = 100,
-                        .pktType = "TCP",
-                        .netTestRole = NULL};
+  .user = NULL,
+  .database = NULL,
+  .timezone = NULL,
+  .restful = false,
+  .token = NULL,
+  .is_raw_time = false,
+  .is_use_passwd = false,
+  .dump_config = false,
+  .file = "\0",
+  .dir = "\0",
+  .threadNum = 5,
+  .commands = NULL,
+  .pktLen = 1000,
+  .pktNum = 100,
+  .pktType = "TCP",
+  .netTestRole = NULL};
 
 /*
  * Main function.
  */
-int main(int argc, char *argv[]) {
+int main(int argc, char* argv[]) {
   /*setlocale(LC_ALL, "en_US.UTF-8"); */
 #ifdef WINDOWS
   SetConsoleOutputCP(CP_UTF8);

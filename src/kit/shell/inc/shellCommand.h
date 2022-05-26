@@ -18,10 +18,10 @@
 
 #include "shell.h"
 
-#define LEFT 1
+#define LEFT  1
 #define RIGHT 2
-#define UP 3
-#define DOWN 4
+#define UP    3
+#define DOWN  4
 
 typedef struct Command Command;
 struct Command {
@@ -44,10 +44,10 @@ extern void positionCursorHome(Command *cmd);
 extern void positionCursorEnd(Command *cmd);
 extern void showOnScreen(Command *cmd);
 extern void updateBuffer(Command *cmd);
-extern int  isReadyGo(Command *cmd);
+extern int isReadyGo(Command *cmd);
 extern void resetCommand(Command *cmd, const char s[]);
 
-int  countPrefixOnes(unsigned char c);
+int countPrefixOnes(unsigned char c);
 void clearScreen(int ecmd_pos, int cursor_pos);
 void printChar(char c, int times);
 void positionCursor(int step, int direction);
