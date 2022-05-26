@@ -90,6 +90,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     expect.walLevel = TSDB_DEFAULT_WAL_LEVEL;
     expect.numOfVgroups = TSDB_DEFAULT_VN_PER_DB;
     expect.numOfStables = TSDB_DEFAULT_DB_SINGLE_STABLE;
+    expect.schemaless = TSDB_DEFAULT_DB_SCHEMALESS;
   };
 
   auto setDbBufferFunc = [&](int32_t buffer) { expect.buffer = buffer; };
@@ -124,6 +125,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     taosArrayPush(expect.pRetensions, &retention);
     ++expect.numOfRetensions;
   };
+  auto setDbSchemalessFunc = [&](int8_t schemaless) { expect.schemaless = schemaless; };
 
   setCheckDdlFunc([&](const SQuery* pQuery, ParserStage stage) {
     ASSERT_EQ(nodeType(pQuery->pRoot), QUERY_NODE_CREATE_DATABASE_STMT);
@@ -149,6 +151,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
     ASSERT_EQ(req.replications, expect.replications);
     ASSERT_EQ(req.strict, expect.strict);
     ASSERT_EQ(req.cacheLastRow, expect.cacheLastRow);
+    ASSERT_EQ(req.schemaless, expect.schemaless);
     ASSERT_EQ(req.ignoreExist, expect.ignoreExist);
     ASSERT_EQ(req.numOfRetensions, expect.numOfRetensions);
     if (expect.numOfRetensions > 0) {
@@ -188,6 +191,7 @@ TEST_F(ParserInitialCTest, createDatabase) {
   setDbWalLevelFunc(2);
   setDbVgroupsFunc(100);
   setDbSingleStableFunc(1);
+  setDbSchemalessFunc(1);
   run("CREATE DATABASE IF NOT EXISTS wxy_db "
       "BUFFER 64 "
       "CACHELAST 2 "
@@ -205,7 +209,8 @@ TEST_F(ParserInitialCTest, createDatabase) {
       "STRICT 1 "
       "WAL 2 "
       "VGROUPS 100 "
-      "SINGLE_STABLE 1 ");
+      "SINGLE_STABLE 1 "
+      "SCHEMALESS 1");
 
   setCreateDbReqFunc("wxy_db", 1);
   setDbDaysFunc(100);

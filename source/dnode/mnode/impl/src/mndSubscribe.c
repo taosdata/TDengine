@@ -417,7 +417,7 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
 
   // 2. redo log: subscribe and vg assignment
   // subscribe
-  if (mndSetSubRedoLogs(pMnode, pTrans, pOutput->pSub) != 0) {
+  if (mndSetSubCommitLogs(pMnode, pTrans, pOutput->pSub) != 0) {
     goto REB_FAIL;
   }
 
@@ -479,6 +479,10 @@ static int32_t mndPersistRebResult(SMnode *pMnode, SRpcMsg *pMsg, const SMqRebOu
       SMqTopicObj topicObj = {0};
       memcpy(&topicObj, pTopic, sizeof(SMqTopicObj));
       topicObj.refConsumerCnt = pTopic->refConsumerCnt - consumerNum;
+      // TODO is that correct?
+      pTopic->refConsumerCnt = topicObj.refConsumerCnt;
+      mInfo("subscribe topic %s unref %d consumer cgroup %s, refcnt %d", pTopic->name, consumerNum, cgroup,
+            topicObj.refConsumerCnt);
       if (mndSetTopicCommitLogs(pMnode, pTrans, &topicObj) != 0) goto REB_FAIL;
     }
   }

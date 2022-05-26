@@ -90,8 +90,8 @@ typedef enum {
 typedef int32_t (*ProcessCreateNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef int32_t (*ProcessDropNodeFp)(EDndNodeType ntype, SRpcMsg *pMsg);
 typedef void (*SendMonitorReportFp)();
-typedef void (*GetVnodeLoadsFp)();
-typedef void (*GetMnodeLoadsFp)();
+typedef void (*GetVnodeLoadsFp)(SMonVloadInfo *pInfo);
+typedef void (*GetMnodeLoadsFp)(SMonMloadInfo *pInfo);
 
 typedef struct {
   int32_t        dnodeId;

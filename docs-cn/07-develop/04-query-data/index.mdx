@@ -50,14 +50,14 @@ Query OK, 2 row(s) in set (0.001100s)
 
 ### 示例一
 
-在 TAOS Shell，查找北京所有智能电表采集的电压平均值，并按照 location 分组。
+在 TAOS Shell，查找加利福尼亚州所有智能电表采集的电压平均值，并按照 location 分组。
 
 ```
 taos> SELECT AVG(voltage) FROM meters GROUP BY location;
        avg(voltage)        |            location            |
 =============================================================
-             222.000000000 | Beijing.Haidian                |
-             219.200000000 | Beijing.Chaoyang               |
+             222.000000000 | California.LosAngeles                |
+             219.200000000 | California.SanFrancisco               |
 Query OK, 2 row(s) in set (0.002136s)
 ```
 
@@ -88,10 +88,10 @@ taos> SELECT sum(current) FROM d1001 INTERVAL(10s);
 Query OK, 2 row(s) in set (0.000883s)
 ```
 
-降采样操作也适用于超级表，比如：将北京所有智能电表采集的电流值每秒钟求和
+降采样操作也适用于超级表，比如：将加利福尼亚州所有智能电表采集的电流值每秒钟求和
 
 ```
-taos> SELECT SUM(current) FROM meters where location like "Beijing%" INTERVAL(1s);
+taos> SELECT SUM(current) FROM meters where location like "California%" INTERVAL(1s);
            ts            |       sum(current)        |
 ======================================================
  2018-10-03 14:38:04.000 |              10.199999809 |

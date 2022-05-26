@@ -2,6 +2,9 @@
 #include "executorimpl.h"
 
 static SSDataBlock* doSort(SOperatorInfo* pOperator);
+static int32_t doOpenSortOperator(SOperatorInfo* pOperator);
+static int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len);
+
 static void destroyOrderOperatorInfo(void* param, int32_t numOfOutput);
 
 SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pResBlock, SArray* pSortInfo, SExprInfo* pExprInfo, int32_t numOfCols,
@@ -35,7 +38,7 @@ SOperatorInfo* createSortOperatorInfo(SOperatorInfo* downstream, SSDataBlock* pR
 
   pOperator->pTaskInfo = pTaskInfo;
   pOperator->fpSet =
-      createOperatorFpSet(operatorDummyOpenFn, doSort, NULL, NULL, destroyOrderOperatorInfo, NULL, NULL, NULL);
+      createOperatorFpSet(doOpenSortOperator, doSort, NULL, NULL, destroyOrderOperatorInfo, NULL, NULL, getExplainExecInfo);
 
   int32_t code = appendDownstream(pOperator, &downstream, 1);
   return pOperator;
@@ -121,20 +124,17 @@ void applyScalarFunction(SSDataBlock* pBlock, void* param) {
   }
 }
 
-SSDataBlock* doSort(SOperatorInfo* pOperator) {
-  if (pOperator->status == OP_EXEC_DONE) {
-    return NULL;
-  }
-
-  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+int32_t doOpenSortOperator(SOperatorInfo* pOperator) {
   SSortOperatorInfo* pInfo = pOperator->info;
+  SExecTaskInfo* pTaskInfo = pOperator->pTaskInfo;
 
-  if (pOperator->status == OP_RES_TO_RETURN) {
-    return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, pInfo->pColMatchInfo);
+  if (OPTR_IS_OPENED(pOperator)) {
+    return TSDB_CODE_SUCCESS;
   }
 
-//  pInfo->binfo.pRes is not equalled to the input datablock.
-//  int32_t numOfBufPage = pInfo->sortBufSize / pInfo->bufPageSize;
+  pInfo->startTs = taosGetTimestampUs();
+
+  //  pInfo->binfo.pRes is not equalled to the input datablock.
   pInfo->pSortHandle = tsortCreateSortHandle(pInfo->pSortInfo, pInfo->pColMatchInfo, SORT_SINGLESOURCE_SORT,
                                              -1, -1, NULL, pTaskInfo->id.str);
 
@@ -146,12 +146,39 @@ SSDataBlock* doSort(SOperatorInfo* pOperator) {
 
   int32_t code = tsortOpen(pInfo->pSortHandle);
   taosMemoryFreeClear(ps);
+
   if (code != TSDB_CODE_SUCCESS) {
     longjmp(pTaskInfo->env, terrno);
   }
 
+  pOperator->cost.openCost = (taosGetTimestampUs() - pInfo->startTs)/1000.0;
   pOperator->status = OP_RES_TO_RETURN;
-  return getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, pInfo->pColMatchInfo);
+
+  OPTR_SET_OPENED(pOperator);
+  return TSDB_CODE_SUCCESS;
+}
+
+SSDataBlock* doSort(SOperatorInfo* pOperator) {
+  if (pOperator->status == OP_EXEC_DONE) {
+    return NULL;
+  }
+
+  SExecTaskInfo*     pTaskInfo = pOperator->pTaskInfo;
+  SSortOperatorInfo* pInfo = pOperator->info;
+
+  int32_t code = pOperator->fpSet._openFn(pOperator);
+  if (code != TSDB_CODE_SUCCESS) {
+    longjmp(pTaskInfo->env, code);
+  }
+
+  SSDataBlock* pBlock = getSortedBlockData(pInfo->pSortHandle, pInfo->binfo.pRes, pOperator->resultInfo.capacity, pInfo->pColMatchInfo);
+
+  if (pBlock != NULL) {
+    pOperator->resultInfo.totalRows += pBlock->info.rows;
+  } else {
+    doSetOperatorCompleted(pOperator);
+  }
+  return pBlock;
 }
 
 void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
@@ -160,4 +187,16 @@ void destroyOrderOperatorInfo(void* param, int32_t numOfOutput) {
 
   taosArrayDestroy(pInfo->pSortInfo);
   taosArrayDestroy(pInfo->pColMatchInfo);
+}
+
+int32_t getExplainExecInfo(SOperatorInfo* pOptr, void** pOptrExplain, uint32_t* len) {
+  ASSERT(pOptr != NULL);
+  SSortExecInfo* pInfo = taosMemoryCalloc(1, sizeof(SSortExecInfo));
+
+  SSortOperatorInfo *pOperatorInfo = (SSortOperatorInfo*)pOptr->info;
+
+  *pInfo = tsortGetSortExecInfo(pOperatorInfo->pSortHandle);
+  *pOptrExplain = pInfo;
+  *len = sizeof(SSortExecInfo);
+  return TSDB_CODE_SUCCESS;
 }

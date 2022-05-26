@@ -202,7 +202,7 @@ To handle the data insertion and data query from multiple timezones, Unix Timest
 On Linux system, TDengine clients automatically obtain timezone from the host. Alternatively, the timezone can be configured explicitly in configuration file `taos.cfg` like below.
 
 ```
-timezone UTC-8
+timezone UTC-7
 timezone GMT-8
 timezone Asia/Shanghai
 ```
