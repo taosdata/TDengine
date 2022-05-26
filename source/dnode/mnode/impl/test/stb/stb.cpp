@@ -277,7 +277,8 @@ void* MndTestStb::BuildAlterStbUpdateColumnBytesReq(const char* stbname, const c
   req.numOfFields = 1;
   req.pFields = taosArrayInit(1, sizeof(SField));
   req.alterType = TSDB_ALTER_TABLE_UPDATE_COLUMN_BYTES;
-  req.verInBlock = verInBlock;
+  req.tagVer = verInBlock;
+  req.colVer = verInBlock;
 
   SField field = {0};
   field.bytes = bytes;
