@@ -66,6 +66,7 @@ void schFreeRpcCtxVal(const void *arg) {
 
   SMsgSendInfo *pMsgSendInfo = (SMsgSendInfo *)arg;
   taosMemoryFreeClear(pMsgSendInfo->param);
+  taosMemoryFreeClear(pMsgSendInfo->msgInfo.pData);  
   taosMemoryFreeClear(pMsgSendInfo);
 }
 
