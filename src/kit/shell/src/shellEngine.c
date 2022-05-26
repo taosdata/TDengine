@@ -1443,7 +1443,7 @@ int wsclient_check(cJSON *root, int64_t st, int64_t et) {
   return -1;
 }
 
-int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision) {
+int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int precision, int* pshowed_rows) {
   char *recv_buffer = calloc(1, 4096);
   int   col_length = 0;
   for (int i = 0; i < cols; i++) {
@@ -1475,6 +1475,9 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
     width[c] = calcColWidth(fields + c, precision);
   }
   for (int i = 0; i < rows; i++) {
+    if (*pshowed_rows == DEFAULT_RES_SHOW_NUM) {
+      return 0;
+    } 
     for (int c = 0; c < cols; c++) {
       pos = start;
       pos += i * fields[c].bytes;
@@ -1493,6 +1496,7 @@ int wsclient_print_data(int rows, TAOS_FIELD *fields, int cols, int64_t id, int 
       putchar('|');
     }
     putchar('\n');
+    *pshowed_rows += 1;
   }
   return 0;
 }
@@ -1526,6 +1530,7 @@ void wsclient_query(char *command) {
       int         cols = 0;
       int         precision = 0;
       int64_t     total_rows = 0;
+      int         showed_rows = 0;
       TAOS_FIELD *fields = wsclient_print_header(query, &cols, &precision);
       if (fields != NULL) {
         cJSON *id = cJSON_GetObjectItem(query, "id");
@@ -1550,11 +1555,12 @@ void wsclient_query(char *command) {
                         for (int i = 0; i < cols; i++) {
                           fields[i].bytes = (int16_t)(cJSON_GetArrayItem(lengths, i)->valueint);
                         }
-                        if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, (int)id->valueint) == 0) {
-                          if (wsclient_print_data((int)rows->valueint, fields, cols, id->valueint, precision) == 0) {
-                            continue;
+                        if (showed_rows < DEFAULT_RES_SHOW_NUM) {
+                          if (wsclient_send_sql(NULL, WS_FETCH_BLOCK, (int)id->valueint) == 0) {
+                            wsclient_print_data((int)rows->valueint, fields, cols, id->valueint, precision, &showed_rows);
                           }
                         }
+                        continue;
                       } else {
                         fprintf(stderr, "Invalid lengths key in json\n");
                       }
@@ -1569,6 +1575,11 @@ void wsclient_query(char *command) {
             }
             fprintf(stderr, "err occured in fetch/fetch_block ws actions\n");
             break;
+          }
+          if (showed_rows == DEFAULT_RES_SHOW_NUM) {
+            printf("\n");
+            printf(" Notice: The result shows only the first %d rows.\n", DEFAULT_RES_SHOW_NUM);
+            printf("\n");
           }
           printf("Query OK, %" PRId64 " row(s) in set (%.6fs)\n\n", total_rows, (et - st) / 1E6);
         } else {
