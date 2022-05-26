@@ -248,7 +248,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** 
 
   ctgAcquireDBCache(pCtg, dbFName, &dbCache);
   if (NULL == dbCache) {
-    ctgDebug("db %s not in cache", ctx->pName->tname);
+    ctgDebug("db %d.%s not in cache", ctx->pName->acctId, ctx->pName->dbname);
     return TSDB_CODE_SUCCESS;
   }
   
@@ -715,7 +715,7 @@ int32_t ctgPutUpdateUserToQueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syn
   action.data = msg;
 
   CTG_ERR_JRET(ctgPushAction(pCtg, &action));
-
+  
   return TSDB_CODE_SUCCESS;
   
 _return:
