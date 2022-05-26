@@ -76,8 +76,6 @@ struct STsdb {
   STsdbFS       *fs;
 };
 
-#if 1  // ======================================
-
 struct STable {
   uint64_t  tid;
   uint64_t  uid;
@@ -534,16 +532,12 @@ static FORCE_INLINE int  tsdbRemoveDFile(SDFile *pDFile) { return tfsRemoveFile(
 // =============== SDFileSet
 
 typedef struct {
-  int      fid;
-  int8_t   state;
-  uint8_t  ver;
-  uint16_t reserve;
-#if 0
-  SDFInfo   info;
-#endif
+  int       fid;
+  int8_t    state;
+  uint8_t   ver;
+  uint16_t  reserve;
   STfsFile  f;
   TdFilePtr pFile;
-
 } SSFile;  // files split by days with fid
 
 #define TSDB_LATEST_FSET_VER 0
@@ -668,8 +662,6 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
-
-#endif
 
 #ifdef __cplusplus
 }
