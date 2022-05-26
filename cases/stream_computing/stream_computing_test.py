@@ -30,11 +30,11 @@ class TestVgroups(TDCase):
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdCom.createDb(dbname=dbname, vgroups=1)
         self.tdSql.execute(f'create table if not exists downsampling_stb (ts timestamp, c1 int, c2 double, c3 varchar(100), c4 bool) tags (t1 int, t2 double, t3 varchar(100), t4 bool);')
-        self.tdSql.execute(f'create table downsampling_ct1 using downsampling_stb tags(10, 10.1, "beijing", True);')
-        # self.tdSql.execute(f'create table ownsampling_ct2 using downsampling_stb tags(20, 20.2, "tianjin", False);')
-        # self.tdSql.execute(f'create table ownsampling_ct3 using downsampling_stb tags(30, 30.3, "hebei", False);')
+        self.tdSql.execute(f'create table downsampling_ct1 using downsampling_stb tags(10, 10.1, "Beijing", True);')
+        # self.tdSql.execute(f'create table ownsampling_ct2 using downsampling_stb tags(20, 20.2, "TIANJIN", False);')
+        # self.tdSql.execute(f'create table ownsampling_ct3 using downsampling_stb tags(30, 30.3, "HeBei", False);')
         
-        self.tdSql.execute(f'create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20)) tags (t1 int);')
+        self.tdSql.execute(f'create table if not exists scalar_stb (ts timestamp, c1 int, c2 double, c3 binary(20), c4 nchar(20), c5 nchar(20)) tags (t1 int);')
         self.tdSql.execute(f'create table scalar_ct1 using scalar_stb tags(10);')
         # self.tdSql.execute(f'create table scalar_ct2 using scalar_stb tags(-20);')
         # self.tdSql.execute(f'create table scalar_ct3 using scalar_stb tags(0);')
@@ -69,6 +69,16 @@ class TestVgroups(TDCase):
         res2 = self.tdSql.query_data
         self.tdSql.checkEqual(res1, res2)
 
+    def check_stream_field_type(self, sql, input_function):
+        self.tdSql.query(sql)
+        res = self.tdSql.query_data
+        if input_function in ["acos", "asin", "atan", "cos", "log", "pow", "sin", "sqrt", "tan"]:
+            self.tdSql.checkEqual(res[1][1], "DOUBLE")
+            self.tdSql.checkEqual(res[1][1], "DOUBLE")
+        else:
+            self.tdSql.checkEqual(res[1][1], "INT")
+            self.tdSql.checkEqual(res[2][1], "DOUBLE")
+
     def check_stream(self, sql1, sql2, expected_count):
         self.check_stream_res(sql1, expected_count)
         self.check_query_data(sql1, sql2)
@@ -76,92 +86,69 @@ class TestVgroups(TDCase):
     def downsampling(self):
         self.case_name = sys._getframe().f_code.co_name
         self.write_latency(self.case_name)
-        self.prepare_stream_data()
         self.tdSql.execute(f'create stream downsampling_stream into output_downsampling_stb as select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
-        self.tdSql.execute(f'insert into downsampling_ct1 values ({self.date_time}, 100, 100.1, "beijing", True);')
-        self.tdSql.execute(f'insert into downsampling_ct1 values ({self.date_time}+1s, -100, -100.1, "tianjin", False);')
-        self.tdSql.execute(f'insert into downsampling_ct1 values ({self.date_time}+2s, 50, 50.3, "hebei", False);')
+        self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591, 100, 100.1, "Beijing", True);')
+        self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+1s, -100, -100.1, "Tianjin", False);')
+        self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+2s, 50, 50.3, "HeBei", False);')
         self.write_latency('sql: select * from output_downsampling_stb;')
 
         self.check_stream_res('select * from output_downsampling_stb;', 1)
         self.check_query_data('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
-        self.tdSql.execute(f'insert into ownsampling_ct1 values ({self.date_time}+10m, 60, 60.3, "heilongjiang", True);')
-        self.tdSql.execute(f'insert into ownsampling_ct1 values ({self.date_time}+11m, 70, 70.3, "jilin", True);')
+        self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+10m, 60, 60.3, "heilongjiang", True);')
+        self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+11m, 70, 70.3, "JiLin", True);')
         self.write_latency('sql: select * from output_downsampling_stb;')
         self.check_stream_res('select * from output_downsampling_stb;', 2)
         self.check_query_data('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
-        self.tdSql.execute(f'insert into ownsampling_ct1 values ({self.date_time}+21m, 70, 70.3, "jilin", True);')
+        self.tdSql.execute(f'insert into downsampling_ct1 values (1653547828591+21m, 70, 70.3, "JiLin", True);')
         self.write_latency('sql: select * from output_downsampling_stb;')
         self.check_stream_res('select * from output_downsampling_stb;', 3)
         self.check_query_data('select start, `min(c1)`, `max(c2)`, `sum(c1)` from output_downsampling_stb;', 'select _wstartts AS start, min(c1), max(c2), sum(c1) from downsampling_stb interval(10m);')
 
     def scalar_function(self):
-        math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "power", "round", "sin", "sqrt", "tan"]
-        math_function_list.remove("log")
-        math_function_list.remove("power")
+        # self.prepare_stream_data()
+        self.case_name = sys._getframe().f_code.co_name
+        self.write_latency(self.case_name)
+        math_function_list = ["abs", "acos", "asin", "atan", "ceil", "cos", "floor", "log", "pow", "round", "sin", "sqrt", "tan"]
+        string_function_list = ["char_length", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
         for math_function in math_function_list:
-            self.prepare_stream_data()
-            self.tdSql.execute(f'create stream {math_function}_stream into output_{math_function}_stb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_stb;')
-            # self.tdSql.execute(f'create stream acos_stream into output_acos_stb as select ts, acos(c1), acos(c2), c3 from scalar_stb;')
-            self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing");')
-            self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin");')
-            self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+2s, 0, Null, "hebei");')
-            self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 3)
-            self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei");')
-            self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 4)
-        # # ABS
-        # self.prepare_stream_data()
-        # self.tdSql.execute(f'create stream abs_stream into output_abs_stb as select ts, abs(c1), abs(c2), c3 from scalar_stb;')
-        # # self.tdSql.execute(f'create stream acos_stream into output_acos_stb as select ts, acos(c1), acos(c2), c3 from scalar_stb;')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+2s, 0, Null, "hebei");')
-        # self.check_stream('select `abs(c1)`, `abs(c2)` from output_abs_stb;', 'select abs(c1), abs(c2) from scalar_stb;', 3)
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei");')
-        # self.check_stream('select `abs(c1)`, `abs(c2)` from output_abs_stb;', 'select abs(c1), abs(c2) from scalar_stb;', 4)
+            if math_function in ["log", "pow"]:
+                self.tdSql.execute(f'create stream {math_function}_stream into output_{math_function}_stb as select ts, {math_function}(c1, 2), {math_function}(c2, 2), c3 from scalar_stb;')
+            else:
+                self.tdSql.execute(f'create stream {math_function}_stream into output_{math_function}_stb as select ts, {math_function}(c1), {math_function}(c2), c3 from scalar_stb;')
+            self.check_stream_field_type(f"describe output_{math_function}_stb", math_function)
+        for string_function in string_function_list:
+            if string_function == "concat":
+                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, c4), {string_function}(c3, c5), {string_function}(c4, c5), {string_function}(c3, c4, c5) from scalar_stb;')
+            elif string_function == "concat_ws":
+                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(Null, c3, c4), {string_function}("and", c3, c5), {string_function}("And", c4, c5), {string_function}("AND", c3, c4, c5) from scalar_stb;')
+            elif string_function == "substr":
+                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3, 2), {string_function}(c3, 2, 2), {string_function}(c4, 5, 1) from scalar_stb;')
+            else:
+                self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4) from scalar_stb;')
 
-        # # ACOS
-        # self.prepare_stream_data()
-        # self.tdSql.execute(f'create stream acos_stream into output_acos_stb as select ts, acos(c1), acos(c2), c3 from scalar_stb;')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+2s, 0, Null, "hebei");')
-        # self.check_stream('select `acos(c1)`, `acos(c2)` from output_acos_stb;', 'select acos(c1), acos(c2) from scalar_stb;', 3)
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei");')
-        # self.check_stream('select `acos(c1)`, `acos(c2)` from output_acos_stb;', 'select acos(c1), acos(c2) from scalar_stb;', 4)
+        self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing", "taos", "Taos");')
+        self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin", "taosdata", "Taosdata");')
+        self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+2s, 0, Null, "hebei", "TDengine", Null);')
+        for math_function in math_function_list:
+            if math_function == "log" or math_function == "pow":
+                self.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb;', 3)
+            else:
+                self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 3)
+        self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei", Null, "Bigdata");')
+        for math_function in math_function_list:
+            if math_function == "log" or math_function == "pow":
+                self.check_stream(f'select `{math_function}(c1, 2)`, `{math_function}(c2, 2)` from output_{math_function}_stb;', f'select {math_function}(c1, 2), {math_function}(c2, 2) from scalar_stb;', 4)
+            else:
+                self.check_stream(f'select `{math_function}(c1)`, `{math_function}(c2)` from output_{math_function}_stb;', f'select {math_function}(c1), {math_function}(c2) from scalar_stb;', 4)
+        
+        string_function_list = ["char_length", "concat", "concat_ws", "length", "lower", "ltrim", "rtrim", "substr", "upper"]
+        # for string_function in string_function_list:
+        #     self.tdSql.execute(f'create stream {string_function}_stream into output_{string_function}_stb as select ts, {string_function}(c3), {string_function}(c4) from scalar_stb;')
 
-        # # ASIN
-        # self.prepare_stream_data()
-        # self.tdSql.execute(f'create stream asin_stream into output_asin_stb as select ts, asin(c1), asin(c2), c3 from scalar_stb;')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+2s, 0, Null, "hebei");')
-        # self.check_stream('select `asin(c1)`, `asin(c2)` from output_asin_stb;', 'select asin(c1), asin(c2) from scalar_stb;', 3)
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei");')
-        # self.check_stream('select `asin(c1)`, `asin(c2)` from output_asin_stb;', 'select asin(c1), asin(c2) from scalar_stb;', 4)
-
-        # ATAN
-        # self.prepare_stream_data()
-        # self.tdSql.execute(f'create stream atan_stream into output_atan_stb as select ts, atan(c1), atan(c2), c3 from scalar_stb;')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+2s, 0, Null, "hebei");')
-        # self.check_stream('select `atan(c1)`, `atan(c2)` from output_atan_stb;', 'select atan(c1), atan(c2) from scalar_stb;', 3)
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei");')
-        # self.check_stream('select `atan(c1)`, `atan(c2)` from output_atan_stb;', 'select atan(c1), atan(c2) from scalar_stb;', 4)
-
-        # CEIL
-        # self.prepare_stream_data()
-        # self.tdSql.execute(f'create stream ceil_stream into output_ceil_stb as select ts, ceil(c1), ceil(c2), c3 from scalar_stb;')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}, 100, 100.1, "beijing");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+1s, -50, -50.1, "tianjin");')
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+2s, 0, Null, "hebei");')
-        # self.check_stream('select `ceil(c1)`, `ceil(c2)` from output_ceil_stb;', 'select ceil(c1), ceil(c2) from scalar_stb;', 3)
-        # self.tdSql.execute(f'insert into scalar_ct1 values ({self.date_time}+3s, -1, 1, "hebei");')
-        # self.check_stream('select `ceil(c1)`, `ceil(c2)` from output_ceil_stb;', 'select ceil(c1), ceil(c2) from scalar_stb;', 4)
 
     def run(self) -> bool:
-        # self.downsampling()
+        self.prepare_stream_data()
+        self.downsampling()
         self.scalar_function()
 
     def cleanup(self):

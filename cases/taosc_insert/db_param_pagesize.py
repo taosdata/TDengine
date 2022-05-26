@@ -11,18 +11,21 @@
 
 # -*- coding: utf-8 -*-
 
+import json
 from taostest import TDCase, T
 from taostest.util.common import TDCom
-
+from taostest.util.get_json import GetJson
+from taostest.util.remote import Remote
 class TestPagesize(TDCase):
     def init(self):
         self.tdCom = TDCom(self.tdSql)
-
+        self._remote: Remote = Remote(self.logger)
     def pagesize_check(self):
         """
         pagesize check
         """
         test_param = "pagesize"
+        get_data = GetJson(self.logger, self.run_log_dir,self.env_setting)
         # default
         default_value = 4
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
@@ -30,6 +33,11 @@ class TestPagesize(TDCase):
         self.tdSql.query('show databases')
         db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
         self.tdSql.checkEqual(db_field_kv_dict[test_param], default_value)
+        
+        self.tdSql.query(f'show {dbname}.vgroups')
+        db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+        data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+        self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szPage'])/1024)
         self.tdSql.execute(f'drop database {dbname}')
         # param_list
         param_value_list = [1, 16384]
@@ -39,7 +47,12 @@ class TestPagesize(TDCase):
             self.tdSql.query('show databases')
             db_field_kv_dict = self.tdSql.get_db_field_kv(0, dbname)
             self.tdSql.checkEqual(db_field_kv_dict[test_param], param_value)
+            self.tdSql.query(f'show {dbname}.vgroups')
+            db_vnode_kv_dict = self.tdSql.getOneRow(1,dbname)
+            data = json.load(get_data.get_vnode_json(db_vnode_kv_dict))
+            self.tdSql.checkEqual(db_field_kv_dict[test_param],int(data['config']['szPage'])/1024)
             self.tdSql.execute(f'drop database {dbname}')
+
         dbname = self.tdCom.get_long_name(length=10, mode="letters")
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[0] - 1}')
         self.tdSql.error(f'create database if not exists {dbname} {test_param} {param_value_list[-1] + 1}')
