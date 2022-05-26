@@ -187,8 +187,8 @@ taos> use power;
 # create super table "meters"
 taos> create table meters(ts timestamp, current float, voltage int, phase int) tags(location binary(64), groupId int);
 # create tabes using the schema defined by super table "meters"
-taos> create table d1001 using meters tags ("Beijing.Chaoyang", 2);
-taos> create table d1002 using meters tags ("Beijing.Haidian", 2);
+taos> create table d1001 using meters tags ("California.SanFrancisco", 2);
+taos> create table d1002 using meters tags ("California.LoSangeles", 2);
 # insert some rows
 taos> insert into d1001 values("2020-08-15 12:00:00.000", 12, 220, 1),("2020-08-15 12:10:00.000", 12.3, 220, 2),("2020-08-15 12:20:00.000", 12.2, 220, 1);
 taos> insert into d1002 values("2020-08-15 12:00:00.000", 9.9, 220, 1),("2020-08-15 12:10:00.000", 10.3, 220, 1),("2020-08-15 12:20:00.000", 11.2, 220, 1);
@@ -196,11 +196,11 @@ taos> insert into d1002 values("2020-08-15 12:00:00.000", 9.9, 220, 1),("2020-08
 taos> select * from meters where current > 10;
            ts            |    current   |    voltage   |  phase |         location          |   groupid   |
 ===========================================================================================================
- 2020-08-15 12:10:00.000 |    10.30000  |     220      |      1 |      Beijing.Haidian      |           2 |
- 2020-08-15 12:20:00.000 |    11.20000  |     220      |      1 |      Beijing.Haidian      |           2 |
- 2020-08-15 12:00:00.000 |    12.00000  |     220      |      1 |      Beijing.Chaoyang     |           2 |
- 2020-08-15 12:10:00.000 |    12.30000  |     220      |      2 |      Beijing.Chaoyang     |           2 |
- 2020-08-15 12:20:00.000 |    12.20000  |     220      |      1 |      Beijing.Chaoyang     |           2 |
+ 2020-08-15 12:10:00.000 |    10.30000  |     220      |      1 |      California.LoSangeles      |           2 |
+ 2020-08-15 12:20:00.000 |    11.20000  |     220      |      1 |      California.LoSangeles      |           2 |
+ 2020-08-15 12:00:00.000 |    12.00000  |     220      |      1 |      California.SanFrancisco     |           2 |
+ 2020-08-15 12:10:00.000 |    12.30000  |     220      |      2 |      California.SanFrancisco     |           2 |
+ 2020-08-15 12:20:00.000 |    12.20000  |     220      |      1 |      California.SanFrancisco     |           2 |
 Query OK, 5 row(s) in set (0.004896s)
 ```
 
@@ -235,11 +235,11 @@ Query OK, 5 row(s) in set (0.004896s)
 The example programs first consume all historical data matching the criteria.
 
 ```bash
-ts: 1597464000000	current: 12.0	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2
-ts: 1597464600000	current: 12.3	voltage: 220	phase: 2	location: Beijing.Chaoyang	groupid : 2
-ts: 1597465200000	current: 12.2	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid : 2
-ts: 1597464600000	current: 10.3	voltage: 220	phase: 1	location: Beijing.Haidian	groupid : 2
-ts: 1597465200000	current: 11.2	voltage: 220	phase: 1	location: Beijing.Haidian	groupid : 2
+ts: 1597464000000	current: 12.0	voltage: 220	phase: 1	location: California.SanFrancisco	groupid : 2
+ts: 1597464600000	current: 12.3	voltage: 220	phase: 2	location: California.SanFrancisco	groupid : 2
+ts: 1597465200000	current: 12.2	voltage: 220	phase: 1	location: California.SanFrancisco	groupid : 2
+ts: 1597464600000	current: 10.3	voltage: 220	phase: 1	location: California.LoSangeles	groupid : 2
+ts: 1597465200000	current: 11.2	voltage: 220	phase: 1	location: California.LoSangeles	groupid : 2
 ```
 
 Next, use TDengine CLI to insert a new row.
@@ -253,5 +253,5 @@ taos> insert into d1001 values(now, 12.4, 220, 1);
 Because the current in inserted row exceeds 10A, it will be consumed by the example program.
 
 ```
-ts: 1651146662805	current: 12.4	voltage: 220	phase: 1	location: Beijing.Chaoyang	groupid: 2
+ts: 1651146662805	current: 12.4	voltage: 220	phase: 1	location: California.SanFrancisco	groupid: 2
 ```

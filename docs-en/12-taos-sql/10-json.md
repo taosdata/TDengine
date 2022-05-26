@@ -52,13 +52,13 @@ title: JSON Type
 
 4. Tag Operations
 
-   The value of JSON tag can be altered. Please be noted that the full JSON will be override when doing this.
+   The value of JSON tag can be altered. Please note that the full JSON will be overriden when doing this.
 
    The name of JSON tag can be altered. A tag of JSON type can't be added or removed. The column length of a JSON tag can't be changed.
 
 ## Other Restrictions
 
-- JSON type can only be used for tag. There can be only one tag of JSON type, and it's exclusive to any other types of tag.
+- JSON type can only be used for a tag. There can be only one tag of JSON type, and it's exclusive to any other types of tags.
 
 - The maximum length of keys in JSON is 256 bytes, and key must be printable ASCII characters. The maximum total length of a JSON is 4,096 bytes.
 
@@ -74,7 +74,7 @@ title: JSON Type
 
 - If a tag of JSON is the result of inner query, it can't be parsed and queried in the outer query.
 
-For example, below SQL statements are not supported.
+For example, the below SQL statements are not supported.
 
 ```sql;
 select jtag->'key' from (select jtag from STable);

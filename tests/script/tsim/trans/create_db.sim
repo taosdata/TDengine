@@ -64,7 +64,7 @@ if $rows != 1 then
   return -1
 endi
 
-if $data[0][0] != 2 then
+if $data[0][0] != 7 then
   return -1
 endi
 
@@ -114,7 +114,7 @@ if $rows != 1 then
   return -1
 endi
 
-if $data[0][0] != 4 then
+if $data[0][0] != 9 then
   return -1
 endi
 
@@ -137,7 +137,7 @@ endi
 sql_error create database d2 vgroups 2;
 
 print =============== kill transaction
-sql kill transaction 4;
+sql kill transaction 9;
 sleep 2000
 
 sql show transactions

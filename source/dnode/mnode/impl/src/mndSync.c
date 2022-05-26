@@ -49,29 +49,38 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
-  mndTransPullup(pMnode);
-  pMnode->syncMgmt.restored = true;
-}
-
-void *mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *snapshot, void *iter, char **ppBuf, int32_t *len) {
-  SMnode   *pMnode = pFsm->data;
-  SSdbIter *pIter = iter;
-
-  if (iter == NULL) {
-    pIter = sdbIterInit(pMnode->pSdb);
+  if (!pMnode->deploy) {
+    mndTransPullup(pMnode);
+    pMnode->syncMgmt.restored = true;
   }
-
-  return sdbIterRead(pMnode->pSdb, pIter, ppBuf, len);
 }
 
-int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* snapshot, char* pBuf, int32_t len) {
+int32_t mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf, int32_t* len) {
+  /*
+  SMnode *pMnode = pFsm->data;
+  SSdbIter *pIter;
+  if (iter == NULL) { 
+    pIter = sdbIterInit(pMnode->sdb)
+  } else {
+    pIter = iter;
+  }
+  */
+
+  return 0;
+}
+
+int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len) {
   SMnode *pMnode = pFsm->data;
   sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
   return 0;
 }
-  
-void mndReConfig(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
 
+void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+  mInfo("mndReConfig cbMeta.code:%d, cbMeta.currentTerm:%" PRId64 ", cbMeta.term:%" PRId64 ", cbMeta.index:%" PRId64,
+        cbMeta.code, cbMeta.currentTerm, cbMeta.term, cbMeta.index);
+  SMnode *pMnode = pFsm->data;
+  pMnode->syncMgmt.errCode = cbMeta.code;
+  tsem_post(&pMnode->syncMgmt.syncSem);
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
@@ -194,22 +203,6 @@ void mndSyncStop(SMnode *pMnode) {}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  pMgmt->state = syncGetMyRole(pMgmt->sync);
-
-  return (pMgmt->state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
-}
-
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption) {
-  SSyncCfg cfg = {.replicaNum = pOption->replica, .myIndex = pOption->selfIndex};
-  mInfo("start to alter mnode sync, replica:%d myindex:%d standby:%d", cfg.replicaNum, cfg.myIndex, pOption->standby);
-  for (int32_t i = 0; i < pOption->replica; ++i) {
-    SNodeInfo *pNode = &cfg.nodeInfo[i];
-    tstrncpy(pNode->nodeFqdn, pOption->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
-    pNode->nodePort = pOption->replicas[i].port;
-    mInfo("index:%d, fqdn:%s port:%d", i, pNode->nodeFqdn, pNode->nodePort);
-  }
-
-  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  pMgmt->standby = pOption->standby;
-  return syncReconfig(pMgmt->sync, &cfg);
+  ESyncState state = syncGetMyRole(pMgmt->sync);
+  return (state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
 }

@@ -1457,10 +1457,15 @@ _return:
   CTG_RET(code);
 }
 
+void ctgUpdateThreadFuncUnexpectedStopped(void) {
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+}
 
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
-
+#ifdef WINDOWS
+  atexit(ctgUpdateThreadFuncUnexpectedStopped);
+#endif
   qInfo("catalog update thread started");
 
   CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
@@ -1494,7 +1499,7 @@ void* ctgUpdateThreadFunc(void* param) {
     ctgdShowClusterCache(pCtg);
   }
 
-  CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock)) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 
   qInfo("catalog update thread stopped");
   

@@ -29,7 +29,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>10.3</td>
 <td>219</td>
 <td>0.31</td>
-<td>San Jose</td>
+<td>California.SanFrancisco</td>
 <td>2</td>
 </tr>
 <tr>
@@ -38,7 +38,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>10.2</td>
 <td>220</td>
 <td>0.23</td>
-<td>San Jose</td>
+<td>California.SanFrancisco</td>
 <td>3</td>
 </tr>
 <tr>
@@ -47,7 +47,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>11.5</td>
 <td>221</td>
 <td>0.35</td>
-<td>Mountain View</td>
+<td>California.LosAngeles</td>
 <td>3</td>
 </tr>
 <tr>
@@ -56,7 +56,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>13.4</td>
 <td>223</td>
 <td>0.29</td>
-<td>Mountain View</td>
+<td>California.LosAngeles</td>
 <td>2</td>
 </tr>
 <tr>
@@ -65,7 +65,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>12.6</td>
 <td>218</td>
 <td>0.33</td>
-<td>San Jose</td>
+<td>California.SanFrancisco</td>
 <td>2</td>
 </tr>
 <tr>
@@ -74,7 +74,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>11.8</td>
 <td>221</td>
 <td>0.28</td>
-<td>Mountain View</td>
+<td>California.LosAngeles</td>
 <td>2</td>
 </tr>
 <tr>
@@ -83,7 +83,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>10.3</td>
 <td>218</td>
 <td>0.25</td>
-<td>San Jose</td>
+<td>California.SanFrancisco</td>
 <td>3</td>
 </tr>
 <tr>
@@ -92,7 +92,7 @@ In order to explain the basic concepts and provide some sample code, the TDengin
 <td>12.3</td>
 <td>221</td>
 <td>0.31</td>
-<td>San Jose</td>
+<td>California.SanFrancisco</td>
 <td>2</td>
 </tr>
 </tbody>
