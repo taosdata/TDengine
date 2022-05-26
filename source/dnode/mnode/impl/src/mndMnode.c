@@ -365,10 +365,10 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
+  mndTransSetExecOneByOne(pTrans);
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto _OVER;
-  mndTransSetExecOneByOne(pTrans);
 
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -537,12 +537,11 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
-
+  mndTransSetExecOneByOne(pTrans);
   if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
-  mndTransSetExecOneByOne(pTrans);
 
   code = 0;
 
