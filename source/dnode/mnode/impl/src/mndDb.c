@@ -1155,7 +1155,7 @@ static void mndBuildDBVgroupInfo(SDbObj *pDb, SMnode *pMnode, SArray *pVgList) {
     pIter = sdbFetch(pSdb, SDB_VGROUP, pIter, (void **)&pVgroup);
     if (pIter == NULL) break;
 
-    if (NULL == pDb || pVgroup->dbUid == pDb->uid) {
+    if ((NULL == pDb || pVgroup->dbUid == pDb->uid) && !pVgroup->isTsma) {
       SVgroupInfo vgInfo = {0};
       vgInfo.vgId = pVgroup->vgId;
       vgInfo.hashBegin = pVgroup->hashBegin;

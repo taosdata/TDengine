@@ -295,9 +295,9 @@ static void *mndBuildVCreateSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSm
 }
 
 static void *mndBuildVDropSmaReq(SMnode *pMnode, SVgObj *pVgroup, SSmaObj *pSma, int32_t *pContLen) {
-  SEncoder       encoder = {0};
-  int32_t        contLen;
-  SName name = {0};
+  SEncoder encoder = {0};
+  int32_t  contLen;
+  SName    name = {0};
   tNameFromString(&name, pSma->name, T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
 
   SVDropTSmaReq req = {0};
@@ -354,6 +354,22 @@ static int32_t mndSetCreateSmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaObj
   return 0;
 }
 
+static int32_t mndSetCreateSmaVgroupRedoLogs(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup) {
+  SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
+  if (pVgRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
+  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_CREATING) != 0) return -1;
+  return 0;
+}
+
+static int32_t mndSetCreateSmaVgroupCommitLogs(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup) {
+  SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
+  if (pVgRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
+  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_READY) != 0) return -1;
+  return 0;
+}
+
 static int32_t mndSetCreateSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSmaObj *pSma) {
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
@@ -388,6 +404,34 @@ static int32_t mndSetCreateSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj
       return -1;
     }
     sdbRelease(pSdb, pVgroup);
+  }
+
+  return 0;
+}
+
+static int32_t mndSetCreateSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
+  SVnodeGid *pVgid = pVgroup->vnodeGid + 0;
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+  if (pDnode == NULL) return -1;
+
+  STransAction action = {0};
+  action.epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  // todo add sma info here
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildCreateVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+  if (pReq == NULL) return -1;
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_DND_CREATE_VNODE;
+  action.acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED;
+
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(pReq);
+    return -1;
   }
 
   return 0;
@@ -448,9 +492,14 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   streamObj.version = 1;
   streamObj.sql = pCreate->sql;
   streamObj.createdBy = STREAM_CREATED_BY__SMA;
-  streamObj.fixedSinkVgId = smaObj.dstVgId;
   streamObj.smaId = smaObj.uid;
-  /*streamObj.physicalPlan = "";*/
+
+  if (mndAllocSmaVgroup(pMnode, pDb, &streamObj.fixedSinkVg) != 0) {
+    mError("sma:%s, failed to create since %s", smaObj.name, terrstr());
+    return -1;
+  }
+  smaObj.dstVgId = streamObj.fixedSinkVg.vgId;
+  streamObj.fixedSinkVgId = smaObj.dstVgId;
 
   int32_t code = -1;
   STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_CREATE_SMA, pReq);
@@ -460,8 +509,11 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
   mndTransSetDbInfo(pTrans, pDb);
 
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
+  if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetCreateSmaCommitLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
+  if (mndSetCreateSmaVgroupCommitLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndSetCreateSmaRedoActions(pMnode, pTrans, pDb, &smaObj) != 0) goto _OVER;
+  if (mndSetCreateSmaVgroupRedoActions(pMnode, pTrans, pDb, &streamObj.fixedSinkVg) != 0) goto _OVER;
   if (mndAddStreamToTrans(pMnode, &streamObj, pCreate->ast, STREAM_TRIGGER_AT_ONCE, 0, pTrans) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
@@ -480,7 +532,6 @@ static int32_t mndCheckCreateSmaReq(SMCreateSmaReq *pCreate) {
   if (pCreate->intervalUnit < 0) return -1;
   if (pCreate->slidingUnit < 0) return -1;
   if (pCreate->timezone < 0) return -1;
-  if (pCreate->dstVgId < 0) return -1;
   if (pCreate->interval < 0) return -1;
   if (pCreate->offset < 0) return -1;
   if (pCreate->sliding < 0) return -1;
@@ -602,6 +653,24 @@ static int32_t mndSetDropSmaCommitLogs(SMnode *pMnode, STrans *pTrans, SSmaObj *
   return 0;
 }
 
+static int32_t mndSetDropSmaVgroupRedoLogs(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup) {
+  SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
+  if (pVgRaw == NULL) return -1;
+  if (mndTransAppendRedolog(pTrans, pVgRaw) != 0) return -1;
+  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPING) != 0) return -1;
+
+  return 0;
+}
+
+static int32_t mndSetDropSmaVgroupCommitLogs(SMnode *pMnode, STrans *pTrans, SVgObj *pVgroup) {
+  SSdbRaw *pVgRaw = mndVgroupActionEncode(pVgroup);
+  if (pVgRaw == NULL) return -1;
+  if (mndTransAppendCommitlog(pTrans, pVgRaw) != 0) return -1;
+  if (sdbSetRawStatus(pVgRaw, SDB_STATUS_DROPPED) != 0) return -1;
+
+  return 0;
+}
+
 static int32_t mndSetDropSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SSmaObj *pSma) {
   SSdb   *pSdb = pMnode->pSdb;
   SVgObj *pVgroup = NULL;
@@ -643,23 +712,59 @@ static int32_t mndSetDropSmaRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *
   return 0;
 }
 
+static int32_t mndSetDropSmaVgroupRedoActions(SMnode *pMnode, STrans *pTrans, SDbObj *pDb, SVgObj *pVgroup) {
+  SVnodeGid *pVgid = pVgroup->vnodeGid + 0;
+  SDnodeObj *pDnode = mndAcquireDnode(pMnode, pVgid->dnodeId);
+  if (pDnode == NULL) return -1;
+
+  STransAction action = {0};
+  action.epSet = mndGetDnodeEpset(pDnode);
+  mndReleaseDnode(pMnode, pDnode);
+
+  int32_t contLen = 0;
+  void   *pReq = mndBuildDropVnodeReq(pMnode, pDnode, pDb, pVgroup, &contLen);
+  if (pReq == NULL) return -1;
+
+  action.pCont = pReq;
+  action.contLen = contLen;
+  action.msgType = TDMT_DND_DROP_VNODE;
+  action.acceptableCode = TSDB_CODE_NODE_NOT_DEPLOYED;
+
+  if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+    taosMemoryFree(pReq);
+    return -1;
+  }
+
+  return 0;
+}
+
 static int32_t mndDropSma(SMnode *pMnode, SRpcMsg *pReq, SDbObj *pDb, SSmaObj *pSma) {
   int32_t code = -1;
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_SMA, pReq);
+  SVgObj *pVgroup = NULL;
+  STrans *pTrans = NULL;
+
+  pVgroup = mndAcquireVgroup(pMnode, pSma->dstVgId);
+  if (pVgroup == NULL) goto _OVER;
+
+  pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_SMA, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop sma:%s", pTrans->id, pSma->name);
   mndTransSetDbInfo(pTrans, pDb);
 
   if (mndSetDropSmaRedoLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
+  if (mndSetDropSmaVgroupRedoLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
   if (mndSetDropSmaCommitLogs(pMnode, pTrans, pSma) != 0) goto _OVER;
+  if (mndSetDropSmaVgroupCommitLogs(pMnode, pTrans, pVgroup) != 0) goto _OVER;
   if (mndSetDropSmaRedoActions(pMnode, pTrans, pDb, pSma) != 0) goto _OVER;
+  if (mndSetDropSmaVgroupRedoActions(pMnode, pTrans, pDb, pVgroup) != 0) goto _OVER;
   if (mndTransPrepare(pMnode, pTrans) != 0) goto _OVER;
 
   code = 0;
 
 _OVER:
   mndTransDrop(pTrans);
+  mndReleaseVgroup(pMnode, pVgroup);
   return code;
 }
 
@@ -845,6 +950,9 @@ static int32_t mndRetrieveSma(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBloc
 
     pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
     colDataAppend(pColInfo, numOfRows, (const char *)n1, false);
+
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pSma->dstVgId, false);
 
     numOfRows++;
     sdbRelease(pSdb, pSma);
