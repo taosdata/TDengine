@@ -15,7 +15,7 @@ import CTelnet from "./_c_opts_telnet.mdx";
 
 ## Introduction
 
-A single line of text is used in OpenTSDB line protocol to represent one row of data. OpenTSDB employs single column data model, so one line can only contain a single data column. There can be multiple tags. Each line contains 4 parts as below:
+A single line of text is used in OpenTSDB line protocol to represent one row of data. OpenTSDB employs a single column data model, so each line can only contain a single data column. There can be multiple tags. Each line contains 4 parts as below:
 
 ```
 <metric> <timestamp> <value> <tagk_1>=<tagv_1>[ <tagk_n>=<tagv_n>]
@@ -60,7 +60,7 @@ Please refer to [OpenTSDB Telnet API](http://opentsdb.net/docs/build/html/api_te
   </TabItem>
 </Tabs>
 
-2 STables will be crated automatically while each STable has 4 rows of data in the above sample code.
+2 STables will be created automatically and each STable has 4 rows of data in the above sample code.
 
 ```cmd
 taos> use test;
