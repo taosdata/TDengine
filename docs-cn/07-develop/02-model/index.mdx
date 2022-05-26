@@ -55,10 +55,10 @@ CREATE STABLE meters (ts timestamp, current float, voltage int, phase float) TAG
 TDengine 对每个数据采集点需要独立建表。与标准的关系型数据库一样，一张表有表名，Schema，但除此之外，还可以带有一到多个标签。创建时，需要使用超级表做模板，同时指定标签的具体值。以[表 1](/tdinternal/arch#model_table1)中的智能电表为例，可以使用如下的 SQL 命令建表：
 
 ```sql
-CREATE TABLE d1001 USING meters TAGS ("Beijing.Chaoyang", 2);
+CREATE TABLE d1001 USING meters TAGS ("California.SanFrancisco", 2);
 ```
 
-其中 d1001 是表名，meters 是超级表的表名，后面紧跟标签 Location 的具体标签值 ”Beijing.Chaoyang"，标签 groupId 的具体标签值 2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TAOS SQL 的表管理](/taos-sql/table) 章节。
+其中 d1001 是表名，meters 是超级表的表名，后面紧跟标签 Location 的具体标签值 "California.SanFrancisco"，标签 groupId 的具体标签值 2。虽然在创建表时，需要指定标签值，但可以事后修改。详细细则请见 [TAOS SQL 的表管理](/taos-sql/table) 章节。
 
 :::warning
 目前 TDengine 没有从技术层面限制使用一个 database (db1) 的超级表作为模板建立另一个 database (db2) 的子表，后续会禁止这种用法，不建议使用这种方法建表。
@@ -72,10 +72,10 @@ TDengine 建议将数据采集点的全局唯一 ID 作为表名(比如设备序
 在某些特殊场景中，用户在写数据时并不确定某个数据采集点的表是否存在，此时可在写入数据时使用自动建表语法来创建不存在的表，若该表已存在则不会建立新表且后面的 USING 语句被忽略。比如：
 
 ```sql
-INSERT INTO d1001 USING meters TAGS ("Beijng.Chaoyang", 2) VALUES (now, 10.2, 219, 0.32);
+INSERT INTO d1001 USING meters TAGS ("California.SanFrancisco", 2) VALUES (now, 10.2, 219, 0.32);
 ```
 
-上述 SQL 语句将记录`(now, 10.2, 219, 0.32)`插入表 d1001。如果表 d1001 还未创建，则使用超级表 meters 做模板自动创建，同时打上标签值 `"Beijing.Chaoyang", 2`。
+上述 SQL 语句将记录`(now, 10.2, 219, 0.32)`插入表 d1001。如果表 d1001 还未创建，则使用超级表 meters 做模板自动创建，同时打上标签值 `"California.SanFrancisco", 2`。
 
 关于自动建表的详细语法请参见 [插入记录时自动建表](/taos-sql/insert#插入记录时自动建表) 章节。
 

@@ -1,6 +1,6 @@
 ---
 sidebar_label: 缓存
-title:  缓存
+title: 缓存
 description: "提供写驱动的缓存管理机制，将每个表最近写入的一条记录持续保存在缓存中，可以提供高性能的最近状态查询。"
 ---
 
@@ -15,7 +15,7 @@ TDengine 将内存池按块划分进行管理，数据在内存块里是以行�
 你可以通过函数 last_row() 快速获取一张表或一张超级表的最后一条记录，这样很便于在大屏显示各设备的实时状态或采集值。例如：
 
 ```sql
-select last_row(voltage) from meters where location='Beijing.Chaoyang';
+select last_row(voltage) from meters where location='California.SanFrancisco';
 ```
 
-该 SQL 语句将获取所有位于北京朝阳区的电表最后记录的电压值。
+该 SQL 语句将获取所有位于加利福尼亚州旧金山市的电表最后记录的电压值。

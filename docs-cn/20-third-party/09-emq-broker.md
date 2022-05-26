@@ -45,25 +45,25 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 
 使用浏览器打开网址 http://IP:18083 并登录 EMQX Dashboard。初次安装用户名为 `admin` 密码为：`public`
 
-![img](./emqx/login-dashboard.png)
+![img](./emqx/login-dashboard.webp)
 
 ### 创建规则（Rule）
 
 选择左侧“规则引擎（Rule Engine）”中的“规则（Rule）”并点击“创建（Create）”按钮：
 
-![img](./emqx/rule-engine.png)
+![img](./emqx/rule-engine.webp)
 
 ### 编辑 SQL 字段
 
-![img](./emqx/create-rule.png)
+![img](./emqx/create-rule.webp)
 
 ### 新增“动作（action handler）”
 
-![img](./emqx/add-action-handler.png)
+![img](./emqx/add-action-handler.webp)
 
 ### 新增“资源（Resource）”
 
-![img](./emqx/create-resource.png)
+![img](./emqx/create-resource.webp)
 
 选择“发送数据到 Web 服务“并点击“新建资源”按钮：
 
@@ -71,13 +71,13 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 
 选择“发送数据到 Web 服务“并填写 请求 URL 为 运行 taosAdapter 的服务器地址和端口（默认为 6041）。其他属性请保持默认值。
 
-![img](./emqx/edit-resource.png)
+![img](./emqx/edit-resource.webp)
 
 ### 编辑“动作（action）”
 
 编辑资源配置，增加 Authorization 认证的键/值配对项，相关文档请参考[ TDengine REST API 文档](https://docs.taosdata.com/reference/rest-api/)。在消息体中输入规则引擎替换模板。
 
-![img](./emqx/edit-action.png)
+![img](./emqx/edit-action.webp)
 
 ## 编写模拟测试程序
 
@@ -164,7 +164,7 @@ MQTT 是流行的物联网数据传输协议，[EMQX](https://github.com/emqx/em
 
 注意：代码中 CLIENT_NUM 在开始测试中可以先设置一个较小的值，避免硬件性能不能完全处理较大并发客户端数量。
 
-![img](./emqx/client-num.png)
+![img](./emqx/client-num.webp)
 
 ## 执行测试模拟发送 MQTT 数据
 
@@ -173,19 +173,19 @@ npm install mqtt mockjs --save --registry=https://registry.npm.taobao.org
 node mock.js
 ```
 
-![img](./emqx/run-mock.png)
+![img](./emqx/run-mock.webp)
 
 ## 验证 EMQX 接收到数据
 
 在 EMQX Dashboard 规则引擎界面进行刷新，可以看到有多少条记录被正确接收到：
 
-![img](./emqx/check-rule-matched.png)
+![img](./emqx/check-rule-matched.webp)
 
 ## 验证数据写入到 TDengine
 
 使用 TDengine CLI 程序登录并查询相应数据库和表，验证数据是否被正确写入到 TDengine 中：
 
-![img](./emqx/check-result-in-taos.png)
+![img](./emqx/check-result-in-taos.webp)
 
 TDengine 详细使用方法请参考 [TDengine 官方文档](https://docs.taosdata.com/)。
 EMQX 详细使用方法请参考 [EMQX 官方文档](https://www.emqx.io/docs/zh/v4.4/rule/rule-engine.html)。

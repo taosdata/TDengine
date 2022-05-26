@@ -1055,6 +1055,12 @@ int32_t tscValidateSqlInfo(SSqlObj* pSql, struct SSqlInfo* pInfo) {
       char      buf[TSDB_TABLE_FNAME_LEN];
       SStrToken sTblToken;
       sTblToken.z = buf;
+      // enterprise check
+#ifndef TD_ENTERPRISE
+      const char* msg = "This feature is not supported in the community version. Please use the enterprise version.";
+      return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), msg);
+#endif
+
       // check
       if (validateTableName(tbName->z, tbName->n, &sTblToken, &dbIncluded) != TSDB_CODE_SUCCESS) {
         return invalidOperationMsg(tscGetErrorMsgPayload(pCmd), STR_INVALID_TABLE_NAME);
