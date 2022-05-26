@@ -262,12 +262,10 @@ typedef struct {
   uint64_t aggrStat : 1;
   uint64_t aggrOffset : 63;
   TSKEY    keyFirst;
+  int64_t  verFirst;
   TSKEY    keyLast;
-  int64_t  minVersion;
-  int64_t  maxVersion;
-} SBlockV0;
-
-#define SBlock SBlockV0  // latest SBlock definition
+  int64_t  verLast;
+} SBlock;
 
 static FORCE_INLINE bool tsdbIsSupBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 1; }
 static FORCE_INLINE bool tsdbIsSubBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 0; }
@@ -285,9 +283,7 @@ typedef struct {
   uint16_t blen : 10;  // 0 no bitmap if all rows are NORM, > 0 bitmap length
   uint32_t len;        // data length + bitmap length
   uint32_t offset;
-} SBlockColV0;
-
-#define SBlockCol SBlockColV0  // latest SBlockCol definition
+} SBlockCol;
 
 typedef struct {
   int16_t colId;
@@ -297,9 +293,7 @@ typedef struct {
   int64_t sum;
   int64_t max;
   int64_t min;
-} SAggrBlkColV0;
-
-#define SAggrBlkCol SAggrBlkColV0  // latest SAggrBlkCol definition
+} SAggrBlkCol;
 
 static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) { pBlockCol->offset = offset; }
 static FORCE_INLINE uint32_t tsdbGetBlockColOffset(SBlockCol *pBlockCol) { return pBlockCol->offset; }
@@ -343,24 +337,23 @@ struct SReadH {
 #define TSDB_READ_COMP_BUF(rh)  ((rh)->pCBuf)
 #define TSDB_READ_EXBUF(rh)     ((rh)->pExBuf)
 
-#define TSDB_BLOCK_STATIS_SIZE(ncols, blkVer) \
-  (sizeof(SBlockData) + sizeof(SBlockColV##blkVer) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_STATIS_SIZE(ncols) (sizeof(SBlockData) + sizeof(SBlockCol) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {
     case TSDB_SBLK_VER_0:
     default:
-      return TSDB_BLOCK_STATIS_SIZE(nCols, 0);
+      return TSDB_BLOCK_STATIS_SIZE(nCols);
   }
 }
 
-#define TSDB_BLOCK_AGGR_SIZE(ncols, blkVer) (sizeof(SAggrBlkColV##blkVer) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_AGGR_SIZE(ncols) (sizeof(SAggrBlkCol) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {
     case TSDB_SBLK_VER_0:
     default:
-      return TSDB_BLOCK_AGGR_SIZE(nCols, 0);
+      return TSDB_BLOCK_AGGR_SIZE(nCols);
   }
 }
 
@@ -584,39 +577,10 @@ int   tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to);
 int   tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader);
 int   tsdbUpdateDFileSetHeader(SDFileSet *pSet);
 int   tsdbScanAndTryFixDFileSet(STsdb *pRepo, SDFileSet *pSet);
-
-static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tsdbCloseDFile(TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-}
-
-static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet *pSet, int flags) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbOpenDFile(TSDB_DFILE_IN_SET(pSet, ftype), flags) < 0) {
-      tsdbCloseDFileSet(pSet);
-      return -1;
-    }
-  }
-  return 0;
-}
-
-static FORCE_INLINE void tsdbRemoveDFileSet(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-}
-
-static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(pSrc, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
-      tsdbRemoveDFileSet(pDest);
-      return -1;
-    }
-  }
-
-  return 0;
-}
+void  tsdbCloseDFileSet(SDFileSet *pSet);
+int   tsdbOpenDFileSet(SDFileSet *pSet, int flags);
+void  tsdbRemoveDFileSet(SDFileSet *pSet);
+int   tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest);
 
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey) {
   *minKey = fid * days * tsTickPerMin[precision];

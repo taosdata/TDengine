@@ -541,3 +541,36 @@ int tsdbCopyDFile(SDFile *pSrc, SDFile *pDest) {
   tsdbSetDFileInfo(pDest, TSDB_FILE_INFO(pSrc));
   return 0;
 }
+
+void tsdbCloseDFileSet(SDFileSet *pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    tsdbCloseDFile(TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+}
+
+int tsdbOpenDFileSet(SDFileSet *pSet, int flags) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (tsdbOpenDFile(TSDB_DFILE_IN_SET(pSet, ftype), flags) < 0) {
+      tsdbCloseDFileSet(pSet);
+      return -1;
+    }
+  }
+  return 0;
+}
+
+void tsdbRemoveDFileSet(SDFileSet *pSet) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
+  }
+}
+
+int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
+  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
+    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(pSrc, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
+      tsdbRemoveDFileSet(pDest);
+      return -1;
+    }
+  }
+
+  return 0;
+}
