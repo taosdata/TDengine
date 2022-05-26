@@ -15,11 +15,10 @@ $x = 0
 step1: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 10 then
+	if $x == 20 then
 		return -1
 	endi
-
-sql show dnodes
+sql show dnodes -x step1
 if $data(1)[4] != ready then
   goto step1
 endi
@@ -38,15 +37,10 @@ $x = 0
 step2: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 10 then
+	if $x == 20 then
 		return -1
 	endi
-
-sql show mnodes
-print $data(1)[0] $data(1)[1] $data(1)[2] 
-print $data(2)[0] $data(2)[1] $data(2)[2] 
-print $data(3)[0] $data(3)[1] $data(3)[2] 
-
+sql show mnodes -x step2
 if $data(1)[2] != LEADER then
   goto step2
 endi
@@ -64,44 +58,80 @@ if $rows != 2 then
   return -1
 endi
 
+# wait mnode2 mnode3 recv data finish
 sleep 10000
 
 print =============== step4: stop dnode1
 system sh/exec.sh -n dnode1 -s stop
 
-
-return
-system sh/exec.sh -n dnode2 -s stop
-sleep 100
-return
-system sh/exec.sh -n dnode1 -s start
-system sh/exec.sh -n dnode2 -s start
-
-sleep 10000
-sql connect
-
-sql show mnodes
-if $rows != 2 then 
-  return -1
-endi
-if $data(1)[0] != 1 then 
-  return -1
-endi
-if $data(1)[2] != LEADER then 
-  return -1
-endi
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes -x step4
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+print $data(3)[0] $data(3)[1] $data(3)[2] 
 
 sql show users
 if $rows != 2 then 
   return -1
 endi
 
-#sql show databases
-#if $rows != 3 then 
-#  return -1
-#endi
+sleep 1000
+sql show dnodes
+if $data(2)[4] != ready then
+  return -1
+endi
+if $data(3)[4] != ready then
+  return -1
+endi
 
-return
+print =============== step5: stop dnode1
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s stop
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes -x step5
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+print $data(3)[0] $data(3)[1] $data(3)[2] 
+
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step6: stop dnode1
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s stop
+
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes -x step6
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+print $data(3)[0] $data(3)[1] $data(3)[2] 
+
+sql show users
+if $rows != 2 then 
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop
