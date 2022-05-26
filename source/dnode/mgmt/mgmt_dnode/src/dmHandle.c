@@ -92,7 +92,11 @@ void dmSendStatusReq(SDnodeMgmt *pMgmt) {
   SEpSet epSet = {0};
   dmGetMnodeEpSet(pMgmt->pData, &epSet);
   rpcSendRecv(pMgmt->msgCb.clientRpc, &epSet, &rpcMsg, &rpcRsp);
-  dmProcessStatusRsp(pMgmt, &rpcRsp);
+  if (rpcRsp.code != 0) {
+    dError("failed to send status msg since %s", tstrerror(rpcRsp.code));
+  } else {
+    dmProcessStatusRsp(pMgmt, &rpcRsp);
+  }
 }
 
 int32_t dmProcessAuthRsp(SDnodeMgmt *pMgmt, SRpcMsg *pMsg) {
