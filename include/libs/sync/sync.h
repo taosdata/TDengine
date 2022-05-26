@@ -80,6 +80,7 @@ typedef struct SFsmCbMeta {
   uint64_t   seqNum;
   SyncTerm   term;
   SyncTerm   currentTerm;
+  uint64_t   flag;
 } SFsmCbMeta;
 
 typedef struct SReConfigCbMeta {
@@ -87,6 +88,9 @@ typedef struct SReConfigCbMeta {
   SyncIndex index;
   SyncTerm  term;
   SyncTerm  currentTerm;
+  SSyncCfg  oldCfg;
+  bool      isDrop;
+  uint64_t  flag;
 } SReConfigCbMeta;
 
 typedef struct SSyncFSM {
@@ -162,6 +166,7 @@ void        syncCleanUp();
 int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
+int32_t     syncSetStandby(int64_t rid);
 int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
