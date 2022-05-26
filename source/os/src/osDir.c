@@ -91,7 +91,12 @@ void taosRemoveDir(const char *dirname) {
 bool taosDirExist(const char *dirname) { return taosCheckExistFile(dirname); }
 
 int32_t taosMkDir(const char *dirname) {
+  if (taosDirExist(dirname)) return 0;
+#ifdef WINDOWS
+  int32_t code = _mkdir(dirname, 0755);
+#else
   int32_t code = mkdir(dirname, 0755);
+#endif
   if (code < 0 && errno == EEXIST) {
     return 0;
   }
@@ -101,36 +106,49 @@ int32_t taosMkDir(const char *dirname) {
 
 int32_t taosMulMkDir(const char *dirname) {
   if (dirname == NULL) return -1;
-  char *  temp = strdup(dirname);
+  char temp[1024];
   char *  pos = temp;
   int32_t code = 0;
+#ifdef WINDOWS
+  taosRealPath(dirname, temp, sizeof(temp));
+  if (temp[1] == ':') pos += 3;
+#else
+  strcpy(temp, dirname);
+#endif
 
-  if (strncmp(temp, "/", 1) == 0) {
+  if (taosDirExist(temp)) return code;
+
+  if (strncmp(temp, TD_DIRSEP, 1) == 0) {
     pos += 1;
-  } else if (strncmp(temp, "./", 2) == 0) {
+  } else if (strncmp(temp, "." TD_DIRSEP, 2) == 0) {
     pos += 2;
   }
 
   for (; *pos != '\0'; pos++) {
-    if (*pos == '/') {
+    if (*pos == TD_DIRSEP[0]) {
       *pos = '\0';
+    #ifdef WINDOWS
+      code = _mkdir(temp, 0755);
+    #else
       code = mkdir(temp, 0755);
+    #endif
       if (code < 0 && errno != EEXIST) {
-        free(temp);
         return code;
       }
-      *pos = '/';
+      *pos = TD_DIRSEP[0];
     }
   }
 
-  if (*(pos - 1) != '/') {
+  if (*(pos - 1) != TD_DIRSEP[0]) {
+  #ifdef WINDOWS
+    code = _mkdir(temp, 0755);
+  #else
     code = mkdir(temp, 0755);
+  #endif
     if (code < 0 && errno != EEXIST) {
-      free(temp);
       return code;
     }
   }
-  free(temp);
 
   // int32_t code = mkdir(dirname, 0755);
   if (code < 0 && errno == EEXIST) {
@@ -233,7 +251,13 @@ char *taosDirName(char *name) {
   _splitpath(name, Drive1, Dir1, NULL, NULL);
   size_t dirNameLen = strlen(Drive1) + strlen(Dir1);
   if (dirNameLen > 0) {
-    name[dirNameLen] = 0;
+    if (name[dirNameLen - 1] == '/' || name[dirNameLen - 1] == '\\') {
+      name[dirNameLen - 1] = 0;
+    } else {
+      name[dirNameLen] = 0;
+    }
+  } else {
+    name[0] = 0;
   }
   return name;
 #else

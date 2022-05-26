@@ -324,7 +324,6 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
               SRpcMsg rpcMsg;
               syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-              // if (ths->pFsm->FpCommitCb != NULL && pEntry->originalRpcType != TDMT_VND_SYNC_NOOP) {
               if (ths->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
                 SFsmCbMeta cbMeta;
                 cbMeta.index = pEntry->index;
@@ -332,7 +331,18 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 cbMeta.code = 0;
                 cbMeta.state = ths->state;
                 cbMeta.seqNum = pEntry->seqNum;
+                cbMeta.term = pEntry->term;
+                cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                 ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+
+                bool needExecute = true;
+                if (ths->pSnapshot != NULL && cbMeta.index <= ths->pSnapshot->lastApplyIndex) {
+                  needExecute = false;
+                }
+
+                if (needExecute) {
+                  ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+                }
               }
 
               // config change
@@ -346,6 +356,32 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                   syncNodeBecomeLeader(ths);
                 } else {
                   syncNodeBecomeFollower(ths);
+                }
+
+                // maybe newSyncCfg.myIndex is updated in syncNodeUpdateConfig
+                if (ths->pFsm->FpReConfigCb != NULL) {
+                  SReConfigCbMeta cbMeta = {0};
+                  cbMeta.code = 0;
+                  cbMeta.currentTerm = ths->pRaftStore->currentTerm;
+                  cbMeta.index = pEntry->index;
+                  cbMeta.term = pEntry->term;
+                  ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
+                }
+              }
+
+              // restore finish
+              if (pEntry->index == ths->pLogStore->getLastIndex(ths->pLogStore)) {
+                if (ths->restoreFinish == false) {
+                  if (ths->pFsm->FpRestoreFinishCb != NULL) {
+                    ths->pFsm->FpRestoreFinishCb(ths->pFsm);
+                  }
+                  ths->restoreFinish = true;
+                  sInfo("==syncNodeOnAppendEntriesCb== restoreFinish set true %p vgId:%d", ths, ths->vgId);
+
+                  /*
+                  tsem_post(&ths->restoreSem);
+                  sInfo("==syncNodeOnAppendEntriesCb== RestoreFinish tsem_post %p", ths);
+                  */
                 }
               }
 

@@ -19,18 +19,24 @@
 #define DEFAULT_FALSE_POSITIVE 0.01
 #define DEFAULT_BUCKET_SIZE    1024
 #define ROWS_PER_MILLISECOND   1
-#define MAX_NUM_SCALABLE_BF    120
+#define MAX_NUM_SCALABLE_BF    100000
 #define MIN_NUM_SCALABLE_BF    10
 #define DEFAULT_PREADD_BUCKET  1
 #define MAX_INTERVAL           MILLISECOND_PER_MINUTE
 #define MIN_INTERVAL           (MILLISECOND_PER_SECOND * 10)
+#define DEFAULT_EXPECTED_ENTRIES    10000
+
+static int64_t adjustExpEntries(int64_t entries) {
+  return TMIN(DEFAULT_EXPECTED_ENTRIES, entries);
+}
 
 static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
   if (pInfo->numSBFs < count) {
     count = pInfo->numSBFs;
   }
   for (uint64_t i = 0; i < count; ++i) {
-    SScalableBf *tsSBF = tScalableBfInit(pInfo->interval * ROWS_PER_MILLISECOND, DEFAULT_FALSE_POSITIVE);
+    int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
+    SScalableBf *tsSBF = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
     taosArrayPush(pInfo->pTsSBFs, &tsSBF);
   }
 }
@@ -38,9 +44,9 @@ static void windowSBfAdd(SUpdateInfo *pInfo, uint64_t count) {
 static void windowSBfDelete(SUpdateInfo *pInfo, uint64_t count) {
   if (count < pInfo->numSBFs - 1) {
     for (uint64_t i = 0; i < count; ++i) {
-      SScalableBf *pTsSBFs = taosArrayGetP(pInfo->pTsSBFs, i);
+      SScalableBf *pTsSBFs = taosArrayGetP(pInfo->pTsSBFs, 0);
       tScalableBfDestroy(pTsSBFs);
-      taosArrayRemove(pInfo->pTsSBFs, i);
+      taosArrayRemove(pInfo->pTsSBFs, 0);
     }
   } else {
     taosArrayClearP(pInfo->pTsSBFs, (FDelete)tScalableBfDestroy);
@@ -66,7 +72,7 @@ static int64_t adjustInterval(int64_t interval, int32_t precision) {
   return val;
 }
 
-static int64_t adjustWatermark(int64_t interval, int32_t watermark) {
+static int64_t adjustWatermark(int64_t interval, int64_t watermark) {
   if (watermark <= 0 || watermark > MAX_NUM_SCALABLE_BF * interval) {
     watermark = MAX_NUM_SCALABLE_BF * interval;
   } else if (watermark < MIN_NUM_SCALABLE_BF * interval) {
@@ -121,7 +127,10 @@ static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   if (pInfo->minTS < 0) {
     pInfo->minTS = (TSKEY)(ts / pInfo->interval * pInfo->interval);
   }
-  uint64_t index = (uint64_t)((ts - pInfo->minTS) / pInfo->interval);
+  int64_t index = (int64_t)((ts - pInfo->minTS) / pInfo->interval);
+  if (index < 0) {
+    return NULL;
+  }
   if (index >= pInfo->numSBFs) {
     uint64_t count = index + 1 - pInfo->numSBFs;
     windowSBfDelete(pInfo, count);
@@ -130,7 +139,8 @@ static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
   }
   SScalableBf *res = taosArrayGetP(pInfo->pTsSBFs, index);
   if (res == NULL) {
-    res = tScalableBfInit(pInfo->interval * ROWS_PER_MILLISECOND, DEFAULT_FALSE_POSITIVE);
+    int64_t rows = adjustExpEntries(pInfo->interval * ROWS_PER_MILLISECOND);
+    res = tScalableBfInit(rows, DEFAULT_FALSE_POSITIVE);
     taosArrayPush(pInfo->pTsSBFs, &res);
   }
   return res;

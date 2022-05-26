@@ -292,6 +292,24 @@ int32_t functionFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   return pResInfo->numOfRes;
 }
 
+int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  char*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+  int32_t bytes = pDestCtx->input.pData[0]->info.bytes;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  char*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  if (pSResInfo->numOfRes != 0 &&
+        (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) > *(TSKEY*)(pSBuf + bytes)) ) {
+    memcpy(pDBuf, pSBuf, bytes);
+    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+    pDResInfo->numOfRes = 1;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t dummyProcess(SqlFunctionCtx* UNUSED_PARAM(pCtx)) {
   return 0;
 }
@@ -385,6 +403,18 @@ int32_t countInvertFunction(SqlFunctionCtx* pCtx) {
   *((int64_t*)buf) -= numOfElem;
 
   SET_VAL(pResInfo, *((int64_t*)buf), 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t combineFunction(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  char* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  char*                pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  *((int64_t*)pDBuf) += *((int64_t*)pSBuf);
+
+  SET_VAL(pDResInfo, *((int64_t*)pDBuf), 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -534,6 +564,26 @@ int32_t sumInvertFunction(SqlFunctionCtx* pCtx) {
 
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t sumCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SSumRes* pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type  = pDestCtx->input.pData[0]->info.type;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SSumRes* pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  
+  if (IS_SIGNED_NUMERIC_TYPE(type) || type == TSDB_DATA_TYPE_BOOL) {
+    pDBuf->isum += pSBuf->isum;
+  } else if (IS_UNSIGNED_NUMERIC_TYPE(type)) {
+    pDBuf->usum += pSBuf->usum;
+  } else if (type == TSDB_DATA_TYPE_DOUBLE || type == TSDB_DATA_TYPE_FLOAT) {
+    pDBuf->dsum += pSBuf->dsum;
+  }
+
+  SET_VAL(pDResInfo, *((int64_t*)pDBuf), 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -735,6 +785,24 @@ int32_t avgInvertFunction(SqlFunctionCtx* pCtx) {
 
   // data in the check operation are all null, not output
   SET_VAL(GET_RES_INFO(pCtx), numOfElem, 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t avgCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SAvgRes*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SAvgRes*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  if (IS_INTEGER_TYPE(type)) {
+    pDBuf->sum.isum += pSBuf->sum.isum;
+  } else {
+    pDBuf->sum.dsum += pSBuf->sum.dsum;
+  }
+  pDBuf->count += pSBuf->count;
+
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1273,6 +1341,34 @@ void setSelectivityValue(SqlFunctionCtx* pCtx, SSDataBlock* pBlock, const STuple
   }
 }
 
+int32_t minMaxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx, int32_t isMinFunc) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SMinmaxResInfo*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SMinmaxResInfo*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+  if (IS_FLOAT_TYPE(type)) {
+    if (pSBuf->assign && 
+        ( (((*(double*)&pDBuf->v) < (*(double*)&pSBuf->v)) ^ isMinFunc) || !pDBuf->assign ) ) {
+      *(double*) &pDBuf->v = *(double*) &pSBuf->v;
+    }
+  } else {
+    if ( pSBuf->assign && ( ((pDBuf->v < pSBuf->v) ^ isMinFunc) || !pDBuf->assign ) ) {
+      pDBuf->v = pSBuf->v;
+    }
+  }
+  SET_VAL(pDResInfo, *((int64_t*)pDBuf), 1);
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t minCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  return minMaxCombine(pDestCtx, pSourceCtx, 1);
+}
+int32_t maxCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  return minMaxCombine(pDestCtx, pSourceCtx, 0);
+}
+
 bool getStddevFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
   pEnv->calcMemSize = sizeof(SStddevRes);
   return true;
@@ -1489,6 +1585,25 @@ int32_t stddevFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   }
 
   return functionFinalize(pCtx, pBlock);
+}
+
+int32_t stddevCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  SStddevRes*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  SStddevRes*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  if (IS_INTEGER_TYPE(type)) {
+    pDBuf->isum += pSBuf->isum;
+    pDBuf->quadraticISum += pSBuf->quadraticISum;
+  } else {
+    pDBuf->dsum += pSBuf->dsum;
+    pDBuf->quadraticDSum += pSBuf->quadraticDSum;
+  }
+  pDBuf->count += pSBuf->count;
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getLeastSQRFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv) {
@@ -1977,6 +2092,24 @@ int32_t lastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   colDataAppend(pCol, pBlock->info.rows, in, pResInfo->isNullRes);
 
   return pResInfo->numOfRes;
+}
+
+int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx) {
+  SResultRowEntryInfo* pDResInfo = GET_RES_INFO(pDestCtx);
+  char*      pDBuf = GET_ROWCELL_INTERBUF(pDResInfo);
+  int32_t type = pDestCtx->input.pData[0]->info.type;
+  int32_t bytes = pDestCtx->input.pData[0]->info.bytes;
+
+  SResultRowEntryInfo* pSResInfo = GET_RES_INFO(pSourceCtx);
+  char*      pSBuf = GET_ROWCELL_INTERBUF(pSResInfo);
+
+  if (pSResInfo->numOfRes != 0 && 
+        (pDResInfo->numOfRes == 0 || *(TSKEY*)(pDBuf + bytes) < *(TSKEY*)(pSBuf + bytes)) ) {
+    memcpy(pDBuf, pSBuf, bytes);
+    *(TSKEY*)(pDBuf + bytes) = *(TSKEY*)(pSBuf + bytes);
+    pDResInfo->numOfRes = 1;
+  }
+  return TSDB_CODE_SUCCESS;
 }
 
 bool getDiffFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv) {
