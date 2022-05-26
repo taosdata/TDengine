@@ -224,9 +224,6 @@ class TDTestCase:
         tdSql.error( "select hyperloglog(c1, c2) from ct2" )
         tdSql.error( "select hyperloglog(1) from ct2" )
         tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
-        tdSql.error( f"select hyperloglog({BOOLEAN_COL[0]}) from t1" )
-        tdSql.error( f"select hyperloglog({CHAR_COL[0]}) from stb1" )
-
         tdSql.error( ''' select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
                     from ct1
                     where ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null
