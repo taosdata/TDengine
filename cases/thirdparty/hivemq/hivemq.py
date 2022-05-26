@@ -1,4 +1,5 @@
 import os.path
+import time
 
 from taostest import TDCase
 from taostest.util import Remote
@@ -62,11 +63,13 @@ class HiveMQTest(TDCase):
         self.tdSql.execute("drop database if exists hivemq")
         self.config_rest()
         self.run_container()
+        time.sleep(3)
         self.send_test_data(3)
         # self.config_native()
         # kill and start container to make new configuration take effect
         # self.run_container()
         # self.send_test_data(3)
+        time.sleep(3)
         self.tdSql.query("select count(*) from hivemq.mqtt_payload")
         self.tdSql.checkData(1, 1, 3)
 
