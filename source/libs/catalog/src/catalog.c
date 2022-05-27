@@ -1194,7 +1194,7 @@ void catalogDestroy(void) {
   taosHashCleanup(gCtgMgmt.pCluster);
   gCtgMgmt.pCluster = NULL;
 
-  CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock) == TD_RWLATCH_WRITE_FLAG_COPY) CTG_UNLOCK(CTG_WRITE, &gCtgMgmt.lock);
 
   qInfo("catalog destroyed");
 }
