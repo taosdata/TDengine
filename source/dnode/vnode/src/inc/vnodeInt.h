@@ -91,6 +91,7 @@ int             metaAlterTable(SMeta* pMeta, int64_t version, SVAlterTbReq* pReq
 SSchemaWrapper* metaGetTableSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver, bool isinline);
 STSchema*       metaGetTbTSchema(SMeta* pMeta, tb_uid_t uid, int32_t sver);
 int             metaGetTableEntryByName(SMetaReader* pReader, const char* name);
+tb_uid_t        metaGetTableEntryUidByName(SMeta* pMeta, const char* name);
 int             metaGetTbNum(SMeta* pMeta);
 SMCtbCursor*    metaOpenCtbCursor(SMeta* pMeta, tb_uid_t uid);
 void            metaCloseCtbCursor(SMCtbCursor* pCtbCur);

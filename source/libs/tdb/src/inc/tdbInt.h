@@ -55,8 +55,8 @@ typedef u32 SPgno;
 #define TDB_PUT_U24(p, v)       \
   do {                          \
     int tv = (v);               \
-    (p)[2] = tv & 0xff;         \
-    (p)[1] = (tv >> 8) & 0xff;  \
+    (p)[1] = tv & 0xff;         \
+    (p)[2] = (tv >> 8) & 0xff;  \
     (p)[0] = (tv >> 16) & 0xff; \
   } while (0)
 
