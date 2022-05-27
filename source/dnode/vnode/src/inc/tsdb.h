@@ -49,8 +49,6 @@ int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIte
 typedef struct STsdbFS STsdbFS;
 
 // tsdbSma ================
-typedef struct SSmaEnv  SSmaEnv;
-typedef struct SSmaEnvs SSmaEnvs;
 
 // structs
 typedef struct {
