@@ -1,6 +1,6 @@
 ---
 sidebar_label: Subscription
-description: "Lightweight service for data subscription and pushing, the time series data inserted into TDengine continuously can be pushed automatically to the subscribing clients."
+description: "Lightweight service for data subscription and publishing. Time series data inserted into TDengine continuously can be pushed automatically to subscribing clients."
 title: Data Subscription
 ---
 
@@ -16,9 +16,9 @@ import CDemo from "./_sub_c.mdx";
 
 ## Introduction
 
-Due to the nature of time series data, data inserting in TDengine is similar to data publishing in message queues. Data is stored in ascending order of timestamp inside TDengine, so each table in TDengine can essentially be considered as a message queue.
+Due to the nature of time series data, data insertion into TDengine is similar to data publishing in message queues. Data is stored in ascending order of timestamp inside TDengine, and so each table in TDengine can essentially be considered as a message queue.
 
-A lightweight service for data subscription and pushing is built in TDengine. With the API provided by TDengine, client programs can use `select` statements to subscribe to data from one or more tables. The subscription and state maintenance is performed on the client side, the client programs poll the server to check whether there is new data, and if so the new data will be pushed back to the client side. If the client program is restarted, where to start for retrieving new data is up to the client side.
+A lightweight service for data subscription and publishing is built into TDengine. With the API provided by TDengine, client programs can use `select` statements to subscribe to data from one or more tables. The subscription and state maintenance is performed on the client side. The client programs poll the server to check whether there is new data, and if so the new data will be pushed back to the client side. If the client program is restarted, where to start retrieving new data is up to the client side.
 
 There are 3 major APIs related to subscription provided in the TDengine client driver.
 
@@ -32,7 +32,7 @@ For more details about these APIs please refer to [C/C++ Connector](/reference/c
 
 If we want to get a notification and take some actions if the current exceeds a threshold, like 10A, from some meters, there are two ways:
 
-The first way is to query on each sub table and record the last timestamp matching the criteria, then after some time query on the data later than recorded timestamp and repeat this process. The SQL statements for this way are as below.
+The first way is to query each sub table and record the last timestamp matching the criteria. Then after some time, query the data later than the recorded timestamp, and repeat this process. The SQL statements for this way are as below.
 
 ```sql
 select * from D1001 where ts > {last_timestamp1} and current > 10;
@@ -50,7 +50,7 @@ select * from meters where ts > {last_timestamp} and current > 10;
 
 However, this presents a new problem in how to choose `last_timestamp`. First, the timestamp when the data is generated is different from the timestamp when the data is inserted into the database, sometimes the difference between them may be very big. Second, the time when the data from different meters arrives at the database may be different too. If the timestamp of the "slowest" meter is used as `last_timestamp` in the query, the data from other meters may be selected repeatedly; but if the timestamp of the "fastest" meter is used as `last_timestamp`, some data from other meters may be missed.
 
-All the problems mentioned above can be resolved thoroughly using subscription provided by TDengine.
+All the problems mentioned above can be resolved easily using the subscription functionality provided by TDengine.
 
 The first step is to create subscription using `taos_subscribe`.
 
@@ -65,31 +65,33 @@ if (async) {
 }
 ```
 
-The subscription in TDengine can be either synchronous or asynchronous. In the above sample code, the value of variable `async` is determined from the CLI input, then it's used to create either an async or sync subscription. Sync subscription means the client program needs to invoke `taos_consume` to retrieve data, and async subscription means another thread created by `taos_subscribe` internally invokes `taos_consume` to retrieve data and pass the data to `subscribe_callback` for processing, `subscribe_callback` is a call back function provided by the client program and it's suggested not to do time consuming operation in the call back function.
+The subscription in TDengine can be either synchronous or asynchronous. In the above sample code, the value of variable `async` is determined from the CLI input, then it's used to create either an async or sync subscription. Sync subscription means the client program needs to invoke `taos_consume` to retrieve data, and async subscription means another thread created by `taos_subscribe` internally invokes `taos_consume` to retrieve data and pass the data to `subscribe_callback` for processing. `subscribe_callback` is a callback function provided by the client program. You should not perform time consuming operations in the callback function.
 
-The parameter `taos` is an established connection. There is nothing special in sync subscription mode. In async subscription, it should be exclusively by current thread, otherwise unpredictable error may occur.
+The parameter `taos` is an established connection. Nothing special needs to be done for thread safety for synchronous subscription. For asynchronous subscription, the taos_subscribe function should be called exclusively by the current thread, to avoid unpredictable errors.
 
-The parameter `sql` is a `select` statement in which `where` clause can be used to specify filter conditions. In our example, the data whose current exceeds 10A needs to be subscribed like below SQL statement:
+The parameter `sql` is a `select` statement in which the `where` clause can be used to specify filter conditions. In our example, we can subscribe to the records in which the current exceeds 10A, with the following SQL statement:
 
 ```sql
 select * from meters where current > 10;
 ```
 
-Please note that, all the data will be processed because no start time is specified. If only the data from one day ago needs to be processed, a time related condition can be added:
+Please note that, all the data will be processed because no start time is specified. If we only want to process data for the past day, a time related condition can be added:
 
 ```sql
 select * from meters where ts > now - 1d and current > 10;
 ```
 
-The parameter `topic` is the name of the subscription, it needs to be guaranteed unique in the client program, but it's not necessary to be globally unique because subscription is implemented in the APIs on the client side.
+The parameter `topic` is the name of the subscription. The client application must guarantee that the name is unique. However, it doesn't have to be globally unique because subscription is implemented in the APIs on the client side.
 
-If the subscription named as `topic` doesn't exist, the parameter `restart` will be ignored. If the subscription named as `topic` has been created before by the client program, when the client program is restarted with the subscription named `topic`, parameter `restart` is used to determine whether to retrieve data from the beginning or from the last point where the subscription was broken. If the value of `restart` is **true** (i.e. a non-zero value), the data will be retrieved from beginning, or if it is **false** (i.e. zero), the data already consumed before will not be processed again.
+If the subscription named as `topic` doesn't exist, the parameter `restart` will be ignored. If the subscription named as `topic` has been created before by the client program, when the client program is restarted with the subscription named `topic`, parameter `restart` is used to determine whether to retrieve data from the beginning or from the last point where the subscription was broken.
 
-The last parameter of `taos_subscribe` is the polling interval in unit of millisecond. In sync mode, if the time difference between two continuous invocations to `taos_consume` is smaller than the interval specified by `taos_subscribe`, `taos_consume` will be blocked until the interval is reached. In async mode, this interval is the minimum interval between two invocations to the call back function.
+If the value of `restart` is **true** (i.e. a non-zero value), data will be retrieved from the beginning. If it is **false** (i.e. zero), the data already consumed before will not be processed again.
+
+The last parameter of `taos_subscribe` is the polling interval in units of millisecond. In sync mode, if the time difference between two continuous invocations to `taos_consume` is smaller than the interval specified by `taos_subscribe`, `taos_consume` will be blocked until the interval is reached. In async mode, this interval is the minimum interval between two invocations to the call back function.
 
 The second to last parameter of `taos_subscribe` is used to pass arguments to the call back function. `taos_subscribe` doesn't process this parameter and simply passes it to the call back function. This parameter is simply ignored in sync mode.
 
-After a subscription is created, its data can be consumed and processed, below is the sample code of how to consume data in sync mode, in the else part if `if (async)`.
+After a subscription is created, its data can be consumed and processed. Shown below is the sample code to consume data in sync mode, in the else condition of `if (async)`.
 
 ```c
 if (async) {
@@ -106,7 +108,7 @@ if (async) {
 }
 ```
 
-In the above sample code, there is an infinite loop, each time carriage return is entered `taos_consume` is invoked, the return value of `taos_consume` is the selected result set, exactly as the input of `taos_use_result`, in the above sample `print_result` is used instead to simplify the sample. Below is the implementation of `print_result`.
+In the above sample code in the else condition, there is an infinite loop. Each time carriage return is entered `taos_consume` is invoked. The return value of `taos_consume` is the selected result set. In the above sample, `print_result` is used to simplify the printing of the result set. Below is the implementation of `print_result`.
 
 ```c
 void print_result(TAOS_RES* res, int blockFetch) {
@@ -133,9 +135,9 @@ void print_result(TAOS_RES* res, int blockFetch) {
 }
 ```
 
-In the above code `taos_print_row` is used to process the data consumed. All the matching rows will be printed.
+In the above code `taos_print_row` is used to process the data consumed. All matching rows are printed.
 
-In async mode, the data consuming is simpler as below.
+In async mode, consuming data is simpler as shown below.
 
 ```c
 void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
@@ -175,7 +177,7 @@ Then, this row of data will be shown by the example program on the first termina
 
 ## Examples
 
-Below example program demonstrates how to subscribe the data rows whose current exceeds 10A using connectors.
+The example program below demonstrates how to subscribe, using connectors, to data rows in which current exceeds 10A.
 
 ### Prepare Data
 
@@ -250,7 +252,7 @@ taos> use power;
 taos> insert into d1001 values(now, 12.4, 220, 1);
 ```
 
-Because the current in inserted row exceeds 10A, it will be consumed by the example program.
+Because the current in the inserted row exceeds 10A, it will be consumed by the example program.
 
 ```
 ts: 1651146662805	current: 12.4	voltage: 220	phase: 1	location: California.SanFrancisco	groupid: 2
