@@ -45,14 +45,18 @@ class TDTestCase:
         tdSql.error("select percentile(col7 ,20) from test")
         tdSql.error("select percentile(col8 ,20) from test")        
         tdSql.error("select percentile(col9 ,20) from test") 
-        table_list = [1,2,3,4,11,12,13,14]
+        column_list = [1,2,3,4,11,12,13,14]
         percent_list = [0,50,100]  
-        for i in table_list:  
+        for i in column_list:  
             for j in percent_list:
                 tdSql.query(f"select percentile(col{i}, {j}) from test")        
                 tdSql.checkData(0, 0, np.percentile(intData, j)) 
 
-
+        for i in [5,6]:
+            for j in percent_list:
+                tdSql.query(f"select percentile(col{i}, {j}) from test")
+                tdSql.checkData(0, 0, np.percentile(floatData, j))
+        
         tdSql.execute("create table meters (ts timestamp, voltage int) tags(loc nchar(20))")
         tdSql.execute("create table t0 using meters tags('beijing')")
         tdSql.execute("create table t1 using meters tags('shanghai')")
