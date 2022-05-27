@@ -47,7 +47,7 @@ endi
 
 print ========== step2 describe
 sql describe db.ctb
-if $rows != 7 then
+if $rows != 6 then
   return -1
 endi
 if $data[0][0] != ts then
@@ -74,5 +74,33 @@ endi
 if $data[5][0] != t3 then
   return -1
 endi
+
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s start
+
+sql connect
+sql select * from db.ctb
+
+if $rows != 2 then
+  return -1
+endi
+#if $data[0][1] != 1 then
+#  return -1
+#endi
+#if $data[0][2] != 1234 then
+#  return -1
+#endi  
+#if $data[0][3] != 101 then
+#  return -1
+#endi
+#if $data[1][1] != 1 then
+#  return -1
+#endi
+#if $data[1][2] != 12345 then
+#  return -1
+#endi
+#if $data[1][3] != 101 then
+#  return -1
+#endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

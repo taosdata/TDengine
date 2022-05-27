@@ -60,21 +60,12 @@ int32_t qndProcessQueryMsg(SQnode *pQnode, SRpcMsg *pMsg) {
     case TDMT_VND_FETCH_RSP:
       code = qWorkerProcessFetchRsp(pQnode, pQnode->pQuery, pMsg);
       break;
-    case TDMT_VND_RES_READY:
-      code = qWorkerProcessReadyMsg(pQnode, pQnode->pQuery, pMsg);
-      break;
-    case TDMT_VND_TASKS_STATUS:
-      code = qWorkerProcessStatusMsg(pQnode, pQnode->pQuery, pMsg);
-      break;
     case TDMT_VND_CANCEL_TASK:
       code = qWorkerProcessCancelMsg(pQnode, pQnode->pQuery, pMsg);
       break;
     case TDMT_VND_DROP_TASK:
       code = qWorkerProcessDropMsg(pQnode, pQnode->pQuery, pMsg);
       break;
-    case TDMT_VND_TABLE_META:
-      // code =  vnodeGetTableMeta(pQnode, pMsg);
-      // break;
     case TDMT_VND_CONSUME:
       // code =  tqProcessConsumeReq(pQnode->pTq, pMsg);
       // break;

@@ -77,3 +77,4 @@ run  sma/tsmaCreateInsertData.sim
 run  sma/rsmaCreateInsertQuery.sim
 run  valgrind/checkError.sim
 run  bnode/basic1.sim
+

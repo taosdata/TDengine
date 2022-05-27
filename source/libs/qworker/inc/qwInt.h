@@ -26,7 +26,7 @@ extern "C" {
 #include "ttimer.h"
 #include "tref.h"
 #include "plannodes.h"
-
+#include "executor.h"
 #include "trpc.h"
 
 #define QW_DEFAULT_SCHEDULER_NUMBER 10000
@@ -75,6 +75,8 @@ typedef struct SQWDebug {
   bool statusEnable;
   bool dumpEnable;
 } SQWDebug;
+
+extern SQWDebug gQWDebug;
 
 typedef struct SQWMsg {
   void          *node;
@@ -303,8 +305,26 @@ typedef struct SQWorkerMgmt {
 extern SQWorkerMgmt gQwMgmt;
 
 static FORCE_INLINE SQWorker *qwAcquire(int64_t refId) { return (SQWorker *)taosAcquireRef(atomic_load_32(&gQwMgmt.qwRef), refId); }
-
 static FORCE_INLINE int32_t qwRelease(int64_t refId) { return taosReleaseRef(gQwMgmt.qwRef, refId); }
+
+char *qwPhaseStr(int32_t phase);
+char *qwBufStatusStr(int32_t bufStatus);
+int32_t qwAcquireAddScheduler(SQWorker *mgmt, uint64_t sId, int32_t rwType, SQWSchStatus **sch);
+void qwReleaseScheduler(int32_t rwType, SQWorker *mgmt);
+int32_t qwAddTaskStatus(QW_FPARAMS_DEF, int32_t status);
+int32_t qwAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
+int32_t qwGetTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
+int32_t qwAddAcquireTaskCtx(QW_FPARAMS_DEF, SQWTaskCtx **ctx);
+void qwReleaseTaskCtx(SQWorker *mgmt, void *ctx);
+int32_t qwKillTaskHandle(QW_FPARAMS_DEF, SQWTaskCtx *ctx);
+int32_t qwUpdateTaskStatus(QW_FPARAMS_DEF, int8_t status);
+int32_t qwDropTask(QW_FPARAMS_DEF);
+void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx);
+int32_t qwOpenRef(void);
+void qwSetHbParam(int64_t refId, SQWHbParam **pParam);
+
+void qwDbgDumpMgmtInfo(SQWorker *mgmt);
+int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);
 
 
 #ifdef __cplusplus

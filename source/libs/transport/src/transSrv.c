@@ -146,7 +146,7 @@ static void uvHandleRelease(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleResp(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void uvHandleRegister(SSrvMsg* msg, SWorkThrdObj* thrd);
 static void (*transAsyncHandle[])(SSrvMsg* msg, SWorkThrdObj* thrd) = {uvHandleResp, uvHandleQuit, uvHandleRelease,
-                                                                       uvHandleRegister};
+                                                                       uvHandleRegister, NULL};
 
 static int32_t exHandlesMgt;
 
@@ -923,7 +923,7 @@ void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads,
   }
   if (false == taosValidIpAndPort(srv->ip, srv->port)) {
     terrno = TAOS_SYSTEM_ERROR(errno);
-    tError("invalid ip/port, reason: %s", terrstr());
+    tError("invalid ip/port, %d:%d, reason: %s", srv->ip, srv->port, terrstr());
     goto End;
   }
   if (false == addHandleToAcceptloop(srv)) {
@@ -1036,6 +1036,7 @@ void destroyWorkThrd(SWorkThrdObj* pThrd) {
   }
   taosThreadJoin(pThrd->thread, NULL);
   SRV_RELEASE_UV(pThrd->loop);
+  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SSrvMsg, destroySmsg);
   transDestroyAsyncPool(pThrd->asyncPool);
   taosMemoryFree(pThrd->loop);
   taosMemoryFree(pThrd);

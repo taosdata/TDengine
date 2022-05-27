@@ -62,7 +62,7 @@ TDengine的主要功能如下：
 
 <figure>
 
-![TDengine技术生态图](eco_system.webp)
+![TDengine Database 技术生态图](eco_system.webp)
 
 </figure>
 <center>图 1. TDengine技术生态图</center>

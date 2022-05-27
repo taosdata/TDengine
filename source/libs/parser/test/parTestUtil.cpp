@@ -17,7 +17,10 @@
 
 #include <algorithm>
 #include <array>
+#include <thread>
 
+#include "catalog.h"
+#include "mockCatalogService.h"
 #include "parInt.h"
 
 using namespace std;
@@ -41,7 +44,8 @@ namespace ParserTest {
     }                                                                                                                \
   } while (0);
 
-bool g_isDump = false;
+bool g_dump = false;
+bool g_testAsyncApis = false;
 
 struct TerminateFlag : public exception {
   const char* what() const throw() { return "success and terminate"; }
@@ -69,7 +73,60 @@ class ParserTestBaseImpl {
 
       doCalculateConstant(&cxt, pQuery);
 
-      if (g_isDump) {
+      if (g_dump) {
+        dump();
+      }
+    } catch (const TerminateFlag& e) {
+      // success and terminate
+      return;
+    } catch (...) {
+      dump();
+      throw;
+    }
+
+    if (g_testAsyncApis) {
+      runAsync(sql, expect, checkStage);
+    }
+  }
+
+  void runAsync(const string& sql, int32_t expect, ParserStage checkStage) {
+    reset(expect, checkStage);
+    try {
+      SParseContext cxt = {0};
+      setParseContext(sql, &cxt, true);
+
+      SQuery* pQuery = nullptr;
+      doParse(&cxt, &pQuery);
+
+      SCatalogReq catalogReq = {0};
+      doBuildCatalogReq(pQuery->pMetaCache, &catalogReq);
+
+      string err;
+      thread t1([&]() {
+        try {
+          SMetaData metaData = {0};
+          doGetAllMeta(&catalogReq, &metaData);
+
+          doPutMetaDataToCache(&catalogReq, &metaData, pQuery->pMetaCache);
+
+          doTranslate(&cxt, pQuery);
+
+          doCalculateConstant(&cxt, pQuery);
+        } catch (const TerminateFlag& e) {
+          // success and terminate
+        } catch (const runtime_error& e) {
+          err = e.what();
+        } catch (...) {
+          err = "unknown error";
+        }
+      });
+
+      t1.join();
+      if (!err.empty()) {
+        throw runtime_error(err);
+      }
+
+      if (g_dump) {
         dump();
       }
     } catch (const TerminateFlag& e) {
@@ -144,7 +201,7 @@ class ParserTestBaseImpl {
     cout << res_.calcConstAst_ << endl;
   }
 
-  void setParseContext(const string& sql, SParseContext* pCxt) {
+  void setParseContext(const string& sql, SParseContext* pCxt, bool async = false) {
     stmtEnv_.sql_ = sql;
     transform(stmtEnv_.sql_.begin(), stmtEnv_.sql_.end(), stmtEnv_.sql_.begin(), ::tolower);
 
@@ -154,12 +211,25 @@ class ParserTestBaseImpl {
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
     pCxt->msgLen = stmtEnv_.msgBuf_.max_size();
+    pCxt->async = async;
   }
 
   void doParse(SParseContext* pCxt, SQuery** pQuery) {
     DO_WITH_THROW(parse, pCxt, pQuery);
     ASSERT_NE(*pQuery, nullptr);
     res_.parsedAst_ = toString((*pQuery)->pRoot);
+  }
+
+  void doBuildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
+    DO_WITH_THROW(buildCatalogReq, pMetaCache, pCatalogReq);
+  }
+
+  void doGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) {
+    DO_WITH_THROW(g_mockCatalogService->catalogGetAllMeta, pCatalogReq, pMetaData);
+  }
+
+  void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
+    DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
 
   void doTranslate(SParseContext* pCxt, SQuery* pQuery) {
@@ -198,6 +268,10 @@ void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { i
 
 void ParserTestBase::run(const std::string& sql, int32_t expect, ParserStage checkStage) {
   return impl_->run(sql, expect, checkStage);
+}
+
+void ParserTestBase::runAsync(const std::string& sql, int32_t expect, ParserStage checkStage) {
+  return impl_->runAsync(sql, expect, checkStage);
 }
 
 void ParserTestBase::checkDdl(const SQuery* pQuery, ParserStage stage) { return; }

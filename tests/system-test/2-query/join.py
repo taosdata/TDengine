@@ -36,17 +36,14 @@ class TDTestCase:
             query_condition.extend(
                 (
                     f"{tbname}.{char_col}",
-                    f"upper( {tbname}.{char_col} )",
+                    # f"upper( {tbname}.{char_col} )",
                 )
             )
             query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{char_col_2} as binary(32) ) " for char_col_2 in CHAR_COL )
-            query_condition.extend( f"cast( {tbname}.{char_col} + {tbname}.{un_char_col} as binary(32) ) " for un_char_col in NUM_COL )
         for num_col in NUM_COL:
             query_condition.extend(
                 (
-                    f"{tbname}.{num_col}",
-                    f"sin( {tbname}.{num_col} )"
+                    f"sin( {tbname}.{num_col} )",
                 )
             )
             query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_1} " for num_col_1 in NUM_COL )
@@ -55,41 +52,115 @@ class TDTestCase:
 
         return query_condition
 
-    def __join_condition(self, tb_list, filter=PRIMARY_COL):
-        # sourcery skip: flip-comparison
-        if 1 == len(tb_list):
-            join_filter = f"{tb_list[0]}.{filter} = {tb_list[0]}.{filter} "
-        elif 2 == len(tb_list):
-            join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
-        else:
-            join_filter = f"{tb_list[0]}.{filter} = {tb_list[1]}.{filter} "
-            for i in range(1, len(tb_list)-1 ):
-                join_filter += f"and {tb_list[i]}.{filter} = {tb_list[i+1]}.{filter}"
+    def __join_condition(self, tb_list, filter=PRIMARY_COL, INNER=False):
+        table_reference = tb_list[0]
+        join_condition = table_reference
+        join = "inner join" if INNER else "join"
+        for i in range(len(tb_list[1:])):
+            join_condition += f" {join} {tb_list[i+1]} on {table_reference}.{filter}={tb_list[i+1]}.{filter}"
 
-        return join_filter
+        return join_condition
 
-    def __where_condition(self, col, tbname):
+    def __where_condition(self, col=None, tbname=None, query_conditon=None):
+        if query_conditon and isinstance(query_conditon, str):
+            if query_conditon.startswith("count"):
+                query_conditon = query_conditon[6:-1]
+            elif query_conditon.startswith("max"):
+                query_conditon = query_conditon[4:-1]
+            elif query_conditon.startswith("sum"):
+                query_conditon = query_conditon[4:-1]
+            elif query_conditon.startswith("min"):
+                query_conditon = query_conditon[4:-1]
+
+        if query_conditon:
+            return f" where {query_conditon} is not null"
         if col in NUM_COL:
-            return f" abs( {tbname}.{col} ) >= 0"
-        elif col in CHAR_COL:
-            return f" lower( {tbname}.{col} ) like 'bina%' or lower( {tbname}.{col} ) like '_cha%' "
-        elif col in BOOLEAN_COL:
-            return f" {tbname}.{col} in (false, true)  "
-        elif col in TS_TYPE_COL or col in PRIMARY_COL:
-            return f" cast( {tbname}.{col} as binary(16) ) is not null "
-        else:
-            return ""
+            return f" where abs( {tbname}.{col} ) >= 0"
+        if col in CHAR_COL:
+            return f" where lower( {tbname}.{col} ) like 'bina%' or lower( {tbname}.{col} ) like '_cha%' "
+        if col in BOOLEAN_COL:
+            return f" where {tbname}.{col} in (false, true)  "
+        if col in TS_TYPE_COL or col in PRIMARY_COL:
+            return f" where cast( {tbname}.{col} as binary(16) ) is not null "
 
-    def __group_condition(self, tbname, col, having = ""):
+        return ""
+
+    def __group_condition(self, col, having = None):
+        if isinstance(col, str):
+            if col.startswith("count"):
+                col = col[6:-1]
+            elif col.startswith("max"):
+                col = col[4:-1]
+            elif col.startswith("sum"):
+                col = col[4:-1]
+            elif col.startswith("min"):
+                col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __join_check(self, tblist, checkrows, join_flag=True):
+    def __gen_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
+        if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
+            return
+        return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
+
+    @property
+    def __join_tblist(self):
+        return [
+            # ["ct1", "ct2"],
+            ["ct1", "ct4"],
+            ["ct1", "t1"],
+            # ["ct2", "ct4"],
+            # ["ct2", "t1"],
+            # ["ct4", "t1"],
+            # ["ct1", "ct2", "ct4"],
+            # ["ct1", "ct2", "t1"],
+            # ["ct1", "ct4", "t1"],
+            # ["ct2", "ct4", "t1"],
+            # ["ct1", "ct2", "ct4", "t1"],
+        ]
+
+    @property
+    def __sqls_list(self):
+        sqls = []
+        __join_tblist = self.__join_tblist
+        for join_tblist in __join_tblist:
+            for join_tb in join_tblist:
+                select_claus_list = self.__query_condition(join_tb)
+                for select_claus in select_claus_list:
+                    group_claus = self.__group_condition( col=select_claus)
+                    where_claus = self.__where_condition( query_conditon=select_claus )
+                    having_claus = self.__group_condition( col=select_claus, having=f"{select_claus} is not null" )
+                    sqls.extend(
+                        (
+                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus, group_claus),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus),
+                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist), group_claus),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), having_claus),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist)),
+                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, group_claus),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, ),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), having_claus ),
+                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), group_claus ),
+                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True) ),
+                        )
+                    )
+        return list(filter(None, sqls))
+
+    def __join_check(self,):
+        tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
+        for i in range(len(self.__sqls_list)):
+            tdSql.query(self.__sqls_list[i])
+            # if i % 10 == 0 :
+            #     tdLog.success(f"{i} sql is already executed success !")
+
+    def __join_check_old(self, tblist, checkrows, join_flag=True):
         query_conditions = self.__query_condition(tblist[0])
         join_condition = self.__join_condition(tb_list=tblist) if join_flag else " "
         for condition in query_conditions:
             where_condition =  self.__where_condition(col=condition, tbname=tblist[0])
-            group_having = self.__group_condition(tbname=tblist[0], col=condition, having=f"{condition} is not null " )
-            group_no_having= self.__group_condition(tbname=tblist[0], col=condition )
+            group_having = self.__group_condition(col=condition, having=f"{condition} is not null " )
+            group_no_having= self.__group_condition(col=condition )
             groups = ["", group_having, group_no_having]
             for group_condition in groups:
                 if where_condition:
@@ -116,23 +187,6 @@ class TDTestCase:
         tdSql.query(sql=sql)
         # tdSql.checkRows(checkrows)
 
-
-    def __test_current(self):
-        # sourcery skip: extract-duplicate-method, inline-immediately-returned-variable
-        tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        tblist_1 = ["ct1", "ct2"]
-        self.__join_check(tblist_1, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_1} over==========")
-        tblist_2 = ["ct2", "ct4"]
-        self.__join_check(tblist_2, self.rows)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_2} over==========")
-        tblist_3 = ["t1", "ct4"]
-        self.__join_check(tblist_3, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_3} over==========")
-        tblist_4 = ["t1", "ct1"]
-        self.__join_check(tblist_4, 1)
-        tdLog.printNoPrefix(f"==========current sql condition check in {tblist_4} over==========")
-
     def __test_error(self):
         # sourcery skip: extract-duplicate-method, move-assign-in-block
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
@@ -141,17 +195,17 @@ class TDTestCase:
         err_list_3 = ["ct1","ct4", "t1"]
         err_list_4 = ["ct2","ct4", "t1"]
         err_list_5 = ["ct1", "ct2","ct4", "t1"]
-        self.__join_check(err_list_1, -1)
+        self.__join_check_old(err_list_1, -1)
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_1} over==========")
-        self.__join_check(err_list_2, -1)
+        self.__join_check_old(err_list_2, -1)
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_2} over==========")
-        self.__join_check(err_list_3, -1)
+        self.__join_check_old(err_list_3, -1)
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_3} over==========")
-        self.__join_check(err_list_4, -1)
+        self.__join_check_old(err_list_4, -1)
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_4} over==========")
-        self.__join_check(err_list_5, -1)
+        self.__join_check_old(err_list_5, -1)
         tdLog.printNoPrefix(f"==========err sql condition check in {err_list_5} over==========")
-        self.__join_check(["ct2", "ct4"], -1, join_flag=False)
+        self.__join_check_old(["ct2", "ct4"], -1, join_flag=False)
         tdLog.printNoPrefix("==========err sql condition check in has no join condition over==========")
 
         tdSql.error( f"select c1, c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
@@ -172,7 +226,7 @@ class TDTestCase:
 
 
     def all_test(self):
-        self.__test_current()
+        self.__join_check()
         self.__test_error()
 
 

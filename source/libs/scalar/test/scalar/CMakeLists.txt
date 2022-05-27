@@ -8,7 +8,7 @@ AUX_SOURCE_DIRECTORY(${CMAKE_CURRENT_SOURCE_DIR} SOURCE_LIST)
 ADD_EXECUTABLE(scalarTest ${SOURCE_LIST})
 TARGET_LINK_LIBRARIES(
         scalarTest
-        PUBLIC os util common gtest qcom function nodes scalar parser
+        PUBLIC os util common gtest qcom function nodes scalar parser catalog transport
 )
 
 TARGET_INCLUDE_DIRECTORIES(

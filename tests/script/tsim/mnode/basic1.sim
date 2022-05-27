@@ -88,7 +88,7 @@ sql show mnodes
 print $data(1)[0] $data(1)[1] $data(1)[2] 
 print $data(2)[0] $data(2)[1] $data(2)[2] 
 
-if $rows != 2 then 
+if $rows != 1 then 
   return -1
 endi
 if $data(1)[0] != 1 then 
@@ -97,16 +97,16 @@ endi
 if $data(1)[2] != LEADER then 
   return -1
 endi
-if $data(2)[0] != NULL then 
+if $data(2)[0] != null then 
   goto step2
 endi
-if $data(2)[2] != NULL then 
+if $data(2)[2] != null then 
   goto step2
 endi
 
 sleep 2000
 
-print =============== create drop mnodes
+print =============== create mnodes
 sql create mnode on dnode 2
 sql show mnodes
 if $rows != 2 then 

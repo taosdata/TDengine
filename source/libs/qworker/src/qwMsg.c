@@ -1,10 +1,10 @@
-#include "qworkerMsg.h"
+#include "qwMsg.h"
 #include "dataSinkMgt.h"
 #include "executor.h"
 #include "planner.h"
 #include "query.h"
 #include "qworker.h"
-#include "qworkerInt.h"
+#include "qwInt.h"
 #include "tcommon.h"
 #include "tmsg.h"
 #include "tname.h"
@@ -43,28 +43,8 @@ void qwFreeFetchRsp(void *msg) {
   }
 }
 
-int32_t qwBuildAndSendQueryRsp(SRpcHandleInfo *pConn, int32_t code) {
-  SQueryTableRsp rsp = {.code = code};
-
-  int32_t contLen = tSerializeSQueryTableRsp(NULL, 0, &rsp);
-  void *  msg = rpcMallocCont(contLen);
-  tSerializeSQueryTableRsp(msg, contLen, &rsp);
-
-  SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_QUERY_RSP,
-      .pCont = msg,
-      .contLen = contLen,
-      .code = code,
-      .info = *pConn,
-  };
-
-  tmsgSendRsp(&rpcRsp);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t qwBuildAndSendReadyRsp(SRpcHandleInfo *pConn, int32_t code, STbVerInfo* tbInfo) {
-  SResReadyRsp *pRsp = (SResReadyRsp *)rpcMallocCont(sizeof(SResReadyRsp));
+int32_t qwBuildAndSendQueryRsp(SRpcHandleInfo *pConn, int32_t code, STbVerInfo* tbInfo) {
+  SQueryTableRsp *pRsp = (SQueryTableRsp *)rpcMallocCont(sizeof(SQueryTableRsp));
   pRsp->code = code;
   if (tbInfo) {
     strcpy(pRsp->tbFName, tbInfo->tbFName);
@@ -73,13 +53,12 @@ int32_t qwBuildAndSendReadyRsp(SRpcHandleInfo *pConn, int32_t code, STbVerInfo* 
   }
 
   SRpcMsg rpcRsp = {
-      .msgType = TDMT_VND_RES_READY_RSP,
+      .msgType = TDMT_VND_QUERY_RSP,
       .pCont = pRsp,
       .contLen = sizeof(*pRsp),
       .code = code,
       .info = *pConn,
   };
-  rpcRsp.info.ahandle = NULL;
 
   tmsgSendRsp(&rpcRsp);
 
@@ -174,76 +153,6 @@ int32_t qwBuildAndSendDropRsp(SRpcHandleInfo *pConn, int32_t code) {
   };
 
   tmsgSendRsp(&rpcRsp);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t qwBuildAndSendShowRsp(SRpcMsg *pMsg, int32_t code) {
-  int32_t         numOfCols = 6;
-  SVShowTablesRsp showRsp = {0};
-
-  // showRsp.showId = 1;
-  showRsp.tableMeta.pSchemas = taosMemoryCalloc(numOfCols, sizeof(SSchema));
-  if (showRsp.tableMeta.pSchemas == NULL) {
-    terrno = TSDB_CODE_OUT_OF_MEMORY;
-    return -1;
-  }
-
-  col_id_t cols = 0;
-  SSchema *pSchema = showRsp.tableMeta.pSchemas;
-
-  const SSchema *s = tGetTbnameColumnSchema();
-  *pSchema = createSchema(s->type, s->bytes, ++cols, "name");
-  pSchema++;
-
-  int32_t type = TSDB_DATA_TYPE_TIMESTAMP;
-  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "created");
-  pSchema++;
-
-  type = TSDB_DATA_TYPE_SMALLINT;
-  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "columns");
-  pSchema++;
-
-  *pSchema = createSchema(s->type, s->bytes, ++cols, "stable");
-  pSchema++;
-
-  type = TSDB_DATA_TYPE_BIGINT;
-  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "uid");
-  pSchema++;
-
-  type = TSDB_DATA_TYPE_INT;
-  *pSchema = createSchema(type, tDataTypes[type].bytes, ++cols, "vgId");
-
-  assert(cols == numOfCols);
-  showRsp.tableMeta.numOfColumns = cols;
-
-  int32_t bufLen = tSerializeSShowRsp(NULL, 0, &showRsp);
-  void *  pBuf = rpcMallocCont(bufLen);
-  tSerializeSShowRsp(pBuf, bufLen, &showRsp);
-
-  SRpcMsg rpcMsg = {
-      .info = pMsg->info,
-      .pCont = pBuf,
-      .contLen = bufLen,
-      .code = code,
-  };
-
-  tmsgSendRsp(&rpcMsg);
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t qwBuildAndSendShowFetchRsp(SRpcMsg *pMsg, SVShowTablesFetchReq *pFetchReq) {
-  SVShowTablesFetchRsp *pRsp = (SVShowTablesFetchRsp *)rpcMallocCont(sizeof(SVShowTablesFetchRsp));
-  int32_t               handle = htonl(pFetchReq->id);
-
-  pRsp->numOfRows = 0;
-  SRpcMsg rpcMsg = {
-      .info = pMsg->info,
-      .pCont = pRsp,
-      .contLen = sizeof(*pRsp),
-      .code = 0,
-  };
-
-  tmsgSendRsp(&rpcMsg);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -407,65 +316,6 @@ int32_t qWorkerProcessCQueryMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t qWorkerProcessReadyMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
-  }
-
-  SQWorker *    mgmt = (SQWorker *)qWorkerMgmt;
-  SResReadyReq *msg = pMsg->pCont;
-  if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
-    QW_ELOG("invalid task ready msg, msg:%p, msgLen:%d", msg, pMsg->contLen);
-    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  msg->sId = be64toh(msg->sId);
-  msg->queryId = be64toh(msg->queryId);
-  msg->taskId = be64toh(msg->taskId);
-
-  uint64_t sId = msg->sId;
-  uint64_t qId = msg->queryId;
-  uint64_t tId = msg->taskId;
-  int64_t  rId = 0;
-
-  SQWMsg qwMsg = {.node = node, .msg = NULL, .msgLen = 0, .connInfo = pMsg->info};
-
-  QW_SCH_TASK_DLOG("processReady start, node:%p, handle:%p", node, pMsg->info.handle);
-
-  QW_ERR_RET(qwProcessReady(QW_FPARAMS(), &qwMsg));
-
-  QW_SCH_TASK_DLOG("processReady end, node:%p", node);
-
-  return TSDB_CODE_SUCCESS;
-}
-
-int32_t qWorkerProcessStatusMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
-  }
-
-  int32_t             code = 0;
-  SSchTasksStatusReq *msg = pMsg->pCont;
-  if (NULL == msg || pMsg->contLen < sizeof(*msg)) {
-    qError("invalid task status msg");
-    QW_ERR_RET(TSDB_CODE_QRY_INVALID_INPUT);
-  }
-
-  SQWorker *mgmt = (SQWorker *)qWorkerMgmt;
-  msg->sId = htobe64(msg->sId);
-  uint64_t sId = msg->sId;
-
-  SSchedulerStatusRsp *sStatus = NULL;
-
-  // QW_ERR_JRET(qwGetSchTasksStatus(qWorkerMgmt, msg->sId, &sStatus));
-
-_return:
-
-  // QW_ERR_RET(qwBuildAndSendStatusRsp(pMsg, sStatus));
-
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t qWorkerProcessFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
     return TSDB_CODE_QRY_INVALID_INPUT;
@@ -612,23 +462,4 @@ int32_t qWorkerProcessHbMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
   QW_SCH_DLOG("processHb end, node:%p", node);
 
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t qWorkerProcessShowMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
-  }
-
-  int32_t          code = 0;
-  SVShowTablesReq *pReq = pMsg->pCont;
-  QW_RET(qwBuildAndSendShowRsp(pMsg, code));
-}
-
-int32_t qWorkerProcessShowFetchMsg(void *node, void *qWorkerMgmt, SRpcMsg *pMsg) {
-  if (NULL == node || NULL == qWorkerMgmt || NULL == pMsg) {
-    return TSDB_CODE_QRY_INVALID_INPUT;
-  }
-
-  SVShowTablesFetchReq *pFetchReq = pMsg->pCont;
-  QW_RET(qwBuildAndSendShowFetchRsp(pMsg, pFetchReq));
 }
