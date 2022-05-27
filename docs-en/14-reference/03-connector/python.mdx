@@ -53,7 +53,7 @@ Earlier TDengine client software includes the Python connector. If the Python co
 
 :::
 
-#### to install `taospy`
+#### To install `taospy`
 
 <Tabs>
 <TabItem label="Install from PyPI" value="pypi">
@@ -320,7 +320,7 @@ All database operations will be thrown directly if an exception occurs. The appl
 
 ### About nanoseconds
 
-Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python Connector may modify the interface in the future if Python officially supports nanoseconds in full.
+Due to the current imperfection of Python's nanosecond support (see link below), the current implementation returns integers at nanosecond precision instead of the `datetime` type produced by `ms` and `us`, which application developers will need to handle on their own. And it is recommended to use pandas' to_datetime(). The Python Connector may modify the interface in the future if Python officially supports nanoseconds in full.
 
 1. https://stackoverflow.com/questions/10611328/parsing-datetime-strings-containing-nanoseconds
 2. https://www.python.org/dev/peps/pep-0564/
@@ -328,7 +328,7 @@ Due to the current imperfection of Python's nanosecond support (see link below),
 
 ## Frequently Asked Questions
 
-Welcome to [ask questions or report questions] (https://github.com/taosdata/taos-connector-python/issues).
+Welcome to [ask questions or report questions](https://github.com/taosdata/taos-connector-python/issues).
 
 ## Important Update
 
