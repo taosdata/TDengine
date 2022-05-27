@@ -882,6 +882,8 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
       if (pInfo->assignBlockUid) {
         pInfo->pRes->info.groupId = uid;
+      } else {
+        pInfo->pRes->info.groupId = groupId;
       }
 
       int32_t numOfCols = pInfo->pRes->info.numOfCols;

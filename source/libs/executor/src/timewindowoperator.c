@@ -1128,7 +1128,7 @@ static SSDataBlock* doStreamIntervalAgg(SOperatorInfo* pOperator) {
       continue;
     }
 
-    pUpdated = hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, 0);
+    pUpdated = hashIntervalAgg(pOperator, &pInfo->binfo.resultRowInfo, pBlock, pBlock->info.groupId);
   }
 
   finalizeUpdatedResult(pOperator->numOfExprs, pInfo->aggSup.pResultBuf, pUpdated, pInfo->binfo.rowCellInfoOffset);
