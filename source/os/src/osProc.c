@@ -17,36 +17,54 @@
 #define _DEFAULT_SOURCE
 #include "os.h"
 
-static char *tsProcPath = NULL;
-
 int32_t taosNewProc(char **args) {
+#ifdef WINDOWS
+  assert(0);
+  return 0;
+#else
   int32_t pid = fork();
   if (pid == 0) {
     args[0] = tsProcPath;
     // close(STDIN_FILENO);
-    close(STDOUT_FILENO);
+    // close(STDOUT_FILENO);
     // close(STDERR_FILENO);
     return execvp(tsProcPath, args);
   } else {
     return pid;
   }
+#endif
 }
 
 void taosWaitProc(int32_t pid) {
+#ifdef WINDOWS
+  assert(0);
+#else
   int32_t status = -1;
   waitpid(pid, &status, 0);
+#endif
 }
 
-void taosKillProc(int32_t pid) { kill(pid, SIGINT); }
+void taosKillProc(int32_t pid) { 
+#ifdef WINDOWS
+  assert(0);
+#else
+  kill(pid, SIGINT); 
+#endif
+}
 
 bool taosProcExist(int32_t pid) {
+#ifdef WINDOWS
+  assert(0);
+  return false;
+#else
   int32_t p = getpgid(pid);
   return p >= 0;
+#endif
 }
 
 // the length of the new name must be less than the original name to take effect
 void taosSetProcName(int32_t argc, char **argv, const char *name) {
-  prctl(PR_SET_NAME, name);
+  setThreadName(name);
 
   for (int32_t i = 0; i < argc; ++i) {
     int32_t len = strlen(argv[i]);

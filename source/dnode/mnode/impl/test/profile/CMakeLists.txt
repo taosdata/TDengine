@@ -1,11 +1,11 @@
-aux_source_directory(. PROFILE_SRC)
-add_executable(mnode_test_profile ${PROFILE_SRC})
+aux_source_directory(. MNODE_PROFILE_TEST_SRC)
+add_executable(profileTest ${MNODE_PROFILE_TEST_SRC})
 target_link_libraries(
-    mnode_test_profile
+    profileTest
     PUBLIC sut
 )
 
 add_test(
-    NAME mnode_test_profile
-    COMMAND mnode_test_profile
+    NAME profileTest
+    COMMAND profileTest
 )

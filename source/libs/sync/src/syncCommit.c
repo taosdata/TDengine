@@ -16,6 +16,7 @@
 #include "syncCommit.h"
 #include "syncIndexMgr.h"
 #include "syncInt.h"
+#include "syncRaftCfg.h"
 #include "syncRaftLog.h"
 #include "syncRaftStore.h"
 #include "syncUtil.h"
@@ -65,6 +66,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
         newCommitIndex = index;
         sTrace("syncMaybeAdvanceCommitIndex maybe to update, newCommitIndex:%ld commit, pSyncNode->commitIndex:%ld",
                newCommitIndex, pSyncNode->commitIndex);
+
+        syncEntryDestory(pEntry);
         break;
       } else {
         sTrace(
@@ -72,6 +75,8 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
             "pSyncNode->pRaftStore->currentTerm:%lu",
             pEntry->term, pSyncNode->pRaftStore->currentTerm);
       }
+
+      syncEntryDestory(pEntry);
     }
   }
 
@@ -97,8 +102,95 @@ void syncMaybeAdvanceCommitIndex(SSyncNode* pSyncNode) {
           SRpcMsg rpcMsg;
           syncEntry2OriginalRpc(pEntry, &rpcMsg);
 
-          if (pSyncNode->pFsm->FpCommitCb != NULL && pEntry->entryType == SYNC_RAFT_ENTRY_DATA) {
-            pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, pEntry->index, pEntry->isWeak, 0, pSyncNode->state);
+          if (pSyncNode->pFsm->FpCommitCb != NULL && syncUtilUserCommit(pEntry->originalRpcType)) {
+            SFsmCbMeta cbMeta;
+            cbMeta.index = pEntry->index;
+            cbMeta.isWeak = pEntry->isWeak;
+            cbMeta.code = 0;
+            cbMeta.state = pSyncNode->state;
+            cbMeta.seqNum = pEntry->seqNum;
+            cbMeta.term = pEntry->term;
+            cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
+            cbMeta.flag = 0x1;
+
+            bool needExecute = true;
+            if (pSyncNode->pSnapshot != NULL && cbMeta.index <= pSyncNode->pSnapshot->lastApplyIndex) {
+              needExecute = false;
+            }
+
+            if (needExecute) {
+              pSyncNode->pFsm->FpCommitCb(pSyncNode->pFsm, &rpcMsg, cbMeta);
+            }
+          }
+
+          // config change
+          if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+            SSyncCfg oldSyncCfg = pSyncNode->pRaftCfg->cfg;
+
+            SSyncCfg newSyncCfg;
+            int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
+            ASSERT(ret == 0);
+
+            // update new config myIndex
+            bool hit = false;
+            for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
+              if (strcmp(pSyncNode->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
+                  pSyncNode->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
+                newSyncCfg.myIndex = i;
+                hit = true;
+                break;
+              }
+            }
+
+            if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+              ASSERT(hit == true);
+            }
+
+            bool isDrop;
+            syncNodeUpdateConfig(pSyncNode, &newSyncCfg, &isDrop);
+
+            // change isStandBy to normal
+            if (!isDrop) {
+              if (pSyncNode->state == TAOS_SYNC_STATE_LEADER) {
+                syncNodeBecomeLeader(pSyncNode);
+              } else {
+                syncNodeBecomeFollower(pSyncNode);
+              }
+            }
+
+            char* sOld = syncCfg2Str(&oldSyncCfg);
+            char* sNew = syncCfg2Str(&newSyncCfg);
+            sInfo("==config change== 0x1 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
+            taosMemoryFree(sOld);
+            taosMemoryFree(sNew);
+
+            if (pSyncNode->pFsm->FpReConfigCb != NULL) {
+              SReConfigCbMeta cbMeta = {0};
+              cbMeta.code = 0;
+              cbMeta.currentTerm = pSyncNode->pRaftStore->currentTerm;
+              cbMeta.index = pEntry->index;
+              cbMeta.term = pEntry->term;
+              cbMeta.oldCfg = oldSyncCfg;
+              cbMeta.flag = 0x1;
+              cbMeta.isDrop = isDrop;
+              pSyncNode->pFsm->FpReConfigCb(pSyncNode->pFsm, newSyncCfg, cbMeta);
+            }
+          }
+
+          // restore finish
+          if (pEntry->index == pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore)) {
+            if (pSyncNode->restoreFinish == false) {
+              if (pSyncNode->pFsm->FpRestoreFinishCb != NULL) {
+                pSyncNode->pFsm->FpRestoreFinishCb(pSyncNode->pFsm);
+              }
+              pSyncNode->restoreFinish = true;
+              sInfo("==syncMaybeAdvanceCommitIndex== restoreFinish set true %p vgId:%d", pSyncNode, pSyncNode->vgId);
+
+              /*
+              tsem_post(&pSyncNode->restoreSem);
+              sInfo("==syncMaybeAdvanceCommitIndex== RestoreFinish tsem_post %p", pSyncNode);
+              */
+            }
           }
 
           rpcFreeCont(rpcMsg.pCont);

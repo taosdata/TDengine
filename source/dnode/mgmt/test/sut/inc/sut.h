@@ -20,7 +20,6 @@
 #include "os.h"
 
 #include "dnode.h"
-#include "tmsg.h"
 #include "tdataformat.h"
 #include "tglobal.h"
 #include "tmsg.h"
@@ -48,35 +47,29 @@ class Testbase {
   int32_t    connId;
 
  public:
-  void SendShowMetaReq(int8_t showType, const char* db);
-  void SendShowRetrieveReq();
+  int32_t SendShowReq(int8_t showType, const char *tb, const char* db);
+  int32_t GetShowRows();
 
-  STableMetaRsp*     GetShowMeta();
-  SRetrieveTableRsp* GetRetrieveRsp();
-
+#if 0
   int32_t     GetMetaNum();
   const char* GetMetaTbName();
-  int32_t     GetMetaColId(int32_t index);
-  int8_t      GetMetaType(int32_t index);
-  int32_t     GetMetaBytes(int32_t index);
-  const char* GetMetaName(int32_t index);
+  int8_t      GetMetaType(int32_t col);
+  int32_t     GetMetaBytes(int32_t col);
+  const char* GetMetaName(int32_t col);
 
-  const char* GetShowName();
-  int32_t     GetShowRows();
-  int8_t      GetShowInt8();
-  int16_t     GetShowInt16();
-  int32_t     GetShowInt32();
-  int64_t     GetShowInt64();
-  int64_t     GetShowTimestamp();
-  const char* GetShowBinary(int32_t len);
+  int8_t      GetShowInt8(int32_t row, int32_t col);
+  int16_t     GetShowInt16(int32_t row, int32_t col);
+  int32_t     GetShowInt32(int32_t row, int32_t col);
+  int64_t     GetShowInt64(int32_t row, int32_t col);
+  int64_t     GetShowTimestamp(int32_t row, int32_t col);
+  const char* GetShowBinary(int32_t row, int32_t col);
+#endif
 
  private:
-  int64_t            showId;
-  STableMetaRsp      metaRsp;
-  SRetrieveTableRsp* pRetrieveRsp;
-  char*              pData;
-  int32_t            pos;
+  SRetrieveMetaTableRsp* showRsp;
 };
+
+#if 0
 
 #define CHECK_META(tbName, numOfColumns)        \
   {                                             \
@@ -84,56 +77,31 @@ class Testbase {
     EXPECT_STREQ(test.GetMetaTbName(), tbName); \
   }
 
-#define CHECK_SCHEMA(colId, type, bytes, colName)   \
-  {                                                 \
-    EXPECT_EQ(test.GetMetaType(colId), type);       \
-    EXPECT_EQ(test.GetMetaBytes(colId), bytes);     \
-    EXPECT_STREQ(test.GetMetaName(colId), colName); \
-  }
-
-#define CheckBinary(val, len) \
-  { EXPECT_STREQ(test.GetShowBinary(len), val); }
-
-#define CheckBinaryByte(b, len)                   \
+#define CHECK_SCHEMA(col, type, bytes, colName)   \
   {                                               \
-    char* bytes = (char*)taosMemoryCalloc(1, len);          \
-    for (int32_t i = 0; i < len - 1; ++i) {       \
-      bytes[i] = b;                               \
-    }                                             \
-    EXPECT_STREQ(test.GetShowBinary(len), bytes); \
+    EXPECT_EQ(test.GetMetaType(col), type);       \
+    EXPECT_EQ(test.GetMetaBytes(col), bytes);     \
+    EXPECT_STREQ(test.GetMetaName(col), colName); \
   }
+
+#define CheckBinary(row, col, val) \
+  { EXPECT_STREQ(test.GetShowBinary(row, col), val); }
 
 #define CheckInt8(val) \
-  { EXPECT_EQ(test.GetShowInt8(), val); }
+  { EXPECT_EQ(test.GetShowInt8(row, col), val); }
 
 #define CheckInt16(val) \
-  { EXPECT_EQ(test.GetShowInt16(), val); }
+  { EXPECT_EQ(test.GetShowInt16(row, col), val); }
 
 #define CheckInt32(val) \
-  { EXPECT_EQ(test.GetShowInt32(), val); }
+  { EXPECT_EQ(test.GetShowInt32row, col(), val); }
 
 #define CheckInt64(val) \
-  { EXPECT_EQ(test.GetShowInt64(), val); }
+  { EXPECT_EQ(test.GetShowInt64(row, col), val); }
 
 #define CheckTimestamp() \
-  { EXPECT_GT(test.GetShowTimestamp(), 0); }
+  { EXPECT_GT(test.GetShowTimestamp(row, col), 0); }
 
-#define IgnoreBinary(len) \
-  { test.GetShowBinary(len); }
-
-#define IgnoreInt8() \
-  { test.GetShowInt8(); }
-
-#define IgnoreInt16() \
-  { test.GetShowInt16(); }
-
-#define IgnoreInt32() \
-  { test.GetShowInt32(); }
-
-#define IgnoreInt64() \
-  { test.GetShowInt64(); }
-
-#define IgnoreTimestamp() \
-  { test.GetShowTimestamp(); }
+#endif
 
 #endif /* _TD_TEST_BASE_H_ */

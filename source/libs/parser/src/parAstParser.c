@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "os.h"
 #include "parInt.h"
 
 #include "parAst.h"
@@ -22,14 +23,14 @@ typedef void* (*FMalloc)(size_t);
 typedef void (*FFree)(void*);
 
 extern void* ParseAlloc(FMalloc);
-extern void Parse(void*, int, SToken, void*);
-extern void ParseFree(void*, FFree);
-extern void ParseTrace(FILE*, char*);
+extern void  Parse(void*, int, SToken, void*);
+extern void  ParseFree(void*, FFree);
+extern void  ParseTrace(FILE*, char*);
 
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
   SAstCreateContext cxt;
   initAstCreateContext(pParseCxt, &cxt);
-  void *pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
+  void*   pParser = ParseAlloc((FMalloc)taosMemoryMalloc);
   int32_t i = 0;
   while (1) {
     SToken t0 = {0};
@@ -37,8 +38,8 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
       Parse(pParser, 0, t0, &cxt);
       goto abort_parse;
     }
-    t0.n = tGetToken((char *)&cxt.pQueryCxt->pSql[i], &t0.type);
-    t0.z = (char *)(cxt.pQueryCxt->pSql + i);
+    t0.n = tGetToken((char*)&cxt.pQueryCxt->pSql[i], &t0.type);
+    t0.z = (char*)(cxt.pQueryCxt->pSql + i);
     i += t0.n;
 
     switch (t0.type) {
@@ -50,23 +51,22 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
         Parse(pParser, 0, t0, &cxt);
         goto abort_parse;
       }
-      case TK_NK_QUESTION:
       case TK_NK_ILLEGAL: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unrecognized token: \"%s\"", t0.z);
-        cxt.valid = false;
+        cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
       }
       case TK_NK_HEX:
       case TK_NK_OCT:
       case TK_NK_BIN: {
         snprintf(cxt.pQueryCxt->pMsg, cxt.pQueryCxt->msgLen, "unsupported token: \"%s\"", t0.z);
-        cxt.valid = false;
+        cxt.errCode = TSDB_CODE_PAR_SYNTAX_ERROR;
         goto abort_parse;
       }
       default:
-        Parse(pParser, t0.type, t0, &cxt);
         // ParseTrace(stdout, "");
-        if (!cxt.valid) {
+        Parse(pParser, t0.type, t0, &cxt);
+        if (TSDB_CODE_SUCCESS != cxt.errCode) {
           goto abort_parse;
         }
     }
@@ -74,12 +74,16 @@ int32_t parse(SParseContext* pParseCxt, SQuery** pQuery) {
 
 abort_parse:
   ParseFree(pParser, (FFree)taosMemoryFree);
-  if (cxt.valid) {
+  if (TSDB_CODE_SUCCESS == cxt.errCode) {
     *pQuery = taosMemoryCalloc(1, sizeof(SQuery));
     if (NULL == *pQuery) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
     (*pQuery)->pRoot = cxt.pRootNode;
+    (*pQuery)->placeholderNum = cxt.placeholderNo;
+    TSWAP((*pQuery)->pPlaceholderValues, cxt.pPlaceholderValues);
+    TSWAP((*pQuery)->pMetaCache, cxt.pMetaCache);
   }
-  return cxt.valid ? TSDB_CODE_SUCCESS : TSDB_CODE_FAILED;
+  taosArrayDestroy(cxt.pPlaceholderValues);
+  return cxt.errCode;
 }

@@ -52,11 +52,11 @@ int32_t getOutputInterResultBufSize(STaskAttr* pQueryAttr) {
 }
 
 int32_t initResultRowInfo(SResultRowInfo *pResultRowInfo, int32_t size) {
-  pResultRowInfo->size     = 0;
-  pResultRowInfo->curPos   = -1;
-  pResultRowInfo->capacity = size;
+  pResultRowInfo->size       = 0;
+  pResultRowInfo->capacity   = size;
+  pResultRowInfo->cur.pageId = -1;
+  
   pResultRowInfo->pPosition = taosMemoryCalloc(pResultRowInfo->capacity, sizeof(SResultRowPosition));
-
   if (pResultRowInfo->pPosition == NULL) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -114,13 +114,6 @@ void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
   assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
   
   for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-//    ASSERT(0);
-//    SResultRow* pRow = pResultRowInfo->pResult[i];
-//    if (pRow->closed) {
-//      continue;
-//    }
-    
-//    pRow->closed = true;
   }
 }
 
@@ -145,11 +138,11 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
     for (int32_t i = 0; i < pRuntimeEnv->pQueryAttr->numOfOutput; ++i) {
       struct SResultRowEntryInfo *pEntryInfo = NULL;//pResultRow->pEntryInfo[i];
 
-      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resSchema.bytes;
-      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
-      memset(s, 0, size);
+//      int16_t size = pRuntimeEnv->pQueryAttr->pExpr1[i].base.resSchema.bytes;
+//      char * s = getPosInResultPage(pRuntimeEnv->pQueryAttr, page, pResultRow->offset, offset);
+//      memset(s, 0, size);
 
-      offset += size;
+//      offset += size;
       cleanupResultRowEntry(pEntryInfo);
     }
   }
@@ -158,13 +151,11 @@ void clearResultRow(STaskRuntimeEnv *pRuntimeEnv, SResultRow *pResultRow) {
   pResultRow->pageId = -1;
   pResultRow->offset = -1;
   pResultRow->closed = false;
-
-  taosMemoryFreeClear(pResultRow->key);
   pResultRow->win = TSWINDOW_INITIALIZER;
 }
 
 // TODO refactor: use macro
-SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, int32_t* offset) {
+SResultRowEntryInfo* getResultCell(const SResultRow* pRow, int32_t index, const int32_t* offset) {
   assert(index >= 0 && offset != NULL);
   return (SResultRowEntryInfo*)((char*) pRow->pEntryInfo + offset[index]);
 }
@@ -187,12 +178,55 @@ void cleanupGroupResInfo(SGroupResInfo* pGroupResInfo) {
   pGroupResInfo->index     = 0;
 }
 
-void initGroupResInfo(SGroupResInfo* pGroupResInfo, SResultRowInfo* pResultInfo) {
+static int32_t resultrowComparAsc(const void* p1, const void* p2) {
+  SResKeyPos* pp1 = *(SResKeyPos**) p1;
+  SResKeyPos* pp2 = *(SResKeyPos**) p2;
+
+  if (pp1->groupId == pp2->groupId) {
+    int64_t pts1 = *(int64_t*) pp1->key;
+    int64_t pts2 = *(int64_t*) pp2->key;
+
+    if (pts1 == pts2) {
+      return 0;
+    } else {
+      return pts1 < pts2? -1:1;
+    }
+  } else {
+    return pp1->groupId < pp2->groupId? -1:1;
+  }
+}
+
+static int32_t resultrowComparDesc(const void* p1, const void* p2) {
+  return resultrowComparAsc(p2, p1);
+}
+
+void initGroupedResultInfo(SGroupResInfo* pGroupResInfo, SHashObj* pHashmap, int32_t order) {
   if (pGroupResInfo->pRows != NULL) {
     taosArrayDestroy(pGroupResInfo->pRows);
   }
 
-  pGroupResInfo->pRows = taosArrayFromList(pResultInfo->pPosition, pResultInfo->size, sizeof(SResultRowPosition));
+  // extract the result rows information from the hash map
+  void* pData = NULL;
+  pGroupResInfo->pRows = taosArrayInit(10, POINTER_BYTES);
+
+  size_t keyLen = 0;
+  while((pData = taosHashIterate(pHashmap, pData)) != NULL) {
+    void* key = taosHashGetKey(pData, &keyLen);
+
+    SResKeyPos* p = taosMemoryMalloc(keyLen + sizeof(SResultRowPosition));
+
+    p->groupId = *(uint64_t*) key;
+    p->pos = *(SResultRowPosition*) pData;
+    memcpy(p->key, (char*)key + sizeof(uint64_t), keyLen - sizeof(uint64_t));
+
+    taosArrayPush(pGroupResInfo->pRows, &p);
+  }
+
+  if (order == TSDB_ORDER_ASC || order == TSDB_ORDER_DESC) {
+    __compar_fn_t fn = (order == TSDB_ORDER_ASC)? resultrowComparAsc:resultrowComparDesc;
+    qsort(pGroupResInfo->pRows->pData, taosArrayGetSize(pGroupResInfo->pRows), POINTER_BYTES, fn);
+  }
+
   pGroupResInfo->index = 0;
   assert(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
@@ -207,24 +241,12 @@ void initMultiResInfoFromArrayList(SGroupResInfo* pGroupResInfo, SArray* pArrayL
   ASSERT(pGroupResInfo->index <= getNumOfTotalRes(pGroupResInfo));
 }
 
-bool hasRemainDataInCurrentGroup(SGroupResInfo* pGroupResInfo) {
+bool hashRemainDataInGroupInfo(SGroupResInfo* pGroupResInfo) {
   if (pGroupResInfo->pRows == NULL) {
     return false;
   }
 
   return pGroupResInfo->index < taosArrayGetSize(pGroupResInfo->pRows);
-}
-
-bool hasRemainData(SGroupResInfo* pGroupResInfo) {
-  if (hasRemainDataInCurrentGroup(pGroupResInfo)) {
-    return true;
-  }
-
-  return pGroupResInfo->currentGroup < pGroupResInfo->totalGroup;
-}
-
-bool incNextGroup(SGroupResInfo* pGroupResInfo) {
-  return (++pGroupResInfo->currentGroup) < pGroupResInfo->totalGroup;
 }
 
 int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
@@ -337,21 +359,16 @@ int32_t tsDescOrder(const void* p1, const void* p2) {
 
 void orderTheResultRows(STaskRuntimeEnv* pRuntimeEnv) {
   __compar_fn_t  fn = NULL;
-  if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
-    fn = tsAscOrder;
-  } else {
-    fn = tsDescOrder;
-  }
+//  if (pRuntimeEnv->pQueryAttr->order.order == TSDB_ORDER_ASC) {
+//    fn = tsAscOrder;
+//  } else {
+//    fn = tsDescOrder;
+//  }
 
   taosArraySort(pRuntimeEnv->pResultRowArrayList, fn);
 }
 
 static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, uint64_t groupId, int32_t* rowCellInfoOffset) {
-  if (!pGroupResInfo->ordered) {
-    orderTheResultRows(pRuntimeEnv);
-    pGroupResInfo->ordered = true;
-  }
-
   if (pGroupResInfo->pRows == NULL) {
     pGroupResInfo->pRows = taosArrayInit(100, POINTER_BYTES);
   }
@@ -362,6 +379,7 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
     if (pResultRowCell->groupId != groupId) {
       break;
     }
+
 
     int64_t num = getNumOfResultWindowRes(pRuntimeEnv, &pResultRowCell->pos, rowCellInfoOffset);
     if (num <= 0) {
@@ -377,8 +395,8 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
 
 static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv, SGroupResInfo* pGroupResInfo, SArray *pTableList,
     int32_t* rowCellInfoOffset) {
-  bool ascQuery = QUERY_IS_ASC_QUERY(pRuntimeEnv->pQueryAttr);
-
+  bool ascQuery = true;
+#if 0
   int32_t code = TSDB_CODE_SUCCESS;
 
   int32_t *posList = NULL;
@@ -402,18 +420,19 @@ static UNUSED_FUNC int32_t mergeIntoGroupResultImpl(STaskRuntimeEnv *pRuntimeEnv
   int32_t numOfTables = 0;
   for (int32_t i = 0; i < size; ++i) {
     STableQueryInfo *item = taosArrayGetP(pTableList, i);
-    if (item->resInfo.size > 0) {
-      pTableQueryInfoList[numOfTables++] = item;
-    }
+//    if (item->resInfo.size > 0) {
+//      pTableQueryInfoList[numOfTables++] = item;
+//    }
   }
 
   // there is no data in current group
   // no need to merge results since only one table in each group
-  if (numOfTables == 0) {
-    goto _end;
-  }
+//  if (numOfTables == 0) {
+//    goto _end;
+//  }
 
-  SCompSupporter cs = {pTableQueryInfoList, posList, pRuntimeEnv->pQueryAttr->order.order};
+  int32_t order = TSDB_ORDER_ASC;
+  SCompSupporter cs = {pTableQueryInfoList, posList, order};
 
   int32_t ret = tMergeTreeCreate(&pTree, numOfTables, &cs, tableResultComparFn);
   if (ret != TSDB_CODE_SUCCESS) {
@@ -497,6 +516,7 @@ int32_t mergeIntoGroupResult(SGroupResInfo* pGroupResInfo, STaskRuntimeEnv* pRun
 //  int64_t elapsedTime = taosGetTimestampUs() - st;
 //  qDebug("QInfo:%"PRIu64" merge res data into group, index:%d, total group:%d, elapsed time:%" PRId64 "us", GET_TASKID(pRuntimeEnv),
 //         pGroupResInfo->currentGroup, pGroupResInfo->totalGroup, elapsedTime);
+#endif
 
   return TSDB_CODE_SUCCESS;
 }

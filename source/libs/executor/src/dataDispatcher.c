@@ -31,6 +31,7 @@ typedef struct SDataDispatchBuf {
 typedef struct SDataCacheEntry {
   int32_t dataLen;
   int32_t numOfRows;
+  int32_t numOfCols;
   int8_t  compressed;
   char    data[];
 } SDataCacheEntry;
@@ -64,10 +65,10 @@ static bool needCompress(const SSDataBlock* pData, int32_t numOfCols) {
 }
 
 // data format:
-// +----------------+--------------------------------------+-------------+-----------+-------------+-----------+
-// |SDataCacheEntry | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
-// |                |    sizeof(int32_t) * numOfCols       | actual size |           | actual size |           |
-// +----------------+--------------------------------------+-------------+-----------+-------------+-----------+
+// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
+// |SDataCacheEntry | total length | group id | column#1 length, column#2 length ... | col1 bitmap | col1 data | col2 bitmap | col2 data | ....
+// |                |  (4 bytes)   |(8 bytes) | sizeof(int32_t) * numOfCols          | actual size |           | actual size |           |
+// +----------------+--------------+----------+--------------------------------------+-------------+-----------+-------------+-----------+
 // The length of bitmap is decided by number of rows of this data block, and the length of each column data is
 // recorded in the first segment, next to the struct header
 static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputData* pInput, SDataDispatchBuf* pBuf) {
@@ -76,6 +77,7 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
   SDataCacheEntry* pEntry = (SDataCacheEntry*)pBuf->pData;
   pEntry->compressed = (int8_t)needCompress(pInput->pData, numOfCols);
   pEntry->numOfRows = pInput->pData->info.rows;
+  pEntry->numOfCols = pInput->pData->info.numOfCols;
   pEntry->dataLen = 0;
 
   pBuf->useSize = sizeof(SRetrieveTableRsp);
@@ -86,15 +88,13 @@ static void toDataCacheEntry(const SDataDispatchHandle* pHandle, const SInputDat
 
 static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput, SDataDispatchBuf* pBuf) {
   uint32_t capacity = pDispatcher->pManager->cfg.maxDataBlockNumPerQuery;
-  if (taosQueueSize(pDispatcher->pDataBlocks) > capacity) {
+  if (taosQueueItemSize(pDispatcher->pDataBlocks) > capacity) {
     qError("SinkNode queue is full, no capacity, max:%d, current:%d, no capacity", capacity,
-           taosQueueSize(pDispatcher->pDataBlocks));
+           taosQueueItemSize(pDispatcher->pDataBlocks));
     return false;
   }
 
-  // NOTE: there are four bytes of an integer more than the required buffer space.
-  // struct size + data payload + length for each column + bitmap length
-  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockDataGetSerialMetaSize(pInput->pData) + blockDataGetSize(pInput->pData);
+  pBuf->allocSize = sizeof(SRetrieveTableRsp) + blockGetEncodeSize(pInput->pData);
 
   pBuf->pData = taosMemoryMalloc(pBuf->allocSize);
   if (pBuf->pData == NULL) {
@@ -106,7 +106,7 @@ static bool allocBuf(SDataDispatchHandle* pDispatcher, const SInputData* pInput,
 
 static int32_t updateStatus(SDataDispatchHandle* pDispatcher) {
   taosThreadMutexLock(&pDispatcher->mutex);
-  int32_t blockNums = taosQueueSize(pDispatcher->pDataBlocks);
+  int32_t blockNums = taosQueueItemSize(pDispatcher->pDataBlocks);
   int32_t status =
       (0 == blockNums ? DS_BUF_EMPTY
                       : (blockNums < pDispatcher->pManager->cfg.maxDataBlockNumPerQuery ? DS_BUF_LOW : DS_BUF_FULL));
@@ -124,7 +124,7 @@ static int32_t getStatus(SDataDispatchHandle* pDispatcher) {
 
 static int32_t putDataBlock(SDataSinkHandle* pHandle, const SInputData* pInput, bool* pContinue) {
   SDataDispatchHandle* pDispatcher = (SDataDispatchHandle*)pHandle;
-  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf));
+  SDataDispatchBuf*    pBuf = taosAllocateQitem(sizeof(SDataDispatchBuf), DEF_QITEM);
   if (NULL == pBuf || !allocBuf(pDispatcher, pInput, pBuf)) {
     return TSDB_CODE_QRY_OUT_OF_MEMORY;
   }
@@ -171,6 +171,7 @@ static int32_t getDataBlock(SDataSinkHandle* pHandle, SOutputData* pOutput) {
   SDataCacheEntry* pEntry = (SDataCacheEntry*)(pDispatcher->nextOutput.pData);
   memcpy(pOutput->pData, pEntry->data, pEntry->dataLen);
   pOutput->numOfRows = pEntry->numOfRows;
+  pOutput->numOfCols = pEntry->numOfCols;
   pOutput->compressed = pEntry->compressed;
   taosMemoryFreeClear(pDispatcher->nextOutput.pData);  // todo persistent
   pOutput->bufStatus = updateStatus(pDispatcher);

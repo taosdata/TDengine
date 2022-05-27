@@ -12,16 +12,16 @@ print rows: $rows
 print $data00  $data01
 print $data10  $data11 
 print $data20  $data21
-if $rows != 3 then 
+if $rows != 4 then
   return -1
 endi
-if $data00 != database then 
+if $data20 != database then
   return -1
 endi
-if $data10 != DataBase then 
+if $data30 != DataBase then
   return -1
 endi
-if $data20 != information_schema then 
+if $data00 != information_schema then
   return -1
 endi
 
@@ -206,16 +206,16 @@ print rows: $rows
 print $data00  $data01
 print $data10  $data11 
 print $data20  $data21
-if $rows != 3 then 
+if $rows != 4 then
   return -1
 endi
-if $data00 != database then 
+if $data20 != database then
   return -1
 endi
-if $data10 != DataBase then 
+if $data30 != DataBase then
   return -1
 endi
-if $data20 != information_schema then 
+if $data00 != information_schema then
   return -1
 endi
 
@@ -353,4 +353,4 @@ while $dbCnt < 2
 endw
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

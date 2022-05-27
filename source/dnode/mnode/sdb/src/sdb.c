@@ -14,7 +14,7 @@
  */
 
 #define _DEFAULT_SOURCE
-#include "sdbInt.h"
+#include "sdb.h"
 
 static int32_t sdbCreateDir(SSdb *pSdb);
 
@@ -28,14 +28,12 @@ SSdb *sdbInit(SSdbOpt *pOption) {
     return NULL;
   }
 
-  char path[PATH_MAX + 100];
-  snprintf(path, PATH_MAX + 100, "%s%sdata", pOption->path, TD_DIRSEP);
+  char path[PATH_MAX + 100] = {0};
+  snprintf(path, sizeof(path), "%s%sdata", pOption->path, TD_DIRSEP);
   pSdb->currDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%ssync", pOption->path, TD_DIRSEP);
-  pSdb->syncDir = strdup(path);
-  snprintf(path, PATH_MAX + 100, "%s%stmp", pOption->path, TD_DIRSEP);
+  snprintf(path, sizeof(path), "%s%stmp", pOption->path, TD_DIRSEP);
   pSdb->tmpDir = strdup(path);
-  if (pSdb->currDir == NULL || pSdb->currDir == NULL || pSdb->currDir == NULL) {
+  if (pSdb->currDir == NULL || pSdb->tmpDir == NULL) {
     sdbCleanup(pSdb);
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     mError("failed to init sdb since %s", terrstr());
@@ -48,13 +46,14 @@ SSdb *sdbInit(SSdbOpt *pOption) {
   }
 
   for (ESdbType i = 0; i < SDB_MAX; ++i) {
-    taosInitRWLatch(&pSdb->locks[i]);
+    taosThreadRwlockInit(&pSdb->locks[i], NULL);
     pSdb->maxId[i] = 0;
-    pSdb->tableVer[i] = -1;
+    pSdb->tableVer[i] = 0;
     pSdb->keyTypes[i] = SDB_KEY_INT32;
   }
 
   pSdb->curVer = -1;
+  pSdb->curTerm = -1;
   pSdb->lastCommitVer = -1;
   pSdb->pMnode = pOption->pMnode;
   mDebug("sdb init successfully");
@@ -87,7 +86,7 @@ void sdbCleanup(SSdb *pSdb) {
       SSdbRow *pRow = *ppRow;
       if (pRow == NULL) continue;
 
-      sdbFreeRow(pSdb, pRow);
+      sdbFreeRow(pSdb, pRow, true);
       ppRow = taosHashIterate(hash, ppRow);
     }
   }
@@ -98,8 +97,11 @@ void sdbCleanup(SSdb *pSdb) {
 
     taosHashClear(hash);
     taosHashCleanup(hash);
+    taosThreadRwlockDestroy(&pSdb->locks[i]);
     pSdb->hashObjs[i] = NULL;
-    mDebug("sdb table:%d is cleaned up", i);
+    memset(&pSdb->locks[i], 0, sizeof(pSdb->locks[i]));
+
+    mDebug("sdb table:%s is cleaned up", sdbTableName(i));
   }
 
   taosMemoryFree(pSdb);
@@ -134,22 +136,15 @@ int32_t sdbSetTable(SSdb *pSdb, SSdbTable table) {
 
   pSdb->maxId[sdbType] = 0;
   pSdb->hashObjs[sdbType] = hash;
-  taosInitRWLatch(&pSdb->locks[sdbType]);
   mDebug("sdb table:%s is initialized", sdbTableName(sdbType));
 
   return 0;
 }
 
 static int32_t sdbCreateDir(SSdb *pSdb) {
-  if (taosMkDir(pSdb->currDir) != 0) {
+  if (taosMulMkDir(pSdb->currDir) != 0) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to create dir:%s since %s", pSdb->currDir, terrstr());
-    return -1;
-  }
-
-  if (taosMkDir(pSdb->syncDir) != 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    mError("failed to create dir:%s since %s", pSdb->syncDir, terrstr());
     return -1;
   }
 
@@ -162,7 +157,10 @@ static int32_t sdbCreateDir(SSdb *pSdb) {
   return 0;
 }
 
-int64_t sdbUpdateVer(SSdb *pSdb, int32_t val) {
-  pSdb->curVer += val;
-  return pSdb->curVer;
-}
+void sdbSetApplyIndex(SSdb *pSdb, int64_t index) { pSdb->curVer = index; }
+
+int64_t sdbGetApplyIndex(SSdb *pSdb) { return pSdb->curVer; }
+
+void sdbSetApplyTerm(SSdb *pSdb, int64_t term) { pSdb->curTerm = term; }
+
+int64_t sdbGetApplyTerm(SSdb *pSdb) { return pSdb->curTerm; }

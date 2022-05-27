@@ -34,6 +34,16 @@
 extern "C" {
 #endif
 
+// clang-format off
+#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) {  taosPrintLog("INDEX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
+#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) {  taosPrintLog("INDEX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
+#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  {  taosPrintLog("INDEX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
+#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("INDEX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
+#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("INDEX ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__);} } while (0)
+#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("INDEX ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__);} } while (0)
+// clang-format on
+
+typedef enum { LT, LE, GT, GE } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
 typedef struct SIndexStat {
@@ -45,9 +55,7 @@ typedef struct SIndexStat {
 } SIndexStat;
 
 struct SIndex {
-#ifdef USE_LUCENE
-  index_t* index;
-#endif
+  int64_t   refId;
   void*     cache;
   void*     tindex;
   SHashObj* colObj;  // < field name, field id>
@@ -57,8 +65,10 @@ struct SIndex {
 
   char* path;
 
-  SIndexStat      stat;
+  SIndexStat    stat;
   TdThreadMutex mtx;
+  tsem_t        sem;
+  bool          quit;
 };
 
 struct SIndexOpts {
@@ -70,6 +80,7 @@ struct SIndexOpts {
   int32_t cacheSize;  // MB
   // add cache module later
 #endif
+  int32_t cacheOpt;  // MB
 };
 
 struct SIndexMultiTermQuery {
@@ -123,49 +134,19 @@ typedef struct TFileCacheKey {
 
 int indexFlushCacheToTFile(SIndex* sIdx, void*);
 
+int64_t indexAddRef(void* p);
+int32_t indexRemoveRef(int64_t ref);
+void    indexAcquireRef(int64_t ref);
+void    indexReleaseRef(int64_t ref);
+
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);
 // int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 
-#define indexFatal(...)                                            \
-  do {                                                             \
-    if (sDebugFlag & DEBUG_FATAL) {                                \
-      taosPrintLog("index FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); \
-    }                                                              \
-  } while (0)
-#define indexError(...)                                            \
-  do {                                                             \
-    if (sDebugFlag & DEBUG_ERROR) {                                \
-      taosPrintLog("index ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); \
-    }                                                              \
-  } while (0)
-#define indexWarn(...)                                           \
-  do {                                                           \
-    if (sDebugFlag & DEBUG_WARN) {                               \
-      taosPrintLog("index WARN ", DEBUG_WARN, 255, __VA_ARGS__); \
-    }                                                            \
-  } while (0)
-#define indexInfo(...)                                      \
-  do {                                                      \
-    if (sDebugFlag & DEBUG_INFO) {                          \
-      taosPrintLog("index ", DEBUG_INFO, 255, __VA_ARGS__); \
-    }                                                       \
-  } while (0)
-#define indexDebug(...)                                             \
-  do {                                                              \
-    if (sDebugFlag & DEBUG_DEBUG) {                                 \
-      taosPrintLog("index ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  } while (0)
-#define indexTrace(...)                                             \
-  do {                                                              \
-    if (sDebugFlag & DEBUG_TRACE) {                                 \
-      taosPrintLog("index ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__); \
-    }                                                               \
-  } while (0)
-
 #define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
+
 #define INDEX_TYPE_GET_TYPE(ty) (ty & 0x0F)
+
 #define INDEX_TYPE_ADD_EXTERN_TYPE(ty, exTy) \
   do {                                       \
     uint8_t oldTy = ty;                      \

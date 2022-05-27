@@ -1,11 +1,11 @@
-aux_source_directory(. USER_SRC)
-add_executable(mnode_test_user ${USER_SRC})
+aux_source_directory(. MNODE_USER_TEST_SRC)
+add_executable(userTest ${MNODE_USER_TEST_SRC})
 target_link_libraries(
-    mnode_test_user
+    userTest
     PUBLIC sut
 )
 
 add_test(
-    NAME mnode_test_user
-    COMMAND mnode_test_user
+    NAME userTest
+    COMMAND userTest
 )

@@ -37,7 +37,7 @@ class WalCleanEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 class WalCleanDeleteEnv : public ::testing::Test {
@@ -67,7 +67,7 @@ class WalCleanDeleteEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 class WalKeepEnv : public ::testing::Test {
@@ -104,7 +104,7 @@ class WalKeepEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 class WalRetentionEnv : public ::testing::Test {
@@ -141,7 +141,7 @@ class WalRetentionEnv : public ::testing::Test {
   }
 
   SWal*       pWal = NULL;
-  const char* pathName = "/tmp/wal_test";
+  const char* pathName = TD_TMP_DIR_PATH "wal_test";
 };
 
 TEST_F(WalCleanEnv, createNew) {
@@ -320,11 +320,12 @@ TEST_F(WalKeepEnv, readHandleRead) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.len, len);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
   }
+  walCloseReadHandle(pRead);
 }
 
 TEST_F(WalRetentionEnv, repairMeta1) {
@@ -372,7 +373,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.len, len);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }
@@ -402,7 +403,7 @@ TEST_F(WalRetentionEnv, repairMeta1) {
     char newStr[100];
     sprintf(newStr, "%s-%d", ranStr, ver);
     int len = strlen(newStr);
-    ASSERT_EQ(pRead->pHead->head.len, len);
+    ASSERT_EQ(pRead->pHead->head.bodyLen, len);
     for (int j = 0; j < len; j++) {
       EXPECT_EQ(newStr[j], pRead->pHead->head.body[j]);
     }

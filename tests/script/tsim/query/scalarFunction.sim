@@ -2,7 +2,6 @@
 
 system sh/stop_dnodes.sh
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1
 system sh/exec.sh -n dnode1 -s start
 
 $loop_cnt = 0
@@ -103,19 +102,25 @@ print ====> $data60 $data61 $data62 $data63 $data64 $data65
 print ====> $data70 $data71 $data72 $data73 $data74 $data75
 print ====> $data80 $data81 $data82 $data83 $data84 $data85
 print ====> $data90 $data91 $data92 $data93 $data94 $data95
+print ====> rows = $rows and rowNum = $rowNum for ct1
 if $rows != $rowNum then
   return -1
 endi
+
 print ====> select c1, abs(c1), c2, abs(c2), c3, abs(c3) from stb
 sql select c1, abs(c1), c2, abs(c2), c3, abs(c3) from stb
+print ====> rows = $rows and totalRows = $totalRows for stb
 if $rows != $totalRows then
   return -1
 endi
+
 print ====> select c1, abs(c1), c2, abs(c2), c3, abs(c3) from ntb
 sql select c1, abs(c1), c2, abs(c2), c3, abs(c3) from ntb
+print ====> rows = $rows and rowNum = $rowNum for ntb
 if $rows != $rowNum then
   return -1
 endi
+
 
 print ====> log
 sql select c1, log(c1, 10), c2, log(c2, 10), c3, log(c3, 10) from ct1
@@ -481,4 +486,4 @@ if $loop_test == 0 then
   goto loop_test_pos
 endi
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT

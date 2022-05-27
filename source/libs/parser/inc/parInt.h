@@ -20,10 +20,13 @@
 extern "C" {
 #endif
 
+#include "parToken.h"
+#include "parUtil.h"
 #include "parser.h"
 
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
+int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
 int32_t calculateConstant(SParseContext* pParseCxt, SQuery* pQuery);

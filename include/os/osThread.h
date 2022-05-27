@@ -22,6 +22,13 @@
 extern "C" {
 #endif
 
+#ifndef WINDOWS
+#ifndef __USE_XOPEN2K
+#define TD_USE_SPINLOCK_AS_MUTEX
+typedef pthread_mutex_t pthread_spinlock_t;
+#endif
+#endif
+
 typedef pthread_t TdThread;
 typedef pthread_spinlock_t TdThreadSpinlock;
 typedef pthread_mutex_t TdThreadMutex;
@@ -33,11 +40,16 @@ typedef pthread_rwlockattr_t TdThreadRwlockAttr;
 typedef pthread_cond_t TdThreadCond;
 typedef pthread_condattr_t TdThreadCondAttr;
 typedef pthread_key_t TdThreadKey;
-typedef pthread_barrier_t TdThreadBarrier;
-typedef pthread_barrierattr_t TdThreadBarrierAttr;
 
 #define taosThreadCleanupPush pthread_cleanup_push
 #define taosThreadCleanupPop pthread_cleanup_pop
+
+
+#ifdef WINDOWS
+#define TD_PTHREAD_MUTEX_INITIALIZER (TdThreadMutex)(-1)
+#else
+#define TD_PTHREAD_MUTEX_INITIALIZER PTHREAD_MUTEX_INITIALIZER
+#endif
 
 // If the error is in a third-party library, place this header file under the third-party library header file.
 // When you want to use this feature, you should find or add the same function in the following section.
@@ -156,13 +168,6 @@ int32_t taosThreadAttrSetSchedParam(TdThreadAttr * attr, const struct sched_para
 int32_t taosThreadAttrSetSchedPolicy(TdThreadAttr * attr, int32_t policy);
 int32_t taosThreadAttrSetScope(TdThreadAttr * attr, int32_t contentionscope);
 int32_t taosThreadAttrSetStackSize(TdThreadAttr * attr, size_t stacksize);
-int32_t taosThreadBarrierDestroy(TdThreadBarrier * barrier);
-int32_t taosThreadBarrierInit(TdThreadBarrier * barrier, const TdThreadBarrierAttr * attr, uint32_t count);
-int32_t taosThreadBarrierWait(TdThreadBarrier * barrier);
-int32_t taosThreadBarrierAttrDestroy(TdThreadBarrierAttr * attr);
-int32_t taosThreadBarrierAttrGetPshared(const TdThreadBarrierAttr * attr, int32_t *pshared);
-int32_t taosThreadBarrierAttrInit(TdThreadBarrierAttr * attr);
-int32_t taosThreadBarrierAttrSetPshared(TdThreadBarrierAttr * attr, int32_t pshared);
 int32_t taosThreadCancel(TdThread thread);
 int32_t taosThreadCondDestroy(TdThreadCond * cond);
 int32_t taosThreadCondInit(TdThreadCond * cond, const TdThreadCondAttr * attr);
@@ -223,8 +228,7 @@ int32_t taosThreadSpinLock(TdThreadSpinlock * lock);
 int32_t taosThreadSpinTrylock(TdThreadSpinlock * lock);
 int32_t taosThreadSpinUnlock(TdThreadSpinlock * lock);
 void taosThreadTestCancel(void);
-int32_t taosThreadSigMask(int32_t how, sigset_t const *set, sigset_t * oset);
-int32_t taosThreadSigWait(const sigset_t * set, int32_t *sig);
+void taosThreadClear(TdThread *thread);
 
 #ifdef __cplusplus
 }

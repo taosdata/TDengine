@@ -20,10 +20,30 @@
 extern "C" {
 #endif
 
+#include "indexInt.h"
+#include "tcompare.h"
+
 extern char JSON_COLUMN[];
 extern char JSON_VALUE_DELIM;
 
 char* indexPackJsonData(SIndexTerm* itm);
+char* indexPackJsonDataPrefix(SIndexTerm* itm, int32_t* skip);
+
+typedef enum { MATCH, CONTINUE, BREAK } TExeCond;
+
+typedef TExeCond (*_cache_range_compare)(void* a, void* b, int8_t type);
+
+TExeCond tCompare(__compar_fn_t func, int8_t cmpType, void* a, void* b, int8_t dType);
+TExeCond tDoCompare(__compar_fn_t func, int8_t cmpType, void* a, void* b);
+
+_cache_range_compare indexGetCompare(RangeType ty);
+
+int32_t indexConvertData(void* src, int8_t type, void** dst);
+int32_t indexConvertDataToStr(void* src, int8_t type, void** dst);
+
+int32_t indexGetDataByteLen(int8_t type);
+
+char* indexInt2str(int64_t val, char* dst, int radix);
 
 #ifdef __cplusplus
 }

@@ -20,7 +20,25 @@
 #include "taos.h"
 
 static int  running = 1;
-static void msg_process(tmq_message_t* message) { tmqShowMsg(message); }
+static void msg_process(TAOS_RES* msg) {
+  char buf[1024];
+  /*memset(buf, 0, 1024);*/
+  printf("topic: %s\n", tmq_get_topic_name(msg));
+  printf("vg: %d\n", tmq_get_vgroup_id(msg));
+  while (1) {
+    TAOS_ROW row = taos_fetch_row(msg);
+    if (row == NULL) break;
+    TAOS_FIELD* fields = taos_fetch_fields(msg);
+    int32_t     numOfFields = taos_field_count(msg);
+    taos_print_row(buf, row, fields, numOfFields);
+    printf("%s\n", buf);
+
+    const char* tbName = tmq_get_table_name(msg);
+    if (tbName) {
+      printf("from tb: %s\n", tbName);
+    }
+  }
+}
 
 int32_t init_env() {
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
@@ -43,7 +61,7 @@ int32_t init_env() {
   taos_free_result(pRes);
 
   pRes =
-      taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(10)) tags(t1 int)");
+      taos_query(pConn, "create stable if not exists st1 (ts timestamp, c1 int, c2 float, c3 binary(16)) tags(t1 int)");
   if (taos_errno(pRes) != 0) {
     printf("failed to create super table st1, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -88,9 +106,8 @@ int32_t create_topic() {
   }
   taos_free_result(pRes);
 
-  /*const char* sql = "select * from tu1";*/
-  /*pRes = tmq_create_topic(pConn, "test_stb_topic_1", sql, strlen(sql));*/
-  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1 from ct1");
+  /*pRes = taos_query(pConn, "create topic topic_ctb_column as abc1");*/
+  pRes = taos_query(pConn, "create topic topic_ctb_column as select ts, c1, c2, c3 from st1");
   if (taos_errno(pRes) != 0) {
     printf("failed to create topic topic_ctb_column, reason:%s\n", taos_errstr(pRes));
     return -1;
@@ -129,10 +146,11 @@ int32_t create_topic() {
 }
 
 void tmq_commit_cb_print(tmq_t* tmq, tmq_resp_err_t resp, tmq_topic_vgroup_list_t* offsets, void* param) {
-  printf("commit %d\n", resp);
+  printf("commit %d tmq %p offsets %p param %p\n", resp, tmq, offsets, param);
 }
 
 tmq_t* build_consumer() {
+#if 0
   TAOS* pConn = taos_connect("localhost", "root", "taosdata", NULL, 0);
   assert(pConn != NULL);
 
@@ -141,17 +159,26 @@ tmq_t* build_consumer() {
     printf("error in use db, reason:%s\n", taos_errstr(pRes));
   }
   taos_free_result(pRes);
+#endif
 
   tmq_conf_t* conf = tmq_conf_new();
   tmq_conf_set(conf, "group.id", "tg2");
-  tmq_conf_set_offset_commit_cb(conf, tmq_commit_cb_print);
-  tmq_t* tmq = tmq_consumer_new(pConn, conf, NULL, 0);
+  tmq_conf_set(conf, "td.connect.user", "root");
+  tmq_conf_set(conf, "td.connect.pass", "taosdata");
+  /*tmq_conf_set(conf, "td.connect.db", "abc1");*/
+  tmq_conf_set(conf, "msg.with.table.name", "true");
+  tmq_conf_set(conf, "enable.auto.commit", "false");
+  tmq_conf_set_auto_commit_cb(conf, tmq_commit_cb_print, NULL);
+  tmq_t* tmq = tmq_consumer_new(conf, NULL, 0);
+  assert(tmq);
+  tmq_conf_destroy(conf);
   return tmq;
 }
 
 tmq_list_t* build_topic_list() {
   tmq_list_t* topic_list = tmq_list_new();
   tmq_list_append(topic_list, "topic_ctb_column");
+  /*tmq_list_append(topic_list, "tmq_test_db_multi_insert_topic");*/
   return topic_list;
 }
 
@@ -163,14 +190,15 @@ void basic_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     printf("subscribe err\n");
     return;
   }
-  /*int32_t cnt = 0;*/
+  int32_t cnt = 0;
   /*clock_t startTime = clock();*/
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 0);
     if (tmqmessage) {
-      /*cnt++;*/
-      msg_process(tmqmessage);
-      tmq_message_destroy(tmqmessage);
+      cnt++;
+      /*printf("get data\n");*/
+      /*msg_process(tmqmessage);*/
+      taos_free_result(tmqmessage);
       /*} else {*/
       /*break;*/
     }
@@ -196,13 +224,25 @@ void sync_consume_loop(tmq_t* tmq, tmq_list_t* topics) {
     return;
   }
 
+  tmq_list_t* subList = NULL;
+  tmq_subscription(tmq, &subList);
+  char**  subTopics = tmq_list_to_c_array(subList);
+  int32_t sz = tmq_list_get_size(subList);
+  printf("subscribed topics: ");
+  for (int32_t i = 0; i < sz; i++) {
+    printf("%s, ", subTopics[i]);
+  }
+  printf("\n");
+  tmq_list_destroy(subList);
+
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 1000);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 1000);
     if (tmqmessage) {
       msg_process(tmqmessage);
-      tmq_message_destroy(tmqmessage);
+      taos_free_result(tmqmessage);
 
-      if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);
+      /*tmq_commit_async(tmq, NULL, tmq_commit_cb_print, NULL);*/
+      /*if ((++msg_count % MIN_COMMIT_COUNT) == 0) tmq_commit(tmq, NULL, 0);*/
     }
   }
 
@@ -225,12 +265,12 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
   int32_t skipLogNum = 0;
   clock_t startTime = clock();
   while (running) {
-    tmq_message_t* tmqmessage = tmq_consumer_poll(tmq, 500);
+    TAOS_RES* tmqmessage = tmq_consumer_poll(tmq, 500);
     if (tmqmessage) {
       batchCnt++;
-      skipLogNum += tmqGetSkipLogNum(tmqmessage);
+      /*skipLogNum += tmqGetSkipLogNum(tmqmessage);*/
       /*msg_process(tmqmessage);*/
-      tmq_message_destroy(tmqmessage);
+      taos_free_result(tmqmessage);
     } else {
       break;
     }
@@ -247,10 +287,11 @@ void perf_loop(tmq_t* tmq, tmq_list_t* topics) {
 }
 
 int main(int argc, char* argv[]) {
-  int code;
   if (argc > 1) {
     printf("env init\n");
-    code = init_env();
+    if (init_env() < 0) {
+      return -1;
+    }
     create_topic();
   }
   tmq_t*      tmq = build_consumer();

@@ -5,13 +5,16 @@ target_include_directories(
     function
     PUBLIC
         "${TD_SOURCE_DIR}/include/libs/function"
+        "${TD_SOURCE_DIR}/include/util"
+        "${TD_SOURCE_DIR}/include/common"
+        "${TD_SOURCE_DIR}/include/client"
         "${TD_SOURCE_DIR}/contrib/libuv/include"
     PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 
 target_link_libraries(
     function
-    PRIVATE os util common nodes scalar
+    PRIVATE os util common nodes scalar catalog qcom transport
     PUBLIC uv_a
 )
 
@@ -21,6 +24,9 @@ target_include_directories(
         PUBLIC
             "${TD_SOURCE_DIR}/include/libs/function"
             "${TD_SOURCE_DIR}/contrib/libuv/include"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
@@ -30,13 +36,33 @@ target_link_libraries(
         PRIVATE os util common nodes function
 )
 
-add_library(udf1 MODULE test/udf1.c)
+add_library(udf1 STATIC MODULE test/udf1.c)
 target_include_directories(
         udf1
         PUBLIC
             "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
             "${TD_SOURCE_DIR}/include/os"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+target_link_libraries(
+    udf1 PUBLIC os)
+
+add_library(udf2 STATIC MODULE test/udf2.c)
+target_include_directories(
+        udf2
+        PUBLIC
+            "${TD_SOURCE_DIR}/include/libs/function"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/client"
+            "${TD_SOURCE_DIR}/include/os"
+        PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
+)
+target_link_libraries(
+    udf2 PUBLIC os
 )
 
 #SET(EXECUTABLE_OUTPUT_PATH ${CMAKE_BINARY_DIR}/build/bin)
@@ -46,6 +72,10 @@ target_include_directories(
         PUBLIC
             "${TD_SOURCE_DIR}/include/libs/function"
             "${TD_SOURCE_DIR}/contrib/libuv/include"
+            "${TD_SOURCE_DIR}/include/util"
+            "${TD_SOURCE_DIR}/include/common"
+            "${TD_SOURCE_DIR}/include/libs/transport"
+            "${TD_SOURCE_DIR}/include/client"
         PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/inc"
 )
 

@@ -27,28 +27,26 @@ extern "C" {
 #include "syncRaftEntry.h"
 #include "taosdef.h"
 
-#define SYNC_INDEX_BEGIN 0
-#define SYNC_INDEX_INVALID -1
-
 typedef struct SSyncLogStoreData {
   SSyncNode* pSyncNode;
   SWal*      pWal;
 } SSyncLogStoreData;
 
-SSyncLogStore*  logStoreCreate(SSyncNode* pSyncNode);
-void            logStoreDestory(SSyncLogStore* pLogStore);
-int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
-SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
-int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
-SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
-SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
-int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
-SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
-SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
-cJSON*          logStore2Json(SSyncLogStore* pLogStore);
-char*           logStore2Str(SSyncLogStore* pLogStore);
-cJSON*          logStoreSimple2Json(SSyncLogStore* pLogStore);
-char*           logStoreSimple2Str(SSyncLogStore* pLogStore);
+SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
+void           logStoreDestory(SSyncLogStore* pLogStore);
+cJSON*         logStore2Json(SSyncLogStore* pLogStore);
+char*          logStore2Str(SSyncLogStore* pLogStore);
+cJSON*         logStoreSimple2Json(SSyncLogStore* pLogStore);
+char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
+
+// SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
+// SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
+// SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
+// SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
+// int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+// int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
+// int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
+// SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore);

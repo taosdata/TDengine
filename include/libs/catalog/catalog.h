@@ -40,23 +40,44 @@ enum {
   CTG_DBG_STB_RENT_NUM,
 };
 
+typedef enum {
+  AUTH_TYPE_READ = 1,
+  AUTH_TYPE_WRITE,
+  AUTH_TYPE_OTHER,
+} AUTH_TYPE;
+
+typedef struct SUserAuthInfo {
+  char user[TSDB_USER_LEN]; 
+  char dbFName[TSDB_DB_FNAME_LEN]; 
+  AUTH_TYPE type;
+} SUserAuthInfo;
 
 typedef struct SCatalogReq {
-  SArray *pTableName;     // element is SNAME
-  SArray *pUdf;           // udf name
+  SArray *pTableMeta;     // element is SNAME
+  SArray *pDbVgroup;      // element is db full name
+  SArray *pTableHash;     // element is SNAME
+  SArray *pUdf;           // element is udf name
+  SArray *pDbCfg;         // element is db full name
+  SArray *pIndex;         // element is index name
+  SArray *pUser;          // element is SUserAuthInfo
   bool    qNodeRequired;  // valid qnode
 } SCatalogReq;
 
 typedef struct SMetaData {
-  SArray    *pTableMeta;  // STableMeta array
-  SArray    *pVgroupInfo; // SVgroupInfo list
-  SArray    *pUdfList;    // udf info list
-  SArray    *pEpSetList;  // qnode epset list, SArray<SEpSet>
+  SArray    *pTableMeta;  // SArray<STableMeta*>
+  SArray    *pDbVgroup;   // SArray<SArray<SVgroupInfo>*>
+  SArray    *pTableHash;  // SArray<SVgroupInfo>
+  SArray    *pUdfList;    // SArray<SFuncInfo>
+  SArray    *pDbCfg;      // SArray<SDbCfgInfo>
+  SArray    *pIndex;      // SArray<SIndexInfo>
+  SArray    *pUser;       // SArray<bool>
+  SArray    *pQnodeList;  // SArray<SQueryNodeAddr>
 } SMetaData;
 
 typedef struct SCatalogCfg {
   uint32_t maxTblCacheNum;
   uint32_t maxDBCacheNum;
+  uint32_t maxUserCacheNum;
   uint32_t dbRentSec;
   uint32_t stbRentSec;
 } SCatalogCfg;
@@ -77,8 +98,21 @@ typedef struct SDbVgVersion {
   int32_t numOfTable; // unit is TSDB_TABLE_NUM_UNIT
 } SDbVgVersion;
 
+typedef struct STbSVersion {
+  char* tbFName;
+  int32_t sver;
+  int32_t tver;
+} STbSVersion;
+
+typedef struct SUserAuthVersion {
+  char    user[TSDB_USER_LEN];
+  int32_t version;
+} SUserAuthVersion;
+
 typedef SDbCfgRsp SDbCfgInfo;
 typedef SUserIndexRsp SIndexInfo;
+
+typedef void (*catalogCallback)(SMetaData* pResult, void* param, int32_t code);
 
 int32_t catalogInit(SCatalogCfg *cfg);
 
@@ -115,7 +149,7 @@ int32_t catalogUpdateDBVgInfo(SCatalog* pCatalog, const char* dbName, uint64_t d
 
 int32_t catalogRemoveDB(SCatalog* pCatalog, const char* dbName, uint64_t dbId);
 
-int32_t catalogRemoveTableMeta(SCatalog* pCtg, const SName* pTableName);
+int32_t catalogRemoveTableMeta(SCatalog* pCtg, SName* pTableName);
 
 int32_t catalogRemoveStbMeta(SCatalog* pCtg, const char* dbFName, uint64_t dbId, const char* stbName, uint64_t suid);
 
@@ -153,6 +187,8 @@ int32_t catalogUpdateSTableMeta(SCatalog* pCatalog, STableMetaRsp *rspMsg);
  * @return error code
  */
 int32_t catalogRefreshDBVgInfo(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, const char* dbFName);
+
+int32_t catalogChkTbMetaVersion(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, SArray* pTables);
 
 /**
  * Force refresh a table's local cached meta data. 
@@ -213,6 +249,7 @@ int32_t catalogGetTableHashVgroup(SCatalog* pCatalog, void * pTransporter, const
  */
 int32_t catalogGetAllMeta(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, const SCatalogReq* pReq, SMetaData* pRsp);
 
+int32_t catalogAsyncGetAllMeta(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId, const SCatalogReq* pReq, catalogCallback fp, void* param, int64_t* jobId);
 
 int32_t catalogGetQnodeList(SCatalog* pCatalog, void *pTransporter, const SEpSet* pMgmtEps, SArray* pQnodeList);
 
@@ -220,9 +257,20 @@ int32_t catalogGetExpiredSTables(SCatalog* pCatalog, SSTableMetaVersion **stable
 
 int32_t catalogGetExpiredDBs(SCatalog* pCatalog, SDbVgVersion **dbs, uint32_t *num);
 
+int32_t catalogGetExpiredUsers(SCatalog* pCtg, SUserAuthVersion **users, uint32_t *num);
+
 int32_t catalogGetDBCfg(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* dbFName, SDbCfgInfo* pDbCfg);
 
-int32_t catalogGetIndexInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
+int32_t catalogGetIndexMeta(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* indexName, SIndexInfo* pInfo);
+
+int32_t catalogGetUdfInfo(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* funcName, SFuncInfo* pInfo);
+
+int32_t catalogChkAuth(SCatalog* pCtg, void *pRpc, const SEpSet* pMgmtEps, const char* user, const char* dbFName, AUTH_TYPE type, bool *pass);
+
+int32_t catalogUpdateUserAuthInfo(SCatalog* pCtg, SGetUserAuthRsp* pAuth);
+
+
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId);
 
 
 /**

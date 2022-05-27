@@ -15,8 +15,8 @@
 
 #include "os.h"
 #include "parToken.h"
-#include "thash.h"
 #include "taosdef.h"
+#include "thash.h"
 #include "ttokendef.h"
 
 // All the keywords of the SQL language are stored in a hash table
@@ -26,6 +26,7 @@ typedef struct SKeyword {
   uint8_t     len;   // length
 } SKeyword;
 
+// clang-format off
 // keywords in sql string
 static SKeyword keywordTable[] = {
     {"ACCOUNT",       TK_ACCOUNT},
@@ -39,17 +40,21 @@ static SKeyword keywordTable[] = {
     {"APPS",          TK_APPS},
     {"AS",            TK_AS},
     {"ASC",           TK_ASC},
+    {"AT_ONCE",       TK_AT_ONCE},
     {"BETWEEN",       TK_BETWEEN},
     {"BINARY",        TK_BINARY},
     {"BIGINT",        TK_BIGINT},
-    {"BLOCKS",        TK_BLOCKS},
     {"BNODE",         TK_BNODE},
     {"BNODES",        TK_BNODES},
     {"BOOL",          TK_BOOL},
+    {"BUFFER",        TK_BUFFER},
     {"BUFSIZE",       TK_BUFSIZE},
     {"BY",            TK_BY},
     {"CACHE",         TK_CACHE},
     {"CACHELAST",     TK_CACHELAST},
+    {"CAST",          TK_CAST},
+    {"CGROUP",        TK_CGROUP},
+    {"CLUSTER",       TK_CLUSTER},
     {"COLUMN",        TK_COLUMN},
     {"COMMENT",       TK_COMMENT},
     {"COMP",          TK_COMP},
@@ -57,6 +62,7 @@ static SKeyword keywordTable[] = {
     {"CONNS",         TK_CONNS},
     {"CONNECTION",    TK_CONNECTION},
     {"CONNECTIONS",   TK_CONNECTIONS},
+    {"COUNT",         TK_COUNT},
     {"CREATE",        TK_CREATE},
     {"DATABASE",      TK_DATABASE},
     {"DATABASES",     TK_DATABASES},
@@ -80,6 +86,8 @@ static SKeyword keywordTable[] = {
     {"FSYNC",         TK_FSYNC},
     {"FUNCTION",      TK_FUNCTION},
     {"FUNCTIONS",     TK_FUNCTIONS},
+    {"GRANT",         TK_GRANT},
+    {"GRANTS",        TK_GRANTS},
     {"GROUP",         TK_GROUP},
     {"HAVING",        TK_HAVING},
     {"IF",            TK_IF},
@@ -99,6 +107,7 @@ static SKeyword keywordTable[] = {
     {"KEEP",          TK_KEEP},
     {"KILL",          TK_KILL},
     {"LAST",          TK_LAST},
+    {"LAST_ROW",      TK_LAST_ROW},
     {"LICENCE",       TK_LICENCE},
     {"LIKE",          TK_LIKE},
     {"LIMIT",         TK_LIMIT},
@@ -113,6 +122,7 @@ static SKeyword keywordTable[] = {
     {"MODIFY",        TK_MODIFY},
     {"MODULES",       TK_MODULES},
     {"NCHAR",         TK_NCHAR},
+    {"NEXT",          TK_NEXT},
     {"NMATCH",        TK_NMATCH},
     {"NONE",          TK_NONE},
     {"NOT",           TK_NOT},
@@ -126,25 +136,28 @@ static SKeyword keywordTable[] = {
     {"OUTPUTTYPE",    TK_OUTPUTTYPE},
     {"PARTITION",     TK_PARTITION},
     {"PASS",          TK_PASS},
+    {"PAGES",         TK_PAGES},
+    {"PAGESIZE",      TK_PAGESIZE},
     {"PORT",          TK_PORT},
     {"PPS",           TK_PPS},
     {"PRECISION",     TK_PRECISION},
     {"PRIVILEGE",     TK_PRIVILEGE},
     {"PREV",          TK_PREV},
-    {"_QENDTS",        TK_QENDTS},
     {"QNODE",         TK_QNODE},
     {"QNODES",        TK_QNODES},
-    {"_QSTARTTS",      TK_QSTARTTS},
     {"QTIME",         TK_QTIME},
     {"QUERIES",       TK_QUERIES},
     {"QUERY",         TK_QUERY},
-    {"QUORUM",        TK_QUORUM},
     {"RATIO",         TK_RATIO},
+    {"READ",          TK_READ},
+    {"RENAME",        TK_RENAME},
     {"REPLICA",       TK_REPLICA},
     {"RESET",         TK_RESET},
     {"RETENTIONS",    TK_RETENTIONS},
+    {"REVOKE",        TK_REVOKE},
     {"ROLLUP",        TK_ROLLUP},
-    {"_ROWTS",         TK_ROWTS},
+    {"SCHEMA",        TK_SCHEMA},
+    {"SCHEMALESS",    TK_SCHEMALESS},
     {"SCORES",        TK_SCORES},
     {"SELECT",        TK_SELECT},
     {"SESSION",       TK_SESSION},
@@ -163,9 +176,9 @@ static SKeyword keywordTable[] = {
     {"STATE",         TK_STATE},
     {"STATE_WINDOW",  TK_STATE_WINDOW},
     {"STORAGE",       TK_STORAGE},
-    {"STREAM",       TK_STREAM},
+    {"STREAM",        TK_STREAM},
     {"STREAMS",       TK_STREAMS},
-    {"STREAM_MODE",   TK_STREAM_MODE},
+    {"STRICT",        TK_STRICT},
     {"SYNCDB",        TK_SYNCDB},
     {"TABLE",         TK_TABLE},
     {"TABLES",        TK_TABLES},
@@ -173,9 +186,15 @@ static SKeyword keywordTable[] = {
     {"TAGS",          TK_TAGS},
     {"TBNAME",        TK_TBNAME},
     {"TIMESTAMP",     TK_TIMESTAMP},
+    {"TIMEZONE",      TK_TIMEZONE},
     {"TINYINT",       TK_TINYINT},
+    {"TO",            TK_TO},
+    {"TODAY",         TK_TODAY},
     {"TOPIC",         TK_TOPIC},
     {"TOPICS",        TK_TOPICS},
+    {"TRANSACTION",   TK_TRANSACTION},
+    {"TRANSACTIONS",  TK_TRANSACTIONS},
+    {"TRIGGER",       TK_TRIGGER},
     {"TSERIES",       TK_TSERIES},
     {"TTL",           TK_TTL},
     {"UNION",         TK_UNION},
@@ -192,9 +211,17 @@ static SKeyword keywordTable[] = {
     {"VGROUPS",       TK_VGROUPS},
     {"VNODES",        TK_VNODES},
     {"WAL",           TK_WAL},
-    {"_WDURATION",     TK_WDURATION},
-    {"_WENDTS",        TK_WENDTS},
+    {"WATERMARK",     TK_WATERMARK},
     {"WHERE",         TK_WHERE},
+    {"WINDOW_CLOSE",  TK_WINDOW_CLOSE},
+    {"WITH",          TK_WITH},
+    {"WRITE",         TK_WRITE},
+    {"_C0",           TK_ROWTS},
+    {"_QENDTS",       TK_QENDTS},
+    {"_QSTARTTS",     TK_QSTARTTS},
+    {"_ROWTS",        TK_ROWTS},
+    {"_WDURATION",    TK_WDURATION},
+    {"_WENDTS",       TK_WENDTS},
     {"_WSTARTTS",     TK_WSTARTTS},
     // {"ID",           TK_ID},
     // {"STRING",       TK_STRING},
@@ -221,7 +248,6 @@ static SKeyword keywordTable[] = {
     // {"UMINUS",       TK_UMINUS},
     // {"UPLUS",        TK_UPLUS},
     // {"BITNOT",       TK_BITNOT},
-    // {"GRANTS",       TK_GRANTS},
     // {"DOT",          TK_DOT},
     // {"CTIME",        TK_CTIME},
     // {"LP",           TK_LP},
@@ -238,7 +264,6 @@ static SKeyword keywordTable[] = {
     // {"BEFORE",       TK_BEFORE},
     // {"BEGIN",        TK_BEGIN},
     // {"CASCADE",      TK_CASCADE},
-    // {"CLUSTER",      TK_CLUSTER},
     // {"CONFLICT",     TK_CONFLICT},
     // {"COPY",         TK_COPY},
     // {"DEFERRED",     TK_DEFERRED},
@@ -259,12 +284,12 @@ static SKeyword keywordTable[] = {
     // {"RESTRICT",     TK_RESTRICT},
     // {"ROW",          TK_ROW},
     // {"STATEMENT",    TK_STATEMENT},
-    // {"TRIGGER",      TK_TRIGGER},
     // {"VIEW",         TK_VIEW},
     // {"SEMI",         TK_SEMI},
     // {"PARTITIONS",   TK_PARTITIONS},
     // {"MODE",         TK_MODE},
 };
+// clang-format on
 
 static const char isIdChar[] = {
     /* x0 x1 x2 x3 x4 x5 x6 x7 x8 x9 xA xB xC xD xE xF */
@@ -282,7 +307,7 @@ static void* keywordHashTable = NULL;
 
 static void doInitKeywordsTable(void) {
   int numOfEntries = tListLen(keywordTable);
-  
+
   keywordHashTable = taosHashInit(numOfEntries, MurmurHash3_32, true, false);
   for (int32_t i = 0; i < numOfEntries; i++) {
     keywordTable[i].len = (uint8_t)strlen(keywordTable[i].name);
@@ -295,12 +320,12 @@ static TdThreadOnce keywordsHashTableInit = PTHREAD_ONCE_INIT;
 
 static int32_t tKeywordCode(const char* z, int n) {
   taosThreadOnce(&keywordsHashTableInit, doInitKeywordsTable);
-  
+
   char key[512] = {0};
-  if (n > tListLen(key)) { // too long token, can not be any other token type
+  if (n > tListLen(key)) {  // too long token, can not be any other token type
     return TK_NK_ID;
   }
-  
+
   for (int32_t j = 0; j < n; ++j) {
     if (z[j] >= 'a' && z[j] <= 'z') {
       key[j] = (char)(z[j] & 0xDF);  // to uppercase and set the null-terminated
@@ -314,7 +339,7 @@ static int32_t tKeywordCode(const char* z, int n) {
   }
 
   SKeyword** pKey = (SKeyword**)taosHashGet(keywordHashTable, key, n);
-  return (pKey != NULL)? (*pKey)->type:TK_NK_ID;
+  return (pKey != NULL) ? (*pKey)->type : TK_NK_ID;
 }
 
 /*
@@ -344,6 +369,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         }
         *tokenId = TK_NK_COMMENT;
         return i;
+      } else if (z[1] == '>') {
+        *tokenId = TK_NK_ARROW;
+        return 2;
       }
       *tokenId = TK_NK_MINUS;
       return 1;
@@ -454,11 +482,11 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       int  delim = z[0];
       bool strEnd = false;
       for (i = 1; z[i]; i++) {
-        if (z[i] == '\\') {   // ignore the escaped character that follows this backslash
+        if (delim != '`' && z[i] == '\\') {  // ignore the escaped character that follows this backslash
           i++;
           continue;
         }
-        
+
         if (z[i] == delim) {
           if (z[i + 1] == delim) {
             i++;
@@ -468,11 +496,11 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
           }
         }
       }
-      
+
       if (z[i]) i++;
 
       if (strEnd) {
-        *tokenId = (delim == '`')? TK_NK_ID:TK_NK_STRING;
+        *tokenId = (delim == '`') ? TK_NK_ID : TK_NK_STRING;
         return i;
       }
 
@@ -507,7 +535,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
     case '0': {
       char next = z[1];
 
-      if (next == 'b') { // bin number
+      if (next == 'b') {  // bin number
         *tokenId = TK_NK_BIN;
         for (i = 2; (z[i] == '0' || z[i] == '1'); ++i) {
         }
@@ -517,7 +545,7 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
         }
 
         return i;
-      } else if (next == 'x') {  //hex number
+      } else if (next == 'x') {  // hex number
         *tokenId = TK_NK_HEX;
         for (i = 2; isdigit(z[i]) || (z[i] >= 'a' && z[i] <= 'f') || (z[i] >= 'A' && z[i] <= 'F'); ++i) {
         }
@@ -543,10 +571,9 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
 
       /* here is the 1u/1a/2s/3m/9y */
-      if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' || z[i] == 'n' ||
-           z[i] == 'y' || z[i] == 'w' ||
-           z[i] == 'B' || z[i] == 'U' || z[i] == 'A' || z[i] == 'S' || z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' ||
-           z[i] == 'Y' || z[i] == 'W') &&
+      if ((z[i] == 'b' || z[i] == 'u' || z[i] == 'a' || z[i] == 's' || z[i] == 'm' || z[i] == 'h' || z[i] == 'd' ||
+           z[i] == 'n' || z[i] == 'y' || z[i] == 'w' || z[i] == 'B' || z[i] == 'U' || z[i] == 'A' || z[i] == 'S' ||
+           z[i] == 'M' || z[i] == 'H' || z[i] == 'D' || z[i] == 'N' || z[i] == 'Y' || z[i] == 'W') &&
           (isIdChar[(uint8_t)z[i + 1]] == 0)) {
         *tokenId = TK_NK_VARIABLE;
         i += 1;
@@ -566,6 +593,8 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       if (seg == 4) {  // ip address
         *tokenId = TK_NK_IPTOKEN;
         return i;
+      } else if (seg > 2) {
+        break;
       }
 
       if ((z[i] == 'e' || z[i] == 'E') &&
@@ -578,17 +607,17 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
       return i;
     }
-    case '[': {
-      for (i = 1; z[i] && z[i - 1] != ']'; i++) {
-      }
-      *tokenId = TK_NK_ID;
-      return i;
-    }
+    // case '[': {
+    //   for (i = 1; z[i] && z[i - 1] != ']'; i++) {
+    //   }
+    //   *tokenId = TK_NK_ID;
+    //   return i;
+    // }
     case 'T':
     case 't':
     case 'F':
     case 'f': {
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t)z[i]]; i++) {
       }
 
       if ((i == 4 && strncasecmp(z, "true", 4) == 0) || (i == 5 && strncasecmp(z, "false", 5) == 0)) {
@@ -597,10 +626,10 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
       }
     }
     default: {
-      if (((*z & 0x80) != 0) || !isIdChar[(uint8_t) *z]) {
+      if (((*z & 0x80) != 0) || !isIdChar[(uint8_t)*z]) {
         break;
       }
-      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t) z[i]]; i++) {
+      for (i = 1; ((z[i] & 0x80) == 0) && isIdChar[(uint8_t)z[i]]; i++) {
       }
       *tokenId = tKeywordCode(z, i);
       return i;
@@ -611,12 +640,12 @@ uint32_t tGetToken(const char* z, uint32_t* tokenId) {
   return 0;
 }
 
-SToken tscReplaceStrToken(char **str, SToken *token, const char* newToken) {
-  char *src = *str;
-  size_t nsize = strlen(newToken);
+SToken tscReplaceStrToken(char** str, SToken* token, const char* newToken) {
+  char*   src = *str;
+  size_t  nsize = strlen(newToken);
   int32_t size = (int32_t)strlen(*str) - token->n + (int32_t)nsize + 1;
   int32_t bsize = (int32_t)((uint64_t)token->z - (uint64_t)src);
-  SToken ntoken;
+  SToken  ntoken;
 
   *str = taosMemoryCalloc(1, size);
 
@@ -646,13 +675,13 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     *i += t0.n;
 
     int32_t numOfComma = 0;
-    char t = str[*i];
+    char    t = str[*i];
     while (t == ' ' || t == '\n' || t == '\r' || t == '\t' || t == '\f' || t == ',') {
       if (t == ',' && (++numOfComma > 1)) {  // comma only allowed once
         t0.n = 0;
         return t0;
       }
-    
+
       t = str[++(*i)];
     }
 
@@ -677,6 +706,7 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
 
   if (t0.type == TK_NK_SEMI) {
     t0.n = 0;
+    t0.type = 0;
     return t0;
   }
 
@@ -708,15 +738,13 @@ SToken tStrGetToken(const char* str, int32_t* i, bool isPrevOptr) {
     }
   }
 
-  t0.z = (char*) str + (*i);
+  t0.z = (char*)str + (*i);
   *i += t0.n;
 
   return t0;
 }
 
-bool taosIsKeyWordToken(const char* z, int32_t len) {
-  return (tKeywordCode((char*)z, len) != TK_NK_ID);
-}
+bool taosIsKeyWordToken(const char* z, int32_t len) { return (tKeywordCode((char*)z, len) != TK_NK_ID); }
 
 void taosCleanupKeywordsTable() {
   void* m = keywordHashTable;
@@ -727,7 +755,7 @@ void taosCleanupKeywordsTable() {
 
 SToken taosTokenDup(SToken* pToken, char* buf, int32_t len) {
   assert(pToken != NULL && buf != NULL && len > pToken->n);
-  
+
   strncpy(buf, pToken->z, pToken->n);
   buf[pToken->n] = 0;
 

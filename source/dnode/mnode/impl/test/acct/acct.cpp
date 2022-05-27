@@ -13,7 +13,7 @@
 
 class MndTestAcct : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_acct", 9012); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "acctTest", 9012); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -32,7 +32,7 @@ TEST_F(MndTestAcct, 01_Create_Acct) {
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_CREATE_ACCT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MSG_NOT_PROCESSED);
 }
 
 TEST_F(MndTestAcct, 02_Alter_Acct) {
@@ -42,7 +42,7 @@ TEST_F(MndTestAcct, 02_Alter_Acct) {
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_ALTER_ACCT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MSG_NOT_PROCESSED);
 }
 
 TEST_F(MndTestAcct, 03_Drop_Acct) {
@@ -52,19 +52,5 @@ TEST_F(MndTestAcct, 03_Drop_Acct) {
 
   SRpcMsg* pRsp = test.SendReq(TDMT_MND_DROP_ACCT, pReq, contLen);
   ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_MSG_NOT_PROCESSED);
-}
-
-TEST_F(MndTestAcct, 04_Show_Acct) {
-  SShowReq showReq = {0};
-  showReq.type = TSDB_MGMT_TABLE_ACCT;
-
-  int32_t contLen = tSerializeSShowReq(NULL, 0, &showReq);
-  void*   pReq = rpcMallocCont(contLen);
-  tSerializeSShowReq(pReq, contLen, &showReq);
-  tFreeSShowReq(&showReq);
-
-  SRpcMsg* pRsp = test.SendReq(TDMT_MND_SHOW, pReq, contLen);
-  ASSERT_NE(pRsp, nullptr);
-  ASSERT_EQ(pRsp->code, TSDB_CODE_MND_INVALID_MSG_TYPE);
+  ASSERT_EQ(pRsp->code, TSDB_CODE_MSG_NOT_PROCESSED);
 }

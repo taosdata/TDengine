@@ -5,6 +5,7 @@ compile_commands.json
 .tasks
 .vimspector.json
 .vscode/
+.vscode
 .idea/
 cmake-build-debug/
 cmake-build-release/
@@ -39,11 +40,13 @@ taosdalipu/
 Target/
 *.failed
 *.sql
+sim
 sim/
 psim/
 pysim/
 *.out
 *DS_Store
+tests/script/api/batchprepare
 
 # Doxygen Generated files
 html/
@@ -106,3 +109,5 @@ TAGS
 contrib/*
 !contrib/CMakeLists.txt
 !contrib/test
+sql
+debug*/

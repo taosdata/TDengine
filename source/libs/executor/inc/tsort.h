@@ -89,7 +89,7 @@ int32_t tsortClose(SSortHandle* pHandle);
  *
  * @return
  */
-int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fp);
+int32_t tsortSetFetchRawDataFp(SSortHandle* pHandle, _sort_fetch_block_fn_t fetchFp, void (*fp)(SSDataBlock*, void*), void* param);
 
 /**
  *
@@ -117,18 +117,33 @@ STupleHandle* tsortNextTuple(SSortHandle* pHandle);
 /**
  *
  * @param pHandle
- * @param colIndex
+ * @param colId
  * @return
  */
-bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colIndex);
+bool tsortIsNullVal(STupleHandle* pVHandle, int32_t colId);
 
 /**
  *
  * @param pHandle
- * @param colIndex
+ * @param colId
  * @return
  */
-void* tsortGetValue(STupleHandle* pVHandle, int32_t colIndex);
+void* tsortGetValue(STupleHandle* pVHandle, int32_t colId);
+
+/**
+ *
+ * @param pSortHandle
+ * @return
+ */
+SSDataBlock* tsortGetSortedDataBlock(const SSortHandle* pSortHandle);
+
+/**
+ * return the sort execution information.
+ *
+ * @param pHandle
+ * @return
+ */
+SSortExecInfo tsortGetSortExecInfo(SSortHandle* pHandle);
 
 #ifdef __cplusplus
 }

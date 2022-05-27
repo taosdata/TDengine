@@ -15,29 +15,48 @@
 
 #define _DEFAULT_SOURCE
 #include "tmsgcb.h"
+#include "taoserror.h"
 
-static SMsgCb tsDefaultMsgCb;
+static SMsgCb defaultMsgCb;
 
-void tmsgSetDefaultMsgCb(const SMsgCb* pMsgCb) { tsDefaultMsgCb = *pMsgCb; }
+void tmsgSetDefault(const SMsgCb* msgcb) { defaultMsgCb = *msgcb; }
 
-int32_t tmsgPutToQueue(const SMsgCb* pMsgCb, EQueueType qtype, SRpcMsg* pReq) {
-  return (*pMsgCb->queueFps[qtype])(pMsgCb->pWrapper, pReq);
+int32_t tmsgPutToQueue(const SMsgCb* msgcb, EQueueType qtype, SRpcMsg* pMsg) {
+  PutToQueueFp fp = msgcb->queueFps[qtype];
+  return (*fp)(msgcb->mgmt, pMsg);
 }
 
-int32_t tmsgGetQueueSize(const SMsgCb* pMsgCb, int32_t vgId, EQueueType qtype) {
-  return (*pMsgCb->qsizeFp)(pMsgCb->pWrapper, vgId, qtype);
+int32_t tmsgGetQueueSize(const SMsgCb* msgcb, int32_t vgId, EQueueType qtype) {
+  GetQueueSizeFp fp = msgcb->qsizeFp;
+  return (*fp)(msgcb->mgmt, vgId, qtype);
 }
 
-int32_t tmsgSendReq(const SMsgCb* pMsgCb, const SEpSet* epSet, SRpcMsg* pReq) {
-  return (*pMsgCb->sendReqFp)(pMsgCb->pWrapper, epSet, pReq);
+int32_t tmsgSendReq(const SEpSet* epSet, SRpcMsg* pMsg) {
+  SendReqFp fp = defaultMsgCb.sendReqFp;
+  return (*fp)(epSet, pMsg);
 }
 
-void tmsgSendRsp(const SRpcMsg* pRsp) { return (*tsDefaultMsgCb.sendRspFp)(tsDefaultMsgCb.pWrapper, pRsp); }
-
-void tmsgRegisterBrokenLinkArg(const SMsgCb* pMsgCb, SRpcMsg* pMsg) {
-  (*pMsgCb->registerBrokenLinkArgFp)(pMsgCb->pWrapper, pMsg);
+void tmsgSendRsp(SRpcMsg* pMsg) {
+  SendRspFp fp = defaultMsgCb.sendRspFp;
+  return (*fp)(pMsg);
 }
 
-void tmsgReleaseHandle(void* handle, int8_t type) {
-  (*tsDefaultMsgCb.releaseHandleFp)(tsDefaultMsgCb.pWrapper, handle, type);
+void tmsgSendRedirectRsp(SRpcMsg* pMsg, const SEpSet* pNewEpSet) {
+  SendRedirectRspFp fp = defaultMsgCb.sendRedirectRspFp;
+  (*fp)(pMsg, pNewEpSet);
+}
+
+void tmsgRegisterBrokenLinkArg(SRpcMsg* pMsg) {
+  RegisterBrokenLinkArgFp fp = defaultMsgCb.registerBrokenLinkArgFp;
+  (*fp)(pMsg);
+}
+
+void tmsgReleaseHandle(SRpcHandleInfo* pHandle, int8_t type) {
+  ReleaseHandleFp fp = defaultMsgCb.releaseHandleFp;
+  (*fp)(pHandle, type);
+}
+
+void tmsgReportStartup(const char* name, const char* desc) {
+  ReportStartup fp = defaultMsgCb.reportStartupFp;
+  (*fp)(name, desc);
 }

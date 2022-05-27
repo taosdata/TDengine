@@ -17,7 +17,7 @@
 #include "tskiplist.h"
 #include "tutil.h"
 
-static std::string dir = "/tmp/index";
+static std::string dir = TD_TMP_DIR_PATH "index";
 
 static char indexlog[PATH_MAX] = {0};
 static char tindex[PATH_MAX] = {0};

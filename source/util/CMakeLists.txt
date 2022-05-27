@@ -8,7 +8,7 @@ target_include_directories(
 )
 target_link_libraries(
     util
-    PRIVATE os
+    PUBLIC os
     PUBLIC lz4_static
     PUBLIC api cjson
 )

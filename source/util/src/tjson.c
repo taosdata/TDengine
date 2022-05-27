@@ -144,6 +144,22 @@ char* tjsonToUnformattedString(const SJson* pJson) { return cJSON_PrintUnformatt
 
 SJson* tjsonGetObjectItem(const SJson* pJson, const char* pName) { return cJSON_GetObjectItem(pJson, pName); }
 
+int32_t tjsonGetObjectName(const SJson* pJson, char** pName) {
+  *pName = ((cJSON*)pJson)->string;
+  if (NULL == *pName) {
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t tjsonGetObjectValueString(const SJson* pJson, char** pValueString) {
+  *pValueString = ((cJSON*)pJson)->valuestring;
+  if (NULL == *pValueString) {
+    return TSDB_CODE_FAILED;
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t tjsonGetStringValue(const SJson* pJson, const char* pName, char* pVal) {
   char* p = cJSON_GetStringValue(tjsonGetObjectItem((cJSON*)pJson, pName));
   if (NULL == p) {
@@ -167,8 +183,12 @@ int32_t tjsonGetBigIntValue(const SJson* pJson, const char* pName, int64_t* pVal
   if (NULL == p) {
     return TSDB_CODE_FAILED;
   }
-
-  *pVal = strtol(p, NULL, 10);
+#ifdef WINDOWS
+  sscanf(p,"%lld",pVal);
+#else
+  // sscanf(p,"%ld",pVal);
+  *pVal = taosStr2Int64(p, NULL, 10);
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -198,8 +218,12 @@ int32_t tjsonGetUBigIntValue(const SJson* pJson, const char* pName, uint64_t* pV
   if (NULL == p) {
     return TSDB_CODE_FAILED;
   }
-
-  *pVal = strtoul(p, NULL, 10);
+#ifdef WINDOWS
+  sscanf(p,"%llu",pVal);
+#else
+  // sscanf(p,"%ld",pVal);
+  *pVal = taosStr2UInt64(p, NULL, 10);
+#endif
   return TSDB_CODE_SUCCESS;
 }
 
@@ -276,3 +300,39 @@ int32_t tjsonToArray(const SJson* pJson, const char* pName, FToObject func, void
 }
 
 SJson* tjsonParse(const char* pStr) { return cJSON_Parse(pStr); }
+
+bool tjsonValidateJson(const char *jIn) {
+  if (!jIn){
+    return false;
+  }
+
+  // set json real data
+  cJSON *root = cJSON_Parse(jIn);
+  if (root == NULL){
+    return false;
+  }
+
+  if(!cJSON_IsObject(root)){
+    return false;
+  }
+  int size = cJSON_GetArraySize(root);
+  for(int i = 0; i < size; i++) {
+    cJSON* item = cJSON_GetArrayItem(root, i);
+    if (!item) {
+      return false;
+    }
+
+    char* jsonKey = item->string;
+    if (!jsonKey) return false;
+    for (size_t j = 0; j < strlen(jsonKey); ++j) {
+      if (isprint(jsonKey[j]) == 0) return false;
+    }
+
+    if (item->type == cJSON_Object || item->type == cJSON_Array) {
+      return false;
+    }
+  }
+  return true;
+}
+
+const char* tjsonGetError() { return cJSON_GetErrorPtr(); }

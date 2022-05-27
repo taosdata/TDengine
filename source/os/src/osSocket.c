@@ -25,12 +25,10 @@
 #include <string.h>
 #include <tchar.h>
 #include <winbase.h>
-#include <winsock2.h>
-#include <ws2def.h>
-#include "winsock2.h"
 #else
 #include <arpa/inet.h>
 #include <fcntl.h>
+#include <net/if.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
@@ -40,11 +38,15 @@
 #include <unistd.h>
 
 #if defined(DARWIN)
-  #include <dispatch/dispatch.h>
-  #include "osEok.h"
+#include <dispatch/dispatch.h>
+#include "osEok.h"
 #else
-  #include <sys/epoll.h>
+#include <sys/epoll.h>
 #endif
+#endif
+
+#ifndef INVALID_SOCKET
+#define INVALID_SOCKET -1
 #endif
 
 typedef struct TdSocketServer {
@@ -53,22 +55,22 @@ typedef struct TdSocketServer {
 #endif
   int      refId;
   SocketFd fd;
-} *TdSocketServerPtr, TdSocketServer;
+} * TdSocketServerPtr, TdSocketServer;
 
 typedef struct TdEpoll {
 #if SOCKET_WITH_LOCK
   TdThreadRwlock rwlock;
 #endif
-  int      refId;
-  EpollFd  fd;
-} *TdEpollPtr, TdEpoll;
+  int     refId;
+  EpollFd fd;
+} * TdEpollPtr, TdEpoll;
 
 int32_t taosSendto(TdSocketPtr pSocket, void *buf, int len, unsigned int flags, const struct sockaddr *dest_addr,
-                    int addrlen) {
+                   int addrlen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   return sendto(pSocket->fd, buf, len, flags, dest_addr, addrlen);
 #else
   return sendto(pSocket->fd, buf, len, flags, dest_addr, addrlen);
@@ -78,7 +80,7 @@ int32_t taosWriteSocket(TdSocketPtr pSocket, void *buf, int len) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   return send(pSocket->fd, buf, len, 0);
   ;
 #else
@@ -89,7 +91,7 @@ int32_t taosReadSocket(TdSocketPtr pSocket, void *buf, int len) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   return recv(pSocket->fd, buf, len, 0);
   ;
 #else
@@ -97,14 +99,15 @@ int32_t taosReadSocket(TdSocketPtr pSocket, void *buf, int len) {
 #endif
 }
 
-int32_t taosReadFromSocket(TdSocketPtr pSocket, void *buf, int32_t len, int32_t flags, struct sockaddr *destAddr, socklen_t *addrLen) {
+int32_t taosReadFromSocket(TdSocketPtr pSocket, void *buf, int32_t len, int32_t flags, struct sockaddr *destAddr,
+                           int *addrLen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
   return recvfrom(pSocket->fd, buf, len, flags, destAddr, addrLen);
 }
 int32_t taosCloseSocketNoCheck1(SocketFd fd) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   return closesocket(fd);
 #else
   return close(fd);
@@ -205,8 +208,8 @@ int32_t taosShutDownSocketServerRDWR(TdSocketServerPtr pSocketServer) {
 #endif
 }
 
-void taosWinSocketInit1() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+void taosWinSocketInit() {
+#ifdef WINDOWS
   static char flag = 0;
   if (flag == 0) {
     WORD    wVersionRequested;
@@ -223,7 +226,7 @@ int32_t taosSetNonblocking(TdSocketPtr pSocket, int32_t on) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   u_long mode;
   if (on) {
     mode = 1;
@@ -255,7 +258,7 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   if (level == SOL_SOCKET && optname == TCP_KEEPCNT) {
     return 0;
   }
@@ -274,21 +277,22 @@ int32_t taosSetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void
 
   return setsockopt(pSocket->fd, level, optname, optval, optlen);
 #else
-  return setsockopt(pSocket->fd, level, optname, optval, (socklen_t)optlen);
+  return setsockopt(pSocket->fd, level, optname, optval, (int)optlen);
 #endif
 }
 int32_t taosGetSockOpt(TdSocketPtr pSocket, int32_t level, int32_t optname, void *optval, int32_t *optlen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
   return 0;
 #else
-  return getsockopt(pSocket->fd, level, optname, optval, (socklen_t *)optlen);
+  return getsockopt(pSocket->fd, level, optname, optval, (int *)optlen);
 #endif
 }
 uint32_t taosInetAddr(const char *ipAddr) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   uint32_t value;
   int32_t  ret = inet_pton(AF_INET, ipAddr, &value);
   if (ret <= 0) {
@@ -301,7 +305,7 @@ uint32_t taosInetAddr(const char *ipAddr) {
 #endif
 }
 const char *taosInetNtoa(struct in_addr ipInt) {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
   // not thread safe, only for debug usage while print log
   static char tmpDstStr[16];
   return inet_ntop(AF_INET, &ipInt, tmpDstStr, INET6_ADDRSTRLEN);
@@ -321,7 +325,7 @@ int32_t taosWriteMsg(TdSocketPtr pSocket, void *buf, int32_t nbytes) {
     return -1;
   }
   int32_t nleft, nwritten;
-  char   *ptr = (char *)buf;
+  char *  ptr = (char *)buf;
 
   nleft = nbytes;
 
@@ -350,7 +354,7 @@ int32_t taosReadMsg(TdSocketPtr pSocket, void *buf, int32_t nbytes) {
     return -1;
   }
   int32_t nleft, nread;
-  char   *ptr = (char *)buf;
+  char *  ptr = (char *)buf;
 
   nleft = nbytes;
 
@@ -636,6 +640,122 @@ int32_t taosKeepTcpAlive(TdSocketPtr pSocket) {
   return 0;
 }
 
+int taosGetLocalIp(const char *eth, char *ip) {
+#if defined(WINDOWS)
+  // DO NOTHAING
+  assert(0);
+  return 0;
+#else
+  int                fd;
+  struct ifreq       ifr;
+  struct sockaddr_in sin;
+
+  fd = socket(AF_INET, SOCK_DGRAM, 0);
+  if (-1 == fd) {
+    return -1;
+  }
+  strncpy(ifr.ifr_name, eth, IFNAMSIZ);
+  ifr.ifr_name[IFNAMSIZ - 1] = 0;
+
+  if (ioctl(fd, SIOCGIFADDR, &ifr) < 0) {
+    taosCloseSocketNoCheck1(fd);
+    return -1;
+  }
+  memcpy(&sin, &ifr.ifr_addr, sizeof(sin));
+  snprintf(ip, 64, "%s", inet_ntoa(sin.sin_addr));
+  taosCloseSocketNoCheck1(fd);
+#endif
+  return 0;
+}
+int taosValidIp(uint32_t ip) {
+#if defined(WINDOWS)
+  // DO NOTHAING
+  assert(0);
+  return 0;
+#else
+  int ret = -1;
+  int fd;
+
+  struct ifconf ifconf;
+
+  char buf[512] = {0};
+  ifconf.ifc_len = 512;
+  ifconf.ifc_buf = buf;
+
+  if ((fd = socket(AF_INET, SOCK_DGRAM, 0)) < 0) {
+    return -1;
+  }
+
+  ioctl(fd, SIOCGIFCONF, &ifconf);
+  struct ifreq *ifreq = (struct ifreq *)ifconf.ifc_buf;
+  for (int i = (ifconf.ifc_len / sizeof(struct ifreq)); i > 0; i--) {
+    char ip_str[64] = {0};
+    if (ifreq->ifr_flags == AF_INET) {
+      ret = taosGetLocalIp(ifreq->ifr_name, ip_str);
+      if (ret != 0) {
+        break;
+      }
+      ret = -1;
+      if (ip == (uint32_t)taosInetAddr(ip_str)) {
+        ret = 0;
+        break;
+      }
+      ifreq++;
+    }
+  }
+  taosCloseSocketNoCheck1(fd);
+  return ret;
+#endif
+  return 0;
+}
+
+bool taosValidIpAndPort(uint32_t ip, uint16_t port) {
+  struct sockaddr_in serverAdd;
+  SocketFd           fd;
+  int32_t            reuse;
+
+  // printf("open tcp server socket:0x%x:%hu", ip, port);
+
+  bzero((char *)&serverAdd, sizeof(serverAdd));
+  serverAdd.sin_family = AF_INET;
+#ifdef WINDOWS
+  serverAdd.sin_addr.s_addr = INADDR_ANY;
+#else
+  serverAdd.sin_addr.s_addr = ip;
+#endif
+  serverAdd.sin_port = (uint16_t)htons(port);
+
+  if ((fd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP)) <= 2) {
+    // printf("failed to open TCP socket: %d (%s)", errno, strerror(errno));
+    taosCloseSocketNoCheck1(fd);
+    return false;
+  }
+
+  TdSocketPtr pSocket = (TdSocketPtr)taosMemoryMalloc(sizeof(TdSocket));
+  if (pSocket == NULL) {
+    taosCloseSocketNoCheck1(fd);
+    return false;
+  }
+  pSocket->refId = 0;
+  pSocket->fd = fd;
+
+  /* set REUSEADDR option, so the portnumber can be re-used */
+  reuse = 1;
+  if (taosSetSockOpt(pSocket, SOL_SOCKET, SO_REUSEADDR, (void *)&reuse, sizeof(reuse)) < 0) {
+    // printf("setsockopt SO_REUSEADDR failed: %d (%s)", errno, strerror(errno));
+    taosCloseSocket(&pSocket);
+    return false;
+  }
+  /* bind socket to server address */
+  if (bind(pSocket->fd, (struct sockaddr *)&serverAdd, sizeof(serverAdd)) < 0) {
+    // printf("bind tcp server socket failed, 0x%x:%hu(%s)", ip, port, strerror(errno));
+    taosCloseSocket(&pSocket);
+    return false;
+  }
+  taosCloseSocket(&pSocket);
+  return true;
+  // return 0 == taosValidIp(ip) ? true : false;
+}
 TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   struct sockaddr_in serverAdd;
   SocketFd           fd;
@@ -692,8 +812,7 @@ TdSocketServerPtr taosOpenTcpServerSocket(uint32_t ip, uint16_t port) {
   return (TdSocketServerPtr)pSocket;
 }
 
-TdSocketPtr taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct sockaddr *destAddr,
-                                       socklen_t *addrLen) {
+TdSocketPtr taosAcceptTcpConnectSocket(TdSocketServerPtr pServerSocket, struct sockaddr *destAddr, int *addrLen) {
   if (pServerSocket == NULL || pServerSocket->fd < 0) {
     return NULL;
   }
@@ -753,12 +872,13 @@ int64_t taosCopyFds(TdSocketPtr pSrcSocket, TdSocketPtr pDestSocket, int64_t len
 }
 
 void taosBlockSIGPIPE() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  // assert(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = taosThreadSigMask(SIG_BLOCK, &signal_mask, NULL);
+  int32_t rc = pthread_sigmask(SIG_BLOCK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to block SIGPIPE");
   }
@@ -766,6 +886,16 @@ void taosBlockSIGPIPE() {
 }
 
 uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
+#ifdef WINDOWS
+  // Initialize Winsock
+  WSADATA wsaData;
+  int     iResult;
+  iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
+  if (iResult != 0) {
+    // printf("WSAStartup failed: %d\n", iResult);
+    return 1;
+  }
+#endif
   struct addrinfo hints = {0};
   hints.ai_family = AF_INET;
   hints.ai_socktype = SOCK_STREAM;
@@ -774,7 +904,7 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
 
   int32_t ret = getaddrinfo(fqdn, NULL, &hints, &result);
   if (result) {
-    struct sockaddr    *sa = result->ai_addr;
+    struct sockaddr *   sa = result->ai_addr;
     struct sockaddr_in *si = (struct sockaddr_in *)sa;
     struct in_addr      ia = si->sin_addr;
     uint32_t            ip = ia.s_addr;
@@ -783,12 +913,12 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
   } else {
 #ifdef EAI_SYSTEM
     if (ret == EAI_SYSTEM) {
-      // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, strerror(errno));
+      // printf("failed to get the ip address, fqdn:%s, errno:%d, since:%s", fqdn, errno, strerror(errno));
     } else {
-      // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+      // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
     }
 #else
-    // printf("failed to get the ip address, fqdn:%s, since:%s", fqdn, gai_strerror(ret));
+    // printf("failed to get the ip address, fqdn:%s, ret:%d, since:%s", fqdn, ret, gai_strerror(ret));
 #endif
     return 0xFFFFFFFF;
   }
@@ -798,7 +928,7 @@ int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
-    printf("failed to get hostname, reason:%s", strerror(errno));
+    // printf("failed to get hostname, reason:%s", strerror(errno));
     assert(0);
     return -1;
   }
@@ -816,7 +946,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif  // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    // printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
     assert(0);
     return -1;
   }
@@ -863,37 +993,33 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
   sprintf(ipstr, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
 }
 
-void taosIgnSIGPIPE() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
-#else
-  signal(SIGPIPE, SIG_IGN);
-#endif
-}
+void taosIgnSIGPIPE() { signal(SIGPIPE, SIG_IGN); }
 
 void taosSetMaskSIGPIPE() {
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  // assert(0);
 #else
   sigset_t signal_mask;
   sigemptyset(&signal_mask);
   sigaddset(&signal_mask, SIGPIPE);
-  int32_t rc = taosThreadSigMask(SIG_SETMASK, &signal_mask, NULL);
+  int32_t rc = pthread_sigmask(SIG_SETMASK, &signal_mask, NULL);
   if (rc != 0) {
     // printf("failed to setmask SIGPIPE");
   }
 #endif
 }
 
-int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, socklen_t *addrLen) {
+int32_t taosGetSocketName(TdSocketPtr pSocket, struct sockaddr *destAddr, int *addrLen) {
   if (pSocket == NULL || pSocket->fd < 0) {
     return -1;
   }
   return getsockname(pSocket->fd, destAddr, addrLen);
 }
 
-
 TdEpollPtr taosCreateEpoll(int32_t size) {
   EpollFd fd = -1;
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
 #else
   fd = epoll_create(size);
 #endif
@@ -915,7 +1041,8 @@ int32_t taosCtlEpoll(TdEpollPtr pEpoll, int32_t epollOperate, TdSocketPtr pSocke
   if (pEpoll == NULL || pEpoll->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
 #else
   code = epoll_ctl(pEpoll->fd, epollOperate, pSocket->fd, event);
 #endif
@@ -926,7 +1053,8 @@ int32_t taosWaitEpoll(TdEpollPtr pEpoll, struct epoll_event *event, int32_t maxE
   if (pEpoll == NULL || pEpoll->fd < 0) {
     return -1;
   }
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#ifdef WINDOWS
+  assert(0);
 #else
   code = epoll_wait(pEpoll->fd, event, maxEvents, timeout);
 #endif
@@ -941,4 +1069,29 @@ int32_t taosCloseEpoll(TdEpollPtr *ppEpoll) {
   (*ppEpoll)->fd = -1;
   taosMemoryFree(*ppEpoll);
   return code;
+}
+/*
+ * Set TCP connection timeout per-socket level.
+ * ref [https://github.com/libuv/help/issues/54]
+ */
+int taosCreateSocketWithTimeOutOpt(uint32_t conn_timeout_sec) {
+#if defined(WINDOWS)
+  SOCKET fd;
+#else
+  int      fd;
+#endif
+  if ((fd = socket(PF_INET, SOCK_STREAM, IPPROTO_TCP)) == INVALID_SOCKET) {
+    return -1;
+  }
+#if defined(WINDOWS)
+  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_MAXRT, (char *)&conn_timeout_sec, sizeof(conn_timeout_sec))) {
+    return -1;
+  }
+#else  // Linux like systems
+  uint32_t conn_timeout_ms = conn_timeout_sec * 1000;
+  if (0 != setsockopt(fd, IPPROTO_TCP, TCP_USER_TIMEOUT, (char *)&conn_timeout_ms, sizeof(conn_timeout_ms))) {
+    return -1;
+  }
+#endif
+  return (int)fd;
 }

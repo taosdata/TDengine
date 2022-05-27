@@ -15,9 +15,9 @@
 
 //#define _DEFAULT_SOURCE
 #include "os.h"
-#include "rpcLog.h"
 #include "tglobal.h"
 #include "tqueue.h"
+#include "transLog.h"
 #include "trpc.h"
 
 int         msgSize = 128;
@@ -69,7 +69,7 @@ void processShellMsg() {
       memset(&rpcMsg, 0, sizeof(rpcMsg));
       rpcMsg.pCont = rpcMallocCont(msgSize);
       rpcMsg.contLen = msgSize;
-      rpcMsg.handle = pRpcMsg->handle;
+      rpcMsg.info = pRpcMsg->info;
       rpcMsg.code = 0;
       rpcSendResponse(&rpcMsg);
 
@@ -103,7 +103,7 @@ int retrieveAuthInfo(void *parent, char *meterId, char *spi, char *encrypt, char
 void processRequestMsg(void *pParent, SRpcMsg *pMsg, SEpSet *pEpSet) {
   SRpcMsg *pTemp;
 
-  pTemp = taosAllocateQitem(sizeof(SRpcMsg));
+  pTemp = taosAllocateQitem(sizeof(SRpcMsg), DEF_QITEM);
   memcpy(pTemp, pMsg, sizeof(SRpcMsg));
 
   tDebug("request is received, type:%d, contLen:%d, item:%p", pMsg->msgType, pMsg->contLen, pTemp);
@@ -123,7 +123,6 @@ int main(int argc, char *argv[]) {
   rpcInit.cfp = processRequestMsg;
   rpcInit.sessions = 1000;
   rpcInit.idleTime = 2 * 1500;
-  rpcInit.afp = retrieveAuthInfo;
 
   rpcDebugFlag = 131;
 
@@ -161,7 +160,7 @@ int main(int argc, char *argv[]) {
   tsAsyncLog = 0;
   rpcInit.connType = TAOS_CONN_SERVER;
 
-  const char *path = "/tmp/transport/server";
+  const char *path = TD_TMP_DIR_PATH "transport/server";
   taosRemoveDir(path);
   taosMkDir(path);
   tstrncpy(tsLogDir, path, PATH_MAX);
@@ -177,7 +176,7 @@ int main(int argc, char *argv[]) {
   tInfo("RPC server is running, ctrl-c to exit");
 
   if (commit) {
-    pDataFile = taosOpenFile(dataName, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_APPEND);
+    pDataFile = taosOpenFile(dataName, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_APPEND);
     if (pDataFile == NULL) tInfo("failed to open data file, reason:%s", strerror(errno));
   }
   qhandle = taosOpenQueue();

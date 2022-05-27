@@ -3,6 +3,11 @@
 
 # ---- user
 ./test.sh -f tsim/user/basic1.sim
+./test.sh -f tsim/user/pass_alter.sim
+./test.sh -f tsim/user/pass_len.sim
+./test.sh -f tsim/user/user_len.sim
+./test.sh -f tsim/user/privilege1.sim
+./test.sh -f tsim/user/privilege2.sim
 
 # ---- db
 ./test.sh -f tsim/db/create_all_options.sim
@@ -13,6 +18,7 @@
 ./test.sh -f tsim/db/basic6.sim
 ./test.sh -f tsim/db/basic7.sim
 ./test.sh -f tsim/db/error1.sim
+./test.sh -f tsim/db/taosdlog.sim
 
 # ---- dnode
 ./test.sh -f tsim/dnode/basic1.sim
@@ -22,6 +28,8 @@
 ./test.sh -f tsim/insert/basic1.sim
 ./test.sh -f tsim/insert/backquote.sim
 ./test.sh -f tsim/insert/null.sim
+./test.sh -f tsim/insert/update0.sim
+./test.sh -f tsim/insert/commit-merge0.sim
 
 # ---- parser
 ./test.sh -f tsim/parser/groupby-basic.sim
@@ -32,6 +40,10 @@
 ./test.sh -f tsim/query/interval-offset.sim
 ./test.sh -f tsim/query/scalarFunction.sim
 ./test.sh -f tsim/query/charScalarFunction.sim
+./test.sh -f tsim/query/explain.sim
+./test.sh -f tsim/query/session.sim
+./test.sh -f tsim/query/scalarNull.sim
+./test.sh -f tsim/query/udf.sim
 
 # ---- qnode
 ./test.sh -f tsim/qnode/basic1.sim
@@ -44,6 +56,8 @@
 
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
+./test.sh -f tsim/mnode/basic2.sim
+./test.sh -f tsim/mnode/basic3.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
@@ -51,31 +65,69 @@
 # ---- table
 ./test.sh -f tsim/table/basic1.sim
 
+# ---- stream
+./test.sh -f tsim/stream/basic0.sim
+./test.sh -f tsim/stream/basic1.sim
+./test.sh -f tsim/stream/basic2.sim
+# ./test.sh -f tsim/stream/session0.sim
+# ./test.sh -f tsim/stream/session1.sim
+
+# ---- transaction
+ ./test.sh -f tsim/trans/lossdata1.sim
+ ./test.sh -f tsim/trans/create_db.sim
+
 # ---- tmq
-./test.sh -f tsim/tmq/basic.sim
 ./test.sh -f tsim/tmq/basic1.sim
-./test.sh -f tsim/tmq/oneTopic.sim
-./test.sh -f tsim/tmq/multiTopic.sim
+./test.sh -f tsim/tmq/basic2.sim
+./test.sh -f tsim/tmq/basic3.sim
+./test.sh -f tsim/tmq/basic4.sim
+./test.sh -f tsim/tmq/basic1Of2Cons.sim
+./test.sh -f tsim/tmq/basic2Of2Cons.sim
+./test.sh -f tsim/tmq/basic3Of2Cons.sim
+./test.sh -f tsim/tmq/basic4Of2Cons.sim
+./test.sh -f tsim/tmq/basic2Of2ConsOverlap.sim
+./test.sh -f tsim/tmq/topic.sim
 
 # --- stable
 ./test.sh -f tsim/stable/disk.sim
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-# ./test.sh -f tsim/stable/show.sim
+./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
-
+./test.sh -f tsim/stable/column_add.sim
+./test.sh -f tsim/stable/column_drop.sim
+./test.sh -f tsim/stable/column_modify.sim
+./test.sh -f tsim/stable/tag_add.sim
+./test.sh -f tsim/stable/tag_drop.sim
+./test.sh -f tsim/stable/tag_modify.sim
+./test.sh -f tsim/stable/tag_rename.sim
+./test.sh -f tsim/stable/alter_comment.sim
 
 # --- for multi process mode
 ./test.sh -f tsim/user/basic1.sim -m
 ./test.sh -f tsim/db/basic3.sim -m
-./test.sh -f tsim/insert/backquote.sim
+./test.sh -f tsim/db/error1.sim -m
+./test.sh -f tsim/insert/backquote.sim -m
 ./test.sh -f tsim/parser/fourArithmetic-basic.sim -m
 ./test.sh -f tsim/query/interval-offset.sim -m
-./test.sh -f tsim/tmq/basic.sim -m
+./test.sh -f tsim/tmq/basic3.sim -m
 ./test.sh -f tsim/stable/vnode3.sim -m
 ./test.sh -f tsim/qnode/basic1.sim -m
-./test.sh -f tsim/mnode/basic1.sim -m
+#./test.sh -f tsim/mnode/basic1.sim -m
+
+# --- sma
+./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
+
+# --- valgrind
+./test.sh -f tsim/valgrind/checkError.sim -v
+
+# --- sync
+./test.sh -f tsim/sync/3Replica1VgElect.sim
+./test.sh -f tsim/sync/3Replica5VgElect.sim
+./test.sh -f tsim/sync/oneReplica1VgElect.sim
+./test.sh -f tsim/sync/oneReplica5VgElect.sim
 
 #======================b1-end===============

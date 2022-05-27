@@ -16,16 +16,24 @@
 #include "planner.h"
 
 #include "planInt.h"
+#include "scalar.h"
+
+static void dumpQueryPlan(SQueryPlan* pPlan) {
+  char* pStr = NULL;
+  nodesNodeToString(pPlan, false, &pStr, NULL);
+  planDebugL("Query Plan: %s", pStr);
+  taosMemoryFree(pStr);
+}
 
 int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNodeList) {
-  SLogicNode* pLogicNode = NULL;
-  SLogicSubplan* pLogicSubplan = NULL;
+  SLogicNode*      pLogicNode = NULL;
+  SLogicSubplan*   pLogicSubplan = NULL;
   SQueryLogicPlan* pLogicPlan = NULL;
 
   int32_t code = createLogicPlan(pCxt, &pLogicNode);
   if (TSDB_CODE_SUCCESS == code) {
     code = optimizeLogicPlan(pCxt, pLogicNode);
-  }  
+  }
   if (TSDB_CODE_SUCCESS == code) {
     code = splitLogicPlan(pCxt, pLogicNode, &pLogicSubplan);
   }
@@ -34,6 +42,9 @@ int32_t qCreateQueryPlan(SPlanContext* pCxt, SQueryPlan** pPlan, SArray* pExecNo
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = createPhysiPlan(pCxt, pLogicPlan, pPlan, pExecNodeList);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    dumpQueryPlan(*pPlan);
   }
 
   nodesDestroyNode(pLogicNode);
@@ -84,12 +95,10 @@ int32_t qSubPlanToString(const SSubplan* pSubplan, char** pStr, int32_t* pLen) {
   return nodesNodeToString((const SNode*)pSubplan, false, pStr, pLen);
 }
 
-int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) {
-  return nodesStringToNode(pStr, (SNode**)pSubplan);
-}
+int32_t qStringToSubplan(const char* pStr, SSubplan** pSubplan) { return nodesStringToNode(pStr, (SNode**)pSubplan); }
 
 char* qQueryPlanToString(const SQueryPlan* pPlan) {
-  char* pStr = NULL;
+  char*   pStr = NULL;
   int32_t len = 0;
   if (TSDB_CODE_SUCCESS != nodesNodeToString(pPlan, false, &pStr, &len)) {
     return NULL;
@@ -105,6 +114,4 @@ SQueryPlan* qStringToQueryPlan(const char* pStr) {
   return pPlan;
 }
 
-void qDestroyQueryPlan(SQueryPlan* pPlan) {
-  nodesDestroyNode(pPlan);
-}
+void qDestroyQueryPlan(SQueryPlan* pPlan) { nodesDestroyNode(pPlan); }

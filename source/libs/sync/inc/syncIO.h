@@ -36,10 +36,10 @@ typedef struct SSyncIO {
   STaosQueue *pMsgQ;
   STaosQset * pQset;
   TdThread    consumerTid;
-
-  void * serverRpc;
-  void * clientRpc;
-  SEpSet myAddr;
+  void *      serverRpc;
+  void *      clientRpc;
+  SEpSet      myAddr;
+  SMsgCb      msgcb;
 
   tmr_h   qTimer;
   int32_t qTimerMS;
@@ -65,8 +65,8 @@ extern SSyncIO *gSyncIO;
 
 int32_t syncIOStart(char *host, uint16_t port);
 int32_t syncIOStop();
-int32_t syncIOSendMsg(void *clientRpc, const SEpSet *pEpSet, SRpcMsg *pMsg);
-int32_t syncIOEqMsg(void *queue, SRpcMsg *pMsg);
+int32_t syncIOSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg);
+int32_t syncIOEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg);
 
 int32_t syncIOQTimerStart();
 int32_t syncIOQTimerStop();

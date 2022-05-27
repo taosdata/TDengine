@@ -1,0 +1,166 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/cfg.sh -n dnode1 -c transPullupInterval -v 1
+system sh/cfg.sh -n dnode2 -c transPullupInterval -v 1
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+sql connect
+
+print =============== show dnodes
+sql show dnodes;
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+sql show mnodes;
+if $rows != 1 then 
+  return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data02 != LEADER then 
+  return -1
+endi
+
+print =============== create dnodes
+sql create dnode $hostname port 7200
+sleep 2000
+
+sql show dnodes;
+if $rows != 2 then 
+   return -1
+endi
+
+if $data00 != 1 then 
+  return -1
+endi
+
+if $data10 != 2 then 
+  return -1
+endi
+
+print =============== kill dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+
+print =============== create database
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql_error create database d1 vgroups 2;
+
+print =============== show transactions
+sql show transactions
+if $rows != 1 then
+  return -1
+endi
+
+if $data[0][0] != 7 then
+  return -1
+endi
+
+if $data[0][2] != undoAction then
+  return -1
+endi
+
+if $data[0][3] != d1 then
+  return -1
+endi
+
+if $data[0][4] != create-db then
+  return -1
+endi
+
+if $data[0][7] != @Unable to establish connection@ then
+  return -1
+endi
+
+sql_error create database d1 vgroups 2;
+
+print =============== start dnode2
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql create database d1 vgroups 2;
+
+print =============== kill dnode2
+system sh/exec.sh -n dnode2 -s stop -x SIGINT
+
+print =============== create database
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql_error create database d2 vgroups 2;
+
+print =============== show transactions
+sql show transactions
+if $rows != 1 then
+  return -1
+endi
+
+if $data[0][0] != 9 then
+  return -1
+endi
+
+if $data[0][2] != undoAction then
+  return -1
+endi
+
+if $data[0][3] != d2 then
+  return -1
+endi
+
+if $data[0][4] != create-db then
+  return -1
+endi
+
+if $data[0][7] != @Unable to establish connection@ then
+  return -1
+endi
+
+sql_error create database d2 vgroups 2;
+
+print =============== kill transaction
+sql kill transaction 9;
+sleep 2000
+
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+print =============== start dnode2
+system sh/exec.sh -n dnode2 -s start
+sleep 3000
+
+sql show transactions
+if $rows != 0 then
+  return -1
+endi
+
+sql create database d2 vgroups 2;
+sql_error kill transaction 1;
+sql_error kill transaction 2;
+sql_error kill transaction 3;
+sql_error kill transaction 4;
+sql_error kill transaction 5;
+
+return
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode2 -s stop -x SIGINT

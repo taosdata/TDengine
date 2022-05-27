@@ -28,30 +28,10 @@ extern "C" {
 
 #define TDB_ROUND8(x) (((x) + 7) & ~7)
 
-int tdbGnrtFileID(const char *fname, uint8_t *fileid, bool unique);
+int tdbGnrtFileID(tdb_fd_t fd, uint8_t *fileid, bool unique);
 int tdbGetFileSize(tdb_fd_t fd, int szPage, SPgno *size);
 
-#define TDB_REALLOC(PTR, SIZE)                                                               \
-  ({                                                                                         \
-    void *nPtr;                                                                              \
-    if ((PTR) == NULL || ((int *)(PTR))[-1] < (SIZE)) {                                      \
-      nPtr = tdbOsRealloc((PTR) ? (char *)(PTR) - sizeof(int) : NULL, (SIZE) + sizeof(int)); \
-      if (nPtr) {                                                                            \
-        ((int *)nPtr)[0] = (SIZE);                                                           \
-        nPtr = (char *)nPtr + sizeof(int);                                                   \
-      }                                                                                      \
-    } else {                                                                                 \
-      nPtr = (PTR);                                                                          \
-    }                                                                                        \
-    nPtr;                                                                                    \
-  })
-
-#define TDB_FREE(PTR)                         \
-  do {                                        \
-    if (PTR) {                                \
-      tdbOsFree((char *)(PTR) - sizeof(int)); \
-    }                                         \
-  } while (0)
+void *tdbRealloc(void *ptr, size_t size);
 
 static inline void *tdbDefaultMalloc(void *arg, size_t size) {
   void *ptr;

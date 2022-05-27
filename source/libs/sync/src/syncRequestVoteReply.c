@@ -49,11 +49,20 @@ int32_t syncNodeOnRequestVoteReplyCb(SSyncNode* ths, SyncRequestVoteReply* pMsg)
     return ret;
   }
 
-  assert(!(pMsg->term > ths->pRaftStore->currentTerm));
-  // no need this code, because if I receive reply.term, then I must have sent for that term.
-  //  if (pMsg->term > ths->pRaftStore->currentTerm) {
-  //    syncNodeUpdateTerm(ths, pMsg->term);
-  //  }
+  // assert(!(pMsg->term > ths->pRaftStore->currentTerm));
+  //  no need this code, because if I receive reply.term, then I must have sent for that term.
+  //   if (pMsg->term > ths->pRaftStore->currentTerm) {
+  //     syncNodeUpdateTerm(ths, pMsg->term);
+  //   }
+
+  if (pMsg->term > ths->pRaftStore->currentTerm) {
+    char logBuf[128];
+    snprintf(logBuf, sizeof(logBuf), "syncNodeOnRequestVoteReplyCb error term, receive:%lu current:%lu", pMsg->term,
+             ths->pRaftStore->currentTerm);
+    syncNodePrint2(logBuf, ths);
+    sError("%s", logBuf);
+    return ret;
+  }
 
   assert(pMsg->term == ths->pRaftStore->currentTerm);
 

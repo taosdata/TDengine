@@ -20,8 +20,8 @@
 extern "C" {
 #endif
 
-#include "querynodes.h"
 #include "function.h"
+#include "querynodes.h"
 
 typedef enum EFunctionType {
   // aggregate function
@@ -31,15 +31,17 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_ELAPSED,
   FUNCTION_TYPE_IRATE,
   FUNCTION_TYPE_LAST_ROW,
-  FUNCTION_TYPE_LEASTSQUARES,
   FUNCTION_TYPE_MAX,
   FUNCTION_TYPE_MIN,
   FUNCTION_TYPE_MODE,
   FUNCTION_TYPE_PERCENTILE,
   FUNCTION_TYPE_SPREAD,
   FUNCTION_TYPE_STDDEV,
+  FUNCTION_TYPE_LEASTSQUARES,
   FUNCTION_TYPE_SUM,
   FUNCTION_TYPE_TWA,
+  FUNCTION_TYPE_HISTOGRAM,
+  FUNCTION_TYPE_HYPERLOGLOG,
 
   // nonstandard SQL function
   FUNCTION_TYPE_BOTTOM = 500,
@@ -54,6 +56,8 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_TAIL,
   FUNCTION_TYPE_TOP,
   FUNCTION_TYPE_UNIQUE,
+  FUNCTION_TYPE_STATE_COUNT,
+  FUNCTION_TYPE_STATE_DURATION,
 
   // math function
   FUNCTION_TYPE_ABS = 1000,
@@ -85,8 +89,8 @@ typedef enum EFunctionType {
   // conversion function
   FUNCTION_TYPE_CAST = 2000,
   FUNCTION_TYPE_TO_ISO8601,
+  FUNCTION_TYPE_TO_UNIXTIMESTAMP,
   FUNCTION_TYPE_TO_JSON,
-  FUNCTION_TYPE_UNIXTIMESTAMP,
 
   // date and time function
   FUNCTION_TYPE_NOW = 2500,
@@ -110,36 +114,70 @@ typedef enum EFunctionType {
   FUNCTION_TYPE_QENDTS,
   FUNCTION_TYPE_WSTARTTS,
   FUNCTION_TYPE_WENDTS,
-  FUNCTION_TYPE_WDURATION
+  FUNCTION_TYPE_WDURATION,
+
+  // internal function
+  FUNCTION_TYPE_SELECT_VALUE,
+
+  // user defined funcion
+  FUNCTION_TYPE_UDF = 10000
 } EFunctionType;
 
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
+struct SCatalog;
+
+typedef struct SFmGetFuncInfoParam {
+  struct SCatalog* pCtg;
+  void*            pRpc;
+  const SEpSet*    pMgmtEps;
+  char*            pErrBuf;
+  int32_t          errBufLen;
+} SFmGetFuncInfoParam;
 
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(const char* pFuncName, int32_t* pFuncId, int32_t* pFuncType);
+int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc);
 
-int32_t fmGetFuncResultType(SFunctionNode* pFunc);
+bool fmIsBuiltinFunc(const char* pFunc);
 
 bool fmIsAggFunc(int32_t funcId);
 bool fmIsScalarFunc(int32_t funcId);
-bool fmIsNonstandardSQLFunc(int32_t funcId);
+bool fmIsVectorFunc(int32_t funcId);
+bool fmIsIndefiniteRowsFunc(int32_t funcId);
 bool fmIsStringFunc(int32_t funcId);
 bool fmIsDatetimeFunc(int32_t funcId);
+bool fmIsSelectFunc(int32_t funcId);
 bool fmIsTimelineFunc(int32_t funcId);
 bool fmIsTimeorderFunc(int32_t funcId);
 bool fmIsPseudoColumnFunc(int32_t funcId);
+bool fmIsScanPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowPseudoColumnFunc(int32_t funcId);
 bool fmIsWindowClauseFunc(int32_t funcId);
+bool fmIsSpecialDataRequiredFunc(int32_t funcId);
+bool fmIsDynamicScanOptimizedFunc(int32_t funcId);
+bool fmIsMultiResFunc(int32_t funcId);
+bool fmIsRepeatScanFunc(int32_t funcId);
+bool fmIsUserDefinedFunc(int32_t funcId);
 
-int32_t fmFuncScanType(int32_t funcId);
+typedef enum EFuncDataRequired {
+  FUNC_DATA_REQUIRED_DATA_LOAD = 1,
+  FUNC_DATA_REQUIRED_STATIS_LOAD,
+  FUNC_DATA_REQUIRED_NOT_LOAD,
+  FUNC_DATA_REQUIRED_FILTEROUT,
+} EFuncDataRequired;
+
+EFuncDataRequired fmFuncDataRequired(SFunctionNode* pFunc, STimeWindow* pTimeWindow);
 
 int32_t fmGetFuncExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
 int32_t fmGetScalarFuncExecFuncs(int32_t funcId, SScalarFuncExecFuncs* pFpSet);
+int32_t fmGetUdafExecFuncs(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmSetInvertFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
+int32_t fmSetNormalFunc(int32_t funcId, SFuncExecFuncs* pFpSet);
+bool    fmIsInvertible(int32_t funcId);
 
 #ifdef __cplusplus
 }

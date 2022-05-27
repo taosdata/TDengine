@@ -31,13 +31,14 @@ extern "C" {
 typedef struct MemTable {
   T_REF_DECLARE()
   SSkipList* mem;
+  void*      pCache;
 } MemTable;
 typedef struct IndexCache {
   T_REF_DECLARE()
   MemTable *mem, *imm;
   SIndex*   index;
   char*     colName;
-  int32_t   version;
+  int64_t   version;
   int64_t   occupiedMem;
   int8_t    type;
   uint64_t  suid;
@@ -46,11 +47,12 @@ typedef struct IndexCache {
   TdThreadCond  finished;
 } IndexCache;
 
-#define CACHE_VERSION(cache) atomic_load_32(&cache->version)
+#define CACHE_VERSION(cache) atomic_load_64(&cache->version)
+
 typedef struct CacheTerm {
   // key
   char*   colVal;
-  int32_t version;
+  int64_t version;
   // value
   uint64_t uid;
   int8_t   colType;
@@ -61,7 +63,10 @@ typedef struct CacheTerm {
 
 IndexCache* indexCacheCreate(SIndex* idx, uint64_t suid, const char* colName, int8_t type);
 
+void indexCacheForceToMerge(void* cache);
 void indexCacheDestroy(void* cache);
+void indexCacheBroadcast(void* cache);
+void indexCacheWait(void* cache);
 
 Iterate* indexCacheIteratorCreate(IndexCache* cache);
 void     indexCacheIteratorDestroy(Iterate* iiter);

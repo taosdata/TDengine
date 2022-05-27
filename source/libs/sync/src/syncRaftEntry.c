@@ -28,13 +28,13 @@ SSyncRaftEntry* syncEntryBuild(uint32_t dataLen) {
 
 // step 4. SyncClientRequest => SSyncRaftEntry, add term, index
 SSyncRaftEntry* syncEntryBuild2(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
-  SSyncRaftEntry* pEntry = syncEntryBuild3(pMsg, term, index, SYNC_RAFT_ENTRY_DATA);
+  SSyncRaftEntry* pEntry = syncEntryBuild3(pMsg, term, index);
   assert(pEntry != NULL);
 
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index, EntryType entryType) {
+SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncIndex index) {
   SSyncRaftEntry* pEntry = syncEntryBuild(pMsg->dataLen);
   assert(pEntry != NULL);
 
@@ -44,19 +44,37 @@ SSyncRaftEntry* syncEntryBuild3(SyncClientRequest* pMsg, SyncTerm term, SyncInde
   pEntry->isWeak = pMsg->isWeak;
   pEntry->term = term;
   pEntry->index = index;
-  pEntry->entryType = entryType;
   pEntry->dataLen = pMsg->dataLen;
   memcpy(pEntry->data, pMsg->data, pMsg->dataLen);
 
   return pEntry;
 }
 
-SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index) {
-  SSyncRaftEntry* pEntry = syncEntryBuild(0);
+SSyncRaftEntry* syncEntryBuildNoop(SyncTerm term, SyncIndex index, int32_t vgId) {
+  // init rpcMsg
+  SMsgHead head;
+  head.vgId = vgId;
+  head.contLen = sizeof(SMsgHead);
+  SRpcMsg rpcMsg;
+  memset(&rpcMsg, 0, sizeof(SRpcMsg));
+  rpcMsg.contLen = head.contLen;
+  rpcMsg.pCont = rpcMallocCont(rpcMsg.contLen);
+  rpcMsg.msgType = TDMT_VND_SYNC_NOOP;
+  memcpy(rpcMsg.pCont, &head, sizeof(head));
+
+  SSyncRaftEntry* pEntry = syncEntryBuild(rpcMsg.contLen);
   assert(pEntry != NULL);
+
+  pEntry->msgType = TDMT_VND_SYNC_CLIENT_REQUEST;
+  pEntry->originalRpcType = TDMT_VND_SYNC_NOOP;
+  pEntry->seqNum = 0;
+  pEntry->isWeak = 0;
   pEntry->term = term;
   pEntry->index = index;
-  pEntry->entryType = SYNC_RAFT_ENTRY_NOOP;
+
+  assert(pEntry->dataLen == rpcMsg.contLen);
+  memcpy(pEntry->data, rpcMsg.pCont, rpcMsg.contLen);
+  rpcFreeCont(rpcMsg.pCont);
 
   return pEntry;
 }
@@ -103,7 +121,6 @@ cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
     cJSON_AddStringToObject(pRoot, "term", u64buf);
     snprintf(u64buf, sizeof(u64buf), "%lu", pEntry->index);
     cJSON_AddStringToObject(pRoot, "index", u64buf);
-    cJSON_AddNumberToObject(pRoot, "entryType", pEntry->entryType);
     cJSON_AddNumberToObject(pRoot, "dataLen", pEntry->dataLen);
 
     char* s;

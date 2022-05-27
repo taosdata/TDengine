@@ -13,7 +13,7 @@
 
 class MndTestUser : public ::testing::Test {
  protected:
-  static void SetUpTestSuite() { test.Init("/tmp/mnode_test_user", 9011); }
+  static void SetUpTestSuite() { test.Init(TD_TMP_DIR_PATH "mnode_test_user", 9011); }
   static void TearDownTestSuite() { test.Cleanup(); }
 
   static Testbase test;
@@ -26,21 +26,8 @@ class MndTestUser : public ::testing::Test {
 Testbase MndTestUser::test;
 
 TEST_F(MndTestUser, 01_Show_User) {
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-
-  CHECK_SCHEMA(0, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "name");
-  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, 10 + VARSTR_HEADER_SIZE, "privilege");
-  CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-  CHECK_SCHEMA(3, TSDB_DATA_TYPE_BINARY, TSDB_USER_LEN + VARSTR_HEADER_SIZE, "account");
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 1);
-
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("super", 10);
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
 }
 
 TEST_F(MndTestUser, 02_Create_User) {
@@ -99,18 +86,8 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
     EXPECT_EQ(test.GetShowRows(), 2);
-
-    CheckBinary("u1", TSDB_USER_LEN);
-    CheckBinary("root", TSDB_USER_LEN);
-    CheckBinary("normal", 10);
-    CheckBinary("super", 10);
-    CheckTimestamp();
-    CheckTimestamp();
-    CheckBinary("root", TSDB_USER_LEN);
-    CheckBinary("root", TSDB_USER_LEN);
   }
 
   {
@@ -125,8 +102,7 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 
@@ -144,18 +120,8 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
     EXPECT_EQ(test.GetShowRows(), 2);
-
-    CheckBinary("root", TSDB_USER_LEN);
-    CheckBinary("u2", TSDB_USER_LEN);
-    CheckBinary("super", 10);
-    CheckBinary("super", 10);
-    CheckTimestamp();
-    CheckTimestamp();
-    CheckBinary("root", TSDB_USER_LEN);
-    CheckBinary("root", TSDB_USER_LEN);
   }
 
   {
@@ -170,8 +136,7 @@ TEST_F(MndTestUser, 02_Create_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 }
@@ -191,8 +156,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -274,9 +238,10 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_CLEAR_WRITE_DB;
+    alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
+    strcpy(alterReq.dbname, "1.*");
 
     int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -289,9 +254,10 @@ TEST_F(MndTestUser, 03_Alter_User) {
 
   {
     SAlterUserReq alterReq = {0};
-    alterReq.alterType = TSDB_ALTER_USER_CLEAR_READ_DB;
+    alterReq.alterType = TSDB_ALTER_USER_REMOVE_ALL_DB;
     strcpy(alterReq.user, "u3");
     strcpy(alterReq.pass, "1");
+    strcpy(alterReq.dbname, "1.*");
 
     int32_t contLen = tSerializeSAlterUserReq(NULL, 0, &alterReq);
     void*   pReq = rpcMallocCont(contLen);
@@ -322,22 +288,21 @@ TEST_F(MndTestUser, 03_Alter_User) {
     SCreateDbReq createReq = {0};
     strcpy(createReq.db, "1.d2");
     createReq.numOfVgroups = 2;
-    createReq.cacheBlockSize = 16;
-    createReq.totalBlocks = 10;
+    createReq.buffer = -1;
+    createReq.pageSize = -1;
+    createReq.pages = -1;
     createReq.daysPerFile = 10 * 1440;
     createReq.daysToKeep0 = 3650 * 1440;
     createReq.daysToKeep1 = 3650 * 1440;
     createReq.daysToKeep2 = 3650 * 1440;
     createReq.minRows = 100;
     createReq.maxRows = 4096;
-    createReq.commitTime = 3600;
     createReq.fsyncPeriod = 3000;
     createReq.walLevel = 1;
     createReq.precision = 0;
     createReq.compression = 2;
     createReq.replications = 1;
-    createReq.quorum = 1;
-    createReq.update = 0;
+    createReq.strict = 1;
     createReq.cacheLastRow = 0;
     createReq.ignoreExist = 1;
 
@@ -402,8 +367,8 @@ TEST_F(MndTestUser, 03_Alter_User) {
     EXPECT_EQ(numOfReadDbs, 1);
     EXPECT_EQ(numOfWriteDbs, 0);
 
-    char* dbname = (char*)taosHashGet(authRsp.readDbs, "1.d2", 5);
-    EXPECT_STREQ(dbname, "1.d2");
+    char* dbname = (char*)taosHashGet(authRsp.readDbs, "1.d2", 4);
+    EXPECT_TRUE(dbname != NULL);
 
     taosHashCleanup(authRsp.readDbs);
     taosHashCleanup(authRsp.writeDbs);
@@ -437,8 +402,7 @@ TEST_F(MndTestUser, 03_Alter_User) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
     EXPECT_EQ(test.GetShowRows(), 1);
   }
 }
@@ -497,10 +461,7 @@ TEST_F(MndTestUser, 05_Drop_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 1);
 }
 
@@ -533,24 +494,8 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 3);
-
-  CheckBinary("u1", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("normal", 10);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
 
   {
     SAlterUserReq alterReq = {0};
@@ -567,25 +512,8 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 3);
-
-  CheckBinary("u1", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("normal", 10);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
-
   {
     SDropUserReq dropReq = {0};
     strcpy(dropReq.user, "u1");
@@ -599,37 +527,13 @@ TEST_F(MndTestUser, 06_Create_Drop_Alter_User) {
     ASSERT_EQ(pRsp->code, 0);
   }
 
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 2);
-
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
 
   // restart
   test.Restart();
 
   taosMsleep(1000);
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_USER, "");
-  CHECK_META("show users", 4);
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_USER, "user_users", "");
   EXPECT_EQ(test.GetShowRows(), 2);
-
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("u2", TSDB_USER_LEN);
-  CheckBinary("super", 10);
-  CheckBinary("normal", 10);
-  CheckTimestamp();
-  CheckTimestamp();
-  CheckBinary("root", TSDB_USER_LEN);
-  CheckBinary("root", TSDB_USER_LEN);
 }

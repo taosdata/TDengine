@@ -23,6 +23,8 @@ extern "C" {
 #include "catalog.h"
 #include "planner.h"
 
+extern tsem_t schdRspSem;
+
 typedef struct SSchedulerCfg {
   uint32_t maxJobNum;
   int32_t  maxNodeTableNum;
@@ -54,14 +56,22 @@ typedef struct SQueryProfileSummary {
 typedef struct SQueryResult {
   int32_t         code;
   uint64_t        numOfRows;
-  int32_t         msgSize;
-  char           *msg;
+  void           *res;
 } SQueryResult;
 
 typedef struct STaskInfo {
   SQueryNodeAddr addr;
   SSubQueryMsg  *msg;
 } STaskInfo;
+
+typedef struct SSchdFetchParam {
+  void **pData;
+  int32_t* code;
+} SSchdFetchParam;
+
+typedef void (*schedulerExecCallback)(SQueryResult* pResult, void* param, int32_t code);
+typedef void (*schedulerFetchCallback)(void* pResult, void* param, int32_t code);
+
 
 int32_t schedulerInit(SSchedulerCfg *cfg);
 
@@ -79,7 +89,8 @@ int32_t schedulerExecJob(void *transport, SArray *nodeList, SQueryPlan *pDag, in
  * @param pNodeList  Qnode/Vnode address list, element is SQueryNodeAddr
  * @return
  */
-int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan* pDag, const char* sql, int64_t *pJob);
+  int32_t schedulerAsyncExecJob(void *pTrans, SArray *pNodeList, SQueryPlan *pDag, int64_t *pJob, const char *sql,
+                           int64_t startTs, schedulerExecCallback fp, void* param);
 
 /**
  * Fetch query result from the remote query executor
@@ -88,6 +99,10 @@ int32_t schedulerAsyncExecJob(void *transport, SArray *pNodeList, SQueryPlan* pD
  * @return
  */
 int32_t schedulerFetchRows(int64_t job, void **data);
+
+int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* param);
+
+int32_t schedulerGetTasksStatus(int64_t job, SArray *pSub);
 
 
 /**
@@ -105,23 +120,8 @@ void schedulerFreeJob(int64_t job);
 
 void schedulerDestroy(void);
 
-/**
- * convert dag to task list
- * @param pDag
- * @param pTasks SArray**<STaskInfo>
- * @return
- */
-int32_t schedulerConvertDagToTaskList(SQueryPlan* pDag, SArray **pTasks);
-
-/**
- * make one task info's multiple copies
- * @param src
- * @param dst SArray**<STaskInfo>
- * @return
- */
-int32_t schedulerCopyTask(STaskInfo *src, SArray **dst, int32_t copyNum);
-
-void schedulerFreeTaskList(SArray *taskList);
+void schdExecCallback(SQueryResult* pResult, void* param, int32_t code);
+void schdFetchCallback(void* pResult, void* param, int32_t code);
 
 
 #ifdef __cplusplus

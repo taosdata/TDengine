@@ -37,7 +37,7 @@ extern "C" {
 /* file */
 typedef TdFilePtr tdb_fd_t;
 
-#define TDB_O_CREAT  TD_FILE_CTEATE
+#define TDB_O_CREAT  TD_FILE_CREATE
 #define TDB_O_WRITE  TD_FILE_WRITE
 #define TDB_O_READ   TD_FILE_READ
 #define TDB_O_TRUNC  TD_FILE_TRUNC

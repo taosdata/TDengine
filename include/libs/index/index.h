@@ -16,8 +16,11 @@
 #ifndef _TD_INDEX_H_
 #define _TD_INDEX_H_
 
+#include "nodes.h"
 #include "os.h"
+#include "taoserror.h"
 #include "tarray.h"
+#include "tglobal.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -41,11 +44,23 @@ typedef enum {
   UPDATE_VALUE,  // update index column value
   ADD_INDEX,     // add index on specify column
   DROP_INDEX,    // drop existed index
-  DROP_SATBLE    // drop stable
+  DROP_SATBLE,   // drop stable
+  DEFAULT        // query
 } SIndexOperOnColumn;
 
-typedef enum { MUST = 0, SHOULD = 1, NOT = 2 } EIndexOperatorType;
-typedef enum { QUERY_TERM = 0, QUERY_PREFIX = 1, QUERY_SUFFIX = 2, QUERY_REGEX = 3, QUERY_RANGE = 4 } EIndexQueryType;
+typedef enum { MUST = 0, SHOULD, NOT } EIndexOperatorType;
+typedef enum {
+  QUERY_TERM = 0,
+  QUERY_PREFIX,
+  QUERY_SUFFIX,
+  QUERY_REGEX,
+  QUERY_LESS_THAN,
+  QUERY_LESS_EQUAL,
+  QUERY_GREATER_THAN,
+  QUERY_GREATER_EQUAL,
+  QUERY_RANGE,
+  QUERY_MAX
+} EIndexQueryType;
 
 /*
  * create multi query
@@ -176,6 +191,12 @@ void        indexTermDestroy(SIndexTerm* p);
  */
 void indexInit();
 
+/* index filter */
+typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltStatus;
+
+SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
+
+int32_t doFilterTag(const SNode* pFilterNode, SArray* result);
 /*
  * destory index env
  *

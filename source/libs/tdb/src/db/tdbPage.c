@@ -43,15 +43,14 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
   u8    *ptr;
   int    size;
 
+  ASSERT(xMalloc);
+
   ASSERT(TDB_IS_PGSIZE_VLD(pageSize));
 
   *ppPage = NULL;
   size = pageSize + sizeof(*pPage);
-  if (xMalloc == NULL) {
-    xMalloc = tdbDefaultMalloc;
-  }
 
-  ptr = (u8 *)((*xMalloc)(arg, size));
+  ptr = (u8 *)(xMalloc(arg, size));
   if (ptr == NULL) {
     return -1;
   }
@@ -75,12 +74,10 @@ int tdbPageCreate(int pageSize, SPage **ppPage, void *(*xMalloc)(void *, size_t)
 int tdbPageDestroy(SPage *pPage, void (*xFree)(void *arg, void *ptr), void *arg) {
   u8 *ptr;
 
-  if (!xFree) {
-    xFree = tdbDefaultFree;
-  }
+  ASSERT(xFree);
 
   ptr = pPage->pData;
-  (*xFree)(arg, ptr);
+  xFree(arg, ptr);
 
   return 0;
 }
@@ -172,6 +169,11 @@ int tdbPageInsertCell(SPage *pPage, int idx, SCell *pCell, int szCell, u8 asOvfl
   }
 
   return 0;
+}
+
+int tdbPageUpdateCell(SPage *pPage, int idx, SCell *pCell, int szCell) {
+  tdbPageDropCell(pPage, idx);
+  return tdbPageInsertCell(pPage, idx, pCell, szCell, 0);
 }
 
 int tdbPageDropCell(SPage *pPage, int idx) {
@@ -435,17 +437,20 @@ static int tdbPageDefragment(SPage *pPage) {
 }
 
 /* ---------------------------------------------------------------------------------------------------------- */
-typedef struct __attribute__((__packed__)) {
+
+#pragma pack(push, 1)
+typedef struct {
   u16 cellNum;
   u16 cellBody;
   u16 cellFree;
   u16 nFree;
 } SPageHdr;
 
-typedef struct __attribute__((__packed__)) {
+typedef struct {
   u16 szCell;
   u16 nxOffset;
 } SFreeCell;
+#pragma pack(pop)
 
 // cellNum
 static inline int  getPageCellNum(SPage *pPage) { return ((SPageHdr *)(pPage->pPageHdr))[0].cellNum; }
@@ -517,17 +522,19 @@ SPageMethods pageMethods = {
     setPageFreeCellInfo   // setFreeCellInfo
 };
 
-typedef struct __attribute__((__packed__)) {
+#pragma pack(push, 1)
+typedef struct {
   u8 cellNum[3];
   u8 cellBody[3];
   u8 cellFree[3];
   u8 nFree[3];
 } SPageHdrL;
 
-typedef struct __attribute__((__packed__)) {
+typedef struct {
   u8 szCell[3];
   u8 nxOffset[3];
 } SFreeCellL;
+#pragma pack(pop)
 
 // cellNum
 static inline int  getLPageCellNum(SPage *pPage) { return TDB_GET_U24(((SPageHdrL *)(pPage->pPageHdr))[0].cellNum); }

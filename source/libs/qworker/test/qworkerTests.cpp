@@ -27,6 +27,9 @@
 #pragma GCC diagnostic ignored "-Wpointer-arith"
 #include <addr_any.h>
 
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
 #include "os.h"
 
 #include "tglobal.h"
@@ -124,15 +127,6 @@ void qwtBuildQueryReqMsg(SRpcMsg *queryRpc) {
   queryRpc->contLen = sizeof(SSubQueryMsg) + 100;
 }
 
-void qwtBuildReadyReqMsg(SResReadyReq *readyMsg, SRpcMsg *readyRpc) {
-  readyMsg->sId = htobe64(1);
-  readyMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
-  readyMsg->taskId = htobe64(1);
-  readyRpc->msgType = TDMT_VND_RES_READY;
-  readyRpc->pCont = readyMsg;
-  readyRpc->contLen = sizeof(SResReadyReq);
-}
-
 void qwtBuildFetchReqMsg(SResFetchReq *fetchMsg, SRpcMsg *fetchRpc) {
   fetchMsg->sId = htobe64(1);
   fetchMsg->queryId = htobe64(atomic_load_64(&qwtTestQueryId));
@@ -149,13 +143,6 @@ void qwtBuildDropReqMsg(STaskDropReq *dropMsg, SRpcMsg *dropRpc) {
   dropRpc->msgType = TDMT_VND_DROP_TASK;
   dropRpc->pCont = dropMsg;
   dropRpc->contLen = sizeof(STaskDropReq);
-}
-
-void qwtBuildStatusReqMsg(SSchTasksStatusReq *statusMsg, SRpcMsg *statusRpc) {
-  statusMsg->sId = htobe64(1);
-  statusRpc->pCont = statusMsg;
-  statusRpc->contLen = sizeof(SSchTasksStatusReq);
-  statusRpc->msgType = TDMT_VND_TASKS_STATUS;
 }
 
 int32_t qwtStringToPlan(const char* str, SSubplan** subplan) {
@@ -219,27 +206,11 @@ void qwtRpcSendResponse(const SRpcMsg *pRsp) {
     case TDMT_VND_QUERY_RSP: {
       SQueryTableRsp *rsp = (SQueryTableRsp *)pRsp->pCont;
 
-      if (0 == pRsp->code) {
-        qwtBuildReadyReqMsg(&qwtreadyMsg, &qwtreadyRpc);    
-        qwtPutReqToFetchQueue((void *)0x1, &qwtreadyRpc);
-      } else {
+      if (pRsp->code) {
         qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
         qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
       }
       
-      rpcFreeCont(rsp);
-      break;
-    }
-    case TDMT_VND_RES_READY_RSP: {
-      SResReadyRsp *rsp = (SResReadyRsp *)pRsp->pCont;
-      
-      if (0 == pRsp->code) {
-        qwtBuildFetchReqMsg(&qwtfetchMsg, &qwtfetchRpc);
-        qwtPutReqToFetchQueue((void *)0x1, &qwtfetchRpc);
-      } else {
-        qwtBuildDropReqMsg(&qwtdropMsg, &qwtdropRpc);
-        qwtPutReqToFetchQueue((void *)0x1, &qwtdropRpc);
-      }
       rpcFreeCont(rsp);
       break;
     }
@@ -277,8 +248,8 @@ int32_t qwtCreateExecTask(void* tsdb, int32_t vgId, uint64_t taskId, struct SSub
   qwtTestSinkMaxBlockNum = taosRand() % 100 + 1;
   qwtTestSinkQueryEnd = false;
   
-  *pTaskInfo = (qTaskInfo_t)qwtTestCaseIdx+1;
-  *handle = (DataSinkHandle)qwtTestCaseIdx+2;
+  *pTaskInfo = (qTaskInfo_t)((char*)qwtTestCaseIdx+1);
+  *handle = (DataSinkHandle)((char*)qwtTestCaseIdx+2);
 
   ++qwtTestCaseIdx;
   
@@ -435,9 +406,16 @@ void stubSetStringToPlan() {
   static Stub stub;
   stub.set(qStringToSubplan, qwtStringToPlan);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qStringToSubplan", result);
+#endif
+#ifdef LINUX
     AddrAny any("libplanner.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qStringToSubplan$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtStringToPlan);
     }
@@ -448,9 +426,16 @@ void stubSetExecTask() {
   static Stub stub;
   stub.set(qExecTask, qwtExecTask);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qExecTask", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qExecTask$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtExecTask);
     }
@@ -463,9 +448,16 @@ void stubSetCreateExecTask() {
   static Stub stub;
   stub.set(qCreateExecTask, qwtCreateExecTask);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qCreateExecTask", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qCreateExecTask$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtCreateExecTask);
     }
@@ -476,9 +468,16 @@ void stubSetAsyncKillTask() {
   static Stub stub;
   stub.set(qAsyncKillTask, qwtKillTask);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qAsyncKillTask", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qAsyncKillTask$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtKillTask);
     }
@@ -489,9 +488,16 @@ void stubSetDestroyTask() {
   static Stub stub;
   stub.set(qDestroyTask, qwtDestroyTask);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qDestroyTask", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qDestroyTask$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtDestroyTask);
     }
@@ -503,9 +509,16 @@ void stubSetDestroyDataSinker() {
   static Stub stub;
   stub.set(dsDestroyDataSinker, qwtDestroyDataSinker);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("dsDestroyDataSinker", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^dsDestroyDataSinker$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtDestroyDataSinker);
     }
@@ -516,9 +529,16 @@ void stubSetGetDataLength() {
   static Stub stub;
   stub.set(dsGetDataLength, qwtGetDataLength);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("dsGetDataLength", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^dsGetDataLength$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtGetDataLength);
     }
@@ -529,9 +549,16 @@ void stubSetEndPut() {
   static Stub stub;
   stub.set(dsEndPut, qwtEndPut);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("dsEndPut", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^dsEndPut$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtEndPut);
     }
@@ -542,9 +569,16 @@ void stubSetPutDataBlock() {
   static Stub stub;
   stub.set(dsPutDataBlock, qwtPutDataBlock);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("dsPutDataBlock", result);
+#endif
+#ifdef LINUX
     AddrAny any("libexecutor.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^dsPutDataBlock$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtPutDataBlock);
     }
@@ -555,9 +589,16 @@ void stubSetRpcSendResponse() {
   static Stub stub;
   stub.set(rpcSendResponse, qwtRpcSendResponse);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendResponse", result);
+#endif
+#ifdef LINUX
     AddrAny any("libtransport.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^rpcSendResponse$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtRpcSendResponse);
     }
@@ -568,9 +609,16 @@ void stubSetGetDataBlock() {
   static Stub stub;
   stub.set(dsGetDataBlock, qwtGetDataBlock);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("dsGetDataBlock", result);
+#endif
+#ifdef LINUX
     AddrAny any("libtransport.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^dsGetDataBlock$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, qwtGetDataBlock);
     }
@@ -594,28 +642,6 @@ void *queryThread(void *param) {
     if (++n % qwtTestPrintNum == 0) {
       printf("query:%d\n", n);
     }
-  }
-
-  return NULL;
-}
-
-void *readyThread(void *param) {
-  SRpcMsg readyRpc = {0};
-  int32_t code = 0;
-  uint32_t n = 0;  
-  void *mockPointer = (void *)0x1;    
-  void *mgmt = param;
-  SResReadyReq readyMsg = {0};
-
-  while (!qwtTestStop) {
-    qwtBuildReadyReqMsg(&readyMsg, &readyRpc);
-    code = qWorkerProcessReadyMsg(mockPointer, mgmt, &readyRpc);
-    if (qwtTestEnableSleep) {
-      taosUsleep(taosRand()%5);
-    }
-    if (++n % qwtTestPrintNum == 0) {
-      printf("ready:%d\n", n);
-    }    
   }
 
   return NULL;
@@ -664,29 +690,6 @@ void *dropThread(void *param) {
 
   return NULL;
 }
-
-void *statusThread(void *param) {
-  SRpcMsg statusRpc = {0};
-  int32_t code = 0;
-  uint32_t n = 0;  
-  void *mockPointer = (void *)0x1;    
-  void *mgmt = param;
-  SSchTasksStatusReq statusMsg = {0};
-
-  while (!qwtTestStop) {
-    qwtBuildStatusReqMsg(&statusMsg, &statusRpc);
-    code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
-    if (qwtTestEnableSleep) {
-      taosUsleep(taosRand()%5);
-    }
-    if (++n % qwtTestPrintNum == 0) {
-      printf("status:%d\n", n);
-    }    
-  }
-
-  return NULL;
-}
-
 
 void *qwtclientThread(void *param) {
   int32_t code = 0;
@@ -814,12 +817,6 @@ void *fetchQueueThread(void *param) {
       case TDMT_VND_FETCH:
         qWorkerProcessFetchMsg(mockPointer, mgmt, fetchRpc);
         break;
-      case TDMT_VND_RES_READY:
-        qWorkerProcessReadyMsg(mockPointer, mgmt, fetchRpc);
-        break;
-      case TDMT_VND_TASKS_STATUS:
-        qWorkerProcessStatusMsg(mockPointer, mgmt, fetchRpc);
-        break;
       case TDMT_VND_CANCEL_TASK:
         qWorkerProcessCancelMsg(mockPointer, mgmt, fetchRpc);
         break;
@@ -854,15 +851,12 @@ TEST(seqTest, normalCase) {
   int32_t code = 0;
   void *mockPointer = (void *)0x1;
   SRpcMsg queryRpc = {0};
-  SRpcMsg readyRpc = {0};
   SRpcMsg fetchRpc = {0};
   SRpcMsg dropRpc = {0};
-  SRpcMsg statusRpc = {0};
 
   qwtInitLogFile();
 
   qwtBuildQueryReqMsg(&queryRpc);
-  qwtBuildReadyReqMsg(&qwtreadyMsg, &readyRpc);
   qwtBuildFetchReqMsg(&qwtfetchMsg, &fetchRpc);
   qwtBuildDropReqMsg(&qwtdropMsg, &dropRpc);
   
@@ -879,7 +873,7 @@ TEST(seqTest, normalCase) {
   stubSetGetDataBlock();
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -896,10 +890,6 @@ TEST(seqTest, normalCase) {
   code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
   ASSERT_EQ(code, 0);
 
-  qwtBuildStatusReqMsg(&qwtstatusMsg, &statusRpc);
-  code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
-  ASSERT_EQ(code, 0);
-
   qWorkerDestroy(&mgmt);
 }
 
@@ -909,40 +899,26 @@ TEST(seqTest, cancelFirst) {
   void *mockPointer = (void *)0x1;
   SRpcMsg queryRpc = {0};
   SRpcMsg dropRpc = {0};
-  SRpcMsg statusRpc = {0};
 
   qwtInitLogFile();
   
   qwtBuildQueryReqMsg(&queryRpc);
   qwtBuildDropReqMsg(&qwtdropMsg, &dropRpc);
-  qwtBuildStatusReqMsg(&qwtstatusMsg, &statusRpc);
 
   stubSetStringToPlan();
   stubSetRpcSendResponse();
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
-  ASSERT_EQ(code, 0);
-
-  qwtBuildStatusReqMsg(&qwtstatusMsg, &statusRpc);
-  code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
   ASSERT_EQ(code, 0);
 
   code = qWorkerProcessDropMsg(mockPointer, mgmt, &dropRpc);
   ASSERT_EQ(code, 0);
 
-  qwtBuildStatusReqMsg(&qwtstatusMsg, &statusRpc);
-  code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
-  ASSERT_EQ(code, 0);
-
   code = qWorkerProcessQueryMsg(mockPointer, mgmt, &queryRpc);
   ASSERT_TRUE(0 != code);
-
-  qwtBuildStatusReqMsg(&qwtstatusMsg, &statusRpc);
-  code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
-  ASSERT_EQ(code, 0);
 
   qWorkerDestroy(&mgmt);
 }
@@ -970,7 +946,7 @@ TEST(seqTest, randCase) {
   taosSeedRand(taosGetTimestampSec());
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1007,9 +983,6 @@ TEST(seqTest, randCase) {
       }
     } else if (r >= maxr * 4/5 && r < maxr-1) {
       printf("Status,%d\n", t++);
-      qwtBuildStatusReqMsg(&statusMsg, &statusRpc);
-      code = qWorkerProcessStatusMsg(mockPointer, mgmt, &statusRpc);
-      ASSERT_EQ(code, 0);
       if (qwtTestEnableSleep) {
         taosUsleep(1);
       }      
@@ -1044,7 +1017,7 @@ TEST(seqTest, multithreadRand) {
   taosSeedRand(taosGetTimestampSec());
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1057,7 +1030,6 @@ TEST(seqTest, multithreadRand) {
   //taosThreadCreate(&(t2), &thattr, readyThread, NULL);
   taosThreadCreate(&(t3), &thattr, fetchThread, NULL);
   taosThreadCreate(&(t4), &thattr, dropThread, NULL);
-  taosThreadCreate(&(t5), &thattr, statusThread, NULL);
   taosThreadCreate(&(t6), &thattr, fetchQueueThread, mgmt);
 
   while (true) {
@@ -1108,7 +1080,7 @@ TEST(rcTest, shortExecshortDelay) {
   qwtTestQuitThreadNum = 0;
 
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1192,7 +1164,7 @@ TEST(rcTest, longExecshortDelay) {
   qwtTestQuitThreadNum = 0;
 
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1278,7 +1250,7 @@ TEST(rcTest, shortExeclongDelay) {
   qwtTestQuitThreadNum = 0;
 
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);
@@ -1362,7 +1334,7 @@ TEST(rcTest, dropTest) {
   taosSeedRand(taosGetTimestampSec());
   
   SMsgCb msgCb = {0};
-  msgCb.pWrapper = (struct SMgmtWrapper *)mockPointer;
+  msgCb.mgmt = (void *)mockPointer;
   msgCb.queueFps[QUERY_QUEUE] = (PutToQueueFp)qwtPutReqToQueue;
   code = qWorkerInit(NODE_TYPE_VNODE, 1, NULL, &mgmt, &msgCb);
   ASSERT_EQ(code, 0);

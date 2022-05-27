@@ -13,7 +13,7 @@ else
   cd ../../..
 fi
 TOP_DIR=`pwd`
-TAOSD_DIR=`find . -name "taosd"|grep -v community|grep debug|head -n1`
+TAOSD_DIR=`find . -name "taosd"|grep -v community|grep bin|head -n1`
 VALGRIND_OUT=taosd_valgrind.out 
 VALGRIND_ERR=taosd_valgrind.err
 rm -rf /var/lib/taos/*

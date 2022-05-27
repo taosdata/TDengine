@@ -21,13 +21,21 @@ extern "C" {
 #endif
 
 #include "planner.h"
+#include "taoserror.h"
+
+#define QUERY_POLICY_VNODE  1
+#define QUERY_POLICY_HYBRID 2
+#define QUERY_POLICY_QNODE  3
 
 #define planFatal(param, ...)  qFatal("PLAN: " param, __VA_ARGS__)
 #define planError(param, ...)  qError("PLAN: " param, __VA_ARGS__)
 #define planWarn(param, ...)   qWarn("PLAN: " param, __VA_ARGS__)
 #define planInfo(param, ...)   qInfo("PLAN: " param, __VA_ARGS__)
 #define planDebug(param, ...)  qDebug("PLAN: " param, __VA_ARGS__)
+#define planDebugL(param, ...) qDebugL("PLAN: " param, __VA_ARGS__)
 #define planTrace(param, ...)  qTrace("PLAN: " param, __VA_ARGS__)
+
+int32_t generateUsageErrMsg(char* pBuf, int32_t len, int32_t errCode, ...);
 
 int32_t createLogicPlan(SPlanContext* pCxt, SLogicNode** pLogicNode);
 int32_t optimizeLogicPlan(SPlanContext* pCxt, SLogicNode* pLogicNode);

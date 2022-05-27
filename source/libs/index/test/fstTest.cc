@@ -15,7 +15,7 @@
 #include "tutil.h"
 void* callback(void* s) { return s; }
 
-static std::string fileName = "/tmp/tindex.tindex";
+static std::string fileName = TD_TMP_DIR_PATH "tindex.tindex";
 class FstWriter {
  public:
   FstWriter() {
@@ -48,7 +48,7 @@ class FstWriter {
 
 class FstReadMemory {
  public:
-  FstReadMemory(size_t size, const std::string& fileName = "/tmp/tindex.tindex") {
+  FstReadMemory(int32_t size, const std::string& fileName = TD_TMP_DIR_PATH "tindex.tindex") {
     _wc = writerCtxCreate(TFile, fileName.c_str(), true, 64 * 1024);
     _w = fstCountingWriterCreate(_wc);
     _size = size;
@@ -152,7 +152,7 @@ class FstReadMemory {
   Fst*               _fst;
   FstSlice           _s;
   WriterCtx*         _wc;
-  size_t             _size;
+  int32_t            _size;
 };
 
 #define L 100
@@ -272,9 +272,8 @@ void checkFstCheckIterator1() {
 
   std::cout << "insert data count :  " << count << "elapas time: " << e - s << std::endl;
 
-  fw->Put("Hello world", 1);
-  fw->Put("Hello worle", 2);
-  fw->Put("hello worlf", 4);
+  fw->Put("test1&^D&10", 1);
+  fw->Put("test2&^D&10", 2);
   delete fw;
 
   FstReadMemory* m = new FstReadMemory(1024 * 64);
@@ -645,11 +644,11 @@ int main(int argc, char* argv[]) {
   // iterTFileReader(argv[1], argv[2], argv[3], argv[4]);
   //}
   checkFstCheckIterator1();
-  checkFstCheckIterator2();
-  checkFstCheckIteratorPrefix();
-  checkFstCheckIteratorRange1();
-  checkFstCheckIteratorRange2();
-  checkFstCheckIteratorRange3();
+  // checkFstCheckIterator2();
+  // checkFstCheckIteratorPrefix();
+  // checkFstCheckIteratorRange1();
+  // checkFstCheckIteratorRange2();
+  // checkFstCheckIteratorRange3();
   // checkFstLongTerm();
   // checkFstPrefixSearch();
 

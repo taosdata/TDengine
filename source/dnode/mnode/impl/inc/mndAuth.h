@@ -26,14 +26,15 @@ int32_t mndInitAuth(SMnode *pMnode);
 void    mndCleanupAuth(SMnode *pMnode);
 
 int32_t mndCheckCreateUserAuth(SUserObj *pOperUser);
-int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SDbObj *pDb, SAlterUserReq *pAlter);
+int32_t mndCheckAlterUserAuth(SUserObj *pOperUser, SUserObj *pUser, SAlterUserReq *pAlter);
 int32_t mndCheckDropUserAuth(SUserObj *pOperUser);
 
 int32_t mndCheckNodeAuth(SUserObj *pOperUser);
 int32_t mndCheckFuncAuth(SUserObj *pOperUser);
+int32_t mndCheckTransAuth(SUserObj *pOperUser);
 
 int32_t mndCheckCreateDbAuth(SUserObj *pOperUser);
-int32_t mndCheckAlterDropCompactSyncDbAuth(SUserObj *pOperUser, SDbObj *pDb);
+int32_t mndCheckAlterDropCompactDbAuth(SUserObj *pOperUser, SDbObj *pDb);
 int32_t mndCheckUseDbAuth(SUserObj *pOperUser, SDbObj *pDb);
 
 int32_t mndCheckWriteAuth(SUserObj *pOperUser, SDbObj *pDb);

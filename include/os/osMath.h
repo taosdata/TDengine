@@ -23,25 +23,22 @@ extern "C" {
 #define TPOW2(x) ((x) * (x))
 #define TABS(x) ((x) > 0 ? (x) : -(x))
 
-#if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
+#define TSWAP(a, b)                              \
+  do {                                           \
+    char *__tmp = taosMemoryMalloc(sizeof(a));   \
+    memcpy(__tmp, &(a), sizeof(a));              \
+    memcpy(&(a), &(b), sizeof(a));               \
+    memcpy(&(b), __tmp, sizeof(a));              \
+    taosMemoryFree(__tmp);                       \
+  } while (0)
 
-  #define TSWAP(a, b, c) \
-    do {                \
-      c __tmp = (c)(a); \
-      (a) = (c)(b);     \
-      (b) = __tmp;      \
-    } while (0)
+#ifdef WINDOWS
+
   #define TMAX(a, b) (((a) > (b)) ? (a) : (b))
   #define TMIN(a, b) (((a) < (b)) ? (a) : (b))
+  #define TRANGE(aa, bb, cc) ((aa) = TMAX((aa), (bb)),(aa) = TMIN((aa), (cc)))
 
 #else
-
-  #define TSWAP(a, b, c)       \
-    do {                       \
-      __typeof(a) __tmp = (a); \
-      (a) = (b);               \
-      (b) = __tmp;             \
-    } while (0)
 
   #define TMAX(a, b)             \
     ({                           \
@@ -50,12 +47,12 @@ extern "C" {
       (__a > __b) ? __a : __b;   \
     })
 
-  #define TMIN(a, b)             \
-    ({                           \
-      __typeof(a) __a = (a);     \
-      __typeof(b) __b = (b);     \
-      (__a < __b) ? __a : __b;   \
-    })
+#define TMIN(a, b)             \
+  ({                           \
+    __typeof(a) __a = (a);     \
+    __typeof(b) __b = (b);     \
+    (__a < __b) ? __a : __b;   \
+  })
 
 #define TRANGE(a, b, c) \
   ({                    \

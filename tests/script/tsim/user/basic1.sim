@@ -9,9 +9,9 @@ if $rows != 1 then
   return -1
 endi
 
-print $data00 $data01 $data02
-print $data10 $data11 $data22
-print $data20 $data11 $data22
+print $data[0][0] $data[0][1] $data[0][2]
+print $data[1][0] $data[1][1] $data[1][2]
+print $data[2][0] $data[1][2] $data[2][2]
 
 sql_error show accounts;
 sql_error create account a pass "a"
@@ -25,10 +25,10 @@ if $rows != 2 then
   return -1
 endi
 
-print $data00 $data01 $data02
-print $data10 $data11 $data12
-print $data20 $data11 $data22
-print $data30 $data31 $data32
+print $data[0][0] $data[0][1] $data[0][2]
+print $data[1][0] $data[1][1] $data[1][2]
+print $data[2][0] $data[1][2] $data[2][2]
+print $data[3][0] $data[3][1] $data[3][2]
 
 print =============== create user2
 sql create user user2 PASS 'user2'
@@ -37,10 +37,10 @@ if $rows != 3 then
   return -1
 endi
 
-print $data00 $data01 $data02
-print $data10 $data11 $data12
-print $data20 $data11 $data22
-print $data30 $data31 $data32
+print $data[0][0] $data[0][1] $data[0][2]
+print $data[1][0] $data[1][1] $data[1][2]
+print $data[2][0] $data[1][2] $data[2][2]
+print $data[3][0] $data[3][1] $data[3][2]
 print $data40 $data41 $data42
 
 print =============== drop user1
@@ -50,10 +50,10 @@ if $rows != 2 then
   return -1
 endi
 
-print $data00 $data01 $data02
-print $data10 $data11 $data22
-print $data20 $data11 $data22
-print $data30 $data31 $data32
+print $data[0][0] $data[0][1] $data[0][2]
+print $data[1][0] $data[1][1] $data[1][2]
+print $data[2][0] $data[1][2] $data[2][2]
+print $data[3][0] $data[3][1] $data[3][2]
 
 print =============== restart taosd
 system sh/exec.sh -n dnode1 -s stop
@@ -66,9 +66,9 @@ if $rows != 2 then
   return -1
 endi
 
-print $data00 $data01 $data02
-print $data10 $data11 $data22
-print $data20 $data11 $data22
-print $data30 $data31 $data32
+print $data[0][0] $data[0][1] $data[0][2]
+print $data[1][0] $data[1][1] $data[1][2]
+print $data[2][0] $data[1][2] $data[2][2]
+print $data[3][0] $data[3][1] $data[3][2]
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

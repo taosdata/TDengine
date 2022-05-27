@@ -61,18 +61,16 @@ extern "C" {
     }                                                             \
   }
 
-#define WAL_HEAD_VER 0
+#define WAL_HEAD_VER     0
 #define WAL_NOSUFFIX_LEN 20
-#define WAL_SUFFIX_AT (WAL_NOSUFFIX_LEN + 1)
-#define WAL_LOG_SUFFIX "log"
+#define WAL_SUFFIX_AT    (WAL_NOSUFFIX_LEN + 1)
+#define WAL_LOG_SUFFIX   "log"
 #define WAL_INDEX_SUFFIX "idx"
-#define WAL_REFRESH_MS 1000
-#define WAL_MAX_SIZE (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
-#define WAL_PATH_LEN (TSDB_FILENAME_LEN + 12)
-#define WAL_FILE_LEN (WAL_PATH_LEN + 32)
-#define WAL_MAGIC 0xFAFBFCFDULL
-
-#define WAL_CUR_FAILED 1
+#define WAL_REFRESH_MS   1000
+#define WAL_MAX_SIZE     (TSDB_MAX_WAL_SIZE + sizeof(SWalHead))
+#define WAL_PATH_LEN     (TSDB_FILENAME_LEN + 12)
+#define WAL_FILE_LEN     (WAL_PATH_LEN + 32)
+#define WAL_MAGIC        0xFAFBFCFDULL
 
 #pragma pack(push, 1)
 typedef enum {
@@ -92,7 +90,7 @@ typedef struct SWalReadHead {
   int8_t  headVer;
   int8_t  reserved;
   int16_t msgType;
-  int32_t len;
+  int32_t bodyLen;
   int64_t ingestTs;  // not implemented
   int64_t version;
 
@@ -192,7 +190,13 @@ int32_t walEndSnapshot(SWal *);
 SWalReadHandle *walOpenReadHandle(SWal *);
 void            walCloseReadHandle(SWalReadHandle *);
 int32_t         walReadWithHandle(SWalReadHandle *pRead, int64_t ver);
-int32_t         walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
+
+// only for tq usage
+// int32_t walReadWithHandle_s(SWalReadHandle *pRead, int64_t ver, SWalReadHead **ppHead);
+void    walSetReaderCapacity(SWalReadHandle *pRead, int32_t capacity);
+int32_t walFetchHead(SWalReadHandle *pRead, int64_t ver, SWalHead *pHead);
+int32_t walFetchBody(SWalReadHandle *pRead, SWalHead **ppHead);
+int32_t walSkipFetchBody(SWalReadHandle *pRead, const SWalHead *pHead);
 
 // deprecated
 #if 0
@@ -204,6 +208,7 @@ int32_t walReadWithFp(SWal *, FWalWrite writeFp, int64_t verStart, int32_t readN
 int64_t walGetFirstVer(SWal *);
 int64_t walGetSnapshotVer(SWal *);
 int64_t walGetLastVer(SWal *);
+int64_t walGetCommittedVer(SWal *);
 
 #ifdef __cplusplus
 }

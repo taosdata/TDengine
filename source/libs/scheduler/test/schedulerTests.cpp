@@ -25,7 +25,9 @@
 #pragma GCC diagnostic ignored "-Wformat"
 #include <addr_any.h>
 
-
+#ifdef WINDOWS
+#define TD_USE_WINSOCK
+#endif
 #include "os.h"
 
 #include "tglobal.h"
@@ -83,6 +85,11 @@ void schtInitLogFile() {
     printf("failed to open log file in directory:%s\n", tsLogDir);
   }
 
+}
+
+void schtQueryCb(SQueryResult* pResult, void* param, int32_t code) {
+  assert(TSDB_CODE_SUCCESS == code);
+  *(int32_t*)param = 1;
 }
 
 
@@ -275,9 +282,16 @@ void schtSetPlanToString() {
   static Stub stub;
   stub.set(qSubPlanToString, schtPlanToString);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qSubPlanToString", result);
+#endif
+#ifdef LINUX
     AddrAny any("libplanner.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qSubPlanToString$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtPlanToString);
     }
@@ -288,9 +302,16 @@ void schtSetExecNode() {
   static Stub stub;
   stub.set(qSetSubplanExecutionNode, schtExecNode);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("qSetSubplanExecutionNode", result);
+#endif
+#ifdef LINUX
     AddrAny any("libplanner.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^qSetSubplanExecutionNode$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtExecNode);
     }
@@ -301,9 +322,16 @@ void schtSetRpcSendRequest() {
   static Stub stub;
   stub.set(rpcSendRequest, schtRpcSendRequest);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("rpcSendRequest", result);
+#endif
+#ifdef LINUX
     AddrAny any("libtransport.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^rpcSendRequest$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtRpcSendRequest);
     }
@@ -324,9 +352,16 @@ void schtSetAsyncSendMsgToServer() {
   static Stub stub;
   stub.set(asyncSendMsgToServer, schtAsyncSendMsgToServer);
   {
+#ifdef WINDOWS
+    AddrAny any;
+    std::map<std::string,void*> result;
+    any.get_func_addr("asyncSendMsgToServer", result);
+#endif
+#ifdef LINUX
     AddrAny any("libtransport.so");
     std::map<std::string,void*> result;
     any.get_global_func_addr_dynsym("^asyncSendMsgToServer$", result);
+#endif
     for (const auto& f : result) {
       stub.set(f.second, schtAsyncSendMsgToServer);
     }
@@ -382,6 +417,7 @@ void *schtCreateFetchRspThread(void *param) {
   schReleaseJob(job);
   
   assert(code == 0);
+  return NULL;
 }
 
 
@@ -413,6 +449,7 @@ void *schtFetchRspThread(void *aa) {
       
     assert(code == 0 || code);
   }
+  return NULL;
 }
 
 void schtFreeQueryJob(int32_t freeThread) {
@@ -453,6 +490,7 @@ void* schtRunJobThread(void *aa) {
   SHashObj *execTasks = NULL;
   SDataBuf dataBuf = {0};
   uint32_t jobFinished = 0;
+  int32_t queryDone = 0;
 
   while (!schtTestStop) {
     schtBuildQueryDag(&dag);
@@ -464,7 +502,8 @@ void* schtRunJobThread(void *aa) {
     qnodeAddr.port = 6031;
     taosArrayPush(qnodeList, &qnodeAddr);
 
-    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &queryJobRefId);
+    queryDone = 0;
+    code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &queryJobRefId, "select * from tb", 0, schtQueryCb, &queryDone);
     assert(code == 0);
 
     pJob = schAcquireJob(queryJobRefId);
@@ -503,27 +542,6 @@ void* schtRunJobThread(void *aa) {
       pIter = taosHashIterate(execTasks, pIter);
     }    
 
-
-    param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
-    param->refId = queryJobRefId;
-    param->queryId = pJob->queryId;   
-    
-    pIter = taosHashIterate(execTasks, NULL);
-    while (pIter) {
-      SSchTask *task = (SSchTask *)pIter;
-
-      param->taskId = task->taskId;
-      SResReadyRsp rsp = {0};
-      dataBuf.pData = &rsp;
-      dataBuf.len = sizeof(rsp);
-      
-      code = schHandleCallback(param, &dataBuf, TDMT_VND_RES_READY_RSP, 0);
-      assert(code == 0 || code);
-      
-      pIter = taosHashIterate(execTasks, pIter);
-    }  
-
-
     param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
@@ -544,24 +562,13 @@ void* schtRunJobThread(void *aa) {
     }    
 
 
-    param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
-    param->refId = queryJobRefId;
-    param->queryId = pJob->queryId;   
-
-    pIter = taosHashIterate(execTasks, NULL);
-    while (pIter) {
-      SSchTask *task = (SSchTask *)pIter;
-
-      param->taskId = task->taskId - 1;
-      SResReadyRsp rsp = {0};
-      dataBuf.pData = &rsp;
-      dataBuf.len = sizeof(rsp);
-      
-      code = schHandleCallback(param, &dataBuf, TDMT_VND_RES_READY_RSP, 0);
-      assert(code == 0 || code);
-      
-      pIter = taosHashIterate(execTasks, pIter);
-    }  
+    while (true) {
+      if (queryDone) {
+        break;
+      }
+    
+      taosUsleep(10000);
+    }
 
     atomic_store_32(&schtStartFetch, 1);
 
@@ -595,6 +602,7 @@ void* schtRunJobThread(void *aa) {
 
   schedulerDestroy();
 
+  return NULL;
 }
 
 void* schtFreeJobThread(void *aa) {
@@ -602,6 +610,7 @@ void* schtFreeJobThread(void *aa) {
     taosUsleep(taosRand() % 100);
     schtFreeQueryJob(1);
   }
+  return NULL;
 }
 
 
@@ -633,8 +642,9 @@ TEST(queryTest, normalCase) {
   schtSetPlanToString();
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
-  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+
+  int32_t queryDone = 0;
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
   ASSERT_EQ(code, 0);
 
   
@@ -655,17 +665,6 @@ TEST(queryTest, normalCase) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    printf("code:%d", code);
-    ASSERT_EQ(code, 0);
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
-
-  pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
-
     SQueryTableRsp rsp = {0};
     code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
@@ -673,17 +672,14 @@ TEST(queryTest, normalCase) {
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }    
 
-  pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
+  while (true) {
+    if (queryDone) {
+      break;
+    }
 
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    ASSERT_EQ(code, 0);
-    
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
-
+    taosUsleep(10000);
+  }
+  
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);
 
@@ -739,45 +735,24 @@ TEST(queryTest, readyFirstCase) {
   schtSetPlanToString();
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
-  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+
+  int32_t queryDone = 0;  
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
   ASSERT_EQ(code, 0);
 
   
   SSchJob *pJob = schAcquireJob(job);
-
+  
   void *pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    printf("code:%d", code);
-    ASSERT_EQ(code, 0);
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
-  
-  pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
-
     SQueryTableRsp rsp = {0};
     code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }    
-
-  pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
-
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    ASSERT_EQ(code, 0);
-    
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
 
   pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
@@ -790,6 +765,13 @@ TEST(queryTest, readyFirstCase) {
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }    
 
+  while (true) {
+    if (queryDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
 
 
   TdThreadAttr thattr;
@@ -851,16 +833,17 @@ TEST(queryTest, flowCtrlCase) {
   schtSetPlanToString();
   schtSetExecNode();
   schtSetAsyncSendMsgToServer();
-  
-  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, "select * from tb", &job);
+
+  int32_t queryDone = 0;  
+  code = schedulerAsyncExecJob(mockPointer, qnodeList, &dag, &job, "select * from tb", 0, schtQueryCb, &queryDone);
   ASSERT_EQ(code, 0);
 
   
   SSchJob *pJob = schAcquireJob(job);
 
-  bool queryDone = false;
+  bool qDone = false;
   
-  while (!queryDone) {
+  while (!qDone) {
     void *pIter = taosHashIterate(pJob->execTasks, NULL);
     if (NULL == pIter) {
       break;
@@ -876,12 +859,8 @@ TEST(queryTest, flowCtrlCase) {
         code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
         
         ASSERT_EQ(code, 0);
-      } else if (task->lastMsgType == TDMT_VND_RES_READY) {
-        SResReadyRsp rsp = {0};
-        code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-        ASSERT_EQ(code, 0);
       } else {
-        queryDone = true;
+        qDone = true;
         break;
       }
       
@@ -889,6 +868,13 @@ TEST(queryTest, flowCtrlCase) {
     }    
   }
 
+  while (true) {
+    if (queryDone) {
+      break;
+    }
+
+    taosUsleep(10000);
+  }
 
   TdThreadAttr thattr;
   taosThreadAttrInit(&thattr);

@@ -29,11 +29,11 @@ static SSdbRow *mndSnodeActionDecode(SSdbRaw *pRaw);
 static int32_t  mndSnodeActionInsert(SSdb *pSdb, SSnodeObj *pObj);
 static int32_t  mndSnodeActionUpdate(SSdb *pSdb, SSnodeObj *pOld, SSnodeObj *pNew);
 static int32_t  mndSnodeActionDelete(SSdb *pSdb, SSnodeObj *pObj);
-static int32_t  mndProcessCreateSnodeReq(SNodeMsg *pReq);
-static int32_t  mndProcessCreateSnodeRsp(SNodeMsg *pRsp);
-static int32_t  mndProcessDropSnodeReq(SNodeMsg *pReq);
-static int32_t  mndProcessDropSnodeRsp(SNodeMsg *pRsp);
-static int32_t  mndRetrieveSnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows);
+static int32_t  mndProcessCreateSnodeReq(SRpcMsg *pReq);
+static int32_t  mndProcessCreateSnodeRsp(SRpcMsg *pRsp);
+static int32_t  mndProcessDropSnodeReq(SRpcMsg *pReq);
+static int32_t  mndProcessDropSnodeRsp(SRpcMsg *pRsp);
+static int32_t  mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
 static void     mndCancelGetNextSnode(SMnode *pMnode, void *pIter);
 
 int32_t mndInitSnode(SMnode *pMnode) {
@@ -245,7 +245,7 @@ static int32_t mndSetCreateSnodeUndoActions(STrans *pTrans, SDnodeObj *pDnode, S
   return 0;
 }
 
-static int32_t mndCreateSnode(SMnode *pMnode, SNodeMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate) {
+static int32_t mndCreateSnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, SMCreateSnodeReq *pCreate) {
   int32_t code = -1;
 
   SSnodeObj snodeObj = {0};
@@ -253,7 +253,7 @@ static int32_t mndCreateSnode(SMnode *pMnode, SNodeMsg *pReq, SDnodeObj *pDnode,
   snodeObj.createdTime = taosGetTimestampMs();
   snodeObj.updateTime = snodeObj.createdTime;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_SNODE, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_CREATE_SNODE, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create snode:%d", pTrans->id, pCreate->dnodeId);
@@ -272,15 +272,15 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessCreateSnodeReq(SNodeMsg *pReq) {
-  SMnode          *pMnode = pReq->pNode;
+static int32_t mndProcessCreateSnodeReq(SRpcMsg *pReq) {
+  SMnode          *pMnode = pReq->info.node;
   int32_t          code = -1;
   SSnodeObj       *pObj = NULL;
   SDnodeObj       *pDnode = NULL;
   SUserObj        *pUser = NULL;
   SMCreateSnodeReq createReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &createReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &createReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -301,7 +301,7 @@ static int32_t mndProcessCreateSnodeReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     goto _OVER;
@@ -312,10 +312,10 @@ static int32_t mndProcessCreateSnodeReq(SNodeMsg *pReq) {
   }
 
   code = mndCreateSnode(pMnode, pReq, pDnode, &createReq);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("snode:%d, failed to create since %s", createReq.dnodeId, terrstr());
     return -1;
   }
@@ -369,10 +369,10 @@ static int32_t mndSetDropSnodeRedoActions(STrans *pTrans, SDnodeObj *pDnode, SSn
   return 0;
 }
 
-static int32_t mndDropSnode(SMnode *pMnode, SNodeMsg *pReq, SSnodeObj *pObj) {
+static int32_t mndDropSnode(SMnode *pMnode, SRpcMsg *pReq, SSnodeObj *pObj) {
   int32_t code = -1;
 
-  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_SNODE, &pReq->rpcMsg);
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_RETRY, TRN_TYPE_DROP_SNODE, pReq);
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop snode:%d", pTrans->id, pObj->id);
@@ -389,14 +389,14 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessDropSnodeReq(SNodeMsg *pReq) {
-  SMnode        *pMnode = pReq->pNode;
+static int32_t mndProcessDropSnodeReq(SRpcMsg *pReq) {
+  SMnode        *pMnode = pReq->info.node;
   int32_t        code = -1;
   SUserObj      *pUser = NULL;
   SSnodeObj     *pObj = NULL;
   SMDropSnodeReq dropReq = {0};
 
-  if (tDeserializeSCreateDropMQSBNodeReq(pReq->rpcMsg.pCont, pReq->rpcMsg.contLen, &dropReq) != 0) {
+  if (tDeserializeSCreateDropMQSBNodeReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
     terrno = TSDB_CODE_INVALID_MSG;
     goto _OVER;
   }
@@ -413,7 +413,7 @@ static int32_t mndProcessDropSnodeReq(SNodeMsg *pReq) {
     goto _OVER;
   }
 
-  pUser = mndAcquireUser(pMnode, pReq->user);
+  pUser = mndAcquireUser(pMnode, pReq->conn.user);
   if (pUser == NULL) {
     terrno = TSDB_CODE_MND_NO_USER_FROM_CONN;
     goto _OVER;
@@ -424,10 +424,10 @@ static int32_t mndProcessDropSnodeReq(SNodeMsg *pReq) {
   }
 
   code = mndDropSnode(pMnode, pReq, pObj);
-  if (code == 0) code = TSDB_CODE_MND_ACTION_IN_PROGRESS;
+  if (code == 0) code = TSDB_CODE_ACTION_IN_PROGRESS;
 
 _OVER:
-  if (code != 0 && code != TSDB_CODE_MND_ACTION_IN_PROGRESS) {
+  if (code != 0 && code != TSDB_CODE_ACTION_IN_PROGRESS) {
     mError("snode:%d, failed to drop since %s", dropReq.dnodeId, terrstr());
   }
 
@@ -437,49 +437,45 @@ _OVER:
   return code;
 }
 
-static int32_t mndProcessCreateSnodeRsp(SNodeMsg *pRsp) {
+static int32_t mndProcessCreateSnodeRsp(SRpcMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndProcessDropSnodeRsp(SNodeMsg *pRsp) {
+static int32_t mndProcessDropSnodeRsp(SRpcMsg *pRsp) {
   mndTransProcessRsp(pRsp);
   return 0;
 }
 
-static int32_t mndRetrieveSnodes(SNodeMsg *pReq, SShowObj *pShow, char *data, int32_t rows) {
-  SMnode    *pMnode = pReq->pNode;
+static int32_t mndRetrieveSnodes(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows) {
+  SMnode    *pMnode = pReq->info.node;
   SSdb      *pSdb = pMnode->pSdb;
   int32_t    numOfRows = 0;
   int32_t    cols = 0;
   SSnodeObj *pObj = NULL;
-  char      *pWrite;
 
   while (numOfRows < rows) {
     pShow->pIter = sdbFetch(pSdb, SDB_SNODE, pShow->pIter, (void **)&pObj);
     if (pShow->pIter == NULL) break;
 
     cols = 0;
+    SColumnInfoData *pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->id, false);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int16_t *)pWrite = pObj->id;
-    cols++;
+    char ep[TSDB_EP_LEN + VARSTR_HEADER_SIZE] = {0};
+    STR_WITH_MAXSIZE_TO_VARSTR(ep, pObj->pDnode->ep, pShow->pMeta->pSchemas[cols].bytes);
 
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    STR_WITH_MAXSIZE_TO_VARSTR(pWrite, pObj->pDnode->ep, pShow->bytes[cols]);
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)ep, false);
 
-    cols++;
-
-    pWrite = data + pShow->offset[cols] * rows + pShow->bytes[cols] * numOfRows;
-    *(int64_t *)pWrite = pObj->createdTime;
-    cols++;
+    pColInfo = taosArrayGet(pBlock->pDataBlock, cols++);
+    colDataAppend(pColInfo, numOfRows, (const char *)&pObj->createdTime, false);
 
     numOfRows++;
     sdbRelease(pSdb, pObj);
   }
 
-  mndVacuumResult(data, pShow->numOfColumns, numOfRows, rows, pShow);
-  pShow->numOfReads += numOfRows;
+  pShow->numOfRows += numOfRows;
 
   return numOfRows;
 }

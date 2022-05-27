@@ -1,0 +1,92 @@
+/*
+ * Copyright (c) 2019 TAOS Data, Inc. <jhtao@taosdata.com>
+ *
+ * This program is free software: you can use, redistribute, and/or modify
+ * it under the terms of the GNU Affero General Public License, version 3
+ * or later ("AGPL"), as published by the Free Software Foundation.
+ *
+ * This program is distributed in the hope that it will be useful, but WITHOUT
+ * ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or
+ * FITNESS FOR A PARTICULAR PURPOSE.
+ *
+ * You should have received a copy of the GNU Affero General Public License
+ * along with this program. If not, see <http://www.gnu.org/licenses/>.
+ */
+
+#ifndef _TD_VND_H_
+#define _TD_VND_H_
+
+#include "sync.h"
+#include "syncTools.h"
+#include "vnodeInt.h"
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+// clang-format off
+#define vFatal(...) do { if (vDebugFlag & DEBUG_FATAL) { taosPrintLog("VND FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }}     while(0)
+#define vError(...) do { if (vDebugFlag & DEBUG_ERROR) { taosPrintLog("VND ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }}     while(0)
+#define vWarn(...)  do { if (vDebugFlag & DEBUG_WARN)  { taosPrintLog("VND WARN ", DEBUG_WARN, 255, __VA_ARGS__); }}       while(0)
+#define vInfo(...)  do { if (vDebugFlag & DEBUG_INFO)  { taosPrintLog("VND ", DEBUG_INFO, 255, __VA_ARGS__); }}            while(0)
+#define vDebug(...) do { if (vDebugFlag & DEBUG_DEBUG) { taosPrintLog("VND ", DEBUG_DEBUG, vDebugFlag, __VA_ARGS__); }}    while(0)
+#define vTrace(...) do { if (vDebugFlag & DEBUG_TRACE) { taosPrintLog("VND ", DEBUG_TRACE, vDebugFlag, __VA_ARGS__); }}    while(0)
+// clang-format on
+
+// vnodeCfg.c
+extern const SVnodeCfg vnodeCfgDefault;
+
+int32_t vnodeCheckCfg(const SVnodeCfg*);
+int32_t vnodeEncodeConfig(const void* pObj, SJson* pJson);
+int32_t vnodeDecodeConfig(const SJson* pJson, void* pObj);
+
+// vnodeModule.c
+int32_t vnodeScheduleTask(int32_t (*execute)(void*), void* arg);
+
+// vnodeBufPool.c
+typedef struct SVBufPoolNode SVBufPoolNode;
+struct SVBufPoolNode {
+  SVBufPoolNode*  prev;
+  SVBufPoolNode** pnext;
+  int64_t         size;
+  uint8_t         data[];
+};
+
+struct SVBufPool {
+  SVBufPool*     next;
+  int64_t        nRef;
+  int64_t        size;
+  uint8_t*       ptr;
+  SVBufPoolNode* pTail;
+  SVBufPoolNode  node;
+};
+
+int32_t vnodeOpenBufPool(SVnode* pVnode, int64_t size);
+int32_t vnodeCloseBufPool(SVnode* pVnode);
+void    vnodeBufPoolReset(SVBufPool* pPool);
+
+// vnodeQuery.c
+int32_t vnodeQueryOpen(SVnode* pVnode);
+void    vnodeQueryClose(SVnode* pVnode);
+int32_t vnodeGetTableMeta(SVnode* pVnode, SRpcMsg* pMsg);
+
+// vnodeCommit.c
+int32_t vnodeBegin(SVnode* pVnode);
+int32_t vnodeShouldCommit(SVnode* pVnode);
+int32_t vnodeCommit(SVnode* pVnode);
+int32_t vnodeSaveInfo(const char* dir, const SVnodeInfo* pCfg);
+int32_t vnodeCommitInfo(const char* dir, const SVnodeInfo* pInfo);
+int32_t vnodeLoadInfo(const char* dir, SVnodeInfo* pInfo);
+int32_t vnodeSyncCommit(SVnode* pVnode);
+int32_t vnodeAsyncCommit(SVnode* pVnode);
+
+// vnodeSync.c
+int32_t   vnodeSyncOpen(SVnode* pVnode, char* path);
+void      vnodeSyncStart(SVnode* pVnode);
+void      vnodeSyncClose(SVnode* pVnode);
+
+#ifdef __cplusplus
+}
+#endif
+
+#endif /*_TD_VND_H_*/

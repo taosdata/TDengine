@@ -57,9 +57,7 @@ void sndMetaDelete(SStreamMeta *pMeta) {
 }
 
 int32_t sndMetaDeployTask(SStreamMeta *pMeta, SStreamTask *pTask) {
-  for (int i = 0; i < pTask->exec.numOfRunners; i++) {
-    pTask->exec.runners[i].executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
-  }
+  pTask->exec.executor = qCreateStreamExecTaskInfo(pTask->exec.qmsg, NULL);
   return taosHashPut(pMeta->pHash, &pTask->taskId, sizeof(int32_t), pTask, sizeof(void *));
 }
 
@@ -99,14 +97,14 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
       ASSERT(0);
       return;
     }
-    SCoder decoder;
-    tCoderInit(&decoder, TD_LITTLE_ENDIAN, msg, pMsg->contLen - sizeof(SMsgHead), TD_DECODER);
+    SDecoder decoder;
+    tDecoderInit(&decoder, msg, pMsg->contLen - sizeof(SMsgHead));
     tDecodeSStreamTask(&decoder, pTask);
-    tCoderClear(&decoder);
+    tDecoderClear(&decoder);
 
     sndMetaDeployTask(pSnode->pMeta, pTask);
-  } else if (pMsg->msgType == TDMT_SND_TASK_EXEC) {
-    sndProcessTaskExecReq(pSnode, pMsg);
+    /*} else if (pMsg->msgType == TDMT_SND_TASK_EXEC) {*/
+    /*sndProcessTaskExecReq(pSnode, pMsg);*/
   } else {
     ASSERT(0);
   }
@@ -114,9 +112,9 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
 
 void sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // operator exec
-  if (pMsg->msgType == TDMT_SND_TASK_EXEC) {
-    sndProcessTaskExecReq(pSnode, pMsg);
-  } else {
-    ASSERT(0);
-  }
+  /*if (pMsg->msgType == TDMT_SND_TASK_EXEC) {*/
+  /*sndProcessTaskExecReq(pSnode, pMsg);*/
+  /*} else {*/
+  ASSERT(0);
+  /*}*/
 }

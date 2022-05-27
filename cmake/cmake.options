@@ -25,17 +25,46 @@ IF(${TD_WINDOWS})
             ON
           )
 
-ENDIF ()
+    MESSAGE("build msvcregex Win32")
+    option(
+            BUILD_MSVCREGEX
+            "If build msvcregex on Windows"
+            ON
+          )
 
-IF(${TD_LINUX} MATCHES TRUE)
+    MESSAGE("build wcwidth Win32")
+    option(
+            BUILD_WCWIDTH
+            "If build wcwidth on Windows"
+            ON
+          )
+
+    MESSAGE("build wingetopt Win32")
+    option(
+            BUILD_WINGETOPT 
+                "If build wingetopt on Windows"
+            ON
+        )
+
+    option(
+        BUILD_TEST 
+        "If build unit tests using googletest" 
+        OFF
+    )
+ELSE ()
+
+    option(
+        BUILD_TEST 
+        "If build unit tests using googletest" 
+        ON
+    )
+ENDIF ()
 
 option(
-    BUILD_TEST 
-    "If build unit tests using googletest" 
-    ON
-)
-
-ENDIF ()
+    BUILD_ADDR2LINE
+    "If build addr2line"
+    OFF
+    )
 
 option(
     BUILD_WITH_LEVELDB 
@@ -52,6 +81,12 @@ option(
 option(
     BUILD_WITH_SQLITE
     "If build with sqlite" 
+    OFF
+)
+
+option(
+    BUILD_WITH_BDB
+    "If build with BDB" 
     OFF
 )
 
@@ -111,5 +146,6 @@ option(
 option(
    BUILD_WITH_INVERTEDINDEX
    "If use invertedIndex" 
-   ON 
+   OFF 
 )
+

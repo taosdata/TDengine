@@ -1,5 +1,5 @@
 # tdb
-add_library(tdb "")
+add_library(tdb STATIC "")
 target_sources(tdb
     PRIVATE
     "src/db/tdbPCache.c"
@@ -7,7 +7,7 @@ target_sources(tdb
     "src/db/tdbUtil.c"
     "src/db/tdbBtree.c"
     "src/db/tdbDb.c"
-    "src/db/tdbEnv.c"
+    "src/db/tdbTable.c"
     "src/db/tdbTxn.c"
     "src/db/tdbPage.c"
     "src/db/tdbOs.c"

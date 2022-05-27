@@ -29,6 +29,9 @@ int32_t mndSchedInitSubEp(SMnode* pMnode, const SMqTopicObj* pTopic, SMqSubscrib
 
 int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream);
 
+int32_t mndConvertRSmaTask(const char* ast, int64_t uid, int8_t triggerType, int64_t watermark, char** pStr,
+                           int32_t* pLen);
+
 #ifdef __cplusplus
 }
 #endif

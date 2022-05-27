@@ -30,17 +30,12 @@ class TDSimClient:
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "minTablesPerVnode": "4",
-            "maxTablesPerVnode": "1000",
-            "tableIncStepPerVnode": "10000",
-            "maxVgroupsPerDb": "1000",
-            "sdbDebugFlag": "143",
-            "rpcDebugFlag": "135",
+            "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "135",
-            "udebugFlag": "135",
-            "jnidebugFlag": "135",
-            "qdebugFlag": "135",
+            "cDebugFlag": "143",
+            "udebugFlag": "143",
+            "jnidebugFlag": "143",
+            "qdebugFlag": "143",
             "telemetryReporting": "0",
         }
 
@@ -63,7 +58,7 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-    def deploy(self):
+    def deploy(self, *updatecfgDict):
         self.logDir = "%s/sim/psim/log" % (self.path)
         self.cfgDir = "%s/sim/psim/cfg" % (self.path)
         self.cfgPath = "%s/sim/psim/cfg/taos.cfg" % (self.path)
@@ -72,17 +67,19 @@ class TDSimClient:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.logDir)
 
         cmd = "rm -rf " + self.cfgDir
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.cfgDir)
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -95,6 +92,14 @@ class TDSimClient:
 
         for key, value in self.cfgDict.items():
             self.cfg(key, value)
+        
+        try:
+            if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:                    
+                clientCfg = dict (updatecfgDict[0][0].get('clientCfg'))
+                for key, value in clientCfg.items():
+                    self.cfg(key, value)
+        except Exception:
+            pass
 
         tdLog.debug("psim is deployed and configured by %s" % (self.cfgPath))
 
@@ -107,36 +112,29 @@ class TDDnode:
         self.testCluster = False
         self.valgrind = 0
         self.cfgDict = {
-            "numOfLogLines": "100000000",
-            "mnodeEqualVnodeNum": "0",
             "walLevel": "2",
             "fsync": "1000",
-            "statusInterval": "1",
-            "numOfMnodes": "3",
-            "numOfThreadsPerCore": "2.0",
             "monitor": "0",
-            "maxVnodeConnections": "30000",
-            "maxMgmtConnections": "30000",
-            "maxMeterConnections": "30000",
             "maxShellConns": "30000",
             "locale": "en_US.UTF-8",
             "charset": "UTF-8",
             "asyncLog": "0",
-            "anyIp": "0",
-            "telemetryReporting": "0",
-            "dDebugFlag": "135",
-            "tsdbDebugFlag": "135",
-            "mDebugFlag": "135",
-            "sdbDebugFlag": "135",
-            "rpcDebugFlag": "135",
+            "mDebugFlag": "143",
+            "dDebugFlag": "143",
+            "vDebugFlag": "143",
+            "tqDebugFlag": "143",
+            "cDebugFlag": "143",
+            "jniDebugFlag": "143",
+            "qDebugFlag": "143",
+            "rpcDebugFlag": "143",
             "tmrDebugFlag": "131",
-            "cDebugFlag": "135",
-            "httpDebugFlag": "135",
-            "monitorDebugFlag": "135",
-            "udebugFlag": "135",
-            "jnidebugFlag": "135",
-            "qdebugFlag": "135",
-            "maxSQLLength": "1048576"
+            "uDebugFlag": "143",
+            "sDebugFlag": "135",
+            "wDebugFlag": "143",
+            "qdebugFlag": "143",
+            "numOfLogLines": "100000000",
+            "statusInterval": "1",
+            "telemetryReporting": "0"
         }
 
     def init(self, path):
@@ -183,17 +181,20 @@ class TDDnode:
         if os.system(cmd) != 0:
             tdLog.exit(cmd)
 
-        cmd = "mkdir -p " + self.dataDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.dataDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.dataDir)
 
-        cmd = "mkdir -p " + self.logDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.logDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.logDir)
 
-        cmd = "mkdir -p " + self.cfgDir
-        if os.system(cmd) != 0:
-            tdLog.exit(cmd)
+        # cmd = "mkdir -p " + self.cfgDir
+        # if os.system(cmd) != 0:
+        #     tdLog.exit(cmd)
+        os.makedirs(self.cfgDir)
 
         cmd = "touch " + self.cfgPath
         if os.system(cmd) != 0:
@@ -214,9 +215,11 @@ class TDDnode:
         # self.cfg("logDir",self.logDir)
         # print(updatecfgDict)
         isFirstDir = 1
-        if updatecfgDict[0] and updatecfgDict[0][0]:
+        if bool(updatecfgDict) and updatecfgDict[0] and updatecfgDict[0][0]:
             print(updatecfgDict[0][0])
             for key, value in updatecfgDict[0][0].items():
+                if key == "clientCfg":
+                    continue
                 if value == 'dataDir':
                     if isFirstDir:
                         self.cfgDict.pop('dataDir')
@@ -244,11 +247,13 @@ class TDDnode:
 
         paths = []
         for root, dirs, files in os.walk(projPath):
-            if ((tool) in files):
+            if ((tool) in files or ("%s.exe"%tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))
                     break
+        if (len(paths) == 0):
+                return ""
         return paths[0]
 
     def start(self):
@@ -266,7 +271,7 @@ class TDDnode:
             cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
-            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+            valgrindCmdline = "valgrind --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             cmd = "nohup %s %s -c %s 2>&1 & " % (
                 valgrindCmdline, binPath, self.cfgDir)
@@ -311,6 +316,69 @@ class TDDnode:
             time.sleep(10)
 
         # time.sleep(5)
+    def startWin(self):
+        binPath = self.getPath("taosd.exe")
+
+        if (binPath == ""):
+            tdLog.exit("taosd.exe not found!")
+        else:
+            tdLog.info("taosd.exe found: %s" % binPath)
+
+        taosadapterBinPath = self.getPath("taosadapter.exe")
+        if (taosadapterBinPath == ""):
+            tdLog.info("taosAdapter.exe not found!")
+        else:
+            tdLog.info("taosAdapter.exe found in %s" % taosadapterBuildPath)
+
+        if self.deployed == 0:
+            tdLog.exit("dnode:%d is not deployed" % (self.index))
+
+        cmd = "mintty -h never %s -c %s" % (
+            binPath, self.cfgDir)
+        
+        if (taosadapterBinPath != ""):
+            taosadapterCmd = "mintty -h never -w hide %s --monitor.writeToTD=false " % (
+                taosadapterBinPath)
+            if os.system(taosadapterCmd) != 0:
+                tdLog.exit(taosadapterCmd)
+
+        if os.system(cmd) != 0:
+            tdLog.exit(cmd)
+
+        self.running = 1
+        tdLog.debug("dnode:%d is running with %s " % (self.index, cmd))
+        if self.valgrind == 0:
+            time.sleep(0.1)
+            key = 'from offline to online'
+            bkey = bytes(key, encoding="utf8")
+            logFile = self.logDir + "/taosdlog.0"
+            i = 0
+            while not os.path.exists(logFile):
+                sleep(0.1)
+                i += 1
+                if i > 50:
+                    break
+            popen = subprocess.Popen(
+                'tail -n +0 -f ' + logFile,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                shell=True)
+            pid = popen.pid
+            # print('Popen.pid:' + str(pid))
+            timeout = time.time() + 60 * 2
+            while True:
+                line = popen.stdout.readline().strip()
+                if bkey in line:
+                    popen.kill()
+                    break
+                if time.time() > timeout:
+                    tdLog.exit('wait too long for taosd start')
+            tdLog.debug("the dnode:%d has been started." % (self.index))
+        else:
+            tdLog.debug(
+                "wait 10 seconds for the dnode:%d to start." %
+                (self.index))
+            time.sleep(10)
 
     def startWithoutSleep(self):
         binPath = self.getPath()
@@ -327,7 +395,7 @@ class TDDnode:
             cmd = "nohup %s -c %s > /dev/null 2>&1 & " % (
                 binPath, self.cfgDir)
         else:
-            valgrindCmdline = "valgrind --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"
+            valgrindCmdline = "valgrind  --log-file=\"%s/../log/valgrind.log\"  --tool=memcheck --leak-check=full --show-reachable=no --track-origins=yes --show-leak-kinds=all -v --workaround-gcc296-bugs=yes"%self.cfgDir
 
             cmd = "nohup %s %s -c %s 2>&1 & " % (
                 valgrindCmdline, binPath, self.cfgDir)
@@ -450,8 +518,7 @@ class TDDnodes:
             processID = subprocess.check_output(
                 psCmd, shell=True).decode("utf-8")
 
-        binPath = os.path.dirname(os.path.realpath(__file__))
-        binPath = binPath + "/../../../debug/"
+        binPath = self.dnodes[0].getPath() + "/../../../"
         tdLog.debug("binPath %s" % (binPath))
         binPath = os.path.realpath(binPath)
         tdLog.debug("binPath real path %s" % (binPath))
@@ -478,7 +545,6 @@ class TDDnodes:
 
         for i in range(len(self.dnodes)):
             self.dnodes[i].init(self.path)
-
         self.sim = TDSimClient(self.path)
 
     def setTestCluster(self, value):
@@ -491,7 +557,7 @@ class TDDnodes:
         self.sim.setTestCluster(self.testCluster)
 
         if (self.simDeployed == False):
-            self.sim.deploy()
+            self.sim.deploy(updatecfgDict)
             self.simDeployed = True
 
         self.check(index)
@@ -506,6 +572,10 @@ class TDDnodes:
     def start(self, index):
         self.check(index)
         self.dnodes[index - 1].start()
+
+    def startWin(self, index):
+        self.check(index)
+        self.dnodes[index - 1].startWin()
 
     def startWithoutSleep(self, index):
         self.check(index)

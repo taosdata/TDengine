@@ -33,9 +33,9 @@
 #define MAX_BACKGROUND_SCRIPT_NUM 10
 #define MAX_FILE_NAME_LEN         256
 #define MAX_ERROR_LEN             1024
-#define MAX_QUERY_VALUE_LEN       40
-#define MAX_QUERY_COL_NUM         20
-#define MAX_QUERY_ROW_NUM         20
+#define MAX_QUERY_VALUE_LEN       1024
+#define MAX_QUERY_COL_NUM         100
+#define MAX_QUERY_ROW_NUM         100
 #define MAX_SYSTEM_RESULT_LEN     2048
 #define MAX_VAR_LEN               100
 #define MAX_VAR_NAME_LEN          32
@@ -156,6 +156,7 @@ extern int32_t  simDebugFlag;
 extern char     simScriptDir[];
 extern bool     abortExecution;
 extern bool     useMultiProcess;
+extern bool     useValgrind;
 
 SScript *simParseScript(char *fileName);
 SScript *simProcessCallOver(SScript *script);

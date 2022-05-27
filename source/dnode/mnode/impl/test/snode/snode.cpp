@@ -18,11 +18,11 @@ class MndTestSnode : public ::testing::Test {
 
  public:
   static void SetUpTestSuite() {
-    test.Init("/tmp/mnode_test_snode1", 9016);
+    test.Init(TD_TMP_DIR_PATH "mnode_test_snode1", 9016);
     const char* fqdn = "localhost";
     const char* firstEp = "localhost:9016";
 
-    server2.Start("/tmp/mnode_test_snode2", fqdn, 9017, firstEp);
+    // server2.Start(TD_TMP_DIR_PATH "mnode_test_snode2", fqdn, 9017, firstEp);
     taosMsleep(300);
   }
 
@@ -39,14 +39,7 @@ Testbase   MndTestSnode::test;
 TestServer MndTestSnode::server2;
 
 TEST_F(MndTestSnode, 01_Show_Snode) {
-  test.SendShowMetaReq(TSDB_MGMT_TABLE_SNODE, "");
-  CHECK_META("show snodes", 3);
-
-  CHECK_SCHEMA(0, TSDB_DATA_TYPE_SMALLINT, 2, "id");
-  CHECK_SCHEMA(1, TSDB_DATA_TYPE_BINARY, TSDB_EP_LEN + VARSTR_HEADER_SIZE, "endpoint");
-  CHECK_SCHEMA(2, TSDB_DATA_TYPE_TIMESTAMP, 8, "create_time");
-
-  test.SendShowRetrieveReq();
+  test.SendShowReq(TSDB_MGMT_TABLE_SNODE, "snodes", "");
   EXPECT_EQ(test.GetShowRows(), 0);
 }
 
@@ -76,14 +69,8 @@ TEST_F(MndTestSnode, 02_Create_Snode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_SNODE, "");
-    CHECK_META("show snodes", 3);
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_SNODE, "snodes", "");
     EXPECT_EQ(test.GetShowRows(), 1);
-
-    CheckInt16(1);
-    CheckBinary("localhost:9016", TSDB_EP_LEN);
-    CheckTimestamp();
   }
 
   {
@@ -115,8 +102,7 @@ TEST_F(MndTestSnode, 03_Drop_Snode) {
     ASSERT_EQ(pRsp->code, 0);
 
     taosMsleep(1300);
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_DNODE, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_DNODE, "dnodes", "");
     EXPECT_EQ(test.GetShowRows(), 2);
   }
 
@@ -132,16 +118,8 @@ TEST_F(MndTestSnode, 03_Drop_Snode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_SNODE, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_SNODE, "snodes", "");
     EXPECT_EQ(test.GetShowRows(), 2);
-
-    CheckInt16(1);
-    CheckInt16(2);
-    CheckBinary("localhost:9016", TSDB_EP_LEN);
-    CheckBinary("localhost:9017", TSDB_EP_LEN);
-    CheckTimestamp();
-    CheckTimestamp();
   }
 
   {
@@ -156,13 +134,8 @@ TEST_F(MndTestSnode, 03_Drop_Snode) {
     ASSERT_NE(pRsp, nullptr);
     ASSERT_EQ(pRsp->code, 0);
 
-    test.SendShowMetaReq(TSDB_MGMT_TABLE_SNODE, "");
-    test.SendShowRetrieveReq();
+    test.SendShowReq(TSDB_MGMT_TABLE_SNODE, "snodes", "");
     EXPECT_EQ(test.GetShowRows(), 1);
-
-    CheckInt16(1);
-    CheckBinary("localhost:9016", TSDB_EP_LEN);
-    CheckTimestamp();
   }
 
   {
@@ -225,7 +198,7 @@ TEST_F(MndTestSnode, 03_Create_Snode_Rollback) {
 
   {
     // server start, wait until the rollback finished
-    server2.DoStart();
+    server2.Start();
     taosMsleep(1000);
 
     int32_t retry = 0;
@@ -295,7 +268,7 @@ TEST_F(MndTestSnode, 04_Drop_Snode_Rollback) {
 
   {
     // server start, wait until the rollback finished
-    server2.DoStart();
+    server2.Start();
     taosMsleep(1000);
 
     int32_t retry = 0;

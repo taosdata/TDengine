@@ -29,6 +29,8 @@ extern "C" {
 typedef struct SMnode SMnode;
 
 typedef struct {
+  int32_t  dnodeId;
+  bool     standby;
   bool     deploy;
   int8_t   replica;
   int8_t   selfIndex;
@@ -54,45 +56,24 @@ SMnode *mndOpen(const char *path, const SMnodeOpt *pOption);
 void mndClose(SMnode *pMnode);
 
 /**
- * @brief Close a mnode.
- *
- * @param pMnode The mnode object to close.
- * @param pOption Options of the mnode.
- * @return int32_t 0 for success, -1 for failure.
- */
-int32_t mndAlter(SMnode *pMnode, const SMnodeOpt *pOption);
-
-/**
  * @brief Start mnode
  *
  * @param pMnode The mnode object.
  */
 int32_t mndStart(SMnode *pMnode);
+void    mndStop(SMnode *pMnode);
 
 /**
  * @brief Get mnode monitor info.
  *
  * @param pMnode The mnode object.
- * @param pClusterInfo
- * @param pVgroupInfo
- * @param pGrantInfo
+ * @param pCluster
+ * @param pVgroup
+ * @param pGrant
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
-                          SMonGrantInfo *pGrantInfo);
-
-/**
- * @brief Get user authentication info.
- *
- * @param pMnode The mnode object.
- * @param user
- * @param spi
- * @param encrypt
- * @param secret
- * @param ckey
- * @return int32_t 0 for success, -1 for failure.
- */
-int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, char *secret, char *ckey);
+int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pCluster, SMonVgroupInfo *pVgroup, SMonGrantInfo *pGrant);
+int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad);
 
 /**
  * @brief Process the read, write, sync request.
@@ -100,7 +81,13 @@ int32_t mndRetriveAuth(SMnode *pMnode, char *user, char *spi, char *encrypt, cha
  * @param pMsg The request msg.
  * @return int32_t 0 for success, -1 for failure.
  */
-int32_t mndProcessMsg(SNodeMsg *pMsg);
+int32_t mndProcessMsg(SRpcMsg *pMsg);
+int32_t mndProcessSyncMsg(SRpcMsg *pMsg);
+
+/**
+ * @brief Generate machine code
+ */
+void mndGenerateMachineCode();
 
 #ifdef __cplusplus
 }

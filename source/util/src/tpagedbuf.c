@@ -48,7 +48,7 @@ struct SDiskbasedBuf {
 };
 
 static int32_t createDiskFile(SDiskbasedBuf* pBuf) {
-  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CTEATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
+  pBuf->pFile = taosOpenFile(pBuf->path, TD_FILE_CREATE | TD_FILE_WRITE | TD_FILE_READ | TD_FILE_TRUNC | TD_FILE_AUTO_DEL);
   if (pBuf->pFile == NULL) {
     return TAOS_SYSTEM_ERROR(errno);
   }
@@ -187,9 +187,6 @@ static char* doFlushPageToDisk(SDiskbasedBuf* pBuf, SPageInfo* pg) {
     }
   } else {  // NOTE: the size may be -1, the this recycle page has not been flushed to disk yet.
     size = pg->length;
-    if (size == -1) {
-      printf("----\n");
-    }
   }
 
   ASSERT(size > 0 || (pg->offset == -1 && pg->length == -1));
@@ -552,11 +549,16 @@ void destroyDiskbasedBuf(SDiskbasedBuf* pBuf) {
   // print the statistics information
   {
     SDiskbasedBufStatis* ps = &pBuf->statis;
-    uDebug(
-        "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f "
-        "Kb\n",
-        ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
-        ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
+    if (ps->loadPages == 0) {
+      uDebug(
+          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages)",
+          ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f, ps->loadPages);
+    } else {
+      uDebug(
+          "Get/Release pages:%d/%d, flushToDisk:%.2f Kb (%d Pages), loadFromDisk:%.2f Kb (%d Pages), avgPageSize:%.2f Kb",
+          ps->getPages, ps->releasePages, ps->flushBytes / 1024.0f, ps->flushPages, ps->loadBytes / 1024.0f,
+          ps->loadPages, ps->loadBytes / (1024.0 * ps->loadPages));
+    }
   }
 
   taosRemoveFile(pBuf->path);

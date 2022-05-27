@@ -12,7 +12,8 @@ fi
 PID=`ps -ef|grep -w taosd | grep -v grep | awk '{print $2}'`
 while [ -n "$PID" ]; do
   echo kill -9 $PID
-  pkill -9 taosd
+  #pkill -9 taosd
+  kill -9 $PID
   echo "Killing processes locking on port 6030"
   if [ "$OS_TYPE" != "Darwin" ]; then
     fuser -k -n tcp 6030

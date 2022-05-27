@@ -1,0 +1,20 @@
+[Unit]
+Description=TDengine arbitrator service
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/tarbitrator
+TimeoutStopSec=1000000s
+LimitNOFILE=infinity
+LimitNPROC=infinity
+LimitCORE=infinity
+TimeoutStartSec=0
+StandardOutput=null
+Restart=always
+StartLimitBurst=3
+StartLimitInterval=60s
+
+[Install]
+WantedBy=multi-user.target

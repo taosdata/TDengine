@@ -7,7 +7,7 @@ sql connect
 print =============== create database
 sql create database d1
 sql show databases
-if $rows != 2 then 
+if $rows != 3 then
   return -1
 endi
 

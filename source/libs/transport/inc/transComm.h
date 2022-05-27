@@ -12,29 +12,20 @@
  * You should have received a copy of the GNU Affero General Public License
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
-#ifdef USE_UV
+#ifndef _TD_TRANSPORT_COMM_H
+#define _TD_TRANSPORT_COMM_H
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
 #include <uv.h>
-#include "lz4.h"
 #include "os.h"
-#include "rpcCache.h"
-#include "rpcHead.h"
-#include "rpcLog.h"
 #include "taoserror.h"
-#include "tglobal.h"
-#include "thash.h"
-#include "tidpool.h"
-#include "tmd5.h"
-#include "tmempool.h"
-#include "tmsg.h"
+#include "theap.h"
+#include "transLog.h"
 #include "transportInt.h"
-#include "tref.h"
 #include "trpc.h"
-#include "ttimer.h"
 #include "tutil.h"
 
 typedef void* queue[2];
@@ -103,26 +94,9 @@ typedef void* queue[2];
 /* Return the structure holding the given element. */
 #define QUEUE_DATA(e, type, field) ((type*)((void*)((char*)(e)-offsetof(type, field))))
 
-typedef struct {
-  SRpcInfo* pRpc;     // associated SRpcInfo
-  SEpSet    epSet;    // ip list provided by app
-  void*     ahandle;  // handle provided by app
-  // struct SRpcConn* pConn;     // pConn allocated
-  tmsg_t   msgType;  // message type
-  uint8_t* pCont;    // content provided by app
-  int32_t  contLen;  // content length
-  // int32_t  code;     // error code
-  // int16_t  numOfTry;  // number of try for different servers
-  // int8_t   oldInUse;  // server EP inUse passed by app
-  // int8_t   redirect;  // flag to indicate redirect
-  int8_t   connType;  // connection type
-  int64_t  rid;       // refId returned by taosAddRef
-  SRpcMsg* pRsp;      // for synchronous API
-  tsem_t*  pSem;      // for synchronous API
-  char*    ip;
-  uint32_t port;
-  // SEpSet*          pSet;      // for synchronous API
-} SRpcReqContext;
+#define TRANS_RETRY_COUNT_LIMIT 100  // retry count limit
+#define TRANS_RETRY_INTERVAL    15   // ms retry interval
+#define TRANS_CONN_TIMEOUT      3    // connect timeout
 
 typedef SRpcMsg      STransMsg;
 typedef SRpcCtx      STransCtx;
@@ -130,21 +104,28 @@ typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
+/*convet from fqdn to ip */
+typedef struct SCvtAddr {
+  char ip[TSDB_FQDN_LEN];
+  char fqdn[TSDB_FQDN_LEN];
+  bool cvt;
+} SCvtAddr;
+
 typedef struct {
-  SEpSet  epSet;     // ip list provided by app
+  SEpSet  epSet;  // ip list provided by app
+  SEpSet  origEpSet;
   void*   ahandle;   // handle provided by app
   tmsg_t  msgType;   // message type
   int8_t  connType;  // connection type cli/srv
   int64_t rid;       // refId returned by taosAddRef
 
+  int8_t     retryCount;
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
+  SCvtAddr   cvtAddr;
 
-  int      hThrdIdx;
-  char*    ip;
-  uint32_t port;
-  // SEpSet*          pSet;      // for synchronous API
+  int hThrdIdx;
 } STransConnCtx;
 
 #pragma pack(push, 1)
@@ -158,6 +139,7 @@ typedef struct {
   char secured : 2;
   char spi : 2;
 
+  char     user[TSDB_UNI_LEN];
   uint64_t ahandle;  // ahandle assigned by client
   uint32_t code;     // del later
   uint32_t msgType;
@@ -182,39 +164,31 @@ typedef struct {
 
 #pragma pack(pop)
 
-typedef enum { Normal, Quit, Release, Register } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
-#define RPC_RESERVE_SIZE (sizeof(STranConnCtx))
+#define RPC_RESERVE_SIZE                (sizeof(STranConnCtx))
 
-#define RPC_MSG_OVERHEAD (sizeof(SRpcHead) + sizeof(SRpcDigest))
-#define rpcHeadFromCont(cont) ((SRpcHead*)((char*)cont - sizeof(SRpcHead)))
-#define rpcContFromHead(msg) (msg + sizeof(SRpcHead))
-#define rpcMsgLenFromCont(contLen) (contLen + sizeof(SRpcHead))
-#define rpcContLenFromMsg(msgLen) (msgLen - sizeof(SRpcHead))
 #define rpcIsReq(type) (type & 1U)
 
 #define TRANS_RESERVE_SIZE (sizeof(STranConnCtx))
 
-#define TRANS_MSG_OVERHEAD (sizeof(STransMsgHead))
-#define transHeadFromCont(cont) ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
-#define transContFromHead(msg) (msg + sizeof(STransMsgHead))
+#define TRANS_MSG_OVERHEAD           (sizeof(STransMsgHead))
+#define transHeadFromCont(cont)      ((STransMsgHead*)((char*)cont - sizeof(STransMsgHead)))
+#define transContFromHead(msg)       (msg + sizeof(STransMsgHead))
 #define transMsgLenFromCont(contLen) (contLen + sizeof(STransMsgHead))
-#define transContLenFromMsg(msgLen) (msgLen - sizeof(STransMsgHead));
-#define transIsReq(type) (type & 1U)
+#define transContLenFromMsg(msgLen)  (msgLen - sizeof(STransMsgHead));
+#define transIsReq(type)             (type & 1U)
 
-int       rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-void      rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-int32_t   rpcCompressRpcMsg(char* pCont, int32_t contLen);
-SRpcHead* rpcDecompressRpcMsg(SRpcHead* pHead);
-
-int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
-void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
-bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
-bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
-
-void transConnCtxDestroy(STransConnCtx* ctx);
+// int  rpcAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// void rpcBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
+//// int32_t rpcCompressRpcMsg(char* pCont, int32_t contLen);
+//
+// int  transAuthenticateMsg(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// void transBuildAuthHead(void* pMsg, int msgLen, void* pAuth, void* pKey);
+// bool transCompressMsg(char* msg, int32_t len, int32_t* flen);
+// bool transDecompressMsg(char* msg, int32_t len, int32_t* flen);
 
 void transFreeMsg(void* msg);
 
@@ -244,6 +218,22 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transSendAsync(SAsyncPool* pool, queue* mq);
 
+#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
+  do {                                                        \
+    for (int i = 0; i < pool->nAsync; i++) {                  \
+      uv_async_t* async = &(pool->asyncs[i]);                 \
+      SAsyncItem* item = async->data;                         \
+      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                  \
+        tTrace("destroy msg in async pool ");                 \
+        queue* h = QUEUE_HEAD(&item->qmsg);                   \
+        QUEUE_REMOVE(h);                                      \
+        msgType* msg = QUEUE_DATA(h, msgType, q);             \
+        if (msg != NULL) {                                    \
+          freeFunc(msg);                                      \
+        }                                                     \
+      }                                                       \
+    }                                                         \
+  } while (0)
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
@@ -261,11 +251,12 @@ void transUnrefCliHandle(void* handle);
 void transReleaseCliHandle(void* handle);
 void transReleaseSrvHandle(void* handle);
 
-void transSendRequest(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransCtx* pCtx);
-void transSendRecv(void* shandle, const char* ip, uint32_t port, STransMsg* pMsg, STransMsg* pRsp);
+void transSendRequest(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransCtx* pCtx);
+void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransMsg* pRsp);
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
+void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
@@ -326,8 +317,42 @@ void transQueueClear(STransQueue* queue);
  */
 void transQueueDestroy(STransQueue* queue);
 
+/*
+ * delay queue based on uv loop and uv timer, and only used in retry
+ */
+typedef struct STaskArg {
+  void* param1;
+  void* param2;
+} STaskArg;
+
+typedef struct SDelayTask {
+  void (*func)(void* arg);
+  void*    arg;
+  uint64_t execTime;
+  HeapNode node;
+} SDelayTask;
+
+typedef struct SDelayQueue {
+  uv_timer_t* timer;
+  Heap*       heap;
+  uv_loop_t*  loop;
+} SDelayQueue;
+
+int transDQCreate(uv_loop_t* loop, SDelayQueue** queue);
+
+void transDQDestroy(SDelayQueue* queue);
+
+int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
+
+void transPrintEpSet(SEpSet* pEpSet);
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
+/*
+ * init global func
+ */
+void transThreadOnce();
+
 #ifdef __cplusplus
 }
 #endif
 
-#endif
+#endif  // _TD_TRANSPORT_COMM_H

@@ -24,11 +24,6 @@ sql connect
 
 print =============== create database
 sql create database db
-sql show databases
-if $rows != 2 then
-  return -1
-endi
-
 sql use db
 
 print =============== create super table and child table
@@ -114,14 +109,14 @@ print ====> rows0: $data00, $data01, $data02, $data03, $data04, $data05, $data06
 if $rows != 1 then
     return -1
 endi
-if $data01 != 2 then
+if $data01 != 3 then
     return -1
 endi
 
-sql select * from ct1 limit 2 offset 1
+sql select * from ct1 limit 2 offset 7
 print ====> sql : select * from ct1 limit 2 offset 7
 print ====> rows: $rows
-if $rows != 2 then
+if $rows != 1 then
     return -1
 endi
 if $data01 != 8 then
@@ -582,4 +577,4 @@ if $data00 != 33 then
 endi
 
 
-#system sh/exec.sh -n dnode1 -s stop -x SIGINT
+system sh/exec.sh -n dnode1 -s stop -x SIGINT
