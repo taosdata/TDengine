@@ -778,6 +778,9 @@ void queryCostStatis(SExecTaskInfo* pTaskInfo);
 void    doDestroyTask(SExecTaskInfo* pTaskInfo);
 int32_t getMaximumIdleDurationSec();
 
+int32_t encodeExecTaskInfo(SOperatorInfo* ops, char** data);
+int32_t decodeExecTaskInfo(SOperatorInfo* ops, char* data);
+
 void    setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status);
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model);

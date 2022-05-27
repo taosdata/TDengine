@@ -4954,6 +4954,66 @@ _error:
   return NULL;
 }
 
+int32_t encodeExecTaskInfo(SOperatorInfo* ops, char** result){
+  uint8_t operatorType = ops->operatorType;
+
+  int32_t num = 0;
+  int32_t  size = ops->numOfDownstream;
+
+  for (int32_t i = 0; i < size; ++i) {
+    encodeExecTaskInfo(ops->pDownstream[i], result);
+  }
+
+  SOperatorInfo* pOptr = NULL;
+  if (QUERY_NODE_PHYSICAL_PLAN_AGG == operatorType) {
+    if(ops->fpSet.encodeResultRow){
+      int32_t length = 0;
+      SAggOperatorInfo* pAggInfo = ops->info;
+      SOptrBasicInfo* pInfo = &pAggInfo->binfo;
+      SAggSupporter   *pSup = &pAggInfo->aggSup;
+      ops->fpSet.encodeResultRow(ops, pSup, pInfo, result, &length);
+    }
+  } else if (QUERY_NODE_PHYSICAL_PLAN_INTERVAL == operatorType || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == operatorType) {
+
+  } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == operatorType) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW == operatorType) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW == operatorType) {
+  }
+
+  return 0;
+}
+
+int32_t decodeExecTaskInfo(SOperatorInfo* ops, char* result){
+  uint8_t operatorType = ops->operatorType;
+
+  int32_t num = 0;
+  int32_t  size = ops->numOfDownstream;
+
+  for (int32_t i = 0; i < size; ++i) {
+    decodeExecTaskInfo(ops->pDownstream[i], result);
+  }
+
+  SOperatorInfo* pOptr = NULL;
+  if (QUERY_NODE_PHYSICAL_PLAN_AGG == operatorType) {
+    if(ops->fpSet.decodeResultRow){
+      int32_t length = 0;
+      SAggOperatorInfo* pAggInfo = ops->info;
+      SOptrBasicInfo* pInfo = &pAggInfo->binfo;
+      SAggSupporter   *pSup = &pAggInfo->aggSup;
+      taosHashClear(pSup->pResultRowHashTable);
+      pInfo->resultRowInfo.size = 0;
+      ops->fpSet.decodeResultRow(ops, pSup, pInfo, result, length);
+    }
+  } else if (QUERY_NODE_PHYSICAL_PLAN_INTERVAL == operatorType || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == operatorType) {
+
+  } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == operatorType) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW == operatorType) {
+  } else if (QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW == operatorType) {
+  }
+
+  return 0;
+}
+
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
                                EOPTR_EXEC_MODEL model) {
   uint64_t queryId = pPlan->id.queryId;
