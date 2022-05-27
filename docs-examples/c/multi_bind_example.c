@@ -52,7 +52,7 @@ void insertData(TAOS *taos) {
   checkErrorCode(stmt, code, "failed to execute taos_stmt_prepare");
   // bind table name and tags
   TAOS_BIND tags[2];
-  char     *location = "Beijing.Chaoyang";
+  char     *location = "California.SanFrancisco";
   int       groupId = 2;
   tags[0].buffer_type = TSDB_DATA_TYPE_BINARY;
   tags[0].buffer_length = strlen(location);

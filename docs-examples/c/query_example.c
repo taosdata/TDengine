@@ -139,5 +139,5 @@ int main() {
 
 // output:
 // ts current voltage phase location groupid 
-// 1648432611249 10.300000 219 0.310000 Beijing.Chaoyang 2
-// 1648432611749 12.600000 218 0.330000 Beijing.Chaoyang 2
+// 1648432611249 10.300000 219 0.310000 California.SanFrancisco 2
+// 1648432611749 12.600000 218 0.330000 California.SanFrancisco 2
