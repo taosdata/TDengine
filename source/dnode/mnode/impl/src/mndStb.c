@@ -1503,6 +1503,7 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   pRsp->precision = pDb->cfg.precision;
   pRsp->tableType = TSDB_SUPER_TABLE;
   pRsp->sversion = pStb->colVer;
+  pRsp->tversion = pStb->tagVer;
   pRsp->suid = pStb->uid;
   pRsp->tuid = pStb->uid;
 
@@ -1629,7 +1630,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
       metaRsp.suid = pStbVersion->suid;
     }
 
-    if (pStbVersion->sversion != metaRsp.sversion) {
+    if (pStbVersion->sversion != metaRsp.sversion || pStbVersion->tversion != metaRsp.tversion) {
       taosArrayPush(batchMetaRsp.pArray, &metaRsp);
     } else {
       tFreeSTableMetaRsp(&metaRsp);
