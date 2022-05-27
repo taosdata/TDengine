@@ -2,7 +2,7 @@ if [ ! `command -v unzip` ]; then
   apt-get install -y unzip
 fi
 
-if [ ! `command -v mosquitto_pub`]; then
+if [ ! `command -v mosquitto_pub` ]; then
   apt-get install -y mosquitto-clients
 fi
 
