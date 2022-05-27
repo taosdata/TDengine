@@ -247,7 +247,7 @@ class TDDnode:
 
         paths = []
         for root, dirs, files in os.walk(projPath):
-            if ((tool) in files):
+            if ((tool) in files or ("%s.exe"%tool) in files):
                 rootRealPath = os.path.dirname(os.path.realpath(root))
                 if ("packaging" not in rootRealPath):
                     paths.append(os.path.join(root, tool))

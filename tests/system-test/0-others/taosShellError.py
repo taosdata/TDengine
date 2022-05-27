@@ -216,11 +216,15 @@ class TDTestCase:
         pwd=os.getcwd()
         newDbName="dbf"
         sqlFile = pwd + "/0-others/sql.txt"
-        sql1 = "echo 'create database " + newDbName + "' > " + sqlFile
-        sql2 = "echo 'use " + newDbName + "' >> " + sqlFile
-        sql3 = "echo 'create table ntbf (ts timestamp, c binary(40)) no this item' >> " + sqlFile
-        sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile 
-        sql5 = "echo 'show databases' >> " + sqlFile       
+        sql1 = "echo create database " + newDbName + " > " + sqlFile
+        sql2 = "echo use " + newDbName + " >> " + sqlFile
+        if platform.system().lower() == 'windows':
+            sql3 = "echo create table ntbf (ts timestamp, c binary(40)) no this item >> " + sqlFile
+            sql4 = "echo insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\") >> " + sqlFile 
+        else:
+            sql3 = "echo 'create table ntbf (ts timestamp, c binary(40)) no this item' >> " + sqlFile
+            sql4 = "echo 'insert into ntbf values (\"2021-04-01 08:00:00.000\", \"test taos -f1\")(\"2021-04-01 08:00:01.000\", \"test taos -f2\")' >> " + sqlFile 
+        sql5 = "echo show databases >> " + sqlFile       
         os.system(sql1)       
         os.system(sql2)       
         os.system(sql3)       
