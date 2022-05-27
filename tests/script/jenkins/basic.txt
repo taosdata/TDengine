@@ -57,6 +57,7 @@
 # ---- mnode
 ./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
+./test.sh -f tsim/mnode/basic3.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
@@ -92,7 +93,7 @@
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
 ./test.sh -f tsim/stable/refcount.sim
-#./test.sh -f tsim/stable/show.sim
+./test.sh -f tsim/stable/show.sim
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
 ./test.sh -f tsim/stable/column_add.sim
