@@ -542,27 +542,6 @@ void* schtRunJobThread(void *aa) {
       pIter = taosHashIterate(execTasks, pIter);
     }    
 
-
-    param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
-    param->refId = queryJobRefId;
-    param->queryId = pJob->queryId;   
-    
-    pIter = taosHashIterate(execTasks, NULL);
-    while (pIter) {
-      SSchTask *task = (SSchTask *)pIter;
-
-      param->taskId = task->taskId;
-      SResReadyRsp rsp = {0};
-      dataBuf.pData = &rsp;
-      dataBuf.len = sizeof(rsp);
-      
-      code = schHandleCallback(param, &dataBuf, TDMT_VND_RES_READY_RSP, 0);
-      assert(code == 0 || code);
-      
-      pIter = taosHashIterate(execTasks, pIter);
-    }  
-
-
     param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
     param->refId = queryJobRefId;
     param->queryId = pJob->queryId;   
@@ -582,25 +561,6 @@ void* schtRunJobThread(void *aa) {
       pIter = taosHashIterate(execTasks, pIter);
     }    
 
-
-    param = (SSchTaskCallbackParam *)taosMemoryCalloc(1, sizeof(*param));
-    param->refId = queryJobRefId;
-    param->queryId = pJob->queryId;   
-
-    pIter = taosHashIterate(execTasks, NULL);
-    while (pIter) {
-      SSchTask *task = (SSchTask *)pIter;
-
-      param->taskId = task->taskId - 1;
-      SResReadyRsp rsp = {0};
-      dataBuf.pData = &rsp;
-      dataBuf.len = sizeof(rsp);
-      
-      code = schHandleCallback(param, &dataBuf, TDMT_VND_RES_READY_RSP, 0);
-      assert(code == 0 || code);
-      
-      pIter = taosHashIterate(execTasks, pIter);
-    }  
 
     while (true) {
       if (queryDone) {
@@ -705,34 +665,12 @@ TEST(queryTest, normalCase) {
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    printf("code:%d", code);
-    ASSERT_EQ(code, 0);
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
-
-  pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
-
     SQueryTableRsp rsp = {0};
     code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
     
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }    
-
-  pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
-
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    ASSERT_EQ(code, 0);
-    
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
 
   while (true) {
     if (queryDone) {
@@ -804,19 +742,8 @@ TEST(queryTest, readyFirstCase) {
 
   
   SSchJob *pJob = schAcquireJob(job);
-
-  void *pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
-
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    printf("code:%d", code);
-    ASSERT_EQ(code, 0);
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
   
-  pIter = taosHashIterate(pJob->execTasks, NULL);
+  void *pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
     SSchTask *task = *(SSchTask **)pIter;
 
@@ -826,17 +753,6 @@ TEST(queryTest, readyFirstCase) {
     ASSERT_EQ(code, 0);
     pIter = taosHashIterate(pJob->execTasks, pIter);
   }    
-
-  pIter = taosHashIterate(pJob->execTasks, NULL);
-  while (pIter) {
-    SSchTask *task = *(SSchTask **)pIter;
-
-    SResReadyRsp rsp = {0};
-    code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
-    ASSERT_EQ(code, 0);
-    
-    pIter = taosHashIterate(pJob->execTasks, pIter);
-  }  
 
   pIter = taosHashIterate(pJob->execTasks, NULL);
   while (pIter) {
@@ -942,10 +858,6 @@ TEST(queryTest, flowCtrlCase) {
         SQueryTableRsp rsp = {0};
         code = schHandleResponseMsg(pJob, task, TDMT_VND_QUERY_RSP, (char *)&rsp, sizeof(rsp), 0);
         
-        ASSERT_EQ(code, 0);
-      } else if (task->lastMsgType == TDMT_VND_RES_READY) {
-        SResReadyRsp rsp = {0};
-        code = schHandleResponseMsg(pJob, task, TDMT_VND_RES_READY_RSP, (char *)&rsp, sizeof(rsp), 0);
         ASSERT_EQ(code, 0);
       } else {
         qDone = true;
