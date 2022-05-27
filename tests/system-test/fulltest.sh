@@ -26,8 +26,12 @@ python3 ./test.py -f 2-query/lower.py
 # python3 ./test.py -f 2-query/join.py
 # python3 ./test.py -f 2-query/join2.py
 python3 ./test.py -f 2-query/cast.py
+python3 ./test.py -f 2-query/union.py
+python3 ./test.py -f 2-query/union1.py
 #python3 ./test.py -f 2-query/concat.py
+#python3 ./test.py -f 2-query/concat2.py
 #python3 ./test.py -f 2-query/concat_ws.py
+#python3 ./test.py -f 2-query/concat_ws2.py
 python3 ./test.py -f 2-query/check_tsdb.py
 python3 ./test.py -f 2-query/spread.py
 python3 ./test.py -f 2-query/hyperloglog.py
@@ -45,7 +49,6 @@ python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
 # python3 ./test.py -f 2-query/diff.py
 python3 ./test.py -f 2-query/Timediff.py
-python3 ./test.py -f 2-query/cast.py
 
 
 python3 ./test.py -f 2-query/abs.py
