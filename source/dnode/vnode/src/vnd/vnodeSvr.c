@@ -38,9 +38,11 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
       tDecodeI32v(&dc, &nReqs);
       for (int32_t iReq = 0; iReq < nReqs; iReq++) {
         tb_uid_t uid = tGenIdPI64();
+        char    *name = NULL;
         tStartDecode(&dc);
 
         tDecodeI32v(&dc, NULL);
+        tDecodeCStr(&dc, &name);
         *(int64_t *)(dc.data + dc.pos) = uid;
         *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
