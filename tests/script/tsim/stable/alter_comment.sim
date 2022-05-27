@@ -166,4 +166,5 @@ if $data[0][6] != abcde then
   return -1
 endi
 
+return
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
