@@ -60,7 +60,7 @@ int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, u
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 
 // STag
-int32_t tTagNew(STagVal *pTagVals, int16_t nTag, int32_t version, int8_t isJson, STag **ppTag);
+int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
 void    tTagGet(STag *pTag, STagVal *pTagVal);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);

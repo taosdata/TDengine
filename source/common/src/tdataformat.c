@@ -579,22 +579,23 @@ static int32_t tGetTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
 
   return n;
 }
-int32_t tTagNew(STagVal *pTagVals, int16_t nTag, int32_t version, int8_t isJson, STag **ppTag) {
+int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   int32_t  code = 0;
   uint8_t *p = NULL;
   int16_t  n = 0;
+  int16_t  nTag = taosArrayGetSize(pArray);
   int32_t  szTag = sizeof(STag) + sizeof(int16_t) * nTag;
 
   // sort
   if (isJson) {
-    qsort(pTagVals, nTag, sizeof(STagVal), tTagValJsonCmprFn);
+    qsort(pArray->pData, nTag, sizeof(STagVal), tTagValJsonCmprFn);
   } else {
-    qsort(pTagVals, nTag, sizeof(STagVal), tTagValCmprFn);
+    qsort(pArray->pData, nTag, sizeof(STagVal), tTagValCmprFn);
   }
 
   // get size
   for (int16_t iTag = 0; iTag < nTag; iTag++) {
-    szTag += tPutTagVal(NULL, &pTagVals[iTag], isJson);
+    szTag += tPutTagVal(NULL, (STagVal *)taosArrayGet(pArray, iTag), isJson);
   }
 
   // TODO
@@ -618,7 +619,7 @@ int32_t tTagNew(STagVal *pTagVals, int16_t nTag, int32_t version, int8_t isJson,
   n = 0;
   for (int16_t iTag = 0; iTag < nTag; iTag++) {
     (*ppTag)->idx[iTag] = n;
-    n += tPutTagVal(p + n, &pTagVals[iTag], isJson);
+    n += tPutTagVal(p + n, (STagVal *)taosArrayGet(pArray, iTag), isJson);
   }
 
   return code;
