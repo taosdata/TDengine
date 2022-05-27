@@ -333,7 +333,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 cbMeta.seqNum = pEntry->seqNum;
                 cbMeta.term = pEntry->term;
                 cbMeta.currentTerm = ths->pRaftStore->currentTerm;
-                ths->pFsm->FpCommitCb(ths->pFsm, &rpcMsg, cbMeta);
+                cbMeta.flag = 0x11;
 
                 bool needExecute = true;
                 if (ths->pSnapshot != NULL && cbMeta.index <= ths->pSnapshot->lastApplyIndex) {
@@ -347,24 +347,55 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
               // config change
               if (pEntry->originalRpcType == TDMT_VND_SYNC_CONFIG_CHANGE) {
+                SSyncCfg oldSyncCfg = ths->pRaftCfg->cfg;
+
                 SSyncCfg newSyncCfg;
                 int32_t  ret = syncCfgFromStr(rpcMsg.pCont, &newSyncCfg);
                 ASSERT(ret == 0);
 
-                syncNodeUpdateConfig(ths, &newSyncCfg);
-                if (ths->state == TAOS_SYNC_STATE_LEADER) {
-                  syncNodeBecomeLeader(ths);
-                } else {
-                  syncNodeBecomeFollower(ths);
+                // update new config myIndex
+                bool hit = false;
+                for (int i = 0; i < newSyncCfg.replicaNum; ++i) {
+                  if (strcmp(ths->myNodeInfo.nodeFqdn, (newSyncCfg.nodeInfo)[i].nodeFqdn) == 0 &&
+                      ths->myNodeInfo.nodePort == (newSyncCfg.nodeInfo)[i].nodePort) {
+                    newSyncCfg.myIndex = i;
+                    hit = true;
+                    break;
+                  }
                 }
 
-                // maybe newSyncCfg.myIndex is updated in syncNodeUpdateConfig
-                if (ths->pFsm->FpReConfigCb != NULL) {
-                  SReConfigCbMeta cbMeta = {0};
+                SReConfigCbMeta cbMeta = {0};
+                bool isDrop;
+
+                // I am in newConfig
+                if (hit) {
+                  syncNodeUpdateConfig(ths, &newSyncCfg, &isDrop);
+
+                  // change isStandBy to normal
+                  if (!isDrop) {
+                    if (ths->state == TAOS_SYNC_STATE_LEADER) {
+                      syncNodeBecomeLeader(ths);
+                    } else {
+                      syncNodeBecomeFollower(ths);
+                    }
+                  }
+
+                  char* sOld = syncCfg2Str(&oldSyncCfg);
+                  char* sNew = syncCfg2Str(&newSyncCfg);
+                  sInfo("==config change== 0x11 old:%s new:%s isDrop:%d \n", sOld, sNew, isDrop);
+                  taosMemoryFree(sOld);
+                  taosMemoryFree(sNew);
+                }
+
+                // always call FpReConfigCb
+                if (ths->pFsm->FpReConfigCb != NULL) {     
                   cbMeta.code = 0;
                   cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                   cbMeta.index = pEntry->index;
                   cbMeta.term = pEntry->term;
+                  cbMeta.oldCfg = oldSyncCfg;
+                  cbMeta.flag = 0x11;
+                  cbMeta.isDrop = isDrop;
                   ths->pFsm->FpReConfigCb(ths->pFsm, newSyncCfg, cbMeta);
                 }
               }

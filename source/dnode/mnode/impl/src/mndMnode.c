@@ -233,7 +233,7 @@ void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
     if (pObj->pDnode == NULL) {
       mError("mnode:%d, no corresponding dnode exists", pObj->id);
     } else {
-      if (pObj->state == TAOS_SYNC_STATE_LEADER) {
+      if (pObj->id == pMnode->selfDnodeId || pObj->state == TAOS_SYNC_STATE_LEADER) {
         pEpSet->inUse = pEpSet->numOfEps;
       }
       addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
