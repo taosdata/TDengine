@@ -278,13 +278,13 @@ int32_t streamSink(SStreamTask* pTask, SMsgCb* pMsgCb) {
         }
 
         int32_t qType;
-        if (pTask->dispatchMsgType == TDMT_VND_TASK_PIPE_EXEC || pTask->dispatchMsgType == TDMT_SND_TASK_PIPE_EXEC) {
+        if (pTask->dispatchMsgType == TDMT_VND_TASK_DISPATCH || pTask->dispatchMsgType == TDMT_SND_TASK_DISPATCH) {
           qType = FETCH_QUEUE;
-        } else if (pTask->dispatchMsgType == TDMT_VND_TASK_MERGE_EXEC ||
-                   pTask->dispatchMsgType == TDMT_SND_TASK_MERGE_EXEC) {
-          qType = MERGE_QUEUE;
-        } else if (pTask->dispatchMsgType == TDMT_VND_TASK_WRITE_EXEC) {
-          qType = WRITE_QUEUE;
+          /*} else if (pTask->dispatchMsgType == TDMT_VND_TASK_MERGE_EXEC ||*/
+          /*pTask->dispatchMsgType == TDMT_SND_TASK_MERGE_EXEC) {*/
+          /*qType = MERGE_QUEUE;*/
+          /*} else if (pTask->dispatchMsgType == TDMT_VND_TASK_WRITE_EXEC) {*/
+          /*qType = WRITE_QUEUE;*/
         } else {
           ASSERT(0);
         }

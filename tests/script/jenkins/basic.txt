@@ -56,7 +56,7 @@
 
 # ---- mnode
 #./test.sh -f tsim/mnode/basic1.sim
-#./test.sh -f tsim/mnode/basic2.sim
+./test.sh -f tsim/mnode/basic2.sim
 
 # ---- show
 ./test.sh -f tsim/show/basic.sim
@@ -119,5 +119,11 @@
 
 # --- valgrind
 ./test.sh -f tsim/valgrind/checkError.sim -v
+
+# --- sync
+./test.sh -f tsim/sync/3Replica1VgElect.sim
+./test.sh -f tsim/sync/3Replica5VgElect.sim
+./test.sh -f tsim/sync/oneReplica1VgElect.sim
+./test.sh -f tsim/sync/oneReplica5VgElect.sim
 
 #======================b1-end===============

@@ -24,11 +24,7 @@
 #pragma GCC diagnostic ignored "-Wunused-variable"
 #pragma GCC diagnostic ignored "-Wsign-compare"
 
-#include "executor.h"
-#include "executorimpl.h"
-#include "indexoperator.h"
-#include "os.h"
-
+#include "index.h"
 #include "stub.h"
 #include "taos.h"
 #include "tcompare.h"

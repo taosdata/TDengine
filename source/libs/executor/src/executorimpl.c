@@ -34,6 +34,7 @@
 #include "thash.h"
 #include "ttypes.h"
 #include "vnode.h"
+#include "index.h"
 
 #define IS_MAIN_SCAN(runtime)          ((runtime)->scanFlag == MAIN_SCAN)
 #define IS_REVERSE_SCAN(runtime)       ((runtime)->scanFlag == REVERSE_SCAN)
@@ -87,7 +88,7 @@ static UNUSED_FUNC void* u_realloc(void* p, size_t __size) {
 #endif
 
 #define CLEAR_QUERY_STATUS(q, st)   ((q)->status &= (~(st)))
-#define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
+//#define GET_NUM_OF_TABLEGROUP(q)    taosArrayGetSize((q)->tableqinfoGroupInfo.pGroupList)
 #define QUERY_IS_INTERVAL_QUERY(_q) ((_q)->interval.interval > 0)
 
 int32_t getMaximumIdleDurationSec() { return tsShellActivityTimer * 2; }
@@ -1845,12 +1846,6 @@ void setTaskStatus(SExecTaskInfo* pTaskInfo, int8_t status) {
   }
 }
 
-STableQueryInfo* createTableQueryInfo(void* buf, STimeWindow win) {
-  STableQueryInfo* pTableQueryInfo = buf;
-  pTableQueryInfo->lastKey = win.skey;
-  return pTableQueryInfo;
-}
-
 void destroyTableQueryInfoImpl(STableQueryInfo* pTableQueryInfo) {
   if (pTableQueryInfo == NULL) {
     return;
@@ -2430,7 +2425,7 @@ int32_t appendDownstream(SOperatorInfo* p, SOperatorInfo** pDownstream, int32_t 
   return TSDB_CODE_SUCCESS;
 }
 
-static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo);
+static void doDestroyTableList(STableListInfo* pTableqinfoList);
 
 static void doTableQueryInfoTimeWindowCheck(SExecTaskInfo* pTaskInfo, STableQueryInfo* pTableQueryInfo, int32_t order) {
 #if 0
@@ -4006,35 +4001,30 @@ void initResultSizeInfo(SOperatorInfo* pOperator, int32_t numOfRows) {
   }
 }
 
-static STableQueryInfo* initTableQueryInfo(const STableGroupInfo* pTableGroupInfo) {
-  if (pTableGroupInfo->numOfTables == 0) {
-    return NULL;
-  }
-
-  STableQueryInfo* pTableQueryInfo = taosMemoryCalloc(pTableGroupInfo->numOfTables, sizeof(STableQueryInfo));
-  if (pTableQueryInfo == NULL) {
-    return NULL;
-  }
-
-  int32_t index = 0;
-  for (int32_t i = 0; i < taosArrayGetSize(pTableGroupInfo->pGroupList); ++i) {
-    SArray* pa = taosArrayGetP(pTableGroupInfo->pGroupList, i);
-    for (int32_t j = 0; j < taosArrayGetSize(pa); ++j) {
-      STableKeyInfo*   pk = taosArrayGet(pa, j);
-      STableQueryInfo* pTQueryInfo = &pTableQueryInfo[index++];
-      pTQueryInfo->lastKey = pk->lastKey;
-    }
-  }
-
-  STimeWindow win = {0, INT64_MAX};
-  createTableQueryInfo(pTableQueryInfo, win);
-  return pTableQueryInfo;
-}
+//static STableQueryInfo* initTableQueryInfo(const STableListInfo* pTableListInfo) {
+//  int32_t size = taosArrayGetSize(pTableListInfo->pTableList);
+//  if (size == 0) {
+//    return NULL;
+//  }
+//
+//  STableQueryInfo* pTableQueryInfo = taosMemoryCalloc(size, sizeof(STableQueryInfo));
+//  if (pTableQueryInfo == NULL) {
+//    return NULL;
+//  }
+//
+//  for (int32_t j = 0; j < size; ++j) {
+//    STableKeyInfo*   pk = taosArrayGet(pTableListInfo->pTableList, j);
+//    STableQueryInfo* pTQueryInfo = &pTableQueryInfo[j];
+//    pTQueryInfo->lastKey = pk->lastKey;
+//  }
+//
+//  pTableQueryInfo->lastKey = 0;
+//  return pTableQueryInfo;
+//}
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols,
                                            SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
-                                           int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo,
-                                           const STableGroupInfo* pTableGroupInfo) {
+                                           int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo) {
   SAggOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SAggOperatorInfo));
   SOperatorInfo*    pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -4047,7 +4037,6 @@ SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo*
   initResultSizeInfo(pOperator, numOfRows);
   int32_t code =
       initAggInfo(&pInfo->binfo, &pInfo->aggSup, pExprInfo, numOfCols, pResultBlock, keyBufSize, pTaskInfo->id.str);
-  pInfo->pTableQueryInfo = initTableQueryInfo(pTableGroupInfo);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
@@ -4445,11 +4434,10 @@ static SExecTaskInfo* createExecTaskInfo(uint64_t queryId, uint64_t taskId, EOPT
 }
 
 static tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                                      STableGroupInfo* pTableGroupInfo, uint64_t queryId, uint64_t taskId);
+                                      STableListInfo* pTableGroupInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond);
 
-static int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo,
-                                  uint64_t queryId, uint64_t taskId);
-static SArray* extractTableIdList(const STableGroupInfo* pTableGroupInfo);
+static int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STableListInfo* pListInfo, SNode* pTagCond);
+static SArray* extractTableIdList(const STableListInfo* pTableGroupInfo);
 static SArray* extractColumnInfo(SNodeList* pNodeList);
 
 static SArray* createSortInfo(SNodeList* pNodeList);
@@ -4478,14 +4466,14 @@ void extractTableSchemaVersion(SReadHandle* pHandle, uint64_t uid, SExecTaskInfo
 }
 
 SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo, SReadHandle* pHandle,
-                                  uint64_t queryId, uint64_t taskId, STableGroupInfo* pTableGroupInfo) {
+                                  uint64_t queryId, uint64_t taskId, STableListInfo* pTableListInfo, SNode* pTagCond) {
   int32_t type = nodeType(pPhyNode);
 
   if (pPhyNode->pChildren == NULL || LIST_LENGTH(pPhyNode->pChildren) == 0) {
     if (QUERY_NODE_PHYSICAL_PLAN_TABLE_SCAN == type) {
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
 
-      tsdbReaderT pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableGroupInfo, (uint64_t)queryId, taskId);
+      tsdbReaderT pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
       if (pDataReader == NULL && terrno != 0) {
         return NULL;
       }
@@ -4509,9 +4497,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
-        pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableGroupInfo, (uint64_t)queryId, taskId);
+        pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
       } else {
-        doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo, queryId, taskId);
+        getTableList(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableListInfo, pTagCond);
       }
 
       if (pDataReader == NULL && terrno != 0) {
@@ -4524,7 +4512,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       SDataBlockDescNode* pDescNode = pScanPhyNode->node.pOutputDataBlockDesc;
       SOperatorInfo*      pOperatorDumy = createTableScanOperatorInfo(pTableScanNode, pDataReader, pHandle, pTaskInfo);
 
-      SArray* tableIdList = extractTableIdList(pTableGroupInfo);
+      SArray* tableIdList = extractTableIdList(pTableListInfo);
 
       SSDataBlock* pResBlock = createResDataBlock(pDescNode);
       SArray*      pCols =
@@ -4557,8 +4545,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
 
       SSDataBlock* pResBlock = createResDataBlock(pDescNode);
 
-      int32_t code = doCreateTableGroup(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableGroupInfo,
-                                        queryId, taskId);
+      int32_t code = getTableList(pHandle->meta, pScanPhyNode->tableType, pScanPhyNode->uid, pTableListInfo, pTagCond);
       if (code != TSDB_CODE_SUCCESS) {
         return NULL;
       }
@@ -4571,7 +4558,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
                                             COL_MATCH_FROM_COL_ID);
 
       SOperatorInfo* pOperator =
-          createTagScanOperatorInfo(pHandle, pExprInfo, num, pResBlock, colList, pTableGroupInfo, pTaskInfo);
+          createTagScanOperatorInfo(pHandle, pExprInfo, num, pResBlock, colList, pTableListInfo, pTaskInfo);
       return pOperator;
     } else {
       ASSERT(0);
@@ -4584,7 +4571,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   SOperatorInfo** ops = taosMemoryCalloc(size, POINTER_BYTES);
   for (int32_t i = 0; i < size; ++i) {
     SPhysiNode* pChildNode = (SPhysiNode*)nodesListGetNode(pPhyNode->pChildren, i);
-    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableGroupInfo);
+    ops[i] = createOperatorTree(pChildNode, pTaskInfo, pHandle, queryId, taskId, pTableListInfo, pTagCond);
     if (ops[i] == NULL) {
       return NULL;
     }
@@ -4613,10 +4600,10 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     if (pAggNode->pGroupKeys != NULL) {
       SArray* pColList = extractColumnInfo(pAggNode->pGroupKeys);
       pOptr = createGroupOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pAggNode->node.pConditions,
-                                      pScalarExprInfo, numOfScalarExpr, pTaskInfo, NULL);
+                                      pScalarExprInfo, numOfScalarExpr, pTaskInfo);
     } else {
       pOptr = createAggregateOperatorInfo(ops[0], pExprInfo, num, pResBlock, pScalarExprInfo, numOfScalarExpr,
-                                          pTaskInfo, pTableGroupInfo);
+                                          pTaskInfo);
     }
   } else if (QUERY_NODE_PHYSICAL_PLAN_INTERVAL == type || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == type) {
     SIntervalPhysiNode* pIntervalPhyNode = (SIntervalPhysiNode*)pPhyNode;
@@ -4635,8 +4622,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
                              .calTrigger = pIntervalPhyNode->window.triggerType};
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
-    pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTableGroupInfo,
-                                       pTaskInfo);
+    pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo);
 
   } else if (QUERY_NODE_PHYSICAL_PLAN_SORT == type) {
     SSortPhysiNode* pSortPhyNode = (SSortPhysiNode*)pPhyNode;
@@ -4685,7 +4671,7 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     SSDataBlock*         pResBlock = createResDataBlock(pPhyNode->pOutputDataBlockDesc);
 
     SExprInfo* pExprInfo = createExprInfo(pPartNode->pTargets, NULL, &num);
-    pOptr = createPartitionOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pTaskInfo, NULL);
+    pOptr = createPartitionOperatorInfo(ops[0], pExprInfo, num, pResBlock, pColList, pTaskInfo);
   } else if (QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW == type) {
     SStateWinodwPhysiNode* pStateNode = (SStateWinodwPhysiNode*)pPhyNode;
 
@@ -4899,46 +4885,57 @@ SArray* extractColMatchInfo(SNodeList* pNodeList, SDataBlockDescNode* pOutputNod
   return pList;
 }
 
-int32_t doCreateTableGroup(void* metaHandle, int32_t tableType, uint64_t tableUid, STableGroupInfo* pGroupInfo,
-                           uint64_t queryId, uint64_t taskId) {
-  int32_t code = 0;
+int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid,
+                           STableListInfo* pListInfo, SNode* pTagCond) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  pListInfo->pTableList = taosArrayInit(8, sizeof(STableKeyInfo));
+
   if (tableType == TSDB_SUPER_TABLE) {
-    code = tsdbQuerySTableByTagCond(metaHandle, tableUid, 0, NULL, 0, 0, NULL, pGroupInfo, NULL, 0, queryId, taskId);
+    if(pTagCond){
+      SArray* res = taosArrayInit(8, sizeof(uint64_t));
+      code = doFilterTag(pTagCond, res);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("doFilterTag error:%d", code);
+        taosArrayDestroy(res);
+        terrno = code;
+        return code;
+      }
+      for(int i = 0; i < taosArrayGetSize(res); i++){
+        STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i)};
+        taosArrayPush(pListInfo->pTableList, &info);
+      }
+      taosArrayDestroy(res);
+    }else{
+      code = tsdbGetAllTableList(metaHandle, tableUid, pListInfo->pTableList);
+    }
   } else {  // Create one table group.
-    code = tsdbGetOneTableGroup(metaHandle, tableUid, 0, pGroupInfo);
+    STableKeyInfo info = {.lastKey = 0, .uid = tableUid};
+    taosArrayPush(pListInfo->pTableList, &info);
   }
 
   return code;
 }
 
-SArray* extractTableIdList(const STableGroupInfo* pTableGroupInfo) {
+SArray* extractTableIdList(const STableListInfo* pTableGroupInfo) {
   SArray* tableIdList = taosArrayInit(4, sizeof(uint64_t));
 
-  if (pTableGroupInfo->numOfTables > 0) {
-    SArray* pa = taosArrayGetP(pTableGroupInfo->pGroupList, 0);
-    ASSERT(taosArrayGetSize(pTableGroupInfo->pGroupList) == 1);
-
-    // Transfer the Array of STableKeyInfo into uid list.
-    size_t numOfTables = taosArrayGetSize(pa);
-    for (int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pkeyInfo = taosArrayGet(pa, i);
-      taosArrayPush(tableIdList, &pkeyInfo->uid);
-    }
+  // Transfer the Array of STableKeyInfo into uid list.
+  for (int32_t i = 0; i < taosArrayGetSize(pTableGroupInfo->pTableList); ++i) {
+    STableKeyInfo* pkeyInfo = taosArrayGet(pTableGroupInfo->pTableList, i);
+    taosArrayPush(tableIdList, &pkeyInfo->uid);
   }
 
   return tableIdList;
 }
 
 tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle* pHandle,
-                               STableGroupInfo* pTableGroupInfo, uint64_t queryId, uint64_t taskId) {
-  uint64_t uid = pTableScanNode->scan.uid;
-  int32_t  code =
-      doCreateTableGroup(pHandle->meta, pTableScanNode->scan.tableType, uid, pTableGroupInfo, queryId, taskId);
+                               STableListInfo* pTableListInfo, uint64_t queryId, uint64_t taskId, SNode* pTagCond) {
+  int32_t  code = getTableList(pHandle->meta, pTableScanNode->scan.tableType, pTableScanNode->scan.uid, pTableListInfo, pTagCond);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }
 
-  if (pTableGroupInfo->numOfTables == 0) {
+  if (taosArrayGetSize(pTableListInfo->pTableList) == 0) {
     code = 0;
     qDebug("no table qualified for query, TID:0x%" PRIx64 ", QID:0x%" PRIx64, taskId, queryId);
     goto _error;
@@ -4950,7 +4947,7 @@ tsdbReaderT doCreateDataReader(STableScanPhysiNode* pTableScanNode, SReadHandle*
     goto _error;
   }
 
-  return tsdbQueryTables(pHandle->vnode, &cond, pTableGroupInfo, queryId, taskId);
+  return tsdbQueryTables(pHandle->vnode, &cond, pTableListInfo, queryId, taskId);
 
 _error:
   terrno = code;
@@ -4969,7 +4966,7 @@ int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SRead
   }
 
   (*pTaskInfo)->pRoot =
-      createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &(*pTaskInfo)->tableqinfoGroupInfo);
+      createOperatorTree(pPlan->pNode, *pTaskInfo, pHandle, queryId, taskId, &(*pTaskInfo)->tableqinfoList, pPlan->pTagCond);
   if (NULL == (*pTaskInfo)->pRoot) {
     code = terrno;
     goto _complete;
@@ -5028,34 +5025,18 @@ void freeColumnFilterInfo(SColumnFilterInfo* pFilter, int32_t numOfFilters) {
   taosMemoryFree(pFilter);
 }
 
-static void doDestroyTableQueryInfo(STableGroupInfo* pTableqinfoGroupInfo) {
-  if (pTableqinfoGroupInfo->pGroupList != NULL) {
-    int32_t numOfGroups = (int32_t)taosArrayGetSize(pTableqinfoGroupInfo->pGroupList);
-    for (int32_t i = 0; i < numOfGroups; ++i) {
-      SArray* p = taosArrayGetP(pTableqinfoGroupInfo->pGroupList, i);
+static void doDestroyTableList(STableListInfo* pTableqinfoList) {
+  taosArrayDestroy(pTableqinfoList->pTableList);
+  taosHashCleanup(pTableqinfoList->map);
 
-      size_t num = taosArrayGetSize(p);
-      for (int32_t j = 0; j < num; ++j) {
-        STableQueryInfo* item = taosArrayGetP(p, j);
-        destroyTableQueryInfoImpl(item);
-      }
-
-      taosArrayDestroy(p);
-    }
-  }
-
-  taosArrayDestroy(pTableqinfoGroupInfo->pGroupList);
-  taosHashCleanup(pTableqinfoGroupInfo->map);
-
-  pTableqinfoGroupInfo->pGroupList = NULL;
-  pTableqinfoGroupInfo->map = NULL;
-  pTableqinfoGroupInfo->numOfTables = 0;
+  pTableqinfoList->pTableList = NULL;
+  pTableqinfoList->map = NULL;
 }
 
 void doDestroyTask(SExecTaskInfo* pTaskInfo) {
   qDebug("%s execTask is freed", GET_TASKID(pTaskInfo));
 
-  doDestroyTableQueryInfo(&pTaskInfo->tableqinfoGroupInfo);
+  doDestroyTableList(&pTaskInfo->tableqinfoList);
   destroyOperatorInfo(pTaskInfo->pRoot);
   //  taosArrayDestroy(pTaskInfo->summary.queryProfEvents);
   //  taosHashCleanup(pTaskInfo->summary.operatorProfResults);

@@ -84,9 +84,9 @@ int32_t diffFunction(SqlFunctionCtx *pCtx);
 
 bool getFirstLastFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 int32_t firstFunction(SqlFunctionCtx *pCtx);
-int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastFunction(SqlFunctionCtx *pCtx);
-int32_t firstlastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
+int32_t firstCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 int32_t lastCombine(SqlFunctionCtx* pDestCtx, SqlFunctionCtx* pSourceCtx);
 
 bool getTopBotFuncEnv(SFunctionNode* UNUSED_PARAM(pFunc), SFuncExecEnv* pEnv);
