@@ -236,6 +236,17 @@ void mndSyncStop(SMnode *pMnode) {}
 
 bool mndIsMaster(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+
   ESyncState state = syncGetMyRole(pMgmt->sync);
-  return (state == TAOS_SYNC_STATE_LEADER) && (pMnode->syncMgmt.restored);
+  if (state != TAOS_SYNC_STATE_LEADER) {
+    terrno = TSDB_CODE_SYN_NOT_LEADER;
+    return false;
+  }
+
+  if (!pMgmt->restored) {
+    terrno = TSDB_CODE_APP_NOT_READY;
+    return false;
+  }
+
+  return true;
 }

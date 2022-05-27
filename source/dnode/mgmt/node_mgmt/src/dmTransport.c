@@ -206,29 +206,28 @@ static inline void dmSendRsp(SRpcMsg *pMsg) {
 }
 
 static void dmBuildMnodeRedirectRsp(SDnode *pDnode, SRpcMsg *pMsg) {
-  SMEpSet msg = {0};
-  dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &msg.epSet);
+  SEpSet epSet = {0};
+  dmGetMnodeEpSetForRedirect(&pDnode->data, pMsg, &epSet);
 
-  int32_t contLen = tSerializeSMEpSet(NULL, 0, &msg);
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
   pMsg->pCont = rpcMallocCont(contLen);
   if (pMsg->pCont == NULL) {
     pMsg->code = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    tSerializeSMEpSet(pMsg->pCont, contLen, &msg);
+    tSerializeSEpSet(pMsg->pCont, contLen, &epSet);
     pMsg->contLen = contLen;
   }
 }
 
 static inline void dmSendRedirectRsp(SRpcMsg *pMsg, const SEpSet *pNewEpSet) {
   SRpcMsg rsp = {.code = TSDB_CODE_RPC_REDIRECT, .info = pMsg->info};
-  SMEpSet msg = {.epSet = *pNewEpSet};
-  int32_t contLen = tSerializeSMEpSet(NULL, 0, &msg);
+  int32_t contLen = tSerializeSEpSet(NULL, 0, pNewEpSet);
 
   rsp.pCont = rpcMallocCont(contLen);
   if (rsp.pCont == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
   } else {
-    tSerializeSMEpSet(rsp.pCont, contLen, &msg);
+    tSerializeSEpSet(rsp.pCont, contLen, pNewEpSet);
     rsp.contLen = contLen;
   }
   dmSendRsp(&rsp);

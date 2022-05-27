@@ -107,7 +107,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
 
   SyncTerm localPreLogTerm = 0;
   if (pMsg->prevLogIndex >= SYNC_INDEX_BEGIN && pMsg->prevLogIndex <= ths->pLogStore->getLastIndex(ths->pLogStore)) {
-    SSyncRaftEntry* pEntry = logStoreGetEntry(ths->pLogStore, pMsg->prevLogIndex);
+    SSyncRaftEntry* pEntry = ths->pLogStore->getEntry(ths->pLogStore, pMsg->prevLogIndex);
     assert(pEntry != NULL);
     localPreLogTerm = pEntry->term;
     syncEntryDestory(pEntry);
@@ -175,7 +175,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
       bool conflict = false;
 
       SyncIndex       extraIndex = pMsg->prevLogIndex + 1;
-      SSyncRaftEntry* pExtraEntry = logStoreGetEntry(ths->pLogStore, extraIndex);
+      SSyncRaftEntry* pExtraEntry = ths->pLogStore->getEntry(ths->pLogStore, extraIndex);
       assert(pExtraEntry != NULL);
 
       SSyncRaftEntry* pAppendEntry = syncEntryDeserialize(pMsg->data, pMsg->dataLen);
@@ -197,7 +197,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
         // notice! reverse roll back!
         for (SyncIndex index = delEnd; index >= delBegin; --index) {
           if (ths->pFsm->FpRollBackCb != NULL) {
-            SSyncRaftEntry* pRollBackEntry = logStoreGetEntry(ths->pLogStore, index);
+            SSyncRaftEntry* pRollBackEntry = ths->pLogStore->getEntry(ths->pLogStore, index);
             assert(pRollBackEntry != NULL);
 
             // if (pRollBackEntry->msgType != TDMT_VND_SYNC_NOOP) {
@@ -365,7 +365,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 }
 
                 SReConfigCbMeta cbMeta = {0};
-                bool isDrop;
+                bool            isDrop;
 
                 // I am in newConfig
                 if (hit) {
@@ -388,7 +388,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 }
 
                 // always call FpReConfigCb
-                if (ths->pFsm->FpReConfigCb != NULL) {     
+                if (ths->pFsm->FpReConfigCb != NULL) {
                   cbMeta.code = 0;
                   cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                   cbMeta.index = pEntry->index;
