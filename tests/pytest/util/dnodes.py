@@ -333,7 +333,7 @@ class TDDnode:
         if self.deployed == 0:
             tdLog.exit("dnode:%d is not deployed" % (self.index))
 
-        cmd = "mintty -h never %s -c %s" % (
+        cmd = "mintty -h never -w hide %s -c %s" % (
             binPath, self.cfgDir)
         
         if (taosadapterBinPath != ""):
@@ -424,9 +424,10 @@ class TDDnode:
                 time.sleep(1)
                 processID = subprocess.check_output(
                     psCmd, shell=True).decode("utf-8")
-            for port in range(6030, 6041):
-                fuserCmd = "fuser -k -n tcp %d" % port
-                os.system(fuserCmd)
+            if not platform.system().lower() == 'windows':
+                for port in range(6030, 6041):
+                    fuserCmd = "fuser -k -n tcp %d" % port
+                    os.system(fuserCmd)
             if self.valgrind:
                 time.sleep(2)
 
@@ -571,11 +572,10 @@ class TDDnodes:
 
     def start(self, index):
         self.check(index)
-        self.dnodes[index - 1].start()
-
-    def startWin(self, index):
-        self.check(index)
-        self.dnodes[index - 1].startWin()
+        if platform.system().lower() == 'windows':
+            self.dnodes[index - 1].startWin()
+        else:
+            self.dnodes[index - 1].start()
 
     def startWithoutSleep(self, index):
         self.check(index)
