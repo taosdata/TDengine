@@ -17,6 +17,13 @@
 #include "wal.h"
 
 static SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
+static SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
+static SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
+static SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index);
+static int32_t         logStoreAppendEntry(SSyncLogStore* pLogStore, SSyncRaftEntry* pEntry);
+static int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex fromIndex);
+static int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
+static SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 
 
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
