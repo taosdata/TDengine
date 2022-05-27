@@ -484,7 +484,7 @@ static int32_t translateStateDuration(SFunctionNode* pFunc, char* pErrBuf, int32
 
 static int32_t translateCsum(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   if (1 != LIST_LENGTH(pFunc->pParameterList)) {
-    return TSDB_CODE_SUCCESS;
+    return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
   SNode* pPara = nodesListGetNode(pFunc->pParameterList, 0);
