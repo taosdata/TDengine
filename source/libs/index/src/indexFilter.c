@@ -37,6 +37,8 @@ typedef struct SIFParam {
   int64_t       suid;  // add later
   char          dbName[TSDB_DB_NAME_LEN];
   char          colName[TSDB_COL_NAME_LEN];
+
+  void *metaHandle;
 } SIFParam;
 
 typedef struct SIFCtx {
@@ -561,7 +563,7 @@ static int32_t sifGetFltHint(SNode *pNode, SIdxFltStatus *status) {
   SIF_RET(code);
 }
 
-int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
+int32_t doFilterTag(const SNode *pFilterNode, void *metaHandle, SArray *result) {
   if (pFilterNode == NULL) {
     return TSDB_CODE_SUCCESS;
   }
@@ -570,7 +572,7 @@ int32_t doFilterTag(const SNode *pFilterNode, SArray *result) {
   // todo move to the initialization function
   // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
-  SIFParam param = {0};
+  SIFParam param = {.metHandle = metaHandle};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
   taosArrayAddAll(result, param.result);

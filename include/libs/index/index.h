@@ -196,7 +196,7 @@ typedef enum { SFLT_NOT_INDEX, SFLT_COARSE_INDEX, SFLT_ACCURATE_INDEX } SIdxFltS
 
 SIdxFltStatus idxGetFltStatus(SNode* pFilterNode);
 
-int32_t doFilterTag(const SNode* pFilterNode, SArray* result);
+int32_t doFilterTag(const SNode* pFilterNode, void* metaHandle, SArray* result);
 /*
  * destory index env
  *
