@@ -95,7 +95,7 @@ class TDTestCase:
         # tdSql.query("select to_iso8601(-1) from ntb")
         tdSql.query("select to_iso8601(9223372036854775807) from ntb")
         tdSql.checkRows(3)
-
+        # bug TD-14896
         # tdSql.query("select to_iso8601(10000000000) from ntb")
         # tdSql.checkData(0,0,None)
         # tdSql.query("select to_iso8601(-1) from ntb")
@@ -106,11 +106,6 @@ class TDTestCase:
         tdSql.error("select to_iso8601(1.5) from db.ntb")
         tdSql.error("select to_iso8601('a') from ntb")
         tdSql.error("select to_iso8601(c2) from ntb")
-        
-
-
-
-
         tdSql.query("select to_iso8601(now) from stb")
         tdSql.query("select to_iso8601(now()) from stb")
         tdSql.checkRows(3)
@@ -126,7 +121,7 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.query("select to_iso8601(ts)+'a' from stb ")
         tdSql.checkRows(3)
-        # tdSql.query()
+        
         tdSql.query("select to_iso8601(today()) *null from stb")
         tdSql.checkRows(3)
         tdSql.checkData(0,0,None)
@@ -152,7 +147,9 @@ class TDTestCase:
         tdSql.checkRows(3)
         tdSql.checkData(0,0,None)
 
+        # bug TD-14896
         # tdSql.query("select to_iso8601(-1) from ntb")
+        # tdSql.checkRows(3)
 
 
 
