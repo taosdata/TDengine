@@ -1560,13 +1560,13 @@ class TDTestCase:
 
                 if pres == "ms":
                     if unit in ["10u","10b"]:
-                        # tdSql.error("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
+                        tdSql.error("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
                         pass
                     else:
                         tdSql.query("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
                 elif pres == "us" and unit in ["10b"]:
                     if unit in ["10b"]:
-                        # tdSql.error("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
+                        tdSql.error("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
                         pass
                     else:
                         tdSql.query("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
@@ -1575,7 +1575,7 @@ class TDTestCase:
                     tdSql.query("select elapsed(ts,%s) from db_%s.st group by tbname "%(unit,pres))
                     basic_result = 9
                     tdSql.checkData(0,0,basic_result*pow(1000,index))
-          
+
     def run(self):
         tdSql.prepare()
         self.prepare_data()

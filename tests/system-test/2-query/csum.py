@@ -153,7 +153,7 @@ class TDTestCase:
         case6 =  {"col": "c9"}
         self.checkcsum(**case6)
 
-        # # case7~8: nested query
+        # case7~8: nested query
         # case7 = {"table_expr": "(select c1 from stb1)"}
         # self.checkcsum(**case7)
         # case8 = {"table_expr": "(select csum(c1) c1 from stb1 group by tbname)"}
@@ -188,7 +188,7 @@ class TDTestCase:
             "condition": "where t1.ts=t2.ts"
         }
         self.checkcsum(**case17)
-        # # case18~19: with group by
+        # case18~19: with group by
         # case18 = {
         #     "table_expr": "t1",
         #     "condition": "group by c6"
