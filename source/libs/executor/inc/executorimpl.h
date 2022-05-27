@@ -334,6 +334,12 @@ typedef struct STableScanInfo {
   int32_t         dataBlockLoadFlag;
   double          sampleRatio;  // data block sample ratio, 1 by default
   SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
+
+  SArray*        pGroupCols;
+  SArray*        pGroupColVals;  // current group column values, SArray<SGroupKeys>
+  char*          keyBuf;         // group by keys for hash
+  int32_t        groupKeyLen;    // total group by column width
+  SHashObj*      pGroupSet;      // quick locate the window object for each result
 } STableScanInfo;
 
 typedef struct STagScanInfo {
@@ -704,7 +710,7 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
                                    char* pData, int16_t bytes, bool masterscan, uint64_t groupId,
                                    SExecTaskInfo* pTaskInfo, bool isIntervalQuery, SAggSupporter* pSup);
 
-SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader, SReadHandle* pHandle, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader, SReadHandle* pHandle, SArray* groupKyes, SExecTaskInfo* pTaskInfo);
 
 SOperatorInfo* createAggregateOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SExprInfo* pScalarExprInfo,
                                            int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);

@@ -24,10 +24,10 @@
 #include "tcompare.h"
 #include "thash.h"
 #include "ttypes.h"
+#include "executorInt.h"
 
 static int32_t* setupColumnOffset(const SSDataBlock* pBlock, int32_t rowCapacity);
 static void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInfo** pGroupInfo, int32_t len);
-static uint64_t calcGroupId(char* pData, int32_t len);
 
 static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   SGroupbyOperatorInfo* pInfo = (SGroupbyOperatorInfo*)param;
@@ -37,7 +37,7 @@ static void destroyGroupOperatorInfo(void* param, int32_t numOfOutput) {
   taosArrayDestroy(pInfo->pGroupColVals);
 }
 
-static int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
+int32_t initGroupOptrInfo(SArray** pGroupColVals, int32_t* keyLen, char** keyBuf, const SArray* pGroupColList) {
   *pGroupColVals = taosArrayInit(4, sizeof(SGroupKeys));
   if ((*pGroupColVals) == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
@@ -110,7 +110,7 @@ static bool groupKeyCompare(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlo
   return true;
 }
 
-static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
+void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSDataBlock* pBlock, int32_t rowIndex, int32_t numOfGroupCols) {
   SColumnDataAgg* pColAgg = NULL;
 
   for (int32_t i = 0; i < numOfGroupCols; ++i) {
@@ -137,7 +137,7 @@ static void recordNewGroupKeys(SArray* pGroupCols, SArray* pGroupColVals, SSData
   }
 }
 
-static int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
+int32_t buildGroupKeys(void* pKey, const SArray* pGroupColVals) {
   ASSERT(pKey != NULL);
   size_t numOfGroupCols = taosArrayGetSize(pGroupColVals);
 
@@ -607,8 +607,13 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
   SPartitionOperatorInfo* pInfo = (SPartitionOperatorInfo*)param;
   doDestroyBasicInfo(&pInfo->binfo, numOfOutput);
   taosArrayDestroy(pInfo->pGroupCols);
+  for(int i = 0; i < taosArrayGetSize(pInfo->pGroupColVals); i++){
+    SGroupKeys key = *(SGroupKeys*)taosArrayGet(pInfo->pGroupColVals, i);
+    taosMemoryFree(key.pData);
+  }
   taosArrayDestroy(pInfo->pGroupColVals);
   taosMemoryFree(pInfo->keyBuf);
+  taosHashCleanup(pInfo->pGroupSet);
   taosMemoryFree(pInfo->columnOffset);
 }
 

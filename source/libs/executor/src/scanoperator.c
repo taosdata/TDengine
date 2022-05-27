@@ -33,6 +33,8 @@
 #include "ttypes.h"
 #include "vnode.h"
 
+#include "executorInt.h"
+
 #define SET_REVERSE_SCAN_FLAG(_info) ((_info)->scanFlag = REVERSE_SCAN)
 #define SWITCH_ORDER(n)              (((n) = ((n) == TSDB_ORDER_ASC) ? TSDB_ORDER_DESC : TSDB_ORDER_ASC))
 
@@ -369,6 +371,19 @@ static SSDataBlock* doTableScanImpl(SOperatorInfo* pOperator) {
       longjmp(pOperator->pTaskInfo->env, code);
     }
 
+    int32_t numOfGroupCols = taosArrayGetSize(pTableScanInfo->pGroupCols);
+    recordNewGroupKeys(pTableScanInfo->pGroupCols, pTableScanInfo->pGroupColVals, pBlock, 0, numOfGroupCols);
+    int32_t len = buildGroupKeys(pTableScanInfo->keyBuf, pTableScanInfo->pGroupColVals);
+
+    uint64_t *groupId = taosHashGet(pTableScanInfo->pGroupSet, pTableScanInfo->keyBuf, len);
+    if (!groupId) {
+      pBlock->info.groupId = *groupId;
+
+    }else{
+      pBlock->info.groupId = calcGroupId(pTableScanInfo->keyBuf, len);
+      taosHashPut(pTableScanInfo->pGroupSet, pTableScanInfo->keyBuf, len, &pBlock->info.groupId, sizeof(uint64_t));
+    }
+
     // current block is filter out according to filter condition, continue load the next block
     if (status == FUNC_DATA_REQUIRED_FILTEROUT || pBlock->info.rows == 0) {
       continue;
@@ -479,21 +494,25 @@ static void destroyTableScanOperatorInfo(void* param, int32_t numOfOutput) {
   taosMemoryFree(pTableScanInfo->pResBlock);
   tsdbCleanupReadHandle(pTableScanInfo->dataReader);
 
+  taosArrayDestroy(pTableScanInfo->pGroupCols);
+  for(int i = 0; i < taosArrayGetSize(pTableScanInfo->pGroupColVals); i++){
+    SGroupKeys key = *(SGroupKeys*)taosArrayGet(pTableScanInfo->pGroupColVals, i);
+    taosMemoryFree(key.pData);
+  }
+  taosArrayDestroy(pTableScanInfo->pGroupColVals);
+  taosMemoryFree(pTableScanInfo->keyBuf);
+  taosHashCleanup(pTableScanInfo->pGroupSet);
   if (pTableScanInfo->pColMatchInfo != NULL) {
     taosArrayDestroy(pTableScanInfo->pColMatchInfo);
   }
 }
 
 SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, tsdbReaderT pDataReader,
-                                           SReadHandle* readHandle, SExecTaskInfo* pTaskInfo) {
+                                           SReadHandle* readHandle, SArray* groupKyes, SExecTaskInfo* pTaskInfo) {
   STableScanInfo* pInfo = taosMemoryCalloc(1, sizeof(STableScanInfo));
   SOperatorInfo*  pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
-    taosMemoryFreeClear(pInfo);
-    taosMemoryFreeClear(pOperator);
-
-    pTaskInfo->code = TSDB_CODE_QRY_OUT_OF_MEMORY;
-    return NULL;
+    goto _error;
   }
 
   SDataBlockDescNode* pDescNode = pTableScanNode->scan.node.pOutputDataBlockDesc;
@@ -504,7 +523,7 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
 
   int32_t code = initQueryTableDataCond(&pInfo->cond, pTableScanNode);
   if (code != TSDB_CODE_SUCCESS) {
-    return NULL;
+    goto _error;
   }
 
   if (pTableScanNode->scan.pScanPseudoCols != NULL) {
@@ -533,6 +552,18 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->numOfExprs = numOfCols;
   pOperator->pTaskInfo = pTaskInfo;
 
+  // for table group
+  pInfo->pGroupCols = groupKyes;
+  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
+  pInfo->pGroupSet = taosHashInit(100, hashFn, false, HASH_NO_LOCK);
+  if (pInfo->pGroupSet == NULL) {
+    goto _error;
+  }
+  code = initGroupOptrInfo(&pInfo->pGroupColVals, &pInfo->groupKeyLen, &pInfo->keyBuf, groupKyes);
+  if (code != TSDB_CODE_SUCCESS) {
+    goto _error;
+  }
+
   pOperator->fpSet = createOperatorFpSet(operatorDummyOpenFn, doTableScan, NULL, NULL, destroyTableScanOperatorInfo,
                                          NULL, NULL, getTableScannerExecInfo);
 
@@ -540,6 +571,12 @@ SOperatorInfo* createTableScanOperatorInfo(STableScanPhysiNode* pTableScanNode, 
   pOperator->cost.openCost = 0;
 
   return pOperator;
+
+_error:
+  pTaskInfo->code = TSDB_CODE_OUT_OF_MEMORY;
+  taosMemoryFreeClear(pInfo);
+  taosMemoryFreeClear(pOperator);
+  return NULL;
 }
 
 SOperatorInfo* createTableSeqScanOperatorInfo(void* pReadHandle, SExecTaskInfo* pTaskInfo) {
