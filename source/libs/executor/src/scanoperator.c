@@ -422,10 +422,10 @@ static SSDataBlock* doTableScan(SOperatorInfo* pOperator) {
       for (int32_t i = 0; i < pTableScanInfo->cond.numOfTWindows; ++i) {
         STimeWindow* pWin = &pTableScanInfo->cond.twindows[i];
         qDebug("%s\t qrange:%" PRId64 "-%" PRId64, GET_TASKID(pTaskInfo), pWin->skey, pWin->ekey);
-        // do prepare for the next round table scan operation
-        tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
-        pTableScanInfo->curTWinIdx = 0;
       }
+      // do prepare for the next round table scan operation
+      tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
+      pTableScanInfo->curTWinIdx = 0;
     }
   }
 
