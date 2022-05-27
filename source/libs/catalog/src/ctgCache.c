@@ -322,9 +322,10 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *sver, int32_t *tbType, uint64_t *suid,
+int32_t ctgReadTbVerFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *sver, int32_t *tver, int32_t *tbType, uint64_t *suid,
                               char *stbName) {
   *sver = -1;
+  *tver = -1;
 
   if (NULL == pCtg->dbCache) {
     ctgDebug("empty tbmeta cache, tbName:%s", pTableName->tname);
@@ -348,6 +349,7 @@ int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t 
     *suid = tbMeta->suid;
     if (*tbType != TSDB_CHILD_TABLE) {
       *sver = tbMeta->sversion;
+      *tver = tbMeta->tversion;
     }
   }
   CTG_UNLOCK(CTG_READ, &dbCache->tbCache.metaLock);
@@ -359,7 +361,7 @@ int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t 
 
   if (*tbType != TSDB_CHILD_TABLE) {
     ctgReleaseDBCache(pCtg, dbCache);
-    ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tbType, dbFName, pTableName->tname);
+    ctgDebug("Got sver %d tver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tver, *tbType, dbFName, pTableName->tname);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -391,12 +393,13 @@ int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t 
   stbName[nameLen] = 0;
 
   *sver = (*stbMeta)->sversion;
+  *tver = (*stbMeta)->tversion;
 
   CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
 
   ctgReleaseDBCache(pCtg, dbCache);
 
-  ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tbType, dbFName, pTableName->tname);
+  ctgDebug("Got sver %d tver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tver, *tbType, dbFName, pTableName->tname);
 
   return TSDB_CODE_SUCCESS;
 }

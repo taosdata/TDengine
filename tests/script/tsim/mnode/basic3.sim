@@ -1,0 +1,137 @@
+system sh/stop_dnodes.sh
+system sh/deploy.sh -n dnode1 -i 1
+system sh/deploy.sh -n dnode2 -i 2
+system sh/deploy.sh -n dnode3 -i 3
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s start
+sql connect
+
+print =============== step1: create dnodes
+sql create dnode $hostname port 7200
+sql create dnode $hostname port 7300
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show dnodes -x step1
+if $data(1)[4] != ready then
+  goto step1
+endi
+if $data(2)[4] != ready then
+  goto step1
+endi
+if $data(3)[4] != ready then
+  goto step1
+endi
+
+print =============== step2: create mnode 2
+sql create mnode on dnode 2
+sql create mnode on dnode 3
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes -x step2
+if $data(1)[2] != LEADER then
+  goto step2
+endi
+if $data(2)[2] != FOLLOWER then
+  goto step2
+endi
+if $data(3)[2] != FOLLOWER then
+  goto step2
+endi
+
+print =============== step3: create user
+sql create user user1 PASS 'user1'
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+# wait mnode2 mnode3 recv data finish
+sleep 10000
+
+print =============== step4: stop dnode1
+system sh/exec.sh -n dnode1 -s stop
+
+$x = 0
+step4: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes -x step4
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+print $data(3)[0] $data(3)[1] $data(3)[2] 
+
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+sleep 1000
+sql show dnodes
+if $data(2)[4] != ready then
+  return -1
+endi
+if $data(3)[4] != ready then
+  return -1
+endi
+
+print =============== step5: stop dnode1
+system sh/exec.sh -n dnode1 -s start
+system sh/exec.sh -n dnode2 -s stop
+
+$x = 0
+step5: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes -x step5
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+print $data(3)[0] $data(3)[1] $data(3)[2] 
+
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+print =============== step6: stop dnode1
+system sh/exec.sh -n dnode2 -s start
+system sh/exec.sh -n dnode3 -s stop
+
+$x = 0
+step6: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes -x step6
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+print $data(3)[0] $data(3)[1] $data(3)[2] 
+
+sql show users
+if $rows != 2 then 
+  return -1
+endi
+
+system sh/exec.sh -n dnode1 -s stop
+system sh/exec.sh -n dnode2 -s stop
+system sh/exec.sh -n dnode3 -s stop
