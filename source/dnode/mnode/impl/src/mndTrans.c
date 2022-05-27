@@ -680,7 +680,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("trans:%d, sync to other nodes", pTrans->id);
-  int32_t code = mndSyncPropose(pMnode, pRaw);
+  int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
     mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
     sdbFreeRaw(pRaw);

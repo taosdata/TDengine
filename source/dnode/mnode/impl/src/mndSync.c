@@ -28,16 +28,26 @@ int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
 
 void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) {
-  SMnode  *pMnode = pFsm->data;
-  SSdbRaw *pRaw = pMsg->pCont;
+  SMnode    *pMnode = pFsm->data;
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+  SSdbRaw   *pRaw = pMsg->pCont;
 
-  mTrace("raw:%p, apply to sdb, ver:%" PRId64 " term:%" PRId64 " role:%s", pRaw, cbMeta.index, cbMeta.term,
-         syncStr(cbMeta.state));
-  sdbWriteWithoutFree(pMnode->pSdb, pRaw);
-  sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
-  sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);
-  if (cbMeta.state == TAOS_SYNC_STATE_LEADER) {
-    tsem_post(&pMnode->syncMgmt.syncSem);
+  int32_t transId = sdbGetIdFromRaw(pRaw);
+  pMgmt->errCode = cbMeta.code;
+  mTrace("trans:%d, is proposed, savedTransId:%d code:0x%x, ver:%" PRId64 " term:%" PRId64 " role:%s raw:%p", transId,
+         pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, syncStr(cbMeta.state), pRaw);
+
+  if (pMgmt->errCode == 0) {
+    sdbWriteWithoutFree(pMnode->pSdb, pRaw);
+    sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
+    sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);
+  }
+
+  if (pMgmt->transId == transId) {
+    if (pMgmt->errCode != 0) {
+      mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
+    }
+    tsem_post(&pMgmt->syncSem);
   }
 }
 
@@ -78,11 +88,19 @@ int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char
 }
 
 void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
-  mInfo("mndReConfig cbMeta.code:%d, cbMeta.currentTerm:%" PRId64 ", cbMeta.term:%" PRId64 ", cbMeta.index:%" PRId64,
-        cbMeta.code, cbMeta.currentTerm, cbMeta.term, cbMeta.index);
-  SMnode *pMnode = pFsm->data;
-  pMnode->syncMgmt.errCode = cbMeta.code;
-  tsem_post(&pMnode->syncMgmt.syncSem);
+  SMnode    *pMnode = pFsm->data;
+  SSyncMgmt *pMgmt = &pMnode->syncMgmt;
+
+  pMgmt->errCode = cbMeta.code;
+  mInfo("trans:-1, sync reconfig is proposed, savedTransId:%d code:0x%x, curTerm:%" PRId64 " term:%" PRId64,
+        pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term);
+
+  if (pMgmt->transId == -1) {
+    if (pMgmt->errCode != 0) {
+      mError("trans:-1, failed to propose sync reconfig since %s", tstrerror(pMgmt->errCode));
+    }
+    tsem_post(&pMgmt->syncSem);
+  }
 }
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
@@ -165,14 +183,16 @@ void mndCleanupSync(SMnode *pMnode) {
   memset(pMgmt, 0, sizeof(SSyncMgmt));
 }
 
-int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
+int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw, int32_t transId) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
-  pMgmt->errCode = 0;
-
-  SRpcMsg rsp = {.code = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
+  SRpcMsg    rsp = {.code = TDMT_MND_APPLY_MSG, .contLen = sdbGetRawTotalSize(pRaw)};
   rsp.pCont = rpcMallocCont(rsp.contLen);
   if (rsp.pCont == NULL) return -1;
   memcpy(rsp.pCont, pRaw, rsp.contLen);
+
+  pMgmt->errCode = 0;
+  pMgmt->transId = transId;
+  mTrace("trans:%d, will be proposed", pMgmt->transId);
 
   const bool isWeak = false;
   int32_t    code = syncPropose(pMgmt->sync, &rsp, isWeak);
@@ -187,7 +207,11 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
   }
 
   rpcFreeCont(rsp.pCont);
-  if (code != 0) return code;
+  if (code != 0) {
+    mError("trans:%d, failed to propose, code:0x%x", pMgmt->transId, code);
+    return code;
+  }
+
   return pMgmt->errCode;
 }
 

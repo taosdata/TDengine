@@ -702,14 +702,17 @@ static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {
     }
   }
 
+  mTrace("trans:-1, sync reconfig will be proposed");
+
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   pMgmt->standby = 0;
   int32_t code = syncReconfig(pMgmt->sync, &cfg);
   if (code != 0) {
-    mError("failed to alter mnode sync since %s", terrstr());
+    mError("trans:-1, failed to propose sync reconfig since %s", terrstr());
     return code;
   } else {
     pMgmt->errCode = 0;
+    pMgmt->transId = -1;
     tsem_wait(&pMgmt->syncSem);
     mInfo("alter mnode sync result:%s", tstrerror(pMgmt->errCode));
     terrno = pMgmt->errCode;
