@@ -32,7 +32,7 @@ All executable files of TDengine are in the _/usr/local/taos/bin_ directory by d
 - _taosd-dump-cfg.gdb_: script to facilitate debugging of taosd's gdb execution.
 
 :::note
-taosdump after version 2.4.0.0 require taosTools as a standalone installation. A few version taosBenchmark is include in taosTools too.
+taosdump after version 2.4.0.0 require taosTools as a standalone installation. A new version of taosBenchmark is include in taosTools too.
 :::
 
 :::tip
