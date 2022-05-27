@@ -23,7 +23,7 @@
 #include "tname.h"
 #include "ttypes.h"
 
-std::unique_ptr<MockCatalogService> mockCatalogService;
+std::unique_ptr<MockCatalogService> g_mockCatalogService;
 
 class TableBuilder : public ITableBuilder {
  public:
@@ -118,6 +118,14 @@ class MockCatalogServiceImpl {
     char db[TSDB_DB_NAME_LEN] = {0};
     tNameGetDbName(pTableName, db);
     return copyTableVgroup(db, tNameGetTableName(pTableName), vgList);
+  }
+
+  int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {
+    int32_t code = getAllTableMeta(pCatalogReq->pTableMeta, &pMetaData->pTableMeta);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllTableVgroup(pCatalogReq->pTableHash, &pMetaData->pTableHash);
+    }
+    return code;
   }
 
   TableBuilder& createTableBuilder(const std::string& db, const std::string& tbname, int8_t tableType,
@@ -300,6 +308,42 @@ class MockCatalogServiceImpl {
     return TSDB_CODE_SUCCESS;
   }
 
+  int32_t getAllTableMeta(SArray* pTableMetaReq, SArray** pTableMetaData) const {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL != pTableMetaReq) {
+      int32_t ntables = taosArrayGetSize(pTableMetaReq);
+      *pTableMetaData = taosArrayInit(ntables, POINTER_BYTES);
+      for (int32_t i = 0; i < ntables; ++i) {
+        STableMeta* pMeta = NULL;
+        code = catalogGetTableMeta((const SName*)taosArrayGet(pTableMetaReq, i), &pMeta);
+        if (TSDB_CODE_SUCCESS == code) {
+          taosArrayPush(*pTableMetaData, &pMeta);
+        } else {
+          break;
+        }
+      }
+    }
+    return code;
+  }
+
+  int32_t getAllTableVgroup(SArray* pTableVgroupReq, SArray** pTableVgroupData) const {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL != pTableVgroupReq) {
+      int32_t ntables = taosArrayGetSize(pTableVgroupReq);
+      *pTableVgroupData = taosArrayInit(ntables, POINTER_BYTES);
+      for (int32_t i = 0; i < ntables; ++i) {
+        SVgroupInfo* pVgInfo = (SVgroupInfo*)taosMemoryCalloc(1, sizeof(SVgroupInfo));
+        code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pTableVgroupReq, i), pVgInfo);
+        if (TSDB_CODE_SUCCESS == code) {
+          taosArrayPush(*pTableVgroupData, &pVgInfo);
+        } else {
+          break;
+        }
+      }
+    }
+    return code;
+  }
+
   uint64_t                      id_;
   std::unique_ptr<TableBuilder> builder_;
   DbMetaCache                   meta_;
@@ -336,4 +380,8 @@ int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, S
 
 int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
   return impl_->catalogGetTableDistVgInfo(pTableName, pVgList);
+}
+
+int32_t MockCatalogService::catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {
+  return impl_->catalogGetAllMeta(pCatalogReq, pMetaData);
 }

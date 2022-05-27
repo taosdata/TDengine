@@ -2349,7 +2349,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     case TSDB_DATA_TYPE_FLOAT: {
       float v = *(float*)pv;
       float delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
+      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) { //check for overflow
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
         colDataAppendFloat(pOutput, pos, &delta);
@@ -2360,7 +2360,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     case TSDB_DATA_TYPE_DOUBLE: {
       double v = *(double*)pv;
       double delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
+      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) { //check for overflow
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
         colDataAppendDouble(pOutput, pos, &delta);
@@ -3530,7 +3530,12 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       double v;
       GET_TYPED_DATA(v, double, type, data);
       pSumRes->dsum += v;
-      colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+      //check for overflow
+      if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
+        colDataAppendNULL(pOutput, pos);
+      } else  {
+        colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+      }
     }
 
     //TODO: remove this after pTsOutput is handled
@@ -3604,7 +3609,12 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
 
       pInfo->points[pInfo->pos] = v;
       double result = pInfo->sum / pInfo->numOfPoints;
-      colDataAppend(pOutput, pos, (char *)&result, false);
+      //check for overflow
+      if (isinf(result) || isnan(result)) {
+        colDataAppendNULL(pOutput, pos);
+      } else  {
+        colDataAppend(pOutput, pos, (char *)&result, false);
+      }
 
       //TODO: remove this after pTsOutput is handled
       if (pTsOutput != NULL) {

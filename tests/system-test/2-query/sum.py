@@ -218,13 +218,13 @@ class TDTestCase:
         tdLog.printNoPrefix("==========step3:all check")
         self.all_test()
 
-        # tdDnodes.stop(1)
-        # tdDnodes.start(1)
+        tdDnodes.stop(1)
+        tdDnodes.start(1)
 
-        # tdSql.execute("use db")
+        tdSql.execute("use db")
 
-        # tdLog.printNoPrefix("==========step4:after wal, all check again ")
-        # self.all_test()
+        tdLog.printNoPrefix("==========step4:after wal, all check again ")
+        self.all_test()
 
     def stop(self):
         tdSql.close()

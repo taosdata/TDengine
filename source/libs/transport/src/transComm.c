@@ -190,6 +190,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   }
   return pool;
 }
+
 void transDestroyAsyncPool(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);
@@ -452,10 +453,21 @@ void transPrintEpSet(SEpSet* pEpSet) {
     tTrace("NULL epset");
     return;
   }
-  tTrace("epset begin: inUse: %d", pEpSet->inUse);
+  tTrace("epset begin  inUse: %d", pEpSet->inUse);
   for (int i = 0; i < pEpSet->numOfEps; i++) {
     tTrace("ip: %s, port: %d", pEpSet->eps[i].fqdn, pEpSet->eps[i].port);
   }
   tTrace("epset end");
+}
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b) {
+  if (a->numOfEps != b->numOfEps || a->inUse != b->inUse) {
+    return false;
+  }
+  for (int i = 0; i < a->numOfEps; i++) {
+    if (strncmp(a->eps[i].fqdn, b->eps[i].fqdn, TSDB_FQDN_LEN) != 0 || a->eps[i].port != b->eps[i].port) {
+      return false;
+    }
+  }
+  return true;
 }
 #endif
