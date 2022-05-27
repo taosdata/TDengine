@@ -4,11 +4,11 @@ sidebar_label: TDengine CLI
 description: Instructions and tips for using the TDengine CLI
 ---
 
-The TDengine command-line application (hereafter referred to as `TDengine CLI`) is the most simplest way for users to manipulate and interact with TDengine instances.
+The TDengine command-line application (hereafter referred to as `TDengine CLI`) is the simplest way for users to manipulate and interact with TDengine instances.
 
 ## Installation
 
-If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI on the environment which no TDengine server running, the TDengine client installation package needs to be installed first. For details, please refer to [connector](/reference/connector/).
+If executed on the TDengine server-side, there is no need for additional installation steps to install TDengine CLI as it is already included and installed automatically. To run TDengine CLI in an environment where no TDengine server is running, the TDengine client installation package needs to be installed first. For details, please refer to [connector](/reference/connector/).
 
 ## Execution
 
