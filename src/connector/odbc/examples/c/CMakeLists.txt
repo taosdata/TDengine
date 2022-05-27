@@ -4,7 +4,7 @@ ADD_EXECUTABLE(tcodbc main.c ../../src/todbc_log.c)
 
 IF (TD_LINUX OR TD_DARWIN)
   target_include_directories(tcodbc PRIVATE ${ODBC_INCLUDE_DIRECTORY})
-  target_link_directories(tcodbc PUBLIC ${ODBC_LIBRARY_DIRECTORY})
+  link_directories(AFTER ${ODBCINST_LIBRARY_DIRECTORY})
   TARGET_LINK_LIBRARIES(tcodbc taos odbc)
 ENDIF ()
 

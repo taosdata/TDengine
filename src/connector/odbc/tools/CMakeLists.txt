@@ -5,7 +5,7 @@ ADD_EXECUTABLE(tconv     tconv.c)
 
 IF (TD_LINUX OR TD_DARWIN)
   target_include_directories(todbcinst PRIVATE . ${ODBC_INCLUDE_DIRECTORY} ${ODBCINST_INCLUDE_DIRECTORY})
-  target_link_directories(todbcinst PUBLIC ${ODBC_LIBRARY_DIRECTORY} ${ODBCINST_LIBRARY_DIRECTORY})
+  link_directories(AFTER ${ODBCINST_LIBRARY_DIRECTORY})
   TARGET_LINK_LIBRARIES(todbcinst odbc odbcinst)
 ENDIF ()
 
