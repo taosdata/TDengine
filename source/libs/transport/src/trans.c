@@ -154,6 +154,11 @@ void rpcReleaseHandle(void* handle, int8_t type) {
   (*transReleaseHandle[type])(handle);
 }
 
+void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
+  // later
+  transSetDefaultAddr(thandle, ip, fqdn);
+}
+
 int32_t rpcInit() {
   // impl later
   return 0;
