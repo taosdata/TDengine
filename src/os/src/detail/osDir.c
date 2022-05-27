@@ -53,7 +53,7 @@ int32_t taosMkdirP(const char *dir) {
   char tmp[256];
   char *p = NULL;
   size_t len;
-  int i;
+  size_t i;
 
   snprintf(tmp, sizeof(tmp),"%s",dir);
   len = strlen(tmp);

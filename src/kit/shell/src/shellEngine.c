@@ -1115,7 +1115,7 @@ void _base64_encode_triple(unsigned char triple[3], char res[4]) {
   }
 }
 
-int base64_encode(unsigned char *source, size_t sourcelen, char *target, size_t targetlen) {
+int taos_base64_encode(unsigned char *source, size_t sourcelen, char *target, size_t targetlen) {
   /* check if the result will fit in the target buffer */
   if ((sourcelen + 2) / 3 * 4 > targetlen - 1) return 0;
 
@@ -1180,7 +1180,7 @@ int wsclient_handshake() {
   for (i = 0; i < 16; i++) {
     key_nonce[i] = rand() & 0xff;
   }
-  base64_encode(key_nonce, 16, websocket_key, 256);
+  taos_base64_encode(key_nonce, 16, websocket_key, 256);
   if (args.token) {
     snprintf(request_header, 1024,
              "GET /rest/ws?token=%s HTTP/1.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nHost: "
