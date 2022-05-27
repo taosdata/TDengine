@@ -714,7 +714,13 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     pValue->notReserved = true;
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[colType].bytes, .type = colType};
+  uint8_t resType;
+  if (IS_SIGNED_NUMERIC_TYPE(colType)) {
+    resType = TSDB_DATA_TYPE_BIGINT;
+  } else {
+    resType = TSDB_DATA_TYPE_DOUBLE;
+  }
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
   return TSDB_CODE_SUCCESS;
 }
 
