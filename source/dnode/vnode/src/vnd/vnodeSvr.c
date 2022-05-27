@@ -750,7 +750,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
       sprintf(submitBlkRsp.tblFName, "%s.", pVnode->config.dbname);
     }
 
-    if (tsdbInsertTableData(pVnode->pTsdb, &msgIter, pBlock, &submitBlkRsp) < 0) {
+    if (tsdbInsertTableData(pVnode->pTsdb, version, &msgIter, pBlock, &submitBlkRsp) < 0) {
       submitBlkRsp.code = terrno;
     }
 

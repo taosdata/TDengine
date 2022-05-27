@@ -2612,13 +2612,12 @@ typedef struct {
   SVCreateTbReq cTbReq;
 } SVSubmitBlk;
 
+int32_t tEncodeSVSubmitBlk(SEncoder* pCoder, const SVSubmitBlk* pBlock, int32_t flags);
+int32_t tDecodeSVSubmitBlk(SDecoder* pCoder, SVSubmitBlk* pBlock, int32_t flags);
+
 typedef struct {
   int32_t flags;
   int32_t nBlocks;
-  union {
-    SArray*      pArray;
-    SVSubmitBlk* pBlocks;
-  };
 } SVSubmitReq;
 
 int32_t tEncodeSVSubmitReq(SEncoder* pCoder, const SVSubmitReq* pReq);

@@ -37,6 +37,8 @@ typedef struct STag          STag;
 typedef struct STagIdx       STagIdx;
 typedef struct STagBuilder   STagBuilder;
 typedef struct STagIter      STagIter;
+typedef struct SColData      SColData;
+typedef struct SColBatch     SColBatch;
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
@@ -172,6 +174,20 @@ struct STagBuilder {
   int32_t  size;
   STagVal *pTagVal;
   void    *buf;
+}
+
+struct SColData {
+  int8_t   type;
+  int8_t   flags;
+  int16_t  cid;
+  uint32_t nData;
+  uint8_t *pData;
+};
+
+struct SColBatch {
+  tb_uid_t  uid;
+  uint16_t  nCols;
+  SColData *aColData;
 };
 
 #if 1  //================================================================================================================================================
@@ -310,19 +326,6 @@ static FORCE_INLINE TKEY keyToTkey(TSKEY key) {
   }
 
   return tdGetTKEY(lkey);
-}
-
-static FORCE_INLINE int32_t tkeyComparFn(const void *tkey1, const void *tkey2) {
-  TSKEY key1 = tdGetKey(*(TKEY *)tkey1);
-  TSKEY key2 = tdGetKey(*(TKEY *)tkey2);
-
-  if (key1 < key2) {
-    return -1;
-  } else if (key1 > key2) {
-    return 1;
-  } else {
-    return 0;
-  }
 }
 
 // ----------------- Data column structure

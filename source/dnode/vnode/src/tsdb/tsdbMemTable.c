@@ -301,7 +301,8 @@ int tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIter
   return 0;
 }
 
-int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock, SSubmitBlkRsp *pRsp) {
+int tsdbInsertTableData(STsdb *pTsdb, int64_t version, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlock,
+                        SSubmitBlkRsp *pRsp) {
   SSubmitBlkIter blkIter = {0};
   STsdbMemTable *pMemTable = pTsdb->mem;
   void          *tptr;
@@ -321,7 +322,7 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
     terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
     return -1;
   }
-  if(pRsp->tblFName) strcat(pRsp->tblFName, mr.me.name);
+  if (pRsp->tblFName) strcat(pRsp->tblFName, mr.me.name);
 
   if (mr.me.type == TSDB_NORMAL_TABLE) {
     sverNew = mr.me.ntbEntry.schemaRow.version;
@@ -357,6 +358,11 @@ int tsdbInsertTableData(STsdb *pTsdb, SSubmitMsgIter *pMsgIter, SSubmitBlk *pBlo
   if (blkIter.row == NULL) return 0;
   keyMin = TD_ROW_KEY(blkIter.row);
 
+  while ((row = tGetSubmitBlkNext(&blkIter)) != NULL) {
+    row->version = version;
+  }
+
+  tInitSubmitBlkIter(pMsgIter, pBlkCopy, &blkIter);
   tSkipListPutBatchByIter(pTbData->pData, &blkIter, (iter_next_fn_t)tGetSubmitBlkNext);
 
 #ifdef TD_DEBUG_PRINT_ROW
@@ -392,10 +398,6 @@ static STbData *tsdbNewTbData(tb_uid_t uid) {
   pTbData->keyMin = TSKEY_MAX;
   pTbData->keyMax = TSKEY_MIN;
   pTbData->nrows = 0;
-#if 0
-  pTbData->pData = tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_DISCARD_DUP_KEY,
-                                   tsdbGetTsTupleKey);
-#endif
   pTbData->pData =
       tSkipListCreate(5, TSDB_DATA_TYPE_TIMESTAMP, sizeof(int64_t), tkeyComparFn, SL_ALLOW_DUP_KEY, tsdbGetTsTupleKey);
   if (pTbData->pData == NULL) {

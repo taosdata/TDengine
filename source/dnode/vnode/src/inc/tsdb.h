@@ -49,8 +49,6 @@ int  tsdbLoadDataFromCache(STsdb *pTsdb, STable *pTable, SSkipListIterator *pIte
 typedef struct STsdbFS STsdbFS;
 
 // tsdbSma ================
-typedef struct SSmaEnv  SSmaEnv;
-typedef struct SSmaEnvs SSmaEnvs;
 
 // structs
 typedef struct {
@@ -64,6 +62,8 @@ typedef struct {
 struct STsdb {
   char          *path;
   SVnode        *pVnode;
+  int64_t        aVersion;
+  int64_t        cVersion;
   TdThreadMutex  mutex;
   char           dir[TSDB_DATA_DIR_LEN];
   bool           repoLocked;
@@ -74,8 +74,6 @@ struct STsdb {
   STsdbFS       *fs;
 };
 
-#if 1  // ======================================
-
 struct STable {
   uint64_t  tid;
   uint64_t  uid;
@@ -85,7 +83,7 @@ struct STable {
 #define TABLE_TID(t) (t)->tid
 #define TABLE_UID(t) (t)->uid
 
-int     tsdbPrepareCommit(STsdb *pTsdb);
+int tsdbPrepareCommit(STsdb *pTsdb);
 typedef enum {
   TSDB_FILE_HEAD = 0,  // .head
   TSDB_FILE_DATA,      // .data
@@ -119,6 +117,8 @@ typedef struct {
   int8_t   state;  // -128~127
   uint8_t  ver;    // 0~255, DFileSet version
   uint16_t reserve;
+  int64_t  minVersion;
+  int64_t  maxVersion;
   SDFile   files[TSDB_FILE_MAX];
 } SDFileSet;
 
@@ -181,7 +181,6 @@ int tsdbUnlockRepo(STsdb *pTsdb);
 
 static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STsdb *pTsdb, STable *pTable, bool lock, bool copy,
                                                      int32_t version) {
-
   if ((version != -1) && (schemaVersion(pTable->pSchema) != version)) {
     taosMemoryFreeClear(pTable->pSchema);
     pTable->pSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
@@ -236,22 +235,6 @@ typedef struct {
   TSKEY    maxKey;
 } SBlockIdx;
 
-#ifdef TD_REFACTOR_3
-typedef struct {
-  int64_t last : 1;
-  int64_t offset : 63;
-  int32_t algorithm : 8;
-  int32_t numOfRows : 24;
-  int32_t len;
-  int32_t keyLen;  // key column length, keyOffset = offset+sizeof(SBlockData)+sizeof(SBlockCol)*numOfCols
-  int16_t numOfSubBlocks;
-  int16_t numOfCols;  // not including timestamp column
-  TSKEY   keyFirst;
-  TSKEY   keyLast;
-} SBlock;
-
-#else
-
 typedef enum {
   TSDB_SBLK_VER_0 = 0,
   TSDB_SBLK_VER_MAX,
@@ -275,15 +258,13 @@ typedef struct {
   uint64_t aggrStat : 1;
   uint64_t aggrOffset : 63;
   TSKEY    keyFirst;
+  int64_t  verFirst;
   TSKEY    keyLast;
-} SBlockV0;
-
-#define SBlock SBlockV0  // latest SBlock definition
+  int64_t  verLast;
+} SBlock;
 
 static FORCE_INLINE bool tsdbIsSupBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 1; }
 static FORCE_INLINE bool tsdbIsSubBlock(SBlock *pBlock) { return pBlock->numOfSubBlocks == 0; }
-
-#endif
 
 typedef struct {
   int32_t  delimiter;  // For recovery usage
@@ -292,33 +273,13 @@ typedef struct {
   SBlock   blocks[];
 } SBlockInfo;
 
-#ifdef TD_REFACTOR_3
-typedef struct {
-  int16_t  colId;
-  uint16_t bitmap : 1;  // 0: no bitmap if all rows are NORM, 1: has bitmap if has NULL/NORM rows
-  uint16_t reserve : 15;
-  int32_t  len;
-  uint32_t type : 8;
-  uint32_t offset : 24;
-  int64_t  sum;
-  int64_t  max;
-  int64_t  min;
-  int16_t  maxIndex;
-  int16_t  minIndex;
-  int16_t  numOfNull;
-  uint8_t  offsetH;
-  char     padding[1];
-} SBlockCol;
-#else
 typedef struct {
   int16_t  colId;
   uint16_t type : 6;
   uint16_t blen : 10;  // 0 no bitmap if all rows are NORM, > 0 bitmap length
   uint32_t len;        // data length + bitmap length
   uint32_t offset;
-} SBlockColV0;
-
-#define SBlockCol SBlockColV0  // latest SBlockCol definition
+} SBlockCol;
 
 typedef struct {
   int16_t colId;
@@ -328,31 +289,10 @@ typedef struct {
   int64_t sum;
   int64_t max;
   int64_t min;
-} SAggrBlkColV0;
+} SAggrBlkCol;
 
-#define SAggrBlkCol SAggrBlkColV0  // latest SAggrBlkCol definition
-
-#endif
-
-// Code here just for back-ward compatibility
-static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) {
-#ifdef TD_REFACTOR_3
-  pBlockCol->offset = offset & ((((uint32_t)1) << 24) - 1);
-  pBlockCol->offsetH = (uint8_t)(offset >> 24);
-#else
-  pBlockCol->offset = offset;
-#endif
-}
-
-static FORCE_INLINE uint32_t tsdbGetBlockColOffset(SBlockCol *pBlockCol) {
-#ifdef TD_REFACTOR_3
-  uint32_t offset1 = pBlockCol->offset;
-  uint32_t offset2 = pBlockCol->offsetH;
-  return (offset1 | (offset2 << 24));
-#else
-  return pBlockCol->offset;
-#endif
-}
+static FORCE_INLINE void tsdbSetBlockColOffset(SBlockCol *pBlockCol, uint32_t offset) { pBlockCol->offset = offset; }
+static FORCE_INLINE uint32_t tsdbGetBlockColOffset(SBlockCol *pBlockCol) { return pBlockCol->offset; }
 
 typedef struct {
   int32_t   delimiter;  // For recovery usage
@@ -393,24 +333,23 @@ struct SReadH {
 #define TSDB_READ_COMP_BUF(rh)  ((rh)->pCBuf)
 #define TSDB_READ_EXBUF(rh)     ((rh)->pExBuf)
 
-#define TSDB_BLOCK_STATIS_SIZE(ncols, blkVer) \
-  (sizeof(SBlockData) + sizeof(SBlockColV##blkVer) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_STATIS_SIZE(ncols) (sizeof(SBlockData) + sizeof(SBlockCol) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockStatisSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {
     case TSDB_SBLK_VER_0:
     default:
-      return TSDB_BLOCK_STATIS_SIZE(nCols, 0);
+      return TSDB_BLOCK_STATIS_SIZE(nCols);
   }
 }
 
-#define TSDB_BLOCK_AGGR_SIZE(ncols, blkVer) (sizeof(SAggrBlkColV##blkVer) * (ncols) + sizeof(TSCKSUM))
+#define TSDB_BLOCK_AGGR_SIZE(ncols) (sizeof(SAggrBlkCol) * (ncols) + sizeof(TSCKSUM))
 
 static FORCE_INLINE size_t tsdbBlockAggrSize(int nCols, uint32_t blkVer) {
   switch (blkVer) {
     case TSDB_SBLK_VER_0:
     default:
-      return TSDB_BLOCK_AGGR_SIZE(nCols, 0);
+      return TSDB_BLOCK_AGGR_SIZE(nCols);
   }
 }
 
@@ -569,125 +508,34 @@ static FORCE_INLINE uint32_t tsdbGetDFSVersion(TSDB_FILE_T fType) {  // latest v
   }
 }
 
-void  tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype);
-void  tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile);
-int   tsdbEncodeSDFile(void **buf, SDFile *pDFile);
-void *tsdbDecodeSDFile(STsdb *pRepo, void *buf, SDFile *pDFile);
-int   tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType);
-int   tsdbUpdateDFileHeader(SDFile *pDFile);
-int   tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo);
-int   tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *version);
-
+void    tsdbInitDFile(STsdb *pRepo, SDFile *pDFile, SDiskID did, int fid, uint32_t ver, TSDB_FILE_T ftype);
+void    tsdbInitDFileEx(SDFile *pDFile, SDFile *pODFile);
+int     tsdbEncodeSDFile(void **buf, SDFile *pDFile);
+void   *tsdbDecodeSDFile(STsdb *pRepo, void *buf, SDFile *pDFile);
+int     tsdbCreateDFile(STsdb *pRepo, SDFile *pDFile, bool updateHeader, TSDB_FILE_T fType);
+int     tsdbUpdateDFileHeader(SDFile *pDFile);
+int     tsdbLoadDFileHeader(SDFile *pDFile, SDFInfo *pInfo);
+int     tsdbParseDFilename(const char *fname, int *vid, int *fid, TSDB_FILE_T *ftype, uint32_t *version);
+int     tsdbOpenDFile(SDFile *pDFile, int flags);
+void    tsdbCloseDFile(SDFile *pDFile);
+int64_t tsdbSeekDFile(SDFile *pDFile, int64_t offset, int whence);
+int64_t tsdbWriteDFile(SDFile *pDFile, void *buf, int64_t nbyte);
+void    tsdbUpdateDFileMagic(SDFile *pDFile, void *pCksm);
+int     tsdbAppendDFile(SDFile *pDFile, void *buf, int64_t nbyte, int64_t *offset);
+int64_t tsdbReadDFile(SDFile *pDFile, void *buf, int64_t nbyte);
+int     tsdbCopyDFile(SDFile *pSrc, SDFile *pDest);
 static FORCE_INLINE void tsdbSetDFileInfo(SDFile *pDFile, SDFInfo *pInfo) { pDFile->info = *pInfo; }
-
-static FORCE_INLINE int tsdbOpenDFile(SDFile *pDFile, int flags) {
-  ASSERT(!TSDB_FILE_OPENED(pDFile));
-
-  pDFile->pFile = taosOpenFile(TSDB_FILE_FULL_NAME(pDFile), flags);
-  if (pDFile->pFile == NULL) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return 0;
-}
-
-static FORCE_INLINE void tsdbCloseDFile(SDFile *pDFile) {
-  if (TSDB_FILE_OPENED(pDFile)) {
-    taosCloseFile(&pDFile->pFile);
-    TSDB_FILE_SET_CLOSED(pDFile);
-  }
-}
-
-static FORCE_INLINE int64_t tsdbSeekDFile(SDFile *pDFile, int64_t offset, int whence) {
-  // ASSERT(TSDB_FILE_OPENED(pDFile));
-
-  int64_t loffset = taosLSeekFile(TSDB_FILE_PFILE(pDFile), offset, whence);
-  if (loffset < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return loffset;
-}
-
-static FORCE_INLINE int64_t tsdbWriteDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
-  ASSERT(TSDB_FILE_OPENED(pDFile));
-
-  int64_t nwrite = taosWriteFile(pDFile->pFile, buf, nbyte);
-  if (nwrite < nbyte) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return nwrite;
-}
-
-static FORCE_INLINE void tsdbUpdateDFileMagic(SDFile *pDFile, void *pCksm) {
-  pDFile->info.magic = taosCalcChecksum(pDFile->info.magic, (uint8_t *)(pCksm), sizeof(TSCKSUM));
-}
-
-static FORCE_INLINE int tsdbAppendDFile(SDFile *pDFile, void *buf, int64_t nbyte, int64_t *offset) {
-  ASSERT(TSDB_FILE_OPENED(pDFile));
-
-  int64_t toffset;
-
-  if ((toffset = tsdbSeekDFile(pDFile, 0, SEEK_END)) < 0) {
-    return -1;
-  }
-
-  ASSERT(pDFile->info.size == toffset);
-
-  if (offset) {
-    *offset = toffset;
-  }
-
-  if (tsdbWriteDFile(pDFile, buf, nbyte) < 0) {
-    return -1;
-  }
-
-  pDFile->info.size += nbyte;
-
-  return (int)nbyte;
-}
-
-static FORCE_INLINE int tsdbRemoveDFile(SDFile *pDFile) { return tfsRemoveFile(TSDB_FILE_F(pDFile)); }
-
-static FORCE_INLINE int64_t tsdbReadDFile(SDFile *pDFile, void *buf, int64_t nbyte) {
-  ASSERT(TSDB_FILE_OPENED(pDFile));
-
-  int64_t nread = taosReadFile(pDFile->pFile, buf, nbyte);
-  if (nread < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  return nread;
-}
-
-static FORCE_INLINE int tsdbCopyDFile(SDFile *pSrc, SDFile *pDest) {
-  if (tfsCopyFile(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
-    terrno = TAOS_SYSTEM_ERROR(errno);
-    return -1;
-  }
-
-  tsdbSetDFileInfo(pDest, TSDB_FILE_INFO(pSrc));
-  return 0;
-}
+static FORCE_INLINE int  tsdbRemoveDFile(SDFile *pDFile) { return tfsRemoveFile(TSDB_FILE_F(pDFile)); }
 
 // =============== SDFileSet
 
 typedef struct {
-  int      fid;
-  int8_t   state;
-  uint8_t  ver;
-  uint16_t reserve;
-#if 0
-  SDFInfo   info;
-#endif
+  int       fid;
+  int8_t    state;
+  uint8_t   ver;
+  uint16_t  reserve;
   STfsFile  f;
   TdFilePtr pFile;
-
 } SSFile;  // files split by days with fid
 
 #define TSDB_LATEST_FSET_VER 0
@@ -721,39 +569,10 @@ int   tsdbApplyDFileSetChange(SDFileSet *from, SDFileSet *to);
 int   tsdbCreateDFileSet(STsdb *pRepo, SDFileSet *pSet, bool updateHeader);
 int   tsdbUpdateDFileSetHeader(SDFileSet *pSet);
 int   tsdbScanAndTryFixDFileSet(STsdb *pRepo, SDFileSet *pSet);
-
-static FORCE_INLINE void tsdbCloseDFileSet(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    tsdbCloseDFile(TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-}
-
-static FORCE_INLINE int tsdbOpenDFileSet(SDFileSet *pSet, int flags) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbOpenDFile(TSDB_DFILE_IN_SET(pSet, ftype), flags) < 0) {
-      tsdbCloseDFileSet(pSet);
-      return -1;
-    }
-  }
-  return 0;
-}
-
-static FORCE_INLINE void tsdbRemoveDFileSet(SDFileSet *pSet) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    (void)tsdbRemoveDFile(TSDB_DFILE_IN_SET(pSet, ftype));
-  }
-}
-
-static FORCE_INLINE int tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest) {
-  for (TSDB_FILE_T ftype = 0; ftype < TSDB_FILE_MAX; ftype++) {
-    if (tsdbCopyDFile(TSDB_DFILE_IN_SET(pSrc, ftype), TSDB_DFILE_IN_SET(pDest, ftype)) < 0) {
-      tsdbRemoveDFileSet(pDest);
-      return -1;
-    }
-  }
-
-  return 0;
-}
+void  tsdbCloseDFileSet(SDFileSet *pSet);
+int   tsdbOpenDFileSet(SDFileSet *pSet, int flags);
+void  tsdbRemoveDFileSet(SDFileSet *pSet);
+int   tsdbCopyDFileSet(SDFileSet *pSrc, SDFileSet *pDest);
 
 static FORCE_INLINE void tsdbGetFidKeyRange(int days, int8_t precision, int fid, TSKEY *minKey, TSKEY *maxKey) {
   *minKey = fid * days * tsTickPerMin[precision];
@@ -841,8 +660,6 @@ static FORCE_INLINE int tsdbUnLockFS(STsdbFS *pFs) {
   }
   return 0;
 }
-
-#endif
 
 #ifdef __cplusplus
 }

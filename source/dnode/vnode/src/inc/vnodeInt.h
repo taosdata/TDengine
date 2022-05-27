@@ -103,6 +103,7 @@ SArray*         metaGetSmaTbUids(SMeta* pMeta);
 int32_t         metaSnapshotReaderOpen(SMeta* pMeta, SMetaSnapshotReader** ppReader, int64_t sver, int64_t ever);
 int32_t         metaSnapshotReaderClose(SMetaSnapshotReader* pReader);
 int32_t         metaSnapshotRead(SMetaSnapshotReader* pReader, void** ppData, uint32_t* nData);
+int32_t         metaRollback(STsdb* pTsdb, int64_t ver);
 
 int32_t metaCreateTSma(SMeta* pMeta, int64_t version, SSmaCfg* pCfg);
 int32_t metaDropTSma(SMeta* pMeta, int64_t indexUid);
@@ -114,7 +115,8 @@ int          tsdbBegin(STsdb* pTsdb);
 int          tsdbCommit(STsdb* pTsdb);
 int          tsdbScanAndConvertSubmitMsg(STsdb* pTsdb, SSubmitReq* pMsg);
 int          tsdbInsertData(STsdb* pTsdb, int64_t version, SSubmitReq* pMsg, SSubmitRsp* pRsp);
-int          tsdbInsertTableData(STsdb* pTsdb, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock, SSubmitBlkRsp* pRsp);
+int          tsdbInsertTableData(STsdb* pTsdb, int64_t version, SSubmitMsgIter* pMsgIter, SSubmitBlk* pBlock,
+                                 SSubmitBlkRsp* pRsp);
 tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                              uint64_t taskId);
 tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
@@ -122,6 +124,7 @@ tsdbReaderT  tsdbQueryCacheLastT(STsdb* tsdb, SQueryTableDataCond* pCond, STable
 int32_t      tsdbSnapshotReaderOpen(STsdb* pTsdb, STsdbSnapshotReader** ppReader, int64_t sver, int64_t ever);
 int32_t      tsdbSnapshotReaderClose(STsdbSnapshotReader* pReader);
 int32_t      tsdbSnapshotRead(STsdbSnapshotReader* pReader, void** ppData, uint32_t* nData);
+int32_t      tsdbRollback(STsdb* pTsdb, int64_t ver);
 
 // tq
 STQ*    tqOpen(const char* path, SVnode* pVnode, SWal* pWal);
