@@ -1601,20 +1601,19 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
   SExprInfo*    pExprInfo = &pOperator->pExpr[0];
   SSDataBlock*  pRes = pInfo->pRes;
 
-  if (taosArrayGetSize(pInfo->pTableGroups->pGroupList) == 0) {
+  int32_t size = taosArrayGetSize(pInfo->pTableList->pTableList);
+  if (size == 0) {
     setTaskStatus(pTaskInfo, TASK_COMPLETED);
     return NULL;
   }
-
-  SArray* pa = taosArrayGetP(pInfo->pTableGroups->pGroupList, 0);
 
   char        str[512] = {0};
   int32_t     count = 0;
   SMetaReader mr = {0};
   metaReaderInit(&mr, pInfo->readHandle.meta, 0);
 
-  while (pInfo->curPos < pInfo->pTableGroups->numOfTables && count < pOperator->resultInfo.capacity) {
-    STableKeyInfo* item = taosArrayGet(pa, pInfo->curPos);
+  while (pInfo->curPos < size && count < pOperator->resultInfo.capacity) {
+    STableKeyInfo* item = taosArrayGet(pInfo->pTableList->pTableList, pInfo->curPos);
     metaGetTableEntryByUid(&mr, item->uid);
 
     for (int32_t j = 0; j < pOperator->numOfExprs; ++j) {
@@ -1646,7 +1645,7 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
     }
 
     count += 1;
-    if (++pInfo->curPos >= pInfo->pTableGroups->numOfTables) {
+    if (++pInfo->curPos >= size) {
       doSetOperatorCompleted(pOperator);
     }
   }
@@ -1671,14 +1670,14 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
 
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, SExprInfo* pExpr, int32_t numOfOutput,
                                          SSDataBlock* pResBlock, SArray* pColMatchInfo,
-                                         STableGroupInfo* pTableGroupInfo, SExecTaskInfo* pTaskInfo) {
+                                         STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
   STagScanInfo*  pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
     goto _error;
   }
 
-  pInfo->pTableGroups = pTableGroupInfo;
+  pInfo->pTableList = pTableListInfo;
   pInfo->pColMatchInfo = pColMatchInfo;
   pInfo->pRes = pResBlock;
   pInfo->readHandle = *pReadHandle;

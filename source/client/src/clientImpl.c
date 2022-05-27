@@ -413,7 +413,7 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
 
     for (int32_t i = 0; i < tbNum; ++i) {
       STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
-      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion};
+      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};
       taosArrayPush(pArray, &tbSver);
     }
   }
@@ -745,12 +745,12 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
     pRequest->metric.rsp = taosGetTimestampUs();
 
-    STscObj* pTscObj = pRequest->pTscObj;
-    if (pEpSet) {
-      if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
-        updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
-      }
-    }
+    //STscObj* pTscObj = pRequest->pTscObj;
+    //if (pEpSet) {
+    //  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
+    //    updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
+    //  }
+    //}
 
     /*
      * There is not response callback function for submit response.

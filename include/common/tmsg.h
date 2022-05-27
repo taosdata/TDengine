@@ -1665,6 +1665,10 @@ int32_t tSerializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pR
 int32_t tDeserializeSMDropCgroupReq(void* buf, int32_t bufLen, SMDropCgroupReq* pReq);
 
 typedef struct {
+  int8_t reserved;
+} SMDropCgroupRsp;
+
+typedef struct {
   char    name[TSDB_TABLE_FNAME_LEN];
   int8_t  alterType;
   SSchema schema;
