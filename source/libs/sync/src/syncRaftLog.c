@@ -16,6 +16,9 @@
 #include "syncRaftLog.h"
 #include "wal.h"
 
+static SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
+
+
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
   assert(pLogStore != NULL);

@@ -41,11 +41,13 @@ SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);
 SyncTerm        logStoreLastTerm(SSyncLogStore* pLogStore);
 int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
-SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
+
 cJSON*          logStore2Json(SSyncLogStore* pLogStore);
 char*           logStore2Str(SSyncLogStore* pLogStore);
 cJSON*          logStoreSimple2Json(SSyncLogStore* pLogStore);
 char*           logStoreSimple2Str(SSyncLogStore* pLogStore);
+
+// SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
 
 // for debug
 void logStorePrint(SSyncLogStore* pLogStore);
