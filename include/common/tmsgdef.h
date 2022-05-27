@@ -151,6 +151,7 @@ enum {
   TD_DEF_MSG_TYPE(TDMT_MND_MQ_CONSUMER_LOST, "mnode-mq-consumer-lost", SMqConsumerLostMsg, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_MQ_CONSUMER_RECOVER, "mnode-mq-consumer-recover", SMqConsumerRecoverMsg, NULL)
   TD_DEF_MSG_TYPE(TDMT_MND_MQ_DO_REBALANCE, "mnode-mq-do-rebalance", SMqDoRebalanceMsg, NULL)
+  TD_DEF_MSG_TYPE(TDMT_MND_MQ_DROP_CGROUP, "mnode-mq-drop-cgroup", SMqDropCGroupReq, SMqDropCGroupRsp)
   TD_DEF_MSG_TYPE(TDMT_MND_MQ_COMMIT_OFFSET, "mnode-mq-commit-offset", SMqCMCommitOffsetReq, SMqCMCommitOffsetRsp)
   TD_DEF_MSG_TYPE(TDMT_MND_CREATE_STREAM, "mnode-create-stream", SCMCreateStreamReq, SCMCreateStreamRsp)
   TD_DEF_MSG_TYPE(TDMT_MND_ALTER_STREAM, "mnode-alter-stream", NULL, NULL)

@@ -190,6 +190,7 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
   }
   return pool;
 }
+
 void transDestroyAsyncPool(SAsyncPool* pool) {
   for (int i = 0; i < pool->nAsync; i++) {
     uv_async_t* async = &(pool->asyncs[i]);

@@ -2015,7 +2015,7 @@ static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, 
   tsdbDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, REPO_ID(pTsdb), level, taskInfo,
             suid);
 
-  qSetStreamInput(taskInfo, pMsg, inputType);
+  qSetStreamInput(taskInfo, pMsg, inputType, false);
   while (1) {
     SSDataBlock *output = NULL;
     uint64_t     ts;

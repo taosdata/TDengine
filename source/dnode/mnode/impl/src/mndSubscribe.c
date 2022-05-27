@@ -42,6 +42,7 @@ static int32_t  mndSubActionDelete(SSdb *pSdb, SMqSubscribeObj *);
 static int32_t  mndSubActionUpdate(SSdb *pSdb, SMqSubscribeObj *pOldSub, SMqSubscribeObj *pNewSub);
 
 static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg);
+static int32_t mndProcessDropCgroupReq(SRpcMsg *pMsg);
 static int32_t mndProcessSubscribeInternalRsp(SRpcMsg *pMsg);
 
 static int32_t mndRetrieveSubscribe(SRpcMsg *pReq, SShowObj *pShow, SSDataBlock *pBlock, int32_t rows);
@@ -75,6 +76,8 @@ int32_t mndInitSubscribe(SMnode *pMnode) {
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_CHANGE_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_VND_MQ_VG_DELETE_RSP, mndProcessSubscribeInternalRsp);
   mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DO_REBALANCE, mndProcessRebalanceReq);
+  mndSetMsgHandle(pMnode, TDMT_MND_MQ_DROP_CGROUP, mndProcessDropCgroupReq);
 
   mndAddShowRetrieveHandle(pMnode, TSDB_MGMT_TABLE_SUBSCRIPTIONS, mndRetrieveSubscribe);
   mndAddShowFreeIterHandle(pMnode, TSDB_MGMT_TABLE_TOPICS, mndCancelGetNextSubscribe);
@@ -581,6 +584,57 @@ static int32_t mndProcessRebalanceReq(SRpcMsg *pMsg) {
   return 0;
 }
 
+static int32_t mndProcessDropCgroupReq(SRpcMsg *pReq) {
+  SMnode *pMnode = pReq->info.node;
+  /*SSdb          *pSdb = pMnode->pSdb;*/
+  SMDropCgroupReq dropReq = {0};
+
+  if (tDeserializeSMDropCgroupReq(pReq->pCont, pReq->contLen, &dropReq) != 0) {
+    terrno = TSDB_CODE_INVALID_MSG;
+    return -1;
+  }
+
+  SMqSubscribeObj *pSub = mndAcquireSubscribe(pMnode, dropReq.cgroup, dropReq.topic);
+  if (pSub == NULL) {
+    if (dropReq.igNotExists) {
+      mDebug("cgroup:%s on topic:%s, not exist, ignore not exist is set", dropReq.cgroup, dropReq.topic);
+      return 0;
+    } else {
+      terrno = TSDB_CODE_MND_SUBSCRIBE_NOT_EXIST;
+      mError("topic:%s, cgroup:%s, failed to drop since %s", dropReq.topic, dropReq.cgroup, terrstr());
+      return -1;
+    }
+  }
+
+  if (taosHashGetSize(pSub->consumerHash) == 0) {
+    terrno = TSDB_CODE_MND_CGROUP_USED;
+    mError("cgroup:%s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    return -1;
+  }
+
+  STrans *pTrans = mndTransCreate(pMnode, TRN_POLICY_ROLLBACK, TRN_TYPE_DROP_CGROUP, pReq);
+  if (pTrans == NULL) {
+    mError("cgroup: %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    return -1;
+  }
+
+  mDebug("trans:%d, used to drop cgroup:%s on topic %s", pTrans->id, dropReq.cgroup, dropReq.topic);
+
+  if (mndDropOffsetBySubKey(pMnode, pTrans, pSub->key) < 0) {
+    ASSERT(0);
+    return -1;
+  }
+
+  if (mndSetDropSubCommitLogs(pMnode, pTrans, pSub) < 0) {
+    mError("cgroup %s on topic:%s, failed to drop since %s", dropReq.cgroup, dropReq.topic, terrstr());
+    return -1;
+  }
+
+  mndReleaseSubscribe(pMnode, pSub);
+
+  return TSDB_CODE_ACTION_IN_PROGRESS;
+}
+
 void mndCleanupSubscribe(SMnode *pMnode) {}
 
 static SSdbRaw *mndSubActionEncode(SMqSubscribeObj *pSub) {
@@ -735,7 +789,7 @@ static int32_t mndSetDropSubRedoLogs(SMnode *pMnode, STrans *pTrans, SMqSubscrib
   return 0;
 }
 
-static int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
+int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub) {
   SSdbRaw *pCommitRaw = mndSubActionEncode(pSub);
   if (pCommitRaw == NULL) return -1;
   if (mndTransAppendCommitlog(pTrans, pCommitRaw) != 0) return -1;

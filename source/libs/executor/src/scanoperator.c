@@ -878,6 +878,12 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
       pInfo->pRes->info.uid = uid;
       pInfo->pRes->info.type = STREAM_NORMAL;
 
+      // for generating rollup SMA result, each time is an independent time serie.
+      // TODO temporarily used, when the statement of "partition by tbname" is ready, remove this
+      if (pInfo->assignBlockUid) {
+        pInfo->pRes->info.groupId = uid;
+      }
+
       int32_t numOfCols = pInfo->pRes->info.numOfCols;
       for (int32_t i = 0; i < numOfCols; ++i) {
         SColMatchInfo* pColMatchInfo = taosArrayGet(pInfo->pColMatchInfo, i);
@@ -918,7 +924,7 @@ static SSDataBlock* doStreamBlockScan(SOperatorInfo* pOperator) {
 
     // record the scan action.
     pInfo->numOfExec++;
-    pInfo->numOfRows += pBlockInfo->rows;
+    pOperator->resultInfo.totalRows += pBlockInfo->rows;
 
     if (rows == 0) {
       pOperator->status = OP_EXEC_DONE;

@@ -3,12 +3,12 @@ import json
 import taos
 from taos import SmlProtocol, SmlPrecision
 
-lines = [{"metric": "meters.current", "timestamp": 1648432611249, "value": 10.3, "tags": {"location": "Beijing.Chaoyang", "groupid": 2}},
+lines = [{"metric": "meters.current", "timestamp": 1648432611249, "value": 10.3, "tags": {"location": "California.SanFrancisco", "groupid": 2}},
          {"metric": "meters.voltage", "timestamp": 1648432611249, "value": 219,
-             "tags": {"location": "Beijing.Haidian", "groupid": 1}},
+             "tags": {"location": "California.LosAngeles", "groupid": 1}},
          {"metric": "meters.current", "timestamp": 1648432611250, "value": 12.6,
-             "tags": {"location": "Beijing.Chaoyang", "groupid": 2}},
-         {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "Beijing.Haidian", "groupid": 1}}]
+             "tags": {"location": "California.SanFrancisco", "groupid": 2}},
+         {"metric": "meters.voltage", "timestamp": 1648432611250, "value": 221, "tags": {"location": "California.LosAngeles", "groupid": 1}}]
 
 
 def get_connection():
