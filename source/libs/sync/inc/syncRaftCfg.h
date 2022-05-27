@@ -27,6 +27,8 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
+#define CONFIG_FILE_LEN 1024
+
 typedef struct SRaftCfg {
   SSyncCfg  cfg;
   TdFilePtr pFile;
