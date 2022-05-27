@@ -24,31 +24,57 @@ CHAR_COL    = [ BINARY_COL, NCHAR_COL, ]
 BOOLEAN_COL = [ BOOL_COL, ]
 TS_TYPE_COL = [ TS_COL, ]
 
+ALL_COL = [ INT_COL, BINT_COL, SINT_COL, TINT_COL, FLOAT_COL, DOUBLE_COL, BOOL_COL, BINARY_COL, NCHAR_COL, TS_COL ]
+
 class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        tdSql.init(conn.cursor(), True)
+        tdSql.init(conn.cursor())
 
     def __query_condition(self,tbname):
-        query_condition = []
-        for char_col in CHAR_COL:
-            query_condition.extend(
-                (
-                    f"{tbname}.{char_col}",
-                    # f"upper( {tbname}.{char_col} )",
-                )
-            )
-            query_condition.extend( f"cast( {tbname}.{un_char_col} as binary(16) ) " for un_char_col in NUM_COL)
+        query_condition = [f"cast({col} as bigint)" for col in ALL_COL]
         for num_col in NUM_COL:
             query_condition.extend(
                 (
+                    f"{tbname}.{num_col}",
+                    f"abs( {tbname}.{num_col} )",
+                    f"acos( {tbname}.{num_col} )",
+                    f"asin( {tbname}.{num_col} )",
+                    f"atan( {tbname}.{num_col} )",
+                    f"avg( {tbname}.{num_col} )",
+                    f"ceil( {tbname}.{num_col} )",
+                    f"cos( {tbname}.{num_col} )",
+                    f"count( {tbname}.{num_col} )",
+                    f"floor( {tbname}.{num_col} )",
+                    f"log( {tbname}.{num_col},  {tbname}.{num_col})",
+                    f"max( {tbname}.{num_col} )",
+                    f"min( {tbname}.{num_col} )",
+                    f"pow( {tbname}.{num_col}, 2)",
+                    f"round( {tbname}.{num_col} )",
+                    f"sum( {tbname}.{num_col} )",
                     f"sin( {tbname}.{num_col} )",
+                    f"sqrt( {tbname}.{num_col} )",
+                    f"tan( {tbname}.{num_col} )",
+                    f"cast( {tbname}.{num_col} as timestamp)",
                 )
             )
-            query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_1} " for num_col_1 in NUM_COL )
-
-        query_condition.append(''' "test1234!@#$%^&*():'><?/.,][}{" ''')
+            query_condition.extend((f"{num_col} + {any_col}" for any_col in ALL_COL))
+        for char_col in CHAR_COL:
+            query_condition.extend(
+                (
+                    f"count({tbname}.{char_col})",
+                    f"sum(cast({tbname}.{char_col}) as bigint)",
+                    f"max(cast({tbname}.{char_col}) as bigint)",
+                    f"min(cast({tbname}.{char_col}) as bigint)",
+                    f"avg(cast({tbname}.{char_col}) as bigint)",
+                )
+            )
+        # query_condition.extend(
+        #     (
+        #         1010,
+        #     )
+        # )
 
         return query_condition
 
@@ -97,141 +123,119 @@ class TDTestCase:
                 col = col[4:-1]
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __gen_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
+    def __single_sql(self, select_clause, from_clause, where_condition="", group_condition=""):
         if isinstance(select_clause, str) and "on" not in from_clause and select_clause.split(".")[0] != from_clause.split(".")[0]:
             return
-        return f"select {select_clause} from {from_clause} {where_condition} {group_condition}"
+        return f"select hyperloglog({select_clause}) from {from_clause} {where_condition} {group_condition}"
 
     @property
-    def __join_tblist(self):
+    def __tb_list(self):
         return [
-            # ["ct1", "ct2"],
-            ["ct1", "ct4"],
-            ["ct1", "t1"],
-            # ["ct2", "ct4"],
-            # ["ct2", "t1"],
-            # ["ct4", "t1"],
-            # ["ct1", "ct2", "ct4"],
-            # ["ct1", "ct2", "t1"],
-            # ["ct1", "ct4", "t1"],
-            # ["ct2", "ct4", "t1"],
-            # ["ct1", "ct2", "ct4", "t1"],
+            "ct1",
+            "ct4",
+            "t1",
+            "ct2",
+            "stb1",
         ]
 
-    @property
-    def __sqls_list(self):
+    def sql_list(self):
         sqls = []
-        __join_tblist = self.__join_tblist
-        for join_tblist in __join_tblist:
-            for join_tb in join_tblist:
-                select_claus_list = self.__query_condition(join_tb)
+        __no_join_tblist = self.__tb_list
+        for tb in __no_join_tblist:
+                select_claus_list = self.__query_condition(tb)
                 for select_claus in select_claus_list:
-                    group_claus = self.__group_condition( col=select_claus)
-                    where_claus = self.__where_condition( query_conditon=select_claus )
-                    having_claus = self.__group_condition( col=select_claus, having=f"{select_claus} is not null" )
+                    group_claus = self.__group_condition(col=select_claus)
+                    where_claus = self.__where_condition(query_conditon=select_claus)
+                    having_claus = self.__group_condition(col=select_claus, having=f"{select_claus} is not null")
                     sqls.extend(
                         (
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus, group_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus, having_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), where_claus),
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist), group_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist), having_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist)),
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, group_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, having_claus),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), where_claus, ),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), having_claus ),
-                            # self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True), group_claus ),
-                            self.__gen_sql(select_claus, self.__join_condition(join_tblist, INNER=True) ),
+                            self.__single_sql(select_claus, tb, where_claus, having_claus),
+                            self.__single_sql(select_claus, tb,),
+                            self.__single_sql(select_claus, tb, where_condition=where_claus),
+                            self.__single_sql(select_claus, tb, group_condition=group_claus),
                         )
                     )
+
+        # return filter(None, sqls)
         return list(filter(None, sqls))
 
-    def __join_check(self,):
-        tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
-        for i in range(len(self.__sqls_list)):
-            tdSql.query(self.__sqls_list[i])
-            # if i % 10 == 0 :
-            #     tdLog.success(f"{i} sql is already executed success !")
+    def __get_type(self, col):
+        if tdSql.cursor.istype(col, "BOOL"):
+            return "BOOL"
+        if tdSql.cursor.istype(col, "INT"):
+            return "INT"
+        if tdSql.cursor.istype(col, "BIGINT"):
+            return "BIGINT"
+        if tdSql.cursor.istype(col, "TINYINT"):
+            return "TINYINT"
+        if tdSql.cursor.istype(col, "SMALLINT"):
+            return "SMALLINT"
+        if tdSql.cursor.istype(col, "FLOAT"):
+            return "FLOAT"
+        if tdSql.cursor.istype(col, "DOUBLE"):
+            return "DOUBLE"
+        if tdSql.cursor.istype(col, "BINARY"):
+            return "BINARY"
+        if tdSql.cursor.istype(col, "NCHAR"):
+            return "NCHAR"
+        if tdSql.cursor.istype(col, "TIMESTAMP"):
+            return "TIMESTAMP"
+        if tdSql.cursor.istype(col, "JSON"):
+            return "JSON"
+        if tdSql.cursor.istype(col, "TINYINT UNSIGNED"):
+            return "TINYINT UNSIGNED"
+        if tdSql.cursor.istype(col, "SMALLINT UNSIGNED"):
+            return "SMALLINT UNSIGNED"
+        if tdSql.cursor.istype(col, "INT UNSIGNED"):
+            return "INT UNSIGNED"
+        if tdSql.cursor.istype(col, "BIGINT UNSIGNED"):
+            return "BIGINT UNSIGNED"
 
-    def __join_check_old(self, tblist, checkrows, join_flag=True):
-        query_conditions = self.__query_condition(tblist[0])
-        join_condition = self.__join_condition(tb_list=tblist) if join_flag else " "
-        for condition in query_conditions:
-            where_condition =  self.__where_condition(col=condition, tbname=tblist[0])
-            group_having = self.__group_condition(col=condition, having=f"{condition} is not null " )
-            group_no_having= self.__group_condition(col=condition )
-            groups = ["", group_having, group_no_having]
-            for group_condition in groups:
-                if where_condition:
-                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition} and {where_condition} {group_condition} "
-                else:
-                    sql = f" select {condition} from {tblist[0]},{tblist[1]} where {join_condition}  {group_condition} "
+    def spread_check(self):
+        sqls = self.sql_list()
+        tdLog.printNoPrefix("===step 1: curent case, must return query OK")
+        for i in range(len(sqls)):
+            tdLog.info(f"sql: {sqls[i]}")
+            tdSql.query(sqls[i])
 
-                if not join_flag :
-                    tdSql.error(sql=sql)
-                    break
-                if len(tblist) == 2:
-                    if "ct1" in tblist or "t1" in tblist:
-                        self.__join_current(sql, checkrows)
-                    elif where_condition or "not null" in group_condition:
-                        self.__join_current(sql, checkrows + 2 )
-                    elif group_condition:
-                        self.__join_current(sql, checkrows + 3 )
-                    else:
-                        self.__join_current(sql, checkrows + 5 )
-                if len(tblist) > 2 or len(tblist) < 1:
-                    tdSql.error(sql=sql)
+    def __test_current(self):
+        tdSql.query("select hyperloglog(ts) from ct1")
+        tdSql.checkRows(1)
+        tdSql.query("select hyperloglog(c1) from ct2")
+        tdSql.checkRows(1)
+        tdSql.query("select hyperloglog(c1) from ct4 group by c1")
+        tdSql.checkRows(self.rows + 3)
+        tdSql.query("select hyperloglog(c1) from ct4 group by c7")
+        tdSql.checkRows(3)
+        tdSql.query("select hyperloglog(ct2.c1) from ct4 join ct2 on ct4.ts=ct2.ts")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 0, self.rows + 2)
+        tdSql.query("select hyperloglog(c1), c1 from stb1 group by c1")
+        for i in range(tdSql.queryRows):
+            tdSql.checkData(i, 0, 1) if  tdSql.queryResult[i][1] is not None else tdSql.checkData(i, 0, 0)
 
-    def __join_current(self, sql, checkrows):
-        tdSql.query(sql=sql)
-        # tdSql.checkRows(checkrows)
+
+
+        self.spread_check()
 
     def __test_error(self):
-        # sourcery skip: extract-duplicate-method, move-assign-in-block
-        tdLog.printNoPrefix("==========err sql condition check , must return error==========")
-        err_list_1 = ["ct1","ct2", "ct4"]
-        err_list_2 = ["ct1","ct2", "t1"]
-        err_list_3 = ["ct1","ct4", "t1"]
-        err_list_4 = ["ct2","ct4", "t1"]
-        err_list_5 = ["ct1", "ct2","ct4", "t1"]
-        self.__join_check_old(err_list_1, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_1} over==========")
-        self.__join_check_old(err_list_2, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_2} over==========")
-        self.__join_check_old(err_list_3, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_3} over==========")
-        self.__join_check_old(err_list_4, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_4} over==========")
-        self.__join_check_old(err_list_5, -1)
-        tdLog.printNoPrefix(f"==========err sql condition check in {err_list_5} over==========")
-        self.__join_check_old(["ct2", "ct4"], -1, join_flag=False)
-        tdLog.printNoPrefix("==========err sql condition check in has no join condition over==========")
 
-        tdSql.error( f"select c1, c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{INT_COL}=ct4.{INT_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{TS_COL}=ct4.{TS_COL}" )
-        tdSql.error( f"select ct2.c1, ct2.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{TS_COL}" )
-        tdSql.error( f"select ct2.c1, ct1.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL}" )
-        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and c1 is not null " )
-        tdSql.error( f"select ct2.c1, ct4.c2 from ct2, ct4 where ct2.{PRIMARY_COL}=ct4.{PRIMARY_COL} and ct1.c1 is not null " )
-
-
-        tbname = ["ct1", "ct2", "ct4", "t1"]
-
-        # for tb in tbname:
-        #     for errsql in self.__join_err_check(tb):
-        #         tdSql.error(sql=errsql)
-        #     tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
-
+        tdLog.printNoPrefix("===step 0: err case, must return err")
+        tdSql.error( "select hyperloglog() from ct1" )
+        tdSql.error( "select hyperloglog(c1, c2) from ct2" )
+        tdSql.error( "select hyperloglog(1) from ct2" )
+        tdSql.error( f"select hyperloglog({NUM_COL[0]}, {NUM_COL[1]}) from ct4" )
+        tdSql.error( ''' select hyperloglog(['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'])
+                    from ct1
+                    where ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null
+                    group by ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10']
+                    having ['c1 + c1', 'c1 + c2', 'c1 + c3', 'c1 + c4', 'c1 + c5', 'c1 + c6', 'c1 + c7', 'c1 + c8', 'c1 + c9', 'c1 + c10'] is not null ''' )
 
     def all_test(self):
-        self.__join_check()
         self.__test_error()
-
+        self.__test_current()
 
     def __create_tb(self):
-        tdSql.prepare()
 
         tdLog.printNoPrefix("==========step1:create table")
         create_stb_sql  =  f'''create table stb1(
