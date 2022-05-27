@@ -59,12 +59,12 @@ int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, u
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 
 // STag
-int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag);
+int32_t tTagNew(STagVal *pTagVals, int16_t nTag, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
-int32_t tTagSet(STag *pTag, SSchema *pSchema, int32_t nCols, int iCol, uint8_t *pData, uint32_t nData, STag **ppTag);
-void    tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, uint32_t *nData);
+void    tTagGet(STag *pTag, STagVal *pTagVal);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
+int32_t tTagToValArray(STag *pTag, STagVal **ppTagVals, int16_t *nTag);
 
 // STRUCT =================
 struct STColumn {
@@ -118,7 +118,10 @@ struct SColVal {
 };
 
 struct STagVal {
-  int16_t  cid;
+  union {
+    int16_t cid;
+    char   *pKey;
+  };
   int8_t   type;
   uint32_t nData;
   uint8_t *pData;
