@@ -365,7 +365,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 }
 
                 SReConfigCbMeta cbMeta = {0};
-                bool isDrop;
+                bool            isDrop;
 
                 // I am in newConfig
                 if (hit) {
@@ -388,7 +388,7 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 }
 
                 // always call FpReConfigCb
-                if (ths->pFsm->FpReConfigCb != NULL) {     
+                if (ths->pFsm->FpReConfigCb != NULL) {
                   cbMeta.code = 0;
                   cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                   cbMeta.index = pEntry->index;
