@@ -217,7 +217,7 @@ SSdbRow *mndTopicActionDecode(SSdbRaw *pRaw) {
     }
   } else {
     pTopic->schema.nCols = 0;
-    pTopic->schema.sver = 0;
+    pTopic->schema.version = 0;
     pTopic->schema.pSchema = NULL;
   }
 

@@ -439,7 +439,6 @@ static void doHashPartition(SOperatorInfo* pOperator, SSDataBlock* pBlock) {
           memcpy(data + (*columnLen), src, varDataTLen(src));
           int32_t v = (data + (*columnLen) + varDataTLen(src) - (char*)pPage);
           ASSERT(v > 0);
-          printf("len:%d\n", v);
 
           contentLen = varDataTLen(src);
         }
@@ -490,16 +489,13 @@ void* getCurrentDataGroupInfo(const SPartitionOperatorInfo* pInfo, SDataGroupInf
 
     int32_t *rows = (int32_t*) pPage;
     if (*rows >= pInfo->rowCapacity) {
+      // release buffer
+      releaseBufPage(pInfo->pBuf, pPage);
+
       // add a new page for current group
       int32_t pageId = 0;
       pPage = getNewBufPage(pInfo->pBuf, 0, &pageId);
       taosArrayPush(p->pPageList, &pageId);
-
-//      // number of rows
-//      *(int32_t*) pPage = 0;
-//
-//      uint64_t* groupId = (pPage + sizeof(int32_t));
-//      *groupId = 0;
       memset(pPage, 0, getBufPageSize(pInfo->pBuf));
     }
   }
@@ -566,6 +562,7 @@ static SSDataBlock* buildPartitionResult(SOperatorInfo* pOperator) {
   blockDataFromBuf1(pInfo->binfo.pRes, page, pInfo->rowCapacity);
 
   pInfo->pageIndex += 1;
+  releaseBufPage(pInfo->pBuf, page);
 
   blockDataUpdateTsWindow(pInfo->binfo.pRes, 0);
   pInfo->binfo.pRes->info.groupId = pGroupInfo->groupId;
@@ -631,7 +628,11 @@ SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo*
     goto _error;
   }
 
-  int32_t code = createDiskbasedBuf(&pInfo->pBuf, 4096, 4096 * 256, pTaskInfo->id.str, TD_TMP_DIR_PATH);
+  uint32_t defaultPgsz  = 0;
+  uint32_t defaultBufsz = 0;
+  getBufferPgSize(pResultBlock->info.rowSize, &defaultPgsz, &defaultBufsz);
+
+  int32_t code = createDiskbasedBuf(&pInfo->pBuf, defaultPgsz, defaultBufsz, pTaskInfo->id.str, TD_TMP_DIR_PATH);
   if (code != TSDB_CODE_SUCCESS) {
     goto _error;
   }

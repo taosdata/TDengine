@@ -97,7 +97,7 @@
 ./test.sh -f tsim/stable/values.sim
 ./test.sh -f tsim/stable/vnode3.sim
 ./test.sh -f tsim/stable/column_add.sim
-#./test.sh -f tsim/stable/column_drop.sim
+./test.sh -f tsim/stable/column_drop.sim
 #./test.sh -f tsim/stable/column_modify.sim
 
 
