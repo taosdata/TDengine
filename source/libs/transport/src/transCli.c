@@ -892,6 +892,7 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
   taosThreadJoin(pThrd->thread, NULL);
   CLI_RELEASE_UV(pThrd->loop);
   taosThreadMutexDestroy(&pThrd->msgMtx);
+  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
   transDestroyAsyncPool(pThrd->asyncPool);
 
   transDQDestroy(pThrd->delayQueue);
