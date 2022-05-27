@@ -217,6 +217,22 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transSendAsync(SAsyncPool* pool, queue* mq);
 
+#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
+  do {                                                        \
+    for (int i = 0; i < pool->nAsync; i++) {                  \
+      uv_async_t* async = &(pool->asyncs[i]);                 \
+      SAsyncItem* item = async->data;                         \
+      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                  \
+        tTrace("destroy msg in async pool ");                 \
+        queue* h = QUEUE_HEAD(&item->qmsg);                   \
+        QUEUE_REMOVE(h);                                      \
+        msgType* msg = QUEUE_DATA(h, msgType, q);             \
+        if (msg != NULL) {                                    \
+          freeFunc(msg);                                      \
+        }                                                     \
+      }                                                       \
+    }                                                         \
+  } while (0)
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
