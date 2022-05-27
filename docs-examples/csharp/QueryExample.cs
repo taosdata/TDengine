@@ -158,5 +158,5 @@ namespace TDengineExample
 // Connect to TDengine success
 // fieldCount=6
 // ts      current voltage phase   location        groupid
-// 1648432611249   10.3    219     0.31    Beijing.Chaoyang        2
-// 1648432611749   12.6    218     0.33    Beijing.Chaoyang        2
+// 1648432611249   10.3    219     0.31    California.SanFrancisco        2
+// 1648432611749   12.6    218     0.33    California.SanFrancisco        2
