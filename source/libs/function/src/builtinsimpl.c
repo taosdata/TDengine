@@ -3530,7 +3530,12 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       double v;
       GET_TYPED_DATA(v, double, type, data);
       pSumRes->dsum += v;
-      colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+      //check for overflow
+      if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
+        colDataAppendNULL(pOutput, pos);
+      } else  {
+        colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+      }
     }
 
     //TODO: remove this after pTsOutput is handled
@@ -3604,7 +3609,12 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
 
       pInfo->points[pInfo->pos] = v;
       double result = pInfo->sum / pInfo->numOfPoints;
-      colDataAppend(pOutput, pos, (char *)&result, false);
+      //check for overflow
+      if (isinf(result) || isnan(result)) {
+        colDataAppendNULL(pOutput, pos);
+      } else  {
+        colDataAppend(pOutput, pos, (char *)&result, false);
+      }
 
       //TODO: remove this after pTsOutput is handled
       if (pTsOutput != NULL) {
