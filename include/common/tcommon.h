@@ -53,10 +53,9 @@ typedef enum EStreamType {
 } EStreamType;
 
 typedef struct {
-  uint32_t  numOfTables;
-  SArray*   pGroupList;
+  SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
-} STableGroupInfo;
+} STableListInfo;
 
 typedef struct SColumnDataAgg {
   int16_t colId;
