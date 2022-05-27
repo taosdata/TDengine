@@ -40,11 +40,17 @@ python3 ./test.py -f 2-query/max.py
 python3 ./test.py -f 2-query/min.py
 python3 ./test.py -f 2-query/count.py
 python3 ./test.py -f 2-query/last.py
-#python3 ./test.py -f 2-query/To_iso8601.py
+python3 ./test.py -f 2-query/first.py
+python3 ./test.py -f 2-query/To_iso8601.py
 python3 ./test.py -f 2-query/To_unixtimestamp.py
 python3 ./test.py -f 2-query/timetruncate.py
-# python3 ./test.py -f 2-query/diff.py
+python3 ./test.py -f 2-query/diff.py
 python3 ./test.py -f 2-query/Timediff.py
+
+#python3 ./test.py -f 2-query/cast.py
+python3 ./test.py -f 2-query/top.py
+python3 ./test.py -f 2-query/bottom.py
+
 
 python3 ./test.py -f 2-query/abs.py
 python3 ./test.py -f 2-query/ceil.py
