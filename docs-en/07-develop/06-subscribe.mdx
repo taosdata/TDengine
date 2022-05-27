@@ -108,7 +108,7 @@ if (async) {
 }
 ```
 
-In the above sample code in the else condition, there is an infinite loop. Each time carriage return is entered `taos_consume` is invoked. The return value of `taos_consume` is the selected result set. In the above sample, `print_result` is used to simplify the printing of the result set. Below is the implementation of `print_result`.
+In the above sample code in the else condition, there is an infinite loop. Each time carriage return is entered `taos_consume` is invoked. The return value of `taos_consume` is the selected result set. In the above sample, `print_result` is used to simplify the printing of the result set. It is similar to `taos_use_result`. Below is the implementation of `print_result`.
 
 ```c
 void print_result(TAOS_RES* res, int blockFetch) {
