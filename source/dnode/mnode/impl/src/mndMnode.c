@@ -313,25 +313,6 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
   memcpy(createEpset.eps[0].fqdn, pDnode->fqdn, TSDB_FQDN_LEN);
 
   {
-    int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &alterReq);
-    void   *pReq = taosMemoryMalloc(contLen);
-    tSerializeSDCreateMnodeReq(pReq, contLen, &alterReq);
-
-    STransAction action = {
-        .epSet = alterEpset,
-        .pCont = pReq,
-        .contLen = contLen,
-        .msgType = TDMT_DND_ALTER_MNODE,
-        .acceptableCode = 0,
-    };
-
-    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
-      taosMemoryFree(pReq);
-      return -1;
-    }
-  }
-
-  {
     int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &createReq);
     void   *pReq = taosMemoryMalloc(contLen);
     tSerializeSDCreateMnodeReq(pReq, contLen, &createReq);
@@ -342,6 +323,25 @@ static int32_t mndSetCreateMnodeRedoActions(SMnode *pMnode, STrans *pTrans, SDno
         .contLen = contLen,
         .msgType = TDMT_DND_CREATE_MNODE,
         .acceptableCode = TSDB_CODE_NODE_ALREADY_DEPLOYED,
+    };
+
+    if (mndTransAppendRedoAction(pTrans, &action) != 0) {
+      taosMemoryFree(pReq);
+      return -1;
+    }
+  }
+
+  {
+    int32_t contLen = tSerializeSDCreateMnodeReq(NULL, 0, &alterReq);
+    void   *pReq = taosMemoryMalloc(contLen);
+    tSerializeSDCreateMnodeReq(pReq, contLen, &alterReq);
+
+    STransAction action = {
+        .epSet = alterEpset,
+        .pCont = pReq,
+        .contLen = contLen,
+        .msgType = TDMT_DND_ALTER_MNODE,
+        .acceptableCode = 0,
     };
 
     if (mndTransAppendRedoAction(pTrans, &action) != 0) {
@@ -365,6 +365,7 @@ static int32_t mndCreateMnode(SMnode *pMnode, SRpcMsg *pReq, SDnodeObj *pDnode, 
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to create mnode:%d", pTrans->id, pCreate->dnodeId);
+  mndTransSetExecOneByOne(pTrans);
   if (mndSetCreateMnodeRedoLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeCommitLogs(pMnode, pTrans, &mnodeObj) != 0) goto _OVER;
   if (mndSetCreateMnodeRedoActions(pMnode, pTrans, pDnode, &mnodeObj) != 0) goto _OVER;
@@ -536,7 +537,7 @@ static int32_t mndDropMnode(SMnode *pMnode, SRpcMsg *pReq, SMnodeObj *pObj) {
   if (pTrans == NULL) goto _OVER;
 
   mDebug("trans:%d, used to drop mnode:%d", pTrans->id, pObj->id);
-
+  mndTransSetExecOneByOne(pTrans);
   if (mndSetDropMnodeRedoLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropMnodeCommitLogs(pMnode, pTrans, pObj) != 0) goto _OVER;
   if (mndSetDropMnodeRedoActions(pMnode, pTrans, pObj->pDnode, pObj) != 0) goto _OVER;
@@ -701,14 +702,17 @@ static int32_t mndProcessAlterMnodeReq(SRpcMsg *pReq) {
     }
   }
 
+  mTrace("trans:-1, sync reconfig will be proposed");
+
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   pMgmt->standby = 0;
   int32_t code = syncReconfig(pMgmt->sync, &cfg);
   if (code != 0) {
-    mError("failed to alter mnode sync since %s", terrstr());
+    mError("trans:-1, failed to propose sync reconfig since %s", terrstr());
     return code;
   } else {
     pMgmt->errCode = 0;
+    pMgmt->transId = -1;
     tsem_wait(&pMgmt->syncSem);
     mInfo("alter mnode sync result:%s", tstrerror(pMgmt->errCode));
     terrno = pMgmt->errCode;

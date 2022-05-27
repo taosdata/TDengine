@@ -16,6 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "sdb.h"
 
+int32_t sdbGetIdFromRaw(SSdbRaw *pRaw) {
+  int32_t id = *((int32_t *)(pRaw->pData));
+  return id;
+}
+
 SSdbRaw *sdbAllocRaw(ESdbType type, int8_t sver, int32_t dataLen) {
   SSdbRaw *pRaw = taosMemoryCalloc(1, dataLen + sizeof(SSdbRaw));
   if (pRaw == NULL) {

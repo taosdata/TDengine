@@ -55,7 +55,7 @@
 ./test.sh -f tsim/bnode/basic1.sim
 
 # ---- mnode
-#./test.sh -f tsim/mnode/basic1.sim
+./test.sh -f tsim/mnode/basic1.sim
 ./test.sh -f tsim/mnode/basic2.sim
 
 # ---- show
@@ -88,7 +88,6 @@
 ./test.sh -f tsim/tmq/topic.sim
 
 # --- stable
-./test.sh -f tsim/stable/alter1.sim
 ./test.sh -f tsim/stable/disk.sim
 ./test.sh -f tsim/stable/dnode3.sim
 ./test.sh -f tsim/stable/metrics.sim
@@ -98,8 +97,12 @@
 ./test.sh -f tsim/stable/vnode3.sim
 ./test.sh -f tsim/stable/column_add.sim
 ./test.sh -f tsim/stable/column_drop.sim
-#./test.sh -f tsim/stable/column_modify.sim
-
+./test.sh -f tsim/stable/column_modify.sim
+./test.sh -f tsim/stable/tag_add.sim
+./test.sh -f tsim/stable/tag_drop.sim
+./test.sh -f tsim/stable/tag_modify.sim
+./test.sh -f tsim/stable/tag_rename.sim
+./test.sh -f tsim/stable/alter_comment.sim
 
 # --- for multi process mode
 ./test.sh -f tsim/user/basic1.sim -m

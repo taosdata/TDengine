@@ -892,6 +892,7 @@ static void destroyThrdObj(SCliThrdObj* pThrd) {
   taosThreadJoin(pThrd->thread, NULL);
   CLI_RELEASE_UV(pThrd->loop);
   taosThreadMutexDestroy(&pThrd->msgMtx);
+  TRANS_DESTROY_ASYNC_POOL_MSG(pThrd->asyncPool, SCliMsg, destroyCmsg);
   transDestroyAsyncPool(pThrd->asyncPool);
 
   transDQDestroy(pThrd->delayQueue);
@@ -946,6 +947,9 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
   SEpSet*        pEpSet = &pCtx->epSet;
   transPrintEpSet(pEpSet);
 
+  if (pCtx->retryCount == 0) {
+    pCtx->origEpSet = pCtx->epSet;
+  }
   /*
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
@@ -998,7 +1002,7 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->pRsp = NULL;
   } else {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    if (pResp->code != 0) {
+    if (pResp->code != 0 || pCtx->retryCount == 0 || transEpSetIsEqual(&pCtx->epSet, &pCtx->origEpSet)) {
       pTransInst->cfp(pTransInst->parent, pResp, NULL);
     } else {
       pTransInst->cfp(pTransInst->parent, pResp, pEpSet);

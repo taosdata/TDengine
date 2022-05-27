@@ -621,8 +621,10 @@ static int32_t translateTail(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
     SValueNode* pValue = (SValueNode*)pParamNode;
 
-    if (pValue->datum.i < ((i > 1) ? 0 : 1) || pValue->datum.i > 1000) {
-      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    if (pValue->datum.i < ((i > 1) ? 0 : 1) || pValue->datum.i > 100) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                            "TAIL function second parameter should be in range [1, 100], "
+                            "third parameter should be in range [0, 100]");
     }
 
     pValue->notReserved = true;

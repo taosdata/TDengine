@@ -112,7 +112,8 @@ typedef struct SCvtAddr {
 } SCvtAddr;
 
 typedef struct {
-  SEpSet  epSet;     // ip list provided by app
+  SEpSet  epSet;  // ip list provided by app
+  SEpSet  origEpSet;
   void*   ahandle;   // handle provided by app
   tmsg_t  msgType;   // message type
   int8_t  connType;  // connection type cli/srv
@@ -217,6 +218,22 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transSendAsync(SAsyncPool* pool, queue* mq);
 
+#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
+  do {                                                        \
+    for (int i = 0; i < pool->nAsync; i++) {                  \
+      uv_async_t* async = &(pool->asyncs[i]);                 \
+      SAsyncItem* item = async->data;                         \
+      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                  \
+        tTrace("destroy msg in async pool ");                 \
+        queue* h = QUEUE_HEAD(&item->qmsg);                   \
+        QUEUE_REMOVE(h);                                      \
+        msgType* msg = QUEUE_DATA(h, msgType, q);             \
+        if (msg != NULL) {                                    \
+          freeFunc(msg);                                      \
+        }                                                     \
+      }                                                       \
+    }                                                         \
+  } while (0)
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
@@ -328,6 +345,7 @@ void transDQDestroy(SDelayQueue* queue);
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
 void transPrintEpSet(SEpSet* pEpSet);
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */

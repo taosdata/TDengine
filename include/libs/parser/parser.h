@@ -23,6 +23,9 @@ extern "C" {
 #include "query.h"
 #include "querynodes.h"
 
+struct SCatalogReq;
+struct SMetaData;
+
 typedef struct SStmtCallback {
   TAOS_STMT* pStmt;
   int32_t (*getTbNameFn)(TAOS_STMT*, char**);
@@ -45,10 +48,16 @@ typedef struct SParseContext {
   SStmtCallback*   pStmtCb;
   const char*      pUser;
   bool             isSuperUser;
+  bool             async;
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
 bool    qIsInsertSql(const char* pStr, size_t length);
+
+// for async mode
+int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
+int32_t qSemanticAnalysisSql(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
+                             const struct SMetaData* pMetaData, SQuery* pQuery);
 
 void qDestroyQuery(SQuery* pQueryNode);
 
