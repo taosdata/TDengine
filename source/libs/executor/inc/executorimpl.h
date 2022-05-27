@@ -334,6 +334,8 @@ typedef struct STableScanInfo {
   int32_t         dataBlockLoadFlag;
   double          sampleRatio;  // data block sample ratio, 1 by default
   SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here to get the time window to check if current data block needs to be loaded.
+
+  int32_t         curTWinIdx;
 } STableScanInfo;
 
 typedef struct STagScanInfo {
