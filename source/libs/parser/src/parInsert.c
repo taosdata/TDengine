@@ -1780,7 +1780,7 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
 
     // 1. set the parsed value from sql string
     for (int c = 0, j = 0; c < spd->numOfBound; ++c) {
-      SSchema* pColSchema = &pSchema[spd->boundColumns[c] - 1];
+      SSchema* pColSchema = &pSchema[spd->boundColumns[c]];
 
       param.schema = pColSchema;
       getSTSRowAppendInfo(pBuilder->rowType, spd, c, &param.toffset, &param.colIdx);
