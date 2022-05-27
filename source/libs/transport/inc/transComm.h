@@ -112,7 +112,8 @@ typedef struct SCvtAddr {
 } SCvtAddr;
 
 typedef struct {
-  SEpSet  epSet;     // ip list provided by app
+  SEpSet  epSet;  // ip list provided by app
+  SEpSet  origEpSet;
   void*   ahandle;   // handle provided by app
   tmsg_t  msgType;   // message type
   int8_t  connType;  // connection type cli/srv
@@ -344,6 +345,7 @@ void transDQDestroy(SDelayQueue* queue);
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
 void transPrintEpSet(SEpSet* pEpSet);
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */
