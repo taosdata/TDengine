@@ -34,22 +34,27 @@ bool qIsInsertSql(const char* pStr, size_t length) {
   } while (1);
 }
 
-static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
-  int32_t code = parse(pCxt, pQuery);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = authenticate(pCxt, *pQuery);
-  }
+static int32_t semanticAnalysis(SParseContext* pCxt, SQuery* pQuery) {
+  int32_t code = authenticate(pCxt, pQuery);
 
-  if (TSDB_CODE_SUCCESS == code && (*pQuery)->placeholderNum > 0) {
-    TSWAP((*pQuery)->pPrepareRoot, (*pQuery)->pRoot);
+  if (TSDB_CODE_SUCCESS == code && pQuery->placeholderNum > 0) {
+    TSWAP(pQuery->pPrepareRoot, pQuery->pRoot);
     return TSDB_CODE_SUCCESS;
   }
 
   if (TSDB_CODE_SUCCESS == code) {
-    code = translate(pCxt, *pQuery);
+    code = translate(pCxt, pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = calculateConstant(pCxt, *pQuery);
+    code = calculateConstant(pCxt, pQuery);
+  }
+  return code;
+}
+
+static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
+  int32_t code = parse(pCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = semanticAnalysis(pCxt, *pQuery);
   }
   return code;
 }
@@ -176,6 +181,29 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
   }
   terrno = code;
   return code;
+}
+
+int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+    // todo insert sql
+  } else {
+    code = parse(pCxt, pQuery);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildCatalogReq((*pQuery)->pMetaCache, pCatalogReq);
+  }
+  terrno = code;
+  return code;
+}
+
+int32_t qSemanticAnalysisSql(SParseContext* pCxt, const struct SCatalogReq* pCatalogReq,
+                             const struct SMetaData* pMetaData, SQuery* pQuery) {
+  int32_t code = putMetaDataToCache(pCatalogReq, pMetaData, pQuery->pMetaCache);
+  if (NULL == pQuery->pRoot) {
+    // todo insert sql
+  }
+  return semanticAnalysis(pCxt, pQuery);
 }
 
 void qDestroyQuery(SQuery* pQueryNode) { nodesDestroyNode(pQueryNode); }

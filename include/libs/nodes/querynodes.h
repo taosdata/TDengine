@@ -322,21 +322,22 @@ typedef enum EQueryExecMode {
 } EQueryExecMode;
 
 typedef struct SQuery {
-  ENodeType      type;
-  EQueryExecMode execMode;
-  bool           haveResultSet;
-  SNode*         pRoot;
-  int32_t        numOfResCols;
-  SSchema*       pResSchema;
-  int8_t         precision;
-  SCmdMsgInfo*   pCmdMsg;
-  int32_t        msgType;
-  SArray*        pDbList;
-  SArray*        pTableList;
-  bool           showRewrite;
-  int32_t        placeholderNum;
-  SArray*        pPlaceholderValues;
-  SNode*         pPrepareRoot;
+  ENodeType               type;
+  EQueryExecMode          execMode;
+  bool                    haveResultSet;
+  SNode*                  pRoot;
+  int32_t                 numOfResCols;
+  SSchema*                pResSchema;
+  int8_t                  precision;
+  SCmdMsgInfo*            pCmdMsg;
+  int32_t                 msgType;
+  SArray*                 pDbList;
+  SArray*                 pTableList;
+  bool                    showRewrite;
+  int32_t                 placeholderNum;
+  SArray*                 pPlaceholderValues;
+  SNode*                  pPrepareRoot;
+  struct SParseMetaCache* pMetaCache;
 } SQuery;
 
 void nodesWalkSelectStmt(SSelectStmt* pSelect, ESqlClause clause, FNodeWalker walker, void* pContext);
