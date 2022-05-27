@@ -38,9 +38,11 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
       tDecodeI32v(&dc, &nReqs);
       for (int32_t iReq = 0; iReq < nReqs; iReq++) {
         tb_uid_t uid = tGenIdPI64();
+        char    *name = NULL;
         tStartDecode(&dc);
 
         tDecodeI32v(&dc, NULL);
+        tDecodeCStr(&dc, &name);
         *(int64_t *)(dc.data + dc.pos) = uid;
         *(int64_t *)(dc.data + dc.pos + 8) = ctime;
 
@@ -64,12 +66,18 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
         if (pBlock == NULL) break;
 
         if (msgIter.schemaLen > 0) {
-          uid = tGenIdPI64();
+          char *name = NULL;
 
           tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
           tStartDecode(&dc);
 
           tDecodeI32v(&dc, NULL);
+          tDecodeCStr(&dc, &name);
+
+          uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
+          if (uid == 0) {
+            uid = tGenIdPI64();
+          }
           *(int64_t *)(dc.data + dc.pos) = uid;
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
           pBlock->uid = htobe64(uid);
@@ -201,10 +209,6 @@ int vnodeProcessFetchMsg(SVnode *pVnode, SRpcMsg *pMsg, SQueueInfo *pInfo) {
       return qWorkerProcessFetchMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_FETCH_RSP:
       return qWorkerProcessFetchRsp(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_RES_READY:
-      return qWorkerProcessReadyMsg(pVnode, pVnode->pQuery, pMsg);
-    case TDMT_VND_TASKS_STATUS:
-      return qWorkerProcessStatusMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_CANCEL_TASK:
       return qWorkerProcessCancelMsg(pVnode, pVnode->pQuery, pMsg);
     case TDMT_VND_DROP_TASK:

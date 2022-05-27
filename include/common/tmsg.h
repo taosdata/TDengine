@@ -479,12 +479,8 @@ int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
 int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(const void* buf, SEpSet* pEp);
 
-typedef struct {
-  SEpSet epSet;
-} SMEpSet;
-
-int32_t tSerializeSMEpSet(void* buf, int32_t bufLen, SMEpSet* pReq);
-int32_t tDeserializeSMEpSet(void* buf, int32_t buflen, SMEpSet* pReq);
+int32_t tSerializeSEpSet(void* buf, int32_t bufLen, const SEpSet* pEpset);
+int32_t tDeserializeSEpSet(void* buf, int32_t buflen, SEpSet* pEpset);
 
 typedef struct {
   int8_t  connType;
@@ -656,6 +652,9 @@ typedef struct {
 
 typedef struct {
   int32_t code;
+  char    tbFName[TSDB_TABLE_FNAME_LEN];
+  int32_t sversion;
+  int32_t tversion;
 } SQueryTableRsp;
 
 int32_t tSerializeSQueryTableRsp(void* buf, int32_t bufLen, SQueryTableRsp* pRsp);
@@ -1729,9 +1728,9 @@ int32_t tDecodeSVDropStbReq(SDecoder* pCoder, SVDropStbReq* pReq);
 #define TD_CREATE_IF_NOT_EXISTS 0x1
 typedef struct SVCreateTbReq {
   int32_t  flags;
+  char*    name;
   tb_uid_t uid;
   int64_t  ctime;
-  char*    name;
   int32_t  ttl;
   int8_t   type;
   union {

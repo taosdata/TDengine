@@ -61,11 +61,12 @@ class MockCatalogService {
   int32_t catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const;
   int32_t catalogGetTableHashVgroup(const SName* pTableName, SVgroupInfo* vgInfo) const;
   int32_t catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const;
+  int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const;
 
  private:
   std::unique_ptr<MockCatalogServiceImpl> impl_;
 };
 
-extern std::unique_ptr<MockCatalogService> mockCatalogService;
+extern std::unique_ptr<MockCatalogService> g_mockCatalogService;
 
 #endif  // MOCK_CATALOG_SERVICE_H

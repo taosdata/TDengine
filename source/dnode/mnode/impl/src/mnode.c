@@ -408,46 +408,74 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   return code;
 }
 
-int32_t mndProcessMsg(SRpcMsg *pMsg) {
-  SMnode *pMnode = pMsg->info.node;
-  void   *ahandle = pMsg->info.ahandle;
-  mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
+static int32_t mndCheckMnodeMaster(SRpcMsg *pMsg) {
+  if (!IsReq(pMsg)) return 0;
+  if (mndIsMaster(pMsg->info.node)) return 0;
 
-  if (IsReq(pMsg)) {
-    if (!mndIsMaster(pMnode)) {
-      terrno = TSDB_CODE_APP_NOT_READY;
-      mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-      return -1;
-    }
+  if (pMsg->msgType == TDMT_MND_MQ_TIMER || pMsg->msgType == TDMT_MND_TELEM_TIMER ||
+      pMsg->msgType == TDMT_MND_TRANS_TIMER) {
+    return -1;
+  }
+  mError("msg:%p, failed to check master since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+         TMSG_INFO(pMsg->msgType));
 
-    if (pMsg->contLen == 0 || pMsg->pCont == NULL) {
-      terrno = TSDB_CODE_INVALID_MSG_LEN;
-      mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-      return -1;
+  SEpSet epSet = {0};
+  mndGetMnodeEpSet(pMsg->info.node, &epSet);
+
+#if 0
+  mTrace("msg:%p, is redirected, num:%d use:%d", pMsg, epSet.numOfEps, epSet.inUse);
+  for (int32_t i = 0; i < epSet.numOfEps; ++i) {
+    mTrace("mnode index:%d %s:%u", i, epSet.eps[i].fqdn, epSet.eps[i].port);
+    if (strcmp(epSet.eps[i].fqdn, tsLocalFqdn) == 0 && epSet.eps[i].port == tsServerPort) {
+      epSet.inUse = (i + 1) % epSet.numOfEps;
     }
   }
+#endif  
 
+  int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+  pMsg->info.rsp = rpcMallocCont(contLen);
+  if (pMsg->info.rsp != NULL) {
+    tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+    pMsg->info.rspLen = contLen;
+    terrno = TSDB_CODE_RPC_REDIRECT;
+  } else {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+  }
+
+  return -1;
+}
+
+static int32_t mndCheckRequestValid(SRpcMsg *pMsg) {
+  if (!IsReq(pMsg)) return 0;
+  if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
+
+  mError("msg:%p, failed to valid request, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+  terrno = TSDB_CODE_INVALID_MSG_LEN;
+  return -1;
+}
+
+int32_t mndProcessMsg(SRpcMsg *pMsg) {
+  if (mndCheckMnodeMaster(pMsg) != 0) return -1;
+  if (mndCheckRequestValid(pMsg) != 0) return -1;
+
+  SMnode  *pMnode = pMsg->info.node;
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   if (fp == NULL) {
+    mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("msg:%p, failed to process since no msg handle, app:%p", pMsg, ahandle);
     return -1;
   }
 
+  mTrace("msg:%p, will be processed in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   int32_t code = (*fp)(pMsg);
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    terrno = code;
-    mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
-  } else if (code != 0) {
-    if (terrno != TSDB_CODE_OPS_NOT_SUPPORT) {
-      mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    } else {
-      mTrace("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    }
+    mTrace("msg:%p, won't response immediately since in progress", pMsg);
+  } else if (code == 0) {
+    mTrace("msg:%p, successfully processed and response", pMsg);
   } else {
-    mTrace("msg:%p, is processed, app:%p", pMsg, ahandle);
+    mError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+           TMSG_INFO(pMsg->msgType));
   }
-
   return code;
 }
 

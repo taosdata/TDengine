@@ -264,7 +264,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
       qTaskInfo_t task = pExec->task[workerId];
       ASSERT(task);
-      qSetStreamInput(task, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+      qSetStreamInput(task, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
       while (1) {
         SSDataBlock* pDataBlock = NULL;
         uint64_t     ts = 0;
@@ -510,7 +510,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
         qTaskInfo_t task = pExec->task[workerId];
         ASSERT(task);
-        qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+        qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
         while (1) {
           SSDataBlock* pDataBlock = NULL;
           uint64_t     ts = 0;

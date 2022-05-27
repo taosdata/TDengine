@@ -24,7 +24,7 @@ taosAdapter provides the following features.
 
 ## taosAdapter architecture diagram
 
-![taosAdapter Architecture](taosAdapter-architecture.webp)
+![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
 ## taosAdapter Deployment Method
 
