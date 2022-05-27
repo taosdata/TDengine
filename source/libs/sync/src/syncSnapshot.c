@@ -15,6 +15,14 @@
 
 #include "syncSnapshot.h"
 
-int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) { return 0; }
+int32_t snapshotSenderStart(SSyncSnapshotSender *pSender) { return 0; }
 
-int32_t restoreSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) { return 0; }
+int32_t snapshotSenderStop(SSyncSnapshotSender *pSender) { return 0; }
+
+int32_t snapshotSend(SSyncSnapshotSender *pSender) { return 0; }
+
+int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver) { return 0; }
+
+int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver) { return 0; }
+
+int32_t snapshotReceive(SSyncSnapshotReceiver *pReceiver) { return 0; }

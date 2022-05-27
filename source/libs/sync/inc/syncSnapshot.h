@@ -26,8 +26,29 @@ extern "C" {
 #include "syncInt.h"
 #include "taosdef.h"
 
-int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
-int32_t restoreSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
+typedef struct SSyncSnapshotSender {
+  bool       isStart;
+  int32_t    progressIndex;
+  void *     pCurrentBlock;
+  int32_t    len;
+  SSnapshot *pSnapshot;
+} SSyncSnapshotSender;
+
+int32_t snapshotSenderStart(SSyncSnapshotSender *pSender);
+int32_t snapshotSenderStop(SSyncSnapshotSender *pSender);
+int32_t snapshotSend(SSyncSnapshotSender *pSender);
+
+typedef struct SSyncSnapshotReceiver {
+  bool       isStart;
+  int32_t    progressIndex;
+  void *     pCurrentBlock;
+  int32_t    len;
+  SSnapshot *pSnapshot;
+} SSyncSnapshotReceiver;
+
+int32_t snapshotReceiverStart(SSyncSnapshotReceiver *pReceiver);
+int32_t snapshotReceiverStop(SSyncSnapshotReceiver *pReceiver);
+int32_t snapshotReceive(SSyncSnapshotReceiver *pReceiver);
 
 #ifdef __cplusplus
 }
