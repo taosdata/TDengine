@@ -37,9 +37,9 @@ class TDTestCase:
 
         # first verifacation        
         # bug TD-15957 
-        # tdSql.query("select first(*) from test1")
-        # tdSql.checkRows(1)
-        # tdSql.checkData(0, 1, None)
+        tdSql.query("select first(*) from test1")
+        tdSql.checkRows(1)
+        tdSql.checkData(0, 1, None)
 
         tdSql.query("select first(col1) from test1")
         tdSql.checkRows(0)        
