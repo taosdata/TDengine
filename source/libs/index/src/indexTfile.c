@@ -54,9 +54,9 @@ static SArray* tfileGetFileList(const char* path);
 static int     tfileRmExpireFile(SArray* result);
 static void    tfileDestroyFileName(void* elem);
 static int     tfileCompare(const void* a, const void* b);
-static int     tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version);
-static void    tfileGenFileName(char* filename, uint64_t suid, const char* col, int version);
-static void    tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int32_t version);
+static int     tfileParseFileName(const char* filename, uint64_t* suid, char* col, int64_t* version);
+static void    tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version);
+static void    tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int64_t version);
 /*
  * search from  tfile
  */
@@ -151,13 +151,10 @@ TFileReader* tfileCacheGet(TFileCache* tcache, ICacheKey* key) {
   char    buf[128] = {0};
   int32_t sz = indexSerialCacheKey(key, buf);
   assert(sz < sizeof(buf));
-  indexInfo("Try to get key: %s", buf);
   TFileReader** reader = taosHashGet(tcache->tableCache, buf, sz);
   if (reader == NULL || *reader == NULL) {
-    indexInfo("failed to  get key: %s", buf);
     return NULL;
   }
-  indexInfo("Get key: %s file: %s", buf, (*reader)->ctx->file.buf);
   tfileReaderRef(*reader);
 
   return *reader;
@@ -168,11 +165,11 @@ void tfileCachePut(TFileCache* tcache, ICacheKey* key, TFileReader* reader) {
   // remove last version index reader
   TFileReader** p = taosHashGet(tcache->tableCache, buf, sz);
   if (p != NULL && *p != NULL) {
-    TFileReader* oldReader = *p;
+    TFileReader* oldRdr = *p;
     taosHashRemove(tcache->tableCache, buf, sz);
-    indexInfo("found %s, remove file %s", buf, oldReader->ctx->file.buf);
-    oldReader->remove = true;
-    tfileReaderUnRef(oldReader);
+    indexInfo("found %s, should remove file %s", buf, oldRdr->ctx->file.buf);
+    oldRdr->remove = true;
+    tfileReaderUnRef(oldRdr);
   }
   taosHashPut(tcache->tableCache, buf, sz, &reader, sizeof(void*));
   tfileReaderRef(reader);
@@ -215,6 +212,12 @@ void tfileReaderDestroy(TFileReader* reader) {
   // T_REF_INC(reader);
   fstDestroy(reader->fst);
   writerCtxDestroy(reader->ctx, reader->remove);
+  if (reader->remove) {
+    indexInfo("%s is removed", reader->ctx->file.buf);
+  } else {
+    indexInfo("%s is not removed", reader->ctx->file.buf);
+  }
+
   taosMemoryFree(reader);
 }
 static int32_t tfSearchTerm(void* reader, SIndexTerm* tem, SIdxTempResult* tr) {
@@ -512,7 +515,7 @@ int tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResul
   return ret;
 }
 
-TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const char* colName, uint8_t colType) {
+TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int64_t version, const char* colName, uint8_t colType) {
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
   // indexInfo("open write file name %s", fullname);
@@ -529,7 +532,7 @@ TFileWriter* tfileWriterOpen(char* path, uint64_t suid, int32_t version, const c
 
   return tfileWriterCreate(wcx, &tfh);
 }
-TFileReader* tfileReaderOpen(char* path, uint64_t suid, int32_t version, const char* colName) {
+TFileReader* tfileReaderOpen(char* path, uint64_t suid, int64_t version, const char* colName) {
   char fullname[256] = {0};
   tfileGenFileFullName(fullname, path, suid, colName, version);
 
@@ -657,7 +660,7 @@ IndexTFile* indexTFileCreate(const char* path) {
     tfileCacheDestroy(cache);
     return NULL;
   }
-
+  taosThreadMutexInit(&tfile->mtx, NULL);
   tfile->cache = cache;
   return tfile;
 }
@@ -665,6 +668,7 @@ void indexTFileDestroy(IndexTFile* tfile) {
   if (tfile == NULL) {
     return;
   }
+  taosThreadMutexDestroy(&tfile->mtx);
   tfileCacheDestroy(tfile->cache);
   taosMemoryFree(tfile);
 }
@@ -680,7 +684,10 @@ int indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* result
 
   SIndexTerm* term = query->term;
   ICacheKey key = {.suid = term->suid, .colType = term->colType, .colName = term->colName, .nColName = term->nColName};
+
+  taosThreadMutexLock(&pTfile->mtx);
   TFileReader* reader = tfileCacheGet(pTfile->cache, &key);
+  taosThreadMutexUnlock(&pTfile->mtx);
   if (reader == NULL) {
     return 0;
   }
@@ -780,8 +787,13 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName) {
   if (tf == NULL) {
     return NULL;
   }
-  ICacheKey key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
-  return tfileCacheGet(tf->cache, &key);
+  TFileReader* rd = NULL;
+  ICacheKey    key = {.suid = suid, .colType = TSDB_DATA_TYPE_BINARY, .colName = colName, .nColName = strlen(colName)};
+
+  taosThreadMutexLock(&tf->mtx);
+  rd = tfileCacheGet(tf->cache, &key);
+  taosThreadMutexUnlock(&tf->mtx);
+  return rd;
 }
 
 static int tfileUidCompare(const void* a, const void* b) {
@@ -1013,7 +1025,7 @@ void tfileReaderUnRef(TFileReader* reader) {
 static SArray* tfileGetFileList(const char* path) {
   char     buf[128] = {0};
   uint64_t suid;
-  uint32_t version;
+  int64_t  version;
   SArray*  files = taosArrayInit(4, sizeof(void*));
 
   TdDirPtr pDir = taosOpenDir(path);
@@ -1053,19 +1065,19 @@ static int tfileCompare(const void* a, const void* b) {
   return strcmp(as, bs);
 }
 
-static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, int* version) {
-  if (3 == sscanf(filename, "%" PRIu64 "-%[^-]-%d.tindex", suid, col, version)) {
+static int tfileParseFileName(const char* filename, uint64_t* suid, char* col, int64_t* version) {
+  if (3 == sscanf(filename, "%" PRIu64 "-%[^-]-%" PRId64 ".tindex", suid, col, version)) {
     // read suid & colid & version  success
     return 0;
   }
   return -1;
 }
 // tfile name suid-colId-version.tindex
-static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int version) {
-  sprintf(filename, "%" PRIu64 "-%s-%d.tindex", suid, col, version);
+static void tfileGenFileName(char* filename, uint64_t suid, const char* col, int64_t version) {
+  sprintf(filename, "%" PRIu64 "-%s-%" PRId64 ".tindex", suid, col, version);
   return;
 }
-static void tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int32_t version) {
+static void tfileGenFileFullName(char* fullname, const char* path, uint64_t suid, const char* col, int64_t version) {
   char filename[128] = {0};
   tfileGenFileName(filename, suid, col, version);
   sprintf(fullname, "%s/%s", path, filename);
