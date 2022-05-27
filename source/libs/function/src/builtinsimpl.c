@@ -834,10 +834,12 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (IS_INTEGER_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
   } else {
-    if (isinf(pAvgRes->sum.dsum) || isnan(pAvgRes->sum.dsum)) {
-      GET_RES_INFO(pCtx)->isNullRes = 1;
-    }
     pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
+  }
+
+  //check for overflow
+  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
   }
 
   return functionFinalize(pCtx, pBlock);
