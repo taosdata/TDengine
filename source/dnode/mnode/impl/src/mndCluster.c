@@ -144,6 +144,7 @@ _OVER:
 
 static int32_t mndClusterActionInsert(SSdb *pSdb, SClusterObj *pCluster) {
   mTrace("cluster:%" PRId64 ", perform insert action, row:%p", pCluster->id, pCluster);
+  pSdb->pMnode->clusterId = pCluster->id;
   return 0;
 }
 

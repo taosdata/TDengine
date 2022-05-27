@@ -43,8 +43,9 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 
   if (cbMeta.index > beginIndex) {
     char logBuf[256];
-    snprintf(logBuf, sizeof(logBuf), "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
-             pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+    snprintf(logBuf, sizeof(logBuf),
+             "==callback== ==CommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s flag:%lu\n", pFsm,
+             cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), cbMeta.flag);
     syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
   } else {
     sTrace("==callback== ==CommitCb== do not apply again %ld", cbMeta.index);
@@ -54,15 +55,16 @@ void CommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
 void PreCommitCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
   snprintf(logBuf, sizeof(logBuf),
-           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n", pFsm, cbMeta.index,
-           cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+           "==callback== ==PreCommitCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s flag:%lu\n", pFsm,
+           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), cbMeta.flag);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
 void RollBackCb(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta) {
   char logBuf[256];
-  snprintf(logBuf, sizeof(logBuf), "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s \n",
-           pFsm, cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state));
+  snprintf(logBuf, sizeof(logBuf),
+           "==callback== ==RollBackCb== pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s flag:%lu\n", pFsm,
+           cbMeta.index, cbMeta.isWeak, cbMeta.code, cbMeta.state, syncUtilState2String(cbMeta.state), cbMeta.flag);
   syncRpcMsgLog2(logBuf, (SRpcMsg*)pMsg);
 }
 
@@ -75,13 +77,23 @@ int32_t GetSnapshotCb(struct SSyncFSM* pFsm, SSnapshot* pSnapshot) {
 
 void RestoreFinishCb(struct SSyncFSM* pFsm) { sTrace("==callback== ==RestoreFinishCb=="); }
 
+void ReConfigCb(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
+  sTrace("==callback== ==ReConfigCb== flag:0x%lX, isDrop:%d, index:%ld, code:%d, currentTerm:%lu, term:%lu", cbMeta.flag, cbMeta.isDrop, cbMeta.index, cbMeta.code, cbMeta.currentTerm, cbMeta.term);
+}
+
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
+
   pFsm->FpGetSnapshot = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
+  pFsm->FpSnapshotApply = NULL;
+  pFsm->FpSnapshotRead = NULL;
+
+  pFsm->FpReConfigCb = ReConfigCb;
+
   return pFsm;
 }
 
@@ -109,6 +121,7 @@ int64_t createSyncNode(int32_t replicaNum, int32_t myIndex, int32_t vgId, SWal* 
   syncInfo.pFsm = createFsm();
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s_sync_replica%d_index%d", path, replicaNum, myIndex);
   syncInfo.pWal = pWal;
+  syncInfo.isStandBy = isStandBy;
 
   SSyncCfg* pCfg = &syncInfo.syncCfg;
 
@@ -180,7 +193,7 @@ SRpcMsg* createRpcMsg(int i, int count, int myIndex) {
 
 int main(int argc, char** argv) {
   tsAsyncLog = 0;
-  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE;
+  sDebugFlag = DEBUG_TRACE + DEBUG_SCREEN + DEBUG_FILE + DEBUG_INFO;
   if (argc != 7) {
     usage(argv[0]);
     exit(-1);
@@ -212,17 +225,21 @@ int main(int argc, char** argv) {
   int64_t rid = createSyncNode(replicaNum, myIndex, gVgId, pWal, (char*)gDir, isStandBy);
   assert(rid > 0);
 
-  if (isStandBy) {
-    syncStartStandBy(rid);
-  } else {
-    syncStart(rid);
-  }
+  syncStart(rid);
+
+  /*
+    if (isStandBy) {
+      syncStartStandBy(rid);
+    } else {
+      syncStart(rid);
+    }
+  */
 
   SSyncNode* pSyncNode = (SSyncNode*)syncNodeAcquire(rid);
   assert(pSyncNode != NULL);
 
   if (isConfigChange) {
-    configChange(rid, 3, myIndex);
+    configChange(rid, 2, myIndex);
   }
 
   //---------------------------

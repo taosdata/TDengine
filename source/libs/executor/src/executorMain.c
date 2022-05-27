@@ -126,8 +126,7 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
   if (ret != TSDB_CODE_SUCCESS) {
     pTaskInfo->code = ret;
     cleanUpUdfs();
-    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo),
-           tstrerror(pTaskInfo->code));
+    qDebug("%s task abort due to error/cancel occurs, code:%s", GET_TASKID(pTaskInfo), tstrerror(pTaskInfo->code));
     return pTaskInfo->code;
   }
 
@@ -142,12 +141,13 @@ int32_t qExecTask(qTaskInfo_t tinfo, SSDataBlock** pRes, uint64_t *useconds) {
     *useconds = pTaskInfo->cost.elapsedTime;
   }
 
-  int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
-  pTaskInfo->totalRows += current;
-
   cleanUpUdfs();
+
+  int32_t current = (*pRes != NULL)? (*pRes)->info.rows:0;
+  uint64_t total = pTaskInfo->pRoot->resultInfo.totalRows;
+
   qDebug("%s task suspended, %d rows returned, total:%" PRId64 " rows, in sinkNode:%d, elapsed:%.2f ms",
-         GET_TASKID(pTaskInfo), current, pTaskInfo->totalRows, 0, el/1000.0);
+         GET_TASKID(pTaskInfo), current, total, 0, el/1000.0);
 
   atomic_store_64(&pTaskInfo->owner, 0);
   return pTaskInfo->code;
@@ -197,7 +197,7 @@ int32_t qIsTaskCompleted(qTaskInfo_t qinfo) {
 
 void qDestroyTask(qTaskInfo_t qTaskHandle) {
   SExecTaskInfo* pTaskInfo = (SExecTaskInfo*) qTaskHandle;
-  qDebug("%s execTask completed, numOfRows:%"PRId64, GET_TASKID(pTaskInfo), pTaskInfo->totalRows);
+  qDebug("%s execTask completed, numOfRows:%"PRId64, GET_TASKID(pTaskInfo), pTaskInfo->pRoot->resultInfo.totalRows);
 
   queryCostStatis(pTaskInfo);   // print the query cost summary
   doDestroyTask(pTaskInfo);
