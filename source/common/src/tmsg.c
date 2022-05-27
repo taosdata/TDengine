@@ -4069,7 +4069,7 @@ int32_t tDecodeSVDropStbReq(SDecoder *pCoder, SVDropStbReq *pReq) {
   return 0;
 }
 
-static int32_t tEncodeSVSubmitBlk(SEncoder *pCoder, const SVSubmitBlk *pBlock, int32_t flags) {
+int32_t tEncodeSVSubmitBlk(SEncoder *pCoder, const SVSubmitBlk *pBlock, int32_t flags) {
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI64(pCoder, pBlock->suid) < 0) return -1;
@@ -4085,7 +4085,7 @@ static int32_t tEncodeSVSubmitBlk(SEncoder *pCoder, const SVSubmitBlk *pBlock, i
   return 0;
 }
 
-static int32_t tDecodeSVSubmitBlk(SDecoder *pCoder, SVSubmitBlk *pBlock, int32_t flags) {
+int32_t tDecodeSVSubmitBlk(SDecoder *pCoder, SVSubmitBlk *pBlock, int32_t flags) {
   if (tStartDecode(pCoder) < 0) return -1;
 
   if (tDecodeI64(pCoder, &pBlock->suid) < 0) return -1;
@@ -4102,15 +4102,10 @@ static int32_t tDecodeSVSubmitBlk(SDecoder *pCoder, SVSubmitBlk *pBlock, int32_t
 }
 
 int32_t tEncodeSVSubmitReq(SEncoder *pCoder, const SVSubmitReq *pReq) {
-  int32_t nBlocks = taosArrayGetSize(pReq->pArray);
-
   if (tStartEncode(pCoder) < 0) return -1;
 
   if (tEncodeI32v(pCoder, pReq->flags) < 0) return -1;
-  if (tEncodeI32v(pCoder, nBlocks) < 0) return -1;
-  for (int32_t iBlock = 0; iBlock < nBlocks; iBlock++) {
-    if (tEncodeSVSubmitBlk(pCoder, (SVSubmitBlk *)taosArrayGet(pReq->pArray, iBlock), pReq->flags) < 0) return -1;
-  }
+  if (tEncodeI32v(pCoder, pReq->nBlocks) < 0) return -1;
 
   tEndEncode(pCoder);
   return 0;
@@ -4121,11 +4116,6 @@ int32_t tDecodeSVSubmitReq(SDecoder *pCoder, SVSubmitReq *pReq) {
 
   if (tDecodeI32v(pCoder, &pReq->flags) < 0) return -1;
   if (tDecodeI32v(pCoder, &pReq->nBlocks) < 0) return -1;
-  pReq->pBlocks = tDecoderMalloc(pCoder, sizeof(SVSubmitBlk) * pReq->nBlocks);
-  if (pReq->pBlocks == NULL) return -1;
-  for (int32_t iBlock = 0; iBlock < pReq->nBlocks; iBlock++) {
-    if (tDecodeSVSubmitBlk(pCoder, pReq->pBlocks + iBlock, pReq->flags) < 0) return -1;
-  }
 
   tEndDecode(pCoder);
   return 0;
