@@ -317,28 +317,28 @@ static int64_t getEarliestValidTimestamp(STsdb* pTsdb) {
   return now - (tsTickPerMin[pCfg->precision] * pCfg->keep2) + 1;  // needs to add one tick
 }
 
-static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableDataCond* pCond) {
-  pTsdbReadHandle->window = pCond->twindow;
+static void setQueryTimewindow(STsdbReadHandle* pTsdbReadHandle, SQueryTableDataCond* pCond, int32_t tWinIdx) {
+  pTsdbReadHandle->window = pCond->twindows[tWinIdx];
 
   bool    updateTs = false;
   int64_t startTs = getEarliestValidTimestamp(pTsdbReadHandle->pTsdb);
   if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
     if (startTs > pTsdbReadHandle->window.skey) {
       pTsdbReadHandle->window.skey = startTs;
-      pCond->twindow.skey = startTs;
+      pCond->twindows[tWinIdx].skey = startTs;
       updateTs = true;
     }
   } else {
     if (startTs > pTsdbReadHandle->window.ekey) {
       pTsdbReadHandle->window.ekey = startTs;
-      pCond->twindow.ekey = startTs;
+      pCond->twindows[tWinIdx].ekey = startTs;
       updateTs = true;
     }
   }
 
   if (updateTs) {
     tsdbDebug("%p update the query time window, old:%" PRId64 " - %" PRId64 ", new:%" PRId64 " - %" PRId64 ", %s",
-              pTsdbReadHandle, pCond->twindow.skey, pCond->twindow.ekey, pTsdbReadHandle->window.skey,
+              pTsdbReadHandle, pCond->twindows[tWinIdx].skey, pCond->twindows[tWinIdx].ekey, pTsdbReadHandle->window.skey,
               pTsdbReadHandle->window.ekey, pTsdbReadHandle->idStr);
   }
 }
@@ -382,7 +382,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
     goto _end;
   }
 
-  STsdb* pTsdb = getTsdbByRetentions(pVnode, pReadHandle, pCond->twindow.skey, pVnode->config.tsdbCfg.retentions);
+  STsdb* pTsdb = getTsdbByRetentions(pVnode, pReadHandle, pCond->twindows[0].skey, pVnode->config.tsdbCfg.retentions);
 
   pReadHandle->order = pCond->order;
   pReadHandle->pTsdb = pTsdb;
@@ -408,7 +408,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
   }
 
   assert(pCond != NULL);
-  setQueryTimewindow(pReadHandle, pCond);
+  setQueryTimewindow(pReadHandle, pCond, 0);
 
   if (pCond->numOfCols > 0) {
     int32_t rowLen = 0;
@@ -520,7 +520,7 @@ tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableL
   return (tsdbReaderT)pTsdbReadHandle;
 }
 
-void tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond) {
+void tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, int32_t tWinIdx) {
   STsdbReadHandle* pTsdbReadHandle = queryHandle;
 
   if (emptyQueryTimewindow(pTsdbReadHandle)) {
@@ -533,7 +533,7 @@ void tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond) {
   }
 
   pTsdbReadHandle->order = pCond->order;
-  pTsdbReadHandle->window = pCond->twindow;
+  setQueryTimewindow(pTsdbReadHandle, pCond, tWinIdx);
   pTsdbReadHandle->type = TSDB_QUERY_TYPE_ALL;
   pTsdbReadHandle->cur.fid = -1;
   pTsdbReadHandle->cur.win = TSWINDOW_INITIALIZER;
@@ -558,11 +558,11 @@ void tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond) {
   resetCheckInfo(pTsdbReadHandle);
 }
 
-void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, STableListInfo* tableList) {
+void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, STableListInfo* tableList, int32_t tWinIdx) {
   STsdbReadHandle* pTsdbReadHandle = queryHandle;
 
   pTsdbReadHandle->order = pCond->order;
-  pTsdbReadHandle->window = pCond->twindow;
+  pTsdbReadHandle->window = pCond->twindows[tWinIdx];
   pTsdbReadHandle->type = TSDB_QUERY_TYPE_ALL;
   pTsdbReadHandle->cur.fid = -1;
   pTsdbReadHandle->cur.win = TSWINDOW_INITIALIZER;
@@ -602,7 +602,7 @@ void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCon
 
 tsdbReaderT tsdbQueryLastRow(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* pList, uint64_t qId,
                              uint64_t taskId) {
-  pCond->twindow = updateLastrowForEachGroup(pList);
+  pCond->twindows[0] = updateLastrowForEachGroup(pList);
 
   // no qualified table
   if (taosArrayGetSize(pList->pTableList) == 0) {
@@ -620,7 +620,7 @@ tsdbReaderT tsdbQueryLastRow(SVnode* pVnode, SQueryTableDataCond* pCond, STableL
     return NULL;
   }
 
-  assert(pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey <= pCond->twindow.ekey);
+  assert(pCond->order == TSDB_ORDER_ASC && pCond->twindows[0].skey <= pCond->twindows[0].ekey);
   if (pTsdbReadHandle->cachelastrow) {
     pTsdbReadHandle->type = TSDB_QUERY_TYPE_LAST;
   }

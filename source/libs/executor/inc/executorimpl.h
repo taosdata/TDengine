@@ -802,6 +802,8 @@ SResultWindowInfo* getSessionTimeWindow(SArray* pWinInfos, TSKEY ts, int64_t gap
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pTs, int32_t rows,
     int32_t start, int64_t gap, SHashObj* pStDeleted);
 bool functionNeedToExecute(SqlFunctionCtx* pCtx);
+
+int32_t compareTimeWindow(const void* p1, const void* p2, const void* param);
 #ifdef __cplusplus
 }
 #endif
