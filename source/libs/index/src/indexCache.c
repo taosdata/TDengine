@@ -80,7 +80,7 @@ static int32_t cacheSearchTerm(void* cache, SIndexTerm* term, SIdxTempResult* tr
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   pCt->colVal = term->colVal;
-  pCt->version = atomic_load_32(&pCache->version);
+  pCt->version = atomic_load_64(&pCache->version);
 
   char* key = indexCacheTermGet(pCt);
 
@@ -133,7 +133,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTempRes
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   pCt->colVal = term->colVal;
-  pCt->version = atomic_load_32(&pCache->version);
+  pCt->version = atomic_load_64(&pCache->version);
 
   char* key = indexCacheTermGet(pCt);
 
@@ -185,7 +185,7 @@ static int32_t cacheSearchTerm_JSON(void* cache, SIndexTerm* term, SIdxTempResul
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   pCt->colVal = term->colVal;
-  pCt->version = atomic_load_32(&pCache->version);
+  pCt->version = atomic_load_64(&pCache->version);
 
   char* exBuf = NULL;
   if (INDEX_TYPE_CONTAIN_EXTERN_TYPE(term->colType, TSDB_DATA_TYPE_JSON)) {
@@ -259,7 +259,7 @@ static int32_t cacheSearchCompareFunc_JSON(void* cache, SIndexTerm* term, SIdxTe
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   pCt->colVal = term->colVal;
-  pCt->version = atomic_load_32(&pCache->version);
+  pCt->version = atomic_load_64(&pCache->version);
 
   int8_t dType = INDEX_TYPE_GET_TYPE(term->colType);
   int    skip = 0;
@@ -356,7 +356,7 @@ void indexCacheDebug(IndexCache* cache) {
       CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
       if (ct != NULL) {
         // TODO, add more debug info
-        indexInfo("{colVal: %s, version: %d} \t", ct->colVal, ct->version);
+        indexInfo("{colVal: %s, version: %" PRId64 "} \t", ct->colVal, ct->version);
       }
     }
     tSkipListDestroyIter(iter);
@@ -377,7 +377,7 @@ void indexCacheDebug(IndexCache* cache) {
         CacheTerm*     ct = (CacheTerm*)SL_GET_NODE_DATA(node);
         if (ct != NULL) {
           // TODO, add more debug info
-          indexInfo("{colVal: %s, version: %d} \t", ct->colVal, ct->version);
+          indexInfo("{colVal: %s, version: %" PRId64 "} \t", ct->colVal, ct->version);
         }
       }
       tSkipListDestroyIter(iter);
@@ -529,7 +529,7 @@ int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid) {
     ct->colVal = (char*)taosMemoryCalloc(1, sizeof(char) * (term->nColVal + 1));
     memcpy(ct->colVal, term->colVal, term->nColVal);
   }
-  ct->version = atomic_add_fetch_32(&pCache->version, 1);
+  ct->version = atomic_add_fetch_64(&pCache->version, 1);
   // set value
   ct->uid = uid;
   ct->operaType = term->operType;
@@ -663,7 +663,11 @@ static int32_t indexCacheTermCompare(const void* l, const void* r) {
   // compare colVal
   int32_t cmp = strcmp(lt->colVal, rt->colVal);
   if (cmp == 0) {
-    return rt->version - lt->version;
+    if (rt->version == lt->version) {
+      cmp = 0;
+    } else {
+      cmp = rt->version < lt->version ? -1 : 1;
+    }
   }
   return cmp;
 }

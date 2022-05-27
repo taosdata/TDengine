@@ -39,7 +39,7 @@
 #define LOG_BUF_MUTEX(x)  ((x)->buffMutex)
 
 typedef struct {
-  char         *buffer;
+  char *        buffer;
   int32_t       buffStart;
   int32_t       buffEnd;
   int32_t       buffSize;
@@ -58,7 +58,7 @@ typedef struct {
   int32_t       openInProgress;
   pid_t         pid;
   char          logName[LOG_FILE_NAME_LEN];
-  SLogBuff     *logHandle;
+  SLogBuff *    logHandle;
   TdThreadMutex logMutex;
 } SLogObj;
 
@@ -96,6 +96,7 @@ int32_t fsDebugFlag = 135;
 int32_t metaDebugFlag = 135;
 int32_t fnDebugFlag = 135;
 int32_t smaDebugFlag = 135;
+int32_t idxDebugFlag = 135;
 
 int64_t dbgEmptyW = 0;
 int64_t dbgWN = 0;
@@ -103,7 +104,7 @@ int64_t dbgSmallWN = 0;
 int64_t dbgBigWN = 0;
 int64_t dbgWSize = 0;
 
-static void     *taosAsyncOutputLog(void *param);
+static void *    taosAsyncOutputLog(void *param);
 static int32_t   taosPushLogBuffer(SLogBuff *pLogBuf, const char *msg, int32_t msgLen);
 static SLogBuff *taosLogBuffNew(int32_t bufSize);
 static void      taosCloseLogByFd(TdFilePtr pFile);
@@ -701,7 +702,7 @@ int32_t taosCompressFile(char *srcFileName, char *destFileName) {
   int32_t compressSize = 163840;
   int32_t ret = 0;
   int32_t len = 0;
-  char   *data = taosMemoryMalloc(compressSize);
+  char *  data = taosMemoryMalloc(compressSize);
   //  gzFile  dstFp = NULL;
 
   // srcFp = fopen(srcFileName, "r");
@@ -759,6 +760,7 @@ void taosSetAllDebugFlag(int32_t flag) {
   fsDebugFlag = flag;
   fnDebugFlag = flag;
   smaDebugFlag = flag;
+  idxDebugFlag = flag;
 
   uInfo("all debug flag are set to %d", flag);
 }
