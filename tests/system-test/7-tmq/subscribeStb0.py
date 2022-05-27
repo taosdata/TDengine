@@ -391,7 +391,7 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
         
-        time.sleep(2)
+        time.sleep(1.5)
         tdLog.info("drop som child table of stb1")
         dropTblNum = 4
         tdSql.query("drop table if exists %s.%s_1"%(parameterDict["dbName"], parameterDict["stbName"]))
