@@ -19,7 +19,7 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
-static void STagDebugPrint(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln);
+static void debugPrintAddColToTag(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln);
 
 typedef struct SKVIdx {
   int32_t cid;
@@ -525,7 +525,6 @@ int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag) {
   uint8_t *p;
   int32_t  n;
   uint16_t tsize = sizeof(STag) + sizeof(STagIdx) * nTag;
-  ASSERT(nTag == 3);
   for (int16_t iTag = 0; iTag < nTag; iTag++) {
     pTagVal = &pTagVals[iTag];
 #if 0
@@ -558,7 +557,7 @@ int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag) {
 
 #if 0
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      n += tPutBinary(p + n, pTagVal->pData, pTagVal->nData);  // pData: 不包含　VarDataHead
+      n += tPutBinary(p + n, pTagVal->pData, pTagVal->nData);  // pData: VarDataHead not included
     } else {
       memcpy(p + n, pTagVal->pData, pTagVal->nData);
       n += pTagVal->nData;
@@ -661,7 +660,7 @@ void *STagIterNext(STagIter *pIter, int16_t *cid) {
   return POINTER_SHIFT(pIter->tag, pIdx->offset);
 }
 
-static void STagDebugPrint(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln) {
+static void debugPrintAddColToTag(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln) {
   switch (type) {
     case TSDB_DATA_TYPE_JSON:
     case TSDB_DATA_TYPE_VARCHAR:
@@ -1102,7 +1101,7 @@ int32_t tAddColToTagBuilder(STagBuilder *pBuilder, col_id_t colId, int8_t type, 
     pBuilder->buf = buf;
   }
 #ifdef TD_DEBUG_PRINT_STAG
-  STagDebugPrint(type, val, vlen, __func__, __LINE__);
+  debugPrintAddColToTag(type, val, vlen, __func__, __LINE__);
 #endif
 
   memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), val, vlen);

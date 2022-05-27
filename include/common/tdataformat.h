@@ -77,7 +77,7 @@ void    tResetTagBuilder(STagBuilder *pBuilder);
 int32_t tAddColToTagBuilder(STagBuilder *pBuilder, col_id_t colId, int8_t type, const void *value, int32_t tlen);
 STag   *tGetTagFromBuilder(STagBuilder *pBuilder);
 
-void debugPrintSTag(STag *pTag, const char *tag, int32_t ln); // TODO: remove when done
+void debugPrintSTag(STag *pTag, const char *tag, int32_t ln);  // TODO: remove when done
 
 struct STagIter{
   int16_t nTag;
