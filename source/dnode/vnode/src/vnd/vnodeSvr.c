@@ -64,12 +64,18 @@ int32_t vnodePreprocessReq(SVnode *pVnode, SRpcMsg *pMsg) {
         if (pBlock == NULL) break;
 
         if (msgIter.schemaLen > 0) {
-          uid = tGenIdPI64();
+          char *name = NULL;
 
           tDecoderInit(&dc, pBlock->data, msgIter.schemaLen);
           tStartDecode(&dc);
 
           tDecodeI32v(&dc, NULL);
+          tDecodeCStr(&dc, &name);
+
+          uid = metaGetTableEntryUidByName(pVnode->pMeta, name);
+          if (uid == 0) {
+            uid = tGenIdPI64();
+          }
           *(int64_t *)(dc.data + dc.pos) = uid;
           *(int64_t *)(dc.data + dc.pos + 8) = ctime;
           pBlock->uid = htobe64(uid);
