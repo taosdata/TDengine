@@ -408,7 +408,7 @@ class TDTestCase:
                 
         remaindrowcnt = parameterDict["rowsPerTbl"] * (parameterDict["ctbNum"] - dropTblNum)
 
-        if not (totalConsumeRows < expectrowcnt and totalConsumeRows > remaindrowcnt):
+        if not (totalConsumeRows <= expectrowcnt and totalConsumeRows >= remaindrowcnt):
             tdLog.info("act consume rows: %d, expect consume rows: between %d and %d"%(totalConsumeRows, remaindrowcnt, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
 
