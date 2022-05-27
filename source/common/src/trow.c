@@ -1190,10 +1190,11 @@ bool tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, 
   return true;
 }
 
+
 static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
+  if (*(col_id_t *)key1 > ((SKvRowIdx *)key2)->colId) {
     return 1;
-  } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
+  } else if (*(col_id_t *)key1 < ((SKvRowIdx *)key2)->colId) {
     return -1;
   } else {
     return 0;

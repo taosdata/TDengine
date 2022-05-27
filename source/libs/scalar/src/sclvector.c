@@ -924,17 +924,22 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
 
 char *getJsonValue(char *json, char *key){      //todo
   json++;     // jump type
-  int16_t cols = kvRowNCols(json);
-  for (int i = 0; i < cols; ++i) {
-    SColIdx *pColIdx = kvRowColIdxAt(json, i);
-    char *data = kvRowColVal(json, pColIdx);
-    if(i == 0){
+  
+  STagIter tagIter = {0};
+  STagIterReset(&tagIter, (STag *)json);
+  char *data = NULL;
+  while (true) {
+    data = STagIterNext(&tagIter, NULL);
+    if(tagIter.idx == 1){
       if(*data == TSDB_DATA_TYPE_NULL) {
         return NULL;
       }
       continue;
     }
-    if(memcmp(key, data, varDataTLen(data)) == 0){
+    
+    if (!data) break;
+
+    if (memcmp(key, data, varDataTLen(data)) == 0) {
       return data + varDataTLen(data);
     }
   }

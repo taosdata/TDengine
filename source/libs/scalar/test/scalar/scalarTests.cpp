@@ -1035,7 +1035,7 @@ void makeJsonArrow(SSDataBlock **src, SNode **opNode, void *json, char *key){
 
   SNode *pLeft = NULL, *pRight = NULL;
   scltMakeValueNode(&pRight, TSDB_DATA_TYPE_BINARY, keyVar);
-  scltMakeColumnNode(&pLeft, src, TSDB_DATA_TYPE_JSON, kvRowLen(json), 1, json);
+  scltMakeColumnNode(&pLeft, src, TSDB_DATA_TYPE_JSON, TD_TAG_LEN(json), 1, json);
   scltMakeOpNode(opNode, OP_TYPE_JSON_GET_VALUE, TSDB_DATA_TYPE_JSON, pLeft, pRight);
 }
 
@@ -1104,22 +1104,22 @@ void makeCalculate(void *json, void *key, int32_t rightType, void *rightData, do
   taosArrayDestroyEx(blockList, scltFreeDataBlock);
   nodesDestroyNode(opNode);
 }
-
+#if 0
 TEST(columnTest, json_column_arith_op) {
   scltInitLogFile();
   char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44}";
 
   char rightv[256] = {0};
   memcpy(rightv, rightvTmp, strlen(rightvTmp));
-  SKVRowBuilder kvRowBuilder;
-  tdInitKVRowBuilder(&kvRowBuilder);
-  parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
-  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
-  char *tmp = (char *)taosMemoryRealloc(row, kvRowLen(row)+1);
+  STagBuilder tagBuilder;
+  tInitTagBuilder(&tagBuilder, 0);
+  parseJsontoTagData(rightv, &tagBuilder, NULL, 0);
+  STag *pTag = tGetTagFromBuilder(&tagBuilder);
+  char *tmp = (char *)taosMemoryRealloc(row, TD_TAG_LEN(row)+1);
   if(tmp == NULL){
     ASSERT_TRUE(0);
   }
-  memmove(tmp+1, tmp, kvRowLen(tmp));
+  memmove(tmp+1, tmp, TD_TAG_LEN(tmp));
   *tmp = TSDB_DATA_TYPE_JSON;
   row = tmp;
 
@@ -1175,10 +1175,10 @@ TEST(columnTest, json_column_arith_op) {
     makeCalculate(row, key, TSDB_DATA_TYPE_INT, &input[i], eRes5[i], op[i]);
   }
 
-  tdDestroyKVRowBuilder(&kvRowBuilder);
+  tDestroyTagBuilder(&tagBuilder);
   taosMemoryFree(row);
 }
-
+#endif
 void *prepareNchar(char* rightData){
   int32_t len = 0;
   int32_t inputLen = strlen(rightData);
@@ -1188,22 +1188,22 @@ void *prepareNchar(char* rightData){
   varDataSetLen(t, len);
   return t;
 }
-
+#if 0
 TEST(columnTest, json_column_logic_op) {
   scltInitLogFile();
   char *rightvTmp= "{\"k1\":4,\"k2\":\"hello\",\"k3\":null,\"k4\":true,\"k5\":5.44,\"k6\":\"6.6hello\"}";
 
   char rightv[256] = {0};
   memcpy(rightv, rightvTmp, strlen(rightvTmp));
-  SKVRowBuilder kvRowBuilder;
-  tdInitKVRowBuilder(&kvRowBuilder);
-  parseJsontoTagData(rightv, &kvRowBuilder, NULL, 0);
-  SKVRow row = tdGetKVRowFromBuilder(&kvRowBuilder);
-  char *tmp = (char *)taosMemoryRealloc(row, kvRowLen(row)+1);
+  STagBuilder tagBuilder;
+  tInitTagBuilder(&tagBuilder, 0);
+  parseJsontoTagData(rightv, &tagBuilder, NULL, 0);
+  STag *pTag = tGetTagFromBuilder(&tagBuilder);
+  char *tmp = (char *)taosMemoryRealloc(row, TD_TAG_LEN(row)+1);
   if(tmp == NULL){
     ASSERT_TRUE(0);
   }
-  memmove(tmp+1, tmp, kvRowLen(tmp));
+  memmove(tmp+1, tmp, TD_TAG_LEN(tmp));
   *tmp = TSDB_DATA_TYPE_JSON;
   row = tmp;
 
@@ -1305,10 +1305,10 @@ TEST(columnTest, json_column_logic_op) {
     taosMemoryFree(rightData);
   }
 
-  tdDestroyKVRowBuilder(&kvRowBuilder);
+  tDestroyTagBuilder(&tagBuilder);
   taosMemoryFree(row);
 }
-
+#endif
 TEST(columnTest, smallint_value_add_int_column) {
   scltInitLogFile();
   

@@ -19,6 +19,8 @@
 #include "tdatablock.h"
 #include "tlog.h"
 
+static void STagDebugPrint(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln);
+
 typedef struct SKVIdx {
   int32_t cid;
   int32_t offset;
@@ -29,19 +31,6 @@ typedef struct {
   int16_t nCols;
   SKVIdx  idx[];
 } STSKVRow;
-#pragma pack(pop)
-
-typedef struct STagIdx {
-  int16_t  cid;
-  uint16_t offset;
-} STagIdx;
-
-#pragma pack(push, 1)
-struct STag {
-  uint16_t len;
-  uint16_t nTag;
-  STagIdx  idx[];
-};
 #pragma pack(pop)
 
 #define TSROW_IS_KV_ROW(r) ((r)->flags & TSROW_KV_ROW)
@@ -524,9 +513,9 @@ int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow) {
 static FORCE_INLINE int tTagIdxCmprFn(const void *p1, const void *p2) {
   STagIdx *pTagIdx1 = (STagIdx *)p1;
   STagIdx *pTagIdx2 = (STagIdx *)p2;
-  if (pTagIdx1->cid < pTagIdx1->cid) {
+  if (pTagIdx1->cid < pTagIdx2->cid) {
     return -1;
-  } else if (pTagIdx1->cid > pTagIdx1->cid) {
+  } else if (pTagIdx1->cid > pTagIdx2->cid) {
     return 1;
   }
   return 0;
@@ -536,16 +525,18 @@ int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag) {
   uint8_t *p;
   int32_t  n;
   uint16_t tsize = sizeof(STag) + sizeof(STagIdx) * nTag;
-
+  ASSERT(nTag == 3);
   for (int16_t iTag = 0; iTag < nTag; iTag++) {
     pTagVal = &pTagVals[iTag];
-
+#if 0
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
       tsize += tPutBinary(NULL, pTagVal->pData, pTagVal->nData);
     } else {
       ASSERT(pTagVal->nData == TYPE_BYTES[pTagVal->type]);
       tsize += pTagVal->nData;
     }
+#endif
+    tsize += pTagVal->nData;
   }
 
   (*ppTag) = (STag *)taosMemoryMalloc(tsize);
@@ -565,12 +556,16 @@ int32_t tTagNew(STagVal *pTagVals, int16_t nTag, STag **ppTag) {
     (*ppTag)->idx[iTag].cid = pTagVal->cid;
     (*ppTag)->idx[iTag].offset = n;
 
+#if 0
     if (IS_VAR_DATA_TYPE(pTagVal->type)) {
-      n += tPutBinary(p + n, pTagVal->pData, pTagVal->nData);
+      n += tPutBinary(p + n, pTagVal->pData, pTagVal->nData);  // pData: 不包含　VarDataHead
     } else {
       memcpy(p + n, pTagVal->pData, pTagVal->nData);
       n += pTagVal->nData;
     }
+#endif
+    memcpy(p + n, pTagVal->pData, pTagVal->nData);
+    n += pTagVal->nData;
   }
 
   qsort((*ppTag)->idx, (*ppTag)->nTag, sizeof(STagIdx), tTagIdxCmprFn);
@@ -630,15 +625,19 @@ void tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, uint32_t *n
   STagIdx *pTagIdx = bsearch(&((STagIdx){.cid = cid}), pTag->idx, pTag->nTag, sizeof(STagIdx), tTagIdxCmprFn);
   if (pTagIdx == NULL) {
     *ppData = NULL;
-    *nData = 0;
+    if (nData) *nData = 0;
   } else {
     uint8_t *p = (uint8_t *)&pTag->idx[pTag->nTag] + pTagIdx->offset;
+#if 0
     if (IS_VAR_DATA_TYPE(type)) {
       tGetBinary(p, ppData, nData);
     } else {
-      *ppData = p;
-      *nData = TYPE_BYTES[type];
+    *ppData = p;
+    if (nData) *nData = TYPE_BYTES[type];
     }
+#endif
+    *ppData = p;
+    if (nData) *nData = TYPE_BYTES[type];
   }
 }
 
@@ -647,6 +646,92 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
 }
 
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) { return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL); }
+
+void *STagIterNext(STagIter *pIter, int16_t *cid) {
+  if (pIter->idx >= pIter->nTag) {
+    return NULL;
+  }
+
+  STagIdx *pIdx = (STagIdx *)pIter->tag->idx + pIter->idx;
+  
+  ++pIter->idx;
+
+  ASSERT(pIdx && (pIdx->offset < pIter->tag->len));
+  if (cid) *cid = pIdx->cid;
+  return POINTER_SHIFT(pIter->tag, pIdx->offset);
+}
+
+static void STagDebugPrint(int8_t type, const void *val, int32_t vlen, const char *tag, int32_t ln) {
+  switch (type) {
+    case TSDB_DATA_TYPE_JSON:
+    case TSDB_DATA_TYPE_VARCHAR:
+    case TSDB_DATA_TYPE_NCHAR: {
+      char tmpVal[32] = {0};
+      memcpy(tmpVal, varDataVal(val), 32);
+      printf("%s:%d type:%d vlen:%d, val:%s\n", tag, ln, (int32_t)type, vlen, tmpVal);
+    } break;
+    case TSDB_DATA_TYPE_FLOAT:
+      printf("%s:%d type:%d vlen:%d, val:%f\n", tag, ln, (int32_t)type, vlen, *(float *)val);
+      break;
+    case TSDB_DATA_TYPE_DOUBLE:
+      printf("%s:%d type:%d vlen:%d, val:%lf\n", tag, ln, (int32_t)type, vlen, *(double *)val);
+      break;
+    case TSDB_DATA_TYPE_BOOL:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIu8 "\n", tag, ln, (int32_t)type, vlen, *(uint8_t *)val);
+      break;
+    case TSDB_DATA_TYPE_TINYINT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIi8 "\n", tag, ln, (int32_t)type, vlen, *(int8_t *)val);
+      break;
+    case TSDB_DATA_TYPE_SMALLINT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIi16 "\n", tag, ln, (int32_t)type, vlen, *(int16_t *)val);
+      break;
+    case TSDB_DATA_TYPE_INT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIi32 "\n", tag, ln, (int32_t)type, vlen, *(int32_t *)val);
+      break;
+    case TSDB_DATA_TYPE_BIGINT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIi64 "\n", tag, ln, (int32_t)type, vlen, *(int64_t *)val);
+      break;
+    case TSDB_DATA_TYPE_TIMESTAMP:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIi64 "\n", tag, ln, (int32_t)type, vlen, *(int64_t *)val);
+      break;
+    case TSDB_DATA_TYPE_UTINYINT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIu8 "\n", tag, ln, (int32_t)type, vlen, *(uint8_t *)val);
+      break;
+    case TSDB_DATA_TYPE_USMALLINT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIu16 "\n", tag, ln, (int32_t)type, vlen, *(uint16_t *)val);
+      break;
+    case TSDB_DATA_TYPE_UINT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIu32 "\n", tag, ln, (int32_t)type, vlen, *(uint32_t *)val);
+      break;
+    case TSDB_DATA_TYPE_UBIGINT:
+      printf("%s:%d type:%d vlen:%d, val:%" PRIu64 "\n", tag, ln, (int32_t)type, vlen, *(uint64_t *)val);
+      break;
+    default:
+      ASSERT(0);
+      break;
+  }
+}
+
+void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
+  printf("%s:%d >>> len: %d, nTag: %d, sver:%d\n", tag, ln, (int32_t)pTag->len, (int32_t)pTag->nTag, pTag->sver);
+  for (uint16_t n = 0; n < pTag->nTag; ++n) {
+    STagIdx *pIdx = pTag->idx + n;
+    if (n == 0) {
+      printf("cid:%d, offset:%d, val:%d ", (int32_t)pIdx->cid, (int32_t)pIdx->offset,
+             *(int32_t *)POINTER_SHIFT(pTag, sizeof(STag) + sizeof(STagIdx) * pTag->nTag + pIdx->offset));
+    } else if (n == 1) {
+      printf("cid:%d, offset:%d, val:%f ", (int32_t)pIdx->cid, (int32_t)pIdx->offset,
+             *(float *)POINTER_SHIFT(pTag, sizeof(STag) + sizeof(STagIdx) * pTag->nTag + pIdx->offset));
+    } else if (n == 2) {
+      char tmpVal[32] = {0};
+      memcpy(tmpVal, varDataVal(POINTER_SHIFT(pTag, sizeof(STag) + sizeof(STagIdx) * pTag->nTag + pIdx->offset)), 32);
+      printf("cid:%d, offset:%d, val:%s ", (int32_t)pIdx->cid, (int32_t)pIdx->offset, tmpVal);
+    } else {
+      ASSERT(0);
+    }
+  }
+  printf("\n");
+}
 
 #if 1  // ===================================================================================================================
 static void dataColSetNEleNull(SDataCol *pCol, int nEle);
@@ -974,162 +1059,78 @@ void tdResetDataCols(SDataCols *pCols) {
   }
 }
 
-SKVRow tdKVRowDup(SKVRow row) {
-  SKVRow trow = taosMemoryMalloc(kvRowLen(row));
-  if (trow == NULL) return NULL;
 
-  kvRowCpy(trow, row);
-  return trow;
-}
-
-static int compareColIdx(const void *a, const void *b) {
-  const SColIdx *x = (const SColIdx *)a;
-  const SColIdx *y = (const SColIdx *)b;
-  if (x->colId > y->colId) {
-    return 1;
-  }
-  if (x->colId < y->colId) {
-    return -1;
-  }
-  return 0;
-}
-
-void tdSortKVRowByColIdx(SKVRow row) { qsort(kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), compareColIdx); }
-
-int tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value) {
-  SColIdx *pColIdx = NULL;
-  SKVRow   row = *orow;
-  SKVRow   nrow = NULL;
-  void    *ptr = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_GE);
-
-  if (ptr == NULL || ((SColIdx *)ptr)->colId > colId) {  // need to add a column value to the row
-    int diff = IS_VAR_DATA_TYPE(type) ? varDataTLen(value) : TYPE_BYTES[type];
-    int nRowLen = kvRowLen(row) + sizeof(SColIdx) + diff;
-    int oRowCols = kvRowNCols(row);
-
-    ASSERT(diff > 0);
-    nrow = taosMemoryMalloc(nRowLen);
-    if (nrow == NULL) return -1;
-
-    kvRowSetLen(nrow, nRowLen);
-    kvRowSetNCols(nrow, oRowCols + 1);
-
-    memcpy(kvRowColIdx(nrow), kvRowColIdx(row), sizeof(SColIdx) * oRowCols);
-    memcpy(kvRowValues(nrow), kvRowValues(row), kvRowValLen(row));
-
-    pColIdx = kvRowColIdxAt(nrow, oRowCols);
-    pColIdx->colId = colId;
-    pColIdx->offset = kvRowValLen(row);
-
-    memcpy(kvRowColVal(nrow, pColIdx), value, diff);  // copy new value
-
-    tdSortKVRowByColIdx(nrow);
-
-    *orow = nrow;
-    taosMemoryFree(row);
-  } else {
-    ASSERT(((SColIdx *)ptr)->colId == colId);
-    if (IS_VAR_DATA_TYPE(type)) {
-      void *pOldVal = kvRowColVal(row, (SColIdx *)ptr);
-
-      if (varDataTLen(value) == varDataTLen(pOldVal)) {  // just update the column value in place
-        memcpy(pOldVal, value, varDataTLen(value));
-      } else {  // need to reallocate the memory
-        int16_t nlen = kvRowLen(row) + (varDataTLen(value) - varDataTLen(pOldVal));
-        ASSERT(nlen > 0);
-        nrow = taosMemoryMalloc(nlen);
-        if (nrow == NULL) return -1;
-
-        kvRowSetLen(nrow, nlen);
-        kvRowSetNCols(nrow, kvRowNCols(row));
-
-        int zsize = sizeof(SColIdx) * kvRowNCols(row) + ((SColIdx *)ptr)->offset;
-        memcpy(kvRowColIdx(nrow), kvRowColIdx(row), zsize);
-        memcpy(kvRowColVal(nrow, ((SColIdx *)ptr)), value, varDataTLen(value));
-        // Copy left value part
-        int lsize = kvRowLen(row) - TD_KV_ROW_HEAD_SIZE - zsize - varDataTLen(pOldVal);
-        if (lsize > 0) {
-          memcpy(POINTER_SHIFT(nrow, TD_KV_ROW_HEAD_SIZE + zsize + varDataTLen(value)),
-                 POINTER_SHIFT(row, TD_KV_ROW_HEAD_SIZE + zsize + varDataTLen(pOldVal)), lsize);
-        }
-
-        for (int i = 0; i < kvRowNCols(nrow); i++) {
-          pColIdx = kvRowColIdxAt(nrow, i);
-
-          if (pColIdx->offset > ((SColIdx *)ptr)->offset) {
-            pColIdx->offset = pColIdx->offset - varDataTLen(pOldVal) + varDataTLen(value);
-          }
-        }
-
-        *orow = nrow;
-        taosMemoryFree(row);
-      }
-    } else {
-      memcpy(kvRowColVal(row, (SColIdx *)ptr), value, TYPE_BYTES[type]);
-    }
-  }
-
-  return 0;
-}
-
-int tdEncodeKVRow(void **buf, SKVRow row) {
-  // May change the encode purpose
-  if (buf != NULL) {
-    kvRowCpy(*buf, row);
-    *buf = POINTER_SHIFT(*buf, kvRowLen(row));
-  }
-
-  return kvRowLen(row);
-}
-
-void *tdDecodeKVRow(void *buf, SKVRow *row) {
-  *row = tdKVRowDup(buf);
-  if (*row == NULL) return NULL;
-  return POINTER_SHIFT(buf, kvRowLen(*row));
-}
-
-int tdInitKVRowBuilder(SKVRowBuilder *pBuilder) {
-  pBuilder->tCols = 128;
+int32_t tInitTagBuilder(STagBuilder *pBuilder, int16_t nTags) {
+  pBuilder->tCols = nTags > 0 ? nTags : 128;
   pBuilder->nCols = 0;
-  pBuilder->pColIdx = (SColIdx *)taosMemoryMalloc(sizeof(SColIdx) * pBuilder->tCols);
-  if (pBuilder->pColIdx == NULL) return -1;
+  pBuilder->pTagVal = (STagVal *)taosMemoryMalloc(sizeof(STagVal) * pBuilder->tCols);
+  if (pBuilder->pTagVal == NULL) return -1;
   pBuilder->alloc = 1024;
   pBuilder->size = 0;
   pBuilder->buf = taosMemoryMalloc(pBuilder->alloc);
   if (pBuilder->buf == NULL) {
-    taosMemoryFree(pBuilder->pColIdx);
+    taosMemoryFree(pBuilder->pTagVal);
     return -1;
   }
   return 0;
 }
 
-void tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder) {
-  taosMemoryFreeClear(pBuilder->pColIdx);
+void tDestroyTagBuilder(STagBuilder *pBuilder) {
+  taosMemoryFreeClear(pBuilder->pTagVal);
   taosMemoryFreeClear(pBuilder->buf);
 }
 
-void tdResetKVRowBuilder(SKVRowBuilder *pBuilder) {
+void tResetTagBuilder(STagBuilder *pBuilder) {
   pBuilder->nCols = 0;
   pBuilder->size = 0;
 }
 
-SKVRow tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder) {
-  int tlen = sizeof(SColIdx) * pBuilder->nCols + pBuilder->size;
-  // if (tlen == 0) return NULL;    // nCols == 0 means no tags
-
-  tlen += TD_KV_ROW_HEAD_SIZE;
-
-  SKVRow row = taosMemoryMalloc(tlen);
-  if (row == NULL) return NULL;
-
-  kvRowSetNCols(row, pBuilder->nCols);
-  kvRowSetLen(row, tlen);
-
-  if (pBuilder->nCols > 0) {
-    memcpy(kvRowColIdx(row), pBuilder->pColIdx, sizeof(SColIdx) * pBuilder->nCols);
-    memcpy(kvRowValues(row), pBuilder->buf, pBuilder->size);
+int32_t tAddColToTagBuilder(STagBuilder *pBuilder, col_id_t colId, int8_t type, const void *val, int32_t vlen) {
+  if (pBuilder->nCols >= pBuilder->tCols) {
+    pBuilder->tCols *= 2;
+    STagVal *pTagVal = (STagVal *)taosMemoryRealloc((void *)(pBuilder->pTagVal), sizeof(STagVal) * pBuilder->tCols);
+    if (pTagVal == NULL) return -1;
+    pBuilder->pTagVal = pTagVal;
   }
 
-  return row;
+  if (vlen > pBuilder->alloc - pBuilder->size) {
+    while (vlen > pBuilder->alloc - pBuilder->size) {
+      pBuilder->alloc *= 2;
+    }
+    void *buf = taosMemoryRealloc(pBuilder->buf, pBuilder->alloc);
+    if (buf == NULL) return -1;
+    pBuilder->buf = buf;
+  }
+#ifdef TD_DEBUG_PRINT_STAG
+  STagDebugPrint(type, val, vlen, __func__, __LINE__);
+#endif
+
+  memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), val, vlen);
+  STagVal *pTagVal = pBuilder->pTagVal + pBuilder->nCols;
+  pTagVal->cid = colId;
+  pTagVal->type = type;
+  pTagVal->offset = pBuilder->size;
+  pTagVal->nData = vlen;
+
+  pBuilder->size += vlen;
+  ++pBuilder->nCols;
+
+  return 0;
 }
+
+STag *tGetTagFromBuilder(STagBuilder *pBuilder) {
+  if (pBuilder->nCols < 1) {
+    return NULL;
+  }
+
+  for (int32_t i = 0; i < pBuilder->nCols; ++i) {
+    STagVal *tv = pBuilder->pTagVal + i;
+    tv->pData = (uint8_t *)POINTER_SHIFT(pBuilder->buf, tv->offset);
+  }
+  STag *pTag = NULL;
+  tTagNew(pBuilder->pTagVal, pBuilder->nCols, &pTag);
+  
+  return pTag;
+}
+
 #endif

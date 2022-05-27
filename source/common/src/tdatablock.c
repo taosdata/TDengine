@@ -127,7 +127,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
       } else if (*pData == TSDB_DATA_TYPE_BOOL) {
         dataLen = CHAR_BYTES;
       } else if (*pData == TSDB_DATA_TYPE_JSON) {
-        dataLen = kvRowLen(pData + CHAR_BYTES);
+        dataLen = TD_TAG_LEN(pData + CHAR_BYTES);
       } else {
         ASSERT(0);
       }
@@ -1653,13 +1653,13 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      SKVRowBuilder kvRowBuilder = {0};
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      STagBuilder tagBuilder = {0};
+      if (tInitTagBuilder(&tagBuilder, 0) < 0) {
         ASSERT(0);
       }
-      tdAddColToKVRow(&kvRowBuilder, 1, &pDataBlock->info.groupId, sizeof(uint64_t));
-      createTbReq.ctb.pTag = tdGetKVRowFromBuilder(&kvRowBuilder);
-      tdDestroyKVRowBuilder(&kvRowBuilder);
+      tAddColToTagBuilder(&tagBuilder, 1, TSDB_DATA_TYPE_UBIGINT, &pDataBlock->info.groupId, sizeof(uint64_t));
+      createTbReq.ctb.pTag = (uint8_t*)tGetTagFromBuilder(&tagBuilder);
+      tDestroyTagBuilder(&tagBuilder);
 
       int32_t code;
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
@@ -1707,13 +1707,13 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      SKVRowBuilder kvRowBuilder = {0};
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
+      STagBuilder tagBuilder = {0};
+      if (tInitTagBuilder(&tagBuilder, 0) < 0) {
         ASSERT(0);
       }
-      tdAddColToKVRow(&kvRowBuilder, 1, &pDataBlock->info.groupId, sizeof(uint64_t));
-      createTbReq.ctb.pTag = tdGetKVRowFromBuilder(&kvRowBuilder);
-      tdDestroyKVRowBuilder(&kvRowBuilder);
+      tAddColToTagBuilder(&tagBuilder, 1, TSDB_DATA_TYPE_UBIGINT, &pDataBlock->info.groupId, sizeof(uint64_t));
+      createTbReq.ctb.pTag = (uint8_t*)tGetTagFromBuilder(&tagBuilder);
+      tDestroyTagBuilder(&tagBuilder);
 
       int32_t code;
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);

@@ -307,15 +307,15 @@ void addTagPseudoColumnData(STableScanInfo* pTableScanInfo, SSDataBlock* pBlock)
       if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
         const uint8_t* tmp = mr.me.ctbEntry.pTags;
 
-        char* data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+        char* data = taosMemoryCalloc(TD_TAG_LEN(tmp) + 1, 1);
         if (data == NULL) {
           metaReaderClear(&mr);
-          qError("doTagScan calloc error:%d", kvRowLen(tmp) + 1);
+          qError("doTagScan calloc error:%d", TD_TAG_LEN(tmp) + 1);
           return;
         }
 
         *data = TSDB_DATA_TYPE_JSON;
-        memcpy(data + 1, tmp, kvRowLen(tmp));
+        memcpy(data + 1, tmp, TD_TAG_LEN(tmp));
         p = data;
       } else {
         p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
@@ -1633,14 +1633,14 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
           const uint8_t* tmp = mr.me.ctbEntry.pTags;
           // TODO opt perf by realloc memory
-          char* data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+          char* data = taosMemoryCalloc(TD_TAG_LEN(tmp) + 1, 1);
           if (data == NULL) {
-            qError("%s failed to malloc memory, size:%d", GET_TASKID(pTaskInfo), kvRowLen(tmp) + 1);
+            qError("%s failed to malloc memory, size:%d", GET_TASKID(pTaskInfo), TD_TAG_LEN(tmp) + 1);
             longjmp(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
           }
 
           *data = TSDB_DATA_TYPE_JSON;
-          memcpy(data + 1, tmp, kvRowLen(tmp));
+          memcpy(data + 1, tmp, TD_TAG_LEN(tmp));
           colDataAppend(pDst, count, data, false);
           taosMemoryFree(data);
         } else {

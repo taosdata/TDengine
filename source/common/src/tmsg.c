@@ -3869,7 +3869,7 @@ int tEncodeSVCreateTbReq(SEncoder *pCoder, const SVCreateTbReq *pReq) {
 
   if (pReq->type == TSDB_CHILD_TABLE) {
     if (tEncodeI64(pCoder, pReq->ctb.suid) < 0) return -1;
-    if (tEncodeBinary(pCoder, pReq->ctb.pTag, kvRowLen(pReq->ctb.pTag)) < 0) return -1;
+    if (tEncodeBinary(pCoder, pReq->ctb.pTag, TD_TAG_LEN(pReq->ctb.pTag)) < 0) return -1;
   } else if (pReq->type == TSDB_NORMAL_TABLE) {
     if (tEncodeSSchemaWrapper(pCoder, &pReq->ntb.schemaRow) < 0) return -1;
   } else {

@@ -955,12 +955,14 @@ static char* parseTagDatatoJson(void* p) {
     goto end;
   }
 
-  int16_t nCols = kvRowNCols(p);
+  STagIter tagIter = {0};
+  STagIterReset(&tagIter, (STag*)p);
+  char*   val = NULL;
   char    tagJsonKey[256] = {0};
-  for (int j = 0; j < nCols; ++j) {
-    SColIdx* pColIdx = kvRowColIdxAt(p, j);
-    char*    val = (char*)(kvRowColVal(p, pColIdx));
-    if (j == 0) {
+  while(true) {
+    val = STagIterNext(&tagIter, NULL);
+
+    if (tagIter.idx == 1) {
       if (*val == TSDB_DATA_TYPE_NULL) {
         string = taosMemoryCalloc(1, 8);
         sprintf(string, "%s", TSDB_DATA_NULL_STR_L);
@@ -968,6 +970,8 @@ static char* parseTagDatatoJson(void* p) {
       }
       continue;
     }
+
+    if (!val) break;
 
     // json key  encode by binary
     memset(tagJsonKey, 0, sizeof(tagJsonKey));

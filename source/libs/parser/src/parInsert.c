@@ -54,7 +54,7 @@ typedef struct SInsertParseContext {
   SMsgBuf            msg;                 // input
   STableMeta*        pTableMeta;          // each table
   SParsedDataColInfo tags;                // each table
-  SKVRowBuilder      tagsBuilder;         // each table
+  STagBuilder        tagsBuilder;         // each table
   SVCreateTbReq      createTblReq;        // each table
   SHashObj*          pVgroupsHashObj;     // global
   SHashObj*          pTableBlockHashObj;  // global
@@ -72,7 +72,7 @@ static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
 
 typedef struct SKvParam {
-  SKVRowBuilder* builder;
+  STagBuilder*   builder;
   SSchema*       schema;
   char           buf[TSDB_MAX_TAGS_LEN];
 } SKvParam;
@@ -769,7 +769,7 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
 
   if (TSDB_DATA_TYPE_BINARY == type) {
     STR_WITH_SIZE_TO_VARSTR(pa->buf, value, len);
-    tdAddColToKVRow(pa->builder, colId, pa->buf, varDataTLen(pa->buf));
+    tAddColToTagBuilder(pa->builder, colId, type, pa->buf, varDataTLen(pa->buf));
   } else if (TSDB_DATA_TYPE_NCHAR == type) {
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
     int32_t output = 0;
@@ -784,26 +784,26 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
     }
 
     varDataSetLen(pa->buf, output);
-    tdAddColToKVRow(pa->builder, colId, pa->buf, varDataTLen(pa->buf));
+    tAddColToTagBuilder(pa->builder, colId, type, pa->buf, varDataTLen(pa->buf));
   } else {
-    tdAddColToKVRow(pa->builder, colId, value, TYPE_BYTES[type]);
+    tAddColToTagBuilder(pa->builder, colId, type, value, TYPE_BYTES[type]);
   }
 
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, SKVRow row, int64_t suid) {
+static int32_t buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* tag, int64_t suid) {
   pTbReq->type = TD_CHILD_TABLE;
   pTbReq->name = strdup(tname);
   pTbReq->ctb.suid = suid;
-  pTbReq->ctb.pTag = row;
+  pTbReq->ctb.pTag = (uint8_t*)tag;
 
   return TSDB_CODE_SUCCESS;
 }
 
 // pSql -> tag1_value, ...)
 static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint8_t precision, const char* tName) {
-  if (tdInitKVRowBuilder(&pCxt->tagsBuilder) < 0) {
+  if (tInitTagBuilder(&pCxt->tagsBuilder, 0) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -837,13 +837,12 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     return TSDB_CODE_SUCCESS;
   }
 
-  SKVRow row = tdGetKVRowFromBuilder(&pCxt->tagsBuilder);
-  if (NULL == row) {
+  STag* pTag = tGetTagFromBuilder(&pCxt->tagsBuilder);
+  if (NULL == pTag) {
     return buildInvalidOperationMsg(&pCxt->msg, "out of memory");
   }
-  tdSortKVRowByColIdx(row);
 
-  return buildCreateTbReq(&pCxt->createTblReq, tName, row, pCxt->pTableMeta->suid);
+  return buildCreateTbReq(&pCxt->createTblReq, tName, pTag, pCxt->pTableMeta->suid);
 }
 
 static int32_t cloneTableMeta(STableMeta* pSrc, STableMeta** pDst) {
@@ -1062,7 +1061,7 @@ void destroyCreateSubTbReq(SVCreateTbReq* pReq) {
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   taosMemoryFreeClear(pCxt->pTableMeta);
   destroyBoundColumnInfo(&pCxt->tags);
-  tdDestroyKVRowBuilder(&pCxt->tagsBuilder);
+  tDestroyTagBuilder(&pCxt->tagsBuilder);
   destroyCreateSubTbReq(&pCxt->createTblReq);
 }
 
@@ -1332,8 +1331,8 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
-  SKVRowBuilder tagBuilder;
-  if (tdInitKVRowBuilder(&tagBuilder) < 0) {
+  STagBuilder tagBuilder;
+  if (tInitTagBuilder(&tagBuilder, 0) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1357,19 +1356,18 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
     CHECK_CODE(KvRowAppend(&pBuf, (char*)bind[c].buffer, colLen, &param));
   }
 
-  SKVRow row = tdGetKVRowFromBuilder(&tagBuilder);
-  if (NULL == row) {
-    tdDestroyKVRowBuilder(&tagBuilder);
+  STag* pTag = tGetTagFromBuilder(&tagBuilder);
+  if (NULL == pTag) {
+    tDestroyTagBuilder(&tagBuilder);
     return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
-  tdSortKVRowByColIdx(row);
 
   SVCreateTbReq tbReq = {0};
-  CHECK_CODE(buildCreateTbReq(&tbReq, tName, row, suid));
+  CHECK_CODE(buildCreateTbReq(&tbReq, tName, pTag, suid));
   CHECK_CODE(buildCreateTbMsg(pDataBlock, &tbReq));
 
   destroyCreateSubTbReq(&tbReq);
-  tdDestroyKVRowBuilder(&tagBuilder);
+  tDestroyTagBuilder(&tagBuilder);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1601,7 +1599,7 @@ int32_t qBuildStmtColFields(void* pBlock, int32_t* fieldNum, TAOS_FIELD** fields
 
 typedef struct SmlExecTableHandle {
   SParsedDataColInfo tags;          // each table
-  SKVRowBuilder      tagsBuilder;   // each table
+  STagBuilder        tagsBuilder;   // each table
   SVCreateTbReq      createTblReq;  // each table
 } SmlExecTableHandle;
 
@@ -1613,7 +1611,7 @@ typedef struct SmlExecHandle {
 
 static void smlDestroyTableHandle(void* pHandle) {
   SmlExecTableHandle* handle = (SmlExecTableHandle*)pHandle;
-  tdDestroyKVRowBuilder(&handle->tagsBuilder);
+  tDestroyTagBuilder(&handle->tagsBuilder);
   destroyBoundColumnInfo(&handle->tags);
   destroyCreateSubTbReq(&handle->createTblReq);
 }
@@ -1689,9 +1687,9 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
   return TSDB_CODE_SUCCESS;
 }
 
-static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema,
-                              SKVRow* row, SMsgBuf* msg) {
-  if (tdInitKVRowBuilder(tagsBuilder) < 0) {
+static int32_t smlBuildTagRow(SArray* cols, STagBuilder* tagsBuilder, SParsedDataColInfo* tags, SSchema* pSchema,
+                              STag** ppTag, SMsgBuf* msg) {
+  if (tInitTagBuilder(tagsBuilder, 0) < 0) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
@@ -1707,11 +1705,10 @@ static int32_t smlBuildTagRow(SArray* cols, SKVRowBuilder* tagsBuilder, SParsedD
     }
   }
 
-  *row = tdGetKVRowFromBuilder(tagsBuilder);
-  if (*row == NULL) {
+  *ppTag = tGetTagFromBuilder(tagsBuilder);
+  if (*ppTag == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
-  tdSortKVRowByColIdx(*row);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -1728,14 +1725,14 @@ int32_t smlBindData(void* handle, SArray* tags, SArray* colsSchema, SArray* cols
     buildInvalidOperationMsg(&pBuf, "bound tags error");
     return ret;
   }
-  SKVRow row = NULL;
+  STag* pTag = NULL;
   ret = smlBuildTagRow(tags, &smlHandle->tableExecHandle.tagsBuilder, &smlHandle->tableExecHandle.tags, pTagsSchema,
-                       &row, &pBuf);
+                       &pTag, &pBuf);
   if (ret != TSDB_CODE_SUCCESS) {
     return ret;
   }
 
-  buildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, row, pTableMeta->suid);
+  buildCreateTbReq(&smlHandle->tableExecHandle.createTblReq, tableName, pTag, pTableMeta->suid);
 
   STableDataBlocks* pDataBlock = NULL;
   ret = getDataBlockFromList(smlHandle->pBlockHash, &pTableMeta->uid, sizeof(pTableMeta->uid),

@@ -563,29 +563,30 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
     }
     memcpy((void *)ctbEntry.ctbEntry.pTags, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
   } else {
-    SKVRowBuilder kvrb = {0};
-    const SKVRow  pOldTag = (const SKVRow)ctbEntry.ctbEntry.pTags;
-    SKVRow        pNewTag = NULL;
+    STagBuilder builder = {0};
+    STag       *pOldTag = (STag *)ctbEntry.ctbEntry.pTags;
+    STag       *pNewTag = NULL;
 
-    tdInitKVRowBuilder(&kvrb);
+    tInitTagBuilder(&builder, 0);
     for (int32_t i = 0; i < pTagSchema->nCols; i++) {
       SSchema *pCol = &pTagSchema->pSchema[i];
       if (iCol == i) {
-        tdAddColToKVRow(&kvrb, pCol->colId, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
+        tAddColToTagBuilder(&builder, pCol->colId, pCol->type, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal);
       } else {
-        void *p = tdGetKVRowValOfCol(pOldTag, pCol->colId);
+        void *p = NULL;
+        tTagGet(pOldTag, pCol->colId, 0, (uint8_t**)&p, NULL);
         if (p) {
           if (IS_VAR_DATA_TYPE(pCol->type)) {
-            tdAddColToKVRow(&kvrb, pCol->colId, p, varDataTLen(p));
+            tAddColToTagBuilder(&builder, pCol->colId, pCol->type, p, varDataTLen(p));
           } else {
-            tdAddColToKVRow(&kvrb, pCol->colId, p, pCol->bytes);
+            tAddColToTagBuilder(&builder, pCol->colId, pCol->type, p, pCol->bytes);
           }
         }
       }
     }
 
-    ctbEntry.ctbEntry.pTags = tdGetKVRowFromBuilder(&kvrb);
-    tdDestroyKVRowBuilder(&kvrb);
+    ctbEntry.ctbEntry.pTags = (uint8_t*)tGetTagFromBuilder(&builder);
+    tDestroyTagBuilder(&builder);
   }
 
   // save to table.db
@@ -762,7 +763,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   STagIdxKey    *pTagIdxKey = NULL;
   int32_t        nTagIdxKey;
   const SSchema *pTagColumn;       // = &stbEntry.stbEntry.schema.pSchema[0];
-  const void    *pTagData = NULL;  //
+  void          *pTagData = NULL;  //
   SDecoder       dc = {0};
 
   // get super table
@@ -775,7 +776,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   metaDecodeEntry(&dc, &stbEntry);
 
   pTagColumn = &stbEntry.stbEntry.schemaTag.pSchema[0];
-  pTagData = tdGetKVRowValOfCol((const SKVRow)pCtbEntry->ctbEntry.pTags, pTagColumn->colId);
+  tTagGet((STag*)pCtbEntry->ctbEntry.pTags, pTagColumn->colId, pTagColumn->type, (uint8_t**)&pTagData, NULL);
 
   // update tag index
 #ifdef USE_INVERTED_INDEX

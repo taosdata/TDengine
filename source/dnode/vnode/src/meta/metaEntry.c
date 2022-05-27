@@ -30,7 +30,10 @@ int metaEncodeEntry(SEncoder *pCoder, const SMetaEntry *pME) {
     if (tEncodeI64(pCoder, pME->ctbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ctbEntry.ttlDays) < 0) return -1;
     if (tEncodeI64(pCoder, pME->ctbEntry.suid) < 0) return -1;
-    if (tEncodeBinary(pCoder, pME->ctbEntry.pTags, kvRowLen(pME->ctbEntry.pTags)) < 0) return -1;
+    if (tEncodeBinary(pCoder, pME->ctbEntry.pTags, TD_TAG_LEN(pME->ctbEntry.pTags)) < 0) return -1;
+#ifdef debugPrintSTag
+    debugPrintSTag((STag*)pME->ctbEntry.pTags, __func__, __LINE__);
+#endif
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tEncodeI64(pCoder, pME->ntbEntry.ctime) < 0) return -1;
     if (tEncodeI32(pCoder, pME->ntbEntry.ttlDays) < 0) return -1;
@@ -63,6 +66,9 @@ int metaDecodeEntry(SDecoder *pCoder, SMetaEntry *pME) {
     if (tDecodeI32(pCoder, &pME->ctbEntry.ttlDays) < 0) return -1;
     if (tDecodeI64(pCoder, &pME->ctbEntry.suid) < 0) return -1;
     if (tDecodeBinary(pCoder, &pME->ctbEntry.pTags, &len) < 0) return -1;  // (TODO)
+#ifdef debugPrintSTag
+    debugPrintSTag((STag*)pME->ctbEntry.pTags, __func__, __LINE__);
+#endif
   } else if (pME->type == TSDB_NORMAL_TABLE) {
     if (tDecodeI64(pCoder, &pME->ntbEntry.ctime) < 0) return -1;
     if (tDecodeI32(pCoder, &pME->ntbEntry.ttlDays) < 0) return -1;

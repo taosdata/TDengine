@@ -34,6 +34,9 @@ typedef struct STSRow2       STSRow2;
 typedef struct STSRowBuilder STSRowBuilder;
 typedef struct STagVal       STagVal;
 typedef struct STag          STag;
+typedef struct STagIdx       STagIdx;
+typedef struct STagBuilder   STagBuilder;
+typedef struct STagIter      STagIter;
 
 // STSchema
 int32_t tTSchemaCreate(int32_t sver, SSchema *pSchema, int32_t nCols, STSchema **ppTSchema);
@@ -65,6 +68,27 @@ int32_t tTagSet(STag *pTag, SSchema *pSchema, int32_t nCols, int iCol, uint8_t *
 void    tTagGet(STag *pTag, int16_t cid, int8_t type, uint8_t **ppData, uint32_t *nData);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
+
+int32_t tInitTagBuilder(STagBuilder *pBuilder, int16_t nTags);
+void    tDestroyTagBuilder(STagBuilder *pBuilder);
+void    tResetTagBuilder(STagBuilder *pBuilder);
+int32_t tAddColToTagBuilder(STagBuilder *pBuilder, col_id_t colId, int8_t type, const void *value, int32_t tlen);
+STag   *tGetTagFromBuilder(STagBuilder *pBuilder);
+
+void debugPrintSTag(STag *pTag, const char *tag, int32_t ln); // TODO: remove when done
+
+struct STagIter{
+  int16_t nTag;
+  int16_t idx;
+  STag   *tag;
+};
+
+void FORCE_INLINE STagIterReset(STagIter *pIter, STag *pTag) {
+  pIter->tag = pTag;
+  pIter->nTag = pIter->nTag;
+  pIter->idx = 0;
+}
+void *STagIterNext(STagIter *pIter, int16_t *cid);
 
 // STRUCT =================
 struct STColumn {
@@ -117,11 +141,37 @@ struct SColVal {
   uint8_t *pData;
 };
 
+struct STagIdx {
+  int16_t  cid;
+  uint16_t offset;
+};
+
+#pragma pack(push, 1)
+struct STag {
+  uint16_t len;
+  uint16_t nTag;
+  int32_t  sver;
+  STagIdx  idx[];
+};
+#pragma pack(pop)
+
+#define TD_TAG_LEN(t) (((STag*)(t))->len)
+
 struct STagVal {
   int16_t  cid;
   int8_t   type;
   uint32_t nData;
+  int32_t  offset;
   uint8_t *pData;
+};
+
+struct STagBuilder {
+  int16_t  tCols;
+  int16_t  nCols;
+  int32_t  alloc;
+  int32_t  size;
+  STagVal *pTagVal;
+  void    *buf;
 };
 
 #if 1  //================================================================================================================================================
@@ -366,109 +416,8 @@ SDataCols *tdFreeDataCols(SDataCols *pCols);
 int32_t    tdMergeDataCols(SDataCols *target, SDataCols *source, int32_t rowsToMerge, int32_t *pOffset, bool update,
                            TDRowVerT maxVer);
 
-// ----------------- K-V data row structure
-/* |<-------------------------------------- len -------------------------------------------->|
- * |<----- header  ----->|<--------------------------- body -------------------------------->|
- * +----------+----------+---------------------------------+---------------------------------+
- * | uint16_t |  int16_t |                                 |                                 |
- * +----------+----------+---------------------------------+---------------------------------+
- * |    len   |   ncols  |           cols index            |             data part           |
- * +----------+----------+---------------------------------+---------------------------------+
- */
-typedef void *SKVRow;
 
-typedef struct {
-  int16_t  colId;
-  uint16_t offset;
-} SColIdx;
 
-#define TD_KV_ROW_HEAD_SIZE (sizeof(uint16_t) + sizeof(int16_t))
-
-#define kvRowLen(r)            (*(uint16_t *)(r))
-#define kvRowNCols(r)          (*(int16_t *)POINTER_SHIFT(r, sizeof(uint16_t)))
-#define kvRowSetLen(r, len)    kvRowLen(r) = (len)
-#define kvRowSetNCols(r, n)    kvRowNCols(r) = (n)
-#define kvRowColIdx(r)         (SColIdx *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE)
-#define kvRowValues(r)         POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(SColIdx) * kvRowNCols(r))
-#define kvRowCpy(dst, r)       memcpy((dst), (r), kvRowLen(r))
-#define kvRowColVal(r, colIdx) POINTER_SHIFT(kvRowValues(r), (colIdx)->offset)
-#define kvRowColIdxAt(r, i)    (kvRowColIdx(r) + (i))
-#define kvRowFree(r)           taosMemoryFreeClear(r)
-#define kvRowEnd(r)            POINTER_SHIFT(r, kvRowLen(r))
-#define kvRowValLen(r)         (kvRowLen(r) - TD_KV_ROW_HEAD_SIZE - sizeof(SColIdx) * kvRowNCols(r))
-#define kvRowTKey(r)           (*(TKEY *)(kvRowValues(r)))
-#define kvRowKey(r)            tdGetKey(kvRowTKey(r))
-#define kvRowKeys(r)           POINTER_SHIFT(r, *(uint16_t *)POINTER_SHIFT(r, TD_KV_ROW_HEAD_SIZE + sizeof(int16_t)))
-#define kvRowDeleted(r)        TKEY_IS_DELETED(kvRowTKey(r))
-
-SKVRow  tdKVRowDup(SKVRow row);
-int32_t tdSetKVRowDataOfCol(SKVRow *orow, int16_t colId, int8_t type, void *value);
-int32_t tdEncodeKVRow(void **buf, SKVRow row);
-void   *tdDecodeKVRow(void *buf, SKVRow *row);
-void    tdSortKVRowByColIdx(SKVRow row);
-
-static FORCE_INLINE int32_t comparTagId(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
-    return 1;
-  } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
-    return -1;
-  } else {
-    return 0;
-  }
-}
-
-static FORCE_INLINE void *tdGetKVRowValOfCol(const SKVRow row, int16_t colId) {
-  void *ret = taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
-  if (ret == NULL) return NULL;
-  return kvRowColVal(row, (SColIdx *)ret);
-}
-
-static FORCE_INLINE void *tdGetKVRowIdxOfCol(SKVRow row, int16_t colId) {
-  return taosbsearch(&colId, kvRowColIdx(row), kvRowNCols(row), sizeof(SColIdx), comparTagId, TD_EQ);
-}
-
-// ----------------- K-V data row builder
-typedef struct {
-  int16_t  tCols;
-  int16_t  nCols;
-  SColIdx *pColIdx;
-  uint16_t alloc;
-  uint16_t size;
-  void    *buf;
-} SKVRowBuilder;
-
-int32_t tdInitKVRowBuilder(SKVRowBuilder *pBuilder);
-void    tdDestroyKVRowBuilder(SKVRowBuilder *pBuilder);
-void    tdResetKVRowBuilder(SKVRowBuilder *pBuilder);
-SKVRow  tdGetKVRowFromBuilder(SKVRowBuilder *pBuilder);
-
-static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t colId, const void *value, int32_t tlen) {
-  if (pBuilder->nCols >= pBuilder->tCols) {
-    pBuilder->tCols *= 2;
-    SColIdx *pColIdx = (SColIdx *)taosMemoryRealloc((void *)(pBuilder->pColIdx), sizeof(SColIdx) * pBuilder->tCols);
-    if (pColIdx == NULL) return -1;
-    pBuilder->pColIdx = pColIdx;
-  }
-
-  pBuilder->pColIdx[pBuilder->nCols].colId = colId;
-  pBuilder->pColIdx[pBuilder->nCols].offset = pBuilder->size;
-
-  pBuilder->nCols++;
-
-  if (tlen > pBuilder->alloc - pBuilder->size) {
-    while (tlen > pBuilder->alloc - pBuilder->size) {
-      pBuilder->alloc *= 2;
-    }
-    void *buf = taosMemoryRealloc(pBuilder->buf, pBuilder->alloc);
-    if (buf == NULL) return -1;
-    pBuilder->buf = buf;
-  }
-
-  memcpy(POINTER_SHIFT(pBuilder->buf, pBuilder->size), value, tlen);
-  pBuilder->size += tlen;
-
-  return 0;
-}
 #endif
 
 #ifdef __cplusplus
@@ -476,3 +425,4 @@ static FORCE_INLINE int32_t tdAddColToKVRow(SKVRowBuilder *pBuilder, col_id_t co
 #endif
 
 #endif /*_TD_COMMON_DATA_FORMAT_H_*/
+
