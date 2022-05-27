@@ -58,7 +58,7 @@ macro(check_odbc_requirement)
 
   check_symbol_exists(SQLExecute "sql.h" HAVE_ODBC_DEV)
   IF (NOT HAVE_ODBC_DEV)
-    message(WARNING "odbc requirement not satisfied, check detail in ${CMAKE_BINARY_DIR}/CMakeFiles/CMakeError.log")
+    message(WARNING "odbc requirement not satisfied, please install unixodbc-dev. Check detail in ${CMAKE_BINARY_DIR}/CMakeFiles/CMakeError.log")
     return ()
   ENDIF ()
 

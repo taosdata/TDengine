@@ -19,7 +19,7 @@ IF (TD_LINUX_64)
   SET_TARGET_PROPERTIES(todbc PROPERTIES VERSION ${TD_VER_NUMBER} SOVERSION 1)
   TARGET_LINK_LIBRARIES(todbc todbc_base taos odbcinst)
   target_include_directories(todbc PRIVATE . ${ODBC_INCLUDE_DIRECTORY})
-  target_link_directories(todbc PUBLIC ${ODBC_LIBRARY_DIRECTORY})
+  link_directories(AFTER ${ODBCINST_LIBRARY_DIRECTORY})
 
   install(CODE "execute_process(COMMAND ${CMAKE_CURRENT_SOURCE_DIR}/install.sh ${CMAKE_BINARY_DIR})")
 ENDIF ()
