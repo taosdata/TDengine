@@ -89,14 +89,15 @@ class TDTestCase:
         tdSql.checkEqual(tdSql.queryResult,[(9,),(10,)])
         tdSql.query("select ts,top(col1, 2),ts from test1")
         tdSql.checkRows(2)
-
+        tdSql.query("select top(col14, 100) from test")
+        tdSql.checkRows(10)
         tdSql.query("select ts,top(col1, 2),ts from test group by tbname")
         tdSql.checkRows(2)
         tdSql.query('select top(col2,1) from test interval(1y) order by col2')
         tdSql.checkData(0,0,10)
         
-        tdSql.error('select * from test where bottom(col2,1)=1')
-                   
+        tdSql.error("select * from test where bottom(col2,1)=1")
+        tdSql.error("select top(col14, 0) from test;")
     def stop(self):
         tdSql.close()
         tdLog.success("%s successfully executed" % __file__)
