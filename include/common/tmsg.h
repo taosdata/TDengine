@@ -1483,8 +1483,8 @@ typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
   int8_t igExists;
   // int8_t withTbName;
-  //  int8_t withSchema;
-  //  int8_t withTag;
+  // int8_t withSchema;
+  // int8_t withTag;
   int8_t subType;
   char*  sql;
   union {
