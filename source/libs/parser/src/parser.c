@@ -185,8 +185,8 @@ int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery) {
 
 int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq) {
   int32_t code = TSDB_CODE_SUCCESS;
-  if (isInsertSql(pCxt->pSql, pCxt->sqlLen)) {
-    // code = preParseInsertSql(pCxt, pQuery);
+  if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
+    // todo insert sql
   } else {
     code = parse(pCxt, pQuery);
   }
