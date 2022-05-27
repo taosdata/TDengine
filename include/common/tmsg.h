@@ -1729,9 +1729,9 @@ int32_t tDecodeSVDropStbReq(SDecoder* pCoder, SVDropStbReq* pReq);
 #define TD_CREATE_IF_NOT_EXISTS 0x1
 typedef struct SVCreateTbReq {
   int32_t  flags;
+  char*    name;
   tb_uid_t uid;
   int64_t  ctime;
-  char*    name;
   int32_t  ttl;
   int8_t   type;
   union {

@@ -81,6 +81,19 @@ int metaGetTableEntryByName(SMetaReader *pReader, const char *name) {
   return metaGetTableEntryByUid(pReader, uid);
 }
 
+tb_uid_t metaGetTableEntryUidByName(SMeta *pMeta, const char *name) {
+  void    *pData = NULL;
+  int      nData = 0;
+  tb_uid_t uid = 0;
+
+  if (tdbTbGet(pMeta->pNameIdx, name, strlen(name) + 1, &pData, &nData) == 0) {
+    uid = *(tb_uid_t *)pData;
+    tdbFree(pData);
+  }
+
+  return 0;
+}
+
 int metaReadNext(SMetaReader *pReader) {
   SMeta *pMeta = pReader->pMeta;
 
