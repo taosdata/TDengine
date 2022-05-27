@@ -371,6 +371,7 @@ typedef struct SessionWindowSupporter {
   SStreamAggSupporter* pStreamAggSup;
   int64_t gap;
 } SessionWindowSupporter;
+
 typedef struct SStreamBlockScanInfo {
   SArray*      pBlockLists;      // multiple SSDatablock.
   SSDataBlock* pRes;             // result SSDataBlock
@@ -379,7 +380,6 @@ typedef struct SStreamBlockScanInfo {
   int32_t      blockType;        // current block type
   int32_t      validBlockIndex;  // Is current data has returned?
   SColumnInfo* pCols;            // the output column info
-  uint64_t     numOfRows;        // total scanned rows
   uint64_t     numOfExec;        // execution times
   void*        streamBlockReader;// stream block reader handle
   SArray*      pColMatchInfo;    //
@@ -394,8 +394,9 @@ typedef struct SStreamBlockScanInfo {
   SOperatorInfo* pOperatorDumy;
   SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
   SCatchSupporter childAggSup;
-  SArray* childIds;
+  SArray*      childIds;
   SessionWindowSupporter sessionSup;
+  bool         assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
 } SStreamBlockScanInfo;
 
 typedef struct SSysTableScanInfo {
