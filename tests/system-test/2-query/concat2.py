@@ -96,6 +96,7 @@ class TDTestCase:
 
             [ tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
 
+
     def __concat_err_check(self,tbname):
         sqls = []
 
@@ -139,9 +140,8 @@ class TDTestCase:
     def __test_current(self):  # sourcery skip: use-itertools-product
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = [
-            "ct1",
-            "ct2",
-            "ct4",
+            "t1",
+            "stb1",
         ]
         for tb in tbname:
             for i in range(2,8):
@@ -151,8 +151,8 @@ class TDTestCase:
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
         tbname = [
-            "t1",
-            "stb1",
+            "ct1",
+            "ct4",
         ]
 
         for tb in tbname:
