@@ -141,13 +141,13 @@ static int32_t streamTaskExecImpl(SStreamTask* pTask, void* data, SArray* pRes) 
     SStreamDataSubmit* pSubmit = (SStreamDataSubmit*)data;
     ASSERT(pSubmit->type == STREAM_INPUT__DATA_SUBMIT);
 
-    qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+    qSetStreamInput(exec, pSubmit->data, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
   } else if (pTask->inputType == STREAM_INPUT__DATA_BLOCK) {
     SStreamDataBlock* pBlock = (SStreamDataBlock*)data;
     ASSERT(pBlock->type == STREAM_INPUT__DATA_BLOCK);
 
     SArray* blocks = pBlock->blocks;
-    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK);
+    qSetMultiStreamInput(exec, blocks->pData, blocks->size, STREAM_DATA_TYPE_SSDATA_BLOCK, false);
   }
 
   // exec
