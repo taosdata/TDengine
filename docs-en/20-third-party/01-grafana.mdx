@@ -62,15 +62,15 @@ GF_PLUGINS_ALLOW_LOADING_UNSIGNED_PLUGINS=tdengine-datasource
 
 Users can log in to the Grafana server (username/password: admin/admin) directly through the URL `http://localhost:3000` and add a datasource through `Configuration -> Data Sources` on the left side, as shown in the following figure.
 
-![img](./grafana/add_datasource1.webp)
+![TDengine Database TDinsight plugin add datasource 1](./grafana/add_datasource1.webp)
 
 Click `Add data source` to enter the Add data source page, and enter TDengine in the query box to add it, as shown in the following figure.
 
-![img](./grafana/add_datasource2.webp)
+![TDengine Database TDinsight plugin add datasource 2](./grafana/add_datasource2.webp)
 
 Enter the datasource configuration page, and follow the default prompts to modify the corresponding configuration.
 
-![img](./grafana/add_datasource3.webp)
+![TDengine Database TDinsight plugin add database 3](./grafana/add_datasource3.webp)
 
 - Host: IP address of the server where the components of the TDengine cluster provide REST service (offered by taosd before 2.4 and by taosAdapter since 2.4) and the port number of the TDengine REST service (6041), by default use `http://localhost:6041`.
 - User: TDengine user name.
@@ -78,13 +78,13 @@ Enter the datasource configuration page, and follow the default prompts to modif
 
 Click `Save & Test` to test. Follows are a success.
 
-![img](./grafana/add_datasource4.webp)
+![TDengine Database TDinsight plugin add database 4](./grafana/add_datasource4.webp)
 
 ### Create Dashboard
 
 Go back to the main interface to create the Dashboard, click Add Query to enter the panel query page:
 
-![img](./grafana/create_dashboard1.webp)
+![TDengine Database TDinsight plugin create dashboard 1](./grafana/create_dashboard1.webp)
 
 As shown above, select the `TDengine` data source in the `Query` and enter the corresponding SQL in the query box below for query.
 
@@ -94,7 +94,7 @@ As shown above, select the `TDengine` data source in the `Query` and enter the c
 
 Follow the default prompt to query the average system memory usage for the specified interval on the server where the current TDengine deployment is located as follows.
 
-![img](./grafana/create_dashboard2.webp)
+![TDengine Database TDinsight plugin create dashboard 2](./grafana/create_dashboard2.webp)
 
 > For more information on how to use Grafana to create the appropriate monitoring interface and for more details on using Grafana, refer to the official Grafana [documentation](https://grafana.com/docs/).
 
