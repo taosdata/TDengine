@@ -223,6 +223,7 @@ int         transSendAsync(SAsyncPool* pool, queue* mq);
       uv_async_t* async = &(pool->asyncs[i]);                 \
       SAsyncItem* item = async->data;                         \
       while (!QUEUE_IS_EMPTY(&item->qmsg)) {                  \
+        tTrace("destroy msg in async pool ");                 \
         queue* h = QUEUE_HEAD(&item->qmsg);                   \
         QUEUE_REMOVE(h);                                      \
         msgType* msg = QUEUE_DATA(h, msgType, q);             \
