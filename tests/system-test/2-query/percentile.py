@@ -40,14 +40,14 @@ class TDTestCase:
             floatData.append(i + 0.1)                        
 
         # percentile verifacation 
-        tdSql.error("select percentile(ts 20) from test")
-        tdSql.error("select apercentile(ts 20) from test")
-        tdSql.error("select percentile(col7 20) from test")
-        tdSql.error("select apercentile(col7 20) from test")
-        tdSql.error("select percentile(col8 20) from test")        
-        tdSql.error("select apercentile(col8 20) from test")
-        tdSql.error("select percentile(col9 20) from test")
-        tdSql.error("select apercentile(col9 20) from test")        
+        tdSql.error("select percentile(ts ,20) from test")
+        tdSql.error("select apercentile(ts ,20) from test")
+        tdSql.error("select percentile(col7 ,20) from test")
+        tdSql.error("select apercentile(col7 ,20) from test")
+        tdSql.error("select percentile(col8 ,20) from test")        
+        tdSql.error("select apercentile(col8 ,20) from test")
+        tdSql.error("select percentile(col9 ,20) from test")
+        tdSql.error("select apercentile(col9 ,20) from test")        
 
         tdSql.query("select percentile(col1, 0) from test")        
         tdSql.checkData(0, 0, np.percentile(intData, 0))
