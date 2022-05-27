@@ -677,7 +677,7 @@ int32_t tTagToValArray(STag *pTag, SArray **ppArray) {
   uint8_t *p = (uint8_t *)&pTag->idx[pTag->nTag];
   STagVal  tv;
 
-  (*ppArray) = taosArrayInit(pTag->nTag, sizeof(STagVal));
+  (*ppArray) = taosArrayInit(pTag->nTag + 1, sizeof(STagVal));
   if (*ppArray == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
