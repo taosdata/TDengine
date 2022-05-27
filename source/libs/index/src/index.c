@@ -557,20 +557,18 @@ void iterateValueDestroy(IterateValue* value, bool destroy) {
 static int64_t indexGetAvaialbleVer(SIndex* sIdx, IndexCache* cache) {
   ICacheKey key = {.suid = cache->suid, .colName = cache->colName, .nColName = strlen(cache->colName)};
   int64_t   ver = CACHE_VERSION(cache);
-  taosThreadMutexLock(&sIdx->mtx);
-  TFileReader* trd = tfileCacheGet(((IndexTFile*)sIdx->tindex)->cache, &key);
-  if (trd != NULL) {
-    if (ver < trd->header.version) {
-      ver = trd->header.version + 1;
-    } else {
-      ver += 1;
-    }
-    indexInfo("header: %d, ver: %" PRId64 "", trd->header.version, ver);
-    tfileReaderUnRef(trd);
-  } else {
-    indexInfo("not found reader base %p", trd);
+
+  IndexTFile* tf = (IndexTFile*)(sIdx->tindex);
+
+  taosThreadMutexLock(&tf->mtx);
+  TFileReader* rd = tfileCacheGet(tf->cache, &key);
+  taosThreadMutexUnlock(&tf->mtx);
+
+  if (rd != NULL) {
+    ver = (ver > rd->header.version ? ver : rd->header.version) + 1;
+    indexInfo("header: %" PRId64 ", ver: %" PRId64 "", rd->header.version, ver);
   }
-  taosThreadMutexUnlock(&sIdx->mtx);
+  tfileReaderUnRef(rd);
   return ver;
 }
 static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
@@ -597,13 +595,14 @@ static int indexGenTFile(SIndex* sIdx, IndexCache* cache, SArray* batch) {
   }
   indexInfo("success to create tfile, reopen it, %s", reader->ctx->file.buf);
 
+  IndexTFile* tf = (IndexTFile*)sIdx->tindex;
+
   TFileHeader* header = &reader->header;
   ICacheKey    key = {.suid = cache->suid, .colName = header->colName, .nColName = strlen(header->colName)};
 
-  taosThreadMutexLock(&sIdx->mtx);
-  IndexTFile* ifile = (IndexTFile*)sIdx->tindex;
-  tfileCachePut(ifile->cache, &key, reader);
-  taosThreadMutexUnlock(&sIdx->mtx);
+  taosThreadMutexLock(&tf->mtx);
+  tfileCachePut(tf->cache, &key, reader);
+  taosThreadMutexUnlock(&tf->mtx);
   return ret;
 END:
   if (tw != NULL) {

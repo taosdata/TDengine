@@ -52,7 +52,7 @@ typedef struct SParseContext {
 } SParseContext;
 
 int32_t qParseSql(SParseContext* pCxt, SQuery** pQuery);
-bool    isInsertSql(const char* pStr, size_t length);
+bool    qIsInsertSql(const char* pStr, size_t length);
 
 // for async mode
 int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq* pCatalogReq);
@@ -62,6 +62,7 @@ int32_t qSemanticAnalysisSql(SParseContext* pCxt, const struct SCatalogReq* pCat
 void qDestroyQuery(SQuery* pQueryNode);
 
 int32_t qExtractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);
+int32_t qSetSTableIdForRSma(SNode* pStmt, int64_t uid);
 
 int32_t     qBuildStmtOutput(SQuery* pQuery, SHashObj* pVgHash, SHashObj* pBlockHash);
 int32_t     qResetStmtDataBlock(void* block, bool keepBuf);

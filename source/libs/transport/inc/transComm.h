@@ -104,6 +104,13 @@ typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
+/*convet from fqdn to ip */
+typedef struct SCvtAddr {
+  char ip[TSDB_FQDN_LEN];
+  char fqdn[TSDB_FQDN_LEN];
+  bool cvt;
+} SCvtAddr;
+
 typedef struct {
   SEpSet  epSet;     // ip list provided by app
   void*   ahandle;   // handle provided by app
@@ -115,6 +122,7 @@ typedef struct {
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
+  SCvtAddr   cvtAddr;
 
   int hThrdIdx;
 } STransConnCtx;
@@ -155,7 +163,7 @@ typedef struct {
 
 #pragma pack(pop)
 
-typedef enum { Normal, Quit, Release, Register } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -231,6 +239,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransM
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
+void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
@@ -318,6 +327,7 @@ void transDQDestroy(SDelayQueue* queue);
 
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
+void transPrintEpSet(SEpSet* pEpSet);
 /*
  * init global func
  */

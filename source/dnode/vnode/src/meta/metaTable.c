@@ -56,7 +56,7 @@ int metaCreateSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   me.type = TSDB_SUPER_TABLE;
   me.uid = pReq->suid;
   me.name = pReq->name;
-  me.stbEntry.schema = pReq->schema;
+  me.stbEntry.schemaRow = pReq->schemaRow;
   me.stbEntry.schemaTag = pReq->schemaTag;
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -182,15 +182,13 @@ int metaAlterSTable(SMeta *pMeta, int64_t version, SVCreateStbReq *pReq) {
   nStbEntry.type = TSDB_SUPER_TABLE;
   nStbEntry.uid = pReq->suid;
   nStbEntry.name = pReq->name;
-  nStbEntry.stbEntry.schema = pReq->schema;
+  nStbEntry.stbEntry.schemaRow = pReq->schemaRow;
   nStbEntry.stbEntry.schemaTag = pReq->schemaTag;
 
   metaWLock(pMeta);
   // compare two entry
-  if (oStbEntry.stbEntry.schema.sver != pReq->schema.sver) {
-    if (oStbEntry.stbEntry.schema.nCols != pReq->schema.nCols) {
-      metaSaveToSkmDb(pMeta, &nStbEntry);
-    }
+  if (oStbEntry.stbEntry.schemaRow.version != pReq->schemaRow.version) {
+    metaSaveToSkmDb(pMeta, &nStbEntry);
   }
 
   // if (oStbEntry.stbEntry.schemaTag.sver != pReq->schemaTag.sver) {
@@ -247,8 +245,8 @@ int metaCreateTable(SMeta *pMeta, int64_t version, SVCreateTbReq *pReq) {
   } else {
     me.ntbEntry.ctime = pReq->ctime;
     me.ntbEntry.ttlDays = pReq->ttl;
-    me.ntbEntry.schema = pReq->ntb.schema;
-    me.ntbEntry.ncid = me.ntbEntry.schema.pSchema[me.ntbEntry.schema.nCols - 1].colId + 1;
+    me.ntbEntry.schemaRow = pReq->ntb.schemaRow;
+    me.ntbEntry.ncid = me.ntbEntry.schemaRow.pSchema[me.ntbEntry.schemaRow.nCols - 1].colId + 1;
   }
 
   if (metaHandleEntry(pMeta, &me) < 0) goto _err;
@@ -381,7 +379,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
   }
 
   // search the column to add/drop/update
-  pSchema = &entry.ntbEntry.schema;
+  pSchema = &entry.ntbEntry.schemaRow;
   int32_t iCol = 0;
   for (;;) {
     pColumn = NULL;
@@ -402,16 +400,16 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_COL_ALREADY_EXISTS;
         goto _err;
       }
-      pSchema->sver++;
+      pSchema->version++;
       pSchema->nCols++;
       pNewSchema = taosMemoryMalloc(sizeof(SSchema) * pSchema->nCols);
       memcpy(pNewSchema, pSchema->pSchema, sizeof(SSchema) * (pSchema->nCols - 1));
       pSchema->pSchema = pNewSchema;
-      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].bytes = pAlterTbReq->bytes;
-      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].type = pAlterTbReq->type;
-      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].flags = pAlterTbReq->flags;
-      pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].colId = entry.ntbEntry.ncid++;
-      strcpy(pSchema->pSchema[entry.ntbEntry.schema.nCols - 1].name, pAlterTbReq->colName);
+      pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].bytes = pAlterTbReq->bytes;
+      pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].type = pAlterTbReq->type;
+      pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].flags = pAlterTbReq->flags;
+      pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].colId = entry.ntbEntry.ncid++;
+      strcpy(pSchema->pSchema[entry.ntbEntry.schemaRow.nCols - 1].name, pAlterTbReq->colName);
       break;
     case TSDB_ALTER_TABLE_DROP_COLUMN:
       if (pColumn == NULL) {
@@ -422,7 +420,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
-      pSchema->sver++;
+      pSchema->version++;
       tlen = (pSchema->nCols - iCol - 1) * sizeof(SSchema);
       if (tlen) {
         memmove(pColumn, pColumn + 1, tlen);
@@ -438,7 +436,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_INVALID_TABLE_ACTION;
         goto _err;
       }
-      pSchema->sver++;
+      pSchema->version++;
       pColumn->bytes = pAlterTbReq->colModBytes;
       break;
     case TSDB_ALTER_TABLE_UPDATE_COLUMN_NAME:
@@ -446,7 +444,7 @@ static int metaAlterTableColumn(SMeta *pMeta, int64_t version, SVAlterTbReq *pAl
         terrno = TSDB_CODE_VND_TABLE_COL_NOT_EXISTS;
         goto _err;
       }
-      pSchema->sver++;
+      pSchema->version++;
       strcpy(pColumn->name, pAlterTbReq->colNewName);
       break;
   }
@@ -813,15 +811,15 @@ static int metaSaveToSkmDb(SMeta *pMeta, const SMetaEntry *pME) {
   const SSchemaWrapper *pSW;
 
   if (pME->type == TSDB_SUPER_TABLE) {
-    pSW = &pME->stbEntry.schema;
+    pSW = &pME->stbEntry.schemaRow;
   } else if (pME->type == TSDB_NORMAL_TABLE) {
-    pSW = &pME->ntbEntry.schema;
+    pSW = &pME->ntbEntry.schemaRow;
   } else {
     ASSERT(0);
   }
 
   skmDbKey.uid = pME->uid;
-  skmDbKey.sver = pSW->sver;
+  skmDbKey.sver = pSW->version;
 
   // encode schema
   int32_t ret = 0;

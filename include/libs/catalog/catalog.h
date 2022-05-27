@@ -101,6 +101,7 @@ typedef struct SDbVgVersion {
 typedef struct STbSVersion {
   char* tbFName;
   int32_t sver;
+  int32_t tver;
 } STbSVersion;
 
 typedef struct SUserAuthVersion {

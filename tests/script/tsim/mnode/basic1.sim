@@ -6,15 +6,6 @@ system sh/exec.sh -n dnode2 -s start
 sql connect
 
 print =============== show dnodes
-sql show dnodes;
-if $rows != 1 then 
-  return -1
-endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
 sql show mnodes;
 if $rows != 1 then 
   return -1
@@ -30,69 +21,90 @@ endi
 
 print =============== create dnodes
 sql create dnode $hostname port 7200
-sleep 2000
-
-sql show dnodes;
-if $rows != 2 then 
-  return -1
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 500
+	if $x == 20 then
+		return -1
+	endi
+sql show dnodes -x step1
+if $data(1)[4] != ready then
+  goto step1
 endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
-if $data10 != 2 then 
-  return -1
-endi
-
-print $data02
-if $data02 != 0 then 
-  return -1
-endi
-
-if $data12 != 0 then 
-  return -1
-endi
-
-if $data04 != ready then 
-  return -1
-endi
-
-if $data14 != ready then 
-  return -1
-endi
-
-sql show mnodes;
-if $rows != 1 then 
-  return -1
-endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
-if $data02 != LEADER then 
-  return -1
+if $data(2)[4] != ready then
+  goto step1
 endi
 
 print =============== create drop mnode 1
 sql_error create mnode on dnode 1
 sql_error drop mnode on dnode 1
-
-print =============== create drop mnode 2
 sql create mnode on dnode 2
+
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
 sql show mnodes
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+
 if $rows != 2 then 
   return -1
 endi
-sql_error create mnode on dnode 2
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != LEADER then 
+  return -1
+endi
+if $data(2)[0] != 2 then 
+  return -1
+endi
+if $data(2)[2] != FOLLOWER then 
+  goto step1
+endi
 
+sleep 2000
+print ============ drop mnodes
 sql drop mnode on dnode 2
 sql show mnodes
 if $rows != 1 then 
   return -1
 endi
 sql_error drop mnode on dnode 2
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
+sql show mnodes
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+
+if $rows != 2 then 
+  return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != LEADER then 
+  return -1
+endi
+if $data(2)[0] != NULL then 
+  goto step2
+endi
+if $data(2)[2] != NULL then 
+  goto step2
+endi
+
+sleep 2000
 
 print =============== create drop mnodes
 sql create mnode on dnode 2
@@ -101,16 +113,31 @@ if $rows != 2 then
   return -1
 endi
 
-print =============== restart
-system sh/exec.sh -n dnode1 -s stop -x SIGINT
-system sh/exec.sh -n dnode2 -s stop -x SIGINT
-system sh/exec.sh -n dnode1 -s start
-system sh/exec.sh -n dnode2 -s start
-
-sleep 2000
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
 sql show mnodes
+print $data(1)[0] $data(1)[1] $data(1)[2] 
+print $data(2)[0] $data(2)[1] $data(2)[2] 
+
 if $rows != 2 then 
   return -1
+endi
+if $data(1)[0] != 1 then 
+  return -1
+endi
+if $data(1)[2] != LEADER then 
+  return -1
+endi
+if $data(2)[0] != 2 then 
+  return -1
+endi
+if $data(2)[2] != FOLLOWER then 
+  goto step3
 endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT

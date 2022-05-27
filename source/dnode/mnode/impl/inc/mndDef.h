@@ -94,6 +94,7 @@ typedef enum {
   TRN_TYPE_ALTER_STREAM = 1027,
   TRN_TYPE_CONSUMER_LOST = 1028,
   TRN_TYPE_CONSUMER_RECOVER = 1029,
+  TRN_TYPE_DROP_CGROUP = 1030,
   TRN_TYPE_BASIC_SCOPE_END,
 
   TRN_TYPE_GLOBAL_SCOPE = 2000,
@@ -330,6 +331,7 @@ typedef struct {
   int64_t   compStorage;
   int64_t   pointsWritten;
   int8_t    compact;
+  int8_t    isTsma;
   int8_t    replica;
   SVnodeGid vnodeGid[TSDB_MAX_REPLICA];
 } SVgObj;
@@ -366,7 +368,6 @@ typedef struct {
   int64_t  updateTime;
   int64_t  uid;
   int64_t  dbUid;
-  int32_t  version;
   int32_t  tagVer;
   int32_t  colVer;
   int32_t  nextColId;
@@ -589,7 +590,8 @@ typedef struct {
   int8_t         status;
   int8_t         createdBy;      // STREAM_CREATED_BY__USER or SMA
   int32_t        fixedSinkVgId;  // 0 for shuffle
-  int64_t        smaId;          // 0 for unused
+  SVgObj         fixedSinkVg;
+  int64_t        smaId;  // 0 for unused
   int8_t         trigger;
   int32_t        triggerParam;
   int64_t        waterMark;
