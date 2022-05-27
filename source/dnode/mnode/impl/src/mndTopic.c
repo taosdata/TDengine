@@ -307,7 +307,7 @@ static SDDropTopicReq *mndBuildDropTopicMsg(SMnode *pMnode, SVgObj *pVgroup, SMq
 }
 
 static int32_t mndCheckCreateTopicReq(SCMCreateTopicReq *pCreate) {
-  if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0 || pCreate->subscribeDbName[0] == 0) {
+  if (pCreate->name[0] == 0 || pCreate->sql == NULL || pCreate->sql[0] == 0 || pCreate->subDbName[0] == 0) {
     terrno = TSDB_CODE_MND_INVALID_TOPIC;
     return -1;
   }
@@ -333,8 +333,8 @@ static int32_t mndCreateTopic(SMnode *pMnode, SRpcMsg *pReq, SCMCreateTopicReq *
     topicObj.ast = strdup(pCreate->ast);
     topicObj.astLen = strlen(pCreate->ast) + 1;
     topicObj.subType = TOPIC_SUB_TYPE__TABLE;
-    topicObj.withTbName = pCreate->withTbName;
-    topicObj.withSchema = pCreate->withSchema;
+    /*topicObj.withTbName = pCreate->withTbName;*/
+    /*topicObj.withSchema = pCreate->withSchema;*/
 
     SNode *pAst = NULL;
     if (nodesStringToNode(pCreate->ast, &pAst) != 0) {
@@ -441,7 +441,7 @@ static int32_t mndProcessCreateTopicReq(SRpcMsg *pReq) {
     goto CREATE_TOPIC_OVER;
   }
 
-  pDb = mndAcquireDb(pMnode, createTopicReq.subscribeDbName);
+  pDb = mndAcquireDb(pMnode, createTopicReq.subDbName);
   if (pDb == NULL) {
     terrno = TSDB_CODE_MND_DB_NOT_SELECTED;
     goto CREATE_TOPIC_OVER;

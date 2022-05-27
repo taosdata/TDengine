@@ -3239,9 +3239,9 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pStmt->topicName, strlen(pStmt->topicName));
   tNameGetFullDbName(&name, pReq->name);
   pReq->igExists = pStmt->ignoreExists;
-  pReq->withTbName = pStmt->pOptions->withTable;
-  pReq->withSchema = pStmt->pOptions->withSchema;
-  pReq->withTag = pStmt->pOptions->withTag;
+  /*pReq->withTbName = pStmt->pOptions->withTable;*/
+  /*pReq->withSchema = pStmt->pOptions->withSchema;*/
+  /*pReq->withTag = pStmt->pOptions->withTag;*/
 
   pReq->sql = strdup(pCxt->pParseCxt->pSql);
   if (NULL == pReq->sql) {
@@ -3262,7 +3262,7 @@ static int32_t buildCreateTopicReq(STranslateContext* pCxt, SCreateTopicStmt* pS
     dbName = pStmt->subscribeDbName;
   }
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, dbName, strlen(dbName));
-  tNameGetFullDbName(&name, pReq->subscribeDbName);
+  tNameGetFullDbName(&name, pReq->subDbName);
 
   return code;
 }

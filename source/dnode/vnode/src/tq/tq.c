@@ -122,10 +122,6 @@ STQ* tqOpen(const char* path, SVnode* pVnode, SWal* pWal) {
     ASSERT(0);
   }
 
-  /*if (tdbBegin(pTq->pMetaStore, &txn) < 0) {*/
-  /*ASSERT(0);*/
-  /*}*/
-
   TBC* pCur;
   if (tdbTbcOpen(pTq->pExecStore, &pCur, &txn) < 0) {
     ASSERT(0);

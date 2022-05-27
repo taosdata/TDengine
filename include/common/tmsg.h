@@ -1473,15 +1473,25 @@ typedef struct {
   int64_t streamId;
 } SMVCreateStreamRsp, SMSCreateStreamRsp;
 
+enum {
+  TOPIC_SUB_TYPE__DB = 1,
+  TOPIC_SUB_TYPE__TABLE,
+  TOPIC_SUB_TYPE__COLUMN,
+};
+
 typedef struct {
   char   name[TSDB_TOPIC_FNAME_LEN];  // accout.topic
   int8_t igExists;
-  int8_t withTbName;
-  int8_t withSchema;
-  int8_t withTag;
+  // int8_t withTbName;
+  //  int8_t withSchema;
+  //  int8_t withTag;
+  int8_t subType;
   char*  sql;
-  char*  ast;
-  char   subscribeDbName[TSDB_DB_NAME_LEN];
+  union {
+    char* ast;
+    char  subDbName[TSDB_DB_NAME_LEN];
+    char  subStbName[TSDB_TABLE_FNAME_LEN];
+  };
 } SCMCreateTopicReq;
 
 int32_t tSerializeSCMCreateTopicReq(void* buf, int32_t bufLen, const SCMCreateTopicReq* pReq);
@@ -2144,11 +2154,6 @@ static FORCE_INLINE void* taosDecodeSMqMsg(void* buf, SMqHbMsg* pMsg) {
   }
   return buf;
 }
-
-enum {
-  TOPIC_SUB_TYPE__DB = 1,
-  TOPIC_SUB_TYPE__TABLE,
-};
 
 typedef struct {
   SMsgHead head;
