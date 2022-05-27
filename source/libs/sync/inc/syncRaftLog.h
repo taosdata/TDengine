@@ -32,12 +32,12 @@ typedef struct SSyncLogStoreData {
   SWal*      pWal;
 } SSyncLogStoreData;
 
-SSyncLogStore*  logStoreCreate(SSyncNode* pSyncNode);
-void            logStoreDestory(SSyncLogStore* pLogStore);
-cJSON*          logStore2Json(SSyncLogStore* pLogStore);
-char*           logStore2Str(SSyncLogStore* pLogStore);
-cJSON*          logStoreSimple2Json(SSyncLogStore* pLogStore);
-char*           logStoreSimple2Str(SSyncLogStore* pLogStore);
+SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode);
+void           logStoreDestory(SSyncLogStore* pLogStore);
+cJSON*         logStore2Json(SSyncLogStore* pLogStore);
+char*          logStore2Str(SSyncLogStore* pLogStore);
+cJSON*         logStoreSimple2Json(SSyncLogStore* pLogStore);
+char*          logStoreSimple2Str(SSyncLogStore* pLogStore);
 
 // SSyncRaftEntry* logStoreGetLastEntry(SSyncLogStore* pLogStore);
 // SyncIndex       logStoreLastIndex(SSyncLogStore* pLogStore);

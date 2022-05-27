@@ -25,7 +25,6 @@ static int32_t         logStoreTruncate(SSyncLogStore* pLogStore, SyncIndex from
 static int32_t         logStoreUpdateCommitIndex(SSyncLogStore* pLogStore, SyncIndex index);
 static SyncIndex       logStoreGetCommitIndex(SSyncLogStore* pLogStore);
 
-
 SSyncLogStore* logStoreCreate(SSyncNode* pSyncNode) {
   SSyncLogStore* pLogStore = taosMemoryMalloc(sizeof(SSyncLogStore));
   assert(pLogStore != NULL);
@@ -88,7 +87,9 @@ SSyncRaftEntry* logStoreGetEntry(SSyncLogStore* pLogStore, SyncIndex index) {
 
   if (index >= SYNC_INDEX_BEGIN && index <= logStoreLastIndex(pLogStore)) {
     SWalReadHandle* pWalHandle = walOpenReadHandle(pWal);
-    int32_t         code = walReadWithHandle(pWalHandle, index);
+    ASSERT(pWalHandle != NULL);
+
+    int32_t code = walReadWithHandle(pWalHandle, index);
     if (code != 0) {
       int32_t     err = terrno;
       const char* errStr = tstrerror(err);
