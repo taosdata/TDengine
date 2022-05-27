@@ -34,7 +34,6 @@ extern "C" {
 #define TSDB_INS_TABLE_USER_FUNCTIONS         "user_functions"
 #define TSDB_INS_TABLE_USER_INDEXES           "user_indexes"
 #define TSDB_INS_TABLE_USER_STABLES           "user_stables"
-#define TSDB_INS_TABLE_USER_STREAMS           "user_streams"
 #define TSDB_INS_TABLE_USER_TABLES            "user_tables"
 #define TSDB_INS_TABLE_USER_TABLE_DISTRIBUTED "user_table_distributed"
 #define TSDB_INS_TABLE_USER_USERS             "user_users"

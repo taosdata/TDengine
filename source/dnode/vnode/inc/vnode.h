@@ -99,9 +99,9 @@ typedef void *tsdbReaderT;
 #define BLOCK_LOAD_TABLE_SEQ_ORDER  2
 #define BLOCK_LOAD_TABLE_RR_ORDER   3
 
-tsdbReaderT *tsdbQueryTables(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *tableInfoGroup, uint64_t qId,
+tsdbReaderT *tsdbQueryTables(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *tableInfoGroup, uint64_t qId,
                              uint64_t taskId);
-tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableGroupInfo *groupList, uint64_t qId,
+tsdbReaderT  tsdbQueryCacheLast(SVnode *pVnode, SQueryTableDataCond *pCond, STableListInfo *groupList, uint64_t qId,
                                 void *pMemRef);
 int32_t      tsdbGetFileBlocksDistInfo(tsdbReaderT *pReader, STableBlockDistInfo *pTableBlockInfo);
 bool         isTsdbCacheLastRow(tsdbReaderT *pReader);
@@ -112,9 +112,6 @@ void         tsdbRetrieveDataBlockInfo(tsdbReaderT *pTsdbReadHandle, SDataBlockI
 int32_t tsdbRetrieveDataBlockStatisInfo(tsdbReaderT *pTsdbReadHandle, SColumnDataAgg ***pBlockStatis, bool *allHave);
 SArray *tsdbRetrieveDataBlock(tsdbReaderT *pTsdbReadHandle, SArray *pColumnIdList);
 void    tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond *pCond);
-void    tsdbDestroyTableGroup(STableGroupInfo *pGroupList);
-int32_t tsdbGetOneTableGroup(void *pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo *pGroupInfo);
-int32_t tsdbGetTableGroupFromIdList(SVnode *pVnode, SArray *pTableIdList, STableGroupInfo *pGroupInfo);
 void    tsdbCleanupReadHandle(tsdbReaderT queryHandle);
 
 // tq
@@ -180,7 +177,7 @@ struct SMetaEntry {
   char    *name;
   union {
     struct {
-      SSchemaWrapper schema;
+      SSchemaWrapper schemaRow;
       SSchemaWrapper schemaTag;
     } stbEntry;
     struct {
@@ -193,7 +190,7 @@ struct SMetaEntry {
       int64_t        ctime;
       int32_t        ttlDays;
       int32_t        ncid;  // next column id
-      SSchemaWrapper schema;
+      SSchemaWrapper schemaRow;
     } ntbEntry;
     struct {
       STSma *tsma;

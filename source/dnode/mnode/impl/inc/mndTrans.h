@@ -57,6 +57,7 @@ int32_t mndTransAppendUndoAction(STrans *pTrans, STransAction *pAction);
 void    mndTransSetRpcRsp(STrans *pTrans, void *pCont, int32_t contLen);
 void    mndTransSetCb(STrans *pTrans, ETrnFuncType startFunc, ETrnFuncType stopFunc, void *param, int32_t paramLen);
 void    mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb);
+void    mndTransSetExecOneByOne(STrans *pTrans);
 
 int32_t mndTransPrepare(SMnode *pMnode, STrans *pTrans);
 void    mndTransProcessRsp(SRpcMsg *pRsp);

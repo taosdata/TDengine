@@ -572,7 +572,7 @@ int32_t doFilterTag(const SNode *pFilterNode, void *metaHandle, SArray *result) 
   // todo move to the initialization function
   // SIF_ERR_RET(filterInitFromNode((SNode *)pFilterNode, &filter, 0));
 
-  SIFParam param = {.metHandle = metaHandle};
+  SIFParam param = {.metaHandle = metaHandle};
   SIF_ERR_RET(sifCalculate((SNode *)pFilterNode, &param));
 
   taosArrayAddAll(result, param.result);

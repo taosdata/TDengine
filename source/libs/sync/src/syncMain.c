@@ -100,6 +100,21 @@ void syncStart(int64_t rid) {
   if (pSyncNode == NULL) {
     return;
   }
+
+  if (pSyncNode->pRaftCfg->isStandBy) {
+    syncNodeStartStandBy(pSyncNode);
+  } else {
+    syncNodeStart(pSyncNode);
+  }
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+}
+
+void syncStartNormal(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return;
+  }
   syncNodeStart(pSyncNode);
 
   taosReleaseRef(tsNodeRefId, pSyncNode->rid);
@@ -126,9 +141,38 @@ void syncStop(int64_t rid) {
   taosRemoveRef(tsNodeRefId, rid);
 }
 
+int32_t syncSetStandby(int64_t rid) {
+  SSyncNode* pSyncNode = (SSyncNode*)taosAcquireRef(tsNodeRefId, rid);
+  if (pSyncNode == NULL) {
+    return -1;
+  }
+
+  if (pSyncNode->state != TAOS_SYNC_STATE_LEADER) {
+    taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+    return -1;
+  }
+
+  // state change
+  pSyncNode->state = TAOS_SYNC_STATE_FOLLOWER;
+  syncNodeStopHeartbeatTimer(pSyncNode);
+
+  // reset elect timer, long enough
+  int32_t electMS = TIMER_MAX_MS;
+  int32_t ret = syncNodeRestartElectTimer(pSyncNode, electMS);
+  ASSERT(ret == 0);
+
+  pSyncNode->pRaftCfg->isStandBy = 1;
+  raftCfgPersist(pSyncNode->pRaftCfg);
+
+  taosReleaseRef(tsNodeRefId, pSyncNode->rid);
+  return 0;
+}
+
 int32_t syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg) {
   int32_t ret = 0;
   char*   configChange = syncCfg2Str((SSyncCfg*)pSyncCfg);
+  sInfo("==syncReconfig== newconfig:%s", configChange);
+
   SRpcMsg rpcMsg = {0};
   rpcMsg.msgType = TDMT_VND_SYNC_CONFIG_CHANGE;
   rpcMsg.info.noResp = 1;
@@ -368,7 +412,7 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
   snprintf(pSyncNode->configPath, sizeof(pSyncNode->configPath), "%s/raft_config.json", pSyncInfo->path);
   if (!taosCheckExistFile(pSyncNode->configPath)) {
     // create raft config file
-    ret = syncCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), pSyncNode->configPath);
+    ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), pSyncInfo->isStandBy, pSyncNode->configPath);
     assert(ret == 0);
 
   } else {
@@ -926,30 +970,20 @@ char* syncNode2SimpleStr(const SSyncNode* pSyncNode) {
   int   len = 256;
   char* s = (char*)taosMemoryMalloc(len);
   snprintf(s, len,
-           "syncNode2SimpleStr vgId:%d currentTerm:%lu, commitIndex:%ld, state:%d %s, electTimerLogicClock:%lu, "
+           "syncNode2SimpleStr vgId:%d currentTerm:%lu, commitIndex:%ld, state:%d %s, isStandBy:%d, "
+           "electTimerLogicClock:%lu, "
            "electTimerLogicClockUser:%lu, "
            "electTimerMS:%d",
            pSyncNode->vgId, pSyncNode->pRaftStore->currentTerm, pSyncNode->commitIndex, pSyncNode->state,
-           syncUtilState2String(pSyncNode->state), pSyncNode->electTimerLogicClock, pSyncNode->electTimerLogicClockUser,
-           pSyncNode->electTimerMS);
+           syncUtilState2String(pSyncNode->state), pSyncNode->pRaftCfg->isStandBy, pSyncNode->electTimerLogicClock,
+           pSyncNode->electTimerLogicClockUser, pSyncNode->electTimerMS);
   return s;
 }
 
-void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
-  bool hit = false;
-  for (int i = 0; i < newConfig->replicaNum; ++i) {
-    if (strcmp(pSyncNode->myNodeInfo.nodeFqdn, (newConfig->nodeInfo)[i].nodeFqdn) == 0 &&
-        pSyncNode->myNodeInfo.nodePort == (newConfig->nodeInfo)[i].nodePort) {
-      newConfig->myIndex = i;
-      hit = true;
-      break;
-    }
-  }
-  ASSERT(hit == true);
-
+void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDrop) {
+  SSyncCfg oldConfig = pSyncNode->pRaftCfg->cfg;
   pSyncNode->pRaftCfg->cfg = *newConfig;
-  int32_t ret = raftCfgPersist(pSyncNode->pRaftCfg);
-  ASSERT(ret == 0);
+  int32_t ret = 0;
 
   // init internal
   pSyncNode->myNodeInfo = pSyncNode->pRaftCfg->cfg.nodeInfo[pSyncNode->pRaftCfg->cfg.myIndex];
@@ -979,6 +1013,31 @@ void syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig) {
   voteGrantedUpdate(pSyncNode->pVotesGranted, pSyncNode);
   votesRespondUpdate(pSyncNode->pVotesRespond, pSyncNode);
 
+  // isDrop
+  *isDrop = true;
+  bool IamInOld, IamInNew;
+  for (int i = 0; i < oldConfig.replicaNum; ++i) {
+    if (strcmp((oldConfig.nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
+        (oldConfig.nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
+      *isDrop = false;
+      break;
+    }
+  }
+
+  for (int i = 0; i < newConfig->replicaNum; ++i) {
+    if (strcmp((newConfig->nodeInfo)[i].nodeFqdn, pSyncNode->myNodeInfo.nodeFqdn) == 0 &&
+        (newConfig->nodeInfo)[i].nodePort == pSyncNode->myNodeInfo.nodePort) {
+      *isDrop = false;
+      break;
+    }
+  }
+
+  if (!(*isDrop)) {
+    // change isStandBy to normal
+    pSyncNode->pRaftCfg->isStandBy = 0;
+  }
+
+  raftCfgPersist(pSyncNode->pRaftCfg);
   syncNodeLog2("==syncNodeUpdateConfig==", pSyncNode);
 }
 

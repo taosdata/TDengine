@@ -386,6 +386,8 @@ SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *iter, char **ppBuf, int32_t *len);
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
 
+int32_t sdbGetIdFromRaw(SSdbRaw *pRaw);
+
 #ifdef __cplusplus
 }
 #endif

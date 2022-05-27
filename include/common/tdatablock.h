@@ -232,7 +232,8 @@ void blockDebugShowData(const SArray* dataBlocks);
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
                                     tb_uid_t uid, tb_uid_t suid);
 
-SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid, int32_t vgId);
+SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
+                            const char* stbFullName, int32_t vgId);
 
 static FORCE_INLINE int32_t blockGetEncodeSize(const SSDataBlock* pBlock) {
   return blockDataGetSerialMetaSize(pBlock) + blockDataGetSize(pBlock);

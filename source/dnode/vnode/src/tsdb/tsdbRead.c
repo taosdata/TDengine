@@ -146,8 +146,8 @@ typedef struct STableGroupSupporter {
   SSchema*   pTagSchema;
 } STableGroupSupporter;
 
-static STimeWindow updateLastrowForEachGroup(STableGroupInfo* groupList);
-static int32_t     checkForCachedLastRow(STsdbReadHandle* pTsdbReadHandle, STableGroupInfo* groupList);
+static STimeWindow updateLastrowForEachGroup(STableListInfo* pList);
+static int32_t     checkForCachedLastRow(STsdbReadHandle* pTsdbReadHandle, STableListInfo* pList);
 static int32_t     checkForCachedLast(STsdbReadHandle* pTsdbReadHandle);
 // static int32_t tsdbGetCachedLastRow(STable* pTable, STSRow** pRes, TSKEY* lastKey);
 
@@ -233,41 +233,34 @@ int64_t tsdbGetNumOfRowsInMemTable(tsdbReaderT* pHandle) {
   return rows;
 }
 
-static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, STableGroupInfo* pGroupList) {
-  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
-  assert(numOfGroup >= 1);
+static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, STableListInfo* pTableList) {
+  size_t tableSize = taosArrayGetSize(pTableList->pTableList);
+  assert(tableSize >= 1);
 
   // allocate buffer in order to load data blocks from file
-  SArray* pTableCheckInfo = taosArrayInit(pGroupList->numOfTables, sizeof(STableCheckInfo));
+  SArray* pTableCheckInfo = taosArrayInit(tableSize, sizeof(STableCheckInfo));
   if (pTableCheckInfo == NULL) {
     return NULL;
   }
 
   // todo apply the lastkey of table check to avoid to load header file
-  for (int32_t i = 0; i < numOfGroup; ++i) {
-    SArray* group = *(SArray**)taosArrayGet(pGroupList->pGroupList, i);
+  for (int32_t j = 0; j < tableSize; ++j) {
+    STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(pTableList->pTableList, j);
 
-    size_t gsize = taosArrayGetSize(group);
-    assert(gsize > 0);
-
-    for (int32_t j = 0; j < gsize; ++j) {
-      STableKeyInfo* pKeyInfo = (STableKeyInfo*)taosArrayGet(group, j);
-
-      STableCheckInfo info = {.lastKey = pKeyInfo->lastKey, .tableId = pKeyInfo->uid};
-      if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
-        if (info.lastKey == INT64_MIN || info.lastKey < pTsdbReadHandle->window.skey) {
-          info.lastKey = pTsdbReadHandle->window.skey;
-        }
-
-        assert(info.lastKey >= pTsdbReadHandle->window.skey && info.lastKey <= pTsdbReadHandle->window.ekey);
-      } else {
+    STableCheckInfo info = {.lastKey = pKeyInfo->lastKey, .tableId = pKeyInfo->uid};
+    if (ASCENDING_TRAVERSE(pTsdbReadHandle->order)) {
+      if (info.lastKey == INT64_MIN || info.lastKey < pTsdbReadHandle->window.skey) {
         info.lastKey = pTsdbReadHandle->window.skey;
       }
 
-      taosArrayPush(pTableCheckInfo, &info);
-      tsdbDebug("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReadHandle, info.tableId,
-                info.lastKey, pTsdbReadHandle->idStr);
+      assert(info.lastKey >= pTsdbReadHandle->window.skey && info.lastKey <= pTsdbReadHandle->window.ekey);
+    } else {
+      info.lastKey = pTsdbReadHandle->window.skey;
     }
+
+    taosArrayPush(pTableCheckInfo, &info);
+    tsdbDebug("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReadHandle, info.tableId,
+              info.lastKey, pTsdbReadHandle->idStr);
   }
 
   // TODO  group table according to the tag value.
@@ -478,7 +471,7 @@ _end:
   return NULL;
 }
 
-tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* tableList, uint64_t qId,
                              uint64_t taskId) {
   STsdbReadHandle* pTsdbReadHandle = tsdbQueryTablesImpl(pVnode, pCond, qId, taskId);
   if (pTsdbReadHandle == NULL) {
@@ -490,7 +483,7 @@ tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableG
   }
 
   // todo apply the lastkey of table check to avoid to load header file
-  pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pTsdbReadHandle, groupList);
+  pTsdbReadHandle->pTableCheckInfo = createCheckInfoFromTableGroup(pTsdbReadHandle, tableList);
   if (pTsdbReadHandle->pTableCheckInfo == NULL) {
     //    tsdbCleanupReadHandle(pTsdbReadHandle);
     terrno = TSDB_CODE_TDB_OUT_OF_MEMORY;
@@ -520,8 +513,8 @@ tsdbReaderT* tsdbQueryTables(SVnode* pVnode, SQueryTableDataCond* pCond, STableG
     }
   }
 
-  tsdbDebug("%p total numOfTable:%" PRIzu " in this query, group %" PRIzu " %s", pTsdbReadHandle,
-            taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo), taosArrayGetSize(groupList->pGroupList),
+  tsdbDebug("%p total numOfTable:%" PRIzu " in this query, table %" PRIzu " %s", pTsdbReadHandle,
+            taosArrayGetSize(pTsdbReadHandle->pTableCheckInfo), taosArrayGetSize(tableList->pTableList),
             pTsdbReadHandle->idStr);
 
   return (tsdbReaderT)pTsdbReadHandle;
@@ -565,7 +558,7 @@ void tsdbResetReadHandle(tsdbReaderT queryHandle, SQueryTableDataCond* pCond) {
   resetCheckInfo(pTsdbReadHandle);
 }
 
-void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, STableGroupInfo* groupList) {
+void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCond* pCond, STableListInfo* tableList) {
   STsdbReadHandle* pTsdbReadHandle = queryHandle;
 
   pTsdbReadHandle->order = pCond->order;
@@ -607,21 +600,21 @@ void tsdbResetQueryHandleForNewTable(tsdbReaderT queryHandle, SQueryTableDataCon
   //  pTsdbReadHandle->next = doFreeColumnInfoData(pTsdbReadHandle->next);
 }
 
-tsdbReaderT tsdbQueryLastRow(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList, uint64_t qId,
+tsdbReaderT tsdbQueryLastRow(SVnode* pVnode, SQueryTableDataCond* pCond, STableListInfo* pList, uint64_t qId,
                              uint64_t taskId) {
-  pCond->twindow = updateLastrowForEachGroup(groupList);
+  pCond->twindow = updateLastrowForEachGroup(pList);
 
   // no qualified table
-  if (groupList->numOfTables == 0) {
+  if (taosArrayGetSize(pList->pTableList) == 0) {
     return NULL;
   }
 
-  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTables(pVnode, pCond, groupList, qId, taskId);
+  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTables(pVnode, pCond, pList, qId, taskId);
   if (pTsdbReadHandle == NULL) {
     return NULL;
   }
 
-  int32_t code = checkForCachedLastRow(pTsdbReadHandle, groupList);
+  int32_t code = checkForCachedLastRow(pTsdbReadHandle, pList);
   if (code != TSDB_CODE_SUCCESS) {  // set the numOfTables to be 0
     terrno = code;
     return NULL;
@@ -667,60 +660,60 @@ SArray* tsdbGetQueriedTableList(tsdbReaderT* pHandle) {
 }
 
 // leave only one table for each group
-static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGroupList) {
-  assert(pGroupList);
-  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
+//static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGroupList) {
+//  assert(pGroupList);
+//  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
+//
+//  STableGroupInfo* pNew = taosMemoryCalloc(1, sizeof(STableGroupInfo));
+//  pNew->pGroupList = taosArrayInit(numOfGroup, POINTER_BYTES);
+//
+//  for (int32_t i = 0; i < numOfGroup; ++i) {
+//    SArray* oneGroup = taosArrayGetP(pGroupList->pGroupList, i);
+//    size_t  numOfTables = taosArrayGetSize(oneGroup);
+//
+//    SArray* px = taosArrayInit(4, sizeof(STableKeyInfo));
+//    for (int32_t j = 0; j < numOfTables; ++j) {
+//      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(oneGroup, j);
+//      //      if (window->skey <= pInfo->lastKey && ((STable*)pInfo->pTable)->lastKey != TSKEY_INITIAL_VAL) {
+//      //        taosArrayPush(px, pInfo);
+//      //        pNew->numOfTables += 1;
+//      //        break;
+//      //      }
+//    }
+//
+//    // there are no data in this group
+//    if (taosArrayGetSize(px) == 0) {
+//      taosArrayDestroy(px);
+//    } else {
+//      taosArrayPush(pNew->pGroupList, &px);
+//    }
+//  }
+//
+//  return pNew;
+//}
 
-  STableGroupInfo* pNew = taosMemoryCalloc(1, sizeof(STableGroupInfo));
-  pNew->pGroupList = taosArrayInit(numOfGroup, POINTER_BYTES);
-
-  for (int32_t i = 0; i < numOfGroup; ++i) {
-    SArray* oneGroup = taosArrayGetP(pGroupList->pGroupList, i);
-    size_t  numOfTables = taosArrayGetSize(oneGroup);
-
-    SArray* px = taosArrayInit(4, sizeof(STableKeyInfo));
-    for (int32_t j = 0; j < numOfTables; ++j) {
-      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(oneGroup, j);
-      //      if (window->skey <= pInfo->lastKey && ((STable*)pInfo->pTable)->lastKey != TSKEY_INITIAL_VAL) {
-      //        taosArrayPush(px, pInfo);
-      //        pNew->numOfTables += 1;
-      //        break;
-      //      }
-    }
-
-    // there are no data in this group
-    if (taosArrayGetSize(px) == 0) {
-      taosArrayDestroy(px);
-    } else {
-      taosArrayPush(pNew->pGroupList, &px);
-    }
-  }
-
-  return pNew;
-}
-
-tsdbReaderT tsdbQueryRowsInExternalWindow(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList,
-                                          uint64_t qId, uint64_t taskId) {
-  STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
-
-  if (pNew->numOfTables == 0) {
-    tsdbDebug("update query time range to invalidate time window");
-
-    assert(taosArrayGetSize(pNew->pGroupList) == 0);
-    bool asc = ASCENDING_TRAVERSE(pCond->order);
-    if (asc) {
-      pCond->twindow.ekey = pCond->twindow.skey - 1;
-    } else {
-      pCond->twindow.skey = pCond->twindow.ekey - 1;
-    }
-  }
-
-  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTables(pVnode, pCond, pNew, qId, taskId);
-  pTsdbReadHandle->loadExternalRow = true;
-  pTsdbReadHandle->currentLoadExternalRows = true;
-
-  return pTsdbReadHandle;
-}
+//tsdbReaderT tsdbQueryRowsInExternalWindow(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList,
+//                                          uint64_t qId, uint64_t taskId) {
+//  STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
+//
+//  if (pNew->numOfTables == 0) {
+//    tsdbDebug("update query time range to invalidate time window");
+//
+//    assert(taosArrayGetSize(pNew->pGroupList) == 0);
+//    bool asc = ASCENDING_TRAVERSE(pCond->order);
+//    if (asc) {
+//      pCond->twindow.ekey = pCond->twindow.skey - 1;
+//    } else {
+//      pCond->twindow.skey = pCond->twindow.ekey - 1;
+//    }
+//  }
+//
+//  STsdbReadHandle* pTsdbReadHandle = (STsdbReadHandle*)tsdbQueryTables(pVnode, pCond, pNew, qId, taskId);
+//  pTsdbReadHandle->loadExternalRow = true;
+//  pTsdbReadHandle->currentLoadExternalRows = true;
+//
+//  return pTsdbReadHandle;
+//}
 
 static bool initTableMemIterator(STsdbReadHandle* pHandle, STableCheckInfo* pCheckInfo) {
   if (pCheckInfo->initBuf) {
@@ -3338,8 +3331,8 @@ bool isTsdbCacheLastRow(tsdbReaderT* pReader) {
   return ((STsdbReadHandle*)pReader)->cachelastrow > TSDB_CACHED_TYPE_NONE;
 }
 
-int32_t checkForCachedLastRow(STsdbReadHandle* pTsdbReadHandle, STableGroupInfo* groupList) {
-  assert(pTsdbReadHandle != NULL && groupList != NULL);
+int32_t checkForCachedLastRow(STsdbReadHandle* pTsdbReadHandle, STableListInfo* tableList) {
+  assert(pTsdbReadHandle != NULL && tableList != NULL);
 
   //  TSKEY    key = TSKEY_INITIAL_VAL;
   //
@@ -3386,68 +3379,68 @@ int32_t checkForCachedLast(STsdbReadHandle* pTsdbReadHandle) {
   return code;
 }
 
-STimeWindow updateLastrowForEachGroup(STableGroupInfo* groupList) {
+STimeWindow updateLastrowForEachGroup(STableListInfo* pList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
 
-  int32_t totalNumOfTable = 0;
-  SArray* emptyGroup = taosArrayInit(16, sizeof(int32_t));
-
-  // NOTE: starts from the buffer in case of descending timestamp order check data blocks
-  size_t numOfGroups = taosArrayGetSize(groupList->pGroupList);
-  for (int32_t j = 0; j < numOfGroups; ++j) {
-    SArray* pGroup = taosArrayGetP(groupList->pGroupList, j);
-    TSKEY   key = TSKEY_INITIAL_VAL;
-
-    STableKeyInfo keyInfo = {0};
-
-    size_t numOfTables = taosArrayGetSize(pGroup);
-    for (int32_t i = 0; i < numOfTables; ++i) {
-      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
-
-      // if the lastKey equals to INT64_MIN, there is no data in this table
-      TSKEY lastKey = 0;  //((STable*)(pInfo->pTable))->lastKey;
-      if (key < lastKey) {
-        key = lastKey;
-
-        //        keyInfo.pTable  = pInfo->pTable;
-        keyInfo.lastKey = key;
-        pInfo->lastKey = key;
-
-        if (key < window.skey) {
-          window.skey = key;
-        }
-
-        if (key > window.ekey) {
-          window.ekey = key;
-        }
-      }
-    }
-
-    // more than one table in each group, only one table left for each group
-    //    if (keyInfo.pTable != NULL) {
-    //      totalNumOfTable++;
-    //      if (taosArrayGetSize(pGroup) == 1) {
-    //        // do nothing
-    //      } else {
-    //        taosArrayClear(pGroup);
-    //        taosArrayPush(pGroup, &keyInfo);
-    //      }
-    //    } else {  // mark all the empty groups, and remove it later
-    //      taosArrayDestroy(pGroup);
-    //      taosArrayPush(emptyGroup, &j);
-    //    }
-  }
-
-  // window does not being updated, so set the original
-  if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
-    window = TSWINDOW_INITIALIZER;
-    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == numOfGroups);
-  }
-
-  taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t)taosArrayGetSize(emptyGroup));
-  taosArrayDestroy(emptyGroup);
-
-  groupList->numOfTables = totalNumOfTable;
+//  int32_t totalNumOfTable = 0;
+//  SArray* emptyGroup = taosArrayInit(16, sizeof(int32_t));
+//
+//  // NOTE: starts from the buffer in case of descending timestamp order check data blocks
+//  size_t numOfGroups = taosArrayGetSize(groupList->pGroupList);
+//  for (int32_t j = 0; j < numOfGroups; ++j) {
+//    SArray* pGroup = taosArrayGetP(groupList->pGroupList, j);
+//    TSKEY   key = TSKEY_INITIAL_VAL;
+//
+//    STableKeyInfo keyInfo = {0};
+//
+//    size_t numOfTables = taosArrayGetSize(pGroup);
+//    for (int32_t i = 0; i < numOfTables; ++i) {
+//      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
+//
+//      // if the lastKey equals to INT64_MIN, there is no data in this table
+//      TSKEY lastKey = 0;  //((STable*)(pInfo->pTable))->lastKey;
+//      if (key < lastKey) {
+//        key = lastKey;
+//
+//        //        keyInfo.pTable  = pInfo->pTable;
+//        keyInfo.lastKey = key;
+//        pInfo->lastKey = key;
+//
+//        if (key < window.skey) {
+//          window.skey = key;
+//        }
+//
+//        if (key > window.ekey) {
+//          window.ekey = key;
+//        }
+//      }
+//    }
+//
+//    // more than one table in each group, only one table left for each group
+//    //    if (keyInfo.pTable != NULL) {
+//    //      totalNumOfTable++;
+//    //      if (taosArrayGetSize(pGroup) == 1) {
+//    //        // do nothing
+//    //      } else {
+//    //        taosArrayClear(pGroup);
+//    //        taosArrayPush(pGroup, &keyInfo);
+//    //      }
+//    //    } else {  // mark all the empty groups, and remove it later
+//    //      taosArrayDestroy(pGroup);
+//    //      taosArrayPush(emptyGroup, &j);
+//    //    }
+//  }
+//
+//  // window does not being updated, so set the original
+//  if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
+//    window = TSWINDOW_INITIALIZER;
+//    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == numOfGroups);
+//  }
+//
+//  taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t)taosArrayGetSize(emptyGroup));
+//  taosArrayDestroy(emptyGroup);
+//
+//  groupList->numOfTables = totalNumOfTable;
   return window;
 }
 
@@ -3873,81 +3866,6 @@ SArray* createTableGroup(SArray* pTableList, SSchemaWrapper* pTagSchema, SColInd
 //  return TSDB_CODE_SUCCESS;
 //}
 
-int32_t tsdbGetOneTableGroup(void* pMeta, uint64_t uid, TSKEY startKey, STableGroupInfo* pGroupInfo) {
-  SMetaReader mr = {0};
-
-  metaReaderInit(&mr, (SMeta*)pMeta, 0);
-
-  if (metaGetTableEntryByUid(&mr, uid) < 0) {
-    terrno = TSDB_CODE_PAR_TABLE_NOT_EXIST;
-    goto _error;
-  }
-
-  metaReaderClear(&mr);
-
-  pGroupInfo->numOfTables = 1;
-  pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
-
-  SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
-
-  STableKeyInfo info = {.lastKey = startKey, .uid = uid};
-  taosArrayPush(group, &info);
-
-  taosArrayPush(pGroupInfo->pGroupList, &group);
-  return TSDB_CODE_SUCCESS;
-
-_error:
-  metaReaderClear(&mr);
-  return terrno;
-}
-
-#if 0
-int32_t tsdbGetTableGroupFromIdListT(STsdb* tsdb, SArray* pTableIdList, STableGroupInfo* pGroupInfo) {
-  if (tsdbRLockRepoMeta(tsdb) < 0) {
-    return terrno;
-  }
-
-  assert(pTableIdList != NULL);
-  size_t size = taosArrayGetSize(pTableIdList);
-  pGroupInfo->pGroupList = taosArrayInit(1, POINTER_BYTES);
-  SArray* group = taosArrayInit(1, sizeof(STableKeyInfo));
-
-  for(int32_t i = 0; i < size; ++i) {
-    STableIdInfo *id = taosArrayGet(pTableIdList, i);
-
-    STable* pTable = tsdbGetTableByUid(tsdbGetMeta(tsdb), id->uid);
-    if (pTable == NULL) {
-      tsdbWarn("table uid:%"PRIu64", tid:%d has been drop already", id->uid, id->tid);
-      continue;
-    }
-
-    if (pTable->type == TSDB_SUPER_TABLE) {
-      tsdbError("direct query on super tale is not allowed, table uid:%"PRIu64", tid:%d", id->uid, id->tid);
-      terrno = TSDB_CODE_QRY_INVALID_MSG;
-      tsdbUnlockRepoMeta(tsdb);
-      taosArrayDestroy(group);
-      return terrno;
-    }
-
-    STableKeyInfo info = {.pTable = pTable, .lastKey = id->key};
-    taosArrayPush(group, &info);
-  }
-
-  if (tsdbUnlockRepoMeta(tsdb) < 0) {
-    taosArrayDestroy(group);
-    return terrno;
-  }
-
-  pGroupInfo->numOfTables = (uint32_t) taosArrayGetSize(group);
-  if (pGroupInfo->numOfTables > 0) {
-    taosArrayPush(pGroupInfo->pGroupList, &group);
-  } else {
-    taosArrayDestroy(group);
-  }
-
-  return TSDB_CODE_SUCCESS;
-}
-#endif
 static void* doFreeColumnInfoData(SArray* pColumnInfoData) {
   if (pColumnInfoData == NULL) {
     return NULL;
@@ -4018,30 +3936,6 @@ void tsdbCleanupReadHandle(tsdbReaderT queryHandle) {
 }
 
 #if 0
-void tsdbDestroyTableGroup(STableGroupInfo *pGroupList) {
-  assert(pGroupList != NULL);
-
-  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
-
-  for(int32_t i = 0; i < numOfGroup; ++i) {
-    SArray* p = taosArrayGetP(pGroupList->pGroupList, i);
-
-    size_t numOfTables = taosArrayGetSize(p);
-    for(int32_t j = 0; j < numOfTables; ++j) {
-      STable* pTable = taosArrayGetP(p, j);
-      if (pTable != NULL) { // in case of handling retrieve data from tsdb
-        tsdbUnRefTable(pTable);
-      }
-      //assert(pTable != NULL);
-    }
-
-    taosArrayDestroy(p);
-  }
-
-  taosHashCleanup(pGroupList->map);
-  taosArrayDestroy(pGroupList->pGroupList);
-  pGroupList->numOfTables = 0;
-}
 
 static void applyFilterToSkipListNode(SSkipList *pSkipList, tExprNode *pExpr, SArray *pResult, SExprTraverseSupp *param) {
   SSkipListIterator* iter = tSkipListCreateIter(pSkipList);
