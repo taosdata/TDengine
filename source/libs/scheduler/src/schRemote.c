@@ -440,6 +440,7 @@ int32_t schHandleExplainCallback(void *param, const SDataBuf *pMsg, int32_t code
 int32_t schHandleDropCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:%" PRIx64 ",TID:%" PRIx64 " drop task rsp received, code:%x", pParam->queryId, pParam->taskId, code);
+  taosMemoryFreeClear(param);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -556,7 +557,9 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
 
   param->nodeEpId.nodeId = addr->nodeId;
-  memcpy(&param->nodeEpId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
+  SEp* pEp = SCH_GET_CUR_EP(addr);
+  strcpy(param->nodeEpId.ep.fqdn, pEp->fqdn);
+  param->nodeEpId.ep.port = pEp->port;
   param->pTrans = pJob->pTrans;
 
   *pParam = param;
@@ -787,7 +790,10 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   SQueryNodeEpId  epId = {0};
 
   epId.nodeId = addr->nodeId;
-  memcpy(&epId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
+
+  SEp* pEp = SCH_GET_CUR_EP(addr);
+  strcpy(epId.ep.fqdn, pEp->fqdn);
+  epId.ep.port = pEp->port;
 
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {

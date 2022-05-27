@@ -318,6 +318,11 @@ static int32_t translateElapsed(SFunctionNode* pFunc, char* pErrBuf, int32_t len
     if (!IS_INTEGER_TYPE(paraType)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
     }
+
+    if (pValue->datum.i == 0) {
+      return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                             "ELAPSED function time unit parameter should be greater than db precision");
+    }
   }
 
   pFunc->node.resType = (SDataType){.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes, .type = TSDB_DATA_TYPE_DOUBLE};
@@ -760,19 +765,32 @@ static int32_t translateSubstr(SFunctionNode* pFunc, char* pErrBuf, int32_t len)
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
-  SExprNode* pPara1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
-  uint8_t    para2Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-  if (!IS_VAR_DATA_TYPE(pPara1->resType.type) || !IS_INTEGER_TYPE(para2Type)) {
+  SExprNode* pPara0 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
+  SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 1);
+
+  uint8_t para1Type = p1->resType.type;
+  if (!IS_VAR_DATA_TYPE(pPara0->resType.type) || !IS_INTEGER_TYPE(para1Type)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
+  if (((SValueNode*)p1)->datum.i < 1) {
+    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
   if (3 == numOfParams) {
-    uint8_t para3Type = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
-    if (!IS_INTEGER_TYPE(para3Type)) {
+    SExprNode* p2 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 2);
+    uint8_t para2Type = p2->resType.type;
+    if (!IS_INTEGER_TYPE(para2Type)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
+    int64_t v = ((SValueNode*)p1)->datum.i;
+    if (v < 0 || v > INT16_MAX) {
+      return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
     }
   }
 
-  pFunc->node.resType = (SDataType){.bytes = pPara1->resType.bytes, .type = pPara1->resType.type};
+  pFunc->node.resType = (SDataType){.bytes = pPara0->resType.bytes, .type = pPara0->resType.type};
   return TSDB_CODE_SUCCESS;
 }
 
@@ -790,9 +808,14 @@ static int32_t translateCast(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
       (para2Type == TSDB_DATA_TYPE_BINARY && para1Type == TSDB_DATA_TYPE_NCHAR)) {
     return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
   }
+
   int32_t para2Bytes = pFunc->node.resType.bytes;
+  if (IS_VAR_DATA_TYPE(para2Type)) {
+    para2Bytes -= VARSTR_HEADER_SIZE;
+  }
   if (para2Bytes <= 0 || para2Bytes > 1000) {  // cast dst var type length limits to 1000
-    return invaildFuncParaValueErrMsg(pErrBuf, len, pFunc->functionName);
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "CAST function converted length should be in range [0, 1000]");
   }
   return TSDB_CODE_SUCCESS;
 }
@@ -985,10 +1008,10 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .type = FUNCTION_TYPE_APERCENTILE,
     .classification = FUNC_MGT_AGG_FUNC,
     .translateFunc = translateApercentile,
-    .getEnvFunc   = getMinmaxFuncEnv,
-    .initFunc     = minmaxFunctionSetup,
-    .processFunc  = maxFunction,
-    .finalizeFunc = functionFinalize
+    .getEnvFunc   = getApercentileFuncEnv,
+    .initFunc     = apercentileFunctionSetup,
+    .processFunc  = apercentileFunction,
+    .finalizeFunc = apercentileFinalize
   },
   {
     .name = "top",
@@ -1050,7 +1073,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = firstFunction,
-    .finalizeFunc = functionFinalize,
+    .finalizeFunc = firstLastFinalize,
     .combineFunc = firstCombine,
   },
   {
@@ -1061,7 +1084,7 @@ const SBuiltinFuncDefinition funcMgtBuiltins[] = {
     .getEnvFunc   = getFirstLastFuncEnv,
     .initFunc     = functionSetup,
     .processFunc  = lastFunction,
-    .finalizeFunc = lastFinalize,
+    .finalizeFunc = firstLastFinalize,
     .combineFunc  = lastCombine,
   },
   {

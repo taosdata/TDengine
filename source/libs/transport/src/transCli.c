@@ -921,16 +921,19 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STransConnCtx* pCtx = pMsg->ctx;
   SEpSet*        pEpSet = &pCtx->epSet;
+  transPrintEpSet(pEpSet);
+
   /*
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
   tmsg_t msgType = pCtx->msgType;
   if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
-      ((pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && msgType == TDMT_MND_CONNECT)) {
+      (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
+       pResp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pResp->code == TSDB_CODE_SYN_NOT_LEADER)) {
     pMsg->sent = 0;
     pMsg->st = taosGetTimestampUs();
     pCtx->retryCount += 1;
-    if (msgType == TDMT_MND_CONNECT && pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (pCtx->retryCount < pEpSet->numOfEps) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
 
@@ -972,7 +975,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->pRsp = NULL;
   } else {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    pTransInst->cfp(pTransInst->parent, pResp, pEpSet);
+    if (pResp->code != 0) {
+      pTransInst->cfp(pTransInst->parent, pResp, NULL);
+    } else {
+      pTransInst->cfp(pTransInst->parent, pResp, pEpSet);
+    }
   }
   return 0;
 }
