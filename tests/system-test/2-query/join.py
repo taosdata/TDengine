@@ -43,7 +43,7 @@ class TDTestCase:
         for num_col in NUM_COL:
             query_condition.extend(
                 (
-                    f"sin( {tbname}.{num_col} )"
+                    f"sin( {tbname}.{num_col} )",
                 )
             )
             query_condition.extend( f"{tbname}.{num_col} + {tbname}.{num_col_1} " for num_col_1 in NUM_COL )
