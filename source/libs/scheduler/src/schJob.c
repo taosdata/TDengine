@@ -856,7 +856,12 @@ _return:
 
 void schProcessOnDataFetched(SSchJob *job) {
   atomic_val_compare_exchange_32(&job->remoteFetch, 1, 0);
-  tsem_post(&job->rspSem);
+
+  if (job->attr.syncSchedule) {
+    tsem_post(&job->rspSem);
+  } else if (SCH_FETCH_CB == atomic_val_compare_exchange_32(&job->userCb, SCH_FETCH_CB, 0)) {
+    schNotifyUserFetchRes(job);
+  }
 }
 
 // Note: no more task error processing, handled in function internal

@@ -257,6 +257,7 @@ static int32_t mndProcessRetrieveSysTableReq(SRpcMsg *pReq) {
       terrno = rowsRead;
       mDebug("show:0x%" PRIx64 ", retrieve completed", pShow->id);
       mndReleaseShowObj(pShow, true);
+      blockDataDestroy(pBlock);
       return -1;
     }
 

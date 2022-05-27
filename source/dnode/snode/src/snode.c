@@ -103,8 +103,8 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
     tDecoderClear(&decoder);
 
     sndMetaDeployTask(pSnode->pMeta, pTask);
-  } else if (pMsg->msgType == TDMT_SND_TASK_EXEC) {
-    sndProcessTaskExecReq(pSnode, pMsg);
+    /*} else if (pMsg->msgType == TDMT_SND_TASK_EXEC) {*/
+    /*sndProcessTaskExecReq(pSnode, pMsg);*/
   } else {
     ASSERT(0);
   }
@@ -112,9 +112,9 @@ void sndProcessUMsg(SSnode *pSnode, SRpcMsg *pMsg) {
 
 void sndProcessSMsg(SSnode *pSnode, SRpcMsg *pMsg) {
   // operator exec
-  if (pMsg->msgType == TDMT_SND_TASK_EXEC) {
-    sndProcessTaskExecReq(pSnode, pMsg);
-  } else {
-    ASSERT(0);
-  }
+  /*if (pMsg->msgType == TDMT_SND_TASK_EXEC) {*/
+  /*sndProcessTaskExecReq(pSnode, pMsg);*/
+  /*} else {*/
+  ASSERT(0);
+  /*}*/
 }

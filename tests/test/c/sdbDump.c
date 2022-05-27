@@ -110,7 +110,6 @@ void dumpStb(SSdb *pSdb, SJson *json) {
     tjsonAddStringToObject(item, "updateTime", i642str(pObj->updateTime));
     tjsonAddStringToObject(item, "uid", i642str(pObj->uid));
     tjsonAddStringToObject(item, "dbUid", i642str(pObj->dbUid));
-    tjsonAddIntegerToObject(item, "version", pObj->version);
     tjsonAddIntegerToObject(item, "tagVer", pObj->tagVer);
     tjsonAddIntegerToObject(item, "colVer", pObj->colVer);
     tjsonAddIntegerToObject(item, "nextColId", pObj->nextColId);

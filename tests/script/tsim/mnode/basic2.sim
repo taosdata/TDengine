@@ -21,29 +21,31 @@ endi
 
 print =============== create dnodes
 sql create dnode $hostname port 7200
-sql create dnode $hostname port 7300
-sleep 2000
-
-sql show dnodes;
-if $rows != 3 then 
-  return -1
+$x = 0
+step1: 
+	$x = $x + 1
+	sleep 500
+	if $x == 20 then
+		return -1
+	endi
+sql show dnodes -x step1
+if $data(1)[4] != ready then
+  goto step1
 endi
-
-sql show mnodes;
-if $rows != 1 then 
-  return -1
-endi
-
-if $data00 != 1 then 
-  return -1
-endi
-
-if $data02 != LEADER then 
-  return -1
+if $data(2)[4] != ready then
+  goto step1
 endi
 
 print =============== create mnode 2
 sql create mnode on dnode 2
+
+$x = 0
+step2: 
+	$x = $x + 1
+	sleep 1000
+	if $x == 20 then
+		return -1
+	endi
 sql show mnodes
 print $data(1)[0] $data(1)[1] $data(1)[2] 
 print $data(2)[0] $data(2)[1] $data(2)[2] 
@@ -60,8 +62,8 @@ endi
 if $data(2)[0] != 2 then 
   return -1
 endi
-if $data(2)[2] == LEADER then 
-  return -1
+if $data(2)[2] != FOLLOWER then 
+  goto step2
 endi
 
 print =============== create user
@@ -71,28 +73,23 @@ if $rows != 2 then
   return -1
 endi
 
-#sql create database db
-#sql show databases
-#if $rows != 3 then 
-#  return -1
-#endi
+sql create database db
+sql show databases
+if $rows != 3 then 
+  return -1
+endi
 
+sleep 5000
+
+print =============== restart
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode2 -s stop
-sleep 100
 system sh/exec.sh -n dnode1 -s start
 system sh/exec.sh -n dnode2 -s start
 
 sql connect
-
 sql show mnodes
 if $rows != 2 then 
-  return -1
-endi
-if $data(1)[0] != 1 then 
-  return -1
-endi
-if $data(1)[2] != LEADER then 
   return -1
 endi
 
@@ -101,12 +98,30 @@ if $rows != 2 then
   return -1
 endi
 
-#sql show databases
-#if $rows != 3 then 
-#  return -1
-#endi
+sql show databases
+if $rows != 3 then 
+  return -1
+endi
 
-return
+$x = 0
+step3: 
+	$x = $x + 1
+	sleep 500
+	if $x == 20 then
+		return -1
+	endi
+sql show dnodes -x step3
+if $data(1)[4] != ready then
+  goto step3
+endi
+if $data(2)[4] != ready then
+  goto step3
+endi
+
+print =============== insert data
+#sql create table db.stb (ts timestamp, c1 int, c2 binary(4)) tags(t1 int, t2 float, t3 binary(16)) comment "abd"
+#sql create table db.ctb using db.stb tags(101, 102, "103")
+#sql insert into db.ctb values(now, 1, "2")
 
 system sh/exec.sh -n dnode1 -s stop
 system sh/exec.sh -n dnode2 -s stop

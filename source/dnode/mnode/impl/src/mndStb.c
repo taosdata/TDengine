@@ -87,7 +87,6 @@ SSdbRaw *mndStbActionEncode(SStbObj *pStb) {
   SDB_SET_INT64(pRaw, dataPos, pStb->updateTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->uid, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pStb->dbUid, _OVER)
-  SDB_SET_INT32(pRaw, dataPos, pStb->version, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->tagVer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->colVer, _OVER)
   SDB_SET_INT32(pRaw, dataPos, pStb->nextColId, _OVER)
@@ -167,7 +166,6 @@ static SSdbRow *mndStbActionDecode(SSdbRaw *pRaw) {
   SDB_GET_INT64(pRaw, dataPos, &pStb->updateTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pStb->uid, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pStb->dbUid, _OVER)
-  SDB_GET_INT32(pRaw, dataPos, &pStb->version, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->tagVer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->colVer, _OVER)
   SDB_GET_INT32(pRaw, dataPos, &pStb->nextColId, _OVER)
@@ -320,7 +318,6 @@ static int32_t mndStbActionUpdate(SSdb *pSdb, SStbObj *pOld, SStbObj *pNew) {
   }
 
   pOld->updateTime = pNew->updateTime;
-  pOld->version = pNew->version;
   pOld->tagVer = pNew->tagVer;
   pOld->colVer = pNew->colVer;
   pOld->nextColId = pNew->nextColId;
@@ -390,7 +387,7 @@ static void *mndBuildVCreateStbReq(SMnode *pMnode, SVgObj *pVgroup, SStbObj *pSt
   req.rollup = pStb->ast1Len > 0 ? 1 : 0;
   // todo
   req.schemaRow.nCols = pStb->numOfColumns;
-  req.schemaRow.version = pStb->version;
+  req.schemaRow.version = pStb->colVer;
   req.schemaRow.pSchema = pStb->pColumns;
   req.schemaTag.nCols = pStb->numOfTags;
   req.schemaTag.version = pStb->tagVer;
@@ -665,7 +662,6 @@ int32_t mndBuildStbFromReq(SMnode *pMnode, SStbObj *pDst, SMCreateStbReq *pCreat
   pDst->updateTime = pDst->createdTime;
   pDst->uid = mndGenerateUid(pCreate->name, TSDB_TABLE_FNAME_LEN);
   pDst->dbUid = pDb->uid;
-  pDst->version = 1;
   pDst->tagVer = 1;
   pDst->colVer = 1;
   pDst->nextColId = 1;
@@ -957,7 +953,6 @@ static int32_t mndAddSuperTableTag(const SStbObj *pOld, SStbObj *pNew, SArray *p
     mDebug("stb:%s, start to add tag %s", pNew->name, pSchema->name);
   }
 
-  pNew->version++;
   pNew->tagVer++;
   return 0;
 }
@@ -976,7 +971,6 @@ static int32_t mndDropSuperTableTag(const SStbObj *pOld, SStbObj *pNew, const ch
   memmove(pNew->pTags + tag, pNew->pTags + tag + 1, sizeof(SSchema) * (pNew->numOfTags - tag - 1));
   pNew->numOfTags--;
 
-  pNew->version++;
   pNew->tagVer++;
   mDebug("stb:%s, start to drop tag %s", pNew->name, tagName);
   return 0;
@@ -1017,7 +1011,6 @@ static int32_t mndAlterStbTagName(const SStbObj *pOld, SStbObj *pNew, SArray *pF
   SSchema *pSchema = (SSchema *)(pNew->pTags + tag);
   memcpy(pSchema->name, newTagName, TSDB_COL_NAME_LEN);
 
-  pNew->version++;
   pNew->tagVer++;
   mDebug("stb:%s, start to modify tag %s to %s", pNew->name, oldTagName, newTagName);
   return 0;
@@ -1047,7 +1040,6 @@ static int32_t mndAlterStbTagBytes(const SStbObj *pOld, SStbObj *pNew, const SFi
   }
 
   pTag->bytes = pField->bytes;
-  pNew->version++;
   pNew->tagVer++;
 
   mDebug("stb:%s, start to modify tag len %s to %d", pNew->name, pField->name, pField->bytes);
@@ -1087,7 +1079,6 @@ static int32_t mndAddSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, SArray
     mDebug("stb:%s, start to add column %s", pNew->name, pSchema->name);
   }
 
-  pNew->version++;
   pNew->colVer++;
   return 0;
 }
@@ -1116,7 +1107,6 @@ static int32_t mndDropSuperTableColumn(const SStbObj *pOld, SStbObj *pNew, const
   memmove(pNew->pColumns + col, pNew->pColumns + col + 1, sizeof(SSchema) * (pNew->numOfColumns - col - 1));
   pNew->numOfColumns--;
 
-  pNew->version++;
   pNew->colVer++;
   mDebug("stb:%s, start to drop col %s", pNew->name, colName);
   return 0;
@@ -1155,7 +1145,6 @@ static int32_t mndAlterStbColumnBytes(const SStbObj *pOld, SStbObj *pNew, const 
   }
 
   pCol->bytes = pField->bytes;
-  pNew->version++;
   pNew->colVer++;
 
   mDebug("stb:%s, start to modify col len %s to %d", pNew->name, pField->name, pField->bytes);
@@ -1316,9 +1305,10 @@ static int32_t mndProcessMAlterStbReq(SRpcMsg *pReq) {
     goto _OVER;
   }
 
-  if (alterReq.verInBlock > 0 && alterReq.verInBlock <= pStb->version) {
-    mDebug("stb:%s, already exist, verInBlock:%d smaller than verInStb:%d, alter success", alterReq.name,
-           alterReq.verInBlock, pStb->version);
+  if ((alterReq.tagVer > 0 && alterReq.colVer > 0) &&
+      (alterReq.tagVer <= pStb->tagVer || alterReq.colVer <= pStb->colVer)) {
+    mDebug("stb:%s, already exist, tagVer:%d colVer:%d smaller than in mnode, tagVer:%d colVer:%d, alter success",
+           alterReq.name, alterReq.tagVer, alterReq.colVer, pStb->tagVer, pStb->colVer);
     code = 0;
     goto _OVER;
   }
@@ -1512,7 +1502,8 @@ static int32_t mndBuildStbSchemaImp(SDbObj *pDb, SStbObj *pStb, const char *tbNa
   pRsp->numOfColumns = pStb->numOfColumns;
   pRsp->precision = pDb->cfg.precision;
   pRsp->tableType = TSDB_SUPER_TABLE;
-  pRsp->sversion = pStb->version;
+  pRsp->sversion = pStb->colVer;
+  pRsp->tversion = pStb->tagVer;
   pRsp->suid = pStb->uid;
   pRsp->tuid = pStb->uid;
 
@@ -1639,7 +1630,7 @@ int32_t mndValidateStbInfo(SMnode *pMnode, SSTableMetaVersion *pStbVersions, int
       metaRsp.suid = pStbVersion->suid;
     }
 
-    if (pStbVersion->sversion != metaRsp.sversion) {
+    if (pStbVersion->sversion != metaRsp.sversion || pStbVersion->tversion != metaRsp.tversion) {
       taosArrayPush(batchMetaRsp.pArray, &metaRsp);
     } else {
       tFreeSTableMetaRsp(&metaRsp);

@@ -184,6 +184,16 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
 
   i++;
 
+  int32_t j = i;
+  while (str[j]) {
+    if ((str[j] >= '0' && str[j] <= '9') || str[j] == ':') {
+      ++j;
+      continue;
+    }
+
+    return -1;
+  }
+
   char* sep = strchr(&str[i], ':');
   if (sep != NULL) {
     int32_t len = (int32_t)(sep - &str[i]);
