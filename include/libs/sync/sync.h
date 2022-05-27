@@ -80,6 +80,7 @@ typedef struct SFsmCbMeta {
   uint64_t   seqNum;
   SyncTerm   term;
   SyncTerm   currentTerm;
+  uint64_t   flag;
 } SFsmCbMeta;
 
 typedef struct SReConfigCbMeta {
@@ -87,6 +88,9 @@ typedef struct SReConfigCbMeta {
   SyncIndex index;
   SyncTerm  term;
   SyncTerm  currentTerm;
+  SSyncCfg  oldCfg;
+  bool      isDrop;
+  uint64_t  flag;
 } SReConfigCbMeta;
 
 typedef struct SSyncFSM {
@@ -146,6 +150,7 @@ typedef struct SSyncLogStore {
 } SSyncLogStore;
 
 typedef struct SSyncInfo {
+  bool        isStandBy;
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];
@@ -160,8 +165,8 @@ int32_t     syncInit();
 void        syncCleanUp();
 int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
-void        syncStartStandBy(int64_t rid);
 void        syncStop(int64_t rid);
+int32_t     syncSetStandby(int64_t rid);
 int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);
@@ -172,6 +177,10 @@ int32_t     syncPropose(int64_t rid, const SRpcMsg* pMsg, bool isWeak);
 bool        syncEnvIsStart();
 const char* syncStr(ESyncState state);
 bool        syncIsRestoreFinish(int64_t rid);
+
+// to be moved to static
+void syncStartNormal(int64_t rid);
+void syncStartStandBy(int64_t rid);
 
 #ifdef __cplusplus
 }

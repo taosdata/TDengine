@@ -396,6 +396,7 @@ int32_t schHandleCallback(void *param, const SDataBuf *pMsg, int32_t msgType, in
   SCH_ERR_JRET(schHandleResponseMsg(pJob, pTask, msgType, pMsg->pData, pMsg->len, rspCode));
 
 _return:
+  
   if (pJob) {
     schReleaseJob(pParam->refId);
   }
@@ -439,6 +440,7 @@ int32_t schHandleExplainCallback(void *param, const SDataBuf *pMsg, int32_t code
 int32_t schHandleDropCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   SSchTaskCallbackParam *pParam = (SSchTaskCallbackParam *)param;
   qDebug("QID:%" PRIx64 ",TID:%" PRIx64 " drop task rsp received, code:%x", pParam->queryId, pParam->taskId, code);
+  taosMemoryFreeClear(param);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -450,7 +452,7 @@ int32_t schHandleLinkBrokenCallback(void *param, const SDataBuf *pMsg, int32_t c
 
   if (head->isHbParam) {
     SSchHbCallbackParam *hbParam = (SSchHbCallbackParam *)param;
-    SSchTrans            trans = {.transInst = hbParam->transport, .transHandle = NULL};
+    SSchTrans            trans = {.pTrans = hbParam->pTrans, .pHandle = NULL};
     SCH_ERR_RET(schUpdateHbConnection(&hbParam->nodeEpId, &trans));
 
     SCH_ERR_RET(schBuildAndSendHbMsg(&hbParam->nodeEpId));
@@ -481,7 +483,7 @@ int32_t schGenerateCallBackInfo(SSchJob *pJob, SSchTask *pTask, int32_t msgType,
   param->queryId = pJob->queryId;
   param->refId = pJob->refId;
   param->taskId = SCH_TASK_ID(pTask);
-  param->transport = pJob->transport;
+  param->transport = pJob->pTrans;
 
   msgSendInfo->param = param;
   msgSendInfo->fp = fp;
@@ -555,8 +557,10 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
   SQueryNodeAddr *addr = taosArrayGet(pTask->candidateAddrs, pTask->candidateIdx);
 
   param->nodeEpId.nodeId = addr->nodeId;
-  memcpy(&param->nodeEpId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
-  param->transport = pJob->transport;
+  SEp* pEp = SCH_GET_CUR_EP(addr);
+  strcpy(param->nodeEpId.ep.fqdn, pEp->fqdn);
+  param->nodeEpId.ep.port = pEp->port;
+  param->pTrans = pJob->pTrans;
 
   *pParam = param;
 
@@ -565,8 +569,9 @@ int32_t schMakeHbCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
 
 int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
   int32_t code = 0;
-  memcpy(&pDst->brokenVal, &pSrc->brokenVal, sizeof(pSrc->brokenVal));
+  memcpy(pDst, pSrc, sizeof(SRpcCtx));
   pDst->brokenVal.val = NULL;
+  pDst->args = NULL;
 
   SCH_ERR_RET(schCloneSMsgSendInfo(pSrc->brokenVal.val, &pDst->brokenVal.val));
 
@@ -589,7 +594,7 @@ int32_t schCloneHbRpcCtx(SRpcCtx *pSrc, SRpcCtx *pDst) {
 
     if (taosHashPut(pDst->args, msgType, sizeof(*msgType), &dst, sizeof(dst))) {
       qError("taosHashPut msg %d to rpcCtx failed", *msgType);
-      (*dst.freeFunc)(dst.val);
+      (*pSrc->freeFunc)(dst.val);
       SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
     }
 
@@ -638,18 +643,19 @@ int32_t schMakeHbRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   SCH_ERR_JRET(schGetCallbackFp(TDMT_VND_QUERY_HEARTBEAT, &fp));
 
   param->nodeEpId = epId;
-  param->transport = pJob->transport;
+  param->pTrans = pJob->pTrans;
 
   pMsgSendInfo->param = param;
   pMsgSendInfo->fp = fp;
 
-  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo, .freeFunc = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pMsgSendInfo, .clone = schCloneSMsgSendInfo};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
   SCH_ERR_JRET(schMakeBrokenLinkVal(pJob, pTask, &pCtx->brokenVal, true));
+  pCtx->freeFunc = schFreeRpcCtxVal;
 
   return TSDB_CODE_SUCCESS;
 
@@ -666,7 +672,7 @@ int32_t schRegisterHbConnection(SSchJob *pJob, SSchTask *pTask, SQueryNodeEpId *
   int32_t     code = 0;
   SSchHbTrans hb = {0};
 
-  hb.trans.transInst = pJob->transport;
+  hb.trans.pTrans = pJob->pTrans;
 
   SCH_ERR_RET(schMakeHbRpcCtx(pJob, pTask, &hb.rpcCtx));
 
@@ -743,12 +749,12 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId) {
   __async_send_cb_fn_t fp = NULL;
   SCH_ERR_JRET(schGetCallbackFp(msgType, &fp));
 
-  param->transport = trans.transInst;
+  param->transport = trans.pTrans;
 
   pMsgSendInfo->param = param;
   pMsgSendInfo->msgInfo.pData = msg;
   pMsgSendInfo->msgInfo.len = msgSize;
-  pMsgSendInfo->msgInfo.handle = trans.transHandle;
+  pMsgSendInfo->msgInfo.handle = trans.pHandle;
   pMsgSendInfo->msgType = msgType;
   pMsgSendInfo->fp = fp;
 
@@ -756,13 +762,13 @@ int32_t schBuildAndSendHbMsg(SQueryNodeEpId *nodeEpId) {
   SEpSet  epSet = {.inUse = 0, .numOfEps = 1};
   memcpy(&epSet.eps[0], &nodeEpId->ep, sizeof(nodeEpId->ep));
 
-  qDebug("start to send hb msg, instance:%p, handle:%p, fqdn:%s, port:%d", trans.transInst, trans.transHandle,
+  qDebug("start to send hb msg, pTrans:%p, pHandle:%p, fqdn:%s, port:%d", trans.pTrans, trans.pHandle,
          nodeEpId->ep.fqdn, nodeEpId->ep.port);
 
-  code = asyncSendMsgToServerExt(trans.transInst, &epSet, &transporterId, pMsgSendInfo, true, &rpcCtx);
+  code = asyncSendMsgToServerExt(trans.pTrans, &epSet, &transporterId, pMsgSendInfo, true, &rpcCtx);
   if (code) {
-    qError("fail to send hb msg, instance:%p, handle:%p, fqdn:%s, port:%d, error:%x - %s", trans.transInst,
-           trans.transHandle, nodeEpId->ep.fqdn, nodeEpId->ep.port, code, tstrerror(code));
+    qError("fail to send hb msg, pTrans:%p, pHandle:%p, fqdn:%s, port:%d, error:%x - %s", trans.pTrans,
+           trans.pHandle, nodeEpId->ep.fqdn, nodeEpId->ep.port, code, tstrerror(code));
     SCH_ERR_JRET(code);
   }
 
@@ -784,7 +790,10 @@ int32_t schEnsureHbConnection(SSchJob *pJob, SSchTask *pTask) {
   SQueryNodeEpId  epId = {0};
 
   epId.nodeId = addr->nodeId;
-  memcpy(&epId.ep, SCH_GET_CUR_EP(addr), sizeof(SEp));
+
+  SEp* pEp = SCH_GET_CUR_EP(addr);
+  strcpy(epId.ep.fqdn, pEp->fqdn);
+  epId.ep.port = pEp->port;
 
   SSchHbTrans *hb = taosHashGet(schMgmt.hbConnections, &epId, sizeof(SQueryNodeEpId));
   if (NULL == hb) {
@@ -812,8 +821,8 @@ int32_t schUpdateHbConnection(SQueryNodeEpId *epId, SSchTrans *trans) {
   memcpy(&hb->trans, trans, sizeof(*trans));
   SCH_UNLOCK(SCH_WRITE, &hb->lock);
 
-  qDebug("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, instance:%p, handle:%p", schMgmt.sId,
-         epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->transInst, trans->transHandle);
+  qDebug("hb connection updated, sId:%" PRIx64 ", nodeId:%d, fqdn:%s, port:%d, pTrans:%p, pHandle:%p", schMgmt.sId,
+         epId->nodeId, epId->ep.fqdn, epId->ep.port, trans->pTrans, trans->pHandle);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -833,8 +842,8 @@ int32_t schHandleHbCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   }
 
   SSchTrans trans = {0};
-  trans.transInst = pParam->transport;
-  trans.transHandle = pMsg->handle;
+  trans.pTrans = pParam->transport;
+  trans.pHandle = pMsg->handle;
 
   SCH_ERR_JRET(schUpdateHbConnection(&rsp.epId, &trans));
 
@@ -879,7 +888,7 @@ int32_t schMakeCallbackParam(SSchJob *pJob, SSchTask *pTask, void **pParam) {
   param->queryId = pJob->queryId;
   param->refId = pJob->refId;
   param->taskId = SCH_TASK_ID(pTask);
-  param->transport = pJob->transport;
+  param->transport = pJob->pTrans;
 
   *pParam = param;
 
@@ -911,7 +920,6 @@ int32_t schMakeBrokenLinkVal(SSchJob *pJob, SSchTask *pTask, SRpcBrokenlinkVal *
   brokenVal->msgType = msgType;
   brokenVal->val = pMsgSendInfo;
   brokenVal->clone = schCloneSMsgSendInfo;
-  brokenVal->freeFunc = schFreeRpcCtxVal;
 
   return TSDB_CODE_SUCCESS;
 
@@ -938,7 +946,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, TDMT_VND_EXPLAIN, &pExplainMsgSendInfo));
 
   int32_t    msgType = TDMT_VND_RES_READY_RSP;
-  SRpcCtxVal ctxVal = {.val = pReadyMsgSendInfo, .clone = schCloneSMsgSendInfo, .freeFunc = schFreeRpcCtxVal};
+  SRpcCtxVal ctxVal = {.val = pReadyMsgSendInfo, .clone = schCloneSMsgSendInfo};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -952,6 +960,7 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   }
 
   SCH_ERR_JRET(schMakeBrokenLinkVal(pJob, pTask, &pCtx->brokenVal, false));
+  pCtx->freeFunc = schFreeRpcCtxVal;
 
   return TSDB_CODE_SUCCESS;
 
@@ -1034,15 +1043,15 @@ int32_t schAsyncSendMsg(SSchJob *pJob, SSchTask *pTask, void *transport, SEpSet 
 
   pMsgSendInfo->msgInfo.pData = msg;
   pMsgSendInfo->msgInfo.len = msgSize;
-  pMsgSendInfo->msgInfo.handle = trans->transHandle;
+  pMsgSendInfo->msgInfo.handle = trans->pHandle;
   pMsgSendInfo->msgType = msgType;
 
-  qDebug("start to send %s msg to node[%d,%s,%d], refId:%" PRIx64 "instance:%p, handle:%p", TMSG_INFO(msgType),
+  qDebug("start to send %s msg to node[%d,%s,%d], refId:%" PRIx64 "pTrans:%p, pHandle:%p", TMSG_INFO(msgType),
          ntohl(((SMsgHead *)msg)->vgId), epSet->eps[epSet->inUse].fqdn, epSet->eps[epSet->inUse].port, pJob->refId,
-         trans->transInst, trans->transHandle);
+         trans->pTrans, trans->pHandle);
 
   int64_t transporterId = 0;
-  code = asyncSendMsgToServerExt(trans->transInst, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
+  code = asyncSendMsgToServerExt(trans->pTrans, epSet, &transporterId, pMsgSendInfo, persistHandle, ctx);
   if (code) {
     SCH_ERR_JRET(code);
   }
@@ -1208,12 +1217,12 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
 
   SCH_SET_TASK_LASTMSG_TYPE(pTask, msgType);
 
-  SSchTrans trans = {.transInst = pJob->transport, .transHandle = SCH_GET_TASK_HANDLE(pTask)};
+  SSchTrans trans = {.pTrans = pJob->pTrans, .pHandle = SCH_GET_TASK_HANDLE(pTask)};
   SCH_ERR_JRET(schAsyncSendMsg(pJob, pTask, &trans, &epSet, msgType, msg, msgSize, persistHandle,
                                (rpcCtx.args ? &rpcCtx : NULL)));
 
   if (msgType == TDMT_VND_QUERY) {
-    SCH_ERR_RET(schRecordTaskExecNode(pJob, pTask, addr, trans.transHandle));
+    SCH_ERR_RET(schRecordTaskExecNode(pJob, pTask, addr, trans.pHandle));
   }
 
   return TSDB_CODE_SUCCESS;

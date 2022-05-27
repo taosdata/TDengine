@@ -248,7 +248,7 @@ int32_t ctgReadTbMetaFromCache(SCatalog* pCtg, SCtgTbMetaCtx* ctx, STableMeta** 
 
   ctgAcquireDBCache(pCtg, dbFName, &dbCache);
   if (NULL == dbCache) {
-    ctgDebug("db %s not in cache", ctx->pName->tname);
+    ctgDebug("db %d.%s not in cache", ctx->pName->acctId, ctx->pName->dbname);
     return TSDB_CODE_SUCCESS;
   }
   
@@ -322,9 +322,10 @@ _return:
   CTG_RET(code);
 }
 
-int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *sver, int32_t *tbType, uint64_t *suid,
+int32_t ctgReadTbVerFromCache(SCatalog *pCtg, const SName *pTableName, int32_t *sver, int32_t *tver, int32_t *tbType, uint64_t *suid,
                               char *stbName) {
   *sver = -1;
+  *tver = -1;
 
   if (NULL == pCtg->dbCache) {
     ctgDebug("empty tbmeta cache, tbName:%s", pTableName->tname);
@@ -348,6 +349,7 @@ int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t 
     *suid = tbMeta->suid;
     if (*tbType != TSDB_CHILD_TABLE) {
       *sver = tbMeta->sversion;
+      *tver = tbMeta->tversion;
     }
   }
   CTG_UNLOCK(CTG_READ, &dbCache->tbCache.metaLock);
@@ -359,7 +361,7 @@ int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t 
 
   if (*tbType != TSDB_CHILD_TABLE) {
     ctgReleaseDBCache(pCtg, dbCache);
-    ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tbType, dbFName, pTableName->tname);
+    ctgDebug("Got sver %d tver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tver, *tbType, dbFName, pTableName->tname);
 
     return TSDB_CODE_SUCCESS;
   }
@@ -391,12 +393,13 @@ int32_t ctgReadTbSverFromCache(SCatalog *pCtg, const SName *pTableName, int32_t 
   stbName[nameLen] = 0;
 
   *sver = (*stbMeta)->sversion;
+  *tver = (*stbMeta)->tversion;
 
   CTG_UNLOCK(CTG_READ, &dbCache->tbCache.stbLock);
 
   ctgReleaseDBCache(pCtg, dbCache);
 
-  ctgDebug("Got sver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tbType, dbFName, pTableName->tname);
+  ctgDebug("Got sver %d tver %d from cache, type:%d, dbFName:%s, tbName:%s", *sver, *tver, *tbType, dbFName, pTableName->tname);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -715,7 +718,7 @@ int32_t ctgPutUpdateUserToQueue(SCatalog* pCtg, SGetUserAuthRsp *pAuth, bool syn
   action.data = msg;
 
   CTG_ERR_JRET(ctgPushAction(pCtg, &action));
-
+  
   return TSDB_CODE_SUCCESS;
   
 _return:
@@ -1457,10 +1460,15 @@ _return:
   CTG_RET(code);
 }
 
+void ctgUpdateThreadFuncUnexpectedStopped(void) {
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock) > 0) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+}
 
 void* ctgUpdateThreadFunc(void* param) {
   setThreadName("catalog");
-
+#ifdef WINDOWS
+  atexit(ctgUpdateThreadFuncUnexpectedStopped);
+#endif
   qInfo("catalog update thread started");
 
   CTG_LOCK(CTG_READ, &gCtgMgmt.lock);
@@ -1494,7 +1502,7 @@ void* ctgUpdateThreadFunc(void* param) {
     ctgdShowClusterCache(pCtg);
   }
 
-  CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
+  if (CTG_IS_LOCKED(&gCtgMgmt.lock)) CTG_UNLOCK(CTG_READ, &gCtgMgmt.lock);
 
   qInfo("catalog update thread stopped");
   

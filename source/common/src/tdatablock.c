@@ -275,8 +275,10 @@ int32_t colDataMergeCol(SColumnInfoData* pColumnInfoData, uint32_t numOfRow1, in
 
     doBitmapMerge(pColumnInfoData, numOfRow1, pSource, numOfRow2);
 
-    int32_t offset = pColumnInfoData->info.bytes * numOfRow1;
-    memcpy(pColumnInfoData->pData + offset, pSource->pData, pSource->info.bytes * numOfRow2);
+    if (pSource->pData) {
+      int32_t offset = pColumnInfoData->info.bytes * numOfRow1;
+      memcpy(pColumnInfoData->pData + offset, pSource->pData, pSource->info.bytes * numOfRow2);
+    }
   }
 
   return numOfRow1 + numOfRow2;
@@ -319,14 +321,16 @@ int32_t colDataAssign(SColumnInfoData* pColumnInfoData, const SColumnInfoData* p
     pColumnInfoData->nullbitmap = tmp;
     memcpy(pColumnInfoData->nullbitmap, pSource->nullbitmap, BitmapLen(numOfRows));
 
-    int32_t newSize = numOfRows * pColumnInfoData->info.bytes;
-    tmp = taosMemoryRealloc(pColumnInfoData->pData, newSize);
-    if (tmp == NULL) {
-      return TSDB_CODE_OUT_OF_MEMORY;
-    }
+    if (pSource->pData) {
+      int32_t newSize = numOfRows * pColumnInfoData->info.bytes;
+      tmp = taosMemoryRealloc(pColumnInfoData->pData, newSize);
+      if (tmp == NULL) {
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
 
-    pColumnInfoData->pData = tmp;
-    memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
+      pColumnInfoData->pData = tmp;
+      memcpy(pColumnInfoData->pData, pSource->pData, pSource->info.bytes * numOfRows);
+    }
   }
 
   pColumnInfoData->hasNull = pSource->hasNull;
@@ -350,7 +354,7 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
     return -1;
   }
 
-  int32_t index = (tsColumnIndex == -1)? 0:tsColumnIndex;
+  int32_t          index = (tsColumnIndex == -1) ? 0 : tsColumnIndex;
   SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, index);
   if (pColInfoData->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
     return 0;
@@ -599,8 +603,8 @@ int32_t blockDataFromBuf(SSDataBlock* pBlock, const char* buf) {
 }
 
 int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity) {
-  pBlock->info.rows = *(int32_t*) buf;
-  pBlock->info.groupId = *(uint64_t*) (buf + sizeof(int32_t));
+  pBlock->info.rows = *(int32_t*)buf;
+  pBlock->info.groupId = *(uint64_t*)(buf + sizeof(int32_t));
 
   int32_t     numOfCols = pBlock->info.numOfCols;
   const char* pStart = buf + sizeof(uint32_t) + sizeof(uint64_t);
@@ -669,7 +673,7 @@ size_t blockDataGetSerialMetaSize(const SSDataBlock* pBlock) {
   return sizeof(int32_t) + sizeof(uint64_t) + pBlock->info.numOfCols * sizeof(int32_t);
 }
 
-double  blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
+double blockDataGetSerialRowSize(const SSDataBlock* pBlock) {
   ASSERT(pBlock != NULL);
   double rowSize = 0;
 
@@ -1232,7 +1236,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
 
   // the true value must be less than the value of nRows
   int32_t additional = 0;
-  for(int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
+  for (int32_t i = 0; i < pBlock->info.numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       additional += nRows * sizeof(int32_t);
@@ -1242,7 +1246,7 @@ size_t blockDataGetCapacityInRow(const SSDataBlock* pBlock, size_t pageSize) {
   }
 
   int32_t newRows = (payloadSize - additional) / rowSize;
-  ASSERT(newRows <= nRows && newRows > 1);
+  ASSERT(newRows <= nRows && newRows >= 1);
 
   return newRows;
 }
@@ -1626,7 +1630,7 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
 }
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
-                            int32_t vgId) {
+                            const char* stbFullName, int32_t vgId) {
   SSubmitReq* ret = NULL;
 
   // cal size
@@ -1642,10 +1646,12 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 
     if (createTb) {
       SVCreateTbReq createTbReq = {0};
-      createTbReq.name = "a";
+      char*         cname = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+      snprintf(cname, TSDB_TABLE_FNAME_LEN, "%s:%ld", stbFullName, pDataBlock->info.groupId);
+      createTbReq.name = cname;
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
-      createTbReq.ctb.suid = htobe64(suid);
+      createTbReq.ctb.suid = suid;
 
       SKVRowBuilder kvRowBuilder = {0};
       if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
@@ -1658,6 +1664,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       int32_t code;
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
       if (code < 0) return NULL;
+      taosMemoryFree(cname);
     }
 
     cap += sizeof(SSubmitBlk) + schemaLen + rows * maxLen;
@@ -1693,7 +1700,9 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
     int32_t schemaLen = 0;
     if (createTb) {
       SVCreateTbReq createTbReq = {0};
-      createTbReq.name = "a";
+      char*         cname = taosMemoryCalloc(1, TSDB_TABLE_FNAME_LEN);
+      snprintf(cname, TSDB_TABLE_FNAME_LEN, "%s:%ld", stbFullName, pDataBlock->info.groupId);
+      createTbReq.name = cname;
       createTbReq.flags = 0;
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
@@ -1728,8 +1737,12 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       for (int32_t k = 0; k < pTSchema->numOfCols; k++) {
         const STColumn*  pColumn = &pTSchema->columns[k];
         SColumnInfoData* pColData = taosArrayGet(pDataBlock->pDataBlock, k);
-        void*            data = colDataGetData(pColData, j);
-        tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);
+        if (colDataIsNull_s(pColData, j)) {
+          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NONE, NULL, false, pColumn->offset, k);
+        } else {
+          void* data = colDataGetData(pColData, j);
+          tdAppendColValToRow(&rb, pColumn->colId, pColumn->type, TD_VTYPE_NORM, data, true, pColumn->offset, k);
+        }
       }
       int32_t rowLen = TD_ROW_LEN(rowData);
       rowData = POINTER_SHIFT(rowData, rowLen);

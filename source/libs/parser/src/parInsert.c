@@ -610,7 +610,7 @@ static int32_t parseValueToken(char** end, SToken* pToken, SSchema* pSchema, int
     case TSDB_DATA_TYPE_BINARY: {
       // Too long values will raise the invalid sql error message
       if (pToken->n + VARSTR_HEADER_SIZE > pSchema->bytes) {
-        return buildSyntaxErrMsg(pMsgBuf, "string data overflow", pToken->z);
+        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pSchema->name);
       }
 
       return func(pMsgBuf, pToken->z, pToken->n, param);
@@ -658,6 +658,9 @@ static FORCE_INLINE int32_t MemRowAppend(SMsgBuf* pMsgBuf, const void* value, in
     int32_t     output = 0;
     const char* rowEnd = tdRowEnd(rb->pBuf);
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(rowEnd), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
+      if (errno == E2BIG) {
+        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pa->schema->name);
+      }
       char buf[512] = {0};
       snprintf(buf, tListLen(buf), "%s", strerror(errno));
       return buildSyntaxErrMsg(pMsgBuf, buf, value);
@@ -771,6 +774,10 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
     int32_t output = 0;
     if (!taosMbsToUcs4(value, len, (TdUcs4*)varDataVal(pa->buf), pa->schema->bytes - VARSTR_HEADER_SIZE, &output)) {
+      if (errno == E2BIG) {
+        return generateSyntaxErrMsg(pMsgBuf, TSDB_CODE_PAR_VALUE_TOO_LONG, pa->schema->name);
+      }
+    
       char buf[512] = {0};
       snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
       return buildSyntaxErrMsg(pMsgBuf, buf, value);
@@ -1078,7 +1085,6 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
   int32_t     tbNum = 0;
   char        tbFName[TSDB_TABLE_FNAME_LEN];
   bool        autoCreateTbl = false;
-  STableMeta* pMeta = NULL;
 
   // for each table
   while (1) {
@@ -1121,12 +1127,12 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     NEXT_TOKEN(pCxt->pSql, sToken);
 
     SName name;
-    createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg);
-    tNameExtractFullName(&name, tbFName);
+    CHECK_CODE(createSName(&name, &tbnameToken, pCxt->pComCxt->acctId, pCxt->pComCxt->db, &pCxt->msg));
 
+    tNameExtractFullName(&name, tbFName);
     CHECK_CODE(taosHashPut(pCxt->pTableNameHashObj, tbFName, strlen(tbFName), &name, sizeof(SName)));
 
-    // USING cluase
+    // USING clause
     if (TK_USING == sToken.type) {
       CHECK_CODE(parseUsingClause(pCxt, &name, tbFName));
       NEXT_TOKEN(pCxt->pSql, sToken);
@@ -1141,12 +1147,10 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
     CHECK_CODE(getDataBlockFromList(pCxt->pTableBlockHashObj, tbFName, strlen(tbFName), TSDB_DEFAULT_PAYLOAD_SIZE,
                                     sizeof(SSubmitBlk), getTableInfo(pCxt->pTableMeta).rowSize, pCxt->pTableMeta,
                                     &dataBuf, NULL, &pCxt->createTblReq));
-    pMeta = pCxt->pTableMeta;
-    pCxt->pTableMeta = NULL;
 
     if (TK_NK_LP == sToken.type) {
       // pSql -> field1_name, ...)
-      CHECK_CODE(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pMeta)));
+      CHECK_CODE(parseBoundColumns(pCxt, &dataBuf->boundColumnInfo, getTableColumnSchema(pCxt->pTableMeta)));
       NEXT_TOKEN(pCxt->pSql, sToken);
     }
 
@@ -1182,7 +1186,7 @@ static int32_t parseInsertBody(SInsertParseContext* pCxt) {
       return TSDB_CODE_TSC_OUT_OF_MEMORY;
     }
     memcpy(tags, &pCxt->tags, sizeof(pCxt->tags));
-    (*pCxt->pStmtCb->setInfoFn)(pCxt->pStmtCb->pStmt, pMeta, tags, tbFName, autoCreateTbl, pCxt->pVgroupsHashObj,
+    (*pCxt->pStmtCb->setInfoFn)(pCxt->pStmtCb->pStmt, pCxt->pTableMeta, tags, tbFName, autoCreateTbl, pCxt->pVgroupsHashObj,
                                 pCxt->pTableBlockHashObj);
 
     memset(&pCxt->tags, 0, sizeof(pCxt->tags));

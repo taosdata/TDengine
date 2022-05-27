@@ -41,7 +41,7 @@ TDengine 分布式架构的逻辑结构图如下：
 - 集群数据节点对外提供 RESTful 服务占用一个 TCP 端口，是 serverPort+11。
 - 集群内数据节点与 Arbitrator 节点之间通讯占用一个 TCP 端口，是 serverPort+12。
 
-因此一个数据节点总的端口范围为 serverPort 到 serverPort+12，总共 13 个 TCP/UDP 端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的 serverPort。详细的端口情况请参见 [TDengine 2.0 端口说明](/train-faq/faq#port)
+因此一个数据节点总的端口范围为 serverPort 到 serverPort+12，总共 13 个 TCP/UDP 端口。确保集群中所有主机在端口 6030-6042 上的 TCP/UDP 协议能够互通。详细的端口情况请参见 [TDengine 2.0 端口说明](/train-faq/faq#port)
 
 **集群对外连接：**TDengine 集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可，连接需要提供的网络参数是一数据节点的 End Point（FQDN 加配置的端口号）。通过命令行 CLI 启动应用 taos 时，可以通过选项-h 来指定数据节点的 FQDN，-P 来指定其配置的端口号，如果端口不配置，将采用 TDengine 的系统配置参数 serverPort。
 

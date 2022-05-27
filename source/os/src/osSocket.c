@@ -889,11 +889,11 @@ uint32_t taosGetIpv4FromFqdn(const char *fqdn) {
 #ifdef WINDOWS
   // Initialize Winsock
   WSADATA wsaData;
-  int iResult;
+  int     iResult;
   iResult = WSAStartup(MAKEWORD(2, 2), &wsaData);
   if (iResult != 0) {
-      printf("WSAStartup failed: %d\n", iResult);
-      return 1;
+    // printf("WSAStartup failed: %d\n", iResult);
+    return 1;
   }
 #endif
   struct addrinfo hints = {0};
@@ -928,7 +928,7 @@ int32_t taosGetFqdn(char *fqdn) {
   char hostname[1024];
   hostname[1023] = '\0';
   if (gethostname(hostname, 1023) == -1) {
-    printf("failed to get hostname, reason:%s", strerror(errno));
+    // printf("failed to get hostname, reason:%s", strerror(errno));
     assert(0);
     return -1;
   }
@@ -946,7 +946,7 @@ int32_t taosGetFqdn(char *fqdn) {
 #endif  // __APPLE__
   int32_t ret = getaddrinfo(hostname, NULL, &hints, &result);
   if (!result) {
-    printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
+    // printf("failed to get fqdn, code:%d, reason:%s", ret, gai_strerror(ret));
     assert(0);
     return -1;
   }
@@ -993,9 +993,7 @@ void tinet_ntoa(char *ipstr, uint32_t ip) {
   sprintf(ipstr, "%d.%d.%d.%d", ip & 0xFF, (ip >> 8) & 0xFF, (ip >> 16) & 0xFF, ip >> 24);
 }
 
-void taosIgnSIGPIPE() {
-  signal(SIGPIPE, SIG_IGN);
-}
+void taosIgnSIGPIPE() { signal(SIGPIPE, SIG_IGN); }
 
 void taosSetMaskSIGPIPE() {
 #ifdef WINDOWS

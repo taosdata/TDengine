@@ -31,7 +31,8 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   SMnode  *pMnode = pFsm->data;
   SSdbRaw *pRaw = pMsg->pCont;
 
-  mTrace("raw:%p, apply to sdb, ver:%" PRId64 " role:%s", pRaw, cbMeta.index, syncStr(cbMeta.state));
+  mTrace("raw:%p, apply to sdb, ver:%" PRId64 " term:%" PRId64 " role:%s", pRaw, cbMeta.index, cbMeta.term,
+         syncStr(cbMeta.state));
   sdbWriteWithoutFree(pMnode->pSdb, pRaw);
   sdbSetApplyIndex(pMnode->pSdb, cbMeta.index);
   sdbSetApplyTerm(pMnode->pSdb, cbMeta.term);
@@ -50,6 +51,7 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
   if (!pMnode->deploy) {
+    mInfo("mnode sync restore finished");
     mndTransPullup(pMnode);
     pMnode->syncMgmt.restored = true;
   }
@@ -125,6 +127,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   snprintf(syncInfo.path, sizeof(syncInfo.path), "%s%ssync", pMnode->path, TD_DIRSEP);
   syncInfo.pWal = pMgmt->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
+  syncInfo.isStandBy = pMgmt->standby;
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
@@ -191,11 +194,17 @@ int32_t mndSyncPropose(SMnode *pMnode, SSdbRaw *pRaw) {
 void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
+
+  syncStart(pMgmt->sync);
+
+#if 0
   if (pMgmt->standby) {
     syncStartStandBy(pMgmt->sync);
   } else {
     syncStart(pMgmt->sync);
   }
+#endif
+
   mDebug("sync:%" PRId64 " is started", pMgmt->sync);
 }
 

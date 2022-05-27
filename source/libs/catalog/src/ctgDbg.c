@@ -21,6 +21,179 @@
 extern SCatalogMgmt gCtgMgmt;
 SCtgDebug gCTGDebug = {0};
 
+void ctgdUserCallback(SMetaData* pResult, void* param, int32_t code) {
+  ASSERT(*(int32_t*)param == 1);
+  taosMemoryFree(param);
+
+  qDebug("async call result: %s", tstrerror(code));
+  if (NULL == pResult) {
+    qDebug("empty meta result");
+    return;
+  }
+
+  int32_t num = 0;
+
+  if (pResult->pTableMeta && taosArrayGetSize(pResult->pTableMeta) > 0) {
+    num = taosArrayGetSize(pResult->pTableMeta);
+    for (int32_t i = 0; i < num; ++i) {
+      STableMeta *p = *(STableMeta **)taosArrayGet(pResult->pTableMeta, i);
+      STableComInfo *c = &p->tableInfo;
+      
+      if (TSDB_CHILD_TABLE == p->tableType) {
+        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64, p->tableType, p->vgId, p->uid, p->suid);
+      } else {
+        qDebug("table meta: type:%d, vgId:%d, uid:%" PRIx64 ",suid:%" PRIx64 ",sv:%d, tv:%d, tagNum:%d, precision:%d, colNum:%d, rowSize:%d",
+         p->tableType, p->vgId, p->uid, p->suid, p->sversion, p->tversion, c->numOfTags, c->precision, c->numOfColumns, c->rowSize);
+      }
+      
+      int32_t colNum = c->numOfColumns + c->numOfTags;
+      for (int32_t j = 0; j < colNum; ++j) {
+        SSchema *s = &p->schema[j];
+        qDebug("[%d] name:%s, type:%d, colId:%d, bytes:%d", j, s->name, s->type, s->colId, s->bytes);
+      }
+    }
+  } else {
+    qDebug("empty table meta");
+  }
+
+  if (pResult->pDbVgroup && taosArrayGetSize(pResult->pDbVgroup) > 0) {
+    num = taosArrayGetSize(pResult->pDbVgroup);
+    for (int32_t i = 0; i < num; ++i) {
+      SArray *pDb = *(SArray**)taosArrayGet(pResult->pDbVgroup, i);
+      int32_t vgNum = taosArrayGetSize(pDb);
+      qDebug("db %d vgInfo:", i);
+      for (int32_t j = 0; j < vgNum; ++j) {
+        SVgroupInfo* pInfo = taosArrayGet(pDb, j);
+        qDebug("vg %d info: vgId:%d", j, pInfo->vgId);
+      }
+    }
+  } else {
+    qDebug("empty db vgroup");
+  }
+
+  if (pResult->pTableHash && taosArrayGetSize(pResult->pTableHash) > 0) {
+    num = taosArrayGetSize(pResult->pTableHash);
+    for (int32_t i = 0; i < num; ++i) {
+      SVgroupInfo* pInfo = taosArrayGet(pResult->pTableHash, i);
+      qDebug("table %d vg info: vgId:%d", i, pInfo->vgId);
+    }
+  } else {
+    qDebug("empty table hash vgroup");
+  }
+
+  if (pResult->pUdfList && taosArrayGetSize(pResult->pUdfList) > 0) {
+    num = taosArrayGetSize(pResult->pUdfList);
+    for (int32_t i = 0; i < num; ++i) {
+      SFuncInfo* pInfo = taosArrayGet(pResult->pUdfList, i);
+      qDebug("udf %d info: name:%s, funcType:%d", i, pInfo->name, pInfo->funcType);
+    }
+  } else {
+    qDebug("empty udf info");
+  }
+
+  if (pResult->pDbCfg && taosArrayGetSize(pResult->pDbCfg) > 0) {
+    num = taosArrayGetSize(pResult->pDbCfg);
+    for (int32_t i = 0; i < num; ++i) {
+      SDbCfgInfo* pInfo = taosArrayGet(pResult->pDbCfg, i);
+      qDebug("db %d info: numOFVgroups:%d, numOfStables:%d", i, pInfo->numOfVgroups, pInfo->numOfStables);
+    }
+  } else {
+    qDebug("empty db cfg info");
+  }  
+
+  if (pResult->pUser && taosArrayGetSize(pResult->pUser) > 0) {
+    num = taosArrayGetSize(pResult->pUser);
+    for (int32_t i = 0; i < num; ++i) {
+      bool* auth = taosArrayGet(pResult->pUser, i);
+      qDebug("user auth %d info: %d", i, *auth);
+    }
+  } else {
+    qDebug("empty user auth info");
+  }   
+
+  if (pResult->pQnodeList && taosArrayGetSize(pResult->pQnodeList) > 0) {
+    num = taosArrayGetSize(pResult->pQnodeList);
+    for (int32_t i = 0; i < num; ++i) {
+      SQueryNodeAddr* qaddr = taosArrayGet(pResult->pQnodeList, i);
+      qDebug("qnode %d info: id:%d", i, qaddr->nodeId);
+    }
+  } else {
+    qDebug("empty qnode info");
+  }     
+}
+
+int32_t ctgdLaunchAsyncCall(SCatalog* pCtg, void *pTrans, const SEpSet* pMgmtEps, uint64_t reqId) {
+  int32_t code = 0;
+  SCatalogReq req = {0};
+  req.pTableMeta = taosArrayInit(2, sizeof(SName));
+  req.pDbVgroup = taosArrayInit(2, TSDB_DB_FNAME_LEN);
+  req.pTableHash = taosArrayInit(2, sizeof(SName));
+  req.pUdf = taosArrayInit(2, TSDB_FUNC_NAME_LEN);
+  req.pDbCfg = taosArrayInit(2, TSDB_DB_FNAME_LEN);
+  req.pIndex = NULL;//taosArrayInit(2, TSDB_INDEX_FNAME_LEN);
+  req.pUser = taosArrayInit(2, sizeof(SUserAuthInfo));
+  req.qNodeRequired = true;
+
+  SName name = {0};
+  char dbFName[TSDB_DB_FNAME_LEN] = {0};
+  char funcName[TSDB_FUNC_NAME_LEN] = {0};
+  SUserAuthInfo user = {0};
+  
+  tNameFromString(&name, "1.db1.tb1", T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  taosArrayPush(req.pTableMeta, &name);
+  taosArrayPush(req.pTableHash, &name);
+  tNameFromString(&name, "1.db1.st1", T_NAME_ACCT | T_NAME_DB | T_NAME_TABLE);
+  taosArrayPush(req.pTableMeta, &name);
+  taosArrayPush(req.pTableHash, &name);
+
+  strcpy(dbFName, "1.db1");
+  taosArrayPush(req.pDbVgroup, dbFName);
+  taosArrayPush(req.pDbCfg, dbFName);
+  strcpy(dbFName, "1.db2");
+  taosArrayPush(req.pDbVgroup, dbFName);
+  taosArrayPush(req.pDbCfg, dbFName);
+
+  strcpy(funcName, "udf1");
+  taosArrayPush(req.pUdf, funcName);
+  strcpy(funcName, "udf2");
+  taosArrayPush(req.pUdf, funcName);
+
+  strcpy(user.user, "root");
+  strcpy(user.dbFName, "1.db1");
+  user.type = AUTH_TYPE_READ;
+  taosArrayPush(req.pUser, &user);
+  user.type = AUTH_TYPE_WRITE;
+  taosArrayPush(req.pUser, &user);
+  user.type = AUTH_TYPE_OTHER;
+  taosArrayPush(req.pUser, &user);
+
+  strcpy(user.user, "user1");
+  strcpy(user.dbFName, "1.db2");
+  user.type = AUTH_TYPE_READ;
+  taosArrayPush(req.pUser, &user);
+  user.type = AUTH_TYPE_WRITE;
+  taosArrayPush(req.pUser, &user);
+  user.type = AUTH_TYPE_OTHER;
+  taosArrayPush(req.pUser, &user);
+
+  int32_t *param = taosMemoryCalloc(1, sizeof(int32_t));
+  *param = 1;
+  
+  int64_t jobId = 0;
+  CTG_ERR_JRET(catalogAsyncGetAllMeta(pCtg, pTrans, pMgmtEps, reqId, &req, ctgdUserCallback, param, &jobId));
+
+_return:
+
+  taosArrayDestroy(req.pTableMeta);
+  taosArrayDestroy(req.pDbVgroup);
+  taosArrayDestroy(req.pTableHash);
+  taosArrayDestroy(req.pUdf);
+  taosArrayDestroy(req.pDbCfg);
+  taosArrayDestroy(req.pUser);
+
+  CTG_RET(code);  
+}
+
 int32_t ctgdEnableDebug(char *option) {
   if (0 == strcasecmp(option, "lock")) {
     gCTGDebug.lockEnable = true;

@@ -131,6 +131,19 @@ static void         destroyThrdObj(SCliThrdObj* pThrd);
 
 static void cliWalkCb(uv_handle_t* handle, void* arg);
 
+static void cliReleaseUnfinishedMsg(SCliConn* conn) {
+  SCliMsg* pMsg = NULL;
+  for (int i = 0; i < transQueueSize(&conn->cliMsgs); i++) {
+    pMsg = transQueueGet(&conn->cliMsgs, i);
+    if (pMsg != NULL && pMsg->ctx != NULL) {
+      if (conn->ctx.freeFunc != NULL) {
+        conn->ctx.freeFunc(pMsg->ctx->ahandle);
+      }
+    }
+    destroyCmsg(pMsg);
+  }
+}
+
 #define CLI_RELEASE_UV(loop)        \
   do {                              \
     uv_walk(loop, cliWalkCb, NULL); \
@@ -161,6 +174,7 @@ static void cliWalkCb(uv_handle_t* handle, void* arg);
         transUnrefCliHandle(conn);                                                       \
       }                                                                                  \
       destroyCmsg(pMsg);                                                                 \
+      cliReleaseUnfinishedMsg(conn);                                                     \
       addConnToPool(((SCliThrdObj*)conn->hostThrd)->pool, conn);                         \
       return;                                                                            \
     }                                                                                    \
@@ -465,8 +479,8 @@ static void addConnToPool(void* pool, SCliConn* conn) {
 
   STrans* pTransInst = ((SCliThrdObj*)conn->hostThrd)->pTransInst;
   conn->expireTime = taosGetTimestampMs() + CONN_PERSIST_TIME(pTransInst->idleTime);
-  transCtxCleanup(&conn->ctx);
   transQueueClear(&conn->cliMsgs);
+  transCtxCleanup(&conn->ctx);
   conn->status = ConnInPool;
 
   char key[128] = {0};
@@ -907,16 +921,19 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
 
   STransConnCtx* pCtx = pMsg->ctx;
   SEpSet*        pEpSet = &pCtx->epSet;
+  transPrintEpSet(pEpSet);
+
   /*
    * upper layer handle retry if code equal TSDB_CODE_RPC_NETWORK_UNAVAIL
    */
   tmsg_t msgType = pCtx->msgType;
   if ((pTransInst->retry != NULL && (pTransInst->retry(pResp->code))) ||
-      ((pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) && msgType == TDMT_MND_CONNECT)) {
+      (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL || pResp->code == TSDB_CODE_APP_NOT_READY ||
+       pResp->code == TSDB_CODE_NODE_NOT_DEPLOYED || pResp->code == TSDB_CODE_SYN_NOT_LEADER)) {
     pMsg->sent = 0;
     pMsg->st = taosGetTimestampUs();
     pCtx->retryCount += 1;
-    if (msgType == TDMT_MND_CONNECT && pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
+    if (pResp->code == TSDB_CODE_RPC_NETWORK_UNAVAIL) {
       if (pCtx->retryCount < pEpSet->numOfEps) {
         pEpSet->inUse = (++pEpSet->inUse) % pEpSet->numOfEps;
 
@@ -958,7 +975,11 @@ int cliAppCb(SCliConn* pConn, STransMsg* pResp, SCliMsg* pMsg) {
     pCtx->pRsp = NULL;
   } else {
     tTrace("%s cli conn %p handle resp", pTransInst->label, pConn);
-    pTransInst->cfp(pTransInst->parent, pResp, pEpSet);
+    if (pResp->code != 0) {
+      pTransInst->cfp(pTransInst->parent, pResp, NULL);
+    } else {
+      pTransInst->cfp(pTransInst->parent, pResp, pEpSet);
+    }
   }
   return 0;
 }
