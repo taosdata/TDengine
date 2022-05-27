@@ -124,7 +124,7 @@ int32_t schedulerAsyncFetchRows(int64_t job, schedulerFetchCallback fp, void* pa
   pJob->userRes.fetchFp = fp;
   pJob->userRes.userParam = param;
   
-  code = schFetchRows(pJob);
+  code = schAsyncFetchRows(pJob);
 
   schReleaseJob(job);
 

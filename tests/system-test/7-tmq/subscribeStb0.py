@@ -360,7 +360,7 @@ class TDTestCase:
                          'replica':    1,        \
                          'stbName':    'stb1',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 20000,    \
+                         'rowsPerTbl': 30000,    \
                          'batchNum':   50,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
@@ -391,7 +391,7 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
         
-        time.sleep(3)
+        time.sleep(1.5)
         tdLog.info("drop som child table of stb1")
         dropTblNum = 4
         tdSql.query("drop table if exists %s.%s_1"%(parameterDict["dbName"], parameterDict["stbName"]))

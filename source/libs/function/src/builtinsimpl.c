@@ -225,6 +225,7 @@ typedef struct SUniqueInfo {
   int32_t   numOfPoints;
   uint8_t   colType;
   int16_t   colBytes;
+  bool      hasNull; //null is not hashable, handle separately
   SHashObj  *pHash;
   char      pItems[];
 } SUniqueInfo;
@@ -515,6 +516,11 @@ int32_t sumFunction(SqlFunctionCtx* pCtx) {
     } else if (type == TSDB_DATA_TYPE_FLOAT) {
       LIST_ADD_N(pSumRes->dsum, pCol, start, numOfRows, float, numOfElem);
     }
+  }
+
+  //check for overflow
+  if (IS_FLOAT_TYPE(type) && (isinf(pSumRes->dsum) || isnan(pSumRes->dsum))) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
   }
 
 _sum_over:
@@ -828,6 +834,9 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (IS_INTEGER_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
   } else {
+    if (isinf(pAvgRes->sum.dsum) || isnan(pAvgRes->sum.dsum)) {
+      GET_RES_INFO(pCtx)->isNullRes = 1;
+    }
     pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
   }
 
@@ -2219,7 +2228,7 @@ int32_t lastFunction(SqlFunctionCtx* pCtx) {
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t lastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
+int32_t firstLastFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   int32_t          slotId = pCtx->pExpr->base.resSchema.slotId;
   SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, slotId);
 
@@ -3852,6 +3861,7 @@ bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->numOfPoints = 0;
   pInfo->colType = pCtx->resDataInfo.type;
   pInfo->colBytes = pCtx->resDataInfo.bytes;
+  pInfo->hasNull = false;
   if (pInfo->pHash != NULL) {
     taosHashClear(pInfo->pHash);
   } else {
@@ -3861,8 +3871,22 @@ bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 }
 
 static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
-  int32_t hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
+  //handle null elements
+  if (isNull == true) {
+    int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + pInfo->numOfPoints * size);
+    if (pInfo->hasNull == false && pItem->isNull == false) {
+      pItem->timestamp = ts;
+      pItem->isNull = true;
+      pInfo->numOfPoints++;
+      pInfo->hasNull = true;
+    } else if (pItem->timestamp > ts && pItem->isNull == true) {
+      pItem->timestamp = ts;
+    }
+    return;
+  }
 
+  int32_t hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
   SUniqueItem *pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
     int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
@@ -3876,6 +3900,7 @@ static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
     pHashItem->timestamp = ts;
   }
 
+  return;
 }
 
 int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
@@ -3902,7 +3927,11 @@ int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
 
   for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
     SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + i * (sizeof(SUniqueItem) + pInfo->colBytes));
-    colDataAppend(pOutput, i, pItem->data, false);
+    if (pItem->isNull == true) {
+      colDataAppendNULL(pOutput, i);
+    } else {
+      colDataAppend(pOutput, i, pItem->data, false);
+    }
     if (pTsOutput != NULL) {
       colDataAppendInt64(pTsOutput, i, &pItem->timestamp);
     }

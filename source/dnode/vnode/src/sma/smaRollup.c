@@ -374,7 +374,7 @@ static FORCE_INLINE int32_t tdExecuteRSmaImpl(SSma *pSma, const void *pMsg, int3
 
   smaDebug("vgId:%d execute rsma %" PRIi8 " task for qTaskInfo:%p suid:%" PRIu64, SMA_VID(pSma), level, taskInfo, suid);
 
-  qSetStreamInput(taskInfo, pMsg, inputType);
+  qSetStreamInput(taskInfo, pMsg, inputType, true);
   while (1) {
     SSDataBlock *output = NULL;
     uint64_t     ts;

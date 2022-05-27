@@ -14,8 +14,8 @@ def query_api_demo(conn: taos.TaosConnection):
 # field count: 7
 # meta of files[1]: {name: ts, type: 9, bytes: 8}
 # ======================Iterate on result=========================
-# ('d1001', datetime.datetime(2018, 10, 3, 14, 38, 5), 10.300000190734863, 219, 0.3100000023841858, 'Beijing.Chaoyang', 2)
-# ('d1001', datetime.datetime(2018, 10, 3, 14, 38, 15), 12.600000381469727, 218, 0.33000001311302185, 'Beijing.Chaoyang', 2)
+# ('d1001', datetime.datetime(2018, 10, 3, 14, 38, 5), 10.300000190734863, 219, 0.3100000023841858, 'California.SanFrancisco', 2)
+# ('d1001', datetime.datetime(2018, 10, 3, 14, 38, 15), 12.600000381469727, 218, 0.33000001311302185, 'California.SanFrancisco', 2)
 # ANCHOR_END: iter
 
 # ANCHOR: fetch_all

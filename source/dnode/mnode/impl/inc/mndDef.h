@@ -94,6 +94,7 @@ typedef enum {
   TRN_TYPE_ALTER_STREAM = 1027,
   TRN_TYPE_CONSUMER_LOST = 1028,
   TRN_TYPE_CONSUMER_RECOVER = 1029,
+  TRN_TYPE_DROP_CGROUP = 1030,
   TRN_TYPE_BASIC_SCOPE_END,
 
   TRN_TYPE_GLOBAL_SCOPE = 2000,
@@ -367,7 +368,6 @@ typedef struct {
   int64_t  updateTime;
   int64_t  uid;
   int64_t  dbUid;
-  int32_t  version;
   int32_t  tagVer;
   int32_t  colVer;
   int32_t  nextColId;

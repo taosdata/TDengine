@@ -33,6 +33,7 @@ int32_t mndMakeSubscribeKey(char *key, const char *cgroup, const char *topicName
 
 int32_t mndDropSubByDB(SMnode *pMnode, STrans *pTrans, SDbObj *pDb);
 int32_t mndDropSubByTopic(SMnode *pMnode, STrans *pTrans, const char *topic);
+int32_t mndSetDropSubCommitLogs(SMnode *pMnode, STrans *pTrans, SMqSubscribeObj *pSub);
 
 #ifdef __cplusplus
 }

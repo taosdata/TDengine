@@ -2,19 +2,19 @@
 title: TDengine Monitoring
 ---
 
-After TDengine is started, a database named `log` for monitoring is created automatically. The information about CPU, memory, disk, bandwidth, number of requests, disk I/O speed, slow query is written into `log` database on the basis of a predefined interval. Besides, some important system operations, like logon, create user, drop database, and alerts and warnings generated in TDengine are written into `log` database too. System operator can view the data in `log` database from TDengine CLI or from a web console.
+After TDengine is started, a database named `log` for monitoring is created automatically. The information about CPU, memory, disk, bandwidth, number of requests, disk I/O speed, slow query is written into `log` database on the basis of a predefined interval. Additionally, some important system operations, like logon, create user, drop database, and alerts and warnings generated in TDengine are written into the `log` database too. A system operator can view the data in `log` database from TDengine CLI or from a web console.
 
-Collection of the monitoring information is enabled by default, but can be disabled by parameter `monitor` in configuration file. 
+The collection of the monitoring information is enabled by default, but can be disabled by parameter `monitor` in the configuration file. 
 
 ## TDinsight 
 
-TDinsight is a total solution which uses the monitor database `log` mentioned previously and Grafana to monitor a TDengine cluster.
+TDinsight is a complete solution which uses the monitor database `log` mentioned previously and Grafana to monitor a TDengine cluster.
 
 From version 2.3.3.0, more monitoring data has been added in the `log` database. Please refer to [TDinsight Grafana Dashboard](https://grafana.com/grafana/dashboards/15167) to learn more details about using TDinsight to monitor TDengine.
 
-A script `TDinsight.sh` is provided to deploy TDinsight in automatic way.
+A script `TDinsight.sh` is provided to deploy TDinsight automatically.
 
-Download `TDinsight.sh` with below command:
+Download `TDinsight.sh` with the below command:
 
 ```bash
 wget https://github.com/taosdata/grafanaplugin/raw/master/dashboards/TDinsight.sh
@@ -38,7 +38,7 @@ There are two ways to setup Grafana alert notification.
      sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -E <notifier uid>
      ```
 
-- The AliCloud SMS alert built in TDengine data source plugin can be enabled with parameter `-s`, the parameters of this way are as follows:
+- The AliCloud SMS alert built in TDengine data source plugin can be enabled with parameter `-s`, the parameters of enabling this plugin are listed below:
 
   - `-I`: AliCloud SMS Key ID
   - `-K`: AliCloud SMS Key Secret
@@ -47,7 +47,7 @@ There are two ways to setup Grafana alert notification.
   - `-T`: Input parameters in JSON format for the SMS notification template, for example`{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}`
   - `-B`: List of mobile numbers to be notified
 
-  Below is an example of the full command using this way.
+  Below is an example of the full command using the AliCloud SMS alert.
 
   ```bash
      sudo ./TDinsight.sh -a http://localhost:6041 -u root -p taosdata -s \
@@ -55,6 +55,6 @@ There are two ways to setup Grafana alert notification.
        -T '{"alarm_level":"%s","time":"%s","name":"%s","content":"%s"}'
   ```
 
-Launch `TDinsight.sh` as above command and restart Grafana, then open Dashboard `http://localhost:3000/d/tdinsight`.
+Launch `TDinsight.sh` with the command above and restart Grafana, then open Dashboard `http://localhost:3000/d/tdinsight`.
 
 For more use cases and restrictions please refer to [TDinsight](/reference/tdinsight/).
