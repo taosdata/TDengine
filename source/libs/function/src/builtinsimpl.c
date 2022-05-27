@@ -2349,7 +2349,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     case TSDB_DATA_TYPE_FLOAT: {
       float v = *(float*)pv;
       float delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
+      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) { //check for overflow
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
         colDataAppendFloat(pOutput, pos, &delta);
@@ -2360,7 +2360,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     case TSDB_DATA_TYPE_DOUBLE: {
       double v = *(double*)pv;
       double delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
+      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) { //check for overflow
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
         colDataAppendDouble(pOutput, pos, &delta);
