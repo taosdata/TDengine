@@ -51,6 +51,7 @@ int32_t mndSyncGetSnapshot(struct SSyncFSM *pFsm, SSnapshot *pSnapshot) {
 void mndRestoreFinish(struct SSyncFSM *pFsm) {
   SMnode *pMnode = pFsm->data;
   if (!pMnode->deploy) {
+    mInfo("mnode sync restore finished");
     mndTransPullup(pMnode);
     pMnode->syncMgmt.restored = true;
   }

@@ -359,7 +359,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           // one merge only
           ASSERT(taosArrayGetSize(pArray) == 1);
           SStreamTask* lastLevelTask = taosArrayGetP(pArray, 0);
-          pTask->dispatchMsgType = TDMT_VND_TASK_MERGE_EXEC;
+          /*pTask->dispatchMsgType = TDMT_VND_TASK_MERGE_EXEC;*/
+          pTask->dispatchMsgType = TDMT_VND_TASK_DISPATCH;
           pTask->dispatchType = TASK_DISPATCH__FIXED;
 
           pTask->fixedEpDispatcher.taskId = lastLevelTask->taskId;
@@ -404,7 +405,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
         if (pStream->fixedSinkVgId == 0) {
           pTask->dispatchType = TASK_DISPATCH__SHUFFLE;
 
-          pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;
+          /*pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;*/
+          pTask->dispatchMsgType = TDMT_VND_TASK_DISPATCH;
           SDbObj* pDb = mndAcquireDb(pMnode, pStream->sourceDb);
           ASSERT(pDb);
           if (mndExtractDbInfo(pMnode, pDb, &pTask->shuffleDispatcher.dbInfo, NULL) < 0) {
@@ -434,7 +436,8 @@ int32_t mndScheduleStream(SMnode* pMnode, STrans* pTrans, SStreamObj* pStream) {
           }
         } else {
           pTask->dispatchType = TASK_DISPATCH__FIXED;
-          pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;
+          /*pTask->dispatchMsgType = TDMT_VND_TASK_WRITE_EXEC;*/
+          pTask->dispatchMsgType = TDMT_VND_TASK_DISPATCH;
           SArray* pArray = taosArrayGetP(pStream->tasks, 0);
           // one sink only
           ASSERT(taosArrayGetSize(pArray) == 1);

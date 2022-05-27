@@ -441,7 +441,7 @@ static int32_t mndProcessStatusReq(SRpcMsg *pReq) {
     pDnode->numOfSupportVnodes = statusReq.numOfSupportVnodes;
 
     SStatusRsp statusRsp = {0};
-    statusRsp.dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE);
+    statusRsp.dnodeVer = sdbGetTableVer(pMnode->pSdb, SDB_DNODE) + sdbGetTableVer(pMnode->pSdb, SDB_MNODE);
     statusRsp.dnodeCfg.dnodeId = pDnode->id;
     statusRsp.dnodeCfg.clusterId = pMnode->clusterId;
     statusRsp.pDnodeEps = taosArrayInit(mndGetDnodeSize(pMnode), sizeof(SDnodeEp));
