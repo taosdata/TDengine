@@ -18,6 +18,7 @@
 
 #include "os.h"
 #include "talgo.h"
+#include "tarray.h"
 #include "tencode.h"
 #include "ttypes.h"
 #include "tutil.h"
@@ -64,7 +65,7 @@ void    tTagFree(STag *pTag);
 void    tTagGet(STag *pTag, STagVal *pTagVal);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag);
-int32_t tTagToValArray(STag *pTag, STagVal **ppTagVals, int16_t *nTag);
+int32_t tTagToValArray(STag *pTag, SArray **ppArray);
 
 // STRUCT =================
 struct STColumn {

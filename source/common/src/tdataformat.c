@@ -671,19 +671,20 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
 
 int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) { return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL); }
 
-int32_t tTagToValArray(STag *pTag, STagVal **ppTagVals, int16_t *nTag) {
+int32_t tTagToValArray(STag *pTag, SArray **ppArray) {
   int32_t  code = 0;
   uint8_t *p = (uint8_t *)&pTag->idx[pTag->nTag];
+  STagVal  tv;
 
-  *nTag = pTag->nTag;
-  (*ppTagVals) = (STagVal *)taosMemoryMalloc(sizeof(STagVal) * pTag->nTag);
-  if (*ppTagVals == NULL) {
+  (*ppArray) = taosArrayInit(pTag->nTag, sizeof(STagVal));
+  if (*ppArray == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
 
   for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
-    tGetTagVal(p + pTag->idx[iTag], &(*ppTagVals)[iTag], pTag->isJson);
+    tGetTagVal(p + pTag->idx[iTag], &tv, pTag->isJson);
+    taosArrayPush(*ppArray, &tv);
   }
 
   return code;
