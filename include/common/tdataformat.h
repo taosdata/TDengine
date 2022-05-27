@@ -278,19 +278,6 @@ static FORCE_INLINE TKEY keyToTkey(TSKEY key) {
   return tdGetTKEY(lkey);
 }
 
-static FORCE_INLINE int32_t tkeyComparFn(const void *tkey1, const void *tkey2) {
-  TSKEY key1 = tdGetKey(*(TKEY *)tkey1);
-  TSKEY key2 = tdGetKey(*(TKEY *)tkey2);
-
-  if (key1 < key2) {
-    return -1;
-  } else if (key1 > key2) {
-    return 1;
-  } else {
-    return 0;
-  }
-}
-
 // ----------------- Data column structure
 // SDataCol arrangement: data => bitmap => dataOffset
 typedef struct SDataCol {

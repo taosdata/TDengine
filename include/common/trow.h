@@ -31,7 +31,8 @@ extern "C" {
 #endif
 
 typedef struct {
-  TSKEY ts;
+  TSKEY   ts;
+  int64_t version;
   union {
     uint32_t info;
     struct {
@@ -324,6 +325,25 @@ bool    tdSKvRowGetVal(STSRow *pRow, col_id_t colId, uint32_t offset, col_id_t c
 int32_t dataColGetNEleLen(SDataCol *pDataCol, int32_t rows, int8_t bitmapMode);
 void    tdSCellValPrint(SCellVal *pVal, int8_t colType);
 void    tdSRowPrint(STSRow *row, STSchema *pSchema, const char *tag);
+
+static FORCE_INLINE int32_t tkeyComparFn(const void *tkey1, const void *tkey2) {
+  STSRow *pRow1 = (STSRow *)tkey1;
+  STSRow *pRow2 = (STSRow *)tkey2;
+
+  if (pRow1->ts < pRow2->ts) {
+    return -1;
+  } else if (pRow1->ts > pRow2->ts) {
+    return 1;
+  }
+
+  if (pRow1->version < pRow2->version) {
+    return -1;
+  } else if (pRow1->version > pRow2->version) {
+    return 1;
+  }
+
+  return 0;
+}
 
 #ifdef __cplusplus
 }
