@@ -548,7 +548,7 @@ static int32_t mnodeProcessDnodeStatusMsg(SMnodeMsg *pMsg) {
   pStatus->numOfCores   = htons(pStatus->numOfCores);
 
   uint32_t _version = htonl(pStatus->version);
-  if (_version != tsVersion >> 8) {
+  if ((_version >> 16) != (tsVersion >> 24)) {
     pDnode = mnodeGetDnodeByEp(pStatus->dnodeEp);
     if (pDnode != NULL && pDnode->status != TAOS_DN_STATUS_READY) {
       pDnode->offlineReason = TAOS_DN_OFF_VERSION_NOT_MATCH;
