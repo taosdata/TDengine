@@ -680,6 +680,21 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     return invaildFuncParaNumErrMsg(pErrBuf, len, pFunc->functionName);
   }
 
+  //param1
+  SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
+  if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
+    return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+  }
+
+  SValueNode* pValue = (SValueNode*)pParamNode1;
+  if (pValue->datum.i != 0 && pValue->datum.i != 1) {
+    return buildFuncErrMsg(pErrBuf, len, TSDB_CODE_FUNC_FUNTION_ERROR,
+                           "Second parameter of DIFF function should be only 0 or 1");
+  }
+
+  pValue->notReserved = true;
+
+  //param0
   SExprNode* p1 = (SExprNode*)nodesListGetNode(pFunc->pParameterList, 0);
   if (!IS_SIGNED_NUMERIC_TYPE(p1->resType.type) && !IS_FLOAT_TYPE(p1->resType.type) &&
       TSDB_DATA_TYPE_BOOL != p1->resType.type) {
