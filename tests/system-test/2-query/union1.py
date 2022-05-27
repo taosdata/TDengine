@@ -110,8 +110,7 @@ class TDTestCase:
     @property
     def __join_tblist(self):
         return [
-            ["ct1", "t1"],
-            ["ct4", "t1"],
+            ["ct1", "ct2"],
             # ["ct1", "ct2", "ct4"],
             # ["ct1", "ct2", "t1"],
             # ["ct1", "ct4", "t1"],
@@ -122,8 +121,8 @@ class TDTestCase:
     @property
     def __tb_liast(self):
         return [
-            "ct1",
-            "ct4",
+            "t1",
+            "stb1",
         ]
 
     def sql_list(self):
