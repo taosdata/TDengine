@@ -578,7 +578,7 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
         STagVal tagVal = {.cid = pCol->colId};
         if (tTagGet(pOldTag, &tagVal) && tagVal.pData) {
           if (IS_VAR_DATA_TYPE(pCol->type)) {
-            tTagValPush(pTagArray, &pCol->colId, pCol->type, tagVal.pData, varDataTLen(tagVal.pData), false);
+            tTagValPush(pTagArray, &pCol->colId, pCol->type, varDataVal(tagVal.pData), varDataLen(tagVal.pData), false);
           } else {
             tTagValPush(pTagArray, &pCol->colId, pCol->type, tagVal.pData, pCol->bytes, false);
           }

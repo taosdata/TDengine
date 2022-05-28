@@ -619,7 +619,7 @@ void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
       tagVal.cid = *(int16_t *)POINTER_SHIFT(p, offset);
     }
     printf("%s:%d loop[%d-%d] offset=%d\n", __func__, __LINE__, (int32_t)pTag->nTag, (int32_t)n, (int32_t)offset);
-    tGetTagVal(p, &tagVal, isJson);
+    tGetTagVal(p + offset, &tagVal, isJson);
     debugPrintTagVal(tagVal.type, tagVal.pData, tagVal.nData, __func__, __LINE__);
   }
   printf("\n");
@@ -703,7 +703,7 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   ASSERT(szTag <= INT16_MAX);
 
   // build tag
-  (*ppTag) = (STag *)taosMemoryMalloc(szTag);
+  (*ppTag) = (STag *)taosMemoryCalloc(szTag, 1);
   if ((*ppTag) == NULL) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
