@@ -4,7 +4,7 @@ use TDengine\Connection;
 use TDengine\Exception\TDengineException;
 
 try {
-    // 实例化
+    // instantiate
     $host = 'localhost';
     $port = 6030;
     $username = 'root';
@@ -12,18 +12,18 @@ try {
     $dbname = 'power';
     $connection = new Connection($host, $port, $username, $password, $dbname);
 
-    // 连接
+    // connect
     $connection->connect();
 
-    // 插入
+    // insert
     $connection->query('CREATE DATABASE if not exists power');
     $connection->query('CREATE STABLE if not exists meters (ts TIMESTAMP, current FLOAT, voltage INT, phase FLOAT) TAGS (location BINARY(64), groupId INT)');
     $stmt = $connection->prepare('INSERT INTO ? USING meters TAGS(?, ?) VALUES(?, ?, ?, ?)');
 
-    // 设置表名和标签
+    // set table name and tags
     $stmt->setTableNameTags('d1001', [
         // 支持格式同参数绑定
-        [TDengine\TSDB_DATA_TYPE_BINARY, 'Beijing.Chaoyang'],
+        [TDengine\TSDB_DATA_TYPE_BINARY, 'California.SanFrancisco'],
         [TDengine\TSDB_DATA_TYPE_INT, 2],
     ]);
 
@@ -41,9 +41,9 @@ try {
     ]);
     $resource = $stmt->execute();
 
-    // 影响行数
+    // get affected rows
     var_dump($resource->affectedRows());
 } catch (TDengineException $e) {
-    // 捕获异常
+    // throw exception
     throw $e;
 }

@@ -37,7 +37,7 @@ func main() {
 	checkErr(err, "failed to create prepare statement")
 
 	// bind table name and tags
-	tagParams := param.NewParam(2).AddBinary([]byte("Beijing.Chaoyang")).AddInt(2)
+	tagParams := param.NewParam(2).AddBinary([]byte("California.SanFrancisco")).AddInt(2)
 	err = stmt.SetTableNameWithTags("d1001", tagParams)
 	checkErr(err, "failed to execute SetTableNameWithTags")
 

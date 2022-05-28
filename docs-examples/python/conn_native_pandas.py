@@ -13,7 +13,7 @@ print(df.head(3))
 # output:
 # RangeIndex(start=0, stop=8, step=1)
 # <class 'pandas._libs.tslibs.timestamps.Timestamp'>
-#                        ts  current  voltage  phase          location  groupid
-# 0 2018-10-03 14:38:05.000     10.3      219   0.31  beijing.chaoyang        2
-# 1 2018-10-03 14:38:15.000     12.6      218   0.33  beijing.chaoyang        2
-# 2 2018-10-03 14:38:16.800     12.3      221   0.31  beijing.chaoyang        2
+#                        ts  current  ...               location  groupid
+# 0 2018-10-03 14:38:05.500     11.8  ...  california.losangeles        2
+# 1 2018-10-03 14:38:16.600     13.4  ...  california.losangeles        2
+# 2 2018-10-03 14:38:05.000     10.8  ...  california.losangeles        3
