@@ -131,6 +131,12 @@ class MockCatalogServiceImpl {
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllDbCfg(pCatalogReq->pDbCfg, &pMetaData->pDbCfg);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllDbInfo(pCatalogReq->pDbInfo, &pMetaData->pDbInfo);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllUserAuth(pCatalogReq->pUser, &pMetaData->pUser);
+    }
     return code;
   }
 
@@ -371,6 +377,32 @@ class MockCatalogServiceImpl {
       for (int32_t i = 0; i < ndbs; ++i) {
         SDbCfgInfo dbCfg = {0};
         taosArrayPush(*pDbCfgData, &dbCfg);
+      }
+    }
+    return code;
+  }
+
+  int32_t getAllDbInfo(SArray* pDbInfoReq, SArray** pDbInfoData) const {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL != pDbInfoReq) {
+      int32_t ndbs = taosArrayGetSize(pDbInfoReq);
+      *pDbInfoData = taosArrayInit(ndbs, sizeof(SDbCfgInfo));
+      for (int32_t i = 0; i < ndbs; ++i) {
+        SDbInfo dbInfo = {0};
+        taosArrayPush(*pDbInfoData, &dbInfo);
+      }
+    }
+    return code;
+  }
+
+  int32_t getAllUserAuth(SArray* pUserAuthReq, SArray** pUserAuthData) const {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL != pUserAuthReq) {
+      int32_t num = taosArrayGetSize(pUserAuthReq);
+      *pUserAuthData = taosArrayInit(num, sizeof(bool));
+      for (int32_t i = 0; i < num; ++i) {
+        bool pass = true;
+        taosArrayPush(*pUserAuthData, &pass);
       }
     }
     return code;

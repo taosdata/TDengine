@@ -112,6 +112,10 @@ static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SR
     pCxt->errCode = reserveTableVgroupInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName,
                                               pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
   }
+  if (TSDB_CODE_SUCCESS == pCxt->errCode) {
+    pCxt->errCode = reserveUserAuthInCache(pCxt->pComCxt->pParseCxt->acctId, pCxt->pComCxt->pParseCxt->pUser,
+                                           pRealTable->table.dbName, AUTH_TYPE_READ, pCxt->pComCxt->pMetaCache);
+  }
   return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
@@ -189,6 +193,10 @@ static int32_t collectMetaKeyFromAlterTable(SCollectMetaKeyCxt* pCxt, SAlterTabl
     code = reserveTableVgroupInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pStmt->tableName, pCxt->pMetaCache);
   }
   return code;
+}
+
+static int32_t collectMetaKeyFromUseDatabase(SCollectMetaKeyCxt* pCxt, SUseDatabaseStmt* pStmt) {
+  return reserveDbVgVersionInCache(pCxt->pParseCxt->acctId, pStmt->dbName, pCxt->pMetaCache);
 }
 
 static int32_t collectMetaKeyFromCreateIndex(SCollectMetaKeyCxt* pCxt, SCreateIndexStmt* pStmt) {
@@ -337,7 +345,9 @@ static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt) {
     case QUERY_NODE_CREATE_USER_STMT:
     case QUERY_NODE_ALTER_USER_STMT:
     case QUERY_NODE_DROP_USER_STMT:
+      break;
     case QUERY_NODE_USE_DATABASE_STMT:
+      return collectMetaKeyFromUseDatabase(pCxt, (SUseDatabaseStmt*)pStmt);
     case QUERY_NODE_CREATE_DNODE_STMT:
     case QUERY_NODE_DROP_DNODE_STMT:
     case QUERY_NODE_ALTER_DNODE_STMT:

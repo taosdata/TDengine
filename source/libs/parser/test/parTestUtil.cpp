@@ -45,7 +45,7 @@ namespace ParserTest {
   } while (0);
 
 bool    g_dump = false;
-bool    g_testAsyncApis = false;
+bool    g_testAsyncApis = true;
 int32_t g_logLevel = 131;
 int32_t g_skipSql = 0;
 
@@ -63,6 +63,8 @@ int32_t getLogLevel() { return g_logLevel; }
 class ParserTestBaseImpl {
  public:
   ParserTestBaseImpl(ParserTestBase* pBase) : pBase_(pBase) {}
+
+  void login(const std::string& user) { caseEnv_.user_ = user; }
 
   void useDb(const string& acctId, const string& db) {
     caseEnv_.acctId_ = acctId;
@@ -83,6 +85,8 @@ class ParserTestBaseImpl {
 
       SQuery* pQuery = nullptr;
       doParse(&cxt, &pQuery);
+
+      doAuthenticate(&cxt, pQuery);
 
       doTranslate(&cxt, pQuery);
 
@@ -107,8 +111,11 @@ class ParserTestBaseImpl {
  private:
   struct caseEnv {
     string  acctId_;
+    string  user_;
     string  db_;
     int32_t nsql_;
+
+    caseEnv() : user_("wangxiaoyu"), nsql_(0) {}
   };
 
   struct stmtEnv {
@@ -174,6 +181,8 @@ class ParserTestBaseImpl {
 
     pCxt->acctId = atoi(caseEnv_.acctId_.c_str());
     pCxt->db = caseEnv_.db_.c_str();
+    pCxt->pUser = caseEnv_.user_.c_str();
+    pCxt->isSuperUser = caseEnv_.user_ == "root";
     pCxt->pSql = stmtEnv_.sql_.c_str();
     pCxt->sqlLen = stmtEnv_.sql_.length();
     pCxt->pMsg = stmtEnv_.msgBuf_.data();
@@ -203,6 +212,8 @@ class ParserTestBaseImpl {
   void doPutMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
     DO_WITH_THROW(putMetaDataToCache, pCatalogReq, pMetaData, pMetaCache);
   }
+
+  void doAuthenticate(SParseContext* pCxt, SQuery* pQuery) { DO_WITH_THROW(authenticate, pCxt, pQuery); }
 
   void doTranslate(SParseContext* pCxt, SQuery* pQuery) {
     DO_WITH_THROW(translate, pCxt, pQuery);
@@ -248,6 +259,8 @@ class ParserTestBaseImpl {
 
           doPutMetaDataToCache(&catalogReq, &metaData, pQuery->pMetaCache);
 
+          doAuthenticate(&cxt, pQuery);
+
           doTranslate(&cxt, pQuery);
 
           doCalculateConstant(&cxt, pQuery);
@@ -286,6 +299,8 @@ class ParserTestBaseImpl {
 ParserTestBase::ParserTestBase() : impl_(new ParserTestBaseImpl(this)) {}
 
 ParserTestBase::~ParserTestBase() {}
+
+void ParserTestBase::login(const std::string& user) { return impl_->login(user); }
 
 void ParserTestBase::useDb(const std::string& acctId, const std::string& db) { impl_->useDb(acctId, db); }
 
