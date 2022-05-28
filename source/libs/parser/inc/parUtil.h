@@ -24,12 +24,12 @@ extern "C" {
 #include "os.h"
 #include "query.h"
 
-#define parserFatal(param, ...) qFatal("PARSER: " param, __VA_ARGS__)
-#define parserError(param, ...) qError("PARSER: " param, __VA_ARGS__)
-#define parserWarn(param, ...)  qWarn("PARSER: " param, __VA_ARGS__)
-#define parserInfo(param, ...)  qInfo("PARSER: " param, __VA_ARGS__)
-#define parserDebug(param, ...) qDebug("PARSER: " param, __VA_ARGS__)
-#define parserTrace(param, ...) qTrace("PARSER: " param, __VA_ARGS__)
+#define parserFatal(param, ...) qFatal("PARSER: " param, ##__VA_ARGS__)
+#define parserError(param, ...) qError("PARSER: " param, ##__VA_ARGS__)
+#define parserWarn(param, ...)  qWarn("PARSER: " param, ##__VA_ARGS__)
+#define parserInfo(param, ...)  qInfo("PARSER: " param, ##__VA_ARGS__)
+#define parserDebug(param, ...) qDebug("PARSER: " param, ##__VA_ARGS__)
+#define parserTrace(param, ...) qTrace("PARSER: " param, ##__VA_ARGS__)
 
 #define PK_TS_COL_INTERNAL_NAME "_rowts"
 
@@ -62,12 +62,15 @@ int32_t trimString(const char* src, int32_t len, char* dst, int32_t dlen);
 int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq);
 int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache);
 int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
+int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
+int32_t reserveTableVgroupInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache);
+int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
-int32_t getDBVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo);
-int32_t getTableHashVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup);
-int32_t getDBVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
+int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo);
+int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup);
+int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
                                 int32_t* pTableNum);
-int32_t getDBCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo);
+int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo);
 
 #ifdef __cplusplus
 }

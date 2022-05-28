@@ -125,6 +125,12 @@ class MockCatalogServiceImpl {
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllTableVgroup(pCatalogReq->pTableHash, &pMetaData->pTableHash);
     }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllDbVgroup(pCatalogReq->pDbVgroup, &pMetaData->pDbVgroup);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllDbCfg(pCatalogReq->pDbCfg, &pMetaData->pDbCfg);
+    }
     return code;
   }
 
@@ -330,15 +336,41 @@ class MockCatalogServiceImpl {
     int32_t code = TSDB_CODE_SUCCESS;
     if (NULL != pTableVgroupReq) {
       int32_t ntables = taosArrayGetSize(pTableVgroupReq);
-      *pTableVgroupData = taosArrayInit(ntables, POINTER_BYTES);
+      *pTableVgroupData = taosArrayInit(ntables, sizeof(SVgroupInfo));
       for (int32_t i = 0; i < ntables; ++i) {
-        SVgroupInfo* pVgInfo = (SVgroupInfo*)taosMemoryCalloc(1, sizeof(SVgroupInfo));
-        code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pTableVgroupReq, i), pVgInfo);
+        SVgroupInfo vgInfo = {0};
+        code = catalogGetTableHashVgroup((const SName*)taosArrayGet(pTableVgroupReq, i), &vgInfo);
         if (TSDB_CODE_SUCCESS == code) {
-          taosArrayPush(*pTableVgroupData, &pVgInfo);
+          taosArrayPush(*pTableVgroupData, &vgInfo);
         } else {
           break;
         }
+      }
+    }
+    return code;
+  }
+
+  int32_t getAllDbVgroup(SArray* pDbVgroupReq, SArray** pDbVgroupData) const {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL != pDbVgroupReq) {
+      int32_t ndbs = taosArrayGetSize(pDbVgroupReq);
+      *pDbVgroupData = taosArrayInit(ndbs, POINTER_BYTES);
+      for (int32_t i = 0; i < ndbs; ++i) {
+        int64_t zeroVg = 0;
+        taosArrayPush(*pDbVgroupData, &zeroVg);
+      }
+    }
+    return code;
+  }
+
+  int32_t getAllDbCfg(SArray* pDbCfgReq, SArray** pDbCfgData) const {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL != pDbCfgReq) {
+      int32_t ndbs = taosArrayGetSize(pDbCfgReq);
+      *pDbCfgData = taosArrayInit(ndbs, sizeof(SDbCfgInfo));
+      for (int32_t i = 0; i < ndbs; ++i) {
+        SDbCfgInfo dbCfg = {0};
+        taosArrayPush(*pDbCfgData, &dbCfg);
       }
     }
     return code;

@@ -152,7 +152,7 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
   tNameGetFullDbName(pName, fullDbName);
   int32_t code = TSDB_CODE_SUCCESS;
   if (pParCxt->async) {
-    code = getDBVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
+    code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
   } else {
     code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
     if (TSDB_CODE_SUCCESS == code) {
@@ -177,7 +177,7 @@ static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pNam
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
   if (pParCxt->async) {
-    code = getTableHashVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
+    code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
   } else {
     code = collectUseDatabase(pName, pCxt->pDbs);
     if (TSDB_CODE_SUCCESS == code) {
@@ -205,7 +205,7 @@ static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int
   SParseContext* pParCxt = pCxt->pParseCxt;
   int32_t        code = TSDB_CODE_SUCCESS;
   if (pParCxt->async) {
-    code = getDBVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
+    code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
   } else {
     code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
     if (TSDB_CODE_SUCCESS == code) {
@@ -226,7 +226,7 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
   tNameGetFullDbName(&name, dbFname);
   int32_t code = TSDB_CODE_SUCCESS;
   if (pParCxt->async) {
-    code = getDBCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
+    code = getDbCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
   } else {
     code = collectUseDatabaseImpl(dbFname, pCxt->pDbs);
     if (TSDB_CODE_SUCCESS == code) {
@@ -1212,7 +1212,6 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* vgroupList = NULL;
   if ('\0' != pRealTable->qualDbName[0]) {
-    // todo release after mnode can be processed
     if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
       code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
     }
@@ -1220,7 +1219,6 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
-  // todo release after mnode can be processed
   if (TSDB_CODE_SUCCESS == code) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
   }
