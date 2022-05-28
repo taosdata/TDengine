@@ -141,6 +141,14 @@ TEST_F(ParserSelectTest, IndefiniteRowsFuncSemanticCheck) {
   // run("SELECT DIFF(c1) FROM t1 INTERVAL(10s)");
 }
 
+TEST_F(ParserSelectTest, useDefinedFunc) {
+  useDb("root", "test");
+
+  run("SELECT udf1(c1) FROM t1");
+
+  run("SELECT udf2(c1) FROM t1 GROUP BY c2");
+}
+
 TEST_F(ParserSelectTest, groupBy) {
   useDb("root", "test");
 

@@ -48,6 +48,10 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     tsem_post(&pMgmt->syncSem);
+  } else {
+    if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
+      sdbWriteFile(pMnode->pSdb);
+    }
   }
 }
 
@@ -71,33 +75,28 @@ int32_t mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, void 
   SMnode *pMnode = pFsm->data;
   mInfo("start to read snapshot from sdb");
 
-  int32_t code = sdbReadSnapshot(pMnode->pSdb, (SSdbIter **)ppIter, ppBuf, len);
-  if (code != 0) {
-    mError("failed to read snapshot from sdb since %s", terrstr());
-  } else {
-    if (*ppIter == NULL) {
-      mInfo("successfully to read snapshot from sdb");
-    }
-  }
+  // sdbStartRead
+  // sdbDoRead
+  // sdbStopRead
 
-  return code;
+  return 0;
 }
 
 int32_t mndSnapshotApply(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, char *pBuf, int32_t len) {
   SMnode *pMnode = pFsm->data;
-  mndSetRestore(pMnode, false);
-  mInfo("start to apply snapshot to sdb, len:%d", len);
 
-  int32_t code = sdbApplySnapshot(pMnode->pSdb, pBuf, len);
-  if (code != 0) {
-    mError("failed to apply snapshot to sdb, len:%d", len);
-  } else {
-    mInfo("successfully to apply snapshot to sdb, len:%d", len);
-    mndSetRestore(pMnode, true);
-  }
+  // sdbStartWrite
+  // sdbDoWrite
+
+  mndSetRestore(pMnode, false);
+  mInfo("start to apply snapshot to sdb");
+
+  // sdbStopWrite
+  mInfo("successfully to apply snapshot to sdb");
+  mndSetRestore(pMnode, true);
 
   // taosMemoryFree(pBuf);
-  return code;
+  return 0;
 }
 
 void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {

@@ -678,6 +678,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   int32_t        nRows;
   int32_t        tsize, ret;
   SEncoder       encoder = {0};
+  SArray        *newTbUids = NULL;
   terrno = TSDB_CODE_SUCCESS;
 
   pRsp->code = 0;
@@ -698,6 +699,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
   }
 
   submitRsp.pArray = taosArrayInit(pSubmitReq->numOfBlocks, sizeof(SSubmitBlkRsp));
+  newTbUids = taosArrayInit(pSubmitReq->numOfBlocks, sizeof(int64_t));
   if (!submitRsp.pArray) {
     pRsp->code = TSDB_CODE_OUT_OF_MEMORY;
     goto _exit;
@@ -727,6 +729,7 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
           goto _exit;
         }
       }
+      taosArrayPush(newTbUids, &createTbReq.uid);
 
       submitBlkRsp.uid = createTbReq.uid;
       submitBlkRsp.tblFName = taosMemoryMalloc(strlen(pVnode->config.dbname) + strlen(createTbReq.name) + 2);
@@ -754,8 +757,10 @@ static int vnodeProcessSubmitReq(SVnode *pVnode, int64_t version, void *pReq, in
     submitRsp.affectedRows += submitBlkRsp.affectedRows;
     taosArrayPush(submitRsp.pArray, &submitBlkRsp);
   }
+  tqUpdateTbUidList(pVnode->pTq, newTbUids, true);
 
 _exit:
+  taosArrayDestroy(newTbUids);
   tEncodeSize(tEncodeSSubmitRsp, &submitRsp, tsize, ret);
   pRsp->pCont = rpcMallocCont(tsize);
   pRsp->contLen = tsize;

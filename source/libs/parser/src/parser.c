@@ -59,6 +59,14 @@ static int32_t parseSqlIntoAst(SParseContext* pCxt, SQuery** pQuery) {
   return code;
 }
 
+static int32_t syntaxParseSql(SParseContext* pCxt, SQuery** pQuery) {
+  int32_t code = parse(pCxt, pQuery);
+  if (TSDB_CODE_SUCCESS == code) {
+    code = collectMetaKey(pCxt, *pQuery);
+  }
+  return code;
+}
+
 static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
   if (pParam->is_null && 1 == *(pParam->is_null)) {
     pVal->node.resType.type = TSDB_DATA_TYPE_NULL;
@@ -188,7 +196,7 @@ int32_t qSyntaxParseSql(SParseContext* pCxt, SQuery** pQuery, struct SCatalogReq
   if (qIsInsertSql(pCxt->pSql, pCxt->sqlLen)) {
     // todo insert sql
   } else {
-    code = parse(pCxt, pQuery);
+    code = syntaxParseSql(pCxt, pQuery);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = buildCatalogReq((*pQuery)->pMetaCache, pCatalogReq);

@@ -397,10 +397,9 @@ typedef struct SStreamBlockScanInfo {
   SReadHandle     readHandle;
   uint64_t        tableUid;         // queried super table uid
   EStreamScanMode scanMode;
-  SOperatorInfo*  pOperatorDumy;
-  SInterval       interval;     // if the upstream is an interval operator, the interval info is also kept here.
-  SCatchSupporter childAggSup;
-  SArray*         childIds;
+  SOperatorInfo* pOperatorDumy;
+  SInterval      interval;     // if the upstream is an interval operator, the interval info is also kept here.
+  SArray*        childIds;
   SessionWindowSupporter sessionSup;
   bool            assignBlockUid; // assign block uid to groupId, temporarily used for generating rollup SMA.
 } SStreamBlockScanInfo;
@@ -441,6 +440,7 @@ typedef struct SAggSupporter {
 typedef struct STimeWindowSupp {
   int8_t           calTrigger;
   int64_t          waterMark;
+  TSKEY            maxTs;
   SColumnInfoData  timeWindowData;     // query time window info for scalar function execution.
 } STimeWindowAggSupp;
 
@@ -572,6 +572,7 @@ typedef struct SResultWindowInfo {
   SResultRowPosition pos;
   STimeWindow win;
   bool isOutput;
+  bool isClosed;
 } SResultWindowInfo;
 
 typedef struct SStreamSessionAggOperatorInfo {
@@ -742,7 +743,9 @@ SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pEx
                                        SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo);
 SOperatorInfo* createDataBlockInfoScanOperator(void* dataReader, SExecTaskInfo* pTaskInfo);
 
-SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle, SArray* pTableIdList, STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo);
+SOperatorInfo* createStreamScanOperatorInfo(void* pDataReader, SReadHandle* pHandle,
+    SArray* pTableIdList, STableScanPhysiNode* pTableScanNode, SExecTaskInfo* pTaskInfo,
+    STimeWindowAggSupp* pTwSup, int16_t tsColId);
 
 
 SOperatorInfo* createFillOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExpr, int32_t numOfCols,
@@ -799,8 +802,6 @@ int32_t getNumOfRowsInTimeWindow(SDataBlockInfo* pDataBlockInfo, TSKEY* pPrimary
     int32_t startPos, TSKEY ekey, __block_search_fn_t searchFn, STableQueryInfo* item,
     int32_t order);
 int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
-int32_t initCacheSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
-    const char* pDir);
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey);
 SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
 SResultWindowInfo* getSessionTimeWindow(SArray* pWinInfos, TSKEY ts, int64_t gap,

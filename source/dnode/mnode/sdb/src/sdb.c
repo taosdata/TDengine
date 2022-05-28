@@ -71,6 +71,7 @@ void sdbCleanup(SSdb *pSdb) {
   }
 
   if (pSdb->tmpDir != NULL) {
+    taosRemoveDir(pSdb->tmpDir);
     taosMemoryFreeClear(pSdb->tmpDir);
   }
 
