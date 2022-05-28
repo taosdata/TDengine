@@ -29,7 +29,7 @@
 #include "lucene++/Lucene_c.h"
 #endif
 
-#define INDEX_NUM_OF_THREADS 1
+#define INDEX_NUM_OF_THREADS 5
 #define INDEX_QUEUE_SIZE     200
 
 #define INDEX_DATA_BOOL_NULL      0x02
@@ -85,7 +85,7 @@ static int  indexMergeFinalResults(SArray* interResults, EIndexOperatorType oTyp
 static int indexGenTFile(SIndex* index, IndexCache* cache, SArray* batch);
 
 // merge cache and tfile by opera type
-static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateValue* iTfv, SIdxTempResult* helper);
+static void indexMergeCacheAndTFile(SArray* result, IterateValue* icache, IterateValue* iTfv, SIdxTRslt* helper);
 
 // static int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
 // int32_t        indexSerialKey(ICacheKey* key, char* buf);
@@ -343,7 +343,7 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
 
   int64_t st = taosGetTimestampUs();
 
-  SIdxTempResult* tr = idxTempResultCreate();
+  SIdxTRslt* tr = idxTRsltCreate();
   if (0 == indexCacheSearch(cache, query, tr, &s)) {
     if (s == kTypeDeletion) {
       indexInfo("col: %s already drop by", term->colName);
@@ -365,12 +365,12 @@ static int indexTermSearch(SIndex* sIdx, SIndexTermQuery* query, SArray** result
   int64_t cost = taosGetTimestampUs() - st;
   indexInfo("search cost: %" PRIu64 "us", cost);
 
-  idxTempResultMergeTo(tr, *result);
+  idxTRsltMergeTo(tr, *result);
 
-  idxTempResultDestroy(tr);
+  idxTRsltDestroy(tr);
   return 0;
 END:
-  idxTempResultDestroy(tr);
+  idxTRsltDestroy(tr);
   return -1;
 }
 static void indexInterResultsDestroy(SArray* results) {
@@ -406,18 +406,18 @@ static int indexMergeFinalResults(SArray* interResults, EIndexOperatorType oType
   return 0;
 }
 
-static void indexMayMergeTempToFinalResult(SArray* result, TFileValue* tfv, SIdxTempResult* tr) {
+static void indexMayMergeTempToFinalResult(SArray* result, TFileValue* tfv, SIdxTRslt* tr) {
   int32_t sz = taosArrayGetSize(result);
   if (sz > 0) {
     TFileValue* lv = taosArrayGetP(result, sz - 1);
     if (tfv != NULL && strcmp(lv->colVal, tfv->colVal) != 0) {
-      idxTempResultMergeTo(tr, lv->tableId);
-      idxTempResultClear(tr);
+      idxTRsltMergeTo(tr, lv->tableId);
+      idxTRsltClear(tr);
 
       taosArrayPush(result, &tfv);
     } else if (tfv == NULL) {
       // handle last iterator
-      idxTempResultMergeTo(tr, lv->tableId);
+      idxTRsltMergeTo(tr, lv->tableId);
     } else {
       // temp result saved in help
       tfileValueDestroy(tfv);
@@ -426,7 +426,7 @@ static void indexMayMergeTempToFinalResult(SArray* result, TFileValue* tfv, SIdx
     taosArrayPush(result, &tfv);
   }
 }
-static void indexMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateValue* tv, SIdxTempResult* tr) {
+static void indexMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateValue* tv, SIdxTRslt* tr) {
   char*       colVal = (cv != NULL) ? cv->colVal : tv->colVal;
   TFileValue* tfv = tfileValueCreate(colVal);
 
@@ -436,9 +436,9 @@ static void indexMergeCacheAndTFile(SArray* result, IterateValue* cv, IterateVal
     uint64_t id = *(uint64_t*)taosArrayGet(cv->val, 0);
     uint32_t ver = cv->ver;
     if (cv->type == ADD_VALUE) {
-      INDEX_MERGE_ADD_DEL(tr->deled, tr->added, id)
+      INDEX_MERGE_ADD_DEL(tr->del, tr->add, id)
     } else if (cv->type == DEL_VALUE) {
-      INDEX_MERGE_ADD_DEL(tr->added, tr->deled, id)
+      INDEX_MERGE_ADD_DEL(tr->add, tr->del, id)
     }
   }
   if (tv != NULL) {
@@ -491,7 +491,7 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
   bool cn = cacheIter ? cacheIter->next(cacheIter) : false;
   bool tn = tfileIter ? tfileIter->next(tfileIter) : false;
 
-  SIdxTempResult* tr = idxTempResultCreate();
+  SIdxTRslt* tr = idxTRsltCreate();
   while (cn == true || tn == true) {
     IterateValue* cv = (cn == true) ? cacheIter->getValue(cacheIter) : NULL;
     IterateValue* tv = (tn == true) ? tfileIter->getValue(tfileIter) : NULL;
@@ -517,7 +517,7 @@ int indexFlushCacheToTFile(SIndex* sIdx, void* cache) {
     }
   }
   indexMayMergeTempToFinalResult(result, NULL, tr);
-  idxTempResultDestroy(tr);
+  idxTRsltDestroy(tr);
 
   int ret = indexGenTFile(sIdx, pCache, result);
   indexDestroyFinalResult(result);

@@ -338,12 +338,22 @@ TEST_F(UtilEnv, testFill) {
   }
 }
 TEST_F(UtilEnv, TempResult) {
-  SIdxTempResult *relt = idxTempResultCreate();
+  SIdxTRslt *relt = idxTRsltCreate();
 
   SArray *f = taosArrayInit(0, sizeof(uint64_t));
 
   uint64_t val = UINT64_MAX - 1;
-  taosArrayPush(relt->added, &val);
-  idxTempResultMergeTo(relt, f);
+  taosArrayPush(relt->add, &val);
+  idxTRsltMergeTo(relt, f);
+  EXPECT_EQ(taosArrayGetSize(f), 1);
+}
+TEST_F(UtilEnv, TempResultExcept) {
+  SIdxTRslt *relt = idxTRsltCreate();
+
+  SArray *f = taosArrayInit(0, sizeof(uint64_t));
+
+  uint64_t val = UINT64_MAX;
+  taosArrayPush(relt->add, &val);
+  idxTRsltMergeTo(relt, f);
   EXPECT_EQ(taosArrayGetSize(f), 1);
 }

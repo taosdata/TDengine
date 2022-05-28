@@ -411,12 +411,12 @@ class TFileObj {
       //
       //
     }
-    SIdxTempResult* tr = idxTempResultCreate();
+    SIdxTRslt* tr = idxTRsltCreate();
 
     int ret = tfileReaderSearch(reader_, query, tr);
 
-    idxTempResultMergeTo(tr, result);
-    idxTempResultDestroy(tr);
+    idxTRsltMergeTo(tr, result);
+    idxTRsltDestroy(tr);
     return ret;
   }
   ~TFileObj() {
@@ -531,11 +531,11 @@ class CacheObj {
     indexCacheDebug(cache);
   }
   int Get(SIndexTermQuery* query, int16_t colId, int32_t version, SArray* result, STermValueType* s) {
-    SIdxTempResult* tr = idxTempResultCreate();
+    SIdxTRslt* tr = idxTRsltCreate();
 
     int ret = indexCacheSearch(cache, query, tr, s);
-    idxTempResultMergeTo(tr, result);
-    idxTempResultDestroy(tr);
+    idxTRsltMergeTo(tr, result);
+    idxTRsltDestroy(tr);
 
     if (ret != 0) {
       std::cout << "failed to get from cache:" << ret << std::endl;
