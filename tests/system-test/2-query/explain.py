@@ -201,7 +201,7 @@ class TDTestCase:
     def __test_current(self):
         tdSql.query("explain select c1 from ct1")
         tdSql.query("explain select 1 from ct2")
-        tdSql.query("explain select c2 from ct4 group by c1")
+        tdSql.query("explain select cast(ceil(c6) as bigint) from ct4 group by c6")
         tdSql.query("explain select count(c3) from ct4 group by c7 having count(c3) > 0")
         tdSql.query("explain select ct2.c3 from ct4 join ct2 on ct4.ts=ct2.ts")
         tdSql.query("explain select c1 from stb1 where c1 is not null and c1 in (0, 1, 2) or c1 between 2 and 100 ")
