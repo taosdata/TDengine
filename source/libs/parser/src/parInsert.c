@@ -54,7 +54,7 @@ typedef struct SInsertParseContext {
   SMsgBuf            msg;                 // input
   STableMeta*        pTableMeta;          // each table
   SParsedDataColInfo tags;                // each table
-  STagVal*           pTagVals;            // each table
+  SArray*            pTagVals;            // each table
   SVCreateTbReq      createTblReq;        // each table
   SHashObj*          pVgroupsHashObj;     // global
   SHashObj*          pTableBlockHashObj;  // global
@@ -72,9 +72,8 @@ static uint8_t TRUE_VALUE = (uint8_t)TSDB_TRUE;
 static uint8_t FALSE_VALUE = (uint8_t)TSDB_FALSE;
 
 typedef struct SKvParam {
-  int16_t  nTag;
   int16_t  pos;
-  STagVal* pTagVals;
+  SArray*  pTagVals;
   SSchema* schema;
   char     buf[TSDB_MAX_TAGS_LEN];
 } SKvParam;
@@ -773,7 +772,7 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
 
   if (TSDB_DATA_TYPE_BINARY == type) {
     memcpy(pa->buf + pa->pos, value, len);
-    tTagValSet(pa->pTagVals + pa->nTag++, &colId, type, (uint8_t*)(pa->buf + pa->pos), len, false);
+    tTagValPush(pa->pTagVals, &colId, type, (uint8_t*)(pa->buf + pa->pos), len, false);
     pa->pos += len;
   } else if (TSDB_DATA_TYPE_NCHAR == type) {
     // if the converted output len is over than pColumnModel->bytes, return error: 'Argument list too long'
@@ -789,11 +788,11 @@ static int32_t KvRowAppend(SMsgBuf* pMsgBuf, const void* value, int32_t len, voi
       snprintf(buf, tListLen(buf), " taosMbsToUcs4 error:%s", strerror(errno));
       return buildSyntaxErrMsg(pMsgBuf, buf, value);
     }
-    tTagValSet(pa->pTagVals + pa->nTag++, &colId, type, (uint8_t*)(pa->buf + pa->pos), output, false);
+    tTagValPush(pa->pTagVals, &colId, type, (uint8_t*)(pa->buf + pa->pos), output, false);
     pa->pos += output;
   } else {
     memcpy(pa->buf + pa->pos, value, TYPE_BYTES[type]);
-    tTagValSet(pa->pTagVals + pa->nTag++, &colId, type, (uint8_t*)(pa->buf + pa->pos), TYPE_BYTES[type], false);
+    tTagValPush(pa->pTagVals, &colId, type, (uint8_t*)(pa->buf + pa->pos), TYPE_BYTES[type], false);
     pa->pos + TYPE_BYTES[type];
   }
   ASSERT(pa->pos <= TSDB_MAX_TAGS_LEN);
@@ -813,11 +812,11 @@ static int32_t buildCreateTbReq(SVCreateTbReq* pTbReq, const char* tname, STag* 
 // pSql -> tag1_value, ...)
 static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint8_t precision, const char* tName) {
   ASSERT(!pCxt->pTagVals);
-  if (!(pCxt->pTagVals = taosMemoryCalloc(pCxt->tags.numOfBound, sizeof(STagVal)))) {
+  if (!(pCxt->pTagVals = taosArrayInit(pCxt->tags.numOfBound, sizeof(STagVal)))) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SKvParam param = {.pTagVals = pCxt->pTagVals, .nTag = 0, .pos = 0};
+  SKvParam param = {.pTagVals = pCxt->pTagVals, .pos = 0};
   SToken   sToken;
   bool     isParseBindParam = false;
   char     tmpTokenBuf[TSDB_MAX_BYTES_PER_ROW] = {0};  // used for deleting Escape character: \\, \', \"
@@ -828,7 +827,6 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     if (sToken.type == TK_NK_QUESTION) {
       isParseBindParam = true;
       if (NULL == pCxt->pStmtCb) {
-        taosMemoryFreeClear(pCxt->pTagVals);
         return buildSyntaxErrMsg(&pCxt->msg, "? only used in stmt", sToken.z);
       }
 
@@ -836,7 +834,6 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
     }
 
     if (isParseBindParam) {
-      taosMemoryFreeClear(pCxt->pTagVals);
       return buildInvalidOperationMsg(&pCxt->msg, "no mix usage for ? and tag values");
     }
 
@@ -847,18 +844,15 @@ static int32_t parseTagsClause(SInsertParseContext* pCxt, SSchema* pSchema, uint
   }
 
   if (isParseBindParam) {
-    taosMemoryFreeClear(pCxt->pTagVals);
     return TSDB_CODE_SUCCESS;
   }
 
   // TODO: JSON_TAG_REFACTOR (would be JSON tag or normal tag)
   STag* pTag = NULL;
-  if (tTagNew(param.pTagVals, param.nTag, 1, false, &pTag) != 0) {
-    taosMemoryFreeClear(pCxt->pTagVals);
+  if (tTagNew(param.pTagVals, 1, false, &pTag) != 0) {
     return buildInvalidOperationMsg(&pCxt->msg, "out of memory");
   }
 
-  taosMemoryFreeClear(pCxt->pTagVals);
   return buildCreateTbReq(&pCxt->createTblReq, tName, pTag, pCxt->pTableMeta->suid);
 }
 
@@ -1078,7 +1072,7 @@ void destroyCreateSubTbReq(SVCreateTbReq* pReq) {
 static void destroyInsertParseContextForTable(SInsertParseContext* pCxt) {
   taosMemoryFreeClear(pCxt->pTableMeta);
   destroyBoundColumnInfo(&pCxt->tags);
-  taosMemoryFreeClear(pCxt->pTagVals);
+  taosArrayDestroy(pCxt->pTagVals);
   destroyCreateSubTbReq(&pCxt->createTblReq);
 }
 
@@ -1349,13 +1343,13 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
     return TSDB_CODE_QRY_APP_ERROR;
   }
 
-  STagVal* pTagVals = taosMemoryCalloc(tags->numOfBound, sizeof(STagVal));
-  if (!pTagVals) {
+  SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
+  if (!pTagArray) {
     return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
 
   SSchema* pSchema = pDataBlock->pTableMeta->schema;
-  SKvParam param = {.pTagVals = pTagVals, .nTag = 0, .pos = 0};
+  SKvParam param = {.pTagVals = pTagArray, .pos = 0};
 
   for (int c = 0; c < tags->numOfBound; ++c) {
     if (bind[c].is_null && bind[c].is_null[0]) {
@@ -1377,7 +1371,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   STag* pTag = NULL;
 
   // TODO: JSON_TAG_REFACTOR (if is json or not)?
-  if (0 != tTagNew(pTagVals, param.nTag, 1, false, &pTag)) {
+  if (0 != tTagNew(pTagArray, 1, false, &pTag)) {
     return buildInvalidOperationMsg(&pBuf, "out of memory");
   }
 
@@ -1386,7 +1380,7 @@ int32_t qBindStmtTagsValue(void* pBlock, void* boundTags, int64_t suid, char* tN
   CHECK_CODE(buildCreateTbMsg(pDataBlock, &tbReq));
 
   destroyCreateSubTbReq(&tbReq);
-  taosMemoryFreeClear(pTagVals);
+  taosArrayDestroy(pTagArray);
 
   return TSDB_CODE_SUCCESS;
 }
@@ -1715,12 +1709,12 @@ static int32_t smlBoundColumnData(SArray* cols, SParsedDataColInfo* pColList, SS
  * @return int32_t
  */
 static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* pSchema, STag** ppTag, SMsgBuf* msg) {
-  STagVal* pTagVals = taosMemoryCalloc(tags->numOfBound, sizeof(STagVal));
-  if (!pTagVals) {
+  SArray* pTagArray = taosArrayInit(tags->numOfBound, sizeof(STagVal));
+  if (!pTagArray) {
     return TSDB_CODE_TSC_OUT_OF_MEMORY;
   }
 
-  SKvParam param = {.pTagVals = pTagVals, .nTag = 0, .pos = 0};
+  SKvParam param = {.pTagVals = pTagArray, .pos = 0};
   for (int i = 0; i < tags->numOfBound; ++i) {
     SSchema* pTagSchema = &pSchema[tags->boundColumns[i]];
     param.schema = pTagSchema;
@@ -1732,12 +1726,12 @@ static int32_t smlBuildTagRow(SArray* cols, SParsedDataColInfo* tags, SSchema* p
     }
   }
 
-  if (tTagNew(pTagVals, param.nTag, 1, false, ppTag) != 0) {
-    taosMemoryFree(pTagVals);
+  if (tTagNew(pTagArray, 1, false, ppTag) != 0) {
+    taosArrayDestroy(pTagArray);
     return TSDB_CODE_OUT_OF_MEMORY;
   }
 
-  taosMemoryFree(pTagVals);
+  taosArrayDestroy(pTagArray);
   return TSDB_CODE_SUCCESS;
 }
 

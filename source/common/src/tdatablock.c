@@ -1631,6 +1631,11 @@ int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId) {
   SSubmitReq* ret = NULL;
+  SArray*     tagArray = taosArrayInit(1, sizeof(STagVal));
+  if(!tagArray) {
+    terrno = TSDB_CODE_OUT_OF_MEMORY;
+    return NULL;
+  }
 
   // cal size
   int32_t cap = sizeof(SSubmitReq);
@@ -1652,14 +1657,19 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
+
+
       STagVal tagVal = {.cid = 1,
                         .type = TSDB_DATA_TYPE_UBIGINT,
                         .pData = (uint8_t*)&pDataBlock->info.groupId,
                         .nData = sizeof(uint64_t)};
       STag*   pTag = NULL;
-      tTagNew(&tagVal, 1, 1, false, &pTag);
+      taosArrayClear(tagArray);
+      taosArrayPush(tagArray, &tagVal);
+      tTagNew(tagArray, 1, false, &pTag);
       if (!pTag) {
         tdDestroySVCreateTbReq(&createTbReq);
+        taosArrayDestroy(tagArray);
         return NULL;
       }
       createTbReq.ctb.pTag = (uint8_t*)pTag;
@@ -1669,7 +1679,11 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
 
       tdDestroySVCreateTbReq(&createTbReq);
 
-      if (code < 0) return NULL;
+      if (code < 0) {
+        tdDestroySVCreateTbReq(&createTbReq);
+        taosArrayDestroy(tagArray);
+        return NULL;
+      }
     }
 
     cap += sizeof(SSubmitBlk) + schemaLen + rows * maxLen;
@@ -1716,10 +1730,13 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
                         .type = TSDB_DATA_TYPE_UBIGINT,
                         .pData = (uint8_t*)&pDataBlock->info.groupId,
                         .nData = sizeof(uint64_t)};
-      STag*   pTag = NULL;
-      tTagNew(&tagVal, 1, 1, false, &pTag);
+      taosArrayClear(tagArray);
+      taosArrayPush(tagArray, &tagVal);
+      STag* pTag = NULL;
+      tTagNew(tagArray, 1, false, &pTag);
       if (!pTag) {
         tdDestroySVCreateTbReq(&createTbReq);
+        taosArrayDestroy(tagArray);
         taosMemoryFreeClear(ret);
         return NULL;
       }
@@ -1729,6 +1746,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
       if (code < 0) {
         tdDestroySVCreateTbReq(&createTbReq);
+        taosArrayDestroy(tagArray);
         taosMemoryFreeClear(ret);
         return NULL;
       }
@@ -1740,6 +1758,7 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       tdDestroySVCreateTbReq(&createTbReq);
 
       if (code < 0) {
+        taosArrayDestroy(tagArray);
         taosMemoryFreeClear(ret);
         return NULL;
       }
@@ -1777,5 +1796,6 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
   }
 
   ret->length = htonl(ret->length);
+        taosArrayDestroy(tagArray);
   return ret;
 }

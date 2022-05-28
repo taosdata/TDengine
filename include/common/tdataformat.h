@@ -60,8 +60,8 @@ int32_t tTSRowBuilderPut(STSRowBuilder *pBuilder, int32_t cid, uint8_t *pData, u
 int32_t tTSRowBuilderGetRow(STSRowBuilder *pBuilder, const STSRow2 **ppRow);
 
 // STagVal
-static FORCE_INLINE void tTagValSet(STagVal *pTagVal, void *key, int8_t type, uint8_t *pData, uint32_t nData,
-                                    bool isJson);
+static FORCE_INLINE void tTagValPush(SArray *pTagArray, void *key, int8_t type, uint8_t *pData, uint32_t nData,
+                                     bool isJson);
 
 // STag
 int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
@@ -133,17 +133,19 @@ struct STagVal {
   uint8_t *pData;
 };
 
-static FORCE_INLINE void tTagValSet(STagVal *pTagVal, void *key, int8_t type, uint8_t *pData, uint32_t nData,
-                                    bool isJson) {
+static FORCE_INLINE void tTagValPush(SArray *pTagArray, void *key, int8_t type, uint8_t *pData, uint32_t nData,
+                                     bool isJson) {
+  STagVal tagVal = {0};
   if (isJson) {
-    pTagVal->pKey = (char *)key;
+    tagVal.pKey = (char *)key;
   } else {
-    pTagVal->cid = *(int16_t *)key;
+    tagVal.cid = *(int16_t *)key;
   }
 
-  pTagVal->type = type;
-  pTagVal->pData = pData;
-  pTagVal->nData = nData;
+  tagVal.type = type;
+  tagVal.pData = pData;
+  tagVal.nData = nData;
+  taosArrayPush(pTagArray, &tagVal);
 }
 
 #pragma pack(push, 1)

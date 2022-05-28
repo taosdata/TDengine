@@ -565,37 +565,32 @@ static int metaUpdateTableTagVal(SMeta *pMeta, int64_t version, SVAlterTbReq *pA
   } else {
     const STag *pOldTag = (const STag *)ctbEntry.ctbEntry.pTags;
     STag       *pNewTag = NULL;
-    STagVal    *pTagVals = taosMemoryCalloc(pTagSchema->nCols, sizeof(STagVal));
-
-    if (!pTagVals) {
+    SArray     *pTagArray = taosArrayInit(pTagSchema->nCols, sizeof(STagVal));
+    if (!pTagArray) {
       terrno = TSDB_CODE_OUT_OF_MEMORY;
       goto _err;
     }
-    int16_t nTags = 0;
     for (int32_t i = 0; i < pTagSchema->nCols; i++) {
       SSchema *pCol = &pTagSchema->pSchema[i];
-      STagVal *pTagVal = pTagVals + nTags;
       if (iCol == i) {
-        tTagValSet(pTagVal, &pCol->colId, pCol->type, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal, false);
-        ++nTags;
+        tTagValPush(pTagArray, &pCol->colId, pCol->type, pAlterTbReq->pTagVal, pAlterTbReq->nTagVal, false);
       } else {
         STagVal tagVal = {.cid = pCol->colId};
         if (tTagGet(pOldTag, &tagVal) && tagVal.pData) {
           if (IS_VAR_DATA_TYPE(pCol->type)) {
-            tTagValSet(pTagVal, &pCol->colId, pCol->type, tagVal.pData, varDataTLen(tagVal.pData), false);
+            tTagValPush(pTagArray, &pCol->colId, pCol->type, tagVal.pData, varDataTLen(tagVal.pData), false);
           } else {
-            tTagValSet(pTagVal, &pCol->colId, pCol->type, tagVal.pData, pCol->bytes, false);
+            tTagValPush(pTagArray, &pCol->colId, pCol->type, tagVal.pData, pCol->bytes, false);
           }
-          ++nTags;
         }
       }
     }
-    if ((terrno = tTagNew(pTagVals, nTags, pTagSchema->version, false, &pNewTag)) < 0) {
-      taosMemoryFreeClear(pTagVals);
+    if ((terrno = tTagNew(pTagArray, pTagSchema->version, false, &pNewTag)) < 0) {
+      taosArrayDestroy(pTagArray);
       goto _err;
     }
     ctbEntry.ctbEntry.pTags = (uint8_t *)pNewTag;
-    taosMemoryFreeClear(pTagVals);
+    taosArrayDestroy(pTagArray);
   }
 
   // save to table.db
