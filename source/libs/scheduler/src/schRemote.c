@@ -94,6 +94,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_ELOG("rsp not processed cause of job status, job status:%s, rspCode:0x%x", jobTaskStatusStr(status),
                   rspCode);
+    taosMemoryFreeClear(msg);              
     SCH_RET(atomic_load_32(&pJob->errCode));
   }
 
@@ -121,6 +122,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_ERR_JRET(rspCode);
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -145,6 +148,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_ERR_JRET(rspCode);
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -164,6 +169,9 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       if (NULL == msg) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
+
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -210,6 +218,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       }
 
+      taosMemoryFreeClear(msg);              
+
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
@@ -224,6 +234,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       SCH_ERR_JRET(rsp->code);
 
       SCH_ERR_JRET(schSaveJobQueryRes(pJob, rsp));
+
+      taosMemoryFreeClear(msg);              
       
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
@@ -275,12 +287,16 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
             SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
           }
 
+          taosMemoryFreeClear(msg);              
+
           return TSDB_CODE_SUCCESS;
         }
 
         atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
 
         SCH_ERR_JRET(schFetchFromRemote(pJob));
+
+        taosMemoryFreeClear(msg);              
 
         return TSDB_CODE_SUCCESS;
       }
@@ -299,6 +315,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
+
+      msg = NULL;              
 
       schProcessOnDataFetched(pJob);
       break;
@@ -321,6 +339,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
   return TSDB_CODE_SUCCESS;
 
 _return:
+
+  taosMemoryFreeClear(msg);              
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }

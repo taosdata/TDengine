@@ -746,7 +746,7 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
   }
 
   uint8_t resType;
-  if (IS_SIGNED_NUMERIC_TYPE(colType)) {
+  if (IS_SIGNED_NUMERIC_TYPE(colType) || TSDB_DATA_TYPE_BOOL == colType) {
     resType = TSDB_DATA_TYPE_BIGINT;
   } else {
     resType = TSDB_DATA_TYPE_DOUBLE;

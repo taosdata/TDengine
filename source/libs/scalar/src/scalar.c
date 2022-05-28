@@ -20,17 +20,19 @@ int32_t scalarGetOperatorParamNum(EOperatorType type) {
   return 2;
 }
 
-void sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode) {
+int32_t sclConvertToTsValueNode(int8_t precision, SValueNode* valueNode) {
   char *timeStr = valueNode->datum.p;
-  if (convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &valueNode->datum.i) !=
-      TSDB_CODE_SUCCESS) {
-    valueNode->datum.i = 0;
+  int32_t code = convertStringToTimestamp(valueNode->node.resType.type, valueNode->datum.p, precision, &valueNode->datum.i);
+  if (code != TSDB_CODE_SUCCESS) {
+    return code;
   }
   taosMemoryFree(timeStr);
   valueNode->typeData = valueNode->datum.i;
   
   valueNode->node.resType.type = TSDB_DATA_TYPE_TIMESTAMP;
   valueNode->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_TIMESTAMP].bytes;
+
+  return TSDB_CODE_SUCCESS;
 }
 
 
@@ -546,6 +548,7 @@ EDealRes sclRewriteBasedOnOptr(SNode** pNode, SScalarCtx *ctx, EOperatorType opT
 
 EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
   SOperatorNode *node = (SOperatorNode *)*pNode;
+  int32_t code = 0;
 
   if (node->pLeft && (QUERY_NODE_VALUE == nodeType(node->pLeft))) {
     SValueNode *valueNode = (SValueNode *)node->pLeft;
@@ -555,7 +558,11 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 
     if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pRight && nodesIsExprNode(node->pRight) 
       && ((SExprNode*)node->pRight)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      sclConvertToTsValueNode(((SExprNode*)node->pRight)->resType.precision, valueNode);
+      code = sclConvertToTsValueNode(((SExprNode*)node->pRight)->resType.precision, valueNode);
+      if (code) {
+        ctx->code = code;
+        return DEAL_RES_ERROR;
+      }
     }
   }
 
@@ -567,7 +574,11 @@ EDealRes sclRewriteNonConstOperator(SNode** pNode, SScalarCtx *ctx) {
 
     if (IS_STR_DATA_TYPE(valueNode->node.resType.type) && node->pLeft && nodesIsExprNode(node->pLeft) 
       && ((SExprNode*)node->pLeft)->resType.type == TSDB_DATA_TYPE_TIMESTAMP) {
-      sclConvertToTsValueNode(((SExprNode*)node->pLeft)->resType.precision, valueNode);
+      code = sclConvertToTsValueNode(((SExprNode*)node->pLeft)->resType.precision, valueNode);
+      if (code) {
+        ctx->code = code;
+        return DEAL_RES_ERROR;
+      }
     }
   }
 

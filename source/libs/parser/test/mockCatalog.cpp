@@ -103,7 +103,7 @@ void generatePerformanceSchema(MockCatalogService* mcs) {
   }
   {
     ITableBuilder& builder = mcs->createTableBuilder("performance_schema", "streams", TSDB_SYSTEM_TABLE, 1)
-        .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
+                                 .addColumn("stream_name", TSDB_DATA_TYPE_BINARY, TSDB_TABLE_NAME_LEN);
     builder.done();
   }
 }
@@ -157,6 +157,12 @@ void generateTestST1(MockCatalogService* mcs) {
   mcs->createSubTable("test", "st1", "st1s3", 1);
 }
 
+void generateFunctions(MockCatalogService* mcs) {
+  mcs->createFunction("udf1", TSDB_FUNC_TYPE_SCALAR, TSDB_DATA_TYPE_INT, tDataTypes[TSDB_DATA_TYPE_INT].bytes, 0);
+  mcs->createFunction("udf2", TSDB_FUNC_TYPE_AGGREGATE, TSDB_DATA_TYPE_DOUBLE, tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes,
+                      8);
+}
+
 }  // namespace
 
 int32_t __catalogGetHandle(const char* clusterId, struct SCatalog** catalogHandle) { return 0; }
@@ -196,6 +202,11 @@ int32_t __catalogChkAuth(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, con
   return 0;
 }
 
+int32_t __catalogGetUdfInfo(SCatalog* pCtg, void* pTrans, const SEpSet* pMgmtEps, const char* funcName,
+                            SFuncInfo* pInfo) {
+  return g_mockCatalogService->catalogGetUdfInfo(funcName, pInfo);
+}
+
 void initMetaDataEnv() {
   g_mockCatalogService.reset(new MockCatalogService());
 
@@ -209,6 +220,7 @@ void initMetaDataEnv() {
   stub.set(catalogGetDBVgInfo, __catalogGetDBVgInfo);
   stub.set(catalogGetDBCfg, __catalogGetDBCfg);
   stub.set(catalogChkAuth, __catalogChkAuth);
+  stub.set(catalogGetUdfInfo, __catalogGetUdfInfo);
   // {
   //   AddrAny any("libcatalog.so");
   //   std::map<std::string,void*> result;
@@ -256,6 +268,7 @@ void generateMetaData() {
   generatePerformanceSchema(g_mockCatalogService.get());
   generateTestT1(g_mockCatalogService.get());
   generateTestST1(g_mockCatalogService.get());
+  generateFunctions(g_mockCatalogService.get());
   g_mockCatalogService->showTables();
 }
 

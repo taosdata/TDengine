@@ -15,6 +15,9 @@
 
 #include "parUtil.h"
 #include "cJSON.h"
+#include "querynodes.h"
+
+#define USER_AUTH_KEY_MAX_LEN TSDB_USER_LEN + TSDB_DB_FNAME_LEN + 2
 
 static char* getSyntaxErrFormat(int32_t errCode) {
   switch (errCode) {
@@ -255,17 +258,8 @@ STableComInfo getTableInfo(const STableMeta* pTableMeta) {
   return pTableMeta->tableInfo;
 }
 
-static uint32_t getTableMetaSize(const STableMeta* pTableMeta) {
-  int32_t totalCols = 0;
-  if (pTableMeta->tableInfo.numOfColumns >= 0) {
-    totalCols = pTableMeta->tableInfo.numOfColumns + pTableMeta->tableInfo.numOfTags;
-  }
-
-  return sizeof(STableMeta) + totalCols * sizeof(SSchema);
-}
-
 STableMeta* tableMetaDup(const STableMeta* pTableMeta) {
-  size_t size = getTableMetaSize(pTableMeta);
+  size_t size = TABLE_META_SIZE(pTableMeta);
 
   STableMeta* p = taosMemoryMalloc(size);
   memcpy(p, pTableMeta, size);
@@ -449,6 +443,26 @@ end:
   return retCode;
 }
 
+static int32_t userAuthToString(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type, char* pStr) {
+  return sprintf(pStr, "%s*%d.%s*%d", pUser, acctId, pDb, type);
+}
+
+static int32_t userAuthToStringExt(const char* pUser, const char* pDbFName, AUTH_TYPE type, char* pStr) {
+  return sprintf(pStr, "%s*%s*%d", pUser, pDbFName, type);
+}
+
+static void stringToUserAuth(const char* pStr, int32_t len, SUserAuthInfo* pUserAuth) {
+  char* p1 = strchr(pStr, '*');
+  strncpy(pUserAuth->user, pStr, p1 - pStr);
+  ++p1;
+  char* p2 = strchr(p1, '*');
+  strncpy(pUserAuth->dbFName, p1, p2 - p1);
+  ++p2;
+  char buf[10] = {0};
+  strncpy(buf, p2, len - (p2 - pStr));
+  pUserAuth->type = taosStr2Int32(buf, NULL, 10);
+}
+
 static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
   if (NULL != pTablesHash) {
     *pTables = taosArrayInit(taosHashGetSize(pTablesHash), sizeof(SName));
@@ -503,6 +517,44 @@ static int32_t buildTableVgroupReq(SHashObj* pTableVgroupHash, SArray** pTableVg
 
 static int32_t buildDbCfgReq(SHashObj* pDbCfgHash, SArray** pDbCfg) { return buildDbReq(pDbCfgHash, pDbCfg); }
 
+static int32_t buildUserAuthReq(SHashObj* pUserAuthHash, SArray** pUserAuth) {
+  if (NULL != pUserAuthHash) {
+    *pUserAuth = taosArrayInit(taosHashGetSize(pUserAuthHash), sizeof(SUserAuthInfo));
+    if (NULL == *pUserAuth) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    void* p = taosHashIterate(pUserAuthHash, NULL);
+    while (NULL != p) {
+      size_t        len = 0;
+      char*         pKey = taosHashGetKey(p, &len);
+      SUserAuthInfo userAuth = {0};
+      stringToUserAuth(pKey, len, &userAuth);
+      taosArrayPush(*pUserAuth, &userAuth);
+      p = taosHashIterate(pUserAuthHash, p);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t buildUdfReq(SHashObj* pUdfHash, SArray** pUdf) {
+  if (NULL != pUdfHash) {
+    *pUdf = taosArrayInit(taosHashGetSize(pUdfHash), TSDB_FUNC_NAME_LEN);
+    if (NULL == *pUdf) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+    void* p = taosHashIterate(pUdfHash, NULL);
+    while (NULL != p) {
+      size_t len = 0;
+      char*  pFunc = taosHashGetKey(p, &len);
+      char   func[TSDB_FUNC_NAME_LEN] = {0};
+      strncpy(func, pFunc, len);
+      taosArrayPush(*pUdf, func);
+      p = taosHashIterate(pUdfHash, p);
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalogReq) {
   int32_t code = buildTableMetaReq(pMetaCache->pTableMeta, &pCatalogReq->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
@@ -512,7 +564,13 @@ int32_t buildCatalogReq(const SParseMetaCache* pMetaCache, SCatalogReq* pCatalog
     code = buildTableVgroupReq(pMetaCache->pTableVgroup, &pCatalogReq->pTableHash);
   }
   if (TSDB_CODE_SUCCESS == code) {
-    code = buildDbCfgReq(pMetaCache->pDbVgroup, &pCatalogReq->pDbCfg);
+    code = buildDbCfgReq(pMetaCache->pDbCfg, &pCatalogReq->pDbCfg);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildUserAuthReq(pMetaCache->pUserAuth, &pCatalogReq->pUser);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = buildUdfReq(pMetaCache->pUdf, &pCatalogReq->pUdf);
   }
   return code;
 }
@@ -568,6 +626,31 @@ static int32_t putDbCfgToCache(const SArray* pDbCfgReq, const SArray* pDbCfgData
   return TSDB_CODE_SUCCESS;
 }
 
+static int32_t putUserAuthToCache(const SArray* pUserAuthReq, const SArray* pUserAuthData, SHashObj* pUserAuth) {
+  int32_t nvgs = taosArrayGetSize(pUserAuthReq);
+  for (int32_t i = 0; i < nvgs; ++i) {
+    SUserAuthInfo* pUser = taosArrayGet(pUserAuthReq, i);
+    char           key[USER_AUTH_KEY_MAX_LEN] = {0};
+    int32_t        len = userAuthToStringExt(pUser->user, pUser->dbFName, pUser->type, key);
+    if (TSDB_CODE_SUCCESS != taosHashPut(pUserAuth, key, len, taosArrayGet(pUserAuthData, i), sizeof(bool))) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+static int32_t putUdfToCache(const SArray* pUdfReq, const SArray* pUdfData, SHashObj* pUdf) {
+  int32_t num = taosArrayGetSize(pUdfReq);
+  for (int32_t i = 0; i < num; ++i) {
+    char*      pFunc = taosArrayGet(pUdfReq, i);
+    SFuncInfo* pInfo = taosArrayGet(pUdfData, i);
+    if (TSDB_CODE_SUCCESS != taosHashPut(pUdf, pFunc, strlen(pFunc), &pInfo, POINTER_BYTES)) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
 int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMetaData, SParseMetaCache* pMetaCache) {
   int32_t code = putTableMetaToCache(pCatalogReq->pTableMeta, pMetaData->pTableMeta, pMetaCache->pTableMeta);
   if (TSDB_CODE_SUCCESS == code) {
@@ -579,54 +662,161 @@ int32_t putMetaDataToCache(const SCatalogReq* pCatalogReq, const SMetaData* pMet
   if (TSDB_CODE_SUCCESS == code) {
     code = putDbCfgToCache(pCatalogReq->pDbCfg, pMetaData->pDbCfg, pMetaCache->pDbCfg);
   }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putUserAuthToCache(pCatalogReq->pUser, pMetaData->pUser, pMetaCache->pUserAuth);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    code = putUdfToCache(pCatalogReq->pUdf, pMetaData->pUdfList, pMetaCache->pUdf);
+  }
   return code;
 }
 
-int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
-  if (NULL == pMetaCache->pTableMeta) {
-    pMetaCache->pTableMeta = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
-    if (NULL == pMetaCache->pTableMeta) {
+static int32_t reserveTableReqInCache(int32_t acctId, const char* pDb, const char* pTable, SHashObj** pTables) {
+  if (NULL == *pTables) {
+    *pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (NULL == *pTables) {
       return TSDB_CODE_OUT_OF_MEMORY;
     }
   }
   char    fullName[TSDB_TABLE_FNAME_LEN];
   int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s.%s", acctId, pDb, pTable);
-  return taosHashPut(pMetaCache->pTableMeta, fullName, len, &len, POINTER_BYTES);
+  return taosHashPut(*pTables, fullName, len, &pTables, POINTER_BYTES);
+}
+
+int32_t reserveTableMetaInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableMeta);
 }
 
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta) {
   char fullName[TSDB_TABLE_FNAME_LEN];
   tNameExtractFullName(pName, fullName);
-  *pMeta = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
-  return NULL == *pMeta ? TSDB_CODE_PAR_INTERNAL_ERROR : TSDB_CODE_SUCCESS;
-}
-
-int32_t getDBVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo) {
-  *pVgInfo = taosHashGet(pMetaCache->pDbVgroup, pDbFName, strlen(pDbFName));
-  return NULL == *pVgInfo ? TSDB_CODE_PAR_INTERNAL_ERROR : TSDB_CODE_SUCCESS;
-}
-
-int32_t getTableHashVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup) {
-  char fullName[TSDB_TABLE_FNAME_LEN];
-  tNameExtractFullName(pName, fullName);
-  SVgroupInfo* pInfo = taosHashGet(pMetaCache->pTableVgroup, fullName, strlen(fullName));
-  if (NULL == pInfo) {
+  STableMeta** pRes = taosHashGet(pMetaCache->pTableMeta, fullName, strlen(fullName));
+  if (NULL == pRes || NULL == *pRes) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
-  memcpy(pVgroup, pInfo, sizeof(SVgroupInfo));
+  *pMeta = tableMetaDup(*pRes);
+  if (NULL == *pMeta) {
+    return TSDB_CODE_OUT_OF_MEMORY;
+  }
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t getDBVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
-                                int32_t* pTableNum) {
-  return TSDB_CODE_PAR_INTERNAL_ERROR;
+static int32_t reserveDbReqInCache(int32_t acctId, const char* pDb, SHashObj** pDbs) {
+  if (NULL == *pDbs) {
+    *pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (NULL == *pDbs) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  char    fullName[TSDB_TABLE_FNAME_LEN];
+  int32_t len = snprintf(fullName, sizeof(fullName), "%d.%s", acctId, pDb);
+  return taosHashPut(*pDbs, fullName, len, &pDbs, POINTER_BYTES);
 }
 
-int32_t getDBCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo) {
-  SDbCfgInfo* pDbCfg = taosHashGet(pMetaCache->pDbCfg, pDbFName, strlen(pDbFName));
-  if (NULL == pDbCfg) {
+int32_t reserveDbVgInfoInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache) {
+  return reserveDbReqInCache(acctId, pDb, &pMetaCache->pDbVgroup);
+}
+
+int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo) {
+  SArray** pRes = taosHashGet(pMetaCache->pDbVgroup, pDbFName, strlen(pDbFName));
+  if (NULL == pRes) {
     return TSDB_CODE_PAR_INTERNAL_ERROR;
   }
-  memcpy(pInfo, pDbCfg, sizeof(SDbCfgInfo));
+  // *pRes is null, which is a legal value, indicating that the user DB has not been created
+  if (NULL != *pRes) {
+    *pVgInfo = taosArrayDup(*pRes);
+    if (NULL == *pVgInfo) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t reserveTableVgroupInCache(int32_t acctId, const char* pDb, const char* pTable, SParseMetaCache* pMetaCache) {
+  return reserveTableReqInCache(acctId, pDb, pTable, &pMetaCache->pTableVgroup);
+}
+
+int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup) {
+  char fullName[TSDB_TABLE_FNAME_LEN];
+  tNameExtractFullName(pName, fullName);
+  SVgroupInfo** pRes = taosHashGet(pMetaCache->pTableVgroup, fullName, strlen(fullName));
+  if (NULL == pRes || NULL == *pRes) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  memcpy(pVgroup, *pRes, sizeof(SVgroupInfo));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t reserveDbVgVersionInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache) {
+  return reserveDbReqInCache(acctId, pDb, &pMetaCache->pDbCfg);
+}
+
+int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
+                                int32_t* pTableNum) {
+  SDbInfo** pRes = taosHashGet(pMetaCache->pDbCfg, pDbFName, strlen(pDbFName));
+  if (NULL == pRes || NULL == *pRes) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  *pVersion = (*pRes)->vgVer;
+  *pDbId = (*pRes)->dbId;
+  *pTableNum = (*pRes)->tbNum;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache) {
+  return reserveDbReqInCache(acctId, pDb, &pMetaCache->pDbCfg);
+}
+
+int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo) {
+  SDbCfgInfo** pRes = taosHashGet(pMetaCache->pDbCfg, pDbFName, strlen(pDbFName));
+  if (NULL == pRes || NULL == *pRes) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  memcpy(pInfo, *pRes, sizeof(SDbCfgInfo));
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type,
+                               SParseMetaCache* pMetaCache) {
+  if (NULL == pMetaCache->pUserAuth) {
+    pMetaCache->pUserAuth = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (NULL == pMetaCache->pUserAuth) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  char    key[USER_AUTH_KEY_MAX_LEN] = {0};
+  int32_t len = userAuthToString(acctId, pUser, pDb, type, key);
+  bool    pass = false;
+  return taosHashPut(pMetaCache->pUserAuth, key, len, &pass, sizeof(pass));
+}
+
+int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, const char* pDbFName, AUTH_TYPE type,
+                             bool* pPass) {
+  char    key[USER_AUTH_KEY_MAX_LEN] = {0};
+  int32_t len = userAuthToStringExt(pUser, pDbFName, type, key);
+  bool*   pRes = taosHashGet(pMetaCache->pUserAuth, key, len);
+  if (NULL == pRes) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  *pPass = *pRes;
+  return TSDB_CODE_SUCCESS;
+}
+
+int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache) {
+  if (NULL == pMetaCache->pUdf) {
+    pMetaCache->pUdf = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
+    if (NULL == pMetaCache->pUdf) {
+      return TSDB_CODE_OUT_OF_MEMORY;
+    }
+  }
+  return taosHashPut(pMetaCache->pUdf, pFunc, strlen(pFunc), &pMetaCache, POINTER_BYTES);
+}
+
+int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo) {
+  SFuncInfo** pRes = taosHashGet(pMetaCache->pUdf, pFunc, strlen(pFunc));
+  if (NULL == pRes || NULL == *pRes) {
+    return TSDB_CODE_PAR_INTERNAL_ERROR;
+  }
+  memcpy(pInfo, *pRes, sizeof(SFuncInfo));
   return TSDB_CODE_SUCCESS;
 }

@@ -611,6 +611,7 @@ int32_t blockDataFromBuf1(SSDataBlock* pBlock, const char* buf, size_t capacity)
 
   for (int32_t i = 0; i < numOfCols; ++i) {
     SColumnInfoData* pCol = taosArrayGet(pBlock->pDataBlock, i);
+    pCol->hasNull = true;
 
     if (IS_VAR_DATA_TYPE(pCol->info.type)) {
       size_t metaSize = capacity * sizeof(int32_t);
@@ -1292,8 +1293,8 @@ static void doShiftBitmap(char* nullBitmap, size_t n, size_t total) {
 
 static void colDataTrimFirstNRows(SColumnInfoData* pColInfoData, size_t n, size_t total) {
   if (IS_VAR_DATA_TYPE(pColInfoData->info.type)) {
-    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n));
-    memset(&pColInfoData->varmeta.offset[total - n - 1], 0, n);
+    memmove(pColInfoData->varmeta.offset, &pColInfoData->varmeta.offset[n], (total - n) * sizeof(int32_t));
+    memset(&pColInfoData->varmeta.offset[total - n], 0, n);
   } else {
     int32_t bytes = pColInfoData->info.bytes;
     memmove(pColInfoData->pData, ((char*)pColInfoData->pData + n * bytes), (total - n) * bytes);

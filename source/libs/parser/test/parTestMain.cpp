@@ -37,6 +37,7 @@ class ParserEnv : public testing::Environment {
   virtual void SetUp() {
     initMetaDataEnv();
     generateMetaData();
+    initLog(TD_TMP_DIR_PATH "td");
   }
 
   virtual void TearDown() {
@@ -47,20 +48,55 @@ class ParserEnv : public testing::Environment {
 
   ParserEnv() {}
   virtual ~ParserEnv() {}
+
+ private:
+  void initLog(const char* path) {
+    int32_t logLevel = getLogLevel();
+    dDebugFlag = logLevel;
+    vDebugFlag = logLevel;
+    mDebugFlag = logLevel;
+    cDebugFlag = logLevel;
+    jniDebugFlag = logLevel;
+    tmrDebugFlag = logLevel;
+    uDebugFlag = logLevel;
+    rpcDebugFlag = logLevel;
+    qDebugFlag = logLevel;
+    wDebugFlag = logLevel;
+    sDebugFlag = logLevel;
+    tsdbDebugFlag = logLevel;
+    tsLogEmbedded = 1;
+    tsAsyncLog = 0;
+
+    taosRemoveDir(path);
+    taosMkDir(path);
+    tstrncpy(tsLogDir, path, PATH_MAX);
+    if (taosInitLog("taoslog", 1) != 0) {
+      std::cout << "failed to init log file" << std::endl;
+    }
+  }
 };
 
 static void parseArg(int argc, char* argv[]) {
-  int                  opt = 0;
-  const char*          optstring = "";
+  int         opt = 0;
+  const char* optstring = "";
+  // clang-format off
   static struct option long_options[] = {
-      {"dump", no_argument, NULL, 'd'}, {"async", no_argument, NULL, 'a'}, {0, 0, 0, 0}};
+    {"dump", no_argument, NULL, 'd'},
+    {"async", required_argument, NULL, 'a'},
+    {"skipSql", required_argument, NULL, 's'},
+    {0, 0, 0, 0}
+  };
+  // clang-format on
   while ((opt = getopt_long(argc, argv, optstring, long_options, NULL)) != -1) {
     switch (opt) {
       case 'd':
         g_dump = true;
         break;
       case 'a':
-        g_testAsyncApis = true;
+        setAsyncFlag(optarg);
+        break;
+      case 's':
+        setSkipSqlNum(optarg);
         break;
       default:
         break;
