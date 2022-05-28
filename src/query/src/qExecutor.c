@@ -2896,7 +2896,7 @@ static bool overlapWithTimeWindow(SQueryAttr* pQueryAttr, SDataBlockInfo* pBlock
   return false;
 }
 
-static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool ascQuery) {
+static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, tVariant *pTag, bool ascQuery) {
   STSElem elem = tsBufGetElem(pRuntimeEnv->pTsBuf);
 
 #if defined(_DEBUG_VIEW)
@@ -2904,6 +2904,10 @@ static int32_t doTSJoinFilter(SQueryRuntimeEnv *pRuntimeEnv, TSKEY key, bool asc
          elem.ts, key, elem.tag.i64, pQueryAttr->order.order, pRuntimeEnv->pTsBuf->tsOrder,
          pRuntimeEnv->pTsBuf->cur.order, pRuntimeEnv->pTsBuf->cur.tsIndex);
 #endif
+
+  if (pTag && elem.tag && tVariantCompare(pTag, elem.tag) != 0) {
+    return TS_JOIN_TAG_NOT_EQUALS;
+  }
 
   if (ascQuery) {
     if (key < elem.ts) {
@@ -3031,10 +3035,16 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
   if (pRuntimeEnv->pTsBuf != NULL) {
     SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
 
+    tVariant tag = { .nType = -1 };
+
     TSKEY* k = (TSKEY*) pColInfoData->pData;
     for (int32_t i = 0; i < numOfRows; ++i) {
-      int32_t offset = ascQuery? i:(numOfRows - i - 1);
-      int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], ascQuery);
+      if (tag.nType == -1) {
+        tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
+      }
+
+      int32_t offset = ascQuery? i : (numOfRows - i - 1);
+      int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], &tag, ascQuery);
       if (ret == TS_JOIN_TAG_NOT_EQUALS) {
         break;
       } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
@@ -3044,6 +3054,8 @@ void filterRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSingleColumnFilterInf
         assert(ret == TS_JOIN_TS_EQUAL);
         p[offset] = true;
       }
+
+      tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
 
       if (!tsBufNextPos(pRuntimeEnv->pTsBuf)) {
         if (i < (numOfRows - 1)) {
@@ -3077,10 +3089,16 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
    SColumnInfoData* pColInfoData = taosArrayGet(pBlock->pDataBlock, 0);
    p = calloc(numOfRows, sizeof(int8_t));
 
+   tVariant tag = { .nType = -1 };
+
    TSKEY* k = (TSKEY*) pColInfoData->pData;
    for (int32_t i = 0; i < numOfRows; ++i) {
-     int32_t offset = ascQuery? i:(numOfRows - i - 1);
-     int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], ascQuery);
+     if (tag.nType == -1) {
+       tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
+     }
+
+     int32_t offset = ascQuery ? i : (numOfRows - i - 1);
+     int32_t ret = doTSJoinFilter(pRuntimeEnv, k[offset], &tag, ascQuery);
      if (ret == TS_JOIN_TAG_NOT_EQUALS) {
        break;
      } else if (ret == TS_JOIN_TS_NOT_EQUALS) {
@@ -3090,6 +3108,8 @@ void filterColRowsInDataBlock(SQueryRuntimeEnv* pRuntimeEnv, SSDataBlock* pBlock
        assert(ret == TS_JOIN_TS_EQUAL);
        p[offset] = true;
      }
+
+     tVariantAssign(&tag, &pRuntimeEnv->pTsBuf->block.tag);
 
      if (!tsBufNextPos(pRuntimeEnv->pTsBuf)) {
        if (i < (numOfRows - 1)) {
