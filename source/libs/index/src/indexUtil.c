@@ -36,24 +36,24 @@ static int iBinarySearch(SArray *arr, int s, int e, uint64_t k) {
   return s;
 }
 
-void iIntersection(SArray *inters, SArray *final) {
-  int32_t sz = (int32_t)taosArrayGetSize(inters);
+void iIntersection(SArray *in, SArray *out) {
+  int32_t sz = (int32_t)taosArrayGetSize(in);
   if (sz <= 0) {
     return;
   }
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
-    SArray *t = taosArrayGetP(inters, i);
+    SArray *t = taosArrayGetP(in, i);
     mi[i].len = (int32_t)taosArrayGetSize(t);
     mi[i].idx = 0;
   }
 
-  SArray *base = taosArrayGetP(inters, 0);
+  SArray *base = taosArrayGetP(in, 0);
   for (int i = 0; i < taosArrayGetSize(base); i++) {
     uint64_t tgt = *(uint64_t *)taosArrayGet(base, i);
     bool     has = true;
-    for (int j = 1; j < taosArrayGetSize(inters); j++) {
-      SArray *oth = taosArrayGetP(inters, j);
+    for (int j = 1; j < taosArrayGetSize(in); j++) {
+      SArray *oth = taosArrayGetP(in, j);
       int     mid = iBinarySearch(oth, mi[j].idx, mi[j].len - 1, tgt);
       if (mid >= 0 && mid < mi[j].len) {
         uint64_t val = *(uint64_t *)taosArrayGet(oth, mid);
@@ -64,33 +64,33 @@ void iIntersection(SArray *inters, SArray *final) {
       }
     }
     if (has == true) {
-      taosArrayPush(final, &tgt);
+      taosArrayPush(out, &tgt);
     }
   }
   taosMemoryFreeClear(mi);
 }
-void iUnion(SArray *inters, SArray *final) {
-  int32_t sz = (int32_t)taosArrayGetSize(inters);
+void iUnion(SArray *in, SArray *out) {
+  int32_t sz = (int32_t)taosArrayGetSize(in);
   if (sz <= 0) {
     return;
   }
   if (sz == 1) {
-    taosArrayAddAll(final, taosArrayGetP(inters, 0));
+    taosArrayAddAll(out, taosArrayGetP(in, 0));
     return;
   }
 
   MergeIndex *mi = taosMemoryCalloc(sz, sizeof(MergeIndex));
   for (int i = 0; i < sz; i++) {
-    SArray *t = taosArrayGetP(inters, i);
+    SArray *t = taosArrayGetP(in, i);
     mi[i].len = (int32_t)taosArrayGetSize(t);
     mi[i].idx = 0;
   }
   while (1) {
-    uint64_t mVal = UINT_MAX;
+    uint64_t mVal = UINT64_MAX;
     int      mIdx = -1;
 
     for (int j = 0; j < sz; j++) {
-      SArray *t = taosArrayGetP(inters, j);
+      SArray *t = taosArrayGetP(in, j);
       if (mi[j].idx >= mi[j].len) {
         continue;
       }
@@ -102,13 +102,13 @@ void iUnion(SArray *inters, SArray *final) {
     }
     if (mIdx != -1) {
       mi[mIdx].idx++;
-      if (taosArrayGetSize(final) > 0) {
-        uint64_t lVal = *(uint64_t *)taosArrayGetLast(final);
+      if (taosArrayGetSize(out) > 0) {
+        uint64_t lVal = *(uint64_t *)taosArrayGetLast(out);
         if (lVal == mVal) {
           continue;
         }
       }
-      taosArrayPush(final, &mVal);
+      taosArrayPush(out, &mVal);
     } else {
       break;
     }
@@ -158,41 +158,44 @@ int verdataCompare(const void *a, const void *b) {
   return cmp;
 }
 
-SIdxTempResult *sIdxTempResultCreate() {
-  SIdxTempResult *tr = taosMemoryCalloc(1, sizeof(SIdxTempResult));
+SIdxTRslt *idxTRsltCreate() {
+  SIdxTRslt *tr = taosMemoryCalloc(1, sizeof(SIdxTRslt));
 
   tr->total = taosArrayInit(4, sizeof(uint64_t));
-  tr->added = taosArrayInit(4, sizeof(uint64_t));
-  tr->deled = taosArrayInit(4, sizeof(uint64_t));
+  tr->add = taosArrayInit(4, sizeof(uint64_t));
+  tr->del = taosArrayInit(4, sizeof(uint64_t));
   return tr;
 }
-void sIdxTempResultClear(SIdxTempResult *tr) {
+void idxTRsltClear(SIdxTRslt *tr) {
   if (tr == NULL) {
     return;
   }
   taosArrayClear(tr->total);
-  taosArrayClear(tr->added);
-  taosArrayClear(tr->deled);
+  taosArrayClear(tr->add);
+  taosArrayClear(tr->del);
 }
-void sIdxTempResultDestroy(SIdxTempResult *tr) {
+void idxTRsltDestroy(SIdxTRslt *tr) {
   if (tr == NULL) {
     return;
   }
   taosArrayDestroy(tr->total);
-  taosArrayDestroy(tr->added);
-  taosArrayDestroy(tr->deled);
+  taosArrayDestroy(tr->add);
+  taosArrayDestroy(tr->del);
 }
-void sIdxTempResultMergeTo(SArray *result, SIdxTempResult *tr) {
+void idxTRsltMergeTo(SIdxTRslt *tr, SArray *result) {
   taosArraySort(tr->total, uidCompare);
-  taosArraySort(tr->added, uidCompare);
-  taosArraySort(tr->deled, uidCompare);
+  taosArraySort(tr->add, uidCompare);
+  taosArraySort(tr->del, uidCompare);
 
-  SArray *arrs = taosArrayInit(2, sizeof(void *));
-  taosArrayPush(arrs, &tr->total);
-  taosArrayPush(arrs, &tr->added);
-
-  iUnion(arrs, result);
-  taosArrayDestroy(arrs);
-
-  iExcept(result, tr->deled);
+  if (taosArrayGetSize(tr->total) == 0 || taosArrayGetSize(tr->add) == 0) {
+    SArray *t = taosArrayGetSize(tr->total) == 0 ? tr->add : tr->total;
+    taosArrayAddAll(result, t);
+  } else {
+    SArray *arrs = taosArrayInit(2, sizeof(void *));
+    taosArrayPush(arrs, &tr->total);
+    taosArrayPush(arrs, &tr->add);
+    iUnion(arrs, result);
+    taosArrayDestroy(arrs);
+  }
+  iExcept(result, tr->del);
 }
