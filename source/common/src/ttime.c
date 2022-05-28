@@ -528,14 +528,14 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
     }
     taosMemoryFree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    newColData = taosMemoryCalloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
+    newColData = taosMemoryCalloc(1,  charLen + TSDB_NCHAR_SIZE);
     int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inputData), charLen, newColData);
     if (len < 0){
       taosMemoryFree(newColData);
       return TSDB_CODE_FAILED;
     }
     newColData[len] = 0;
-    bool ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       return ret;
