@@ -4895,13 +4895,17 @@ int32_t getTableList(void* metaHandle, int32_t tableType, uint64_t tableUid, STa
 
   if (tableType == TSDB_SUPER_TABLE) {
     if (pTagCond) {
+      SIndexMetaArg metaArg = {.metaHandle = tsdbGetIdx(metaHandle), .suid = tableUid};
+
       SArray* res = taosArrayInit(8, sizeof(uint64_t));
-      code = doFilterTag(pTagCond, NULL, res);
+      code = doFilterTag(pTagCond, &metaArg, res);
       if (code != TSDB_CODE_SUCCESS) {
         qError("doFilterTag error:%d", code);
         taosArrayDestroy(res);
         terrno = code;
         return code;
+      } else {
+        qDebug("doFilterTag error:%d, suid: %" PRIu64 "", code, tableUid);
       }
       for (int i = 0; i < taosArrayGetSize(res); i++) {
         STableKeyInfo info = {.lastKey = TSKEY_INITIAL_VAL, .uid = *(uint64_t*)taosArrayGet(res, i)};

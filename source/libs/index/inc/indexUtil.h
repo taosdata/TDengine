@@ -98,13 +98,13 @@ typedef struct {
   SArray *deled;
 } SIdxTempResult;
 
-SIdxTempResult *sIdxTempResultCreate();
+SIdxTempResult *idxTempResultCreate();
 
-void sIdxTempResultClear(SIdxTempResult *tr);
+void idxTempResultClear(SIdxTempResult *tr);
 
-void sIdxTempResultDestroy(SIdxTempResult *tr);
+void idxTempResultDestroy(SIdxTempResult *tr);
 
-void sIdxTempResultMergeTo(SArray *result, SIdxTempResult *tr);
+void idxTempResultMergeTo(SIdxTempResult *tr, SArray *result);
 #ifdef __cplusplus
 }
 #endif

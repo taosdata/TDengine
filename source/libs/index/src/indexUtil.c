@@ -86,7 +86,7 @@ void iUnion(SArray *inters, SArray *final) {
     mi[i].idx = 0;
   }
   while (1) {
-    uint64_t mVal = UINT_MAX;
+    uint64_t mVal = UINT64_MAX;
     int      mIdx = -1;
 
     for (int j = 0; j < sz; j++) {
@@ -158,7 +158,7 @@ int verdataCompare(const void *a, const void *b) {
   return cmp;
 }
 
-SIdxTempResult *sIdxTempResultCreate() {
+SIdxTempResult *idxTempResultCreate() {
   SIdxTempResult *tr = taosMemoryCalloc(1, sizeof(SIdxTempResult));
 
   tr->total = taosArrayInit(4, sizeof(uint64_t));
@@ -166,7 +166,7 @@ SIdxTempResult *sIdxTempResultCreate() {
   tr->deled = taosArrayInit(4, sizeof(uint64_t));
   return tr;
 }
-void sIdxTempResultClear(SIdxTempResult *tr) {
+void idxTempResultClear(SIdxTempResult *tr) {
   if (tr == NULL) {
     return;
   }
@@ -174,7 +174,7 @@ void sIdxTempResultClear(SIdxTempResult *tr) {
   taosArrayClear(tr->added);
   taosArrayClear(tr->deled);
 }
-void sIdxTempResultDestroy(SIdxTempResult *tr) {
+void idxTempResultDestroy(SIdxTempResult *tr) {
   if (tr == NULL) {
     return;
   }
@@ -182,7 +182,7 @@ void sIdxTempResultDestroy(SIdxTempResult *tr) {
   taosArrayDestroy(tr->added);
   taosArrayDestroy(tr->deled);
 }
-void sIdxTempResultMergeTo(SArray *result, SIdxTempResult *tr) {
+void idxTempResultMergeTo(SIdxTempResult *tr, SArray *result) {
   taosArraySort(tr->total, uidCompare);
   taosArraySort(tr->added, uidCompare);
   taosArraySort(tr->deled, uidCompare);
@@ -194,5 +194,10 @@ void sIdxTempResultMergeTo(SArray *result, SIdxTempResult *tr) {
   iUnion(arrs, result);
   taosArrayDestroy(arrs);
 
+  indexError("tmp result: total: %d, added: %d, del: %d", (int)taosArrayGetSize(tr->total),
+             (int)taosArrayGetSize(tr->added), (int)taosArrayGetSize(tr->deled));
+  if (taosArrayGetSize(tr->added) != 0 && taosArrayGetSize(result) == 0) {
+    indexError("except result: %d", (int)(taosArrayGetSize(result)));
+  }
   iExcept(result, tr->deled);
 }

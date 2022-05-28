@@ -1153,7 +1153,9 @@ void colInfoDataCleanup(SColumnInfoData* pColumn, uint32_t numOfRows) {
   if (IS_VAR_DATA_TYPE(pColumn->info.type)) {
     pColumn->varmeta.length = 0;
   } else {
-    memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+    if (pColumn->nullbitmap != NULL) {
+      memset(pColumn->nullbitmap, 0, BitmapLen(numOfRows));
+    }
   }
 }
 

@@ -211,12 +211,12 @@ void tfileReaderDestroy(TFileReader* reader) {
   }
   // T_REF_INC(reader);
   fstDestroy(reader->fst);
-  writerCtxDestroy(reader->ctx, reader->remove);
   if (reader->remove) {
     indexInfo("%s is removed", reader->ctx->file.buf);
   } else {
     indexInfo("%s is not removed", reader->ctx->file.buf);
   }
+  writerCtxDestroy(reader->ctx, reader->remove);
 
   taosMemoryFree(reader);
 }

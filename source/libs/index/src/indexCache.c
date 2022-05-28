@@ -133,6 +133,7 @@ static int32_t cacheSearchCompareFunc(void* cache, SIndexTerm* term, SIdxTempRes
 
   CacheTerm* pCt = taosMemoryCalloc(1, sizeof(CacheTerm));
   pCt->colVal = term->colVal;
+  pCt->colType = term->colType;
   pCt->version = atomic_load_64(&pCache->version);
 
   char* key = indexCacheTermGet(pCt);
@@ -597,10 +598,10 @@ int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* result
   indexMemRef(imm);
   taosThreadMutexUnlock(&pCache->mtx);
 
-  int ret = indexQueryMem(mem, query, result, s);
+  int ret = (mem && mem->mem) ? indexQueryMem(mem, query, result, s) : 0;
   if (ret == 0 && *s != kTypeDeletion) {
     // continue search in imm
-    ret = indexQueryMem(imm, query, result, s);
+    ret = (imm && imm->mem) ? indexQueryMem(imm, query, result, s) : 0;
   }
 
   indexMemUnRef(mem);
@@ -709,7 +710,7 @@ static int32_t indexCacheJsonTermCompare(const void* l, const void* r) {
   return cmp;
 }
 static MemTable* indexInternalCacheCreate(int8_t type) {
-  int ttype = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : type;
+  int ttype = INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? TSDB_DATA_TYPE_BINARY : TSDB_DATA_TYPE_BINARY;
   int32_t (*cmpFn)(const void* l, const void* r) =
       INDEX_TYPE_CONTAIN_EXTERN_TYPE(type, TSDB_DATA_TYPE_JSON) ? indexCacheJsonTermCompare : indexCacheTermCompare;
 

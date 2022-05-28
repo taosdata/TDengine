@@ -259,8 +259,8 @@ static SArray* createCheckInfoFromTableGroup(STsdbReadHandle* pTsdbReadHandle, S
     }
 
     taosArrayPush(pTableCheckInfo, &info);
-    tsdbDebug("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReadHandle, info.tableId,
-              info.lastKey, pTsdbReadHandle->idStr);
+    tsdbDebug("%p check table uid:%" PRId64 " from lastKey:%" PRId64 " %s", pTsdbReadHandle, info.tableId, info.lastKey,
+              pTsdbReadHandle->idStr);
   }
 
   // TODO  group table according to the tag value.
@@ -363,13 +363,16 @@ static STsdb* getTsdbByRetentions(SVnode* pVnode, STsdbReadHandle* pReadHandle, 
     }
 
     if (level == TSDB_RETENTION_L0) {
-      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L0);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
+                TSDB_RETENTION_L0);
       return VND_RSMA0(pVnode);
     } else if (level == TSDB_RETENTION_L1) {
-      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L1);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
+                TSDB_RETENTION_L1);
       return VND_RSMA1(pVnode);
     } else {
-      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle, TSDB_RETENTION_L2);
+      tsdbDebug("vgId:%d read handle %p rsma level %d is selected to query", TD_VID(pVnode), pReadHandle,
+                TSDB_RETENTION_L2);
       return VND_RSMA2(pVnode);
     }
   }
@@ -412,7 +415,7 @@ static STsdbReadHandle* tsdbQueryTablesImpl(SVnode* pVnode, SQueryTableDataCond*
 
   if (pCond->numOfCols > 0) {
     int32_t rowLen = 0;
-    for(int32_t i = 0; i < pCond->numOfCols; ++i) {
+    for (int32_t i = 0; i < pCond->numOfCols; ++i) {
       rowLen += pCond->colList[i].bytes;
     }
 
@@ -660,7 +663,7 @@ SArray* tsdbGetQueriedTableList(tsdbReaderT* pHandle) {
 }
 
 // leave only one table for each group
-//static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGroupList) {
+// static STableGroupInfo* trimTableGroup(STimeWindow* window, STableGroupInfo* pGroupList) {
 //  assert(pGroupList);
 //  size_t numOfGroup = taosArrayGetSize(pGroupList->pGroupList);
 //
@@ -692,7 +695,7 @@ SArray* tsdbGetQueriedTableList(tsdbReaderT* pHandle) {
 //  return pNew;
 //}
 
-//tsdbReaderT tsdbQueryRowsInExternalWindow(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList,
+// tsdbReaderT tsdbQueryRowsInExternalWindow(SVnode* pVnode, SQueryTableDataCond* pCond, STableGroupInfo* groupList,
 //                                          uint64_t qId, uint64_t taskId) {
 //  STableGroupInfo* pNew = trimTableGroup(&pCond->twindow, groupList);
 //
@@ -1299,7 +1302,6 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
 
   if ((ascScan && (key != TSKEY_INITIAL_VAL && key <= binfo.window.ekey)) ||
       (!ascScan && (key != TSKEY_INITIAL_VAL && key >= binfo.window.skey))) {
-
     bool cacheDataInFileBlockHole = (ascScan && (key != TSKEY_INITIAL_VAL && key < binfo.window.skey)) ||
                                     (!ascScan && (key != TSKEY_INITIAL_VAL && key > binfo.window.ekey));
     if (cacheDataInFileBlockHole) {
@@ -1342,7 +1344,7 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
       pTsdbReadHandle->realNumOfRows = binfo.rows;
 
       cur->rows = binfo.rows;
-      cur->win  = binfo.window;
+      cur->win = binfo.window;
       cur->mixBlock = false;
       cur->blockCompleted = true;
 
@@ -1353,9 +1355,9 @@ static int32_t handleDataMergeIfNeeded(STsdbReadHandle* pTsdbReadHandle, SBlock*
         cur->lastKey = binfo.window.skey - 1;
         cur->pos = -1;
       }
-    } else { // partially copy to dest buffer
+    } else {  // partially copy to dest buffer
       // make sure to only load once
-      bool firstTimeExtract = ((cur->pos == 0 && ascScan) || (cur->pos == binfo.rows -1 && (!ascScan)));
+      bool firstTimeExtract = ((cur->pos == 0 && ascScan) || (cur->pos == binfo.rows - 1 && (!ascScan)));
       if (pTsdbReadHandle->outputCapacity < binfo.rows && firstTimeExtract) {
         code = doLoadFileDataBlock(pTsdbReadHandle, pBlock, pCheckInfo, cur->slot);
         if (code != TSDB_CODE_SUCCESS) {
@@ -1864,7 +1866,7 @@ static void copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, STa
 
   bool ascScan = ASCENDING_TRAVERSE(pTsdbReadHandle->order);
 
-  int32_t step = ascScan? 1 : -1;
+  int32_t step = ascScan ? 1 : -1;
 
   int32_t start = cur->pos;
   int32_t end = endPos;
@@ -1879,8 +1881,8 @@ static void copyAllRemainRowsFromFileBlock(STsdbReadHandle* pTsdbReadHandle, STa
   // the time window should always be ascending order: skey <= ekey
   cur->win = (STimeWindow){.skey = tsArray[start], .ekey = tsArray[end]};
   cur->mixBlock = (numOfRows != pBlockInfo->rows);
-  cur->lastKey  = tsArray[endPos] + step;
-  cur->blockCompleted = (ascScan? (endPos == pBlockInfo->rows - 1):(endPos == 0));
+  cur->lastKey = tsArray[endPos] + step;
+  cur->blockCompleted = (ascScan ? (endPos == pBlockInfo->rows - 1) : (endPos == 0));
 
   // The value of pos may be -1 or pBlockInfo->rows, and it is invalid in both cases.
   int32_t pos = endPos + step;
@@ -1896,7 +1898,7 @@ int32_t getEndPosInDataBlock(STsdbReadHandle* pTsdbReadHandle, SDataBlockInfo* p
   // NOTE: reverse the order to find the end position in data block
   int32_t endPos = -1;
   bool    ascScan = ASCENDING_TRAVERSE(pTsdbReadHandle->order);
-  int32_t order = ascScan? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
+  int32_t order = ascScan ? TSDB_ORDER_DESC : TSDB_ORDER_ASC;
 
   SQueryFilePos* cur = &pTsdbReadHandle->cur;
   SDataCols*     pCols = pTsdbReadHandle->rhelper.pDCols[0];
@@ -1956,7 +1958,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
   assert(pCols->numOfRows == pBlock->numOfRows && tsArray[0] == pBlock->keyFirst &&
          tsArray[pBlock->numOfRows - 1] == pBlock->keyLast);
 
-  bool ascScan = ASCENDING_TRAVERSE(pTsdbReadHandle->order);
+  bool    ascScan = ASCENDING_TRAVERSE(pTsdbReadHandle->order);
   int32_t step = ascScan ? 1 : -1;
 
   // for search the endPos, so the order needs to reverse
@@ -1967,8 +1969,9 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
 
   STimeWindow* pWin = &blockInfo.window;
   tsdbDebug("%p uid:%" PRIu64 " start merge data block, file block range:%" PRIu64 "-%" PRIu64
-            " rows:%d, start:%d, end:%d, %s", pTsdbReadHandle, pCheckInfo->tableId, pWin->skey, pWin->ekey, blockInfo.rows,
-            cur->pos, endPos, pTsdbReadHandle->idStr);
+            " rows:%d, start:%d, end:%d, %s",
+            pTsdbReadHandle, pCheckInfo->tableId, pWin->skey, pWin->ekey, blockInfo.rows, cur->pos, endPos,
+            pTsdbReadHandle->idStr);
 
   // compared with the data from in-memory buffer, to generate the correct timestamp array list
   int32_t numOfRows = 0;
@@ -2087,8 +2090,9 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
           }
 
           // still assign data into current row
-          numOfRows += mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
-                             pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastKeyAppend);
+          numOfRows +=
+              mergeTwoRowFromMem(pTsdbReadHandle, pTsdbReadHandle->outputCapacity, &curRow, row1, row2, numOfCols,
+                                 pCheckInfo->tableId, pSchema1, pSchema2, pCfg->update, &lastKeyAppend);
 
           if (cur->win.skey == TSKEY_INITIAL_VAL) {
             cur->win.skey = key;
@@ -2153,8 +2157,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
        * if cache is empty, load remain file block data. In contrast, if there are remain data in cache, do NOT
        * copy them all to result buffer, since it may be overlapped with file data block.
        */
-      if (node == NULL ||
-          ((TD_ROW_KEY((STSRow*)SL_GET_NODE_DATA(node)) > pTsdbReadHandle->window.ekey) && ascScan) ||
+      if (node == NULL || ((TD_ROW_KEY((STSRow*)SL_GET_NODE_DATA(node)) > pTsdbReadHandle->window.ekey) && ascScan) ||
           ((TD_ROW_KEY((STSRow*)SL_GET_NODE_DATA(node)) < pTsdbReadHandle->window.ekey) && !ascScan)) {
         // no data in cache or data in cache is greater than the ekey of time window, load data from file block
         if (cur->win.skey == TSKEY_INITIAL_VAL) {
@@ -2175,7 +2178,7 @@ static void doMergeTwoLevelData(STsdbReadHandle* pTsdbReadHandle, STableCheckInf
   }
 
   cur->blockCompleted = (((pos > endPos || cur->lastKey > pTsdbReadHandle->window.ekey) && ascScan) ||
-       ((pos < endPos || cur->lastKey < pTsdbReadHandle->window.ekey) && !ascScan));
+                         ((pos < endPos || cur->lastKey < pTsdbReadHandle->window.ekey) && !ascScan));
 
   if (!ascScan) {
     TSWAP(cur->win.skey, cur->win.ekey);
@@ -2794,6 +2797,12 @@ static int tsdbReadRowsFromCache(STableCheckInfo* pCheckInfo, TSKEY maxKey, int 
   return numOfRows;
 }
 
+void* tsdbGetIdx(SMeta* pMeta) {
+  if (pMeta == NULL) {
+    return NULL;
+  }
+  return metaGetIdx(pMeta);
+}
 int32_t tsdbGetAllTableList(SMeta* pMeta, uint64_t uid, SArray* list) {
   SMCtbCursor* pCur = metaOpenCtbCursor(pMeta, uid);
 
@@ -3382,65 +3391,65 @@ int32_t checkForCachedLast(STsdbReadHandle* pTsdbReadHandle) {
 STimeWindow updateLastrowForEachGroup(STableListInfo* pList) {
   STimeWindow window = {INT64_MAX, INT64_MIN};
 
-//  int32_t totalNumOfTable = 0;
-//  SArray* emptyGroup = taosArrayInit(16, sizeof(int32_t));
-//
-//  // NOTE: starts from the buffer in case of descending timestamp order check data blocks
-//  size_t numOfGroups = taosArrayGetSize(groupList->pGroupList);
-//  for (int32_t j = 0; j < numOfGroups; ++j) {
-//    SArray* pGroup = taosArrayGetP(groupList->pGroupList, j);
-//    TSKEY   key = TSKEY_INITIAL_VAL;
-//
-//    STableKeyInfo keyInfo = {0};
-//
-//    size_t numOfTables = taosArrayGetSize(pGroup);
-//    for (int32_t i = 0; i < numOfTables; ++i) {
-//      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
-//
-//      // if the lastKey equals to INT64_MIN, there is no data in this table
-//      TSKEY lastKey = 0;  //((STable*)(pInfo->pTable))->lastKey;
-//      if (key < lastKey) {
-//        key = lastKey;
-//
-//        //        keyInfo.pTable  = pInfo->pTable;
-//        keyInfo.lastKey = key;
-//        pInfo->lastKey = key;
-//
-//        if (key < window.skey) {
-//          window.skey = key;
-//        }
-//
-//        if (key > window.ekey) {
-//          window.ekey = key;
-//        }
-//      }
-//    }
-//
-//    // more than one table in each group, only one table left for each group
-//    //    if (keyInfo.pTable != NULL) {
-//    //      totalNumOfTable++;
-//    //      if (taosArrayGetSize(pGroup) == 1) {
-//    //        // do nothing
-//    //      } else {
-//    //        taosArrayClear(pGroup);
-//    //        taosArrayPush(pGroup, &keyInfo);
-//    //      }
-//    //    } else {  // mark all the empty groups, and remove it later
-//    //      taosArrayDestroy(pGroup);
-//    //      taosArrayPush(emptyGroup, &j);
-//    //    }
-//  }
-//
-//  // window does not being updated, so set the original
-//  if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
-//    window = TSWINDOW_INITIALIZER;
-//    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == numOfGroups);
-//  }
-//
-//  taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t)taosArrayGetSize(emptyGroup));
-//  taosArrayDestroy(emptyGroup);
-//
-//  groupList->numOfTables = totalNumOfTable;
+  //  int32_t totalNumOfTable = 0;
+  //  SArray* emptyGroup = taosArrayInit(16, sizeof(int32_t));
+  //
+  //  // NOTE: starts from the buffer in case of descending timestamp order check data blocks
+  //  size_t numOfGroups = taosArrayGetSize(groupList->pGroupList);
+  //  for (int32_t j = 0; j < numOfGroups; ++j) {
+  //    SArray* pGroup = taosArrayGetP(groupList->pGroupList, j);
+  //    TSKEY   key = TSKEY_INITIAL_VAL;
+  //
+  //    STableKeyInfo keyInfo = {0};
+  //
+  //    size_t numOfTables = taosArrayGetSize(pGroup);
+  //    for (int32_t i = 0; i < numOfTables; ++i) {
+  //      STableKeyInfo* pInfo = (STableKeyInfo*)taosArrayGet(pGroup, i);
+  //
+  //      // if the lastKey equals to INT64_MIN, there is no data in this table
+  //      TSKEY lastKey = 0;  //((STable*)(pInfo->pTable))->lastKey;
+  //      if (key < lastKey) {
+  //        key = lastKey;
+  //
+  //        //        keyInfo.pTable  = pInfo->pTable;
+  //        keyInfo.lastKey = key;
+  //        pInfo->lastKey = key;
+  //
+  //        if (key < window.skey) {
+  //          window.skey = key;
+  //        }
+  //
+  //        if (key > window.ekey) {
+  //          window.ekey = key;
+  //        }
+  //      }
+  //    }
+  //
+  //    // more than one table in each group, only one table left for each group
+  //    //    if (keyInfo.pTable != NULL) {
+  //    //      totalNumOfTable++;
+  //    //      if (taosArrayGetSize(pGroup) == 1) {
+  //    //        // do nothing
+  //    //      } else {
+  //    //        taosArrayClear(pGroup);
+  //    //        taosArrayPush(pGroup, &keyInfo);
+  //    //      }
+  //    //    } else {  // mark all the empty groups, and remove it later
+  //    //      taosArrayDestroy(pGroup);
+  //    //      taosArrayPush(emptyGroup, &j);
+  //    //    }
+  //  }
+  //
+  //  // window does not being updated, so set the original
+  //  if (window.skey == INT64_MAX && window.ekey == INT64_MIN) {
+  //    window = TSWINDOW_INITIALIZER;
+  //    assert(totalNumOfTable == 0 && taosArrayGetSize(groupList->pGroupList) == numOfGroups);
+  //  }
+  //
+  //  taosArrayRemoveBatch(groupList->pGroupList, TARRAY_GET_START(emptyGroup), (int32_t)taosArrayGetSize(emptyGroup));
+  //  taosArrayDestroy(emptyGroup);
+  //
+  //  groupList->numOfTables = totalNumOfTable;
   return window;
 }
 
