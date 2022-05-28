@@ -64,7 +64,7 @@ static FORCE_INLINE void tTagValSet(STagVal *pTagVal, void *key, int8_t type, ui
                                     bool isJson);
 
 // STag
-int32_t tTagNew(STagVal *pTagVals, int16_t nTag, int32_t version, int8_t isJson, STag **ppTag);
+int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag);
 void    tTagFree(STag *pTag);
 bool    tTagGet(const STag *pTag, STagVal *pTagVal);
 int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag);
