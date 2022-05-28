@@ -380,8 +380,8 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
-int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, char **ppBuf, int32_t *len);
-int32_t sdbApplySnapshot(SSdb *pSdb, char *pBuf, int32_t len);
+int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, void **ppBuf, int32_t *len);
+int32_t sdbApplySnapshot(SSdb *pSdb, void *pBuf, int32_t len);
 
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);

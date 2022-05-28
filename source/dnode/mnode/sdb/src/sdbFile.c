@@ -452,7 +452,7 @@ static SSdbIter *sdbOpenIter(SSdb *pSdb) {
   snprintf(tmpfile, sizeof(tmpfile), "%s%ssdb.data", pSdb->tmpDir, TD_DIRSEP);
 
   taosThreadMutexLock(&pSdb->filelock);
-  if (taosCopyFile(datafile, tmpfile) != 0) {
+  if (taosCopyFile(datafile, tmpfile) < 0) {
     taosThreadMutexUnlock(&pSdb->filelock);
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("failed to copy file %s to %s since %s", datafile, tmpfile, terrstr());
@@ -512,12 +512,12 @@ static SSdbIter *sdbGetIter(SSdb *pSdb, SSdbIter **ppIter) {
   return pIter;
 }
 
-int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, char **ppBuf, int32_t *len) {
+int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, void **ppBuf, int32_t *len) {
   SSdbIter *pIter = sdbGetIter(pSdb, ppIter);
   if (pIter == NULL) return -1;
 
   int32_t maxlen = 100;
-  char   *pBuf = taosMemoryCalloc(1, maxlen);
+  void   *pBuf = taosMemoryCalloc(1, maxlen);
   if (pBuf == NULL) {
     terrno = TSDB_CODE_OUT_OF_MEMORY;
     sdbCloseIter(pSdb, pIter);
@@ -525,7 +525,7 @@ int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, char **ppBuf, int32_t *le
   }
 
   int32_t readlen = taosReadFile(pIter->file, pBuf, maxlen);
-  if (readlen < 0 || (readlen == 0 && errno != 0)) {
+  if (readlen < 0 || readlen > maxlen) {
     terrno = TAOS_SYSTEM_ERROR(errno);
     mError("sdbiter:%p, failed to read snapshot since %s, total:%" PRId64, pIter, terrstr(), pIter->total);
     *ppBuf = NULL;
@@ -539,35 +539,20 @@ int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, char **ppBuf, int32_t *le
     *ppBuf = NULL;
     *len = 0;
     *ppIter = NULL;
+    *ppIter = NULL;
     sdbCloseIter(pSdb, pIter);
     taosMemoryFree(pBuf);
     return 0;
-  } else if ((readlen < maxlen && errno != 0) || readlen == maxlen) {
+  } else {  // (readlen <= maxlen)
     pIter->total += readlen;
     mInfo("sdbiter:%p, read:%d bytes from snapshot, total:%" PRId64, pIter, readlen, pIter->total);
     *ppBuf = pBuf;
     *len = readlen;
     return 0;
-  } else if (readlen < maxlen && errno == 0) {
-    mInfo("sdbiter:%p, read snapshot to the end, total:%" PRId64, pIter, pIter->total);
-    *ppBuf = pBuf;
-    *len = readlen;
-    *ppIter = NULL;
-    sdbCloseIter(pSdb, pIter);
-    return 0;
-  } else {
-    // impossible
-    mError("sdbiter:%p, read:%d bytes from snapshot, total:%" PRId64, pIter, readlen, pIter->total);
-    *ppBuf = NULL;
-    *len = 0;
-    *ppIter = NULL;
-    sdbCloseIter(pSdb, pIter);
-    taosMemoryFree(pBuf);
-    return -1;
   }
 }
 
-int32_t sdbApplySnapshot(SSdb *pSdb, char *pBuf, int32_t len) {
+int32_t sdbApplySnapshot(SSdb *pSdb, void *pBuf, int32_t len) {
   char datafile[PATH_MAX] = {0};
   char tmpfile[PATH_MAX] = {0};
   snprintf(datafile, sizeof(datafile), "%s%ssdb.data", pSdb->currDir, TD_DIRSEP);

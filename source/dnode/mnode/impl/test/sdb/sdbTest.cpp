@@ -895,7 +895,28 @@ TEST_F(MndTestSdb, 01_Read_Str) {
     ASSERT_EQ(code, TSDB_CODE_SDB_OBJ_CREATING);
   }
 
+  {
+    void     *sdbbuf = taosMemoryMalloc(1024 * 1024);
+    int32_t total = 0;
+    void     *pBuf = NULL;
+    int32_t   len = 0;
+    SSdbIter *pIter = NULL;
+    while (sdbReadSnapshot(pSdb, &pIter, &pBuf, &len) == 0) {
+      if (pBuf != NULL && len != 0) {
+        memcpy((char *)sdbbuf + total, pBuf, len);
+        total += len;
+        taosMemoryFree(pBuf);
+      } else {
+        break;
+      }
+    }
+    sdbApplySnapshot(pSdb, sdbbuf, total);
+  }
+
+  ASSERT_EQ(sdbGetSize(pSdb, SDB_CONSUMER), 1);
+  ASSERT_EQ(sdbGetTableVer(pSdb, SDB_CONSUMER), 4);
+
   sdbCleanup(pSdb);
-  ASSERT_EQ(mnode.insertTimes, 5);
-  ASSERT_EQ(mnode.deleteTimes, 5);
+  ASSERT_EQ(mnode.insertTimes, 9);
+  ASSERT_EQ(mnode.deleteTimes, 9);
 }

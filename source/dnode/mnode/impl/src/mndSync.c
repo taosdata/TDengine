@@ -71,7 +71,7 @@ int32_t mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, void 
   SMnode *pMnode = pFsm->data;
   mInfo("start to read snapshot from sdb");
 
-  int32_t code = sdbReadSnapshot(pMnode->pSdb, (SSdbIter **)ppIter, ppBuf, len);
+  int32_t code = sdbReadSnapshot(pMnode->pSdb, (SSdbIter **)ppIter, (void**)ppBuf, len);
   if (code != 0) {
     mError("failed to read snapshot from sdb since %s", terrstr());
   } else {
