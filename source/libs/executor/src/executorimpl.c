@@ -4492,7 +4492,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-
+      STimeWindowAggSupp twSup = {.waterMark = pTableScanNode->watermark,
+          .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
@@ -4508,7 +4509,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       }
 
       SArray* tableIdList = extractTableIdList(pTableListInfo);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle, tableIdList, pTableScanNode, pTaskInfo);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle,
+          tableIdList, pTableScanNode, pTaskInfo, &twSup, pTableScanNode->tsColId);
 
       taosArrayDestroy(tableIdList);
       return pOperator;
@@ -4608,7 +4610,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
                           .precision = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->node.resType.precision};
 
     STimeWindowAggSupp as = {.waterMark = pIntervalPhyNode->window.watermark,
-                             .calTrigger = pIntervalPhyNode->window.triggerType};
+                             .calTrigger = pIntervalPhyNode->window.triggerType,
+                             .maxTs = INT64_MIN};
 
     int32_t tsSlotId = ((SColumnNode*)pIntervalPhyNode->window.pTspk)->slotId;
     pOptr = createIntervalOperatorInfo(ops[0], pExprInfo, num, pResBlock, &interval, tsSlotId, &as, pTaskInfo);
@@ -5167,20 +5170,6 @@ int32_t getOperatorExplainExecInfo(SOperatorInfo* operatorInfo, SExplainExecInfo
   }
 
   return TSDB_CODE_SUCCESS;
-}
-
-int32_t initCacheSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey, const char* pDir) {
-  pCatchSup->keySize = sizeof(int64_t) + sizeof(int64_t) + sizeof(TSKEY);
-  pCatchSup->pKeyBuf = taosMemoryCalloc(1, pCatchSup->keySize);
-  _hash_fn_t hashFn = taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY);
-  pCatchSup->pWindowHashTable = taosHashInit(10000, hashFn, true, HASH_NO_LOCK);
-  if (pCatchSup->pKeyBuf == NULL || pCatchSup->pWindowHashTable == NULL) {
-    return TSDB_CODE_OUT_OF_MEMORY;
-  }
-
-  int32_t pageSize = rowSize * 32;
-  int32_t bufSize = pageSize * 4096;
-  return createDiskbasedBuf(&pCatchSup->pDataBuf, pageSize, bufSize, pKey, pDir);
 }
 
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
