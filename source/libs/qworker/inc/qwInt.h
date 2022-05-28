@@ -145,6 +145,15 @@ typedef struct SQWSchStatus {
   SHashObj      *tasksHash;  // key:queryId+taskId, value: SQWTaskStatus
 } SQWSchStatus;
 
+typedef struct SQWWaitTimeStat {
+  uint64_t num;
+  uint64_t total;
+} SQWWaitTimeStat;
+
+typedef struct SQWStat {
+  SQWWaitTimeStat msgWait[2];
+} SQWStat;
+
 // Qnode/Vnode level task management
 typedef struct SQWorker {
   int64_t     refId;
@@ -155,9 +164,10 @@ typedef struct SQWorker {
   tmr_h       hbTimer;
   SRWLatch    schLock;
   // SRWLatch ctxLock;
-  SHashObj *schHash;  // key: schedulerId,    value: SQWSchStatus
-  SHashObj *ctxHash;  // key: queryId+taskId, value: SQWTaskCtx
-  SMsgCb    msgCb;
+  SHashObj   *schHash;  // key: schedulerId,    value: SQWSchStatus
+  SHashObj   *ctxHash;  // key: queryId+taskId, value: SQWTaskCtx
+  SMsgCb      msgCb;
+  SQWStat     stat;
 } SQWorker;
 
 typedef struct SQWorkerMgmt {
@@ -322,6 +332,8 @@ int32_t qwDropTask(QW_FPARAMS_DEF);
 void qwSaveTbVersionInfo(qTaskInfo_t       pTaskInfo, SQWTaskCtx *ctx);
 int32_t qwOpenRef(void);
 void qwSetHbParam(int64_t refId, SQWHbParam **pParam);
+int32_t qwUpdateWaitTimeInQueue(SQWorker *mgmt, int64_t ts, EQueueType type);
+int64_t qwGetWaitTimeInQueue(SQWorker *mgmt, EQueueType type);
 
 void qwDbgDumpMgmtInfo(SQWorker *mgmt);
 int32_t qwDbgValidateStatus(QW_FPARAMS_DEF, int8_t oriStatus, int8_t newStatus, bool *ignore);

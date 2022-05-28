@@ -106,6 +106,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
       }
       varDataSetLen(pVal->datum.p, pVal->node.resType.bytes);
       strncpy(varDataVal(pVal->datum.p), (const char*)pParam->buffer, pVal->node.resType.bytes);
+      pVal->node.resType.bytes += VARSTR_HEADER_SIZE;
       break;
     case TSDB_DATA_TYPE_NCHAR: {
       pVal->node.resType.bytes *= TSDB_NCHAR_SIZE;
@@ -120,7 +121,7 @@ static int32_t setValueByBindParam(SValueNode* pVal, TAOS_MULTI_BIND* pParam) {
         return errno;
       }
       varDataSetLen(pVal->datum.p, output);
-      pVal->node.resType.bytes = output;
+      pVal->node.resType.bytes = output + VARSTR_HEADER_SIZE;
       break;
     }
     case TSDB_DATA_TYPE_TIMESTAMP:
