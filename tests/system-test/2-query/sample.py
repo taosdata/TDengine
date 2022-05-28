@@ -619,7 +619,7 @@ class TDTestCase:
 
     def basic_sample_query(self):
         tdSql.execute(" drop database if exists db ")
-        tdSql.execute(" create database if not exists db ")
+        tdSql.execute(" create database if not exists db days 300 ")
         tdSql.execute(" use db ")
         tdSql.execute(
             '''create table stb1
@@ -698,41 +698,89 @@ class TDTestCase:
         # tdSql.query("select sample(c1 ,2) , 123 from stb1;")
 
         # all type support 
-        tdSql.query(" select sample(c1 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c1 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c2 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c2 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c3 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c3 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c4 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c4 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c5 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c5 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c6 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c6 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c7 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c7 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c8 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c8 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c9 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c9 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
-        tdSql.query(" select sample(c10 , 20 ) from ct1 ")
+        tdSql.query(" select sample(c10 , 20 ) from ct4 ")
         tdSql.checkRows(9)
 
         tdSql.query(" select sample(t1 , 20 ) from ct1 ")
-        tdSql.checkRows(9)
-
+        tdSql.checkRows(13)
         # filter data
 
+        tdSql.query(" select sample(c1, 20 ) from t1 where c1 is null ")
+        tdSql.checkRows(0)
+
+        tdSql.query(" select sample(c1, 20 ) from t1 where c1 =6 ")
+        tdSql.checkRows(1)
+
+        tdSql.query(" select sample(c1, 20 ) from t1 where c1 > 6 ")
+        tdSql.checkRows(3)
+
+        self.check_sample("select sample(c1, 20 ) from t1 where c1 > 6" , "select c1 from t1 where c1 > 6")
+
+        tdSql.query(" select sample( c1 , 1 )  from t1 where c1 in (0, 1,2) ")
+        tdSql.checkRows(1)
+
+        tdSql.query("select sample( c1 ,3 )  from t1 where c1 between 1 and 10 ")
+        tdSql.checkRows(3)
+
+        self.check_sample("select sample( c1 ,3 )  from t1 where c1 between 1 and 10" ,"select c1  from t1 where c1 between 1 and 10")
+
+        # join 
+
+        tdSql.query("select sample( ct4.c1 , 1 )  from ct1, ct4 where ct4.ts=ct1.ts")
+
+        # partition by tbname
+
+        tdSql.query("select sample(c1,2) from stb1 partition by tbname")
+        tdSql.checkRows(4)
+
+        self.check_sample("select sample(c1,2) from stb1 partition by tbname" , "select c1 from stb1 partition by tbname")
+
+        # nest query 
+        # tdSql.query("select sample(c1,2) from (select c1 from t1); ")
+        # tdSql.checkRows(2)
+
+        # union all 
+        tdSql.query("select sample(c1,2) from t1 union all select sample(c1,3) from t1")
+        tdSql.checkRows(5)
+
+        # fill interval
+
+        # not support mix with other function 
+        tdSql.error("select top(c1,2) , sample(c1,2) from ct1")
+        tdSql.error("select max(c1) , sample(c1,2) from ct1")
+        tdSql.error("select c1 , sample(c1,2) from ct1")
+
+        # bug for mix with scalar 
+        # tdSql.error("select 123 , sample(c1,100) from ct1")
+        # tdSql.error("select sample(c1,100)+2 from ct1")
+        # tdSql.error("select abs(sample(c1,100)) from ct1")
 
     def sample_test_run(self) :
         tdLog.printNoPrefix("==========TD-10594==========")
@@ -794,6 +842,8 @@ class TDTestCase:
         tdDnodes.start(index)
         self.sample_current_query()
         self.sample_error_query()
+
+        self.basic_sample_query()
 
     def run(self):
         import traceback
