@@ -28,7 +28,7 @@ SRaftCfg *raftCfgOpen(const char *path) {
 
   taosLSeekFile(pCfg->pFile, 0, SEEK_SET);
 
-  char buf[1024];
+  char buf[1024] = {0};
   int  len = taosReadFile(pCfg->pFile, buf, sizeof(buf));
   assert(len > 0);
 
@@ -51,7 +51,7 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
   char *s = raftCfg2Str(pRaftCfg);
   taosLSeekFile(pRaftCfg->pFile, 0, SEEK_SET);
 
-  char buf[CONFIG_FILE_LEN];
+  char buf[CONFIG_FILE_LEN] = {0};
   memset(buf, 0, sizeof(buf));
   ASSERT(strlen(s) + 1 <= CONFIG_FILE_LEN);
   snprintf(buf, sizeof(buf), "%s", s);
@@ -67,7 +67,7 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
 }
 
 cJSON *syncCfg2Json(SSyncCfg *pSyncCfg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
   if (pSyncCfg != NULL) {
@@ -172,7 +172,7 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, int8_t isStandBy, const char *path) {
   raftCfg.isStandBy = isStandBy;
   char *  s = raftCfg2Str(&raftCfg);
 
-  char buf[CONFIG_FILE_LEN];
+  char buf[CONFIG_FILE_LEN] = {0};
   memset(buf, 0, sizeof(buf));
   ASSERT(strlen(s) + 1 <= CONFIG_FILE_LEN);
   snprintf(buf, sizeof(buf), "%s", s);

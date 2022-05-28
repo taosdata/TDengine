@@ -369,8 +369,8 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     mError("failed to process sync msg:%p type:%s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
     return TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
-
-  char  logBuf[512];
+ 
+  char  logBuf[512] = {0};
   char *syncNodeStr = sync2SimpleStr(pMgmt->sync);
   snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
   syncRpcMsgLog2(logBuf, pMsg);
