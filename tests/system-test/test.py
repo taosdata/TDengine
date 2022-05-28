@@ -19,6 +19,7 @@ import subprocess
 import time
 import base64
 import json
+import platform
 from distutils.log import warn as printf
 from fabric2 import Connection
 sys.path.append("../pytest")
@@ -40,9 +41,12 @@ if __name__ == "__main__":
     stop = 0
     restart = False
     windows = 0
+    if platform.system().lower() == 'windows':
+        windows = 1
     updateCfgDict = {}
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrwd:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'windows', 'updateCfgDict'])
+    execCmd = ""
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:e:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'execCmd'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -55,8 +59,8 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-c Test Cluster Flag')
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
-            tdLog.printNoPrefix('-w taos on windows')
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
+            tdLog.printNoPrefix('-e eval str to run')
             sys.exit(0)
 
         if key in ['-r', '--restart']: 
@@ -89,15 +93,25 @@ if __name__ == "__main__":
         if key in ['-s', '--stop']:
             stop = 1
 
-        if key in ['-w', '--windows']:
-            windows = 1
-
         if key in ['-d', '--updateCfgDict']:
             try:
                 updateCfgDict = eval(base64.b64decode(value.encode()).decode())
             except:
                 print('updateCfgDict convert fail.')
                 sys.exit(0)
+
+        if key in ['-e', '--execCmd']:
+            try:
+                execCmd = base64.b64decode(value.encode()).decode()
+            except:
+                print('updateCfgDict convert fail.')
+                sys.exit(0)
+
+    if not execCmd == "":
+        tdDnodes.init(deployPath)
+        exec(execCmd)
+        quit()
+
     if (stop != 0):
         if (valgrind == 0):
             toBeKilled = "taosd"
@@ -137,7 +151,7 @@ if __name__ == "__main__":
     if windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
-        tdDnodes.init(deployPath)
+        tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
         tdDnodes.stopAll()
@@ -162,15 +176,7 @@ if __name__ == "__main__":
         else:
             pass
         tdDnodes.deploy(1,updateCfgDict)
-        if masterIp == "" or masterIp == "localhost":
-            tdDnodes.startWin(1)
-        else:
-            remote_conn = Connection("root@%s"%host)
-            with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
-                remote_conn.run("python3 ./test.py %s"%updateCfgDictStr)
-            # print("docker exec -d cross_platform bash -c \"cd ~/test/community/tests/system-test && python3 ./test.py %s\""%updateCfgDictStr)
-            # os.system("docker exec -d cross_platform bash -c \"cd ~/test/community/tests/system-test && python3 ./test.py %s\""%updateCfgDictStr)
-            # time.sleep(2)
+        tdDnodes.start(1)
         conn = taos.connect(
             host="%s"%(host),
             config=tdDnodes.sim.getCfgDir())
@@ -179,7 +185,7 @@ if __name__ == "__main__":
         else:
             tdCases.runAllWindows(conn)
     else:
-        tdDnodes.init(deployPath)
+        tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
         tdDnodes.stopAll()

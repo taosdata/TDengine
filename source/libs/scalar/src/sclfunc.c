@@ -633,7 +633,7 @@ static int32_t doTrimFunction(SScalarParam *pInput, int32_t inputNum, SScalarPar
       continue;
     }
 
-    char *input = colDataGetData(pInput[0].columnData, i);
+    char *input = colDataGetData(pInputData, i);
     int32_t len = varDataLen(input);
     int32_t charLen = (type == TSDB_DATA_TYPE_VARCHAR) ? len : len / TSDB_NCHAR_SIZE;
     trimFn(input, output, type, charLen);
@@ -925,10 +925,9 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
     if (ret != TSDB_CODE_SUCCESS) {
       colDataAppendNULL(pOutput->columnData, i);
-      continue;
+    } else {
+      colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
     }
-
-    colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
   }
 
   pOutput->numOfRows = pInput->numOfRows;

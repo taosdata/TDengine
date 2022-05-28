@@ -2040,7 +2040,7 @@ static FORCE_INLINE int32_t tsdbExecuteRSmaImpl(STsdb *pTsdb, const void *pMsg, 
     blockDebugShowData(pResult);
     STsdb      *sinkTsdb = (level == TSDB_RETENTION_L1 ? pTsdb->pVnode->pRSma1 : pTsdb->pVnode->pRSma2);
     SSubmitReq *pReq = NULL;
-    if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, TD_VID(pTsdb->pVnode), uid, suid) != 0) {
+    if (buildSubmitReqFromDataBlock(&pReq, pResult, pTSchema, TD_VID(pTsdb->pVnode), suid) != 0) {
       taosArrayDestroy(pResult);
       return TSDB_CODE_FAILED;
     }
@@ -2083,7 +2083,7 @@ static int32_t tsdbExecuteRSma(STsdb *pTsdb, const void *pMsg, int32_t inputType
   }
 
   if (inputType == STREAM_DATA_TYPE_SUBMIT_BLOCK) {
-    // TODO: use the proper schema instead of 0, and cache STSchema in cache
+    // TODO: use the proper schema instead of 1, and cache STSchema in cache
     STSchema *pTSchema = metaGetTbTSchema(pTsdb->pVnode->pMeta, suid, 1);
     if (!pTSchema) {
       terrno = TSDB_CODE_TDB_IVD_TB_SCHEMA_VERSION;

@@ -35,6 +35,14 @@ void* streamDataBlockDecode(const void* buf, SStreamDataBlock* pInput) {
   return (void*)buf;
 }
 
+static int32_t streamBuildDispatchMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
+  SStreamDispatchReq req = {
+      .streamId = pTask->streamId,
+      .data = data,
+  };
+  return 0;
+}
+
 static int32_t streamBuildExecMsg(SStreamTask* pTask, SArray* data, SRpcMsg* pMsg, SEpSet** ppEpSet) {
   SStreamTaskExecReq req = {
       .streamId = pTask->streamId,
@@ -404,6 +412,26 @@ int32_t streamProcessRecoverReq(SStreamTask* pTask, SMsgCb* pMsgCb, SStreamTaskR
 
 int32_t streamProcessRecoverRsp(SStreamTask* pTask, SStreamTaskRecoverRsp* pRsp) {
   //
+  return 0;
+}
+
+int32_t tEncodeStreamDispatchReq(SEncoder* pEncoder, const SStreamDispatchReq* pReq) {
+  if (tStartEncode(pEncoder) < 0) return -1;
+  if (tEncodeI64(pEncoder, pReq->streamId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->taskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->sourceTaskId) < 0) return -1;
+  if (tEncodeI32(pEncoder, pReq->sourceVg) < 0) return -1;
+  tEndEncode(pEncoder);
+  return 0;
+}
+
+int32_t tDecodeStreamDispatchReq(SDecoder* pDecoder, SStreamDispatchReq* pReq) {
+  if (tStartDecode(pDecoder) < 0) return -1;
+  if (tDecodeI64(pDecoder, &pReq->streamId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->taskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->sourceTaskId) < 0) return -1;
+  if (tDecodeI32(pDecoder, &pReq->sourceVg) < 0) return -1;
+  tEndDecode(pDecoder);
   return 0;
 }
 
