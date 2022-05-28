@@ -7,8 +7,6 @@ This section explains the syntax of SQL to perform operations on databases, tabl
 
 TDengine SQL is the major interface for users to write data into or query from TDengine. For ease of use, the syntax is similar to that of standard SQL. However, please note that TDengine SQL is not standard SQL. For instance, TDengine doesn't provide a delete function for time series data and so corresponding statements are not provided in TDengine SQL.
 
-TDengine SQL doesn't support abbreviation for keywords. For example "SELECT" cannot be abbreviated as "SEL".
-
 Syntax Specifications used in this chapter:
 
 - The content inside <\> needs to be input by the user, excluding <\> itself.
