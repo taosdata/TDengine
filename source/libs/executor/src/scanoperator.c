@@ -702,6 +702,7 @@ static bool prepareDataScan(SStreamBlockScanInfo* pInfo) {
     }
     STableScanInfo* pTableScanInfo = pInfo->pOperatorDumy->info;
     pTableScanInfo->cond.twindows[0] = win;
+    pTableScanInfo->curTWinIdx = 0;
     tsdbResetReadHandle(pTableScanInfo->dataReader, &pTableScanInfo->cond, 0);
     pTableScanInfo->scanTimes = 0;
     return true;
