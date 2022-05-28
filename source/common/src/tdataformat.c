@@ -32,12 +32,14 @@ typedef struct {
 #pragma pack(pop)
 
 #pragma pack(push, 1)
+#define TD_TAG_JSON  ((int8_t)0x1)
+#define TD_TAG_LARGE ((int8_t)0x2)
 struct STag {
-  int8_t  isJson;
+  int8_t  flags;
   int16_t len;
   int16_t nTag;
   int32_t ver;
-  int16_t idx[];
+  int8_t  idx[];
 };
 #pragma pack(pop)
 
@@ -525,7 +527,6 @@ static int tTagValCmprFn(const void *p1, const void *p2) {
     return 1;
   }
 
-  ASSERT(0);
   return 0;
 }
 static int tTagValJsonCmprFn(const void *p1, const void *p2) {
@@ -584,7 +585,8 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   uint8_t *p = NULL;
   int16_t  n = 0;
   int16_t  nTag = taosArrayGetSize(pArray);
-  int32_t  szTag = sizeof(STag) + sizeof(int16_t) * nTag;
+  int32_t  szTag = 0;
+  int8_t   isLarge = 0;
 
   // sort
   if (isJson) {
@@ -597,12 +599,14 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
   for (int16_t iTag = 0; iTag < nTag; iTag++) {
     szTag += tPutTagVal(NULL, (STagVal *)taosArrayGet(pArray, iTag), isJson);
   }
+  if (szTag <= INT8_MAX) {
+    szTag = szTag + sizeof(STag) + sizeof(int8_t) * nTag;
+  } else {
+    szTag = szTag + sizeof(STag) + sizeof(int16_t) * nTag;
+    isLarge = 1;
+  }
 
-  // TODO
-  // if (szTag >= 16 * 1024) {
-  //   code = TSDB_CODE_IVLD_TAG;
-  //   goto _err;
-  // }
+  ASSERT(szTag <= INT16_MAX);
 
   // build tag
   (*ppTag) = (STag *)taosMemoryMalloc(szTag);
@@ -610,15 +614,29 @@ int32_t tTagNew(SArray *pArray, int32_t version, int8_t isJson, STag **ppTag) {
     code = TSDB_CODE_OUT_OF_MEMORY;
     goto _err;
   }
-  (*ppTag)->isJson = isJson ? 1 : 0;
+  (*ppTag)->flags = 0;
+  if (isJson) {
+    (*ppTag)->flags |= TD_TAG_JSON;
+  }
+  if (isLarge) {
+    (*ppTag)->flags |= TD_TAG_LARGE;
+  }
   (*ppTag)->len = szTag;
   (*ppTag)->nTag = nTag;
   (*ppTag)->ver = version;
 
-  p = (uint8_t *)&(*ppTag)->idx[nTag];
+  if (isLarge) {
+    p = (uint8_t *)&((int16_t *)(*ppTag)->idx)[nTag];
+  } else {
+    p = (uint8_t *)&(*ppTag)->idx[nTag];
+  }
   n = 0;
   for (int16_t iTag = 0; iTag < nTag; iTag++) {
-    (*ppTag)->idx[iTag] = n;
+    if (isLarge) {
+      ((int16_t *)(*ppTag)->idx)[iTag] = n;
+    } else {
+      (*ppTag)->idx[iTag] = n;
+    }
     n += tPutTagVal(p + n, (STagVal *)taosArrayGet(pArray, iTag), isJson);
   }
 
@@ -636,18 +654,32 @@ void tTagGet(STag *pTag, STagVal *pTagVal) {
   int16_t  lidx = 0;
   int16_t  ridx = pTag->nTag - 1;
   int16_t  midx;
-  uint8_t *p = (uint8_t *)&pTag->idx[pTag->nTag];
+  uint8_t *p;
+  int8_t   isJson = pTag->flags & TD_TAG_JSON;
+  int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
+  int16_t  offset;
   STagVal  tv;
   int      c;
+
+  if (isLarge) {
+    p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
+  } else {
+    p = (uint8_t *)&pTag->idx[pTag->nTag];
+  }
 
   pTagVal->type = TSDB_DATA_TYPE_NULL;
   pTagVal->pData = NULL;
   pTagVal->nData = 0;
   while (lidx <= ridx) {
     midx = (lidx + ridx) / 2;
+    if (isLarge) {
+      offset = ((int16_t *)pTag->idx)[midx];
+    } else {
+      offset = pTag->idx[midx];
+    }
 
-    tGetTagVal(p + pTag->idx[midx], &tv, pTag->isJson);
-    if (pTag->isJson) {
+    tGetTagVal(p + offset, &tv, isJson);
+    if (isJson) {
       c = tTagValJsonCmprFn(pTagVal, &tv);
     } else {
       c = tTagValCmprFn(pTagVal, &tv);
@@ -684,7 +716,7 @@ int32_t tTagToValArray(STag *pTag, SArray **ppArray) {
   }
 
   for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
-    tGetTagVal(p + pTag->idx[iTag], &tv, pTag->isJson);
+    tGetTagVal(p + pTag->idx[iTag], &tv, pTag->flags & TD_TAG_JSON);
     taosArrayPush(*ppArray, &tv);
   }
 
