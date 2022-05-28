@@ -333,8 +333,11 @@ class TDDnode:
                     i += 1
                     if i > 50:
                         break
+                tailCmdStr = 'tail -f '
+                if platform.system().lower() == 'windows':
+                    tailCmdStr = 'tail -n +0 -f '
                 popen = subprocess.Popen(
-                    'tail -n +0 -f ' + logFile,
+                    tailCmdStr + logFile,
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     shell=True)
