@@ -2087,7 +2087,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
       switch (tag_state) {
       case tag_common:
         if (back_slash == true) {
-          if (*cur != ',' && *cur != '=' && *cur != ' ') {
+          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n' ) {
             tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2152,7 +2152,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         break;
       case tag_lqoute:
         if (back_slash == true) {
-          if (*cur != ',' && *cur != '=' && *cur != ' ') {
+          if (*cur != ',' && *cur != '=' && *cur != ' ' && *cur != 'n') {
             tscError("SML:0x%"PRIx64" tag value: state(%d), incorrect character(%c) escaped", info->id, tag_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2223,7 +2223,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
       switch (val_state) {
       case val_common:
         if (back_slash == true) {
-          if (*cur != '\\' && *cur != '"') {
+          if (*cur != '\\' && *cur != '"' && *cur != 'n') {
             tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
@@ -2318,7 +2318,7 @@ static int32_t parseSmlValue(TAOS_SML_KV *pKV, const char **index,
         break;
       case val_lqoute:
         if (back_slash == true) {
-          if (*cur != '\\' && *cur != '"') {
+          if (*cur != '\\' && *cur != '"' && *cur != 'n') {
             tscError("SML:0x%"PRIx64" field value: state(%d), incorrect character(%c) escaped", info->id, val_state, *cur);
             ret = TSDB_CODE_TSC_LINE_SYNTAX_ERROR;
             goto error;
