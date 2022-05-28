@@ -19,6 +19,7 @@ import subprocess
 import time
 import base64
 import json
+import platform
 from distutils.log import warn as printf
 from fabric2 import Connection
 sys.path.append("../pytest")
@@ -40,9 +41,11 @@ if __name__ == "__main__":
     stop = 0
     restart = False
     windows = 0
+    if platform.system().lower() == 'windows':
+        windows = 1
     updateCfgDict = {}
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrwd:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'windows', 'updateCfgDict'])
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -55,7 +58,6 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-c Test Cluster Flag')
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
-            tdLog.printNoPrefix('-w taos on windows')
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
             sys.exit(0)
 
@@ -88,9 +90,6 @@ if __name__ == "__main__":
 
         if key in ['-s', '--stop']:
             stop = 1
-
-        if key in ['-w', '--windows']:
-            windows = 1
 
         if key in ['-d', '--updateCfgDict']:
             try:
@@ -163,13 +162,13 @@ if __name__ == "__main__":
             pass
         tdDnodes.deploy(1,updateCfgDict)
         if masterIp == "" or masterIp == "localhost":
-            tdDnodes.startWin(1)
+            tdDnodes.start(1)
         else:
             remote_conn = Connection("root@%s"%host)
             with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
                 remote_conn.run("python3 ./test.py %s"%updateCfgDictStr)
             # print("docker exec -d cross_platform bash -c \"cd ~/test/community/tests/system-test && python3 ./test.py %s\""%updateCfgDictStr)
-            # os.system("docker exec -d cross_platform bash -c \"cd ~/test/community/tests/system-test && python3 ./test.py %s\""%updateCfgDictStr)
+            # os.system("docker exec -d cross_platform bash -c \"cd ~/test/community/tests/system-test && (ps -aux | grep taosd | head -n 1 | awk '{print $2}' | xargs kill -9) && rm -rf /root/test/sim/dnode1/data/ && python3 ./test.py %s\""%updateCfgDictStr)
             # time.sleep(2)
         conn = taos.connect(
             host="%s"%(host),
