@@ -642,6 +642,11 @@ static FORCE_INLINE int32_t tGetBinary(uint8_t* p, uint8_t** ppData, uint32_t* n
   return n;
 }
 
+static FORCE_INLINE int32_t tPutCStr(uint8_t* p, char* pData) {
+  return tPutBinary(p, (uint8_t*)pData, strlen(pData) + 1);
+}
+static FORCE_INLINE int32_t tGetCStr(uint8_t* p, char** ppData) { return tGetBinary(p, (uint8_t**)ppData, NULL); }
+
 #ifdef __cplusplus
 }
 #endif
