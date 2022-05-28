@@ -17,12 +17,12 @@
 #include "mndSync.h"
 #include "mndTrans.h"
 
-int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) { 
+int32_t mndSyncEqMsg(const SMsgCb *msgcb, SRpcMsg *pMsg) {
   SMsgHead *pHead = pMsg->pCont;
   pHead->contLen = htonl(pHead->contLen);
   pHead->vgId = htonl(pHead->vgId);
 
-  return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg); 
+  return tmsgPutToQueue(msgcb, SYNC_QUEUE, pMsg);
 }
 
 int32_t mndSyncSendMsg(const SEpSet *pEpSet, SRpcMsg *pMsg) { return tmsgSendReq(pEpSet, pMsg); }
@@ -32,7 +32,7 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   SSdbRaw   *pRaw = pMsg->pCont;
 
-  int32_t transId = sdbGetIdFromRaw(pRaw);
+  int32_t transId = sdbGetIdFromRaw(pMnode->pSdb, pRaw);
   pMgmt->errCode = cbMeta.code;
   mTrace("trans:%d, is proposed, savedTransId:%d code:0x%x, ver:%" PRId64 " term:%" PRId64 " role:%s raw:%p", transId,
          pMgmt->transId, cbMeta.code, cbMeta.index, cbMeta.term, syncStr(cbMeta.state), pRaw);
@@ -67,24 +67,37 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   }
 }
 
-int32_t mndSnapshotRead(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf, int32_t* len) {
-  /*
+int32_t mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, void **ppIter, char **ppBuf, int32_t *len) {
   SMnode *pMnode = pFsm->data;
-  SSdbIter *pIter;
-  if (iter == NULL) { 
-    pIter = sdbIterInit(pMnode->sdb)
-  } else {
-    pIter = iter;
-  }
-  */
+  mInfo("start to read snapshot from sdb");
 
-  return 0;
+  int32_t code = sdbReadSnapshot(pMnode->pSdb, (SSdbIter **)ppIter, ppBuf, len);
+  if (code != 0) {
+    mError("failed to read snapshot from sdb since %s", terrstr());
+  } else {
+    if (*ppIter == NULL) {
+      mInfo("successfully to read snapshot from sdb");
+    }
+  }
+
+  return code;
 }
 
-int32_t mndSnapshotApply(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len) {
+int32_t mndSnapshotApply(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, char *pBuf, int32_t len) {
   SMnode *pMnode = pFsm->data;
-  sdbWrite(pMnode->pSdb, (SSdbRaw*)pBuf);
-  return 0;
+  pMnode->syncMgmt.restored = false;
+  mInfo("start to apply snapshot to sdb, len:%d", len);
+
+  int32_t code = sdbApplySnapshot(pMnode->pSdb, pBuf, len);
+  if (code != 0) {
+    mError("failed to apply snapshot to sdb, len:%d", len);
+  } else {
+    mInfo("successfully to apply snapshot to sdb, len:%d", len);
+    pMnode->syncMgmt.restored = true;
+  }
+
+  // taosMemoryFree(pBuf);
+  return code;
 }
 
 void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) {
@@ -116,7 +129,7 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   pFsm->FpSnapshotRead = mndSnapshotRead;
   pFsm->FpSnapshotApply = mndSnapshotApply;
   pFsm->FpReConfigCb = mndReConfig;
-  
+
   return pFsm;
 }
 
@@ -150,8 +163,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;
   pCfg->myIndex = pMnode->selfIndex;
-  mInfo("start to open mnode sync, replica:%d myindex:%d standby:%d", pCfg->replicaNum, pCfg->myIndex,
-        pMgmt->standby);
+  mInfo("start to open mnode sync, replica:%d myindex:%d standby:%d", pCfg->replicaNum, pCfg->myIndex, pMgmt->standby);
   for (int32_t i = 0; i < pMnode->replica; ++i) {
     SNodeInfo *pNode = &pCfg->nodeInfo[i];
     tstrncpy(pNode->nodeFqdn, pMnode->replicas[i].fqdn, sizeof(pNode->nodeFqdn));
@@ -219,17 +231,12 @@ void mndSyncStart(SMnode *pMnode) {
   SSyncMgmt *pMgmt = &pMnode->syncMgmt;
   syncSetMsgCb(pMgmt->sync, &pMnode->msgCb);
 
-  syncStart(pMgmt->sync);
-
-#if 0
   if (pMgmt->standby) {
     syncStartStandBy(pMgmt->sync);
   } else {
     syncStart(pMgmt->sync);
   }
-#endif
-
-  mDebug("sync:%" PRId64 " is started", pMgmt->sync);
+  mDebug("sync:%" PRId64 " is started, standby:%d", pMgmt->sync, pMgmt->standby);
 }
 
 void mndSyncStop(SMnode *pMnode) {}

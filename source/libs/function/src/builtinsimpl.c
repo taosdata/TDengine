@@ -834,10 +834,12 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (IS_INTEGER_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
   } else {
-    if (isinf(pAvgRes->sum.dsum) || isnan(pAvgRes->sum.dsum)) {
-      GET_RES_INFO(pCtx)->isNullRes = 1;
-    }
     pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
+  }
+
+  //check for overflow
+  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
   }
 
   return functionFinalize(pCtx, pBlock);
@@ -2299,15 +2301,15 @@ static void doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv) {
 }
 
 static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SColumnInfoData* pOutput, int32_t pos, int32_t order) {
-    int32_t factor = (order == TSDB_ORDER_ASC)? 1:-1;
+  int32_t factor = (order == TSDB_ORDER_ASC)? 1:-1;
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       int32_t v = *(int32_t*)pv;
-      int32_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendInt32(pOutput, pos, &delta);
+        colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
       break;
@@ -2315,22 +2317,22 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t v = *(int8_t*)pv;
-      int8_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendInt8(pOutput, pos, &delta);
+        colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t v = *(int16_t*)pv;
-      int16_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendInt16(pOutput, pos, &delta);
+        colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
       break;
@@ -2348,11 +2350,11 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float v = *(float*)pv;
-      float delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
+      double delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
       if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) { //check for overflow
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendFloat(pOutput, pos, &delta);
+        colDataAppendDouble(pOutput, pos, &delta);
       }
       pDiffInfo->prev.d64 = v;
       break;

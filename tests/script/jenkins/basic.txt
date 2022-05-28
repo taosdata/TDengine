@@ -118,7 +118,7 @@
 #./test.sh -f tsim/mnode/basic1.sim -m
 
 # --- sma
-./test.sh -f tsim/sma/tsmaCreateInsertData.sim
+#./test.sh -f tsim/sma/tsmaCreateInsertData.sim
 ./test.sh -f tsim/sma/rsmaCreateInsertQuery.sim
 
 # --- valgrind

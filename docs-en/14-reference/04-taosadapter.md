@@ -30,9 +30,9 @@ taosAdapter provides the following features.
 
 ### Install taosAdapter
 
-taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TAOSData official website](https://taosdata.com/en/all-downloads/) to download the TDengine server installation package (taosAdapter is included in v2.4.0.0 and later version). If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD.md) documentation.
+taosAdapter has been part of TDengine server software since TDengine v2.4.0.0. If you use the TDengine server, you don't need additional steps to install taosAdapter. You can download taosAdapter from [TDengine official website](https://tdengine.com/all-downloads/) to download the TDengine server installation package (taosAdapter is included in v2.4.0.0 and later version). If you need to deploy taosAdapter separately on another server other than the TDengine server, you should install the full TDengine on that server to install taosAdapter. If you need to build taosAdapter from source code, you can refer to the [Building taosAdapter]( https://github.com/taosdata/taosadapter/blob/develop/BUILD.md) documentation.
 
-### start/stop taosAdapter
+### Start/Stop taosAdapter
 
 On Linux systems, the taosAdapter service is managed by `systemd` by default. You can use the command `systemctl start taosadapter` to start the taosAdapter service and use the command `systemctl stop taosadapter` to stop the taosAdapter service.
 
@@ -153,8 +153,7 @@ See [example/config/taosadapter.toml](https://github.com/taosdata/taosadapter/bl
 
 ## Feature List
 
-- Compatible with RESTful interfaces
-  [https://www.taosdata.com/cn/documentation/connector#restful](https://www.taosdata.com/cn/documentation/connector#restful)
+- Compatible with RESTful interfaces [REST API](/reference/rest-api/)
 - Compatible with InfluxDB v1 write interface
   [https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/](https://docs.influxdata.com/influxdb/v2.0/reference/api/influxdb-1x/write/)
 - Compatible with OpenTSDB JSON and telnet format writes
@@ -187,7 +186,7 @@ You can use any client that supports the http protocol to write data to or query
 
 ### InfluxDB
 
-You can use any client that supports the http protocol to access the Restful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
+You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in InfluxDB compatible format to TDengine. The EndPoint is as follows:
 
 ```text
 /influxdb/v1/write
@@ -204,7 +203,7 @@ Note: InfluxDB token authorization is not supported at present. Only Basic autho
 
 ### OpenTSDB
 
-You can use any client that supports the http protocol to access the Restful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine.
+You can use any client that supports the http protocol to access the RESTful interface address `http://<fqdn>:6041/<APIEndPoint>` to write data in OpenTSDB compatible format to TDengine.
 
 ```text
 /opentsdb/v1/put/json/:db

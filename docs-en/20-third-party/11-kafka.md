@@ -228,7 +228,7 @@ taos> select * from meters;
 Query OK, 4 row(s) in set (0.004208s)
 ```
 
-If you see the above data, the synchronization is successful. If not, check the logs of Kafka Connect. For detailed description of configuration parameters, see [Configuration Reference](#Configuration Reference).
+If you see the above data, the synchronization is successful. If not, check the logs of Kafka Connect. For detailed description of configuration parameters, see [Configuration Reference](#configuration-reference).
 
 ## The use of TDengine Source Connector
 
