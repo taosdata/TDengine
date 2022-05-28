@@ -1965,7 +1965,7 @@ bool apercentileFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResult
   if (pCtx->numOfParams == 2) {
     pInfo->algo = APERCT_ALGO_DEFAULT;
   } else if (pCtx->numOfParams == 3) {
-    pInfo->algo = getApercentileAlgo(pCtx->param[2].param.pz);
+    pInfo->algo = getApercentileAlgo(varDataVal(pCtx->param[2].param.pz));
     if (pInfo->algo == APERCT_ALGO_UNKNOWN) {
       return false;
     }
