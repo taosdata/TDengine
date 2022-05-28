@@ -49,7 +49,7 @@ IF(${TD_WINDOWS})
     option(
         BUILD_TEST 
         "If build unit tests using googletest" 
-        OFF
+        ON
     )
 ELSE ()
 
