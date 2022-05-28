@@ -925,10 +925,9 @@ int32_t toUnixtimestampFunction(SScalarParam *pInput, int32_t inputNum, SScalarP
     int32_t ret = convertStringToTimestamp(type, input, timePrec, &timeVal);
     if (ret != TSDB_CODE_SUCCESS) {
       colDataAppendNULL(pOutput->columnData, i);
-      continue;
+    } else {
+      colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
     }
-
-    colDataAppend(pOutput->columnData, i, (char *)&timeVal, false);
   }
 
   pOutput->numOfRows = pInput->numOfRows;
