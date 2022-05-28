@@ -76,6 +76,7 @@ python3 ./test.py -f 2-query/csum.py
 python3 ./test.py -f 2-query/mavg.py
 python3 ./test.py -f 2-query/diff.py
 python3 ./test.py -f 2-query/sample.py
+python3 ./test.py -f 2-query/function_diff.py
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
