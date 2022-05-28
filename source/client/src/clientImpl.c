@@ -729,23 +729,55 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   taosMemoryFreeClear(pMsgBody);
 }
 
+void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg, SEpSet* pEpSet) {
+  if (NULL == pEpSet) {
+    return;
+  }
+  
+  switch (pSendInfo->target.type) {
+    case TARGET_TYPE_MNODE:
+      if (NULL == pTscObj) {
+        tscError("mnode epset changed but not able to update it, reqObjRefId:%" PRIx64, pSendInfo->requestObjRefId);
+        return;
+      }
+
+      updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);   
+      break;
+    case TARGET_TYPE_VNODE: {
+      if (NULL == pTscObj) {
+        tscError("vnode epset changed but not able to update it, reqObjRefId:%" PRIx64, pSendInfo->requestObjRefId);
+        return;
+      }
+
+      SCatalog* pCatalog = NULL;
+      int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("fail to get catalog handle, clusterId:%" PRIx64 ", error %s", pTscObj->pAppInfo->clusterId, tstrerror(code));
+        return;
+      }
+    
+      catalogUpdateVgEpSet(pCatalog, pSendInfo->target.dbFName, pSendInfo->target.vgId, pEpSet);
+      break;
+    }
+    default:
+      tscDebug("epset changed, not updated, msgType %s", TMSG_INFO(pMsg->msgType));
+      break;
+  }
+}
+
+
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   assert(pMsg->info.ahandle != NULL);
+  SRequestObj* pRequest = NULL;
+  STscObj* pTscObj = NULL;
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
     assert(pRequest->self == pSendInfo->requestObjRefId);
 
     pRequest->metric.rsp = taosGetTimestampUs();
-
-    //STscObj* pTscObj = pRequest->pTscObj;
-    //if (pEpSet) {
-    //  if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
-    //    updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
-    //  }
-    //}
-
+    pTscObj = pRequest->pTscObj;
     /*
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
@@ -761,6 +793,8 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
+
+  updateTargetEpSet(pSendInfo, pTscObj, pMsg, pEpSet);
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle};
 

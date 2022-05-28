@@ -12,10 +12,10 @@ CREATE TABLE [IF NOT EXISTS] tb_name (timestamp_field_name TIMESTAMP, field1_nam
 
 :::info
 
-1. The first column of a table must be of TIMESTAMP type, and it will be set as the primary key automatically
+1. The first column of a table MUST be of type TIMESTAMP. It is automatically set as the primary key.
 2. The maximum length of the table name is 192 bytes.
 3. The maximum length of each row is 16k bytes, please note that the extra 2 bytes used by each BINARY/NCHAR column are also counted.
-4. The name of the subtable can only consist of English characters, digits and underscore, and can't start with a digit. Table names are case insensitive.
+4. The name of the subtable can only consist of characters from the English alphabet, digits and underscore. Table names can't start with a digit. Table names are case insensitive.
 5. The maximum length in bytes must be specified when using BINARY or NCHAR types.
 6. Escape character "\`" can be used to avoid the conflict between table names and reserved keywords, above rules will be bypassed when using escape character on table names, but the upper limit for the name length is still valid. The table names specified using escape character are case sensitive. Only ASCII visible characters can be used with escape character.
    For example \`aBc\` and \`abc\` are different table names but `abc` and `aBc` are same table names because they are both converted to `abc` internally.
@@ -44,7 +44,7 @@ The tags for which no value is specified will be set to NULL.
 CREATE TABLE [IF NOT EXISTS] tb_name1 USING stb_name TAGS (tag_value1, ...) [IF NOT EXISTS] tb_name2 USING stb_name TAGS (tag_value2, ...) ...;
 ```
 
-This can be used to create a lot of tables in a single SQL statement to accelerate the speed of the creating tables.
+This can be used to create a lot of tables in a single SQL statement while making table creation much faster.
 
 :::info
 
@@ -111,7 +111,7 @@ If a table is created using a super table as template, the table definition can 
 ALTER TABLE tb_name MODIFY COLUMN field_name data_type(length);
 ```
 
-The type of a column is variable length, like BINARY or NCHAR, this can be used to change (or increase) the length of the column.
+If the type of a column is variable length, like BINARY or NCHAR, this command can be used to change the length of the column.
 
 :::note
 If a table is created using a super table as template, the table definition can only be changed on the corresponding super table, and the change will be automatically applied to all the subtables created using this super table as template. For tables created in the normal way, the table definition can be changed directly on the table.
