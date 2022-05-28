@@ -155,44 +155,52 @@ int metaTbCursorNext(SMTbCursor *pTbCur) {
 }
 
 SSchemaWrapper *metaGetTableSchema(SMeta *pMeta, tb_uid_t uid, int32_t sver, bool isinline) {
-  void           *pKey = NULL;
-  void           *pVal = NULL;
-  int             kLen = 0;
-  int             vLen = 0;
-  int             ret;
-  SSkmDbKey       skmDbKey;
-  SSchemaWrapper *pSW = NULL;
-  SSchema        *pSchema = NULL;
-  void           *pBuf;
-  SDecoder        coder = {0};
+  void           *pData = NULL;
+  int             nData = 0;
+  int64_t         version;
+  SSchemaWrapper  schema = {0};
+  SSchemaWrapper *pSchema = NULL;
+  SDecoder        dc = {0};
 
-  // fetch
-  skmDbKey.uid = uid;
-  skmDbKey.sver = sver;
-  pKey = &skmDbKey;
-  kLen = sizeof(skmDbKey);
   metaRLock(pMeta);
-  ret = tdbTbGet(pMeta->pSkmDb, pKey, kLen, &pVal, &vLen);
-  metaULock(pMeta);
-  if (ret < 0) {
-    return NULL;
+  if (sver < 0) {
+    if (tdbTbGet(pMeta->pUidIdx, &uid, sizeof(uid), &pData, &nData) < 0) {
+      goto _err;
+    }
+
+    version = *(int64_t *)pData;
+
+    tdbTbGet(pMeta->pTbDb, &(STbDbKey){.uid = uid, .version = version}, sizeof(STbDbKey), &pData, &nData);
+
+    SMetaEntry me = {0};
+    tDecoderInit(&dc, pData, nData);
+    metaDecodeEntry(&dc, &me);
+    if (me.type == TSDB_SUPER_TABLE) {
+      pSchema = tCloneSSchemaWrapper(&me.stbEntry.schemaRow);
+    } else if (me.type == TSDB_NORMAL_TABLE) {
+    } else {
+      ASSERT(0);
+    }
+    tDecoderClear(&dc);
+  } else {
+    if (tdbTbGet(pMeta->pSkmDb, &(SSkmDbKey){.uid = uid, .sver = sver}, sizeof(SSkmDbKey), &pData, &nData) < 0) {
+      goto _err;
+    }
+
+    tDecoderInit(&dc, pData, nData);
+    tDecodeSSchemaWrapper(&dc, &schema);
+    pSchema = tCloneSSchemaWrapper(&schema);
+    tDecoderClear(&dc);
   }
 
-  // decode
-  pBuf = pVal;
-  pSW = taosMemoryMalloc(sizeof(SSchemaWrapper));
+  metaULock(pMeta);
+  tdbFree(pData);
+  return pSchema;
 
-  tDecoderInit(&coder, pVal, vLen);
-  tDecodeSSchemaWrapper(&coder, pSW);
-  pSchema = taosMemoryMalloc(sizeof(SSchema) * pSW->nCols);
-  memcpy(pSchema, pSW->pSchema, sizeof(SSchema) * pSW->nCols);
-  tDecoderClear(&coder);
-
-  pSW->pSchema = pSchema;
-
-  tdbFree(pVal);
-
-  return pSW;
+_err:
+  metaULock(pMeta);
+  tdbFree(pData);
+  return NULL;
 }
 
 struct SMCtbCursor {

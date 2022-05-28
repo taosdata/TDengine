@@ -141,6 +141,8 @@ sql connect
 
 sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from d1.tb;
 sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from d1.tb;
+
+sql use d1
 sql select count(a), count(b), count(c), count(d), count(e), count(f), count(g), count(h) from tb
 if $data00 != 24 then
   return -1

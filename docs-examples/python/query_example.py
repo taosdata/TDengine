@@ -12,10 +12,10 @@ def query_api_demo(conn: taos.TaosConnection):
 
 
 # field count: 7
-# meta of files[1]: {name: ts, type: 9, bytes: 8}
+# meta of fields[1]: {name: ts, type: 9, bytes: 8}
 # ======================Iterate on result=========================
-# ('d1001', datetime.datetime(2018, 10, 3, 14, 38, 5), 10.300000190734863, 219, 0.3100000023841858, 'California.SanFrancisco', 2)
-# ('d1001', datetime.datetime(2018, 10, 3, 14, 38, 15), 12.600000381469727, 218, 0.33000001311302185, 'California.SanFrancisco', 2)
+# ('d1003', datetime.datetime(2018, 10, 3, 14, 38, 5, 500000), 11.800000190734863, 221, 0.2800000011920929, 'california.losangeles', 2)
+# ('d1003', datetime.datetime(2018, 10, 3, 14, 38, 16, 600000), 13.399999618530273, 223, 0.28999999165534973, 'california.losangeles', 2)
 # ANCHOR_END: iter
 
 # ANCHOR: fetch_all
@@ -29,8 +29,8 @@ def fetch_all_demo(conn: taos.TaosConnection):
 
 # row count: 2
 # ===============all data===================
-# [{'ts': datetime.datetime(2018, 10, 3, 14, 38, 5), 'current': 10.300000190734863},
-# {'ts': datetime.datetime(2018, 10, 3, 14, 38, 15), 'current': 12.600000381469727}]
+# [{'ts': datetime.datetime(2018, 10, 3, 14, 38, 5, 500000), 'current': 11.800000190734863},
+# {'ts': datetime.datetime(2018, 10, 3, 14, 38, 16, 600000), 'current': 13.399999618530273}]
 # ANCHOR_END: fetch_all
 
 if __name__ == '__main__':
