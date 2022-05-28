@@ -3501,7 +3501,7 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
   size_t  keyLen = sizeof(uint64_t) * 2;  // estimate the key length
   int32_t totalSize = sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
 
-  *result = taosMemoryCalloc(1, totalSize);
+  *result = (char*)taosMemoryCalloc(1, totalSize);
   if (*result == NULL) {
     return TSDB_CODE_OUT_OF_MEMORY;
   }
@@ -3530,7 +3530,7 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
     // recalculate the result size
     int32_t realTotalSize = offset + sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize;
     if (realTotalSize > totalSize) {
-      char* tmp = taosMemoryRealloc(*result, realTotalSize);
+      char* tmp = (char*)taosMemoryRealloc(*result, realTotalSize);
       if (tmp == NULL) {
         taosMemoryFree(*result);
         *result = NULL;
@@ -4980,7 +4980,7 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t *length){
     }
 
     if(*result == NULL){
-      *result = taosMemoryCalloc(1, currLength + sizeof(int32_t));
+      *result = (char*)taosMemoryCalloc(1, currLength + sizeof(int32_t));
       if (*result == NULL) {
         taosMemoryFree(pCurrent);
         return TSDB_CODE_OUT_OF_MEMORY;
@@ -4989,7 +4989,7 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t *length){
       *(int32_t*)(*result) = currLength + sizeof(int32_t);
     }else{
       int32_t sizePre = *(int32_t*)(*result);
-      char* tmp = taosMemoryRealloc(*result, sizePre + currLength);
+      char* tmp = (char*)taosMemoryRealloc(*result, sizePre + currLength);
       if (tmp == NULL) {
         taosMemoryFree(pCurrent);
         taosMemoryFree(*result);
