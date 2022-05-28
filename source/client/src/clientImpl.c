@@ -1249,6 +1249,8 @@ void resetConnectDB(STscObj* pTscObj) {
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4) {
   assert(pResultInfo != NULL && pRsp != NULL);
 
+  taosMemoryFreeClear(pResultInfo->pRspMsg);
+  
   pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htonl(pRsp->numOfRows);

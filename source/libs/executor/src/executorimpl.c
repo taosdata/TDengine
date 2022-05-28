@@ -2601,6 +2601,7 @@ int32_t setSDataBlockFromFetchRsp(SSDataBlock* pRes, SLoadRemoteDataInfo* pLoadI
         pStart += sizeof(int32_t) * numOfRows;
 
         if (colLen[i] > 0) {
+          taosMemoryFreeClear(pColInfoData->pData);
           pColInfoData->pData = taosMemoryMalloc(colLen[i]);
         }
       } else {
@@ -2758,6 +2759,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
                pExchangeInfo->loadInfo.totalRows);
         pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
         completed += 1;
+        taosMemoryFreeClear(pDataInfo->pRsp);
         continue;
       }
 
@@ -2765,6 +2767,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
       code = setSDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
                                        pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
       if (code != 0) {
+        taosMemoryFreeClear(pDataInfo->pRsp);      
         goto _error;
       }
 
@@ -2785,10 +2788,12 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
+          taosMemoryFreeClear(pDataInfo->pRsp);        
           goto _error;
         }
       }
 
+      taosMemoryFreeClear(pDataInfo->pRsp);
       return pExchangeInfo->pResult;
     }
 
@@ -2890,7 +2895,8 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
              pDataInfo->totalRows, pLoadInfo->totalRows);
 
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
-      pExchangeInfo->current += 1;
+      pExchangeInfo->current += 1;      
+      taosMemoryFreeClear(pDataInfo->pRsp);
       continue;
     }
 
@@ -2916,6 +2922,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
 
     pOperator->resultInfo.totalRows += pRes->info.rows;
+    taosMemoryFreeClear(pDataInfo->pRsp);    
     return pExchangeInfo->pResult;
   }
 }
