@@ -27,14 +27,13 @@ extern "C" {
 #include "querynodes.h"
 
 typedef struct SAstCreateContext {
-  SParseContext*   pQueryCxt;
-  SMsgBuf          msgBuf;
-  bool             notSupport;
-  SNode*           pRootNode;
-  int16_t          placeholderNo;
-  SArray*          pPlaceholderValues;
-  int32_t          errCode;
-  SParseMetaCache* pMetaCache;
+  SParseContext* pQueryCxt;
+  SMsgBuf        msgBuf;
+  bool           notSupport;
+  SNode*         pRootNode;
+  int16_t        placeholderNo;
+  SArray*        pPlaceholderValues;
+  int32_t        errCode;
 } SAstCreateContext;
 
 typedef enum EDatabaseOptionType {
@@ -75,7 +74,7 @@ typedef struct SAlterOption {
 
 extern SToken nil_token;
 
-int32_t initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
+void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt);
 
 SNode* createRawExprNode(SAstCreateContext* pCxt, const SToken* pToken, SNode* pNode);
 SNode* createRawExprNodeExt(SAstCreateContext* pCxt, const SToken* pStart, const SToken* pEnd, SNode* pNode);
