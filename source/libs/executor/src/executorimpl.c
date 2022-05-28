@@ -3491,17 +3491,24 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
   return (rows == 0) ? NULL : pInfo->pRes;
 }
 
-void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasicInfo* pInfo, char** result,
-                        int32_t* length) {
+int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* length) {
+  if(result == NULL || length == NULL){
+    return TSDB_CODE_TSC_INVALID_INPUT;
+  }
+  SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
+  SAggSupporter* pSup = (SAggSupporter*)(pOperator->info + sizeof(SOptrBasicInfo));
   int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
   size_t  keyLen = sizeof(uint64_t) * 2;  // estimate the key length
-  int32_t totalSize = sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
+  int32_t totalSize = sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
+
   *result = taosMemoryCalloc(1, totalSize);
   if (*result == NULL) {
-    longjmp(pOperator->pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+    return TSDB_CODE_OUT_OF_MEMORY;
   }
-  *(int32_t*)(*result) = size;
+
   int32_t offset = sizeof(int32_t);
+  *(int32_t*)(*result + offset) = size;
+  offset += sizeof(int32_t);
 
   // prepare memory
   SResultRowPosition* pos = &pInfo->resultRowInfo.cur;
@@ -3525,10 +3532,9 @@ void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     if (realTotalSize > totalSize) {
       char* tmp = taosMemoryRealloc(*result, realTotalSize);
       if (tmp == NULL) {
-        terrno = TSDB_CODE_OUT_OF_MEMORY;
         taosMemoryFree(*result);
         *result = NULL;
-        longjmp(pOperator->pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
+        return TSDB_CODE_OUT_OF_MEMORY;
       } else {
         *result = tmp;
       }
@@ -3548,17 +3554,18 @@ void aggEncodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     pIter = taosHashIterate(pSup->pResultRowHashTable, pIter);
   }
 
-  if (length) {
-    *length = offset;
-  }
-  return;
+  *(int32_t*)(*result) = offset;
+  *length = offset;
+
+  return TDB_CODE_SUCCESS;
 }
 
-bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasicInfo* pInfo, char* result,
-                        int32_t length) {
-  if (!result || length <= 0) {
-    return false;
+int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result, int32_t length) {
+  if(result == NULL || length <= 0){
+    return TSDB_CODE_TSC_INVALID_INPUT;
   }
+  SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
+  SAggSupporter* pSup = (SAggSupporter*)(pOperator->info + sizeof(SOptrBasicInfo));
 
   //  int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
   int32_t count = *(int32_t*)(result);
@@ -3571,7 +3578,7 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     uint64_t    tableGroupId = *(uint64_t*)(result + offset);
     SResultRow* resultRow = getNewResultRow_rv(pSup->pResultBuf, tableGroupId, pSup->resultRowSize);
     if (!resultRow) {
-      longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_INVALID_INPUT);
+      return TSDB_CODE_TSC_INVALID_INPUT;
     }
 
     // add a new result set for a new group
@@ -3581,7 +3588,7 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
     offset += keyLen;
     int32_t valueLen = *(int32_t*)(result + offset);
     if (valueLen != pSup->resultRowSize) {
-      longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_INVALID_INPUT);
+      return TSDB_CODE_TSC_INVALID_INPUT;
     }
     offset += sizeof(int32_t);
     int32_t pageId = resultRow->pageId;
@@ -3600,9 +3607,9 @@ bool aggDecodeResultRow(SOperatorInfo* pOperator, SAggSupporter* pSup, SOptrBasi
   }
 
   if (offset != length) {
-    longjmp(pOperator->pTaskInfo->env, TSDB_CODE_TSC_INVALID_INPUT);
+    return TSDB_CODE_TSC_INVALID_INPUT;
   }
-  return true;
+  return TDB_CODE_SUCCESS;
 }
 
 enum {
@@ -4954,64 +4961,89 @@ _error:
   return NULL;
 }
 
-int32_t encodeExecTaskInfo(SOperatorInfo* ops, char** result){
-  uint8_t operatorType = ops->operatorType;
-
-  int32_t num = 0;
-  int32_t  size = ops->numOfDownstream;
-
-  for (int32_t i = 0; i < size; ++i) {
-    encodeExecTaskInfo(ops->pDownstream[i], result);
-  }
-
-  SOperatorInfo* pOptr = NULL;
-  if (QUERY_NODE_PHYSICAL_PLAN_AGG == operatorType) {
-    if(ops->fpSet.encodeResultRow){
-      int32_t length = 0;
-      SAggOperatorInfo* pAggInfo = ops->info;
-      SOptrBasicInfo* pInfo = &pAggInfo->binfo;
-      SAggSupporter   *pSup = &pAggInfo->aggSup;
-      ops->fpSet.encodeResultRow(ops, pSup, pInfo, result, &length);
+int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t *length){
+  int32_t code = TDB_CODE_SUCCESS;
+  char *pCurrent = NULL;
+  int32_t currLength = 0;
+  if(ops->fpSet.encodeResultRow){
+    if(result == NULL || length == NULL){
+      return TSDB_CODE_TSC_INVALID_INPUT;
     }
-  } else if (QUERY_NODE_PHYSICAL_PLAN_INTERVAL == operatorType || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == operatorType) {
+    code = ops->fpSet.encodeResultRow(ops, &pCurrent, &currLength);
 
-  } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == operatorType) {
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW == operatorType) {
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW == operatorType) {
+    if(code != TDB_CODE_SUCCESS){
+      if(*result != NULL){
+        taosMemoryFree(*result);
+        *result = NULL;
+      }
+      return code;
+    }
+
+    if(*result == NULL){
+      *result = taosMemoryCalloc(1, currLength + sizeof(int32_t));
+      if (*result == NULL) {
+        taosMemoryFree(pCurrent);
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      memcpy(*result + sizeof(int32_t), pCurrent, currLength);
+      *(int32_t*)(*result) = currLength + sizeof(int32_t);
+    }else{
+      int32_t sizePre = *(int32_t*)(*result);
+      char* tmp = taosMemoryRealloc(*result, sizePre + currLength);
+      if (tmp == NULL) {
+        taosMemoryFree(pCurrent);
+        taosMemoryFree(*result);
+        *result = NULL;
+        return TSDB_CODE_OUT_OF_MEMORY;
+      }
+      *result = tmp;
+      memcpy(*result + sizePre, pCurrent, currLength);
+      *(int32_t*)(*result) += currLength;
+    }
+    taosMemoryFree(pCurrent);
+    *length = *(int32_t*)(*result);
   }
 
-  return 0;
+  for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
+    code = encodeOperator(ops->pDownstream[i], result, length);
+    if(code != TDB_CODE_SUCCESS){
+      return code;
+    }
+  }
+  return TDB_CODE_SUCCESS;
 }
 
-int32_t decodeExecTaskInfo(SOperatorInfo* ops, char* result){
-  uint8_t operatorType = ops->operatorType;
-
-  int32_t num = 0;
-  int32_t  size = ops->numOfDownstream;
-
-  for (int32_t i = 0; i < size; ++i) {
-    decodeExecTaskInfo(ops->pDownstream[i], result);
-  }
-
-  SOperatorInfo* pOptr = NULL;
-  if (QUERY_NODE_PHYSICAL_PLAN_AGG == operatorType) {
-    if(ops->fpSet.decodeResultRow){
-      int32_t length = 0;
-      SAggOperatorInfo* pAggInfo = ops->info;
-      SOptrBasicInfo* pInfo = &pAggInfo->binfo;
-      SAggSupporter   *pSup = &pAggInfo->aggSup;
-      taosHashClear(pSup->pResultRowHashTable);
-      pInfo->resultRowInfo.size = 0;
-      ops->fpSet.decodeResultRow(ops, pSup, pInfo, result, length);
+int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length){
+  int32_t code = TDB_CODE_SUCCESS;
+  if(ops->fpSet.decodeResultRow){
+    if(result == NULL || length <= 0){
+      return TSDB_CODE_TSC_INVALID_INPUT;
     }
-  } else if (QUERY_NODE_PHYSICAL_PLAN_INTERVAL == operatorType || QUERY_NODE_PHYSICAL_PLAN_STREAM_INTERVAL == operatorType) {
+    char* data = result + 2 * sizeof(int32_t);
+    int32_t dataLength = *(int32_t*)(result + sizeof(int32_t));
+    code = ops->fpSet.decodeResultRow(ops, data, dataLength - sizeof(int32_t));
+    if(code != TDB_CODE_SUCCESS){
+      return code;
+    }
 
-  } else if (QUERY_NODE_PHYSICAL_PLAN_SESSION_WINDOW == operatorType) {
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SESSION_WINDOW == operatorType) {
-  } else if (QUERY_NODE_PHYSICAL_PLAN_STATE_WINDOW == operatorType) {
+    int32_t totalLength = *(int32_t*)result;
+    if(totalLength == dataLength + sizeof(int32_t)) { // the last data
+      result = NULL;
+      length = 0;
+    }else{
+      result += dataLength;
+      *(int32_t*)(result) = totalLength - dataLength;
+      length = totalLength - dataLength;
+    }
   }
 
-  return 0;
+  for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
+    code = decodeOperator(ops->pDownstream[i], result, length);
+    if(code != TDB_CODE_SUCCESS){
+      return code;
+    }
+  }
+  return TDB_CODE_SUCCESS;
 }
 
 int32_t createExecTaskInfoImpl(SSubplan* pPlan, SExecTaskInfo** pTaskInfo, SReadHandle* pHandle, uint64_t taskId,
