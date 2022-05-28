@@ -1338,7 +1338,7 @@ static int32_t syncNodeAppendNoop(SSyncNode* ths) {
 // on message ----
 int32_t syncNodeOnPingCb(SSyncNode* ths, SyncPing* pMsg) {
   // log state
-  char logBuf[1024];
+  char logBuf[1024] = {0};
   snprintf(logBuf, sizeof(logBuf),
            "==syncNodeOnPingCb== vgId:%d, state: %d, %s, term:%lu electTimerLogicClock:%lu, "
            "electTimerLogicClockUser:%lu, electTimerMS:%d",
