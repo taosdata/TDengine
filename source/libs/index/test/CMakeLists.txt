@@ -1,82 +1,74 @@
-add_executable(indexTest "")
-add_executable(fstTest "")
-add_executable(fstUT "")
-add_executable(UtilUT "")
-add_executable(jsonUT "")
+add_executable(idxTest "")
+add_executable(idxFstTest "")
+add_executable(idxFstUT "")
+add_executable(idxUtilUT "")
+add_executable(idxJsonUT "")
 
-target_sources(indexTest
+target_sources(idxTest
   PRIVATE 
   "indexTests.cc" 
 )
-target_sources(fstTest
+target_sources(idxFstTest
   PRIVATE 
   "fstTest.cc" 
 )
 
-target_sources(fstUT
+target_sources(idxFstUT
   PRIVATE 
   "fstUT.cc" 
 )
-target_sources(UtilUT
+target_sources(idxUtilUT
   PRIVATE 
   "utilUT.cc" 
 )
 
-target_sources(jsonUT
+target_sources(idxJsonUT
   PRIVATE 
   "jsonUT.cc" 
 )
-target_include_directories ( indexTest
+target_include_directories (idxTest
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
-target_include_directories ( fstTest 
-  PUBLIC
-  "${TD_SOURCE_DIR}/include/libs/index" 
-  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
-) 
-
-target_include_directories ( fstUT 
+target_include_directories (idxFstTest 
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
-target_include_directories ( UtilUT 
+target_include_directories (idxFstUT 
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
 
-target_include_directories (jsonUT
+target_include_directories (idxUtilUT 
   PUBLIC
   "${TD_SOURCE_DIR}/include/libs/index" 
   "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
 ) 
-target_link_libraries (indexTest
+
+target_include_directories (idxJsonUT
+  PUBLIC
+  "${TD_SOURCE_DIR}/include/libs/index" 
+  "${CMAKE_CURRENT_SOURCE_DIR}/../inc"
+) 
+target_link_libraries (idxTest
   os  
   util
   common
   gtest_main
   index
 )
-target_link_libraries (fstTest
+target_link_libraries (idxFstTest
   os  
   util
   common
   gtest_main
   index
 )
-target_link_libraries (fstUT
-  os  
-  util
-  common
-  gtest_main
-  index
-)
-
-target_link_libraries (UtilUT
+target_link_libraries (idxFstUT
   os  
   util
   common
@@ -84,7 +76,15 @@ target_link_libraries (UtilUT
   index
 )
 
-target_link_libraries (jsonUT
+target_link_libraries (idxUtilUT
+  os  
+  util
+  common
+  gtest_main
+  index
+)
+
+target_link_libraries (idxJsonUT
   os  
   util
   common
@@ -94,17 +94,17 @@ target_link_libraries (jsonUT
 
 add_test(
   NAME idxtest
-  COMMAND indexTest
+  COMMAND idxTest
 )
 add_test(
   NAME idxJsonUT
-  COMMAND jsonUT 
+  COMMAND idxJsonUT 
 )
 add_test(
   NAME idxUtilUT 
-  COMMAND UtilUT 
+  COMMAND idxUtilUT 
 )
 add_test(
   NAME idxFstUT 
-  COMMAND fstUT 
+  COMMAND idxFstUT 
 )

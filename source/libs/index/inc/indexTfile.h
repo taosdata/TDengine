@@ -105,7 +105,7 @@ TFileReader* tfileGetReaderByCol(IndexTFile* tf, uint64_t suid, char* colName);
 TFileReader* tfileReaderOpen(char* path, uint64_t suid, int64_t version, const char* colName);
 TFileReader* tfileReaderCreate(WriterCtx* ctx);
 void         tfileReaderDestroy(TFileReader* reader);
-int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTempResult* tr);
+int          tfileReaderSearch(TFileReader* reader, SIndexTermQuery* query, SIdxTRslt* tr);
 void         tfileReaderRef(TFileReader* reader);
 void         tfileReaderUnRef(TFileReader* reader);
 
@@ -120,7 +120,7 @@ int          tfileWriterFinish(TFileWriter* tw);
 IndexTFile* indexTFileCreate(const char* path);
 void        indexTFileDestroy(IndexTFile* tfile);
 int         indexTFilePut(void* tfile, SIndexTerm* term, uint64_t uid);
-int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTempResult* tr);
+int         indexTFileSearch(void* tfile, SIndexTermQuery* query, SIdxTRslt* tr);
 
 Iterate* tfileIteratorCreate(TFileReader* reader);
 void     tfileIteratorDestroy(Iterate* iterator);

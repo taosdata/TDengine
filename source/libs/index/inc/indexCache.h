@@ -74,7 +74,7 @@ void     indexCacheIteratorDestroy(Iterate* iiter);
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
 // int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* tr, STermValueType* s);
+int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* tr, STermValueType* s);
 
 void indexCacheRef(IndexCache* cache);
 void indexCacheUnRef(IndexCache* cache);
