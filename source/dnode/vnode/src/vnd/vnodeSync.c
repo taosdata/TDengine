@@ -80,7 +80,7 @@ void vnodeSyncCommitMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta) 
   }
 
   if (cbMeta.index > beginIndex) {
-    char logBuf[256];
+    char logBuf[256] = {0};
     snprintf(
         logBuf, sizeof(logBuf),
         "==callback== ==CommitCb== execute, pFsm:%p, index:%ld, isWeak:%d, code:%d, state:%d %s, beginIndex :%ld\n",
