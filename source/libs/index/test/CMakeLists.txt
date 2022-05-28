@@ -94,7 +94,7 @@ target_link_libraries (idxJsonUT
 
 add_test(
   NAME idxtest
-  COMMAND indexTest
+  COMMAND idxTest
 )
 add_test(
   NAME idxJsonUT

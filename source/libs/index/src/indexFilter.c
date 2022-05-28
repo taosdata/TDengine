@@ -260,6 +260,7 @@ static int32_t sifExecFunction(SFunctionNode *node, SIFCtx *ctx, SIFParam *outpu
   return TSDB_CODE_QRY_INVALID_INPUT;
 }
 static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFParam *output) {
+#ifdef USE_INVERTED_INDEX
   SIndexMetaArg *arg = &output->arg;
   SIndexTerm *   tm = indexTermCreate(arg->suid, DEFAULT, left->colValType, left->colName, strlen(left->colName),
                                    right->condValue, strlen(right->condValue));
@@ -276,6 +277,9 @@ static int32_t sifDoIndex(SIFParam *left, SIFParam *right, int8_t operType, SIFP
   indexDebug("index filter data size: %d", (int)taosArrayGetSize(output->result));
   indexMultiTermQueryDestroy(mtm);
   return ret;
+#else
+  return 0;
+#endif
 }
 
 static int32_t sifLessThanFunc(SIFParam *left, SIFParam *right, SIFParam *output) {
