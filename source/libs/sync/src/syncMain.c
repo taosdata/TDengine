@@ -815,7 +815,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
 }
 
 cJSON* syncNode2Json(const SSyncNode* pSyncNode) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pSyncNode != NULL) {

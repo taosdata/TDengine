@@ -215,7 +215,7 @@ SyncTimeout* syncTimeoutFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncTimeout2Json(const SyncTimeout* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
