@@ -94,6 +94,7 @@ typedef enum {
   TRN_TYPE_ALTER_STREAM = 1027,
   TRN_TYPE_CONSUMER_LOST = 1028,
   TRN_TYPE_CONSUMER_RECOVER = 1029,
+  TRN_TYPE_DROP_CGROUP = 1030,
   TRN_TYPE_BASIC_SCOPE_END,
 
   TRN_TYPE_GLOBAL_SCOPE = 2000,
@@ -124,6 +125,11 @@ typedef enum {
 } ETrnPolicy;
 
 typedef enum {
+  TRN_EXEC_PARALLEL = 0,
+  TRN_EXEC_ONE_BY_ONE = 1,
+} ETrnExecType;
+
+typedef enum {
   DND_REASON_ONLINE = 0,
   DND_REASON_STATUS_MSG_TIMEOUT,
   DND_REASON_STATUS_NOT_RECEIVED,
@@ -151,6 +157,7 @@ typedef struct {
   ETrnStage      stage;
   ETrnPolicy     policy;
   ETrnType       type;
+  ETrnExecType   parallel;
   int32_t        code;
   int32_t        failedTimes;
   SRpcHandleInfo rpcInfo;

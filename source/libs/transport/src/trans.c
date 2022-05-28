@@ -27,6 +27,14 @@ void (*taosUnRefHandle[])(void* handle) = {transUnrefSrvHandle, transUnrefCliHan
 
 void (*transReleaseHandle[])(void* handle) = {transReleaseSrvHandle, transReleaseCliHandle};
 
+static int32_t transValidLocalFqdn(const char* localFqdn, uint32_t* ip) {
+  *ip = taosGetIpv4FromFqdn(localFqdn);
+  if (*ip == 0xFFFFFFFF) {
+    terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    return -1;
+  }
+  return 0;
+}
 void* rpcOpen(const SRpcInit* pInit) {
   SRpcInfo* pRpc = taosMemoryCalloc(1, sizeof(SRpcInfo));
   if (pRpc == NULL) {
@@ -35,7 +43,6 @@ void* rpcOpen(const SRpcInit* pInit) {
   if (pInit->label) {
     tstrncpy(pRpc->label, pInit->label, strlen(pInit->label) + 1);
   }
-
   // register callback handle
   pRpc->cfp = pInit->cfp;
   pRpc->retry = pInit->rfp;
@@ -48,10 +55,8 @@ void* rpcOpen(const SRpcInit* pInit) {
 
   uint32_t ip = 0;
   if (pInit->connType == TAOS_CONN_SERVER) {
-    ip = taosGetIpv4FromFqdn(pInit->localFqdn);
-    if (ip == 0xFFFFFFFF) {
-      tError("invalid fqdn: %s", pInit->localFqdn);
-      terrno = TSDB_CODE_RPC_FQDN_ERROR;
+    if (transValidLocalFqdn(pInit->localFqdn, &ip) != 0) {
+      tError("invalid fqdn: %s, errmsg: %s", pInit->localFqdn, terrstr());
       taosMemoryFree(pRpc);
       return NULL;
     }
@@ -147,6 +152,11 @@ void rpcRegisterBrokenLinkArg(SRpcMsg* msg) { transRegisterMsg(msg); }
 void rpcReleaseHandle(void* handle, int8_t type) {
   assert(type == TAOS_CONN_SERVER || type == TAOS_CONN_CLIENT);
   (*transReleaseHandle[type])(handle);
+}
+
+void rpcSetDefaultAddr(void* thandle, const char* ip, const char* fqdn) {
+  // later
+  transSetDefaultAddr(thandle, ip, fqdn);
 }
 
 int32_t rpcInit() {

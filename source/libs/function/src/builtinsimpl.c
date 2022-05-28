@@ -225,6 +225,7 @@ typedef struct SUniqueInfo {
   int32_t   numOfPoints;
   uint8_t   colType;
   int16_t   colBytes;
+  bool      hasNull; //null is not hashable, handle separately
   SHashObj  *pHash;
   char      pItems[];
 } SUniqueInfo;
@@ -833,10 +834,12 @@ int32_t avgFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
   if (IS_INTEGER_TYPE(type)) {
     pAvgRes->result = pAvgRes->sum.isum / ((double)pAvgRes->count);
   } else {
-    if (isinf(pAvgRes->sum.dsum) || isnan(pAvgRes->sum.dsum)) {
-      GET_RES_INFO(pCtx)->isNullRes = 1;
-    }
     pAvgRes->result = pAvgRes->sum.dsum / ((double)pAvgRes->count);
+  }
+
+  //check for overflow
+  if (isinf(pAvgRes->result) || isnan(pAvgRes->result)) {
+    GET_RES_INFO(pCtx)->isNullRes = 1;
   }
 
   return functionFinalize(pCtx, pBlock);
@@ -2298,15 +2301,15 @@ static void doSetPrevVal(SDiffInfo* pDiffInfo, int32_t type, const char* pv) {
 }
 
 static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SColumnInfoData* pOutput, int32_t pos, int32_t order) {
-    int32_t factor = (order == TSDB_ORDER_ASC)? 1:-1;
+  int32_t factor = (order == TSDB_ORDER_ASC)? 1:-1;
   switch (type) {
     case TSDB_DATA_TYPE_INT: {
       int32_t v = *(int32_t*)pv;
-      int32_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendInt32(pOutput, pos, &delta);
+        colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
       break;
@@ -2314,22 +2317,22 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     case TSDB_DATA_TYPE_BOOL:
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t v = *(int8_t*)pv;
-      int8_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendInt8(pOutput, pos, &delta);
+        colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
       break;
     }
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t v = *(int16_t*)pv;
-      int16_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
+      int64_t delta = factor*(v - pDiffInfo->prev.i64);  // direct previous may be null
       if (delta < 0 && pDiffInfo->ignoreNegative) {
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendInt16(pOutput, pos, &delta);
+        colDataAppendInt64(pOutput, pos, &delta);
       }
       pDiffInfo->prev.i64 = v;
       break;
@@ -2347,11 +2350,11 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float v = *(float*)pv;
-      float delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
+      double delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
+      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) { //check for overflow
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
-        colDataAppendFloat(pOutput, pos, &delta);
+        colDataAppendDouble(pOutput, pos, &delta);
       }
       pDiffInfo->prev.d64 = v;
       break;
@@ -2359,7 +2362,7 @@ static void doHandleDiff(SDiffInfo* pDiffInfo, int32_t type, const char* pv, SCo
     case TSDB_DATA_TYPE_DOUBLE: {
       double v = *(double*)pv;
       double delta = factor*(v - pDiffInfo->prev.d64);  // direct previous may be null
-      if (delta < 0 && pDiffInfo->ignoreNegative) {
+      if ((delta < 0 && pDiffInfo->ignoreNegative) || isinf(delta) || isnan(delta)) { //check for overflow
         colDataSetNull_f(pOutput->nullbitmap, pos);
       } else {
         colDataAppendDouble(pOutput, pos, &delta);
@@ -3529,7 +3532,12 @@ int32_t csumFunction(SqlFunctionCtx* pCtx) {
       double v;
       GET_TYPED_DATA(v, double, type, data);
       pSumRes->dsum += v;
-      colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+      //check for overflow
+      if (isinf(pSumRes->dsum) || isnan(pSumRes->dsum)) {
+        colDataAppendNULL(pOutput, pos);
+      } else  {
+        colDataAppend(pOutput, pos, (char *)&pSumRes->dsum, false);
+      }
     }
 
     //TODO: remove this after pTsOutput is handled
@@ -3603,7 +3611,12 @@ int32_t mavgFunction(SqlFunctionCtx* pCtx) {
 
       pInfo->points[pInfo->pos] = v;
       double result = pInfo->sum / pInfo->numOfPoints;
-      colDataAppend(pOutput, pos, (char *)&result, false);
+      //check for overflow
+      if (isinf(result) || isnan(result)) {
+        colDataAppendNULL(pOutput, pos);
+      } else  {
+        colDataAppend(pOutput, pos, (char *)&result, false);
+      }
 
       //TODO: remove this after pTsOutput is handled
       if (pTsOutput != NULL) {
@@ -3860,6 +3873,7 @@ bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
   pInfo->numOfPoints = 0;
   pInfo->colType = pCtx->resDataInfo.type;
   pInfo->colBytes = pCtx->resDataInfo.bytes;
+  pInfo->hasNull = false;
   if (pInfo->pHash != NULL) {
     taosHashClear(pInfo->pHash);
   } else {
@@ -3869,8 +3883,22 @@ bool uniqueFunctionSetup(SqlFunctionCtx* pCtx, SResultRowEntryInfo* pResInfo) {
 }
 
 static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
-  int32_t hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
+  //handle null elements
+  if (isNull == true) {
+    int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
+    SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + pInfo->numOfPoints * size);
+    if (pInfo->hasNull == false && pItem->isNull == false) {
+      pItem->timestamp = ts;
+      pItem->isNull = true;
+      pInfo->numOfPoints++;
+      pInfo->hasNull = true;
+    } else if (pItem->timestamp > ts && pItem->isNull == true) {
+      pItem->timestamp = ts;
+    }
+    return;
+  }
 
+  int32_t hashKeyBytes = IS_VAR_DATA_TYPE(pInfo->colType) ? varDataTLen(data) : pInfo->colBytes;
   SUniqueItem *pHashItem = taosHashGet(pInfo->pHash, data, hashKeyBytes);
   if (pHashItem == NULL) {
     int32_t size = sizeof(SUniqueItem) + pInfo->colBytes;
@@ -3884,6 +3912,7 @@ static void doUniqueAdd(SUniqueInfo* pInfo, char *data, TSKEY ts, bool isNull) {
     pHashItem->timestamp = ts;
   }
 
+  return;
 }
 
 int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
@@ -3910,7 +3939,11 @@ int32_t uniqueFunction(SqlFunctionCtx* pCtx) {
 
   for (int32_t i = 0; i < pInfo->numOfPoints; ++i) {
     SUniqueItem *pItem = (SUniqueItem *)(pInfo->pItems + i * (sizeof(SUniqueItem) + pInfo->colBytes));
-    colDataAppend(pOutput, i, pItem->data, false);
+    if (pItem->isNull == true) {
+      colDataAppendNULL(pOutput, i);
+    } else {
+      colDataAppend(pOutput, i, pItem->data, false);
+    }
     if (pTsOutput != NULL) {
       colDataAppendInt64(pTsOutput, i, &pItem->timestamp);
     }

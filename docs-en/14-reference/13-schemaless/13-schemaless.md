@@ -3,17 +3,17 @@ title: Schemaless Writing
 description: "The Schemaless write method eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data as it is written to the interface."
 ---
 
-In IoT applications, many data items are often collected for intelligent control, business analysis, device monitoring, etc. Due to the version upgrade of the application logic, or the hardware adjustment of the device itself, the data collection items may change more frequently. To facilitate the data logging work in such cases, TDengine starting from version 2.2.0.0, it provides a series of interfaces to the schemaless writing method, which eliminates the need to create super tables/sub tables in advance and automatically creates the storage structure corresponding to the data as the data is written to the interface. And when necessary, Schemaless writing will automatically add the required columns to ensure that the data written by the user is stored correctly.
+In IoT applications, many data items are often collected for intelligent control, business analysis, device monitoring, etc. Due to the version upgrades of the application logic, or the hardware adjustment of the devices themselves, the data collection items may change frequently. To facilitate the data logging work in such cases, TDengine starting from version 2.2.0.0 provides a series of interfaces to the schemaless writing method, which eliminate the need to create super tables and subtables in advance by automatically creating the storage structure corresponding to the data as the data is written to the interface. And when necessary, schemaless writing will automatically add the required columns to ensure that the data written by the user is stored correctly.
 
-The schemaless writing method creates super tables and their corresponding sub-tables completely indistinguishable from the super tables and sub-tables created directly via SQL. You can write data directly to them via SQL statements. Note that the names of tables created by schemaless writing are based on fixed mapping rules for tag values, so they are not explicitly ideographic and lack readability.
+The schemaless writing method creates super tables and their corresponding subtables completely indistinguishable from the super tables and subtables created directly via SQL. You can write data directly to them via SQL statements. Note that the names of tables created by schemaless writing are based on fixed mapping rules for tag values, so they are not explicitly ideographic and lack readability.
 
 ## Schemaless Writing Line Protocol
 
-TDengine's schemaless writing line protocol supports to be compatible with InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. However, when using these three protocols, you need to specify in the API the standard of the parsing protocol to be used for the input content.
+TDengine's schemaless writing line protocol supports InfluxDB's Line Protocol, OpenTSDB's telnet line protocol, and OpenTSDB's JSON format protocol. However, when using these three protocols, you need to specify in the API the standard of the parsing protocol to be used for the input content.
 
 For the standard writing protocols of InfluxDB and OpenTSDB, please refer to the documentation of each protocol. The following is a description of TDengine's extended protocol, based on InfluxDB's line protocol first. They allow users to control the (super table) schema more granularly.
 
-With the following formatting conventions, Schemaless writing uses a single string to express a data row (multiple rows can be passed into the writing API at once to enable bulk writing).
+With the following formatting conventions, schemaless writing uses a single string to express a data row (multiple rows can be passed into the writing API at once to enable bulk writing).
 
 ```json
 measurement,tag_set field_set timestamp
@@ -23,7 +23,7 @@ where :
 
 - measurement will be used as the data table name. It will be separated from tag_set by a comma.
 - tag_set will be used as tag data in the format `<tag_key>=<tag_value>,<tag_key>=<tag_value>`, i.e. multiple tags' data can be separated by a comma. It is separated from field_set by space.
-- field_set will be used as normal column data in the format of `<field_key>=<field_value>,<field_key>=<field_value>`, again using a comma to separate multiple normal columns of data. It is separated from the timestamp by space.
+- field_set will be used as normal column data in the format of `<field_key>=<field_value>,<field_key>=<field_value>`, again using a comma to separate multiple normal columns of data. It is separated from the timestamp by a space.
 - The timestamp is the primary key corresponding to the data in this row.
 
 All data in tag_set is automatically converted to the NCHAR data type and does not require double quotes (").
@@ -32,7 +32,7 @@ In the schemaless writing data line protocol, each data item in the field_set ne
 
 - If there are English double quotes on both sides, it indicates the BINARY(32) type. For example, `"abc"`.
 - If there are double quotes on both sides and an L prefix, it means NCHAR(32) type. For example, `L"error message"`.
-- Spaces, equal signs (=), commas (,), and double quotes (") need to be escaped with a backslash (\) in front. (All refer to the ASCII character)
+- Spaces, equal signs (=), commas (,), and double quotes (") need to be escaped with a backslash (\\) in front. (All refer to the ASCII character)
 - Numeric types will be distinguished from data types by the suffix.
 
 | **Serial number** | **Postfix** | **Mapping type** | **Size (bytes)** |
@@ -58,21 +58,21 @@ Note that if the wrong case is used when describing the data type suffix, or if 
 
 Schemaless writes process row data according to the following principles.
 
-1. You can use the following rules to generate the sub-table names: first, combine the measurement name and the key and value of the label  into the next string:
+1. You can use the following rules to generate the subtable names: first, combine the measurement name and the key and value of the label  into the next string:
 
 ```json
 "measurement,tag_key1=tag_value1,tag_key2=tag_value2"
 ```
 
 Note that tag_key1, tag_key2 are not the original order of the tags entered by the user but the result of using the tag names in ascending order of the strings. Therefore, tag_key1 is not the first tag entered in the line protocol.
-The string's MD5 hash value "md5_val" is calculated after the ranking is completed. The calculation result is then combined with the string to generate the table name: "t_md5_val". "t*" is a fixed prefix that every table generated by this mapping relationship has. 2.
+The string's MD5 hash value "md5_val" is calculated after the ranking is completed. The calculation result is then combined with the string to generate the table name: "t_md5_val". "t*" is a fixed prefix that every table generated by this mapping relationship has.
 
 2. If the super table obtained by parsing the line protocol does not exist, this super table is created.
-If the sub-table obtained by the parse line protocol does not exist, Schemaless creates the sub-table according to the sub-table name determined in steps 1 or 2. 4.
+If the subtable obtained by the parse line protocol does not exist, Schemaless creates the sub-table according to the subtable name determined in steps 1 or 2.
 4. If the specified tag or regular column in the data row does not exist, the corresponding tag or regular column is added to the super table (only incremental).
 5. If there are some tag columns or regular columns in the super table that are not specified to take values in a data row, then the values of these columns are set to NULL.
 6. For BINARY or NCHAR columns, if the length of the value provided in a data row exceeds the column type limit, the maximum length of characters allowed to be stored in the column is automatically increased (only incremented and not decremented) to ensure complete preservation of the data.
-7. If the specified data sub-table already exists, and the specified tag column takes a value different from the saved value this time, the value in the latest data row overwrites the old tag column take value.
+7. If the specified data subtable already exists, and the specified tag column takes a value different from the saved value this time, the value in the latest data row overwrites the old tag column take value.
 8. Errors encountered throughout the processing will interrupt the writing process and return an error code.
 
 :::tip

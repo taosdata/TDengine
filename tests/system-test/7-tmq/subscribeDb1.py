@@ -291,10 +291,9 @@ class TDTestCase:
         for i in range(expectRows):
             totalConsumeRows += resultList[i]
         
+        tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
         if totalConsumeRows != expectrowcnt:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt))
             tdLog.exit("tmq consume rows error!")
-
         
         tdLog.info("again start consume processer")
         self.initConsumerTable()
@@ -303,12 +302,13 @@ class TDTestCase:
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
         expectRows = 1
         resultList = self.selectConsumeResult(expectRows)
-        totalConsumeRows = 0
+        totalConsumeRows2 = 0
         for i in range(expectRows):
-            totalConsumeRows += resultList[i]
-        
-        if totalConsumeRows != expectrowcnt/2:
-            tdLog.info("act consume rows: %d, expect consume rows: %d"%(totalConsumeRows, expectrowcnt/2))
+            totalConsumeRows2 += resultList[i]
+
+        tdLog.info("firstly act consume rows: %d"%(totalConsumeRows))
+        tdLog.info("secondly act consume rows: %d, expect consume rows: %d"%(totalConsumeRows2, expectrowcnt))
+        if totalConsumeRows + totalConsumeRows2 != expectrowcnt:
             tdLog.exit("tmq consume rows error!")
 
         tdSql.query("drop topic %s"%topicName1)

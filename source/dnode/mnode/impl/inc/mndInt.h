@@ -81,6 +81,7 @@ typedef struct {
   bool       standby;
   bool       restored;
   int32_t    errCode;
+  int32_t    transId;
 } SSyncMgmt;
 
 typedef struct {

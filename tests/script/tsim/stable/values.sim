@@ -1,16 +1,9 @@
 system sh/stop_dnodes.sh
-
-
 system sh/deploy.sh -n dnode1 -i 1
-system sh/cfg.sh -n dnode1 -c walLevel -v 1
-system sh/cfg.sh -n dnode1 -c maxtablesPerVnode -v 4
 system sh/exec.sh -n dnode1 -s start
-
-sleep 2000
 sql connect
 
 print ======================== dnode1 start
-
 sql create database vdb0
 sql create table vdb0.mt (ts timestamp, tbcol int) TAGS(tgcol int)
 
