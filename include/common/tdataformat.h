@@ -149,12 +149,14 @@ static FORCE_INLINE void tTagValPush(SArray *pTagArray, void *key, int8_t type, 
 }
 
 #pragma pack(push, 1)
+#define TD_TAG_JSON  ((int8_t)0x1)
+#define TD_TAG_LARGE ((int8_t)0x2)
 struct STag {
-  int8_t  isJson;
+  int8_t  flags;
   int16_t len;
   int16_t nTag;
   int32_t ver;
-  int16_t idx[];
+  int8_t  idx[];
 };
 #pragma pack(pop)
 
