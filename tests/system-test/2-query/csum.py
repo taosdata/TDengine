@@ -131,7 +131,10 @@ class TDTestCase:
 
             for i in range(tdSql.queryRows):
                 print(f"case in {line}: ", end='')
-                tdSql.checkData(i, 0, pre_csum[i])
+                if pre_csum[i] >1.7e+308 or pre_csum[i] < -1.7e+308:
+                    continue
+                else:
+                    tdSql.checkData(i, 0, pre_csum[i])
 
         pass
 
