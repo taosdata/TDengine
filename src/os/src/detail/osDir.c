@@ -49,19 +49,21 @@ bool taosDirExist(const char* dirname) {
   return access(dirname, F_OK) == 0;
 }
 
-int32_t taosMkdirP(const char *dir) {
+int32_t taosMkdirP(const char *dir, int keepLast) {
   char tmp[256];
   char *p = NULL;
   size_t len;
-  int i;
+  size_t i;
 
   snprintf(tmp, sizeof(tmp),"%s",dir);
   len = strlen(tmp);
-  for (i = len - 1; i > 0; --i)
-    if (tmp[i] == '/') {
-      tmp[i] = 0;
-      break;
-    }
+  if (!keepLast) {
+    for (i = len - 1; i > 0; --i)
+      if (tmp[i] == '/') {
+	tmp[i] = 0;
+	break;
+      }
+  }
 
   for (p = tmp + 1; *p; p++)
       if (*p == '/') {

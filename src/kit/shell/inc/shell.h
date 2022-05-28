@@ -15,8 +15,9 @@
 
 #ifndef __SHELL__
 #define __SHELL__
-
+#if !(defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32))
 #include <sys/socket.h>
+#endif
 #include "stdbool.h"
 #include "taos.h"
 #include "taosdef.h"
