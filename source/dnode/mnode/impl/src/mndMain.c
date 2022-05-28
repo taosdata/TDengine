@@ -85,7 +85,7 @@ static void *mndThreadFp(void *param) {
   while (1) {
     lastTime++;
     taosMsleep(100);
-    if (pMnode->stopped) break;
+    if (mndGetStop(pMnode)) break;
 
     if (lastTime % (tsTransPullupInterval * 10) == 0) {
       mndPullupTrans(pMnode);
@@ -118,7 +118,6 @@ static int32_t mndInitTimer(SMnode *pMnode) {
 }
 
 static void mndCleanupTimer(SMnode *pMnode) {
-  pMnode->stopped = true;
   if (taosCheckPthreadValid(pMnode->thread)) {
     taosThreadJoin(pMnode->thread, NULL);
     taosThreadClear(&pMnode->thread);
@@ -335,15 +334,19 @@ void mndClose(SMnode *pMnode) {
 int32_t mndStart(SMnode *pMnode) {
   mndSyncStart(pMnode);
   if (pMnode->deploy) {
-    if (sdbDeploy(pMnode->pSdb) != 0) return -1;
-    pMnode->syncMgmt.restored = true;
+    if (sdbDeploy(pMnode->pSdb) != 0) {
+      mError("failed to deploy sdb while start mnode");
+      return -1;
+    }
+    mndSetRestore(pMnode, true);
   }
   return mndInitTimer(pMnode);
 }
 
 void mndStop(SMnode *pMnode) {
+  mndSetStop(pMnode);
   mndSyncStop(pMnode);
-  return mndCleanupTimer(pMnode);
+  mndCleanupTimer(pMnode);
 }
 
 int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
@@ -359,6 +362,11 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
   SSyncNode *pSyncNode = syncNodeAcquire(pMgmt->sync);
   if (pSyncNode == NULL) {
     mError("failed to process sync msg:%p type:%s since syncNode is null", pMsg, TMSG_INFO(pMsg->msgType));
+    return TAOS_SYNC_PROPOSE_OTHER_ERROR;
+  }
+
+  if (mndAcquireSyncRef(pMnode) != 0) {
+    mError("failed to process sync msg:%p type:%s since %s", pMsg, TMSG_INFO(pMsg->msgType), terrstr());
     return TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
 
@@ -405,47 +413,67 @@ int32_t mndProcessSyncMsg(SRpcMsg *pMsg) {
     code = TAOS_SYNC_PROPOSE_OTHER_ERROR;
   }
 
+  mndReleaseSyncRef(pMnode);
   return code;
 }
 
-int32_t mndProcessMsg(SRpcMsg *pMsg) {
-  SMnode *pMnode = pMsg->info.node;
-  void   *ahandle = pMsg->info.ahandle;
-  mTrace("msg:%p, will be processed, type:%s app:%p", pMsg, TMSG_INFO(pMsg->msgType), ahandle);
+static int32_t mndCheckMnodeState(SRpcMsg *pMsg) {
+  if (mndAcquireRpcRef(pMsg->info.node) == 0) return 0;
 
-  if (IsReq(pMsg)) {
-    if (!mndIsMaster(pMnode)) {
-      terrno = TSDB_CODE_APP_NOT_READY;
-      mDebug("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-      return -1;
-    }
+  if (IsReq(pMsg) && pMsg->msgType != TDMT_MND_MQ_TIMER && pMsg->msgType != TDMT_MND_TELEM_TIMER &&
+      pMsg->msgType != TDMT_MND_TRANS_TIMER) {
+    mError("msg:%p, failed to check mnode state since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+           TMSG_INFO(pMsg->msgType));
 
-    if (pMsg->contLen == 0 || pMsg->pCont == NULL) {
-      terrno = TSDB_CODE_INVALID_MSG_LEN;
-      mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-      return -1;
+    SEpSet epSet = {0};
+    mndGetMnodeEpSet(pMsg->info.node, &epSet);
+
+    int32_t contLen = tSerializeSEpSet(NULL, 0, &epSet);
+    pMsg->info.rsp = rpcMallocCont(contLen);
+    if (pMsg->info.rsp != NULL) {
+      tSerializeSEpSet(pMsg->info.rsp, contLen, &epSet);
+      pMsg->info.rspLen = contLen;
+      terrno = TSDB_CODE_RPC_REDIRECT;
+    } else {
+      terrno = TSDB_CODE_OUT_OF_MEMORY;
     }
   }
 
+  return -1;
+}
+
+static int32_t mndCheckMsgContent(SRpcMsg *pMsg) {
+  if (!IsReq(pMsg)) return 0;
+  if (pMsg->contLen != 0 && pMsg->pCont != NULL) return 0;
+
+  mError("msg:%p, failed to check msg content, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
+  terrno = TSDB_CODE_INVALID_MSG_LEN;
+  return -1;
+}
+
+int32_t mndProcessRpcMsg(SRpcMsg *pMsg) {
+  SMnode  *pMnode = pMsg->info.node;
   MndMsgFp fp = pMnode->msgFp[TMSG_INDEX(pMsg->msgType)];
   if (fp == NULL) {
+    mError("msg:%p, failed to get msg handle, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
     terrno = TSDB_CODE_MSG_NOT_PROCESSED;
-    mError("msg:%p, failed to process since no msg handle, app:%p", pMsg, ahandle);
     return -1;
   }
 
+  if (mndCheckMsgContent(pMsg) != 0) return -1;
+  if (mndCheckMnodeState(pMsg) != 0) return -1;
+
+  mTrace("msg:%p, start to process in mnode, app:%p type:%s", pMsg, pMsg->info.ahandle, TMSG_INFO(pMsg->msgType));
   int32_t code = (*fp)(pMsg);
+  mndReleaseRpcRef(pMnode);
+
   if (code == TSDB_CODE_ACTION_IN_PROGRESS) {
-    terrno = code;
-    mTrace("msg:%p, in progress, app:%p", pMsg, ahandle);
-  } else if (code != 0) {
-    if (terrno != TSDB_CODE_OPS_NOT_SUPPORT) {
-      mError("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    } else {
-      mTrace("msg:%p, failed to process since %s, app:%p", pMsg, terrstr(), ahandle);
-    }
+    mTrace("msg:%p, won't response immediately since in progress", pMsg);
+  } else if (code == 0) {
+    mTrace("msg:%p, successfully processed and response", pMsg);
   } else {
-    mTrace("msg:%p, is processed, app:%p", pMsg, ahandle);
+    mError("msg:%p, failed to process since %s, app:%p type:%s", pMsg, terrstr(), pMsg->info.ahandle,
+           TMSG_INFO(pMsg->msgType));
   }
 
   return code;
@@ -474,7 +502,7 @@ int64_t mndGenerateUid(char *name, int32_t len) {
 
 int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgroupInfo *pVgroupInfo,
                           SMonGrantInfo *pGrantInfo) {
-  if (!mndIsMaster(pMnode)) return -1;
+  if (mndAcquireRpcRef(pMnode) != 0) return -1;
 
   SSdb   *pSdb = pMnode->pSdb;
   int64_t ms = taosGetTimestampMs();
@@ -483,6 +511,7 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
   pClusterInfo->mnodes = taosArrayInit(sdbGetSize(pSdb, SDB_MNODE), sizeof(SMonMnodeDesc));
   pVgroupInfo->vgroups = taosArrayInit(sdbGetSize(pSdb, SDB_VGROUP), sizeof(SMonVgroupDesc));
   if (pClusterInfo->dnodes == NULL || pClusterInfo->mnodes == NULL || pVgroupInfo->vgroups == NULL) {
+    mndReleaseRpcRef(pMnode);
     return -1;
   }
 
@@ -577,10 +606,84 @@ int32_t mndGetMonitorInfo(SMnode *pMnode, SMonClusterInfo *pClusterInfo, SMonVgr
     pGrantInfo->timeseries_total = INT32_MAX;
   }
 
+  mndReleaseRpcRef(pMnode);
   return 0;
 }
 
 int32_t mndGetLoad(SMnode *pMnode, SMnodeLoad *pLoad) {
   pLoad->syncState = syncGetMyRole(pMnode->syncMgmt.sync);
   return 0;
+}
+
+int32_t mndAcquireRpcRef(SMnode *pMnode) {
+  int32_t code = 0;
+  taosThreadRwlockRdlock(&pMnode->lock);
+  if (pMnode->stopped) {
+    terrno = TSDB_CODE_APP_NOT_READY;
+    code = -1;
+  } else if (!mndIsMaster(pMnode)) {
+    code = -1;
+  } else {
+    int32_t ref = atomic_add_fetch_32(&pMnode->rpcRef, 1);
+    mTrace("mnode rpc is acquired, ref:%d", ref);
+  }
+  taosThreadRwlockUnlock(&pMnode->lock);
+  return code;
+}
+
+void mndReleaseRpcRef(SMnode *pMnode) {
+  taosThreadRwlockRdlock(&pMnode->lock);
+  int32_t ref = atomic_sub_fetch_32(&pMnode->rpcRef, 1);
+  mTrace("mnode rpc is released, ref:%d", ref);
+  taosThreadRwlockUnlock(&pMnode->lock);
+}
+
+void mndSetRestore(SMnode *pMnode, bool restored) {
+  if (restored) {
+    taosThreadRwlockWrlock(&pMnode->lock);
+    pMnode->restored = true;
+    taosThreadRwlockUnlock(&pMnode->lock);
+    mTrace("mnode set restored:%d", restored);
+  } else {
+    taosThreadRwlockWrlock(&pMnode->lock);
+    pMnode->restored = false;
+    taosThreadRwlockUnlock(&pMnode->lock);
+    mTrace("mnode set restored:%d", restored);
+    while (1) {
+      if (pMnode->rpcRef <= 0) break;
+      taosMsleep(3);
+    }
+  }
+}
+
+bool mndGetRestored(SMnode *pMnode) { return pMnode->restored; }
+
+void mndSetStop(SMnode *pMnode) {
+  taosThreadRwlockWrlock(&pMnode->lock);
+  pMnode->stopped = true;
+  taosThreadRwlockUnlock(&pMnode->lock);
+  mTrace("mnode set stopped");
+}
+
+bool mndGetStop(SMnode *pMnode) { return pMnode->stopped; }
+
+int32_t mndAcquireSyncRef(SMnode *pMnode) {
+  int32_t code = 0;
+  taosThreadRwlockRdlock(&pMnode->lock);
+  if (pMnode->stopped) {
+    terrno = TSDB_CODE_APP_NOT_READY;
+    code = -1;
+  } else {
+    int32_t ref = atomic_add_fetch_32(&pMnode->syncRef, 1);
+    mTrace("mnode sync is acquired, ref:%d", ref);
+  }
+  taosThreadRwlockUnlock(&pMnode->lock);
+  return code;
+}
+
+void mndReleaseSyncRef(SMnode *pMnode) {
+  taosThreadRwlockRdlock(&pMnode->lock);
+  int32_t ref = atomic_sub_fetch_32(&pMnode->syncRef, 1);
+  mTrace("mnode sync is released, ref:%d", ref);
+  taosThreadRwlockUnlock(&pMnode->lock);
 }

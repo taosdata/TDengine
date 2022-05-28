@@ -166,7 +166,6 @@ typedef struct SSdbRow {
 typedef struct SSdb {
   SMnode        *pMnode;
   char          *currDir;
-  char          *syncDir;
   char          *tmpDir;
   int64_t        lastCommitVer;
   int64_t        curVer;
@@ -182,11 +181,12 @@ typedef struct SSdb {
   SdbDeployFp    deployFps[SDB_MAX];
   SdbEncodeFp    encodeFps[SDB_MAX];
   SdbDecodeFp    decodeFps[SDB_MAX];
+  TdThreadMutex  filelock;
 } SSdb;
 
 typedef struct SSdbIter {
   TdFilePtr file;
-  int64_t   readlen;
+  int64_t   total;
 } SSdbIter;
 
 typedef struct {
@@ -380,13 +380,12 @@ SSdbRow *sdbAllocRow(int32_t objSize);
 void    *sdbGetRowObj(SSdbRow *pRow);
 void     sdbFreeRow(SSdb *pSdb, SSdbRow *pRow, bool callFunc);
 
-SSdbIter *sdbIterInit(SSdb *pSdb);
-SSdbIter *sdbIterRead(SSdb *pSdb, SSdbIter *iter, char **ppBuf, int32_t *len);
+int32_t sdbReadSnapshot(SSdb *pSdb, SSdbIter **ppIter, char **ppBuf, int32_t *len);
+int32_t sdbApplySnapshot(SSdb *pSdb, char *pBuf, int32_t len);
 
 const char *sdbTableName(ESdbType type);
 void        sdbPrintOper(SSdb *pSdb, SSdbRow *pRow, const char *oper);
-
-int32_t sdbGetIdFromRaw(SSdbRaw *pRaw);
+int32_t     sdbGetIdFromRaw(SSdb *pSdb, SSdbRaw *pRaw);
 
 #ifdef __cplusplus
 }

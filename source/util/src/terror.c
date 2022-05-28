@@ -447,9 +447,10 @@ TAOS_DEFINE_ERROR(TSDB_CODE_QW_MSG_ERROR,                 "Invalid msg order")
 // parser
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_TABLE_NOT_EXIST,          "Table does not exist")
 TAOS_DEFINE_ERROR(TSDB_CODE_PAR_PERMISSION_DENIED,        "Permission denied")
+TAOS_DEFINE_ERROR(TSDB_CODE_PAR_INTERNAL_ERROR,           "Parser internal error")
 
 //planner
-TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,          "planner internal error")
+TAOS_DEFINE_ERROR(TSDB_CODE_PLAN_INTERNAL_ERROR,          "Planner internal error")
 
 //udf
 TAOS_DEFINE_ERROR(TSDB_CODE_UDF_STOPPING,                 "udf is stopping")

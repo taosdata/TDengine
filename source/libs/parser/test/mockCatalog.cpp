@@ -163,17 +163,17 @@ int32_t __catalogGetHandle(const char* clusterId, struct SCatalog** catalogHandl
 
 int32_t __catalogGetTableMeta(struct SCatalog* pCatalog, void* pRpc, const SEpSet* pMgmtEps, const SName* pTableName,
                               STableMeta** pTableMeta) {
-  return mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
+  return g_mockCatalogService->catalogGetTableMeta(pTableName, pTableMeta);
 }
 
 int32_t __catalogGetTableHashVgroup(struct SCatalog* pCatalog, void* pRpc, const SEpSet* pMgmtEps,
                                     const SName* pTableName, SVgroupInfo* vgInfo) {
-  return mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
+  return g_mockCatalogService->catalogGetTableHashVgroup(pTableName, vgInfo);
 }
 
 int32_t __catalogGetTableDistVgInfo(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, const SName* pTableName,
                                     SArray** pVgList) {
-  return mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
+  return g_mockCatalogService->catalogGetTableDistVgInfo(pTableName, pVgList);
 }
 
 int32_t __catalogGetDBVgVersion(SCatalog* pCtg, const char* dbFName, int32_t* version, int64_t* dbId,
@@ -197,7 +197,7 @@ int32_t __catalogChkAuth(SCatalog* pCtg, void* pRpc, const SEpSet* pMgmtEps, con
 }
 
 void initMetaDataEnv() {
-  mockCatalogService.reset(new MockCatalogService());
+  g_mockCatalogService.reset(new MockCatalogService());
 
   static Stub stub;
   stub.set(catalogGetHandle, __catalogGetHandle);
@@ -252,11 +252,11 @@ void initMetaDataEnv() {
 }
 
 void generateMetaData() {
-  generateInformationSchema(mockCatalogService.get());
-  generatePerformanceSchema(mockCatalogService.get());
-  generateTestT1(mockCatalogService.get());
-  generateTestST1(mockCatalogService.get());
-  mockCatalogService->showTables();
+  generateInformationSchema(g_mockCatalogService.get());
+  generatePerformanceSchema(g_mockCatalogService.get());
+  generateTestT1(g_mockCatalogService.get());
+  generateTestST1(g_mockCatalogService.get());
+  g_mockCatalogService->showTables();
 }
 
-void destroyMetaDataEnv() { mockCatalogService.reset(); }
+void destroyMetaDataEnv() { g_mockCatalogService.reset(); }

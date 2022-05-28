@@ -20,6 +20,7 @@
 #include "mndShow.h"
 #include "mndTrans.h"
 #include "mndUser.h"
+#include "mndSync.h"
 
 #define MNODE_VER_NUMBER   1
 #define MNODE_RESERVE_SIZE 64
@@ -222,23 +223,24 @@ bool mndIsMnode(SMnode *pMnode, int32_t dnodeId) {
 }
 
 void mndGetMnodeEpSet(SMnode *pMnode, SEpSet *pEpSet) {
-  SSdb *pSdb = pMnode->pSdb;
-  pEpSet->numOfEps = 0;
+  SSdb   *pSdb = pMnode->pSdb;
+  int32_t totalMnodes = sdbGetSize(pSdb, SDB_MNODE);
+  void   *pIter = NULL;
 
-  void *pIter = NULL;
   while (1) {
     SMnodeObj *pObj = NULL;
     pIter = sdbFetch(pSdb, SDB_MNODE, pIter, (void **)&pObj);
     if (pIter == NULL) break;
-    if (pObj->pDnode == NULL) {
-      mError("mnode:%d, no corresponding dnode exists", pObj->id);
-    } else {
-      if (pObj->id == pMnode->selfDnodeId || pObj->state == TAOS_SYNC_STATE_LEADER) {
+
+    if (pObj->id == pMnode->selfDnodeId) {
+      if (mndIsMaster(pMnode)) {
         pEpSet->inUse = pEpSet->numOfEps;
+      } else {
+        pEpSet->inUse = (pEpSet->numOfEps + 1) % totalMnodes;
       }
-      addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
-      sdbRelease(pSdb, pObj);
     }
+    addEpIntoEpSet(pEpSet, pObj->pDnode->fqdn, pObj->pDnode->port);
+    sdbRelease(pSdb, pObj);
   }
 }
 

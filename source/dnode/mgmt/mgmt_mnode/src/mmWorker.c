@@ -40,7 +40,7 @@ static void mmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       break;
     default:
       pMsg->info.node = pMgmt->pMnode;
-      code = mndProcessMsg(pMsg);
+      code = mndProcessRpcMsg(pMsg);
   }
 
   if (IsReq(pMsg) && pMsg->info.handle != NULL && code != TSDB_CODE_ACTION_IN_PROGRESS) {
