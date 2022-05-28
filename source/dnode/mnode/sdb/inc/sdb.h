@@ -166,7 +166,6 @@ typedef struct SSdbRow {
 typedef struct SSdb {
   SMnode        *pMnode;
   char          *currDir;
-  char          *syncDir;
   char          *tmpDir;
   int64_t        lastCommitVer;
   int64_t        curVer;
@@ -182,6 +181,7 @@ typedef struct SSdb {
   SdbDeployFp    deployFps[SDB_MAX];
   SdbEncodeFp    encodeFps[SDB_MAX];
   SdbDecodeFp    decodeFps[SDB_MAX];
+  TdThreadMutex  filelock;
 } SSdb;
 
 typedef struct SSdbIter {
