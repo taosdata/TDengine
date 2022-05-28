@@ -336,7 +336,7 @@ int32_t mndStart(SMnode *pMnode) {
   mndSyncStart(pMnode);
   if (pMnode->deploy) {
     if (sdbDeploy(pMnode->pSdb) != 0) return -1;
-    pMnode->syncMgmt.restored = true;
+    pMnode->restored = true;
   }
   return mndInitTimer(pMnode);
 }
