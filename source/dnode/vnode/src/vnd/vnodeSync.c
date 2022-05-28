@@ -142,14 +142,13 @@ void vnodeSyncRollBackMsg(SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbMeta
 
 SSyncFSM *vnodeSyncMakeFsm(SVnode *pVnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
+  memset(pFsm, 0, sizeof(*pFsm));
   pFsm->data = pVnode;
   pFsm->FpCommitCb = vnodeSyncCommitMsg;
   pFsm->FpPreCommitCb = vnodeSyncPreCommitMsg;
   pFsm->FpRollBackCb = vnodeSyncRollBackMsg;
   pFsm->FpGetSnapshot = vnodeSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = NULL;
-  pFsm->FpSnapshotRead = NULL;
-  pFsm->FpSnapshotApply = NULL;
   pFsm->FpReConfigCb = NULL;
 
   return pFsm;

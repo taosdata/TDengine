@@ -117,6 +117,8 @@ void mndReConfig(struct SSyncFSM *pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta)
 
 SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
   SSyncFSM *pFsm = taosMemoryCalloc(1, sizeof(SSyncFSM));
+  memset(pFsm, 0, sizeof(*pFsm));
+
   pFsm->data = pMnode;
 
   pFsm->FpCommitCb = mndSyncCommitMsg;
@@ -125,8 +127,6 @@ SSyncFSM *mndSyncMakeFsm(SMnode *pMnode) {
 
   pFsm->FpGetSnapshot = mndSyncGetSnapshot;
   pFsm->FpRestoreFinishCb = mndRestoreFinish;
-  pFsm->FpSnapshotRead = mndSnapshotRead;
-  pFsm->FpSnapshotApply = mndSnapshotApply;
   pFsm->FpReConfigCb = mndReConfig;
 
   return pFsm;
