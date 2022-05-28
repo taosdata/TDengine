@@ -700,6 +700,11 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
 
   //param1
   if (numOfParams == 2) {
+    uint8_t paraType = ((SExprNode*)nodesListGetNode(pFunc->pParameterList, 1))->resType.type;
+    if (!IS_INTEGER_TYPE(paraType)) {
+      return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
+    }
+
     SNode* pParamNode1 = nodesListGetNode(pFunc->pParameterList, 1);
     if (QUERY_NODE_VALUE != nodeType(pParamNode1)) {
       return invaildFuncParaTypeErrMsg(pErrBuf, len, pFunc->functionName);
@@ -714,7 +719,13 @@ static int32_t translateDiff(SFunctionNode* pFunc, char* pErrBuf, int32_t len) {
     pValue->notReserved = true;
   }
 
-  pFunc->node.resType = (SDataType){.bytes = tDataTypes[colType].bytes, .type = colType};
+  uint8_t resType;
+  if (IS_SIGNED_NUMERIC_TYPE(colType)) {
+    resType = TSDB_DATA_TYPE_BIGINT;
+  } else {
+    resType = TSDB_DATA_TYPE_DOUBLE;
+  }
+  pFunc->node.resType = (SDataType){.bytes = tDataTypes[resType].bytes, .type = resType};
   return TSDB_CODE_SUCCESS;
 }
 

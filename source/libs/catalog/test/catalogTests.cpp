@@ -41,7 +41,7 @@
 namespace {
 
 extern "C" int32_t ctgdGetClusterCacheNum(struct SCatalog* pCatalog, int32_t type);
-extern "C" int32_t ctgActUpdateTb(SCtgMetaAction *action);
+extern "C" int32_t ctgOpUpdateTbMeta(SCtgCacheOperation *action);
 extern "C" int32_t ctgdEnableDebug(char *option);
 extern "C" int32_t ctgdGetStatNum(char *option, void *res);
 
@@ -888,9 +888,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
   int32_t          n = 0;
   STableMetaOutput *output = NULL;
 
-  SCtgMetaAction action = {0};
+  SCtgCacheOperation operation = {0};
   
-  action.act = CTG_ACT_UPDATE_TBL;
+  operation.opId = CTG_OP_UPDATE_TB_META;
 
   while (!ctgTestStop) {
     output = (STableMetaOutput *)taosMemoryMalloc(sizeof(STableMetaOutput));
@@ -899,9 +899,9 @@ void *ctgTestSetCtableMetaThread(void *param) {
     SCtgUpdateTblMsg *msg = (SCtgUpdateTblMsg *)taosMemoryMalloc(sizeof(SCtgUpdateTblMsg));
     msg->pCtg = pCtg;
     msg->output = output;
-    action.data = msg;
+    operation.data = msg;
 
-    code = ctgActUpdateTb(&action);
+    code = ctgOpUpdateTbMeta(&operation);
     if (code) {
       assert(0);
     }
