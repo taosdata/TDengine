@@ -199,27 +199,19 @@ class TDTestCase:
             tdSql.query(sqls[i])
 
     def __test_current(self):
-        tdSql.query("select hyperloglog(ts) from ct1")
-        tdSql.checkRows(1)
-        tdSql.query("select hyperloglog(c1) from ct2")
-        tdSql.checkRows(1)
-        tdSql.query("select hyperloglog(c1) from ct4 group by c1")
-        tdSql.checkRows(self.rows + 3)
-        tdSql.query("select hyperloglog(c1) from ct4 group by c7")
-        tdSql.checkRows(3)
-        tdSql.query("select hyperloglog(ct2.c1) from ct4 join ct2 on ct4.ts=ct2.ts")
-        tdSql.checkRows(1)
-        tdSql.checkData(0, 0, self.rows + 2)
-        tdSql.query("select hyperloglog(c1), c1 from stb1 group by c1")
-        for i in range(tdSql.queryRows):
-            tdSql.checkData(i, 0, 1) if  tdSql.queryResult[i][1] is not None else tdSql.checkData(i, 0, 0)
+        tdSql.query("explain select c1 from ct1")
+        tdSql.query("explain select 1 from ct2")
+        tdSql.query("explain select c2 from ct4 group by c1")
+        tdSql.query("explain select count(c3) from ct4 group by c7 having count(c3) > 0")
+        tdSql.query("explain select ct2.c3 from ct4 join ct2 on ct4.ts=ct2.ts")
+        tdSql.query("explain select c1 from stb1 where c1 is not null and c1 in (0, 1, 2) or c1 between 2 and 100 ")
 
         self.hyperloglog_check()
 
     def __test_error(self):
 
         tdLog.printNoPrefix("===step 0: err case, must return err")
-        tdSql.error( "select hyperloglog(c1) from ct8" )
+        tdSql.error( "explain select hyperloglog(c1) from ct8" )
         tdSql.error( "explain show databases " )
         tdSql.error( "explain show stables " )
         tdSql.error( "explain show tables " )
