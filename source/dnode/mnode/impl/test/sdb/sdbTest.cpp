@@ -492,7 +492,7 @@ TEST_F(MndTestSdb, 01_Write_Str) {
 
   ASSERT_EQ(sdbGetSize(pSdb, SDB_USER), 2);
   ASSERT_EQ(sdbGetMaxId(pSdb, SDB_USER), -1);
-  ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 2 );
+  ASSERT_EQ(sdbGetTableVer(pSdb, SDB_USER), 2);
   sdbSetApplyIndex(pSdb, -1);
   ASSERT_EQ(sdbGetApplyIndex(pSdb), -1);
   ASSERT_EQ(mnode.insertTimes, 2);
@@ -896,21 +896,28 @@ TEST_F(MndTestSdb, 01_Read_Str) {
   }
 
   {
-    void     *sdbbuf = taosMemoryMalloc(1024 * 1024);
-    int32_t total = 0;
+    SSdbIter *pReader = NULL;
+    SSdbIter *pWritter = NULL;
     void     *pBuf = NULL;
     int32_t   len = 0;
-    SSdbIter *pIter = NULL;
-    while (sdbReadSnapshot(pSdb, &pIter, &pBuf, &len) == 0) {
+    int32_t   code = 0;
+
+    code = sdbStartRead(pSdb, &pReader);
+    ASSERT_EQ(code, 0);
+    code = sdbStartWrite(pSdb, &pWritter);
+    ASSERT_EQ(code, 0);
+
+    while (sdbDoRead(pSdb, pReader, &pBuf, &len) == 0) {
       if (pBuf != NULL && len != 0) {
-        memcpy((char *)sdbbuf + total, pBuf, len);
-        total += len;
+        sdbDoWrite(pSdb, pWritter, pBuf, len);
         taosMemoryFree(pBuf);
       } else {
         break;
       }
     }
-    sdbApplySnapshot(pSdb, sdbbuf, total);
+
+    sdbStopRead(pSdb, pReader);
+    sdbStopWrite(pSdb, pWritter, true);
   }
 
   ASSERT_EQ(sdbGetSize(pSdb, SDB_CONSUMER), 1);
