@@ -269,7 +269,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label " slave3_0 || slave15 || slave16 || slave17 "}
+                    agent{label " worker03 || slave215 || slave217 || slave219 "}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
