@@ -869,7 +869,7 @@ SyncClientRequest* syncClientRequestFromRpcMsg2(const SRpcMsg* pRpcMsg) {
 }
 
 cJSON* syncClientRequest2Json(const SyncClientRequest* pMsg) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pMsg != NULL) {
