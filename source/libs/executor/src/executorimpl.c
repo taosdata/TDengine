@@ -5197,5 +5197,5 @@ int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey) {
   if (bufSize <= pageSize) {
     bufSize = pageSize * 4;
   }
-  return createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, "/tmp/");
+  return createDiskbasedBuf(&pSup->pResultBuf, pageSize, bufSize, pKey, TD_TMP_DIR_PATH);
 }

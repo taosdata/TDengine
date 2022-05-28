@@ -272,7 +272,7 @@ void validateFst() {
   }
   delete m;
 }
-static std::string logDir = "/tmp/log";
+static std::string logDir = TD_TMP_DIR_PATH "log";
 
 static void initLog() {
   const char*   defaultLogFileNamePrefix = "taoslog";
@@ -916,7 +916,7 @@ TEST_F(IndexEnv2, testIndexOpen) {
   }
 }
 TEST_F(IndexEnv2, testEmptyIndexOpen) {
-  std::string path = "/tmp/test";
+  std::string path = TD_TMP_DIR_PATH "test";
   if (index->Init(path) != 0) {
     std::cout << "failed to init index" << std::endl;
     exit(1);
