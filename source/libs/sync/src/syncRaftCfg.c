@@ -58,8 +58,8 @@ int32_t raftCfgPersist(SRaftCfg *pRaftCfg) {
   int64_t ret = taosWriteFile(pRaftCfg->pFile, buf, sizeof(buf));
   assert(ret == sizeof(buf));
 
-  //int64_t ret = taosWriteFile(pRaftCfg->pFile, s, strlen(s) + 1);
-  //assert(ret == strlen(s) + 1);
+  // int64_t ret = taosWriteFile(pRaftCfg->pFile, s, strlen(s) + 1);
+  // assert(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosFsyncFile(pRaftCfg->pFile);
@@ -170,7 +170,7 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, int8_t isStandBy, const char *path) {
   SRaftCfg raftCfg;
   raftCfg.cfg = *pCfg;
   raftCfg.isStandBy = isStandBy;
-  char *  s = raftCfg2Str(&raftCfg);
+  char *s = raftCfg2Str(&raftCfg);
 
   char buf[CONFIG_FILE_LEN];
   memset(buf, 0, sizeof(buf));
@@ -179,8 +179,8 @@ int32_t raftCfgCreateFile(SSyncCfg *pCfg, int8_t isStandBy, const char *path) {
   int64_t ret = taosWriteFile(pFile, buf, sizeof(buf));
   assert(ret == sizeof(buf));
 
-  //int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
-  //assert(ret == strlen(s) + 1);
+  // int64_t ret = taosWriteFile(pFile, s, strlen(s) + 1);
+  // assert(ret == strlen(s) + 1);
 
   taosMemoryFree(s);
   taosCloseFile(&pFile);

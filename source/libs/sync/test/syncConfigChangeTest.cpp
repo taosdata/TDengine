@@ -84,14 +84,15 @@ void ReConfigCb(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta) 
 
 SSyncFSM* createFsm() {
   SSyncFSM* pFsm = (SSyncFSM*)taosMemoryMalloc(sizeof(SSyncFSM));
+  memset(pFsm, 0, sizeof(*pFsm));
+
   pFsm->FpCommitCb = CommitCb;
   pFsm->FpPreCommitCb = PreCommitCb;
   pFsm->FpRollBackCb = RollBackCb;
 
   pFsm->FpGetSnapshot = GetSnapshotCb;
   pFsm->FpRestoreFinishCb = RestoreFinishCb;
-  pFsm->FpSnapshotApply = NULL;
-  pFsm->FpSnapshotRead = NULL;
+
 
   pFsm->FpReConfigCb = ReConfigCb;
 
