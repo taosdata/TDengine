@@ -48,6 +48,10 @@ void mndSyncCommitMsg(struct SSyncFSM *pFsm, const SRpcMsg *pMsg, SFsmCbMeta cbM
       mError("trans:%d, failed to propose since %s", transId, tstrerror(pMgmt->errCode));
     }
     tsem_post(&pMgmt->syncSem);
+  } else {
+    if (cbMeta.index - sdbGetApplyIndex(pMnode->pSdb) > 100) {
+      sdbWriteFile(pMnode->pSdb);
+    }
   }
 }
 
