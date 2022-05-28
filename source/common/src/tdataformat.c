@@ -574,20 +574,52 @@ static void debugPrintTagVal(int8_t type, const void *val, int32_t vlen, const c
   }
 }
 
+  // if (isLarge) {
+  //   p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
+  // } else {
+  //   p = (uint8_t *)&pTag->idx[pTag->nTag];
+  // }
+
+  // (*ppArray) = taosArrayInit(pTag->nTag + 1, sizeof(STagVal));
+  // if (*ppArray == NULL) {
+  //   code = TSDB_CODE_OUT_OF_MEMORY;
+  //   goto _err;
+  // }
+
+  // for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
+  //   if (isLarge) {
+  //     offset = ((int16_t *)pTag->idx)[iTag];
+  //   } else {
+  //     offset = pTag->idx[iTag];
+  //   }
+
 void debugPrintSTag(STag *pTag, const char *tag, int32_t ln) {
-  printf("%s:%d >>> STAG === isJson:%s, len: %d, nTag: %d, sver:%d\n", tag, ln, pTag->isJson ? "true" : "false",
-         (int32_t)pTag->len, (int32_t)pTag->nTag, pTag->ver);
-  char *p = (char *)&pTag->idx[pTag->nTag];
+  int8_t isJson = pTag->flags & TD_TAG_JSON;
+  int8_t isLarge = pTag->flags & TD_TAG_LARGE;
+  uint8_t *p = NULL;
+  int16_t  offset = 0;
+
+  if (isLarge) {
+    p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
+  } else {
+    p = (uint8_t *)&pTag->idx[pTag->nTag];
+  }
+  printf("%s:%d >>> STAG === %s:%s, len: %d, nTag: %d, sver:%d\n", tag, ln, isJson ? "json" : "normal",
+         isLarge ? "large" : "small", (int32_t)pTag->len, (int32_t)pTag->nTag, pTag->ver);
   for (uint16_t n = 0; n < pTag->nTag; ++n) {
-    int16_t *pIdx = pTag->idx + n;
-    STagVal  tagVal = {0};
-    if (pTag->isJson) {
-      tagVal.pKey = (char *)POINTER_SHIFT(p, *pIdx);
+    if (isLarge) {
+      offset = ((int16_t *)pTag->idx)[n];
     } else {
-      tagVal.cid = *(int16_t *)POINTER_SHIFT(p, *pIdx);
+      offset = pTag->idx[n];
     }
-    printf("%s:%d loop[%d-%d] offset=%d\n", __func__, __LINE__, (int32_t)pTag->nTag, (int32_t)n, *pIdx);
-    tGetTagVal(p, &tagVal, pTag->isJson);
+    STagVal tagVal = {0};
+    if (isJson) {
+      tagVal.pKey = (char *)POINTER_SHIFT(p, offset);
+    } else {
+      tagVal.cid = *(int16_t *)POINTER_SHIFT(p, offset);
+    }
+    printf("%s:%d loop[%d-%d] offset=%d\n", __func__, __LINE__, (int32_t)pTag->nTag, (int32_t)n, (int32_t)offset);
+    tGetTagVal(p, &tagVal, isJson);
     debugPrintTagVal(tagVal.type, tagVal.pData, tagVal.nData, __func__, __LINE__);
   }
   printf("\n");
@@ -771,8 +803,16 @@ int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) { return tDecodeBinary(pDec
 
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
   int32_t  code = 0;
-  uint8_t *p = (uint8_t *)&pTag->idx[pTag->nTag];
-  STagVal  tv;
+  uint8_t *p = NULL;
+  STagVal  tv = {0};
+  int8_t   isLarge = pTag->flags & TD_TAG_LARGE;
+  int16_t  offset = 0;
+
+  if (isLarge) {
+    p = (uint8_t *)&((int16_t *)pTag->idx)[pTag->nTag];
+  } else {
+    p = (uint8_t *)&pTag->idx[pTag->nTag];
+  }
 
   (*ppArray) = taosArrayInit(pTag->nTag + 1, sizeof(STagVal));
   if (*ppArray == NULL) {
@@ -781,7 +821,12 @@ int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
   }
 
   for (int16_t iTag = 0; iTag < pTag->nTag; iTag++) {
-    tGetTagVal(p + pTag->idx[iTag], &tv, pTag->flags & TD_TAG_JSON);
+    if (isLarge) {
+      offset = ((int16_t *)pTag->idx)[iTag];
+    } else {
+      offset = pTag->idx[iTag];
+    }
+    tGetTagVal(p + offset, &tv, pTag->flags & TD_TAG_JSON);
     taosArrayPush(*ppArray, &tv);
   }
 
