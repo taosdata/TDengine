@@ -13,6 +13,7 @@
  * along with this program. If not, see <http://www.gnu.org/licenses/>.
  */
 
+#include "functionMgt.h"
 #include "os.h"
 #include "parAst.h"
 #include "parInt.h"
@@ -105,6 +106,13 @@ typedef struct SCollectMetaKeyFromExprCxt {
 
 static int32_t collectMetaKeyFromQuery(SCollectMetaKeyCxt* pCxt, SNode* pStmt);
 
+static EDealRes collectMetaKeyFromFunction(SCollectMetaKeyFromExprCxt* pCxt, SFunctionNode* pFunc) {
+  if (fmIsBuiltinFunc(pFunc->functionName)) {
+    return TSDB_CODE_SUCCESS;
+  }
+  return reserveUdfInCache(pFunc->functionName, pCxt->pComCxt->pMetaCache);
+}
+
 static EDealRes collectMetaKeyFromRealTable(SCollectMetaKeyFromExprCxt* pCxt, SRealTableNode* pRealTable) {
   pCxt->errCode = reserveTableMetaInCache(pCxt->pComCxt->pParseCxt->acctId, pRealTable->table.dbName,
                                           pRealTable->table.tableName, pCxt->pComCxt->pMetaCache);
@@ -128,7 +136,7 @@ static EDealRes collectMetaKeyFromExprImpl(SNode* pNode, void* pContext) {
   SCollectMetaKeyFromExprCxt* pCxt = pContext;
   switch (nodeType(pNode)) {
     case QUERY_NODE_FUNCTION:
-      break;
+      return collectMetaKeyFromFunction(pCxt, (SFunctionNode*)pNode);
     case QUERY_NODE_REAL_TABLE:
       return collectMetaKeyFromRealTable(pCxt, (SRealTableNode*)pNode);
     case QUERY_NODE_TEMP_TABLE:

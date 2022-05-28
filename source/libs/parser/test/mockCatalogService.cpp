@@ -120,6 +120,15 @@ class MockCatalogServiceImpl {
     return copyTableVgroup(db, tNameGetTableName(pTableName), vgList);
   }
 
+  int32_t catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const {
+    auto it = udf_.find(funcName);
+    if (udf_.end() == it) {
+      return TSDB_CODE_FAILED;
+    }
+    memcpy(pInfo, it->second.get(), sizeof(SFuncInfo));
+    return TSDB_CODE_SUCCESS;
+  }
+
   int32_t catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {
     int32_t code = getAllTableMeta(pCatalogReq->pTableMeta, &pMetaData->pTableMeta);
     if (TSDB_CODE_SUCCESS == code) {
@@ -136,6 +145,9 @@ class MockCatalogServiceImpl {
     }
     if (TSDB_CODE_SUCCESS == code) {
       code = getAllUserAuth(pCatalogReq->pUser, &pMetaData->pUser);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = getAllUdf(pCatalogReq->pUdf, &pMetaData->pUdfList);
     }
     return code;
   }
@@ -223,21 +235,21 @@ class MockCatalogServiceImpl {
     }
   }
 
-  std::shared_ptr<MockTableMeta> getTableMeta(const std::string& db, const std::string& tbname) const {
-    DbMetaCache::const_iterator it = meta_.find(db);
-    if (meta_.end() == it) {
-      return std::shared_ptr<MockTableMeta>();
-    }
-    TableMetaCache::const_iterator tit = it->second.find(tbname);
-    if (it->second.end() == tit) {
-      return std::shared_ptr<MockTableMeta>();
-    }
-    return tit->second;
+  void createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen, int32_t bufSize) {
+    std::shared_ptr<SFuncInfo> info(new SFuncInfo);
+    strcpy(info->name, func.c_str());
+    info->funcType = funcType;
+    info->scriptType = TSDB_FUNC_SCRIPT_BIN_LIB;
+    info->outputType = outputType;
+    info->outputLen = outputLen;
+    info->bufSize = bufSize;
+    udf_.insert(std::make_pair(func, info));
   }
 
  private:
   typedef std::map<std::string, std::shared_ptr<MockTableMeta>> TableMetaCache;
   typedef std::map<std::string, TableMetaCache>                 DbMetaCache;
+  typedef std::map<std::string, std::shared_ptr<SFuncInfo>>     UdfMetaCache;
 
   std::string toDbname(const std::string& dbFullName) const {
     std::string::size_type n = dbFullName.find(".");
@@ -318,6 +330,18 @@ class MockCatalogServiceImpl {
       taosArrayPush(*vgList, &vg);
     }
     return TSDB_CODE_SUCCESS;
+  }
+
+  std::shared_ptr<MockTableMeta> getTableMeta(const std::string& db, const std::string& tbname) const {
+    DbMetaCache::const_iterator it = meta_.find(db);
+    if (meta_.end() == it) {
+      return std::shared_ptr<MockTableMeta>();
+    }
+    TableMetaCache::const_iterator tit = it->second.find(tbname);
+    if (it->second.end() == tit) {
+      return std::shared_ptr<MockTableMeta>();
+    }
+    return tit->second;
   }
 
   int32_t getAllTableMeta(SArray* pTableMetaReq, SArray** pTableMetaData) const {
@@ -408,9 +432,28 @@ class MockCatalogServiceImpl {
     return code;
   }
 
+  int32_t getAllUdf(SArray* pUdfReq, SArray** pUdfData) const {
+    int32_t code = TSDB_CODE_SUCCESS;
+    if (NULL != pUdfReq) {
+      int32_t num = taosArrayGetSize(pUdfReq);
+      *pUdfData = taosArrayInit(num, sizeof(SFuncInfo));
+      for (int32_t i = 0; i < num; ++i) {
+        SFuncInfo info = {0};
+        code = catalogGetUdfInfo((char*)taosArrayGet(pUdfReq, i), &info);
+        if (TSDB_CODE_SUCCESS == code) {
+          taosArrayPush(*pUdfData, &info);
+        } else {
+          break;
+        }
+      }
+    }
+    return code;
+  }
+
   uint64_t                      id_;
   std::unique_ptr<TableBuilder> builder_;
   DbMetaCache                   meta_;
+  UdfMetaCache                  udf_;
 };
 
 MockCatalogService::MockCatalogService() : impl_(new MockCatalogServiceImpl()) {}
@@ -429,9 +472,9 @@ void MockCatalogService::createSubTable(const std::string& db, const std::string
 
 void MockCatalogService::showTables() const { impl_->showTables(); }
 
-std::shared_ptr<MockTableMeta> MockCatalogService::getTableMeta(const std::string& db,
-                                                                const std::string& tbname) const {
-  return impl_->getTableMeta(db, tbname);
+void MockCatalogService::createFunction(const std::string& func, int8_t funcType, int8_t outputType, int32_t outputLen,
+                                        int32_t bufSize) {
+  impl_->createFunction(func, funcType, outputType, outputLen, bufSize);
 }
 
 int32_t MockCatalogService::catalogGetTableMeta(const SName* pTableName, STableMeta** pTableMeta) const {
@@ -444,6 +487,10 @@ int32_t MockCatalogService::catalogGetTableHashVgroup(const SName* pTableName, S
 
 int32_t MockCatalogService::catalogGetTableDistVgInfo(const SName* pTableName, SArray** pVgList) const {
   return impl_->catalogGetTableDistVgInfo(pTableName, pVgList);
+}
+
+int32_t MockCatalogService::catalogGetUdfInfo(const std::string& funcName, SFuncInfo* pInfo) const {
+  return impl_->catalogGetUdfInfo(funcName, pInfo);
 }
 
 int32_t MockCatalogService::catalogGetAllMeta(const SCatalogReq* pCatalogReq, SMetaData* pMetaData) const {

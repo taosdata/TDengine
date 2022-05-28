@@ -45,6 +45,7 @@ typedef struct SParseMetaCache {
   SHashObj* pDbCfg;        // key is tbFName, element is SDbCfgInfo*
   SHashObj* pDbInfo;       // key is tbFName, element is SDbInfo*
   SHashObj* pUserAuth;     // key is SUserAuthInfo serialized string, element is bool indicating whether or not to pass
+  SHashObj* pUdf;          // key is funcName, element is SFuncInfo*
 } SParseMetaCache;
 
 int32_t generateSyntaxErrMsg(SMsgBuf* pBuf, int32_t errCode, ...);
@@ -70,6 +71,7 @@ int32_t reserveDbVgVersionInCache(int32_t acctId, const char* pDb, SParseMetaCac
 int32_t reserveDbCfgInCache(int32_t acctId, const char* pDb, SParseMetaCache* pMetaCache);
 int32_t reserveUserAuthInCache(int32_t acctId, const char* pUser, const char* pDb, AUTH_TYPE type,
                                SParseMetaCache* pMetaCache);
+int32_t reserveUdfInCache(const char* pFunc, SParseMetaCache* pMetaCache);
 int32_t getTableMetaFromCache(SParseMetaCache* pMetaCache, const SName* pName, STableMeta** pMeta);
 int32_t getDbVgInfoFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SArray** pVgInfo);
 int32_t getTableVgroupFromCache(SParseMetaCache* pMetaCache, const SName* pName, SVgroupInfo* pVgroup);
@@ -78,6 +80,7 @@ int32_t getDbVgVersionFromCache(SParseMetaCache* pMetaCache, const char* pDbFNam
 int32_t getDbCfgFromCache(SParseMetaCache* pMetaCache, const char* pDbFName, SDbCfgInfo* pInfo);
 int32_t getUserAuthFromCache(SParseMetaCache* pMetaCache, const char* pUser, const char* pDb, AUTH_TYPE type,
                              bool* pPass);
+int32_t getUdfInfoFromCache(SParseMetaCache* pMetaCache, const char* pFunc, SFuncInfo* pInfo);
 
 #ifdef __cplusplus
 }

@@ -16,7 +16,6 @@
 #include "functionMgt.h"
 
 #include "builtins.h"
-#include "catalog.h"
 #include "functionMgtInt.h"
 #include "taos.h"
 #include "taoserror.h"
@@ -65,35 +64,19 @@ static bool isSpecificClassifyFunc(int32_t funcId, uint64_t classification) {
   return FUNC_MGT_TEST_MASK(funcMgtBuiltins[funcId].classification, classification);
 }
 
-static int32_t getUdfInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
-  SFuncInfo funcInfo = {0};
-  int32_t    code = catalogGetUdfInfo(pParam->pCtg, pParam->pRpc, pParam->pMgmtEps, pFunc->functionName, &funcInfo);
-  if (TSDB_CODE_SUCCESS != code) {
-    return code;
-  }
-
-  pFunc->funcType = FUNCTION_TYPE_UDF;
-  pFunc->funcId = TSDB_FUNC_TYPE_AGGREGATE == funcInfo.funcType ? FUNC_AGGREGATE_UDF_ID : FUNC_SCALAR_UDF_ID;
-  pFunc->node.resType.type = funcInfo.outputType;
-  pFunc->node.resType.bytes = funcInfo.outputLen;
-  pFunc->udfBufSize = funcInfo.bufSize;
-  tFreeSFuncInfo(&funcInfo);
-  return TSDB_CODE_SUCCESS;
-}
-
 int32_t fmFuncMgtInit() {
   taosThreadOnce(&functionHashTableInit, doInitFunctionTable);
   return initFunctionCode;
 }
 
-int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc) {
+int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen) {
   void* pVal = taosHashGet(gFunMgtService.pFuncNameHashTable, pFunc->functionName, strlen(pFunc->functionName));
   if (NULL != pVal) {
     pFunc->funcId = *(int32_t*)pVal;
     pFunc->funcType = funcMgtBuiltins[pFunc->funcId].type;
-    return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pParam->pErrBuf, pParam->errBufLen);
+    return funcMgtBuiltins[pFunc->funcId].translateFunc(pFunc, pMsg, msgLen);
   }
-  return getUdfInfo(pParam, pFunc);
+  return TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION;
 }
 
 bool fmIsBuiltinFunc(const char* pFunc) {
