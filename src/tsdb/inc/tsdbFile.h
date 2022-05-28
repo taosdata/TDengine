@@ -288,7 +288,7 @@ static FORCE_INLINE int64_t tsdbReadDFile(SDFile* pDFile, void* buf, int64_t nby
 
 static FORCE_INLINE int tsdbCopyDFile(SDFile* pSrc, SDFile* pDest) {
   if (tfscopy(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
-    int32_t ret = taosMkdirP(TSDB_FILE_FULL_NAME(pDest));
+    int32_t ret = taosMkdirP(TSDB_FILE_FULL_NAME(pDest), 0);
     if (ret < 0 || tfscopy(TSDB_FILE_F(pSrc), TSDB_FILE_F(pDest)) < 0) {
 	terrno = TAOS_SYSTEM_ERROR(errno);
 	return -1;
