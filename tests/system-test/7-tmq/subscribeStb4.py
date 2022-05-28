@@ -188,6 +188,9 @@ class TDTestCase:
         
         self.initConsumerTable()
 
+        auotCtbNum = 5
+        auotCtbPrefix = 'autoCtb'
+
         # create and start thread
         parameterDict = {'cfg':        '',       \
                          'actionType': 0,        \
@@ -204,13 +207,15 @@ class TDTestCase:
         
         self.create_database(tdSql, parameterDict["dbName"])
         self.create_stable(tdSql, parameterDict["dbName"], parameterDict["stbName"])
+        self.create_ctables(tdSql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"])
+        self.insert_data(tdSql,parameterDict["dbName"],parameterDict["stbName"],parameterDict["ctbNum"],parameterDict["rowsPerTbl"],parameterDict["batchNum"])
 
         tdLog.info("create topics from stb1")
         topicFromStb1 = 'topic_stb1'
         
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, parameterDict['dbName'], parameterDict['stbName']))
         consumerId     = 0
-        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
+        expectrowcnt   = parameterDict["rowsPerTbl"] * (auotCtbNum + parameterDict["ctbNum"])
         topicList      = topicFromStb1
         ifcheckdata    = 0
         ifManualCommit = 0
@@ -226,14 +231,12 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        time.sleep(5)
-        self.create_ctables(tdSql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"])
-        self.insert_data(tdSql,\
-                         parameterDict["dbName"],\
-                         parameterDict["stbName"],\
-                         parameterDict["ctbNum"],\
-                         parameterDict["rowsPerTbl"],\
-                         parameterDict["batchNum"])
+        # add some new child tables using auto ctreating mode
+        time.sleep(1)
+        for index in range(auotCtbNum):
+            tdSql.query("create table %s.%s_%d using %s.%s tags(%d)"%(parameterDict["dbName"], auotCtbPrefix, index, parameterDict["dbName"], parameterDict["stbName"], index))
+
+        self.insert_data(tdSql,parameterDict["dbName"],auotCtbPrefix,auotCtbNum,parameterDict["rowsPerTbl"],parameterDict["batchNum"])
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1
@@ -255,6 +258,9 @@ class TDTestCase:
         
         self.initConsumerTable()
 
+        auotCtbNum = 10
+        auotCtbPrefix = 'autoCtb'
+
         # create and start thread
         parameterDict = {'cfg':        '',       \
                          'actionType': 0,        \
@@ -268,31 +274,23 @@ class TDTestCase:
                          'batchNum':   100,      \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
-
-        parameterDict2 = {'cfg':        '',       \
-                         'actionType': 0,        \
-                         'dbName':     'db2',    \
-                         'dropFlag':   1,        \
-                         'vgroups':    4,        \
-                         'replica':    1,        \
-                         'stbName':    'stb2',    \
-                         'ctbNum':     10,       \
-                         'rowsPerTbl': 10000,    \
-                         'batchNum':   100,      \
-                         'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
-        parameterDict2['cfg'] = cfgPath
-
+        
         self.create_database(tdSql, parameterDict["dbName"])
         self.create_stable(tdSql, parameterDict["dbName"], parameterDict["stbName"])
-        self.create_stable(tdSql, parameterDict2["dbName"], parameterDict2["stbName"])
+        self.create_ctables(tdSql, parameterDict["dbName"], parameterDict["stbName"], parameterDict["ctbNum"])
+        self.insert_data(tdSql,parameterDict["dbName"],parameterDict["stbName"],parameterDict["ctbNum"],parameterDict["rowsPerTbl"],parameterDict["batchNum"])
 
-        tdLog.info("create topics from stb1")
+        self.create_stable(tdSql, parameterDict["dbName"], 'stb2')
+
+        tdLog.info("create topics from stb0/stb1")
         topicFromStb1 = 'topic_stb1'
-        
+        topicFromStb2 = 'topic_stb2'
+
         tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb1, parameterDict['dbName'], parameterDict['stbName']))
+        tdSql.execute("create topic %s as select ts, c1, c2 from %s.%s" %(topicFromStb2, parameterDict['dbName'], 'stb2'))
         consumerId     = 0
-        expectrowcnt   = parameterDict["rowsPerTbl"] * parameterDict["ctbNum"]
-        topicList      = topicFromStb1
+        expectrowcnt   = parameterDict["rowsPerTbl"] * (auotCtbNum + parameterDict["ctbNum"])
+        topicList      = '%s, %s'%(topicFromStb1,topicFromStb2)
         ifcheckdata    = 0
         ifManualCommit = 0
         keyList        = 'group.id:cgrp1,\
@@ -307,29 +305,12 @@ class TDTestCase:
         showRow   = 1
         self.startTmqSimProcess(buildPath,cfgPath,pollDelay,parameterDict["dbName"],showMsg, showRow)
 
-        tdLog.info("start create child tables of stb1 and stb2")
-        parameterDict['actionType'] = actionType.CREATE_CTABLE
-        parameterDict2['actionType'] = actionType.CREATE_CTABLE
+        # add some new child tables using auto ctreating mode
+        time.sleep(1)
+        for index in range(auotCtbNum):
+            tdSql.query("create table %s.%s_%d using %s.%s tags(%d)"%(parameterDict["dbName"], auotCtbPrefix, index, parameterDict["dbName"], 'stb2', index))
 
-        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
-        prepareEnvThread.start()
-        prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
-        prepareEnvThread2.start()
-
-        prepareEnvThread.join()
-        prepareEnvThread2.join()
-
-        tdLog.info("start insert data into child tables of stb1 and stb2")
-        parameterDict['actionType'] = actionType.INSERT_DATA
-        parameterDict2['actionType'] = actionType.INSERT_DATA
-
-        prepareEnvThread = threading.Thread(target=self.prepareEnv, kwargs=parameterDict)
-        prepareEnvThread.start()
-        prepareEnvThread2 = threading.Thread(target=self.prepareEnv, kwargs=parameterDict2)
-        prepareEnvThread2.start()
-
-        prepareEnvThread.join()
-        prepareEnvThread2.join()
+        self.insert_data(tdSql,parameterDict["dbName"],auotCtbPrefix,auotCtbNum,parameterDict["rowsPerTbl"],parameterDict["batchNum"])
 
         tdLog.info("insert process end, and start to check consume result")
         expectRows = 1

@@ -44,8 +44,9 @@ if __name__ == "__main__":
     if platform.system().lower() == 'windows':
         windows = 1
     updateCfgDict = {}
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict'])
+    execCmd = ""
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:e:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'execCmd'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -59,6 +60,7 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
             tdLog.printNoPrefix('-d update cfg dict, base64 json str')
+            tdLog.printNoPrefix('-e eval str to run')
             sys.exit(0)
 
         if key in ['-r', '--restart']: 
@@ -97,6 +99,19 @@ if __name__ == "__main__":
             except:
                 print('updateCfgDict convert fail.')
                 sys.exit(0)
+
+        if key in ['-e', '--execCmd']:
+            try:
+                execCmd = base64.b64decode(value.encode()).decode()
+            except:
+                print('updateCfgDict convert fail.')
+                sys.exit(0)
+
+    if not execCmd == "":
+        tdDnodes.init(deployPath)
+        exec(execCmd)
+        quit()
+
     if (stop != 0):
         if (valgrind == 0):
             toBeKilled = "taosd"
@@ -136,7 +151,7 @@ if __name__ == "__main__":
     if windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
-        tdDnodes.init(deployPath)
+        tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
         tdDnodes.stopAll()
@@ -161,15 +176,7 @@ if __name__ == "__main__":
         else:
             pass
         tdDnodes.deploy(1,updateCfgDict)
-        if masterIp == "" or masterIp == "localhost":
-            tdDnodes.start(1)
-        else:
-            remote_conn = Connection("root@%s"%host)
-            with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
-                remote_conn.run("python3 ./test.py %s"%updateCfgDictStr)
-            # print("docker exec -d cross_platform bash -c \"cd ~/test/community/tests/system-test && python3 ./test.py %s\""%updateCfgDictStr)
-            # os.system("docker exec -d cross_platform bash -c \"cd ~/test/community/tests/system-test && (ps -aux | grep taosd | head -n 1 | awk '{print $2}' | xargs kill -9) && rm -rf /root/test/sim/dnode1/data/ && python3 ./test.py %s\""%updateCfgDictStr)
-            # time.sleep(2)
+        tdDnodes.start(1)
         conn = taos.connect(
             host="%s"%(host),
             config=tdDnodes.sim.getCfgDir())
@@ -178,7 +185,7 @@ if __name__ == "__main__":
         else:
             tdCases.runAllWindows(conn)
     else:
-        tdDnodes.init(deployPath)
+        tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
         tdDnodes.stopAll()
