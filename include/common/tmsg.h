@@ -2361,6 +2361,17 @@ static int32_t tDecodeTSmaWrapper(SDecoder* pDecoder, STSmaWrapper* pReq) {
 }
 
 typedef struct {
+  int64_t tsmaIndexUid;
+  STimeWindow queryWindow;
+} SVGetTsmaExpWndsReq;
+
+typedef struct {
+  int64_t tsmaIndexUid;
+  int32_t numExpWnds;
+  TSKEY*  expWndsStartTs;
+} SVGetTsmaExpWndsRsp;
+
+typedef struct {
   int idx;
 } SMCreateFullTextReq;
 
