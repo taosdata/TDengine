@@ -65,12 +65,12 @@ void osDefaultInit() {
   }
   strcpy(tsDataDir, "C:\\TDengine\\data");
   strcpy(tsLogDir, "C:\\TDengine\\log");
-  strcpy(tsTempDir, "C:\\Windows\\Temp");
+  strcpy(tsTempDir, TD_TMP_DIR_PATH);
   strcpy(tsOsName, "Windows");
 
 #elif defined(_TD_DARWIN_64)
   if (configDir[0] == 0) {
-    strcpy(configDir, "/tmp/taosd");
+    strcpy(configDir, TD_TMP_DIR_PATH "taosd");
   }
   strcpy(tsDataDir, "/usr/local/var/lib/taos");
   strcpy(tsLogDir, "/usr/local/var/log/taos");
@@ -83,7 +83,7 @@ void osDefaultInit() {
   }
   strcpy(tsDataDir, "/var/lib/taos");
   strcpy(tsLogDir, "/var/log/taos");
-  strcpy(tsTempDir, "/tmp");
+  strcpy(tsTempDir, TD_TMP_DIR_PATH);
   strcpy(tsOsName, "Linux");
 
 #endif

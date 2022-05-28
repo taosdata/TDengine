@@ -92,10 +92,12 @@ target_link_libraries (jsonUT
   index
 )
 
-add_test(
-  NAME idxtest
-  COMMAND indexTest
-)
+if(NOT TD_WINDOWS)
+  add_test(
+    NAME idxtest
+    COMMAND indexTest
+  )
+endif(NOT TD_WINDOWS)
 add_test(
   NAME idxJsonUT
   COMMAND jsonUT 
