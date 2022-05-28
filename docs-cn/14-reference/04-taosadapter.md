@@ -24,7 +24,7 @@ taosAdapter 提供以下功能：
 
 ## taosAdapter 架构图
 
-![taosAdapter Architecture](taosAdapter-architecture.webp)
+![TDengine Database taosAdapter Architecture](taosAdapter-architecture.webp)
 
 ## taosAdapter 部署方法
 

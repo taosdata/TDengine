@@ -52,6 +52,8 @@ static struct argp_option options[] = {
   {"pktlen",     'l', "PKTLEN",     0,                   "Packet length used for net test, default is 1000 bytes."},
   {"pktnum",     'N', "PKTNUM",     0,                   "Packet numbers used for net test, default is 100."},
   {"pkttype",    'S', "PKTTYPE",    0,                   "Choose packet type used for net test, default is TCP. Only speed test could be either TCP or UDP."},
+  {"restful", 'R', 0, 0, "Connect and interact with TDengine use restful"},
+  {"token", 't', "TOKEN", 0, "The token to use when connecting TDengine's cloud services"},
   {0}};
 
 static error_t parse_opt(int key, char *arg, struct argp_state *state) {
@@ -162,6 +164,12 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
     case OPT_ABORT:
       arguments->abort = 1;
       break;
+    case 't':
+      arguments->token = arg;
+      break;
+    case 'R':
+      arguments->restful = true;
+      break;
     default:
       return ARGP_ERR_UNKNOWN;
   }
@@ -186,7 +194,7 @@ static void parse_args(
                   || (strncmp(argv[i], "--password", 10) == 0)) {
                 printf("Enter password: ");
                 taosSetConsoleEcho(false);
-                if (scanf("%128s", g_password) > 1) {
+                if (scanf("%s", g_password) > 1) {
                     fprintf(stderr, "password reading error\n");
                 }
                 taosSetConsoleEcho(true);

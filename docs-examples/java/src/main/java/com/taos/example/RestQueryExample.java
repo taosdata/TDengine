@@ -51,5 +51,5 @@ public class RestQueryExample {
 
 // possible output:
 // avg(voltage)	location
-// 222.0	Beijing.Haidian
-// 219.0	Beijing.Chaoyang
+// 222.0	California.LosAngeles
+// 219.0	California.SanFrancisco
