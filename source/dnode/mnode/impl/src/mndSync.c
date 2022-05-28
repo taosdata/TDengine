@@ -63,7 +63,7 @@ void mndRestoreFinish(struct SSyncFSM *pFsm) {
   if (!pMnode->deploy) {
     mInfo("mnode sync restore finished");
     mndTransPullup(pMnode);
-    pMnode->restored = true;
+    mndSetRestore(pMnode, true);
   }
 }
 
@@ -85,7 +85,7 @@ int32_t mndSnapshotRead(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, void 
 
 int32_t mndSnapshotApply(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, char *pBuf, int32_t len) {
   SMnode *pMnode = pFsm->data;
-  pMnode->restored = false;
+  mndSetRestore(pMnode, false);
   mInfo("start to apply snapshot to sdb, len:%d", len);
 
   int32_t code = sdbApplySnapshot(pMnode->pSdb, pBuf, len);
@@ -93,7 +93,7 @@ int32_t mndSnapshotApply(struct SSyncFSM *pFsm, const SSnapshot *pSnapshot, char
     mError("failed to apply snapshot to sdb, len:%d", len);
   } else {
     mInfo("successfully to apply snapshot to sdb, len:%d", len);
-    pMnode->restored = true;
+    mndSetRestore(pMnode, true);
   }
 
   // taosMemoryFree(pBuf);

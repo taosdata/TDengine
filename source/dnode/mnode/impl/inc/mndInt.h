@@ -93,7 +93,8 @@ typedef struct SMnode {
   int64_t        clusterId;
   TdThread       thread;
   TdThreadRwlock lock;
-  int32_t        refCount;
+  int32_t        rpcRef;
+  int32_t        syncRef;
   bool           stopped;
   bool           restored;
   bool           deploy;
@@ -118,6 +119,14 @@ typedef struct SMnode {
 
 void    mndSetMsgHandle(SMnode *pMnode, tmsg_t msgType, MndMsgFp fp);
 int64_t mndGenerateUid(char *name, int32_t len);
+
+int32_t mndAcquireRpcRef(SMnode *pMnode);
+void    mndReleaseRpcRef(SMnode *pMnode);
+void    mndSetRestore(SMnode *pMnode, bool restored);
+void    mndSetStop(SMnode *pMnode);
+bool    mndGetStop(SMnode *pMnode);
+int32_t mndAcquireSyncRef(SMnode *pMnode);
+void    mndReleaseSyncRef(SMnode *pMnode);
 
 #ifdef __cplusplus
 }
