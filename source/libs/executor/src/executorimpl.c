@@ -3503,7 +3503,7 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
-  SAggSupporter* pSup = (SAggSupporter*)(pOperator->info + sizeof(SOptrBasicInfo));
+  SAggSupporter* pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
   int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
   size_t  keyLen = sizeof(uint64_t) * 2;  // estimate the key length
   int32_t totalSize = sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
@@ -3572,7 +3572,7 @@ int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result, int32_t lengt
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
-  SAggSupporter* pSup = (SAggSupporter*)(pOperator->info + sizeof(SOptrBasicInfo));
+  SAggSupporter* pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
 
   //  int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
   int32_t count = *(int32_t*)(result);
