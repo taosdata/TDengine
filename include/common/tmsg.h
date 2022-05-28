@@ -1747,6 +1747,15 @@ typedef struct SVCreateTbReq {
 int tEncodeSVCreateTbReq(SEncoder* pCoder, const SVCreateTbReq* pReq);
 int tDecodeSVCreateTbReq(SDecoder* pCoder, SVCreateTbReq* pReq);
 
+static FORCE_INLINE void tdDestroySVCreateTbReq(SVCreateTbReq* req) {
+  taosMemoryFreeClear(req->name);
+  if (req->type == TSDB_CHILD_TABLE) {
+    taosMemoryFreeClear(req->ctb.pTag);
+  } else if (req->type == TSDB_NORMAL_TABLE) {
+    taosMemoryFreeClear(req->ntb.schemaRow.pSchema);
+  }
+}
+
 typedef struct {
   int32_t nReqs;
   union {

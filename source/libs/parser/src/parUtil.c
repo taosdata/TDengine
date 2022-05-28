@@ -328,6 +328,7 @@ static bool isValidateTag(char* input) {
   return true;
 }
 
+#ifdef JSON_TAG_REFACTOR
 int32_t parseJsontoTagData(const char* json, SKVRowBuilder* kvRowBuilder, SMsgBuf* pMsgBuf, int16_t startColId) {
   // set json NULL data
   uint8_t jsonNULL = TSDB_DATA_TYPE_NULL;
@@ -448,6 +449,7 @@ end:
   cJSON_Delete(root);
   return retCode;
 }
+#endif
 
 static int32_t buildTableReq(SHashObj* pTablesHash, SArray** pTables) {
   if (NULL != pTablesHash) {

@@ -127,7 +127,7 @@ int32_t colDataAppend(SColumnInfoData* pColumnInfoData, uint32_t currentRow, con
       } else if (*pData == TSDB_DATA_TYPE_BOOL) {
         dataLen = CHAR_BYTES;
       } else if (*pData == TSDB_DATA_TYPE_JSON) {
-        dataLen = kvRowLen(pData + CHAR_BYTES);
+        dataLen = ((STag*)(pData + CHAR_BYTES))->len;
       } else {
         ASSERT(0);
       }
@@ -1652,18 +1652,24 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      SKVRowBuilder kvRowBuilder = {0};
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-        ASSERT(0);
+      STagVal tagVal = {.cid = 1,
+                        .type = TSDB_DATA_TYPE_UBIGINT,
+                        .pData = (uint8_t*)&pDataBlock->info.groupId,
+                        .nData = sizeof(uint64_t)};
+      STag*   pTag = NULL;
+      tTagNew(&tagVal, 1, 1, false, &pTag);
+      if (!pTag) {
+        tdDestroySVCreateTbReq(&createTbReq);
+        return NULL;
       }
-      tdAddColToKVRow(&kvRowBuilder, 1, &pDataBlock->info.groupId, sizeof(uint64_t));
-      createTbReq.ctb.pTag = tdGetKVRowFromBuilder(&kvRowBuilder);
-      tdDestroyKVRowBuilder(&kvRowBuilder);
+      createTbReq.ctb.pTag = (uint8_t*)pTag;
 
       int32_t code;
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
+
+      tdDestroySVCreateTbReq(&createTbReq);
+
       if (code < 0) return NULL;
-      taosMemoryFree(cname);
     }
 
     cap += sizeof(SSubmitBlk) + schemaLen + rows * maxLen;
@@ -1706,22 +1712,37 @@ SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pTSchema, boo
       createTbReq.type = TSDB_CHILD_TABLE;
       createTbReq.ctb.suid = suid;
 
-      SKVRowBuilder kvRowBuilder = {0};
-      if (tdInitKVRowBuilder(&kvRowBuilder) < 0) {
-        ASSERT(0);
+      STagVal tagVal = {.cid = 1,
+                        .type = TSDB_DATA_TYPE_UBIGINT,
+                        .pData = (uint8_t*)&pDataBlock->info.groupId,
+                        .nData = sizeof(uint64_t)};
+      STag*   pTag = NULL;
+      tTagNew(&tagVal, 1, 1, false, &pTag);
+      if (!pTag) {
+        tdDestroySVCreateTbReq(&createTbReq);
+        taosMemoryFreeClear(ret);
+        return NULL;
       }
-      tdAddColToKVRow(&kvRowBuilder, 1, &pDataBlock->info.groupId, sizeof(uint64_t));
-      createTbReq.ctb.pTag = tdGetKVRowFromBuilder(&kvRowBuilder);
-      tdDestroyKVRowBuilder(&kvRowBuilder);
+      createTbReq.ctb.pTag = (uint8_t*)pTag;
 
       int32_t code;
       tEncodeSize(tEncodeSVCreateTbReq, &createTbReq, schemaLen, code);
-      if (code < 0) return NULL;
+      if (code < 0) {
+        tdDestroySVCreateTbReq(&createTbReq);
+        taosMemoryFreeClear(ret);
+        return NULL;
+      }
 
       SEncoder encoder = {0};
       tEncoderInit(&encoder, blockData, schemaLen);
-      if (tEncodeSVCreateTbReq(&encoder, &createTbReq) < 0) return NULL;
+      code = tEncodeSVCreateTbReq(&encoder, &createTbReq);
       tEncoderClear(&encoder);
+      tdDestroySVCreateTbReq(&createTbReq);
+
+      if (code < 0) {
+        taosMemoryFreeClear(ret);
+        return NULL;
+      }
     }
     blkHead->schemaLen = htonl(schemaLen);
 
