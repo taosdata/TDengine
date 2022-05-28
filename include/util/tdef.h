@@ -247,7 +247,7 @@ typedef enum ELogicConditionType {
 #define TSDB_EP_LEN             (TSDB_FQDN_LEN + 6)
 #define TSDB_IPv4ADDR_LEN       16
 #define TSDB_FILENAME_LEN       128
-#define TSDB_SHOW_SQL_LEN       512
+#define TSDB_SHOW_SQL_LEN       1024
 #define TSDB_SLOW_QUERY_SQL_LEN 512
 #define TSDB_SHOW_SUBQUERY_LEN  1000
 

@@ -75,7 +75,7 @@ int32_t syncNodeAppendEntriesPeers(SSyncNode* pSyncNode) {
     // SyncIndex lastIndex = syncUtilMinIndex(pSyncNode->pLogStore->getLastIndex(pSyncNode->pLogStore), nextIndex);
 
     SyncAppendEntries* pMsg = NULL;
-    SSyncRaftEntry*    pEntry = logStoreGetEntry(pSyncNode->pLogStore, nextIndex);
+    SSyncRaftEntry*    pEntry = pSyncNode->pLogStore->getEntry(pSyncNode->pLogStore, nextIndex);
     if (pEntry != NULL) {
       pMsg = syncAppendEntriesBuild(pEntry->bytes, pSyncNode->vgId);
       assert(pMsg != NULL);

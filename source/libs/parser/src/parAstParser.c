@@ -82,6 +82,7 @@ abort_parse:
     (*pQuery)->pRoot = cxt.pRootNode;
     (*pQuery)->placeholderNum = cxt.placeholderNo;
     TSWAP((*pQuery)->pPlaceholderValues, cxt.pPlaceholderValues);
+    TSWAP((*pQuery)->pMetaCache, cxt.pMetaCache);
   }
   taosArrayDestroy(cxt.pPlaceholderValues);
   return cxt.errCode;

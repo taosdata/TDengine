@@ -106,11 +106,11 @@ class TDTestCase:
     def __join_tblist(self):
         return [
             # ["ct1", "ct2"],
-            ["ct1", "ct4"],
-            ["ct1", "t1"],
-            # ["ct2", "ct4"],
+            # ["ct1", "ct4"],
+            # ["ct1", "t1"],
+            ["ct2", "ct4"],
             # ["ct2", "t1"],
-            # ["ct4", "t1"],
+            ["ct4", "t1"],
             # ["ct1", "ct2", "ct4"],
             # ["ct1", "ct2", "t1"],
             # ["ct1", "ct4", "t1"],

@@ -182,14 +182,14 @@ int main() {
 // query callback ...
 // ts current voltage phase location groupid
 // numOfRow = 8
-// 1538548685000 10.300000 219 0.310000 beijing.chaoyang 2
-// 1538548695000 12.600000 218 0.330000 beijing.chaoyang 2
-// 1538548696800 12.300000 221 0.310000 beijing.chaoyang 2
-// 1538548696650 10.300000 218 0.250000 beijing.chaoyang 3
-// 1538548685500 11.800000 221 0.280000 beijing.haidian 2
-// 1538548696600 13.400000 223 0.290000 beijing.haidian 2
-// 1538548685000 10.800000 223 0.290000 beijing.haidian 3
-// 1538548686500 11.500000 221 0.350000 beijing.haidian 3
+// 1538548685500 11.800000 221 0.280000 california.losangeles 2
+// 1538548696600 13.400000 223 0.290000 california.losangeles 2
+// 1538548685000 10.800000 223 0.290000 california.losangeles 3
+// 1538548686500 11.500000 221 0.350000 california.losangeles 3
+// 1538548685000 10.300000 219 0.310000 california.sanfrancisco 2
+// 1538548695000 12.600000 218 0.330000 california.sanfrancisco 2
+// 1538548696800 12.300000 221 0.310000 california.sanfrancisco 2
+// 1538548696650 10.300000 218 0.250000 california.sanfrancisco 3
 // numOfRow = 0
 // no more data, close the connection.
 // ANCHOR_END: demo

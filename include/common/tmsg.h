@@ -479,12 +479,8 @@ int32_t tDecodeSEpSet(SDecoder* pDecoder, SEpSet* pEp);
 int32_t taosEncodeSEpSet(void** buf, const SEpSet* pEp);
 void*   taosDecodeSEpSet(const void* buf, SEpSet* pEp);
 
-typedef struct {
-  SEpSet epSet;
-} SMEpSet;
-
-int32_t tSerializeSMEpSet(void* buf, int32_t bufLen, SMEpSet* pReq);
-int32_t tDeserializeSMEpSet(void* buf, int32_t buflen, SMEpSet* pReq);
+int32_t tSerializeSEpSet(void* buf, int32_t bufLen, const SEpSet* pEpset);
+int32_t tDeserializeSEpSet(void* buf, int32_t buflen, SEpSet* pEpset);
 
 typedef struct {
   int8_t  connType;

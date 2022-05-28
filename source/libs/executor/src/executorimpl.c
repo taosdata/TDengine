@@ -4706,6 +4706,18 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
   return pOptr;
 }
 
+int32_t compareTimeWindow(const void* p1, const void* p2, const void* param) {
+  const SQueryTableDataCond *pCond = param;
+  const STimeWindow *pWin1 = p1;
+  const STimeWindow *pWin2 = p2;
+  if (pCond->order == TSDB_ORDER_ASC) {
+    return pWin1->skey - pWin2->skey;
+  } else if (pCond->order == TSDB_ORDER_DESC) {
+    return pWin2->skey - pWin1->skey;
+  }
+  return 0;
+}
+
 int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysiNode* pTableScanNode) {
   pCond->loadExternalRows = false;
 
@@ -4717,15 +4729,33 @@ int32_t initQueryTableDataCond(SQueryTableDataCond* pCond, const STableScanPhysi
     return terrno;
   }
 
-  pCond->twindow = pTableScanNode->scanRange;
+  //pCond->twindow = pTableScanNode->scanRange;
+  //TODO: get it from stable scan node
+  pCond->numOfTWindows = 1;
+  pCond->twindows = taosMemoryCalloc(pCond->numOfTWindows, sizeof(STimeWindow));
+  pCond->twindows[0] = pTableScanNode->scanRange;
 
 #if 1
   // todo work around a problem, remove it later
-  if ((pCond->order == TSDB_ORDER_ASC && pCond->twindow.skey > pCond->twindow.ekey) ||
-      (pCond->order == TSDB_ORDER_DESC && pCond->twindow.skey < pCond->twindow.ekey)) {
-    TSWAP(pCond->twindow.skey, pCond->twindow.ekey);
+  for (int32_t i = 0; i < pCond->numOfTWindows; ++i) {
+    if ((pCond->order == TSDB_ORDER_ASC && pCond->twindows[i].skey > pCond->twindows[i].ekey) ||
+        (pCond->order == TSDB_ORDER_DESC && pCond->twindows[i].skey < pCond->twindows[i].ekey)) {
+      TSWAP(pCond->twindows[i].skey, pCond->twindows[i].ekey);
+    }
   }
 #endif
+
+  for (int32_t i = 0; i < pCond->numOfTWindows; ++i) {
+    if ((pCond->order == TSDB_ORDER_ASC && pCond->twindows[i].skey > pCond->twindows[i].ekey) ||
+        (pCond->order == TSDB_ORDER_DESC && pCond->twindows[i].skey < pCond->twindows[i].ekey)) {
+      TSWAP(pCond->twindows[i].skey, pCond->twindows[i].ekey);
+    }
+  }
+  taosqsort(pCond->twindows,
+            pCond->numOfTWindows,
+            sizeof(STimeWindow),
+            pCond,
+            compareTimeWindow);
 
   pCond->type = BLOCK_LOAD_OFFSET_SEQ_ORDER;
   //  pCond->type = pTableScanNode->scanFlag;

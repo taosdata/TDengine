@@ -30,108 +30,108 @@ class TDTestCase:
         tdLog.debug(f"start to excute {__file__}")
         tdSql.init(conn.cursor())
 
-    def __concat_ws_condition(self):  # sourcery skip: extract-method
-        concat_ws_condition = []
+    def __concat_condition(self):  # sourcery skip: extract-method
+        concat_condition = []
         for char_col in CHAR_COL:
-            concat_ws_condition.extend(
+            concat_condition.extend(
                 (
                     char_col,
                     # f"upper( {char_col} )",
                 )
             )
-            concat_ws_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
-            concat_ws_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
-            # concat_ws_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            # concat_ws_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            concat_ws_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            # concat_ws_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
-            concat_ws_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
+            concat_condition.extend( f"cast( {num_col} as binary(16) ) " for num_col in NUM_COL)
+            concat_condition.extend( f"cast( {char_col} + {num_col} as binary(16) ) " for num_col in NUM_COL )
+            # concat_condition.extend( f"cast( {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            # concat_condition.extend( f"cast( {char_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            concat_condition.extend( f"cast( {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            # concat_condition.extend( f"cast( {char_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL )
+            concat_condition.extend( f"cast( {char_col} + {char_col_2} as binary(16) ) " for char_col_2 in CHAR_COL )
 
         for num_col in NUM_COL:
-            # concat_ws_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
-            concat_ws_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL)
+            # concat_condition.extend( f"cast( {num_col} + {bool_col} as binary(16) )" for bool_col in BOOLEAN_COL )
+            concat_condition.extend( f"cast( {num_col} + {ts_col} as binary(16) )" for ts_col in TS_TYPE_COL if num_col is not FLOAT_COL and num_col is not DOUBLE_COL)
 
-        # concat_ws_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
+        concat_condition.extend( f"cast( {bool_col} + {ts_col} as binary(16) )" for bool_col in BOOLEAN_COL for ts_col in TS_TYPE_COL )
 
-        concat_ws_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
+        concat_condition.append('''"test1234!@#$%^&*():'><?/.,][}{"''')
 
-        return concat_ws_condition
+        return concat_condition
 
     def __where_condition(self, col):
         # return f" where count({col}) > 0 "
         return ""
 
-    def __concat_ws_num(self, concat_ws_lists, num):
-        return [ concat_ws_lists[i] for i in range(num) ]
+    def __concat_num(self, concat_lists, num):
+        return [ concat_lists[i] for i in range(num) ]
 
 
     def __group_condition(self, col, having = ""):
         return f" group by {col} having {having}" if having else f" group by {col} "
 
-    def __concat_ws_check(self, tbname, num):
-        concat_ws_condition = self.__concat_ws_condition()
-        for i in range(len(concat_ws_condition) - num + 1 ):
-            condition = self.__concat_ws_num(concat_ws_condition[i:], num)
-            concat_ws_filter = f"concat_ws('_',  {','.join( condition ) }) "
+    def __concat_check(self, tbname, num):
+        concat_condition = self.__concat_condition()
+        for i in range(len(concat_condition) - num + 1 ):
+            condition = self.__concat_num(concat_condition[i:], num)
+            concat_filter = f"concat( {','.join( condition ) }) "
             where_condition = self.__where_condition(condition[0])
             # group_having = self.__group_condition(condition[0], having=f"{condition[0]} is not null " )
-            concat_ws_group_having = self.__group_condition(concat_ws_filter, having=f"{concat_ws_filter} is not null " )
+            concat_group_having = self.__group_condition(concat_filter, having=f"{concat_filter} is not null " )
             # group_no_having= self.__group_condition(condition[0] )
-            concat_ws_group_no_having= self.__group_condition(concat_ws_filter)
-            groups = ["", concat_ws_group_having, concat_ws_group_no_having]
+            concat_group_no_having= self.__group_condition(concat_filter)
+            groups = ["", concat_group_having, concat_group_no_having]
 
             if num > 8 or num < 2 :
-                [tdSql.error(f"select concat_ws('_',  {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
+                [tdSql.error(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
                 break
 
             tdSql.query(f"select  {','.join(condition)}  from {tbname}  ")
             rows = tdSql.queryRows
-            concat_ws_data = []
+            concat_data = []
             for m in range(rows):
-                concat_ws_data.append("_".join(tdSql.queryResult[m])) if tdSql.getData(m, 0) else concat_ws_data.append(None)
-            tdSql.query(f"select concat_ws('_',  {','.join( condition ) })  from {tbname} ")
+                concat_data.append("".join(tdSql.queryResult[m])) if tdSql.getData(m, 0) else concat_data.append(None)
+            tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} ")
             tdSql.checkRows(rows)
             for j in range(tdSql.queryRows):
-                assert tdSql.getData(j, 0) in concat_ws_data
+                assert tdSql.getData(j, 0) in concat_data
 
-            [ tdSql.query(f"select concat_ws('_',  {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
+            [ tdSql.query(f"select concat( {','.join( condition ) })  from {tbname} {where_condition}  {group} ") for group in groups ]
 
 
-    def __concat_ws_err_check(self,tbname):
+    def __concat_err_check(self,tbname):
         sqls = []
 
         for char_col in CHAR_COL:
             sqls.extend(
                 (
-                    f"select concat_ws('_', {char_col} ) from {tbname} ",
-                    f"select concat_ws('_', ceil( {char_col} )) from {tbname} ",
-                    f"select {char_col} from {tbname} group by concat_ws('_',  {char_col} ) ",
+                    f"select concat( {char_col} ) from {tbname} ",
+                    f"select concat(ceil( {char_col} )) from {tbname} ",
+                    f"select {char_col} from {tbname} group by concat( {char_col} ) ",
                 )
             )
 
-            sqls.extend( f"select concat_ws('_',  {char_col} , {num_col} ) from {tbname} " for num_col in NUM_COL )
-            sqls.extend( f"select concat_ws('_',  {char_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
-            sqls.extend( f"select concat_ws('_',  {char_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
+            sqls.extend( f"select concat( {char_col} , {num_col} ) from {tbname} " for num_col in NUM_COL )
+            sqls.extend( f"select concat( {char_col} , {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL )
+            sqls.extend( f"select concat( {char_col} , {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select concat_ws('_',  {ts_col}, {bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select concat_ws('_',  {num_col} , {ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
-        sqls.extend( f"select concat_ws('_',  {num_col} , {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
-        sqls.extend( f"select concat_ws('_',  {num_col} , {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
-        sqls.extend( f"select concat_ws('_',  {ts_col}, {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select concat_ws('_',  {bool_col}, {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat( {ts_col}, {bool_col} ) from {tbname} " for ts_col in TS_TYPE_COL for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat( {num_col} , {ts_col} ) from {tbname} " for num_col in NUM_COL for ts_col in TS_TYPE_COL)
+        sqls.extend( f"select concat( {num_col} , {bool_col} ) from {tbname} " for num_col in NUM_COL for bool_col in BOOLEAN_COL)
+        sqls.extend( f"select concat( {num_col} , {num_col} ) from {tbname} " for num_col in NUM_COL for num_col in NUM_COL)
+        sqls.extend( f"select concat( {ts_col}, {ts_col} ) from {tbname} " for ts_col in TS_TYPE_COL for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select concat( {bool_col}, {bool_col} ) from {tbname} " for bool_col in BOOLEAN_COL for bool_col in BOOLEAN_COL )
 
-        sqls.extend( f"select concat_ws('_',  {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
-        sqls.extend( f"select concat_ws('_', {char_col}, 11) from {tbname} " for char_col in CHAR_COL )
-        sqls.extend( f"select concat_ws('_', {num_col}, '1') from {tbname} " for num_col in NUM_COL )
-        sqls.extend( f"select concat_ws('_', {ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
-        sqls.extend( f"select concat_ws('_', {bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
-        sqls.extend( f"select concat_ws('_', {char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
+        sqls.extend( f"select concat( {char_col} + {char_col_2} ) from {tbname} " for char_col in CHAR_COL for char_col_2 in CHAR_COL )
+        sqls.extend( f"select concat({char_col}, 11) from {tbname} " for char_col in CHAR_COL )
+        sqls.extend( f"select concat({num_col}, '1') from {tbname} " for num_col in NUM_COL )
+        sqls.extend( f"select concat({ts_col}, '1') from {tbname} " for ts_col in TS_TYPE_COL )
+        sqls.extend( f"select concat({bool_col}, '1') from {tbname} " for bool_col in BOOLEAN_COL )
+        sqls.extend( f"select concat({char_col},'1') from {tbname} interval(2d) sliding(1d)" for char_col in CHAR_COL )
         sqls.extend(
             (
-                f"select concat_ws('_', ) from {tbname} ",
-                f"select concat_ws('_', *) from {tbname} ",
-                f"select concat_ws('_', ccccccc) from {tbname} ",
-                f"select concat_ws('_', 111) from {tbname} ",
+                f"select concat() from {tbname} ",
+                f"select concat(*) from {tbname} ",
+                f"select concat(ccccccc) from {tbname} ",
+                f"select concat(111) from {tbname} ",
             )
         )
 
@@ -141,26 +141,25 @@ class TDTestCase:
         tdLog.printNoPrefix("==========current sql condition check , must return query ok==========")
         tbname = [
             "t1",
-            "stb1"
+            "stb1",
         ]
         for tb in tbname:
             for i in range(2,8):
-                self.__concat_ws_check(tb,i)
+                self.__concat_check(tb,i)
                 tdLog.printNoPrefix(f"==========current sql condition check in {tb}, col num: {i} over==========")
 
     def __test_error(self):
         tdLog.printNoPrefix("==========err sql condition check , must return error==========")
         tbname = [
             "ct1",
-            "ct2",
             "ct4",
         ]
 
         for tb in tbname:
-            for errsql in self.__concat_ws_err_check(tb):
+            for errsql in self.__concat_err_check(tb):
                 tdSql.error(sql=errsql)
-            self.__concat_ws_check(tb,1)
-            self.__concat_ws_check(tb,9)
+            self.__concat_check(tb,1)
+            self.__concat_check(tb,9)
             tdLog.printNoPrefix(f"==========err sql condition check in {tb} over==========")
 
 

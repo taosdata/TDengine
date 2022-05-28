@@ -507,6 +507,7 @@ static int32_t mndCreateSma(SMnode *pMnode, SRpcMsg *pReq, SMCreateSmaReq *pCrea
 
   mDebug("trans:%d, used to create sma:%s", pTrans->id, pCreate->name);
   mndTransSetDbInfo(pTrans, pDb);
+  mndTransSetExecOneByOne(pTrans);
 
   if (mndSetCreateSmaRedoLogs(pMnode, pTrans, &smaObj) != 0) goto _OVER;
   if (mndSetCreateSmaVgroupRedoLogs(pMnode, pTrans, &streamObj.fixedSinkVg) != 0) goto _OVER;
