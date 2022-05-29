@@ -1766,6 +1766,8 @@ SELECT TIMEDIFF(ts_val1 | datetime_string1 | ts_col1, ts_val2 | datetime_string2
           1u(微秒)，1a(毫秒)，1s(秒)，1m(分)，1h(小时)，1d(天)。
 - 如果时间单位 time_unit 未指定， 返回的时间差值精度与当前 DATABASE 设置的时间精度一致。
 
+**支持的版本**：2.6.0.0 及以后的版本。
+
 **示例**：
 
 ```sql
