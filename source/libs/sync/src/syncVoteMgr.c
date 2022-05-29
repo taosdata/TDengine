@@ -90,7 +90,7 @@ void voteGrantedReset(SVotesGranted *pVotesGranted, SyncTerm term) {
 }
 
 cJSON *voteGranted2Json(SVotesGranted *pVotesGranted) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
   if (pVotesGranted != NULL) {
@@ -220,7 +220,7 @@ void votesRespondReset(SVotesRespond *pVotesRespond, SyncTerm term) {
 }
 
 cJSON *votesRespond2Json(SVotesRespond *pVotesRespond) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
   if (pVotesRespond != NULL) {

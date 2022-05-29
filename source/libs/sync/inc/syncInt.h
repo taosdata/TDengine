@@ -55,6 +55,8 @@ typedef struct SVotesRespond          SVotesRespond;
 typedef struct SSyncIndexMgr          SSyncIndexMgr;
 typedef struct SRaftCfg               SRaftCfg;
 typedef struct SSyncRespMgr           SSyncRespMgr;
+typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
+typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
 
 typedef struct SSyncNode {
   // init by SSyncInfo
@@ -148,9 +150,11 @@ typedef struct SSyncNode {
   SSyncRespMgr* pSyncRespMgr;
 
   // restore state
-  bool restoreFinish;
   // sem_t      restoreSem;
-  SSnapshot* pSnapshot;
+  bool                   restoreFinish;
+  SSnapshot*             pSnapshot;
+  SSyncSnapshotSender*   pSender;
+  SSyncSnapshotReceiver* pReceiver;
 
 } SSyncNode;
 
@@ -182,7 +186,7 @@ int32_t syncNodeSendMsgByInfo(const SNodeInfo* nodeInfo, SSyncNode* pSyncNode, S
 cJSON*  syncNode2Json(const SSyncNode* pSyncNode);
 char*   syncNode2Str(const SSyncNode* pSyncNode);
 char*   syncNode2SimpleStr(const SSyncNode* pSyncNode);
-void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig);
+void    syncNodeUpdateConfig(SSyncNode* pSyncNode, SSyncCfg* newConfig, bool* isDrop);
 
 SSyncNode* syncNodeAcquire(int64_t rid);
 void       syncNodeRelease(SSyncNode* pNode);

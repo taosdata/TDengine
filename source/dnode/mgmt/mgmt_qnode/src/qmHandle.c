@@ -16,7 +16,11 @@
 #define _DEFAULT_SOURCE
 #include "qmInt.h"
 
-void qmGetMonitorInfo(SQnodeMgmt *pMgmt, SMonQmInfo *qmInfo) {}
+void qmGetMonitorInfo(SQnodeMgmt *pMgmt, SMonQmInfo *qmInfo) {
+  SQnodeLoad qload = {0};
+  qndGetLoad(pMgmt->pQnode, &qload);
+
+}
 
 int32_t qmProcessGetMonitorInfoReq(SQnodeMgmt *pMgmt, SRpcMsg *pMsg) {
   SMonQmInfo qmInfo = {0};
@@ -101,8 +105,6 @@ SArray *qmGetMsgHandles() {
   if (dmSetMgmtHandle(pArray, TDMT_VND_FETCH_RSP, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_QUERY_HEARTBEAT, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
 
-  if (dmSetMgmtHandle(pArray, TDMT_VND_RES_READY, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
-  if (dmSetMgmtHandle(pArray, TDMT_VND_TASKS_STATUS, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_CANCEL_TASK, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
   if (dmSetMgmtHandle(pArray, TDMT_VND_DROP_TASK, qmPutNodeMsgToFetchQueue, 1) == NULL) goto _OVER;
 

@@ -60,7 +60,9 @@ void syncIndexMgrSetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId, 
       return;
     }
   }
-  assert(0);
+
+  // maybe config change
+  // assert(0);
 }
 
 SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaftId) {
@@ -74,7 +76,7 @@ SyncIndex syncIndexMgrGetIndex(SSyncIndexMgr *pSyncIndexMgr, const SRaftId *pRaf
 }
 
 cJSON *syncIndexMgr2Json(SSyncIndexMgr *pSyncIndexMgr) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
   if (pSyncIndexMgr != NULL) {

@@ -107,7 +107,7 @@ SSyncRaftEntry* syncEntryDeserialize(const char* buf, uint32_t len) {
 }
 
 cJSON* syncEntry2Json(const SSyncRaftEntry* pEntry) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON* pRoot = cJSON_CreateObject();
 
   if (pEntry != NULL) {

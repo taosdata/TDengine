@@ -289,6 +289,52 @@ void setResPrecision(SReqResultInfo* pResInfo, int32_t precision) {
   pResInfo->precision = precision;
 }
 
+int32_t scheduleAsyncQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** pRes) {
+  void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
+  
+  tsem_init(&schdRspSem, 0, 0);
+
+  SQueryResult res = {.code = 0, .numOfRows = 0};
+  int32_t      code = schedulerAsyncExecJob(pTransporter, pNodeList, pDag, &pRequest->body.queryJob, pRequest->sqlstr,
+                                       pRequest->metric.start, schdExecCallback, &res);
+  while (true) {                                       
+    if (code != TSDB_CODE_SUCCESS) {
+      if (pRequest->body.queryJob != 0) {
+        schedulerFreeJob(pRequest->body.queryJob);
+      }
+
+      *pRes = res.res;
+
+      pRequest->code = code;
+      terrno = code;
+      return pRequest->code;
+    } else {
+      tsem_wait(&schdRspSem);
+      
+      if (res.code) {
+        code = res.code;
+      } else {
+        break;
+      }
+    }
+  }
+
+  if (TDMT_VND_SUBMIT == pRequest->type || TDMT_VND_CREATE_TABLE == pRequest->type) {
+    pRequest->body.resInfo.numOfRows = res.numOfRows;
+
+    if (pRequest->body.queryJob != 0) {
+      schedulerFreeJob(pRequest->body.queryJob);
+    }
+  }
+
+  *pRes = res.res;
+
+  pRequest->code = res.code;
+  terrno = res.code;
+  return pRequest->code;
+}
+
+
 int32_t scheduleQuery(SRequestObj* pRequest, SQueryPlan* pDag, SArray* pNodeList, void** pRes) {
   void* pTransporter = pRequest->pTscObj->pAppInfo->pTransporter;
 
@@ -348,8 +394,8 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
       if (NULL == blk->tblFName || 0 == blk->tblFName[0]) {
         continue;
       }
-      
-      STbSVersion    tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
+
+      STbSVersion tbSver = {.tbFName = blk->tblFName, .sver = blk->sver};
       taosArrayPush(pArray, &tbSver);
     }
   } else if (TDMT_VND_QUERY == pRequest->type) {
@@ -367,7 +413,7 @@ int32_t validateSversion(SRequestObj* pRequest, void* res) {
 
     for (int32_t i = 0; i < tbNum; ++i) {
       STbVerInfo* tbInfo = taosArrayGet(pTbArray, i);
-      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion};
+      STbSVersion tbSver = {.tbFName = tbInfo->tbFName, .sver = tbInfo->sversion, .tver = tbInfo->tversion};
       taosArrayPush(pArray, &tbSver);
     }
   }
@@ -506,12 +552,12 @@ int32_t refreshMeta(STscObj* pTscObj, SRequestObj* pRequest) {
 
 int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
   SCatalog* pCatalog = NULL;
-  int32_t tbNum = taosArrayGetSize(tbList);
-  int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+  int32_t   tbNum = taosArrayGetSize(tbList);
+  int32_t   code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
   if (code != TSDB_CODE_SUCCESS) {
     return code;
   }
-  
+
   for (int32_t i = 0; i < tbNum; ++i) {
     SName* pTbName = taosArrayGet(tbList, i);
     catalogRemoveTableMeta(pCatalog, pTbName);
@@ -519,7 +565,6 @@ int32_t removeMeta(STscObj* pTscObj, SArray* tbList) {
 
   return TSDB_CODE_SUCCESS;
 }
-
 
 SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   SRequestObj* pRequest = NULL;
@@ -543,7 +588,7 @@ SRequestObj* execQuery(STscObj* pTscObj, const char* sql, int sqlLen) {
   if (NEED_CLIENT_RM_TBLMETA_REQ(pRequest->type)) {
     removeMeta(pTscObj, pRequest->tableList);
   }
-  
+
   return pRequest;
 }
 
@@ -684,28 +729,55 @@ static void destroySendMsgInfo(SMsgSendInfo* pMsgBody) {
   taosMemoryFreeClear(pMsgBody);
 }
 
-bool persistConnForSpecificMsg(void* parenct, tmsg_t msgType) {
-  return msgType == TDMT_VND_QUERY_RSP || msgType == TDMT_VND_FETCH_RSP || msgType == TDMT_VND_RES_READY_RSP ||
-         msgType == TDMT_VND_QUERY_HEARTBEAT_RSP;
+void updateTargetEpSet(SMsgSendInfo* pSendInfo, STscObj* pTscObj, SRpcMsg* pMsg, SEpSet* pEpSet) {
+  if (NULL == pEpSet) {
+    return;
+  }
+  
+  switch (pSendInfo->target.type) {
+    case TARGET_TYPE_MNODE:
+      if (NULL == pTscObj) {
+        tscError("mnode epset changed but not able to update it, reqObjRefId:%" PRIx64, pSendInfo->requestObjRefId);
+        return;
+      }
+
+      updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);   
+      break;
+    case TARGET_TYPE_VNODE: {
+      if (NULL == pTscObj) {
+        tscError("vnode epset changed but not able to update it, reqObjRefId:%" PRIx64, pSendInfo->requestObjRefId);
+        return;
+      }
+
+      SCatalog* pCatalog = NULL;
+      int32_t code = catalogGetHandle(pTscObj->pAppInfo->clusterId, &pCatalog);
+      if (code != TSDB_CODE_SUCCESS) {
+        tscError("fail to get catalog handle, clusterId:%" PRIx64 ", error %s", pTscObj->pAppInfo->clusterId, tstrerror(code));
+        return;
+      }
+    
+      catalogUpdateVgEpSet(pCatalog, pSendInfo->target.dbFName, pSendInfo->target.vgId, pEpSet);
+      break;
+    }
+    default:
+      tscDebug("epset changed, not updated, msgType %s", TMSG_INFO(pMsg->msgType));
+      break;
+  }
 }
+
 
 void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
   SMsgSendInfo* pSendInfo = (SMsgSendInfo*)pMsg->info.ahandle;
   assert(pMsg->info.ahandle != NULL);
+  SRequestObj* pRequest = NULL;
+  STscObj* pTscObj = NULL;
 
   if (pSendInfo->requestObjRefId != 0) {
     SRequestObj* pRequest = (SRequestObj*)taosAcquireRef(clientReqRefPool, pSendInfo->requestObjRefId);
     assert(pRequest->self == pSendInfo->requestObjRefId);
 
     pRequest->metric.rsp = taosGetTimestampUs();
-
-    STscObj* pTscObj = pRequest->pTscObj;
-    if (pEpSet) {
-      if (!isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, pEpSet)) {
-        updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, pEpSet);
-      }
-    }
-
+    pTscObj = pRequest->pTscObj;
     /*
      * There is not response callback function for submit response.
      * The actual inserted number of points is the first number.
@@ -721,6 +793,8 @@ void processMsgFromServer(void* parent, SRpcMsg* pMsg, SEpSet* pEpSet) {
 
     taosReleaseRef(clientReqRefPool, pSendInfo->requestObjRefId);
   }
+
+  updateTargetEpSet(pSendInfo, pTscObj, pMsg, pEpSet);
 
   SDataBuf buf = {.len = pMsg->contLen, .pData = NULL, .handle = pMsg->info.handle};
 
@@ -796,7 +870,58 @@ void doSetOneRowPtr(SReqResultInfo* pResultInfo) {
   }
 }
 
+void* doAsyncFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
+  assert(pRequest != NULL);
+
+  SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
+  if (pResultInfo->pData == NULL || pResultInfo->current >= pResultInfo->numOfRows) {
+    // All data has returned to App already, no need to try again
+    if (pResultInfo->completed) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
+    }
+
+    tsem_init(&schdRspSem, 0, 0);
+
+    SReqResultInfo* pResInfo = &pRequest->body.resInfo;
+    SSchdFetchParam param = {.pData = (void**)&pResInfo->pData, .code = &pRequest->code};
+    pRequest->code = schedulerAsyncFetchRows(pRequest->body.queryJob, schdFetchCallback, &param);
+    if (pRequest->code != TSDB_CODE_SUCCESS) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
+    }
+
+    tsem_wait(&schdRspSem);
+    if (pRequest->code != TSDB_CODE_SUCCESS) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
+    }
+
+    pRequest->code = setQueryResultFromRsp(&pRequest->body.resInfo, (SRetrieveTableRsp*)pResInfo->pData, convertUcs4);
+    if (pRequest->code != TSDB_CODE_SUCCESS) {
+      pResultInfo->numOfRows = 0;
+      return NULL;
+    }
+
+    tscDebug("0x%" PRIx64 " fetch results, numOfRows:%d total Rows:%" PRId64 ", complete:%d, reqId:0x%" PRIx64,
+             pRequest->self, pResInfo->numOfRows, pResInfo->totalRows, pResInfo->completed, pRequest->requestId);
+
+    if (pResultInfo->numOfRows == 0) {
+      return NULL;
+    }
+  }
+
+  if (setupOneRowPtr) {
+    doSetOneRowPtr(pResultInfo);
+    pResultInfo->current += 1;
+  }
+
+  return pResultInfo->row;
+}
+
+
 void* doFetchRows(SRequestObj* pRequest, bool setupOneRowPtr, bool convertUcs4) {
+  //return doAsyncFetchRows(pRequest, setupOneRowPtr, convertUcs4);
   assert(pRequest != NULL);
 
   SReqResultInfo* pResultInfo = &pRequest->body.resInfo;
@@ -1124,6 +1249,8 @@ void resetConnectDB(STscObj* pTscObj) {
 int32_t setQueryResultFromRsp(SReqResultInfo* pResultInfo, const SRetrieveTableRsp* pRsp, bool convertUcs4) {
   assert(pResultInfo != NULL && pRsp != NULL);
 
+  taosMemoryFreeClear(pResultInfo->pRspMsg);
+  
   pResultInfo->pRspMsg = (const char*)pRsp;
   pResultInfo->pData = (void*)pRsp->data;
   pResultInfo->numOfRows = htonl(pRsp->numOfRows);

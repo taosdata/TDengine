@@ -46,6 +46,7 @@ typedef struct {
   void   *ahandle;
   int32_t workerId;
   int32_t threadNum;
+  int64_t timestamp;
 } SQueueInfo;
 
 typedef enum {
@@ -80,7 +81,7 @@ int32_t    taosAddIntoQset(STaosQset *qset, STaosQueue *queue, void *ahandle);
 void       taosRemoveFromQset(STaosQset *qset, STaosQueue *queue);
 int32_t    taosGetQueueNumber(STaosQset *qset);
 
-int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, void **ahandle, FItem *itemFp);
+int32_t taosReadQitemFromQset(STaosQset *qset, void **ppItem, int64_t *ts, void **ahandle, FItem *itemFp);
 int32_t taosReadAllQitemsFromQset(STaosQset *qset, STaosQall *qall, void **ahandle, FItems *itemsFp);
 void    taosResetQsetThread(STaosQset *qset, void *pItem);
 

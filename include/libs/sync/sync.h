@@ -66,12 +66,6 @@ typedef struct SSyncCfg {
   SNodeInfo nodeInfo[TSDB_MAX_REPLICA];
 } SSyncCfg;
 
-typedef struct SSnapshot {
-  void*     data;
-  SyncIndex lastApplyIndex;
-  SyncTerm  lastApplyTerm;
-} SSnapshot;
-
 typedef struct SFsmCbMeta {
   SyncIndex  index;
   bool       isWeak;
@@ -80,6 +74,7 @@ typedef struct SFsmCbMeta {
   uint64_t   seqNum;
   SyncTerm   term;
   SyncTerm   currentTerm;
+  uint64_t   flag;
 } SFsmCbMeta;
 
 typedef struct SReConfigCbMeta {
@@ -87,7 +82,16 @@ typedef struct SReConfigCbMeta {
   SyncIndex index;
   SyncTerm  term;
   SyncTerm  currentTerm;
+  SSyncCfg  oldCfg;
+  bool      isDrop;
+  uint64_t  flag;
 } SReConfigCbMeta;
+
+typedef struct SSnapshot {
+  void *data;
+  SyncIndex lastApplyIndex;
+  SyncTerm  lastApplyTerm;
+} SSnapshot;
 
 typedef struct SSyncFSM {
   void* data;
@@ -97,23 +101,17 @@ typedef struct SSyncFSM {
   void (*FpRollBackCb)(struct SSyncFSM* pFsm, const SRpcMsg* pMsg, SFsmCbMeta cbMeta);
 
   void (*FpRestoreFinishCb)(struct SSyncFSM* pFsm);
-  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
-
-  // if (*ppIter == NULL)
-  //   *ppIter = new iter;
-  // else
-  //   *ppIter.next();
-  //
-  // if success, return 0. else return error code
-  int32_t (*FpSnapshotRead)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, void** ppIter, char** ppBuf,
-                            int32_t* len);
-
-  // apply data into fsm
-  int32_t (*FpSnapshotApply)(struct SSyncFSM* pFsm, const SSnapshot* pSnapshot, char* pBuf, int32_t len);
-
   void (*FpReConfigCb)(struct SSyncFSM* pFsm, SSyncCfg newCfg, SReConfigCbMeta cbMeta);
 
-  // int32_t (*FpRestoreSnapshot)(struct SSyncFSM* pFsm, const SSnapshot* snapshot);
+  int32_t (*FpGetSnapshot)(struct SSyncFSM* pFsm, SSnapshot* pSnapshot);
+
+  int32_t (*FpSnapshotStartRead)(struct SSyncFSM* pFsm, void** ppReader);
+  int32_t (*FpSnapshotStopRead)(struct SSyncFSM* pFsm, void* pReader);
+  int32_t (*FpSnapshotDoRead)(struct SSyncFSM* pFsm, void* pReader, void** ppBuf, int32_t* len);
+
+  int32_t (*FpSnapshotStartWrite)(struct SSyncFSM* pFsm, void** ppWriter);
+  int32_t (*FpSnapshotStopWrite)(struct SSyncFSM* pFsm, void* pWriter, bool isApply);
+  int32_t (*FpSnapshotDoWrite)(struct SSyncFSM* pFsm, void* pWriter, void* pBuf, int32_t len);
 
 } SSyncFSM;
 
@@ -162,6 +160,7 @@ void        syncCleanUp();
 int64_t     syncOpen(const SSyncInfo* pSyncInfo);
 void        syncStart(int64_t rid);
 void        syncStop(int64_t rid);
+int32_t     syncSetStandby(int64_t rid);
 int32_t     syncReconfig(int64_t rid, const SSyncCfg* pSyncCfg);
 ESyncState  syncGetMyRole(int64_t rid);
 const char* syncGetMyRoleStr(int64_t rid);

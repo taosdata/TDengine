@@ -18,6 +18,7 @@ import getopt
 import subprocess
 import time
 from distutils.log import warn as printf
+import platform
 
 from util.log import *
 from util.dnodes import *
@@ -36,8 +37,10 @@ if __name__ == "__main__":
     stop = 0
     restart = False
     windows = 0
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrw', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'windows'])
+    if platform.system().lower() == 'windows':
+        windows = 1
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghr', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -63,9 +66,6 @@ if __name__ == "__main__":
 
         if key in ['-m', '--master']:
             masterIp = value 
-
-        if key in ['-w', '--windows']:
-            windows = 1
 
         if key in ['-l', '--logSql']:
             if (value.upper() == "TRUE"):
@@ -146,7 +146,7 @@ if __name__ == "__main__":
             else:
                 pass
                 tdDnodes.deploy(1,{})
-            tdDnodes.startWin(1)
+            tdDnodes.start(1)
         else:
             remote_conn = Connection("root@%s"%host)
             with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):

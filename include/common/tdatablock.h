@@ -230,7 +230,7 @@ SSDataBlock* createOneDataBlock(const SSDataBlock* pDataBlock, bool copyData);
 void blockDebugShowData(const SArray* dataBlocks);
 
 int32_t buildSubmitReqFromDataBlock(SSubmitReq** pReq, const SArray* pDataBlocks, STSchema* pTSchema, int32_t vgId,
-                                    tb_uid_t uid, tb_uid_t suid);
+                                    tb_uid_t suid);
 
 SSubmitReq* tdBlockToSubmit(const SArray* pBlocks, const STSchema* pSchema, bool createTb, int64_t suid,
                             const char* stbFullName, int32_t vgId);
@@ -299,4 +299,3 @@ static FORCE_INLINE void blockCompressEncode(const SSDataBlock* pBlock, char* da
 #endif
 
 #endif /*_TD_COMMON_EP_H_*/
-

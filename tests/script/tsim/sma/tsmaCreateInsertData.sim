@@ -37,5 +37,12 @@ print =============== trigger stream to execute sma aggr task and insert sma dat
 sql insert into ct1 values(now+5s, 20, 20.0, 30.0)
 #===================================================================
 
+print =============== select * from ct1 from memory
+sql select * from ct1;
+print $data00 $data01
+if $rows != 5 then
+  print rows $rows != 5
+  return -1
+endi
 
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
