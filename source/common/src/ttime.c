@@ -783,7 +783,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 //     2020-07-03 17:48:42
 // and the parameter can also be a variable.
 const char* fmtts(int64_t ts) {
-  static char buf[96];
+  static char buf[96] = {0};
   size_t      pos = 0;
   struct tm   tm;
 

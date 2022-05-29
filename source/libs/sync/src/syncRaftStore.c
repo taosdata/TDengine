@@ -34,7 +34,7 @@ SRaftStore *raftStoreOpen(const char *path) {
   memset(pRaftStore, 0, sizeof(*pRaftStore));
   snprintf(pRaftStore->path, sizeof(pRaftStore->path), "%s", path);
 
-  char storeBuf[RAFT_STORE_BLOCK_SIZE];
+  char storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
   memset(storeBuf, 0, sizeof(storeBuf));
 
   if (!raftStoreFileExist(pRaftStore->path)) {
@@ -84,7 +84,7 @@ int32_t raftStorePersist(SRaftStore *pRaftStore) {
   assert(pRaftStore != NULL);
 
   int32_t ret;
-  char    storeBuf[RAFT_STORE_BLOCK_SIZE];
+  char    storeBuf[RAFT_STORE_BLOCK_SIZE] = {0};
   ret = raftStoreSerialize(pRaftStore, storeBuf, sizeof(storeBuf));
   assert(ret == 0);
 
@@ -107,7 +107,7 @@ int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
 
   cJSON *pRoot = cJSON_CreateObject();
 
-  char u64Buf[128];
+  char u64Buf[128] = {0};
   snprintf(u64Buf, sizeof(u64Buf), "%lu", pRaftStore->currentTerm);
   cJSON_AddStringToObject(pRoot, "current_term", u64Buf);
 
@@ -117,7 +117,7 @@ int32_t raftStoreSerialize(SRaftStore *pRaftStore, char *buf, size_t len) {
   cJSON_AddNumberToObject(pRoot, "vote_for_vgid", pRaftStore->voteFor.vgId);
 
   uint64_t u64 = pRaftStore->voteFor.addr;
-  char     host[128];
+  char     host[128] = {0};
   uint16_t port;
   syncUtilU642Addr(u64, host, sizeof(host), &port);
   cJSON_AddStringToObject(pRoot, "addr_host", host);
@@ -184,7 +184,7 @@ void raftStoreSetTerm(SRaftStore *pRaftStore, SyncTerm term) {
 int32_t raftStoreFromJson(SRaftStore *pRaftStore, cJSON *pJson) { return 0; }
 
 cJSON *raftStore2Json(SRaftStore *pRaftStore) {
-  char   u64buf[128];
+  char   u64buf[128] = {0};
   cJSON *pRoot = cJSON_CreateObject();
 
   if (pRaftStore != NULL) {
@@ -196,7 +196,7 @@ cJSON *raftStore2Json(SRaftStore *pRaftStore) {
     cJSON_AddStringToObject(pVoteFor, "addr", u64buf);
     {
       uint64_t u64 = pRaftStore->voteFor.addr;
-      char     host[128];
+      char     host[128] = {0};
       uint16_t port;
       syncUtilU642Addr(u64, host, sizeof(host), &port);
       cJSON_AddStringToObject(pVoteFor, "addr_host", host);

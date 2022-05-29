@@ -260,7 +260,7 @@ int vnodeProcessSyncReq(SVnode *pVnode, SRpcMsg *pMsg, SRpcMsg **pRsp) {
 
     SMsgHead *pHead = pMsg->pCont;
 
-    char  logBuf[512];
+    char  logBuf[512] = {0};
     char *syncNodeStr = sync2SimpleStr(pVnode->sync);
     snprintf(logBuf, sizeof(logBuf), "==vnodeProcessSyncReq== msgType:%d, syncNode: %s", pMsg->msgType, syncNodeStr);
     syncRpcMsgLog2(logBuf, pMsg);

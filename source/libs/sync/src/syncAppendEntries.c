@@ -89,7 +89,7 @@
 int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
   int32_t ret = 0;
 
-  char logBuf[128];
+  char logBuf[128] = {0};
   snprintf(logBuf, sizeof(logBuf), "==syncNodeOnAppendEntriesCb== term:%lu", ths->pRaftStore->currentTerm);
   syncAppendEntriesLog2(logBuf, pMsg);
 
