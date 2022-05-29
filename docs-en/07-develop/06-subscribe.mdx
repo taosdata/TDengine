@@ -151,7 +151,7 @@ void subscribe_callback(TAOS_SUB* tsub, TAOS_RES *res, void* param, int code) {
 taos_unsubscribe(tsub, keep);
 ```
 
-The second parameter `keep` is used to specify whether to keep the subscription progress on the client sde. If it is **false**, i.e. **0**, then subscription will be restarted from beginning regardless of the `restart` parameter's value when `taos_subscribe` is invoked again. The subscription progress information is stored in _{DataDir}/subscribe/_ , under which there is a file with the same name as `topic` for each subscription, the subscription will be restarted from the beginning if the corresponding progress file is removed.
+The second parameter `keep` is used to specify whether to keep the subscription progress on the client sde. If it is **false**, i.e. **0**, then subscription will be restarted from beginning regardless of the `restart` parameter's value when `taos_subscribe` is invoked again. The subscription progress information is stored in _{DataDir}/subscribe/_ , under which there is a file with the same name as `topic` for each subscription(Note: The default value of `DataDir` in the `taos.cfg` file is **/var/lib/taos/**. However, **/var/lib/taos/** does not exist on the Windows server. So you need to change the `DataDir` value to the corresponding existing directory."), the subscription will be restarted from the beginning if the corresponding progress file is removed.
 
 Now let's see the effect of the above sample code, assuming below prerequisites have been done.
 
