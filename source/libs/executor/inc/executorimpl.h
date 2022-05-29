@@ -451,15 +451,15 @@ typedef struct SIntervalAggOperatorInfo {
   int32_t            primaryTsIndex;     // primary time stamp slot id from result of downstream operator.
   STimeWindow        win;                // query time range
   bool               timeWindowInterpo;  // interpolation needed or not
-  char**             pRow;               // previous row/tuple of already processed datablock
+  SArray*            pInterpCols;        // interpolation columns
   SAggSupporter      aggSup;             // aggregate supporter
   STableQueryInfo*   pCurrent;           // current tableQueryInfo struct
   int32_t            order;              // current SSDataBlock scan order
   EOPTR_EXEC_MODEL   execModel;          // operator execution model [batch model|stream model]
   SArray*            pUpdatedWindow;     // updated time window due to the input data block from the downstream operator.
   STimeWindowAggSupp twAggSup;
-  struct SFillInfo*  pFillInfo;          // fill info
   bool               invertible;
+  SArray*            pPrevValues;        //  SArray<SGroupKeys> used to keep the previous not null value for interpolation.
 } SIntervalAggOperatorInfo;
 
 typedef struct SStreamFinalIntervalOperatorInfo {
@@ -802,7 +802,7 @@ int32_t binarySearchForKey(char* pValue, int num, TSKEY key, int order);
 int32_t initCacheSupporter(SCatchSupporter* pCatchSup, size_t rowSize, const char* pKey,
     const char* pDir);
 int32_t initStreamAggSupporter(SStreamAggSupporter* pSup, const char* pKey);
-SResultRow* getNewResultRow_rv(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
+SResultRow* getNewResultRow(SDiskbasedBuf* pResultBuf, int64_t tableGroupId, int32_t interBufSize);
 SResultWindowInfo* getSessionTimeWindow(SArray* pWinInfos, TSKEY ts, int64_t gap,
     int32_t* pIndex);
 int32_t updateSessionWindowInfo(SResultWindowInfo* pWinInfo, TSKEY* pTs, int32_t rows,

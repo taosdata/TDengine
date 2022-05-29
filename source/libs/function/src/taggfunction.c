@@ -236,7 +236,7 @@ bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry) {
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry) {
   return pEntry->initialized;
 }
-
+#if 0
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
     bool isSuperTable/*, SUdfInfo* pUdfInfo*/) {
   if (!isValidDataType(dataType)) {
@@ -470,6 +470,7 @@ int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionI
   
   return TSDB_CODE_SUCCESS;
 }
+#endif
 
 static bool function_setup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo) {
   if (pResultInfo->initialized) {

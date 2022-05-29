@@ -140,6 +140,10 @@ bool uniqueFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo)
 int32_t uniqueFunction(SqlFunctionCtx *pCtx);
 //int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock);
 
+bool getTwaFuncEnv(struct SFunctionNode* pFunc, SFuncExecEnv* pEnv);
+bool twaFunctionSetup(SqlFunctionCtx *pCtx, SResultRowEntryInfo* pResultInfo);
+int32_t twaFunction(SqlFunctionCtx *pCtx);
+int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock);
 
 bool getSelectivityFuncEnv(SFunctionNode* pFunc, SFuncExecEnv* pEnv);
 

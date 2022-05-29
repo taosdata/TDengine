@@ -67,50 +67,6 @@ typedef struct SFileBlockInfo {
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 16
 
-#define FUNCTION_INVALID_ID  -1
-#define FUNCTION_COUNT        0
-#define FUNCTION_SUM          1
-#define FUNCTION_AVG          2
-#define FUNCTION_MIN          3
-#define FUNCTION_MAX          4
-#define FUNCTION_STDDEV       5
-#define FUNCTION_PERCT        6
-#define FUNCTION_APERCT       7
-#define FUNCTION_FIRST        8
-#define FUNCTION_LAST         9
-#define FUNCTION_LAST_ROW     10
-#define FUNCTION_TOP          11
-#define FUNCTION_BOTTOM       12
-#define FUNCTION_SPREAD       13
-#define FUNCTION_TWA          14
-#define FUNCTION_LEASTSQR     15
-
-#define FUNCTION_TS           16
-#define FUNCTION_TS_DUMMY     17
-#define FUNCTION_TAG_DUMMY    18
-#define FUNCTION_TS_COMP      19
-
-#define FUNCTION_TAG          20
-#define FUNCTION_PRJ          21
-
-#define FUNCTION_TAGPRJ       22
-#define FUNCTION_ARITHM       23
-#define FUNCTION_DIFF         24
-
-#define FUNCTION_FIRST_DST    25
-#define FUNCTION_LAST_DST     26
-#define FUNCTION_STDDEV_DST   27
-#define FUNCTION_INTERP       28
-
-#define FUNCTION_RATE         29
-#define FUNCTION_IRATE        30
-#define FUNCTION_TID_TAG      31
-#define FUNCTION_DERIVATIVE   32
-#define FUNCTION_BLKINFO      33
-
-
-#define FUNCTION_COV          38
-
 typedef struct SResultRowEntryInfo {
   bool     initialized:1;     // output buffer has been initialized
   bool     complete:1;        // query has completed
@@ -180,10 +136,9 @@ typedef struct SqlFunctionCtx {
   char                  *pOutput;       // final result output buffer, point to sdata->data
   int32_t                numOfParams;
   SFunctParam           *param;         // input parameter, e.g., top(k, 20), the number of results for top query is kept in param
-  int64_t               *ptsList;       // corresponding timestamp array list
+  int64_t               *ptsList;       // corresponding timestamp array list, todo remove it
   SColumnInfoData       *pTsOutput;     // corresponding output buffer for timestamp of each result, e.g., top/bottom*/
   int32_t                offset;
-  SVariant               tag;
   struct  SResultRowEntryInfo *resultInfo;
   SSubsidiaryResInfo     subsidiaries;
   SPoint1                start;

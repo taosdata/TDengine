@@ -157,18 +157,6 @@ int64_t qGetQueriedTableUid(qTaskInfo_t tinfo);
 int32_t qGetQualifiedTableIdList(void* pTableList, const char* tagCond, int32_t tagCondLen, SArray* pTableIdList);
 
 /**
- * Create the table group according to the group by tags info
- * @param pTableIdList
- * @param skey
- * @param groupInfo
- * @param groupByIndex
- * @param numOfIndex
- * @return
- */
-// int32_t qCreateTableGroupByGroupExpr(SArray* pTableIdList, TSKEY skey, STableGroupInfo groupInfo, SColIndex*
-// groupByIndex, int32_t numOfIndex);
-
-/**
  * Update the table id list of a given query.
  * @param uid   child table uid
  * @param type  operation type: ADD|DROP

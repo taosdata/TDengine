@@ -75,6 +75,7 @@ typedef struct SResultRowInfo {
   int32_t      size;       // number of result set
   int32_t      capacity;   // max capacity
   SResultRowPosition cur;
+  SList*       openWindow;
 } SResultRowInfo;
 
 struct SqlFunctionCtx;

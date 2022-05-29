@@ -258,32 +258,6 @@ int32_t getNumOfTotalRes(SGroupResInfo* pGroupResInfo) {
   return (int32_t) taosArrayGetSize(pGroupResInfo->pRows);
 }
 
-static int64_t getNumOfResultWindowRes(STaskRuntimeEnv* pRuntimeEnv, SResultRowPosition *pos, int32_t* rowCellInfoOffset) {
-  STaskAttr* pQueryAttr = pRuntimeEnv->pQueryAttr;
-  ASSERT(0);
-
-  for (int32_t j = 0; j < pQueryAttr->numOfOutput; ++j) {
-    int32_t functionId = 0;//pQueryAttr->pExpr1[j].base.functionId;
-
-    /*
-     * ts, tag, tagprj function can not decide the output number of current query
-     * the number of output result is decided by main output
-     */
-    if (functionId == FUNCTION_TS || functionId == FUNCTION_TAG || functionId == FUNCTION_TAGPRJ) {
-      continue;
-    }
-
-//    SResultRowEntryInfo *pResultInfo = getResultCell(pResultRow, j, rowCellInfoOffset);
-//    assert(pResultInfo != NULL);
-//
-//    if (pResultInfo->numOfRes > 0) {
-//      return pResultInfo->numOfRes;
-//    }
-  }
-
-  return 0;
-}
-
 static int32_t tableResultComparFn(const void *pLeft, const void *pRight, void *param) {
   int32_t left  = *(int32_t *)pLeft;
   int32_t right = *(int32_t *)pRight;
@@ -381,7 +355,7 @@ static int32_t mergeIntoGroupResultImplRv(STaskRuntimeEnv *pRuntimeEnv, SGroupRe
     }
 
 
-    int64_t num = getNumOfResultWindowRes(pRuntimeEnv, &pResultRowCell->pos, rowCellInfoOffset);
+    int64_t num = 0;//getNumOfResultWindowRes(pRuntimeEnv, &pResultRowCell->pos, rowCellInfoOffset);
     if (num <= 0) {
       continue;
     }
