@@ -726,17 +726,17 @@ static int metaUpdateCtbIdx(SMeta *pMeta, const SMetaEntry *pME) {
   return tdbTbInsert(pMeta->pCtbIdx, &ctbIdxKey, sizeof(ctbIdxKey), NULL, 0, &pMeta->txn);
 }
 
-static int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int8_t type, tb_uid_t uid,
+static int metaCreateTagIdxKey(tb_uid_t suid, int32_t cid, const void *pTagData, int32_t nTagData, int8_t type, tb_uid_t uid,
                                STagIdxKey **ppTagIdxKey, int32_t *nTagIdxKey) {
-  int32_t nTagData = 0;
+  // int32_t nTagData = 0;
 
-  if (pTagData) {
-    if (IS_VAR_DATA_TYPE(type)) {
-      nTagData = varDataTLen(pTagData);
-    } else {
-      nTagData = tDataTypes[type].bytes;
-    }
-  }
+  // if (pTagData) {
+  //   if (IS_VAR_DATA_TYPE(type)) {
+  //     nTagData = varDataTLen(pTagData);
+  //   } else {
+  //     nTagData = tDataTypes[type].bytes;
+  //   }
+  // }
   *nTagIdxKey = sizeof(STagIdxKey) + nTagData + sizeof(tb_uid_t);
 
   *ppTagIdxKey = (STagIdxKey *)taosMemoryMalloc(*nTagIdxKey);
@@ -768,6 +768,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   int32_t        nTagIdxKey;
   const SSchema *pTagColumn;       // = &stbEntry.stbEntry.schema.pSchema[0];
   const void    *pTagData = NULL;  //
+  int32_t        nTagData = 0;
   SDecoder       dc = {0};
 
   // get super table
@@ -784,6 +785,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   STagVal tagVal = {.cid = pTagColumn->colId};
   tTagGet((const STag *)pCtbEntry->ctbEntry.pTags, &tagVal);
   pTagData = tagVal.pData;
+  nTagData = (int32_t)tagVal.nData;
 
   // update tag index
 #ifdef USE_INVERTED_INDEX
@@ -798,7 +800,7 @@ static int metaUpdateTagIdx(SMeta *pMeta, const SMetaEntry *pCtbEntry) {
   int ret = indexPut((SIndex *)pMeta->pTagIvtIdx, tmGroup, tuid);
   indexMultiTermDestroy(tmGroup);
 #else
-  if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, pTagColumn->type, pCtbEntry->uid,
+  if (metaCreateTagIdxKey(pCtbEntry->ctbEntry.suid, pTagColumn->colId, pTagData, nTagData, pTagColumn->type, pCtbEntry->uid,
                           &pTagIdxKey, &nTagIdxKey) < 0) {
     return -1;
   }

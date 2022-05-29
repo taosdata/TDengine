@@ -638,7 +638,6 @@ static int32_t tPutTagVal(uint8_t *p, STagVal *pTagVal, int8_t isJson) {
   // type
   n += tPutI8(p ? p + n : p, pTagVal->type);
 
-  debugPrintTagVal(pTagVal->type, pTagVal->pData, pTagVal->nData, __func__, __LINE__);
   // value
   if (IS_VAR_DATA_TYPE(pTagVal->type)) {
     n += tPutBinary(p ? p + n : p, pTagVal->pData, pTagVal->nData);
@@ -799,7 +798,10 @@ int32_t tEncodeTag(SEncoder *pEncoder, const STag *pTag) {
   return tEncodeBinary(pEncoder, (const uint8_t *)pTag, pTag->len);
 }
 
-int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) { return tDecodeBinary(pDecoder, (uint8_t **)ppTag, NULL); }
+int32_t tDecodeTag(SDecoder *pDecoder, STag **ppTag) {
+  uint32_t len = 0;
+  return tDecodeBinary(pDecoder, (uint8_t **)ppTag, &len);
+}
 
 int32_t tTagToValArray(const STag *pTag, SArray **ppArray) {
   int32_t  code = 0;

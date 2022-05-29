@@ -4030,19 +4030,6 @@ static int32_t serializeVgroupCreateTableBatch(SVgroupCreateTableBatch* pTbBatch
   pVgData->numOfTables = (int32_t)taosArrayGetSize(pTbBatch->req.pArray);
   taosArrayPush(pBufArray, &pVgData);
 
-#if 1 // debug print
-  SDecoder           decoder = {0};
-  SVCreateTbBatchReq req = {0};
-  // decode
-  tDecoderInit(&decoder, pBuf, tlen - sizeof(SMsgHead));
-  if (tDecodeSVCreateTbBatchReq(&decoder, &req) < 0) {
-    ASSERT(0);
-  }
-  tDecoderClear(&decoder);
-#endif
-  printf("%s:%d: OK in send \n", __func__, __LINE__);
-  ASSERT(0);
-
   return TSDB_CODE_SUCCESS;
 }
 
