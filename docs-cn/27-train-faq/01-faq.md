@@ -246,3 +246,8 @@ taosAdapter 从 TDengine 2.4.0.0 版本开始成为 TDengine 服务端软件的�
 
 有关 taosAdapter 组件的详细介绍请看文档：[taosAdapter](https://docs.taosdata.com/reference/taosadapter/)
 
+### 25. 发生了 OOM 怎么办？
+
+OOM 是操作系统的保护机制，当操作系统内存(包括 SWAP )不足时，会杀掉某些进程，从而保证操作系统的稳定运行。通常内存不足主要是如下两个原因导致，一是剩余内存小于 vm.min_free_kbytes ；二是程序请求的内存大于剩余内存。还有一种情况是内存充足但程序占用了特殊的内存地址，也会触发 OOM 。
+
+TDengine 会预先为每个 VNode 分配好内存，每个 Database 的 VNode 个数受 maxVgroupsPerDb 影响，每个 VNode 占用的内存大小受 Blocks 和 Cache 影响。要防止 OOM，需要在项目建设之初合理规划内存，并合理设置 SWAP ，除此之外查询过量的数据也有可能导致内存暴涨，这取决于具体的查询语句。TDengine 企业版对内存管理做了优化，采用了新的内存分配器，对稳定性有更高要求的用户可以考虑选择企业版。
