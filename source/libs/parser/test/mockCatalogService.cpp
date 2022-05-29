@@ -187,9 +187,8 @@ class MockCatalogServiceImpl {
 // number of backward fills
 #define NOB(n) ((n) % 2 ? (n) / 2 + 1 : (n) / 2)
 // center aligned
-#define CA(n, s)                                                                              \
-  std::setw(NOF((n) - (s).length())) << "" << (s) << std::setw(NOB((n) - (s).length())) << "" \
-                                     << "|"
+#define CA(n, s) std::setw(NOF((n) - int((s).length()))) << "" << (s) \
+              << std::setw(NOB((n) - int((s).length()))) << "" << "|"
 // string field length
 #define SFL 20
 // string field header
