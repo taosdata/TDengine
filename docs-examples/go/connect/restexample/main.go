@@ -18,6 +18,6 @@ func main() {
 	defer taos.Close()
 }
 
-// use 
+// use
 // var taosDSN = "root:taosdata@http(localhost:6041)/dbName"
-// if you want to connect to a default database.
+// if you want to connect a specified database named "dbName".
