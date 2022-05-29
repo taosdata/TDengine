@@ -2,7 +2,7 @@
 title: Administration
 ---
 
-This chapter is mainly written for system administrators, covering download, install/uninstall, data import/export, system monitoring, user management, connection management, etc. Capacity planning and system optimization are also covered.
+This chapter is mainly written for system administrators. It covers download, install/uninstall, data import/export, system monitoring, user management, connection management, capacity planning and system optimization.
 
 ```mdx-code-block
 import DocCardList from '@theme/DocCardList';
