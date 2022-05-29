@@ -20,4 +20,4 @@ func main() {
 
 // use
 // var taosDSN = "root:taosdata@tcp(localhost:6030)/dbName"
-// if you want to connect to a default database.
+// if you want to connect a specified database named "dbName".
