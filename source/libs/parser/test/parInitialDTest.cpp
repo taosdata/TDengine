@@ -103,6 +103,7 @@ TEST_F(ParserInitialDTest, dropTopic) {
 }
 
 TEST_F(ParserInitialDTest, dropUser) {
+  login("root");
   useDb("root", "test");
 
   run("drop user wxy");

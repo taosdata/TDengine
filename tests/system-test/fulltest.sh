@@ -14,6 +14,8 @@ python3 ./test.py -f 0-others/udf_restart_taosd.py
 python3 ./test.py -f 0-others/user_control.py
 python3 ./test.py -f 0-others/fsync.py
 
+python3 ./test.py -f 1-insert/opentsdb_telnet_line_taosc_insert.py
+
 python3 ./test.py -f 2-query/between.py
 python3 ./test.py -f 2-query/distinct.py
 python3 ./test.py -f 2-query/varchar.py
@@ -71,11 +73,23 @@ python3 ./test.py -f 2-query/arccos.py
 python3 ./test.py -f 2-query/arctan.py
 python3 ./test.py -f 2-query/query_cols_tags_and_or.py
 # python3 ./test.py -f 2-query/nestedQuery.py
+python3 ./test.py -f 2-query/nestedQuery_str.py
+python3 ./test.py -f 2-query/avg.py
+python3 ./test.py -f 2-query/elapsed.py
+python3 ./test.py -f 2-query/csum.py
+python3 ./test.py -f 2-query/mavg.py
+python3 ./test.py -f 2-query/diff.py
+python3 ./test.py -f 2-query/sample.py
+python3 ./test.py -f 2-query/function_diff.py
 
 python3 ./test.py -f 7-tmq/basic5.py
 python3 ./test.py -f 7-tmq/subscribeDb.py
+python3 ./test.py -f 7-tmq/subscribeDb0.py
 python3 ./test.py -f 7-tmq/subscribeDb1.py
 python3 ./test.py -f 7-tmq/subscribeStb.py
 python3 ./test.py -f 7-tmq/subscribeStb0.py
 python3 ./test.py -f 7-tmq/subscribeStb1.py
+python3 ./test.py -f 7-tmq/subscribeStb2.py
+python3 ./test.py -f 7-tmq/subscribeStb3.py
+python3 ./test.py -f 7-tmq/subscribeStb4.py
 python3 ./test.py -f 7-tmq/subscribeStb2.py

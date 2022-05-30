@@ -15,6 +15,22 @@
 
 #include "syncSnapshot.h"
 
-int32_t takeSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) { return 0; }
+SSyncSnapshotSender *snapshotSenderCreate(SSyncNode *pSyncNode) { return NULL; }
 
-int32_t restoreSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot) { return 0; }
+void snapshotSenderDestroy(SSyncSnapshotSender *pSender) {}
+
+int32_t snapshotSend(SSyncSnapshotSender *pSender) { return 0; }
+
+cJSON *snapshotSender2Json(SSyncSnapshotSender *pSender) { return NULL; }
+
+char *snapshotSender2Str(SSyncSnapshotSender *pSender) { return NULL; }
+
+SSyncSnapshotReceiver *snapshotReceiverCreate(SSyncNode *pSyncNode) { return NULL; }
+
+void snapshotReceiverDestroy(SSyncSnapshotReceiver *pReceiver) {}
+
+int32_t snapshotReceive(SSyncSnapshotReceiver *pReceiver) { return 0; }
+
+cJSON *snapshotReceiver2Json(SSyncSnapshotReceiver *pReceiver) { return NULL; }
+
+char *snapshotReceiver2Str(SSyncSnapshotReceiver *pReceiver) { return NULL; }

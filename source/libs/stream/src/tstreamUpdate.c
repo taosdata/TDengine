@@ -72,12 +72,14 @@ static int64_t adjustInterval(int64_t interval, int32_t precision) {
   return val;
 }
 
-static int64_t adjustWatermark(int64_t interval, int64_t watermark) {
-  if (watermark <= 0 || watermark > MAX_NUM_SCALABLE_BF * interval) {
-    watermark = MAX_NUM_SCALABLE_BF * interval;
-  } else if (watermark < MIN_NUM_SCALABLE_BF * interval) {
-    watermark = MIN_NUM_SCALABLE_BF * interval;
-  }
+static int64_t adjustWatermark(int64_t adjInterval, int64_t originInt, int64_t watermark) {
+  if (watermark <= 0) {
+    watermark = TMIN(originInt/adjInterval, 1) * adjInterval;
+  } else if (watermark > MAX_NUM_SCALABLE_BF * adjInterval) {
+    watermark = MAX_NUM_SCALABLE_BF * adjInterval;
+  }/* else if (watermark < MIN_NUM_SCALABLE_BF * adjInterval) {
+    watermark = MIN_NUM_SCALABLE_BF * adjInterval;
+  }*/ // Todo(liuyao) save window info to tdb
   return watermark;
 }
 
@@ -94,7 +96,7 @@ SUpdateInfo *updateInfoInit(int64_t interval, int32_t precision, int64_t waterma
   pInfo->pTsSBFs = NULL;
   pInfo->minTS = -1;
   pInfo->interval = adjustInterval(interval, precision);
-  pInfo->watermark = adjustWatermark(pInfo->interval, watermark);
+  pInfo->watermark = adjustWatermark(pInfo->interval, interval, watermark);
 
   uint64_t bfSize = (uint64_t)(pInfo->watermark / pInfo->interval);
 
@@ -149,13 +151,18 @@ static SScalableBf *getSBf(SUpdateInfo *pInfo, TSKEY ts) {
 bool updateInfoIsUpdated(SUpdateInfo *pInfo, tb_uid_t tableId, TSKEY ts) {
   int32_t      res = TSDB_CODE_FAILED;
   uint64_t     index = ((uint64_t)tableId) % pInfo->numBuckets;
+  TSKEY maxTs = *(TSKEY *)taosArrayGet(pInfo->pTsBuckets, index);
+  if (ts < maxTs - pInfo->watermark) {
+    // this window has been closed.
+    return true;
+  }
+
   SScalableBf *pSBf = getSBf(pInfo, ts);
   // pSBf may be a null pointer
   if (pSBf) {
     res = tScalableBfPut(pSBf, &ts, sizeof(TSKEY));
   }
 
-  TSKEY maxTs = *(TSKEY *)taosArrayGet(pInfo->pTsBuckets, index);
   if (maxTs < ts) {
     taosArraySet(pInfo->pTsBuckets, index, &ts);
     return false;

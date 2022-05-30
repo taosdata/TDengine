@@ -11,9 +11,9 @@ print(type(df.ts[0]))
 print(df.head(3))
 
 # output:
-# <class 'datetime.datetime'>
 # RangeIndex(start=0, stop=8, step=1)
-#                                  ts  current  ...          location  groupid
-# 0         2018-10-03 14:38:05+08:00     10.3  ...  beijing.chaoyang        2
-# 1         2018-10-03 14:38:15+08:00     12.6  ...  beijing.chaoyang        2
-# 2  2018-10-03 14:38:16.800000+08:00     12.3  ...  beijing.chaoyang        2
+# <class 'pandas._libs.tslibs.timestamps.Timestamp'>
+#                                 ts  current  ...               location  groupid
+# 0 2018-10-03 06:38:05.500000+00:00     11.8  ...  california.losangeles        2
+# 1 2018-10-03 06:38:16.600000+00:00     13.4  ...  california.losangeles        2
+# 2        2018-10-03 06:38:05+00:00     10.8  ...  california.losangeles        3

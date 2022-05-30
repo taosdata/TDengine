@@ -55,6 +55,8 @@ typedef struct SVotesRespond          SVotesRespond;
 typedef struct SSyncIndexMgr          SSyncIndexMgr;
 typedef struct SRaftCfg               SRaftCfg;
 typedef struct SSyncRespMgr           SSyncRespMgr;
+typedef struct SSyncSnapshotSender    SSyncSnapshotSender;
+typedef struct SSyncSnapshotReceiver  SSyncSnapshotReceiver;
 
 typedef struct SSyncNode {
   // init by SSyncInfo
@@ -148,9 +150,11 @@ typedef struct SSyncNode {
   SSyncRespMgr* pSyncRespMgr;
 
   // restore state
-  bool restoreFinish;
   // sem_t      restoreSem;
-  SSnapshot* pSnapshot;
+  bool                   restoreFinish;
+  SSnapshot*             pSnapshot;
+  SSyncSnapshotSender*   pSender;
+  SSyncSnapshotReceiver* pReceiver;
 
 } SSyncNode;
 

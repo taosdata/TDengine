@@ -56,6 +56,9 @@ typedef struct SScanLogicNode {
   int8_t             intervalUnit;
   int8_t             slidingUnit;
   SNode*             pTagCond;
+  int8_t             triggerType;
+  int64_t            watermark;
+  int16_t            tsColId;
 } SScanLogicNode;
 
 typedef struct SJoinLogicNode {
@@ -216,6 +219,9 @@ typedef struct STableScanPhysiNode {
   int64_t        sliding;
   int8_t         intervalUnit;
   int8_t         slidingUnit;
+  int8_t         triggerType;
+  int64_t        watermark;
+  int16_t        tsColId;
 } STableScanPhysiNode;
 
 typedef STableScanPhysiNode STableSeqScanPhysiNode;

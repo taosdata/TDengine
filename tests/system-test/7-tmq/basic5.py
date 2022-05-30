@@ -22,8 +22,8 @@ class TDTestCase:
 
     def init(self, conn, logSql):
         tdLog.debug(f"start to excute {__file__}")
-        #tdSql.init(conn.cursor())
-        tdSql.init(conn.cursor(), logSql)  # output sql.txt file
+        tdSql.init(conn.cursor())
+        #tdSql.init(conn.cursor(), logSql)  # output sql.txt file
 
     def getBuildPath(self):
         selfPath = os.path.dirname(os.path.realpath(__file__))
@@ -186,7 +186,7 @@ class TDTestCase:
                 time.sleep(1)
         
         tdLog.info("start consume processor")
-        pollDelay = 5
+        pollDelay = 100
         showMsg   = 1
         showRow   = 1
         
@@ -228,7 +228,7 @@ class TDTestCase:
                          'stbName':    'stb',    \
                          'ctbNum':     10,       \
                          'rowsPerTbl': 10000,   \
-                         'batchNum':   100,       \
+                         'batchNum':   200,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
@@ -300,7 +300,7 @@ class TDTestCase:
                 time.sleep(1)
         
         tdLog.info("start consume processor")
-        pollDelay = 5
+        pollDelay = 100
         showMsg   = 1
         showRow   = 1
         
@@ -349,8 +349,8 @@ class TDTestCase:
                          'vgroups':    1,        \
                          'stbName':    'stb',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 30000,    \
-                         'batchNum':   100,       \
+                         'rowsPerTbl': 10000,    \
+                         'batchNum':   200,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict['cfg'] = cfgPath
 
@@ -381,8 +381,8 @@ class TDTestCase:
                          'vgroups':    1,        \
                          'stbName':    'stb2',    \
                          'ctbNum':     10,       \
-                         'rowsPerTbl': 30000,    \
-                         'batchNum':   100,       \
+                         'rowsPerTbl': 10000,    \
+                         'batchNum':   200,       \
                          'startTs':    1640966400000}  # 2022-01-01 00:00:00.000
         parameterDict2['cfg'] = cfgPath
         tdSql.execute("create stable  if not exists %s.%s (ts timestamp, c1 bigint, c2 binary(16)) tags(t1 int)"%(parameterDict2['dbName'], parameterDict2['stbName']))
@@ -432,7 +432,7 @@ class TDTestCase:
                 time.sleep(1)
         
         tdLog.info("start consume processor")
-        pollDelay = 5
+        pollDelay = 100
         showMsg   = 1
         showRow   = 1
         
