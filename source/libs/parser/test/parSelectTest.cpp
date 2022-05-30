@@ -76,6 +76,12 @@ TEST_F(ParserSelectTest, pseudoColumnSemanticCheck) {
   run("SELECT TBNAME FROM (SELECT * FROM st1s1)", TSDB_CODE_PAR_INVALID_TBNAME, PARSER_STAGE_TRANSLATE);
 }
 
+TEST_F(ParserSelectTest, aggFunc) {
+  useDb("root", "test");
+
+  run("SELECT LEASTSQUARES(c1, -1, 1) FROM t1");
+}
+
 TEST_F(ParserSelectTest, multiResFunc) {
   useDb("root", "test");
 
