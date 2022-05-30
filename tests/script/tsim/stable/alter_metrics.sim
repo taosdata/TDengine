@@ -347,7 +347,7 @@ endi
 if $data80 != h then
   return -1
 endi
-if $data81 != BINARY then
+if $data81 != VARCHAR then
   return -1
 endi
 if $data82 != 10 then
@@ -363,9 +363,8 @@ endi
 print ======== step9
 print ======== step10
 system sh/exec.sh -n dnode1 -s stop -x SIGINT
-sleep 3000
 system sh/exec.sh -n dnode1 -s start
-sleep 3000
+sql connect
 
 sql use d2
 sql describe tb
@@ -420,7 +419,7 @@ endi
 if $data80 != h then
   return -1
 endi
-if $data81 != BINARY then
+if $data81 != VARCHAR then
   return -1
 endi
 if $data82 != 10 then
@@ -502,7 +501,7 @@ endi
 if $data70 != h then
   return -1
 endi
-if $data71 != BINARY then
+if $data71 != VARCHAR then
   return -1
 endi
 if $data72 != 10 then
@@ -557,7 +556,7 @@ endi
 if $data60 != h then
   return -1
 endi
-if $data61 != BINARY then
+if $data61 != VARCHAR then
   return -1
 endi
 if $data62 != 10 then
@@ -606,7 +605,7 @@ endi
 if $data50 != h then
   return -1
 endi
-if $data51 != BINARY then
+if $data51 != VARCHAR then
   return -1
 endi
 if $data52 != 10 then
@@ -649,7 +648,7 @@ endi
 if $data40 != h then
   return -1
 endi
-if $data41 != BINARY then
+if $data41 != VARCHAR then
   return -1
 endi
 if $data42 != 10 then
@@ -686,7 +685,7 @@ endi
 if $data30 != h then
   return -1
 endi
-if $data31 != BINARY then
+if $data31 != VARCHAR then
   return -1
 endi
 if $data32 != 10 then
@@ -717,7 +716,7 @@ endi
 if $data20 != h then
   return -1
 endi
-if $data21 != BINARY then
+if $data21 != VARCHAR then
   return -1
 endi
 if $data22 != 10 then
@@ -758,7 +757,7 @@ endi
 print ======= over
 sql drop database d2
 sql show databases
-if $rows != 0 then 
+if $rows != 2 then 
   return -1
 endi
 
