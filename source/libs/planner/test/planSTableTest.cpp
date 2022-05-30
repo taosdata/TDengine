@@ -27,6 +27,14 @@ TEST_F(PlanSuperTableTest, pseudoCol) {
   run("SELECT TBNAME, tag1, tag2 FROM st1");
 }
 
+TEST_F(PlanSuperTableTest, pseudoColOnChildTable) {
+  useDb("root", "test");
+
+  run("SELECT TBNAME FROM st1s1");
+
+  run("SELECT TBNAME, tag1, tag2 FROM st1s1");
+}
+
 TEST_F(PlanSuperTableTest, orderBy) {
   useDb("root", "test");
 
