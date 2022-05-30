@@ -1905,9 +1905,9 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SNodeList* pPartiti
   return translateExprList(pCxt, pPartitionByList);
 }
 
-static int32_t translateWhere(STranslateContext* pCxt, SNode* pWhere) {
+static int32_t translateWhere(STranslateContext* pCxt, SNode** pWhere) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
-  return translateExpr(pCxt, &pWhere);
+  return translateExpr(pCxt, pWhere);
 }
 
 static int32_t translateFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -1978,7 +1978,7 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateWhere(pCxt, pSelect->pWhere);
+    code = translateWhere(pCxt, &pSelect->pWhere);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect->pPartitionByList);

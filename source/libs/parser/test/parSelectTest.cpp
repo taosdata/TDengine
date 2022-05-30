@@ -44,6 +44,8 @@ TEST_F(ParserSelectTest, constant) {
       "timestamp '2022-02-09 17:30:20', true, false, 15s FROM t1");
 
   run("SELECT 123 + 45 FROM t1 WHERE 2 - 1");
+
+  run("SELECT * FROM t1 WHERE -2");
 }
 
 TEST_F(ParserSelectTest, expression) {
