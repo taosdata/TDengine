@@ -182,10 +182,10 @@ int tsdbUnlockRepo(STsdb *pTsdb);
 
 static FORCE_INLINE STSchema *tsdbGetTableSchemaImpl(STsdb *pTsdb, STable *pTable, bool lock, bool copy,
                                                      int32_t version) {
-  if (version < 0) {
+  if ((version < 0) || (schemaVersion(pTable->pSchema) == version)) {
     return pTable->pSchema;
   }
-  
+
   if (!pTable->pCacheSchema || (schemaVersion(pTable->pCacheSchema) != version)) {
     taosMemoryFreeClear(pTable->pCacheSchema);
     pTable->pCacheSchema = metaGetTbTSchema(REPO_META(pTsdb), pTable->uid, version);
