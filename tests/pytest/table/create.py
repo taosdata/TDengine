@@ -348,6 +348,17 @@ class TDTestCase:
         tdSql.query("show create table meter1")
         tdSql.checkData(0, 1, "CREATE TABLE `meter1` USING `meters` TAGS (1,2,3,4,5,6)")
 
+        # TS-1508
+        tdSql.execute("create database if not exists test")
+        tdSql.execute("use test")
+        sql = "CREATE TABLE "
+        for i in range(7):
+            tdSql.execute("create table stb%d(ts timestamp, c1 int, c2 nchar(20)) tags(t1 binary(20))" % i)
+            sql += "IF NOT EXISTS 'tb%d' USING 'stb%d' TAGS ('LZ5NB7D34MB013827') " % (i, i)
+        
+        tdSql.execute(sql)
+        tdSql.query("show tables")
+        tdSql.checkRows(7)
 
     def stop(self):
         tdSql.close()
