@@ -15,6 +15,7 @@
 
 #include <gtest/gtest.h>
 
+#include "mockCatalogService.h"
 #include "os.h"
 #include "parInt.h"
 
@@ -54,6 +55,38 @@ class InsertTest : public Test {
     if (code_ != TSDB_CODE_SUCCESS) {
       cout << "code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
     }
+    return code_;
+  }
+
+  int32_t runAsync() {
+    code_ = parseInsertSyntax(&cxt_, &res_);
+    if (code_ != TSDB_CODE_SUCCESS) {
+      cout << "parseInsertSyntax code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
+      return code_;
+    }
+
+    SCatalogReq catalogReq = {0};
+    code_ = buildCatalogReq(res_->pMetaCache, &catalogReq);
+    if (code_ != TSDB_CODE_SUCCESS) {
+      cout << "buildCatalogReq code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
+      return code_;
+    }
+
+    SMetaData metaData = {0};
+    g_mockCatalogService->catalogGetAllMeta(&catalogReq, &metaData);
+
+    code_ = putMetaDataToCache(&catalogReq, &metaData, res_->pMetaCache);
+    if (code_ != TSDB_CODE_SUCCESS) {
+      cout << "putMetaDataToCache code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
+      return code_;
+    }
+
+    code_ = parseInsertSql(&cxt_, &res_);
+    if (code_ != TSDB_CODE_SUCCESS) {
+      cout << "parseInsertSql code:" << toString(code_) << ", msg:" << errMagBuf_ << endl;
+      return code_;
+    }
+
     return code_;
   }
 
@@ -125,7 +158,7 @@ class InsertTest : public Test {
   SQuery*       res_;
 };
 
-// INSERT INTO tb_name VALUES (field1_value, ...)
+// INSERT INTO tb_name [(field1_name, ...)] VALUES (field1_value, ...)
 TEST_F(InsertTest, singleTableSingleRowTest) {
   setDatabase("root", "test");
 
@@ -133,6 +166,17 @@ TEST_F(InsertTest, singleTableSingleRowTest) {
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 1);
+
+  bind("insert into t1 (ts, c1, c2, c3, c4, c5) values (now, 1, 'beijing', 3, 4, 5)");
+  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+
+  bind("insert into t1 values (now, 1, 'beijing', 3, 4, 5)");
+  ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
+  dumpReslut();
+  checkReslut(1, 1);
+
+  bind("insert into t1 (ts, c1, c2, c3, c4, c5) values (now, 1, 'beijing', 3, 4, 5)");
+  ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
 }
 
 // INSERT INTO tb_name VALUES (field1_value, ...)(field1_value, ...)
@@ -140,11 +184,16 @@ TEST_F(InsertTest, singleTableMultiRowTest) {
   setDatabase("root", "test");
 
   bind(
-      "insert into t1 values (now, 1, 'beijing', 3, 4, 5)(now+1s, 2, 'shanghai', 6, 7, 8)(now+2s, 3, 'guangzhou', 9, "
-      "10, 11)");
+      "insert into t1 values (now, 1, 'beijing', 3, 4, 5)(now+1s, 2, 'shanghai', 6, 7, 8)"
+      "(now+2s, 3, 'guangzhou', 9, 10, 11)");
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 3);
+
+  bind(
+      "insert into t1 values (now, 1, 'beijing', 3, 4, 5)(now+1s, 2, 'shanghai', 6, 7, 8)"
+      "(now+2s, 3, 'guangzhou', 9, 10, 11)");
+  ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
 }
 
 // INSERT INTO tb1_name VALUES (field1_value, ...) tb2_name VALUES (field1_value, ...)
@@ -155,6 +204,9 @@ TEST_F(InsertTest, multiTableSingleRowTest) {
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(2, 1);
+
+  bind("insert into st1s1 values (now, 1, \"beijing\") st1s2 values (now, 10, \"131028\")");
+  ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
 }
 
 // INSERT INTO tb1_name VALUES (field1_value, ...) tb2_name VALUES (field1_value, ...)
@@ -167,6 +219,11 @@ TEST_F(InsertTest, multiTableMultiRowTest) {
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(2, 3, 2);
+
+  bind(
+      "insert into st1s1 values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")"
+      " st1s2 values (now, 10, \"131028\")(now+1s, 20, \"132028\")");
+  ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
 }
 
 // INSERT INTO
@@ -181,6 +238,21 @@ TEST_F(InsertTest, autoCreateTableTest) {
   ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
   dumpReslut();
   checkReslut(1, 3);
+
+  bind(
+      "insert into st1s1 using st1 (tag1, tag2) tags(1, 'wxy') values (now, 1, \"beijing\")"
+      "(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
+  ASSERT_EQ(run(), TSDB_CODE_SUCCESS);
+
+  bind(
+      "insert into st1s1 using st1 tags(1, 'wxy') values (now, 1, \"beijing\")(now+1s, 2, \"shanghai\")(now+2s, 3, "
+      "\"guangzhou\")");
+  ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
+
+  bind(
+      "insert into st1s1 using st1 (tag1, tag2) tags(1, 'wxy') values (now, 1, \"beijing\")"
+      "(now+1s, 2, \"shanghai\")(now+2s, 3, \"guangzhou\")");
+  ASSERT_EQ(runAsync(), TSDB_CODE_SUCCESS);
 }
 
 TEST_F(InsertTest, toleranceTest) {
@@ -190,4 +262,9 @@ TEST_F(InsertTest, toleranceTest) {
   ASSERT_NE(run(), TSDB_CODE_SUCCESS);
   bind("insert into t");
   ASSERT_NE(run(), TSDB_CODE_SUCCESS);
+
+  bind("insert into");
+  ASSERT_NE(runAsync(), TSDB_CODE_SUCCESS);
+  bind("insert into t");
+  ASSERT_NE(runAsync(), TSDB_CODE_SUCCESS);
 }

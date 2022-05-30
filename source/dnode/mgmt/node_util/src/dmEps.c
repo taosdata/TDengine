@@ -326,6 +326,7 @@ void dmGetMnodeEpSetForRedirect(SDnodeData *pData, SRpcMsg *pMsg, SEpSet *pEpSet
 }
 
 void dmSetMnodeEpSet(SDnodeData *pData, SEpSet *pEpSet) {
+  if (memcmp(pEpSet, &pData->mnodeEps, sizeof(SEpSet)) == 0) return;
   taosThreadRwlockWrlock(&pData->lock);
   pData->mnodeEps = *pEpSet;
   taosThreadRwlockUnlock(&pData->lock);

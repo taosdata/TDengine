@@ -9,11 +9,11 @@ TDengine Kafka Connector 包含两个插件: TDengine Source Connector 和 TDeng
 
 Kafka Connect 是 Apache Kafka 的一个组件，用于使其它系统，比如数据库、云服务、文件系统等能方便地连接到 Kafka。数据既可以通过 Kafka Connect 从其它系统流向 Kafka, 也可以通过 Kafka Connect 从 Kafka 流向其它系统。从其它系统读数据的插件称为 Source Connector, 写数据到其它系统的插件称为 Sink Connector。Source Connector 和 Sink Connector 都不会直接连接 Kafka Broker，Source Connector 把数据转交给 Kafka Connect。Sink Connector 从 Kafka Connect 接收数据。
 
-![](kafka/Kafka_Connect.webp)
+![TDengine Database Kafka Connector -- Kafka Connect structure](kafka/Kafka_Connect.webp)
 
 TDengine Source Connector 用于把数据实时地从 TDengine 读出来发送给 Kafka Connect。TDengine Sink Connector 用于 从 Kafka Connect 接收数据并写入 TDengine。
 
-![](kafka/streaming-integration-with-kafka-connect.webp)
+![TDengine Database Kafka Connector -- streaming integration with kafka connect](kafka/streaming-integration-with-kafka-connect.webp)
 
 ## 什么是 Confluent？
 
@@ -26,7 +26,7 @@ Confluent 在 Kafka 的基础上增加很多扩展功能。包括：
 5. 管理和监控 Kafka 的 GUI —— Confluent 控制中心
 
 这些扩展功能有的包含在社区版本的 Confluent 中，有的只有企业版能用。
-![](kafka/confluentPlatform.webp)
+![TDengine Database Kafka Connector -- Confluent introduction](kafka/confluentPlatform.webp)
 
 Confluent 企业版提供了 `confluent` 命令行工具管理各个组件。
 

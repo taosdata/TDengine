@@ -75,19 +75,20 @@ static void *tQWorkerThreadFp(SQWorker *worker) {
   void   *msg = NULL;
   void   *ahandle = NULL;
   int32_t code = 0;
+  int64_t ts = 0;
 
   taosBlockSIGPIPE();
   setThreadName(pool->name);
   uDebug("worker:%s:%d is running", pool->name, worker->id);
 
   while (1) {
-    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &ahandle, &fp) == 0) {
+    if (taosReadQitemFromQset(pool->qset, (void **)&msg, &ts, &ahandle, &fp) == 0) {
       uDebug("worker:%s:%d qset:%p, got no message and exiting", pool->name, worker->id, pool->qset);
       break;
     }
 
     if (fp != NULL) {
-      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num};
+      SQueueInfo info = {.ahandle = ahandle, .workerId = worker->id, .threadNum = pool->num, .timestamp = ts};
       (*fp)(&info, msg);
     }
   }

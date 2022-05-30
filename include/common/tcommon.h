@@ -53,10 +53,9 @@ typedef enum EStreamType {
 } EStreamType;
 
 typedef struct {
-  uint32_t  numOfTables;
-  SArray*   pGroupList;
+  SArray*   pTableList;
   SHashObj* map;  // speedup acquire the tableQueryInfo by table uid
-} STableGroupInfo;
+} STableListInfo;
 
 typedef struct SColumnDataAgg {
   int16_t colId;
@@ -106,12 +105,14 @@ typedef struct SColumnInfoData {
 } SColumnInfoData;
 
 typedef struct SQueryTableDataCond {
-  STimeWindow  twindow;
+  //STimeWindow  twindow;
   int32_t      order;  // desc|asc order to iterate the data block
   int32_t      numOfCols;
   SColumnInfo *colList;
   bool         loadExternalRows;  // load external rows or not
   int32_t      type;              // data block load type:
+  int32_t      numOfTWindows;
+  STimeWindow *twindows;
 } SQueryTableDataCond;
 
 void*   blockDataDestroy(SSDataBlock* pBlock);

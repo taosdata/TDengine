@@ -36,7 +36,7 @@ static void qmProcessQueue(SQueueInfo *pInfo, SRpcMsg *pMsg) {
       code = qmProcessGetMonitorInfoReq(pMgmt, pMsg);
       break;
     default:
-      code = qndProcessQueryMsg(pMgmt->pQnode, pMsg);
+      code = qndProcessQueryMsg(pMgmt->pQnode, pInfo->timestamp, pMsg);
       break;
   }
 

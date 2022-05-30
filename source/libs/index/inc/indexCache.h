@@ -38,7 +38,7 @@ typedef struct IndexCache {
   MemTable *mem, *imm;
   SIndex*   index;
   char*     colName;
-  int32_t   version;
+  int64_t   version;
   int64_t   occupiedMem;
   int8_t    type;
   uint64_t  suid;
@@ -47,12 +47,12 @@ typedef struct IndexCache {
   TdThreadCond  finished;
 } IndexCache;
 
-#define CACHE_VERSION(cache) atomic_load_32(&cache->version)
+#define CACHE_VERSION(cache) atomic_load_64(&cache->version)
 
 typedef struct CacheTerm {
   // key
   char*   colVal;
-  int32_t version;
+  int64_t version;
   // value
   uint64_t uid;
   int8_t   colType;
@@ -74,7 +74,7 @@ void     indexCacheIteratorDestroy(Iterate* iiter);
 int indexCachePut(void* cache, SIndexTerm* term, uint64_t uid);
 
 // int indexCacheGet(void *cache, uint64_t *rst);
-int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTempResult* tr, STermValueType* s);
+int indexCacheSearch(void* cache, SIndexTermQuery* query, SIdxTRslt* tr, STermValueType* s);
 
 void indexCacheRef(IndexCache* cache);
 void indexCacheUnRef(IndexCache* cache);

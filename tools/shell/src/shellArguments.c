@@ -36,6 +36,8 @@
 #define SHELL_VERSION  "Print program version."
 #define SHELL_EMAIL    "<support@taosdata.com>"
 
+static int32_t shellParseSingleOpt(int32_t key, char *arg);
+
 void shellPrintHelp() {
   char indent[] = "  ";
   printf("Usage: taos [OPTION...] \n\n");
@@ -89,6 +91,21 @@ static struct argp_option shellOptions[] = {
     {"pktnum", 'N', "PKTNUM", 0, SHELL_PKT_NUM},
     {0},
 };
+
+static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) { return shellParseSingleOpt(key, arg); }
+
+static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
+
+static void shellParseArgsUseArgp(int argc, char *argv[]) {
+  argp_program_version = shell.info.programVersion;
+  argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
+}
+
+#endif
+
+#ifndef ARGP_ERR_UNKNOWN
+  #define ARGP_ERR_UNKNOWN E2BIG
+#endif
 
 static int32_t shellParseSingleOpt(int32_t key, char *arg) {
   SShellArgs *pArgs = &shell.args;
@@ -196,8 +213,8 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
       }
       shellParseSingleOpt(key[1], val);
       i++;
-    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'c' || key[1] == 'r' || key[1] == 'k' || key[1] == 't' ||
-               key[1] == 'V') {
+    } else if (key[1] == 'p' || key[1] == 'A' || key[1] == 'C' || key[1] == 'r' || key[1] == 'k' || 
+               key[1] == 't' || key[1] == 'V' || key[1] == '?' || key[1] == 1) {
       shellParseSingleOpt(key[1], NULL);
     } else {
       fprintf(stderr, "invalid option %s\n", key);
@@ -208,21 +225,10 @@ int32_t shellParseArgsWithoutArgp(int argc, char *argv[]) {
   return 0;
 }
 
-static error_t shellParseOpt(int32_t key, char *arg, struct argp_state *state) { return shellParseSingleOpt(key, arg); }
-
-static struct argp shellArgp = {shellOptions, shellParseOpt, "", ""};
-
-static void shellParseArgsUseArgp(int argc, char *argv[]) {
-  argp_program_version = shell.info.programVersion;
-  argp_parse(&shellArgp, argc, argv, 0, 0, &shell.args);
-}
-
-#endif
-
 static void shellInitArgs(int argc, char *argv[]) {
   for (int i = 1; i < argc; i++) {
     if (strncmp(argv[i], "-p", 2) == 0) {
-      printf(shell.info.clientVersion, tsOsName, taos_get_client_info());
+      // printf(shell.info.clientVersion, tsOsName, taos_get_client_info());
       if (strlen(argv[i]) == 2) {
         printf("Enter password: ");
         taosSetConsoleEcho(false);
@@ -341,7 +347,7 @@ int32_t shellParseArgs(int32_t argc, char *argv[]) {
 #if defined(_TD_WINDOWS_64) || defined(_TD_WINDOWS_32)
   shell.info.osname = "Windows";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "C:/TDengine/%s", SHELL_HISTORY_FILE);
-  // if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
+  if (shellParseArgsWithoutArgp(argc, argv) != 0) return -1;
 #elif defined(_TD_DARWIN_64)
   shell.info.osname = "Darwin";
   snprintf(shell.history.file, TSDB_FILENAME_LEN, "%s/%s", getpwuid(getuid())->pw_dir, SHELL_HISTORY_FILE);

@@ -1,12 +1,12 @@
 ---
 sidebar_label: Continuous Query
-description: "Continuous query is a query that's executed automatically according to predefined frequency to provide aggregate query capability by time window, it's actually a simplified time driven stream computing."
+description: "Continuous query is a query that's executed automatically at a predefined frequency to provide aggregate query capability by time window. It is essentially simplified, time driven, stream computing."
 title: "Continuous Query"
 ---
 
-Continuous query is a query that's executed automatically according to a predefined frequency to provide aggregate query capability by time window, it's actually a simplified time driven stream computing. Continuous query can be performed on a table or STable in TDengine. The result of continuous query can be pushed to clients or written back to TDengine. Each query is executed on a time window, which moves forward with time. The size of time window and the forward sliding time need to be specified with parameter `INTERVAL` and `SLIDING` respectively.
+A continuous query is a query that's executed automatically at a predefined frequency to provide aggregate query capability by time window. It is essentially simplified, time driven, stream computing. A continuous query can be performed on a table or STable in TDengine. The results of a continuous query can be pushed to clients or written back to TDengine. Each query is executed on a time window, which moves forward with time. The size of time window and the forward sliding time need to be specified with parameter `INTERVAL` and `SLIDING` respectively.
 
-Continuous query in TDengine is time driven, and can be defined using TAOS SQL directly without any extra operations. With continuous query, the result can be generated according to a time window to achieve down sampling of the original data. Once a continuous query is defined using TAOS SQL, the query is automatically executed at the end of each time window and the result is pushed back to clients or written to TDengine.
+A continuous query in TDengine is time driven, and can be defined using TAOS SQL directly without any extra operations. With a continuous query, the result can be generated based on a time window to achieve down sampling of the original data. Once a continuous query is defined using TAOS SQL, the query is automatically executed at the end of each time window and the result is pushed back to clients or written to TDengine.
 
 There are some differences between continuous query in TDengine and time window computation in stream computing：
 
@@ -35,7 +35,7 @@ In this section the use case of meters will be used to introduce how to use cont
 ```sql
 create table meters (ts timestamp, current float, voltage int, phase float) tags (location binary(64), groupId int);
 create table D1001 using meters tags ("California.SanFrancisco", 2);
-create table D1002 using meters tags ("California.LoSangeles", 2);
+create table D1002 using meters tags ("California.LosAngeles", 2);
 ```
 
 The SQL statement below retrieves the average voltage for a one minute time window, with each time window moving forward by 30 seconds.
@@ -68,7 +68,7 @@ taos> select * from avg_vol;
  2020-07-29 13:39:00.000 |            223.0800000 |
 ```
 
-Please note that the minimum allowed time window is 10 milliseconds, and no upper limit.
+Please note that the minimum allowed time window is 10 milliseconds, and there is no upper limit.
 
 It's possible to specify the start and end time of a continuous query. If the start time is not specified, the timestamp of the first row will be considered as the start time; if the end time is not specified, the continuous query will be performed indefinitely, otherwise it will be terminated once the end time is reached. For example, the continuous query in the SQL statement below will be started from now and terminated one hour later.
 

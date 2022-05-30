@@ -58,7 +58,12 @@ int32_t processConnectRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     return code;
   }
 
-  if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
+  if (connectRsp.dnodeNum == 1) {
+    SEpSet srcEpSet = getEpSet_s(&pTscObj->pAppInfo->mgmtEp);
+    SEpSet dstEpSet = connectRsp.epSet;
+    rpcSetDefaultAddr(pTscObj->pAppInfo->pTransporter, srcEpSet.eps[srcEpSet.inUse].fqdn,
+                      dstEpSet.eps[dstEpSet.inUse].fqdn);
+  } else if (connectRsp.dnodeNum > 1 && !isEpsetEqual(&pTscObj->pAppInfo->mgmtEp.epSet, &connectRsp.epSet)) {
     updateEpSet_s(&pTscObj->pAppInfo->mgmtEp, &connectRsp.epSet);
   }
 
@@ -126,9 +131,10 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
 
     if (usedbRsp.vgVersion >= 0) {
       uint64_t clusterId = pRequest->pTscObj->pAppInfo->clusterId;
-      int32_t code1 = catalogGetHandle(clusterId, &pCatalog);
+      int32_t  code1 = catalogGetHandle(clusterId, &pCatalog);
       if (code1 != TSDB_CODE_SUCCESS) {
-        tscWarn("0x%" PRIx64 "catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->requestId, clusterId, tstrerror(code1));
+        tscWarn("0x%" PRIx64 "catalogGetHandle failed, clusterId:%" PRIx64 ", error:%s", pRequest->requestId, clusterId,
+                tstrerror(code1));
       } else {
         catalogRemoveDB(pCatalog, usedbRsp.db, usedbRsp.uid);
       }
@@ -158,7 +164,7 @@ int32_t processUseDbRsp(void* param, const SDataBuf* pMsg, int32_t code) {
     if (output.dbVgroup) taosHashCleanup(output.dbVgroup->vgHash);
     taosMemoryFreeClear(output.dbVgroup);
 
-    tscError("0x%" PRIx64" failed to build use db output since %s", pRequest->requestId, terrstr());
+    tscError("0x%" PRIx64 " failed to build use db output since %s", pRequest->requestId, terrstr());
   } else if (output.dbVgroup) {
     struct SCatalog* pCatalog = NULL;
 

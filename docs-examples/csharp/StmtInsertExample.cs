@@ -21,7 +21,7 @@ namespace TDengineExample
             CheckStmtRes(res, "failed to prepare stmt");
 
             // 2. bind table name and tags
-            TAOS_BIND[] tags = new TAOS_BIND[2] { TaosBind.BindBinary("Beijing.Chaoyang"), TaosBind.BindInt(2) };
+            TAOS_BIND[] tags = new TAOS_BIND[2] { TaosBind.BindBinary("California.SanFrancisco"), TaosBind.BindInt(2) };
             res = TDengine.StmtSetTbnameTags(stmt, "d1001", tags);
             CheckStmtRes(res, "failed to bind table name and tags");
 

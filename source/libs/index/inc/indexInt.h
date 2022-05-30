@@ -34,6 +34,15 @@
 extern "C" {
 #endif
 
+// clang-format off
+#define indexFatal(...) do { if (idxDebugFlag & DEBUG_FATAL) {  taosPrintLog("INDEX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
+#define indexError(...) do { if (idxDebugFlag & DEBUG_ERROR) {  taosPrintLog("INDEX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
+#define indexWarn(...)  do { if (idxDebugFlag & DEBUG_WARN)  {  taosPrintLog("INDEX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
+#define indexInfo(...)  do { if (idxDebugFlag & DEBUG_INFO)  { taosPrintLog("INDEX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
+#define indexDebug(...) do { if (idxDebugFlag & DEBUG_DEBUG) { taosPrintLog("INDEX ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__);} } while (0)
+#define indexTrace(...) do { if (idxDebugFlag & DEBUG_TRACE) { taosPrintLog("INDEX ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__);} } while (0)
+// clang-format on
+
 typedef enum { LT, LE, GT, GE } RangeType;
 typedef enum { kTypeValue, kTypeDeletion } STermValueType;
 
@@ -133,15 +142,6 @@ void    indexReleaseRef(int64_t ref);
 int32_t indexSerialCacheKey(ICacheKey* key, char* buf);
 // int32_t indexSerialKey(ICacheKey* key, char* buf);
 // int32_t indexSerialTermKey(SIndexTerm* itm, char* buf);
-
-// clang-format off
-#define indexFatal(...) do { if (sDebugFlag & DEBUG_FATAL) {  taosPrintLog("INDEX FATAL ", DEBUG_FATAL, 255, __VA_ARGS__); }} while (0)
-#define indexError(...) do { if (sDebugFlag & DEBUG_ERROR) {  taosPrintLog("INDEX ERROR ", DEBUG_ERROR, 255, __VA_ARGS__); }} while (0)
-#define indexWarn(...)  do { if (sDebugFlag & DEBUG_WARN)  {  taosPrintLog("INDEX WARN ", DEBUG_WARN, 255, __VA_ARGS__); }} while (0)
-#define indexInfo(...)  do { if (sDebugFlag & DEBUG_INFO)  { taosPrintLog("INDEX ", DEBUG_INFO, 255, __VA_ARGS__); } } while (0)
-#define indexDebug(...) do { if (sDebugFlag & DEBUG_DEBUG) { taosPrintLog("INDEX ", DEBUG_DEBUG, sDebugFlag, __VA_ARGS__);} } while (0)
-#define indexTrace(...) do { if (sDebugFlag & DEBUG_TRACE) { taosPrintLog("INDEX ", DEBUG_TRACE, sDebugFlag, __VA_ARGS__);} } while (0)
-// clang-format on
 
 #define INDEX_TYPE_CONTAIN_EXTERN_TYPE(ty, exTy) (((ty >> 4) & (exTy)) != 0)
 

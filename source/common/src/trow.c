@@ -605,6 +605,10 @@ static int32_t tdAppendKvRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols
  * @param pCols
  */
 int32_t tdAppendSTSRowToDataCol(STSRow *pRow, STSchema *pSchema, SDataCols *pCols, bool isMerge) {
+#ifdef TD_DEBUG_PRINT_TSDB_LOAD_DCOLS
+  printf("%s:%d ts: %" PRIi64 " sver:%d maxCols:%" PRIi16 " nCols:%" PRIi16 ", nRows:%d\n", __func__, __LINE__,
+         TD_ROW_KEY(pRow), TD_ROW_SVER(pRow), pCols->maxCols, pCols->numOfCols, pCols->numOfRows);
+#endif
   if (TD_IS_TP_ROW(pRow)) {
     return tdAppendTpRowToDataCol(pRow, pSchema, pCols, isMerge);
   } else if (TD_IS_KV_ROW(pRow)) {
@@ -1191,9 +1195,9 @@ bool tdGetTpRowDataOfCol(STSRowIter *pIter, col_type_t colType, int32_t offset, 
 }
 
 static FORCE_INLINE int32_t compareKvRowColId(const void *key1, const void *key2) {
-  if (*(int16_t *)key1 > ((SColIdx *)key2)->colId) {
+  if (*(col_id_t *)key1 > ((SKvRowIdx *)key2)->colId) {
     return 1;
-  } else if (*(int16_t *)key1 < ((SColIdx *)key2)->colId) {
+  } else if (*(col_id_t *)key1 < ((SKvRowIdx *)key2)->colId) {
     return -1;
   } else {
     return 0;

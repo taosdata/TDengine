@@ -11,7 +11,7 @@ TDengine 的设计是基于单个硬件、软件系统不可靠，基于任何�
 
 TDengine 分布式架构的逻辑结构图如下：
 
-![TDengine架构示意图](./structure.webp)
+![TDengine Database 架构示意图](./structure.webp)
 
 <center> 图 1 TDengine架构示意图  </center>
 
@@ -41,7 +41,7 @@ TDengine 分布式架构的逻辑结构图如下：
 - 集群数据节点对外提供 RESTful 服务占用一个 TCP 端口，是 serverPort+11。
 - 集群内数据节点与 Arbitrator 节点之间通讯占用一个 TCP 端口，是 serverPort+12。
 
-因此一个数据节点总的端口范围为 serverPort 到 serverPort+12，总共 13 个 TCP/UDP 端口。使用时，需要确保防火墙将这些端口打开。每个数据节点可以配置不同的 serverPort。详细的端口情况请参见 [TDengine 2.0 端口说明](/train-faq/faq#port)
+因此一个数据节点总的端口范围为 serverPort 到 serverPort+12，总共 13 个 TCP/UDP 端口。确保集群中所有主机在端口 6030-6042 上的 TCP/UDP 协议能够互通。详细的端口情况请参见 [TDengine 2.0 端口说明](/train-faq/faq#port)
 
 **集群对外连接：**TDengine 集群可以容纳单个、多个甚至几千个数据节点。应用只需要向集群中任何一个数据节点发起连接即可，连接需要提供的网络参数是一数据节点的 End Point（FQDN 加配置的端口号）。通过命令行 CLI 启动应用 taos 时，可以通过选项-h 来指定数据节点的 FQDN，-P 来指定其配置的端口号，如果端口不配置，将采用 TDengine 的系统配置参数 serverPort。
 
@@ -63,7 +63,7 @@ TDengine 分布式架构的逻辑结构图如下：
 
 为解释 vnode、mnode、taosc 和应用之间的关系以及各自扮演的角色，下面对写入数据这个典型操作的流程进行剖析。
 
-![TDengine典型的操作流程](./message.webp)
+![TDengine Database 典型的操作流程](./message.webp)
 
 <center> 图 2 TDengine 典型的操作流程 </center>
 
@@ -135,7 +135,7 @@ TDengine 除 vnode 分片之外，还对时序数据按照时间段进行分区�
 
 Master Vnode 遵循下面的写入流程：
 
-![TDengine Master写入流程](./write_master.webp)
+![TDengine Database Master写入流程](./write_master.webp)
 
 <center> 图 3 TDengine Master 写入流程  </center>
 
@@ -150,7 +150,7 @@ Master Vnode 遵循下面的写入流程：
 
 对于 slave vnode，写入流程是：
 
-![TDengine Slave 写入流程](./write_slave.webp)
+![TDengine Database Slave 写入流程](./write_slave.webp)
 
 <center> 图 4 TDengine Slave 写入流程  </center>
 
@@ -284,7 +284,7 @@ SELECT COUNT(*) FROM d1001 WHERE ts >= '2017-7-14 00:00:00' AND ts < '2017-7-14 
 
 TDengine 对每个数据采集点单独建表，但在实际应用中经常需要对不同的采集点数据进行聚合。为高效的进行聚合操作，TDengine 引入超级表（STable）的概念。超级表用来代表一特定类型的数据采集点，它是包含多张表的表集合，集合里每张表的模式（schema）完全一致，但每张表都带有自己的静态标签，标签可以有多个，可以随时增加、删除和修改。应用可通过指定标签的过滤条件，对一个 STable 下的全部或部分表进行聚合或统计操作，这样大大简化应用的开发。其具体流程如下图所示：
 
-![多表聚合查询原理图](./multi_tables.webp)
+![TDengine Database 多表聚合查询原理图](./multi_tables.webp)
 
 <center> 图 5 多表聚合查询原理图  </center>
 

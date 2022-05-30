@@ -24,7 +24,7 @@ static void initLog() {
   const int32_t maxLogFileNum = 10;
 
   tsAsyncLog = 0;
-  sDebugFlag = 143;
+  idxDebugFlag = 143;
   strcpy(tsLogDir, logDir.c_str());
   taosRemoveDir(tsLogDir);
   taosMkDir(tsLogDir);

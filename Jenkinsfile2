@@ -269,7 +269,7 @@ pipeline {
                     }
                 }
                 stage('linux test') {
-                    agent{label " slave3_0 || slave15 || slave16 || slave17 "}
+                    agent{label " worker03 || slave215 || slave217 || slave219 "}
                     options { skipDefaultCheckout() } 
                     when {
                         changeRequest()
@@ -287,9 +287,9 @@ pipeline {
                                 '''
                                 sh '''
                                     cd ${WKC}/tests/parallel_test
-                                    export DEFAULT_RETRY_TIME=1
+                                    export DEFAULT_RETRY_TIME=2
                                     date
-                                    timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME} -l ${WKDIR}/log -o 480
+                                    timeout 2100 time ./run.sh -e -m /home/m.json -t /tmp/cases.task -b ${BRANCH_NAME}_${BUILD_ID} -l ${WKDIR}/log -o 480
                                 '''
                             }
                         }

@@ -23,6 +23,9 @@ extern "C" {
 #include "function.h"
 #include "querynodes.h"
 
+#define FUNC_AGGREGATE_UDF_ID 5001
+#define FUNC_SCALAR_UDF_ID    5002
+
 typedef enum EFunctionType {
   // aggregate function
   FUNCTION_TYPE_APERCENTILE = 1,
@@ -126,21 +129,12 @@ typedef enum EFunctionType {
 struct SqlFunctionCtx;
 struct SResultRowEntryInfo;
 struct STimeWindow;
-struct SCatalog;
-
-typedef struct SFmGetFuncInfoParam {
-  struct SCatalog* pCtg;
-  void*            pRpc;
-  const SEpSet*    pMgmtEps;
-  char*            pErrBuf;
-  int32_t          errBufLen;
-} SFmGetFuncInfoParam;
 
 int32_t fmFuncMgtInit();
 
 void fmFuncMgtDestroy();
 
-int32_t fmGetFuncInfo(SFmGetFuncInfoParam* pParam, SFunctionNode* pFunc);
+int32_t fmGetFuncInfo(SFunctionNode* pFunc, char* pMsg, int32_t msgLen);
 
 bool fmIsBuiltinFunc(const char* pFunc);
 

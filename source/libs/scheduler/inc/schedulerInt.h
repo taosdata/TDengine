@@ -297,7 +297,7 @@ void schFreeRpcCtx(SRpcCtx *pCtx);
 int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp);
 bool schJobNeedToStop(SSchJob *pJob, int8_t *pStatus);
 int32_t schProcessOnTaskSuccess(SSchJob *pJob, SSchTask *pTask);
-int32_t schSaveJobQueryRes(SSchJob *pJob, SResReadyRsp *rsp);
+int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp);
 int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRsp *pRsp);
 void schProcessOnDataFetched(SSchJob *job);
 int32_t schGetTaskFromTaskList(SHashObj *pTaskList, uint64_t taskId, SSchTask **pTask);

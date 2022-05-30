@@ -73,7 +73,7 @@ void setDumpModule(const char* pModule) {
   }
 }
 
-void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(optarg); }
+void setSkipSqlNum(const char* pNum) { g_skipSql = stoi(pNum); }
 
 void setLogLevel(const char* pLogLevel) { g_logLevel = stoi(pLogLevel); }
 

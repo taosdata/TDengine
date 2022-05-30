@@ -40,6 +40,7 @@ typedef struct STranslateContext {
   SHashObj*        pDbs;
   SHashObj*        pTables;
   SExplainOptions* pExplainOpt;
+  SParseMetaCache* pMetaCache;
 } STranslateContext;
 
 typedef struct SFullDatabaseName {
@@ -102,12 +103,17 @@ static int32_t collectUseTable(const SName* pName, SHashObj* pDbs) {
 
 static int32_t getTableMetaImpl(STranslateContext* pCxt, const SName* pName, STableMeta** pMeta) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectUseTable(pName, pCxt->pTables);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pMeta);
+  int32_t        code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getTableMetaFromCache(pCxt->pMetaCache, pName, pMeta);
+  } else {
+    code = collectUseDatabase(pName, pCxt->pDbs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectUseTable(pName, pCxt->pTables);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = catalogGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pMeta);
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("catalogGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
@@ -126,27 +132,16 @@ static int32_t refreshGetTableMeta(STranslateContext* pCxt, const char* pDbName,
   SParseContext* pParCxt = pCxt->pParseCxt;
   SName          name;
   toName(pCxt->pParseCxt->acctId, pDbName, pTableName, &name);
-  int32_t code =
-      catalogRefreshGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, &name, pMeta, false);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getTableMetaFromCache(pCxt->pMetaCache, &name, pMeta);
+  } else {
+    code =
+        catalogRefreshGetTableMeta(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, &name, pMeta, false);
+  }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("catalogRefreshGetTableMeta error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pDbName,
                 pTableName);
-  }
-  return code;
-}
-
-static int32_t getTableDistVgInfo(STranslateContext* pCxt, const SName* pName, SArray** pVgInfo) {
-  SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectUseTable(pName, pCxt->pTables);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetTableDistVgInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pVgInfo);
-  }
-  if (TSDB_CODE_SUCCESS != code) {
-    parserError("catalogGetTableDistVgInfo error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
-                pName->tname);
   }
   return code;
 }
@@ -155,9 +150,14 @@ static int32_t getDBVgInfoImpl(STranslateContext* pCxt, const SName* pName, SArr
   SParseContext* pParCxt = pCxt->pParseCxt;
   char           fullDbName[TSDB_DB_FNAME_LEN];
   tNameGetFullDbName(pName, fullDbName);
-  int32_t code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetDBVgInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, fullDbName, pVgInfo);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getDbVgInfoFromCache(pCxt->pMetaCache, fullDbName, pVgInfo);
+  } else {
+    code = collectUseDatabaseImpl(fullDbName, pCxt->pDbs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = catalogGetDBVgInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, fullDbName, pVgInfo);
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("catalogGetDBVgInfo error, code:%s, dbFName:%s", tstrerror(code), fullDbName);
@@ -175,12 +175,17 @@ static int32_t getDBVgInfo(STranslateContext* pCxt, const char* pDbName, SArray*
 
 static int32_t getTableHashVgroupImpl(STranslateContext* pCxt, const SName* pName, SVgroupInfo* pInfo) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = collectUseDatabase(pName, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = collectUseTable(pName, pCxt->pTables);
-  }
-  if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetTableHashVgroup(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pInfo);
+  int32_t        code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getTableVgroupFromCache(pCxt->pMetaCache, pName, pInfo);
+  } else {
+    code = collectUseDatabase(pName, pCxt->pDbs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = collectUseTable(pName, pCxt->pTables);
+    }
+    if (TSDB_CODE_SUCCESS == code) {
+      code = catalogGetTableHashVgroup(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pName, pInfo);
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("catalogGetTableHashVgroup error, code:%s, dbName:%s, tbName:%s", tstrerror(code), pName->dbname,
@@ -198,9 +203,14 @@ static int32_t getTableHashVgroup(STranslateContext* pCxt, const char* pDbName, 
 static int32_t getDBVgVersion(STranslateContext* pCxt, const char* pDbFName, int32_t* pVersion, int64_t* pDbId,
                               int32_t* pTableNum) {
   SParseContext* pParCxt = pCxt->pParseCxt;
-  int32_t        code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetDBVgVersion(pParCxt->pCatalog, pDbFName, pVersion, pDbId, pTableNum);
+  int32_t        code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getDbVgVersionFromCache(pCxt->pMetaCache, pDbFName, pVersion, pDbId, pTableNum);
+  } else {
+    code = collectUseDatabaseImpl(pDbFName, pCxt->pDbs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = catalogGetDBVgVersion(pParCxt->pCatalog, pDbFName, pVersion, pDbId, pTableNum);
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("catalogGetDBVgVersion error, code:%s, dbFName:%s", tstrerror(code), pDbFName);
@@ -214,9 +224,14 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
   tNameSetDbName(&name, pCxt->pParseCxt->acctId, pDbName, strlen(pDbName));
   char dbFname[TSDB_DB_FNAME_LEN] = {0};
   tNameGetFullDbName(&name, dbFname);
-  int32_t code = collectUseDatabaseImpl(dbFname, pCxt->pDbs);
-  if (TSDB_CODE_SUCCESS == code) {
-    code = catalogGetDBCfg(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, dbFname, pInfo);
+  int32_t code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getDbCfgFromCache(pCxt->pMetaCache, dbFname, pInfo);
+  } else {
+    code = collectUseDatabaseImpl(dbFname, pCxt->pDbs);
+    if (TSDB_CODE_SUCCESS == code) {
+      code = catalogGetDBCfg(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, dbFname, pInfo);
+    }
   }
   if (TSDB_CODE_SUCCESS != code) {
     parserError("catalogGetDBCfg error, code:%s, dbFName:%s", tstrerror(code), dbFname);
@@ -224,7 +239,28 @@ static int32_t getDBCfg(STranslateContext* pCxt, const char* pDbName, SDbCfgInfo
   return code;
 }
 
-static int32_t initTranslateContext(SParseContext* pParseCxt, STranslateContext* pCxt) {
+static int32_t getUdfInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
+  SParseContext* pParCxt = pCxt->pParseCxt;
+  SFuncInfo      funcInfo = {0};
+  int32_t        code = TSDB_CODE_SUCCESS;
+  if (pParCxt->async) {
+    code = getUdfInfoFromCache(pCxt->pMetaCache, pFunc->functionName, &funcInfo);
+  } else {
+    code = catalogGetUdfInfo(pParCxt->pCatalog, pParCxt->pTransporter, &pParCxt->mgmtEpSet, pFunc->functionName,
+                             &funcInfo);
+  }
+  if (TSDB_CODE_SUCCESS == code) {
+    pFunc->funcType = FUNCTION_TYPE_UDF;
+    pFunc->funcId = TSDB_FUNC_TYPE_AGGREGATE == funcInfo.funcType ? FUNC_AGGREGATE_UDF_ID : FUNC_SCALAR_UDF_ID;
+    pFunc->node.resType.type = funcInfo.outputType;
+    pFunc->node.resType.bytes = funcInfo.outputLen;
+    pFunc->udfBufSize = funcInfo.bufSize;
+    tFreeSFuncInfo(&funcInfo);
+  }
+  return code;
+}
+
+static int32_t initTranslateContext(SParseContext* pParseCxt, SParseMetaCache* pMetaCache, STranslateContext* pCxt) {
   pCxt->pParseCxt = pParseCxt;
   pCxt->errCode = TSDB_CODE_SUCCESS;
   pCxt->msgBuf.buf = pParseCxt->pMsg;
@@ -232,6 +268,7 @@ static int32_t initTranslateContext(SParseContext* pParseCxt, STranslateContext*
   pCxt->pNsLevel = taosArrayInit(TARRAY_MIN_SIZE, POINTER_BYTES);
   pCxt->currLevel = 0;
   pCxt->currClause = 0;
+  pCxt->pMetaCache = pMetaCache;
   pCxt->pDbs = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   pCxt->pTables = taosHashInit(4, taosGetDefaultHashFunction(TSDB_DATA_TYPE_BINARY), true, HASH_NO_LOCK);
   if (NULL == pCxt->pNsLevel || NULL == pCxt->pDbs || NULL == pCxt->pTables) {
@@ -715,18 +752,30 @@ static bool isMultiResFunc(SNode* pNode) {
   return (QUERY_NODE_COLUMN == nodeType(pParam) ? 0 == strcmp(((SColumnNode*)pParam)->colName, "*") : false);
 }
 
-static EDealRes translateUnaryOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
+static int32_t rewriteNegativeOperator(SNode** pOp) {
+  SNode*  pRes = NULL;
+  int32_t code = scalarCalculateConstants(*pOp, &pRes);
+  if (TSDB_CODE_SUCCESS == code) {
+    *pOp = pRes;
+  }
+  return code;
+}
+
+static EDealRes translateUnaryOperator(STranslateContext* pCxt, SOperatorNode** pOpRef) {
+  SOperatorNode* pOp = *pOpRef;
   if (OP_TYPE_MINUS == pOp->opType) {
     if (!IS_MATHABLE_TYPE(((SExprNode*)(pOp->pLeft))->resType.type)) {
       return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
     }
     pOp->node.resType.type = TSDB_DATA_TYPE_DOUBLE;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_DOUBLE].bytes;
+
+    pCxt->errCode = rewriteNegativeOperator((SNode**)pOpRef);
   } else {
     pOp->node.resType.type = TSDB_DATA_TYPE_BOOL;
     pOp->node.resType.bytes = tDataTypes[TSDB_DATA_TYPE_BOOL].bytes;
   }
-  return DEAL_RES_CONTINUE;
+  return TSDB_CODE_SUCCESS == pCxt->errCode ? DEAL_RES_CONTINUE : DEAL_RES_ERROR;
 }
 
 static EDealRes translateArithmeticOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
@@ -787,7 +836,9 @@ static EDealRes translateJsonOperator(STranslateContext* pCxt, SOperatorNode* pO
   return DEAL_RES_CONTINUE;
 }
 
-static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
+static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode** pOpRef) {
+  SOperatorNode* pOp = *pOpRef;
+
   if (isMultiResFunc(pOp->pLeft)) {
     return generateDealNodeErrMsg(pCxt, TSDB_CODE_PAR_WRONG_VALUE_TYPE, ((SExprNode*)(pOp->pLeft))->aliasName);
   }
@@ -796,7 +847,7 @@ static EDealRes translateOperator(STranslateContext* pCxt, SOperatorNode* pOp) {
   }
 
   if (nodesIsUnaryOp(pOp)) {
-    return translateUnaryOperator(pCxt, pOp);
+    return translateUnaryOperator(pCxt, pOpRef);
   } else if (nodesIsArithmeticOp(pOp)) {
     return translateArithmeticOperator(pCxt, pOp);
   } else if (nodesIsComparisonOp(pOp)) {
@@ -857,12 +908,11 @@ static bool hasInvalidFuncNesting(SNodeList* pParameterList) {
 }
 
 static int32_t getFuncInfo(STranslateContext* pCxt, SFunctionNode* pFunc) {
-  SFmGetFuncInfoParam param = {.pCtg = pCxt->pParseCxt->pCatalog,
-                               .pRpc = pCxt->pParseCxt->pTransporter,
-                               .pMgmtEps = &pCxt->pParseCxt->mgmtEpSet,
-                               .pErrBuf = pCxt->msgBuf.buf,
-                               .errBufLen = pCxt->msgBuf.len};
-  return fmGetFuncInfo(&param, pFunc);
+  int32_t code = fmGetFuncInfo(pFunc, pCxt->msgBuf.buf, pCxt->msgBuf.len);
+  if (TSDB_CODE_FUNC_NOT_BUILTIN_FUNTION == code) {
+    code = getUdfInfo(pCxt, pFunc);
+  }
+  return code;
 }
 
 static int32_t translateAggFunc(STranslateContext* pCxt, SFunctionNode* pFunc) {
@@ -956,7 +1006,7 @@ static EDealRes doTranslateExpr(SNode** pNode, void* pContext) {
     case QUERY_NODE_VALUE:
       return translateValue(pCxt, (SValueNode*)*pNode);
     case QUERY_NODE_OPERATOR:
-      return translateOperator(pCxt, (SOperatorNode*)*pNode);
+      return translateOperator(pCxt, (SOperatorNode**)pNode);
     case QUERY_NODE_FUNCTION:
       return translateFunction(pCxt, (SFunctionNode*)*pNode);
     case QUERY_NODE_LOGIC_CONDITION:
@@ -1196,7 +1246,6 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
   int32_t code = TSDB_CODE_SUCCESS;
   SArray* vgroupList = NULL;
   if ('\0' != pRealTable->qualDbName[0]) {
-    // todo release after mnode can be processed
     if (0 != strcmp(pRealTable->qualDbName, TSDB_INFORMATION_SCHEMA_DB)) {
       code = getDBVgInfo(pCxt, pRealTable->qualDbName, &vgroupList);
     }
@@ -1204,7 +1253,6 @@ static int32_t setSysTableVgroupList(STranslateContext* pCxt, SName* pName, SRea
     code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
   }
 
-  // todo release after mnode can be processed
   if (TSDB_CODE_SUCCESS == code) {
     code = addMnodeToVgroupList(&pCxt->pParseCxt->mgmtEpSet, &vgroupList);
   }
@@ -1225,7 +1273,7 @@ static int32_t setTableVgroupList(STranslateContext* pCxt, SName* pName, SRealTa
   int32_t code = TSDB_CODE_SUCCESS;
   if (TSDB_SUPER_TABLE == pRealTable->pMeta->tableType) {
     SArray* vgroupList = NULL;
-    code = getTableDistVgInfo(pCxt, pName, &vgroupList);
+    code = getDBVgInfoImpl(pCxt, pName, &vgroupList);
     if (TSDB_CODE_SUCCESS == code) {
       code = toVgroupsInfo(vgroupList, &pRealTable->pVgroupList);
     }
@@ -1857,9 +1905,9 @@ static int32_t translatePartitionBy(STranslateContext* pCxt, SNodeList* pPartiti
   return translateExprList(pCxt, pPartitionByList);
 }
 
-static int32_t translateWhere(STranslateContext* pCxt, SNode* pWhere) {
+static int32_t translateWhere(STranslateContext* pCxt, SNode** pWhere) {
   pCxt->currClause = SQL_CLAUSE_WHERE;
-  return translateExpr(pCxt, &pWhere);
+  return translateExpr(pCxt, pWhere);
 }
 
 static int32_t translateFrom(STranslateContext* pCxt, SSelectStmt* pSelect) {
@@ -1930,7 +1978,7 @@ static int32_t translateSelect(STranslateContext* pCxt, SSelectStmt* pSelect) {
   pCxt->pCurrStmt = pSelect;
   int32_t code = translateFrom(pCxt, pSelect);
   if (TSDB_CODE_SUCCESS == code) {
-    code = translateWhere(pCxt, pSelect->pWhere);
+    code = translateWhere(pCxt, &pSelect->pWhere);
   }
   if (TSDB_CODE_SUCCESS == code) {
     code = translatePartitionBy(pCxt, pSelect->pPartitionByList);
@@ -2797,7 +2845,7 @@ static int32_t buildRollupAst(STranslateContext* pCxt, SCreateTableStmt* pStmt, 
   for (int32_t i = 1; i < num; ++i) {
     SRetention*       pRetension = taosArrayGet(dbCfg.pRetensions, i);
     STranslateContext cxt = {0};
-    initTranslateContext(pCxt->pParseCxt, &cxt);
+    initTranslateContext(pCxt->pParseCxt, pCxt->pMetaCache, &cxt);
     code = getRollupAst(&cxt, pStmt, pRetension, dbCfg.precision, 1 == i ? &pReq->pAst1 : &pReq->pAst2,
                         1 == i ? &pReq->ast1Len : &pReq->ast2Len);
     destroyTranslateContext(&cxt);
@@ -3759,7 +3807,6 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_QNODES_STMT:
     case QUERY_NODE_SHOW_FUNCTIONS_STMT:
     case QUERY_NODE_SHOW_INDEXES_STMT:
-    case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_BNODES_STMT:
     case QUERY_NODE_SHOW_SNODES_STMT:
     case QUERY_NODE_SHOW_LICENCE_STMT:
@@ -3768,6 +3815,7 @@ static const char* getSysDbName(ENodeType type) {
     case QUERY_NODE_SHOW_CONNECTIONS_STMT:
     case QUERY_NODE_SHOW_QUERIES_STMT:
     case QUERY_NODE_SHOW_TOPICS_STMT:
+    case QUERY_NODE_SHOW_STREAMS_STMT:
     case QUERY_NODE_SHOW_TRANSACTIONS_STMT:
       return TSDB_PERFORMANCE_SCHEMA_DB;
     default:
@@ -3801,7 +3849,7 @@ static const char* getSysTableName(ENodeType type) {
     case QUERY_NODE_SHOW_INDEXES_STMT:
       return TSDB_INS_TABLE_USER_INDEXES;
     case QUERY_NODE_SHOW_STREAMS_STMT:
-      return TSDB_INS_TABLE_USER_STREAMS;
+      return TSDB_PERFS_TABLE_STREAMS;
     case QUERY_NODE_SHOW_BNODES_STMT:
       return TSDB_INS_TABLE_BNODES;
     case QUERY_NODE_SHOW_SNODES_STMT:
@@ -4893,7 +4941,7 @@ static int32_t setQuery(STranslateContext* pCxt, SQuery* pQuery) {
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery) {
   STranslateContext cxt = {0};
 
-  int32_t code = initTranslateContext(pParseCxt, &cxt);
+  int32_t code = initTranslateContext(pParseCxt, pQuery->pMetaCache, &cxt);
   if (TSDB_CODE_SUCCESS == code) {
     code = fmFuncMgtInit();
   }

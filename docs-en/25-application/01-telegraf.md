@@ -16,7 +16,7 @@ Current mainstream IT DevOps system usually include a data collection module, a 
 
 This article introduces how to quickly build a TDengine + Telegraf + Grafana based IT DevOps visualization system without writing even a single line of code and by simply modifying a few lines of configuration files. The architecture is as follows.
 
-![IT-DevOps-Solutions-Telegraf.webp](./IT-DevOps-Solutions-Telegraf.webp)
+![TDengine Database IT-DevOps-Solutions-Telegraf](./IT-DevOps-Solutions-Telegraf.webp)
 
 ## Installation steps
 
@@ -73,9 +73,9 @@ sudo systemctl start telegraf
 
 Log in to the Grafana interface using a web browser at `IP:3000`, with the system's initial username and password being `admin/admin`.
 Click on the gear icon on the left and select `Plugins`, you should find the TDengine data source plugin icon.
-Click on the plus icon on the left and select `Import` to get the data from `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard- v0.1.0.json`, download the dashboard JSON file and import it. You will then see the dashboard in the following screen.
+Click on the plus icon on the left and select `Import` to get the data from `https://github.com/taosdata/grafanaplugin/blob/master/examples/telegraf/grafana/dashboards/telegraf-dashboard-v0.1.0.json`, download the dashboard JSON file and import it. You will then see the dashboard in the following screen.
 
-![IT-DevOps-Solutions-telegraf-dashboard.webp](./IT-DevOps-Solutions-telegraf-dashboard.webp)
+![TDengine Database IT-DevOps-Solutions-telegraf-dashboard](./IT-DevOps-Solutions-telegraf-dashboard.webp)
 
 ## Wrap-up
 

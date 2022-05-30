@@ -184,6 +184,16 @@ int32_t parseTimezone(char* str, int64_t* tzOffset) {
 
   i++;
 
+  int32_t j = i;
+  while (str[j]) {
+    if ((str[j] >= '0' && str[j] <= '9') || str[j] == ':') {
+      ++j;
+      continue;
+    }
+
+    return -1;
+  }
+
   char* sep = strchr(&str[i], ':');
   if (sep != NULL) {
     int32_t len = (int32_t)(sep - &str[i]);
@@ -511,21 +521,21 @@ int32_t convertStringToTimestamp(int16_t type, char *inputData, int64_t timePrec
   if (type == TSDB_DATA_TYPE_BINARY || type == TSDB_DATA_TYPE_VARBINARY) {
     newColData = taosMemoryCalloc(1,  charLen + 1);
     memcpy(newColData, varDataVal(inputData), charLen);
-    bool ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, charLen, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
-      return ret;
+      return TSDB_CODE_INVALID_TIMESTAMP;
     }
     taosMemoryFree(newColData);
   } else if (type == TSDB_DATA_TYPE_NCHAR) {
-    newColData = taosMemoryCalloc(1,  charLen / TSDB_NCHAR_SIZE + 1);
+    newColData = taosMemoryCalloc(1,  charLen + TSDB_NCHAR_SIZE);
     int len = taosUcs4ToMbs((TdUcs4 *)varDataVal(inputData), charLen, newColData);
     if (len < 0){
       taosMemoryFree(newColData);
       return TSDB_CODE_FAILED;
     }
     newColData[len] = 0;
-    bool ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
+    int32_t ret = taosParseTime(newColData, timeVal, len + 1, (int32_t)timePrec, tsDaylight);
     if (ret != TSDB_CODE_SUCCESS) {
       taosMemoryFree(newColData);
       return ret;
@@ -773,7 +783,7 @@ int64_t taosTimeTruncate(int64_t t, const SInterval* pInterval, int32_t precisio
 //     2020-07-03 17:48:42
 // and the parameter can also be a variable.
 const char* fmtts(int64_t ts) {
-  static char buf[96];
+  static char buf[96] = {0};
   size_t      pos = 0;
   struct tm   tm;
 

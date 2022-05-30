@@ -1067,7 +1067,7 @@ int32_t schProcessOnExplainDone(SSchJob *pJob, SSchTask *pTask, SRetrieveTableRs
   return TSDB_CODE_SUCCESS;
 }
 
-int32_t schSaveJobQueryRes(SSchJob *pJob, SResReadyRsp *rsp) {
+int32_t schSaveJobQueryRes(SSchJob *pJob, SQueryTableRsp *rsp) {
   if (rsp->tbFName[0]) {
     if (NULL == pJob->queryRes) {
       pJob->queryRes = taosArrayInit(pJob->taskNum, sizeof(STbVerInfo));

@@ -318,7 +318,20 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
   //    updateNumOfRowsInResultRows(pInfo->binfo.pCtx, pOperator->numOfExprs, &pInfo->binfo.resultRowInfo,
   //    pInfo->binfo.rowCellInfoOffset);
   //  }
-
+#if 0
+  if(pOperator->fpSet.encodeResultRow){
+    char *result = NULL;
+    int32_t length = 0;
+    pOperator->fpSet.encodeResultRow(pOperator, &result, &length);
+    SAggSupporter* pSup = &pInfo->aggSup;
+    taosHashClear(pSup->pResultRowHashTable);
+    pInfo->binfo.resultRowInfo.size = 0;
+    pOperator->fpSet.decodeResultRow(pOperator, result);
+    if(result){
+      taosMemoryFree(result);
+    }
+  }
+#endif
   blockDataEnsureCapacity(pRes, pOperator->resultInfo.capacity);
   initGroupedResultInfo(&pInfo->groupResInfo, pInfo->aggSup.pResultRowHashTable, 0);
 
@@ -346,7 +359,7 @@ static SSDataBlock* hashGroupbyAggregate(SOperatorInfo* pOperator) {
 }
 
 SOperatorInfo* createGroupOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
-    SNode* pCondition, SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
+    SNode* pCondition, SExprInfo* pScalarExprInfo, int32_t numOfScalarExpr, SExecTaskInfo* pTaskInfo) {
   SGroupbyOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SGroupbyOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
@@ -613,7 +626,7 @@ static void destroyPartitionOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 SOperatorInfo* createPartitionOperatorInfo(SOperatorInfo* downstream, SExprInfo* pExprInfo, int32_t numOfCols, SSDataBlock* pResultBlock, SArray* pGroupColList,
-                                           SExecTaskInfo* pTaskInfo, const STableGroupInfo* pTableGroupInfo) {
+                                           SExecTaskInfo* pTaskInfo) {
   SPartitionOperatorInfo* pInfo = taosMemoryCalloc(1, sizeof(SPartitionOperatorInfo));
   SOperatorInfo*        pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
