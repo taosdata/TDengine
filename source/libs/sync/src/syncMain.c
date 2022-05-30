@@ -575,11 +575,12 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   // restore state
   pSyncNode->restoreFinish = false;
-  pSyncNode->pSnapshot = NULL;
-  if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
-    pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
-    pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, pSyncNode->pSnapshot);
-  }
+
+  // pSyncNode->pSnapshot = NULL;
+  // if (pSyncNode->pFsm->FpGetSnapshot != NULL) {
+  //   pSyncNode->pSnapshot = taosMemoryMalloc(sizeof(SSnapshot));
+  //   pSyncNode->pFsm->FpGetSnapshot(pSyncNode->pFsm, pSyncNode->pSnapshot);
+  // }
   // tsem_init(&(pSyncNode->restoreSem), 0, 0);
 
   // start in syncNodeStart
@@ -673,9 +674,11 @@ void syncNodeClose(SSyncNode* pSyncNode) {
     taosMemoryFree(pSyncNode->pFsm);
   }
 
+  /*
   if (pSyncNode->pSnapshot != NULL) {
     taosMemoryFree(pSyncNode->pSnapshot);
   }
+  */
 
   // tsem_destroy(&pSyncNode->restoreSem);
 

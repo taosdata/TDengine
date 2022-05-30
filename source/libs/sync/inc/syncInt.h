@@ -162,8 +162,8 @@ typedef struct SSyncNode {
 
   // restore state
   // sem_t      restoreSem;
-  bool                   restoreFinish;
-  SSnapshot*             pSnapshot;
+  bool restoreFinish;
+  // SSnapshot*             pSnapshot;
   SSyncSnapshotSender*   senders[TSDB_MAX_REPLICA];
   SSyncSnapshotReceiver* receivers[TSDB_MAX_REPLICA];
 

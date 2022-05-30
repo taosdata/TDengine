@@ -335,8 +335,12 @@ int32_t syncNodeOnAppendEntriesCb(SSyncNode* ths, SyncAppendEntries* pMsg) {
                 cbMeta.currentTerm = ths->pRaftStore->currentTerm;
                 cbMeta.flag = 0x11;
 
+                SSnapshot snapshot;
+                ASSERT(ths->pFsm->FpGetSnapshot != NULL);
+                ths->pFsm->FpGetSnapshot(ths->pFsm, &snapshot);
+
                 bool needExecute = true;
-                if (ths->pSnapshot != NULL && cbMeta.index <= ths->pSnapshot->lastApplyIndex) {
+                if (cbMeta.index <= snapshot.lastApplyIndex) {
                   needExecute = false;
                 }
 
