@@ -235,6 +235,15 @@ int32_t tqUpdateTbUidList(STQ* pTq, const SArray* tbUidList, bool isAdd) {
       }
     }
   }
+  while (1) {
+    pIter = taosHashIterate(pTq->pStreamTasks, pIter);
+    if (pIter == NULL) break;
+    SStreamTask* pTask = (SStreamTask*)pIter;
+    if (pTask->inputType == STREAM_INPUT__DATA_SUBMIT) {
+      int32_t code = qUpdateQualifiedTableId(pTask->exec.executor, tbUidList, isAdd);
+      ASSERT(code == 0);
+    }
+  }
   return 0;
 }
 
@@ -264,7 +273,7 @@ int32_t tqPushMsgNew(STQ* pTq, void* msg, int32_t msgLen, tmsg_t msgType, int64_
     if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
       qTaskInfo_t task = pExec->task[workerId];
       ASSERT(task);
-      qSetStreamInput(task, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+      qSetStreamInput(task, pReq, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
       while (1) {
         SSDataBlock* pDataBlock = NULL;
         uint64_t     ts = 0;
@@ -510,7 +519,7 @@ int32_t tqProcessPollReq(STQ* pTq, SRpcMsg* pMsg, int32_t workerId) {
       if (pExec->subType == TOPIC_SUB_TYPE__TABLE) {
         qTaskInfo_t task = pExec->task[workerId];
         ASSERT(task);
-        qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK);
+        qSetStreamInput(task, pCont, STREAM_DATA_TYPE_SUBMIT_BLOCK, false);
         while (1) {
           SSDataBlock* pDataBlock = NULL;
           uint64_t     ts = 0;

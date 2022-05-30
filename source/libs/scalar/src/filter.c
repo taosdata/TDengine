@@ -3553,7 +3553,11 @@ EDealRes fltReviseRewriter(SNode** pNode, void* pContext) {
       return DEAL_RES_CONTINUE;
     }
 
-    sclConvertToTsValueNode(stat->precision, valueNode);
+    int32_t code = sclConvertToTsValueNode(stat->precision, valueNode);
+    if (code) {
+      stat->code = code;
+      return DEAL_RES_ERROR;
+    }
 
     return DEAL_RES_CONTINUE;
   }
@@ -3687,7 +3691,7 @@ int32_t fltReviseNodes(SFilterInfo *pInfo, SNode** pNode, SFltTreeStat *pStat) {
   for (int32_t i = 0; i < nodeNum; ++i) {
     SValueNode *valueNode = *(SValueNode **)taosArrayGet(pStat->nodeList, i);
     
-    sclConvertToTsValueNode(pStat->precision, valueNode);
+    FLT_ERR_JRET(sclConvertToTsValueNode(pStat->precision, valueNode));
   }
 
 _return:

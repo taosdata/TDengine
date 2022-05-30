@@ -15,7 +15,7 @@ $x = 0
 step1: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then
+	if $x == 50 then
 		return -1
 	endi
 sql show dnodes -x step1
@@ -37,7 +37,7 @@ $x = 0
 step2: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then
+	if $x == 50 then
 		return -1
 	endi
 sql show mnodes -x step2
@@ -68,7 +68,7 @@ $x = 0
 step4: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then
+	if $x == 50 then
 		return -1
 	endi
 sql show mnodes -x step4
@@ -98,7 +98,7 @@ $x = 0
 step5: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then
+	if $x == 50 then
 		return -1
 	endi
 sql show mnodes -x step5
@@ -119,7 +119,7 @@ $x = 0
 step6: 
 	$x = $x + 1
 	sleep 1000
-	if $x == 20 then
+	if $x == 50 then
 		return -1
 	endi
 sql show mnodes -x step6

@@ -17,6 +17,9 @@ import sys
 import getopt
 import subprocess
 import time
+import base64
+import json
+import platform
 from distutils.log import warn as printf
 from fabric2 import Connection
 sys.path.append("../pytest")
@@ -38,8 +41,12 @@ if __name__ == "__main__":
     stop = 0
     restart = False
     windows = 0
-    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrw', [
-        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'windows'])
+    if platform.system().lower() == 'windows':
+        windows = 1
+    updateCfgDict = {}
+    execCmd = ""
+    opts, args = getopt.gnu_getopt(sys.argv[1:], 'f:p:m:l:scghrd:e:', [
+        'file=', 'path=', 'master', 'logSql', 'stop', 'cluster', 'valgrind', 'help', 'restart', 'updateCfgDict', 'execCmd'])
     for key, value in opts:
         if key in ['-h', '--help']:
             tdLog.printNoPrefix(
@@ -52,7 +59,8 @@ if __name__ == "__main__":
             tdLog.printNoPrefix('-c Test Cluster Flag')
             tdLog.printNoPrefix('-g valgrind Test Flag')
             tdLog.printNoPrefix('-r taosd restart test')
-            tdLog.printNoPrefix('-w taos on windows')
+            tdLog.printNoPrefix('-d update cfg dict, base64 json str')
+            tdLog.printNoPrefix('-e eval str to run')
             sys.exit(0)
 
         if key in ['-r', '--restart']: 
@@ -85,8 +93,24 @@ if __name__ == "__main__":
         if key in ['-s', '--stop']:
             stop = 1
 
-        if key in ['-w', '--windows']:
-            windows = 1
+        if key in ['-d', '--updateCfgDict']:
+            try:
+                updateCfgDict = eval(base64.b64decode(value.encode()).decode())
+            except:
+                print('updateCfgDict convert fail.')
+                sys.exit(0)
+
+        if key in ['-e', '--execCmd']:
+            try:
+                execCmd = base64.b64decode(value.encode()).decode()
+            except:
+                print('updateCfgDict convert fail.')
+                sys.exit(0)
+
+    if not execCmd == "":
+        tdDnodes.init(deployPath)
+        exec(execCmd)
+        quit()
 
     if (stop != 0):
         if (valgrind == 0):
@@ -121,23 +145,51 @@ if __name__ == "__main__":
     if masterIp == "":
         host = '127.0.0.1'
     else:
-        host = masterIp
+        try:
+            config = eval(masterIp)
+            host = config["host"]
+        except Exception as r:
+            host = masterIp
 
     tdLog.info("Procedures for tdengine deployed in %s" % (host))
     if windows:
         tdCases.logSql(logSql)
         tdLog.info("Procedures for testing self-deployment")
-        td_clinet = TDSimClient("C:\\TDengine")
-        td_clinet.deploy()
-        remote_conn = Connection("root@%s"%host)
-        with remote_conn.cd('/var/lib/jenkins/workspace/TDinternal/community/tests/pytest'):
-            remote_conn.run("python3 ./test.py")
+        tdDnodes.init(deployPath, masterIp)
+        tdDnodes.setTestCluster(testCluster)
+        tdDnodes.setValgrind(valgrind)
+        tdDnodes.stopAll()
+        key_word = 'tdCases.addWindows'
+        is_test_framework = 0
+        try:
+            if key_word in open(fileName).read():
+                is_test_framework = 1
+        except:
+            pass
+        updateCfgDictStr = ''
+        if is_test_framework:
+            moduleName = fileName.replace(".py", "").replace(os.sep, ".")
+            uModule = importlib.import_module(moduleName)
+            try:
+                ucase = uModule.TDTestCase()
+                if ((json.dumps(updateCfgDict) == '{}') and (ucase.updatecfgDict is not None)):
+                    updateCfgDict = ucase.updatecfgDict
+                    updateCfgDictStr = "-d %s"%base64.b64encode(json.dumps(updateCfgDict).encode()).decode()
+            except :
+                pass
+        else:
+            pass
+        tdDnodes.deploy(1,updateCfgDict)
+        tdDnodes.start(1)
         conn = taos.connect(
             host="%s"%(host),
-            config=td_clinet.cfgDir)
-        tdCases.runOneWindows(conn, fileName)
+            config=tdDnodes.sim.getCfgDir())
+        if is_test_framework:
+            tdCases.runOneWindows(conn, fileName)
+        else:
+            tdCases.runAllWindows(conn)
     else:
-        tdDnodes.init(deployPath)
+        tdDnodes.init(deployPath, masterIp)
         tdDnodes.setTestCluster(testCluster)
         tdDnodes.setValgrind(valgrind)
         tdDnodes.stopAll()
@@ -153,15 +205,12 @@ if __name__ == "__main__":
             uModule = importlib.import_module(moduleName)
             try:
                 ucase = uModule.TDTestCase()
-                tdDnodes.deploy(1,ucase.updatecfgDict)
-            except :
-                tdDnodes.deploy(1,{})
-        else:
-            pass
-            tdDnodes.deploy(1,{})
+                if (json.dumps(updateCfgDict) == '{}'):
+                    updateCfgDict = ucase.updatecfgDict
+            except:
+                pass
+        tdDnodes.deploy(1,updateCfgDict)
         tdDnodes.start(1)
-
-
 
         tdCases.logSql(logSql)
 

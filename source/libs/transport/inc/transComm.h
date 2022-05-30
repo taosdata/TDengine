@@ -104,8 +104,16 @@ typedef SRpcCtxVal   STransCtxVal;
 typedef SRpcInfo     STrans;
 typedef SRpcConnInfo STransHandleInfo;
 
+/*convet from fqdn to ip */
+typedef struct SCvtAddr {
+  char ip[TSDB_FQDN_LEN];
+  char fqdn[TSDB_FQDN_LEN];
+  bool cvt;
+} SCvtAddr;
+
 typedef struct {
-  SEpSet  epSet;     // ip list provided by app
+  SEpSet  epSet;  // ip list provided by app
+  SEpSet  origEpSet;
   void*   ahandle;   // handle provided by app
   tmsg_t  msgType;   // message type
   int8_t  connType;  // connection type cli/srv
@@ -115,6 +123,7 @@ typedef struct {
   STransCtx  appCtx;  //
   STransMsg* pRsp;    // for synchronous API
   tsem_t*    pSem;    // for synchronous API
+  SCvtAddr   cvtAddr;
 
   int hThrdIdx;
 } STransConnCtx;
@@ -155,7 +164,7 @@ typedef struct {
 
 #pragma pack(pop)
 
-typedef enum { Normal, Quit, Release, Register } STransMsgType;
+typedef enum { Normal, Quit, Release, Register, Update } STransMsgType;
 typedef enum { ConnNormal, ConnAcquire, ConnRelease, ConnBroken, ConnInPool } ConnStatus;
 
 #define container_of(ptr, type, member) ((type*)((char*)(ptr)-offsetof(type, member)))
@@ -209,6 +218,22 @@ SAsyncPool* transCreateAsyncPool(uv_loop_t* loop, int sz, void* arg, AsyncCB cb)
 void        transDestroyAsyncPool(SAsyncPool* pool);
 int         transSendAsync(SAsyncPool* pool, queue* mq);
 
+#define TRANS_DESTROY_ASYNC_POOL_MSG(pool, msgType, freeFunc) \
+  do {                                                        \
+    for (int i = 0; i < pool->nAsync; i++) {                  \
+      uv_async_t* async = &(pool->asyncs[i]);                 \
+      SAsyncItem* item = async->data;                         \
+      while (!QUEUE_IS_EMPTY(&item->qmsg)) {                  \
+        tTrace("destroy msg in async pool ");                 \
+        queue* h = QUEUE_HEAD(&item->qmsg);                   \
+        QUEUE_REMOVE(h);                                      \
+        msgType* msg = QUEUE_DATA(h, msgType, q);             \
+        if (msg != NULL) {                                    \
+          freeFunc(msg);                                      \
+        }                                                     \
+      }                                                       \
+    }                                                         \
+  } while (0)
 int  transInitBuffer(SConnBuffer* buf);
 int  transClearBuffer(SConnBuffer* buf);
 int  transDestroyBuffer(SConnBuffer* buf);
@@ -231,6 +256,7 @@ void transSendRecv(void* shandle, const SEpSet* pEpSet, STransMsg* pMsg, STransM
 void transSendResponse(const STransMsg* msg);
 void transRegisterMsg(const STransMsg* msg);
 int  transGetConnInfo(void* thandle, STransHandleInfo* pInfo);
+void transSetDefaultAddr(void* shandle, const char* ip, const char* fqdn);
 
 void* transInitServer(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
 void* transInitClient(uint32_t ip, uint32_t port, char* label, int numOfThreads, void* fp, void* shandle);
@@ -319,6 +345,7 @@ void transDQDestroy(SDelayQueue* queue);
 int transDQSched(SDelayQueue* queue, void (*func)(void* arg), void* arg, uint64_t timeoutMs);
 
 void transPrintEpSet(SEpSet* pEpSet);
+bool transEpSetIsEqual(SEpSet* a, SEpSet* b);
 /*
  * init global func
  */

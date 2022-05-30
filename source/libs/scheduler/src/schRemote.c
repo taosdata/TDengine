@@ -31,7 +31,7 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
     case TDMT_VND_EXPLAIN_RSP:
       return TSDB_CODE_SUCCESS;
     case TDMT_VND_QUERY_RSP:  // query_rsp may be processed later than ready_rsp
-      if (lastMsgType != reqMsgType && -1 != lastMsgType && TDMT_VND_FETCH != lastMsgType) {
+      if (lastMsgType != reqMsgType && -1 != lastMsgType) {
         SCH_TASK_DLOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s", TMSG_INFO(lastMsgType),
                       TMSG_INFO(msgType));
       }
@@ -39,22 +39,6 @@ int32_t schValidateReceivedMsgType(SSchJob *pJob, SSchTask *pTask, int32_t msgTy
       if (taskStatus != JOB_TASK_STATUS_EXECUTING && taskStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
         SCH_TASK_DLOG("rsp msg conflicted with task status, status:%s, rspType:%s", jobTaskStatusStr(taskStatus),
                       TMSG_INFO(msgType));
-      }
-
-      SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
-      return TSDB_CODE_SUCCESS;
-    case TDMT_VND_RES_READY_RSP:
-      reqMsgType = TDMT_VND_QUERY;
-      if (lastMsgType != reqMsgType && -1 != lastMsgType) {
-        SCH_TASK_ELOG("rsp msg type mis-match, last sent msgType:%s, rspType:%s",
-                      (lastMsgType > 0 ? TMSG_INFO(lastMsgType) : "null"), TMSG_INFO(msgType));
-        SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
-      }
-
-      if (taskStatus != JOB_TASK_STATUS_EXECUTING && taskStatus != JOB_TASK_STATUS_PARTIAL_SUCCEED) {
-        SCH_TASK_ELOG("rsp msg conflicted with task status, status:%s, rspType:%s", jobTaskStatusStr(taskStatus),
-                      TMSG_INFO(msgType));
-        SCH_ERR_RET(TSDB_CODE_SCH_STATUS_ERROR);
       }
 
       SCH_SET_TASK_LASTMSG_TYPE(pTask, -1);
@@ -110,6 +94,7 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
   if (schJobNeedToStop(pJob, &status)) {
     SCH_TASK_ELOG("rsp not processed cause of job status, job status:%s, rspCode:0x%x", jobTaskStatusStr(status),
                   rspCode);
+    taosMemoryFreeClear(msg);              
     SCH_RET(atomic_load_32(&pJob->errCode));
   }
 
@@ -137,6 +122,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_ERR_JRET(rspCode);
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -161,6 +148,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_ERR_JRET(rspCode);
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -180,6 +169,9 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       if (NULL == msg) {
         SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
       }
+
+      taosMemoryFreeClear(msg);              
+      
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
       break;
     }
@@ -226,29 +218,14 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
         SCH_UNLOCK(SCH_WRITE, &pJob->resLock);
       }
 
+      taosMemoryFreeClear(msg);              
+
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
       break;
     }
     case TDMT_VND_QUERY_RSP: {
-      SQueryTableRsp rsp = {0};
-      if (msg) {
-        SCH_ERR_JRET(tDeserializeSQueryTableRsp(msg, msgSize, &rsp));
-        SCH_ERR_JRET(rsp.code);
-      }
-
-      SCH_ERR_JRET(rspCode);
-
-      if (NULL == msg) {
-        SCH_ERR_JRET(TSDB_CODE_QRY_INVALID_INPUT);
-      }
-
-      // SCH_ERR_JRET(schBuildAndSendMsg(pJob, pTask, NULL, TDMT_VND_RES_READY));
-
-      break;
-    }
-    case TDMT_VND_RES_READY_RSP: {
-      SResReadyRsp *rsp = (SResReadyRsp *)msg;
+      SQueryTableRsp *rsp = (SQueryTableRsp *)msg;
 
       SCH_ERR_JRET(rspCode);
       if (NULL == msg) {
@@ -257,6 +234,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       SCH_ERR_JRET(rsp->code);
 
       SCH_ERR_JRET(schSaveJobQueryRes(pJob, rsp));
+
+      taosMemoryFreeClear(msg);              
       
       SCH_ERR_RET(schProcessOnTaskSuccess(pJob, pTask));
 
@@ -308,12 +287,16 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
             SCH_ERR_JRET(schProcessOnExplainDone(pJob, pTask, pRsp));
           }
 
+          taosMemoryFreeClear(msg);              
+
           return TSDB_CODE_SUCCESS;
         }
 
         atomic_val_compare_exchange_32(&pJob->remoteFetch, 1, 0);
 
         SCH_ERR_JRET(schFetchFromRemote(pJob));
+
+        taosMemoryFreeClear(msg);              
 
         return TSDB_CODE_SUCCESS;
       }
@@ -332,6 +315,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
       }
 
       SCH_TASK_DLOG("got fetch rsp, rows:%d, complete:%d", htonl(rsp->numOfRows), rsp->completed);
+
+      msg = NULL;              
 
       schProcessOnDataFetched(pJob);
       break;
@@ -354,6 +339,8 @@ int32_t schHandleResponseMsg(SSchJob *pJob, SSchTask *pTask, int32_t msgType, ch
   return TSDB_CODE_SUCCESS;
 
 _return:
+
+  taosMemoryFreeClear(msg);              
 
   SCH_RET(schProcessOnTaskFailure(pJob, pTask, code));
 }
@@ -427,10 +414,6 @@ int32_t schHandleQueryCallback(void *param, const SDataBuf *pMsg, int32_t code) 
 
 int32_t schHandleFetchCallback(void *param, const SDataBuf *pMsg, int32_t code) {
   return schHandleCallback(param, pMsg, TDMT_VND_FETCH_RSP, code);
-}
-
-int32_t schHandleReadyCallback(void *param, const SDataBuf *pMsg, int32_t code) {
-  return schHandleCallback(param, pMsg, TDMT_VND_RES_READY_RSP, code);
 }
 
 int32_t schHandleExplainCallback(void *param, const SDataBuf *pMsg, int32_t code) {
@@ -517,9 +500,6 @@ int32_t schGetCallbackFp(int32_t msgType, __async_send_cb_fn_t *fp) {
       break;
     case TDMT_VND_QUERY:
       *fp = schHandleQueryCallback;
-      break;
-    case TDMT_VND_RES_READY:
-      *fp = schHandleReadyCallback;
       break;
     case TDMT_VND_EXPLAIN:
       *fp = schHandleExplainCallback;
@@ -933,7 +913,6 @@ _return:
 
 int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
   int32_t       code = 0;
-  SMsgSendInfo *pReadyMsgSendInfo = NULL;
   SMsgSendInfo *pExplainMsgSendInfo = NULL;
 
   pCtx->args = taosHashInit(1, taosGetDefaultHashFunction(TSDB_DATA_TYPE_INT), false, HASH_ENTRY_LOCK);
@@ -942,18 +921,10 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
     SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
   }
 
-  SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, TDMT_VND_RES_READY, &pReadyMsgSendInfo));
   SCH_ERR_JRET(schGenerateCallBackInfo(pJob, pTask, TDMT_VND_EXPLAIN, &pExplainMsgSendInfo));
 
-  int32_t    msgType = TDMT_VND_RES_READY_RSP;
-  SRpcCtxVal ctxVal = {.val = pReadyMsgSendInfo, .clone = schCloneSMsgSendInfo};
-  if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
-    SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
-    SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-  }
-
-  msgType = TDMT_VND_EXPLAIN_RSP;
-  ctxVal.val = pExplainMsgSendInfo;
+  int32_t    msgType = TDMT_VND_EXPLAIN_RSP;
+  SRpcCtxVal ctxVal = {.val = pExplainMsgSendInfo, .clone = schCloneSMsgSendInfo};
   if (taosHashPut(pCtx->args, &msgType, sizeof(msgType), &ctxVal, sizeof(ctxVal))) {
     SCH_TASK_ELOG("taosHashPut msg %d to rpcCtx failed", msgType);
     SCH_ERR_JRET(TSDB_CODE_QRY_OUT_OF_MEMORY);
@@ -967,11 +938,6 @@ int32_t schMakeQueryRpcCtx(SSchJob *pJob, SSchTask *pTask, SRpcCtx *pCtx) {
 _return:
 
   taosHashCleanup(pCtx->args);
-
-  if (pReadyMsgSendInfo) {
-    taosMemoryFreeClear(pReadyMsgSendInfo->param);
-    taosMemoryFreeClear(pReadyMsgSendInfo);
-  }
 
   if (pExplainMsgSendInfo) {
     taosMemoryFreeClear(pExplainMsgSendInfo->param);
@@ -1126,24 +1092,6 @@ int32_t schBuildAndSendMsg(SSchJob *pJob, SSchTask *pTask, SQueryNodeAddr *addr,
       memcpy(pMsg->msg + len, pTask->msg, pTask->msgLen);
 
       persistHandle = true;
-      break;
-    }
-
-    case TDMT_VND_RES_READY: {
-      msgSize = sizeof(SResReadyReq);
-      msg = taosMemoryCalloc(1, msgSize);
-      if (NULL == msg) {
-        SCH_TASK_ELOG("calloc %d failed", msgSize);
-        SCH_ERR_RET(TSDB_CODE_QRY_OUT_OF_MEMORY);
-      }
-
-      SResReadyReq *pMsg = msg;
-
-      pMsg->header.vgId = htonl(addr->nodeId);
-
-      pMsg->sId = htobe64(schMgmt.sId);
-      pMsg->queryId = htobe64(pJob->queryId);
-      pMsg->taskId = htobe64(pTask->taskId);
       break;
     }
     case TDMT_VND_FETCH: {

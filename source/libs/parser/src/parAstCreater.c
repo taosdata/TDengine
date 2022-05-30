@@ -39,6 +39,7 @@
 SToken nil_token = {.type = TK_NK_NIL, .n = 0, .z = NULL};
 
 void initAstCreateContext(SParseContext* pParseCxt, SAstCreateContext* pCxt) {
+  memset(pCxt, 0, sizeof(SAstCreateContext));
   pCxt->pQueryCxt = pParseCxt;
   pCxt->msgBuf.buf = pParseCxt->pMsg;
   pCxt->msgBuf.len = pParseCxt->msgLen;

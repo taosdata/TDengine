@@ -26,6 +26,7 @@ extern "C" {
 
 int32_t parseInsertSql(SParseContext* pContext, SQuery** pQuery);
 int32_t parse(SParseContext* pParseCxt, SQuery** pQuery);
+int32_t collectMetaKey(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t authenticate(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t translate(SParseContext* pParseCxt, SQuery* pQuery);
 int32_t extractResultSchema(const SNode* pRoot, int32_t* numOfCols, SSchema** pSchema);

@@ -140,6 +140,7 @@ static SSdbRaw *mndTransActionEncode(STrans *pTrans) {
   SDB_SET_INT16(pRaw, dataPos, stage, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pTrans->policy, _OVER)
   SDB_SET_INT16(pRaw, dataPos, pTrans->type, _OVER)
+  SDB_SET_INT16(pRaw, dataPos, pTrans->parallel, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->createdTime, _OVER)
   SDB_SET_INT64(pRaw, dataPos, pTrans->dbUid, _OVER)
   SDB_SET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
@@ -245,12 +246,15 @@ static SSdbRow *mndTransActionDecode(SSdbRaw *pRaw) {
   int16_t stage = 0;
   int16_t policy = 0;
   int16_t type = 0;
+  int16_t parallel = 0;
   SDB_GET_INT16(pRaw, dataPos, &stage, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &policy, _OVER)
   SDB_GET_INT16(pRaw, dataPos, &type, _OVER)
+  SDB_GET_INT16(pRaw, dataPos, &parallel, _OVER)
   pTrans->stage = stage;
   pTrans->policy = policy;
   pTrans->type = type;
+  pTrans->parallel = parallel;
   SDB_GET_INT64(pRaw, dataPos, &pTrans->createdTime, _OVER)
   SDB_GET_INT64(pRaw, dataPos, &pTrans->dbUid, _OVER)
   SDB_GET_BINARY(pRaw, dataPos, pTrans->dbname, TSDB_DB_FNAME_LEN, _OVER)
@@ -665,6 +669,8 @@ void mndTransSetDbInfo(STrans *pTrans, SDbObj *pDb) {
   memcpy(pTrans->dbname, pDb->name, TSDB_DB_FNAME_LEN);
 }
 
+void mndTransSetExecOneByOne(STrans *pTrans) { pTrans->parallel = TRN_EXEC_ONE_BY_ONE; }
+
 static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   SSdbRaw *pRaw = mndTransActionEncode(pTrans);
   if (pRaw == NULL) {
@@ -674,7 +680,7 @@ static int32_t mndTransSync(SMnode *pMnode, STrans *pTrans) {
   sdbSetRawStatus(pRaw, SDB_STATUS_READY);
 
   mDebug("trans:%d, sync to other nodes", pTrans->id);
-  int32_t code = mndSyncPropose(pMnode, pRaw);
+  int32_t code = mndSyncPropose(pMnode, pRaw, pTrans->id);
   if (code != 0) {
     mError("trans:%d, failed to sync since %s", pTrans->id, terrstr());
     sdbFreeRaw(pRaw);
@@ -970,7 +976,18 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
   for (int32_t action = 0; action < numOfActions; ++action) {
     STransAction *pAction = taosArrayGet(pArray, action);
     if (pAction == NULL) continue;
-    if (pAction->msgSent) continue;
+
+    if (pAction->msgSent) {
+      if (pAction->msgReceived) {
+        continue;
+      } else {
+        if (pTrans->parallel == TRN_EXEC_ONE_BY_ONE) {
+          break;
+        } else {
+          continue;
+        }
+      }
+    }
 
     int64_t signature = pTrans->id;
     signature = (signature << 32);
@@ -990,6 +1007,9 @@ static int32_t mndTransSendActionMsg(SMnode *pMnode, STrans *pTrans, SArray *pAr
       pAction->msgSent = 1;
       pAction->msgReceived = 0;
       pAction->errCode = 0;
+      if (pTrans->parallel == TRN_EXEC_ONE_BY_ONE) {
+        break;
+      }
     } else {
       pAction->msgSent = 0;
       pAction->msgReceived = 0;
