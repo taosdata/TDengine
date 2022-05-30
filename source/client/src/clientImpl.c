@@ -983,11 +983,23 @@ static char* parseTagDatatoJson(void* p) {
     goto end;
   }
 
-  int16_t nCols = kvRowNCols(p);
+  SArray* pTagVals = NULL;
+  if (tTagToValArray((const STag*)p, &pTagVals) != 0) {
+    goto end;
+  }
+
+  int16_t nCols = taosArrayGetSize(pTagVals);
   char    tagJsonKey[256] = {0};
   for (int j = 0; j < nCols; ++j) {
-    SColIdx* pColIdx = kvRowColIdxAt(p, j);
-    char*    val = (char*)(kvRowColVal(p, pColIdx));
+    STagVal* pTagVal = (STagVal*)taosArrayGet(pTagVals, j);
+
+    // JSON_TAG_REFACTOR
+    pTagVal->nData; 
+    pTagVal->pData; // for varChar, len not included
+    // TODO: adapt below code;
+    char* val = (char*)pTagVal->pData;
+    // TODO: adapt below code;
+
     if (j == 0) {
       if (*val == TSDB_DATA_TYPE_NULL) {
         string = taosMemoryCalloc(1, 8);

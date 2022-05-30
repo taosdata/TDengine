@@ -530,6 +530,24 @@ static FORCE_INLINE int32_t tPutI64(uint8_t* p, int64_t v) {
   return sizeof(int64_t);
 }
 
+static FORCE_INLINE int32_t tPutFloat(uint8_t* p, float f) {
+  union {
+    uint32_t ui;
+    float    f;
+  } v = {.f = f};
+
+  return tPutU32(p, v.ui);
+}
+
+static FORCE_INLINE int32_t tPutDouble(uint8_t* p, double d) {
+  union {
+    uint64_t ui;
+    double   d;
+  } v = {.d = d};
+
+  return tPutU64(p, v.ui);
+}
+
 static FORCE_INLINE int32_t tPutU16v(uint8_t* p, uint16_t v) { tPutV(p, v); }
 
 static FORCE_INLINE int32_t tPutI16v(uint8_t* p, int16_t v) { return tPutU16v(p, ZIGZAGE(int16_t, v)); }
@@ -616,6 +634,34 @@ static FORCE_INLINE int32_t tGetI64v(uint8_t* p, int64_t* v) {
   n = tGetU64v(p, &tv);
   if (v) *v = ZIGZAGD(int64_t, tv);
 
+  return n;
+}
+
+static FORCE_INLINE int32_t tGetFloat(uint8_t* p, float* f) {
+  int32_t n = 0;
+
+  union {
+    uint32_t ui;
+    float    f;
+  } v;
+
+  n = tGetU32(p, &v.ui);
+
+  *f = v.f;
+  return n;
+}
+
+static FORCE_INLINE int32_t tGetDouble(uint8_t* p, double* d) {
+  int32_t n = 0;
+
+  union {
+    uint64_t ui;
+    double   d;
+  } v;
+
+  n = tGetU64(p, &v.ui);
+
+  *d = v.d;
   return n;
 }
 

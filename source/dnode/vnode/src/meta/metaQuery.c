@@ -575,5 +575,7 @@ SArray *metaGetSmaTbUids(SMeta *pMeta) {
 
 const void *metaGetTableTagVal(SMetaEntry *pEntry, int16_t cid) {
   ASSERT(pEntry->type == TSDB_CHILD_TABLE);
-  return tdGetKVRowValOfCol((const SKVRow)pEntry->ctbEntry.pTags, cid);
+  STagVal tagVal = {.cid = cid};
+  tTagGet((const STag *)pEntry->ctbEntry.pTags, &tagVal);
+  return tagVal.pData;
 }

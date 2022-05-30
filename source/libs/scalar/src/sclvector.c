@@ -922,8 +922,13 @@ static void doReleaseVec(SColumnInfoData* pCol, int32_t type) {
   }
 }
 
-char *getJsonValue(char *json, char *key){      //todo
-  json++;     // jump type
+char *getJsonValue(char *json, char *key) {  // todo
+  json++;                                    // jump type
+
+  STagVal tagVal = {.pKey = key};
+  tTagGet(((const STag *)json), &tagVal);
+  return (char *)tagVal.pData;
+#if 0
   int16_t cols = kvRowNCols(json);
   for (int i = 0; i < cols; ++i) {
     SColIdx *pColIdx = kvRowColIdxAt(json, i);
@@ -939,6 +944,7 @@ char *getJsonValue(char *json, char *key){      //todo
     }
   }
   return NULL;
+#endif
 }
 
 void vectorJsonArrow(SScalarParam* pLeft, SScalarParam* pRight, SScalarParam *pOut, int32_t _ord) {

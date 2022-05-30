@@ -313,17 +313,17 @@ void addTagPseudoColumnData(SReadHandle *pHandle, SExprInfo* pPseudoExpr, int32_
     } else {  // these are tags
       const char* p = NULL;
       if (pColInfoData->info.type == TSDB_DATA_TYPE_JSON) {
-        const uint8_t* tmp = mr.me.ctbEntry.pTags;
+        const STag* tmp = (const STag*)mr.me.ctbEntry.pTags;
 
-        char* data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+        char* data = taosMemoryCalloc(tmp->len + 1, 1);
         if (data == NULL) {
           metaReaderClear(&mr);
-          qError("doTagScan calloc error:%d", kvRowLen(tmp) + 1);
+          qError("doTagScan calloc error:%d", tmp->len + 1);
           return;
         }
 
         *data = TSDB_DATA_TYPE_JSON;
-        memcpy(data + 1, tmp, kvRowLen(tmp));
+        memcpy(data + 1, tmp, tmp->len);
         p = data;
       } else {
         p = metaGetTableTagVal(&mr.me, pExpr->base.pParam[0].pCol->colId);
@@ -1584,16 +1584,16 @@ static SSDataBlock* doTagScan(SOperatorInfo* pOperator) {
         colDataAppend(pDst, count, str, false);
       } else {  // it is a tag value
         if (pDst->info.type == TSDB_DATA_TYPE_JSON) {
-          const uint8_t* tmp = mr.me.ctbEntry.pTags;
+          const STag* tmp = (const STag*)mr.me.ctbEntry.pTags;
           // TODO opt perf by realloc memory
-          char* data = taosMemoryCalloc(kvRowLen(tmp) + 1, 1);
+          char* data = taosMemoryCalloc(tmp->len + 1, 1);
           if (data == NULL) {
-            qError("%s failed to malloc memory, size:%d", GET_TASKID(pTaskInfo), kvRowLen(tmp) + 1);
+            qError("%s failed to malloc memory, size:%d", GET_TASKID(pTaskInfo), tmp->len + 1);
             longjmp(pTaskInfo->env, TSDB_CODE_OUT_OF_MEMORY);
           }
 
           *data = TSDB_DATA_TYPE_JSON;
-          memcpy(data + 1, tmp, kvRowLen(tmp));
+          memcpy(data + 1, tmp, tmp->len);
           colDataAppend(pDst, count, data, false);
           taosMemoryFree(data);
         } else {
@@ -1628,8 +1628,8 @@ static void destroyTagScanOperatorInfo(void* param, int32_t numOfOutput) {
 }
 
 SOperatorInfo* createTagScanOperatorInfo(SReadHandle* pReadHandle, SExprInfo* pExpr, int32_t numOfOutput,
-                                         SSDataBlock* pResBlock, SArray* pColMatchInfo,
-                                         STableListInfo* pTableListInfo, SExecTaskInfo* pTaskInfo) {
+                                         SSDataBlock* pResBlock, SArray* pColMatchInfo, STableListInfo* pTableListInfo,
+                                         SExecTaskInfo* pTaskInfo) {
   STagScanInfo*  pInfo = taosMemoryCalloc(1, sizeof(STagScanInfo));
   SOperatorInfo* pOperator = taosMemoryCalloc(1, sizeof(SOperatorInfo));
   if (pInfo == NULL || pOperator == NULL) {
