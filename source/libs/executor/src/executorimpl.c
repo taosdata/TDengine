@@ -2767,7 +2767,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
       code = setSDataBlockFromFetchRsp(pExchangeInfo->pResult, pLoadInfo, pTableRsp->numOfRows, pTableRsp->data,
                                        pTableRsp->compLen, pTableRsp->numOfCols, startTs, &pDataInfo->totalRows, NULL);
       if (code != 0) {
-        taosMemoryFreeClear(pDataInfo->pRsp);      
+        taosMemoryFreeClear(pDataInfo->pRsp);
         goto _error;
       }
 
@@ -2788,7 +2788,7 @@ static SSDataBlock* concurrentlyLoadRemoteDataImpl(SOperatorInfo* pOperator, SEx
         pDataInfo->status = EX_SOURCE_DATA_NOT_READY;
         code = doSendFetchDataRequest(pExchangeInfo, pTaskInfo, i);
         if (code != TSDB_CODE_SUCCESS) {
-          taosMemoryFreeClear(pDataInfo->pRsp);        
+          taosMemoryFreeClear(pDataInfo->pRsp);
           goto _error;
         }
       }
@@ -2895,7 +2895,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
              pDataInfo->totalRows, pLoadInfo->totalRows);
 
       pDataInfo->status = EX_SOURCE_DATA_EXHAUSTED;
-      pExchangeInfo->current += 1;      
+      pExchangeInfo->current += 1;
       taosMemoryFreeClear(pDataInfo->pRsp);
       continue;
     }
@@ -2922,7 +2922,7 @@ static SSDataBlock* seqLoadRemoteData(SOperatorInfo* pOperator) {
     }
 
     pOperator->resultInfo.totalRows += pRes->info.rows;
-    taosMemoryFreeClear(pDataInfo->pRsp);    
+    taosMemoryFreeClear(pDataInfo->pRsp);
     return pExchangeInfo->pResult;
   }
 }
@@ -3384,7 +3384,7 @@ int32_t getTableScanInfo(SOperatorInfo* pOperator, int32_t* order, int32_t* scan
   // todo add more information about exchange operation
   int32_t type = pOperator->operatorType;
   if (type == QUERY_NODE_PHYSICAL_PLAN_EXCHANGE || type == QUERY_NODE_PHYSICAL_PLAN_SYSTABLE_SCAN ||
-      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN) {
+      type == QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN || type == QUERY_NODE_PHYSICAL_PLAN_TAG_SCAN) {
     *order = TSDB_ORDER_ASC;
     *scanFlag = MAIN_SCAN;
     return TSDB_CODE_SUCCESS;
@@ -3499,14 +3499,15 @@ static SSDataBlock* getAggregateResult(SOperatorInfo* pOperator) {
 }
 
 int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* length) {
-  if(result == NULL || length == NULL){
+  if (result == NULL || length == NULL) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
-  SAggSupporter* pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
-  int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
-  size_t  keyLen = sizeof(uint64_t) * 2;  // estimate the key length
-  int32_t totalSize = sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
+  SAggSupporter*  pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
+  int32_t         size = taosHashGetSize(pSup->pResultRowHashTable);
+  size_t          keyLen = sizeof(uint64_t) * 2;  // estimate the key length
+  int32_t         totalSize =
+      sizeof(int32_t) + sizeof(int32_t) + size * (sizeof(int32_t) + keyLen + sizeof(int32_t) + pSup->resultRowSize);
 
   *result = (char*)taosMemoryCalloc(1, totalSize);
   if (*result == NULL) {
@@ -3568,11 +3569,11 @@ int32_t aggEncodeResultRow(SOperatorInfo* pOperator, char** result, int32_t* len
 }
 
 int32_t aggDecodeResultRow(SOperatorInfo* pOperator, char* result) {
-  if(result == NULL){
+  if (result == NULL) {
     return TSDB_CODE_TSC_INVALID_INPUT;
   }
   SOptrBasicInfo* pInfo = (SOptrBasicInfo*)(pOperator->info);
-  SAggSupporter* pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
+  SAggSupporter*  pSup = (SAggSupporter*)POINTER_SHIFT(pOperator->info, sizeof(SOptrBasicInfo));
 
   //  int32_t size = taosHashGetSize(pSup->pResultRowHashTable);
   int32_t length = *(int32_t*)(result);
@@ -4512,8 +4513,8 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
     } else if (QUERY_NODE_PHYSICAL_PLAN_STREAM_SCAN == type) {
       SScanPhysiNode*      pScanPhyNode = (SScanPhysiNode*)pPhyNode;  // simple child table.
       STableScanPhysiNode* pTableScanNode = (STableScanPhysiNode*)pPhyNode;
-      STimeWindowAggSupp twSup = {.waterMark = pTableScanNode->watermark,
-          .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
+      STimeWindowAggSupp   twSup = {
+            .waterMark = pTableScanNode->watermark, .calTrigger = pTableScanNode->triggerType, .maxTs = INT64_MIN};
       tsdbReaderT pDataReader = NULL;
       if (pHandle->vnode) {
         pDataReader = doCreateDataReader(pTableScanNode, pHandle, pTableListInfo, (uint64_t)queryId, taskId, pTagCond);
@@ -4527,9 +4528,9 @@ SOperatorInfo* createOperatorTree(SPhysiNode* pPhyNode, SExecTaskInfo* pTaskInfo
       } else {
         qDebug("%s pDataReader is not NULL", GET_TASKID(pTaskInfo));
       }
-      SArray* tableIdList = extractTableIdList(pTableListInfo);
-      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle,
-          tableIdList, pTableScanNode, pTaskInfo, &twSup, pTableScanNode->tsColId);
+      SArray*        tableIdList = extractTableIdList(pTableListInfo);
+      SOperatorInfo* pOperator = createStreamScanOperatorInfo(pDataReader, pHandle, tableIdList, pTableScanNode,
+                                                              pTaskInfo, &twSup, pTableScanNode->tsColId);
 
       taosArrayDestroy(tableIdList);
       return pOperator;
@@ -4996,25 +4997,25 @@ _error:
   return NULL;
 }
 
-int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t *length){
+int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t* length) {
   int32_t code = TDB_CODE_SUCCESS;
-  char *pCurrent = NULL;
+  char*   pCurrent = NULL;
   int32_t currLength = 0;
-  if(ops->fpSet.encodeResultRow){
-    if(result == NULL || length == NULL){
+  if (ops->fpSet.encodeResultRow) {
+    if (result == NULL || length == NULL) {
       return TSDB_CODE_TSC_INVALID_INPUT;
     }
     code = ops->fpSet.encodeResultRow(ops, &pCurrent, &currLength);
 
-    if(code != TDB_CODE_SUCCESS){
-      if(*result != NULL){
+    if (code != TDB_CODE_SUCCESS) {
+      if (*result != NULL) {
         taosMemoryFree(*result);
         *result = NULL;
       }
       return code;
     }
 
-    if(*result == NULL){
+    if (*result == NULL) {
       *result = (char*)taosMemoryCalloc(1, currLength + sizeof(int32_t));
       if (*result == NULL) {
         taosMemoryFree(pCurrent);
@@ -5022,9 +5023,9 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t *length){
       }
       memcpy(*result + sizeof(int32_t), pCurrent, currLength);
       *(int32_t*)(*result) = currLength + sizeof(int32_t);
-    }else{
+    } else {
       int32_t sizePre = *(int32_t*)(*result);
-      char* tmp = (char*)taosMemoryRealloc(*result, sizePre + currLength);
+      char*   tmp = (char*)taosMemoryRealloc(*result, sizePre + currLength);
       if (tmp == NULL) {
         taosMemoryFree(pCurrent);
         taosMemoryFree(*result);
@@ -5041,33 +5042,33 @@ int32_t encodeOperator(SOperatorInfo* ops, char** result, int32_t *length){
 
   for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
     code = encodeOperator(ops->pDownstream[i], result, length);
-    if(code != TDB_CODE_SUCCESS){
+    if (code != TDB_CODE_SUCCESS) {
       return code;
     }
   }
   return TDB_CODE_SUCCESS;
 }
 
-int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length){
+int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length) {
   int32_t code = TDB_CODE_SUCCESS;
-  if(ops->fpSet.decodeResultRow){
-    if(result == NULL){
+  if (ops->fpSet.decodeResultRow) {
+    if (result == NULL) {
       return TSDB_CODE_TSC_INVALID_INPUT;
     }
     ASSERT(length == *(int32_t*)result);
     char* data = result + sizeof(int32_t);
     code = ops->fpSet.decodeResultRow(ops, data);
-    if(code != TDB_CODE_SUCCESS){
+    if (code != TDB_CODE_SUCCESS) {
       return code;
     }
 
     int32_t totalLength = *(int32_t*)result;
     int32_t dataLength = *(int32_t*)data;
 
-    if(totalLength == dataLength + sizeof(int32_t)) { // the last data
+    if (totalLength == dataLength + sizeof(int32_t)) {  // the last data
       result = NULL;
       length = 0;
-    }else{
+    } else {
       result += dataLength;
       *(int32_t*)(result) = totalLength - dataLength;
       length = totalLength - dataLength;
@@ -5076,7 +5077,7 @@ int32_t decodeOperator(SOperatorInfo* ops, char* result, int32_t length){
 
   for (int32_t i = 0; i < ops->numOfDownstream; ++i) {
     code = decodeOperator(ops->pDownstream[i], result, length);
-    if(code != TDB_CODE_SUCCESS){
+    if (code != TDB_CODE_SUCCESS) {
       return code;
     }
   }
