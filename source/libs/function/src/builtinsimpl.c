@@ -3946,7 +3946,6 @@ int32_t uniqueFinalize(SqlFunctionCtx* pCtx, SSDataBlock* pBlock) {
 
 typedef struct STwaInfo {
   double      dOutput;
-  int8_t      hasResult;  // flag to denote has value
   SPoint1     p;
   STimeWindow win;
 } STwaInfo;
@@ -3977,28 +3976,25 @@ static double twa_get_area(SPoint1 s, SPoint1 e) {
   return val;
 }
 
+#define INIT_INTP_POINT(_p, _k, _v) \
+  do {                           \
+    (_p).key = (_k);             \
+    (_p).val = (_v);             \
+  } while (0)
+
 int32_t twaFunction(SqlFunctionCtx* pCtx) {
   SInputColumnInfoData* pInput = &pCtx->input;
   SColumnInfoData* pInputCol = pInput->pData[0];
-
-  int32_t numOfElems = 0;
 
   TSKEY* tsList = (int64_t*)pInput->pPTS->pData;
 
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = GET_ROWCELL_INTERBUF(pResInfo);
+  SPoint1  *last = &pInfo->p;
+  int32_t   numOfElems = 0;
 
-  SPoint1* last = &pInfo->p;
-
-  int32_t step = 1;//GET_FORWARD_DIRECTION_FACTOR(pCtx->order);
   int32_t i = pInput->startRowIndex;
-  for (i = pInput->startRowIndex; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
-    if (!colDataIsNull_f(pInputCol->nullbitmap, i)) {
-      break;
-    }
-  }
-
   if (pCtx->start.key != INT64_MIN) {
     ASSERT((pCtx->start.key < tsList[i] && pCtx->order == TSDB_ORDER_ASC) ||
            (pCtx->start.key > tsList[i] && pCtx->order == TSDB_ORDER_DESC));
@@ -4009,37 +4005,30 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
 
     pInfo->dOutput += twa_get_area(pCtx->start, *last);
-
-    pInfo->hasResult = DATA_SET_FLAG;
     pInfo->win.skey = pCtx->start.key;
     numOfElems++;
-    i += step;
+    i += 1;
   } else if (pInfo->p.key == INT64_MIN) {
     last->key = tsList[i];
     GET_TYPED_DATA(last->val, double, pInputCol->info.type, colDataGetData(pInputCol, i));
 
-    pInfo->hasResult = DATA_SET_FLAG;
     pInfo->win.skey = last->key;
     numOfElems++;
-    i += step;
+    i += 1;
   }
+
+  SPoint1 st = {0};
 
   // calculate the value of
   switch(pInputCol->info.type) {
     case TSDB_DATA_TYPE_TINYINT: {
       int8_t *val = (int8_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4048,18 +4037,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
     case TSDB_DATA_TYPE_SMALLINT: {
       int16_t *val = (int16_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4067,18 +4050,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_INT: {
       int32_t *val = (int32_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4086,18 +4063,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_BIGINT: {
       int64_t *val = (int64_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = (double)val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4105,18 +4076,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_FLOAT: {
       float *val = (float*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = (double)val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4124,18 +4089,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_DOUBLE: {
       double *val = (double*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4143,18 +4102,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_UTINYINT: {
       uint8_t *val = (uint8_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4162,18 +4115,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_USMALLINT: {
       uint16_t *val = (uint16_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4181,18 +4128,12 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_UINT: {
       uint32_t *val = (uint32_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
@@ -4200,25 +4141,19 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
     }
     case TSDB_DATA_TYPE_UBIGINT: {
       uint64_t *val = (uint64_t*) colDataGetData(pInputCol, 0);
-      for (; i < pInput->numOfRows + pInput->startRowIndex; i += step) {
+      for (; i < pInput->numOfRows + pInput->startRowIndex; i += 1) {
         if (colDataIsNull_f(pInputCol->nullbitmap, i)) {
           continue;
         }
 
-#ifndef _TD_NINGSI_60
-        SPoint1 st = {.key = tsList[i], .val = (double) val[i]};
-#else
-        SPoint1 st;
-        st.key = tsList[i];
-        st.val = (double) val[i];
-#endif
+        INIT_INTP_POINT(st, tsList[i], val[i]);
         pInfo->dOutput += twa_get_area(pInfo->p, st);
         pInfo->p = st;
       }
       break;
     }
 
-    default: assert(0);
+    default: ASSERT(0);
   }
 
   // the last interpolated time window value
@@ -4229,7 +4164,7 @@ int32_t twaFunction(SqlFunctionCtx* pCtx) {
 
   pInfo->win.ekey  = pInfo->p.key;
 
-  SET_VAL(GET_RES_INFO(pCtx), numOfElems, 1);
+  SET_VAL(pResInfo, numOfElems, 1);
   return TSDB_CODE_SUCCESS;
 }
 
@@ -4250,7 +4185,7 @@ int32_t twaFinalize(struct SqlFunctionCtx *pCtx, SSDataBlock* pBlock) {
   SResultRowEntryInfo *pResInfo = GET_RES_INFO(pCtx);
 
   STwaInfo *pInfo = (STwaInfo *)GET_ROWCELL_INTERBUF(pResInfo);
-  if (pInfo->hasResult != DATA_SET_FLAG) {
+  if (pResInfo->numOfRes == 0) {
     pResInfo->isNullRes = 1;
   } else {
     //  assert(pInfo->win.ekey == pInfo->p.key && pInfo->hasResult == pResInfo->hasResult);

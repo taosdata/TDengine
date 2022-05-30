@@ -345,6 +345,8 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
     // In case of group by column query, the required SResultRow object must be existInCurrentResusltRowInfo in the
     // pResultRowInfo object.
     if (p1 != NULL) {
+
+      // todo
       pResult = getResultRowByPos(pResultBuf, p1);
       ASSERT(pResult->pageId == p1->pageId && pResult->offset == p1->offset);
     }
@@ -353,11 +355,9 @@ SResultRow* doSetResultOutBufByKey(SDiskbasedBuf* pResultBuf, SResultRowInfo* pR
   // 1. close current opened time window
   if (pResultRowInfo->cur.pageId != -1 && ((pResult == NULL) || (pResult->pageId != pResultRowInfo->cur.pageId &&
                                                                  pResult->offset != pResultRowInfo->cur.offset))) {
-    // todo extract function
     SResultRowPosition pos = pResultRowInfo->cur;
-    SFilePage*         pPage = getBufPage(pResultBuf, pos.pageId);
-    SResultRow*        pRow = (SResultRow*)((char*)pPage + pos.offset);
-    closeResultRow(pRow);
+    SFilePage*
+    pPage = getBufPage(pResultBuf, pos.pageId);
     releaseBufPage(pResultBuf, pPage);
   }
 
@@ -552,11 +552,13 @@ void initExecTimeWindowInfo(SColumnInfoData* pColData, STimeWindow* pQueryWindow
   colDataAppendInt64(pColData, 4, &pQueryWindow->ekey);
 }
 
+
 void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow* pWin,
                       SColumnInfoData* pTimeWindowData, int32_t offset, int32_t forwardStep, TSKEY* tsCol,
                       int32_t numOfTotal, int32_t numOfOutput, int32_t order) {
   for (int32_t k = 0; k < numOfOutput; ++k) {
     // keep it temporarily
+    // todo no need this??
     bool    hasAgg = pCtx[k].input.colDataAggIsSet;
     int32_t numOfRows = pCtx[k].input.numOfRows;
     int32_t startOffset = pCtx[k].input.startRowIndex;
@@ -576,7 +578,8 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
 
     if (fmIsWindowPseudoColumnFunc(pCtx[k].functionId)) {
       SResultRowEntryInfo* pEntryInfo = GET_RES_INFO(&pCtx[k]);
-      char*                p = GET_ROWCELL_INTERBUF(pEntryInfo);
+
+      char* p = GET_ROWCELL_INTERBUF(pEntryInfo);
 
       SColumnInfoData idata = {0};
       idata.info.type = TSDB_DATA_TYPE_BIGINT;
@@ -587,22 +590,23 @@ void doApplyFunctions(SExecTaskInfo* taskInfo, SqlFunctionCtx* pCtx, STimeWindow
       SScalarParam tw = {.numOfRows = 5, .columnData = pTimeWindowData};
       pCtx[k].sfp.process(&tw, 1, &out);
       pEntryInfo->numOfRes = 1;
-      continue;
-    }
-    int32_t code = TSDB_CODE_SUCCESS;
-    if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
-      code = pCtx[k].fpSet.process(&pCtx[k]);
-      if (code != TSDB_CODE_SUCCESS) {
-        qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
-        taskInfo->code = code;
-        longjmp(taskInfo->env, code);
-      }
-    }
+    } else {
+      int32_t code = TSDB_CODE_SUCCESS;
+      if (functionNeedToExecute(&pCtx[k]) && pCtx[k].fpSet.process != NULL) {
+        code = pCtx[k].fpSet.process(&pCtx[k]);
 
-    // restore it
-    pCtx[k].input.colDataAggIsSet = hasAgg;
-    pCtx[k].input.startRowIndex = startOffset;
-    pCtx[k].input.numOfRows = numOfRows;
+        if (code != TSDB_CODE_SUCCESS) {
+          qError("%s apply functions error, code: %s", GET_TASKID(taskInfo), tstrerror(code));
+          taskInfo->code = code;
+          longjmp(taskInfo->env, code);
+        }
+      }
+
+      // restore it
+      pCtx[k].input.colDataAggIsSet = hasAgg;
+      pCtx[k].input.startRowIndex = startOffset;
+      pCtx[k].input.numOfRows = numOfRows;
+    }
   }
 }
 
@@ -741,12 +745,14 @@ static int32_t doAggregateImpl(SOperatorInfo* pOperator, TSKEY startTs, SqlFunct
   for (int32_t k = 0; k < pOperator->numOfExprs; ++k) {
     if (functionNeedToExecute(&pCtx[k])) {
       // todo add a dummy funtion to avoid process check
-      if (pCtx[k].fpSet.process != NULL) {
-        int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
-        if (code != TSDB_CODE_SUCCESS) {
-          qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
-          return code;
-        }
+      if (pCtx[k].fpSet.process == NULL) {
+        continue;
+      }
+
+      int32_t code = pCtx[k].fpSet.process(&pCtx[k]);
+      if (code != TSDB_CODE_SUCCESS) {
+        qError("%s aggregate function error happens, code: %s", GET_TASKID(pOperator->pTaskInfo), tstrerror(code));
+        return code;
       }
     }
   }

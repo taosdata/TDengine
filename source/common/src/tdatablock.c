@@ -354,14 +354,19 @@ int32_t blockDataUpdateTsWindow(SSDataBlock* pDataBlock, int32_t tsColumnIndex) 
     return -1;
   }
 
-  int32_t          index = (tsColumnIndex == -1) ? 0 : tsColumnIndex;
+  int32_t index = (tsColumnIndex == -1) ? 0 : tsColumnIndex;
+
   SColumnInfoData* pColInfoData = taosArrayGet(pDataBlock->pDataBlock, index);
   if (pColInfoData->info.type != TSDB_DATA_TYPE_TIMESTAMP) {
     return 0;
   }
 
-  pDataBlock->info.window.skey = *(TSKEY*)colDataGetData(pColInfoData, 0);
-  pDataBlock->info.window.ekey = *(TSKEY*)colDataGetData(pColInfoData, (pDataBlock->info.rows - 1));
+  TSKEY skey = *(TSKEY*)colDataGetData(pColInfoData, 0);
+  TSKEY ekey = *(TSKEY*)colDataGetData(pColInfoData, (pDataBlock->info.rows - 1));
+
+  pDataBlock->info.window.skey = TMIN(skey, ekey);
+  pDataBlock->info.window.ekey = TMAX(skey, ekey);
+
   return 0;
 }
 

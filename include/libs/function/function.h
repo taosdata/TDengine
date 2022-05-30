@@ -61,9 +61,6 @@ typedef struct SFileBlockInfo {
 #define TSDB_BLOCK_DIST_STEP_ROWS 8
 #define MAX_INTERVAL_TIME_WINDOW  1000000  // maximum allowed time windows in final results
 
-#define FUNCTION_TYPE_SCALAR       1
-#define FUNCTION_TYPE_AGG          2
-
 #define TOP_BOTTOM_QUERY_LIMIT    100
 #define FUNCTIONS_NAME_MAX_LENGTH 16
 
@@ -165,9 +162,6 @@ enum {
 typedef struct tExprNode {
   int32_t nodeType;
   union {
-    SSchema            *pSchema;// column node
-    struct SVariant    *pVal;   // value node
-
     struct {// function node
       char              functionName[FUNCTIONS_NAME_MAX_LENGTH];  // todo refactor
       int32_t           functionId;
@@ -210,46 +204,22 @@ struct SScalarParam {
 int32_t getResultDataInfo(int32_t dataType, int32_t dataBytes, int32_t functionId, int32_t param, SResultDataInfo* pInfo, int16_t extLength,
                           bool isSuperTable);
 
-bool qIsValidUdf(SArray* pUdfInfo, const char* name, int32_t len, int32_t* functionId);
-
 void resetResultRowEntryResult(SqlFunctionCtx* pCtx, int32_t num);
 void cleanupResultRowEntry(struct SResultRowEntryInfo* pCell);
 int32_t getNumOfResult(SqlFunctionCtx* pCtx, int32_t num, SSDataBlock* pResBlock);
 bool isRowEntryCompleted(struct SResultRowEntryInfo* pEntry);
 bool isRowEntryInitialized(struct SResultRowEntryInfo* pEntry);
 
-///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// fill api
-struct SFillInfo;
-struct SFillColInfo;
-
 typedef struct SPoint {
   int64_t key;
   void *  val;
 } SPoint;
-
-//void taosFillSetStartInfo(struct SFillInfo* pFillInfo, int32_t numOfRows, TSKEY endKey);
-//void taosResetFillInfo(struct SFillInfo* pFillInfo, TSKEY startTimestamp);
-//void taosFillSetInputDataBlock(struct SFillInfo* pFillInfo, const struct SSDataBlock* pInput);
-//struct SFillColInfo* createFillColInfo(SExprInfo* pExpr, int32_t numOfOutput, const SValueNode* val);
-//bool taosFillHasMoreResults(struct SFillInfo* pFillInfo);
-//
-//struct SFillInfo* taosCreateFillInfo(int32_t order, TSKEY skey, int32_t numOfTags, int32_t capacity, int32_t numOfCols,
-//                                     SInterval* pInterval, int32_t fillType,
-//                                     struct SFillColInfo* pCol, const char* id);
-//
-//void* taosDestroyFillInfo(struct SFillInfo *pFillInfo);
-//int64_t taosFillResultDataBlock(struct SFillInfo* pFillInfo, void** output, int32_t capacity);
-//int64_t getFillInfoStart(struct SFillInfo *pFillInfo);
 
 int32_t taosGetLinearInterpolationVal(SPoint* point, int32_t outputType, SPoint* point1, SPoint* point2, int32_t inputType);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // udf api
 struct SUdfInfo;
-
-void qAddUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
-void qRemoveUdfInfo(uint64_t id, struct SUdfInfo* pUdfInfo);
 
 /**
  * create udfd proxy, called once in process that call doSetupUdf/callUdfxxx/doTeardownUdf

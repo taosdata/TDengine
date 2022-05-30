@@ -101,20 +101,8 @@ void resetResultRowInfo(STaskRuntimeEnv *pRuntimeEnv, SResultRowInfo *pResultRow
   pResultRowInfo->size     = 0;
 }
 
-int32_t numOfClosedResultRows(SResultRowInfo *pResultRowInfo) {
-  int32_t i = 0;
-//  while (i < pResultRowInfo->size && pResultRowInfo->pResult[i]->closed) {
-//    ++i;
-//  }
-  
-  return i;
-}
-
 void closeAllResultRows(SResultRowInfo *pResultRowInfo) {
-  assert(pResultRowInfo->size >= 0 && pResultRowInfo->capacity >= pResultRowInfo->size);
-  
-  for (int32_t i = 0; i < pResultRowInfo->size; ++i) {
-  }
+// do nothing
 }
 
 bool isResultRowClosed(SResultRow* pRow) {
