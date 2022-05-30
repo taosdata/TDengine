@@ -97,6 +97,8 @@ class TDTestCase:
                 query_conditon = query_conditon[4:-1]
             elif query_conditon.startswith("min"):
                 query_conditon = query_conditon[4:-1]
+            elif query_conditon.startswith("avg"):
+                query_conditon = query_conditon[4:-1]
 
         if query_conditon:
             return f" where {query_conditon} is not null"
