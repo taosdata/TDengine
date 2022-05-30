@@ -88,7 +88,7 @@ typedef struct SReConfigCbMeta {
 } SReConfigCbMeta;
 
 typedef struct SSnapshot {
-  void *data;
+  void*     data;
   SyncIndex lastApplyIndex;
   SyncTerm  lastApplyTerm;
 } SSnapshot;
@@ -145,6 +145,7 @@ typedef struct SSyncLogStore {
 
 typedef struct SSyncInfo {
   bool        isStandBy;
+  bool        snapshotEnable;
   SyncGroupId vgId;
   SSyncCfg    syncCfg;
   char        path[TSDB_FILENAME_LEN];

@@ -71,7 +71,10 @@ void test3() {
   if (taosCheckExistFile(s)) {
     printf("%s file: %s already exist! \n", (char*)__FUNCTION__, s);
   } else {
-    raftCfgCreateFile(pCfg, 7, s);
+    SRaftCfgMeta meta;
+    meta.isStandBy = 7;
+    meta.snapshotEnable = 9;
+    raftCfgCreateFile(pCfg, meta, s);
     printf("%s create json file: %s \n", (char*)__FUNCTION__, s);
   }
 
@@ -94,6 +97,7 @@ void test5() {
 
   pCfg->cfg.myIndex = taosGetTimestampSec();
   pCfg->isStandBy += 2;
+  pCfg->snapshotEnable += 3;
   raftCfgPersist(pCfg);
 
   printf("%s update json file: %s myIndex->%d \n", (char*)__FUNCTION__, "./test3_raft_cfg.json", pCfg->cfg.myIndex);

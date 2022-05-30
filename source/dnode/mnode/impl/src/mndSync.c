@@ -146,6 +146,7 @@ int32_t mndInitSync(SMnode *pMnode) {
   syncInfo.pWal = pMgmt->pWal;
   syncInfo.pFsm = mndSyncMakeFsm(pMnode);
   syncInfo.isStandBy = pMgmt->standby;
+  syncInfo.snapshotEnable = true;
 
   SSyncCfg *pCfg = &syncInfo.syncCfg;
   pCfg->replicaNum = pMnode->replica;

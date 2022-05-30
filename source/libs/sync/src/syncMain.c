@@ -411,8 +411,11 @@ SSyncNode* syncNodeOpen(const SSyncInfo* pOldSyncInfo) {
 
   snprintf(pSyncNode->configPath, sizeof(pSyncNode->configPath), "%s/raft_config.json", pSyncInfo->path);
   if (!taosCheckExistFile(pSyncNode->configPath)) {
-    // create raft config file
-    ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), pSyncInfo->isStandBy, pSyncNode->configPath);
+    // create a new raft config file
+    SRaftCfgMeta meta;
+    meta.isStandBy = pSyncInfo->isStandBy;
+    meta.snapshotEnable = pSyncInfo->snapshotEnable;
+    ret = raftCfgCreateFile((SSyncCfg*)&(pSyncInfo->syncCfg), meta, pSyncNode->configPath);
     assert(ret == 0);
 
   } else {

@@ -49,6 +49,8 @@ int32_t syncNodeRequestVotePeers(SSyncNode* pSyncNode) {
   return ret;
 }
 
+int32_t syncNodeRequestVotePeersSnapshot(SSyncNode* pSyncNode) { return 0; }
+
 int32_t syncNodeElect(SSyncNode* pSyncNode) {
   int32_t ret = 0;
   if (pSyncNode->state == TAOS_SYNC_STATE_FOLLOWER) {

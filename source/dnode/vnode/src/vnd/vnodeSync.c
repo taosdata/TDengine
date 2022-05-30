@@ -26,6 +26,8 @@ static int32_t   vnodeSyncGetSnapshot(SSyncFSM *pFsm, SSnapshot *pSnapshot);
 
 int32_t vnodeSyncOpen(SVnode *pVnode, char *path) {
   SSyncInfo syncInfo = {
+      .isStandBy = false,
+      .snapshotEnable = false,
       .vgId = pVnode->config.vgId,
       .syncCfg = pVnode->config.syncCfg,
       .pWal = pVnode->pWal,
